@@ -67,6 +67,7 @@ After 1.0. Owns `src/name.c`, `src/name_internal.h`, `tests/name_test.c`.
 All of `name.h` (D31): interning with a hash index, well-known namespaces,
 find without interning, byte limit. Done when every function is tested with
 limit and allocation-failure loops. Spec: XDM 4.0 §5.6 (QNames).
+**Done** 2026-10-16 (D54).
 
 ### 1.2 Decimal arithmetic with libmpdec (implementation)
 After 1.0. Owns `third_party/mpdecimal/`, `third_party/mpdecimal.version`,
