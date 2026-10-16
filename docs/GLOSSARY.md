@@ -147,6 +147,21 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `test_suite` | The unit tests of one module: one test executable |
 | `test_case` | One named test function within a test suite |
 | `test_check` | One checked condition within a test case |
+| `qt4_driver` | The QT4 test-suite driver: the developer tool under `tests/qt4/driver/` that reads the QT4 catalog and runs its test cases (D44) |
+| `qt4_catalog` | The QT4 suite's `catalog.xml` as the driver holds it: its test-set entries and global environments |
+| `qt4_test_set` | One test-set file of the QT4 suite (`fn/abs.xml`): local environments, set dependencies and test cases |
+| `qt4_test_case` | One `<test-case>` of a QT4 test set: query, environment, dependencies, result (never `test_case`, which is a unit test) |
+| `qt4_environment` | The static and dynamic context a QT4 test case runs in: sources, parameters, namespaces, static base URI, resources, collections |
+| `qt4_source` | A document of a QT4 environment: the context item (`role="."`), an external variable (`role="$name"`) or a document available by URI |
+| `qt4_parameter` | A `<param>` of a QT4 environment: an external variable with a `select` expression and an optional declared type |
+| `qt4_resource` | A text resource of a QT4 environment, reached by URI (`fn:unparsed-text`, `fn:json-doc`) |
+| `qt4_collection` | A collection of a QT4 environment for `fn:collection`: sources, resources and queries under one URI |
+| `qt4_dependency` | A `<dependency type value satisfied>` of a QT4 test set or test case |
+| `qt4_target` | The language and version a driver run targets: XP40 or XQ40 |
+| `applicability` | Whether a QT4 test case can run for a target: its spec, its other dependencies and its environment are supported; otherwise the reason it is skipped |
+| `test_list` | A file naming QT4 test cases, one `<test-set> <test-case>` per line (`tests/qt4/torture-slice.txt`) |
+| `test_selection` | The QT4 test cases one driver run covers: a test list, one test set, or every test set |
+| `suite_path` | The path of a QT4 suite file relative to the directory of `catalog.xml`, with `.` and `..` segments removed |
 | `name_pool` | Per-processor table that interns namespace URIs, prefixes and expanded names into small identifiers |
 | `name_identifier` | Identifier of an interned expanded name (namespace URI plus local name) in a name pool |
 | `namespace_uri_identifier` | Identifier of an interned namespace URI; 0 is "no namespace" |
