@@ -280,6 +280,9 @@ function-name op partial-apply`; `map:contains entry for-each get keys merge
 put remove size`; `array:append flatten fold-left for-each get put size sort
 subarray`. Done when those slice lines pass as unit cases and
 `fold-right(1 to 1000000, ...)` uses constant C stack. Spec: F&O 4.0.
+**Done** 2026-10-16 (D79, D80): also the rest of F&O 4.0 sections 2.5
+(but fn:sort, D78), 13, 14.4 and 15.2 (but array:index-of), fn:op;
+`src/function_library_higher_order_internal.h` (shared resumable engines).
 
 ### 1.22 JSON, parse-xml and adaptive output (implementation)
 After 1.5, 1.13, 1.14. Owns `src/json.c`, `src/function_library_json.c`,
