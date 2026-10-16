@@ -1731,4 +1731,55 @@ a tree cursor (D71) that sends JSON events to a sink: one sink makes
 maps, arrays and atomic items on explicit stacks, the other sends tree
 builder events. `src/json_internal.h` is the interface.
 
+### D83. The QT4 driver: catalog and environments (packet 1.24)
+Recorded 2026-10-16. `tests/qt4/driver/`, the developer tool `sxml-qt4`
+on the CLI framework (D44), public API only.
+- **Reading**: catalog.xml and test-set files go through
+  `sxml_xml_parser_parse` into an arena tree (own name pool, type registry,
+  item heap) and are walked with the public node accessors; only elements
+  in the catalog namespace count. One catalog object (lifecycle quintet;
+  `load` makes the parts, `initialize` allocates nothing) keeps catalog.xml
+  and one open test set; a test case's views and arrays live until the
+  next `open_test_set` (a per-test-set arena). File paths are suite paths:
+  relative to catalog.xml's directory, dot segments removed (RFC 3986
+  5.2.4), so output is the same wherever the suite is and under WASI.
+- **Environments**: `ref` looks in the test set first, then the catalog;
+  an environment element without `ref` is inline even with a `name`
+  (`<environment name="empty"/>`); no element means absent. All children
+  of catalog-schema.xsd are read (sources, params with `as`, namespaces,
+  context item, static base URI with `#UNDEFINED`, resources, collections,
+  collations, decimal formats, schemas, function library, sandpit, modules).
+- **Applicability** (first failing rule is the skip reason): spec as
+  `tools/check-test-list.py` (case spec replaces set spec; every value
+  needs a matching token); every other dependency of set and case must be
+  satisfied as asked, satisfied meaning one of its tokens is in a table:
+  feature higherOrderFunctions and namespace-axis, xml-version 1.0 and
+  1.0:5+, xsd-version 1.1, limits big_integer and year_lt_0, language and
+  default-language en; then the environment: source validation, schema,
+  resource, collection, non-codepoint collation, decimal format, function
+  library, sandpit; then modules. The table grows with sxml.
+- **CLI**: `sxml-qt4 list [--catalog=FILE] [--spec=XP40|XQ40]
+  [--test-set=NAME] [TEST-LIST]` (default catalog
+  `third_party/qt4tests/catalog.xml`; neither selection means the whole
+  catalog; both is a usage error). Text blocks per test case, summary
+  line; problems on stderr, exit 1/3/4 as `sxml check`. Packet 1.25 adds
+  `run` with `assertion.c` and `report.c`; the library target globs the
+  directory, so it needs no CMake edit for new modules.
+- **Tests**: ctest `qt4_driver` (unit tests over in-memory files,
+  allocation-failure loop) and `qt4/*` golden tests over a small suite in
+  `tests/qt4/driver/input/` and the slice (`qt4/list_slice`: 198/198
+  resolve and apply to XP40).
+
 ## Proposed
+
+### P8. XML parser positions are quadratic in document size (from 1.24)
+`sxml_xml_parser_parse` computes each start-element location after the
+element's attribute locations, so the incremental position tracker of
+`src/xml_encoding.c` goes backwards and restarts from byte 0 for every
+element with attributes (`sxml_xml_send_header` in `src/xml.c` locates
+`tag_node` after `sxml_xml_resolve_attributes`). Parsing a QT4 test-set
+file is O(n^2): 91% of the driver's time is
+`sxml_xml_position_tracker_locate`; listing the 198 slice cases takes
+13 s in `release` and 160 s under ASan (`sxml check` sends no events and is
+fast). Fix (owner of 1.14's files): take the element's location before
+its attributes', or let the tracker keep the last start-tag checkpoint.
