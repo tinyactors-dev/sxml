@@ -1,0 +1,1660 @@
+============================================================
+XPath flow: For with positional variable
+============================================================
+
+for $x at $i in (1, 2), $y in 3 return $x + $y
+
+---
+
+(module
+  (main_module
+    (flwor_expression
+      (for_clause
+        (for_item_binding
+          (variable_name_and_type
+            (ncname))
+          (positional_variable
+            (ncname))
+          (parenthesized_expression
+            (sequence_expression
+              (integer_literal)
+              (integer_literal))))
+        (for_item_binding
+          (variable_name_and_type
+            (ncname))
+          (integer_literal)))
+      (return_clause
+        (additive_expression
+          (variable_reference
+            (ncname))
+          (variable_reference
+            (ncname)))))))
+
+============================================================
+XPath flow: For member and entry bindings
+============================================================
+
+for member $m in $array, key $k value $v in $map return ($m, $k, $v)
+
+---
+
+(module
+  (main_module
+    (flwor_expression
+      (for_clause
+        (for_member_binding
+          (variable_name_and_type
+            (ncname))
+          (variable_reference
+            (ncname)))
+        (for_entry_binding
+          (for_entry_key_binding
+            (variable_name_and_type
+              (ncname)))
+          (for_entry_value_binding
+            (variable_name_and_type
+              (ncname)))
+          (variable_reference
+            (ncname))))
+      (return_clause
+        (parenthesized_expression
+          (sequence_expression
+            (variable_reference
+              (ncname))
+            (variable_reference
+              (ncname))
+            (variable_reference
+              (ncname))))))))
+
+============================================================
+XPath flow: For key only and value only
+============================================================
+
+for key $k in $map, value $v in $map return 1
+
+---
+
+(module
+  (main_module
+    (flwor_expression
+      (for_clause
+        (for_entry_binding
+          (for_entry_key_binding
+            (variable_name_and_type
+              (ncname)))
+          (variable_reference
+            (ncname)))
+        (for_entry_binding
+          (for_entry_value_binding
+            (variable_name_and_type
+              (ncname)))
+          (variable_reference
+            (ncname))))
+      (return_clause
+        (integer_literal)))))
+
+============================================================
+XPath flow: Let bindings and destructuring
+============================================================
+
+let $a := 1, $($b, $c) := (2, 3), $[$d as xs:integer] := [4], ${$e} := {"e": 5} return $a
+
+---
+
+(module
+  (main_module
+    (flwor_expression
+      (let_clause
+        (let_value_binding
+          (variable_name_and_type
+            (ncname))
+          (integer_literal))
+        (let_sequence_binding
+          (variable_name_and_type
+            (ncname))
+          (variable_name_and_type
+            (ncname))
+          (parenthesized_expression
+            (sequence_expression
+              (integer_literal)
+              (integer_literal))))
+        (let_array_binding
+          (variable_name_and_type
+            (ncname)
+            (type_declaration
+              (sequence_type
+                (prefixed_name))))
+          (square_array_constructor
+            (integer_literal)))
+        (let_map_binding
+          (variable_name_and_type
+            (ncname))
+          (map_constructor
+            (map_constructor_entry
+              (string_literal)
+              (integer_literal)))))
+      (return_clause
+        (variable_reference
+          (ncname))))))
+
+============================================================
+XPath flow: For and let chains
+============================================================
+
+for $x in 1 let $y := $x for $z in $y return $z
+
+---
+
+(module
+  (main_module
+    (flwor_expression
+      (for_clause
+        (for_item_binding
+          (variable_name_and_type
+            (ncname))
+          (integer_literal)))
+      (let_clause
+        (let_value_binding
+          (variable_name_and_type
+            (ncname))
+          (variable_reference
+            (ncname))))
+      (for_clause
+        (for_item_binding
+          (variable_name_and_type
+            (ncname))
+          (variable_reference
+            (ncname))))
+      (return_clause
+        (variable_reference
+          (ncname))))))
+
+============================================================
+XPath flow: Quantified expressions
+============================================================
+
+some $x in (1, 2), $y as xs:integer in 3 satisfies $x = $y
+
+---
+
+(module
+  (main_module
+    (quantified_expression
+      (quantifier_binding
+        (variable_name_and_type
+          (ncname))
+        (parenthesized_expression
+          (sequence_expression
+            (integer_literal)
+            (integer_literal))))
+      (quantifier_binding
+        (variable_name_and_type
+          (ncname)
+          (type_declaration
+            (sequence_type
+              (prefixed_name))))
+        (integer_literal))
+      (comparison_expression
+        (variable_reference
+          (ncname))
+        (variable_reference
+          (ncname))))))
+
+============================================================
+XPath flow: Every
+============================================================
+
+every $x in () satisfies false()
+
+---
+
+(module
+  (main_module
+    (quantified_expression
+      (quantifier_binding
+        (variable_name_and_type
+          (ncname))
+        (parenthesized_expression))
+      (function_call
+        (ncname)
+        (argument_list)))))
+
+============================================================
+XPath flow: If then else
+============================================================
+
+if ($a) then 1 else if ($b) then 2 else 3
+
+---
+
+(module
+  (main_module
+    (if_expression
+      (variable_reference
+        (ncname))
+      (integer_literal)
+      (if_expression
+        (variable_reference
+          (ncname))
+        (integer_literal)
+        (integer_literal)))))
+
+============================================================
+XPath flow: Braced if
+============================================================
+
+if (@price gt 100) { @discount }
+
+---
+
+(module
+  (main_module
+    (if_expression
+      (comparison_expression
+        (axis_step
+          (ncname))
+        (integer_literal))
+      (enclosed_expression
+        (axis_step
+          (ncname))))))
+
+============================================================
+XPath flow: Keywords as element names
+============================================================
+
+for/let/if/some
+
+---
+
+(module
+  (main_module
+    (relative_path_expression
+      (relative_path_expression
+        (relative_path_expression
+          (axis_step
+            (ncname))
+          (axis_step
+            (ncname)))
+        (axis_step
+          (ncname)))
+      (axis_step
+        (ncname)))))
+
+============================================================
+XPath operators: Sequence expression
+============================================================
+
+1, 2, 3
+
+---
+
+(module
+  (main_module
+    (sequence_expression
+      (integer_literal)
+      (integer_literal)
+      (integer_literal))))
+
+============================================================
+XPath operators: Or and and
+============================================================
+
+a or b and c
+
+---
+
+(module
+  (main_module
+    (or_expression
+      (axis_step
+        (ncname))
+      (and_expression
+        (axis_step
+          (ncname))
+        (axis_step
+          (ncname))))))
+
+============================================================
+XPath operators: Value comparison
+============================================================
+
+1 eq 2
+
+---
+
+(module
+  (main_module
+    (comparison_expression
+      (integer_literal)
+      (integer_literal))))
+
+============================================================
+XPath operators: General comparison
+============================================================
+
+$a != $b
+
+---
+
+(module
+  (main_module
+    (comparison_expression
+      (variable_reference
+        (ncname))
+      (variable_reference
+        (ncname)))))
+
+============================================================
+XPath operators: Node comparisons
+============================================================
+
+($a is $b, $a is-not $b, $a << $b, $a precedes $b, $a >> $b, $a follows $b, $a precedes-or-is $b, $a follows-or-is $b)
+
+---
+
+(module
+  (main_module
+    (parenthesized_expression
+      (sequence_expression
+        (comparison_expression
+          (variable_reference
+            (ncname))
+          (variable_reference
+            (ncname)))
+        (comparison_expression
+          (variable_reference
+            (ncname))
+          (variable_reference
+            (ncname)))
+        (comparison_expression
+          (variable_reference
+            (ncname))
+          (variable_reference
+            (ncname)))
+        (comparison_expression
+          (variable_reference
+            (ncname))
+          (variable_reference
+            (ncname)))
+        (comparison_expression
+          (variable_reference
+            (ncname))
+          (variable_reference
+            (ncname)))
+        (comparison_expression
+          (variable_reference
+            (ncname))
+          (variable_reference
+            (ncname)))
+        (comparison_expression
+          (variable_reference
+            (ncname))
+          (variable_reference
+            (ncname)))
+        (comparison_expression
+          (variable_reference
+            (ncname))
+          (variable_reference
+            (ncname)))))))
+
+============================================================
+XPath operators: Otherwise
+============================================================
+
+$a otherwise $b otherwise 0
+
+---
+
+(module
+  (main_module
+    (otherwise_expression
+      (otherwise_expression
+        (variable_reference
+          (ncname))
+        (variable_reference
+          (ncname)))
+      (integer_literal))))
+
+============================================================
+XPath operators: String concatenation
+============================================================
+
+"a" || "b" || "c"
+
+---
+
+(module
+  (main_module
+    (string_concatenation_expression
+      (string_concatenation_expression
+        (string_literal)
+        (string_literal))
+      (string_literal))))
+
+============================================================
+XPath operators: Range
+============================================================
+
+1 to 10
+
+---
+
+(module
+  (main_module
+    (range_expression
+      (integer_literal)
+      (integer_literal))))
+
+============================================================
+XPath operators: Additive and multiplicative
+============================================================
+
+1 + 2 * 3 - 4 div 5 idiv 6 mod 7
+
+---
+
+(module
+  (main_module
+    (additive_expression
+      (additive_expression
+        (integer_literal)
+        (multiplicative_expression
+          (integer_literal)
+          (integer_literal)))
+      (multiplicative_expression
+        (multiplicative_expression
+          (multiplicative_expression
+            (integer_literal)
+            (integer_literal))
+          (integer_literal))
+        (integer_literal)))))
+
+============================================================
+XPath operators: Unicode multiplication and division
+============================================================
+
+6 × 7 ÷ 2
+
+---
+
+(module
+  (main_module
+    (multiplicative_expression
+      (multiplicative_expression
+        (integer_literal)
+        (integer_literal))
+      (integer_literal))))
+
+============================================================
+XPath operators: Union intersect except
+============================================================
+
+a | b union c intersect d except e
+
+---
+
+(module
+  (main_module
+    (union_expression
+      (union_expression
+        (axis_step
+          (ncname))
+        (axis_step
+          (ncname)))
+      (intersect_except_expression
+        (intersect_except_expression
+          (axis_step
+            (ncname))
+          (axis_step
+            (ncname)))
+        (axis_step
+          (ncname))))))
+
+============================================================
+XPath operators: But with
+============================================================
+
+$a but with $b
+
+---
+
+(module
+  (main_module
+    (but_with_expression
+      (variable_reference
+        (ncname))
+      (variable_reference
+        (ncname)))))
+
+============================================================
+XPath operators: Instance of
+============================================================
+
+$x instance of xs:integer+
+
+---
+
+(module
+  (main_module
+    (instance_of_expression
+      (variable_reference
+        (ncname))
+      (sequence_type
+        (prefixed_name)
+        (occurrence_indicator)))))
+
+============================================================
+XPath operators: Treat as with occurrence indicator binding
+============================================================
+
+4 treat as item() + - 5
+
+---
+
+(module
+  (main_module
+    (additive_expression
+      (treat_expression
+        (integer_literal)
+        (sequence_type
+          (any_item_type)
+          (occurrence_indicator)))
+      (integer_literal))))
+
+============================================================
+XPath operators: Castable and cast
+============================================================
+
+($x castable as xs:integer?, $x cast as xs:decimal)
+
+---
+
+(module
+  (main_module
+    (parenthesized_expression
+      (sequence_expression
+        (castable_expression
+          (variable_reference
+            (ncname))
+          (cast_target
+            (prefixed_name)))
+        (cast_expression
+          (variable_reference
+            (ncname))
+          (cast_target
+            (prefixed_name)))))))
+
+============================================================
+XPath operators: Cast to enumeration and choice types
+============================================================
+
+($x cast as enum("a", "b"), $x cast as (xs:integer | xs:string))
+
+---
+
+(module
+  (main_module
+    (parenthesized_expression
+      (sequence_expression
+        (cast_expression
+          (variable_reference
+            (ncname))
+          (cast_target
+            (enumeration_type
+              (string_literal)
+              (string_literal))))
+        (cast_expression
+          (variable_reference
+            (ncname))
+          (cast_target
+            (choice_item_type
+              (prefixed_name)
+              (prefixed_name))))))))
+
+============================================================
+XPath operators: Pipeline
+============================================================
+
+$x -> count(.)
+
+---
+
+(module
+  (main_module
+    (pipeline_expression
+      (variable_reference
+        (ncname))
+      (function_call
+        (ncname)
+        (argument_list
+          (context_value_reference))))))
+
+============================================================
+XPath operators: Sequence and mapping arrows
+============================================================
+
+$x => f(1) =!> $g() => (fn { . })()
+
+---
+
+(module
+  (main_module
+    (arrow_expression
+      (arrow_expression
+        (arrow_expression
+          (variable_reference
+            (ncname))
+          (function_call
+            (ncname)
+            (argument_list
+              (integer_literal))))
+        (restricted_dynamic_call
+          (variable_reference
+            (ncname))
+          (positional_argument_list)))
+      (restricted_dynamic_call
+        (parenthesized_expression
+          (inline_function_expression
+            (enclosed_expression
+              (context_value_reference))))
+        (positional_argument_list)))))
+
+============================================================
+XPath operators: Unary operators
+============================================================
+
+- + -1
+
+---
+
+(module
+  (main_module
+    (unary_expression
+      (unary_expression
+        (unary_expression
+          (integer_literal))))))
+
+============================================================
+XPath operators: Simple map
+============================================================
+
+$x ! name() ! string()
+
+---
+
+(module
+  (main_module
+    (simple_map_expression
+      (simple_map_expression
+        (variable_reference
+          (ncname))
+        (function_call
+          (ncname)
+          (argument_list)))
+      (function_call
+        (ncname)
+        (argument_list)))))
+
+============================================================
+XPath operators: Keyword as name in operator position
+============================================================
+
+div div div
+
+---
+
+(module
+  (main_module
+    (multiplicative_expression
+      (axis_step
+        (ncname))
+      (axis_step
+        (ncname)))))
+
+============================================================
+XPath paths: Lone slash
+============================================================
+
+/
+
+---
+
+(module
+  (main_module
+    (absolute_path_expression)))
+
+============================================================
+XPath paths: Lone slash followed by union is a path
+============================================================
+
+/union/*
+
+---
+
+(module
+  (main_module
+    (absolute_path_expression
+      (relative_path_expression
+        (axis_step
+          (ncname))
+        (axis_step
+          (wildcard))))))
+
+============================================================
+XPath paths: Parenthesized lone slash
+============================================================
+
+(/) * 5
+
+---
+
+(module
+  (main_module
+    (multiplicative_expression
+      (parenthesized_expression
+        (absolute_path_expression))
+      (integer_literal))))
+
+============================================================
+XPath paths: Root descendant path
+============================================================
+
+//para[1]
+
+---
+
+(module
+  (main_module
+    (absolute_path_expression
+      (axis_step
+        (ncname)
+        (predicate
+          (integer_literal))))))
+
+============================================================
+XPath paths: Full axes
+============================================================
+
+ancestor::a/ancestor-or-self::b/child::c/descendant::d/descendant-or-self::e/following::f/following-or-self::g
+
+---
+
+(module
+  (main_module
+    (relative_path_expression
+      (relative_path_expression
+        (relative_path_expression
+          (relative_path_expression
+            (relative_path_expression
+              (relative_path_expression
+                (axis_step
+                  (axis)
+                  (ncname))
+                (axis_step
+                  (axis)
+                  (ncname)))
+              (axis_step
+                (axis)
+                (ncname)))
+            (axis_step
+              (axis)
+              (ncname)))
+          (axis_step
+            (axis)
+            (ncname)))
+        (axis_step
+          (axis)
+          (ncname)))
+      (axis_step
+        (axis)
+        (ncname)))))
+
+============================================================
+XPath paths: More axes
+============================================================
+
+following-sibling::a/following-sibling-or-self::b/parent::c/preceding::d/preceding-or-self::e/preceding-sibling::f/preceding-sibling-or-self::g/self::h/attribute::i/item::k
+
+---
+
+(module
+  (main_module
+    (relative_path_expression
+      (relative_path_expression
+        (relative_path_expression
+          (relative_path_expression
+            (relative_path_expression
+              (relative_path_expression
+                (relative_path_expression
+                  (relative_path_expression
+                    (relative_path_expression
+                      (axis_step
+                        (axis)
+                        (ncname))
+                      (axis_step
+                        (axis)
+                        (ncname)))
+                    (axis_step
+                      (axis)
+                      (ncname)))
+                  (axis_step
+                    (axis)
+                    (ncname)))
+                (axis_step
+                  (axis)
+                  (ncname)))
+              (axis_step
+                (axis)
+                (ncname)))
+            (axis_step
+              (axis)
+              (ncname)))
+          (axis_step
+            (axis)
+            (ncname)))
+        (axis_step
+          (axis)
+          (ncname)))
+      (axis_step
+        (axis)
+        (ncname)))))
+
+============================================================
+XPath paths: Abbreviated steps
+============================================================
+
+../@id/@*
+
+---
+
+(module
+  (main_module
+    (relative_path_expression
+      (relative_path_expression
+        (axis_step)
+        (axis_step
+          (ncname)))
+      (axis_step
+        (wildcard)))))
+
+============================================================
+XPath paths: Wildcards
+============================================================
+
+(*, p:*, *:local, Q{urn:x}*)
+
+---
+
+(module
+  (main_module
+    (parenthesized_expression
+      (sequence_expression
+        (axis_step
+          (wildcard))
+        (axis_step
+          (wildcard))
+        (axis_step
+          (wildcard))
+        (axis_step
+          (wildcard))))))
+
+============================================================
+XPath paths: Union node test
+============================================================
+
+child::(a | b)/@(c | d)
+
+---
+
+(module
+  (main_module
+    (relative_path_expression
+      (axis_step
+        (axis)
+        (union_node_test
+          (ncname)
+          (ncname)))
+      (axis_step
+        (union_node_test
+          (ncname)
+          (ncname))))))
+
+============================================================
+XPath paths: Dynamic node test
+============================================================
+
+child::{ "a" }
+
+---
+
+(module
+  (main_module
+    (axis_step
+      (axis)
+      (dynamic_node_test
+        (enclosed_expression
+          (string_literal))))))
+
+============================================================
+XPath paths: Kind tests in steps
+============================================================
+
+node()/text()/comment()/processing-instruction(x)/element(a, xs:untyped?)/attribute(*)/document-node(element(a))/namespace-node()/xnode()/schema-element(a)/schema-attribute(b)
+
+---
+
+(module
+  (main_module
+    (relative_path_expression
+      (relative_path_expression
+        (relative_path_expression
+          (relative_path_expression
+            (relative_path_expression
+              (relative_path_expression
+                (relative_path_expression
+                  (relative_path_expression
+                    (relative_path_expression
+                      (relative_path_expression
+                        (axis_step
+                          (gnode_type))
+                        (axis_step
+                          (text_node_type)))
+                      (axis_step
+                        (comment_node_type)))
+                    (axis_step
+                      (processing_instruction_node_type
+                        (ncname))))
+                  (axis_step
+                    (element_node_type
+                      (name_test_union
+                        (ncname))
+                      (prefixed_name))))
+                (axis_step
+                  (attribute_node_type
+                    (name_test_union
+                      (wildcard)))))
+              (axis_step
+                (document_node_type
+                  (element_node_type
+                    (name_test_union
+                      (ncname))))))
+            (axis_step
+              (namespace_node_type)))
+          (axis_step
+            (any_xnode_type)))
+        (axis_step
+          (schema_element_node_type
+            (ncname))))
+      (axis_step
+        (schema_attribute_node_type
+          (ncname))))))
+
+============================================================
+XPath paths: JNode test
+============================================================
+
+jnode(*, xs:integer)/jnode("key")/jnode(())
+
+---
+
+(module
+  (main_module
+    (relative_path_expression
+      (relative_path_expression
+        (axis_step
+          (jnode_type
+            (wildcard)
+            (sequence_type
+              (prefixed_name))))
+        (axis_step
+          (jnode_type
+            (string_literal))))
+      (axis_step
+        (jnode_type
+          (jroot_selector)
+          (jroot_selector))))))
+
+============================================================
+XPath paths: URI qualified names
+============================================================
+
+Q{http://example.com/}a/Q{}b
+
+---
+
+(module
+  (main_module
+    (relative_path_expression
+      (axis_step
+        (uri_qualified_name))
+      (axis_step
+        (uri_qualified_name)))))
+
+============================================================
+XPath paths: Predicates and filters
+============================================================
+
+a[1][@b = 2]/$x[3]
+
+---
+
+(module
+  (main_module
+    (relative_path_expression
+      (axis_step
+        (ncname)
+        (predicate
+          (integer_literal))
+        (predicate
+          (comparison_expression
+            (axis_step
+              (ncname))
+            (integer_literal))))
+      (filter_expression
+        (variable_reference
+          (ncname))
+        (predicate
+          (integer_literal))))))
+
+============================================================
+XPath primary: Numeric literals
+============================================================
+
+(1, 1_000, 0x1F, 0b1010, .5, 1.5, 1., 1e3, 1.5E-3)
+
+---
+
+(module
+  (main_module
+    (parenthesized_expression
+      (sequence_expression
+        (integer_literal)
+        (integer_literal)
+        (hex_integer_literal)
+        (binary_integer_literal)
+        (decimal_literal)
+        (decimal_literal)
+        (decimal_literal)
+        (double_literal)
+        (double_literal)))))
+
+============================================================
+XPath primary: String literals with escapes
+============================================================
+
+("a""b", 'c''d')
+
+---
+
+(module
+  (main_module
+    (parenthesized_expression
+      (sequence_expression
+        (string_literal)
+        (string_literal)))))
+
+============================================================
+XPath primary: QName literal
+============================================================
+
+#xs:integer
+
+---
+
+(module
+  (main_module
+    (qname_literal
+      (prefixed_name))))
+
+============================================================
+XPath primary: Variable reference
+============================================================
+
+$Q{urn:x}y
+
+---
+
+(module
+  (main_module
+    (variable_reference
+      (uri_qualified_name))))
+
+============================================================
+XPath primary: Empty parentheses
+============================================================
+
+()
+
+---
+
+(module
+  (main_module
+    (parenthesized_expression)))
+
+============================================================
+XPath primary: Context value
+============================================================
+
+.
+
+---
+
+(module
+  (main_module
+    (context_value_reference)))
+
+============================================================
+XPath primary: Function calls with keyword arguments
+============================================================
+
+f(1, ?, value := 2)
+
+---
+
+(module
+  (main_module
+    (function_call
+      (ncname)
+      (argument_list
+        (integer_literal)
+        (argument_placeholder)
+        (keyword_argument
+          (ncname)
+          (integer_literal))))))
+
+============================================================
+XPath primary: Keyword arguments only
+============================================================
+
+fn:format(picture := "x")
+
+---
+
+(module
+  (main_module
+    (function_call
+      (prefixed_name)
+      (argument_list
+        (keyword_argument
+          (ncname)
+          (string_literal))))))
+
+============================================================
+XPath primary: Named function reference
+============================================================
+
+fn:abs#1
+
+---
+
+(module
+  (main_module
+    (named_function_reference
+      (prefixed_name)
+      (integer_literal))))
+
+============================================================
+XPath primary: Inline functions
+============================================================
+
+(function($a as xs:integer, $b) as xs:integer { $a + $b }, fn { . + 1 }, fn() { 0 })
+
+---
+
+(module
+  (main_module
+    (parenthesized_expression
+      (sequence_expression
+        (inline_function_expression
+          (variable_name_and_type
+            (ncname)
+            (type_declaration
+              (sequence_type
+                (prefixed_name))))
+          (variable_name_and_type
+            (ncname))
+          (type_declaration
+            (sequence_type
+              (prefixed_name)))
+          (enclosed_expression
+            (additive_expression
+              (variable_reference
+                (ncname))
+              (variable_reference
+                (ncname)))))
+        (inline_function_expression
+          (enclosed_expression
+            (additive_expression
+              (context_value_reference)
+              (integer_literal))))
+        (inline_function_expression
+          (enclosed_expression
+            (integer_literal)))))))
+
+============================================================
+XPath primary: Map constructors
+============================================================
+
+(map { "a": 1, "b": 2 }, { 1: 2 }, {}, { $m })
+
+---
+
+(module
+  (main_module
+    (parenthesized_expression
+      (sequence_expression
+        (map_constructor
+          (map_constructor_entry
+            (string_literal)
+            (integer_literal))
+          (map_constructor_entry
+            (string_literal)
+            (integer_literal)))
+        (map_constructor
+          (map_constructor_entry
+            (integer_literal)
+            (integer_literal)))
+        (map_constructor)
+        (map_constructor
+          (map_constructor_entry
+            (variable_reference
+              (ncname))))))))
+
+============================================================
+XPath primary: Array constructors
+============================================================
+
+([1, 2], array { 1, 2 }, [])
+
+---
+
+(module
+  (main_module
+    (parenthesized_expression
+      (sequence_expression
+        (square_array_constructor
+          (integer_literal)
+          (integer_literal))
+        (curly_array_constructor
+          (enclosed_expression
+            (sequence_expression
+              (integer_literal)
+              (integer_literal))))
+        (square_array_constructor)))))
+
+============================================================
+XPath primary: String template
+============================================================
+
+`Hello {$name}, {{braces}} and ``ticks``!`
+
+---
+
+(module
+  (main_module
+    (string_template
+      (string_template_fixed_part)
+      (enclosed_expression
+        (variable_reference
+          (ncname)))
+      (string_template_fixed_part))))
+
+============================================================
+XPath primary: Lookups
+============================================================
+
+($m?key, $m?1, $m?"k", $m?$k, $m?(1 to 2), $m?*, $m?., ?a)
+
+---
+
+(module
+  (main_module
+    (parenthesized_expression
+      (sequence_expression
+        (lookup_expression
+          (variable_reference
+            (ncname))
+          (lookup
+            (ncname)))
+        (lookup_expression
+          (variable_reference
+            (ncname))
+          (lookup
+            (integer_literal)))
+        (lookup_expression
+          (variable_reference
+            (ncname))
+          (lookup
+            (string_literal)))
+        (lookup_expression
+          (variable_reference
+            (ncname))
+          (lookup
+            (variable_reference
+              (ncname))))
+        (lookup_expression
+          (variable_reference
+            (ncname))
+          (lookup
+            (parenthesized_expression
+              (range_expression
+                (integer_literal)
+                (integer_literal)))))
+        (lookup_expression
+          (variable_reference
+            (ncname))
+          (lookup
+            (lookup_wildcard)))
+        (lookup_expression
+          (variable_reference
+            (ncname))
+          (lookup
+            (context_value_reference)))
+        (unary_lookup
+          (ncname))))))
+
+============================================================
+XPath primary: Dynamic function call
+============================================================
+
+$f(1)(2)
+
+---
+
+(module
+  (main_module
+    (dynamic_function_call
+      (dynamic_function_call
+        (variable_reference
+          (ncname))
+        (positional_argument_list
+          (integer_literal)))
+      (positional_argument_list
+        (integer_literal)))))
+
+============================================================
+XPath primary: Method call
+============================================================
+
+$rectangle =?> area(2)
+
+---
+
+(module
+  (main_module
+    (method_call
+      (variable_reference
+        (ncname))
+      (ncname)
+      (positional_argument_list
+        (integer_literal)))))
+
+============================================================
+XPath primary: Computed constructors
+============================================================
+
+(document { () }, element #a { 1 }, element { "b" } { 2 }, attribute #c { 3 }, namespace #p { "urn:p" }, text { "t" }, comment { "c" }, processing-instruction #pi { "x" })
+
+---
+
+(module
+  (main_module
+    (parenthesized_expression
+      (sequence_expression
+        (computed_document_constructor
+          (enclosed_expression
+            (parenthesized_expression)))
+        (computed_element_constructor
+          (qname_literal
+            (ncname))
+          (enclosed_expression
+            (integer_literal)))
+        (computed_element_constructor
+          (string_literal)
+          (enclosed_expression
+            (integer_literal)))
+        (computed_attribute_constructor
+          (qname_literal
+            (ncname))
+          (enclosed_expression
+            (integer_literal)))
+        (computed_namespace_constructor
+          (marked_ncname
+            (ncname))
+          (enclosed_expression
+            (string_literal)))
+        (computed_text_constructor
+          (enclosed_expression
+            (string_literal)))
+        (computed_comment_constructor
+          (enclosed_expression
+            (string_literal)))
+        (computed_processing_instruction_constructor
+          (marked_ncname
+            (ncname))
+          (enclosed_expression
+            (string_literal)))))))
+
+============================================================
+XPath primary: Comments nest
+============================================================
+
+1 (: outer (: inner :) still :) + 2
+
+---
+
+(module
+  (main_module
+    (additive_expression
+      (integer_literal)
+      (comment)
+      (integer_literal))))
+
+============================================================
+XPath types: Sequence types
+============================================================
+
+($x instance of empty-sequence(), $x instance of item()*, $x instance of node()?)
+
+---
+
+(module
+  (main_module
+    (parenthesized_expression
+      (sequence_expression
+        (instance_of_expression
+          (variable_reference
+            (ncname))
+          (sequence_type))
+        (instance_of_expression
+          (variable_reference
+            (ncname))
+          (sequence_type
+            (any_item_type)
+            (occurrence_indicator)))
+        (instance_of_expression
+          (variable_reference
+            (ncname))
+          (sequence_type
+            (gnode_type)
+            (occurrence_indicator)))))))
+
+============================================================
+XPath types: Map array record types
+============================================================
+
+($x instance of map(*), $x instance of map(xs:string, item()*), $x instance of array(*), $x instance of array(xs:integer), $x instance of record(*), $x instance of record(a, "b c" as xs:string?))
+
+---
+
+(module
+  (main_module
+    (parenthesized_expression
+      (sequence_expression
+        (instance_of_expression
+          (variable_reference
+            (ncname))
+          (sequence_type
+            (any_map_type)))
+        (instance_of_expression
+          (variable_reference
+            (ncname))
+          (sequence_type
+            (typed_map_type
+              (prefixed_name)
+              (sequence_type
+                (any_item_type)
+                (occurrence_indicator)))))
+        (instance_of_expression
+          (variable_reference
+            (ncname))
+          (sequence_type
+            (any_array_type)))
+        (instance_of_expression
+          (variable_reference
+            (ncname))
+          (sequence_type
+            (typed_array_type
+              (sequence_type
+                (prefixed_name)))))
+        (instance_of_expression
+          (variable_reference
+            (ncname))
+          (sequence_type
+            (any_record_type)))
+        (instance_of_expression
+          (variable_reference
+            (ncname))
+          (sequence_type
+            (typed_record_type
+              (field_declaration
+                (ncname))
+              (field_declaration
+                (string_literal)
+                (sequence_type
+                  (prefixed_name)
+                  (occurrence_indicator))))))))))
+
+============================================================
+XPath types: Function types
+============================================================
+
+($x instance of function(*), $x instance of fn(xs:integer, $b as item()) as xs:string*)
+
+---
+
+(module
+  (main_module
+    (parenthesized_expression
+      (sequence_expression
+        (instance_of_expression
+          (variable_reference
+            (ncname))
+          (sequence_type
+            (any_function_type)))
+        (instance_of_expression
+          (variable_reference
+            (ncname))
+          (sequence_type
+            (typed_function_type
+              (typed_function_parameter
+                (sequence_type
+                  (prefixed_name)))
+              (typed_function_parameter
+                (ncname)
+                (sequence_type
+                  (any_item_type)))
+              (sequence_type
+                (prefixed_name)
+                (occurrence_indicator)))))))))
+
+============================================================
+XPath types: Element and attribute types
+============================================================
+
+$x instance of element(a|b, xs:anyType)
+
+---
+
+(module
+  (main_module
+    (instance_of_expression
+      (variable_reference
+        (ncname))
+      (sequence_type
+        (element_node_type
+          (name_test_union
+            (ncname)
+            (ncname))
+          (prefixed_name))))))
+
+============================================================
+XPath types: Processing instruction type with string
+============================================================
+
+$x instance of processing-instruction("x")
+
+---
+
+(module
+  (main_module
+    (instance_of_expression
+      (variable_reference
+        (ncname))
+      (sequence_type
+        (processing_instruction_node_type
+          (string_literal))))))
+
+============================================================
+XPath types: JNode type with constants
+============================================================
+
+$x instance of jnode(-1)
+
+---
+
+(module
+  (main_module
+    (instance_of_expression
+      (variable_reference
+        (ncname))
+      (sequence_type
+        (jnode_type
+          (negative_numeric_literal
+            (integer_literal)))))))
+
+============================================================
+XPath types: Boolean constant in jnode type
+============================================================
+
+$x instance of jnode(true())
+
+---
+
+(module
+  (main_module
+    (instance_of_expression
+      (variable_reference
+        (ncname))
+      (sequence_type
+        (jnode_type
+          (boolean_constant))))))
+
+============================================================
+XPath types: Function type return occurrence
+============================================================
+
+$x instance of function() as xs:string *
+
+---
+
+(module
+  (main_module
+    (instance_of_expression
+      (variable_reference
+        (ncname))
+      (sequence_type
+        (typed_function_type
+          (sequence_type
+            (prefixed_name)
+            (occurrence_indicator)))))))
