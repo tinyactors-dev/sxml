@@ -41,7 +41,7 @@ Do the tasks in order. Finish each with a commit and a short entry in
 - [ ] **0.8 Header self-review.** Run the review rubric from
   `docs/C_GUIDELINES.md` over every header and fix findings. List open
   questions at the end of `docs/LOG.md`.
-- [ ] **0.9 Torture slice selection.** Choose 100–200 tests from the W3C QT4
+- [x] **0.9 Torture slice selection.** Choose 100–200 tests from the W3C QT4
   test suite that stress the value model (higher-order functions, maps, arrays,
   JSON, multi-document node order, casting, ranges, try/catch). Record the list
   in `tests/qt4/torture-slice.txt` with one line per test explaining why.

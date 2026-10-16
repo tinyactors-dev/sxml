@@ -1,0 +1,243 @@
+# Torture slice: the first conformance target (Phase 0 task 0.9).
+#
+# Test cases from the W3C QT4 test suite (qt4cg/qt4tests at the commit pinned
+# in tools/fetch-test-suites.sh, decision D13) that stress the XDM value model:
+# function items, maps, arrays, JSON, node identity and order across several
+# documents, casting, ranges and errors. A base of arithmetic, string, path and
+# comparison tests makes the slice a coherent first target.
+#
+# Every test is applicable to XP40 (most to both XP40 and XQ40), needs no
+# schema awareness, no collation other than the codepoint collation, no
+# modules and no serialization feature. The only feature dependency allowed is
+# higherOrderFunctions.
+#
+# try/catch: every TryCatchExpr test in the suite is XQ40-only, so errors are
+# covered here through fn:error, dynamic and type errors, and `error`
+# assertions.
+#
+# Format: <test-set-name> <test-case-name>  # reason
+# Check:  python3 tools/check-test-list.py tests/qt4/torture-slice.txt
+
+# --- Arithmetic and numeric promotion ---------------------------------------
+op-numeric-add K-NumericAdd-29  # simplest integer addition, compared with eq
+op-numeric-add op-numeric-addint2args-1  # xs:int + xs:int result is xs:integer beyond the int range
+op-numeric-divide K-NumericDivide-24  # float div float stays xs:float
+op-numeric-divide op-numeric-divideint2args-1  # integer div gives xs:decimal
+op-numeric-divide op-numeric-dividepint2args-5  # decimal division precision, any-of result
+op-numeric-integer-divide K-NumericIntegerDivide-17  # double idiv double returns xs:integer
+op-numeric-integer-divide op-numeric-integer-divideint2args-1  # idiv on minimum xs:int values
+op-numeric-mod op-numeric-modint2args-1  # mod with negative dividend
+op-numeric-mod K2-NumericMod-9  # NaN propagates through mod
+op-numeric-multiply K-NumericMultiply-2  # decimal multiplication compared with integer
+op-numeric-multiply op-numeric-multiplydec2args-1  # decimal precision with 18 digits
+
+# --- Value and general comparison -------------------------------------------
+op-numeric-equal op-numeric-equalint2args-1  # eq on xs:int values
+op-numeric-equal op-numeric-equalulng2args-3  # eq on xs:unsignedLong values
+op-string-equal K-StringEqual-1  # codepoint string eq
+prod-ValueComp K-ValCompTypeChecking-1  # eq on a sequence of three items is a type error
+prod-ValueComp K-ValCompTypeChecking-40  # error() inside an operand raises before comparison
+prod-ValueComp value-comp-ne-string-15  # absent attribute in ne gives empty, not false
+prod-GeneralComp.eq generalexpression1  # () = () is false (existential semantics)
+prod-GeneralComp.eq K-GenCompEq-40  # singleton = sequence is existential
+prod-GeneralComp.eq generalexpression92  # untyped nodes from two documents compared with an integer
+prod-GeneralComp.lt generalexpression199  # () < () is false
+prod-GeneralComp.lt generalexpression281  # pairwise node and integer comparison under <
+fn-deep-equal fn-deep-equalint2args-1  # deep-equal on atomic values
+fn-deep-equal fn-deep-equal-arrays-11  # deep-equal of nested arrays
+
+# --- Strings ----------------------------------------------------------------
+fn-concat fn-concatint2args-1  # concat atomizes and casts integers to string
+fn-substring fn-substring-1  # substring with a start position only
+fn-substring fn-substring-25  # substring counts codepoints, not UTF-16 units
+fn-substring substring-40-001  # 4.0: empty sequence as length argument
+fn-string-join fn-string-join-16  # string-join with a separator on one item
+fn-tokenize fn-tokenize-1a  # regex that can match the empty string
+fn-tokenize fn-tokenize-35  # tokenize with the s flag across a CR character
+
+# --- Paths, axes, predicates and simple map ---------------------------------
+prod-PathExpr PathExpr-21  # rooted path with count in the step
+prod-PathExpr PathExpr-1  # leading / used as an operand
+prod-AxisStep Axes001-1  # child axis on a source document
+prod-AxisStep Axes032-1  # descendant axis
+prod-Predicate filterexpressionhc2  # predicate on a range of integers
+prod-Predicate K-FilterExpr-24  # numeric predicate selects by position
+prod-Predicate K-FilterExpr-64  # position() inside a predicate
+op-bang bang-1  # simple map operator over a range
+op-bang bang-7  # simple map chain over nodes ending in number()
+op-bang bang-13  # simple map with a reverse axis
+prod-QuantifiedExpr quantExpr-1  # some ... satisfies
+prod-QuantifiedExpr K-QuantExprWithout-79  # variable used in its own binding is a static error
+prod-IfExpr K-CondExpr-3  # effective boolean value of an integer in if
+
+# --- Ranges -----------------------------------------------------------------
+op-to rangeExpr-1  # range inside a sequence constructor
+op-to K-RangeExpr-17  # reverse and subsequence of a range
+op-to RangeExpr-402b  # one-item negative range
+op-to RangeExpr-408a  # range beyond 32-bit integers must stay lazy
+op-to rangeExpr-31  # range above the 64-bit limit, error or result allowed
+op-to RangeExpr-411a  # large negative range bounds, error or result allowed
+
+# --- Casting, castable, treat and instance of -------------------------------
+prod-CastExpr casthc1  # cast of an arithmetic result to xs:integer
+prod-CastExpr casthc13  # xs:double to xs:string canonical lexical form
+prod-CastExpr casthc25  # xs:integer to xs:decimal
+prod-CastExpr casthc31  # xs:dateTime to xs:date keeps the timezone
+prod-CastExpr CastAs009  # untypedAtomic to xs:float
+prod-CastExpr CastAs021  # untypedAtomic "true" to xs:decimal is FORG0001
+prod-CastExpr CastAs072  # untypedAtomic to xs:boolean
+prod-CastExpr CastAs090  # string "NaN" to xs:float
+prod-CastExpr CastAs234  # decimal to untypedAtomic
+prod-CastExpr CastAs510  # gDay to duration is not allowed (XPTY0004)
+prod-CastExpr K-SeqExprCast-379  # invalid date literal (Feb 30) in a constructor function
+prod-CastExpr K-SeqExprCast-656  # duration cast to itself keeps its value
+prod-CastExpr K-SeqExprCast-932  # date to gMonthDay
+prod-CastExpr K2-SeqExprCast-269  # INF cannot become an integer (FOCA0002)
+prod-CastableExpr CastableAs008  # NaN castable as float
+prod-CastableExpr CastableAs017  # "-0.0E0" not castable as decimal
+prod-CastableExpr CastableAs197  # float not castable as hexBinary
+prod-TreatExpr treat-as-1  # treat as with the wrong type is XPDY0050
+prod-TreatExpr treat-as-14  # cast followed by treat
+prod-InstanceofExpr instanceof1  # instance of an atomic type
+prod-InstanceofExpr instanceof71  # anyURI is not an instance of float
+prod-InstanceofExpr K-SeqExprInstanceOf-6  # occurrence indicator + in a sequence type
+
+# --- Function items: inline, named, dynamic calls, partial application ------
+prod-InlineFunctionExpr inline-fn-001  # inline function bound to a variable and called
+prod-InlineFunctionExpr inline-fn-004  # closure captures a for variable
+prod-InlineFunctionExpr inline-fn-005  # inline function body has no focus (XPDY0002)
+prod-InlineFunctionExpr inline-fn-008  # nested closures
+prod-InlineFunctionExpr inline-fn-010  # typed parameters
+prod-InlineFunctionExpr inline-fn-011  # function coercion rejects a decimal for an integer parameter
+prod-InlineFunctionExpr inline-fn-013  # declared return type xs:double promotes the result
+prod-InlineFunctionExpr inline-fn-021  # anonymous function has no name
+prod-InlineFunctionExpr inline-fn-026  # recursion by passing the function to itself
+prod-InlineFunctionExpr inline-fn-027  # map whose values are function items
+prod-InlineFunctionExpr inline-fn-030  # atomizing a function item is FOTY0013
+prod-NamedFunctionRef function-literal-038  # named function reference by EQName, then called
+prod-NamedFunctionRef function-literal-044  # arity-2 reference to round
+prod-NamedFunctionRef function-literal-028  # reference to fn:error, called to raise
+prod-DynamicFunctionCall DynamicFunctionCall-009  # coercion of untypedAtomic arguments to xs:decimal
+prod-DynamicFunctionCall DynamicFunctionCall-143  # 4.0: dynamic call on a sequence of functions
+prod-DynamicFunctionCall DynamicFunctionCall-146  # fn:op function items called dynamically
+prod-ArrowExpr ArrowPostfix-001  # arrow into a named function
+prod-ArrowExpr ArrowPostfix-004  # arrow chain through a variable bound to a function
+prod-ArrowExpr ArrowPostfix-022  # arrow into an array used as a function
+prod-ArrowExpr ArrowPostfix-108  # arrow with a placeholder creates a partial application
+prod-ArrowExpr ArrowExpr-407  # arrow into a map used as a function
+fn-partial-apply fn-partial-apply-01  # 4.0 fn:partial-apply with a map of positions
+fn-partial-apply fn-partial-apply-13  # partial application coerces the bound argument
+fn-apply fn-apply-01  # fn:apply with an array of arguments
+fn-apply fn-apply-06  # apply a partially applied function
+fn-function-arity fn-function-arity-019  # arity of an inline function
+fn-function-lookup fn-function-lookup-336  # dynamic lookup of fn:avg, then called
+misc-HigherOrderFunctions hof-005  # high-arity named function reference
+misc-HigherOrderFunctions hof-920  # partial application of a map is not a map
+misc-HigherOrderFunctions function-item-9  # closure over two variables has no name
+
+# --- Higher-order library functions -----------------------------------------
+fn-for-each for-each-001  # map a named function over strings
+fn-for-each for-each-008  # for-each inside an inline function with typed parameter
+fn-for-each for-each-402  # 4.0: callback receives the position as a second argument
+fn-for-each for-each-901  # callback with the wrong arity is a type error
+fn-filter filter-001  # filter with a partially applied starts-with
+fn-filter fn-filter-003  # filter with one argument is a static error
+fn-filter fn-filter-020  # callback returns two booleans (type error not raised when unused)
+fn-fold-left fold-left-001  # fold-left sum
+fn-fold-left fold-left-005  # fold-left that reverses a sequence
+fn-fold-left fold-left-007  # fold-left with a partial application of concat
+fn-fold-left fold-left-011  # wrong return type from the callback
+fn-fold-right fold-right-001  # fold-right sum
+fn-fold-right fold-right-013  # fold-right over one million items needs no deep recursion
+fn-for-each-pair for-each-pair-001  # pairwise deep-equal on two sequences of different length
+fn-for-each-pair fn-for-each-pair-027  # callback returns a sequence per pair
+fn-sort fn-sort-10  # sort integers
+fn-sort fn-sort-19  # sort atomizes arrays
+fn-sort fn-sort-22  # sort maps by a key extracted with map:get
+fn-sort fn-sort-error-1  # mixed integer and string keys are not comparable
+
+# --- Maps -------------------------------------------------------------------
+prod-MapConstructor MapConstructor-001  # empty map constructor
+prod-MapConstructor MapConstructor-023  # key expression yields an empty sequence: type error
+prod-MapConstructor MapConstructor-403  # 4.0 brace map constructor with a nested map
+map-get map-get-001  # map:get with integer keys
+map-get map-get-014  # NaN key never matches
+map-get map-get-401  # 4.0 map:get with a default
+map-put map-put-002-hof  # map:put with a sequence value
+map-put map-put-008  # maps are immutable: the original is unchanged after put
+map-put map-put-019  # put then remove gives the empty map
+map-merge map-merge-001  # map:merge without arguments is a static error
+map-merge map-merge-006e  # duplicate keys under the default policy
+map-merge map-merge-401  # 4.0: merge keeps insertion order of keys
+map-keys map-keys-008  # merge of duplicate keys leaves one key
+map-for-each map-for-each-013  # map:for-each callback receives key and value
+map-contains map-contains-014  # NaN key is never contained
+map-size map-size-009  # size after remove
+map-entry map-entry-004  # untypedAtomic key with a map value
+prod-Lookup Lookup-001  # ?1 on arrays inside a predicate
+prod-Lookup Lookup-028  # array lookup out of bounds is FOAY0001
+prod-Lookup Lookup-159  # chained lookups map then array
+prod-Lookup Lookup-225  # lookup applied to every array in a sequence
+prod-UnaryLookup UnaryLookup-001  # unary lookup against the context item
+prod-UnaryLookup UnaryLookup-023  # wildcard unary lookup in a simple map chain
+
+# --- Arrays -----------------------------------------------------------------
+prod-SquareArrayConstructor SquareArray-001  # empty square array
+prod-SquareArrayConstructor SquareArray-003  # square array members may be sequences
+prod-CurlyArrayConstructor CurlyArray-004  # curly array flattens its content into members
+array-get array-get-001  # array:get by position
+array-get array-get-009  # array:get on an empty sequence is a type error
+array-get array-get-406  # 4.0 array:get with a fallback function
+array-append array-append-105  # appending an empty sequence adds a member
+array-flatten array-flatten-001  # flatten an array of atomic values
+array-flatten array-flatten-004  # flatten on a plain sequence
+array-fold-left array-fold-left-101  # fold over array members
+array-for-each array-for-each-008  # a map used as the callback function
+array-sort array-sort-012a  # sort members by a key function
+array-size array-size-004  # size counts members, not items
+array-put array-put-001  # put a sequence as one member
+array-put array-put-006  # put out of bounds is FOAY0001
+array-subarray array-subarray-312  # subarray beyond the end is an error
+
+# --- JSON -------------------------------------------------------------------
+fn-parse-json fn-parse-json-001  # empty JSON object becomes an empty map
+fn-parse-json fn-parse-json-017  # JSON array of mixed values becomes an array
+fn-parse-json fn-parse-json-021  # array of objects
+fn-parse-json fn-parse-json-023  # JSON number becomes xs:double
+fn-parse-json fn-parse-json-034  # surrogate pair escape decodes to one character
+fn-parse-json fn-parse-json-040  # JSON null becomes the empty sequence
+fn-parse-json fn-parse-json-050  # duplicate keys under use-first
+fn-parse-json fn-parse-json-052  # duplicate keys under the default policy
+fn-parse-json fn-parse-json-709  # 4.0 number-format decimal option
+fn-parse-json fn-parse-json-740  # 4.0 null option replaces null with a chosen value
+fn-parse-json fn-parse-json-908  # unterminated string is FOJS0001
+fn-parse-json fn-parse-json-934  # invalid number syntax is FOJS0001
+fn-json-to-xml fn-json-to-xml-empty  # json-to-xml builds an element in the fn namespace
+fn-json-to-xml json-to-xml-error-033  # malformed number is an error
+fn-xml-to-json xml-to-json-012  # round trip of an array of strings
+fn-xml-to-json xml-to-json-015  # round trip of an object keeps key order
+fn-xml-to-json xml-to-json-017  # escaping of special characters
+fn-xml-to-json xml-to-json-403  # -INF is not a valid JSON number
+
+# --- Node identity and order across documents -------------------------------
+op-is-same-node nodeexpression12  # nodes from two documents are not identical
+op-node-before nodeexpression28  # << across documents is stable, either answer allowed
+op-node-after nodeexpression44  # >> across documents is stable, either answer allowed
+op-union fn-union-node-args-002  # union sorts into document order and removes duplicates
+op-union op-union-406  # union of nodes from two JTrees (4.0)
+op-union K2-SeqUnion-5  # union of atomic values is a type error
+op-intersect K2-SeqIntersect-48  # intersect with a reversed sequence returns document order
+op-except fn-except-node-args-001  # except with itself is empty
+fn-distinct-ordered-nodes d-o-n-004  # 4.0: sorts nodes into document order
+fn-distinct-ordered-nodes d-o-n-005  # removes duplicates while sorting
+fn-distinct-ordered-nodes d-o-n-007  # order of a random permutation of elements and attributes
+fn-doc fn-doc-6  # two documents from fn:doc are distinct nodes
+fn-parse-xml parse-xml-012  # two parse-xml calls may or may not return the same node
+fn-parse-xml parse-xml-014  # parse-xml returns a document node
+fn-root fn-root-29  # root of a JNode is the JTree root
+fn-deep-equal deep-equal-40-comments-001  # deep-equal across two parsed documents ignores comments
+
+# --- Errors -----------------------------------------------------------------
+fn-error fn-error-1  # fn:error with no arguments raises FOER0000
+fn-error fn-error-20  # fn:error with an err: QName
+fn-error cbcl-error-017  # fn:error in a condition whose branches agree

@@ -82,3 +82,7 @@ The W3C QT4 test suite (`qt4cg/qt4tests`) and the XSLT 4.0 test suite
 (`qt4cg/xslt40-test`) are fetched at a pinned commit by
 `tools/fetch-test-suites.sh` into `third_party/` (ignored by git). Test lists
 in `tests/qt4/` refer to test cases by name.
+Pinned commits: qt4tests `166453359bd7770fb113b6d9c9015df7f7fa5d02`,
+xslt40-test `91328fbf0fed4a5d2813eb3661808ee53cb961ba` (both HEAD on
+2026-10-16). Spec applicability: a test-case `spec` dependency replaces the
+test-set one; no `spec` means all versions (see `docs/QT4_CATALOG.md`).
