@@ -20,17 +20,51 @@
  * src/evaluator_path.c and src/evaluator_function.c (packet 1.18), except
  * where a declaration names another file.
  *
+ * No recursion (D71, D74). The evaluator is an explicit-stack machine:
+ * evaluating an expression that contains a nested expression (the bound
+ * expression of a LET, the body of a MAP, a function body) pushes an
+ * evaluator task for it on the task stack of the dynamic context, in
+ * allocator memory, and the machine's one loop runs the top task until the
+ * stack is empty. When a task finishes, its value goes to the task below,
+ * which resumes. A call of an IR function, of a function item of any kind,
+ * and every step of a resumable native body (src/function_library_
+ * internal.h) is a task too, so user recursion, fn:fold-right and nested
+ * closures cost heap, never C stack. A LET body, a branch of a
+ * CONDITIONAL and a call in tail position replace their task instead of
+ * pushing one, and a tail call reuses its caller's frame (glossary
+ * `tail_call`), so loops written as tail recursion run in constant memory.
+ * Only leaf work (operators, casts, axis steps, atomization, matching a
+ * type) runs as plain C calls, and those walk nested values with explicit
+ * stacks of their own.
+ *
+ * Lazy sequences. The evaluator makes no lazy sequence whose generator
+ * would evaluate IR or call a function item: MAP, FILTER, paths and calls
+ * build their values completely (Phase 1), so reading a sequence never
+ * re-enters the evaluator. Native bodies may make lazy sequences only with
+ * generators that call no function item.
+ *
  * Frames. Each call of an IR function takes slot_count slots from the
  * frame stack of the dynamic context and gives them back when it returns;
- * slots hold owned sequences, released when the frame ends. Function items
- * keep captured values, never frames (D38), so nothing outlives its frame.
+ * slots hold owned sequences, released when the frame ends (a slot bound
+ * again, as a MAP's focus slots are for each item, releases its old
+ * value). Function items keep captured values, never frames (D38), so
+ * nothing outlives its frame.
  *
- * Depth. Every nested expression evaluation and every call adds one to the
- * evaluation depth (glossary `evaluation_depth`); past
- * maximum_evaluation_depth the evaluation stops with
- * SXML_STATUS_LIMIT_EXCEEDED, so deep recursion never overflows the C
- * stack (D51). Native functions that loop (fn:fold-right over a million
- * items) iterate and do not add depth per item.
+ * Depth. The evaluation depth (glossary `evaluation_depth`) is the number
+ * of calls in progress: IR function calls and resumable native calls; a
+ * tail call does not add one. Past maximum_evaluation_depth the evaluation
+ * stops with SXML_STATUS_LIMIT_EXCEEDED, and past maximum_frame_slot_count
+ * too: deep recursion is a limit status, never a stack overflow (D51). The
+ * tasks between two calls are bounded by the nesting of the function's IR,
+ * so the depth bounds the task stack as well.
+ *
+ * Reentry. sxml_evaluator_evaluate, sxml_evaluator_call_function_item and
+ * the call operations of IR function bodies run the machine on a dynamic
+ * context that is not running already; on a running one they return
+ * SXML_STATUS_INVALID_ARGUMENT. Inside an evaluation the machine
+ * recognizes the function bodies it knows (IR, native rows, coerced
+ * functions) and calls them through tasks; other bodies (maps, arrays, host
+ * functions) are leaves and are called directly.
  *
  * Globals. Global variables live in a table of the dynamic context for the
  * unit being evaluated. A FUNCTION_DEFINITION whose function reads a
@@ -151,12 +185,28 @@ typedef struct sxml_evaluator_configuration {
        same table static analysis used. Borrowed; state must outlive the
        dynamic context. A table whose operations is NULL finds nothing. */
     sxml_function_table function_table;
-    /* Greater than 0: the processor resolves "0 means sxml's default". */
+    /* Most calls in progress at once; 0 means
+       SXML_EVALUATOR_DEFAULT_MAXIMUM_EVALUATION_DEPTH (the processor
+       resolves the public "0 means sxml's default" to it). */
     uint32_t maximum_evaluation_depth;
     /* Most frame slots in use at once; 0 means no bound beyond the
        allocator's. */
     size_t maximum_frame_slot_count;
 } sxml_evaluator_configuration;
+
+/* The depth limit when the configuration gives 0. Each level costs some
+   hundred bytes of allocator memory, not C stack. */
+#define SXML_EVALUATOR_DEFAULT_MAXIMUM_EVALUATION_DEPTH 1000000U
+
+/* One entry of the task stack; defined in src/evaluator.c. */
+typedef struct sxml_evaluator_task sxml_evaluator_task;
+
+/* The tasks of the running evaluation, innermost last. */
+typedef struct sxml_evaluator_task_stack {
+    sxml_evaluator_task *tasks;
+    size_t task_count;
+    size_t task_capacity;
+} sxml_evaluator_task_stack;
 
 /*
  * The dynamic context of an evaluation (XPath 4.0, section 2.2.2), as
@@ -168,6 +218,9 @@ typedef struct sxml_evaluator_configuration {
 struct sxml_dynamic_context {
     sxml_item_heap *item_heap;
     sxml_allocator allocator;
+    /* The allocator of sxml_dynamic_context_create, which destroy frees
+       the context with; the null allocator after initialize. */
+    sxml_allocator creating_allocator;
     sxml_document_loader document_loader;
     sxml_clock clock;
     sxml_function_table function_table;
@@ -177,6 +230,13 @@ struct sxml_dynamic_context {
     uint32_t maximum_evaluation_depth;
     size_t maximum_frame_slot_count;
     sxml_evaluator_frame_stack frame_stack;
+    sxml_evaluator_task_stack task_stack;
+    /* True while the machine runs on this context (see "Reentry"). */
+    bool is_running;
+    /* The value of the task that finished last, owned, waiting for the
+       task below it. */
+    bool has_task_value;
+    sxml_sequence task_value;
     /* The unit being evaluated and its global variables, slot n - 1 for
        global n. Set by sxml_evaluator_evaluate for its duration. */
     const sxml_ir_unit *unit;
@@ -202,7 +262,8 @@ SXML_NODISCARD sxml_status sxml_dynamic_context_initialize(
     const sxml_evaluator_configuration *configuration,
     sxml_dynamic_context **dynamic_context);
 
-/* Releases the frame stack and global table; accepts NULL. */
+/* Releases the frame stack, the task stack and the global table; accepts
+   NULL. */
 void sxml_dynamic_context_finalize(sxml_dynamic_context *dynamic_context);
 
 SXML_NODISCARD sxml_status sxml_dynamic_context_create(
@@ -219,6 +280,14 @@ void sxml_dynamic_context_destroy(sxml_dynamic_context *dynamic_context);
  */
 SXML_NODISCARD sxml_status sxml_dynamic_context_read_clock(
     sxml_dynamic_context *dynamic_context, sxml_clock_reading *reading);
+
+/*
+ * Writes the implicit timezone of the evaluation to *offset_minutes: the
+ * clock's (read on first use, as sxml_dynamic_context_read_clock), or UTC
+ * when the clock is the null clock. Returns the clock's failures.
+ */
+SXML_NODISCARD sxml_status sxml_dynamic_context_read_implicit_timezone(
+    sxml_dynamic_context *dynamic_context, int16_t *offset_minutes);
 
 /* Calls the document loader's load_document (fn:doc). */
 SXML_NODISCARD sxml_status sxml_dynamic_context_load_document(
@@ -259,9 +328,12 @@ typedef struct sxml_evaluation_request {
  * Returns SXML_STATUS_DYNAMIC_ERROR or SXML_STATUS_TYPE_ERROR with the
  * error record filled (code, description, value, the source span of the
  * expression that raised it), SXML_STATUS_LIMIT_EXCEEDED at
- * maximum_evaluation_depth or maximum_frame_slot_count, the document
- * loader's and clock's failures, and the allocator's. On failure every
- * value the evaluation made is released.
+ * maximum_evaluation_depth or maximum_frame_slot_count,
+ * SXML_STATUS_UNSUPPORTED_FEATURE for the IR kinds reserved for XQuery and
+ * XSLT and for global variables with an initializer, the document loader's
+ * and clock's failures, the allocator's, and SXML_STATUS_INVALID_ARGUMENT
+ * for an unsealed unit or a dynamic context that is running already. On
+ * failure every value the evaluation made is released.
  */
 SXML_NODISCARD sxml_status sxml_evaluator_evaluate(
     sxml_dynamic_context *dynamic_context,
@@ -271,10 +343,35 @@ SXML_NODISCARD sxml_status sxml_evaluator_evaluate(
  * The function body operations of every function item made from an IR
  * function (FUNCTION_DEFINITION, FUNCTION_REFERENCE to an IR function): the
  * state is the sealed unit's sxml_ir_function, cast from const; retain and
- * release retain and release its unit. call needs a dynamic context and
- * returns SXML_STATUS_INVALID_ARGUMENT without one (D38).
+ * release retain and release its unit. call needs a dynamic context that
+ * is not running, and returns SXML_STATUS_INVALID_ARGUMENT otherwise (D38;
+ * see "Reentry").
  */
 extern const sxml_function_body_operations sxml_evaluator_function_body_operations;
+
+/*
+ * The body of a function item made by function coercion (XPath 4.0, section
+ * 3.4.4): state NULL, one captured value, the wrapped function item, whose
+ * arity may be lower than the signature's. A call coerces the arguments to
+ * the item's own signature (as every dynamic call does), calls the wrapped
+ * item with as many leading arguments as it takes (which it coerces to its
+ * parameter types) and coerces the result to the signature's result type
+ * (XPTY0004). call
+ * follows the rules of sxml_evaluator_function_body_operations.
+ */
+extern const sxml_function_body_operations
+    sxml_evaluator_coerced_function_body_operations;
+
+/*
+ * The body of a function item made from an xs: constructor function
+ * (FUNCTION_REFERENCE with a constructor target, such as xs:integer#1):
+ * state NULL, one captured value, an xs:integer item holding the target
+ * type's identifier. A call casts its argument, allowing the empty
+ * sequence (XPath 4.0, section 4.5.1.3); a leaf, it needs no dynamic
+ * context.
+ */
+extern const sxml_function_body_operations
+    sxml_evaluator_constructor_body_operations;
 
 /* ------------------------------------------- Services for native bodies */
 
@@ -299,14 +396,65 @@ SXML_NODISCARD sxml_status sxml_evaluator_coerce(
 
 /*
  * Calls call->function_item as a dynamic function call does (XPath 4.0,
- * section 4.5.3): coerces call->arguments to the parameter types of its
- * signature, then sxml_function_item_call. What higher-order native
- * functions (fn:filter, fn:fold-left, fn:sort with a key) use. Returns
- * SXML_STATUS_TYPE_ERROR (XPTY0004) for a wrong arity or an argument that
- * cannot be coerced, and the body's failures.
+ * section 4.5.3) from outside an evaluation: coerces call->arguments to the
+ * parameter types of its signature, then runs the machine on
+ * call->dynamic_context, which must not be running (see "Reentry").
+ * Higher-order native functions do not use this: they are resumable bodies
+ * and ask the evaluator for their calls (D74). Writes the result, complete,
+ * to *result. Returns SXML_STATUS_TYPE_ERROR (XPTY0004) for a wrong arity
+ * or an argument that cannot be coerced, SXML_STATUS_INVALID_ARGUMENT
+ * without a dynamic context or on a running one, and the body's failures.
  */
 SXML_NODISCARD sxml_status sxml_evaluator_call_function_item(
     const sxml_function_call *call, sxml_sequence *result);
+
+/* A value to atomize. */
+typedef struct sxml_atomization_request {
+    sxml_sequence value;
+    sxml_error_record *error_record;
+} sxml_atomization_request;
+
+/*
+ * Atomizes request->value (XPath 4.0, section 2.5.3; glossary
+ * `atomization`) and writes the atomic items, owned, to *result: atomic
+ * items as they are, the typed value of each XNode, the atomized
+ * ·jvalue· of each JNode, the atomized members of each array, at any
+ * depth (walked with an explicit stack). A value of atomic items only is
+ * returned as it is (retained). Returns SXML_STATUS_TYPE_ERROR (FOTY0013
+ * for a map or another function item, FOTY0012 for a node without a typed
+ * value), a lazy sequence's failures, and the heap's and allocator's.
+ */
+SXML_NODISCARD sxml_status sxml_evaluator_atomize(
+    sxml_dynamic_context *dynamic_context,
+    const sxml_atomization_request *request, sxml_sequence *result);
+
+/* A value to match against a sequence type. */
+typedef struct sxml_type_match_request {
+    sxml_sequence value;
+    sxml_sequence_type sequence_type;
+    /* Receives a lazy sequence's error; may be NULL. */
+    sxml_error_record *error_record;
+} sxml_type_match_request;
+
+/* The outcome of matching. */
+typedef struct sxml_type_match {
+    bool is_match;
+} sxml_type_match;
+
+/*
+ * Writes to *match whether request->value is an instance of
+ * request->sequence_type (XPath 4.0, section 3.1.2 "Sequence Type
+ * Matching", "instance of"): the occurrence, then every item against the
+ * item type: atomic and union types by derivation, enumerations, node
+ * tests, JNode tests (keys and value types), function types by signature,
+ * maps, arrays and records by their entries and members at any depth, and
+ * choice types by their alternatives, on an explicit stack of type match
+ * frames. Returns a lazy sequence's failures and the heap's and
+ * allocator's; *match is then untouched.
+ */
+SXML_NODISCARD sxml_status sxml_evaluator_match_sequence_type(
+    sxml_dynamic_context *dynamic_context,
+    const sxml_type_match_request *request, sxml_type_match *match);
 
 /* The effective boolean value of a sequence (XPath 4.0, section 2.5.4). */
 typedef struct sxml_effective_boolean_value {
@@ -322,3 +470,164 @@ typedef struct sxml_effective_boolean_value {
 SXML_NODISCARD sxml_status sxml_evaluator_compute_effective_boolean_value(
     sxml_sequence sequence, sxml_error_record *error_record,
     sxml_effective_boolean_value *effective_boolean_value);
+
+/* ------------------------------------- Between src/evaluator*.c files */
+
+/* An array in allocator memory to grow (task stack, frame stack, work
+   lists); defined in src/evaluator.c. */
+typedef struct sxml_evaluator_growth {
+    /* In/out: the array, NULL before its first growth, and its capacity
+       in elements. */
+    void **elements;
+    size_t *element_capacity;
+    /* Elements in use, which are kept. */
+    size_t element_count;
+    /* The array grows, doubling, to hold at least this many. */
+    size_t required_count;
+    size_t element_byte_count;
+    size_t alignment;
+} sxml_evaluator_growth;
+
+/* Grows *growth->elements; returns the allocator's failures and
+   SXML_STATUS_ARITHMETIC_OVERFLOW, leaving the array as it was. */
+SXML_NODISCARD sxml_status sxml_evaluator_grow(sxml_allocator allocator,
+                                              const sxml_evaluator_growth *growth);
+
+/* Two positions to compare while sorting. */
+typedef struct sxml_index_pair {
+    size_t first_index;
+    size_t second_index;
+} sxml_index_pair;
+
+/* Orders the elements at two positions; a failure stops the sort. */
+typedef sxml_status (*sxml_index_comparison)(void *state, sxml_index_pair pair,
+                                             sxml_ordering *ordering);
+
+/* Positions to sort (src/evaluator_path.c). */
+typedef struct sxml_index_sort_request {
+    /* In/out: the positions, put into order. */
+    size_t *indices;
+    size_t index_count;
+    sxml_index_comparison compare;
+    void *compare_state;
+} sxml_index_sort_request;
+
+/* A stable, bottom-up merge sort (no recursion) with scratch memory from
+   allocator. Returns the comparison's and allocator's failures. */
+SXML_NODISCARD sxml_status sxml_evaluator_sort_indices(
+    sxml_allocator allocator, const sxml_index_sort_request *request);
+
+/* One axis step (src/evaluator_path.c). */
+typedef struct sxml_step_request {
+    /* The origin: generic nodes (XPTY0020 for anything else). */
+    sxml_sequence origin;
+    sxml_axis axis;
+    /* A registered item type (sxml_ir_step). */
+    sxml_type_identifier node_test;
+    sxml_error_record *error_record;
+} sxml_step_request;
+
+/*
+ * The nodes of request->axis from each origin node that match the node
+ * test, in axis order for one origin (XPath 4.0, section 4.6.4), in
+ * document order without duplicates for several, written, owned, to
+ * *result. From a JNode the axes run over the JTree, a name test N selects
+ * the JNodes with key "N" (section 4.6.5) and jnode() tests are matched
+ * with sxml_evaluator_match_sequence_type. Returns SXML_STATUS_TYPE_ERROR
+ * (XPTY0020), and the tree's, heap's and allocator's failures.
+ */
+SXML_NODISCARD sxml_status sxml_evaluator_make_step_value(
+    sxml_dynamic_context *dynamic_context, const sxml_step_request *request,
+    sxml_sequence *result);
+
+/* A value whose generic nodes to put into document order. */
+typedef struct sxml_document_order_request {
+    sxml_sequence input;
+    sxml_error_record *error_record;
+} sxml_document_order_request;
+
+/*
+ * The input sorted into document order without duplicates when it holds
+ * only generic nodes, unchanged when it holds none (XPath 4.0, section
+ * 4.6.3), written, owned, to *result. Returns SXML_STATUS_TYPE_ERROR
+ * (XPTY0018) for a mix, and the heap's and allocator's failures.
+ */
+SXML_NODISCARD sxml_status sxml_evaluator_make_document_order_value(
+    sxml_dynamic_context *dynamic_context,
+    const sxml_document_order_request *request, sxml_sequence *result);
+
+/* union, intersect, except (XPath 4.0, section 4.8.4). */
+typedef enum sxml_node_set_operator {
+    SXML_NODE_SET_OPERATOR_UNION,
+    SXML_NODE_SET_OPERATOR_INTERSECT,
+    SXML_NODE_SET_OPERATOR_EXCEPT,
+} sxml_node_set_operator;
+
+typedef struct sxml_node_set_request {
+    sxml_node_set_operator node_set_operator;
+    sxml_sequence left_operand;
+    sxml_sequence right_operand;
+    sxml_error_record *error_record;
+} sxml_node_set_request;
+
+/* The operator's nodes in document order without duplicates, owned, in
+   *result. Returns SXML_STATUS_TYPE_ERROR (XPTY0004) for an item that is
+   not a generic node, and the heap's and allocator's failures. */
+SXML_NODISCARD sxml_status sxml_evaluator_make_node_set_value(
+    sxml_dynamic_context *dynamic_context, const sxml_node_set_request *request,
+    sxml_sequence *result);
+
+/* An XNode and a node test of the type registry. */
+typedef struct sxml_node_test_request {
+    sxml_node_reference node;
+    const sxml_node_test *node_test;
+} sxml_node_test_request;
+
+/* Writes to *match whether request->node matches the node test (kind,
+   name, type annotation, nilled, document element; XPath 4.0, section
+   3.2.7). Returns the tree's and name pool's failures. */
+SXML_NODISCARD sxml_status sxml_evaluator_test_node(
+    const sxml_item_heap *item_heap, const sxml_node_test_request *request,
+    sxml_type_match *match);
+
+/* A FUNCTION_DEFINITION to make (src/evaluator_function.c). */
+typedef struct sxml_function_definition_request {
+    const sxml_ir_function *function;
+    /* The values of function->captured_variables, in order; retained. */
+    sxml_sequence_view captured_values;
+} sxml_function_definition_request;
+
+/* Makes the function item, owned, in *item: the function's name,
+   signature and annotations, an IR body. Returns the heap's failures. */
+SXML_NODISCARD sxml_status sxml_evaluator_make_function_definition(
+    sxml_dynamic_context *dynamic_context,
+    const sxml_function_definition_request *request, sxml_item *item);
+
+/* A FUNCTION_REFERENCE to make. */
+typedef struct sxml_function_reference_request {
+    const sxml_ir_unit *unit;
+    const sxml_ir_function_reference *function_reference;
+} sxml_function_reference_request;
+
+/* Makes the function item, owned, in *item (XPath 4.0, section 4.5.4): a
+   native row's body, an IR function's body or a constructor body. Returns
+   the name pool's and heap's failures. */
+SXML_NODISCARD sxml_status sxml_evaluator_make_function_reference(
+    sxml_dynamic_context *dynamic_context,
+    const sxml_function_reference_request *request, sxml_item *item);
+
+/* The parameter and result types of a function item's signature. */
+typedef struct sxml_call_signature {
+    /* False for a map or array (called with one atomic key or position)
+       and for function(*), whose arguments are not coerced. */
+    bool has_function_type;
+    sxml_sequence_type_view parameter_types;
+    sxml_sequence_type result_type;
+} sxml_call_signature;
+
+/* Writes the signature of function_item to *signature, borrowed from the
+   type registry. Returns SXML_STATUS_TYPE_ERROR (XPTY0004) when
+   function_item is not a function item. */
+SXML_NODISCARD sxml_status sxml_evaluator_describe_call_signature(
+    sxml_dynamic_context *dynamic_context, sxml_item function_item,
+    sxml_call_signature *signature);
