@@ -46,3 +46,39 @@ source before porting code.
 WASI SDK producing a standalone module, wrapped by a small hand-written
 TypeScript package. The core does no I/O of its own, so Emscripten's
 JavaScript system emulation is not needed.
+
+### D11. Phase gates closed by agent review
+Recorded 2026-10-16. The project owner chose, when asked, that work proceeds
+through the phases until XQuery 4.0 and XSLT 4.0 work, with each gate closed by
+a separate review agent instead of a human. The review agent checks the work
+against `docs/C_GUIDELINES.md` and the gate criteria; its findings are fixed
+before the next phase starts. Gate boxes ticked this way are marked
+"(agent review)" so a later human review can find them. The substrate freeze at
+the Phase 1 gate still applies: later substrate changes need a record here.
+
+### D12. Parsing with tree-sitter
+Recorded 2026-10-16, at the owner's request ("use tree-sitter wherever you need
+parsing"), confirmed for XML as well as the query languages.
+- The tree-sitter runtime (MIT) is vendored under `third_party/tree-sitter/`,
+  pinned to a release tag.
+- Grammars live under `grammars/<language>/grammar.js`. The generated parser
+  (and any external scanner) is committed so the build needs no Node.js; a
+  script regenerates it with a pinned `tree-sitter-cli`.
+- sxml walks the concrete syntax tree and builds its own structures (the XML
+  tree arena, the XPath/XQuery abstract syntax, then the shared IR). The
+  concrete syntax tree is freed before the parse function returns.
+- Any `ERROR` or `MISSING` node is a static error (XML: not well-formed;
+  XPath/XQuery: `XPST0003`). Error recovery never accepts input.
+- What a context-free grammar cannot express (XML well-formedness constraints,
+  entity expansion, namespace processing, XQuery lexical constraints) is
+  checked in the tree-building step.
+- Vendored third-party code is exempt from `docs/C_GUIDELINES.md` and the lint
+  gates. The tree-sitter runtime allocates with `malloc` unless
+  `ts_set_allocator` is called, and that hook is process-global, so sxml does
+  not call it. This exemption is limited to the parse step.
+
+### D13. Conformance test suites are fetched, not vendored
+The W3C QT4 test suite (`qt4cg/qt4tests`) and the XSLT 4.0 test suite
+(`qt4cg/xslt40-test`) are fetched at a pinned commit by
+`tools/fetch-test-suites.sh` into `third_party/` (ignored by git). Test lists
+in `tests/qt4/` refer to test cases by name.
