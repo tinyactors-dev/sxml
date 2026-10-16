@@ -119,6 +119,10 @@ typedef struct sxml_xml_frame {
        moves into the children of the current node. */
     bool needs_advance;
     bool descends;
+    /* The depth of the cursor's node below the walk root, from 1: what
+       ts_tree_cursor_current_depth gives, kept here because that is linear
+       in the depth (a deep document would cost quadratic time). */
+    uint32_t cursor_depth;
 } sxml_xml_frame;
 
 /* One step of expanding entities inside an attribute value (4.4.5). */
@@ -869,6 +873,7 @@ static sxml_status sxml_xml_push_frame(sxml_xml_document *document,
     sxml_xml_frame *pushed = element;
     *pushed = *frame;
     pushed->cursor = cursor;
+    pushed->cursor_depth = 1;
     pushed->needs_advance = false;
     pushed->descends = false;
     if (pushed->has_entity) {
@@ -882,14 +887,18 @@ static sxml_status sxml_xml_push_frame(sxml_xml_document *document,
 static bool sxml_xml_frame_advance(sxml_xml_frame *frame) {
     TSTreeCursor *cursor = &frame->cursor;
     if (frame->descends && ts_tree_cursor_goto_first_child(cursor)) {
+        frame->cursor_depth += 1;
         return true;
     }
     for (;;) {
         if (ts_tree_cursor_goto_next_sibling(cursor)) {
             return true;
         }
-        if (!ts_tree_cursor_goto_parent(cursor) ||
-            ts_tree_cursor_current_depth(cursor) == 0) {
+        if (!ts_tree_cursor_goto_parent(cursor)) {
+            return false;
+        }
+        frame->cursor_depth -= 1;
+        if (frame->cursor_depth == 0) {
             return false;
         }
     }
@@ -2860,7 +2869,7 @@ static sxml_status sxml_xml_visit_content(sxml_xml_document *document,
     /* The wrapper's own tags in an entity frame are the children of the
        walk root. */
     const bool is_wrapper_child =
-        ts_tree_cursor_current_depth(&frame->cursor) == 1 &&
+        frame->cursor_depth == 1 &&
         frame->frame_kind == SXML_XML_FRAME_KIND_GENERAL_ENTITY;
     const sxml_xml_node_type node_type = sxml_xml_type_of(node);
     if (node_type == SXML_XML_NODE_ELEMENT) {
