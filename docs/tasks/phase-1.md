@@ -206,6 +206,9 @@ freed before return (D12). Done when the W3C suite (`third_party/xmlconf`,
 Fifth Edition) gives 601/601 valid, 175/175 invalid, 948/948 not-wf right,
 and every slice document parses. Spec: XML 1.0 Fifth Edition; Namespaces in
 XML 1.0 Third Edition.
+**Done** 2026-10-16 (D81): 601/601, 175/175, 948/948 through
+`tests/xml_conformance_test.c`; 1046/1051 QT4 `*.xml` (the 5 others are
+not well-formed on purpose); `sxml check` added; P6 done as D69.
 
 ### 1.15 Casting and lexical forms (implementation)
 After 1.7. Owns `src/cast.c`, `src/cast_lexical.c`, `src/cast_internal.h`,
