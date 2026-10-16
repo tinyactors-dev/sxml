@@ -1893,17 +1893,65 @@ so D12's tree-sitter bounds parse speed at about 3.5 MB/s here). Tests:
 `xml/positions_move_back` (every pair of offsets against a fresh walk),
 `xml/large_documents_parse_in_linear_time` (10000 elements, 400 KB).
 
-## Proposed
+### D88. The processor and the XPath API (packet 1.23)
+Recorded 2026-10-16. `src/processor.c`, `src/processor_internal.h`,
+`src/xpath.c`, `src/function_library_uri.c`; tests `processor`, `xpath`.
+- **Processor**: one block holds the processor, name pool, type registry,
+  item heap and the function library over every part (numeric, string,
+  sequence, node, context, error, higher_order, map, array, json, uri);
+  member requirements are queried with stand-in pointers (they only check
+  for NULL). A null clock means `sxml_system_clock` (C17 `timespec_get`,
+  civil date by Hinnant's algorithm); `sxml_clock_read` checks the whole
+  reading contract (components, leap years, offsets) and the evaluator
+  now reads through it. Parsed documents: arena trees from the
+  processor's allocator with its tree and XML limits, no locations,
+  destroyed with their last reference.
+- **Limits** (comments in `processor.h` fixed): both depths bound heap,
+  not C stack (D71); 0 means 10,000 for `maximum_expression_depth` (D63)
+  and 1,000,000 for `maximum_evaluation_depth` (D75); new
+  `maximum_evaluation_step_count` (D89).
+- **Expressions**: compile is `sxml_xpath_compile` with the processor's
+  function table; identifiers of the static context are checked against
+  the pool and registry (INVALID_ARGUMENT), the static base URI must have
+  a scheme and is copied. Each evaluation allocates its own dynamic
+  context, global slots (bound by name to the unit's globals) and
+  document loader, and frees them before returning, so evaluations nest
+  (tested through a host function body).
+- **Document loader** (per evaluation): `fn:doc` resolves its argument
+  against the static base URI (`sxml_uri_resolve`, RFC 3986 5.2, now in
+  `src/xdm_internal.h` over the resolver of `src/xdm_node.c`), then looks
+  in the available documents, then the documents loaded so far, then asks
+  the resolver; a resource that does not parse or a non-document node is
+  FODC0002, the resolver's description goes into the error. fn:parse-xml
+  makes a new tree per call (FODC0006).
+- **Static base URI** reaches functions through the dynamic context
+  (`sxml_evaluation_request.static_base_uri`,
+  `sxml_dynamic_context_get_static_base_uri`): fn:doc, fn:parse-xml (when
+  no `base-uri` option), fn:json-to-xml (document base URI), and the new
+  rows fn:static-base-uri and fn:resolve-uri (FONS0005, FORG0002). A
+  function item called after its evaluation sees the caller's.
+- **CLI**: `sxml xpath` (docs/CLI.md): file resolver over the invocation's
+  file reader (paths and `file://` only), `--param` as
+  `xs:untypedAtomic` exactly one, `--method=adaptive` the only choice;
+  errors as `expression:LINE:COLUMN: err:CODE: description`. 19 golden
+  tests.
+- `tests/fuzz/fuzz_fixture.c` names the json and uri parts too.
 
-### P9. A bound on evaluation steps (from 1.26)
-Untrusted input must not cause unbounded work (docs/C_GUIDELINES.md,
-"Memory and buffers"), but nothing bounds the time of an evaluation that
-allocates little: `some $x in 1 to 100000000000 satisfies $x = 0`, or
-`-1 = -100000000000 to -1` (found by `xpath_evaluate_fuzz`), run for
-hours. Proposal: `uint64_t maximum_evaluation_step_count` in
-`sxml_processor_limits` (`include/sxml/processor.h`) and in
-`sxml_evaluator_configuration`, 0 meaning no bound; the machine counts
-tasks run and items read from a sequence or iterator in one evaluation
-and gives `SXML_STATUS_LIMIT_EXCEEDED`; native bodies that loop
-(`fn:count`, `fn:string-join`, regex, sorting) charge their items. Until
-then `tools/fuzz.sh` tolerates timeouts of `xpath_evaluate_fuzz` (D86).
+### D89. A bound on evaluation steps (P9 accepted)
+Recorded 2026-10-16 (orchestrator accepted P9, with "0 means sxml's
+default"). `uint64_t maximum_evaluation_step_count` in
+`sxml_processor_limits`; 0 means
+`SXML_EVALUATOR_DEFAULT_MAXIMUM_EVALUATION_STEP_COUNT`, 10^9 steps (about
+a minute of work, far beyond any QT4 test). `sxml_evaluator_configuration`
+has the same field with 0 meaning no bound. The machine charges one step
+per task run; `sxml_dynamic_context_charge_steps` lets leaf work charge
+what it reads: a general comparison charges the product of its operand
+counts first (O(1) for ranges), so `-1 = -100000000000 to -1` stops at
+once, even though an early match would have ended it (the price of
+charging up front). The count restarts with every evaluation; past the
+bound, LIMIT_EXCEEDED with the diagnostic filled. Native bodies that loop
+over many items without tasks (fn:count, fn:string-join, sorting, regex)
+do not charge yet; each can call the function when needed.
+`xpath_evaluate_fuzz` sets 10^7 steps.
+
+## Proposed
