@@ -1,0 +1,1 @@
+{"files":[{"file":"well-formed.xml","status":"well-formed"},{"file":"mismatched-tag.xml","status":"not-well-formed","line":2,"column":9,"byte_offset":14,"message":"not well-formed: the text does not match the XML 1.0 grammar here (XML 1.0, section 2.1)"}]}

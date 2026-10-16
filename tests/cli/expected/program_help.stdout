@@ -4,6 +4,7 @@ Usage: sxml [--version] COMMAND [ARGUMENT...]
 
 Commands:
   help     Show help for the program or for one command
+  check    Check that XML documents are namespace-well-formed
   version  Print the sxml library version
 
 Options:

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "cli_command.h"
 #include "cli_output.h"
 #include "sxml/status.h"
 
@@ -33,3 +34,10 @@ sxml_cli_output_stream sxml_platform_standard_error(void);
  * SXML_STATUS_INPUT_OUTPUT_FAILED when a buffered write failed.
  */
 SXML_NODISCARD sxml_status sxml_platform_flush_streams(void);
+
+/*
+ * The file reader over ISO C stdio: reads named files in binary mode, and
+ * standard input for "-" (docs/CLI.md: standard input only when "-" is
+ * given).
+ */
+sxml_cli_file_reader sxml_platform_file_reader(void);

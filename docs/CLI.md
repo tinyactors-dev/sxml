@@ -80,6 +80,7 @@ Every invocation does exactly what its words say, and nothing else.
 | `sxml help [COMMAND]` | Prints help for sxml or one command to stdout |
 | `sxml version [--format=text\|json]` | Prints the library version (`sxml_version_text`) |
 | `sxml --version` | Same as `sxml version` |
+| `sxml check [--format=text\|json] FILE...` | Checks that every FILE (`-`: standard input) is namespace-well-formed XML 1.0; nothing on stdout in text format, one `FILE:LINE:COLUMN: message` per failure on stderr; `--format=json` prints `{"files":[{"file":...,"status":...}]}` with status `well-formed`, `not-well-formed`, `unreadable` or `failed` (plus `line`, `column`, `byte_offset`, `message`). Exit 1 when a FILE is not well-formed, 3 when one cannot be read, 4 at a limit (entity expansion over 4 MiB) |
 
 ## Planned commands
 
@@ -92,7 +93,6 @@ binds external variable `$NAME` to `xs:untypedAtomic(VALUE)`),
 
 | Phase | Synopsis | Exit 1 when |
 | --- | --- | --- |
-| 1 | `sxml check [--format=text\|json] FILE...` | a FILE is not namespace-well-formed XML 1.0; every FILE is checked, one `FILE:LINE:COLUMN: message` per error on stderr |
 | 1 | `sxml xpath [--context-item=FILE] [--param=NAME=VALUE]... [--method=M] EXPRESSION` | the expression raises an error; the error code (`err:XPTY0004`) is in the diagnostic |
 | 3 | `sxml xquery [--context-item=FILE] [--param=NAME=VALUE]... [--method=M] [--output=FILE [--force]] (QUERY-FILE \| --expression=TEXT)` | as for `xpath`; giving both or neither of QUERY-FILE and `--expression` is a usage error |
 | 3 | `sxml serialize [--method=M] [--indent] [--output=FILE [--force]] FILE` | FILE is not well-formed |
@@ -112,9 +112,11 @@ developer tools under `tests/` built with the same framework (D44).
 - `apps/sxml/`: the program table and command handlers (`program.c`,
   `command_version.c`), `main.c`, and the only file that touches stdio,
   `platform_stdio.c`. A new command is one `command_<name>.c` plus one table
-  entry, imitating `command_version.c`; file input arrives as a platform
-  interface with `check`.
+  entry, imitating `command_version.c`. Files are read through the
+  invocation's `sxml_cli_file_reader` (`cli_command.h`), which the platform
+  layer implements over stdio (`command_check.c` uses it).
 - Tests, all in `tests/cli/` (registered from `apps/CMakeLists.txt`, outside
   the `tests/*_test.c` glob): framework unit tests `cli_*_test.c`, and
   end-to-end golden tests (`sxml_add_cli_test`: arguments, exit code,
   `expected/<name>.stdout` and `.stderr`; `SXML_UPDATE_GOLDEN=1` rewrites).
+  They run in `tests/cli/input/`, which holds the input files.

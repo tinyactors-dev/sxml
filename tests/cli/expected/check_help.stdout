@@ -1,0 +1,22 @@
+sxml check - Check that XML documents are namespace-well-formed
+
+Usage: sxml check [--format=FORMAT] FILE...
+
+Checks every FILE against XML 1.0 (Fifth Edition) and Namespaces in
+XML 1.0, without building it. Encodings: UTF-8, UTF-16, ISO-8859-1
+and US-ASCII. The external DTD subset and external entities are not
+read. Each problem is reported on standard error as
+FILE:LINE:COLUMN: message; with --format=json, one JSON object on
+standard output lists every file with its "status". Exits 1 when a
+file is not well-formed, 3 when a file cannot be read.
+
+Options:
+  -h, --help           Show this help and exit
+      --format=FORMAT  Report format (one of: text, json; default: text)
+
+Arguments:
+  FILE  XML document to check; - reads standard input
+
+Examples:
+  sxml check document.xml
+  sxml check --format=json a.xml b.xml

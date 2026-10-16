@@ -23,6 +23,7 @@ target_link_libraries(sxml_cli_framework PUBLIC sxml)
 sxml_apply_project_flags(sxml_cli_framework)
 
 add_library(sxml_program STATIC
+    sxml/command_check.c
     sxml/command_version.c
     sxml/program.c
 )

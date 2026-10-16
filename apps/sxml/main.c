@@ -56,6 +56,7 @@ int main(int argument_count, char **arguments) {
             .standard_error = sxml_platform_standard_error(),
             .allocator = allocator,
             .version_text = sxml_byte_view_from_c_string(sxml_version_text()),
+            .file_reader = sxml_platform_file_reader(),
         });
     sxml_allocator_release(allocator, argument_views);
     if (sxml_platform_flush_streams() != SXML_STATUS_OK &&

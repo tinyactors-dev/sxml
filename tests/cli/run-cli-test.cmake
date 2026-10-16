@@ -8,12 +8,14 @@
 #   EXPECTED_EXIT_CODE    the exit code
 #   EXPECTED_STDOUT_FILE  golden standard output; a missing file means empty
 #   EXPECTED_STDERR_FILE  golden standard error; a missing file means empty
+#   WORKING_DIRECTORY     where the program runs (tests/cli/input)
 #
 # With the environment variable SXML_UPDATE_GOLDEN=1 the golden files are
 # rewritten from the actual output instead (then review the diff).
 
 execute_process(
     COMMAND ${EMULATOR} "${PROGRAM}" ${ARGUMENTS}
+    WORKING_DIRECTORY "${WORKING_DIRECTORY}"
     OUTPUT_VARIABLE actual_stdout
     ERROR_VARIABLE actual_stderr
     RESULT_VARIABLE actual_exit_code)

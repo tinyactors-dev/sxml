@@ -19,7 +19,9 @@ endforeach()
 
 # sxml_add_cli_test(<name> EXIT_CODE <code> [GOLDEN <golden>] [ARGUMENTS <argument>...])
 # Arguments are passed verbatim; empty arguments are not supported here (the
-# unit tests in tests/cli_arguments_test.c cover them).
+# unit tests in tests/cli_arguments_test.c cover them). The program runs in
+# tests/cli/input/, so file arguments are relative names there: the same
+# under WASI, whose only visible directory is the working directory.
 function(sxml_add_cli_test name)
     cmake_parse_arguments(PARSE_ARGV 1 cli "" "EXIT_CODE;GOLDEN" "ARGUMENTS")
     if(NOT DEFINED cli_EXIT_CODE)
@@ -45,6 +47,7 @@ set(ARGUMENTS${argument_text})
 set(EXPECTED_EXIT_CODE ${cli_EXIT_CODE})
 set(EXPECTED_STDOUT_FILE [==[${golden_base}.stdout]==])
 set(EXPECTED_STDERR_FILE [==[${golden_base}.stderr]==])
+set(WORKING_DIRECTORY [==[${CMAKE_CURRENT_SOURCE_DIR}/input]==])
 include([==[${CMAKE_CURRENT_SOURCE_DIR}/run-cli-test.cmake]==])
 ")
     add_test(NAME cli/${name} COMMAND "${CMAKE_COMMAND}" -P "${script}")
@@ -85,3 +88,14 @@ sxml_add_cli_test(unexpected_argument EXIT_CODE 2 ARGUMENTS version extra)
 sxml_add_cli_test(standard_input_is_an_argument EXIT_CODE 2 ARGUMENTS version -)
 sxml_add_cli_test(help_unknown_command EXIT_CODE 2 ARGUMENTS help verison)
 sxml_add_cli_test(help_extra_argument EXIT_CODE 2 ARGUMENTS help version extra)
+
+# sxml check (docs/CLI.md): files in tests/cli/input/.
+sxml_add_cli_test(check_well_formed EXIT_CODE 0 ARGUMENTS check well-formed.xml)
+sxml_add_cli_test(check_encodings EXIT_CODE 0 ARGUMENTS check utf-16.xml latin-1.xml)
+sxml_add_cli_test(check_not_well_formed EXIT_CODE 1 ARGUMENTS check well-formed.xml mismatched-tag.xml unbound-prefix.xml)
+sxml_add_cli_test(check_json EXIT_CODE 1 ARGUMENTS check --format=json well-formed.xml mismatched-tag.xml)
+sxml_add_cli_test(check_missing_file EXIT_CODE 3 ARGUMENTS check missing.xml well-formed.xml)
+sxml_add_cli_test(check_missing_file_json EXIT_CODE 3 ARGUMENTS check --format json missing.xml)
+sxml_add_cli_test(check_entity_limit EXIT_CODE 4 ARGUMENTS check billion-laughs.xml)
+sxml_add_cli_test(check_no_file EXIT_CODE 2 ARGUMENTS check)
+sxml_add_cli_test(check_help EXIT_CODE 0 ARGUMENTS check --help)

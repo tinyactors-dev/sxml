@@ -5,8 +5,10 @@
  */
 #include "platform.h"
 
+#include <stdalign.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <string.h>
 
 #if defined(_WIN32)
 #include <fcntl.h>
@@ -60,4 +62,100 @@ sxml_status sxml_platform_flush_streams(void) {
         return SXML_STATUS_INPUT_OUTPUT_FAILED;
     }
     return SXML_STATUS_OK;
+}
+
+/* Reads all of file into memory from allocator, growing by doubling. */
+static sxml_status sxml_platform_read_stream(FILE *file,
+                                             sxml_allocator allocator,
+                                             sxml_byte_view *contents) {
+    size_t capacity = 0;
+    size_t byte_count = 0;
+    uint8_t *bytes = NULL;
+    for (;;) {
+        if (byte_count == capacity) {
+            size_t grown_capacity = 0;
+            sxml_status status = sxml_size_multiply(
+                capacity == 0 ? 4096 : capacity, capacity == 0 ? 1 : 2,
+                &grown_capacity);
+            void *grown = NULL;
+            if (status == SXML_STATUS_OK) {
+                status = sxml_allocator_allocate(
+                    allocator,
+                    (sxml_allocation_request){.byte_count = grown_capacity,
+                                              .alignment = 1},
+                    &grown);
+            }
+            if (status != SXML_STATUS_OK) {
+                sxml_allocator_release(allocator, bytes);
+                return status;
+            }
+            if (byte_count != 0) {
+                memcpy(grown, bytes, byte_count);
+            }
+            sxml_allocator_release(allocator, bytes);
+            bytes = grown;
+            capacity = grown_capacity;
+        }
+        const size_t read_count =
+            fread(bytes + byte_count, 1, capacity - byte_count, file);
+        byte_count += read_count;
+        if (read_count == 0) {
+            break;
+        }
+    }
+    if (ferror(file) != 0) {
+        sxml_allocator_release(allocator, bytes);
+        return SXML_STATUS_INPUT_OUTPUT_FAILED;
+    }
+    *contents = (sxml_byte_view){.bytes = bytes, .byte_count = byte_count};
+    return SXML_STATUS_OK;
+}
+
+static sxml_status sxml_platform_read_file(
+    void *state, const sxml_cli_file_read_request *request,
+    sxml_byte_view *contents) {
+    (void)state;
+    if (sxml_byte_view_equals(request->path, SXML_BYTE_VIEW_FROM_LITERAL("-"))) {
+        return sxml_platform_read_stream(stdin, request->allocator, contents);
+    }
+    /* fopen needs a NUL-terminated name; a name with a NUL byte names no
+       file. */
+    if (request->path.byte_count == 0 ||
+        memchr(request->path.bytes, 0, request->path.byte_count) != NULL) {
+        return SXML_STATUS_INPUT_OUTPUT_FAILED;
+    }
+    void *memory = NULL;
+    sxml_status status = sxml_allocator_allocate(
+        request->allocator,
+        (sxml_allocation_request){.byte_count = request->path.byte_count + 1,
+                                  .alignment = alignof(char)},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    char *name = memory;
+    memcpy(name, request->path.bytes, request->path.byte_count);
+    name[request->path.byte_count] = '\0';
+    FILE *file = fopen(name, "rb");
+    sxml_allocator_release(request->allocator, memory);
+    if (file == NULL) {
+        return SXML_STATUS_INPUT_OUTPUT_FAILED;
+    }
+    status = sxml_platform_read_stream(file, request->allocator, contents);
+    if (fclose(file) != 0 && status == SXML_STATUS_OK) {
+        sxml_allocator_release(request->allocator, (void *)contents->bytes);
+        status = SXML_STATUS_INPUT_OUTPUT_FAILED;
+    }
+    return status;
+}
+
+static const sxml_cli_file_reader_operations sxml_platform_file_reader_operations = {
+    .read_file = sxml_platform_read_file,
+};
+
+sxml_cli_file_reader sxml_platform_file_reader(void) {
+    return (sxml_cli_file_reader){
+        .state = NULL,
+        .operations = &sxml_platform_file_reader_operations,
+    };
 }

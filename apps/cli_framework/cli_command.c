@@ -230,3 +230,12 @@ sxml_status sxml_cli_program_validate(const sxml_cli_program *program,
     }
     return SXML_STATUS_OK;
 }
+
+sxml_status sxml_cli_file_reader_read(sxml_cli_file_reader reader,
+                                      const sxml_cli_file_read_request *request,
+                                      sxml_byte_view *contents) {
+    if (reader.operations == NULL || reader.operations->read_file == NULL) {
+        return SXML_STATUS_INPUT_OUTPUT_FAILED;
+    }
+    return reader.operations->read_file(reader.state, request, contents);
+}

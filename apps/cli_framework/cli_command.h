@@ -157,6 +157,48 @@ typedef struct sxml_cli_program {
     sxml_byte_view bug_report_location;
 } sxml_cli_program;
 
+/* ---------------------------------------------------------- File reader */
+
+/* One file to read. */
+typedef struct sxml_cli_file_read_request {
+    /* The file name as given on the command line; "-" is standard input.
+       Borrowed for the call. */
+    sxml_byte_view path;
+    /* Provides the memory of the contents. */
+    sxml_allocator allocator;
+} sxml_cli_file_read_request;
+
+/*
+ * The interface through which commands read files (glossary: file_reader;
+ * D44: only the platform layer touches stdio). The default implementation
+ * is the platform layer's (apps/sxml/platform.h).
+ */
+typedef struct sxml_cli_file_reader_operations {
+    /* Reads the whole file into memory from request->allocator and writes
+       it to *contents; the caller releases contents->bytes through that
+       allocator (empty contents may have NULL bytes). Returns
+       SXML_STATUS_INPUT_OUTPUT_FAILED when the file cannot be opened or
+       read, and the allocator's failures. */
+    sxml_status (*read_file)(void *state,
+                             const sxml_cli_file_read_request *request,
+                             sxml_byte_view *contents);
+} sxml_cli_file_reader_operations;
+
+/* Passed by value; operations NULL means no file can be read. */
+typedef struct sxml_cli_file_reader {
+    void *state;
+    const sxml_cli_file_reader_operations *operations;
+} sxml_cli_file_reader;
+
+/*
+ * Reads a file through reader. Returns SXML_STATUS_INPUT_OUTPUT_FAILED for
+ * a reader without operations, and the reader's failures; *contents is
+ * untouched on failure.
+ */
+SXML_NODISCARD sxml_status sxml_cli_file_reader_read(
+    sxml_cli_file_reader reader, const sxml_cli_file_read_request *request,
+    sxml_byte_view *contents);
+
 /* ----------------------------------------------------------- Invocation */
 
 typedef struct sxml_cli_arguments sxml_cli_arguments;
@@ -177,6 +219,8 @@ struct sxml_cli_invocation {
     sxml_allocator allocator;
     /* The version text the program reports, such as "0.0.0". */
     sxml_byte_view version_text;
+    /* Reads the files named on the command line. */
+    sxml_cli_file_reader file_reader;
 };
 
 /*

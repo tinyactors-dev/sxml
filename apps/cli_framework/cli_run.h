@@ -29,6 +29,8 @@ typedef struct sxml_cli_run_request {
     sxml_allocator allocator;
     /* What "--version" reports after the program name, such as "0.0.0". */
     sxml_byte_view version_text;
+    /* Passed to commands that read files; may have no operations. */
+    sxml_cli_file_reader file_reader;
 } sxml_cli_run_request;
 
 /*

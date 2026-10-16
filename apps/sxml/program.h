@@ -13,5 +13,8 @@
 /* The table of the sxml program. Static data; valid for the whole run. */
 const sxml_cli_program *sxml_program(void);
 
+/* The "check" command (command_check.c). */
+extern const sxml_cli_command sxml_check_command;
+
 /* The "version" command (command_version.c). */
 extern const sxml_cli_command sxml_version_command;
