@@ -352,65 +352,6 @@ static sxml_status call_tokenize(const sxml_function_call *call, sxml_sequence *
     return status;
 }
 
-/* fn:abs on xs:integer, fn:round on xs:double and xs:integer. */
-static sxml_status call_abs(const sxml_function_call *call, sxml_sequence *result) {
-    sxml_atomic_datum datum;
-    const sxml_status status =
-        sxml_atomic_item_get_datum(call->arguments.sequences[0].content, &datum);
-    if (status == SXML_STATUS_OK) {
-        const int64_t value = datum.datum_details.integer;
-        *result = sxml_sequence_from_item(sxml_atomic_item_from_integer(value < 0 ? -value
-                                                                                  : value));
-    }
-    return status;
-}
-
-static sxml_status call_round(const sxml_function_call *call, sxml_sequence *result) {
-    const sxml_sequence argument = call->arguments.sequences[0];
-    sxml_atomic_datum datum;
-    const sxml_status status = sxml_atomic_item_get_datum(argument.content, &datum);
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    if (datum.datum_kind != SXML_DATUM_KIND_DOUBLE) {
-        sxml_sequence_retain(argument);
-        *result = argument;
-        return SXML_STATUS_OK;
-    }
-    const double value = datum.datum_details.double_number;
-    *result = sxml_sequence_from_item(
-        sxml_atomic_item_from_double((double)(int64_t)(value + (value < 0 ? -0.5 : 0.5))));
-    return SXML_STATUS_OK;
-}
-
-/* fn:avg of xs:integer items, as xs:double. */
-static sxml_status call_avg(const sxml_function_call *call, sxml_sequence *result) {
-    sxml_sequence_iterator iterator = sxml_sequence_iterator_start(call->arguments.sequences[0]);
-    int64_t sum = 0;
-    int64_t count = 0;
-    for (;;) {
-        sxml_iteration_step step;
-        sxml_status status = sxml_sequence_iterator_next(&iterator, NULL, &step);
-        if (status != SXML_STATUS_OK) {
-            return status;
-        }
-        if (!step.has_item) {
-            break;
-        }
-        sxml_atomic_datum datum;
-        status = sxml_atomic_item_get_datum(step.item, &datum);
-        if (status != SXML_STATUS_OK) {
-            return status;
-        }
-        sum += datum.datum_details.integer;
-        count += 1;
-    }
-    *result = count == 0 ? sxml_sequence_empty()
-                         : sxml_sequence_from_item(
-                               sxml_atomic_item_from_double((double)sum / (double)count));
-    return SXML_STATUS_OK;
-}
-
 /* One level of fn:deep-equal: atomic items, and maps and arrays whose
    entries or members are atomic, enough for the slice lines here. */
 static bool shallow_sequences_equal(sxml_sequence first, sxml_sequence second);
@@ -591,8 +532,6 @@ static const sxml_function_parameter two_string_parameters[] = {
 static const sxml_function_parameter substring_parameters[] = {
     PARAMETER("value", "xs:string?"), PARAMETER("start", "xs:double"),
     PARAMETER("length", "xs:double")};
-static const sxml_function_parameter numeric_parameters[] = {
-    PARAMETER("value", "xs:numeric?")};
 static const sxml_function_parameter subsequence_parameters[] = {
     PARAMETER("input", "item()*"), PARAMETER("start", "xs:double"),
     PARAMETER("length", "xs:double")};
@@ -635,9 +574,6 @@ static const sxml_native_function test_rows[] = {
     TEST_ROW("string-length", string_parameters, "xs:integer", 0, call_string_length),
     TEST_ROW("substring", substring_parameters, "xs:string", 0, call_substring),
     TEST_ROW("tokenize", string_parameters, "xs:string*", 0, call_tokenize),
-    TEST_ROW("abs", numeric_parameters, "xs:numeric?", 0, call_abs),
-    TEST_ROW("round", numeric_parameters, "xs:numeric?", 0, call_round),
-    TEST_ROW("avg", input_parameters, "xs:anyAtomicType?", 0, call_avg),
     TEST_ROW("deep-equal", two_input_parameters, "xs:boolean", 0, call_deep_equal),
     TEST_ROW("subsequence", subsequence_parameters, "item()*", 0, call_subsequence),
     TEST_ROW("jtree", jtree_parameters, "jnode()?", 0, call_jtree),
@@ -815,6 +751,8 @@ static const sxml_native_function_view *const table_parts[] = {
     &sxml_function_library_higher_order,
     &sxml_function_library_map,
     &sxml_function_library_array,
+    /* fn:abs, fn:round (round#2 for fn-partial-apply-01), fn:avg. */
+    &sxml_function_library_numeric,
     &test_part,
 };
 
@@ -1127,12 +1065,14 @@ static void test_higher_order_slice_lines(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, evaluates_to("let $m := map { 'a': 1 } return $m(?) instance of "
                                          "map(*)",
                                          "false"));  /* hof-920 */
-    /* DynamicFunctionCall-146 calls a sequence of two functions at once,
-       which the evaluator does not (yet); each is called here. */
-    SXML_TEST_EXPECT(state, evaluates_to("for $f in (op('+'), op('-')) return $f(12, 8)",
-                                         "20 4"));
+    SXML_TEST_EXPECT(state, evaluates_to("let $f := (op('+'), op('-')) return $f(12, 8)",
+                                         "20 4"));  /* DynamicFunctionCall-146 */
+    SXML_TEST_EXPECT(state, evaluates_to("let $f := (op('+'), op('-'))(12, ?) return $f(5)",
+                                         "17 7"));  /* DynamicFunctionCall-149 */
     SXML_TEST_EXPECT(state, evaluates_to("let $usd := \"$\" => concat(?) return $usd(3)",
                                          "$3"));  /* ArrowPostfix-108 */
+    SXML_TEST_EXPECT(state, evaluates_to("partial-apply(round#2, {2: 1})(1.23456)",
+                                         "1.2"));  /* fn-partial-apply-01 */
     SXML_TEST_EXPECT(state, fails_with("partial-apply(string-length#1, {1 : ('a','b') })",
                                        "XPTY0004"));  /* fn-partial-apply-13 */
     SXML_TEST_EXPECT(state, evaluates_to("let $f := concat#8 return $f('a','b','c','d','e',"
@@ -1408,6 +1348,20 @@ static void test_array_functions(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, evaluates_to("array:index-where([(), 1, (), 2], fn($m) "
                                          "{ count($m) > 0 })",
                                          "2 4"));
+    /* array:index-of compares members by deep equality (F&O 4.0,
+       15.2.13). */
+    SXML_TEST_EXPECT(state, evaluates_to("array:index-of([10, 20, 30, 30, 20, 10], 20)",
+                                         "2 5"));  /* array-index-of-001 */
+    SXML_TEST_EXPECT(state, evaluates_to("array:index-of([(1, 2), 1, (1, 2), [1, 2]], (1, 2))",
+                                         "1 3"));
+    SXML_TEST_EXPECT(state, evaluates_to("array:index-of([], 1), array:index-of([()], ())",
+                                         "1"));
+    SXML_TEST_EXPECT(state, evaluates_to("array:index-of(['a', 'A'], 'a', "
+                                         "'http://www.w3.org/2005/xpath-functions/collation/"
+                                         "codepoint')",
+                                         "1"));
+    SXML_TEST_EXPECT(state, fails_with("array:index-of(['a'], 'a', 'http://example.com/c')",
+                                       "FOCH0002"));
     SXML_TEST_EXPECT(state, evaluates_to("array:fold-right([1, 2, 3], (), fn($m, $a) "
                                          "{ $a, $m })",
                                          "3 2 1"));

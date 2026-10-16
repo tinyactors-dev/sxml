@@ -983,6 +983,12 @@ static void test_string_functions(sxml_test_state *state) {
         {"codepoints-to-string(0)", "!FOCH0001"},
         {"string-to-codepoints(codepoints-to-string((1, 31)))", "1 31"},
         {"codepoints-to-string(65 to 1114112)", "!FOCH0001"},
+        /* Coercing a range to xs:integer* does not walk it. */
+        {"codepoints-to-string(65536 to 1114112)", "!FOCH0001"},  /* cbcl-codepoints-to-string-005 */
+        {"let $y := 65536*65536 return for $x in $y to $y+10 return "
+         "codepoints-to-string(65 to $x)",
+         "!FOCH0001"},  /* cbcl-codepoints-to-string-021 */
+        {"tokenize(' a  b ', flags := 'q')", "\"a\" \"b\""},  /* keyword after a left-out $pattern */
         {"string-to-codepoints('Hi')", "72 105"},
         {"string(12.50)", "\"12.5\""},
         {"string(())", "\"\""},
@@ -1039,6 +1045,16 @@ static void test_regular_expression_functions(sxml_test_state *state) {
          "\"Chapter 10\""},
         {"replace('A1B2', '([A-Z])([0-9])', fn($s, $g) { $g?2 || $g?1 })", "\"1A2B\""},
         {"replace('abc', 'b', fn{upper-case(.)})", "\"aBc\""},
+        /* $replacement has its F&O 4.0 choice type: the function is
+           coerced by the call, and receives untyped values. */
+        {"replace('abc', '(b)', fn($m, $g) { $m instance of xs:untypedAtomic and "
+         "$g?1 instance of xs:untypedAtomic })",
+         "\"atruec\""},
+        {"replace('abc', 'b', fn() { 'Z' }), replace('abc', 'b', xs:untypedAtomic('U'))",
+         "\"aZc\" \"aUc\""},
+        /* Neither alternative takes it; the error is the first attempt's,
+           atomizing a function (XPath 4.0, section 3.4.2). */
+        {"replace('abc', 'b', fn($a, $b, $c) { 'Z' })", "!FOTY0013"},
         {"replace('abc', 'x', fn{'y'})", "\"abc\""},
         {"replace((), 'x', fn{'y'})", "\"\""},
     };

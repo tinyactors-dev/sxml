@@ -878,58 +878,24 @@ static void release_replace_state(void *state) {
     replace->action = sxml_sequence_empty();
 }
 
-/* Coerces the replacement function to fn(xs:string, map(xs:integer,
-   xs:string)) as item()? (XPath 4.0, section 3.4.4, function coercion);
-   the row's parameter type is item()? since the evaluator does not coerce
-   to a function type inside a choice. */
-static sxml_status coerce_action(const sxml_function_call *call, sxml_item function_item,
-                                 sxml_sequence *action) {
-    sxml_type_registry *registry = sxml_item_heap_get_type_registry(call->item_heap);
-    sxml_type_identifier map_type = {.index = SXML_TYPE_NONE};
-    sxml_status status = sxml_type_registry_register_item_type(
-        registry,
-        &(sxml_type_description){
-            .variety = SXML_TYPE_VARIETY_MAP,
-            .variety_details = {.map_type = {.is_any_map = false,
-                                             .key_type = sxml_builtin_type_identifier(
-                                                 SXML_TYPE_XS_INTEGER),
-                                             .value_type = {.item_type = sxml_builtin_type_identifier(
-                                                                SXML_TYPE_XS_STRING),
-                                                            .occurrence =
-                                                                SXML_OCCURRENCE_EXACTLY_ONE}}}},
-        &map_type);
-    const sxml_sequence_type parameter_types[2] = {
-        {.item_type = sxml_builtin_type_identifier(SXML_TYPE_XS_STRING),
-         .occurrence = SXML_OCCURRENCE_EXACTLY_ONE},
-        {.item_type = map_type, .occurrence = SXML_OCCURRENCE_EXACTLY_ONE}};
-    sxml_type_identifier function_type = {.index = SXML_TYPE_NONE};
+/* An xs:untypedAtomic item of utf8: the replacement function receives
+   the match and the captured groups untyped (F&O 4.0, section 6.3.2). */
+static sxml_status make_untyped(sxml_item_heap *item_heap, sxml_byte_view utf8,
+                                sxml_sequence *result) {
+    sxml_item item = {.representation = 0};
+    const sxml_status status = sxml_atomic_item_make(
+        item_heap,
+        &(sxml_atomic_item_request){
+            .type = sxml_builtin_type_identifier(SXML_TYPE_XS_UNTYPED_ATOMIC),
+            .datum = {.datum_kind = SXML_DATUM_KIND_STRING,
+                      .datum_details = {.string = {.utf8 = utf8,
+                                                   .codepoint_count = 0,
+                                                   .is_ascii = false}}}},
+        &item);
     if (status == SXML_STATUS_OK) {
-        status = sxml_type_registry_register_item_type(
-            registry,
-            &(sxml_type_description){
-                .variety = SXML_TYPE_VARIETY_FUNCTION,
-                .variety_details = {.function_type = {
-                                        .is_any_function = false,
-                                        .parameter_types = {.sequence_types = parameter_types,
-                                                            .sequence_type_count = 2},
-                                        .result_type = {.item_type = sxml_builtin_type_identifier(
-                                                            SXML_TYPE_ITEM),
-                                                        .occurrence =
-                                                            SXML_OCCURRENCE_ZERO_OR_ONE}}}},
-            &function_type);
+        *result = sxml_sequence_from_item(item);
     }
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    return sxml_evaluator_coerce(
-        call->dynamic_context,
-        &(sxml_coercion_request){
-            .value = sxml_sequence_from_item(function_item),
-            .sequence_type = {.item_type = function_type,
-                              .occurrence = SXML_OCCURRENCE_EXACTLY_ONE},
-            .role = SXML_IR_COERCION_ROLE_FUNCTION_ARGUMENT,
-            .error_record = call->error_record},
-        action);
+    return status;
 }
 
 static const sxml_static_error replacement_type_error = {
@@ -996,7 +962,7 @@ static sxml_status make_action_arguments(const sxml_function_call *call,
             continue;
         }
         sxml_sequence captured = sxml_sequence_empty();
-        status = sxml_function_library_make_string(
+        status = make_untyped(
             call->item_heap,
             slice_of(value.utf8, (byte_part){.byte_offset = group.byte_range.byte_offset,
                                              .byte_count = group.byte_range.byte_count}),
@@ -1022,7 +988,7 @@ static sxml_status make_action_arguments(const sxml_function_call *call,
     }
     sxml_sequence matched = sxml_sequence_empty();
     if (status == SXML_STATUS_OK) {
-        status = sxml_function_library_make_string(
+        status = make_untyped(
             call->item_heap,
             slice_of(value.utf8,
                      (byte_part){.byte_offset = replace->found.matching_segment.byte_offset,
@@ -1065,10 +1031,10 @@ static sxml_status start_replace(const sxml_function_call *call, replace_state *
         status = sxml_function_library_report(call, &replacement_type_error);
     }
     if (status == SXML_STATUS_OK && is_function) {
-        if (call->dynamic_context == NULL) {
-            return SXML_STATUS_INVALID_ARGUMENT;
-        }
-        status = coerce_action(call, replacement->item, &replace->action);
+        /* Already coerced to the function type of the parameter (XPath
+           4.0, section 3.4.2: function coercion within a choice). */
+        replace->action = sxml_sequence_from_item(replacement->item);
+        sxml_sequence_retain(replace->action);
     } else if (status == SXML_STATUS_OK) {
         sxml_atomic_datum datum = {.datum_kind = SXML_DATUM_KIND_STRING,
                                    .datum_details = {.string = {.utf8 = {.bytes = NULL,
@@ -1322,7 +1288,11 @@ static const sxml_function_parameter matches_parameters[] = {
 static const sxml_function_parameter replace_parameters[] = {
     SXML_REQUIRED_PARAMETER("value", "xs:string?"),
     SXML_REQUIRED_PARAMETER("pattern", "xs:string"),
-    SXML_REQUIRED_PARAMETER("replacement", "item()?"),
+    /* F&O 4.0, section 6.3.2 (the groups map has integer keys only: the
+       regex seed has no named groups, D53). */
+    SXML_REQUIRED_PARAMETER("replacement",
+                            "(xs:string | fn(xs:untypedAtomic, map((xs:integer | xs:string), "
+                            "xs:untypedAtomic)) as item()?)?"),
     SXML_OPTIONAL_PARAMETER("flags", "xs:string?")};
 static const sxml_function_parameter tokenize_parameters[] = {
     SXML_REQUIRED_PARAMETER("value", "xs:string?"),

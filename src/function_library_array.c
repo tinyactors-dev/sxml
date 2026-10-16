@@ -11,6 +11,8 @@
  */
 #include "function_library_higher_order_internal.h"
 
+#include "function_library_core_internal.h"
+
 #include "evaluator_internal.h"
 #include "xdm_internal.h"
 #include "sxml/name.h"
@@ -765,6 +767,51 @@ static sxml_status call_of_members(const sxml_function_call *call, sxml_sequence
     return finish_collection(call, &collection, result);
 }
 
+/* array:index-of($array, $target, $collation) (15.2.13): the positions of
+   the members deep-equal to $target with the collation (the formal
+   equivalent is array:index-where($array, deep-equal(?, $target,
+   $collation))). Deep equality is fn:deep-equal's body
+   (src/function_library_deep_equal.c), called once per member; it walks
+   on an explicit stack and calls no function items, so this is a leaf. */
+static sxml_status call_index_of(const sxml_function_call *call, sxml_sequence *result) {
+    size_t member_count = 0;
+    sxml_status status = read_size(call, &member_count);
+    sxml_sequence_builder *builder = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = create_array_builder(call, &builder);
+    }
+    const sxml_item array = array_argument(call, 0).content;
+    /* deep-equal's $options takes the collation string as it is. */
+    sxml_sequence comparison_arguments[3] = {sxml_sequence_empty(), array_argument(call, 1),
+                                             array_argument(call, 2)};
+    for (size_t member_index = 0; status == SXML_STATUS_OK && member_index < member_count;
+         member_index += 1) {
+        status = sxml_array_get_member(array, member_index, &comparison_arguments[0]);
+        sxml_sequence is_equal = sxml_sequence_empty();
+        if (status == SXML_STATUS_OK) {
+            const sxml_function_call comparison = {
+                .function_item = {.representation = 0},
+                .arguments = {.sequences = comparison_arguments,
+                              .sequence_count = call->arguments.sequence_count},
+                .dynamic_context = call->dynamic_context,
+                .item_heap = call->item_heap,
+                .error_record = call->error_record};
+            status = sxml_function_library_call_deep_equal(&comparison, &is_equal);
+        }
+        if (status == SXML_STATUS_OK &&
+            sxml_atomic_item_is_atomic_equal(is_equal.content, sxml_atomic_item_true())) {
+            status = sxml_sequence_builder_append_item(
+                builder, sxml_atomic_item_from_integer((int64_t)member_index + 1));
+        }
+        sxml_sequence_release(is_equal);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_sequence_builder_finish(builder, result);
+    }
+    sxml_sequence_builder_destroy(builder);
+    return status;
+}
+
 /* ----------------------------------------------------------------- Rows */
 
 SXML_TRAVERSAL_BODY(build_body, SXML_TRAVERSAL_OPERATION_ARRAY_BUILD);
@@ -809,6 +856,9 @@ static const sxml_function_parameter for_each_pair_parameters[] = {
 static const sxml_function_parameter get_parameters[] = {
     PARAMETER("array", "array(*)"), PARAMETER("position", "xs:integer"),
     OPTIONAL_PARAMETER("default", "item()*")};
+static const sxml_function_parameter index_of_parameters[] = {
+    PARAMETER("array", "array(*)"), PARAMETER("target", "item()*"),
+    OPTIONAL_PARAMETER("collation", "xs:string?")};
 static const sxml_function_parameter insert_before_parameters[] = {
     PARAMETER("array", "array(*)"), PARAMETER("position", "xs:integer"),
     PARAMETER("member", "item()*")};
@@ -853,6 +903,7 @@ static const sxml_native_function array_functions[] = {
     RESUMABLE("for-each-pair", for_each_pair_parameters, "array(*)", for_each_pair_body),
     LEAF("get", get_parameters, "item()*", call_get),
     LEAF("head", array_parameters, "item()*", call_head),
+    LEAF("index-of", index_of_parameters, "xs:integer*", call_index_of),
     RESUMABLE("index-where", predicate_parameters, "xs:integer*", index_where_body),
     LEAF("insert-before", insert_before_parameters, "array(*)", call_insert_before),
     LEAF("items", array_parameters, "item()*", call_items),
