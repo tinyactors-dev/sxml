@@ -246,6 +246,9 @@ lookups, errors with code, description and value (D41). Done when the slice
 queries without library calls pass (filterexpressionhc2, bang-1,
 inline-fn-*, Lookup-225, ...) and deep recursion gives a limit status, not a
 stack overflow. Spec: XPath 4.0 §3, §4.
+**Done** 2026-10-16 (D75): explicit-stack machine (D71), resumable native
+bodies for 1.21; P4 (D77), P5 (D76), P7 (D73) accepted; slice lines
+without library calls pass as unit cases in `tests/evaluator_test.c`.
 
 ### 1.19 Comparisons and arithmetic (implementation)
 After 1.8, 1.15. Owns `src/operator.c`, `src/operator_compare.c`,
