@@ -4,6 +4,12 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 1.0 done: `src/*.c` and `tests/*_test.c` registered by glob (D45);
+  `sxml` links the xml and xpath grammars and `sxml_mpdecimal` once
+  vendored; `tests/qt4/driver`, `tests/fuzz` (`SXML_BUILD_FUZZERS`) and
+  `third_party/mpdecimal` join when their `CMakeLists.txt` exists. P1
+  accepted as D50: `SXML_STATUS_INPUT_OUTPUT_FAILED`, used by the CLI
+  platform layer. `debug`, `debug-gcc`, `wasm`: 40/40 tests; lint clean.
 - 1.3 done (D51): public API headers `xml.h` (reusable XML parser into
   any tree builder, or check only; diagnostics with line and column),
   `processor.h` (processor owning pool, registry and heap; limits; resource
