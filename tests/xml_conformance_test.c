@@ -1,6 +1,6 @@
 /*
  * The W3C XML conformance suite through the XML parser (packet 1.14,
- * docs/DECISIONS.md D13, D80): the standalone tests of XML 1.0 Fifth
+ * docs/DECISIONS.md D13, D81): the standalone tests of XML 1.0 Fifth
  * Edition, selected as grammars/xml/test/xml-conformance.py selects them.
  *
  * Golden file: tests/memory_test.c (layout, naming).

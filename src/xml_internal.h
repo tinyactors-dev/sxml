@@ -2,7 +2,7 @@
 
 /*
  * Internals of the XML parser (include/sxml/xml.h; docs/DECISIONS.md D12,
- * D28, D51, D80), shared by its three parts:
+ * D28, D51, D81), shared by its three parts:
  *
  * - src/xml.c: the parser object, the walk over the concrete syntax tree
  *   of grammars/xml, the well-formedness and namespace checks the grammar

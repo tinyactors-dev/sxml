@@ -1,5 +1,5 @@
 /*
- * Tests of the XML parser (include/sxml/xml.h; packet 1.14, D80).
+ * Tests of the XML parser (include/sxml/xml.h; packet 1.14, D81).
  *
  * Golden file: tests/memory_test.c (layout, naming, allocation-failure
  * loops).
@@ -693,7 +693,7 @@ static void test_encodings_are_detected(sxml_test_state *state) {
         state, (sxml_byte_view){.bytes = ucs4, .byte_count = sizeof ucs4},
         (expected_failure){.status = SXML_STATUS_UNSUPPORTED_FEATURE,
                            .description_start = "the document's encoding"});
-    /* Versions 1.x other than 1.0 are read by the 1.0 rules (D80). */
+    /* Versions 1.x other than 1.0 are read by the 1.0 rules (D81). */
     expect_log(state, "<?xml version='1.1'?><a/>", "D<a</>/D");
     /* ...except that a 1.1 document may undeclare a prefix (Namespaces in
        XML 1.1, section 5). */
@@ -759,7 +759,7 @@ static void test_limits_bound_the_work(sxml_test_state *state) {
     fixture_destroy(&fixture);
 }
 
-/* Deep documents and long entity chains need no C stack (D80). */
+/* Deep documents and long entity chains need no C stack (D81). */
 static void test_deep_input_is_walked_iteratively(sxml_test_state *state) {
     enum { SXML_TEST_DEPTH = 100000, SXML_TEST_CHAIN = 2000 };
     const sxml_allocator allocator = sxml_default_allocator();

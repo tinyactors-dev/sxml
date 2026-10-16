@@ -1,6 +1,6 @@
 /*
  * The XML parser: XML 1.0 bytes in, tree builder events out
- * (include/sxml/xml.h; docs/DECISIONS.md D12, D28, D51, D80).
+ * (include/sxml/xml.h; docs/DECISIONS.md D12, D28, D51, D81).
  *
  * Golden file: src/memory.c (lifecycle, layout, naming, outputs untouched
  * on failure); the walk over a concrete syntax tree follows
@@ -29,7 +29,7 @@
  * No Recursion (8), well-formed parsed entities (9), No External Entity
  * References (10), No < in Attribute Values (11), attribute-value
  * normalization and defaults (12), first declaration wins (13), namespaces
- * (14), XML 1.1 (15: parsed by the 1.0 rules, D80) and the root element
+ * (14), XML 1.1 (15: parsed by the 1.0 rules, D81) and the root element
  * (16: guaranteed by the grammar).
  *
  * The tree-sitter runtime allocates with malloc during the call; D12
@@ -164,7 +164,7 @@ typedef struct sxml_xml_document {
     bool has_parameter_entity_references;
     bool is_standalone;
     /* version="1.1": prefixes may be undeclared (Namespaces in XML 1.1,
-       section 5; D80). */
+       section 5; D81). */
     bool allows_prefix_undeclaration;
     /* WFC: Entity Declared applies (4.1). */
     bool requires_declared_entities;
@@ -3124,7 +3124,7 @@ static bool sxml_xml_is_utf16_family(sxml_xml_encoding_family family) {
 /*
  * The XML declaration ([23]): standalone, and an encoding declaration
  * that agrees with the bytes (4.3.3, Appendix F). Versions 1.x other than
- * 1.0 are read by the 1.0 rules (XML 1.0 Fifth Edition, section 2.8; D80).
+ * 1.0 are read by the 1.0 rules (XML 1.0 Fifth Edition, section 2.8; D81).
  */
 static sxml_status sxml_xml_check_declaration(sxml_xml_document *document,
                                               const sxml_xml_frame *frame,
