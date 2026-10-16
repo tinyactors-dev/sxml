@@ -901,4 +901,14 @@ Recorded 2026-10-16, completing D46. Four internal headers.
   Static analysis finds functions through the `sxml_function_table`
   interface (tests bring their own).
 
+### D56. `memcpy` and `memset` are allowed
+Recorded 2026-10-16 by the orchestrator. clang-tidy's
+`clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling` rejects
+`memcpy`, `memset` and `snprintf` in favour of the C11 Annex K `_s` functions,
+which glibc, macOS and WASI do not provide. Packets wrote byte loops instead.
+The check is switched off in `.clang-tidy`; `memcpy`, `memmove` and `memset`
+are allowed when the byte count comes from checked size arithmetic. Printing
+functions stay banned outside the CLI platform layer (D17, D44). Existing byte
+loops may stay; new code uses `memcpy`.
+
 ## Proposed

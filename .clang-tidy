@@ -7,7 +7,8 @@ Checks: >
   readability-identifier-length,
   readability-identifier-naming,
   readability-function-size,
-  -bugprone-easily-swappable-parameters
+  -bugprone-easily-swappable-parameters,
+  -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling
 WarningsAsErrors: '*'
 HeaderFilterRegex: '(include/sxml|src|tests|apps/[^/]*)/[^/]*$'
 CheckOptions:
