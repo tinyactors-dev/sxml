@@ -78,6 +78,34 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `focus` | Context item, context position and context size together |
 | `context_item` | The item the focus is on |
 | `intermediate_representation` | The shared IR; `ir` allowed as a module name only |
+| `unit` | Everything one compilation produces in the IR: functions, expressions, constants, global variables, modes; reference counted (`sxml_ir_unit`) |
+| `atom` | An IR operand that needs no evaluation: a constant, a slot or a global variable (D46) |
+| `slot` | A numbered place, from 1, in the frame of an IR function, holding one variable's value |
+| `frame` | The slots of one active call of an IR function |
+| `main_function` | Function 1 of a unit: the body of the expression or query |
+| `context_position` | The position part of the focus (`fn:position`) |
+| `context_size` | The size part of the focus (`fn:last`) |
+| `captured_variable` | An atom of the defining function whose value a function item made from an IR function keeps (its `captured_value`) |
+| `global_variable` | A variable of a unit outside every function: external, or computed by an initializer function |
+| `constant` | A value made at compile time and kept by a unit |
+| `function_target` | What a static call or function reference calls: a native function, an IR function or a constructor |
+| `native_function` | A function written in C, described by one row of static data (name, parameters, result type, properties, body) |
+| `function_parameter` | Name, declared type as text and default of one parameter of a function |
+| `parameter_default` | How an omitted parameter gets its value: required, the context value, or supplied by the body |
+| `function_library` | The per-processor index over the native function parts, resolving their types |
+| `function_table` | Interface through which static analysis finds a function by name and arity |
+| `function_entry` | What a function table finds: the target and its signature for one arity |
+| `coercion` | The XPath 4.0 coercion rules (section 3.4) applied to a value and a sequence type; `coercion_role` decides the error code |
+| `effective_boolean_value` | The boolean value of a sequence (XPath 4.0, section 2.5.4) |
+| `pass` | An IR-to-IR function over a unit, run in a fixed list before the unit is sealed |
+| `verifier` | The pass that checks the invariants of a unit and changes nothing |
+| `seal` | End the building of a unit: nothing in it moves afterwards |
+| `evaluator` | Walks the IR of a sealed unit and computes values |
+| `document_loader` | Internal interface through which fn:doc and fn:parse-xml obtain document nodes; the processor implements it |
+| `sort_key` | An expression whose value orders the items of a sort, with direction and empty order |
+| `template_rule` | An XSLT rule: a match function, a template function, priority and import precedence |
+| `mode` | An XSLT mode: its template rules and its built-in rule |
+| `parameter_binding` | A parameter name with the value passed for it (`xsl:with-param`) |
 | `grammar` | A tree-sitter grammar under `grammars/<language>/`, and the parser generated from it |
 | `concrete_syntax_tree` | The tree-sitter parse tree of a query or document, before sxml builds its own structures |
 | `query_scanner` | The external tree-sitter scanner shared by the XPath, XQuery and XSLT pattern grammars |
