@@ -1060,6 +1060,33 @@ value model; later XDM packets add files, not edits.
 - `sxml_error_record_report` fills an error record from a
   `sxml_static_error` (err namespace), for every packet's static errors.
 
+### D61. Maps and records (packet 1.9)
+Recorded 2026-10-16. `src/xdm_map.c`; three cell classes behind
+`SXML_ITEM_REPRESENTATION_MAP_CELL`, told apart by cell class.
+- **Entry block** (`sxml_map_make`): entries in one cell. Maps of more
+  than 8 entries get a hash index (key hash, entry index; open addressing,
+  load at most 1/2). Duplicate detection needs it, so it is built while
+  making and kept, not built on first lookup (a refinement of D37); maps
+  of 8 entries or fewer are searched linearly.
+- **Persistent map** (`sxml_map_put`, `sxml_map_remove`): an entry tree
+  (AVL, ordered by entry stamp, entry counts per subtree) and a key tree
+  (AVL, ordered by key hash, then stamp), both of `map_node` cells shared
+  by path copying. Put and remove are O(log n), `sxml_map_get_entry` and
+  `sxml_map_find` O(log n). A new key gets the next stamp, so it goes last;
+  a removed and re-added key goes last too. Put on an existing key keeps
+  the old key and its position and replaces the value (which key is kept
+  is implementation-dependent, QT4 map-put-011). Put or remove on an entry
+  block or record converts it in O(n log n) once; results of 8 entries or
+  fewer stay entry blocks (copied).
+- **Record**: the cell holds the record type, the field values and
+  `field_key`s, made on first need (`sxml_map_get_entry`, `sxml_map_find`)
+  in a side table of the cell; lookup by name goes through
+  `sxml_type_registry_find_record_field`, shared by every record of the
+  type. Only string-family keys (xs:string, xs:anyURI, xs:untypedAtomic)
+  can match a field. Put and remove give a plain map (persistent or block).
+  Because field keys are made lazily, `sxml_map_get_entry` on a record can
+  return the heap's failures on its first call (P3).
+
 ## Proposed
 
 ### P2. `sxml_atomic_comparison` needs the item heap (from D60)
@@ -1069,3 +1096,11 @@ fn:compare orders xs:QName values by namespace URI and local name (F&O
 `const sxml_item_heap *item_heap` (may be NULL) to it and drop the
 internal `sxml_atomic_item_compare_in_heap`. Until then the evaluator calls
 the internal function.
+
+### P3. `sxml_map_get_entry` may fail for lack of memory (from D61)
+A record makes its `field_key` items on first need, since the heap has no
+table to share them per record type; `sxml_map_get_entry` on a record can
+therefore return the heap's failures, which its contract in `xdm.h` does
+not list. Proposed: add "and the heap's failures (a record makes its keys
+on first use)" to that comment, or give the heap a per-record-type key
+table so records share their keys as D7 intends.
