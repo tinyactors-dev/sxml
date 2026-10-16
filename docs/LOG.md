@@ -4,6 +4,14 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- CLI (D44, `docs/CLI.md`): CLI framework in `apps/cli_framework/`
+  (command tables, parser, help, "did you mean", exit codes 0-4, output
+  streams) and the `sxml` program in `apps/sxml/` with `help`, `--help`,
+  `--version` and `version [--format=text|json]` only. 4 unit suites and
+  30 golden end-to-end tests in `tests/cli/` pass under `debug`,
+  `debug-gcc`, `release` and `wasm`; lint clean, new rule
+  `input-output-outside-platform-layer`. Next: `sxml check` after 1.14,
+  `sxml xpath` after 1.23. Proposed P1: an input/output status.
 - Phase 1 planned: `docs/tasks/phase-1.md` splits the torture slice into
   30 packets with owned files, dependencies and an 11-wave parallel plan.
   Decisions: glob-based registration and file ownership (D45), internal
