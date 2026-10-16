@@ -1,9 +1,12 @@
 #!/bin/sh
 # Runs every lint gate over project code (docs/DECISIONS.md, D17):
 #   1. the ast-grep rule self-tests (each rule fires on its bad examples),
-#   2. the lint CMake target: clang-tidy and the ast-grep rules.
+#   2. the lint CMake target: clang-tidy and the ast-grep rules,
+#   3. the call-cycle check over all of src/ and apps/ (D71: no recursion,
+#      also across files).
 # Usage: tools/lint.sh            (from anywhere; uses the debug preset)
-# Needs: cmake, ninja, clang, clang-tidy, and `npm ci --prefix tools`.
+# Needs: cmake, ninja, clang, clang-tidy, llvm (llvm-link, opt, llvm-nm),
+#        python3, and `npm ci --prefix tools`.
 set -eu
 
 repository_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
@@ -22,3 +25,4 @@ fi
 "$ast_grep" test --config tools/ast-grep/sgconfig.yml --skip-snapshot-tests
 cmake --preset debug >/dev/null
 cmake --build --preset lint
+python3 tools/check-call-cycles.py build/debug

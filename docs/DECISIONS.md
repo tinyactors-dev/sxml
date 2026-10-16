@@ -1403,6 +1403,12 @@ specification's error). Consequences:
   `xdm_atomic.c` and two tests.
 - Vendored third-party code (tree-sitter, libmpdec) is exempt; the generated
   grammar scanners are ours and have no recursion.
+- `tools/check-call-cycles.py` (run by `tools/lint.sh`) links all of src/
+  and apps/ into one LLVM module and fails on any call-graph cycle, so
+  recursion across files is caught too (not through function pointers).
+  `tools/call-cycles-allowlist.txt` lists the cycles still being rewritten;
+  it is temporary: each rewrite deletes its lines (a stale entry fails the
+  check) until the file is empty and the allowlist is removed.
 
 ### D72. Arithmetic and comparison operators (packet 1.19)
 Recorded 2026-10-16. `src/operator_internal.h`; `src/operator.c`

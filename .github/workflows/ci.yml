@@ -37,7 +37,7 @@ jobs:
       - name: Install build tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build clang clang-tidy libclang-rt-18-dev gcc
+          sudo apt-get install -y ninja-build clang clang-tidy libclang-rt-18-dev llvm gcc
       - uses: actions/setup-node@v4
         if: matrix.lint
         with:
