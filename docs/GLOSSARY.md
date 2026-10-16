@@ -321,6 +321,9 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `function_coercion` | Wrapping a function item so that its arguments and result are coerced to a required function type (XPath 4.0, section 3.4.4) |
 | `atomization` | Replacing nodes by their typed values and arrays by their members, until only atomic items remain (XPath 4.0, section 2.5.3) |
 | `type_match_frame` | An entry on the explicit stack of matching a value against a sequence type (instance of, treat as, coercion) |
+| `coercion_frame` | An entry on the explicit stack of applying the coercion rules (XPath 4.0, section 3.4) to a value: a sequence, an item, a choice being tried, or the parts of an array, map or record |
+| `static_namespaces` | The statically known namespaces of a compiled unit beyond the predeclared prefixes, kept for what resolves prefixes at run time (casts to xs:QName) |
+| `call_each` | The evaluator's own resumable body that calls a sequence of function items in turn and concatenates the results (a dynamic call on several functions, XPath 4.0, section 4.6.3.1) |
 | `expression_depth` | How deeply the syntax of an expression nests; bounded for untrusted expressions |
 | `serialization` | Turning a sequence into bytes (Serialization 4.0) |
 | `serialization_method` | The Serialization 4.0 output method: adaptive in Phase 1; xml, json, text and others later |
