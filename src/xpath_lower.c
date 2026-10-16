@@ -2321,16 +2321,9 @@ static sxml_status resolve_simple_node_test(lowerer *state,
         principal_kind = SXML_NODE_KIND_NAMESPACE;
         name_role = SXML_XPATH_NAME_ROLE_NO_NAMESPACE;
     }
+    /* A name test on the namespace axis names the prefix, a name in no
+       namespace (D77); a prefixed name there matches nothing. */
     sxml_name_test name_test = {.name_test_kind = SXML_NAME_TEST_KIND_ANY_NAME};
-    if (principal_kind == SXML_NODE_KIND_NAMESPACE &&
-        (test->kind != SXML_AST_KIND_WILDCARD ||
-         test->detail.name_test_kind != SXML_NAME_TEST_KIND_ANY_NAME)) {
-        /* The type registry has no namespace node test with a name yet
-           (docs/DECISIONS.md, Proposed). */
-        return report_unsupported(state, request.test,
-                                  SXML_BYTE_VIEW_FROM_LITERAL("a name test on the namespace axis is not "
-                                  "lowered in Phase 1"));
-    }
     if (test->kind == SXML_AST_KIND_WILDCARD) {
         switch (test->detail.name_test_kind) {
         case SXML_NAME_TEST_KIND_ANY_NAME:
@@ -2516,7 +2509,7 @@ static sxml_status add_descendants(lowerer *state, descendant_request request,
                                .map = {.input = request.input,
                                        .focus = {.context_value = item},
                                        .body = step,
-                                       .flags = 0}}},
+                                       .flags = SXML_IR_MAP_REQUIRES_NODES}}},
             &map);
     }
     sxml_ir_atom mapped = {0};
@@ -3419,7 +3412,7 @@ static sxml_status continue_path_map(lowering_machine *machine,
                            .map = {.input = locals->input,
                                    .focus = locals->body.focus,
                                    .body = locals->body.body,
-                                   .flags = 0}}},
+                                   .flags = SXML_IR_MAP_REQUIRES_NODES}}},
         &map);
     sxml_ir_atom mapped = {0};
     if (status == SXML_STATUS_OK) {

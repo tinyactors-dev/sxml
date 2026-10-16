@@ -1,13 +1,13 @@
 /*
  * Tests for the evaluator (src/evaluator.c, src/evaluator_path.c,
- * src/evaluator_function.c, src/evaluator_internal.h; D46, D55, D71, D74).
+ * src/evaluator_function.c, src/evaluator_internal.h; D46, D55, D71, D75).
  *
  * Golden file: tests/memory_test.c (fixture, lifecycle, allocation-failure
  * loops), with the function table and compilation of
  * tests/xpath_static_test.c. Expressions are compiled with
  * sxml_xpath_compile against a test function table of a few rows whose
  * bodies live here (the function library comes with packets 1.20 and 1.21;
- * fn:for-each and fn:fold-left are written here as resumable bodies, D74),
+ * fn:for-each and fn:fold-left are written here as resumable bodies, D75),
  * evaluated, and their values written as text: atomic items in canonical
  * form, separated by spaces. Errors are checked by code. Every case checks
  * that the item heap's cells and the allocator's blocks are all released.
@@ -250,7 +250,7 @@ static sxml_status call_concat(const sxml_function_call *call,
 }
 
 /*
- * fn:for-each($input, $action) as a resumable body (D74): one native step
+ * fn:for-each($input, $action) as a resumable body (D75): one native step
  * per item, each asking the evaluator to call $action with the item and
  * its position.
  */
@@ -1543,13 +1543,21 @@ static void test_paths_in_document_order(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, path_evaluates_to("((//hours)[1] << (//hours)[2], /works "
                                               "is $doc/works, (//hours)[1] >> /works)",
                                               "true true true"));
+    /* Name tests on the namespace axis (P4, D77): the prefix. */
+    SXML_TEST_EXPECT(state, path_evaluates_to("(count(/works/namespace::xml), "
+                                              "count(/works/namespace::other), "
+                                              "/works/namespace::xml || '')",
+                                              "1 0 http://www.w3.org/XML/1998/namespace"));
     SXML_TEST_EXPECT(state, path_evaluates_to("(//employee)[1]/@name instance of "
                                               "attribute(name)",
                                               "true"));
 }
 
 static void test_path_errors(sxml_test_state *state) {
-    SXML_TEST_EXPECT(state, fails_with("(1, 2)/a", "XPTY0020"));
+    SXML_TEST_EXPECT(state, fails_with("(1, 2)/a", "XPTY0019"));  /* P5, D76 */
+    SXML_TEST_EXPECT(state, fails_with("(1, 2)/(. + 1)", "XPTY0019"));
+    SXML_TEST_EXPECT(state, fails_with("(1, 2)//a", "XPTY0019"));
+    SXML_TEST_EXPECT(state, fails_with("(1, 2) ! child::a", "XPTY0020"));
     SXML_TEST_EXPECT(state, fails_with("child::a", "XPDY0002"));
     SXML_TEST_EXPECT(state, fails_with("(1, 2) union (1, 2)", "XPTY0004"));  /* K2-SeqUnion-5 */
     SXML_TEST_EXPECT(state, fails_with("/works", "XPDY0002"));

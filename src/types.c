@@ -2694,9 +2694,15 @@ static bool sxml_type_registry_normalize_node_test(
                 name_kind == SXML_NAME_TEST_KIND_EXPANDED_NAME) &&
                !has_type && !has_document_element &&
                !node_test->is_schema_declaration;
+    case SXML_NODE_KIND_NAMESPACE:
+        /* namespace::x (XPath 4.0, section 4.6.5.1; D77): a name test on
+           the namespace axis, whose principal node kind is the namespace
+           node; the node's name is its prefix, in no namespace. */
+        node_test->allows_nilled = false;
+        return !has_type && !has_document_element &&
+               !node_test->is_schema_declaration;
     case SXML_NODE_KIND_TEXT:
     case SXML_NODE_KIND_COMMENT:
-    case SXML_NODE_KIND_NAMESPACE:
     case SXML_NODE_KIND_ANY:
         node_test->allows_nilled = false;
         return name_kind == SXML_NAME_TEST_KIND_ANY_NAME && !has_type &&

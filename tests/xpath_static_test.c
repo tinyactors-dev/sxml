@@ -1426,7 +1426,6 @@ static void test_constructs_beyond_phase_1_are_unsupported(
     static const char *const expressions[] = {
         "for member $m in [1] return $m",
         "let $( $a, $b ) := (1, 2) return $a",
-        "namespace::x",
     };
     for (size_t expression_index = 0;
          expression_index < sizeof(expressions) / sizeof(expressions[0]);

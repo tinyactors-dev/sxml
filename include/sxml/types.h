@@ -320,7 +320,9 @@ typedef struct sxml_node_test {
     /* The names the node may have; SXML_NAME_TEST_KIND_ANY_NAME for a test
        without a name. A processing-instruction test with a target is an
        SXML_NAME_TEST_KIND_EXPANDED_NAME test of a name in no namespace
-       whose local name is the target. */
+       whose local name is the target. A namespace test may have any name
+       test (namespace::x on the namespace axis): a namespace node's name
+       is its prefix, in no namespace (D77). */
     sxml_name_test name_test;
     /* The required type annotation (the node must be annotated with it or a
        type derived from it); SXML_TYPE_NONE when unconstrained. */

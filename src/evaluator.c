@@ -1,5 +1,5 @@
 /*
- * The evaluator (src/evaluator_internal.h; D38, D46, D55, D71, D74): the
+ * The evaluator (src/evaluator_internal.h; D38, D46, D55, D71, D75): the
  * dynamic context, the explicit-stack machine that walks the IR, and the
  * expressions it evaluates.
  *
@@ -37,6 +37,14 @@ static const sxml_static_error sxml_circular_variable_error = {
     .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XQDY0054"),
     .description = SXML_BYTE_VIEW_INITIALIZER(
         "A global variable depends on itself (XQuery 4.0, section 5.16)"),
+};
+
+static const sxml_static_error sxml_path_operand_error = {
+    .error_status = SXML_STATUS_TYPE_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XPTY0019"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "An operand on the left of \"/\" is not a node (XPath 4.0, section "
+        "4.6.3)"),
 };
 
 static const sxml_static_error sxml_treat_error = {
@@ -2275,6 +2283,8 @@ typedef struct sxml_loop_progress {
 typedef struct sxml_loop_advance {
     sxml_ir_focus focus;
     sxml_ir_expression_index body;
+    /* A path's MAP: every item must be a node (XPTY0019). */
+    bool requires_nodes;
 } sxml_loop_advance;
 
 static sxml_status sxml_loop_advance_focus(sxml_dynamic_context *context,
@@ -2291,6 +2301,10 @@ static sxml_status sxml_loop_advance_focus(sxml_dynamic_context *context,
     progress->is_done = !step.has_item;
     if (progress->is_done) {
         return SXML_STATUS_OK;
+    }
+    if (advance.requires_nodes && !sxml_item_is_generic_node(step.item)) {
+        return sxml_error_record_report(context->error_record,
+                                        &sxml_path_operand_error);
     }
     loop->position += 1;
     loop->current_item = step.item;
@@ -2342,7 +2356,11 @@ static sxml_status sxml_machine_step_map(sxml_dynamic_context *context,
     }
     sxml_loop_progress progress = {.is_done = false};
     status = sxml_loop_advance_focus(
-        context, (sxml_loop_advance){.focus = map->focus, .body = map->body}, &progress);
+        context,
+        (sxml_loop_advance){.focus = map->focus,
+                            .body = map->body,
+                            .requires_nodes = (map->flags & SXML_IR_MAP_REQUIRES_NODES) != 0},
+        &progress);
     if (status == SXML_STATUS_OK && progress.is_done) {
         status = sxml_loop_finish(context);
     }

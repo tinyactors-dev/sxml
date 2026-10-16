@@ -569,6 +569,10 @@ typedef enum sxml_ir_map_flag {
     /* XQuery "allowing empty": an empty input evaluates the body once with
        the empty sequence as the focus value and position 0. */
     SXML_IR_MAP_ALLOWING_EMPTY = 1U << 0U,
+    /* The MAP of a path "E1/E2" (and of "//"): an item of the input that
+       is not a node raises XPTY0019 (XPath 4.0, section 4.6.3; D76). Not
+       shown in the text form. */
+    SXML_IR_MAP_REQUIRES_NODES = 1U << 1U,
 } sxml_ir_map_flag;
 
 /* MAP. */

@@ -1,6 +1,6 @@
 /*
  * Values and functions for the evaluator (src/evaluator_internal.h; D38,
- * D55, D74): atomization, the effective boolean value, sequence type
+ * D55, D75): atomization, the effective boolean value, sequence type
  * matching, the coercion rules, and the function items the evaluator makes
  * (inline functions, named function references, coerced functions,
  * constructor functions) with their body operations.

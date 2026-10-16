@@ -1,5 +1,5 @@
 /*
- * Paths for the evaluator (src/evaluator_internal.h; D46, D55, D63, D74):
+ * Paths for the evaluator (src/evaluator_internal.h; D46, D55, D63, D75):
  * axis steps over XNodes and JNodes, node tests, document order and the
  * node set operators, and the merge sort they and SORT share.
  *

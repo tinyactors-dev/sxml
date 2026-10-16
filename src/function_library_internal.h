@@ -124,7 +124,7 @@ typedef enum sxml_native_function_property {
        row has a resumable_body (see "Resumable native bodies" below): it
        asks the evaluator to make each call and never calls a function item
        itself, so the evaluator is never re-entered on the C stack (D71,
-       D74). It needs a dynamic context. */
+       D75). It needs a dynamic context. */
     SXML_NATIVE_FUNCTION_CALLS_FUNCTION_ITEMS = 1U << 3U,
     /* fn:position: lowering reads the context position slot instead of
        calling the row; call is NULL (XPath 4.0, section 2.2.2). */
@@ -153,7 +153,7 @@ typedef sxml_status (*sxml_native_function_call)(
  * fn:fold-left, fn:fold-right, fn:sort with a key, fn:apply, map:for-each,
  * array:for-each, fn:partial-apply's result, ...) is written as a
  * resumable body: a step function that the evaluator runs again and again
- * (D71, D74). Each native step either finishes with the value of the call
+ * (D71, D75). Each native step either finishes with the value of the call
  * or asks the evaluator to call one function item with some arguments; the
  * evaluator makes that call on its own task stack (coercing the arguments
  * as a dynamic call does, XPath 4.0, section 4.5.3) and runs the next step
@@ -305,7 +305,7 @@ extern const sxml_native_function_view sxml_function_library_json;
  * on the evaluator of call->dynamic_context, which must not be evaluating
  * already (SXML_STATUS_INVALID_ARGUMENT; within an evaluation the
  * evaluator recognizes these operations and drives the steps itself).
- * Defined in src/evaluator_function.c (packet 1.18, D74), because the
+ * Defined in src/evaluator_function.c (packet 1.18, D75), because the
  * evaluator dispatches on it.
  */
 extern const sxml_function_body_operations sxml_native_function_body_operations;

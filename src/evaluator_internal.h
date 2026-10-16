@@ -20,7 +20,7 @@
  * src/evaluator_path.c and src/evaluator_function.c (packet 1.18), except
  * where a declaration names another file.
  *
- * No recursion (D71, D74). The evaluator is an explicit-stack machine:
+ * No recursion (D71, D75). The evaluator is an explicit-stack machine:
  * evaluating an expression that contains a nested expression (the bound
  * expression of a LET, the body of a MAP, a function body) pushes an
  * evaluator task for it on the task stack of the dynamic context, in
@@ -400,7 +400,7 @@ SXML_NODISCARD sxml_status sxml_evaluator_coerce(
  * parameter types of its signature, then runs the machine on
  * call->dynamic_context, which must not be running (see "Reentry").
  * Higher-order native functions do not use this: they are resumable bodies
- * and ask the evaluator for their calls (D74). Writes the result, complete,
+ * and ask the evaluator for their calls (D75). Writes the result, complete,
  * to *result. Returns SXML_STATUS_TYPE_ERROR (XPTY0004) for a wrong arity
  * or an argument that cannot be coerced, SXML_STATUS_INVALID_ARGUMENT
  * without a dynamic context or on a running one, and the body's failures.
