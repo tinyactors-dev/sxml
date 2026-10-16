@@ -1052,15 +1052,27 @@ static void test_qnames_order_by_uri_then_local_name(sxml_test_state *state) {
                                              0}) == 1);
     SXML_TEST_EXPECT(state, order_in(item_heap, (ordering_question){
                                                     alpha, alpha, 0}) == 0);
-    /* Without a heap, different names cannot be ordered (D60). */
+    /* The public function orders them with the comparison's name pool
+       (D68), and without one cannot order different names. */
     sxml_ordering ordering = SXML_ORDERING_EQUAL;
+    SXML_TEST_EXPECT(state, sxml_atomic_item_compare(
+                                &(sxml_atomic_comparison){
+                                    .first = example_beta,
+                                    .second = example_ns_alpha,
+                                    .implicit_timezone_offset_minutes = 0,
+                                    .error_record = NULL,
+                                    .name_pool = fixture.name_pool},
+                                &ordering) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, ordering == SXML_ORDERING_LESS);
     SXML_TEST_EXPECT(state, sxml_atomic_item_compare(
                                 &(sxml_atomic_comparison){
                                     .first = alpha,
                                     .second = beta,
                                     .implicit_timezone_offset_minutes = 0,
-                                    .error_record = NULL},
-                                &ordering) == SXML_STATUS_UNSUPPORTED_FEATURE);
+                                    .error_record = NULL,
+                                    .name_pool = NULL},
+                                &ordering) == SXML_STATUS_INVALID_ARGUMENT);
+    SXML_TEST_EXPECT(state, ordering == SXML_ORDERING_LESS);
     SXML_TEST_EXPECT(state, order(alpha, alpha) == 0);
     atomic_fixture_destroy(&fixture);
 }

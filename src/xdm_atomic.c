@@ -1927,8 +1927,10 @@ sxml_status sxml_atomic_item_compare_in_heap(
                                        second.payload.integer);
     } else if (primitive_type == SXML_TYPE_XS_QNAME ||
                primitive_type == SXML_TYPE_XS_NOTATION) {
+        /* The heap's pool, else the comparison's (D68). */
         sxml_status status = sxml_qname_items_compare(
-            item_heap == NULL ? NULL : sxml_item_heap_get_name_pool(item_heap),
+            item_heap == NULL ? comparison->name_pool
+                              : sxml_item_heap_get_name_pool(item_heap),
             (sxml_item_pair){.first = first, .second = second}, &result);
         if (status != SXML_STATUS_OK) {
             return status;
@@ -1951,5 +1953,11 @@ sxml_status sxml_atomic_item_compare_in_heap(
 
 sxml_status sxml_atomic_item_compare(const sxml_atomic_comparison *comparison,
                                      sxml_ordering *ordering) {
-    return sxml_atomic_item_compare_in_heap(NULL, comparison, ordering);
+    sxml_status status =
+        sxml_atomic_item_compare_in_heap(NULL, comparison, ordering);
+    /* Without a name pool two different names cannot be ordered: the
+       caller left out what xdm.h requires for QNames (D68). */
+    return status == SXML_STATUS_UNSUPPORTED_FEATURE
+               ? SXML_STATUS_INVALID_ARGUMENT
+               : status;
 }

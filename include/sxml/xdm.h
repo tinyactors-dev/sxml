@@ -416,6 +416,11 @@ typedef struct sxml_atomic_comparison {
     /* Receives XPTY0004 for items of different type families; may be
        NULL. */
     sxml_error_record *error_record;
+    /* The pool the names of xs:QName and xs:NOTATION items were interned
+       in, to order them by namespace URI and local name (F&O 4.0,
+       fn:compare). May be NULL when neither item is a QName or NOTATION
+       (D68). */
+    const sxml_name_pool *name_pool;
 } sxml_atomic_comparison;
 
 /*
@@ -423,8 +428,13 @@ typedef struct sxml_atomic_comparison {
  * collation (F&O 4.0, section 2.2.2; XDM 4.0, section 5.7): within a type
  * family, NaN before every other number and equal to itself.
  *
+ * xs:QName and xs:NOTATION items order by namespace URI, then local name,
+ * in codepoint order, ignoring the prefix.
+ *
  * Returns SXML_STATUS_TYPE_ERROR (XPTY0004) when the items belong to
- * different type families or are not atomic.
+ * different type families or are not atomic, and
+ * SXML_STATUS_INVALID_ARGUMENT for two QNames with different expanded
+ * names when comparison->name_pool is NULL or does not hold their names.
  */
 SXML_NODISCARD SXML_EXPORT sxml_status sxml_atomic_item_compare(
     const sxml_atomic_comparison *comparison, sxml_ordering *ordering);
@@ -1043,7 +1053,11 @@ SXML_NODISCARD SXML_EXPORT sxml_status sxml_map_get_size(
  * Writes the entry at entry_index (from 0, in entry order), borrowed from
  * map, to *entry. O(1) for a map that put and remove have not changed,
  * O(log n) otherwise. Returns SXML_STATUS_INDEX_OUT_OF_RANGE past the end
- * and SXML_STATUS_INVALID_ARGUMENT when map is not a map.
+ * and SXML_STATUS_INVALID_ARGUMENT when map is not a map. A record makes
+ * its key items when they are first needed (D61), so the first call on a
+ * record may also return the heap's failures
+ * (SXML_STATUS_OUT_OF_MEMORY, SXML_STATUS_LIMIT_EXCEEDED); *entry is then
+ * untouched and a later call may succeed.
  */
 SXML_NODISCARD SXML_EXPORT sxml_status sxml_map_get_entry(
     sxml_item map, size_t entry_index, sxml_map_entry *entry);
