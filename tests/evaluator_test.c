@@ -1204,6 +1204,10 @@ static void test_filters_maps_and_ranges(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, fails_with("count(-1000000000000000000003 to "
                                        "-1000000000000000000000)",
                                        "FOAR0002"));  /* RangeExpr-411a */
+    /* A general comparison does not walk a range to look for dates
+       (found by tests/fuzz/xpath_evaluate_fuzz.c, which timed out). */
+    SXML_TEST_EXPECT(state, evaluates_to("1 = 1 to 100000000000", "true"));
+    SXML_TEST_EXPECT(state, evaluates_to("(1 to 100000000000) = 1", "true"));
     SXML_TEST_EXPECT(state, evaluates_to("(5 to 1)", ""));
     SXML_TEST_EXPECT(state, evaluates_to("(1 to 10)[last()]", "10"));
     SXML_TEST_EXPECT(state, evaluates_to("(1 to 10)[position() = (2, 4)]", "2 4"));
@@ -1367,6 +1371,21 @@ static void test_inline_function_slice_lines(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, fails_with("[1, 2](3)", "FOAY0001"));
     SXML_TEST_EXPECT(state, evaluates_to("map{1: 'a'}(1.0)", "a"));
     SXML_TEST_EXPECT(state, evaluates_to("concat#3('a', 1, ())", "a1"));
+    /* A sequence of functions is called item by item, the results
+       concatenated (XPath 4.0, section 4.6.3.1). */
+    SXML_TEST_EXPECT(state, evaluates_to("let $f := (fn($a, $b){$a + $b}, fn($a, $b){$a - "
+                                         "$b}) return $f(12, 8)",
+                                         "20 4"));  /* DynamicFunctionCall-145 */
+    SXML_TEST_EXPECT(state, evaluates_to("let $f := (count#1, count#1) return $f[5](23)",
+                                         ""));  /* DynamicFunctionCall-142 */
+    SXML_TEST_EXPECT(state, evaluates_to("let $f := {'x': {'b':1, 'c':2}, 'y': {'b':3, "
+                                         "'c':4}} return $f?*('b')",
+                                         "1 3"));  /* DynamicFunctionCall-144 */
+    SXML_TEST_EXPECT(state, evaluates_to("(count#1, for-each(?, fn($x) {$x * 2}))((1, 2))",
+                                         "2 2 4"));
+    SXML_TEST_EXPECT(state, evaluates_to("jtree([10, 20])(2)", "20"));  /* DynamicFunctionCall-150 */
+    SXML_TEST_EXPECT(state, fails_with("(count#1, 1)(2)", "XPTY0004"));
+    SXML_TEST_EXPECT(state, fails_with("(count#1, fn($a, $b) {$a})(2)", "XPTY0004"));
 }
 
 /* Function coercion (XPath 4.0, section 3.4.4): a function passed where a
@@ -1406,6 +1425,17 @@ static void test_function_coercion(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, fails_with("let $f := function($x as xs:QName) {$x} return "
                                        "$f(xs:untypedAtomic('a'))",
                                        "XPTY0117"));
+    /* A range is matched and coerced without walking it. */
+    SXML_TEST_EXPECT(state, evaluates_to("let $f := function($x as xs:decimal+) {1} return "
+                                         "$f(1 to 100000000000)",
+                                         "1"));
+    SXML_TEST_EXPECT(state, evaluates_to("(1 to 100000000000) instance of xs:numeric+, "
+                                         "(1 to 100000000000) instance of xs:integer?, "
+                                         "(1 to 3) instance of xs:string*",
+                                         "true false false"));
+    SXML_TEST_EXPECT(state, fails_with("let $f := function($x as xs:integer) {1} return "
+                                       "$f(1 to 100000000000)",
+                                       "XPTY0004"));
 }
 
 /* ------------------------------------------------- Maps and arrays */
@@ -1600,6 +1630,15 @@ static void test_json_nodes(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, evaluates_to("jtree({'a': 1})/a instance of jnode(*, "
                                          "xs:integer)",
                                          "true"));
+    /* Maps and arrays on the left of "/" and as the origin of a step
+       become JNodes as if by fn:jtree (XPath 4.0, sections 4.7.3, 4.7.5). */
+    SXML_TEST_EXPECT(state, evaluates_to("{'a': 1, 'b': [10, 20]}/b/*[2] + 0", "20"));
+    SXML_TEST_EXPECT(state, evaluates_to("count([[1, 2], [3]]//*)", "5"));
+    SXML_TEST_EXPECT(state, evaluates_to("count(({'a': 1}, {'a': 2}, {'b': 3})/a)", "2"));
+    SXML_TEST_EXPECT(state, evaluates_to("(['a', 'b'], ['c', 'd'])[*[1] eq 'c'] ! ?*",
+                                         "c d"));  /* PathExpr-J-001 */
+    SXML_TEST_EXPECT(state, evaluates_to("{'a': 5} ! (child::a + 1)", "6"));
+    SXML_TEST_EXPECT(state, fails_with("(1, {'a': 1})/a", "XPTY0019"));
 }
 
 /* ----------------------------------------------------------- Errors */
@@ -1816,7 +1855,7 @@ static void test_evaluation_survives_every_allocation_failure(sxml_test_state *s
     static const char expression_text[] =
         "let $f := function($x as xs:integer) { [$x, map{'k': $x * 2}] } "
         "return for-each((1 to 5)[. mod 2 = 1], function($y, $i) { $f($y)?2?k "
-        "|| '-' || $i })";
+        "|| '-' || $i }), (count#1, fn($z) {$z})(7)";
     uint64_t failing_allocation_number = 1;
     for (;;) {
         evaluation_fixture *evaluation = &shared_fixture;
@@ -1835,7 +1874,7 @@ static void test_evaluation_survives_every_allocation_failure(sxml_test_state *s
         fixture_destroy(&evaluation->test_fixture);
         if (counts.failed_allocation_count == 0) {
             SXML_TEST_EXPECT(state, evaluation->outcome.status == SXML_STATUS_OK);
-            SXML_TEST_EXPECT(state, strcmp(evaluation->outcome.text, "2-1 6-2 10-3") == 0);
+            SXML_TEST_EXPECT(state, strcmp(evaluation->outcome.text, "2-1 6-2 10-3 1 7") == 0);
             break;
         }
         if (evaluation->outcome.status != SXML_STATUS_OUT_OF_MEMORY) {

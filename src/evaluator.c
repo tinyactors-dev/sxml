@@ -1240,6 +1240,12 @@ typedef struct sxml_temporal_check {
 static sxml_status sxml_value_has_temporal_item(sxml_sequence value,
                                                 sxml_temporal_check *check) {
     check->has_temporal_item = false;
+    /* A range holds integers only, and may be far too long to walk:
+       "1 = 1 to 100000000000" (found by tests/fuzz/xpath_evaluate_fuzz.c). */
+    if (sxml_sequence_get_representation(value) ==
+        SXML_SEQUENCE_REPRESENTATION_INTEGER_RANGE) {
+        return SXML_STATUS_OK;
+    }
     sxml_sequence_iterator iterator = sxml_sequence_iterator_start(value);
     for (;;) {
         sxml_iteration_step step;
@@ -2319,7 +2325,78 @@ static sxml_status sxml_loop_advance_focus(sxml_dynamic_context *context,
     return sxml_machine_push(context, &body);
 }
 
-/* MAP (XPath 4.0, sections 4.6.3 and 4.18). */
+/*
+ * The left operand of "/" (XPath 4.0, section 4.7.3): maps and arrays in
+ * the input of the path's MAP are converted to JNodes as if by fn:jtree,
+ * each the root of a JTree of its own. Replaces loop->input when there are
+ * any and restarts its iterator.
+ */
+static sxml_status sxml_loop_convert_to_json_nodes(sxml_dynamic_context *context,
+                                                   sxml_loop_state *loop) {
+    if (sxml_sequence_get_representation(loop->input) ==
+        SXML_SEQUENCE_REPRESENTATION_INTEGER_RANGE) {
+        /* Integers only (and possibly very many). */
+        return SXML_STATUS_OK;
+    }
+    sxml_sequence_builder *builder = NULL;
+    sxml_status status = SXML_STATUS_OK;
+    sxml_sequence_iterator iterator = sxml_sequence_iterator_start(loop->input);
+    uint64_t item_index = 0;
+    while (status == SXML_STATUS_OK) {
+        sxml_iteration_step step;
+        status = sxml_sequence_iterator_next(&iterator, context->error_record, &step);
+        if (status != SXML_STATUS_OK || !step.has_item) {
+            break;
+        }
+        const sxml_item_kind kind = sxml_item_get_kind(step.item);
+        const bool is_collection =
+            kind == SXML_ITEM_KIND_MAP || kind == SXML_ITEM_KIND_ARRAY;
+        if (is_collection && builder == NULL) {
+            status = sxml_sequence_builder_create(
+                context->allocator,
+                &(sxml_sequence_builder_configuration){.item_heap = context->item_heap},
+                &builder);
+            for (uint64_t earlier_index = 0;
+                 status == SXML_STATUS_OK && earlier_index < item_index;
+                 earlier_index += 1) {
+                sxml_item earlier = {.representation = 0};
+                status = sxml_sequence_get_item(
+                    loop->input,
+                    (sxml_item_request){.item_index = earlier_index,
+                                        .error_record = context->error_record},
+                    &earlier);
+                if (status == SXML_STATUS_OK) {
+                    status = sxml_sequence_builder_append_item(builder, earlier);
+                }
+            }
+        }
+        if (status == SXML_STATUS_OK && is_collection) {
+            sxml_item root = {.representation = 0};
+            status = sxml_json_node_make_root(context->item_heap,
+                                              sxml_sequence_from_item(step.item), &root);
+            if (status == SXML_STATUS_OK) {
+                status = sxml_sequence_builder_append_item(builder, root);
+                sxml_item_release(root);
+            }
+        } else if (status == SXML_STATUS_OK && builder != NULL) {
+            status = sxml_sequence_builder_append_item(builder, step.item);
+        }
+        item_index += 1;
+    }
+    sxml_sequence converted = sxml_sequence_empty();
+    if (status == SXML_STATUS_OK && builder != NULL) {
+        status = sxml_sequence_builder_finish(builder, &converted);
+        if (status == SXML_STATUS_OK) {
+            sxml_sequence_release(loop->input);
+            loop->input = converted;
+            loop->iterator = sxml_sequence_iterator_start(loop->input);
+        }
+    }
+    sxml_sequence_builder_destroy(builder);
+    return status;
+}
+
+/* MAP (XPath 4.0, editor's draft of 13 October 2026, sections 4.7.3 and 4.21). */
 static sxml_status sxml_machine_step_map(sxml_dynamic_context *context,
                                          const sxml_ir_map *map) {
     sxml_evaluator_task *task = sxml_machine_top(context);
@@ -2332,6 +2409,12 @@ static sxml_status sxml_machine_step_map(sxml_dynamic_context *context,
             return status;
         }
         task = sxml_machine_top(context);
+        if ((map->flags & SXML_IR_MAP_REQUIRES_NODES) != 0) {
+            status = sxml_loop_convert_to_json_nodes(context, &task->details.loop);
+            if (status != SXML_STATUS_OK) {
+                return status;
+            }
+        }
         if ((map->flags & SXML_IR_MAP_ALLOWING_EMPTY) != 0 &&
             sxml_sequence_get_representation(task->details.loop.input) ==
                 SXML_SEQUENCE_REPRESENTATION_EMPTY) {
@@ -3020,7 +3103,164 @@ static sxml_status sxml_start_static_call(sxml_dynamic_context *context,
     return SXML_STATUS_INVALID_ARGUMENT;
 }
 
-/* DYNAMIC_CALL (XPath 4.0, section 4.5.3). */
+/*
+ * The target of a dynamic call coerced to function(*)* (XPath 4.0, section
+ * 4.6.3.1): function items (maps and arrays among them) stay, a JNode
+ * gives the items of its jvalue (section 3.4.2), anything else is
+ * XPTY0004. Writes the functions, owned, to *functions.
+ */
+static sxml_status sxml_coerce_call_target(sxml_dynamic_context *context,
+                                           sxml_sequence value,
+                                           sxml_sequence *functions) {
+    sxml_sequence_builder *builder = NULL;
+    sxml_status status = SXML_STATUS_OK;
+    sxml_sequence_iterator iterator = sxml_sequence_iterator_start(value);
+    uint64_t item_index = 0;
+    while (status == SXML_STATUS_OK) {
+        sxml_iteration_step step;
+        status = sxml_sequence_iterator_next(&iterator, context->error_record, &step);
+        if (status != SXML_STATUS_OK || !step.has_item) {
+            break;
+        }
+        sxml_sequence items = sxml_sequence_from_item(step.item);
+        if (sxml_item_get_kind(step.item) == SXML_ITEM_KIND_JSON_NODE) {
+            sxml_json_node_description description;
+            status = sxml_json_node_describe(step.item, &description);
+            items = description.json_value;
+        }
+        sxml_sequence_iterator inner = sxml_sequence_iterator_start(items);
+        while (status == SXML_STATUS_OK) {
+            sxml_iteration_step inner_step;
+            status = sxml_sequence_iterator_next(&inner, context->error_record,
+                                                 &inner_step);
+            if (status != SXML_STATUS_OK || !inner_step.has_item) {
+                break;
+            }
+            if (!sxml_item_is_function_item(inner_step.item)) {
+                status = sxml_error_record_report(context->error_record,
+                                                  &sxml_single_function_error);
+            }
+        }
+        if (status == SXML_STATUS_OK && builder == NULL &&
+            sxml_item_get_kind(step.item) == SXML_ITEM_KIND_JSON_NODE) {
+            /* The first JNode: copy the function items before it. */
+            status = sxml_sequence_builder_create(
+                context->allocator,
+                &(sxml_sequence_builder_configuration){.item_heap = context->item_heap},
+                &builder);
+            for (uint64_t earlier_index = 0;
+                 status == SXML_STATUS_OK && earlier_index < item_index;
+                 earlier_index += 1) {
+                sxml_item earlier = {.representation = 0};
+                status = sxml_sequence_get_item(
+                    value,
+                    (sxml_item_request){.item_index = earlier_index,
+                                        .error_record = context->error_record},
+                    &earlier);
+                if (status == SXML_STATUS_OK) {
+                    status = sxml_sequence_builder_append_item(builder, earlier);
+                }
+            }
+        }
+        if (status == SXML_STATUS_OK && builder != NULL) {
+            status = sxml_sequence_builder_append_sequence(builder, items,
+                                                           context->error_record);
+        }
+        item_index += 1;
+    }
+    if (status == SXML_STATUS_OK && builder != NULL) {
+        status = sxml_sequence_builder_finish(builder, functions);
+    } else if (status == SXML_STATUS_OK) {
+        sxml_sequence_retain(value);
+        *functions = value;
+    }
+    sxml_sequence_builder_destroy(builder);
+    return status;
+}
+
+/*
+ * A call of a sequence of function items (XPath 4.0, section 4.6.3.1:
+ * F(X, Y) is "for $FI in F return $FI(X, Y)"): a resumable body of the
+ * evaluator's own, not a library row. Argument 0 holds the function items,
+ * the others the arguments; each step calls the next function item, as
+ * any dynamic call, and the results are concatenated in order.
+ */
+typedef struct sxml_call_each_state {
+    uint64_t next_index;
+    /* Owned. */
+    sxml_sequence_builder *builder;
+} sxml_call_each_state;
+
+static sxml_status sxml_step_call_each(const sxml_native_step_request *request,
+                                       sxml_native_step *step) {
+    sxml_call_each_state *state = request->state;
+    const sxml_function_call *call = request->call;
+    sxml_status status = SXML_STATUS_OK;
+    if (request->step_number == 0) {
+        status = sxml_sequence_builder_create(
+            call->dynamic_context->allocator,
+            &(sxml_sequence_builder_configuration){.item_heap = call->item_heap},
+            &state->builder);
+    } else {
+        status = sxml_sequence_builder_append_sequence(state->builder,
+                                                       request->call_result,
+                                                       call->error_record);
+        sxml_sequence_release(request->call_result);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    const sxml_sequence functions = call->arguments.sequences[0];
+    sxml_item function_item = {.representation = 0};
+    status = sxml_sequence_get_item(
+        functions,
+        (sxml_item_request){.item_index = state->next_index,
+                            .error_record = call->error_record},
+        &function_item);
+    if (status == SXML_STATUS_INDEX_OUT_OF_RANGE) {
+        sxml_sequence result = sxml_sequence_empty();
+        status = sxml_sequence_builder_finish(state->builder, &result);
+        if (status == SXML_STATUS_OK) {
+            *step = (sxml_native_step){.step_kind = SXML_NATIVE_STEP_KIND_FINISH,
+                                       .result = result};
+        }
+        return status;
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    state->next_index += 1;
+    *step = (sxml_native_step){
+        .step_kind = SXML_NATIVE_STEP_KIND_CALL,
+        .result = sxml_sequence_empty(),
+        .function_item = function_item,
+        .arguments = {.sequences = call->arguments.sequences + 1,
+                      .sequence_count = call->arguments.sequence_count - 1}};
+    return SXML_STATUS_OK;
+}
+
+static void sxml_release_call_each_state(void *state) {
+    sxml_call_each_state *call_each = state;
+    sxml_sequence_builder_destroy(call_each->builder);
+    call_each->builder = NULL;
+}
+
+static const sxml_resumable_native_body sxml_call_each_body = {
+    .step = sxml_step_call_each,
+    .release_state = sxml_release_call_each_state,
+    .state_byte_count = sizeof(sxml_call_each_state),
+    .state_alignment = alignof(sxml_call_each_state)};
+
+static const sxml_native_function sxml_call_each_row = {
+    .function_namespace = SXML_NAMESPACE_FUNCTIONS,
+    .properties = SXML_NATIVE_FUNCTION_CALLS_FUNCTION_ITEMS,
+    .local_name = SXML_BYTE_VIEW_INITIALIZER("dynamic-call"),
+    .parameters = {.function_parameters = NULL, .function_parameter_count = 0},
+    .result_type = SXML_BYTE_VIEW_INITIALIZER("item()*"),
+    .call = NULL,
+    .resumable_body = &sxml_call_each_body};
+
+/* DYNAMIC_CALL (XPath 4.0, section 4.6.3.1). */
 static sxml_status sxml_start_dynamic_call(sxml_dynamic_context *context,
                                            const sxml_ir_dynamic_call *dynamic_call) {
     sxml_sequence function_value = sxml_sequence_empty();
@@ -3029,24 +3269,72 @@ static sxml_status sxml_start_dynamic_call(sxml_dynamic_context *context,
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    if (sxml_sequence_get_representation(function_value) !=
-            SXML_SEQUENCE_REPRESENTATION_SINGLE_ITEM ||
-        !sxml_item_is_function_item(function_value.content)) {
-        return sxml_error_record_report(context->error_record,
-                                        &sxml_single_function_error);
-    }
-    sxml_sequence *arguments = NULL;
-    status = sxml_machine_copy_atoms(context, dynamic_call->arguments, &arguments);
+    sxml_sequence functions = sxml_sequence_empty();
+    status = sxml_coerce_call_target(context, function_value, &functions);
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    sxml_item_retain(function_value.content);
+    const sxml_sequence_representation representation =
+        sxml_sequence_get_representation(functions);
+    if (representation == SXML_SEQUENCE_REPRESENTATION_EMPTY) {
+        /* No function: the arguments are not needed. */
+        return sxml_machine_finish(context, functions);
+    }
+    const size_t argument_count = dynamic_call->arguments.atom_count;
+    sxml_sequence *arguments = NULL;
+    if (representation == SXML_SEQUENCE_REPRESENTATION_SINGLE_ITEM) {
+        status = sxml_machine_copy_atoms(context, dynamic_call->arguments, &arguments);
+        if (status != SXML_STATUS_OK) {
+            sxml_sequence_release(functions);
+            return status;
+        }
+        /* functions owns the one item; the call takes it over. */
+        sxml_machine_become_call(
+            context, &(sxml_call_state){.function_item = functions.content,
+                                        .callee = NULL,
+                                        .native_function = NULL,
+                                        .arguments = arguments,
+                                        .argument_count = argument_count,
+                                        .native_call = NULL});
+        return SXML_STATUS_OK;
+    }
+    /* Several function items: the call-each body with the functions as
+       its first argument. */
+    void *memory = NULL;
+    status = sxml_allocator_allocate(
+        context->allocator,
+        (sxml_allocation_request){.byte_count = (argument_count + 1) * sizeof(sxml_sequence),
+                                  .alignment = alignof(sxml_sequence)},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        sxml_sequence_release(functions);
+        return status;
+    }
+    arguments = memory;
+    arguments[0] = functions;
+    size_t copied_count = 1;
+    const sxml_ir_atom_view atoms = sxml_ir_unit_get_atoms(
+        sxml_machine_top(context)->function->unit, dynamic_call->arguments);
+    while (status == SXML_STATUS_OK && copied_count <= argument_count) {
+        status = sxml_machine_copy_atom(context, atoms.atoms[copied_count - 1],
+                                        &arguments[copied_count]);
+        if (status == SXML_STATUS_OK) {
+            copied_count += 1;
+        }
+    }
+    if (status != SXML_STATUS_OK) {
+        for (size_t value_index = 0; value_index < copied_count; value_index += 1) {
+            sxml_sequence_release(arguments[value_index]);
+        }
+        sxml_allocator_release(context->allocator, memory);
+        return status;
+    }
     sxml_machine_become_call(
-        context, &(sxml_call_state){.function_item = function_value.content,
+        context, &(sxml_call_state){.function_item = {.representation = 0},
                                     .callee = NULL,
-                                    .native_function = NULL,
+                                    .native_function = &sxml_call_each_row,
                                     .arguments = arguments,
-                                    .argument_count = dynamic_call->arguments.atom_count,
+                                    .argument_count = argument_count + 1,
                                     .native_call = NULL});
     return SXML_STATUS_OK;
 }
