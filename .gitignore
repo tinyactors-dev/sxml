@@ -3,3 +3,6 @@
 
 # Pinned Node.js tools (ast-grep, tree-sitter-cli), installed by `npm ci --prefix tools`.
 /tools/node_modules/
+
+# Python bytecode from tools/*.py.
+__pycache__/
