@@ -4,6 +4,16 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 1.24 done (D83, P8): the QT4 driver `sxml-qt4` in `tests/qt4/driver/`
+  (catalog, environments, applicability, test lists, `list` command) on
+  the CLI framework, reading the suite with sxml's own XML parser through
+  the public API. `sxml-qt4 list tests/qt4/torture-slice.txt`: 198/198
+  resolve and apply to XP40 (`debug`, `debug-gcc`, `wasm`). Whole suite:
+  47,313 cases, 32,928 XP40 by spec (as `docs/QT4_CATALOG.md`), 28,865
+  applicable after dependencies and environments. Tests: `qt4_driver`
+  (unit, in-memory files, allocation-failure loop) and 14 `qt4/*` golden
+  tests. Blocked-ish: P8, the XML parser's positions are O(n^2), so the
+  slice listing takes 160-200 s under ASan (13 s release, 21 s wasm).
 - 1.20 done (D78): core function library. `src/function_library.c`
   (index over the configured parts, type text resolved on first find,
   xs: constructors, `sxml_function_table_find`), parts numeric, string,
