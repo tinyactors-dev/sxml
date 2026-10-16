@@ -4,6 +4,19 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 1.21 done (D79, D80): higher-order, map and array functions.
+  `src/function_library_higher_order.c` (F&O 4.0 2.5 except fn:sort, 13,
+  fn:op; traversal, fold and sort engines shared through
+  `src/function_library_higher_order_internal.h`), `src/function_library_map.c`
+  (all of 14.4; map:build/merge as one resumable assembly),
+  `src/function_library_array.c` (15.2 except array:index-of). Every
+  function-calling row is a resumable body: fold-right over 10^6 items in
+  constant C stack. 10 cases in `tests/function_library_higher_order_test.c`
+  (about 50 slice lines, the 4.0 additions, depth limit, allocation-failure
+  loop) over a test table (1.20's library not yet committed); `debug`,
+  `debug-gcc`, `wasm`: 61/61; lint clean, no call cycles. Open:
+  DynamicFunctionCall-146 needs the evaluator to call a sequence of
+  functions; array:index-of waits for 1.20's deep-equal.
 - 1.18 done (D75, D76, D77, D73): the evaluator. `src/evaluator.c`
   (explicit-stack machine: tasks for expressions, calls and native steps
   in allocator memory, tail calls reuse frames, depth as LIMIT_EXCEEDED),
