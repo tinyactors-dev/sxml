@@ -1117,6 +1117,65 @@ and `sxml_sequence_test_emptiness`; xdm.h and src/xdm.c are unchanged.
 - **Emptiness** is `get_item(0)`: at most one item of a lazy sequence is
   produced, and its error is reported (D43).
 
+### D63. Static analysis and lowering (packet 1.12)
+Recorded 2026-10-16. `src/xpath_static_internal.h` (module `xpath_static`):
+`sxml_xpath_static_context` (heap, allocator, namespace bindings, variable
+declarations, function table); `sxml_xpath_resolve_name`,
+`_resolve_sequence_type` and `_resolve_item_type` (also for the type text
+of function library rows, D55); `sxml_xpath_lower` (AST to an unsealed
+unit) and `sxml_xpath_compile` (parse, lower, `sxml_ir_standard_passes`,
+seal), which 1.23 calls.
+- **Names**: the AST's namespace declarations, then the configuration,
+  then the predeclared prefixes; unprefixed functions are in fn,
+  variables, attributes and QName literals in no namespace, element and
+  type names in the default element namespace. Function names are found
+  with `sxml_name_pool_find_name`: a name never interned is XPST0017.
+  Global variable n is variable declaration n, referenced or not, so the
+  processor binds by index.
+- **Shape**: ANF blocks append LETs; atoms (literals, variables) are never
+  bound. Left-recursive chains (binary operators, paths, filters,
+  lookups, dynamic calls, arrows) are walked in a loop; other nesting
+  recurses, bounded by `maximum_expression_depth` (default 48, for the
+  64 KiB WebAssembly stack; LIMIT_EXCEEDED beyond). An inline function's
+  free variables are found by walking its AST through parent links; each
+  becomes a captured slot, except a constant (a `let` of a literal),
+  which is substituted. Globals read in a function are captured (D55).
+- **Focus**: slots made on first read (main, MAP, FILTER); absent in an
+  inline function body (a RAISE of XPDY0002 where read); a focus function
+  and `->` fix the value, with position and size 1.
+- **Paths**: `E1/E2` is MAP then DOCUMENT_ORDER; `//` adds a MAP of
+  `descendant-or-self::node()` and DOCUMENT_ORDER; a reverse-axis step is
+  followed by DOCUMENT_ORDER after its predicates; default axis attribute
+  or namespace for those tests; `node()` steps use the generic node type.
+  A name test on a JNode origin is the evaluator's to read as a key test
+  (XPath 4.0, 4.6.5), since STEP carries element(N).
+- **Calls**: COERCE unless the type is `item()*` or a constant already
+  matches; constructor functions are CAST allowing empty; a left-out
+  context-value parameter is the focus value (static calls) or captured
+  by a closure (`f#N`); `position()`/`last()` read focus slots; static
+  placeholders make a closure (constant arguments in its body, others
+  coerced and captured); dynamic placeholders call fn:partial-apply with
+  `xs:positiveInteger` keys; keyword arguments are reordered; `and`/`or`
+  are CONDITIONALs giving `true()`/`false()`, `otherwise` tests
+  `instance of item()+`, string templates use fn:string-join#2 and `||`.
+  fn:root, fn:partial-apply and fn:string-join must be in the table.
+- **Literals**: integers inline or as decimal cells (hex and binary
+  converted); doubles through decimal text, rounded once (D57).
+- **Not lowered in Phase 1** (UNSUPPORTED_FEATURE, diagnostic filled):
+  for member, for key/value, destructuring let, method calls, but with,
+  dynamic node tests, the item axis, named namespace-axis tests (P4),
+  jnode() selectors other than `*`, `()`, NCName, string, integer,
+  boolean.
+- **Text form**: nested expression operands start a line two columns
+  past their parent's "(", except a LET's bound expression; constants
+  print as XPath literals (doubles as `<shortest decimal>e0`).
+- **Checks**: with a permissive function table, 29,653 of the 32,409
+  valid XP40 queries lower and pass the verifier; the rest are static
+  errors from missing test environments, or the constructs above.
+- `sxml_function_table_find` (D55) is declared but nobody defines it yet;
+  static analysis uses `sxml_xpath_find_function`; 1.20 may define the
+  wrapper over it.
+
 ## Proposed
 
 ### P2. `sxml_atomic_comparison` needs the item heap (from D60)
@@ -1134,3 +1193,17 @@ therefore return the heap's failures, which its contract in `xdm.h` does
 not list. Proposed: add "and the heap's failures (a record makes its keys
 on first use)" to that comment, or give the heap a per-record-type key
 table so records share their keys as D7 intends.
+
+### P4. Namespace node tests with a name (from D63)
+`namespace::x` is a STEP whose node test is a namespace test named x (a
+prefix, in no namespace), but the type registry's normal form (D58)
+accepts namespace tests only without a name. Proposed: accept an
+`EXPANDED_NAME` name test in no namespace for `SXML_NODE_KIND_NAMESPACE`.
+Until then such steps are not lowered.
+
+### P5. XPTY0019 for the path operator (from D63)
+`E1/E2` raises XPTY0019 when E1 yields an item that is not a node, but
+the IR's MAP has no such check; a following STEP raises XPTY0020 instead,
+and `$atoms/string()` raises nothing. Proposed: a flag
+`SXML_IR_MAP_REQUIRES_NODES` in `sxml_ir_map_flag`, set by lowering on
+the MAP of a path and checked by the evaluator.
