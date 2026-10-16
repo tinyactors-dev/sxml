@@ -4,6 +4,13 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- XML fix (D87, P8 accepted): the position tracker moves back in place
+  instead of restarting from byte 0, so parsing is linear: `sxml-qt4 list
+  tests/qt4/torture-slice.txt` 23.3 s -> 0.76 s (release). The `xml` ctest
+  failure (UTF-16 surrogates, 0xD810 for 0xD800) and its 600 s depth case
+  (ts_tree_cursor_current_depth) were fixed in d44b472 and 14ece34; `xml`
+  now runs 6.7 s debug, 8.5 s debug-gcc, 0.8 s wasm. Open: tree-sitter
+  parses about 3.5 MB/s (9.6 MB in 2.7 s, release).
 - 1.18b done (D85): follow-ups from 1.20/1.21. Dynamic calls on a
   sequence of functions (evaluator's `call_each` body) and dynamic partial
   application per function; maps and arrays become JNodes on the left of
