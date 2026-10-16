@@ -1220,6 +1220,44 @@ Recorded 2026-10-16. `src/xdm_array.c`, `src/xdm_function.c`.
   stay as they are; the library is not involved. Revisit when the runner's
   Node version no longer uses fast calls for WASI.
 
+### D66. Casting and lexical forms (packet 1.15)
+Recorded 2026-10-16. `src/cast_internal.h`; `src/cast.c` (casting table,
+targets), `src/cast_lexical.c` (lexical forms, canonical text).
+- **Interface**: `sxml_cast_make_value` and `sxml_cast_test_castability`
+  take the atomized operand (atomizing is the evaluator's) and any target
+  type: atomic, list, union, enumeration or choice; a target that cannot
+  be cast to gives XPST0080 at run time too. `sxml_cast_make_value_from_text`
+  casts text as an xs:string without making one (list tokens use it).
+  `sxml_cast_write_canonical_text` borrows the text of strings and
+  decimals, writes the rest to the caller's buffer and reports the size
+  needed on CAPACITY_EXCEEDED (96 bytes hold every number, date and
+  duration).
+- **xs:QName**: the request carries the statically known namespaces as an
+  `sxml_namespace_binding_view` (prefix 0: default namespace for elements
+  and types), predeclared prefixes as fallback; no callback interface.
+  XPTY0117 (coercing untypedAtomic to xs:QName) stays with the evaluator.
+- **Checks**: syntax here, value space in `sxml_atomic_item_make`, whose
+  INVALID_ARGUMENT becomes FORG0001. XSD 1.1 lexical spaces: "+INF"
+  accepted, base64 with single spaces, year of 4 to 16 digits ("-0000"
+  refused, more is FODT0001), 24:00:00 is the next day, fraction digits
+  past nine truncated (D36), duration parts beyond `int64_t` FODT0002;
+  digits beyond the heap's limit FOCA0003 (integer targets) or FOCA0001.
+- **Numbers**: xs:double and xs:float write the shortest digits (D57) as a
+  decimal when the first significant digit's power of ten is -6 to 5,
+  else as d.dddEn, so xs:float("1e-6") writes 0.000001. To integer types
+  truncates (doubles beyond 2^63 by their exact value); to xs:decimal the
+  shortest decimal. Text to float goes through `strtof` (one rounding) on
+  locale-free text, as D57.
+- **Unions and choices**: an instance of an atomic member is returned
+  unchanged, otherwise members in order; when all fail XPTY0004 if every
+  member refused the source type, else FORG0001 (xs:error: FORG0001).
+  **Enumerations**: cast to xs:string, then codepoint membership; the
+  result is an xs:string. **Lists**: only from the string types
+  (XPTY0004), collapsed and split, no tokens is FORG0001. Targets nest at
+  most 32 deep.
+- **castable**: dynamic and type errors of the cast give false; errors
+  reading the operand, XPST0080, memory and limits are returned.
+
 ## Proposed
 
 ### P2. `sxml_atomic_comparison` needs the item heap (from D60)
