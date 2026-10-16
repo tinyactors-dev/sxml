@@ -911,46 +911,45 @@ static sxml_status sxml_tree_make_base_uri(sxml_item_heap *item_heap,
 sxml_status sxml_node_make_base_uri(sxml_item_heap *item_heap,
                                     const sxml_node_value_request *request,
                                     sxml_sequence *base_uri) {
+    /* A loop, not recursion (D71): it goes up to the parent at most once,
+       since the parent of a node with a parent is an element or a
+       document. */
     sxml_node_reference node = request->node;
-    sxml_node_description description;
-    sxml_status status = sxml_node_describe(node, &description);
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    /* XDM 4.0, section 7: a namespace node has no base URI; attributes,
-       text and comments have their parent's, and none without a parent; a
-       processing instruction its parent's or, parentless, the one it was
-       made with, which is the tree's. */
-    switch (description.node_kind) {
-    case SXML_NODE_KIND_DOCUMENT:
-        return sxml_tree_make_base_uri(item_heap, node.tree, base_uri);
-    case SXML_NODE_KIND_ELEMENT:
-        return sxml_element_make_base_uri(item_heap, node, base_uri);
-    case SXML_NODE_KIND_PROCESSING_INSTRUCTION:
-        if (!description.has_parent) {
-            return sxml_tree_make_base_uri(item_heap, node.tree, base_uri);
+    for (;;) {
+        sxml_node_description description;
+        sxml_status status = sxml_node_describe(node, &description);
+        if (status != SXML_STATUS_OK) {
+            return status;
         }
-        break;
-    case SXML_NODE_KIND_ATTRIBUTE:
-    case SXML_NODE_KIND_TEXT:
-    case SXML_NODE_KIND_COMMENT:
-        break;
-    case SXML_NODE_KIND_NAMESPACE:
-    case SXML_NODE_KIND_ANY:
-        *base_uri = sxml_sequence_empty();
-        return SXML_STATUS_OK;
+        /* XDM 4.0, section 7: a namespace node has no base URI; attributes,
+           text and comments have their parent's, and none without a
+           parent; a processing instruction its parent's or, parentless,
+           the one it was made with, which is the tree's. */
+        switch (description.node_kind) {
+        case SXML_NODE_KIND_DOCUMENT:
+            return sxml_tree_make_base_uri(item_heap, node.tree, base_uri);
+        case SXML_NODE_KIND_ELEMENT:
+            return sxml_element_make_base_uri(item_heap, node, base_uri);
+        case SXML_NODE_KIND_PROCESSING_INSTRUCTION:
+            if (!description.has_parent) {
+                return sxml_tree_make_base_uri(item_heap, node.tree,
+                                               base_uri);
+            }
+            break;
+        case SXML_NODE_KIND_ATTRIBUTE:
+        case SXML_NODE_KIND_TEXT:
+        case SXML_NODE_KIND_COMMENT:
+            break;
+        case SXML_NODE_KIND_NAMESPACE:
+        case SXML_NODE_KIND_ANY:
+            *base_uri = sxml_sequence_empty();
+            return SXML_STATUS_OK;
+        }
+        if (!description.has_parent) {
+            *base_uri = sxml_sequence_empty();
+            return SXML_STATUS_OK;
+        }
+        node = sxml_node_reference_of_stored_node((sxml_stored_node_request){
+            .tree = node.tree, .node_number = description.parent.index});
     }
-    if (!description.has_parent) {
-        *base_uri = sxml_sequence_empty();
-        return SXML_STATUS_OK;
-    }
-    return sxml_node_make_base_uri(
-        item_heap,
-        &(sxml_node_value_request){
-            .node = sxml_node_reference_of_stored_node(
-                (sxml_stored_node_request){
-                    .tree = node.tree,
-                    .node_number = description.parent.index}),
-            .error_record = request->error_record},
-        base_uri);
 }

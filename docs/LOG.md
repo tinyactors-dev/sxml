@@ -4,6 +4,34 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- D71 for the value model: `src/xdm_map.c` (insert, remove, replace
+  value, key search, build) and `src/xdm_array.c` (join, split) walk their
+  AVL trees in loops over fixed 96-entry paths on the C stack (no tree
+  that fits in memory is higher than 91); `sxml_node_make_base_uri` is a
+  loop; the dump helpers of `tests/tree_test.c` and
+  `tests/xpath_parse_test.c` use an explicit stack and parent links.
+  Indirect recursion through cell classes audited: releases only queue,
+  concatenations hold no concatenations; only caller-supplied lazy
+  generators can nest. `debug`, `debug-gcc`, `wasm`: 59/59; lint and
+  misc-no-recursion clean.
+- D74: libmpdec's transpose buffers (up to 128 KiB on the stack) moved to
+  the heap through the decimal scope, marked "sxml patch"; long products
+  (10^6000 * 10^6000) no longer trap on the 64 KiB wasm stack. Audit:
+  largest libmpdec frame now 1.2 KiB on wasm, measured worst stack of
+  multiply and divide 2.9 KiB, flat up to 16 million digits; recursion
+  bounded, no digit cap needed. Four new cases in `tests/decimal_test.c`
+  (10,000 and 60,000 digits, allocation failures); `debug`, `debug-gcc`,
+  `wasm`: 59/59; lint clean.
+- D71 for types and casts: `src/types.c` evaluates subtype questions as an
+  and/or tree of subtype goals on a fixed explicit stack (192 frames, no
+  allocation, as the header promises; last sub-goals replace their frame)
+  and searches union members for derivation on a stack of 256;
+  `src/cast.c` casts union, choice and list targets on a heap stack of
+  cast frames (at most 33). Behaviour and limits unchanged except that
+  choices of choices searched past 192 frames now answer false (D58).
+  New tests nest function types, choices, enumerations and document tests
+  10,000 deep and choice targets 10,000 deep; `debug`, `debug-gcc`,
+  `wasm`: 59/59; lint and misc-no-recursion clean on these files.
 - 1.19 done (D68, D72): operators. `src/operator.c` (promotion, numeric
   operators with int64 overflow into libmpdec, exact double idiv/mod,
   unary), `src/operator_temporal.c` (duration, date and time arithmetic,

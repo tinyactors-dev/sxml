@@ -1049,8 +1049,35 @@ static sxml_status dump_namespaces(const tree_fixture *fixture,
     return status;
 }
 
-static sxml_status dump_node(const tree_fixture *fixture,
-                             sxml_node_reference node, char *text) {
+/* A document or element being dumped: the attribute pass (0), then the
+   child pass (1). */
+typedef struct dump_frame {
+    sxml_node_reference node;
+    sxml_axis_iterator iterator;
+    bool is_element;
+    int pass_number;
+} dump_frame;
+
+/* The documents and elements being dumped, outermost first: an explicit
+   stack instead of recursion (D71); test trees are shallow. */
+#define TEST_DUMP_MAXIMUM_DEPTH 64
+
+typedef struct dump_stack {
+    dump_frame frames[TEST_DUMP_MAXIMUM_DEPTH];
+    size_t frame_count;
+} dump_stack;
+
+/* A node to start dumping onto a stack. */
+typedef struct dump_entry {
+    dump_stack *stack;
+    sxml_node_reference node;
+} dump_entry;
+
+/* Dumps all of a leaf node, or opens a document or element and pushes its
+   frame, which then lists its attributes. */
+static sxml_status dump_enter(const tree_fixture *fixture,
+                              const dump_entry *entry, char *text) {
+    sxml_node_reference node = entry->node;
     sxml_node_description description;
     sxml_status status = sxml_node_describe(node, &description);
     if (status != SXML_STATUS_OK) {
@@ -1060,7 +1087,16 @@ static sxml_status dump_node(const tree_fixture *fixture,
     switch (description.node_kind) {
     case SXML_NODE_KIND_DOCUMENT:
     case SXML_NODE_KIND_ELEMENT: {
+        dump_stack *stack = entry->stack;
+        if (stack->frame_count == TEST_DUMP_MAXIMUM_DEPTH) {
+            return SXML_STATUS_LIMIT_EXCEEDED;
+        }
         bool is_element = description.node_kind == SXML_NODE_KIND_ELEMENT;
+        dump_frame *frame = &stack->frames[stack->frame_count];
+        stack->frame_count += 1;
+        frame->node = node;
+        frame->is_element = is_element;
+        frame->pass_number = 0;
         dump_append(text, is_element ? "<" : "[doc ");
         if (is_element) {
             status = dump_name(fixture, &description, text);
@@ -1068,30 +1104,12 @@ static sxml_status dump_node(const tree_fixture *fixture,
                 status = dump_namespaces(fixture, node, text);
             }
         }
-        sxml_axis_iterator iterator;
-        for (int pass_number = 0; pass_number < 2 && status == SXML_STATUS_OK;
-             pass_number++) {
-            if (pass_number == 1) {
-                dump_append(text, is_element ? ">" : "");
-            }
+        if (status == SXML_STATUS_OK) {
             status = sxml_axis_iterator_start(
                 (sxml_axis_request){.origin = node,
-                                    .axis = pass_number == 0 ? SXML_AXIS_ATTRIBUTE
-                                                      : SXML_AXIS_CHILD},
-                &iterator);
-            while (status == SXML_STATUS_OK) {
-                sxml_node_iteration_step step;
-                status = sxml_axis_iterator_next(&iterator, &step);
-                if (status != SXML_STATUS_OK || !step.has_node) {
-                    break;
-                }
-                if (pass_number == 0) {
-                    dump_append(text, " ");
-                }
-                status = dump_node(fixture, step.node, text);
-            }
+                                    .axis = SXML_AXIS_ATTRIBUTE},
+                &frame->iterator);
         }
-        dump_append(text, is_element ? "</>" : "]");
         return status;
     }
     case SXML_NODE_KIND_ATTRIBUTE:
@@ -1119,6 +1137,46 @@ static sxml_status dump_node(const tree_fixture *fixture,
         return status;
     }
     return SXML_STATUS_INVALID_ARGUMENT;
+}
+
+static sxml_status dump_node(const tree_fixture *fixture,
+                             sxml_node_reference node, char *text) {
+    dump_stack stack = {.frame_count = 0};
+    sxml_status status =
+        dump_enter(fixture, &(dump_entry){.stack = &stack, .node = node}, text);
+    while (status == SXML_STATUS_OK && stack.frame_count > 0) {
+        dump_frame *frame = &stack.frames[stack.frame_count - 1];
+        sxml_node_iteration_step step;
+        status = sxml_axis_iterator_next(&frame->iterator, &step);
+        if (status != SXML_STATUS_OK) {
+            break;
+        }
+        if (step.has_node) {
+            if (frame->pass_number == 0) {
+                dump_append(text, " ");
+            }
+            status = dump_enter(
+                fixture, &(dump_entry){.stack = &stack, .node = step.node},
+                text);
+        } else if (frame->pass_number == 0) {
+            frame->pass_number = 1;
+            dump_append(text, frame->is_element ? ">" : "");
+            status = sxml_axis_iterator_start(
+                (sxml_axis_request){.origin = frame->node,
+                                    .axis = SXML_AXIS_CHILD},
+                &frame->iterator);
+        } else {
+            dump_append(text, frame->is_element ? "</>" : "]");
+            stack.frame_count -= 1;
+        }
+    }
+    /* After a failure, close what is open, as the dump always does. */
+    while (stack.frame_count > 0) {
+        stack.frame_count -= 1;
+        dump_append(text, stack.frames[stack.frame_count].is_element ? "</>"
+                                                                    : "]");
+    }
+    return status;
 }
 
 /* Copies node into a new arena tree and dumps the copy's root. */

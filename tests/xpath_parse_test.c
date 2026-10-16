@@ -337,22 +337,52 @@ static void write_payload(ast_writer writer, const sxml_ast_node *node) {
     }
 }
 
-/* Writes the subtree of index. Recursive: test ASTs are shallow. */
-static void write_node(ast_writer writer, sxml_ast_node_index index) {
-    const sxml_ast_node *node = sxml_ast_get_node(writer.ast, index);
+/* Writes the opening of node: its kind, detail and payload. */
+static void write_node_start(ast_writer writer, const sxml_ast_node *node) {
     write_text(writer.output, "(");
     write_text(writer.output, kind_names[node->kind]);
     write_detail(writer, node);
     write_payload(writer, node);
-    for (sxml_ast_node_index child = node->first_child; child.value != 0;
-         child = sxml_ast_get_node(writer.ast, child)->next_sibling) {
-        write_text(writer.output, " ");
-        write_text(writer.output,
-                   field_names[sxml_ast_get_node(writer.ast, child)->field]);
-        write_text(writer.output, "=");
-        write_node(writer, child);
+}
+
+/* Writes " field=" for a child about to be written. */
+static void write_field_label(ast_writer writer, const sxml_ast_node *child) {
+    write_text(writer.output, " ");
+    write_text(writer.output, field_names[child->field]);
+    write_text(writer.output, "=");
+}
+
+/* Writes the subtree of index in document order, following parent and
+   sibling links instead of recursing (D71). */
+static void write_node(ast_writer writer, sxml_ast_node_index index) {
+    sxml_ast_node_index current = index;
+    write_node_start(writer, sxml_ast_get_node(writer.ast, current));
+    for (;;) {
+        const sxml_ast_node *node = sxml_ast_get_node(writer.ast, current);
+        if (node->first_child.value != 0) {
+            current = node->first_child;
+            const sxml_ast_node *child = sxml_ast_get_node(writer.ast, current);
+            write_field_label(writer, child);
+            write_node_start(writer, child);
+            continue;
+        }
+        /* Close finished nodes up to one with a next sibling. */
+        for (;;) {
+            write_text(writer.output, ")");
+            if (current.value == index.value) {
+                return;
+            }
+            node = sxml_ast_get_node(writer.ast, current);
+            if (node->next_sibling.value != 0) {
+                break;
+            }
+            current = node->parent;
+        }
+        current = node->next_sibling;
+        const sxml_ast_node *sibling = sxml_ast_get_node(writer.ast, current);
+        write_field_label(writer, sibling);
+        write_node_start(writer, sibling);
     }
-    write_text(writer.output, ")");
 }
 
 /* -------------------------------------------------------------- Helpers */

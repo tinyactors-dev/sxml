@@ -39,7 +39,7 @@
  * and leave their outputs untouched. Releasing a tree goes through
  * sxml_cell_release, which frees cells from the heap's pending list without
  * recursion, so arrays nested arbitrarily deep are freed in constant stack.
- * The recursion of join and split is bounded by the tree height.
+ * Join and split walk the tree in loops over fixed-size paths (D71).
  */
 #include "xdm_internal.h"
 
@@ -425,11 +425,39 @@ static sxml_status sxml_array_node_make_balanced(sxml_item_heap *item_heap,
 }
 
 /*
+ * The most nodes a walk down an array tree keeps. A tree of height h has
+ * at least F(h + 3) - 1 nodes (F the Fibonacci numbers: a branch of height
+ * h has subtrees of heights at least h - 1 and h - 2), and F(94) - 1 is
+ * more than 2^64 - 1, so a tree of nodes that fit in any address space is
+ * at most 90 high, and a path from its root has at most 91 nodes. Join and
+ * split therefore keep their paths in fixed arrays on the C stack, need no
+ * allocation and do not recurse (D71).
+ */
+#define SXML_ARRAY_TREE_PATH_CAPACITY 96
+
+/*
+ * The subtrees join leaves behind on its way down the taller tree's inner
+ * spine, innermost last, each with the side of the joined part it goes
+ * on.
+ */
+typedef struct sxml_array_join_path {
+    sxml_array_node *siblings[SXML_ARRAY_TREE_PATH_CAPACITY];
+    bool sibling_goes_left[SXML_ARRAY_TREE_PATH_CAPACITY];
+    size_t sibling_count;
+} sxml_array_join_path;
+
+/*
  * Joins two trees (borrowed; either may be NULL) into one holding the left
  * tree's members, then the right tree's, and writes it, owned (NULL when
  * both are empty), to *node. Time and allocations are proportional to the
  * height difference plus one. The result is as high as the taller input or
  * one higher.
+ *
+ * While one tree is more than one higher than the other, the walk goes
+ * down its inner spine (the left tree's right spine, or the right tree's
+ * left spine), keeping the other subtrees; the remaining pair becomes a
+ * branch, which is rebalanced with each kept subtree on the way back up
+ * (each joined part is at most two higher than its sibling).
  */
 static sxml_status sxml_array_node_join(sxml_item_heap *item_heap,
                                         sxml_array_node_pair pair,
@@ -441,49 +469,58 @@ static sxml_status sxml_array_node_join(sxml_item_heap *item_heap,
         *node = only_node;
         return SXML_STATUS_OK;
     }
-    uint32_t left_height = sxml_array_node_get_height(pair.left_node);
-    uint32_t right_height = sxml_array_node_get_height(pair.right_node);
-    if (left_height > right_height + 1) {
-        /* Join along the left tree's right spine, then rebalance on the way
-           back up; the joined part is at most two higher than its sibling. */
-        sxml_array_branch left = pair.left_node->shape.branch;
-        sxml_array_node *joined_node = NULL;
-        sxml_status status = sxml_array_node_join(
-            item_heap,
-            (sxml_array_node_pair){.left_node = left.right_node,
-                                   .right_node = pair.right_node},
-            &joined_node);
+    sxml_array_join_path path = {.sibling_count = 0};
+    sxml_array_node_pair remaining = pair;
+    for (;;) {
+        uint32_t left_height = sxml_array_node_get_height(remaining.left_node);
+        uint32_t right_height =
+            sxml_array_node_get_height(remaining.right_node);
+        bool is_left_taller = left_height > right_height + 1;
+        if (!is_left_taller && right_height <= left_height + 1) {
+            break;
+        }
+        if (path.sibling_count == SXML_ARRAY_TREE_PATH_CAPACITY) {
+            /* Not reached: see SXML_ARRAY_TREE_PATH_CAPACITY. */
+            return SXML_STATUS_INVALID_ARGUMENT;
+        }
+        path.sibling_goes_left[path.sibling_count] = is_left_taller;
+        if (is_left_taller) {
+            sxml_array_branch left = remaining.left_node->shape.branch;
+            path.siblings[path.sibling_count] = left.left_node;
+            remaining.left_node = left.right_node;
+        } else {
+            sxml_array_branch right = remaining.right_node->shape.branch;
+            path.siblings[path.sibling_count] = right.right_node;
+            remaining.right_node = right.left_node;
+        }
+        path.sibling_count += 1;
+    }
+    sxml_array_node *joined_node = NULL;
+    sxml_status status =
+        sxml_array_node_make_branch(item_heap, remaining, &joined_node);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    while (path.sibling_count > 0) {
+        path.sibling_count -= 1;
+        sxml_array_node *sibling = path.siblings[path.sibling_count];
+        sxml_array_node_pair balanced_pair =
+            path.sibling_goes_left[path.sibling_count]
+                ? (sxml_array_node_pair){.left_node = sibling,
+                                         .right_node = joined_node}
+                : (sxml_array_node_pair){.left_node = joined_node,
+                                         .right_node = sibling};
+        sxml_array_node *balanced_node = NULL;
+        status = sxml_array_node_make_balanced(item_heap, balanced_pair,
+                                               &balanced_node);
+        sxml_array_node_release(joined_node);
         if (status != SXML_STATUS_OK) {
             return status;
         }
-        status = sxml_array_node_make_balanced(
-            item_heap,
-            (sxml_array_node_pair){.left_node = left.left_node,
-                                   .right_node = joined_node},
-            node);
-        sxml_array_node_release(joined_node);
-        return status;
+        joined_node = balanced_node;
     }
-    if (right_height > left_height + 1) {
-        sxml_array_branch right = pair.right_node->shape.branch;
-        sxml_array_node *joined_node = NULL;
-        sxml_status status = sxml_array_node_join(
-            item_heap,
-            (sxml_array_node_pair){.left_node = pair.left_node,
-                                   .right_node = right.left_node},
-            &joined_node);
-        if (status != SXML_STATUS_OK) {
-            return status;
-        }
-        status = sxml_array_node_make_balanced(
-            item_heap,
-            (sxml_array_node_pair){.left_node = joined_node,
-                                   .right_node = right.right_node},
-            node);
-        sxml_array_node_release(joined_node);
-        return status;
-    }
-    return sxml_array_node_make_branch(item_heap, pair, node);
+    *node = joined_node;
+    return SXML_STATUS_OK;
 }
 
 /* Where to split a tree. */
@@ -494,16 +531,22 @@ typedef struct sxml_array_split_request {
     size_t member_index;
 } sxml_array_split_request;
 
+/* The branches split passes on its way down, each with the side it goes
+   down by. */
+typedef struct sxml_array_split_path {
+    const sxml_array_node *branches[SXML_ARRAY_TREE_PATH_CAPACITY];
+    bool goes_left[SXML_ARRAY_TREE_PATH_CAPACITY];
+    size_t branch_count;
+} sxml_array_split_path;
+
 /*
- * Splits request->node before request->member_index and writes the two
- * trees, owned (either may be NULL), to *pair: the left holds the members
- * before the index. O(log n): the joins along the path cost a telescoping
- * sum of height differences.
+ * Splits a leaf (or a tree at either end) before member_index and writes
+ * the two trees, owned (either may be NULL), to *pair.
  */
 static sxml_status
-sxml_array_node_split(sxml_item_heap *item_heap,
-                      const sxml_array_split_request *request,
-                      sxml_array_node_pair *pair) {
+sxml_array_node_split_at_bottom(sxml_item_heap *item_heap,
+                                const sxml_array_split_request *request,
+                                sxml_array_node_pair *pair) {
     sxml_array_node *node = request->node;
     size_t member_index = request->member_index;
     if (node == NULL || member_index == 0 ||
@@ -516,79 +559,102 @@ sxml_array_node_split(sxml_item_heap *item_heap,
         return SXML_STATUS_OK;
     }
     sxml_array_node_pair parts = {.left_node = NULL, .right_node = NULL};
-    sxml_status status = SXML_STATUS_OK;
-    switch (node->node_kind) {
-    case SXML_ARRAY_NODE_KIND_FLAT:
-    case SXML_ARRAY_NODE_KIND_RUN:
+    sxml_status status = sxml_array_leaf_make_part(
+        item_heap,
+        &(sxml_array_leaf_part){.leaf_node = node,
+                                .first_member_index = 0,
+                                .member_count = member_index},
+        &parts.left_node);
+    if (status == SXML_STATUS_OK) {
         status = sxml_array_leaf_make_part(
             item_heap,
             &(sxml_array_leaf_part){.leaf_node = node,
-                                    .first_member_index = 0,
-                                    .member_count = member_index},
-            &parts.left_node);
-        if (status == SXML_STATUS_OK) {
-            status = sxml_array_leaf_make_part(
-                item_heap,
-                &(sxml_array_leaf_part){.leaf_node = node,
-                                        .first_member_index = member_index,
-                                        .member_count =
-                                            node->member_count - member_index},
-                &parts.right_node);
-        }
-        break;
-    case SXML_ARRAY_NODE_KIND_BRANCH: {
-        sxml_array_branch branch = node->shape.branch;
-        size_t left_member_count = branch.left_node->member_count;
-        if (member_index <= left_member_count) {
-            /* Split the left subtree; its right part goes before the right
-               subtree. */
-            sxml_array_node_pair inner = {.left_node = NULL,
-                                          .right_node = NULL};
-            status = sxml_array_node_split(
-                item_heap,
-                &(sxml_array_split_request){.node = branch.left_node,
-                                            .member_index = member_index},
-                &inner);
-            if (status == SXML_STATUS_OK) {
-                status = sxml_array_node_join(
-                    item_heap,
-                    (sxml_array_node_pair){.left_node = inner.right_node,
-                                           .right_node = branch.right_node},
-                    &parts.right_node);
-            }
-            if (status == SXML_STATUS_OK) {
-                sxml_array_node_retain(inner.left_node);
-                parts.left_node = inner.left_node;
-            }
-            sxml_array_node_pair_release(inner);
-        } else {
-            sxml_array_node_pair inner = {.left_node = NULL,
-                                          .right_node = NULL};
-            status = sxml_array_node_split(
-                item_heap,
-                &(sxml_array_split_request){.node = branch.right_node,
-                                            .member_index = member_index -
-                                                            left_member_count},
-                &inner);
-            if (status == SXML_STATUS_OK) {
-                status = sxml_array_node_join(
-                    item_heap,
-                    (sxml_array_node_pair){.left_node = branch.left_node,
-                                           .right_node = inner.left_node},
-                    &parts.left_node);
-            }
-            if (status == SXML_STATUS_OK) {
-                sxml_array_node_retain(inner.right_node);
-                parts.right_node = inner.right_node;
-            }
-            sxml_array_node_pair_release(inner);
-        }
-        break;
-    }
+                                    .first_member_index = member_index,
+                                    .member_count =
+                                        node->member_count - member_index},
+            &parts.right_node);
     }
     if (status != SXML_STATUS_OK) {
         sxml_array_node_pair_release(parts);
         return status;
+    }
+    *pair = parts;
+    return SXML_STATUS_OK;
+}
+
+/*
+ * Splits request->node before request->member_index and writes the two
+ * trees, owned (either may be NULL), to *pair: the left holds the members
+ * before the index. The walk goes down to the leaf holding the index (or
+ * to a subtree the index is at an end of) and splits it; on the way back
+ * up, at a branch it went left in, the right part is joined with the
+ * branch's right subtree, else the branch's left subtree with the left
+ * part. O(log n): the joins along the path cost a telescoping sum of
+ * height differences.
+ */
+static sxml_status
+sxml_array_node_split(sxml_item_heap *item_heap,
+                      const sxml_array_split_request *request,
+                      sxml_array_node_pair *pair) {
+    sxml_array_split_path path = {.branch_count = 0};
+    sxml_array_split_request bottom = *request;
+    while (bottom.node != NULL && bottom.member_index != 0 &&
+           bottom.member_index != bottom.node->member_count &&
+           bottom.node->node_kind == SXML_ARRAY_NODE_KIND_BRANCH) {
+        if (path.branch_count == SXML_ARRAY_TREE_PATH_CAPACITY) {
+            /* Not reached: see SXML_ARRAY_TREE_PATH_CAPACITY. */
+            return SXML_STATUS_INVALID_ARGUMENT;
+        }
+        sxml_array_branch branch = bottom.node->shape.branch;
+        size_t left_member_count = branch.left_node->member_count;
+        bool goes_left = bottom.member_index <= left_member_count;
+        path.branches[path.branch_count] = bottom.node;
+        path.goes_left[path.branch_count] = goes_left;
+        path.branch_count += 1;
+        if (goes_left) {
+            bottom.node = branch.left_node;
+        } else {
+            bottom.node = branch.right_node;
+            bottom.member_index -= left_member_count;
+        }
+    }
+    sxml_array_node_pair parts = {.left_node = NULL, .right_node = NULL};
+    sxml_status status =
+        sxml_array_node_split_at_bottom(item_heap, &bottom, &parts);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    while (path.branch_count > 0) {
+        path.branch_count -= 1;
+        sxml_array_branch branch = path.branches[path.branch_count]->shape.branch;
+        sxml_array_node *joined_node = NULL;
+        if (path.goes_left[path.branch_count]) {
+            /* The split left subtree's right part goes before the right
+               subtree. */
+            status = sxml_array_node_join(
+                item_heap,
+                (sxml_array_node_pair){.left_node = parts.right_node,
+                                       .right_node = branch.right_node},
+                &joined_node);
+            if (status == SXML_STATUS_OK) {
+                sxml_array_node_release(parts.right_node);
+                parts.right_node = joined_node;
+            }
+        } else {
+            status = sxml_array_node_join(
+                item_heap,
+                (sxml_array_node_pair){.left_node = branch.left_node,
+                                       .right_node = parts.left_node},
+                &joined_node);
+            if (status == SXML_STATUS_OK) {
+                sxml_array_node_release(parts.left_node);
+                parts.left_node = joined_node;
+            }
+        }
+        if (status != SXML_STATUS_OK) {
+            sxml_array_node_pair_release(parts);
+            return status;
+        }
     }
     *pair = parts;
     return SXML_STATUS_OK;

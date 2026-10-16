@@ -685,6 +685,90 @@ sxml_map_tree_position_compare(const sxml_map_tree_position *position,
     return SXML_ORDERING_EQUAL;
 }
 
+/*
+ * The most nodes a walk over a map tree keeps: the nodes on a path from the
+ * root, or the pending subtrees of a search or a build. An AVL tree of
+ * height h has at least F(h + 2) - 1 nodes (F the Fibonacci numbers), and
+ * F(94) - 1 is more than 2^64 - 1, so a tree of nodes that fit in any
+ * address space is at most 91 high; a perfectly balanced build of n parts
+ * keeps at most log2(n) + 2 <= 66 frames. Walks therefore keep their nodes
+ * in fixed arrays on the C stack, need no allocation and do not recurse
+ * (D71).
+ */
+#define SXML_MAP_TREE_PATH_CAPACITY 96
+
+/*
+ * The nodes from a root down to a position, each with the side the path
+ * leaves it by. A path is made again from the bottom up after a change
+ * below it (path copying, D61); when replacement is not NULL, the node at
+ * replaced_depth is made with replacement's entry, stamp and hash instead
+ * of its own.
+ */
+typedef struct sxml_map_tree_path {
+    const sxml_map_node *nodes[SXML_MAP_TREE_PATH_CAPACITY];
+    bool goes_left[SXML_MAP_TREE_PATH_CAPACITY];
+    size_t node_count;
+    size_t replaced_depth;
+    const sxml_map_node *replacement;
+} sxml_map_tree_path;
+
+/* One step of a path: a node and the side the path leaves it by. */
+typedef struct sxml_map_tree_step {
+    const sxml_map_node *node;
+    bool goes_left;
+} sxml_map_tree_step;
+
+/* Appends step to path and writes its child on that side to *child.
+   Returns false, appending nothing, when the path is full (not reached:
+   see SXML_MAP_TREE_PATH_CAPACITY). */
+static bool sxml_map_tree_path_append(sxml_map_tree_path *path,
+                                      sxml_map_tree_step step,
+                                      const sxml_map_node **child) {
+    if (path->node_count == SXML_MAP_TREE_PATH_CAPACITY) {
+        return false;
+    }
+    path->nodes[path->node_count] = step.node;
+    path->goes_left[path->node_count] = step.goes_left;
+    path->node_count += 1;
+    *child = step.goes_left ? step.node->left : step.node->right;
+    return true;
+}
+
+/*
+ * Makes the nodes of path again from the bottom up, the last one with
+ * *subtree (owned) as the child the path leaves it by, each one above with
+ * the node made below it, rebalancing on the way (a node whose subtree
+ * heights did not change is made as it was). Takes *subtree over and
+ * replaces it with the new root, owned. On failure releases what it made
+ * and writes nothing.
+ */
+static sxml_status sxml_map_tree_path_rebuild(sxml_item_heap *item_heap,
+                                              const sxml_map_tree_path *path,
+                                              sxml_map_node **subtree) {
+    sxml_map_node *current = *subtree;
+    for (size_t depth = path->node_count; depth > 0; depth -= 1) {
+        const sxml_map_node *node = path->nodes[depth - 1];
+        const sxml_map_node *source =
+            path->replacement != NULL && depth - 1 == path->replaced_depth
+                ? path->replacement
+                : node;
+        sxml_map_node_parts parts =
+            path->goes_left[depth - 1]
+                ? sxml_map_node_get_parts_with(source, current, node->right)
+                : sxml_map_node_get_parts_with(source, node->left, current);
+        sxml_map_node *new_node = NULL;
+        sxml_status status =
+            sxml_map_node_make_balanced(item_heap, &parts, &new_node);
+        sxml_map_node_release(current);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        current = new_node;
+    }
+    *subtree = current;
+    return SXML_STATUS_OK;
+}
+
 /* A node to insert into a tree that does not hold its position. */
 typedef struct sxml_map_tree_insertion {
     sxml_map_tree_kind tree_kind;
@@ -699,32 +783,36 @@ static sxml_status
 sxml_map_tree_insert(sxml_item_heap *item_heap,
                      const sxml_map_tree_insertion *insertion,
                      sxml_map_node **new_root) {
-    sxml_map_node *root = insertion->root;
-    if (root == NULL) {
-        sxml_map_node_parts leaf = insertion->parts;
-        leaf.left = NULL;
-        leaf.right = NULL;
-        return sxml_map_node_make(item_heap, &leaf, new_root);
-    }
     sxml_map_tree_position position = {.tree_kind = insertion->tree_kind,
                                        .entry_stamp =
                                            insertion->parts.entry_stamp,
                                        .key_hash = insertion->parts.key_hash};
-    bool goes_left =
-        sxml_map_tree_position_compare(&position, root) == SXML_ORDERING_LESS;
-    sxml_map_tree_insertion below = *insertion;
-    below.root = goes_left ? root->left : root->right;
-    sxml_map_node *new_child = NULL;
-    sxml_status status = sxml_map_tree_insert(item_heap, &below, &new_child);
+    sxml_map_tree_path path = {
+        .node_count = 0, .replaced_depth = 0, .replacement = NULL};
+    const sxml_map_node *node = insertion->root;
+    while (node != NULL) {
+        bool goes_left = sxml_map_tree_position_compare(&position, node) ==
+                         SXML_ORDERING_LESS;
+        if (!sxml_map_tree_path_append(
+                &path,
+                (sxml_map_tree_step){.node = node, .goes_left = goes_left},
+                &node)) {
+            return SXML_STATUS_INVALID_ARGUMENT;
+        }
+    }
+    sxml_map_node_parts leaf = insertion->parts;
+    leaf.left = NULL;
+    leaf.right = NULL;
+    sxml_map_node *subtree = NULL;
+    sxml_status status = sxml_map_node_make(item_heap, &leaf, &subtree);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_map_tree_path_rebuild(item_heap, &path, &subtree);
+    }
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    sxml_map_node_parts parts =
-        goes_left ? sxml_map_node_get_parts_with(root, new_child, root->right)
-                  : sxml_map_node_get_parts_with(root, root->left, new_child);
-    status = sxml_map_node_make_balanced(item_heap, &parts, new_root);
-    sxml_map_node_release(new_child);
-    return status;
+    *new_root = subtree;
+    return SXML_STATUS_OK;
 }
 
 /* A node to remove from a tree that holds its position. */
@@ -733,68 +821,64 @@ typedef struct sxml_map_tree_removal {
     sxml_map_tree_position position;
 } sxml_map_tree_removal;
 
-static const sxml_map_node *
-sxml_map_tree_get_leftmost(const sxml_map_node *node) {
-    while (node->left != NULL) {
-        node = node->left;
-    }
-    return node;
-}
-
 /* Writes the tree without the node, owned (NULL when empty), to
  *new_root. */
 static sxml_status sxml_map_tree_remove(sxml_item_heap *item_heap,
                                         const sxml_map_tree_removal *removal,
                                         sxml_map_node **new_root) {
-    sxml_map_node *root = removal->root;
-    if (root == NULL) {
-        /* Not reached: the caller found the position in this tree. */
-        return SXML_STATUS_INVALID_ARGUMENT;
-    }
-    sxml_ordering ordering =
-        sxml_map_tree_position_compare(&removal->position, root);
-    if (ordering == SXML_ORDERING_EQUAL) {
-        if (root->left == NULL || root->right == NULL) {
-            sxml_map_node *survivor =
-                root->left == NULL ? root->right : root->left;
-            sxml_map_node_retain(survivor);
-            *new_root = survivor;
-            return SXML_STATUS_OK;
+    sxml_map_tree_path path = {
+        .node_count = 0, .replaced_depth = 0, .replacement = NULL};
+    const sxml_map_node *node = removal->root;
+    for (;;) {
+        if (node == NULL) {
+            /* Not reached: the caller found the position in this tree. */
+            return SXML_STATUS_INVALID_ARGUMENT;
         }
-        /* The successor takes the removed node's place. */
-        const sxml_map_node *successor =
-            sxml_map_tree_get_leftmost(root->right);
-        sxml_map_tree_removal below = {
-            .root = root->right,
-            .position = {.tree_kind = removal->position.tree_kind,
-                         .entry_stamp = successor->entry_stamp,
-                         .key_hash = successor->key_hash}};
-        sxml_map_node *new_right = NULL;
-        sxml_status status =
-            sxml_map_tree_remove(item_heap, &below, &new_right);
-        if (status != SXML_STATUS_OK) {
-            return status;
+        sxml_ordering ordering =
+            sxml_map_tree_position_compare(&removal->position, node);
+        if (ordering == SXML_ORDERING_EQUAL) {
+            break;
         }
-        sxml_map_node_parts parts =
-            sxml_map_node_get_parts_with(successor, root->left, new_right);
-        status = sxml_map_node_make_balanced(item_heap, &parts, new_root);
-        sxml_map_node_release(new_right);
-        return status;
+        if (!sxml_map_tree_path_append(
+                &path,
+                (sxml_map_tree_step){.node = node,
+                                     .goes_left =
+                                         ordering == SXML_ORDERING_LESS},
+                &node)) {
+            return SXML_STATUS_INVALID_ARGUMENT;
+        }
     }
-    bool goes_left = ordering == SXML_ORDERING_LESS;
-    sxml_map_tree_removal below = *removal;
-    below.root = goes_left ? root->left : root->right;
-    sxml_map_node *new_child = NULL;
-    sxml_status status = sxml_map_tree_remove(item_heap, &below, &new_child);
+    sxml_map_node *subtree = NULL;
+    if (node->left == NULL || node->right == NULL) {
+        subtree = node->left == NULL ? node->right : node->left;
+    } else {
+        /* The successor, the leftmost node of the right subtree, takes the
+           removed node's place and leaves the right subtree; its own right
+           subtree takes its place there. */
+        path.replaced_depth = path.node_count;
+        const sxml_map_node *successor = NULL;
+        bool is_appended = sxml_map_tree_path_append(
+            &path, (sxml_map_tree_step){.node = node, .goes_left = false},
+            &successor);
+        while (is_appended && successor->left != NULL) {
+            is_appended = sxml_map_tree_path_append(
+                &path,
+                (sxml_map_tree_step){.node = successor, .goes_left = true},
+                &successor);
+        }
+        if (!is_appended) {
+            return SXML_STATUS_INVALID_ARGUMENT;
+        }
+        path.replacement = successor;
+        subtree = successor->right;
+    }
+    sxml_map_node_retain(subtree);
+    sxml_status status = sxml_map_tree_path_rebuild(item_heap, &path, &subtree);
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    sxml_map_node_parts parts =
-        goes_left ? sxml_map_node_get_parts_with(root, new_child, root->right)
-                  : sxml_map_node_get_parts_with(root, root->left, new_child);
-    status = sxml_map_node_make_balanced(item_heap, &parts, new_root);
-    sxml_map_node_release(new_child);
-    return status;
+    *new_root = subtree;
+    return SXML_STATUS_OK;
 }
 
 /* A new value for the entry with entry_stamp, which root holds. */
@@ -805,38 +889,45 @@ typedef struct sxml_entry_tree_replacement {
 } sxml_entry_tree_replacement;
 
 /* Writes the entry tree with the value replaced, owned, to *new_root. The
-   shape does not change, so no rebalancing. */
+   shape does not change, so no rotation happens. */
 static sxml_status
 sxml_entry_tree_replace_value(sxml_item_heap *item_heap,
                               const sxml_entry_tree_replacement *replacement,
                               sxml_map_node **new_root) {
-    sxml_map_node *root = replacement->root;
-    if (root == NULL) {
-        /* Not reached: the caller found the stamp in this tree. */
-        return SXML_STATUS_INVALID_ARGUMENT;
+    sxml_map_tree_path path = {
+        .node_count = 0, .replaced_depth = 0, .replacement = NULL};
+    const sxml_map_node *node = replacement->root;
+    for (;;) {
+        if (node == NULL) {
+            /* Not reached: the caller found the stamp in this tree. */
+            return SXML_STATUS_INVALID_ARGUMENT;
+        }
+        sxml_ordering ordering =
+            sxml_compare_unsigned(replacement->entry_stamp, node->entry_stamp);
+        if (ordering == SXML_ORDERING_EQUAL) {
+            break;
+        }
+        if (!sxml_map_tree_path_append(
+                &path,
+                (sxml_map_tree_step){.node = node,
+                                     .goes_left =
+                                         ordering == SXML_ORDERING_LESS},
+                &node)) {
+            return SXML_STATUS_INVALID_ARGUMENT;
+        }
     }
-    sxml_ordering ordering =
-        sxml_compare_unsigned(replacement->entry_stamp, root->entry_stamp);
-    if (ordering == SXML_ORDERING_EQUAL) {
-        sxml_map_node_parts parts = sxml_map_node_get_parts(root);
-        parts.entry.value = replacement->value;
-        return sxml_map_node_make(item_heap, &parts, new_root);
+    sxml_map_node_parts parts = sxml_map_node_get_parts(node);
+    parts.entry.value = replacement->value;
+    sxml_map_node *subtree = NULL;
+    sxml_status status = sxml_map_node_make(item_heap, &parts, &subtree);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_map_tree_path_rebuild(item_heap, &path, &subtree);
     }
-    bool goes_left = ordering == SXML_ORDERING_LESS;
-    sxml_entry_tree_replacement below = *replacement;
-    below.root = goes_left ? root->left : root->right;
-    sxml_map_node *new_child = NULL;
-    sxml_status status =
-        sxml_entry_tree_replace_value(item_heap, &below, &new_child);
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    sxml_map_node_parts parts =
-        goes_left ? sxml_map_node_get_parts_with(root, new_child, root->right)
-                  : sxml_map_node_get_parts_with(root, root->left, new_child);
-    status = sxml_map_node_make(item_heap, &parts, new_root);
-    sxml_map_node_release(new_child);
-    return status;
+    *new_root = subtree;
+    return SXML_STATUS_OK;
 }
 
 /* The node at entry_index of an entry tree, or NULL past the end. */
@@ -889,28 +980,43 @@ sxml_entry_tree_find_stamp(const sxml_map_node *root, uint64_t entry_stamp) {
             (node == NULL ? 0 : sxml_map_node_get_entry_count(node->left))};
 }
 
+
 /*
  * Finds the key in a key tree. Keys with equal hashes sit in one range of
  * the order, possibly in both subtrees of a node with that hash, so the
- * search visits every node of the hash (few: the hash is 64 bits). The
- * recursion is bounded by the tree's height.
+ * search visits every node of the hash (few: the hash is 64 bits), left
+ * subtree first. Each pending right subtree is the right child of a
+ * different node on the path to the current one, so the pending ones fit
+ * in SXML_MAP_TREE_PATH_CAPACITY.
  */
 static const sxml_map_node *sxml_key_tree_find(const sxml_map_node *root,
                                                const sxml_key_search *search) {
-    if (root == NULL) {
-        return NULL;
+    const sxml_map_node *pending_subtrees[SXML_MAP_TREE_PATH_CAPACITY];
+    size_t pending_subtree_count = 0;
+    const sxml_map_node *node = root;
+    for (;;) {
+        if (node == NULL) {
+            if (pending_subtree_count == 0) {
+                return NULL;
+            }
+            pending_subtree_count -= 1;
+            node = pending_subtrees[pending_subtree_count];
+        } else if (search->key_hash < node->key_hash) {
+            node = node->left;
+        } else if (search->key_hash > node->key_hash) {
+            node = node->right;
+        } else if (sxml_atomic_item_is_atomic_equal(node->entry.key,
+                                                    search->key)) {
+            return node;
+        } else if (pending_subtree_count == SXML_MAP_TREE_PATH_CAPACITY) {
+            /* Not reached: see SXML_MAP_TREE_PATH_CAPACITY. */
+            return NULL;
+        } else {
+            pending_subtrees[pending_subtree_count] = node->right;
+            pending_subtree_count += 1;
+            node = node->left;
+        }
     }
-    if (search->key_hash < root->key_hash) {
-        return sxml_key_tree_find(root->left, search);
-    }
-    if (search->key_hash > root->key_hash) {
-        return sxml_key_tree_find(root->right, search);
-    }
-    if (sxml_atomic_item_is_atomic_equal(root->entry.key, search->key)) {
-        return root;
-    }
-    const sxml_map_node *found = sxml_key_tree_find(root->left, search);
-    return found != NULL ? found : sxml_key_tree_find(root->right, search);
 }
 
 typedef struct sxml_map_node_parts_view {
@@ -918,39 +1024,114 @@ typedef struct sxml_map_node_parts_view {
     size_t part_count;
 } sxml_map_node_parts_view;
 
-/* Builds a perfectly balanced tree from parts in tree order and writes it,
-   owned (NULL for no parts), to *root. */
+/* What a frame of a tree build does next. */
+typedef enum sxml_map_tree_build_stage {
+    SXML_MAP_TREE_BUILD_STAGE_BUILD_LEFT,
+    SXML_MAP_TREE_BUILD_STAGE_BUILD_RIGHT,
+    SXML_MAP_TREE_BUILD_STAGE_MAKE_NODE,
+} sxml_map_tree_build_stage;
+
+/* A subtree being built from part_count parts from first_part_index: the
+   middle part is its root, the parts before and after its subtrees. */
+typedef struct sxml_map_tree_build_frame {
+    size_t first_part_index;
+    size_t part_count;
+    /* Owned once built; NULL before. */
+    sxml_map_node *left;
+    sxml_map_tree_build_stage stage;
+} sxml_map_tree_build_frame;
+
+/* The frames of a tree build, outermost first. */
+typedef struct sxml_map_tree_build_stack {
+    sxml_map_tree_build_frame frames[SXML_MAP_TREE_PATH_CAPACITY];
+    size_t frame_count;
+} sxml_map_tree_build_stack;
+
+/* Starts building a subtree of part_count parts from first_part_index.
+   Returns false when the stack is full (not reached: halving the parts at
+   every level keeps at most log2(n) + 2 frames). */
+static bool sxml_map_tree_build_stack_push(sxml_map_tree_build_stack *stack,
+                                           size_t first_part_index,
+                                           size_t part_count) {
+    if (stack->frame_count == SXML_MAP_TREE_PATH_CAPACITY) {
+        return false;
+    }
+    stack->frames[stack->frame_count] = (sxml_map_tree_build_frame){
+        .first_part_index = first_part_index,
+        .part_count = part_count,
+        .left = NULL,
+        .stage = SXML_MAP_TREE_BUILD_STAGE_BUILD_LEFT};
+    stack->frame_count += 1;
+    return true;
+}
+
+/*
+ * Builds a perfectly balanced tree from parts in tree order and writes it,
+ * owned (NULL for no parts), to *root: the middle part (at part_count / 2)
+ * is the root, the parts before it the left subtree and the parts after it
+ * the right subtree, built the same way, in a loop over an explicit stack.
+ */
 static sxml_status sxml_map_tree_build(sxml_item_heap *item_heap,
                                        sxml_map_node_parts_view parts,
                                        sxml_map_node **root) {
-    if (parts.part_count == 0) {
-        *root = NULL;
-        return SXML_STATUS_OK;
+    sxml_map_tree_build_stack stack = {.frame_count = 0};
+    /* The subtree the innermost finished frame built, owned. */
+    sxml_map_node *built = NULL;
+    sxml_status status = SXML_STATUS_OK;
+    if (!sxml_map_tree_build_stack_push(&stack, 0, parts.part_count)) {
+        return SXML_STATUS_INVALID_ARGUMENT;
     }
-    size_t middle = parts.part_count / 2;
-    sxml_map_node *left = NULL;
-    sxml_status status = sxml_map_tree_build(
-        item_heap,
-        (sxml_map_node_parts_view){.parts = parts.parts, .part_count = middle},
-        &left);
+    while (stack.frame_count > 0 && status == SXML_STATUS_OK) {
+        sxml_map_tree_build_frame *frame = &stack.frames[stack.frame_count - 1];
+        size_t middle = frame->part_count / 2;
+        if (frame->part_count == 0) {
+            built = NULL;
+            stack.frame_count -= 1;
+            continue;
+        }
+        switch (frame->stage) {
+        case SXML_MAP_TREE_BUILD_STAGE_BUILD_LEFT:
+            frame->stage = SXML_MAP_TREE_BUILD_STAGE_BUILD_RIGHT;
+            if (!sxml_map_tree_build_stack_push(
+                    &stack, frame->first_part_index, middle)) {
+                status = SXML_STATUS_INVALID_ARGUMENT;
+            }
+            break;
+        case SXML_MAP_TREE_BUILD_STAGE_BUILD_RIGHT:
+            frame->left = built;
+            built = NULL;
+            frame->stage = SXML_MAP_TREE_BUILD_STAGE_MAKE_NODE;
+            if (!sxml_map_tree_build_stack_push(
+                    &stack, frame->first_part_index + middle + 1,
+                    frame->part_count - middle - 1)) {
+                status = SXML_STATUS_INVALID_ARGUMENT;
+            }
+            break;
+        case SXML_MAP_TREE_BUILD_STAGE_MAKE_NODE: {
+            sxml_map_node *right = built;
+            built = NULL;
+            sxml_map_node_parts middle_parts =
+                parts.parts[frame->first_part_index + middle];
+            middle_parts.left = frame->left;
+            middle_parts.right = right;
+            status = sxml_map_node_make(item_heap, &middle_parts, &built);
+            sxml_map_node_release(frame->left);
+            frame->left = NULL;
+            sxml_map_node_release(right);
+            stack.frame_count -= 1;
+            break;
+        }
+        }
+    }
     if (status != SXML_STATUS_OK) {
+        for (size_t frame_index = 0; frame_index < stack.frame_count;
+             frame_index += 1) {
+            sxml_map_node_release(stack.frames[frame_index].left);
+        }
         return status;
     }
-    sxml_map_node *right = NULL;
-    status = sxml_map_tree_build(
-        item_heap,
-        (sxml_map_node_parts_view){.parts = parts.parts + middle + 1,
-                                   .part_count = parts.part_count - middle - 1},
-        &right);
-    if (status == SXML_STATUS_OK) {
-        sxml_map_node_parts middle_parts = parts.parts[middle];
-        middle_parts.left = left;
-        middle_parts.right = right;
-        status = sxml_map_node_make(item_heap, &middle_parts, root);
-    }
-    sxml_map_node_release(left);
-    sxml_map_node_release(right);
-    return status;
+    *root = built;
+    return SXML_STATUS_OK;
 }
 
 /* ------------------------------------------------------ Persistent maps */
