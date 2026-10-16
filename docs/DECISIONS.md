@@ -1583,4 +1583,18 @@ Recorded 2026-10-16; written first so packet 1.21 can rely on it.
   in `src/function_library_sequence.c` (1.20); 1.21 writes `array:sort`
   only. fn:position and fn:last are rows of `src/function_library_context.c`.
 
+### D79. Function library: higher-order, maps, arrays (packet 1.21)
+Recorded 2026-10-16; written first so packet 1.20 can rely on it.
+- **Ownership**: `src/function_library_higher_order.c` holds F&O 4.0
+  section 2.5 except fn:sort (D78): fn:apply, do-until, drop-while, every,
+  filter, fold-left, fold-right, for-each, for-each-pair, highest,
+  index-where, lowest, partial-apply, partition, scan, some, sort-by,
+  sort-with, take-while, transitive-closure, while-do; section 13
+  (fn:function-lookup, function-name, function-arity,
+  function-annotations) and fn:op (section 18.4).
+  `src/function_library_map.c` holds section 14.4 (map:*),
+  `src/function_library_array.c` section 15.2 (array:*), array:sort
+  included. 1.20 writes none of these rows.
+- Every row that calls a function item has a resumable body (D71, D75).
+
 ## Proposed
