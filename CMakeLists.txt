@@ -11,6 +11,7 @@ option(SXML_BUILD_SHARED "Build sxml as a shared library instead of a static one
 option(SXML_ENABLE_SANITIZERS "Build every target with AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
 option(SXML_BUILD_TESTS "Build the unit tests" ON)
 option(SXML_BUILD_APPS "Build the sxml command-line program and its CLI framework (apps/)" ON)
+option(SXML_BUILD_FUZZERS "Build the fuzz targets in tests/fuzz/ (needs a compiler with libFuzzer)" OFF)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(SxmlCompilerFlags)
@@ -37,18 +38,21 @@ if(CMAKE_SYSTEM_NAME STREQUAL "WASI" AND NOT CMAKE_CROSSCOMPILING_EMULATOR)
     endif()
 endif()
 
+# A shared library embeds the static third-party and grammar libraries.
+if(SXML_BUILD_SHARED)
+    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+endif()
+
 add_subdirectory(third_party)
 add_subdirectory(grammars)
 
-# The library. One module, one header pair: include/sxml/<module>.h and
-# src/<module>.c (docs/C_GUIDELINES.md, "Modules and headers").
-set(SXML_SOURCES
-    src/allocator.c
-    src/memory.c
-    src/status.c
-    src/string.c
-    src/version.c
-)
+# The library: every src/*.c (D45). One module, one header pair:
+# include/sxml/<module>.h and src/<module>.c, with parts in
+# src/<module>_<part>.c (docs/C_GUIDELINES.md, "Modules and headers"). A new
+# source file needs no edit here; CONFIGURE_DEPENDS re-runs CMake when the
+# set of files changes.
+file(GLOB SXML_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c")
+list(SORT SXML_SOURCES)
 
 if(SXML_BUILD_SHARED)
     add_library(sxml SHARED ${SXML_SOURCES})
@@ -60,7 +64,14 @@ target_compile_definitions(sxml PRIVATE SXML_BUILDING_LIBRARY)
 target_include_directories(sxml
     PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
-target_link_libraries(sxml PRIVATE sxml_tree_sitter)
+# The XML and XPath parsers are generated tree-sitter grammars (D12, D15);
+# decimal arithmetic is libmpdec once third_party/mpdecimal/ is vendored
+# (D42, D49).
+target_link_libraries(sxml PRIVATE
+    sxml_tree_sitter sxml_grammar_xml sxml_grammar_xpath)
+if(TARGET sxml_mpdecimal)
+    target_link_libraries(sxml PRIVATE sxml_mpdecimal)
+endif()
 set_target_properties(sxml PROPERTIES
     C_VISIBILITY_PRESET hidden
     POSITION_INDEPENDENT_CODE ON)
@@ -92,6 +103,14 @@ endif()
 # the public API. After tests/, whose test runner its tests link.
 if(SXML_BUILD_APPS)
     add_subdirectory(apps)
+endif()
+
+# The QT4 test-suite driver (D44, D45): a developer tool built on the CLI
+# framework, so it comes after apps/. Joins the build once its
+# CMakeLists.txt exists.
+if(SXML_BUILD_TESTS AND SXML_BUILD_APPS
+   AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/qt4/driver/CMakeLists.txt")
+    add_subdirectory(tests/qt4/driver)
 endif()
 
 include(SxmlLint)

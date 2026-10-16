@@ -15,3 +15,9 @@ target_compile_definitions(sxml_tree_sitter PRIVATE
     _POSIX_C_SOURCE=200112L _DEFAULT_SOURCE _BSD_SOURCE _DARWIN_C_SOURCE)
 set_target_properties(sxml_tree_sitter PROPERTIES C_VISIBILITY_PRESET hidden)
 sxml_apply_third_party_flags(sxml_tree_sitter)
+
+# libmpdec, patched as D42 and vendored in Phase 1 (D49). Its CMakeLists.txt
+# defines sxml_mpdecimal; the library links it when the target exists.
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/mpdecimal/CMakeLists.txt")
+    add_subdirectory(mpdecimal)
+endif()
