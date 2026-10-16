@@ -833,8 +833,10 @@ parser, so they are exact and need no scratch memory); `sxml_regex_matcher`,
 the per-thread working state (backtrack stack through an allocator,
 captured groups, step count), with `match_at` (anchored), `find` (first
 matching segment at or after an offset) and `find_next` (the next of the
-disjoint matching segments, F&O 4.0, section 6.1.1), and captured groups
-as byte ranges of the regex input. Positions are byte offsets at
+disjoint matching segments, F&O 4.0, section 6.1.1), each writing an
+`sxml_regex_search_result` (found or not, and the segment: the bool
+outputs the lint forbids become a struct), and captured groups as byte
+ranges of the regex input. Positions are byte offsets at
 codepoint boundaries. A regex error is SXML_STATUS_DYNAMIC_ERROR with
 err:FORX0002 in the error record the configuration points to; running out
 of steps or stack is SXML_STATUS_LIMIT_EXCEEDED, not a spec error.
