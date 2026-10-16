@@ -380,7 +380,7 @@ sxml_status sxml_xml_transcode(const sxml_xml_transcoding_request *request,
             failure->input_byte_offset = unit_offset;
             return SXML_STATUS_INVALID_UTF8;
         }
-        if (unit >= 0xD810 && unit <= 0xDBFF) {
+        if (unit >= 0xD800 && unit <= 0xDBFF) {
             if (byte_index + 1 >= input.byte_count) {
                 failure->input_byte_offset = unit_offset;
                 return SXML_STATUS_INVALID_UTF8;
@@ -395,7 +395,7 @@ sxml_status sxml_xml_transcode(const sxml_xml_transcoding_request *request,
                 return SXML_STATUS_INVALID_UTF8;
             }
             byte_index += 2;
-            codepoint = 0x10000 + ((unit - 0xD810) << 10) + (low - 0xDC00);
+            codepoint = 0x10000 + ((unit - 0xD800) << 10) + (low - 0xDC00);
         }
         status = sxml_xml_buffer_append_codepoint(output, codepoint);
         if (status != SXML_STATUS_OK) {
