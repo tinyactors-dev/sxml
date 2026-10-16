@@ -15,9 +15,10 @@ Windows, iOS and Android, and a WebAssembly module for browsers and Node.js.
 
 ## Current phase
 
-**Phase 0: substrate design.** Work only on the tasks in
-`docs/tasks/phase-0.md`. Do not start Phase 1 work until a human has reviewed
-the public headers and marked the Phase 0 gate as passed in that file.
+**Phase 1: torture slice.** Work only on the packets in
+`docs/tasks/phase-1.md`. The Phase 0 gate was closed by agent review, as the
+owner chose (D11); a human review of those gate boxes is still welcome. Do not
+start Phase 2 work until the Phase 1 gate is closed the same way.
 
 ## Non-negotiable rules
 
