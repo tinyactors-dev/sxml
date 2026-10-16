@@ -848,4 +848,18 @@ and `\k`; with `i`, non-ASCII characters in the regex and back-references
 (case variants beyond ASCII need Unicode case data). A public step limit in
 `sxml_processor_limits` is left for the D9 packet (a new field).
 
+### D54. Name pool internals (packet 1.1)
+Recorded 2026-10-16. Three tables (URIs, prefixes, names), each an entry
+array in issue order plus an open-addressing index (linear probing, at most
+3/4 full, slots keep the hash so growth never reads entries); FNV-1a, not
+seeded: hash flooding is bounded by `maximum_byte_count`. Interned text
+lives in an arena placed in the pool's own memory, in 1 KiB blocks.
+`maximum_byte_count` counts every allocation the pool holds (tables and
+whole text blocks, so a pool may stop up to one block early); a replaced
+table gives its bytes back. A failed intern leaves the pool's names as
+they were. Interned URI identifiers start at
+`SXML_NAMESPACE_WELL_KNOWN_COUNT`; prefix and name identifiers at 1.
+`src/name_internal.h` gives `sxml_name_pool_name_limit` (and URI, prefix)
+so tables indexed by identifier can be sized.
+
 ## Proposed
