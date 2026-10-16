@@ -53,7 +53,6 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `target_type` | The type a cast converts to: atomic, list, union, enumeration or choice of atomic types |
 | `lexical_form` | A string in the lexical space of a type (XSD 1.1 Part 2): what a cast from `xs:string` parses |
 | `whitespace_facet` | How a type treats whitespace before parsing a lexical form: preserve, replace or collapse (XSD 1.1 Part 2, section 4.3.6) |
-| `namespace_resolver` | Interface that finds the namespace URI bound to a prefix: the statically known namespaces when a cast makes an `xs:QName` |
 | `rounding_mode` | How a value is rounded to a precision: the `$rounding-mode` of `fn:round` (F&O 4.0) |
 | `precision` | In rounding, the number of digits kept after the decimal point; negative rounds to a power of ten (`fn:round`) |
 | `memory_requirements` | Size and alignment an object needs |
