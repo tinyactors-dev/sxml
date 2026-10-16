@@ -1135,8 +1135,10 @@ seal), which 1.23 calls.
 - **Shape**: ANF blocks append LETs; atoms (literals, variables) are never
   bound. Left-recursive chains (binary operators, paths, filters,
   lookups, dynamic calls, arrows) are walked in a loop; other nesting
-  recurses, bounded by `maximum_expression_depth` (default 48, for the
-  64 KiB WebAssembly stack; LIMIT_EXCEEDED beyond). An inline function's
+  recurses, bounded by `maximum_expression_depth` (default 32: the
+  costliest level, an arrow into a call, takes about 1.4 KB of the
+  64 KiB WebAssembly stack; LIMIT_EXCEEDED beyond). The processor's
+  default for this limit (1.23) should not exceed it. An inline function's
   free variables are found by walking its AST through parent links; each
   becomes a captured slot, except a constant (a `let` of a literal),
   which is substituted. Globals read in a function are captured (D55).
@@ -1172,6 +1174,9 @@ seal), which 1.23 calls.
 - **Checks**: with a permissive function table, 29,653 of the 32,409
   valid XP40 queries lower and pass the verifier; the rest are static
   errors from missing test environments, or the constructs above.
+- `sxml_native_function` now has `properties` after `function_namespace`
+  (no padding; clang-tidy's padding check failed on the first file to
+  include it). Field order only.
 - `sxml_function_table_find` (D55) is declared but nobody defines it yet;
   static analysis uses `sxml_xpath_find_function`; 1.20 may define the
   wrapper over it.
