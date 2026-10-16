@@ -108,6 +108,9 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `parameter_binding` | A parameter name with the value passed for it (`xsl:with-param`) |
 | `grammar` | A tree-sitter grammar under `grammars/<language>/`, and the parser generated from it |
 | `concrete_syntax_tree` | The tree-sitter parse tree of a query or document, before sxml builds its own structures |
+| `node_type` | The name a grammar gives one kind of concrete syntax tree node (`additive_expression`), as listed in `src/node-types.json` |
+| `terminal` | A leaf of a concrete syntax tree: one token of the source text (XPath 4.0, A.3) |
+| `non_delimiting_terminal` | A name, keyword or numeric literal terminal; two of them must not touch (XPath 4.0, A.3.2) |
 | `query_scanner` | The external tree-sitter scanner shared by the XPath, XQuery and XSLT pattern grammars |
 | `keyword_name` | A keyword used as a name; XPath 4.0 keywords are not reserved |
 | `direct_constructor` | XQuery XML-like node constructor syntax: `<a b="{1}">text</a>`, `<!-- -->`, `<?pi?>` |
