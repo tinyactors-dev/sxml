@@ -1852,19 +1852,23 @@ the XPath 4.0 editor's draft of 13 October 2026 (vendored with QT4).
   are decimal-exact since PR 2218 (QT4 fn-numberintg1args-2a); the cases
   that expect true depend on XP20 to XP31 only.
 
-## Proposed
+### D87. XML positions move back in place (P8)
+Recorded 2026-10-16. The position tracker of `src/xml_encoding.c` no
+longer restarts from byte 0 when asked for an earlier offset: it walks
+back from where it is, undoing line, column and input offset, and when
+a line end lies between it recounts the column from the start of that
+line; it restarts only when the start is nearer. The parser keeps asking
+for an element's position after its attributes' (and diagnostics may ask
+anywhere), so the fix is in the tracker, not in the call order. Cost is
+now linear in the document. Measured (release): `sxml-qt4 list
+tests/qt4/torture-slice.txt` 23.3 s before, 0.76 s after, same output;
+a 9.6 MB document with multi-line start tags did not finish in 600 s
+before, parses in 2.7 s after (about 70% of that is `ts_parser_parse`,
+so D12's tree-sitter bounds parse speed at about 3.5 MB/s here). Tests:
+`xml/positions_move_back` (every pair of offsets against a fresh walk),
+`xml/large_documents_parse_in_linear_time` (10000 elements, 400 KB).
 
-### P8. XML parser positions are quadratic in document size (from 1.24)
-`sxml_xml_parser_parse` computes each start-element location after the
-element's attribute locations, so the incremental position tracker of
-`src/xml_encoding.c` goes backwards and restarts from byte 0 for every
-element with attributes (`sxml_xml_send_header` in `src/xml.c` locates
-`tag_node` after `sxml_xml_resolve_attributes`). Parsing a QT4 test-set
-file is O(n^2): 91% of the driver's time is
-`sxml_xml_position_tracker_locate`; listing the 198 slice cases takes
-13 s in `release` and 160 s under ASan (`sxml check` sends no events and is
-fast). Fix (owner of 1.14's files): take the element's location before
-its attributes', or let the tracker keep the last start-tag checkpoint.
+## Proposed
 
 ### P9. A bound on evaluation steps (from 1.26)
 Untrusted input must not cause unbounded work (docs/C_GUIDELINES.md,
