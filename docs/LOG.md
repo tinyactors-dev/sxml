@@ -4,6 +4,17 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 1.4 and 1.5 done (D52, D55), design only: `src/xpath_ast_internal.h`
+  (one kind per visible XPath production, children by grammar field,
+  fixed-capacity arrays sized from the CST, front-end entry points for
+  1.16), `src/ir_internal.h` (units, atoms, slots, explicit focus slots,
+  reserved XQuery/XSLT kinds; worked IR for inline-fn-005, `/a/b[2]`, a
+  FLWOR and an apply-templates), `src/ir_pass_internal.h` (pass seam,
+  verifier invariants), `src/evaluator_internal.h` (dynamic context,
+  evaluate, coercion, document loader) and
+  `src/function_library_internal.h` (native rows with F&O type text, one
+  part per file, function table interface). Headers compile alone under
+  Clang and GCC with the project flags; clang-tidy and ast-grep clean.
 - 1.1 done (D54): name pool, all of `name.h`: hash-indexed interning of
   URIs, prefixes and names, static well-known namespaces, find without
   interning, byte limit; `src/name_internal.h` gives identifier limits.
