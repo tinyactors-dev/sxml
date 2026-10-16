@@ -4,6 +4,12 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 1.13 done (D70): `src/xdm_node.c` (node items, string value, typed
+  value derived or from the tree, base URI through xml:base with RFC 3986
+  resolution), `src/xdm_json_node.c` (JNodes on demand, identity and
+  document order of generic nodes by child-position paths). op-union-406
+  and fn-root-29 hold as unit cases; 12 cases in `tests/xdm_node_test.c`;
+  `debug`, `debug-gcc`, `wasm`: 58/58; lint clean. Open: P7.
 - 1.12 done (D63): static analysis and lowering. `src/xpath_static.c`
   (static context, names, sequence and item types, also for function
   library rows), `src/xpath_lower.c` (AST to IR: ANF blocks, chains in a
