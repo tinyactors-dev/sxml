@@ -2780,14 +2780,26 @@ static bool sxml_type_registry_sequence_types_are_valid(
     return true;
 }
 
-/* map(K, V) keys: a generalized atomic type (XPath 4.0, section 3.2.9). */
+/* map(K, V) keys: a generalized atomic type (XPath 4.0, section 3.2.9.2):
+   an atomic, union or enumeration type, or a choice of them, such as
+   map((xs:integer | xs:string), V) in the signature of fn:replace (found by
+   tests/fuzz/xpath_compile_fuzz.c, packet 1.26). */
 static bool sxml_type_registry_is_map_key_type(
     const sxml_type_registry *registry, sxml_type_identifier type) {
     const sxml_type_description *description =
         sxml_type_registry_lookup(registry, type);
-    return description != NULL &&
-           (sxml_type_is_generalized_atomic(description->variety) ||
-            description->variety == SXML_TYPE_VARIETY_ENUMERATION);
+    if (description == NULL) {
+        return false;
+    }
+    if (description->variety == SXML_TYPE_VARIETY_CHOICE) {
+        return sxml_type_registry_is_subtype(
+            registry, (sxml_type_pair){
+                          .derived_type = type,
+                          .base_type = sxml_type_of_builtin(
+                              SXML_TYPE_XS_ANY_ATOMIC_TYPE)});
+    }
+    return sxml_type_is_generalized_atomic(description->variety) ||
+           description->variety == SXML_TYPE_VARIETY_ENUMERATION;
 }
 
 static bool sxml_type_registry_normalize_record(

@@ -1884,6 +1884,39 @@ static void test_failed_registration_can_be_retried(sxml_test_state *state) {
     sxml_name_pool_destroy(name_pool);
 }
 
+/* A choice of atomic types is a generalized atomic type, so it may be a
+   map's key type; a choice with a non-atomic member may not (XPath 4.0,
+   section 3.2.9.2). Found by tests/fuzz/xpath_compile_fuzz.c (packet
+   1.26): fn:replace's signature has map((xs:integer | xs:string), ...). */
+static void test_choice_map_keys(sxml_test_state *state) {
+    types_fixture fixture = {.name_pool = NULL, .registry = NULL};
+    SXML_TEST_REQUIRE(state, types_fixture_create(&fixture));
+    const sxml_type_identifier atomic_members[] = {
+        builtin(SXML_TYPE_XS_INTEGER), builtin(SXML_TYPE_XS_STRING)};
+    const sxml_type_identifier mixed_members[] = {
+        builtin(SXML_TYPE_XS_INTEGER), builtin(SXML_TYPE_ELEMENT_NODE)};
+    const sxml_type_identifier atomic_choice =
+        choice_of(&fixture, LIST_OF(atomic_members));
+    const sxml_type_identifier mixed_choice =
+        choice_of(&fixture, LIST_OF(mixed_members));
+    SXML_TEST_REQUIRE(state, atomic_choice.index != SXML_TYPE_NONE &&
+                                 mixed_choice.index != SXML_TYPE_NONE);
+    const sxml_type_identifier choice_map = map_of(
+        &fixture, (map_signature){.key_type = atomic_choice,
+                                  .value_type = exactly_one(
+                                      builtin(SXML_TYPE_XS_UNTYPED_ATOMIC))});
+    SXML_TEST_EXPECT(state, choice_map.index != SXML_TYPE_NONE);
+    SXML_TEST_EXPECT(state, is_subtype(&fixture, choice_map,
+                                       builtin(SXML_TYPE_MAP)));
+    SXML_TEST_EXPECT(state,
+                     map_of(&fixture, (map_signature){
+                                          .key_type = mixed_choice,
+                                          .value_type = exactly_one(builtin(
+                                              SXML_TYPE_ITEM))})
+                             .index == SXML_TYPE_NONE);
+    types_fixture_destroy(&fixture);
+}
+
 static const sxml_test_case types_test_cases[] = {
     {.name = "memory_requirements_need_a_name_pool",
      .function = test_memory_requirements_need_a_name_pool},
@@ -1912,6 +1945,7 @@ static const sxml_test_case types_test_cases[] = {
      .function = test_json_node_subtype_rules},
     {.name = "function_subtype_rules", .function = test_function_subtype_rules},
     {.name = "map_subtype_rules", .function = test_map_subtype_rules},
+    {.name = "choice_map_keys", .function = test_choice_map_keys},
     {.name = "array_subtype_rules", .function = test_array_subtype_rules},
     {.name = "record_subtype_rules", .function = test_record_subtype_rules},
     {.name = "nominative_record_types",
