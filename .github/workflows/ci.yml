@@ -1,0 +1,102 @@
+# Continuous integration (docs/tasks/phase-0.md, task 0.4; docs/DECISIONS.md, D18).
+# Every job builds and tests; the lint gates run once, on Linux with Clang.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  WASI_SDK_VERSION: "34"
+
+jobs:
+  linux:
+    name: Linux (${{ matrix.preset }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - preset: debug
+            lint: true
+          - preset: debug-gcc
+            lint: false
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build clang clang-tidy libclang-rt-18-dev gcc
+      - uses: actions/setup-node@v4
+        if: matrix.lint
+        with:
+          node-version: 22
+      - name: Install pinned lint tools
+        if: matrix.lint
+        run: npm ci --prefix tools
+      - name: Configure
+        run: cmake --preset ${{ matrix.preset }}
+      - name: Build
+        run: cmake --build --preset ${{ matrix.preset }}
+      - name: Test
+        run: ctest --preset ${{ matrix.preset }}
+      - name: Lint
+        if: matrix.lint
+        run: tools/lint.sh
+
+  macos:
+    name: macOS (Clang)
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: brew install ninja
+      - name: Configure
+        run: cmake --preset debug
+      - name: Build
+        run: cmake --build --preset debug
+      - name: Test
+        run: ctest --preset debug
+
+  windows:
+    name: Windows (MSVC, build only)
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake --preset msvc
+      - name: Build
+        run: cmake --build --preset msvc
+
+  wasi:
+    name: WebAssembly (WASI SDK)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install WASI SDK
+        run: |
+          archive="wasi-sdk-${WASI_SDK_VERSION}.0-x86_64-linux"
+          curl -sSfL -o "$RUNNER_TEMP/wasi-sdk.tar.gz" \
+            "https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-${WASI_SDK_VERSION}/${archive}.tar.gz"
+          tar -xzf "$RUNNER_TEMP/wasi-sdk.tar.gz" -C "$RUNNER_TEMP"
+          echo "WASI_SDK_PREFIX=$RUNNER_TEMP/${archive}" >> "$GITHUB_ENV"
+      - name: Configure
+        run: cmake --preset wasm
+      - name: Build
+        run: cmake --build --preset wasm
+      - name: Test (Node.js WASI)
+        run: ctest --preset wasm
