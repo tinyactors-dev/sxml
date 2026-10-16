@@ -4,6 +4,18 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 1.12 done (D63): static analysis and lowering. `src/xpath_static.c`
+  (static context, names, sequence and item types, also for function
+  library rows), `src/xpath_lower.c` (AST to IR: ANF blocks, chains in a
+  loop, focus slots, captures, closures for placeholders and
+  focus-dependent references, `sxml_xpath_compile`), `src/ir.c` (unit,
+  text form, pass list), `src/ir_verify.c`. XPST0008/0017/0081/0051/0080/
+  0039/0152/0021 with locations; K-QuantExprWithout-79, fn-filter-003,
+  map-merge-001 fail statically; 28 slice and 46 construct IR dumps match
+  golden text. With a permissive table, 29,653 of 32,409 valid XP40
+  queries lower and verify (the rest: test environments, unsupported
+  4.0 constructs). 23 cases in `tests/xpath_static_test.c` and
+  `tests/ir_test.c`; `debug`, `debug-gcc`, `wasm`: 57/57; lint clean.
 - 1.11 done (D67): trees. `src/tree.c` (wrapper, reference count and
   owner, namespace nodes on demand, document order, iterative
   `copy_node`), `src/tree_axis.c` (all 17 axes incl. -or-self),
