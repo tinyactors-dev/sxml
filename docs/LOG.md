@@ -4,6 +4,15 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- Query grammars (D29): tree-sitter grammars for XPath 4.0
+  (`grammars/xpath`), XQuery 4.0 (`grammars/xquery`, inherits XPath) and
+  XSLT 4.0 patterns (`grammars/xslt_pattern`, inherits XPath), with one shared
+  external scanner (`grammars/common/query_scanner.h`) and corpus tests.
+  `tools/qt4-parse-check.py` parses the QT4 suite: XP40 0 false rejects of
+  32,118 valid queries, XQ40 0 of 43,663; false accepts 2 of 363 and 3 of
+  772 XPST0003 queries, left to the tree builder; XSLT patterns 3 of 19,168
+  (invalid DocBook patterns). The XSLT test suite still uses type patterns
+  (`~T`) that the 13 October 2026 draft has dropped (136 patterns).
 - XML 1.0 grammar `grammars/xml` (D28): strict grammar plus external
   scanner (tag stack, text tokens, [2] Char), corpus tests (59 pass).
   W3C XML suite: valid 601/601 and invalid 175/175 parse cleanly, not-wf

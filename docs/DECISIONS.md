@@ -271,38 +271,6 @@ takes the ASCII fast path only when the index is also below `byte_count`.
 `compare` and `equals` work on bytes (D25). Validation is a plain byte loop;
 a word-at-a-time ASCII scan can come later without an interface change.
 
-### D27. Query grammars: XPath, XQuery and XSLT patterns
-Recorded 2026-10-16. Grammars `grammars/xpath`, `grammars/xquery` and
-`grammars/xslt_pattern`, written from the QT4 CG drafts (XPath/XQuery 4.0
-Appendix A, XSLT 4.0 6.3 and Appendix E) as of 2026-10-16.
-- Inheritance: `xquery` and `xslt_pattern` are `grammar(require('../xpath/grammar'), ...)`.
-  The start rule of a derived grammar is moved to the front of its rule
-  table by hand (tree-sitter takes the first rule). Keyword lists and name
-  regular expressions are in `grammars/xpath/lexical.js`.
-- Node names are the EBNF production names in snake_case with abbreviations
-  spelled out (`ExprSingle` is hidden, `VarRef` is `variable_reference`,
-  `CompElemConstructor` is `computed_element_constructor`). Operands, steps,
-  axes, clauses and bindings are named fields. Binary operators are
-  left-recursive nodes with `left`, `operator`, `right`.
-- Keywords are not reserved (A.3): every keyword is a tree-sitter reserved
-  word (always lexed as the keyword), and every name position accepts each
-  keyword aliased to `ncname`, except function names (A.4 reserved function
-  names) and XQuery computed-constructor names (xgc: unreserved-name).
-- One external scanner, `grammars/common/query_scanner.h`, included by each
-  `src/scanner.c`, stateless: nested comments, string template fixed parts,
-  string constructor characters, all of direct constructor syntax (tags,
-  attribute values, content, comments, PIs, CDATA), and pragmas. Every
-  grammar declares the same external token list.
-- Checked later, in the tree builder (XPST0003 unless noted): terminal
-  delimitation (A.3.2, two non-delimiting terminals with no separator, e.g.
-  `10div 3`); a prefixed name as a lookup key (accepted by the grammar so that
-  `a:b` stays one token); XQuery prolog declaration order (one repeat in the
-  grammar); end tag name equal to start tag name (XQST0118); attribute and
-  QName well-formedness that the scanner does not check.
-- `tools/qt4-parse-check.py` (with `tools/qt4-parse-harness.c`) parses every
-  applicable QT4 query and reports false rejects and false accepts; the
-  harness also applies the A.3.2 delimitation check.
-
 ### D28. XML 1.0 grammar
 Recorded 2026-10-16. `grammars/xml` is written for sxml, not vendored:
 tree-sitter-grammars/tree-sitter-xml (MIT) was studied but is too lenient and
@@ -331,3 +299,54 @@ its tag-stack scanner is unsafe for deep or non-ASCII documents (reasons in
   and invalid 175/175 parse cleanly, not-wf 870/948 rejected by the grammar
   (the other 78 are builder constraints); all 3583 well-formed UTF-8 `*.xml`
   files of the QT4 and XSLT 4.0 suites parse cleanly.
+
+### D29. Query grammars: XPath, XQuery and XSLT patterns
+Recorded 2026-10-16. Grammars `grammars/xpath`, `grammars/xquery` and
+`grammars/xslt_pattern`, written from the QT4 CG drafts (XPath/XQuery 4.0
+Appendix A, XSLT 4.0 section 6.3 and Appendix E; drafts of 13 October 2026).
+Where the test suites still use syntax the drafts have dropped (XSLT type
+patterns `~T`), the drafts win. (This record was first committed as a second
+"D27"; renumbered.)
+- Inheritance: `xquery` and `xslt_pattern` are
+  `grammar(require('../xpath/grammar'), ...)`. tree-sitter takes the first
+  rule as the start rule, so a derived grammar moves its start rule (`module`,
+  `pattern`) to the front of the rule table. Keyword lists and name regular
+  expressions are in `grammars/xpath/lexical.js`.
+- Node names are the EBNF production names in snake_case with abbreviations
+  spelled out (`VarRef` is `variable_reference`, `CompElemConstructor` is
+  `computed_element_constructor`); choice productions such as `ExprSingle`
+  are hidden. Operands, steps, axes, clauses and bindings are named fields;
+  binary operators are left-recursive nodes with `left`, `operator`, `right`.
+  XSLT pattern productions ending in "P" become `..._pattern` nodes.
+- Keywords are not reserved (A.3): every keyword is a tree-sitter reserved
+  word, so the lexer always returns the keyword token, as the context-free
+  tokenizer of A.3 would; every name position accepts each keyword aliased to
+  `ncname`, except function names (A.4 reserved function names; in patterns
+  also `atomic` and `empty-sequence`) and XQuery computed-constructor names
+  (xgc: unreserved-name).
+- One stateless external scanner, `grammars/common/query_scanner.h`, included
+  by each `src/scanner.c`: nested comments, string template fixed parts,
+  string constructor characters, all of direct constructor syntax (tags,
+  attribute values, content, comments, PIs, CDATA) and pragmas. All grammars
+  declare the same external token list. In XQuery the scanner applies the
+  "<" rules of A.3 without regard to context: a direct constructor is
+  recognized even where the operator "<" is expected, and the parse fails.
+- GLR conflicts are declared only where one token of lookahead is not
+  enough: `namespace #x {}` against `namespace#1`; `element instance {}`
+  against `element instance of T` (also attribute, namespace,
+  processing-instruction); and the two prolog groups, where `declare` may
+  continue either group or start the query body.
+- In patterns, a step at the outermost level has no JNodeType test, so
+  `jnode(` always starts a JNodePattern.
+- Checked later, in the tree builder (XPST0003 unless noted): terminal
+  delimitation (A.3.2, two non-delimiting terminals with no separator, e.g.
+  `10div 3`); a prefixed name as a lookup key (accepted so that `a:b` stays
+  one token); end tag name equal to start tag name (XQST0118); duplicate
+  attributes, QName and namespace well-formedness; reserved PI target names
+  in computed constructors.
+- `tools/qt4-parse-check.py` (with `tools/qt4-parse-harness.c`, which also
+  applies the A.3.2 delimitation check) parses every applicable query.
+  Results on 2026-10-16: XP40 0 false rejects of 32,118 valid queries, 2
+  false accepts of 363 XPST0003 queries; XQ40 0 of 43,663 and 3 of 772;
+  XSLT 4.0 patterns 3 false rejects of 19,168 (invalid DocBook patterns).
+  Details in `grammars/xquery/README.md`.
