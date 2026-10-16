@@ -142,6 +142,9 @@ After 1.7. Owns `src/xdm_sequence.c`, `tests/xdm_sequence_test.c`. Ranges
 with `int64_t` bounds and `uint64_t` counts (D34), flattened concatenation,
 memoized lazy sequences that raise their error on every read,
 `test_emptiness` (D43). Done when a 10¹¹-based range counts right on `wasm`.
+**Done** 2026-10-16 (D62): all of `sxml_sequence_make_integer_range`,
+`_concatenate`, `_make_lazy`, `_test_emptiness`; XPDY0130 only for counts
+past 2^64 - 1; lazy errors kept and raised again per read.
 
 ### 1.9 Maps and records (implementation)
 After 1.7. Owns `src/xdm_map.c`, `tests/xdm_map_test.c`. D37: entry order,
