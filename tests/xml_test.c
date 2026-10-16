@@ -972,6 +972,18 @@ test_parsing_survives_every_allocation_failure(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, failing_allocation_number > 10);
 }
 
+/* Empty values of tokenized attributes, the first values of a document,
+   so that the value buffer is still empty: found by fuzzing (packet 1.26,
+   tests/fuzz/xml_parse_fuzz.c), where collapsing them offset a null
+   pointer (XML 1.0, section 3.3.3; xml:id 1.0, section 4). */
+static void test_empty_tokenized_values(sxml_test_state *state) {
+    expect_log(state,
+               "<!DOCTYPE A [<!ATTLIST A att NMTOKENS #IMPLIED>]><A att=\"\"/>",
+               "D<A @att=</>/D");
+    expect_log(state, "<a xml:id=''/>",
+               "D<a @{http://www.w3.org/XML/1998/namespace}id=!id</>/D");
+}
+
 static const sxml_test_case xml_test_cases[] = {
     {.name = "parser_lifecycle", .function = test_parser_lifecycle},
     {.name = "events_follow_the_document",
@@ -995,6 +1007,7 @@ static const sxml_test_case xml_test_cases[] = {
      .function = test_documents_build_arena_trees},
     {.name = "parsing_survives_every_allocation_failure",
      .function = test_parsing_survives_every_allocation_failure},
+    {.name = "empty_tokenized_values", .function = test_empty_tokenized_values},
 };
 
 int main(int argument_count, char **arguments) {

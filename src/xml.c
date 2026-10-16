@@ -2222,7 +2222,10 @@ static sxml_status sxml_xml_collect_attributes(sxml_xml_document *document,
         const sxml_xml_attribute_type attribute_type =
             definition == NULL ? SXML_XML_ATTRIBUTE_TYPE_CDATA
                                : definition->attribute_type;
-        if (attribute_type != SXML_XML_ATTRIBUTE_TYPE_CDATA) {
+        /* An empty value may have no buffer yet: nothing to collapse, and
+           no offset to apply to a null pointer. */
+        if (attribute_type != SXML_XML_ATTRIBUTE_TYPE_CDATA &&
+            value.byte_count != 0) {
             value.byte_count = sxml_xml_collapse_spaces((sxml_memory_view){
                 .bytes = parser->attribute_values.bytes + value_start,
                 .byte_count = value.byte_count});
@@ -2613,9 +2616,11 @@ static sxml_status sxml_xml_resolve_attributes(sxml_xml_document *document,
                 }
                 attribute->is_defaulted = false;
             }
-            copied.byte_count = sxml_xml_collapse_spaces((sxml_memory_view){
-                .bytes = parser->attribute_values.bytes + copied.byte_offset,
-                .byte_count = copied.byte_count});
+            if (copied.byte_count != 0) {
+                copied.byte_count = sxml_xml_collapse_spaces((sxml_memory_view){
+                    .bytes = parser->attribute_values.bytes + copied.byte_offset,
+                    .byte_count = copied.byte_count});
+            }
             attribute->value = copied;
             attribute->attribute_type = SXML_XML_ATTRIBUTE_TYPE_ID;
         }
