@@ -164,6 +164,37 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `unparsed_entity` | An unparsed entity of a document: system and public identifier |
 | `byte_view_list` | A read-only pointer to byte views plus `byte_view_count` |
 | `processor` | The object (Phase 1) that owns one name pool, type registry and item heap and compiles and runs queries |
+| `limits` | A struct of bounds on work and memory for untrusted input (`sxml_processor_limits`, `sxml_xml_limits`) |
+| `xml_parser` | Reads XML 1.0 bytes and sends their tree builder events (`include/sxml/xml.h`) |
+| `encoding_name` | The name of a character encoding (`UTF-8`, `ISO-8859-1`), from outside a document or from its encoding declaration |
+| `entity_expansion` | The text that replacing entity references produces (XML 1.0, section 4.4); bounded for untrusted input |
+| `resource` | What a resource resolver delivers for a URI: bytes, a document node, or nothing |
+| `resource_resolver` | Host interface that retrieves resources by URI, for `fn:doc` and, later, text, modules and stylesheets |
+| `resource_kind` | What a resource is wanted for: an XML document for `fn:doc`, ... |
+| `resource_form` | How a resolver delivers a resource: none, bytes, or a document node |
+| `resource_entry` | One URI and its bytes in a list served by the table resolver |
+| `uri_reference` | A URI as written, possibly relative (RFC 3986, section 4.1) |
+| `absolute_uri` | A URI with a scheme, after resolving a reference against a base URI (RFC 3986, section 5) |
+| `clock` | Host interface that reads the current date and time and the implicit timezone |
+| `clock_reading` | What one reading of a clock gives: the current dateTime and the implicit timezone |
+| `current_date_time` | The instant `fn:current-dateTime` returns, read once per evaluation |
+| `implicit_timezone` | The timezone of the dynamic context, used for date/time values without one |
+| `context_value` | The XPath 4.0 context value: the sequence the focus is on; when it is one item, the context item |
+| `variable_declaration` | A variable name with its declared type, in the static context (an external variable) |
+| `variable_binding` | A variable name with its value, in the dynamic context |
+| `declared_type` | The sequence type a variable or parameter is declared with |
+| `available_document` | A URI and the document node `fn:doc` returns for it (XPath 4.0, "available documents") |
+| `xpath_expression` | An XPath expression compiled for one processor, evaluated any number of times |
+| `expression_text` | The source text of an expression or query |
+| `evaluation` | One run of a compiled expression or query against a dynamic context |
+| `evaluation_depth` | How deeply evaluation nests (function calls, nested expressions); bounded so deep recursion is a limit, not a stack overflow |
+| `expression_depth` | How deeply the syntax of an expression nests; bounded for untrusted expressions |
+| `serialization` | Turning a sequence into bytes (Serialization 4.0) |
+| `serialization_method` | The Serialization 4.0 output method: adaptive in Phase 1; xml, json, text and others later |
+| `serialization_parameters` | The Serialization 4.0 parameters of one serialization (method, item separator, ...) |
+| `item_separator` | The text written between the items of a serialized sequence |
+| `output_stream` | Interface that receives bytes, written in order |
+| `output_buffer` | The built-in output stream: collects bytes in memory |
 | `well_known_namespace` | A namespace with a fixed `namespace_uri_identifier` in every name pool (`SXML_NAMESPACE_XML_SCHEMA`) |
 | `axis` | An XPath axis (`SXML_AXIS_CHILD`, ...), walked by an `axis_iterator` |
 | `axis_iterator` | Walks the nodes of one axis from an origin node |
