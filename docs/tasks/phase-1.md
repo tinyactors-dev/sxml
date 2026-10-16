@@ -172,6 +172,8 @@ After 1.7. Owns `src/tree.c`, `src/tree_axis.c`, `src/arena_tree.c`,
 of `tree.h` (D39, D40, D43), every axis including `-or-self`, namespace
 fixup, limits, `copy_node`. Done when axis results on a fixed document match
 a table. Spec: XDM 4.0 §6; XPath 4.0 "Axes".
+**Done** 2026-10-16 (D67): 64-row axis table holds; node items retain
+their tree (1.7 hand-off); no-inherit copies wait on P6.
 
 ### 1.12 Static analysis and lowering (implementation)
 After 1.3, 1.5, 1.6, 1.16. Owns `src/xpath_static.c`, `src/xpath_lower.c`,
