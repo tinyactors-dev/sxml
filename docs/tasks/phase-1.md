@@ -59,6 +59,8 @@ After the Phase 0 gate. Owns root `CMakeLists.txt`, `tests/CMakeLists.txt`,
 `sxml_mpdecimal`; guarded `add_subdirectory` for the optional directories
 (`tests/fuzz` only with `SXML_BUILD_FUZZERS`); the CLI's `apps` line kept.
 Done when presets pass unchanged and a probe source and test need no edit.
+**Done** 2026-10-16: globs in place, probe verified under `debug`; also
+added `SXML_STATUS_INPUT_OUTPUT_FAILED` (D50, was P1).
 
 ### 1.1 Name pool (implementation)
 After 1.0. Owns `src/name.c`, `src/name_internal.h`, `tests/name_test.c`.
