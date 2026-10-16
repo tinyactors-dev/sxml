@@ -4,6 +4,17 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 1.17 done (D53): regex seed. `src/regex_internal.h` is the interface
+  the D9 engine keeps (flags with FORX0001; immutable compiled regex with
+  FORX0002 and exact memory requirements; per-thread matcher with
+  `match_at`, `find`, `find_next` over disjoint matching segments, step
+  and backtrack-stack limits). Hand-written recursive-descent parser
+  rather than a tree-sitter grammar (reasons in D53). Subset: classes with
+  subtraction, `\s \d \w` (Unicode 16.0 tables), greedy and reluctant
+  quantifiers, groups, alternation, `^ $`, back-references, flags
+  `s m i x q c`; the rest is FORX0002 "not supported". fn-tokenize-1a
+  and -35 pass as unit cases. `debug`, `debug-gcc`, `wasm`: 43/43; lint
+  clean.
 - 1.2 done (D57): libmpdec 4.0.1 vendored and patched (scoped
   allocation of D42, size_t-based configuration, WASI), `src/decimal.c`:
   parse, canonical text, exact add/subtract/multiply, divide (34 digits),
