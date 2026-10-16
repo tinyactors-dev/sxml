@@ -1,8 +1,10 @@
 /*
  * The regular expression seed (src/regex_internal.h; docs/DECISIONS.md D48
- * and D53): a hand-written recursive-descent parser that compiles the
- * regex into instructions, and a backtracking matcher that runs them with
- * an explicit stack.
+ * and D53): a hand-written parser that compiles the regex into
+ * instructions, and a backtracking matcher that runs them with an explicit
+ * stack. Nothing here recurses (D71): the parser keeps open groups on a
+ * stack of frames, a chain of class subtractions is read and matched in a
+ * loop, and the matcher keeps its choices on the backtrack stack.
  *
  * Imitates the golden module src/memory.c (lifecycle, requirements by
  * sxml_memory_requirements_append, checked sizes). The syntax is that of
@@ -13,9 +15,10 @@
  * Compilation runs the parser twice over the same code: a counting pass
  * (regex NULL) that finds the exact number of instructions, classes and
  * class items, and an emitting pass that writes them into memory laid out
- * from those counts. Counted repetition is expanded by parsing the atom
- * again for each copy; the extent of an atom is found first by a lexical
- * scan, so nested quantifiers cost one scan per level, not a parse.
+ * from those counts. Every atom is parsed and emitted once; a quantifier
+ * then inserts what goes before the atom and appends copies of the
+ * atom's instructions, so counted repetition costs one copy per
+ * repetition, not a parse.
  */
 #include "regex_internal.h"
 
@@ -176,7 +179,12 @@ struct sxml_regex {
     sxml_allocator owning_allocator;
 };
 
-/* What a compiling pass produced. */
+/*
+ * What a compiling pass produced. In the result of a pass, the
+ * instruction, class and class item counts are the sizes of the arrays:
+ * the most the pass wrote, since an atom quantified with {0} is written
+ * and then dropped.
+ */
 typedef struct sxml_regex_counts {
     uint32_t instruction_count;
     uint32_t class_count;
@@ -187,11 +195,38 @@ typedef struct sxml_regex_counts {
 
 /* ------------------------------------------------------------- Compiler */
 
-/* A capturing group whose ")" has not been read yet. */
-typedef struct sxml_regex_open_group {
+/*
+ * Instructions whose operand is a target not known yet. Each pending
+ * operand holds the next pending instruction plus one, so the list needs
+ * no memory of its own.
+ */
+typedef struct sxml_regex_pending_targets {
+    uint32_t last_instruction_number;
+} sxml_regex_pending_targets;
+
+/* The counts and parse work before an atom, so that its quantifier can
+   drop or copy what the atom emitted. */
+typedef struct sxml_regex_atom_start {
+    sxml_regex_counts counts;
+    uint32_t atom_parse_count;
+} sxml_regex_atom_start;
+
+/*
+ * A group whose ")" has not been read yet, or the whole regex (the first
+ * frame). The parser keeps these on an explicit stack instead of
+ * recursing (docs/DECISIONS.md D71).
+ */
+typedef struct sxml_regex_group_frame {
+    /* The capturing group's number; 0 for a non-capturing group and for
+       the whole regex. */
     uint32_t group_number;
-    const struct sxml_regex_open_group *enclosing_group;
-} sxml_regex_open_group;
+    /* The first instruction of the branch being read. */
+    uint32_t branch_start;
+    /* The jumps at the ends of the branches read so far. */
+    sxml_regex_pending_targets branch_ends;
+    /* Where the group's atom starts, before its "(". */
+    sxml_regex_atom_start atom_start;
+} sxml_regex_group_frame;
 
 typedef struct sxml_regex_compiler {
     sxml_string regex_text;
@@ -202,16 +237,27 @@ typedef struct sxml_regex_compiler {
     /* The regex being written; NULL in the counting pass. */
     sxml_regex *regex;
     sxml_regex_counts counts;
+    /* The most instructions, classes and class items written so far. */
+    sxml_regex_counts array_counts;
     /* Groups of the whole regex, from the counting pass; progress
        registers are numbered after their slots. */
     uint32_t total_group_count;
     uint32_t maximum_instruction_count;
     uint32_t maximum_group_depth;
-    uint32_t group_depth;
     /* Atoms parsed, copies included: bounds compile work even for atoms
        that emit nothing, as in (?:){1000}{1000}. */
     uint32_t atom_parse_count;
-    const sxml_regex_open_group *innermost_open_group;
+    /* The stack of open groups; frames[0] is the whole regex, so the
+       group depth is frame_count - 1. */
+    sxml_regex_group_frame *frames;
+    size_t frame_count;
+    size_t frame_capacity;
+    /* The frames sxml_regex_compile holds itself; frames is these until
+       the stack grows. */
+    sxml_regex_group_frame *inline_frames;
+    /* Grows the stack beyond the inline frames; may be the null
+       allocator. */
+    sxml_allocator stack_allocator;
     sxml_error_record *error_record;
 } sxml_regex_compiler;
 
@@ -365,15 +411,6 @@ static void sxml_regex_compiler_patch(sxml_regex_compiler *compiler,
     }
 }
 
-/*
- * Instructions whose operand is a target not known yet. Each pending
- * operand holds the next pending instruction plus one, so the list needs
- * no memory of its own.
- */
-typedef struct sxml_regex_pending_targets {
-    uint32_t last_instruction_number;
-} sxml_regex_pending_targets;
-
 static void sxml_regex_pending_targets_add(
     sxml_regex_compiler *compiler, sxml_regex_pending_targets *pending,
     uint32_t instruction_index) {
@@ -395,6 +432,150 @@ static void sxml_regex_pending_targets_resolve(
         instruction_number = instruction->operand;
         instruction->operand = target;
     }
+}
+
+/* Writes an instruction into a place made by sxml_regex_compiler_insert. */
+static void sxml_regex_compiler_write(sxml_regex_compiler *compiler,
+                                      uint32_t instruction_index,
+                                      sxml_regex_instruction instruction) {
+    if (compiler->regex != NULL) {
+        compiler->regex->instructions[instruction_index] = instruction;
+    }
+}
+
+/* True for the operations whose operand is an instruction index. */
+static bool sxml_regex_operation_has_target(sxml_regex_operation operation) {
+    return operation == SXML_REGEX_OPERATION_SPLIT_NEXT_FIRST ||
+           operation == SXML_REGEX_OPERATION_SPLIT_TARGET_FIRST ||
+           operation == SXML_REGEX_OPERATION_JUMP;
+}
+
+/* Raises the array counts to what has been written so far. */
+static void sxml_regex_compiler_note_array_counts(
+    sxml_regex_compiler *compiler) {
+    sxml_regex_counts *array_counts = &compiler->array_counts;
+    if (compiler->counts.instruction_count > array_counts->instruction_count) {
+        array_counts->instruction_count = compiler->counts.instruction_count;
+    }
+    if (compiler->counts.class_count > array_counts->class_count) {
+        array_counts->class_count = compiler->counts.class_count;
+    }
+    if (compiler->counts.class_item_count > array_counts->class_item_count) {
+        array_counts->class_item_count = compiler->counts.class_item_count;
+    }
+}
+
+/* A run of instructions. */
+typedef struct sxml_regex_instruction_range {
+    uint32_t first_instruction_index;
+    uint32_t instruction_count;
+} sxml_regex_instruction_range;
+
+/*
+ * Makes room for range.instruction_count instructions at
+ * range.first_instruction_index by moving the instructions from there on
+ * up. Targets of the moved instructions move with them. The moved
+ * instructions are one finished branch or atom, whose targets all lie
+ * within it; targets of earlier instructions stay, so a target at the
+ * place now reaches the new instructions, which belong to the same branch
+ * or piece. No pending target list runs through the moved instructions.
+ */
+static sxml_status sxml_regex_compiler_insert(
+    sxml_regex_compiler *compiler, sxml_regex_instruction_range range) {
+    uint32_t instruction_count = compiler->counts.instruction_count;
+    if (range.instruction_count >
+        compiler->maximum_instruction_count - instruction_count) {
+        return SXML_STATUS_LIMIT_EXCEEDED;
+    }
+    if (compiler->regex != NULL) {
+        sxml_regex_instruction *instructions = compiler->regex->instructions;
+        uint32_t moved_count =
+            instruction_count - range.first_instruction_index;
+        uint32_t new_first_index =
+            range.first_instruction_index + range.instruction_count;
+        memmove(instructions + new_first_index,
+                instructions + range.first_instruction_index,
+                (size_t)moved_count * sizeof(sxml_regex_instruction));
+        for (uint32_t instruction_index = new_first_index;
+             instruction_index < new_first_index + moved_count;
+             instruction_index++) {
+            sxml_regex_instruction *instruction =
+                &instructions[instruction_index];
+            if (sxml_regex_operation_has_target(instruction->operation) &&
+                instruction->operand >= range.first_instruction_index) {
+                instruction->operand += range.instruction_count;
+            }
+        }
+    }
+    compiler->counts.instruction_count =
+        instruction_count + range.instruction_count;
+    return SXML_STATUS_OK;
+}
+
+/* The slot of a new progress register (numbered after the group slots). */
+static uint32_t sxml_regex_compiler_add_register(
+    sxml_regex_compiler *compiler) {
+    uint32_t progress_slot = 2 * (compiler->total_group_count + 1) +
+                             compiler->counts.register_count;
+    compiler->counts.register_count += 1;
+    return progress_slot;
+}
+
+/* What an atom emitted once, for the copies its quantifier needs. */
+typedef struct sxml_regex_atom_copy_source {
+    sxml_regex_instruction_range instructions;
+    uint32_t first_register_number;
+    uint32_t register_count;
+    /* The atoms parsing it took, which every copy counts again. */
+    uint32_t atom_parse_count;
+} sxml_regex_atom_copy_source;
+
+/*
+ * Appends a copy of an atom's instructions. Targets are moved with the
+ * copy (they all lie within the atom or at its end), progress registers
+ * are renumbered so that every copy has its own, and group slots stay:
+ * every copy numbers its groups alike. Classes are shared.
+ */
+static sxml_status sxml_regex_compiler_emit_copy(
+    sxml_regex_compiler *compiler, const sxml_regex_atom_copy_source *source) {
+    if (source->atom_parse_count >
+        compiler->maximum_instruction_count - compiler->atom_parse_count) {
+        return SXML_STATUS_LIMIT_EXCEEDED;
+    }
+    compiler->atom_parse_count += source->atom_parse_count;
+    uint32_t new_first_index = compiler->counts.instruction_count;
+    if (source->instructions.instruction_count >
+        compiler->maximum_instruction_count - new_first_index) {
+        return SXML_STATUS_LIMIT_EXCEEDED;
+    }
+    if (compiler->regex != NULL) {
+        sxml_regex_instruction *instructions = compiler->regex->instructions;
+        uint32_t first_register_slot = 2 * (compiler->total_group_count + 1);
+        uint32_t register_offset =
+            compiler->counts.register_count - source->first_register_number;
+        uint32_t target_offset =
+            new_first_index - source->instructions.first_instruction_index;
+        for (uint32_t copied_count = 0;
+             copied_count < source->instructions.instruction_count;
+             copied_count++) {
+            sxml_regex_instruction instruction =
+                instructions[source->instructions.first_instruction_index +
+                             copied_count];
+            if (sxml_regex_operation_has_target(instruction.operation)) {
+                instruction.operand += target_offset;
+            } else if ((instruction.operation == SXML_REGEX_OPERATION_SAVE ||
+                        instruction.operation ==
+                            SXML_REGEX_OPERATION_CHECK_PROGRESS) &&
+                       instruction.operand >= first_register_slot) {
+                instruction.operand += register_offset;
+            }
+            instructions[new_first_index + copied_count] = instruction;
+        }
+    }
+    compiler->counts.instruction_count =
+        new_first_index + source->instructions.instruction_count;
+    compiler->counts.register_count += source->register_count;
+    return SXML_STATUS_OK;
 }
 
 static sxml_status sxml_regex_compiler_reserve_class(
@@ -694,9 +875,6 @@ static sxml_status sxml_regex_compiler_reject_escape(
     }
 }
 
-static sxml_status sxml_regex_compiler_parse_class_expression(
-    sxml_regex_compiler *compiler, uint32_t *class_index);
-
 /* Reads the end of a range after "-": a single character, escaped or not
    (XSD 1.1 Part 2, appendix G, charRange). */
 static sxml_status sxml_regex_compiler_parse_range_end(
@@ -780,27 +958,28 @@ static sxml_status sxml_regex_compiler_parse_group_part(
                   });
 }
 
-/*
- * Reads a character class expression after its "[" (XSD 1.1 Part 2,
- * appendix G, charClassExpr: an optional "^", one or more group parts, an
- * optional subtraction "-[...]", then "]"). A "-" is a literal only as the
- * first part or the last; elsewhere it must be escaped.
- */
-static sxml_status sxml_regex_compiler_parse_class_expression(
-    sxml_regex_compiler *compiler, uint32_t *class_index) {
-    if (compiler->group_depth >= compiler->maximum_group_depth) {
+/* The nesting of groups and class expressions the compiler is in. */
+static size_t sxml_regex_compiler_group_depth(
+    const sxml_regex_compiler *compiler) {
+    return compiler->frame_count - 1;
+}
+
+/* Starts one class expression of a subtraction chain after its "[":
+   reserves its class and reads an optional "^". */
+static sxml_status sxml_regex_compiler_open_class(
+    sxml_regex_compiler *compiler, size_t class_depth,
+    sxml_regex_class *regex_class) {
+    if (sxml_regex_compiler_group_depth(compiler) + class_depth >=
+        compiler->maximum_group_depth) {
         return SXML_STATUS_LIMIT_EXCEEDED;
     }
-    uint32_t new_class_index = 0;
+    uint32_t class_index = 0;
     sxml_status status =
-        sxml_regex_compiler_reserve_class(compiler, &new_class_index);
+        sxml_regex_compiler_reserve_class(compiler, &class_index);
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    bool was_in_class = compiler->is_in_class;
-    compiler->is_in_class = true;
-    compiler->group_depth += 1;
-    sxml_regex_class regex_class = {
+    *regex_class = (sxml_regex_class){
         .first_item_index = compiler->counts.class_item_count,
         .item_count = 0,
         .is_negated = false,
@@ -809,73 +988,189 @@ static sxml_status sxml_regex_compiler_parse_class_expression(
     uint32_t codepoint = 0;
     if (sxml_regex_compiler_peek_raw(compiler, &codepoint) && codepoint == '^') {
         (void)sxml_regex_compiler_next_raw(compiler, &codepoint);
-        regex_class.is_negated = true;
+        regex_class->is_negated = true;
     }
+    return SXML_STATUS_OK;
+}
+
+/* How one class expression of a subtraction chain ended. */
+typedef struct sxml_regex_class_end {
+    /* "-[" was read: the subtracted class expression follows. */
+    bool has_subtraction;
+} sxml_regex_class_end;
+
+/*
+ * Reads the group parts of one class expression up to its "]" or its
+ * subtraction "-[" (XSD 1.1 Part 2, appendix G, charClassExpr). A "-" is
+ * a literal only as the first part or the last; elsewhere it must be
+ * escaped.
+ */
+static sxml_status sxml_regex_compiler_read_class_parts(
+    sxml_regex_compiler *compiler, sxml_regex_class_end *class_end) {
     uint32_t part_count = 0;
     for (;;) {
+        uint32_t codepoint = 0;
         if (!sxml_regex_compiler_next_raw(compiler, &codepoint)) {
-            status = SXML_REGEX_INVALID(compiler, "unterminated character class");
-            break;
+            return SXML_REGEX_INVALID(compiler, "unterminated character class");
         }
         if (codepoint == ']') {
             if (part_count == 0) {
-                status = SXML_REGEX_INVALID(compiler, "empty character class");
+                return SXML_REGEX_INVALID(compiler, "empty character class");
             }
-            break;
+            class_end->has_subtraction = false;
+            return SXML_STATUS_OK;
         }
         uint32_t following_codepoint = 0;
         bool has_following = sxml_regex_compiler_peek_raw(compiler,
                                                           &following_codepoint);
         if (codepoint == '-' && has_following && following_codepoint == '[') {
             if (part_count == 0) {
-                status = SXML_REGEX_INVALID(compiler,
-                                            "subtraction from an empty class");
-                break;
+                return SXML_REGEX_INVALID(compiler,
+                                          "subtraction from an empty class");
             }
             (void)sxml_regex_compiler_next_raw(compiler, &following_codepoint);
-            regex_class.item_count = compiler->counts.class_item_count -
-                                     regex_class.first_item_index;
-            uint32_t subtracted_class_index = 0;
-            status = sxml_regex_compiler_parse_class_expression(
-                compiler, &subtracted_class_index);
-            if (status != SXML_STATUS_OK) {
-                break;
-            }
-            regex_class.subtracted_class_number = subtracted_class_index + 1;
-            if (!sxml_regex_compiler_next_raw(compiler, &codepoint) ||
-                codepoint != ']') {
-                status = SXML_REGEX_INVALID(
-                    compiler, "a subtraction must end the character class");
-            }
-            break;
+            class_end->has_subtraction = true;
+            return SXML_STATUS_OK;
         }
         if (codepoint == '-' && part_count != 0 &&
             !(has_following && following_codepoint == ']')) {
-            status = SXML_REGEX_INVALID(compiler,
-                                        "\"-\" must be escaped here");
-            break;
+            return SXML_REGEX_INVALID(compiler, "\"-\" must be escaped here");
         }
-        status = sxml_regex_compiler_parse_group_part(compiler, codepoint);
+        sxml_status status =
+            sxml_regex_compiler_parse_group_part(compiler, codepoint);
         if (status != SXML_STATUS_OK) {
-            break;
+            return status;
         }
         part_count += 1;
     }
-    compiler->group_depth -= 1;
+}
+
+/*
+ * Reads a character class expression after its "[" and writes the index
+ * of its class to *class_index. A subtraction ([a-z-[aeiou]]) ends its
+ * class expression, so nested subtractions form a chain: each class
+ * expression is written when its "-[" is read, with the class reserved
+ * next as its subtracted class, and the "]" of the enclosing expressions
+ * are read after the innermost one. The chain is bounded by
+ * maximum_group_depth together with the enclosing groups.
+ */
+static sxml_status sxml_regex_compiler_parse_class_expression(
+    sxml_regex_compiler *compiler, uint32_t *class_index) {
+    bool was_in_class = compiler->is_in_class;
+    compiler->is_in_class = true;
+    uint32_t first_class_index = compiler->counts.class_count;
+    size_t class_depth = 0;
+    sxml_status status = SXML_STATUS_OK;
+    for (;;) {
+        uint32_t new_class_index = compiler->counts.class_count;
+        sxml_regex_class regex_class = {.first_item_index = 0};
+        status = sxml_regex_compiler_open_class(compiler, class_depth,
+                                                &regex_class);
+        if (status != SXML_STATUS_OK) {
+            break;
+        }
+        class_depth += 1;
+        sxml_regex_class_end class_end = {.has_subtraction = false};
+        status = sxml_regex_compiler_read_class_parts(compiler, &class_end);
+        if (status != SXML_STATUS_OK) {
+            break;
+        }
+        regex_class.item_count =
+            compiler->counts.class_item_count - regex_class.first_item_index;
+        if (class_end.has_subtraction) {
+            /* The subtracted class is the one reserved next. */
+            regex_class.subtracted_class_number =
+                compiler->counts.class_count + 1;
+        }
+        sxml_regex_compiler_write_class(compiler, new_class_index, regex_class);
+        if (!class_end.has_subtraction) {
+            break;
+        }
+    }
+    /* The "]" after each subtraction, innermost first. */
+    for (size_t closed_count = 1;
+         status == SXML_STATUS_OK && closed_count < class_depth;
+         closed_count++) {
+        uint32_t codepoint = 0;
+        if (!sxml_regex_compiler_next_raw(compiler, &codepoint) ||
+            codepoint != ']') {
+            status = SXML_REGEX_INVALID(
+                compiler, "a subtraction must end the character class");
+        }
+    }
     compiler->is_in_class = was_in_class;
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    if (regex_class.subtracted_class_number == 0) {
-        regex_class.item_count =
-            compiler->counts.class_item_count - regex_class.first_item_index;
-    }
-    sxml_regex_compiler_write_class(compiler, new_class_index, regex_class);
-    *class_index = new_class_index;
+    *class_index = first_class_index;
     return SXML_STATUS_OK;
 }
 
-/* ------------------------------------------------------- Lexical scanning */
+/* ------------------------------------------------------------ Group stack */
+
+/* Doubles the group stack, up to the frames maximum_group_depth needs. */
+static sxml_status sxml_regex_compiler_grow_frames(
+    sxml_regex_compiler *compiler) {
+    if (sxml_allocator_is_null(compiler->stack_allocator)) {
+        return SXML_STATUS_CAPACITY_EXCEEDED;
+    }
+    size_t maximum_frame_count = (size_t)compiler->maximum_group_depth + 1;
+    size_t new_capacity = compiler->frame_capacity;
+    if (sxml_size_multiply(new_capacity, 2, &new_capacity) != SXML_STATUS_OK ||
+        new_capacity > maximum_frame_count) {
+        new_capacity = maximum_frame_count;
+    }
+    size_t byte_count = 0;
+    sxml_status status = sxml_size_multiply(
+        new_capacity, sizeof(sxml_regex_group_frame), &byte_count);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    void *memory = NULL;
+    status = sxml_allocator_allocate(
+        compiler->stack_allocator,
+        (sxml_allocation_request){
+            .byte_count = byte_count,
+            .alignment = alignof(sxml_regex_group_frame),
+        },
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_regex_group_frame *new_frames = memory;
+    memcpy(new_frames, compiler->frames,
+           compiler->frame_count * sizeof(sxml_regex_group_frame));
+    if (compiler->frames != compiler->inline_frames) {
+        sxml_allocator_release(compiler->stack_allocator, compiler->frames);
+    }
+    compiler->frames = new_frames;
+    compiler->frame_capacity = new_capacity;
+    return SXML_STATUS_OK;
+}
+
+/* Gives a grown group stack back to its allocator. */
+static void sxml_regex_compiler_release_frames(sxml_regex_compiler *compiler) {
+    if (compiler->frames != compiler->inline_frames) {
+        sxml_allocator_release(compiler->stack_allocator, compiler->frames);
+        compiler->frames = compiler->inline_frames;
+    }
+}
+
+/* Pushes frame; the caller has checked maximum_group_depth. */
+static sxml_status sxml_regex_compiler_push_frame(
+    sxml_regex_compiler *compiler, sxml_regex_group_frame frame) {
+    if (compiler->frame_count == compiler->frame_capacity) {
+        sxml_status status = sxml_regex_compiler_grow_frames(compiler);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+    }
+    compiler->frames[compiler->frame_count] = frame;
+    compiler->frame_count += 1;
+    return SXML_STATUS_OK;
+}
+
+/* ------------------------------------------------------- Back-references */
 
 /* True when group_number is a group whose ")" has been read. */
 static bool sxml_regex_compiler_group_is_closed(
@@ -883,10 +1178,9 @@ static bool sxml_regex_compiler_group_is_closed(
     if (group_number == 0 || group_number > compiler->counts.group_count) {
         return false;
     }
-    for (const sxml_regex_open_group *open_group =
-             compiler->innermost_open_group;
-         open_group != NULL; open_group = open_group->enclosing_group) {
-        if (open_group->group_number == group_number) {
+    for (size_t frame_index = 1; frame_index < compiler->frame_count;
+         frame_index++) {
+        if (compiler->frames[frame_index].group_number == group_number) {
             return false;
         }
     }
@@ -914,93 +1208,30 @@ static uint32_t sxml_regex_compiler_read_back_reference(
     return group_number;
 }
 
-/* Moves past a character class expression after its "[", by brackets. */
-static void sxml_regex_compiler_skip_class(sxml_regex_compiler *compiler) {
-    bool was_in_class = compiler->is_in_class;
-    compiler->is_in_class = true;
-    size_t bracket_depth = 1;
-    uint32_t codepoint = 0;
-    while (bracket_depth != 0 &&
-           sxml_regex_compiler_next_raw(compiler, &codepoint)) {
-        if (codepoint == '\\') {
-            (void)sxml_regex_compiler_next_raw(compiler, &codepoint);
-        } else if (codepoint == '[') {
-            bracket_depth += 1;
-        } else if (codepoint == ']') {
-            bracket_depth -= 1;
-        }
-    }
-    compiler->is_in_class = was_in_class;
-}
-
-/* Moves past the codepoints after a backslash that belong to the escape. */
-static void sxml_regex_compiler_skip_escape(sxml_regex_compiler *compiler) {
-    uint32_t codepoint = 0;
-    if (sxml_regex_compiler_next_escaped(compiler, &codepoint) &&
-        codepoint >= '1' && codepoint <= '9') {
-        (void)sxml_regex_compiler_read_back_reference(compiler, codepoint);
-    }
-}
-
-/*
- * Moves past one atom without checking it: one codepoint, an escape, a
- * class or a parenthesized group. Used to find where an atom ends before
- * its quantifier is known, and to count alternatives. Errors are left to
- * the parse that follows.
- */
-static void sxml_regex_compiler_skip_atom(sxml_regex_compiler *compiler) {
-    uint32_t codepoint = 0;
-    if (!sxml_regex_compiler_next(compiler, &codepoint)) {
-        return;
-    }
-    if (codepoint == '\\') {
-        sxml_regex_compiler_skip_escape(compiler);
-    } else if (codepoint == '[') {
-        sxml_regex_compiler_skip_class(compiler);
-    } else if (codepoint == '(') {
-        size_t parenthesis_depth = 1;
-        while (parenthesis_depth != 0 &&
-               sxml_regex_compiler_next(compiler, &codepoint)) {
-            if (codepoint == '\\') {
-                (void)sxml_regex_compiler_next_escaped(compiler, &codepoint);
-            } else if (codepoint == '[') {
-                sxml_regex_compiler_skip_class(compiler);
-            } else if (codepoint == '(') {
-                parenthesis_depth += 1;
-            } else if (codepoint == ')') {
-                parenthesis_depth -= 1;
-            }
-        }
-    }
-}
-
-/* The number of branches from here to the ")" or end of this regExp. */
-static uint32_t sxml_regex_compiler_count_branches(
-    sxml_regex_compiler *compiler) {
-    size_t saved_byte_offset = compiler->byte_offset;
-    uint32_t branch_count = 1;
-    uint32_t codepoint = 0;
-    while (sxml_regex_compiler_peek(compiler, &codepoint) && codepoint != ')') {
-        if (codepoint == '|') {
-            (void)sxml_regex_compiler_next(compiler, &codepoint);
-            branch_count += 1;
-        } else {
-            sxml_regex_compiler_skip_atom(compiler);
-        }
-    }
-    compiler->byte_offset = saved_byte_offset;
-    return branch_count;
-}
-
 /* ---------------------------------------------------------------- Parsing */
 
-static sxml_status sxml_regex_compiler_parse_alternation(
-    sxml_regex_compiler *compiler);
+/*
+ * The parser reads the regex in one loop over pieces, with the open
+ * groups on an explicit stack (docs/DECISIONS.md D71), and emits each
+ * atom once:
+ * - a group's "(" pushes a frame and its ")" pops it, after which the
+ *   group is an atom like any other;
+ * - a "|" inserts the split that prefers the branch before it at the
+ *   branch's start, and ends the branch with a jump to the group's end
+ *   (F&O 4.0, section 6.1.1: the first matching branch is chosen);
+ * - a quantifier after an atom inserts what goes before the atom's first
+ *   copy and appends the other copies.
+ */
 
-/* Reads a group after its "(" (F&O 4.0, section 6.1.3, atom). */
-static sxml_status sxml_regex_compiler_parse_group(
-    sxml_regex_compiler *compiler) {
-    if (compiler->group_depth >= compiler->maximum_group_depth) {
+/*
+ * Reads a group after its "(" up to its body (F&O 4.0, section 6.1.3,
+ * atom), numbers a capturing group and pushes its frame. atom_start is
+ * where the group's atom started.
+ */
+static sxml_status sxml_regex_compiler_open_group(
+    sxml_regex_compiler *compiler, const sxml_regex_atom_start *atom_start) {
+    if (sxml_regex_compiler_group_depth(compiler) >=
+        compiler->maximum_group_depth) {
         return SXML_STATUS_LIMIT_EXCEEDED;
     }
     bool is_capturing = true;
@@ -1031,36 +1262,87 @@ static sxml_status sxml_regex_compiler_parse_group(
         return SXML_REGEX_UNSUPPORTED(compiler, "\"(*\" assertions are");
     }
     uint32_t group_number = 0;
-    sxml_status status = SXML_STATUS_OK;
     if (is_capturing) {
         group_number = compiler->counts.group_count + 1;
         compiler->counts.group_count = group_number;
-        status = sxml_regex_compiler_emit_operation(
+        sxml_status status = sxml_regex_compiler_emit_operation(
             compiler, SXML_REGEX_OPERATION_SAVE, 2 * group_number);
         if (status != SXML_STATUS_OK) {
             return status;
         }
     }
-    sxml_regex_open_group open_group = {
-        .group_number = group_number,
-        .enclosing_group = compiler->innermost_open_group,
-    };
-    compiler->innermost_open_group = &open_group;
-    compiler->group_depth += 1;
-    status = sxml_regex_compiler_parse_alternation(compiler);
-    compiler->group_depth -= 1;
-    compiler->innermost_open_group = open_group.enclosing_group;
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    if (!sxml_regex_compiler_next(compiler, &codepoint) || codepoint != ')') {
-        return SXML_REGEX_INVALID(compiler, "\"(\" without \")\"");
-    }
-    if (!is_capturing) {
+    return sxml_regex_compiler_push_frame(
+        compiler, (sxml_regex_group_frame){
+                      .group_number = group_number,
+                      .branch_start = compiler->counts.instruction_count,
+                      .branch_ends = {.last_instruction_number = 0},
+                      .atom_start = *atom_start,
+                  });
+}
+
+/* Ends the branches of the innermost frame at the current instruction. */
+static void sxml_regex_compiler_end_branches(sxml_regex_compiler *compiler) {
+    const sxml_regex_group_frame *frame =
+        &compiler->frames[compiler->frame_count - 1];
+    sxml_regex_pending_targets_resolve(compiler, frame->branch_ends,
+                                       compiler->counts.instruction_count);
+}
+
+/*
+ * Reads the ")" of the innermost group, ends it and pops its frame,
+ * writing where the group's atom started to *atom_start.
+ */
+static sxml_status sxml_regex_compiler_close_group(
+    sxml_regex_compiler *compiler, sxml_regex_atom_start *atom_start) {
+    sxml_regex_compiler_end_branches(compiler);
+    const sxml_regex_group_frame frame =
+        compiler->frames[compiler->frame_count - 1];
+    compiler->frame_count -= 1;
+    uint32_t codepoint = 0;
+    (void)sxml_regex_compiler_next(compiler, &codepoint);
+    *atom_start = frame.atom_start;
+    if (frame.group_number == 0) {
         return SXML_STATUS_OK;
     }
     return sxml_regex_compiler_emit_operation(
-        compiler, SXML_REGEX_OPERATION_SAVE, 2 * group_number + 1);
+        compiler, SXML_REGEX_OPERATION_SAVE, 2 * frame.group_number + 1);
+}
+
+/*
+ * Reads a "|": the branch before it gets a split at its start that prefers
+ * it, and a jump to the end of the group; the next branch starts after.
+ */
+static sxml_status sxml_regex_compiler_start_next_branch(
+    sxml_regex_compiler *compiler) {
+    sxml_regex_group_frame *frame = &compiler->frames[compiler->frame_count - 1];
+    uint32_t codepoint = 0;
+    (void)sxml_regex_compiler_next(compiler, &codepoint);
+    uint32_t split_index = frame->branch_start;
+    sxml_status status = sxml_regex_compiler_insert(
+        compiler, (sxml_regex_instruction_range){
+                      .first_instruction_index = split_index,
+                      .instruction_count = 1,
+                  });
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_regex_compiler_write(
+        compiler, split_index,
+        (sxml_regex_instruction){
+            .operation = SXML_REGEX_OPERATION_SPLIT_NEXT_FIRST, .operand = 0});
+    uint32_t jump_index = 0;
+    status = sxml_regex_compiler_emit(
+        compiler,
+        (sxml_regex_instruction){.operation = SXML_REGEX_OPERATION_JUMP,
+                                 .operand = 0},
+        &jump_index);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_regex_pending_targets_add(compiler, &frame->branch_ends, jump_index);
+    frame->branch_start = compiler->counts.instruction_count;
+    sxml_regex_compiler_patch(compiler, split_index, frame->branch_start);
+    return SXML_STATUS_OK;
 }
 
 /* Reads an escape outside a class after its backslash. */
@@ -1114,55 +1396,6 @@ static sxml_status sxml_regex_compiler_parse_escape(
             compiler, SXML_REGEX_OPERATION_BACK_REFERENCE, group_number);
     }
     return sxml_regex_compiler_reject_escape(compiler, escaped_codepoint);
-}
-
-/* Reads one atom (F&O 4.0, section 6.1.3, atom) and emits it. */
-static sxml_status sxml_regex_compiler_parse_atom(
-    sxml_regex_compiler *compiler) {
-    if (compiler->atom_parse_count >= compiler->maximum_instruction_count) {
-        return SXML_STATUS_LIMIT_EXCEEDED;
-    }
-    compiler->atom_parse_count += 1;
-    uint32_t codepoint = 0;
-    if (!sxml_regex_compiler_next(compiler, &codepoint)) {
-        return SXML_REGEX_INVALID(compiler, "missing atom");
-    }
-    switch (codepoint) {
-    case '(':
-        return sxml_regex_compiler_parse_group(compiler);
-    case '[': {
-        uint32_t class_index = 0;
-        sxml_status status =
-            sxml_regex_compiler_parse_class_expression(compiler, &class_index);
-        if (status != SXML_STATUS_OK) {
-            return status;
-        }
-        return sxml_regex_compiler_emit_class_instruction(compiler,
-                                                          class_index);
-    }
-    case '.':
-        return sxml_regex_compiler_emit_operation(
-            compiler,
-            compiler->flags.is_dot_all ? SXML_REGEX_OPERATION_ANY
-                                       : SXML_REGEX_OPERATION_ANY_BUT_NEWLINE,
-            0);
-    case '\\':
-        return sxml_regex_compiler_parse_escape(compiler);
-    case '?':
-    case '*':
-    case '+':
-    case '{':
-        return SXML_REGEX_INVALID(compiler,
-                                  "a quantifier must follow an atom");
-    case '}':
-    case ']':
-    case ')':
-    case '|':
-        return SXML_REGEX_INVALID(compiler,
-                                  "a metacharacter must be escaped here");
-    default:
-        return sxml_regex_compiler_emit_literal(compiler, codepoint);
-    }
 }
 
 typedef struct sxml_regex_quantifier {
@@ -1267,101 +1500,173 @@ static sxml_status sxml_regex_compiler_parse_quantifier(
     return SXML_STATUS_OK;
 }
 
-/* Where an atom is in the regex text, so that it can be parsed again for
-   each copy a quantifier needs. */
-typedef struct sxml_regex_atom_extent {
-    size_t start_byte_offset;
-    size_t end_byte_offset;
-    /* Groups opened before the atom: every copy numbers its groups alike. */
-    uint32_t group_count_before;
-} sxml_regex_atom_extent;
+/* The split of a quantifier: a greedy one prefers another copy, a
+   reluctant one the rest of the regex (section 6.1.4). */
+static sxml_regex_operation sxml_regex_quantifier_split_operation(
+    sxml_regex_quantifier quantifier) {
+    return quantifier.is_reluctant ? SXML_REGEX_OPERATION_SPLIT_TARGET_FIRST
+                                   : SXML_REGEX_OPERATION_SPLIT_NEXT_FIRST;
+}
 
-static sxml_status sxml_regex_compiler_emit_atom_copy(
-    sxml_regex_compiler *compiler, sxml_regex_atom_extent extent) {
-    compiler->byte_offset = extent.start_byte_offset;
-    compiler->counts.group_count = extent.group_count_before;
-    sxml_status status = sxml_regex_compiler_parse_atom(compiler);
+/*
+ * Ends the unbounded loop whose split is at loop_start and whose progress
+ * register is in progress_slot, after the copy of its atom: a check that
+ * the iteration consumed something, a jump back, and the split's exit.
+ */
+static sxml_status sxml_regex_compiler_end_loop(sxml_regex_compiler *compiler,
+                                                uint32_t loop_start,
+                                                uint32_t progress_slot) {
+    sxml_status status = sxml_regex_compiler_emit_operation(
+        compiler, SXML_REGEX_OPERATION_CHECK_PROGRESS, progress_slot);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_regex_compiler_emit_operation(
+            compiler, SXML_REGEX_OPERATION_JUMP, loop_start);
+    }
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    if (compiler->byte_offset != extent.end_byte_offset) {
-        return SXML_REGEX_INVALID(compiler, "malformed atom");
-    }
+    sxml_regex_compiler_patch(compiler, loop_start,
+                              compiler->counts.instruction_count);
     return SXML_STATUS_OK;
 }
 
-/* Emits an atom with a quantifier: the minimum number of copies, then a
-   loop or the optional copies (section 6.1.4 for reluctance). */
-static sxml_status sxml_regex_compiler_emit_quantified_atom(
-    sxml_regex_compiler *compiler, sxml_regex_atom_extent extent,
+/* For x* and x*?: puts the loop's split and progress save before the atom
+   just emitted, and ends the loop after it. */
+static sxml_status sxml_regex_compiler_wrap_in_loop(
+    sxml_regex_compiler *compiler, const sxml_regex_atom_copy_source *atom,
     sxml_regex_quantifier quantifier) {
-    sxml_status status = SXML_STATUS_OK;
-    if (quantifier.maximum_count == 0 && !quantifier.is_unbounded) {
-        /* x{0}: parsed for its errors and group numbers, then dropped. */
-        sxml_regex_counts saved_counts = compiler->counts;
-        status = sxml_regex_compiler_emit_atom_copy(compiler, extent);
-        uint32_t group_count = compiler->counts.group_count;
-        compiler->counts = saved_counts;
-        compiler->counts.group_count = group_count;
+    uint32_t loop_start = atom->instructions.first_instruction_index;
+    sxml_status status = sxml_regex_compiler_insert(
+        compiler, (sxml_regex_instruction_range){
+                      .first_instruction_index = loop_start,
+                      .instruction_count = 2,
+                  });
+    if (status != SXML_STATUS_OK) {
         return status;
     }
-    for (uint32_t copy_number = 0; copy_number < quantifier.minimum_count;
-         copy_number++) {
-        status = sxml_regex_compiler_emit_atom_copy(compiler, extent);
-        if (status != SXML_STATUS_OK) {
-            return status;
-        }
+    uint32_t progress_slot = sxml_regex_compiler_add_register(compiler);
+    sxml_regex_compiler_write(
+        compiler, loop_start,
+        (sxml_regex_instruction){
+            .operation = sxml_regex_quantifier_split_operation(quantifier),
+            .operand = 0});
+    sxml_regex_compiler_write(
+        compiler, loop_start + 1,
+        (sxml_regex_instruction){.operation = SXML_REGEX_OPERATION_SAVE,
+                                 .operand = progress_slot});
+    return sxml_regex_compiler_end_loop(compiler, loop_start, progress_slot);
+}
+
+/* For x{n,} with n at least 1: appends a loop over another copy. */
+static sxml_status sxml_regex_compiler_emit_loop(
+    sxml_regex_compiler *compiler, const sxml_regex_atom_copy_source *atom,
+    sxml_regex_quantifier quantifier) {
+    uint32_t loop_start = 0;
+    sxml_status status = sxml_regex_compiler_emit(
+        compiler,
+        (sxml_regex_instruction){
+            .operation = sxml_regex_quantifier_split_operation(quantifier),
+            .operand = 0},
+        &loop_start);
+    if (status != SXML_STATUS_OK) {
+        return status;
     }
-    sxml_regex_operation split_operation =
-        quantifier.is_reluctant ? SXML_REGEX_OPERATION_SPLIT_TARGET_FIRST
-                                : SXML_REGEX_OPERATION_SPLIT_NEXT_FIRST;
-    if (quantifier.is_unbounded) {
-        uint32_t loop_start = 0;
-        status = sxml_regex_compiler_emit(
-            compiler,
-            (sxml_regex_instruction){.operation = split_operation,
-                                     .operand = 0},
-            &loop_start);
-        if (status != SXML_STATUS_OK) {
-            return status;
-        }
-        uint32_t progress_slot = 2 * (compiler->total_group_count + 1) +
-                                 compiler->counts.register_count;
-        compiler->counts.register_count += 1;
-        status = sxml_regex_compiler_emit_operation(
-            compiler, SXML_REGEX_OPERATION_SAVE, progress_slot);
-        if (status == SXML_STATUS_OK) {
-            status = sxml_regex_compiler_emit_atom_copy(compiler, extent);
-        }
-        if (status == SXML_STATUS_OK) {
-            status = sxml_regex_compiler_emit_operation(
-                compiler, SXML_REGEX_OPERATION_CHECK_PROGRESS, progress_slot);
-        }
-        if (status == SXML_STATUS_OK) {
-            status = sxml_regex_compiler_emit_operation(
-                compiler, SXML_REGEX_OPERATION_JUMP, loop_start);
-        }
-        if (status != SXML_STATUS_OK) {
-            return status;
-        }
-        sxml_regex_compiler_patch(compiler, loop_start,
-                                  compiler->counts.instruction_count);
+    uint32_t progress_slot = sxml_regex_compiler_add_register(compiler);
+    status = sxml_regex_compiler_emit_operation(
+        compiler, SXML_REGEX_OPERATION_SAVE, progress_slot);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_regex_compiler_emit_copy(compiler, atom);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_regex_compiler_end_loop(compiler, loop_start, progress_slot);
+}
+
+/*
+ * Applies a quantifier to the atom just emitted, which started at
+ * atom_start: the minimum number of copies, then a loop or the optional
+ * copies, each optional copy after a split to the end (section 6.1.4 for
+ * reluctance). The atom's own instructions are the first copy; when the
+ * minimum is 0, what precedes the first optional copy is inserted before
+ * them.
+ */
+static sxml_status sxml_regex_compiler_apply_quantifier(
+    sxml_regex_compiler *compiler, const sxml_regex_atom_start *atom_start,
+    sxml_regex_quantifier quantifier) {
+    if (!quantifier.is_present) {
         return SXML_STATUS_OK;
     }
+    if (quantifier.maximum_count == 0 && !quantifier.is_unbounded) {
+        /* x{0}: parsed for its errors and group numbers, then dropped;
+           what it wrote still had to fit the arrays. */
+        sxml_regex_compiler_note_array_counts(compiler);
+        uint32_t group_count = compiler->counts.group_count;
+        compiler->counts = atom_start->counts;
+        compiler->counts.group_count = group_count;
+        return SXML_STATUS_OK;
+    }
+    sxml_regex_atom_copy_source atom = {
+        .instructions =
+            {
+                .first_instruction_index =
+                    atom_start->counts.instruction_count,
+                .instruction_count = compiler->counts.instruction_count -
+                                     atom_start->counts.instruction_count,
+            },
+        .first_register_number = atom_start->counts.register_count,
+        .register_count = compiler->counts.register_count -
+                          atom_start->counts.register_count,
+        .atom_parse_count =
+            compiler->atom_parse_count - atom_start->atom_parse_count,
+    };
     sxml_regex_pending_targets exits = {.last_instruction_number = 0};
-    for (uint32_t copy_number = quantifier.minimum_count;
-         copy_number < quantifier.maximum_count; copy_number++) {
+    sxml_status status = SXML_STATUS_OK;
+    if (quantifier.minimum_count == 0) {
+        if (quantifier.is_unbounded) {
+            return sxml_regex_compiler_wrap_in_loop(compiler, &atom,
+                                                    quantifier);
+        }
+        uint32_t split_index = atom.instructions.first_instruction_index;
+        status = sxml_regex_compiler_insert(
+            compiler, (sxml_regex_instruction_range){
+                          .first_instruction_index = split_index,
+                          .instruction_count = 1,
+                      });
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        sxml_regex_compiler_write(
+            compiler, split_index,
+            (sxml_regex_instruction){
+                .operation = sxml_regex_quantifier_split_operation(quantifier),
+                .operand = 0});
+        sxml_regex_pending_targets_add(compiler, &exits, split_index);
+        atom.instructions.first_instruction_index = split_index + 1;
+    }
+    /* Copies present so far: the atom's own instructions. */
+    uint32_t copy_count = 1;
+    for (; copy_count < quantifier.minimum_count; copy_count++) {
+        status = sxml_regex_compiler_emit_copy(compiler, &atom);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+    }
+    if (quantifier.is_unbounded) {
+        return sxml_regex_compiler_emit_loop(compiler, &atom, quantifier);
+    }
+    for (; copy_count < quantifier.maximum_count; copy_count++) {
         uint32_t split_index = 0;
         status = sxml_regex_compiler_emit(
             compiler,
-            (sxml_regex_instruction){.operation = split_operation,
-                                     .operand = 0},
+            (sxml_regex_instruction){
+                .operation = sxml_regex_quantifier_split_operation(quantifier),
+                .operand = 0},
             &split_index);
-        if (status != SXML_STATUS_OK) {
-            return status;
+        if (status == SXML_STATUS_OK) {
+            sxml_regex_pending_targets_add(compiler, &exits, split_index);
+            status = sxml_regex_compiler_emit_copy(compiler, &atom);
         }
-        sxml_regex_pending_targets_add(compiler, &exits, split_index);
-        status = sxml_regex_compiler_emit_atom_copy(compiler, extent);
         if (status != SXML_STATUS_OK) {
             return status;
         }
@@ -1371,128 +1676,155 @@ static sxml_status sxml_regex_compiler_emit_quantified_atom(
     return SXML_STATUS_OK;
 }
 
-/* Reads one piece: an assertion, or an atom with an optional quantifier. */
-static sxml_status sxml_regex_compiler_parse_piece(
-    sxml_regex_compiler *compiler) {
-    uint32_t codepoint = 0;
-    (void)sxml_regex_compiler_peek(compiler, &codepoint);
-    if (codepoint == '^' || codepoint == '$') {
-        (void)sxml_regex_compiler_next(compiler, &codepoint);
-        sxml_regex_operation operation =
-            codepoint == '^'
-                ? (compiler->flags.is_multi_line
-                       ? SXML_REGEX_OPERATION_LINE_START
-                       : SXML_REGEX_OPERATION_STRING_START)
-                : (compiler->flags.is_multi_line
-                       ? SXML_REGEX_OPERATION_LINE_END
-                       : SXML_REGEX_OPERATION_STRING_END);
-        uint32_t following_codepoint = 0;
-        if (sxml_regex_compiler_peek(compiler, &following_codepoint) &&
-            (following_codepoint == '?' || following_codepoint == '*' ||
-             following_codepoint == '+' || following_codepoint == '{')) {
-            /* F&O 4.0, section 6.1.8. */
-            return SXML_REGEX_INVALID(
-                compiler, "an assertion cannot have a quantifier");
-        }
-        return sxml_regex_compiler_emit_operation(compiler, operation, 0);
-    }
-    sxml_regex_atom_extent extent = {
-        .start_byte_offset = compiler->byte_offset,
-        .end_byte_offset = 0,
-        .group_count_before = compiler->counts.group_count,
-    };
-    sxml_regex_compiler_skip_atom(compiler);
-    extent.end_byte_offset = compiler->byte_offset;
+/* Reads the optional quantifier of the atom just emitted and applies it. */
+static sxml_status sxml_regex_compiler_end_atom(
+    sxml_regex_compiler *compiler, const sxml_regex_atom_start *atom_start) {
     sxml_regex_quantifier quantifier = {.is_present = false};
     sxml_status status =
         sxml_regex_compiler_parse_quantifier(compiler, &quantifier);
     if (status != SXML_STATUS_OK) {
-        /* An error in the atom comes before an error in its quantifier. */
-        size_t quantifier_byte_offset = compiler->byte_offset;
-        compiler->byte_offset = extent.start_byte_offset;
-        sxml_regex_counts saved_counts = compiler->counts;
-        sxml_status atom_status = sxml_regex_compiler_parse_atom(compiler);
-        compiler->counts = saved_counts;
-        compiler->byte_offset = quantifier_byte_offset;
-        return atom_status != SXML_STATUS_OK ? atom_status : status;
+        return status;
     }
-    size_t after_quantifier_byte_offset = compiler->byte_offset;
-    if (quantifier.is_present) {
-        status = sxml_regex_compiler_emit_quantified_atom(compiler, extent,
-                                                          quantifier);
-    } else {
-        status = sxml_regex_compiler_emit_atom_copy(compiler, extent);
-    }
-    compiler->byte_offset = after_quantifier_byte_offset;
-    return status;
-}
-
-/* Reads a branch: pieces up to "|", ")" or the end. */
-static sxml_status sxml_regex_compiler_parse_branch(
-    sxml_regex_compiler *compiler) {
-    uint32_t codepoint = 0;
-    while (sxml_regex_compiler_peek(compiler, &codepoint) && codepoint != '|' &&
-           codepoint != ')') {
-        sxml_status status = sxml_regex_compiler_parse_piece(compiler);
-        if (status != SXML_STATUS_OK) {
-            return status;
-        }
-    }
-    return SXML_STATUS_OK;
+    return sxml_regex_compiler_apply_quantifier(compiler, atom_start,
+                                                quantifier);
 }
 
 /*
- * Reads a regExp: branches separated by "|", up to ")" or the end. The
- * first matching branch is chosen (F&O 4.0, section 6.1.1), so each branch
- * but the last starts with a split that prefers it.
+ * Reads one atom (F&O 4.0, section 6.1.3, atom) and emits it with its
+ * quantifier; a group's "(" only opens the group, which its ")" ends.
  */
-static sxml_status sxml_regex_compiler_parse_alternation(
+static sxml_status sxml_regex_compiler_parse_atom(
     sxml_regex_compiler *compiler) {
-    uint32_t branch_count = sxml_regex_compiler_count_branches(compiler);
-    sxml_regex_pending_targets ends = {.last_instruction_number = 0};
-    for (uint32_t branch_number = 1; branch_number <= branch_count;
-         branch_number++) {
-        bool is_last_branch = branch_number == branch_count;
-        uint32_t split_index = 0;
-        sxml_status status = SXML_STATUS_OK;
-        if (!is_last_branch) {
-            status = sxml_regex_compiler_emit(
-                compiler,
-                (sxml_regex_instruction){
-                    .operation = SXML_REGEX_OPERATION_SPLIT_NEXT_FIRST,
-                    .operand = 0},
-                &split_index);
-            if (status != SXML_STATUS_OK) {
-                return status;
-            }
-        }
-        status = sxml_regex_compiler_parse_branch(compiler);
-        if (status != SXML_STATUS_OK) {
-            return status;
-        }
-        if (is_last_branch) {
-            break;
-        }
-        uint32_t jump_index = 0;
-        status = sxml_regex_compiler_emit(
-            compiler,
-            (sxml_regex_instruction){.operation = SXML_REGEX_OPERATION_JUMP,
-                                     .operand = 0},
-            &jump_index);
-        if (status != SXML_STATUS_OK) {
-            return status;
-        }
-        sxml_regex_pending_targets_add(compiler, &ends, jump_index);
-        sxml_regex_compiler_patch(compiler, split_index,
-                                  compiler->counts.instruction_count);
-        uint32_t codepoint = 0;
-        if (!sxml_regex_compiler_next(compiler, &codepoint) || codepoint != '|') {
-            return SXML_REGEX_INVALID(compiler, "malformed alternation");
-        }
+    sxml_regex_atom_start atom_start = {
+        .counts = compiler->counts,
+        .atom_parse_count = compiler->atom_parse_count,
+    };
+    if (compiler->atom_parse_count >= compiler->maximum_instruction_count) {
+        return SXML_STATUS_LIMIT_EXCEEDED;
     }
-    sxml_regex_pending_targets_resolve(compiler, ends,
-                                       compiler->counts.instruction_count);
-    return SXML_STATUS_OK;
+    compiler->atom_parse_count += 1;
+    uint32_t codepoint = 0;
+    if (!sxml_regex_compiler_next(compiler, &codepoint)) {
+        return SXML_REGEX_INVALID(compiler, "missing atom");
+    }
+    sxml_status status = SXML_STATUS_OK;
+    switch (codepoint) {
+    case '(':
+        return sxml_regex_compiler_open_group(compiler, &atom_start);
+    case '[': {
+        uint32_t class_index = 0;
+        status =
+            sxml_regex_compiler_parse_class_expression(compiler, &class_index);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_regex_compiler_emit_class_instruction(compiler,
+                                                                class_index);
+        }
+        break;
+    }
+    case '.':
+        status = sxml_regex_compiler_emit_operation(
+            compiler,
+            compiler->flags.is_dot_all ? SXML_REGEX_OPERATION_ANY
+                                       : SXML_REGEX_OPERATION_ANY_BUT_NEWLINE,
+            0);
+        break;
+    case '\\':
+        status = sxml_regex_compiler_parse_escape(compiler);
+        break;
+    case '?':
+    case '*':
+    case '+':
+    case '{':
+        return SXML_REGEX_INVALID(compiler,
+                                  "a quantifier must follow an atom");
+    case '}':
+    case ']':
+    case ')':
+    case '|':
+        return SXML_REGEX_INVALID(compiler,
+                                  "a metacharacter must be escaped here");
+    default:
+        status = sxml_regex_compiler_emit_literal(compiler, codepoint);
+        break;
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_regex_compiler_end_atom(compiler, &atom_start);
+}
+
+/* Reads "^" or "$" (already peeked), which takes no quantifier. */
+static sxml_status sxml_regex_compiler_parse_assertion(
+    sxml_regex_compiler *compiler) {
+    uint32_t codepoint = 0;
+    (void)sxml_regex_compiler_next(compiler, &codepoint);
+    sxml_regex_operation operation =
+        codepoint == '^'
+            ? (compiler->flags.is_multi_line ? SXML_REGEX_OPERATION_LINE_START
+                                             : SXML_REGEX_OPERATION_STRING_START)
+            : (compiler->flags.is_multi_line ? SXML_REGEX_OPERATION_LINE_END
+                                             : SXML_REGEX_OPERATION_STRING_END);
+    uint32_t following_codepoint = 0;
+    if (sxml_regex_compiler_peek(compiler, &following_codepoint) &&
+        (following_codepoint == '?' || following_codepoint == '*' ||
+         following_codepoint == '+' || following_codepoint == '{')) {
+        /* F&O 4.0, section 6.1.8. */
+        return SXML_REGEX_INVALID(compiler,
+                                  "an assertion cannot have a quantifier");
+    }
+    return sxml_regex_compiler_emit_operation(compiler, operation, 0);
+}
+
+/* Reads one step of a regExp inside a group: a "|", the group's ")", an
+   assertion or an atom. */
+static sxml_status sxml_regex_compiler_parse_step(
+    sxml_regex_compiler *compiler) {
+    uint32_t codepoint = 0;
+    bool has_codepoint = sxml_regex_compiler_peek(compiler, &codepoint);
+    if (!has_codepoint || codepoint == ')') {
+        if (!has_codepoint) {
+            return SXML_REGEX_INVALID(compiler, "\"(\" without \")\"");
+        }
+        sxml_regex_atom_start atom_start = {.atom_parse_count = 0};
+        sxml_status status =
+            sxml_regex_compiler_close_group(compiler, &atom_start);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        return sxml_regex_compiler_end_atom(compiler, &atom_start);
+    }
+    if (codepoint == '|') {
+        return sxml_regex_compiler_start_next_branch(compiler);
+    }
+    if (codepoint == '^' || codepoint == '$') {
+        return sxml_regex_compiler_parse_assertion(compiler);
+    }
+    return sxml_regex_compiler_parse_atom(compiler);
+}
+
+/* Reads the whole regex (F&O 4.0, section 6.1.3, regExp) with the frame
+   of the whole regex at the bottom of the group stack. */
+static sxml_status sxml_regex_compiler_parse_regex(
+    sxml_regex_compiler *compiler) {
+    sxml_status status = sxml_regex_compiler_push_frame(
+        compiler, (sxml_regex_group_frame){
+                      .group_number = 0,
+                      .branch_start = compiler->counts.instruction_count,
+                      .branch_ends = {.last_instruction_number = 0},
+                      .atom_start = {.atom_parse_count = 0},
+                  });
+    while (status == SXML_STATUS_OK) {
+        uint32_t codepoint = 0;
+        bool has_codepoint = sxml_regex_compiler_peek(compiler, &codepoint);
+        if (compiler->frame_count == 1 && (!has_codepoint || codepoint == ')')) {
+            sxml_regex_compiler_end_branches(compiler);
+            return has_codepoint
+                       ? SXML_REGEX_INVALID(compiler, "\")\" without \"(\"")
+                       : SXML_STATUS_OK;
+        }
+        status = sxml_regex_compiler_parse_step(compiler);
+    }
+    return status;
 }
 
 /* With the q flag every character stands for itself (section 6.2). */
@@ -1508,6 +1840,9 @@ static sxml_status sxml_regex_compiler_parse_literal_text(
     return SXML_STATUS_OK;
 }
 
+/* The group frames sxml_regex_compile holds itself. */
+#define SXML_REGEX_INLINE_FRAME_COUNT (SXML_REGEX_INLINE_GROUP_DEPTH + 1U)
+
 /*
  * Runs one pass of the compiler: counting when regex is NULL, otherwise
  * writing into regex, whose arrays are sized by a counting pass and whose
@@ -1516,6 +1851,7 @@ static sxml_status sxml_regex_compiler_parse_literal_text(
 static sxml_status sxml_regex_compile(
     const sxml_regex_configuration *configuration, sxml_regex *regex,
     sxml_regex_counts *counts) {
+    sxml_regex_group_frame inline_frames[SXML_REGEX_INLINE_FRAME_COUNT];
     sxml_regex_compiler compiler = {
         .regex_text = configuration->regex_text,
         .byte_offset = 0,
@@ -1523,6 +1859,7 @@ static sxml_status sxml_regex_compile(
         .flags = configuration->flags,
         .regex = regex,
         .counts = {.instruction_count = 0},
+        .array_counts = {.instruction_count = 0},
         .total_group_count = regex == NULL ? 0 : regex->group_count,
         .maximum_instruction_count =
             configuration->maximum_instruction_count == 0
@@ -1531,22 +1868,21 @@ static sxml_status sxml_regex_compile(
         .maximum_group_depth = configuration->maximum_group_depth == 0
                                    ? SXML_REGEX_DEFAULT_MAXIMUM_GROUP_DEPTH
                                    : configuration->maximum_group_depth,
-        .group_depth = 0,
         .atom_parse_count = 0,
-        .innermost_open_group = NULL,
+        .frames = inline_frames,
+        .frame_count = 0,
+        .frame_capacity = SXML_REGEX_INLINE_FRAME_COUNT,
+        .inline_frames = inline_frames,
+        .stack_allocator = configuration->stack_allocator,
         .error_record = configuration->error_record,
     };
     sxml_status status = SXML_STATUS_OK;
     if (compiler.flags.is_literal) {
         status = sxml_regex_compiler_parse_literal_text(&compiler);
     } else {
-        status = sxml_regex_compiler_parse_alternation(&compiler);
-        uint32_t codepoint = 0;
-        if (status == SXML_STATUS_OK &&
-            sxml_regex_compiler_peek(&compiler, &codepoint)) {
-            status = SXML_REGEX_INVALID(&compiler, "\")\" without \"(\"");
-        }
+        status = sxml_regex_compiler_parse_regex(&compiler);
     }
+    sxml_regex_compiler_release_frames(&compiler);
     if (status == SXML_STATUS_OK) {
         status = sxml_regex_compiler_emit_operation(
             &compiler, SXML_REGEX_OPERATION_MATCH, 0);
@@ -1554,7 +1890,11 @@ static sxml_status sxml_regex_compile(
     if (status != SXML_STATUS_OK) {
         return status;
     }
+    sxml_regex_compiler_note_array_counts(&compiler);
     *counts = compiler.counts;
+    counts->instruction_count = compiler.array_counts.instruction_count;
+    counts->class_count = compiler.array_counts.class_count;
+    counts->class_item_count = compiler.array_counts.class_item_count;
     return SXML_STATUS_OK;
 }
 
@@ -1720,9 +2060,13 @@ void sxml_regex_finalize(sxml_regex *regex) {
 sxml_status sxml_regex_create(sxml_allocator allocator,
                               const sxml_regex_configuration *configuration,
                               sxml_regex **regex) {
+    sxml_regex_configuration compiling_configuration = *configuration;
+    if (sxml_allocator_is_null(compiling_configuration.stack_allocator)) {
+        compiling_configuration.stack_allocator = allocator;
+    }
     sxml_memory_requirements requirements = {.byte_count = 0, .alignment = 1};
-    sxml_status status =
-        sxml_regex_memory_requirements(configuration, &requirements);
+    sxml_status status = sxml_regex_memory_requirements(
+        &compiling_configuration, &requirements);
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -1740,7 +2084,7 @@ sxml_status sxml_regex_create(sxml_allocator allocator,
     status = sxml_regex_initialize(
         (sxml_memory_view){.bytes = memory,
                            .byte_count = requirements.byte_count},
-        configuration, &new_regex);
+        &compiling_configuration, &new_regex);
     if (status != SXML_STATUS_OK) {
         sxml_allocator_release(allocator, memory);
         return status;
@@ -2071,12 +2415,11 @@ static bool sxml_regex_class_item_contains(const sxml_regex_class_item *item,
     return is_member != item->is_complemented;
 }
 
-/* True when codepoint is in class class_index (recursion depth bounded by
-   maximum_group_depth, through nested subtraction). */
-static bool sxml_regex_class_contains(const sxml_regex *regex,
-                                      uint32_t class_index,
-                                      uint32_t codepoint) {
-    const sxml_regex_class *regex_class = &regex->classes[class_index];
+/* True when codepoint is in the class's own items, with its negation but
+   without its subtraction. */
+static bool sxml_regex_class_own_contains(const sxml_regex_class *regex_class,
+                                          const sxml_regex *regex,
+                                          uint32_t codepoint) {
     bool is_member = false;
     for (uint32_t item_index = regex_class->first_item_index;
          item_index < regex_class->first_item_index + regex_class->item_count;
@@ -2087,14 +2430,34 @@ static bool sxml_regex_class_contains(const sxml_regex *regex,
             break;
         }
     }
-    if (regex_class->is_negated) {
-        is_member = !is_member;
+    return is_member != regex_class->is_negated;
+}
+
+/*
+ * True when codepoint is in class class_index. A class with a subtraction
+ * contains what its own items contain and the subtracted class does not
+ * (XSD 1.1 Part 2, appendix G, charClassSub), so along the chain of
+ * subtracted classes C0, C1, ... membership is own(C0) and not (own(C1)
+ * and not (...)): a loop that stops at the first class whose own items
+ * leave codepoint out, or at the end of the chain, and counts the
+ * negations passed. Subtracted classes come later in the class array, so
+ * the chain ends.
+ */
+static bool sxml_regex_class_contains(const sxml_regex *regex,
+                                      uint32_t class_index,
+                                      uint32_t codepoint) {
+    bool is_negated = false;
+    const sxml_regex_class *regex_class = &regex->classes[class_index];
+    for (;;) {
+        if (!sxml_regex_class_own_contains(regex_class, regex, codepoint)) {
+            return is_negated;
+        }
+        if (regex_class->subtracted_class_number == 0) {
+            return !is_negated;
+        }
+        is_negated = !is_negated;
+        regex_class = &regex->classes[regex_class->subtracted_class_number - 1];
     }
-    if (is_member && regex_class->subtracted_class_number != 0) {
-        is_member = !sxml_regex_class_contains(
-            regex, regex_class->subtracted_class_number - 1, codepoint);
-    }
-    return is_member;
 }
 
 /* Reads the codepoint at *byte_offset and advances it; false at the end. */

@@ -908,6 +908,335 @@ static void test_fixed_backtrack_stack_reports_capacity(
     sxml_regex_destroy(regex);
 }
 
+/* ------------------------------------------- Copies and deep nesting (D71) */
+
+/* Quantified atoms are emitted once and copied; these match as when every
+   copy was parsed again (the results are those of the earlier parser). */
+static void test_quantified_copies_match_alike(sxml_test_state *state) {
+    static const struct {
+        test_search search;
+        const char *expected;
+    } cases[] = {
+        {{"(a*b){2,3}", "", "abaabbx"}, "[abaabb]<b>"},
+        {{"(?:x(a|b)*y){2}", "", "xabyxbaay"}, "[xabyxbaay]<a>"},
+        {{"(a|b){0,2}c", "", "abc"}, "[abc]<b>"},
+        {{"(a|b){0,2}c", "", "c"}, "[c]<->"},
+        {{"(a){0}b\\1", "", "b"}, "[b]<->"},
+        {{"(?:a{2}){2,}", "", "aaaaaaa"}, "[aaaaaa]"},
+        {{"a{2,4}?", "", "aaaa"}, "[aa]"},
+        {{"(?:ab){1,2}?c", "", "ababc"}, "[ababc]"},
+        {{"a*?b", "", "aab"}, "[aab]"},
+        {{"(?:a?b)+", "", "abbab"}, "[abbab]"},
+        {{"(?:a|bc){3}", "", "bcabca"}, "[bcabc]"},
+        {{"(a|)+b", "", "aab"}, "[aab]<a>"},
+        {{"((a)|b)*?c", "", "abac"}, "[abac]<a><a>"},
+        {{"(?:(a*)+){2}b", "", "aab"}, "[aab]<>"},
+        {{"x(?:a*|b)*y", "", "xabay"}, "[xabay]"},
+        {{"([ab])(?:[a-c-[b]]\\1){2,3}", "", "aaacaba"}, "[aaaca]<a>"},
+        {{"(?:a|b|c){2}d", "", "cbd"}, "[cbd]"},
+        /* What a dropped x{0} wrote at the end still fits the arrays. */
+        {{"a(bc|[de]){0}", "", "xa"}, "[a]<->"},
+        {{"a[a-z-[b]]{0}", "", "a"}, "[a]"},
+    };
+    for (size_t case_index = 0; case_index < sizeof(cases) / sizeof(cases[0]);
+         case_index++) {
+        SXML_TEST_EXPECT(state, test_first_match_is(cases[case_index].search,
+                                                    cases[case_index].expected));
+    }
+}
+
+/* A text of opening repeated depth times, middle, then closing repeated
+   depth times. */
+typedef struct test_nested_text {
+    const char *opening;
+    const char *middle;
+    const char *closing;
+    size_t depth;
+} test_nested_text;
+
+/* Builds the text in memory from the default allocator; NULL when that
+   fails. Release with sxml_allocator_release. */
+static char *test_build_nested_text(const test_nested_text *nested) {
+    size_t opening_count = strlen(nested->opening);
+    size_t middle_count = strlen(nested->middle);
+    size_t closing_count = strlen(nested->closing);
+    size_t byte_count =
+        nested->depth * (opening_count + closing_count) + middle_count + 1;
+    void *memory = NULL;
+    if (sxml_allocator_allocate(sxml_default_allocator(),
+                                (sxml_allocation_request){
+                                    .byte_count = byte_count, .alignment = 1},
+                                &memory) != SXML_STATUS_OK) {
+        return NULL;
+    }
+    char *text = memory;
+    size_t position = 0;
+    for (size_t level = 0; level < nested->depth; level++) {
+        memcpy(text + position, nested->opening, opening_count);
+        position += opening_count;
+    }
+    memcpy(text + position, nested->middle, middle_count);
+    position += middle_count;
+    for (size_t level = 0; level < nested->depth; level++) {
+        memcpy(text + position, nested->closing, closing_count);
+        position += closing_count;
+    }
+    text[position] = '\0';
+    return text;
+}
+
+/* A search with a deeply nested regex. */
+typedef struct test_deep_search {
+    test_nested_text regex;
+    uint32_t maximum_group_depth;
+    const char *input_text;
+} test_deep_search;
+
+typedef struct test_deep_outcome {
+    /* Of compiling, then of searching. */
+    sxml_status status;
+    sxml_regex_search_result result;
+    uint32_t group_count;
+    /* The captured group with the highest number. */
+    sxml_regex_captured_group last_group;
+    bool is_leak_free;
+} test_deep_outcome;
+
+/* Compiles through a counting allocator, which also holds the group stack,
+   and finds the first match. */
+static test_deep_outcome test_run_deep_search(test_deep_search search) {
+    test_deep_outcome outcome = {.status = SXML_STATUS_OUT_OF_MEMORY,
+                                 .result = {.is_found = false},
+                                 .group_count = 0,
+                                 .last_group = {.is_captured = false},
+                                 .is_leak_free = false};
+    char *regex_text = test_build_nested_text(&search.regex);
+    sxml_counting_allocator *counting_allocator = NULL;
+    if (regex_text == NULL ||
+        sxml_counting_allocator_create(
+            sxml_default_allocator(),
+            &(sxml_counting_allocator_configuration){
+                .backing_allocator = sxml_default_allocator(),
+                .failing_allocation_number = 0,
+            },
+            &counting_allocator) != SXML_STATUS_OK) {
+        sxml_allocator_release(sxml_default_allocator(), regex_text);
+        return outcome;
+    }
+    sxml_allocator allocator =
+        sxml_counting_allocator_as_allocator(counting_allocator);
+    sxml_regex *regex = NULL;
+    sxml_regex_matcher *matcher = NULL;
+    outcome.status = sxml_regex_create(
+        allocator,
+        &(sxml_regex_configuration){
+            .regex_text = test_string(regex_text),
+            .maximum_group_depth = search.maximum_group_depth,
+        },
+        &regex);
+    if (outcome.status == SXML_STATUS_OK) {
+        outcome.group_count = sxml_regex_group_count(regex);
+        outcome.status = sxml_regex_matcher_create(
+            allocator,
+            &(sxml_regex_matcher_configuration){.regex = regex,
+                                                .backtrack_allocator =
+                                                    allocator},
+            &matcher);
+    }
+    if (outcome.status == SXML_STATUS_OK) {
+        outcome.status = sxml_regex_matcher_find(
+            matcher,
+            &(sxml_regex_search_request){
+                .regex_input = test_string(search.input_text),
+                .start_byte_offset = 0},
+            &outcome.result);
+    }
+    if (outcome.status == SXML_STATUS_OK && outcome.result.is_found &&
+        sxml_regex_matcher_get_captured_group(matcher, outcome.group_count,
+                                              &outcome.last_group) !=
+            SXML_STATUS_OK) {
+        outcome.last_group.is_captured = false;
+    }
+    sxml_regex_matcher_destroy(matcher);
+    sxml_regex_destroy(regex);
+    sxml_allocation_counts counts =
+        sxml_counting_allocator_read_counts(counting_allocator);
+    sxml_counting_allocator_destroy(counting_allocator);
+    sxml_allocator_release(sxml_default_allocator(), regex_text);
+    outcome.is_leak_free = counts.live_allocation_count == 0;
+    return outcome;
+}
+
+/* True when outcome found the segment at byte_offset of byte_count. */
+static bool test_deep_found(test_deep_outcome outcome, sxml_byte_range segment) {
+    return outcome.status == SXML_STATUS_OK && outcome.is_leak_free &&
+           outcome.result.is_found &&
+           outcome.result.matching_segment.byte_offset == segment.byte_offset &&
+           outcome.result.matching_segment.byte_count == segment.byte_count;
+}
+
+#define TEST_DEEP_NESTING 10000U
+
+static void test_groups_nested_ten_thousand_deep(sxml_test_state *state) {
+    test_nested_text capturing = {.opening = "(", .middle = "a", .closing = ")",
+                                  .depth = TEST_DEEP_NESTING};
+    test_deep_outcome outcome = test_run_deep_search((test_deep_search){
+        .regex = capturing,
+        .maximum_group_depth = TEST_DEEP_NESTING,
+        .input_text = "xay",
+    });
+    SXML_TEST_EXPECT(state, test_deep_found(outcome, (sxml_byte_range){
+                                                         .byte_offset = 1,
+                                                         .byte_count = 1}));
+    SXML_TEST_EXPECT(state, outcome.group_count == TEST_DEEP_NESTING);
+    SXML_TEST_EXPECT(state, outcome.last_group.is_captured &&
+                                outcome.last_group.byte_range.byte_offset == 1 &&
+                                outcome.last_group.byte_range.byte_count == 1);
+    outcome = test_run_deep_search((test_deep_search){
+        .regex = capturing,
+        .maximum_group_depth = TEST_DEEP_NESTING - 1,
+        .input_text = "a",
+    });
+    SXML_TEST_EXPECT(state, outcome.status == SXML_STATUS_LIMIT_EXCEEDED &&
+                                outcome.is_leak_free);
+
+    test_nested_text optional = {.opening = "(?:", .middle = "a",
+                                 .closing = ")?", .depth = TEST_DEEP_NESTING};
+    outcome = test_run_deep_search((test_deep_search){
+        .regex = optional,
+        .maximum_group_depth = TEST_DEEP_NESTING,
+        .input_text = "ba",
+    });
+    SXML_TEST_EXPECT(state, test_deep_found(outcome, (sxml_byte_range){
+                                                         .byte_offset = 0,
+                                                         .byte_count = 0}));
+    outcome = test_run_deep_search((test_deep_search){
+        .regex = optional,
+        .maximum_group_depth = TEST_DEEP_NESTING,
+        .input_text = "ab",
+    });
+    SXML_TEST_EXPECT(state, test_deep_found(outcome, (sxml_byte_range){
+                                                         .byte_offset = 0,
+                                                         .byte_count = 1}));
+
+    test_nested_text alternatives = {.opening = "(?:a|", .middle = "b",
+                                     .closing = ")", .depth = TEST_DEEP_NESTING};
+    outcome = test_run_deep_search((test_deep_search){
+        .regex = alternatives,
+        .maximum_group_depth = TEST_DEEP_NESTING,
+        .input_text = "xb",
+    });
+    SXML_TEST_EXPECT(state, test_deep_found(outcome, (sxml_byte_range){
+                                                         .byte_offset = 1,
+                                                         .byte_count = 1}));
+
+    test_nested_text unclosed = {.opening = "(", .middle = "a", .closing = "",
+                                 .depth = TEST_DEEP_NESTING};
+    outcome = test_run_deep_search((test_deep_search){
+        .regex = unclosed,
+        .maximum_group_depth = TEST_DEEP_NESTING,
+        .input_text = "a",
+    });
+    SXML_TEST_EXPECT(state, outcome.status == SXML_STATUS_DYNAMIC_ERROR &&
+                                outcome.is_leak_free);
+}
+
+static void test_class_subtraction_nested_ten_thousand_deep(
+    sxml_test_state *state) {
+    /* [a-[a-[...[a]...]]]: a chain of n classes holds "a" when n is odd. */
+    test_nested_text odd_chain = {.opening = "[a-", .middle = "[a]",
+                                  .closing = "]", .depth = TEST_DEEP_NESTING};
+    test_deep_outcome outcome = test_run_deep_search((test_deep_search){
+        .regex = odd_chain,
+        .maximum_group_depth = TEST_DEEP_NESTING + 1,
+        .input_text = "ba",
+    });
+    SXML_TEST_EXPECT(state, test_deep_found(outcome, (sxml_byte_range){
+                                                         .byte_offset = 1,
+                                                         .byte_count = 1}));
+    test_nested_text even_chain = odd_chain;
+    even_chain.depth = TEST_DEEP_NESTING - 1;
+    outcome = test_run_deep_search((test_deep_search){
+        .regex = even_chain,
+        .maximum_group_depth = TEST_DEEP_NESTING,
+        .input_text = "ba",
+    });
+    SXML_TEST_EXPECT(state, outcome.status == SXML_STATUS_OK &&
+                                outcome.is_leak_free &&
+                                !outcome.result.is_found);
+    outcome = test_run_deep_search((test_deep_search){
+        .regex = odd_chain,
+        .maximum_group_depth = TEST_DEEP_NESTING,
+        .input_text = "a",
+    });
+    SXML_TEST_EXPECT(state, outcome.status == SXML_STATUS_LIMIT_EXCEEDED &&
+                                outcome.is_leak_free);
+    test_nested_text unclosed = {.opening = "[a-", .middle = "[a]",
+                                 .closing = "", .depth = TEST_DEEP_NESTING};
+    outcome = test_run_deep_search((test_deep_search){
+        .regex = unclosed,
+        .maximum_group_depth = TEST_DEEP_NESTING + 1,
+        .input_text = "a",
+    });
+    SXML_TEST_EXPECT(state, outcome.status == SXML_STATUS_DYNAMIC_ERROR &&
+                                outcome.is_leak_free);
+}
+
+/* Without a stack allocator the compiler holds
+   SXML_REGEX_INLINE_GROUP_DEPTH nested groups. */
+static void test_group_stack_without_allocator(sxml_test_state *state) {
+    for (size_t depth = SXML_REGEX_INLINE_GROUP_DEPTH;
+         depth <= SXML_REGEX_INLINE_GROUP_DEPTH + 1; depth++) {
+        char *regex_text = test_build_nested_text(&(test_nested_text){
+            .opening = "(", .middle = "a", .closing = ")", .depth = depth});
+        SXML_TEST_REQUIRE(state, regex_text != NULL);
+        sxml_memory_requirements requirements = {.byte_count = 0,
+                                                 .alignment = 1};
+        sxml_status status = sxml_regex_memory_requirements(
+            &(sxml_regex_configuration){.regex_text = test_string(regex_text)},
+            &requirements);
+        sxml_allocator_release(sxml_default_allocator(), regex_text);
+        SXML_TEST_EXPECT(state, status == (depth == SXML_REGEX_INLINE_GROUP_DEPTH
+                                               ? SXML_STATUS_OK
+                                               : SXML_STATUS_CAPACITY_EXCEEDED));
+    }
+}
+
+/* Growing the group stack fails cleanly at every allocation (D23). */
+static void test_group_stack_allocation_failures(sxml_test_state *state) {
+    char *regex_text = test_build_nested_text(&(test_nested_text){
+        .opening = "(?:", .middle = "a", .closing = ")*", .depth = 60});
+    SXML_TEST_REQUIRE(state, regex_text != NULL);
+    for (uint64_t failing_allocation_number = 1;; failing_allocation_number++) {
+        sxml_counting_allocator *counting_allocator = NULL;
+        SXML_TEST_REQUIRE(
+            state, sxml_counting_allocator_create(
+                       sxml_default_allocator(),
+                       &(sxml_counting_allocator_configuration){
+                           .backing_allocator = sxml_default_allocator(),
+                           .failing_allocation_number = failing_allocation_number,
+                       },
+                       &counting_allocator) == SXML_STATUS_OK);
+        sxml_regex *regex = NULL;
+        sxml_status status = sxml_regex_create(
+            sxml_counting_allocator_as_allocator(counting_allocator),
+            &(sxml_regex_configuration){.regex_text = test_string(regex_text)},
+            &regex);
+        sxml_regex_destroy(regex);
+        sxml_allocation_counts counts =
+            sxml_counting_allocator_read_counts(counting_allocator);
+        sxml_counting_allocator_destroy(counting_allocator);
+        SXML_TEST_EXPECT(state, counts.live_allocation_count == 0);
+        if (status == SXML_STATUS_OK) {
+            /* Two passes, each growing the stack twice, then the regex. */
+            SXML_TEST_EXPECT(state, failing_allocation_number > 4);
+            break;
+        }
+        SXML_TEST_REQUIRE(state, status == SXML_STATUS_OUT_OF_MEMORY);
+    }
+    sxml_allocator_release(sxml_default_allocator(), regex_text);
+}
+
 static const sxml_test_case regex_test_cases[] = {
     {.name = "flags_are_read", .function = test_flags_are_read},
     {.name = "unknown_flag_raises_forx0001",
@@ -943,6 +1272,16 @@ static const sxml_test_case regex_test_cases[] = {
     {.name = "compile_limits", .function = test_compile_limits},
     {.name = "fixed_backtrack_stack_reports_capacity",
      .function = test_fixed_backtrack_stack_reports_capacity},
+    {.name = "quantified_copies_match_alike",
+     .function = test_quantified_copies_match_alike},
+    {.name = "groups_nested_ten_thousand_deep",
+     .function = test_groups_nested_ten_thousand_deep},
+    {.name = "class_subtraction_nested_ten_thousand_deep",
+     .function = test_class_subtraction_nested_ten_thousand_deep},
+    {.name = "group_stack_without_allocator",
+     .function = test_group_stack_without_allocator},
+    {.name = "group_stack_allocation_failures",
+     .function = test_group_stack_allocation_failures},
 };
 
 int main(int argument_count, char **arguments) {

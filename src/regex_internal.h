@@ -69,8 +69,10 @@
  * SXML_STATUS_LIMIT_EXCEEDED: these bound the work and memory of untrusted
  * regexes (catastrophic backtracking) and are not specification errors.
  * Compiling bounds the instructions (counted repetition is expanded) and
- * the nesting of groups (the parser recurses), also with
- * SXML_STATUS_LIMIT_EXCEEDED.
+ * the nesting of groups, also with SXML_STATUS_LIMIT_EXCEEDED. Nothing
+ * recurses (docs/DECISIONS.md D71): the parser keeps the open groups on a
+ * stack of its own, which needs memory from an allocator beyond
+ * SXML_REGEX_INLINE_GROUP_DEPTH nested groups (D53).
  */
 
 /* ----------------------------------------------------------------- Flags */
@@ -128,6 +130,8 @@ typedef struct sxml_regex sxml_regex;
 /* The largest maximum_instruction_count accepted, so that every count and
    slot number fits uint32_t. */
 #define SXML_REGEX_MAXIMUM_INSTRUCTION_COUNT_LIMIT ((uint32_t)1 << 28U)
+/* Nested groups the compiler holds without stack_allocator. */
+#define SXML_REGEX_INLINE_GROUP_DEPTH 16U
 
 typedef struct sxml_regex_configuration {
     /* The regex. Borrowed for the call: the compiled regex keeps no
@@ -139,10 +143,16 @@ typedef struct sxml_regex_configuration {
        SXML_REGEX_DEFAULT_MAXIMUM_INSTRUCTION_COUNT; at most
        SXML_REGEX_MAXIMUM_INSTRUCTION_COUNT_LIMIT. */
     uint32_t maximum_instruction_count;
-    /* Deepest nesting of groups and of character class subtraction, so
-       that compiling cannot exhaust the C stack. 0 means
-       SXML_REGEX_DEFAULT_MAXIMUM_GROUP_DEPTH. */
+    /* Deepest nesting of groups and of character class subtraction; it
+       bounds the compiler's group stack, which grows through
+       stack_allocator. 0 means SXML_REGEX_DEFAULT_MAXIMUM_GROUP_DEPTH. */
     uint32_t maximum_group_depth;
+    /* Grows the compiler's group stack beyond SXML_REGEX_INLINE_GROUP_DEPTH
+       nested groups; everything it gives is released before the call
+       returns. The null allocator means deeper nesting gives
+       SXML_STATUS_CAPACITY_EXCEEDED; sxml_regex_create uses its own
+       allocator then. Borrowed for the call. */
+    sxml_allocator stack_allocator;
     /* Receives err:FORX0002 on SXML_STATUS_DYNAMIC_ERROR; may be NULL. */
     sxml_error_record *error_record;
 } sxml_regex_configuration;
@@ -155,8 +165,10 @@ typedef struct sxml_regex_configuration {
  * above SXML_REGEX_MAXIMUM_INSTRUCTION_COUNT_LIMIT,
  * SXML_STATUS_DYNAMIC_ERROR (FORX0002) for an invalid or
  * unsupported regex, SXML_STATUS_LIMIT_EXCEEDED when a limit above is
- * reached, SXML_STATUS_ARITHMETIC_OVERFLOW when the size does not fit
- * size_t.
+ * reached, SXML_STATUS_CAPACITY_EXCEEDED for nesting deeper than
+ * SXML_REGEX_INLINE_GROUP_DEPTH without a stack allocator, the failures
+ * of the stack allocator, and SXML_STATUS_ARITHMETIC_OVERFLOW when the
+ * size does not fit size_t.
  */
 SXML_NODISCARD sxml_status sxml_regex_memory_requirements(
     const sxml_regex_configuration *configuration,
@@ -177,7 +189,9 @@ void sxml_regex_finalize(sxml_regex *regex);
 
 /*
  * Allocates the memory of sxml_regex_memory_requirements through allocator
- * and compiles into it. allocator is stored and must outlive the regex.
+ * and compiles into it. allocator is stored and must outlive the regex; it
+ * also grows the group stack when configuration->stack_allocator is the
+ * null allocator.
  */
 SXML_NODISCARD sxml_status sxml_regex_create(
     sxml_allocator allocator, const sxml_regex_configuration *configuration,
