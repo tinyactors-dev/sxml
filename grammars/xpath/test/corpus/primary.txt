@@ -1,0 +1,375 @@
+============================================================
+Numeric literals
+============================================================
+
+(1, 1_000, 0x1F, 0b1010, .5, 1.5, 1., 1e3, 1.5E-3)
+
+---
+
+(xpath
+  (parenthesized_expression
+    (sequence_expression
+      (integer_literal)
+      (integer_literal)
+      (hex_integer_literal)
+      (binary_integer_literal)
+      (decimal_literal)
+      (decimal_literal)
+      (decimal_literal)
+      (double_literal)
+      (double_literal))))
+
+============================================================
+String literals with escapes
+============================================================
+
+("a""b", 'c''d')
+
+---
+
+(xpath
+  (parenthesized_expression
+    (sequence_expression
+      (string_literal)
+      (string_literal))))
+
+============================================================
+QName literal
+============================================================
+
+#xs:integer
+
+---
+
+(xpath
+  (qname_literal
+    (prefixed_name)))
+
+============================================================
+Variable reference
+============================================================
+
+$Q{urn:x}y
+
+---
+
+(xpath
+  (variable_reference
+    (uri_qualified_name)))
+
+============================================================
+Empty parentheses
+============================================================
+
+()
+
+---
+
+(xpath
+  (parenthesized_expression))
+
+============================================================
+Context value
+============================================================
+
+.
+
+---
+
+(xpath
+  (context_value_reference))
+
+============================================================
+Function calls with keyword arguments
+============================================================
+
+f(1, ?, value := 2)
+
+---
+
+(xpath
+  (function_call
+    (ncname)
+    (argument_list
+      (integer_literal)
+      (argument_placeholder)
+      (keyword_argument
+        (ncname)
+        (integer_literal)))))
+
+============================================================
+Keyword arguments only
+============================================================
+
+fn:format(picture := "x")
+
+---
+
+(xpath
+  (function_call
+    (prefixed_name)
+    (argument_list
+      (keyword_argument
+        (ncname)
+        (string_literal)))))
+
+============================================================
+Named function reference
+============================================================
+
+fn:abs#1
+
+---
+
+(xpath
+  (named_function_reference
+    (prefixed_name)
+    (integer_literal)))
+
+============================================================
+Inline functions
+============================================================
+
+(function($a as xs:integer, $b) as xs:integer { $a + $b }, fn { . + 1 }, fn() { 0 })
+
+---
+
+(xpath
+  (parenthesized_expression
+    (sequence_expression
+      (inline_function_expression
+        (variable_name_and_type
+          (ncname)
+          (type_declaration
+            (sequence_type
+              (prefixed_name))))
+        (variable_name_and_type
+          (ncname))
+        (type_declaration
+          (sequence_type
+            (prefixed_name)))
+        (enclosed_expression
+          (additive_expression
+            (variable_reference
+              (ncname))
+            (variable_reference
+              (ncname)))))
+      (inline_function_expression
+        (enclosed_expression
+          (additive_expression
+            (context_value_reference)
+            (integer_literal))))
+      (inline_function_expression
+        (enclosed_expression
+          (integer_literal))))))
+
+============================================================
+Map constructors
+============================================================
+
+(map { "a": 1, "b": 2 }, { 1: 2 }, {}, { $m })
+
+---
+
+(xpath
+  (parenthesized_expression
+    (sequence_expression
+      (map_constructor
+        (map_constructor_entry
+          (string_literal)
+          (integer_literal))
+        (map_constructor_entry
+          (string_literal)
+          (integer_literal)))
+      (map_constructor
+        (map_constructor_entry
+          (integer_literal)
+          (integer_literal)))
+      (map_constructor)
+      (map_constructor
+        (map_constructor_entry
+          (variable_reference
+            (ncname)))))))
+
+============================================================
+Array constructors
+============================================================
+
+([1, 2], array { 1, 2 }, [])
+
+---
+
+(xpath
+  (parenthesized_expression
+    (sequence_expression
+      (square_array_constructor
+        (integer_literal)
+        (integer_literal))
+      (curly_array_constructor
+        (enclosed_expression
+          (sequence_expression
+            (integer_literal)
+            (integer_literal))))
+      (square_array_constructor))))
+
+============================================================
+String template
+============================================================
+
+`Hello {$name}, {{braces}} and ``ticks``!`
+
+---
+
+(xpath
+  (string_template
+    (string_template_fixed_part)
+    (enclosed_expression
+      (variable_reference
+        (ncname)))
+    (string_template_fixed_part)))
+
+============================================================
+Lookups
+============================================================
+
+($m?key, $m?1, $m?"k", $m?$k, $m?(1 to 2), $m?*, $m?., ?a)
+
+---
+
+(xpath
+  (parenthesized_expression
+    (sequence_expression
+      (lookup_expression
+        (variable_reference
+          (ncname))
+        (lookup
+          (ncname)))
+      (lookup_expression
+        (variable_reference
+          (ncname))
+        (lookup
+          (integer_literal)))
+      (lookup_expression
+        (variable_reference
+          (ncname))
+        (lookup
+          (string_literal)))
+      (lookup_expression
+        (variable_reference
+          (ncname))
+        (lookup
+          (variable_reference
+            (ncname))))
+      (lookup_expression
+        (variable_reference
+          (ncname))
+        (lookup
+          (parenthesized_expression
+            (range_expression
+              (integer_literal)
+              (integer_literal)))))
+      (lookup_expression
+        (variable_reference
+          (ncname))
+        (lookup
+          (lookup_wildcard)))
+      (lookup_expression
+        (variable_reference
+          (ncname))
+        (lookup
+          (context_value_reference)))
+      (unary_lookup
+        (ncname)))))
+
+============================================================
+Dynamic function call
+============================================================
+
+$f(1)(2)
+
+---
+
+(xpath
+  (dynamic_function_call
+    (dynamic_function_call
+      (variable_reference
+        (ncname))
+      (positional_argument_list
+        (integer_literal)))
+    (positional_argument_list
+      (integer_literal))))
+
+============================================================
+Method call
+============================================================
+
+$rectangle =?> area(2)
+
+---
+
+(xpath
+  (method_call
+    (variable_reference
+      (ncname))
+    (ncname)
+    (positional_argument_list
+      (integer_literal))))
+
+============================================================
+Computed constructors
+============================================================
+
+(document { () }, element #a { 1 }, element { "b" } { 2 }, attribute #c { 3 }, namespace #p { "urn:p" }, text { "t" }, comment { "c" }, processing-instruction #pi { "x" })
+
+---
+
+(xpath
+  (parenthesized_expression
+    (sequence_expression
+      (computed_document_constructor
+        (enclosed_expression
+          (parenthesized_expression)))
+      (computed_element_constructor
+        (qname_literal
+          (ncname))
+        (enclosed_expression
+          (integer_literal)))
+      (computed_element_constructor
+        (string_literal)
+        (enclosed_expression
+          (integer_literal)))
+      (computed_attribute_constructor
+        (qname_literal
+          (ncname))
+        (enclosed_expression
+          (integer_literal)))
+      (computed_namespace_constructor
+        (marked_ncname
+          (ncname))
+        (enclosed_expression
+          (string_literal)))
+      (computed_text_constructor
+        (enclosed_expression
+          (string_literal)))
+      (computed_comment_constructor
+        (enclosed_expression
+          (string_literal)))
+      (computed_processing_instruction_constructor
+        (marked_ncname
+          (ncname))
+        (enclosed_expression
+          (string_literal))))))
+
+============================================================
+Comments nest
+============================================================
+
+1 (: outer (: inner :) still :) + 2
+
+---
+
+(xpath
+  (additive_expression
+    (integer_literal)
+    (comment)
+    (integer_literal)))

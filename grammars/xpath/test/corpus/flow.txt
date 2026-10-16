@@ -1,0 +1,271 @@
+============================================================
+For with positional variable
+============================================================
+
+for $x at $i in (1, 2), $y in 3 return $x + $y
+
+---
+
+(xpath
+  (flwor_expression
+    (for_clause
+      (for_item_binding
+        (variable_name_and_type
+          (ncname))
+        (positional_variable
+          (ncname))
+        (parenthesized_expression
+          (sequence_expression
+            (integer_literal)
+            (integer_literal))))
+      (for_item_binding
+        (variable_name_and_type
+          (ncname))
+        (integer_literal)))
+    (return_clause
+      (additive_expression
+        (variable_reference
+          (ncname))
+        (variable_reference
+          (ncname))))))
+
+============================================================
+For member and entry bindings
+============================================================
+
+for member $m in $array, key $k value $v in $map return ($m, $k, $v)
+
+---
+
+(xpath
+  (flwor_expression
+    (for_clause
+      (for_member_binding
+        (variable_name_and_type
+          (ncname))
+        (variable_reference
+          (ncname)))
+      (for_entry_binding
+        (for_entry_key_binding
+          (variable_name_and_type
+            (ncname)))
+        (for_entry_value_binding
+          (variable_name_and_type
+            (ncname)))
+        (variable_reference
+          (ncname))))
+    (return_clause
+      (parenthesized_expression
+        (sequence_expression
+          (variable_reference
+            (ncname))
+          (variable_reference
+            (ncname))
+          (variable_reference
+            (ncname)))))))
+
+============================================================
+For key only and value only
+============================================================
+
+for key $k in $map, value $v in $map return 1
+
+---
+
+(xpath
+  (flwor_expression
+    (for_clause
+      (for_entry_binding
+        (for_entry_key_binding
+          (variable_name_and_type
+            (ncname)))
+        (variable_reference
+          (ncname)))
+      (for_entry_binding
+        (for_entry_value_binding
+          (variable_name_and_type
+            (ncname)))
+        (variable_reference
+          (ncname))))
+    (return_clause
+      (integer_literal))))
+
+============================================================
+Let bindings and destructuring
+============================================================
+
+let $a := 1, $($b, $c) := (2, 3), $[$d as xs:integer] := [4], ${$e} := {"e": 5} return $a
+
+---
+
+(xpath
+  (flwor_expression
+    (let_clause
+      (let_value_binding
+        (variable_name_and_type
+          (ncname))
+        (integer_literal))
+      (let_sequence_binding
+        (variable_name_and_type
+          (ncname))
+        (variable_name_and_type
+          (ncname))
+        (parenthesized_expression
+          (sequence_expression
+            (integer_literal)
+            (integer_literal))))
+      (let_array_binding
+        (variable_name_and_type
+          (ncname)
+          (type_declaration
+            (sequence_type
+              (prefixed_name))))
+        (square_array_constructor
+          (integer_literal)))
+      (let_map_binding
+        (variable_name_and_type
+          (ncname))
+        (map_constructor
+          (map_constructor_entry
+            (string_literal)
+            (integer_literal)))))
+    (return_clause
+      (variable_reference
+        (ncname)))))
+
+============================================================
+For and let chains
+============================================================
+
+for $x in 1 let $y := $x for $z in $y return $z
+
+---
+
+(xpath
+  (flwor_expression
+    (for_clause
+      (for_item_binding
+        (variable_name_and_type
+          (ncname))
+        (integer_literal)))
+    (let_clause
+      (let_value_binding
+        (variable_name_and_type
+          (ncname))
+        (variable_reference
+          (ncname))))
+    (for_clause
+      (for_item_binding
+        (variable_name_and_type
+          (ncname))
+        (variable_reference
+          (ncname))))
+    (return_clause
+      (variable_reference
+        (ncname)))))
+
+============================================================
+Quantified expressions
+============================================================
+
+some $x in (1, 2), $y as xs:integer in 3 satisfies $x = $y
+
+---
+
+(xpath
+  (quantified_expression
+    (quantifier_binding
+      (variable_name_and_type
+        (ncname))
+      (parenthesized_expression
+        (sequence_expression
+          (integer_literal)
+          (integer_literal))))
+    (quantifier_binding
+      (variable_name_and_type
+        (ncname)
+        (type_declaration
+          (sequence_type
+            (prefixed_name))))
+      (integer_literal))
+    (comparison_expression
+      (variable_reference
+        (ncname))
+      (variable_reference
+        (ncname)))))
+
+============================================================
+Every
+============================================================
+
+every $x in () satisfies false()
+
+---
+
+(xpath
+  (quantified_expression
+    (quantifier_binding
+      (variable_name_and_type
+        (ncname))
+      (parenthesized_expression))
+    (function_call
+      (ncname)
+      (argument_list))))
+
+============================================================
+If then else
+============================================================
+
+if ($a) then 1 else if ($b) then 2 else 3
+
+---
+
+(xpath
+  (if_expression
+    (variable_reference
+      (ncname))
+    (integer_literal)
+    (if_expression
+      (variable_reference
+        (ncname))
+      (integer_literal)
+      (integer_literal))))
+
+============================================================
+Braced if
+============================================================
+
+if (@price gt 100) { @discount }
+
+---
+
+(xpath
+  (if_expression
+    (comparison_expression
+      (axis_step
+        (ncname))
+      (integer_literal))
+    (enclosed_expression
+      (axis_step
+        (ncname)))))
+
+============================================================
+Keywords as element names
+============================================================
+
+for/let/if/some
+
+---
+
+(xpath
+  (relative_path_expression
+    (relative_path_expression
+      (relative_path_expression
+        (axis_step
+          (ncname))
+        (axis_step
+          (ncname)))
+      (axis_step
+        (ncname)))
+    (axis_step
+      (ncname))))

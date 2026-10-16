@@ -1,0 +1,409 @@
+============================================================
+Sequence expression
+============================================================
+
+1, 2, 3
+
+---
+
+(xpath
+  (sequence_expression
+    (integer_literal)
+    (integer_literal)
+    (integer_literal)))
+
+============================================================
+Or and and
+============================================================
+
+a or b and c
+
+---
+
+(xpath
+  (or_expression
+    (axis_step
+      (ncname))
+    (and_expression
+      (axis_step
+        (ncname))
+      (axis_step
+        (ncname)))))
+
+============================================================
+Value comparison
+============================================================
+
+1 eq 2
+
+---
+
+(xpath
+  (comparison_expression
+    (integer_literal)
+    (integer_literal)))
+
+============================================================
+General comparison
+============================================================
+
+$a != $b
+
+---
+
+(xpath
+  (comparison_expression
+    (variable_reference
+      (ncname))
+    (variable_reference
+      (ncname))))
+
+============================================================
+Node comparisons
+============================================================
+
+($a is $b, $a is-not $b, $a << $b, $a precedes $b, $a >> $b, $a follows $b, $a precedes-or-is $b, $a follows-or-is $b)
+
+---
+
+(xpath
+  (parenthesized_expression
+    (sequence_expression
+      (comparison_expression
+        (variable_reference
+          (ncname))
+        (variable_reference
+          (ncname)))
+      (comparison_expression
+        (variable_reference
+          (ncname))
+        (variable_reference
+          (ncname)))
+      (comparison_expression
+        (variable_reference
+          (ncname))
+        (variable_reference
+          (ncname)))
+      (comparison_expression
+        (variable_reference
+          (ncname))
+        (variable_reference
+          (ncname)))
+      (comparison_expression
+        (variable_reference
+          (ncname))
+        (variable_reference
+          (ncname)))
+      (comparison_expression
+        (variable_reference
+          (ncname))
+        (variable_reference
+          (ncname)))
+      (comparison_expression
+        (variable_reference
+          (ncname))
+        (variable_reference
+          (ncname)))
+      (comparison_expression
+        (variable_reference
+          (ncname))
+        (variable_reference
+          (ncname))))))
+
+============================================================
+Otherwise
+============================================================
+
+$a otherwise $b otherwise 0
+
+---
+
+(xpath
+  (otherwise_expression
+    (otherwise_expression
+      (variable_reference
+        (ncname))
+      (variable_reference
+        (ncname)))
+    (integer_literal)))
+
+============================================================
+String concatenation
+============================================================
+
+"a" || "b" || "c"
+
+---
+
+(xpath
+  (string_concatenation_expression
+    (string_concatenation_expression
+      (string_literal)
+      (string_literal))
+    (string_literal)))
+
+============================================================
+Range
+============================================================
+
+1 to 10
+
+---
+
+(xpath
+  (range_expression
+    (integer_literal)
+    (integer_literal)))
+
+============================================================
+Additive and multiplicative
+============================================================
+
+1 + 2 * 3 - 4 div 5 idiv 6 mod 7
+
+---
+
+(xpath
+  (additive_expression
+    (additive_expression
+      (integer_literal)
+      (multiplicative_expression
+        (integer_literal)
+        (integer_literal)))
+    (multiplicative_expression
+      (multiplicative_expression
+        (multiplicative_expression
+          (integer_literal)
+          (integer_literal))
+        (integer_literal))
+      (integer_literal))))
+
+============================================================
+Unicode multiplication and division
+============================================================
+
+6 × 7 ÷ 2
+
+---
+
+(xpath
+  (multiplicative_expression
+    (multiplicative_expression
+      (integer_literal)
+      (integer_literal))
+    (integer_literal)))
+
+============================================================
+Union intersect except
+============================================================
+
+a | b union c intersect d except e
+
+---
+
+(xpath
+  (union_expression
+    (union_expression
+      (axis_step
+        (ncname))
+      (axis_step
+        (ncname)))
+    (intersect_except_expression
+      (intersect_except_expression
+        (axis_step
+          (ncname))
+        (axis_step
+          (ncname)))
+      (axis_step
+        (ncname)))))
+
+============================================================
+But with
+============================================================
+
+$a but with $b
+
+---
+
+(xpath
+  (but_with_expression
+    (variable_reference
+      (ncname))
+    (variable_reference
+      (ncname))))
+
+============================================================
+Instance of
+============================================================
+
+$x instance of xs:integer+
+
+---
+
+(xpath
+  (instance_of_expression
+    (variable_reference
+      (ncname))
+    (sequence_type
+      (prefixed_name)
+      (occurrence_indicator))))
+
+============================================================
+Treat as with occurrence indicator binding
+============================================================
+
+4 treat as item() + - 5
+
+---
+
+(xpath
+  (additive_expression
+    (treat_expression
+      (integer_literal)
+      (sequence_type
+        (any_item_type)
+        (occurrence_indicator)))
+    (integer_literal)))
+
+============================================================
+Castable and cast
+============================================================
+
+($x castable as xs:integer?, $x cast as xs:decimal)
+
+---
+
+(xpath
+  (parenthesized_expression
+    (sequence_expression
+      (castable_expression
+        (variable_reference
+          (ncname))
+        (cast_target
+          (prefixed_name)))
+      (cast_expression
+        (variable_reference
+          (ncname))
+        (cast_target
+          (prefixed_name))))))
+
+============================================================
+Cast to enumeration and choice types
+============================================================
+
+($x cast as enum("a", "b"), $x cast as (xs:integer | xs:string))
+
+---
+
+(xpath
+  (parenthesized_expression
+    (sequence_expression
+      (cast_expression
+        (variable_reference
+          (ncname))
+        (cast_target
+          (enumeration_type
+            (string_literal)
+            (string_literal))))
+      (cast_expression
+        (variable_reference
+          (ncname))
+        (cast_target
+          (choice_item_type
+            (prefixed_name)
+            (prefixed_name)))))))
+
+============================================================
+Pipeline
+============================================================
+
+$x -> count(.)
+
+---
+
+(xpath
+  (pipeline_expression
+    (variable_reference
+      (ncname))
+    (function_call
+      (ncname)
+      (argument_list
+        (context_value_reference)))))
+
+============================================================
+Sequence and mapping arrows
+============================================================
+
+$x => f(1) =!> $g() => (fn { . })()
+
+---
+
+(xpath
+  (arrow_expression
+    (arrow_expression
+      (arrow_expression
+        (variable_reference
+          (ncname))
+        (function_call
+          (ncname)
+          (argument_list
+            (integer_literal))))
+      (restricted_dynamic_call
+        (variable_reference
+          (ncname))
+        (positional_argument_list)))
+    (restricted_dynamic_call
+      (parenthesized_expression
+        (inline_function_expression
+          (enclosed_expression
+            (context_value_reference))))
+      (positional_argument_list))))
+
+============================================================
+Unary operators
+============================================================
+
+- + -1
+
+---
+
+(xpath
+  (unary_expression
+    (unary_expression
+      (unary_expression
+        (integer_literal)))))
+
+============================================================
+Simple map
+============================================================
+
+$x ! name() ! string()
+
+---
+
+(xpath
+  (simple_map_expression
+    (simple_map_expression
+      (variable_reference
+        (ncname))
+      (function_call
+        (ncname)
+        (argument_list)))
+    (function_call
+      (ncname)
+      (argument_list))))
+
+============================================================
+Keyword as name in operator position
+============================================================
+
+div div div
+
+---
+
+(xpath
+  (multiplicative_expression
+    (axis_step
+      (ncname))
+    (axis_step
+      (ncname))))

@@ -1,0 +1,200 @@
+============================================================
+Sequence types
+============================================================
+
+($x instance of empty-sequence(), $x instance of item()*, $x instance of node()?)
+
+---
+
+(xpath
+  (parenthesized_expression
+    (sequence_expression
+      (instance_of_expression
+        (variable_reference
+          (ncname))
+        (sequence_type))
+      (instance_of_expression
+        (variable_reference
+          (ncname))
+        (sequence_type
+          (any_item_type)
+          (occurrence_indicator)))
+      (instance_of_expression
+        (variable_reference
+          (ncname))
+        (sequence_type
+          (gnode_type)
+          (occurrence_indicator))))))
+
+============================================================
+Map array record types
+============================================================
+
+($x instance of map(*), $x instance of map(xs:string, item()*), $x instance of array(*), $x instance of array(xs:integer), $x instance of record(*), $x instance of record(a, "b c" as xs:string?))
+
+---
+
+(xpath
+  (parenthesized_expression
+    (sequence_expression
+      (instance_of_expression
+        (variable_reference
+          (ncname))
+        (sequence_type
+          (any_map_type)))
+      (instance_of_expression
+        (variable_reference
+          (ncname))
+        (sequence_type
+          (typed_map_type
+            (prefixed_name)
+            (sequence_type
+              (any_item_type)
+              (occurrence_indicator)))))
+      (instance_of_expression
+        (variable_reference
+          (ncname))
+        (sequence_type
+          (any_array_type)))
+      (instance_of_expression
+        (variable_reference
+          (ncname))
+        (sequence_type
+          (typed_array_type
+            (sequence_type
+              (prefixed_name)))))
+      (instance_of_expression
+        (variable_reference
+          (ncname))
+        (sequence_type
+          (any_record_type)))
+      (instance_of_expression
+        (variable_reference
+          (ncname))
+        (sequence_type
+          (typed_record_type
+            (field_declaration
+              (ncname))
+            (field_declaration
+              (string_literal)
+              (sequence_type
+                (prefixed_name)
+                (occurrence_indicator)))))))))
+
+============================================================
+Function types
+============================================================
+
+($x instance of function(*), $x instance of fn(xs:integer, $b as item()) as xs:string*)
+
+---
+
+(xpath
+  (parenthesized_expression
+    (sequence_expression
+      (instance_of_expression
+        (variable_reference
+          (ncname))
+        (sequence_type
+          (any_function_type)))
+      (instance_of_expression
+        (variable_reference
+          (ncname))
+        (sequence_type
+          (typed_function_type
+            (typed_function_parameter
+              (sequence_type
+                (prefixed_name)))
+            (typed_function_parameter
+              (ncname)
+              (sequence_type
+                (any_item_type)))
+            (sequence_type
+              (prefixed_name)
+              (occurrence_indicator))))))))
+
+============================================================
+Element and attribute types
+============================================================
+
+$x instance of element(a|b, xs:anyType)
+
+---
+
+(xpath
+  (instance_of_expression
+    (variable_reference
+      (ncname))
+    (sequence_type
+      (element_node_type
+        (name_test_union
+          (ncname)
+          (ncname))
+        (prefixed_name)))))
+
+============================================================
+Processing instruction type with string
+============================================================
+
+$x instance of processing-instruction("x")
+
+---
+
+(xpath
+  (instance_of_expression
+    (variable_reference
+      (ncname))
+    (sequence_type
+      (processing_instruction_node_type
+        (string_literal)))))
+
+============================================================
+JNode type with constants
+============================================================
+
+$x instance of jnode(-1)
+
+---
+
+(xpath
+  (instance_of_expression
+    (variable_reference
+      (ncname))
+    (sequence_type
+      (jnode_type
+        (negative_numeric_literal
+          (integer_literal))))))
+
+============================================================
+Boolean constant in jnode type
+============================================================
+
+$x instance of jnode(true())
+
+---
+
+(xpath
+  (instance_of_expression
+    (variable_reference
+      (ncname))
+    (sequence_type
+      (jnode_type
+        (boolean_constant)))))
+
+============================================================
+Function type return occurrence
+============================================================
+
+$x instance of function() as xs:string *
+
+---
+
+(xpath
+  (instance_of_expression
+    (variable_reference
+      (ncname))
+    (sequence_type
+      (typed_function_type
+        (sequence_type
+          (prefixed_name)
+          (occurrence_indicator))))))

@@ -1,0 +1,16 @@
+============================================================
+Default element namespace and namespace declarations
+============================================================
+
+declare default element namespace "urn:a"; declare namespace p = "urn:p"; p:x
+
+---
+
+(xpath
+  (default_element_namespace_declaration
+    (string_literal))
+  (namespace_declaration
+    (ncname)
+    (string_literal))
+  (axis_step
+    (prefixed_name)))

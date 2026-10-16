@@ -268,3 +268,35 @@ truncated encoding from the bytes present; `sxml_string_codepoint_at` returns
 takes the ASCII fast path only when the index is also below `byte_count`.
 `compare` and `equals` work on bytes (D25). Validation is a plain byte loop;
 a word-at-a-time ASCII scan can come later without an interface change.
+
+### D27. Query grammars: XPath, XQuery and XSLT patterns
+Recorded 2026-10-16. Grammars `grammars/xpath`, `grammars/xquery` and
+`grammars/xslt_pattern`, written from the QT4 CG drafts (XPath/XQuery 4.0
+Appendix A, XSLT 4.0 6.3 and Appendix E) as of 2026-10-16.
+- Inheritance: `xquery` and `xslt_pattern` are `grammar(require('../xpath/grammar'), ...)`.
+  The start rule of a derived grammar is moved to the front of its rule
+  table by hand (tree-sitter takes the first rule). Keyword lists and name
+  regular expressions are in `grammars/xpath/lexical.js`.
+- Node names are the EBNF production names in snake_case with abbreviations
+  spelled out (`ExprSingle` is hidden, `VarRef` is `variable_reference`,
+  `CompElemConstructor` is `computed_element_constructor`). Operands, steps,
+  axes, clauses and bindings are named fields. Binary operators are
+  left-recursive nodes with `left`, `operator`, `right`.
+- Keywords are not reserved (A.3): every keyword is a tree-sitter reserved
+  word (always lexed as the keyword), and every name position accepts each
+  keyword aliased to `ncname`, except function names (A.4 reserved function
+  names) and XQuery computed-constructor names (xgc: unreserved-name).
+- One external scanner, `grammars/common/query_scanner.h`, included by each
+  `src/scanner.c`, stateless: nested comments, string template fixed parts,
+  string constructor characters, all of direct constructor syntax (tags,
+  attribute values, content, comments, PIs, CDATA), and pragmas. Every
+  grammar declares the same external token list.
+- Checked later, in the tree builder (XPST0003 unless noted): terminal
+  delimitation (A.3.2, two non-delimiting terminals with no separator, e.g.
+  `10div 3`); a prefixed name as a lookup key (accepted by the grammar so that
+  `a:b` stays one token); XQuery prolog declaration order (one repeat in the
+  grammar); end tag name equal to start tag name (XQST0118); attribute and
+  QName well-formedness that the scanner does not check.
+- `tools/qt4-parse-check.py` (with `tools/qt4-parse-harness.c`) parses every
+  applicable QT4 query and reports false rejects and false accepts; the
+  harness also applies the A.3.2 delimitation check.

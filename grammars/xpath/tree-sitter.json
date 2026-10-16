@@ -1,0 +1,19 @@
+{
+  "grammars": [
+    {
+      "name": "xpath",
+      "camelcase": "XPath",
+      "scope": "source.xpath",
+      "path": ".",
+      "file-types": ["xpath"]
+    }
+  ],
+  "metadata": {
+    "version": "0.1.0",
+    "license": "MIT",
+    "description": "XPath 4.0 grammar for sxml",
+    "links": {
+      "repository": "https://github.com/dhamidi/sxml"
+    }
+  }
+}

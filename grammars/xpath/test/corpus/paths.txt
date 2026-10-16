@@ -1,0 +1,334 @@
+============================================================
+Lone slash
+============================================================
+
+/
+
+---
+
+(xpath
+  (absolute_path_expression))
+
+============================================================
+Lone slash followed by union is a path
+============================================================
+
+/union/*
+
+---
+
+(xpath
+  (absolute_path_expression
+    (relative_path_expression
+      (axis_step
+        (ncname))
+      (axis_step
+        (wildcard)))))
+
+============================================================
+Parenthesized lone slash
+============================================================
+
+(/) * 5
+
+---
+
+(xpath
+  (multiplicative_expression
+    (parenthesized_expression
+      (absolute_path_expression))
+    (integer_literal)))
+
+============================================================
+Root descendant path
+============================================================
+
+//para[1]
+
+---
+
+(xpath
+  (absolute_path_expression
+    (axis_step
+      (ncname)
+      (predicate
+        (integer_literal)))))
+
+============================================================
+Full axes
+============================================================
+
+ancestor::a/ancestor-or-self::b/child::c/descendant::d/descendant-or-self::e/following::f/following-or-self::g
+
+---
+
+(xpath
+  (relative_path_expression
+    (relative_path_expression
+      (relative_path_expression
+        (relative_path_expression
+          (relative_path_expression
+            (relative_path_expression
+              (axis_step
+                (axis)
+                (ncname))
+              (axis_step
+                (axis)
+                (ncname)))
+            (axis_step
+              (axis)
+              (ncname)))
+          (axis_step
+            (axis)
+            (ncname)))
+        (axis_step
+          (axis)
+          (ncname)))
+      (axis_step
+        (axis)
+        (ncname)))
+    (axis_step
+      (axis)
+      (ncname))))
+
+============================================================
+More axes
+============================================================
+
+following-sibling::a/following-sibling-or-self::b/parent::c/preceding::d/preceding-or-self::e/preceding-sibling::f/preceding-sibling-or-self::g/self::h/attribute::i/namespace::j/item::k
+
+---
+
+(xpath
+  (relative_path_expression
+    (relative_path_expression
+      (relative_path_expression
+        (relative_path_expression
+          (relative_path_expression
+            (relative_path_expression
+              (relative_path_expression
+                (relative_path_expression
+                  (relative_path_expression
+                    (relative_path_expression
+                      (axis_step
+                        (axis)
+                        (ncname))
+                      (axis_step
+                        (axis)
+                        (ncname)))
+                    (axis_step
+                      (axis)
+                      (ncname)))
+                  (axis_step
+                    (axis)
+                    (ncname)))
+                (axis_step
+                  (axis)
+                  (ncname)))
+              (axis_step
+                (axis)
+                (ncname)))
+            (axis_step
+              (axis)
+              (ncname)))
+          (axis_step
+            (axis)
+            (ncname)))
+        (axis_step
+          (axis)
+          (ncname)))
+      (axis_step
+        (axis)
+        (ncname)))
+    (axis_step
+      (axis)
+      (ncname))))
+
+============================================================
+Abbreviated steps
+============================================================
+
+../@id/@*
+
+---
+
+(xpath
+  (relative_path_expression
+    (relative_path_expression
+      (axis_step)
+      (axis_step
+        (ncname)))
+    (axis_step
+      (wildcard))))
+
+============================================================
+Wildcards
+============================================================
+
+(*, p:*, *:local, Q{urn:x}*)
+
+---
+
+(xpath
+  (parenthesized_expression
+    (sequence_expression
+      (axis_step
+        (wildcard))
+      (axis_step
+        (wildcard))
+      (axis_step
+        (wildcard))
+      (axis_step
+        (wildcard)))))
+
+============================================================
+Union node test
+============================================================
+
+child::(a | b)/@(c | d)
+
+---
+
+(xpath
+  (relative_path_expression
+    (axis_step
+      (axis)
+      (union_node_test
+        (ncname)
+        (ncname)))
+    (axis_step
+      (union_node_test
+        (ncname)
+        (ncname)))))
+
+============================================================
+Dynamic node test
+============================================================
+
+child::{ "a" }
+
+---
+
+(xpath
+  (axis_step
+    (axis)
+    (dynamic_node_test
+      (enclosed_expression
+        (string_literal)))))
+
+============================================================
+Kind tests in steps
+============================================================
+
+node()/text()/comment()/processing-instruction(x)/element(a, xs:untyped?)/attribute(*)/document-node(element(a))/namespace-node()/xnode()/schema-element(a)/schema-attribute(b)
+
+---
+
+(xpath
+  (relative_path_expression
+    (relative_path_expression
+      (relative_path_expression
+        (relative_path_expression
+          (relative_path_expression
+            (relative_path_expression
+              (relative_path_expression
+                (relative_path_expression
+                  (relative_path_expression
+                    (relative_path_expression
+                      (axis_step
+                        (gnode_type))
+                      (axis_step
+                        (text_node_type)))
+                    (axis_step
+                      (comment_node_type)))
+                  (axis_step
+                    (processing_instruction_node_type
+                      (ncname))))
+                (axis_step
+                  (element_node_type
+                    (name_test_union
+                      (ncname))
+                    (prefixed_name))))
+              (axis_step
+                (attribute_node_type
+                  (name_test_union
+                    (wildcard)))))
+            (axis_step
+              (document_node_type
+                (element_node_type
+                  (name_test_union
+                    (ncname))))))
+          (axis_step
+            (namespace_node_type)))
+        (axis_step
+          (any_xnode_type)))
+      (axis_step
+        (schema_element_node_type
+          (ncname))))
+    (axis_step
+      (schema_attribute_node_type
+        (ncname)))))
+
+============================================================
+JNode test
+============================================================
+
+jnode(*, xs:integer)/jnode("key")/jnode(())
+
+---
+
+(xpath
+  (relative_path_expression
+    (relative_path_expression
+      (axis_step
+        (jnode_type
+          (wildcard)
+          (sequence_type
+            (prefixed_name))))
+      (axis_step
+        (jnode_type
+          (string_literal))))
+    (axis_step
+      (jnode_type
+        (jroot_selector)
+        (jroot_selector)))))
+
+============================================================
+URI qualified names
+============================================================
+
+Q{http://example.com/}a/Q{}b
+
+---
+
+(xpath
+  (relative_path_expression
+    (axis_step
+      (uri_qualified_name))
+    (axis_step
+      (uri_qualified_name))))
+
+============================================================
+Predicates and filters
+============================================================
+
+a[1][@b = 2]/$x[3]
+
+---
+
+(xpath
+  (relative_path_expression
+    (axis_step
+      (ncname)
+      (predicate
+        (integer_literal))
+      (predicate
+        (comparison_expression
+          (axis_step
+            (ncname))
+          (integer_literal))))
+    (filter_expression
+      (variable_reference
+        (ncname))
+      (predicate
+        (integer_literal)))))
