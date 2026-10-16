@@ -207,3 +207,19 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `raised_error` | The error an item heap keeps for an error record whose description or value was computed (`sxml_item_heap_raise_error`) |
 | `error_status` | The status an error is raised with: static, dynamic or type error |
 | `emptiness` | Whether a sequence has no items, as tested by `sxml_sequence_test_emptiness` (`fn:empty`) |
+| `cli` | The command-line interface (`apps/`, docs/CLI.md); allowed short form, as the `sxml_cli_` prefix of application code only |
+| `program` | A command-line program as a static table: name, summary, commands (`sxml_cli_program`) |
+| `command` | One verb of a program (`sxml version`) with its options, positionals and function |
+| `option` | A named command-line argument: `long_name` (`--format`), optional `short_name` (`-f`), `value_kind`, `value_name` (`FORMAT`), `choices`, `default_value` |
+| `positional` | A command-line argument identified by its place, not a name (POSIX "operand"; `operand` is taken) |
+| `multiplicity` | How often an option or positional may appear: at most once, repeatable, exactly one, optional, one or more, zero or more |
+| `argument_list` | The command-line arguments after the program or command name, as byte views |
+| `invocation` | What a command function receives: program, command, parsed arguments, writers |
+| `exit_code` | The process exit status: success 0, operation failed 1, usage error 2, input/output error 3, internal error 4 |
+| `usage_error` | A command line that does not match the table: unknown, missing, repeated or extra arguments |
+| `suggestion` | The closest valid name or value to a mistyped one ("did you mean"), found by `edit_distance` |
+| `edit_distance` | Optimal string alignment distance between two names, ASCII case ignored |
+| `output_stream` | Interface receiving bytes a command-line program writes (`sxml_cli_output_stream`) |
+| `writer` | An output stream plus the status of its first failed write |
+| `memory_stream` | The output stream test double: keeps what is written, up to a capacity |
+| `platform_layer` | The only code of the program that touches stdio (`apps/sxml/platform_stdio.c`) |
