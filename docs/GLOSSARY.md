@@ -235,3 +235,16 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `writer` | An output stream plus the status of its first failed write |
 | `memory_stream` | The output stream test double: keeps what is written, up to a capacity |
 | `platform_layer` | The only code of the program that touches stdio (`apps/sxml/platform_stdio.c`) |
+| `regex` | A compiled regular expression of the F&O 4.0 dialect (F&O 4.0, section 6.1), immutable once compiled (`sxml_regex`); never `regexp` or `pattern` (`pattern` is the XSLT match pattern) |
+| `regex_text` | The source text of a regular expression (`$pattern` of `fn:matches`, `fn:tokenize`, ...) |
+| `regex_flags` | The flags of a regular expression, from the `$flags` string: `s` dot-all, `m` multi-line, `i` case-insensitive, `x` whitespace removed, `q` literal, `c` comments (F&O 4.0, section 6.2) |
+| `regex_matcher` | The working state of matching one compiled regex: backtrack stack, captured groups, step count; one per thread (`sxml_regex_matcher`) |
+| `regex_input` | The string a regex matcher searches (`$value` of `fn:tokenize`, the "input string" of F&O 4.0, section 6.1.1) |
+| `regex_instruction` | One operation of a compiled regex, run by the backtracking matcher |
+| `matching_segment` | A segment of the regex input that a regex matches: start and length, held as a byte range (F&O 4.0, section 6.1.1) |
+| `disjoint_matching_segments` | The matching segments left after removing those that overlap an earlier one; what `fn:tokenize` and `fn:replace` work on (F&O 4.0, section 6.1.1) |
+| `captured_group` | The segment a capturing subexpression matched; group 0 is the whole matching segment (F&O 4.0, section 6.1.5) |
+| `group_number` | The number of a capturing subexpression: its capturing left parenthesis counted from 1, left to right |
+| `case_variant` | A character that `i` matches in place of another: same `fn:lower-case` or same `fn:upper-case` (F&O 4.0, section 6.2) |
+| `backtrack_stack` | The stack of choices and undo entries of a backtracking matcher; it grows through an allocator within a limit |
+| `step_count` | Instructions a regex matcher has run in one search; `maximum_step_count` bounds it for untrusted regexes |
