@@ -48,6 +48,7 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `configuration` | Struct describing how an object is set up |
 | `request` | Struct describing one operation |
 | `status` | The result code of a fallible function (`sxml_status`) |
+| `input_output` | Reading or writing bytes through the platform; spelled `input_output`, never `io` (`SXML_STATUS_INPUT_OUTPUT_FAILED`) |
 | `error_record` | A specification error code (such as `FOAR0001`) with details |
 | `diagnostic` | Caller-supplied record receiving position and context of a failure |
 | `error_code` | The expanded QName of a specification error, such as `err:FOAR0001` |
