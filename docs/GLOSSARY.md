@@ -268,6 +268,10 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `raised_error` | The error an item heap keeps for an error record whose description or value was computed (`sxml_item_heap_raise_error`) |
 | `error_status` | The status an error is raised with: static, dynamic or type error |
 | `emptiness` | Whether a sequence has no items, as tested by `sxml_sequence_test_emptiness` (`fn:empty`) |
+| `part` | One sequence of a concatenation, kept by reference; a concatenation's parts are never empty and never concatenations (`part_index`) |
+| `part_end` | The number of items in a concatenation's parts up to and including one part; cached as parts are counted |
+| `produced_item` | An item a sequence generator has produced, kept by its lazy sequence so every reading sees it (`produced_item_count`) |
+| `kept_error` | The copy of a generator's error that a lazy sequence keeps and raises again on every later read (D41) |
 | `cli` | The command-line interface (`apps/`, docs/CLI.md); allowed short form, as the `sxml_cli_` prefix of application code only |
 | `program` | A command-line program as a static table: name, summary, commands (`sxml_cli_program`) |
 | `command` | One verb of a program (`sxml version`) with its options, positionals and function |
