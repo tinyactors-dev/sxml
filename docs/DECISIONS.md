@@ -88,6 +88,8 @@ owner asked for them to be vendored so they are not downloaded again for every
 session and CI run. From xslt40-test, `report/`, `admin/unicode.xml`, the
 zipped QT3 tests and the DocBook toolchain `.jar` files are left out, because no
 test reads them (about 370 MB remain for both suites).
+The W3C XML conformance suite (xmlts20130923, 17 MB) is vendored the same way
+under `third_party/xmlconf/` for the XML parser (see `grammars/xml/README.md`).
 Pinned commits: qt4tests `166453359bd7770fb113b6d9c9015df7f7fa5d02`,
 xslt40-test `91328fbf0fed4a5d2813eb3661808ee53cb961ba` (both HEAD on
 2026-10-16). Spec applicability: a test-case `spec` dependency replaces the

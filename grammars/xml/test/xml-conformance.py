@@ -2,7 +2,8 @@
 """Runs the sxml XML grammar over the W3C XML conformance suite (standalone tests).
 
 Usage: python3 -I grammars/xml/test/xml-conformance.py XMLCONF_DIR WORK_DIR TREE_SITTER_CLI GRAMMAR_DIR
-XMLCONF_DIR is the xmlconf/ directory of https://www.w3.org/XML/Test/xmlts20130923.tar.gz.
+XMLCONF_DIR is the xmlconf/ directory of https://www.w3.org/XML/Test/xmlts20130923.tar.gz,
+vendored as third_party/xmlconf (decision D13).
 Prints counts per test type; writes WORK_DIR/results.json. See grammars/xml/README.md.
 """
 import codecs, json, os, re, subprocess, sys
