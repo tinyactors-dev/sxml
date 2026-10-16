@@ -1756,6 +1756,11 @@ static sxml_type_subtype_goal sxml_type_function_item_rules(
         sxml_type_registry_lookup(search->registry, pair.derived_type);
     const sxml_type_description *base =
         sxml_type_registry_lookup(search->registry, pair.base_type);
+    if (derived == NULL || base == NULL) {
+        /* Not issued by this registry: the caller looked both up already,
+           so this does not happen, but the analyzer cannot tell. */
+        return sxml_type_false_goal();
+    }
     sxml_type_description_pair descriptions = {.derived = derived,
                                                .base = base};
     switch (base->variety) {
