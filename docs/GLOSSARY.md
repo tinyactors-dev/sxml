@@ -141,6 +141,7 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `operator` | The token that selects what an operator expression computes (`SXML_AST_OPERATOR_PLUS`); in the IR, what a binary or unary expression computes |
 | `arithmetic_operator` | What an arithmetic expression computes: add, subtract, multiply, divide, integer divide or modulo (XPath 4.0, section 4.9) |
 | `comparison_operator` | What a value or general comparison tests: equal, not equal, less, less or equal, greater, greater or equal |
+| `node_comparison_operator` | What a GNode comparison tests: `is`, `is-not`, `<<`, `>>`, `precedes-or-is`, `follows-or-is` (XPath 4.0, section 4.11.3) |
 | `value_comparison` | `eq`, `ne`, `lt`, `le`, `gt`, `ge` on two single atomic items, through fn:compare (XPath 4.0, section 4.11.1) |
 | `general_comparison` | `=`, `!=`, `<`, `<=`, `>`, `>=`: true when some pair of atomized items has the relationship (XPath 4.0, section 4.11.2) |
 | `test_suite` | The unit tests of one module: one test executable |
