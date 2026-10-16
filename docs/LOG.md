@@ -4,6 +4,17 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 1.7 done (D60): item heap and atomic core. `src/xdm_internal.h` is the
+  shared interface for 1.8-1.11 and 1.15 (item layout, cell classes with
+  sequence read operations, iterative release, byte accounting incl.
+  decimal coefficients, `sxml_atomic_item_make_taking_decimal`, static
+  error records). `src/xdm.c`: heap, raised error, vectors, iterator,
+  builder; `src/xdm_atomic.c`: every primitive and built-in derived type
+  with value-space checks, atomic-equal, hash (1, 1.0, 1.0e0, 1.0f hash
+  alike), fn:compare per PR2256. 36 cases in `tests/xdm_test.c` and
+  `tests/xdm_atomic_test.c`; `debug`, `debug-gcc`, `wasm`: 48/48; lint
+  clean. Open: tree retention hand-off to 1.11; P2 (heap in
+  `sxml_atomic_comparison`).
 - 1.6 done (D58): type registry, all of `types.h`: static built-in
   descriptions (names interned per pool), interned registered item types
   in a normal form, nominative record types (declare, define, recursive),
