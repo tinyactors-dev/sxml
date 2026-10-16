@@ -370,23 +370,14 @@ sxml_status sxml_xpath_find_function(sxml_function_table table,
 
 /* ------------------------------------------------------------------ Types */
 
-/* Everything resolving one type needs, and how deep it is nested. */
+/* Everything resolving one type needs. */
 typedef struct type_resolver {
     const sxml_ast *ast;
     const sxml_xpath_static_context *static_context;
     sxml_error_record *error_record;
     sxml_type_registry *type_registry;
     sxml_name_pool *name_pool;
-    uint32_t depth;
 } type_resolver;
-
-static sxml_status resolve_item_type(type_resolver *resolver,
-                                     sxml_ast_node_index node,
-                                     sxml_type_identifier *item_type);
-
-static sxml_status resolve_sequence_type(type_resolver *resolver,
-                                         sxml_ast_node_index node,
-                                         sxml_sequence_type *sequence_type);
 
 static static_error_site site_of(const type_resolver *resolver,
                                  sxml_ast_node_index node) {
@@ -744,43 +735,6 @@ static sxml_status resolve_element_or_attribute_test(
     return status;
 }
 
-static sxml_status resolve_document_test(type_resolver *resolver,
-                                         sxml_ast_node_index node,
-                                         sxml_type_identifier *item_type) {
-    const sxml_ast_node_index content =
-        find_field(resolver, node, SXML_AST_FIELD_CONTENT);
-    if (content.value == 0) {
-        *item_type = sxml_builtin_type_identifier(SXML_TYPE_DOCUMENT_NODE);
-        return SXML_STATUS_OK;
-    }
-    sxml_type_identifier element_test = {0};
-    sxml_status status = SXML_STATUS_OK;
-    if (kind_of(resolver, content) == SXML_AST_KIND_NAME_TEST_UNION) {
-        /* document-node(N) abbreviates document-node(element(N)) (XPath
-           4.0, 3.2.7.1). Resolve the union as an element test's names. */
-        status = resolve_element_or_attribute_test(
-            resolver,
-            (element_test_request){.node = node,
-                                   .node_kind = SXML_NODE_KIND_ELEMENT},
-            &element_test);
-    } else {
-        status = resolve_item_type(resolver, content, &element_test);
-    }
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    return register_type(
-        resolver,
-        &(sxml_type_description){
-            .variety = SXML_TYPE_VARIETY_NODE_TEST,
-            .variety_details = {.node_test = {
-                                    .node_kind = SXML_NODE_KIND_DOCUMENT,
-                                    .name_test = {.name_test_kind =
-                                                      SXML_NAME_TEST_KIND_ANY_NAME},
-                                    .document_element_test = element_test}}},
-        item_type);
-}
-
 static sxml_status resolve_processing_instruction_test(
     type_resolver *resolver, sxml_ast_node_index node,
     sxml_type_identifier *item_type) {
@@ -829,162 +783,6 @@ static sxml_status resolve_processing_instruction_test(
                                                 SXML_NAME_TEST_KIND_EXPANDED_NAME,
                                             .expanded_name = target_name}}}},
         item_type);
-}
-
-static sxml_status resolve_function_type(type_resolver *resolver,
-                                         sxml_ast_node_index node,
-                                         sxml_type_identifier *item_type) {
-    const size_t parameter_count =
-        count_field(resolver, node, SXML_AST_FIELD_PARAMETER);
-    void *memory = NULL;
-    sxml_status status = allocate_scratch(
-        resolver,
-        (scratch_request){.element_count = parameter_count,
-                          .element_size = sizeof(sxml_sequence_type),
-                          .element_alignment = alignof(sxml_sequence_type)},
-        &memory);
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    sxml_sequence_type *parameter_types = memory;
-    size_t parameter_index = 0;
-    for (sxml_ast_node_index parameter =
-             find_field(resolver, node, SXML_AST_FIELD_PARAMETER);
-         status == SXML_STATUS_OK && parameter.value != 0;
-         parameter = sxml_ast_find_next_with_same_field(resolver->ast,
-                                                        parameter)) {
-        status = resolve_sequence_type(
-            resolver, find_field(resolver, parameter, SXML_AST_FIELD_TYPE),
-            &parameter_types[parameter_index]);
-        parameter_index += 1;
-    }
-    sxml_sequence_type result_type = {0};
-    if (status == SXML_STATUS_OK) {
-        status = resolve_sequence_type(
-            resolver, find_field(resolver, node, SXML_AST_FIELD_RETURN_TYPE),
-            &result_type);
-    }
-    if (status == SXML_STATUS_OK) {
-        status = register_type(
-            resolver,
-            &(sxml_type_description){
-                .variety = SXML_TYPE_VARIETY_FUNCTION,
-                .variety_details = {
-                    .function_type = {
-                        .is_any_function = false,
-                        .parameter_types = {.sequence_types = parameter_types,
-                                            .sequence_type_count =
-                                                parameter_count},
-                        .result_type = result_type}}},
-            item_type);
-    }
-    release_scratch(resolver, memory);
-    return status;
-}
-
-static sxml_status resolve_map_type(type_resolver *resolver,
-                                    sxml_ast_node_index node,
-                                    sxml_type_identifier *item_type) {
-    const sxml_ast_node_index key_node =
-        find_field(resolver, node, SXML_AST_FIELD_KEY);
-    sxml_type_identifier key_type = {0};
-    sxml_status status = resolve_item_type(resolver, key_node, &key_type);
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    /* The key type must be a generalized atomic type (XPath 4.0,
-       3.2.9.2): an atomic, union or enumeration type, or a choice of
-       them. */
-    if (!sxml_type_registry_is_subtype(
-            resolver->type_registry,
-            (sxml_type_pair){
-                .derived_type = key_type,
-                .base_type = sxml_builtin_type_identifier(
-                    SXML_TYPE_XS_ANY_ATOMIC_TYPE)})) {
-        return report_at(site_of(resolver, key_node), SXML_BYTE_VIEW_FROM_LITERAL("XPST0152"),
-                         SXML_BYTE_VIEW_FROM_LITERAL("the key type of a map type is not atomic"));
-    }
-    sxml_sequence_type value_type = {0};
-    status = resolve_sequence_type(
-        resolver, find_field(resolver, node, SXML_AST_FIELD_VALUE),
-        &value_type);
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    return register_type(
-        resolver,
-        &(sxml_type_description){
-            .variety = SXML_TYPE_VARIETY_MAP,
-            .variety_details = {.map_type = {.is_any_map = false,
-                                             .key_type = key_type,
-                                             .value_type = value_type}}},
-        item_type);
-}
-
-static sxml_status resolve_record_type(type_resolver *resolver,
-                                       sxml_ast_node_index node,
-                                       sxml_type_identifier *item_type) {
-    const size_t field_count = count_field(resolver, node, SXML_AST_FIELD_FIELD);
-    void *memory = NULL;
-    sxml_status status = allocate_scratch(
-        resolver,
-        (scratch_request){.element_count = field_count,
-                          .element_size = sizeof(sxml_record_field),
-                          .element_alignment = alignof(sxml_record_field)},
-        &memory);
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    sxml_record_field *fields = memory;
-    size_t field_index = 0;
-    for (sxml_ast_node_index field =
-             find_field(resolver, node, SXML_AST_FIELD_FIELD);
-         status == SXML_STATUS_OK && field.value != 0;
-         field = sxml_ast_find_next_with_same_field(resolver->ast, field)) {
-        const sxml_ast_node *name = sxml_ast_get_node(
-            resolver->ast, find_field(resolver, field, SXML_AST_FIELD_NAME));
-        const sxml_byte_view field_name = sxml_ast_get_text(
-            resolver->ast, name->kind == SXML_AST_KIND_STRING_LITERAL
-                               ? name->payload.text
-                               : name->payload.name.local_name);
-        for (size_t earlier_index = 0; earlier_index < field_index;
-             earlier_index += 1) {
-            if (sxml_byte_view_equals(fields[earlier_index].field_name,
-                                      field_name)) {
-                /* XPath 4.0, 3.2.10.2: field names must be distinct. */
-                status = report_at(site_of(resolver, field), SXML_BYTE_VIEW_FROM_LITERAL("XPST0021"),
-                                   SXML_BYTE_VIEW_FROM_LITERAL("two fields of a record type have the "
-                                   "same name"));
-                break;
-            }
-        }
-        sxml_sequence_type field_type = {
-            .item_type = sxml_builtin_type_identifier(SXML_TYPE_ITEM),
-            .occurrence = SXML_OCCURRENCE_ZERO_OR_MORE};
-        const sxml_ast_node_index type_node =
-            find_field(resolver, field, SXML_AST_FIELD_TYPE);
-        if (status == SXML_STATUS_OK && type_node.value != 0) {
-            status = resolve_sequence_type(resolver, type_node, &field_type);
-        }
-        fields[field_index] = (sxml_record_field){.field_name = field_name,
-                                                  .field_type = field_type};
-        field_index += 1;
-    }
-    if (status == SXML_STATUS_OK) {
-        status = register_type(
-            resolver,
-            &(sxml_type_description){
-                .variety = SXML_TYPE_VARIETY_RECORD,
-                .variety_details = {
-                    .record_type = {.is_any_record = false,
-                                    .is_nominative = false,
-                                    .record_fields = {.record_fields = fields,
-                                                      .record_field_count =
-                                                          field_count}}}},
-            item_type);
-    }
-    release_scratch(resolver, memory);
-    return status;
 }
 
 static sxml_status resolve_enumeration_type(type_resolver *resolver,
@@ -1036,48 +834,13 @@ static sxml_status resolve_enumeration_type(type_resolver *resolver,
     return status;
 }
 
-static sxml_status resolve_choice_type(type_resolver *resolver,
-                                       sxml_ast_node_index node,
-                                       sxml_type_identifier *item_type) {
-    const size_t member_count =
-        count_field(resolver, node, SXML_AST_FIELD_ALTERNATIVE);
-    void *memory = NULL;
-    sxml_status status = allocate_scratch(
-        resolver,
-        (scratch_request){.element_count = member_count,
-                          .element_size = sizeof(sxml_type_identifier),
-                          .element_alignment = alignof(sxml_type_identifier)},
-        &memory);
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    sxml_type_identifier *members = memory;
-    size_t member_index = 0;
-    for (sxml_ast_node_index alternative =
-             find_field(resolver, node, SXML_AST_FIELD_ALTERNATIVE);
-         status == SXML_STATUS_OK && alternative.value != 0;
-         alternative = sxml_ast_find_next_with_same_field(resolver->ast,
-                                                          alternative)) {
-        status = resolve_item_type(resolver, alternative, &members[member_index]);
-        member_index += 1;
-    }
-    if (status == SXML_STATUS_OK) {
-        status = register_choice(
-            resolver,
-            (sxml_type_identifier_view){.type_identifiers = members,
-                                        .type_identifier_count = member_count},
-            item_type);
-    }
-    release_scratch(resolver, memory);
-    return status;
-}
-
-/* jnode(selector, type) (XPath 4.0, 3.2.12). Phase 1 takes the selectors
-   *, (), an NCName and string, integer and boolean constants. */
-static sxml_status resolve_json_node_test(type_resolver *resolver,
-                                          sxml_ast_node_index node,
-                                          sxml_type_identifier *item_type) {
-    sxml_json_node_test test = {.key_constraint = SXML_JSON_KEY_CONSTRAINT_ANY};
+/* jnode(selector, type) (XPath 4.0, 3.2.12): the selector. Phase 1 takes
+   the selectors *, (), an NCName and string, integer and boolean
+   constants. */
+static sxml_status resolve_json_node_selector(const type_resolver *resolver,
+                                              sxml_ast_node_index node,
+                                              sxml_json_node_test *test) {
+    *test = (sxml_json_node_test){.key_constraint = SXML_JSON_KEY_CONSTRAINT_ANY};
     const sxml_ast_node_index selector =
         find_field(resolver, node, SXML_AST_FIELD_SELECTOR);
     const sxml_ast_node *selector_node =
@@ -1089,24 +852,24 @@ static sxml_status resolve_json_node_test(type_resolver *resolver,
     case SXML_AST_KIND_WILDCARD:
         break;
     case SXML_AST_KIND_JROOT_SELECTOR:
-        test.key_constraint = SXML_JSON_KEY_CONSTRAINT_ROOT;
+        test->key_constraint = SXML_JSON_KEY_CONSTRAINT_ROOT;
         break;
     case SXML_AST_KIND_NCNAME:
-        test.key_constraint = SXML_JSON_KEY_CONSTRAINT_CONSTANT;
-        test.key_type = sxml_builtin_type_identifier(SXML_TYPE_XS_STRING);
-        test.key_lexical_form = sxml_ast_get_text(
+        test->key_constraint = SXML_JSON_KEY_CONSTRAINT_CONSTANT;
+        test->key_type = sxml_builtin_type_identifier(SXML_TYPE_XS_STRING);
+        test->key_lexical_form = sxml_ast_get_text(
             resolver->ast, selector_node->payload.name.local_name);
         break;
     case SXML_AST_KIND_STRING_LITERAL:
-        test.key_constraint = SXML_JSON_KEY_CONSTRAINT_CONSTANT;
-        test.key_type = sxml_builtin_type_identifier(SXML_TYPE_XS_STRING);
-        test.key_lexical_form =
+        test->key_constraint = SXML_JSON_KEY_CONSTRAINT_CONSTANT;
+        test->key_type = sxml_builtin_type_identifier(SXML_TYPE_XS_STRING);
+        test->key_lexical_form =
             sxml_ast_get_text(resolver->ast, selector_node->payload.text);
         break;
     case SXML_AST_KIND_BOOLEAN_CONSTANT:
-        test.key_constraint = SXML_JSON_KEY_CONSTRAINT_CONSTANT;
-        test.key_type = sxml_builtin_type_identifier(SXML_TYPE_XS_BOOLEAN);
-        test.key_lexical_form =
+        test->key_constraint = SXML_JSON_KEY_CONSTRAINT_CONSTANT;
+        test->key_type = sxml_builtin_type_identifier(SXML_TYPE_XS_BOOLEAN);
+        test->key_lexical_form =
             (selector_node->flags & SXML_AST_FLAG_TRUE) != 0
                 ? SXML_BYTE_VIEW_FROM_LITERAL("true")
                 : SXML_BYTE_VIEW_FROM_LITERAL("false");
@@ -1120,9 +883,9 @@ static sxml_status resolve_json_node_test(type_resolver *resolver,
             digits.bytes += 1;
             digits.byte_count -= 1;
         }
-        test.key_constraint = SXML_JSON_KEY_CONSTRAINT_CONSTANT;
-        test.key_type = sxml_builtin_type_identifier(SXML_TYPE_XS_INTEGER);
-        test.key_lexical_form = digits;
+        test->key_constraint = SXML_JSON_KEY_CONSTRAINT_CONSTANT;
+        test->key_type = sxml_builtin_type_identifier(SXML_TYPE_XS_INTEGER);
+        test->key_lexical_form = digits;
         break;
     }
     default:
@@ -1130,169 +893,555 @@ static sxml_status resolve_json_node_test(type_resolver *resolver,
                                   SXML_BYTE_VIEW_FROM_LITERAL("this jnode() selector is not supported "
                                   "in Phase 1"));
     }
-    const sxml_ast_node_index type_node =
-        find_field(resolver, node, SXML_AST_FIELD_TYPE);
-    if (type_node.value != 0) {
-        test.has_value_type = true;
-        sxml_status status =
-            resolve_sequence_type(resolver, type_node, &test.value_type);
-        if (status != SXML_STATUS_OK) {
-            return status;
-        }
-    }
-    return register_type(
-        resolver,
-        &(sxml_type_description){
-            .variety = SXML_TYPE_VARIETY_JSON_NODE_TEST,
-            .variety_details = {.json_node_test = test}},
-        item_type);
+    return SXML_STATUS_OK;
 }
 
-static sxml_status resolve_item_type(type_resolver *resolver,
-                                     sxml_ast_node_index node,
-                                     sxml_type_identifier *item_type) {
-    if (resolver->depth >= SXML_XPATH_MAXIMUM_TYPE_DEPTH) {
-        if (resolver->error_record != NULL) {
-            resolver->error_record->diagnostic = (sxml_diagnostic){
-                .description =
-                    SXML_BYTE_VIEW_FROM_LITERAL("item types are nested too deep"),
-                .location = sxml_ast_get_source_location(resolver->ast, node)};
-        }
-        return SXML_STATUS_LIMIT_EXCEEDED;
+/*
+ * Item types nest (map(K, array(map(...)))), and resolving one registers
+ * its parts first. Without C recursion (D71) the nesting is a stack of
+ * frames, one per item type being resolved whose parts are not all
+ * resolved yet, at most SXML_XPATH_MAXIMUM_TYPE_DEPTH of them. A frame
+ * continues in steps: each step resolves a part or asks for one (a new
+ * frame on top), and the last registers the type and writes it to its
+ * destination, which is in the frame below or the caller's.
+ *
+ * Item types without parts that are item types or sequence types
+ * (generic types, names, element, attribute, processing-instruction and
+ * enumeration types) are resolved where they are asked for, without a
+ * frame.
+ */
+typedef struct type_frame {
+    sxml_ast_node_index node;
+    sxml_ast_kind kind;
+    /* Which step comes next; 0 for the first. */
+    uint32_t step;
+    bool is_finished;
+    sxml_type_identifier *destination;
+    /* The next parameter, field or alternative; parts_resolved counts the
+       ones before it. */
+    sxml_ast_node_index next_part;
+    size_t part_count;
+    size_t parts_resolved;
+    /* Parameter types, record fields or choice members, released when the
+       frame is popped. */
+    void *scratch;
+    /* The key type of a map type, the element test of a document test. */
+    sxml_type_identifier item_part;
+    /* The value type of a map type, member type of an array type, result
+       type of a function type. */
+    sxml_sequence_type sequence_part;
+    sxml_json_node_test json_node_test;
+} type_frame;
+
+typedef struct type_machine {
+    type_resolver *resolver;
+    /* SXML_XPATH_MAXIMUM_TYPE_DEPTH frames, allocated for the first
+       frame; never moved, so destinations in frames stay valid. */
+    type_frame *frames;
+    uint32_t frame_count;
+} type_machine;
+
+static sxml_status report_type_depth(const type_resolver *resolver,
+                                     sxml_ast_node_index node) {
+    if (resolver->error_record != NULL) {
+        resolver->error_record->diagnostic = (sxml_diagnostic){
+            .description =
+                SXML_BYTE_VIEW_FROM_LITERAL("item types are nested too deep"),
+            .location = sxml_ast_get_source_location(resolver->ast, node)};
     }
-    resolver->depth += 1;
-    sxml_status status = SXML_STATUS_OK;
-    switch ((uint32_t)kind_of(resolver, node)) {
+    return SXML_STATUS_LIMIT_EXCEEDED;
+}
+
+/* Resolves an item type without parts; false when it has parts. */
+typedef struct leaf_type_request {
+    sxml_ast_node_index node;
+    sxml_type_identifier *item_type;
+} leaf_type_request;
+
+static bool resolve_leaf_type(type_resolver *resolver,
+                              leaf_type_request request, sxml_status *status) {
+    static const sxml_builtin_type generic_types[] = {
+        [SXML_AST_KIND_ANY_ITEM_TYPE] = SXML_TYPE_ITEM,
+        [SXML_AST_KIND_GNODE_TYPE] = SXML_TYPE_GENERIC_NODE,
+        [SXML_AST_KIND_ANY_XNODE_TYPE] = SXML_TYPE_NODE,
+        [SXML_AST_KIND_COMMENT_NODE_TYPE] = SXML_TYPE_COMMENT_NODE,
+        [SXML_AST_KIND_TEXT_NODE_TYPE] = SXML_TYPE_TEXT_NODE,
+        [SXML_AST_KIND_NAMESPACE_NODE_TYPE] = SXML_TYPE_NAMESPACE_NODE,
+        [SXML_AST_KIND_ANY_MAP_TYPE] = SXML_TYPE_MAP,
+        [SXML_AST_KIND_ANY_ARRAY_TYPE] = SXML_TYPE_ARRAY,
+        [SXML_AST_KIND_ANY_RECORD_TYPE] = SXML_TYPE_RECORD,
+        [SXML_AST_KIND_ANY_FUNCTION_TYPE] = SXML_TYPE_FUNCTION,
+    };
+    const sxml_ast_node_index node = request.node;
+    sxml_type_identifier *item_type = request.item_type;
+    const uint32_t kind = (uint32_t)kind_of(resolver, node);
+    switch (kind) {
     case SXML_AST_KIND_ANY_ITEM_TYPE:
-        *item_type = sxml_builtin_type_identifier(SXML_TYPE_ITEM);
-        break;
     case SXML_AST_KIND_GNODE_TYPE:
-        *item_type = sxml_builtin_type_identifier(SXML_TYPE_GENERIC_NODE);
-        break;
     case SXML_AST_KIND_ANY_XNODE_TYPE:
-        *item_type = sxml_builtin_type_identifier(SXML_TYPE_NODE);
-        break;
     case SXML_AST_KIND_COMMENT_NODE_TYPE:
-        *item_type = sxml_builtin_type_identifier(SXML_TYPE_COMMENT_NODE);
-        break;
     case SXML_AST_KIND_TEXT_NODE_TYPE:
-        *item_type = sxml_builtin_type_identifier(SXML_TYPE_TEXT_NODE);
-        break;
     case SXML_AST_KIND_NAMESPACE_NODE_TYPE:
-        *item_type = sxml_builtin_type_identifier(SXML_TYPE_NAMESPACE_NODE);
-        break;
     case SXML_AST_KIND_ANY_MAP_TYPE:
-        *item_type = sxml_builtin_type_identifier(SXML_TYPE_MAP);
-        break;
     case SXML_AST_KIND_ANY_ARRAY_TYPE:
-        *item_type = sxml_builtin_type_identifier(SXML_TYPE_ARRAY);
-        break;
     case SXML_AST_KIND_ANY_RECORD_TYPE:
-        *item_type = sxml_builtin_type_identifier(SXML_TYPE_RECORD);
-        break;
     case SXML_AST_KIND_ANY_FUNCTION_TYPE:
-        *item_type = sxml_builtin_type_identifier(SXML_TYPE_FUNCTION);
-        break;
-    case SXML_AST_KIND_DOCUMENT_NODE_TYPE:
-        status = resolve_document_test(resolver, node, item_type);
-        break;
+        *item_type = sxml_builtin_type_identifier(generic_types[kind]);
+        *status = SXML_STATUS_OK;
+        return true;
     case SXML_AST_KIND_ELEMENT_NODE_TYPE:
-        status = resolve_element_or_attribute_test(
-            resolver,
-            (element_test_request){.node = node,
-                                   .node_kind = SXML_NODE_KIND_ELEMENT},
-            item_type);
-        break;
     case SXML_AST_KIND_ATTRIBUTE_NODE_TYPE:
-        status = resolve_element_or_attribute_test(
+        *status = resolve_element_or_attribute_test(
             resolver,
             (element_test_request){.node = node,
-                                   .node_kind = SXML_NODE_KIND_ATTRIBUTE},
+                                   .node_kind =
+                                       kind == SXML_AST_KIND_ELEMENT_NODE_TYPE
+                                           ? SXML_NODE_KIND_ELEMENT
+                                           : SXML_NODE_KIND_ATTRIBUTE},
             item_type);
-        break;
+        return true;
     case SXML_AST_KIND_SCHEMA_ELEMENT_NODE_TYPE:
     case SXML_AST_KIND_SCHEMA_ATTRIBUTE_NODE_TYPE:
         /* No schema is imported in Phase 1, so no declaration is in scope
            (XPath 4.0, 3.2.7.3). */
-        status = report_at(site_of(resolver, node), SXML_BYTE_VIEW_FROM_LITERAL("XPST0008"),
-                           SXML_BYTE_VIEW_FROM_LITERAL("no schema declaration of this name is in scope"));
-        break;
+        *status = report_at(site_of(resolver, node), SXML_BYTE_VIEW_FROM_LITERAL("XPST0008"),
+                            SXML_BYTE_VIEW_FROM_LITERAL("no schema declaration of this name is in scope"));
+        return true;
     case SXML_AST_KIND_PROCESSING_INSTRUCTION_NODE_TYPE:
-        status = resolve_processing_instruction_test(resolver, node, item_type);
-        break;
-    case SXML_AST_KIND_JNODE_TYPE:
-        status = resolve_json_node_test(resolver, node, item_type);
-        break;
-    case SXML_AST_KIND_TYPED_MAP_TYPE:
-        status = resolve_map_type(resolver, node, item_type);
-        break;
-    case SXML_AST_KIND_TYPED_ARRAY_TYPE: {
-        sxml_sequence_type member_type = {0};
-        status = resolve_sequence_type(
-            resolver, find_field(resolver, node, SXML_AST_FIELD_MEMBER),
-            &member_type);
-        if (status == SXML_STATUS_OK) {
-            status = register_type(
-                resolver,
-                &(sxml_type_description){
-                    .variety = SXML_TYPE_VARIETY_ARRAY,
-                    .variety_details = {.array_type = {.is_any_array = false,
-                                                       .member_type =
-                                                           member_type}}},
-                item_type);
-        }
-        break;
-    }
-    case SXML_AST_KIND_TYPED_RECORD_TYPE:
-        status = resolve_record_type(resolver, node, item_type);
-        break;
+        *status = resolve_processing_instruction_test(resolver, node, item_type);
+        return true;
     case SXML_AST_KIND_ENUMERATION_TYPE:
-        status = resolve_enumeration_type(resolver, node, item_type);
-        break;
-    case SXML_AST_KIND_TYPED_FUNCTION_TYPE:
-        status = resolve_function_type(resolver, node, item_type);
-        break;
-    case SXML_AST_KIND_CHOICE_ITEM_TYPE:
-        status = resolve_choice_type(resolver, node, item_type);
-        break;
+        *status = resolve_enumeration_type(resolver, node, item_type);
+        return true;
     case SXML_AST_KIND_NCNAME:
     case SXML_AST_KIND_PREFIXED_NAME:
     case SXML_AST_KIND_URI_QUALIFIED_NAME:
-        status = resolve_type_name(resolver, node, item_type);
-        break;
+        *status = resolve_type_name(resolver, node, item_type);
+        return true;
+    case SXML_AST_KIND_DOCUMENT_NODE_TYPE:
+    case SXML_AST_KIND_JNODE_TYPE:
+    case SXML_AST_KIND_TYPED_MAP_TYPE:
+    case SXML_AST_KIND_TYPED_ARRAY_TYPE:
+    case SXML_AST_KIND_TYPED_RECORD_TYPE:
+    case SXML_AST_KIND_TYPED_FUNCTION_TYPE:
+    case SXML_AST_KIND_CHOICE_ITEM_TYPE:
+        return false;
     default:
-        status = SXML_STATUS_INVALID_ARGUMENT;
-        break;
+        *status = SXML_STATUS_INVALID_ARGUMENT;
+        return true;
     }
-    resolver->depth -= 1;
-    return status;
 }
 
-static sxml_status resolve_sequence_type(type_resolver *resolver,
-                                         sxml_ast_node_index node,
-                                         sxml_sequence_type *sequence_type) {
-    const sxml_ast_node *type_node = sxml_ast_get_node(resolver->ast, node);
+/* An item type to resolve into destination. */
+typedef struct type_part {
+    sxml_ast_node_index node;
+    sxml_type_identifier *destination;
+} type_part;
+
+/* Resolves part now when it has no parts, else pushes a frame for it.
+   Item types nest at most SXML_XPATH_MAXIMUM_TYPE_DEPTH deep, counting
+   the one asked for. */
+static sxml_status begin_item_type(type_machine *machine, type_part part) {
+    type_resolver *resolver = machine->resolver;
+    if (machine->frame_count >= SXML_XPATH_MAXIMUM_TYPE_DEPTH) {
+        return report_type_depth(resolver, part.node);
+    }
+    sxml_status status = SXML_STATUS_OK;
+    if (resolve_leaf_type(
+            resolver,
+            (leaf_type_request){.node = part.node,
+                                .item_type = part.destination},
+            &status)) {
+        return status;
+    }
+    if (machine->frames == NULL) {
+        void *memory = NULL;
+        status = allocate_scratch(
+            resolver,
+            (scratch_request){.element_count = SXML_XPATH_MAXIMUM_TYPE_DEPTH,
+                              .element_size = sizeof(type_frame),
+                              .element_alignment = alignof(type_frame)},
+            &memory);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        machine->frames = memory;
+    }
+    machine->frames[machine->frame_count] =
+        (type_frame){.node = part.node,
+                     .kind = kind_of(resolver, part.node),
+                     .destination = part.destination};
+    machine->frame_count += 1;
+    return SXML_STATUS_OK;
+}
+
+/* A sequence type to resolve into destination. */
+typedef struct sequence_type_part {
+    sxml_ast_node_index node;
+    sxml_sequence_type *destination;
+} sequence_type_part;
+
+/* A sequence type (XPath 4.0, section 3.1): the occurrence now, the item
+   type through begin_item_type. */
+static sxml_status begin_sequence_type(type_machine *machine,
+                                       sequence_type_part part) {
+    const type_resolver *resolver = machine->resolver;
+    const sxml_ast_node *type_node = sxml_ast_get_node(resolver->ast, part.node);
     if (type_node->kind != SXML_AST_KIND_SEQUENCE_TYPE) {
         return SXML_STATUS_INVALID_ARGUMENT;
     }
     const sxml_occurrence occurrence = type_node->detail.occurrence;
     if (occurrence == SXML_OCCURRENCE_ZERO) {
         /* empty-sequence(): the item type is ignored (types.h). */
-        *sequence_type = (sxml_sequence_type){
+        *part.destination = (sxml_sequence_type){
             .item_type = sxml_builtin_type_identifier(SXML_TYPE_ITEM),
             .occurrence = SXML_OCCURRENCE_ZERO};
         return SXML_STATUS_OK;
     }
-    sxml_type_identifier item_type = {0};
-    sxml_status status = resolve_item_type(
-        resolver, find_field(resolver, node, SXML_AST_FIELD_ITEM_TYPE),
-        &item_type);
-    if (status != SXML_STATUS_OK) {
-        return status;
+    part.destination->occurrence = occurrence;
+    return begin_item_type(
+        machine,
+        (type_part){.node = find_field(resolver, part.node,
+                                       SXML_AST_FIELD_ITEM_TYPE),
+                    .destination = &part.destination->item_type});
+}
+
+/* Registers the frame's type into its destination and finishes it. */
+static sxml_status finish_frame(type_machine *machine, type_frame *frame,
+                                const sxml_type_description *description) {
+    frame->is_finished = true;
+    return register_type(machine->resolver, description, frame->destination);
+}
+
+/* Counts the parts of field and allocates their scratch array. */
+typedef struct frame_parts {
+    sxml_ast_field field;
+    size_t element_size;
+    size_t element_alignment;
+} frame_parts;
+
+static sxml_status begin_frame_parts(type_machine *machine, type_frame *frame,
+                                     frame_parts parts) {
+    const type_resolver *resolver = machine->resolver;
+    frame->part_count = count_field(resolver, frame->node, parts.field);
+    frame->next_part = find_field(resolver, frame->node, parts.field);
+    return allocate_scratch(
+        resolver,
+        (scratch_request){.element_count = frame->part_count,
+                          .element_size = parts.element_size,
+                          .element_alignment = parts.element_alignment},
+        &frame->scratch);
+}
+
+/* document-node(...) (XPath 4.0, 3.2.7.1). */
+static sxml_status continue_document_test(type_machine *machine,
+                                          type_frame *frame) {
+    type_resolver *resolver = machine->resolver;
+    if (frame->step == 0) {
+        frame->step = 1;
+        const sxml_ast_node_index content =
+            find_field(resolver, frame->node, SXML_AST_FIELD_CONTENT);
+        if (content.value == 0) {
+            frame->is_finished = true;
+            *frame->destination =
+                sxml_builtin_type_identifier(SXML_TYPE_DOCUMENT_NODE);
+            return SXML_STATUS_OK;
+        }
+        if (kind_of(resolver, content) == SXML_AST_KIND_NAME_TEST_UNION) {
+            /* document-node(N) abbreviates document-node(element(N))
+               (XPath 4.0, 3.2.7.1). Resolve the union as an element
+               test's names. */
+            return resolve_element_or_attribute_test(
+                resolver,
+                (element_test_request){.node = frame->node,
+                                       .node_kind = SXML_NODE_KIND_ELEMENT},
+                &frame->item_part);
+        }
+        return begin_item_type(machine,
+                               (type_part){.node = content,
+                                           .destination = &frame->item_part});
     }
-    *sequence_type =
-        (sxml_sequence_type){.item_type = item_type, .occurrence = occurrence};
-    return SXML_STATUS_OK;
+    return finish_frame(
+        machine, frame,
+        &(sxml_type_description){
+            .variety = SXML_TYPE_VARIETY_NODE_TEST,
+            .variety_details = {.node_test = {
+                                    .node_kind = SXML_NODE_KIND_DOCUMENT,
+                                    .name_test = {.name_test_kind =
+                                                      SXML_NAME_TEST_KIND_ANY_NAME},
+                                    .document_element_test = frame->item_part}}});
+}
+
+/* function(T1, T2) as R (XPath 4.0, 3.2.8.1). */
+static sxml_status continue_function_type(type_machine *machine,
+                                          type_frame *frame) {
+    const type_resolver *resolver = machine->resolver;
+    if (frame->step == 0) {
+        frame->step = 1;
+        return begin_frame_parts(
+            machine, frame,
+            (frame_parts){.field = SXML_AST_FIELD_PARAMETER,
+                          .element_size = sizeof(sxml_sequence_type),
+                          .element_alignment = alignof(sxml_sequence_type)});
+    }
+    sxml_sequence_type *parameter_types = frame->scratch;
+    if (frame->step == 1) {
+        if (frame->next_part.value != 0) {
+            const sxml_ast_node_index parameter = frame->next_part;
+            frame->next_part =
+                sxml_ast_find_next_with_same_field(resolver->ast, parameter);
+            frame->parts_resolved += 1;
+            return begin_sequence_type(
+                machine,
+                (sequence_type_part){
+                    .node = find_field(resolver, parameter, SXML_AST_FIELD_TYPE),
+                    .destination = &parameter_types[frame->parts_resolved - 1]});
+        }
+        frame->step = 2;
+        return begin_sequence_type(
+            machine,
+            (sequence_type_part){
+                .node = find_field(resolver, frame->node,
+                                   SXML_AST_FIELD_RETURN_TYPE),
+                .destination = &frame->sequence_part});
+    }
+    return finish_frame(
+        machine, frame,
+        &(sxml_type_description){
+            .variety = SXML_TYPE_VARIETY_FUNCTION,
+            .variety_details = {
+                .function_type = {
+                    .is_any_function = false,
+                    .parameter_types = {.sequence_types = parameter_types,
+                                        .sequence_type_count = frame->part_count},
+                    .result_type = frame->sequence_part}}});
+}
+
+/* map(K, V) (XPath 4.0, 3.2.9.2). */
+static sxml_status continue_map_type(type_machine *machine, type_frame *frame) {
+    const type_resolver *resolver = machine->resolver;
+    const sxml_ast_node_index key_node =
+        find_field(resolver, frame->node, SXML_AST_FIELD_KEY);
+    switch (frame->step) {
+    case 0:
+        frame->step = 1;
+        return begin_item_type(
+            machine, (type_part){.node = key_node, .destination = &frame->item_part});
+    case 1:
+        frame->step = 2;
+        /* The key type must be a generalized atomic type (XPath 4.0,
+           3.2.9.2): an atomic, union or enumeration type, or a choice of
+           them. */
+        if (!sxml_type_registry_is_subtype(
+                resolver->type_registry,
+                (sxml_type_pair){
+                    .derived_type = frame->item_part,
+                    .base_type = sxml_builtin_type_identifier(
+                        SXML_TYPE_XS_ANY_ATOMIC_TYPE)})) {
+            return report_at(site_of(resolver, key_node), SXML_BYTE_VIEW_FROM_LITERAL("XPST0152"),
+                             SXML_BYTE_VIEW_FROM_LITERAL("the key type of a map type is not atomic"));
+        }
+        return begin_sequence_type(
+            machine,
+            (sequence_type_part){
+                .node = find_field(resolver, frame->node, SXML_AST_FIELD_VALUE),
+                .destination = &frame->sequence_part});
+    default:
+        return finish_frame(
+            machine, frame,
+            &(sxml_type_description){
+                .variety = SXML_TYPE_VARIETY_MAP,
+                .variety_details = {.map_type = {.is_any_map = false,
+                                                 .key_type = frame->item_part,
+                                                 .value_type =
+                                                     frame->sequence_part}}});
+    }
+}
+
+/* array(T) (XPath 4.0, 3.2.9.3). */
+static sxml_status continue_array_type(type_machine *machine,
+                                       type_frame *frame) {
+    if (frame->step == 0) {
+        frame->step = 1;
+        return begin_sequence_type(
+            machine,
+            (sequence_type_part){
+                .node = find_field(machine->resolver, frame->node,
+                                   SXML_AST_FIELD_MEMBER),
+                .destination = &frame->sequence_part});
+    }
+    return finish_frame(
+        machine, frame,
+        &(sxml_type_description){
+            .variety = SXML_TYPE_VARIETY_ARRAY,
+            .variety_details = {.array_type = {.is_any_array = false,
+                                               .member_type =
+                                                   frame->sequence_part}}});
+}
+
+/* record(N as T, ...) (XPath 4.0, 3.2.10.2). */
+static sxml_status continue_record_type(type_machine *machine,
+                                        type_frame *frame) {
+    const type_resolver *resolver = machine->resolver;
+    if (frame->step == 0) {
+        frame->step = 1;
+        return begin_frame_parts(
+            machine, frame,
+            (frame_parts){.field = SXML_AST_FIELD_FIELD,
+                          .element_size = sizeof(sxml_record_field),
+                          .element_alignment = alignof(sxml_record_field)});
+    }
+    sxml_record_field *fields = frame->scratch;
+    if (frame->next_part.value != 0) {
+        const sxml_ast_node_index field = frame->next_part;
+        frame->next_part =
+            sxml_ast_find_next_with_same_field(resolver->ast, field);
+        const size_t field_index = frame->parts_resolved;
+        frame->parts_resolved += 1;
+        const sxml_ast_node *name = sxml_ast_get_node(
+            resolver->ast, find_field(resolver, field, SXML_AST_FIELD_NAME));
+        const sxml_byte_view field_name = sxml_ast_get_text(
+            resolver->ast, name->kind == SXML_AST_KIND_STRING_LITERAL
+                               ? name->payload.text
+                               : name->payload.name.local_name);
+        for (size_t earlier_index = 0; earlier_index < field_index;
+             earlier_index += 1) {
+            if (sxml_byte_view_equals(fields[earlier_index].field_name,
+                                      field_name)) {
+                /* XPath 4.0, 3.2.10.2: field names must be distinct. */
+                return report_at(site_of(resolver, field), SXML_BYTE_VIEW_FROM_LITERAL("XPST0021"),
+                                 SXML_BYTE_VIEW_FROM_LITERAL("two fields of a record type have the "
+                                 "same name"));
+            }
+        }
+        fields[field_index] = (sxml_record_field){
+            .field_name = field_name,
+            .field_type = {.item_type = sxml_builtin_type_identifier(SXML_TYPE_ITEM),
+                           .occurrence = SXML_OCCURRENCE_ZERO_OR_MORE}};
+        const sxml_ast_node_index type_node =
+            find_field(resolver, field, SXML_AST_FIELD_TYPE);
+        if (type_node.value == 0) {
+            return SXML_STATUS_OK;
+        }
+        return begin_sequence_type(
+            machine,
+            (sequence_type_part){.node = type_node,
+                                 .destination = &fields[field_index].field_type});
+    }
+    return finish_frame(
+        machine, frame,
+        &(sxml_type_description){
+            .variety = SXML_TYPE_VARIETY_RECORD,
+            .variety_details = {
+                .record_type = {.is_any_record = false,
+                                .is_nominative = false,
+                                .record_fields = {.record_fields = fields,
+                                                  .record_field_count =
+                                                      frame->part_count}}}});
+}
+
+/* (A | B | ...) (XPath 4.0, 3.2.4). */
+static sxml_status continue_choice_type(type_machine *machine,
+                                        type_frame *frame) {
+    type_resolver *resolver = machine->resolver;
+    if (frame->step == 0) {
+        frame->step = 1;
+        return begin_frame_parts(
+            machine, frame,
+            (frame_parts){.field = SXML_AST_FIELD_ALTERNATIVE,
+                          .element_size = sizeof(sxml_type_identifier),
+                          .element_alignment = alignof(sxml_type_identifier)});
+    }
+    sxml_type_identifier *members = frame->scratch;
+    if (frame->next_part.value != 0) {
+        const sxml_ast_node_index alternative = frame->next_part;
+        frame->next_part =
+            sxml_ast_find_next_with_same_field(resolver->ast, alternative);
+        frame->parts_resolved += 1;
+        return begin_item_type(
+            machine,
+            (type_part){.node = alternative,
+                        .destination = &members[frame->parts_resolved - 1]});
+    }
+    frame->is_finished = true;
+    return register_choice(
+        resolver,
+        (sxml_type_identifier_view){.type_identifiers = members,
+                                    .type_identifier_count = frame->part_count},
+        frame->destination);
+}
+
+/* jnode(selector, type) (XPath 4.0, 3.2.12). */
+static sxml_status continue_json_node_test(type_machine *machine,
+                                           type_frame *frame) {
+    const type_resolver *resolver = machine->resolver;
+    if (frame->step == 0) {
+        frame->step = 1;
+        sxml_status status = resolve_json_node_selector(
+            resolver, frame->node, &frame->json_node_test);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        const sxml_ast_node_index type_node =
+            find_field(resolver, frame->node, SXML_AST_FIELD_TYPE);
+        if (type_node.value == 0) {
+            return SXML_STATUS_OK;
+        }
+        frame->json_node_test.has_value_type = true;
+        return begin_sequence_type(
+            machine,
+            (sequence_type_part){.node = type_node,
+                                 .destination =
+                                     &frame->json_node_test.value_type});
+    }
+    return finish_frame(
+        machine, frame,
+        &(sxml_type_description){
+            .variety = SXML_TYPE_VARIETY_JSON_NODE_TEST,
+            .variety_details = {.json_node_test = frame->json_node_test}});
+}
+
+static sxml_status continue_frame(type_machine *machine, type_frame *frame) {
+    switch ((uint32_t)frame->kind) {
+    case SXML_AST_KIND_DOCUMENT_NODE_TYPE:
+        return continue_document_test(machine, frame);
+    case SXML_AST_KIND_JNODE_TYPE:
+        return continue_json_node_test(machine, frame);
+    case SXML_AST_KIND_TYPED_MAP_TYPE:
+        return continue_map_type(machine, frame);
+    case SXML_AST_KIND_TYPED_ARRAY_TYPE:
+        return continue_array_type(machine, frame);
+    case SXML_AST_KIND_TYPED_RECORD_TYPE:
+        return continue_record_type(machine, frame);
+    case SXML_AST_KIND_TYPED_FUNCTION_TYPE:
+        return continue_function_type(machine, frame);
+    case SXML_AST_KIND_CHOICE_ITEM_TYPE:
+        return continue_choice_type(machine, frame);
+    default:
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+}
+
+/* Runs frames until none is left or one fails, then releases them all. */
+static sxml_status run_type_machine(type_machine *machine, sxml_status status) {
+    while (status == SXML_STATUS_OK && machine->frame_count > 0) {
+        type_frame *frame = &machine->frames[machine->frame_count - 1];
+        if (frame->is_finished) {
+            release_scratch(machine->resolver, frame->scratch);
+            machine->frame_count -= 1;
+            continue;
+        }
+        status = continue_frame(machine, frame);
+    }
+    while (machine->frame_count > 0) {
+        machine->frame_count -= 1;
+        release_scratch(machine->resolver,
+                        machine->frames[machine->frame_count].scratch);
+    }
+    if (machine->frames != NULL) {
+        release_scratch(machine->resolver, machine->frames);
+    }
+    return status;
 }
 
 static type_resolver make_type_resolver(const sxml_xpath_type_request *request) {
@@ -1304,18 +1453,35 @@ static type_resolver make_type_resolver(const sxml_xpath_type_request *request) 
             sxml_item_heap_get_type_registry(request->static_context->item_heap),
         .name_pool =
             sxml_item_heap_get_name_pool(request->static_context->item_heap),
-        .depth = 0,
     };
 }
 
 sxml_status sxml_xpath_resolve_sequence_type(
     const sxml_xpath_type_request *request, sxml_sequence_type *sequence_type) {
     type_resolver resolver = make_type_resolver(request);
-    return resolve_sequence_type(&resolver, request->type_node, sequence_type);
+    type_machine machine = {.resolver = &resolver};
+    sxml_sequence_type resolved = {0};
+    sxml_status status = run_type_machine(
+        &machine, begin_sequence_type(
+                      &machine, (sequence_type_part){.node = request->type_node,
+                                                     .destination = &resolved}));
+    if (status == SXML_STATUS_OK) {
+        *sequence_type = resolved;
+    }
+    return status;
 }
 
 sxml_status sxml_xpath_resolve_item_type(const sxml_xpath_type_request *request,
                                          sxml_type_identifier *item_type) {
     type_resolver resolver = make_type_resolver(request);
-    return resolve_item_type(&resolver, request->type_node, item_type);
+    type_machine machine = {.resolver = &resolver};
+    sxml_type_identifier resolved = {0};
+    sxml_status status = run_type_machine(
+        &machine,
+        begin_item_type(&machine, (type_part){.node = request->type_node,
+                                               .destination = &resolved}));
+    if (status == SXML_STATUS_OK) {
+        *item_type = resolved;
+    }
+    return status;
 }

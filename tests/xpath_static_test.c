@@ -1459,6 +1459,13 @@ typedef struct generated_text {
     char text[24000];
 } generated_text;
 
+/* Text nested DEEP_NESTING levels deep: at most 14 bytes per level. */
+#define DEEP_NESTING 100000U
+
+typedef struct deep_text {
+    char text[14U * DEEP_NESTING + 16U];
+} deep_text;
+
 static void test_long_operator_chains_cost_no_stack(sxml_test_state *state) {
     static generated_text generated;
     const size_t term_count = 5000;
@@ -1474,8 +1481,9 @@ static void test_long_operator_chains_cost_no_stack(sxml_test_state *state) {
 }
 
 static void test_deep_nesting_reaches_the_depth_limit(sxml_test_state *state) {
-    static generated_text generated;
-    const size_t nesting = 200;
+    /* One level deeper than the default, which bounds heap use (D71). */
+    static deep_text generated;
+    const size_t nesting = SXML_XPATH_DEFAULT_MAXIMUM_EXPRESSION_DEPTH;
     const size_t shallow_nesting = 24;
     for (size_t index = 0; index < nesting; index += 1) {
         generated.text[index] = '(';
@@ -1504,6 +1512,35 @@ static void test_deep_nesting_reaches_the_depth_limit(sxml_test_state *state) {
                                        .maximum_expression_depth = 1000};
     SXML_TEST_EXPECT(state,
                      compile_status(&shallow_case, NULL) == SXML_STATUS_OK);
+}
+
+/* Lowering keeps its frames in allocator memory, not on the C stack
+   (D71): parentheses, static calls, inline functions and predicates,
+   taken in turn, nested 100,000 deep compile within a raised limit, also
+   on the 64 KiB stack of the WebAssembly tests, and leave nothing
+   allocated. */
+static void test_deep_nesting_costs_no_stack(sxml_test_state *state) {
+    static const char *const openings[] = {"(", "abs(", "function() {", "a["};
+    static const char closings[] = {')', ')', '}', ']'};
+    static deep_text generated;
+    size_t length = 0;
+    for (size_t level = 0; level < DEEP_NESTING; level += 1) {
+        const char *opening = openings[level % SXML_TEST_COUNT(openings)];
+        const size_t opening_length = strlen(opening);
+        memcpy(generated.text + length, opening, opening_length);
+        length += opening_length;
+    }
+    generated.text[length] = '1';
+    length += 1;
+    for (size_t level = DEEP_NESTING; level > 0; level -= 1) {
+        generated.text[length] = closings[(level - 1) % SXML_TEST_COUNT(closings)];
+        length += 1;
+    }
+    generated.text[length] = '\0';
+    /* The front end counts AST nodes, a few per level. */
+    const compile_case test_case = {.expression_text = generated.text,
+                                    .maximum_expression_depth = 8U * DEEP_NESTING};
+    SXML_TEST_EXPECT(state, compile_status(&test_case, NULL) == SXML_STATUS_OK);
 }
 
 /* The costliest nesting per level, arrows into static calls and dynamic
@@ -1603,6 +1640,8 @@ static const sxml_test_case xpath_static_test_cases[] = {
      .function = test_long_operator_chains_cost_no_stack},
     {.name = "deep_nesting_reaches_the_depth_limit",
      .function = test_deep_nesting_reaches_the_depth_limit},
+    {.name = "deep_nesting_costs_no_stack",
+     .function = test_deep_nesting_costs_no_stack},
     {.name = "nesting_at_the_default_limit_fits_the_stack",
      .function = test_nesting_at_the_default_limit_fits_the_stack},
     {.name = "compile_survives_every_allocation_failure",

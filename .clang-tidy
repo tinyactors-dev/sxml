@@ -4,6 +4,7 @@ Checks: >
   bugprone-*,
   cert-*,
   clang-analyzer-*,
+  misc-no-recursion,
   readability-identifier-length,
   readability-identifier-naming,
   readability-function-size,

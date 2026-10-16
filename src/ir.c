@@ -737,45 +737,19 @@ static void write_namespace_uri(text_writer *writer,
 /* Deepest nesting of item types printed; deeper parts print as "...". */
 #define TEXT_TYPE_DEPTH_LIMIT 64U
 
-typedef struct type_text_request {
-    sxml_type_identifier type;
-    uint32_t depth;
-} type_text_request;
-
-static void write_item_type(text_writer *writer, type_text_request request);
-
-static void write_occurrence(text_writer *writer, sxml_occurrence occurrence) {
+static const char *occurrence_text(sxml_occurrence occurrence) {
     switch (occurrence) {
     case SXML_OCCURRENCE_ZERO:
     case SXML_OCCURRENCE_EXACTLY_ONE:
         break;
     case SXML_OCCURRENCE_ZERO_OR_ONE:
-        write_text(writer, "?");
-        break;
+        return "?";
     case SXML_OCCURRENCE_ONE_OR_MORE:
-        write_text(writer, "+");
-        break;
+        return "+";
     case SXML_OCCURRENCE_ZERO_OR_MORE:
-        write_text(writer, "*");
-        break;
+        return "*";
     }
-}
-
-typedef struct sequence_type_text_request {
-    sxml_sequence_type sequence_type;
-    uint32_t depth;
-} sequence_type_text_request;
-
-static void write_sequence_type(text_writer *writer,
-                                sequence_type_text_request request) {
-    if (request.sequence_type.occurrence == SXML_OCCURRENCE_ZERO) {
-        write_text(writer, "empty-sequence()");
-        return;
-    }
-    write_item_type(writer,
-                    (type_text_request){.type = request.sequence_type.item_type,
-                                        .depth = request.depth});
-    write_occurrence(writer, request.sequence_type.occurrence);
+    return "";
 }
 
 static void write_name_test(text_writer *writer, sxml_name_test name_test) {
@@ -798,222 +772,39 @@ static void write_name_test(text_writer *writer, sxml_name_test name_test) {
     }
 }
 
-static void write_node_test(text_writer *writer,
-                            const sxml_node_test *node_test, uint32_t depth) {
-    static const char *const kind_names[] = {
-        [SXML_NODE_KIND_DOCUMENT] = "document-node",
-        [SXML_NODE_KIND_ELEMENT] = "element",
-        [SXML_NODE_KIND_ATTRIBUTE] = "attribute",
-        [SXML_NODE_KIND_TEXT] = "text",
-        [SXML_NODE_KIND_COMMENT] = "comment",
-        [SXML_NODE_KIND_PROCESSING_INSTRUCTION] = "processing-instruction",
-        [SXML_NODE_KIND_NAMESPACE] = "namespace-node",
-        [SXML_NODE_KIND_ANY] = "xnode",
-    };
-    const bool is_schema_test = node_test->is_schema_declaration;
-    if (is_schema_test) {
-        write_text(writer, node_test->node_kind == SXML_NODE_KIND_ELEMENT
-                               ? "schema-element"
-                               : "schema-attribute");
-    } else {
-        write_text(writer, kind_names[node_test->node_kind]);
-    }
-    write_text(writer, "(");
-    switch (node_test->node_kind) {
-    case SXML_NODE_KIND_DOCUMENT:
-        if (node_test->document_element_test.index != SXML_TYPE_NONE) {
-            write_item_type(
-                writer,
-                (type_text_request){.type = node_test->document_element_test,
-                                    .depth = depth + 1});
-        }
-        break;
-    case SXML_NODE_KIND_ELEMENT:
-    case SXML_NODE_KIND_ATTRIBUTE:
-        if (node_test->name_test.name_test_kind !=
-                SXML_NAME_TEST_KIND_ANY_NAME ||
-            node_test->type_annotation.index != SXML_TYPE_NONE) {
-            write_name_test(writer, node_test->name_test);
-        }
-        if (node_test->type_annotation.index != SXML_TYPE_NONE) {
-            write_text(writer, ", ");
-            write_item_type(
-                writer, (type_text_request){.type = node_test->type_annotation,
-                                            .depth = depth + 1});
-            if (node_test->allows_nilled) {
-                write_text(writer, "?");
-            }
-        }
-        break;
-    case SXML_NODE_KIND_PROCESSING_INSTRUCTION:
-    case SXML_NODE_KIND_NAMESPACE:
-        if (node_test->name_test.name_test_kind ==
-            SXML_NAME_TEST_KIND_EXPANDED_NAME) {
-            write_name(writer, node_test->name_test.expanded_name);
-        }
-        break;
-    case SXML_NODE_KIND_TEXT:
-    case SXML_NODE_KIND_COMMENT:
-    case SXML_NODE_KIND_ANY:
-        break;
-    }
-    write_text(writer, ")");
-}
+/*
+ * Item types nest (map(K, array(map(...)))). Without C recursion (D71)
+ * they are written with a stack of frames, one per registered item type
+ * being written, at most TEXT_TYPE_DEPTH_LIMIT: a frame writes its text
+ * in steps, and a step that reaches a part pushes a frame for it (or
+ * writes it at once when it is a built-in type); the frame continues
+ * after the part's text when it is on top again.
+ */
+typedef struct type_text_frame {
+    sxml_type_identifier type;
+    /* Which step comes next; 0 for the first. */
+    uint32_t step;
+    bool is_finished;
+    /* Written after the type: an occurrence indicator, or "?" after the
+       type annotation of a nillable element test. */
+    const char *suffix;
+} type_text_frame;
 
-static void write_type_list(text_writer *writer,
-                            sxml_type_identifier_view members, uint32_t depth) {
-    for (size_t member_index = 0; member_index < members.type_identifier_count;
-         member_index += 1) {
-        if (member_index > 0) {
-            write_text(writer, " | ");
-        }
-        write_item_type(
-            writer,
-            (type_text_request){.type = members.type_identifiers[member_index],
-                                .depth = depth + 1});
-    }
-}
+typedef struct type_text_stack {
+    type_text_frame frames[TEXT_TYPE_DEPTH_LIMIT];
+    uint32_t frame_count;
+} type_text_stack;
 
-/* Writes a registered item type in XPath 4.0 syntax (section 3). */
-static void write_registered_item_type(text_writer *writer,
-                                       const sxml_type_description *description,
-                                       uint32_t depth) {
-    switch (description->variety) {
-    case SXML_TYPE_VARIETY_NODE_TEST:
-        write_node_test(writer, &description->variety_details.node_test, depth);
-        return;
-    case SXML_TYPE_VARIETY_JSON_NODE_TEST: {
-        const sxml_json_node_test *test =
-            &description->variety_details.json_node_test;
-        write_text(writer, "jnode(");
-        switch (test->key_constraint) {
-        case SXML_JSON_KEY_CONSTRAINT_ANY:
-            write_text(writer, "*");
-            break;
-        case SXML_JSON_KEY_CONSTRAINT_ROOT:
-            write_text(writer, "()");
-            break;
-        case SXML_JSON_KEY_CONSTRAINT_CONSTANT:
-            write_string_literal(writer, test->key_lexical_form);
-            break;
-        }
-        if (test->has_value_type) {
-            write_text(writer, ", ");
-            write_sequence_type(
-                writer, (sequence_type_text_request){
-                            .sequence_type = test->value_type,
-                            .depth = depth + 1});
-        }
-        write_text(writer, ")");
-        return;
-    }
-    case SXML_TYPE_VARIETY_FUNCTION: {
-        const sxml_function_type *function_type =
-            &description->variety_details.function_type;
-        write_text(writer, "function(");
-        for (size_t parameter_index = 0;
-             parameter_index < function_type->parameter_types.sequence_type_count;
-             parameter_index += 1) {
-            if (parameter_index > 0) {
-                write_text(writer, ", ");
-            }
-            write_sequence_type(
-                writer,
-                (sequence_type_text_request){
-                    .sequence_type = function_type->parameter_types
-                                         .sequence_types[parameter_index],
-                    .depth = depth + 1});
-        }
-        write_text(writer, ") as ");
-        write_sequence_type(writer, (sequence_type_text_request){
-                                        .sequence_type = function_type->result_type,
-                                        .depth = depth + 1});
-        return;
-    }
-    case SXML_TYPE_VARIETY_MAP:
-        write_text(writer, "map(");
-        write_item_type(writer, (type_text_request){
-                                    .type = description->variety_details
-                                                .map_type.key_type,
-                                    .depth = depth + 1});
-        write_text(writer, ", ");
-        write_sequence_type(
-            writer, (sequence_type_text_request){
-                        .sequence_type =
-                            description->variety_details.map_type.value_type,
-                        .depth = depth + 1});
-        write_text(writer, ")");
-        return;
-    case SXML_TYPE_VARIETY_ARRAY:
-        write_text(writer, "array(");
-        write_sequence_type(
-            writer, (sequence_type_text_request){
-                        .sequence_type =
-                            description->variety_details.array_type.member_type,
-                        .depth = depth + 1});
-        write_text(writer, ")");
-        return;
-    case SXML_TYPE_VARIETY_RECORD: {
-        if (description->type_name.index != 0) {
-            write_name(writer, description->type_name);
-            return;
-        }
-        const sxml_record_field_view fields =
-            description->variety_details.record_type.record_fields;
-        write_text(writer, "record(");
-        for (size_t field_index = 0; field_index < fields.record_field_count;
-             field_index += 1) {
-            if (field_index > 0) {
-                write_text(writer, ", ");
-            }
-            write_string_literal(writer,
-                                 fields.record_fields[field_index].field_name);
-            write_text(writer, " as ");
-            write_sequence_type(
-                writer, (sequence_type_text_request){
-                            .sequence_type =
-                                fields.record_fields[field_index].field_type,
-                            .depth = depth + 1});
-        }
-        write_text(writer, ")");
-        return;
-    }
-    case SXML_TYPE_VARIETY_ENUMERATION: {
-        const sxml_byte_view_list values =
-            description->variety_details.enumeration_values;
-        write_text(writer, "enum(");
-        for (size_t value_index = 0; value_index < values.byte_view_count;
-             value_index += 1) {
-            if (value_index > 0) {
-                write_text(writer, ", ");
-            }
-            write_string_literal(writer, values.byte_views[value_index]);
-        }
-        write_text(writer, ")");
-        return;
-    }
-    case SXML_TYPE_VARIETY_CHOICE:
-        write_text(writer, "(");
-        write_type_list(writer, description->variety_details.member_types,
-                        depth);
-        write_text(writer, ")");
-        return;
-    case SXML_TYPE_VARIETY_COMPLEX:
-    case SXML_TYPE_VARIETY_ANY_SIMPLE:
-    case SXML_TYPE_VARIETY_ATOMIC:
-    case SXML_TYPE_VARIETY_LIST:
-    case SXML_TYPE_VARIETY_UNION:
-    case SXML_TYPE_VARIETY_ANY_ITEM:
-        break;
-    }
-    if (description->type_name.index != 0) {
-        write_name(writer, description->type_name);
-    } else {
-        write_text(writer, "anonymous-type()");
-    }
-}
+/* An item type to write, then its suffix. */
+typedef struct type_text_part {
+    sxml_type_identifier type;
+    const char *suffix;
+} type_text_part;
 
-static void write_item_type(text_writer *writer, type_text_request request) {
+/* Writes a built-in type, "..." beyond the depth limit or an unknown
+   type now; pushes a frame for any other registered type. */
+static void begin_item_type_text(text_writer *writer, type_text_stack *stack,
+                                 type_text_part part) {
     static const char *const generic_names[] = {
         [SXML_TYPE_ITEM - SXML_TYPE_ITEM] = "item()",
         [SXML_TYPE_GENERIC_NODE - SXML_TYPE_ITEM] = "node()",
@@ -1032,30 +823,338 @@ static void write_item_type(text_writer *writer, type_text_request request) {
         [SXML_TYPE_ARRAY - SXML_TYPE_ITEM] = "array(*)",
         [SXML_TYPE_RECORD - SXML_TYPE_ITEM] = "record(*)",
     };
-    const uint32_t index = request.type.index;
+    const uint32_t index = part.type.index;
     if (index >= SXML_TYPE_ITEM && index < SXML_TYPE_BUILTIN_COUNT) {
         write_text(writer, generic_names[index - SXML_TYPE_ITEM]);
-        return;
-    }
-    if (index > SXML_TYPE_NONE && index < SXML_TYPE_ITEM) {
+    } else if (index > SXML_TYPE_NONE && index < SXML_TYPE_ITEM) {
         write_text(writer, "xs:");
         write_bytes(writer,
                     sxml_type_builtin_local_name((sxml_builtin_type)index));
-        return;
-    }
-    if (request.depth >= TEXT_TYPE_DEPTH_LIMIT) {
+    } else if (stack->frame_count >= TEXT_TYPE_DEPTH_LIMIT) {
         write_text(writer, "...");
+    } else {
+        stack->frames[stack->frame_count] =
+            (type_text_frame){.type = part.type, .suffix = part.suffix};
+        stack->frame_count += 1;
         return;
     }
-    sxml_type_description description = {0};
-    if (sxml_type_registry_describe_type(writer->type_registry, request.type,
-                                         &description) != SXML_STATUS_OK) {
-        write_text(writer, "unknown-type(");
-        write_unsigned(writer, index);
+    write_text(writer, part.suffix);
+}
+
+static void begin_sequence_type_text(text_writer *writer,
+                                     type_text_stack *stack,
+                                     sxml_sequence_type sequence_type) {
+    if (sequence_type.occurrence == SXML_OCCURRENCE_ZERO) {
+        write_text(writer, "empty-sequence()");
+        return;
+    }
+    begin_item_type_text(
+        writer, stack,
+        (type_text_part){.type = sequence_type.item_type,
+                         .suffix = occurrence_text(sequence_type.occurrence)});
+}
+
+/* A step of a frame: its type's description and the stack. */
+typedef struct type_text_step {
+    type_text_stack *stack;
+    type_text_frame *frame;
+    const sxml_type_description *description;
+} type_text_step;
+
+static void continue_node_test_text(text_writer *writer, type_text_step step) {
+    static const char *const kind_names[] = {
+        [SXML_NODE_KIND_DOCUMENT] = "document-node",
+        [SXML_NODE_KIND_ELEMENT] = "element",
+        [SXML_NODE_KIND_ATTRIBUTE] = "attribute",
+        [SXML_NODE_KIND_TEXT] = "text",
+        [SXML_NODE_KIND_COMMENT] = "comment",
+        [SXML_NODE_KIND_PROCESSING_INSTRUCTION] = "processing-instruction",
+        [SXML_NODE_KIND_NAMESPACE] = "namespace-node",
+        [SXML_NODE_KIND_ANY] = "xnode",
+    };
+    const sxml_node_test *node_test =
+        &step.description->variety_details.node_test;
+    if (step.frame->step == 1) {
         write_text(writer, ")");
+        step.frame->is_finished = true;
         return;
     }
-    write_registered_item_type(writer, &description, request.depth);
+    step.frame->step = 1;
+    if (node_test->is_schema_declaration) {
+        write_text(writer, node_test->node_kind == SXML_NODE_KIND_ELEMENT
+                               ? "schema-element"
+                               : "schema-attribute");
+    } else {
+        write_text(writer, kind_names[node_test->node_kind]);
+    }
+    write_text(writer, "(");
+    switch (node_test->node_kind) {
+    case SXML_NODE_KIND_DOCUMENT:
+        if (node_test->document_element_test.index != SXML_TYPE_NONE) {
+            begin_item_type_text(
+                writer, step.stack,
+                (type_text_part){.type = node_test->document_element_test,
+                                 .suffix = ""});
+        }
+        break;
+    case SXML_NODE_KIND_ELEMENT:
+    case SXML_NODE_KIND_ATTRIBUTE:
+        if (node_test->name_test.name_test_kind !=
+                SXML_NAME_TEST_KIND_ANY_NAME ||
+            node_test->type_annotation.index != SXML_TYPE_NONE) {
+            write_name_test(writer, node_test->name_test);
+        }
+        if (node_test->type_annotation.index != SXML_TYPE_NONE) {
+            write_text(writer, ", ");
+            begin_item_type_text(
+                writer, step.stack,
+                (type_text_part){.type = node_test->type_annotation,
+                                 .suffix = node_test->allows_nilled ? "?" : ""});
+        }
+        break;
+    case SXML_NODE_KIND_PROCESSING_INSTRUCTION:
+    case SXML_NODE_KIND_NAMESPACE:
+        if (node_test->name_test.name_test_kind ==
+            SXML_NAME_TEST_KIND_EXPANDED_NAME) {
+            write_name(writer, node_test->name_test.expanded_name);
+        }
+        break;
+    case SXML_NODE_KIND_TEXT:
+    case SXML_NODE_KIND_COMMENT:
+    case SXML_NODE_KIND_ANY:
+        break;
+    }
+}
+
+static void continue_json_node_test_text(text_writer *writer,
+                                         type_text_step step) {
+    const sxml_json_node_test *test =
+        &step.description->variety_details.json_node_test;
+    if (step.frame->step == 1) {
+        write_text(writer, ")");
+        step.frame->is_finished = true;
+        return;
+    }
+    step.frame->step = 1;
+    write_text(writer, "jnode(");
+    switch (test->key_constraint) {
+    case SXML_JSON_KEY_CONSTRAINT_ANY:
+        write_text(writer, "*");
+        break;
+    case SXML_JSON_KEY_CONSTRAINT_ROOT:
+        write_text(writer, "()");
+        break;
+    case SXML_JSON_KEY_CONSTRAINT_CONSTANT:
+        write_string_literal(writer, test->key_lexical_form);
+        break;
+    }
+    if (test->has_value_type) {
+        write_text(writer, ", ");
+        begin_sequence_type_text(writer, step.stack, test->value_type);
+    }
+}
+
+/* function(P1, P2) as R: step k < n writes parameter k, step n the
+   result type. */
+static void continue_function_type_text(text_writer *writer,
+                                        type_text_step step) {
+    const sxml_function_type *function_type =
+        &step.description->variety_details.function_type;
+    const size_t parameter_count =
+        function_type->parameter_types.sequence_type_count;
+    const size_t parameter_index = step.frame->step;
+    step.frame->step += 1;
+    if (parameter_index == 0) {
+        write_text(writer, "function(");
+    }
+    if (parameter_index < parameter_count) {
+        if (parameter_index > 0) {
+            write_text(writer, ", ");
+        }
+        begin_sequence_type_text(
+            writer, step.stack,
+            function_type->parameter_types.sequence_types[parameter_index]);
+    } else if (parameter_index == parameter_count) {
+        write_text(writer, ") as ");
+        begin_sequence_type_text(writer, step.stack, function_type->result_type);
+    } else {
+        step.frame->is_finished = true;
+    }
+}
+
+static void continue_map_type_text(text_writer *writer, type_text_step step) {
+    const sxml_map_type *map_type = &step.description->variety_details.map_type;
+    const uint32_t step_index = step.frame->step;
+    step.frame->step += 1;
+    if (step_index == 0) {
+        write_text(writer, "map(");
+        begin_item_type_text(
+            writer, step.stack,
+            (type_text_part){.type = map_type->key_type, .suffix = ""});
+    } else if (step_index == 1) {
+        write_text(writer, ", ");
+        begin_sequence_type_text(writer, step.stack, map_type->value_type);
+    } else {
+        write_text(writer, ")");
+        step.frame->is_finished = true;
+    }
+}
+
+/* record(N as T, ...): step k < n writes field k. */
+static void continue_record_type_text(text_writer *writer,
+                                      type_text_step step) {
+    if (step.description->type_name.index != 0) {
+        write_name(writer, step.description->type_name);
+        step.frame->is_finished = true;
+        return;
+    }
+    const sxml_record_field_view fields =
+        step.description->variety_details.record_type.record_fields;
+    const size_t field_index = step.frame->step;
+    step.frame->step += 1;
+    if (field_index == 0) {
+        write_text(writer, "record(");
+    }
+    if (field_index >= fields.record_field_count) {
+        write_text(writer, ")");
+        step.frame->is_finished = true;
+        return;
+    }
+    if (field_index > 0) {
+        write_text(writer, ", ");
+    }
+    write_string_literal(writer, fields.record_fields[field_index].field_name);
+    write_text(writer, " as ");
+    begin_sequence_type_text(writer, step.stack,
+                             fields.record_fields[field_index].field_type);
+}
+
+/* (M1 | M2 | ...): step k < n writes member k. */
+static void continue_choice_type_text(text_writer *writer,
+                                      type_text_step step) {
+    const sxml_type_identifier_view members =
+        step.description->variety_details.member_types;
+    const size_t member_index = step.frame->step;
+    step.frame->step += 1;
+    if (member_index == 0) {
+        write_text(writer, "(");
+    }
+    if (member_index >= members.type_identifier_count) {
+        write_text(writer, ")");
+        step.frame->is_finished = true;
+        return;
+    }
+    if (member_index > 0) {
+        write_text(writer, " | ");
+    }
+    begin_item_type_text(
+        writer, step.stack,
+        (type_text_part){.type = members.type_identifiers[member_index],
+                         .suffix = ""});
+}
+
+/* Writes the next part of a registered item type in XPath 4.0 syntax
+   (section 3). */
+static void continue_type_text(text_writer *writer, type_text_step step) {
+    const sxml_type_description *description = step.description;
+    switch (description->variety) {
+    case SXML_TYPE_VARIETY_NODE_TEST:
+        continue_node_test_text(writer, step);
+        return;
+    case SXML_TYPE_VARIETY_JSON_NODE_TEST:
+        continue_json_node_test_text(writer, step);
+        return;
+    case SXML_TYPE_VARIETY_FUNCTION:
+        continue_function_type_text(writer, step);
+        return;
+    case SXML_TYPE_VARIETY_MAP:
+        continue_map_type_text(writer, step);
+        return;
+    case SXML_TYPE_VARIETY_ARRAY:
+        if (step.frame->step == 0) {
+            step.frame->step = 1;
+            write_text(writer, "array(");
+            begin_sequence_type_text(
+                writer, step.stack,
+                description->variety_details.array_type.member_type);
+        } else {
+            write_text(writer, ")");
+            step.frame->is_finished = true;
+        }
+        return;
+    case SXML_TYPE_VARIETY_RECORD:
+        continue_record_type_text(writer, step);
+        return;
+    case SXML_TYPE_VARIETY_ENUMERATION: {
+        const sxml_byte_view_list values =
+            description->variety_details.enumeration_values;
+        write_text(writer, "enum(");
+        for (size_t value_index = 0; value_index < values.byte_view_count;
+             value_index += 1) {
+            if (value_index > 0) {
+                write_text(writer, ", ");
+            }
+            write_string_literal(writer, values.byte_views[value_index]);
+        }
+        write_text(writer, ")");
+        step.frame->is_finished = true;
+        return;
+    }
+    case SXML_TYPE_VARIETY_CHOICE:
+        continue_choice_type_text(writer, step);
+        return;
+    case SXML_TYPE_VARIETY_COMPLEX:
+    case SXML_TYPE_VARIETY_ANY_SIMPLE:
+    case SXML_TYPE_VARIETY_ATOMIC:
+    case SXML_TYPE_VARIETY_LIST:
+    case SXML_TYPE_VARIETY_UNION:
+    case SXML_TYPE_VARIETY_ANY_ITEM:
+        break;
+    }
+    if (description->type_name.index != 0) {
+        write_name(writer, description->type_name);
+    } else {
+        write_text(writer, "anonymous-type()");
+    }
+    step.frame->is_finished = true;
+}
+
+/* Runs the frames until the stack is empty. */
+static void run_type_text(text_writer *writer, type_text_stack *stack) {
+    while (stack->frame_count > 0) {
+        type_text_frame *frame = &stack->frames[stack->frame_count - 1];
+        if (frame->is_finished) {
+            write_text(writer, frame->suffix);
+            stack->frame_count -= 1;
+            continue;
+        }
+        sxml_type_description description = {0};
+        if (sxml_type_registry_describe_type(writer->type_registry, frame->type,
+                                             &description) != SXML_STATUS_OK) {
+            write_text(writer, "unknown-type(");
+            write_unsigned(writer, frame->type.index);
+            write_text(writer, ")");
+            frame->is_finished = true;
+            continue;
+        }
+        continue_type_text(writer, (type_text_step){.stack = stack,
+                                                    .frame = frame,
+                                                    .description = &description});
+    }
+}
+
+static void write_item_type(text_writer *writer, sxml_type_identifier type) {
+    type_text_stack stack = {.frame_count = 0};
+    begin_item_type_text(writer, &stack,
+                         (type_text_part){.type = type, .suffix = ""});
+    run_type_text(writer, &stack);
+}
+
+static void write_sequence_type(text_writer *writer,
+                                sxml_sequence_type sequence_type) {
+    type_text_stack stack = {.frame_count = 0};
+    begin_sequence_type_text(writer, &stack, sequence_type);
+    run_type_text(writer, &stack);
 }
 
 /* An atomic item as an XPath expression that makes it. */
@@ -1149,7 +1248,7 @@ static void write_atomic_item(text_writer *writer, sxml_item item) {
         return;
     }
     /* Anything else as a constructor call on its type name. */
-    write_item_type(writer, (type_text_request){.type = type, .depth = 0});
+    write_item_type(writer, type);
     write_text(writer, "(...)");
 }
 
@@ -1444,9 +1543,7 @@ static void write_function_target(text_writer *writer,
         write_unsigned(writer, target.function.value);
         return;
     case SXML_IR_FUNCTION_TARGET_KIND_CONSTRUCTOR:
-        write_item_type(writer, (type_text_request){
-                                    .type = target.constructor_type,
-                                    .depth = 0});
+        write_item_type(writer, target.constructor_type);
         return;
     }
 }
@@ -1729,9 +1826,7 @@ static sxml_status print_expression(text_writer *writer, print_stack *stack,
         write_text(writer, " ");
         write_text(writer, axis_name(expression->step.axis));
         write_text(writer, " ");
-        write_item_type(writer, (type_text_request){
-                                    .type = expression->step.node_test,
-                                    .depth = 0});
+        write_item_type(writer, expression->step.node_test);
         return SXML_STATUS_OK;
     case SXML_IR_EXPRESSION_KIND_DOCUMENT_ORDER:
         write_text(writer, " ");
@@ -1742,9 +1837,7 @@ static sxml_status print_expression(text_writer *writer, print_stack *stack,
         write_text(writer, " ");
         write_atom(writer, expression->cast.value);
         write_text(writer, " ");
-        write_item_type(writer, (type_text_request){
-                                    .type = expression->cast.target_type,
-                                    .depth = 0});
+        write_item_type(writer, expression->cast.target_type);
         if (expression->cast.allows_empty) {
             write_text(writer, "?");
         }
@@ -1754,21 +1847,13 @@ static sxml_status print_expression(text_writer *writer, print_stack *stack,
         write_text(writer, " ");
         write_atom(writer, expression->type_test.value);
         write_text(writer, " ");
-        write_sequence_type(writer,
-                            (sequence_type_text_request){
-                                .sequence_type =
-                                    expression->type_test.sequence_type,
-                                .depth = 0});
+        write_sequence_type(writer, expression->type_test.sequence_type);
         return SXML_STATUS_OK;
     case SXML_IR_EXPRESSION_KIND_COERCE:
         write_text(writer, " ");
         write_atom(writer, expression->coercion.value);
         write_text(writer, " ");
-        write_sequence_type(writer,
-                            (sequence_type_text_request){
-                                .sequence_type =
-                                    expression->coercion.sequence_type,
-                                .depth = 0});
+        write_sequence_type(writer, expression->coercion.sequence_type);
         write_text(writer, " ");
         write_text(writer, coercion_role_name(expression->coercion.role));
         return SXML_STATUS_OK;

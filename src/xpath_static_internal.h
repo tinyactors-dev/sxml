@@ -169,13 +169,12 @@ SXML_NODISCARD sxml_status sxml_xpath_find_function(
 /* ------------------------------------------------------------ Lowering */
 
 /*
- * The deepest nesting of AST nodes lowering accepts when the request
- * gives 0. Lowering recurses once per level of the AST (bounded by this),
- * except along chains of binary operators, paths, postfix expressions and
- * arrows, which it walks in a loop, so it is chosen for the 64 KiB stack
- * of a WebAssembly module.
+ * The deepest nesting lowering accepts when the request gives 0. Lowering
+ * keeps one frame of a few hundred bytes of allocator memory per level of
+ * nesting, never C stack (D71), so this bounds heap use: about a few MB at
+ * the default, far deeper than expressions people write.
  */
-#define SXML_XPATH_DEFAULT_MAXIMUM_EXPRESSION_DEPTH 32U
+#define SXML_XPATH_DEFAULT_MAXIMUM_EXPRESSION_DEPTH 10000U
 
 typedef struct sxml_xpath_lowering_request {
     /* An AST whose root is an XPATH node. */
