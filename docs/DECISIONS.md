@@ -1770,6 +1770,40 @@ on the CLI framework (D44), public API only.
   `tests/qt4/driver/input/` and the slice (`qt4/list_slice`: 198/198
   resolve and apply to XP40).
 
+### D86. Fuzz targets (packet 1.26)
+- **Targets.** Every `tests/fuzz/<name>_fuzz.c` is a libFuzzer executable
+  (glob, D45) linked with `tests/fuzz/fuzz_fixture.c`: `xml_parse_fuzz`
+  (parse into an arena tree and read every node back; `check` must give
+  the same status), `xpath_compile_fuzz` (both front ends, then
+  `sxml_xpath_compile` against the whole function library),
+  `xpath_evaluate_fuzz` (compile and evaluate with a parsed context
+  document and small limits; the internal evaluator until 1.23's
+  processor), `regex_fuzz` (flags byte, regex, NUL, input; every disjoint
+  match and its groups) and `cast_fuzz` (target byte, text; the canonical
+  text of an atomic result must cast back to the same canonical text).
+- **What a finding is.** A crash or sanitizer report; a leak (the counting
+  allocator's blocks and the item heap's cells are checked after every
+  input, on a fixture made fresh per input); an entry point returning
+  `INVALID_ARGUMENT`, `INSUFFICIENT_MEMORY`, `MISALIGNED_MEMORY` or
+  `INDEX_OUT_OF_RANGE` for arguments the target made valid (an error in
+  sxml: for compilation, the verifier or the function table); a broken
+  invariant above; a timeout (10 s per input). Deep input is not bounded
+  in the targets: it must cost heap, not C stack (D71).
+- **Build.** Preset `fuzz`: Clang, `RelWithDebInfo`, ASan and UBSan, the
+  library built with `-fsanitize=fuzzer-no-link`, no `apps/`.
+  `ctest --preset fuzz` runs each target on 2000 generated inputs.
+- **Running.** `tools/fuzz.sh --seconds N` runs every target at once for N
+  seconds in a kept work directory; seeds come from `tools/fuzz-seeds.py`
+  (xmlconf and QT4 documents, QT4 queries, the literal arguments of
+  `fn:matches`-like calls and `xs:T("...")` constructors; at most 4000 per
+  target), never committed (D13); the first run merges them into a corpus.
+  The script fails on any artifact, except timeouts of
+  `xpath_evaluate_fuzz`, which runs in fork mode and lists them for
+  triage until the evaluator has a step limit (P9).
+- **CI.** Running each target for 60 s in CI is a `ci.yml` change, owned by
+  1.27: a Linux job `cmake --preset fuzz && cmake --build --preset fuzz &&
+  tools/fuzz.sh --no-build --build-directory build/fuzz --seconds 60`.
+
 ## Proposed
 
 ### P8. XML parser positions are quadratic in document size (from 1.24)
@@ -1783,3 +1817,16 @@ file is O(n^2): 91% of the driver's time is
 13 s in `release` and 160 s under ASan (`sxml check` sends no events and is
 fast). Fix (owner of 1.14's files): take the element's location before
 its attributes', or let the tracker keep the last start-tag checkpoint.
+
+### P9. A bound on evaluation steps (from 1.26)
+Untrusted input must not cause unbounded work (docs/C_GUIDELINES.md,
+"Memory and buffers"), but nothing bounds the time of an evaluation that
+allocates little: `some $x in 1 to 100000000000 satisfies $x = 0`, or
+`-1 = -100000000000 to -1` (found by `xpath_evaluate_fuzz`), run for
+hours. Proposal: `uint64_t maximum_evaluation_step_count` in
+`sxml_processor_limits` (`include/sxml/processor.h`) and in
+`sxml_evaluator_configuration`, 0 meaning no bound; the machine counts
+tasks run and items read from a sequence or iterator in one evaluation
+and gives `SXML_STATUS_LIMIT_EXCEEDED`; native bodies that loop
+(`fn:count`, `fn:string-join`, regex, sorting) charge their items. Until
+then `tools/fuzz.sh` tolerates timeouts of `xpath_evaluate_fuzz` (D86).
