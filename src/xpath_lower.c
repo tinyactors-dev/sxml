@@ -4512,11 +4512,30 @@ static sxml_status finish_function_call(lowering_machine *machine,
         } else if (parameter_default == SXML_PARAMETER_DEFAULT_REQUIRED) {
             status = report_static_error(
                 state, call_node, SXML_BYTE_VIEW_FROM_LITERAL("XPST0017 a required parameter has no argument"));
+        } else if (argument_index < entry->parameter_types.sequence_type_count &&
+                   ((unsigned)entry->parameter_types.sequence_types[argument_index]
+                        .occurrence &
+                    (unsigned)SXML_OCCURRENCE_ZERO) != 0) {
+            /* A parameter left out before a keyword argument, whose
+               default the body supplies: the empty sequence. Every such
+               default in F&O 4.0 is "()" or marked (:default-on-empty:)
+               (section 1.5), so () has the default's effect; the
+               exception, $timezone of the adjust-*-to-timezone functions,
+               is a last parameter, never left out before another. */
+            sxml_ir_expression_index empty = {0};
+            status = add_empty_sequence(state, call_node, &empty);
+            if (status == SXML_STATUS_OK) {
+                status = bind_expression(
+                    state,
+                    (expression_in_block){.block = locals->request.preparation_block,
+                                          .expression = empty},
+                    &locals->arguments[argument_index].atom);
+            }
         } else {
             status = report_unsupported(
                 state, call_node,
                 SXML_BYTE_VIEW_FROM_LITERAL("a keyword argument after an omitted parameter whose default "
-                "the function supplies"));
+                "the function supplies and whose type does not allow ()"));
         }
     }
     if (status != SXML_STATUS_OK) {
@@ -4744,8 +4763,15 @@ static sxml_status finish_dynamic_call(lowering_machine *machine,
                     .map_constructor = {.entries = entry_list}}},
             &map);
     }
+    /* One partially applied function for each function item of the
+       target (XPath 4.0, section 4.6.4): a MAP over the target whose body
+       applies fn:partial-apply to the focus. */
+    sxml_ir_slot function_slot = {0};
+    if (status == SXML_STATUS_OK) {
+        status = new_slot(state, &function_slot);
+    }
     call_argument call_arguments[2] = {
-        {.is_placeholder = false, .atom = request->function_item},
+        {.is_placeholder = false, .atom = slot_atom(function_slot)},
         {.is_placeholder = false, .atom = {0}}};
     if (status == SXML_STATUS_OK) {
         status = bind_expression(
@@ -4773,6 +4799,19 @@ static sxml_status finish_dynamic_call(lowering_machine *machine,
                                            .call = &call,
                                            .coerces_arguments = false},
                            &result);
+    }
+    if (status == SXML_STATUS_OK) {
+        const sxml_ir_expression_index body = result;
+        status = add_expression(
+            state,
+            (expression_to_add){
+                .node = frame->node,
+                .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_MAP,
+                               .map = {.input = request->function_item,
+                                       .focus = {.context_value = function_slot},
+                                       .body = body,
+                                       .flags = 0}}},
+            &result);
     }
     if (status != SXML_STATUS_OK) {
         return status;
@@ -6091,6 +6130,21 @@ sxml_status sxml_xpath_lower(const sxml_xpath_lowering_request *request,
     status = lower_main_function(&state);
     release_scratch(&state, state.scope_entries);
     release_scratch(&state, state.has_variable_reference);
+    if (status == SXML_STATUS_OK) {
+        /* For casts to xs:QName at run time (D84). */
+        sxml_xpath_namespace_collection namespaces = {.bindings = NULL, .binding_count = 0};
+        status = sxml_xpath_collect_namespaces(request->ast, context, &namespaces);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_ir_unit_set_static_namespaces(
+                new_unit,
+                (sxml_namespace_binding_view){.namespace_bindings = namespaces.bindings,
+                                              .namespace_binding_count =
+                                                  namespaces.binding_count});
+            if (namespaces.bindings != NULL) {
+                sxml_allocator_release(context->allocator, namespaces.bindings);
+            }
+        }
+    }
     if (status != SXML_STATUS_OK) {
         sxml_ir_unit_release(new_unit);
         return status;

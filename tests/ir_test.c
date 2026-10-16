@@ -488,6 +488,26 @@ static void test_sealed_unit_and_limits_refuse_additions(
                                 unit, &(sxml_ir_expression_replacement){
                                           .index = index, .expression = no_kind}) ==
                                 SXML_STATUS_INVALID_ARGUMENT);
+    /* The static namespaces (D84): set once, read back. */
+    const sxml_namespace_binding bindings[2] = {
+        {.namespace_prefix = {.index = 0}, .namespace_uri = {.index = SXML_NAMESPACE_XML}},
+        {.namespace_prefix = {.index = 1}, .namespace_uri = {.index = SXML_NAMESPACE_NONE}}};
+    SXML_TEST_EXPECT(state, sxml_ir_unit_get_static_namespaces(unit).namespace_binding_count ==
+                                0);
+    SXML_TEST_EXPECT(state, sxml_ir_unit_set_static_namespaces(
+                                unit, (sxml_namespace_binding_view){
+                                          .namespace_bindings = bindings,
+                                          .namespace_binding_count = 2}) == SXML_STATUS_OK);
+    const sxml_namespace_binding_view read_back = sxml_ir_unit_get_static_namespaces(unit);
+    SXML_TEST_EXPECT(state, read_back.namespace_binding_count == 2 &&
+                                read_back.namespace_bindings[0].namespace_uri.index ==
+                                    SXML_NAMESPACE_XML &&
+                                read_back.namespace_bindings[1].namespace_prefix.index == 1);
+    SXML_TEST_EXPECT(state, sxml_ir_unit_set_static_namespaces(
+                                unit, (sxml_namespace_binding_view){
+                                          .namespace_bindings = bindings,
+                                          .namespace_binding_count = 1}) ==
+                                SXML_STATUS_INVALID_ARGUMENT);
     sxml_ir_unit_seal(unit);
     sxml_ir_function_index function = {0};
     SXML_TEST_EXPECT(state, sxml_ir_unit_add_function(

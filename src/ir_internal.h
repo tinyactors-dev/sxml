@@ -1009,9 +1009,14 @@ struct sxml_ir_unit {
     sxml_ir_catch_clause *catch_clauses;
     uint32_t catch_clause_count;
     uint32_t catch_clause_capacity;
+    /* Also holds the static namespaces below (D84). */
     sxml_namespace_binding *namespace_bindings;
     uint32_t namespace_binding_count;
     uint32_t namespace_binding_capacity;
+    /* The statically known namespaces beyond the predeclared prefixes
+       (XPath 4.0, section 2.2.1), for casts to xs:QName at run time (F&O
+       4.0, section 19.1.9); a run of namespace_bindings. */
+    sxml_ir_namespace_binding_list static_namespaces;
     sxml_ir_parameter_binding *parameter_bindings;
     uint32_t parameter_binding_count;
     uint32_t parameter_binding_capacity;
@@ -1098,6 +1103,11 @@ SXML_NODISCARD sxml_status sxml_ir_unit_add_sort_keys(
 /* Retains value; the unit releases it when finalized. */
 SXML_NODISCARD sxml_status sxml_ir_unit_add_constant(
     sxml_ir_unit *unit, sxml_sequence value, sxml_ir_constant_index *index);
+
+/* Copies bindings into the unit as its static namespaces (replacing
+   none: call once, before sealing). */
+SXML_NODISCARD sxml_status sxml_ir_unit_set_static_namespaces(
+    sxml_ir_unit *unit, sxml_namespace_binding_view bindings);
 
 /* Adds a function (its body may still be 0) and sets its unit field. The
    first function added is the main function. */
@@ -1198,6 +1208,22 @@ static inline sxml_sequence sxml_ir_unit_get_constant(
         return (sxml_sequence){0};
     }
     return unit->constants[index.value];
+}
+
+/* The static namespaces of the unit, borrowed; empty when none were set. */
+static inline sxml_namespace_binding_view sxml_ir_unit_get_static_namespaces(
+    const sxml_ir_unit *unit) {
+    const sxml_ir_namespace_binding_list list = unit->static_namespaces;
+    if (list.namespace_binding_count == 0 ||
+        list.first_namespace_binding_index > unit->namespace_binding_count ||
+        list.namespace_binding_count >
+            unit->namespace_binding_count - list.first_namespace_binding_index) {
+        return (sxml_namespace_binding_view){.namespace_bindings = NULL,
+                                             .namespace_binding_count = 0};
+    }
+    return (sxml_namespace_binding_view){
+        .namespace_bindings = unit->namespace_bindings + list.first_namespace_binding_index,
+        .namespace_binding_count = list.namespace_binding_count};
 }
 
 /* The global variable at index, borrowed; a zero one for 0 or out of

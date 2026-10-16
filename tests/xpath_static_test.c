@@ -141,6 +141,10 @@ static const sxml_function_parameter starts_with_parameters[] = {
     PARAMETER("value", "xs:string?", REQUIRED),
     PARAMETER("substring", "xs:string?", REQUIRED),
     PARAMETER("collation", "xs:string?", BODY)};
+static const sxml_function_parameter tokenize_parameters[] = {
+    PARAMETER("value", "xs:string?", REQUIRED),
+    PARAMETER("pattern", "xs:string?", BODY),
+    PARAMETER("flags", "xs:string?", BODY)};
 static const sxml_function_parameter sum_parameters[] = {
     PARAMETER("values", "xs:anyAtomicType*", REQUIRED),
     PARAMETER("zero", "xs:anyAtomicType?", BODY)};
@@ -223,6 +227,7 @@ static const sxml_native_function test_rows[] = {
     ROW(FN, "string-join", string_join_parameters, "xs:string", 0),
     ROW(FN, "substring", substring_parameters, "xs:string", 0),
     ROW(FN, "starts-with", starts_with_parameters, "xs:boolean", 0),
+    ROW(FN, "tokenize", tokenize_parameters, "xs:string*", 0),
     ROW(FN, "sum", sum_parameters, "xs:anyAtomicType?", 0),
     ROW(FN, "subsequence", subsequence_parameters, "item()*", 0),
     ROW(FN, "QName", qname_parameters, "xs:QName", 0),
@@ -881,11 +886,12 @@ static const golden_case golden_cases[] = {
      "  (static-call fn:concat#2 \"$\" $1))\n"},
     {"hof-920",
      "let $m := map { 'a': 1 } return $m(?) instance of map(*)",
-     "(function 1 main (parameters 0) (captures) (slots 3)\n"
+     "(function 1 main (parameters 0) (captures) (slots 4)\n"
      "  (let $1 (map-constructor (\"a\" 1))\n"
-     "    (let $2 (map-constructor)\n"
-     "      (let $3 (static-call fn:partial-apply#2 $1 $2)\n"
-     "        (instance-of $3 map(*))))))\n"},
+     "    (let $3 (map-constructor)\n"
+     "      (let $4 (map $1 (focus $2 _ _)\n"
+     "                (static-call fn:partial-apply#2 $2 $3))\n"
+     "        (instance-of $4 map(*))))))\n"},
     {"filter-001",
      "filter((\"apple\", \"pear\", \"apricot\", \"advocado\", \"orange\"),starts-with(?, \"a\"))",
      "(function 1 main (parameters 0) (captures) (slots 3)\n"
@@ -1058,6 +1064,14 @@ static const feature_case feature_cases[] = {
          "  (let $1 (coerce 2 xs:double function-argument)\n"
          "    (let $2 (coerce 1 xs:double? function-argument)\n"
          "      (static-call fn:substring#3 \"abc\" $1 $2))))\n"},
+    /* A parameter left out before a keyword argument gets () (F&O 4.0,
+       section 1.5: such defaults are () or default-on-empty). */
+    {.compile = {.expression_text = "tokenize('a b', flags := 'q')"},
+     .expected_text =
+         "(function 1 main (parameters 0) (captures) (slots 2)\n"
+         "  (let $1 (sequence)\n"
+         "    (let $2 (coerce $1 xs:string? function-argument)\n"
+         "      (static-call fn:tokenize#3 \"a b\" $2 \"q\"))))\n"},
     {.compile = {.expression_text = "1 or 2"},
      .expected_text =
          "(function 1 main (parameters 0) (captures) (slots 0)\n"

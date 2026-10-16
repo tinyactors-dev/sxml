@@ -493,6 +493,42 @@ sxml_status sxml_ir_unit_add_sort_keys(sxml_ir_unit *unit,
     return SXML_STATUS_OK;
 }
 
+sxml_status sxml_ir_unit_set_static_namespaces(sxml_ir_unit *unit,
+                                               sxml_namespace_binding_view bindings) {
+    if (unit->static_namespaces.namespace_binding_count != 0) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    if (bindings.namespace_binding_count == 0) {
+        return SXML_STATUS_OK;
+    }
+    if (bindings.namespace_binding_count > UNIT_ARRAY_MAXIMUM_COUNT) {
+        return SXML_STATUS_LIMIT_EXCEEDED;
+    }
+    array_room room = {0};
+    sxml_status status = make_array_room(
+        unit,
+        &(array_room_request){.elements = unit->namespace_bindings,
+                              .element_count = unit->namespace_binding_count,
+                              .element_capacity = unit->namespace_binding_capacity,
+                              .element_size = sizeof(sxml_namespace_binding),
+                              .element_alignment = alignof(sxml_namespace_binding),
+                              .added_count = (uint32_t)bindings.namespace_binding_count},
+        &room);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    unit->namespace_bindings = room.elements;
+    unit->namespace_binding_capacity = room.element_capacity;
+    memcpy(unit->namespace_bindings + room.element_count, bindings.namespace_bindings,
+           bindings.namespace_binding_count * sizeof(sxml_namespace_binding));
+    unit->namespace_binding_count =
+        room.element_count + (uint32_t)bindings.namespace_binding_count;
+    unit->static_namespaces = (sxml_ir_namespace_binding_list){
+        .first_namespace_binding_index = room.element_count,
+        .namespace_binding_count = (uint32_t)bindings.namespace_binding_count};
+    return SXML_STATUS_OK;
+}
+
 sxml_status sxml_ir_unit_add_constant(sxml_ir_unit *unit, sxml_sequence value,
                                       sxml_ir_constant_index *index) {
     array_room room = {0};

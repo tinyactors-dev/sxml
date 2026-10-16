@@ -355,6 +355,102 @@ sxml_status sxml_xpath_resolve_name(const sxml_xpath_name_request *request,
     return SXML_STATUS_OK;
 }
 
+/* True when collection has a binding for prefix. */
+static bool collection_binds(const sxml_xpath_namespace_collection *collection,
+                             sxml_namespace_prefix_identifier prefix) {
+    for (size_t binding_index = 0; binding_index < collection->binding_count;
+         binding_index += 1) {
+        if (collection->bindings[binding_index].namespace_prefix.index == prefix.index) {
+            return true;
+        }
+    }
+    return false;
+}
+
+sxml_status sxml_xpath_collect_namespaces(
+    const sxml_ast *ast, const sxml_xpath_static_context *static_context,
+    sxml_xpath_namespace_collection *collection) {
+    const sxml_namespace_binding_view configured = static_context->namespace_bindings;
+    size_t capacity = configured.namespace_binding_count;
+    for (sxml_ast_node_index declaration = sxml_ast_find_child(
+             ast, (sxml_ast_child_query){.parent = ast->root,
+                                         .field = SXML_AST_FIELD_DECLARATION});
+         declaration.value != 0;
+         declaration = sxml_ast_find_next_with_same_field(ast, declaration)) {
+        capacity += 1;
+    }
+    sxml_xpath_namespace_collection collected = {.bindings = NULL, .binding_count = 0};
+    if (capacity == 0) {
+        *collection = collected;
+        return SXML_STATUS_OK;
+    }
+    void *memory = NULL;
+    sxml_status status = sxml_allocator_allocate(
+        static_context->allocator,
+        (sxml_allocation_request){.byte_count = capacity * sizeof(sxml_namespace_binding),
+                                  .alignment = alignof(sxml_namespace_binding)},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    collected.bindings = memory;
+    sxml_name_pool *name_pool = sxml_item_heap_get_name_pool(static_context->item_heap);
+    /* The expression's declarations first (XPath 4.0, A.1), as
+       look_up_prefix and look_up_default_element_namespace read them. */
+    for (sxml_ast_node_index declaration = sxml_ast_find_child(
+             ast, (sxml_ast_child_query){.parent = ast->root,
+                                         .field = SXML_AST_FIELD_DECLARATION});
+         status == SXML_STATUS_OK && declaration.value != 0;
+         declaration = sxml_ast_find_next_with_same_field(ast, declaration)) {
+        const sxml_ast_kind kind = sxml_ast_get_node(ast, declaration)->kind;
+        if (kind != SXML_AST_KIND_NAMESPACE_DECLARATION &&
+            kind != SXML_AST_KIND_DEFAULT_ELEMENT_NAMESPACE_DECLARATION) {
+            continue;
+        }
+        sxml_namespace_prefix_identifier prefix = {.index = 0};
+        if (kind == SXML_AST_KIND_NAMESPACE_DECLARATION) {
+            const sxml_ast_node_index prefix_node = sxml_ast_find_child(
+                ast, (sxml_ast_child_query){.parent = declaration,
+                                            .field = SXML_AST_FIELD_PREFIX});
+            status = sxml_name_pool_intern_namespace_prefix(
+                name_pool,
+                sxml_ast_get_text(ast,
+                                  sxml_ast_get_node(ast, prefix_node)->payload.name.local_name),
+                &prefix);
+        }
+        const sxml_ast_node_index uri_node = sxml_ast_find_child(
+            ast, (sxml_ast_child_query){.parent = declaration, .field = SXML_AST_FIELD_URI});
+        sxml_namespace_uri_identifier uri = {.index = 0};
+        if (status == SXML_STATUS_OK) {
+            status = intern_uri_text(
+                (uri_text){.text = sxml_ast_get_text(
+                               ast, sxml_ast_get_node(ast, uri_node)->payload.text),
+                           .static_context = static_context},
+                &uri);
+        }
+        if (status == SXML_STATUS_OK && !collection_binds(&collected, prefix)) {
+            collected.bindings[collected.binding_count] =
+                (sxml_namespace_binding){.namespace_prefix = prefix, .namespace_uri = uri};
+            collected.binding_count += 1;
+        }
+    }
+    for (size_t binding_index = 0;
+         status == SXML_STATUS_OK && binding_index < configured.namespace_binding_count;
+         binding_index += 1) {
+        const sxml_namespace_binding binding = configured.namespace_bindings[binding_index];
+        if (!collection_binds(&collected, binding.namespace_prefix)) {
+            collected.bindings[collected.binding_count] = binding;
+            collected.binding_count += 1;
+        }
+    }
+    if (status != SXML_STATUS_OK) {
+        sxml_allocator_release(static_context->allocator, memory);
+        return status;
+    }
+    *collection = collected;
+    return SXML_STATUS_OK;
+}
+
 /* -------------------------------------------------------------- Functions */
 
 sxml_status sxml_xpath_find_function(sxml_function_table table,

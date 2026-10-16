@@ -127,6 +127,28 @@ SXML_NODISCARD sxml_status sxml_xpath_resolve_name(
     const sxml_xpath_name_request *request,
     sxml_xpath_resolved_name *resolved_name);
 
+/*
+ * The statically known namespaces beyond the predeclared prefixes, for
+ * what reads them at run time: casts to xs:QName and xs:QName#1 (F&O 4.0,
+ * section 19.1.9). bindings is allocated with the static context's
+ * allocator, which releases it; NULL when binding_count is 0.
+ */
+typedef struct sxml_xpath_namespace_collection {
+    sxml_namespace_binding *bindings;
+    size_t binding_count;
+} sxml_xpath_namespace_collection;
+
+/*
+ * Collects the namespace declarations of ast's root (a prefix bound to no
+ * namespace undeclares it; the default element namespace declaration is
+ * prefix 0), then the static context's bindings for prefixes the
+ * expression does not declare, into *collection. Returns the name pool's
+ * and allocator's failures; *collection is then untouched.
+ */
+SXML_NODISCARD sxml_status sxml_xpath_collect_namespaces(
+    const sxml_ast *ast, const sxml_xpath_static_context *static_context,
+    sxml_xpath_namespace_collection *collection);
+
 /* A sequence type or item type of the AST to resolve. */
 typedef struct sxml_xpath_type_request {
     const sxml_ast *ast;
