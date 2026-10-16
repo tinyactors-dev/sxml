@@ -43,3 +43,7 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `focus` | Context item, context position and context size together |
 | `context_item` | The item the focus is on |
 | `intermediate_representation` | The shared IR; `ir` allowed as a module name only |
+| `grammar` | A tree-sitter grammar under `grammars/<language>/`, and the parser generated from it |
+| `test_suite` | The unit tests of one module: one test executable |
+| `test_case` | One named test function within a test suite |
+| `test_check` | One checked condition within a test case |

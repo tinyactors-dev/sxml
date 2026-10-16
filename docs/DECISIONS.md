@@ -86,3 +86,62 @@ Pinned commits: qt4tests `166453359bd7770fb113b6d9c9015df7f7fa5d02`,
 xslt40-test `91328fbf0fed4a5d2813eb3661808ee53cb961ba` (both HEAD on
 2026-10-16). Spec applicability: a test-case `spec` dependency replaces the
 test-set one; no `spec` means all versions (see `docs/QT4_CATALOG.md`).
+
+### D14. Build layout and presets
+Recorded 2026-10-16 (task 0.1). CMake 3.24+, Ninja. Presets: `debug` (Clang,
+ASan + UBSan), `debug-gcc`, `release` (default compiler), `msvc` (Visual
+Studio 2022, Windows only), `wasm` (`cmake/wasi-sdk.cmake`, wrapping the SDK's
+`wasi-sdk-p1.cmake`; SDK from `WASI_SDK_PREFIX` or `/opt/wasi-sdk`; WASI SDK 34
+in CI). Build trees go to `build/<preset>`.
+- One library target `sxml`, static by default; `-DSXML_BUILD_SHARED=ON`
+  builds it shared. Public functions are marked `SXML_EXPORT`
+  (`include/sxml/export.h`); project code has hidden visibility.
+- `sxml_apply_project_flags(target)` applies C17 and the guideline flags
+  (MSVC: `/W4 /WX`) to project targets only; `sxml_apply_third_party_flags`
+  builds vendored and generated code as C11 with warnings off.
+- Sanitizers (`SXML_ENABLE_SANITIZERS`) apply to every target, third-party
+  included, so instrumentation sees all memory accesses.
+- Each public header is compiled alone, twice included, by the
+  `sxml_header_check` target (self-containment and include guard).
+- WASI test executables run under Node.js (`tools/run-wasi.mjs`, set as
+  `CMAKE_CROSSCOMPILING_EMULATOR`), so `ctest --preset wasm` runs the tests.
+- `sxml_version_text` returns a NUL-terminated string: an external boundary.
+
+### D15. tree-sitter pin
+Recorded 2026-10-16. Runtime `v0.27.1` (commit `10eb5ac1`), copied unmodified
+to `third_party/tree-sitter/` (`LICENSE`, `lib/include`, `lib/src`; details
+in `third_party/tree-sitter/VERSION`). Built as `sxml_tree_sitter` from the
+single unit `lib/src/lib.c` with `TREE_SITTER_FEATURE_WASM` undefined.
+`tree-sitter-cli` `0.27.1` is pinned in `tools/package.json`
+(`npm ci --prefix tools`); `tools/generate-grammars.sh` regenerates
+`grammars/<language>/src/` and `sxml_add_grammar(<language>)`
+(`cmake/SxmlGrammar.cmake`) builds it as `sxml_grammar_<language>`. Runtime
+and CLI versions move together.
+
+### D16. Unit test harness
+Recorded 2026-10-16 (task 0.2). `tests/test_runner.h` and `.c`, no
+dependencies. One executable per module, `tests/<module>_test.c`, holding a
+static `sxml_test_case` array passed to `sxml_test_run_suite` from `main`;
+registered as one ctest test named `<module>` by `sxml_add_test(<module>)` in
+`tests/CMakeLists.txt`. Checks: `SXML_TEST_EXPECT` (continue) and
+`SXML_TEST_REQUIRE` (return from the case). Case names given on the command
+line run only those cases. Tests may include `src/*_internal.h`.
+
+### D17. Lint gates
+Recorded 2026-10-16 (task 0.3). `tools/lint.sh` runs the ast-grep rule
+self-tests and the `lint` CMake target (`lint-clang-tidy` + `lint-ast-grep`)
+in the `debug` build tree. clang-tidy covers `src/`, `tests/` and the header
+check units; `.clang-tidy` header filter now also covers `tests/`. ast-grep
+(`@ast-grep/cli` `0.45.3`, pinned in `tools/package.json`) rules in
+`tools/ast-grep/rules/`, with examples in `tools/ast-grep/tests/`:
+banned abbreviations and single-letter names (as a whole name or one
+snake_case word), allocation outside `src/allocator.c`, abort/exit/printing in
+`src/`, more than three parameters (variadic counts), bare `bool` parameters.
+The guideline rule "pointer parameters without a length" is not yet a lint:
+it needs the view types from task 0.5 first.
+
+### D18. Continuous integration
+Recorded 2026-10-16 (task 0.4). `.github/workflows/ci.yml`: Linux Clang
+(`debug`, plus lints) and GCC (`debug-gcc`), macOS Clang (`debug`), Windows
+MSVC (`msvc`, build only), WASI (`wasm`, tests under Node.js 22). Lints run
+on Linux Clang only.

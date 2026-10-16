@@ -8,16 +8,16 @@ Do the tasks in order. Finish each with a commit and a short entry in
 
 ## Tasks
 
-- [ ] **0.1 Build skeleton.** CMake (minimum 3.24), C17, `include/sxml/`,
+- [x] **0.1 Build skeleton.** CMake (minimum 3.24), C17, `include/sxml/`,
   `src/`, `tests/`. Presets: `debug` (ASan + UBSan), `release`, `wasm`
   (WASI SDK toolchain file). Compiler flags from `docs/C_GUIDELINES.md`.
-- [ ] **0.2 Test harness.** A dependency-free unit test runner in `tests/`,
+- [x] **0.2 Test harness.** A dependency-free unit test runner in `tests/`,
   run by `ctest`. One trivial passing test.
-- [ ] **0.3 Lint gates.** Wire `.clang-tidy` into the build as a target.
+- [x] **0.3 Lint gates.** Wire `.clang-tidy` into the build as a target.
   Add ast-grep rules in `tools/ast-grep/` for: banned abbreviations,
   `malloc`/`free` outside `src/allocator.c`, more than three parameters,
   bare `bool` parameters.
-- [ ] **0.4 CI.** GitHub Actions: Linux (Clang and GCC, debug preset), macOS
+- [x] **0.4 CI.** GitHub Actions: Linux (Clang and GCC, debug preset), macOS
   (Clang), Windows (MSVC, build only), WASI build. Each runs build, lints, tests.
 - [ ] **0.5 Core headers (design task).** Write, with contract comments, no
   implementation yet:
