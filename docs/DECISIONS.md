@@ -1162,10 +1162,11 @@ seal), which 1.23 calls.
 - **Shape**: ANF blocks append LETs; atoms (literals, variables) are never
   bound. Left-recursive chains (binary operators, paths, filters,
   lookups, dynamic calls, arrows) are walked in a loop; other nesting
-  recurses, bounded by `maximum_expression_depth` (default 32: the
-  costliest level, an arrow into a call, takes about 1.4 KB of the
-  64 KiB WebAssembly stack; LIMIT_EXCEEDED beyond). The processor's
-  default for this limit (1.23) should not exceed it. An inline function's
+  costs one frame of the lowering machine in allocator memory (D71;
+  no C recursion), bounded by `maximum_expression_depth` (default
+  `SXML_XPATH_DEFAULT_MAXIMUM_EXPRESSION_DEPTH`, 10,000 levels, a few MB
+  of frames at most; LIMIT_EXCEEDED beyond). The former default of 32 for
+  the WebAssembly stack is gone. An inline function's
   free variables are found by walking its AST through parent links; each
   becomes a captured slot, except a constant (a `let` of a literal),
   which is substituted. Globals read in a function are captured (D55).
@@ -1409,6 +1410,15 @@ specification's error). Consequences:
   `tools/call-cycles-allowlist.txt` lists the cycles still being rewritten;
   it is temporary: each rewrite deletes its lines (a stale entry fails the
   check) until the file is empty and the allowlist is removed.
+- Lowering (`src/xpath_lower.c`), type resolution (`src/xpath_static.c`)
+  and the type text of `src/ir.c` are rewritten: lowering is a machine of
+  frames allocated one by one (a procedure, a step, locals; results
+  written into the frame below), type resolution and type text use stacks
+  of at most 64 frames (`SXML_XPATH_MAXIMUM_TYPE_DEPTH`, the text's depth
+  limit). Free-variable analysis skips AST subtrees without variable
+  references, so nested inline functions cost linear time. 100,000 levels
+  of parentheses, calls, inline functions and predicates compile, also on
+  wasm. `misc-no-recursion` is on and the call-cycle allowlist is empty.
 
 ### D72. Arithmetic and comparison operators (packet 1.19)
 Recorded 2026-10-16. `src/operator_internal.h`; `src/operator.c`

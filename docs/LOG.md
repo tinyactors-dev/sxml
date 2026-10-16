@@ -4,6 +4,13 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- D71 for lowering, type resolution and type text: `src/xpath_lower.c` is a
+  machine of frames in allocator memory (procedures with resumable steps),
+  `src/xpath_static.c` and `src/ir.c` use 64-frame stacks; lowering's
+  default depth is 10,000 (heap) instead of 32 (wasm stack). IR dumps of
+  all 29,653 lowerable XP40 queries unchanged (464 unsupported, 2,292
+  static errors, no leaks); 100,000 nested levels compile (wasm: 3.3 s for
+  the suite). misc-no-recursion on, call-cycle allowlist empty.
 - D71 for the regex seed (D53 amended): `src/regex.c` parses in one
   loop with a stack of group frames (16 inline, then `stack_allocator`),
   emits each atom once and copies it for quantifiers, reads and matches
