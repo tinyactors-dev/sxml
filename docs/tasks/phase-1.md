@@ -85,6 +85,7 @@ context configuration (namespaces, external variables and types, static base
 URI), compile, evaluate with context item, variables and resolver.
 `serialize.h`: adaptive method only. Done when header check, lints and rubric
 pass and the driver (1.24) and CLI can be written against these alone.
+**Done** 2026-10-16 (D51).
 
 ### 1.4 XPath abstract syntax tree (design)
 After 1.0. Owns `src/xpath_ast_internal.h`. Index-addressed nodes in an
