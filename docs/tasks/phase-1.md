@@ -204,6 +204,9 @@ D48: a backtracking matcher for a subset of the dialect (classes, `\s \d
 \w`, quantifiers, groups, alternation; flags `s i x m`) with a step limit,
 behind the interface the D9 engine keeps. Done when fn-tokenize-1a, -35
 pass and unsupported syntax raises FORX0002. Spec: F&O 4.0 "Regular expression syntax".
+**Done** 2026-10-16: hand-written parser, not tree-sitter (D53); also
+`src/regex_unicode.c` (\d, \w from Unicode 16.0) and
+`tools/generate-regex-tables.py`.
 
 ### 1.18 Evaluator core (implementation)
 After 1.8, 1.12, 1.13, 1.15, 1.19. Owns `src/evaluator.c`,
