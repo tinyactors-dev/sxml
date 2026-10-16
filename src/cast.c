@@ -885,19 +885,21 @@ static sxml_status sxml_cast_to_atomic_target(const sxml_atomic_cast *cast,
 
 /* ---------------------------------------------------------- Any target */
 
-/* A source to cast to any target type. */
+/*
+ * A cast to any target type. Union, choice and list targets cast their
+ * source again to members or tokens, which may be unions, choices or lists
+ * themselves; those casts are made on an explicit stack of cast frames in
+ * heap memory (D71), at most SXML_CAST_MAXIMUM_TARGET_DEPTH deep.
+ */
+
+/* A source to cast to a target type. */
 typedef struct sxml_target_cast {
     sxml_item_heap *item_heap;
     sxml_cast_source source;
     sxml_type_identifier target_type;
     sxml_namespace_binding_view namespace_bindings;
     sxml_error_record *error_record;
-    /* Nesting of union, choice and list targets so far. */
-    uint32_t depth;
 } sxml_target_cast;
-
-static sxml_status sxml_cast_to_target(const sxml_target_cast *cast,
-                                       sxml_sequence *result);
 
 static sxml_status sxml_target_fail(const sxml_target_cast *cast,
                                     const sxml_static_error *error) {
@@ -921,58 +923,6 @@ static bool sxml_source_is_derived_from(sxml_item_heap *item_heap,
     return sxml_type_registry_is_derived_from(
         sxml_item_heap_get_type_registry(item_heap),
         (sxml_type_pair){.derived_type = annotation, .base_type = type});
-}
-
-/*
- * A union or a choice (F&O 4.0, section 19.3.5 "Casting to union types";
- * XPath 4.0, section 4.17.1): a source that is already an instance of an
- * atomic member is returned unchanged; otherwise the first member the cast
- * to which succeeds gives the result. When none does: XPTY0004 when every
- * member refused the source type, otherwise FORG0001 (xs:error, the union
- * without members, always FORG0001).
- */
-static sxml_status sxml_cast_to_members(const sxml_target_cast *cast,
-                                        sxml_type_identifier_view members,
-                                        sxml_sequence *result) {
-    sxml_item_heap *item_heap = cast->item_heap;
-    const sxml_type_registry *registry =
-        sxml_item_heap_get_type_registry(item_heap);
-    for (size_t member_index = 0;
-         !cast->source.is_text && member_index < members.type_identifier_count;
-         member_index += 1) {
-        sxml_type_identifier member = members.type_identifiers[member_index];
-        sxml_type_description description;
-        if (sxml_type_registry_describe_type(registry, member, &description) ==
-                SXML_STATUS_OK &&
-            description.variety == SXML_TYPE_VARIETY_ATOMIC &&
-            sxml_source_is_derived_from(item_heap, cast->source, member)) {
-            sxml_item_retain(cast->source.item);
-            *result = sxml_sequence_from_item(cast->source.item);
-            return SXML_STATUS_OK;
-        }
-    }
-    bool is_every_refusal_a_type_error =
-        members.type_identifier_count != 0 &&
-        !sxml_primitive_is_string_source(
-            sxml_source_primitive_type(cast->source));
-    for (size_t member_index = 0; member_index < members.type_identifier_count;
-         member_index += 1) {
-        sxml_error_record member_error;
-        sxml_target_cast member_cast = *cast;
-        member_cast.target_type = members.type_identifiers[member_index];
-        member_cast.error_record = &member_error;
-        member_cast.depth = cast->depth + 1U;
-        sxml_status status = sxml_cast_to_target(&member_cast, result);
-        if (!sxml_status_is_cast_error(status)) {
-            return status;
-        }
-        if (status != SXML_STATUS_TYPE_ERROR) {
-            is_every_refusal_a_type_error = false;
-        }
-    }
-    return sxml_target_fail(cast, is_every_refusal_a_type_error
-                                      ? &sxml_cast_type_error
-                                      : &sxml_cast_value_error);
 }
 
 /*
@@ -1048,47 +998,168 @@ static void sxml_list_items_release(sxml_item_heap *item_heap,
                           .byte_count = list->capacity * sizeof(sxml_item)});
 }
 
-/* Casts the tokens of collapsed text to the item type, one item each. */
-typedef struct sxml_list_request {
-    sxml_byte_view text;
-    sxml_type_identifier item_type;
-} sxml_list_request;
+/* -------------------------------------------------- Any target: frames */
 
-static sxml_status sxml_cast_tokens(const sxml_target_cast *cast,
-                                    sxml_list_request request,
-                                    sxml_list_items *list) {
-    size_t token_offset = 0;
-    sxml_byte_view text = request.text;
-    for (size_t byte_index = 0; byte_index <= text.byte_count;
-         byte_index += 1) {
-        if (byte_index != text.byte_count && text.bytes[byte_index] != ' ') {
-            continue;
+/* What a cast frame waits for. */
+typedef enum sxml_cast_frame_kind {
+    /* A union or choice target: the cast to a member. */
+    SXML_CAST_FRAME_MEMBERS,
+    /* A list target: the cast of a token to the item type. */
+    SXML_CAST_FRAME_LIST
+} sxml_cast_frame_kind;
+
+/* error_frame_index of a cast that reports to the caller's error record. */
+#define SXML_CAST_CALLER_ERROR_RECORD SIZE_MAX
+
+/* A cast to a union, choice or list target, waiting for the cast of a
+   member or token. */
+typedef struct sxml_cast_frame {
+    sxml_cast_frame_kind kind;
+    sxml_cast_source source;
+    /* The frame whose member_error this cast reports to, or
+       SXML_CAST_CALLER_ERROR_RECORD. */
+    size_t error_frame_index;
+    /* SXML_CAST_FRAME_MEMBERS: the members, the next one to try, whether
+       every member so far refused the source type, and the error record
+       of the member casts, whose errors are dropped. */
+    sxml_type_identifier_view members;
+    size_t next_member_index;
+    bool is_every_refusal_a_type_error;
+    sxml_error_record member_error;
+    /* SXML_CAST_FRAME_LIST: the item type, the collapsed text, the items
+       cast so far and where the next token starts (past the end when
+       there is none). */
+    sxml_type_identifier item_type;
+    sxml_scratch_text collapsed;
+    sxml_list_items list;
+    size_t next_token_offset;
+} sxml_cast_frame;
+
+/* The explicit stack of one cast to a target. */
+typedef struct sxml_cast_machine {
+    /* The cast asked for: heap, namespace bindings, caller's error record. */
+    const sxml_target_cast *cast;
+    /* frame_capacity frames in heap memory; NULL while it is 0. */
+    sxml_cast_frame *frames;
+    size_t frame_count;
+    size_t frame_capacity;
+} sxml_cast_machine;
+
+/* A cast that the top frame, or the caller, asks for. Its target is
+   nested as deep as the machine has frames. */
+typedef struct sxml_cast_step {
+    sxml_cast_source source;
+    sxml_type_identifier target_type;
+    size_t error_frame_index;
+} sxml_cast_step;
+
+/* What a finished cast gave; value only with SXML_STATUS_OK. */
+typedef struct sxml_cast_outcome {
+    sxml_status status;
+    sxml_sequence value;
+} sxml_cast_outcome;
+
+static sxml_error_record *sxml_cast_machine_error_record(
+    const sxml_cast_machine *machine, size_t error_frame_index) {
+    if (error_frame_index == SXML_CAST_CALLER_ERROR_RECORD) {
+        return machine->cast->error_record;
+    }
+    return &machine->frames[error_frame_index].member_error;
+}
+
+/* Reports error to the error record of a frame's cast; the status. */
+static sxml_status sxml_cast_frame_fail(const sxml_cast_machine *machine,
+                                        const sxml_static_error *error) {
+    const sxml_cast_frame *top = &machine->frames[machine->frame_count - 1];
+    return sxml_error_record_report(
+        sxml_cast_machine_error_record(machine, top->error_frame_index),
+        error);
+}
+
+/* Pushes a copy of frame, growing the stack up to the most frames a cast
+   can nest. */
+static sxml_status sxml_cast_machine_push(sxml_cast_machine *machine,
+                                          const sxml_cast_frame *frame) {
+    if (machine->frame_count == machine->frame_capacity) {
+        size_t capacity =
+            machine->frame_capacity == 0 ? 4U : machine->frame_capacity * 2U;
+        if (capacity > (size_t)SXML_CAST_MAXIMUM_TARGET_DEPTH + 1U) {
+            capacity = (size_t)SXML_CAST_MAXIMUM_TARGET_DEPTH + 1U;
         }
-        sxml_target_cast token_cast = *cast;
-        token_cast.source = (sxml_cast_source){
-            .is_text = true,
-            .text = {.bytes = text.bytes + token_offset,
-                     .byte_count = byte_index - token_offset},
-            .item = {.representation = 0}};
-        token_cast.target_type = request.item_type;
-        token_cast.depth = cast->depth + 1U;
-        sxml_sequence token_value = sxml_sequence_empty();
-        sxml_status status = sxml_cast_to_target(&token_cast, &token_value);
+        void *memory = NULL;
+        sxml_status status = sxml_item_heap_allocate_bytes(
+            machine->cast->item_heap,
+            (sxml_allocation_request){.byte_count =
+                                          capacity * sizeof(sxml_cast_frame),
+                                      .alignment = alignof(sxml_cast_frame)},
+            &memory);
         if (status != SXML_STATUS_OK) {
             return status;
         }
-        if (sxml_sequence_get_representation(token_value) !=
-            SXML_SEQUENCE_REPRESENTATION_SINGLE_ITEM) {
-            /* An item type that is itself a list: refused (XSD 1.1 Part 2,
-               section 2.4.1.2, list item types are atomic or unions). */
-            sxml_sequence_release(token_value);
-            return sxml_target_fail(cast, &sxml_cast_target_error);
+        if (machine->frame_count != 0) {
+            memcpy(memory, machine->frames,
+                   machine->frame_count * sizeof(sxml_cast_frame));
         }
-        list->items[list->item_count] = token_value.content;
-        list->item_count += 1;
-        token_offset = byte_index + 1;
+        sxml_item_heap_release_bytes(
+            machine->cast->item_heap,
+            (sxml_heap_bytes){.memory = machine->frames,
+                              .byte_count = machine->frame_capacity *
+                                            sizeof(sxml_cast_frame)});
+        machine->frames = memory;
+        machine->frame_capacity = capacity;
     }
+    machine->frames[machine->frame_count] = *frame;
+    machine->frame_count += 1;
     return SXML_STATUS_OK;
+}
+
+/* Releases what the top frame holds and pops it. */
+static void sxml_cast_machine_pop(sxml_cast_machine *machine) {
+    sxml_cast_frame *top = &machine->frames[machine->frame_count - 1];
+    if (top->kind == SXML_CAST_FRAME_LIST) {
+        sxml_list_items_release(machine->cast->item_heap, &top->list);
+        sxml_scratch_text_release(machine->cast->item_heap, &top->collapsed);
+    }
+    machine->frame_count -= 1;
+}
+
+/*
+ * A union or a choice (F&O 4.0, section 19.3.5 "Casting to union types";
+ * XPath 4.0, section 4.17.1): a source that is already an instance of an
+ * atomic member is returned unchanged; otherwise the first member the cast
+ * to which succeeds gives the result. When none does: XPTY0004 when every
+ * member refused the source type, otherwise FORG0001 (xs:error, the union
+ * without members, always FORG0001). Returns true when it pushed frame to
+ * try the members, else writes *outcome.
+ */
+static bool sxml_cast_begin_members(sxml_cast_machine *machine,
+                                    sxml_cast_frame *frame,
+                                    sxml_cast_outcome *outcome) {
+    sxml_item_heap *item_heap = machine->cast->item_heap;
+    const sxml_type_registry *registry =
+        sxml_item_heap_get_type_registry(item_heap);
+    sxml_type_identifier_view members = frame->members;
+    for (size_t member_index = 0;
+         !frame->source.is_text && member_index < members.type_identifier_count;
+         member_index += 1) {
+        sxml_type_identifier member = members.type_identifiers[member_index];
+        sxml_type_description description;
+        if (sxml_type_registry_describe_type(registry, member, &description) ==
+                SXML_STATUS_OK &&
+            description.variety == SXML_TYPE_VARIETY_ATOMIC &&
+            sxml_source_is_derived_from(item_heap, frame->source, member)) {
+            sxml_item_retain(frame->source.item);
+            outcome->value = sxml_sequence_from_item(frame->source.item);
+            return false;
+        }
+    }
+    frame->next_member_index = 0;
+    frame->is_every_refusal_a_type_error =
+        members.type_identifier_count != 0 &&
+        !sxml_primitive_is_string_source(
+            sxml_source_primitive_type(frame->source));
+    outcome->status = sxml_cast_machine_push(machine, frame);
+    return outcome->status == SXML_STATUS_OK;
 }
 
 /*
@@ -1096,115 +1167,139 @@ static sxml_status sxml_cast_tokens(const sxml_target_cast *cast,
  * list types"): only from the string types; the collapsed text is split at
  * spaces and each token cast to the item type. Built-in list types need at
  * least one token (minLength 1, XSD 1.1 Part 2, section 3.4.5 for
- * xs:NMTOKENS).
+ * xs:NMTOKENS). Returns true when it pushed frame to cast the tokens, else
+ * writes *outcome.
  */
-static sxml_status sxml_cast_to_list(const sxml_target_cast *cast,
-                                     sxml_type_identifier item_type,
-                                     sxml_sequence *result) {
-    sxml_item_heap *item_heap = cast->item_heap;
+static bool sxml_cast_begin_list(sxml_cast_machine *machine,
+                                 sxml_cast_frame *frame,
+                                 sxml_cast_outcome *outcome) {
+    sxml_item_heap *item_heap = machine->cast->item_heap;
+    sxml_error_record *error_record =
+        sxml_cast_machine_error_record(machine, frame->error_frame_index);
     if (!sxml_primitive_is_string_source(
-            sxml_source_primitive_type(cast->source))) {
-        return sxml_target_fail(cast, &sxml_cast_type_error);
+            sxml_source_primitive_type(frame->source))) {
+        outcome->status =
+            sxml_error_record_report(error_record, &sxml_cast_type_error);
+        return false;
     }
     sxml_byte_view text = {.bytes = NULL, .byte_count = 0};
-    sxml_status status = sxml_source_text(cast->source, &text);
-    if (status != SXML_STATUS_OK) {
-        return status;
+    outcome->status = sxml_source_text(frame->source, &text);
+    if (outcome->status != SXML_STATUS_OK) {
+        return false;
     }
-    sxml_scratch_text collapsed;
-    status = sxml_apply_whitespace_facet(
+    outcome->status = sxml_apply_whitespace_facet(
         item_heap,
         (sxml_whitespace_request){.text = text,
                                   .facet = SXML_WHITESPACE_FACET_COLLAPSE},
-        &collapsed);
-    if (status != SXML_STATUS_OK) {
-        return status;
+        &frame->collapsed);
+    if (outcome->status != SXML_STATUS_OK) {
+        return false;
     }
-    size_t token_count = sxml_count_tokens(collapsed.text);
+    size_t token_count = sxml_count_tokens(frame->collapsed.text);
     if (token_count == 0) {
-        sxml_scratch_text_release(item_heap, &collapsed);
-        return sxml_target_fail(cast, &sxml_cast_value_error);
+        sxml_scratch_text_release(item_heap, &frame->collapsed);
+        outcome->status =
+            sxml_error_record_report(error_record, &sxml_cast_value_error);
+        return false;
     }
-    sxml_list_items list = {
-        .items = NULL, .item_count = 0, .capacity = token_count};
     size_t byte_count = 0;
-    status = sxml_size_multiply(token_count, sizeof(sxml_item), &byte_count);
     void *memory = NULL;
-    if (status == SXML_STATUS_OK) {
-        status = sxml_item_heap_allocate_bytes(
+    outcome->status =
+        sxml_size_multiply(token_count, sizeof(sxml_item), &byte_count);
+    if (outcome->status == SXML_STATUS_OK) {
+        outcome->status = sxml_item_heap_allocate_bytes(
             item_heap,
             (sxml_allocation_request){.byte_count = byte_count,
                                       .alignment = alignof(sxml_item)},
             &memory);
     }
-    if (status == SXML_STATUS_OK) {
-        list.items = memory;
-        status = sxml_cast_tokens(
-            cast,
-            (sxml_list_request){.text = collapsed.text, .item_type = item_type},
-            &list);
+    if (outcome->status != SXML_STATUS_OK) {
+        sxml_scratch_text_release(item_heap, &frame->collapsed);
+        return false;
     }
-    if (status == SXML_STATUS_OK) {
-        status = sxml_sequence_make_vector(
-            item_heap,
-            (sxml_item_view){.items = list.items,
-                             .item_count = list.item_count},
-            result);
+    frame->list = (sxml_list_items){
+        .items = memory, .item_count = 0, .capacity = token_count};
+    frame->next_token_offset = 0;
+    outcome->status = sxml_cast_machine_push(machine, frame);
+    if (outcome->status != SXML_STATUS_OK) {
+        sxml_list_items_release(item_heap, &frame->list);
+        sxml_scratch_text_release(item_heap, &frame->collapsed);
+        return false;
     }
-    if (memory != NULL) {
-        sxml_list_items_release(item_heap, &list);
-    }
-    sxml_scratch_text_release(item_heap, &collapsed);
-    return status;
+    return true;
 }
 
-static sxml_status sxml_cast_to_target(const sxml_target_cast *cast,
-                                       sxml_sequence *result) {
-    sxml_item_heap *item_heap = cast->item_heap;
-    if (cast->depth > SXML_CAST_MAXIMUM_TARGET_DEPTH) {
-        return SXML_STATUS_LIMIT_EXCEEDED;
+/*
+ * Begins the cast of step, nested as deep as the machine has frames: an
+ * atomic or enumeration target, or a failure, is cast at once and writes
+ * *outcome (returns false); a union, choice or list target pushes a frame
+ * (returns true).
+ */
+static bool sxml_cast_begin(sxml_cast_machine *machine, sxml_cast_step step,
+                            sxml_cast_outcome *outcome) {
+    *outcome = (sxml_cast_outcome){.status = SXML_STATUS_OK,
+                                   .value = sxml_sequence_empty()};
+    if (machine->frame_count > SXML_CAST_MAXIMUM_TARGET_DEPTH) {
+        outcome->status = SXML_STATUS_LIMIT_EXCEEDED;
+        return false;
     }
+    sxml_target_cast cast = *machine->cast;
+    cast.source = step.source;
+    cast.target_type = step.target_type;
+    cast.error_record =
+        sxml_cast_machine_error_record(machine, step.error_frame_index);
+    sxml_item_heap *item_heap = cast.item_heap;
     const sxml_type_registry *registry =
         sxml_item_heap_get_type_registry(item_heap);
     sxml_type_description description;
-    if (sxml_type_registry_describe_type(registry, cast->target_type,
+    if (sxml_type_registry_describe_type(registry, cast.target_type,
                                          &description) != SXML_STATUS_OK) {
-        return SXML_STATUS_INVALID_ARGUMENT;
+        outcome->status = SXML_STATUS_INVALID_ARGUMENT;
+        return false;
     }
+    sxml_cast_frame frame;
+    memset(&frame, 0, sizeof(frame));
+    frame.source = step.source;
+    frame.error_frame_index = step.error_frame_index;
     switch (description.variety) {
     case SXML_TYPE_VARIETY_ATOMIC: {
         sxml_atomic_target target;
-        sxml_status status =
-            sxml_resolve_atomic_target(registry, cast->target_type, &target);
-        if (status != SXML_STATUS_OK) {
-            return status;
+        outcome->status =
+            sxml_resolve_atomic_target(registry, cast.target_type, &target);
+        if (outcome->status != SXML_STATUS_OK) {
+            return false;
         }
         if (!sxml_atomic_target_is_allowed(target)) {
-            return sxml_target_fail(cast, &sxml_cast_target_error);
+            outcome->status = sxml_target_fail(&cast, &sxml_cast_target_error);
+            return false;
         }
         sxml_item item = {.representation = 0};
-        status = sxml_cast_to_atomic_target(
+        outcome->status = sxml_cast_to_atomic_target(
             &(sxml_atomic_cast){.item_heap = item_heap,
-                                .source = cast->source,
+                                .source = cast.source,
                                 .target = target,
-                                .namespace_bindings = cast->namespace_bindings,
-                                .error_record = cast->error_record},
+                                .namespace_bindings = cast.namespace_bindings,
+                                .error_record = cast.error_record},
             &item);
-        if (status == SXML_STATUS_OK) {
-            *result = sxml_sequence_from_item(item);
+        if (outcome->status == SXML_STATUS_OK) {
+            outcome->value = sxml_sequence_from_item(item);
         }
-        return status;
+        return false;
     }
     case SXML_TYPE_VARIETY_UNION:
     case SXML_TYPE_VARIETY_CHOICE:
-        return sxml_cast_to_members(
-            cast, description.variety_details.member_types, result);
+        frame.kind = SXML_CAST_FRAME_MEMBERS;
+        frame.members = description.variety_details.member_types;
+        return sxml_cast_begin_members(machine, &frame, outcome);
     case SXML_TYPE_VARIETY_ENUMERATION:
-        return sxml_cast_to_enumeration(
-            cast, description.variety_details.enumeration_values, result);
+        outcome->status = sxml_cast_to_enumeration(
+            &cast, description.variety_details.enumeration_values,
+            &outcome->value);
+        return false;
     case SXML_TYPE_VARIETY_LIST:
-        return sxml_cast_to_list(
-            cast, description.variety_details.list_item_type, result);
+        frame.kind = SXML_CAST_FRAME_LIST;
+        frame.item_type = description.variety_details.list_item_type;
+        return sxml_cast_begin_list(machine, &frame, outcome);
     case SXML_TYPE_VARIETY_COMPLEX:
     case SXML_TYPE_VARIETY_ANY_SIMPLE:
     case SXML_TYPE_VARIETY_ANY_ITEM:
@@ -1214,9 +1309,136 @@ static sxml_status sxml_cast_to_target(const sxml_target_cast *cast,
     case SXML_TYPE_VARIETY_MAP:
     case SXML_TYPE_VARIETY_ARRAY:
     case SXML_TYPE_VARIETY_RECORD:
-        return sxml_target_fail(cast, &sxml_cast_target_error);
+        outcome->status = sxml_target_fail(&cast, &sxml_cast_target_error);
+        return false;
     }
-    return SXML_STATUS_INVALID_ARGUMENT;
+    outcome->status = SXML_STATUS_INVALID_ARGUMENT;
+    return false;
+}
+
+/*
+ * The top frame begins the cast of its next member or token, or, when it
+ * has none left, finishes and is popped. Returns true with *outcome for the
+ * frame now on top (the cast finished at once, or the top frame did), false
+ * when a frame was pushed.
+ */
+static bool sxml_cast_advance(sxml_cast_machine *machine,
+                              sxml_cast_outcome *outcome) {
+    size_t top_index = machine->frame_count - 1;
+    sxml_cast_frame *top = &machine->frames[top_index];
+    sxml_cast_step step;
+    if (top->kind == SXML_CAST_FRAME_MEMBERS) {
+        if (top->next_member_index == top->members.type_identifier_count) {
+            *outcome = (sxml_cast_outcome){
+                .status = sxml_cast_frame_fail(
+                    machine, top->is_every_refusal_a_type_error
+                                 ? &sxml_cast_type_error
+                                 : &sxml_cast_value_error),
+                .value = sxml_sequence_empty()};
+            sxml_cast_machine_pop(machine);
+            return true;
+        }
+        step = (sxml_cast_step){
+            .source = top->source,
+            .target_type =
+                top->members.type_identifiers[top->next_member_index],
+            .error_frame_index = top_index};
+        top->next_member_index += 1;
+    } else {
+        sxml_byte_view text = top->collapsed.text;
+        size_t token_offset = top->next_token_offset;
+        if (token_offset > text.byte_count) {
+            *outcome = (sxml_cast_outcome){.status = SXML_STATUS_OK,
+                                           .value = sxml_sequence_empty()};
+            outcome->status = sxml_sequence_make_vector(
+                machine->cast->item_heap,
+                (sxml_item_view){.items = top->list.items,
+                                 .item_count = top->list.item_count},
+                &outcome->value);
+            sxml_cast_machine_pop(machine);
+            return true;
+        }
+        size_t token_end = token_offset;
+        while (token_end < text.byte_count && text.bytes[token_end] != ' ') {
+            token_end += 1;
+        }
+        step = (sxml_cast_step){
+            .source = {.is_text = true,
+                       .text = {.bytes = text.bytes + token_offset,
+                                .byte_count = token_end - token_offset},
+                       .item = {.representation = 0}},
+            .target_type = top->item_type,
+            .error_frame_index = top->error_frame_index};
+        top->next_token_offset = token_end + 1;
+    }
+    return !sxml_cast_begin(machine, step, outcome);
+}
+
+/*
+ * Gives the top frame the outcome of the cast it began. Returns true when
+ * that finished the frame, which is popped and whose outcome replaces
+ * *outcome, false when the frame goes on.
+ */
+static bool sxml_cast_deliver(sxml_cast_machine *machine,
+                              sxml_cast_outcome *outcome) {
+    sxml_cast_frame *top = &machine->frames[machine->frame_count - 1];
+    if (top->kind == SXML_CAST_FRAME_MEMBERS) {
+        if (!sxml_status_is_cast_error(outcome->status)) {
+            sxml_cast_machine_pop(machine);
+            return true;
+        }
+        if (outcome->status != SXML_STATUS_TYPE_ERROR) {
+            top->is_every_refusal_a_type_error = false;
+        }
+        return false;
+    }
+    if (outcome->status != SXML_STATUS_OK) {
+        sxml_cast_machine_pop(machine);
+        return true;
+    }
+    if (sxml_sequence_get_representation(outcome->value) !=
+        SXML_SEQUENCE_REPRESENTATION_SINGLE_ITEM) {
+        /* An item type that is itself a list: refused (XSD 1.1 Part 2,
+           section 2.4.1.2, list item types are atomic or unions). */
+        sxml_sequence_release(outcome->value);
+        *outcome = (sxml_cast_outcome){
+            .status = sxml_cast_frame_fail(machine, &sxml_cast_target_error),
+            .value = sxml_sequence_empty()};
+        sxml_cast_machine_pop(machine);
+        return true;
+    }
+    top->list.items[top->list.item_count] = outcome->value.content;
+    top->list.item_count += 1;
+    return false;
+}
+
+static sxml_status sxml_cast_to_target(const sxml_target_cast *cast,
+                                       sxml_sequence *result) {
+    sxml_cast_machine machine = {
+        .cast = cast, .frames = NULL, .frame_count = 0, .frame_capacity = 0};
+    sxml_cast_outcome outcome;
+    bool has_outcome = !sxml_cast_begin(
+        &machine,
+        (sxml_cast_step){.source = cast->source,
+                         .target_type = cast->target_type,
+                         .error_frame_index = SXML_CAST_CALLER_ERROR_RECORD},
+        &outcome);
+    while (machine.frame_count != 0) {
+        if (has_outcome) {
+            has_outcome = sxml_cast_deliver(&machine, &outcome);
+        } else {
+            has_outcome = sxml_cast_advance(&machine, &outcome);
+        }
+    }
+    sxml_item_heap_release_bytes(
+        cast->item_heap,
+        (sxml_heap_bytes){.memory = machine.frames,
+                          .byte_count = machine.frame_capacity *
+                                        sizeof(sxml_cast_frame)});
+    if (outcome.status == SXML_STATUS_OK) {
+        *result = outcome.value;
+    }
+    return outcome.status;
 }
 
 /* ------------------------------------------------------------ Entries */
@@ -1290,8 +1512,7 @@ sxml_status sxml_cast_make_value(sxml_item_heap *item_heap,
                                        .item = operand.item},
                             .target_type = request->target_type,
                             .namespace_bindings = request->namespace_bindings,
-                            .error_record = request->error_record,
-                            .depth = 0},
+                            .error_record = request->error_record},
         result);
 }
 
@@ -1347,7 +1568,6 @@ sxml_cast_make_value_from_text(sxml_item_heap *item_heap,
                                        .item = {.representation = 0}},
                             .target_type = request->target_type,
                             .namespace_bindings = request->namespace_bindings,
-                            .error_record = request->error_record,
-                            .depth = 0},
+                            .error_record = request->error_record},
         result);
 }

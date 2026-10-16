@@ -1145,6 +1145,87 @@ static void test_enumerations_and_choices(sxml_test_state *state) {
     cast_fixture_destroy(&fixture);
 }
 
+/* (xs:boolean | (xs:boolean | ... (xs:boolean | xs:integer))), depth
+   choices deep; SXML_TYPE_NONE when a registration fails. */
+static sxml_type_identifier nested_choice(cast_fixture *fixture,
+                                          uint32_t depth) {
+    sxml_type_identifier type = builtin(SXML_TYPE_XS_INTEGER);
+    for (uint32_t level = 0; level < depth && type.index != 0; level += 1) {
+        sxml_type_identifier members[2] = {builtin(SXML_TYPE_XS_BOOLEAN),
+                                           type};
+        type = (sxml_type_identifier){.index = 0};
+        if (sxml_type_registry_register_item_type(
+                fixture->registry,
+                &(sxml_type_description){
+                    .variety = SXML_TYPE_VARIETY_CHOICE,
+                    .variety_details =
+                        {.member_types = {.type_identifiers = members,
+                                          .type_identifier_count = 2}}},
+                &type) != SXML_STATUS_OK) {
+            type = (sxml_type_identifier){.index = 0};
+        }
+    }
+    return type;
+}
+
+/* Nested targets are cast on an explicit stack (D71), at most 32 deep
+   (D66); deeper ones give LIMIT_EXCEEDED, without using the C stack. */
+static void test_nested_targets_are_bounded(sxml_test_state *state) {
+    cast_fixture fixture;
+    SXML_TEST_REQUIRE(state, cast_fixture_create(&fixture) == SXML_STATUS_OK);
+    sxml_type_identifier deepest_allowed = nested_choice(&fixture, 32);
+    sxml_type_identifier too_deep = nested_choice(&fixture, 33);
+    sxml_type_identifier very_deep = nested_choice(&fixture, 10000);
+    SXML_TEST_REQUIRE(state, deepest_allowed.index != 0 &&
+                                 too_deep.index != 0 && very_deep.index != 0);
+    cast_outcome outcome = run_cast(
+        &fixture, (cast_case){.source_text = "42",
+                              .source_type = SXML_TYPE_NONE,
+                              .target_type = deepest_allowed});
+    SXML_TEST_EXPECT(state,
+                     outcome.status == SXML_STATUS_OK &&
+                         outcome.result_type.index == SXML_TYPE_XS_INTEGER &&
+                         strcmp(outcome.text, "42") == 0);
+    EXPECT_ERROR(state, &fixture,
+                 ((cast_case){.source_text = "x",
+                              .source_type = SXML_TYPE_NONE,
+                              .target_type = deepest_allowed}),
+                 "FORG0001");
+    outcome = run_cast(&fixture,
+                       (cast_case){.source_text = "42",
+                                   .source_type = SXML_TYPE_NONE,
+                                   .target_type = too_deep});
+    SXML_TEST_EXPECT(state, outcome.status == SXML_STATUS_LIMIT_EXCEEDED);
+    outcome = run_cast(&fixture,
+                       (cast_case){.source_text = "42",
+                                   .source_type = SXML_TYPE_NONE,
+                                   .target_type = very_deep});
+    SXML_TEST_EXPECT(state, outcome.status == SXML_STATUS_LIMIT_EXCEEDED);
+    /* The first member succeeds before the depth matters. */
+    outcome = run_cast(&fixture,
+                       (cast_case){.source_text = "true",
+                                   .source_type = SXML_TYPE_NONE,
+                                   .target_type = very_deep});
+    SXML_TEST_EXPECT(state,
+                     outcome.status == SXML_STATUS_OK &&
+                         outcome.result_type.index == SXML_TYPE_XS_BOOLEAN);
+    /* An instance of an atomic member is returned unchanged. */
+    outcome = run_cast(&fixture,
+                       (cast_case){.source_text = "1",
+                                   .source_type = SXML_TYPE_XS_BOOLEAN,
+                                   .target_type = very_deep});
+    SXML_TEST_EXPECT(state,
+                     outcome.status == SXML_STATUS_OK &&
+                         outcome.result_type.index == SXML_TYPE_XS_BOOLEAN);
+    /* The limit is not an answer of castable. */
+    SXML_TEST_EXPECT(
+        state, castable(&fixture, (cast_case){.source_text = "42",
+                                              .source_type = SXML_TYPE_XS_STRING,
+                                              .target_type = very_deep}) == -1);
+    SXML_TEST_EXPECT(state, live_cell_count(&fixture) == 0);
+    cast_fixture_destroy(&fixture);
+}
+
 /* ------------------------------------------- Operands and target types */
 
 static void test_operands_and_targets_are_checked(sxml_test_state *state) {
@@ -1418,6 +1499,8 @@ static const sxml_test_case cast_test_cases[] = {
      .function = test_unions_try_members_in_order},
     {.name = "enumerations_and_choices",
      .function = test_enumerations_and_choices},
+    {.name = "nested_targets_are_bounded",
+     .function = test_nested_targets_are_bounded},
     {.name = "operands_and_targets_are_checked",
      .function = test_operands_and_targets_are_checked},
     {.name = "canonical_text_reports_its_size",

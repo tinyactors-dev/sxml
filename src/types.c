@@ -27,8 +27,10 @@
  * Subtyping. sxml_type_registry_is_subtype implements XPath 4.0 section
  * 3.3.2 rule by rule; the transitivity rule (3.3.2.1) is built into the
  * individual rules where it adds pairs (maps, arrays and records as
- * functions, records as maps). Every rule is monotone, so a search that
- * runs out of its depth or step budget answers false, never a wrong true.
+ * functions, records as maps). The rules reduce a question to an and/or
+ * tree of subtype goals, evaluated on an explicit stack (D71), as is the
+ * search through union members for derivation. Every rule is monotone, so
+ * a search that runs out of its budget answers false, never a wrong true.
  */
 #include "types_internal.h"
 
@@ -51,10 +53,13 @@
 /* Most registered types, so that every identifier fits in 32 bits. */
 #define SXML_TYPE_MAXIMUM_ENTRY_COUNT                                          \
     ((size_t)UINT32_MAX - SXML_TYPE_FIRST_REGISTERED)
-/* Nesting depth and number of rule applications one subtype question may
-   use; see D58. Reaching either answers false. */
+/* Nesting depth of item goals and number of rule applications one subtype
+   question may use, and the frames of its explicit stack, which live in
+   the caller's C stack frame (the subtype queries never allocate); see D58.
+   Reaching any of them answers false. */
 #define SXML_TYPE_SUBTYPE_MAXIMUM_DEPTH 128U
 #define SXML_TYPE_SUBTYPE_MAXIMUM_STEP_COUNT 1000000U
+#define SXML_TYPE_SUBTYPE_MAXIMUM_FRAME_COUNT 192U
 /* Most base types followed in one derivation question; deeper hierarchies
    do not exist in a registry. */
 #define SXML_TYPE_DERIVATION_MAXIMUM_DEPTH 256U
@@ -995,52 +1000,90 @@ bool sxml_type_registry_find_record_field(const sxml_type_registry *registry,
  * XPath 4.0 "derives from" over schema types (XSD 1.1 Part 1, sections
  * 3.4.6.5 and 3.16.6.3): derived is base, or its base type derives from
  * base, or base is a union with a member that derived derives from.
+ *
+ * The members of union base types are tried depth first on an explicit
+ * stack of derivation frames (D71); a member nested
+ * SXML_TYPE_DERIVATION_MAXIMUM_DEPTH unions deep is not tried.
  */
-typedef struct sxml_type_derivation_question {
-    sxml_type_pair pair;
-    uint32_t depth;
-} sxml_type_derivation_question;
 
-static bool sxml_type_registry_derives(const sxml_type_registry *registry,
-                                       sxml_type_derivation_question question) {
-    if (question.depth >= SXML_TYPE_DERIVATION_MAXIMUM_DEPTH) {
-        return false;
-    }
-    sxml_type_identifier base = question.pair.base_type;
-    sxml_type_identifier current = question.pair.derived_type;
+/* What following the base types of the derived type found. */
+typedef enum sxml_type_base_chain_outcome {
+    /* The base type is on the chain. */
+    SXML_TYPE_BASE_CHAIN_FOUND,
+    /* It is not; the members of a union base type may still be. */
+    SXML_TYPE_BASE_CHAIN_ABSENT,
+    /* A type on the chain is not issued: this base type is not reached. */
+    SXML_TYPE_BASE_CHAIN_BROKEN
+} sxml_type_base_chain_outcome;
+
+static sxml_type_base_chain_outcome sxml_type_follow_base_chain(
+    const sxml_type_registry *registry, sxml_type_pair pair) {
+    sxml_type_identifier current = pair.derived_type;
     for (uint32_t base_step = 0;
          base_step < SXML_TYPE_DERIVATION_MAXIMUM_DEPTH && current.index != 0;
          base_step += 1) {
-        if (sxml_type_identifier_equals(current, base)) {
-            return true;
+        if (sxml_type_identifier_equals(current, pair.base_type)) {
+            return SXML_TYPE_BASE_CHAIN_FOUND;
         }
         const sxml_type_description *description =
             sxml_type_registry_lookup(registry, current);
         if (description == NULL) {
-            return false;
+            return SXML_TYPE_BASE_CHAIN_BROKEN;
         }
         current = description->base_type;
     }
-    const sxml_type_description *base_description =
-        sxml_type_registry_lookup(registry, base);
-    if (base_description == NULL ||
-        base_description->variety != SXML_TYPE_VARIETY_UNION) {
-        return false;
-    }
-    sxml_type_identifier_view members =
-        base_description->variety_details.member_types;
-    for (size_t member_index = 0; member_index < members.type_identifier_count;
-         member_index += 1) {
-        if (sxml_type_registry_derives(
-                registry,
-                (sxml_type_derivation_question){
-                    .pair = {.derived_type = question.pair.derived_type,
-                             .base_type = members.type_identifiers[member_index]},
-                    .depth = question.depth + 1})) {
+    return SXML_TYPE_BASE_CHAIN_ABSENT;
+}
+
+/* A union base type whose members are being tried, and the next one. */
+typedef struct sxml_type_derivation_frame {
+    sxml_type_identifier union_type;
+    size_t next_member_index;
+} sxml_type_derivation_frame;
+
+static bool sxml_type_registry_derives(const sxml_type_registry *registry,
+                                       sxml_type_pair pair) {
+    sxml_type_derivation_frame frames[SXML_TYPE_DERIVATION_MAXIMUM_DEPTH];
+    /* The base type tried next is nested frame_count unions deep. */
+    size_t frame_count = 0;
+    sxml_type_identifier base = pair.base_type;
+    for (;;) {
+        sxml_type_base_chain_outcome outcome = sxml_type_follow_base_chain(
+            registry, (sxml_type_pair){.derived_type = pair.derived_type,
+                                       .base_type = base});
+        if (outcome == SXML_TYPE_BASE_CHAIN_FOUND) {
             return true;
         }
+        const sxml_type_description *base_description =
+            sxml_type_registry_lookup(registry, base);
+        if (outcome == SXML_TYPE_BASE_CHAIN_ABSENT &&
+            base_description != NULL &&
+            base_description->variety == SXML_TYPE_VARIETY_UNION) {
+            /* frame_count is below the maximum depth here: base was tried
+               at that depth. */
+            frames[frame_count] = (sxml_type_derivation_frame){
+                .union_type = base, .next_member_index = 0};
+            frame_count += 1;
+        }
+        bool has_next_base = false;
+        while (!has_next_base && frame_count != 0) {
+            sxml_type_derivation_frame *top = &frames[frame_count - 1];
+            sxml_type_identifier_view members =
+                sxml_type_registry_lookup(registry, top->union_type)
+                    ->variety_details.member_types;
+            if (frame_count < SXML_TYPE_DERIVATION_MAXIMUM_DEPTH &&
+                top->next_member_index < members.type_identifier_count) {
+                base = members.type_identifiers[top->next_member_index];
+                top->next_member_index += 1;
+                has_next_base = true;
+            } else {
+                frame_count -= 1;
+            }
+        }
+        if (!has_next_base) {
+            return false;
+        }
     }
-    return false;
 }
 
 bool sxml_type_registry_is_derived_from(const sxml_type_registry *registry,
@@ -1049,25 +1092,220 @@ bool sxml_type_registry_is_derived_from(const sxml_type_registry *registry,
         !sxml_type_registry_issued(registry, pair.base_type)) {
         return false;
     }
-    return sxml_type_registry_derives(
-        registry, (sxml_type_derivation_question){.pair = pair, .depth = 0});
+    return sxml_type_registry_derives(registry, pair);
 }
 
 /* ------------------------------------------------------------- Subtyping */
 
+/*
+ * A subtype question is an and/or tree of smaller questions, subtype
+ * goals: the rules of XPath 4.0, section 3.3.2 reduce a goal to an answer,
+ * to another goal, or to a conjunction or disjunction of sub-goals, which
+ * are produced one at a time by their position. The tree is evaluated
+ * depth first and left to right, with short-circuiting, on an explicit
+ * stack of subtype frames (D71): a frame holds a conjunction or
+ * disjunction waiting for the answer of its current sub-goal. The last
+ * sub-goal of a frame replaces the frame's goal, since its answer is the
+ * frame's answer; so array(array(...)) and the like take one frame however
+ * deep they nest.
+ *
+ * Budget (D58): item goals nest at most SXML_TYPE_SUBTYPE_MAXIMUM_DEPTH
+ * deep and at most SXML_TYPE_SUBTYPE_MAXIMUM_STEP_COUNT are reduced; an
+ * item goal beyond either is false, and a frame that would need more than
+ * SXML_TYPE_SUBTYPE_MAXIMUM_FRAME_COUNT frames is false. All rules are
+ * monotone, so running out answers false, never a wrong true.
+ */
+
+/* enum(value) ⊆ base (XPath 4.0, sections 3.3.2.2 and 3.3.2.4). */
+typedef struct sxml_type_value_question {
+    sxml_byte_view value;
+    sxml_type_identifier base_type;
+} sxml_type_value_question;
+
+/*
+ * document-node(element_test) ⊆ base (XPath 4.0, section 3.3.2.5.2), for an
+ * element test of SXML_TYPE_NONE (document-node()) or an element test that
+ * may be a choice: document-node(element(a|b)) is a subtype when
+ * document-node(element(a)) and document-node(element(b)) both are.
+ */
+typedef struct sxml_type_document_question {
+    sxml_type_identifier element_test;
+    sxml_type_identifier base_type;
+} sxml_type_document_question;
+
+/* Every member of members ⊆ base. */
+typedef struct sxml_type_members_question {
+    sxml_type_identifier_view members;
+    sxml_type_identifier base_type;
+} sxml_type_members_question;
+
+/* Every field type of a record type that is not record(*) ⊆
+   base_value_type: what a record contributes as the value type of
+   map(xs:string, V) (XPath 4.0, section 3.3.2.9). */
+typedef struct sxml_type_record_values {
+    const sxml_record_type *record_type;
+    sxml_sequence_type base_value_type;
+} sxml_type_record_values;
+
+typedef struct sxml_type_description_pair {
+    const sxml_type_description *derived;
+    const sxml_type_description *base;
+} sxml_type_description_pair;
+
+/* The kinds of subtype goal, and the member of question each one uses. */
+typedef enum sxml_type_subtype_goal_kind {
+    /* Answered: truth. */
+    SXML_TYPE_GOAL_TRUTH,
+    /* Reduced by the rules. pair: derived ⊆ base, item types. */
+    SXML_TYPE_GOAL_ITEM,
+    /* sequence_pair: derived ⊆ base, sequence types (3.3.1). */
+    SXML_TYPE_GOAL_SEQUENCE,
+    /* value. */
+    SXML_TYPE_GOAL_ENUMERATION_VALUE,
+    /* document. */
+    SXML_TYPE_GOAL_DOCUMENT,
+    /* Conjunctions. members: ITEM(member, base) for each member. */
+    SXML_TYPE_GOAL_EVERY_MEMBER,
+    /* pair, derived an enumeration type: ENUMERATION_VALUE(value, base)
+       for each value. */
+    SXML_TYPE_GOAL_EVERY_ENUMERATION_VALUE,
+    /* document, element_test a choice: DOCUMENT(member, base) for each
+       member. */
+    SXML_TYPE_GOAL_EVERY_DOCUMENT_ELEMENT,
+    /* record_values: SEQUENCE(field type, base value type) per field. */
+    SXML_TYPE_GOAL_RECORD_VALUES,
+    /* pair, two record types with equally many fields, the base
+       structural: each field is in base with a supertype. */
+    SXML_TYPE_GOAL_RECORD_FIELDS,
+    /* descriptions, function types of equal arity: result covariant,
+       parameters contravariant. */
+    SXML_TYPE_GOAL_FUNCTION_SIGNATURE,
+    /* descriptions, a map, array or record type as a one-parameter
+       function type. */
+    SXML_TYPE_GOAL_MAP_AS_FUNCTION,
+    SXML_TYPE_GOAL_ARRAY_AS_FUNCTION,
+    SXML_TYPE_GOAL_RECORD_AS_FUNCTION,
+    /* descriptions, a map or record type ⊆ a map type with key and value
+       types. */
+    SXML_TYPE_GOAL_MAP_AS_MAP,
+    SXML_TYPE_GOAL_RECORD_AS_MAP,
+    /* Disjunctions. pair, base a choice: ITEM(derived, member) for each
+       member, then EVERY_MEMBER of the abstract expansion of derived. */
+    SXML_TYPE_GOAL_SOME_MEMBER,
+    /* value, base a choice: ENUMERATION_VALUE(value, member) per member. */
+    SXML_TYPE_GOAL_SOME_ENUMERATION_MEMBER,
+    /* document, base a choice: DOCUMENT(element test, member) per
+       member. */
+    SXML_TYPE_GOAL_SOME_DOCUMENT_MEMBER
+} sxml_type_subtype_goal_kind;
+
+typedef struct sxml_type_subtype_goal {
+    sxml_type_subtype_goal_kind kind;
+    union {
+        bool truth;
+        sxml_type_pair pair;
+        sxml_sequence_type_pair sequence_pair;
+        sxml_type_value_question value;
+        sxml_type_document_question document;
+        sxml_type_members_question members;
+        sxml_type_record_values record_values;
+        sxml_type_description_pair descriptions;
+    } question;
+} sxml_type_subtype_goal;
+
+/* A conjunction or disjunction waiting for the answer of a sub-goal. */
+typedef struct sxml_type_subtype_frame {
+    sxml_type_subtype_goal goal;
+    /* Position of the sub-goal evaluated next. */
+    size_t next_goal_index;
+    /* Item goals this frame has entered; they count towards the depth
+       until the frame is answered. */
+    uint32_t item_depth;
+} sxml_type_subtype_frame;
+
 /* The state of one subtype question (D58). */
 typedef struct sxml_type_subtype_search {
     const sxml_type_registry *registry;
+    /* Item goals entered and not yet answered. */
     uint32_t depth;
     uint32_t remaining_step_count;
+    size_t frame_count;
+    sxml_type_subtype_frame frames[SXML_TYPE_SUBTYPE_MAXIMUM_FRAME_COUNT];
 } sxml_type_subtype_search;
 
-static bool sxml_type_item_subtype(sxml_type_subtype_search *search,
-                                   sxml_type_pair pair);
+static sxml_type_subtype_goal sxml_type_true_goal(void) {
+    return (sxml_type_subtype_goal){.kind = SXML_TYPE_GOAL_TRUTH,
+                                    .question = {.truth = true}};
+}
+
+static sxml_type_subtype_goal sxml_type_false_goal(void) {
+    return (sxml_type_subtype_goal){.kind = SXML_TYPE_GOAL_TRUTH,
+                                    .question = {.truth = false}};
+}
+
+static sxml_type_subtype_goal sxml_type_item_goal(sxml_type_identifier derived,
+                                                  sxml_type_identifier base) {
+    return (sxml_type_subtype_goal){
+        .kind = SXML_TYPE_GOAL_ITEM,
+        .question = {.pair = {.derived_type = derived, .base_type = base}}};
+}
+
+static sxml_type_subtype_goal sxml_type_sequence_goal(
+    sxml_sequence_type derived, sxml_sequence_type base) {
+    return (sxml_type_subtype_goal){
+        .kind = SXML_TYPE_GOAL_SEQUENCE,
+        .question = {.sequence_pair = {.derived_type = derived,
+                                       .base_type = base}}};
+}
+
+/* A goal over two item types. */
+static sxml_type_subtype_goal sxml_type_pair_goal(
+    sxml_type_subtype_goal_kind kind, sxml_type_pair pair) {
+    return (sxml_type_subtype_goal){.kind = kind, .question = {.pair = pair}};
+}
+
+/* A goal over two descriptions. */
+static sxml_type_subtype_goal sxml_type_descriptions_goal(
+    sxml_type_subtype_goal_kind kind, sxml_type_description_pair pair) {
+    return (sxml_type_subtype_goal){.kind = kind,
+                                    .question = {.descriptions = pair}};
+}
+
+static sxml_type_subtype_goal sxml_type_members_goal(
+    sxml_type_members_question question) {
+    return (sxml_type_subtype_goal){.kind = SXML_TYPE_GOAL_EVERY_MEMBER,
+                                    .question = {.members = question}};
+}
+
+static sxml_type_subtype_goal sxml_type_value_goal(
+    sxml_type_subtype_goal_kind kind, sxml_type_value_question question) {
+    return (sxml_type_subtype_goal){.kind = kind,
+                                    .question = {.value = question}};
+}
+
+static sxml_type_subtype_goal sxml_type_document_goal(
+    sxml_type_subtype_goal_kind kind, sxml_type_document_question question) {
+    return (sxml_type_subtype_goal){.kind = kind,
+                                    .question = {.document = question}};
+}
 
 static const sxml_sequence_type sxml_type_any_sequence = {
     .item_type = {.index = SXML_TYPE_ITEM},
     .occurrence = SXML_OCCURRENCE_ZERO_OR_MORE};
+
+/* Every value of the record ⊆ base_value_type (XPath 4.0, section
+   3.3.2.9); record(*) has values of item()*. */
+static sxml_type_subtype_goal sxml_type_record_values_goal(
+    const sxml_record_type *record, sxml_sequence_type base_value_type) {
+    if (record->is_any_record) {
+        return sxml_type_sequence_goal(sxml_type_any_sequence,
+                                       base_value_type);
+    }
+    return (sxml_type_subtype_goal){
+        .kind = SXML_TYPE_GOAL_RECORD_VALUES,
+        .question = {.record_values = {.record_type = record,
+                                       .base_value_type = base_value_type}}};
+}
 
 /* Whether a sequence type allows the empty sequence, and whether it is
    one of the void types xs:error and xs:error+ (XPath 4.0, 3.3.1). */
@@ -1088,88 +1326,56 @@ static bool sxml_type_sequence_is_empty(sxml_sequence_type sequence_type) {
 }
 
 /* XPath 4.0, section 3.3.1 "Subtypes of Sequence Types", by category. */
-static bool sxml_type_sequence_subtype(sxml_type_subtype_search *search,
-                                       sxml_sequence_type_pair pair) {
+static sxml_type_subtype_goal sxml_type_sequence_rules(
+    sxml_sequence_type_pair pair) {
     sxml_sequence_type derived = pair.derived_type;
     sxml_sequence_type base = pair.base_type;
     if (sxml_type_sequence_is_void(derived)) {
-        return true;
+        return sxml_type_true_goal();
     }
     if (sxml_type_sequence_is_void(base)) {
-        return false;
+        return sxml_type_false_goal();
     }
     if (sxml_type_sequence_is_empty(derived)) {
-        return sxml_type_sequence_allows_empty(base);
+        return sxml_type_sequence_allows_empty(base) ? sxml_type_true_goal()
+                                                     : sxml_type_false_goal();
     }
     if (sxml_type_sequence_is_empty(base)) {
-        return false;
+        return sxml_type_false_goal();
     }
     if (((uint32_t)derived.occurrence & ~(uint32_t)base.occurrence) != 0) {
-        return false;
+        return sxml_type_false_goal();
     }
-    return sxml_type_item_subtype(
-        search, (sxml_type_pair){.derived_type = derived.item_type,
-                                 .base_type = base.item_type});
-}
-
-/* A two-argument shorthand for sxml_type_sequence_subtype. */
-static bool sxml_type_sequence_subtype_of(sxml_type_subtype_search *search,
-                                          sxml_sequence_type derived,
-                                          sxml_sequence_type base) {
-    return sxml_type_sequence_subtype(
-        search,
-        (sxml_sequence_type_pair){.derived_type = derived, .base_type = base});
-}
-
-static bool sxml_type_item_subtype_of(sxml_type_subtype_search *search,
-                                      sxml_type_identifier derived,
-                                      sxml_type_identifier base) {
-    return sxml_type_item_subtype(
-        search, (sxml_type_pair){.derived_type = derived, .base_type = base});
+    return sxml_type_item_goal(derived.item_type, base.item_type);
 }
 
 /* -------------------------------------------- Subtyping: enumerations */
 
-/* enum(value) ⊆ base (XPath 4.0, sections 3.3.2.2 and 3.3.2.4). */
-typedef struct sxml_type_value_question {
-    sxml_byte_view value;
-    sxml_type_identifier base_type;
-} sxml_type_value_question;
-
-static bool sxml_type_enumeration_value_subtype(
-    sxml_type_subtype_search *search, sxml_type_value_question question) {
+static sxml_type_subtype_goal sxml_type_enumeration_value_rules(
+    const sxml_type_subtype_search *search, sxml_type_value_question question) {
     const sxml_type_description *base =
         sxml_type_registry_lookup(search->registry, question.base_type);
     if (base == NULL) {
-        return false;
+        return sxml_type_false_goal();
     }
     if (base->variety == SXML_TYPE_VARIETY_ENUMERATION) {
         size_t position = 0;
-        return sxml_type_entry_find_string(
+        bool is_member = sxml_type_entry_find_string(
             (sxml_type_string_query){
                 .entry = sxml_type_registry_entry_of(search->registry,
                                                      question.base_type),
                 .text = question.value},
             &position);
+        return is_member ? sxml_type_true_goal() : sxml_type_false_goal();
     }
     if (base->variety == SXML_TYPE_VARIETY_CHOICE) {
-        sxml_type_identifier_view members = base->variety_details.member_types;
-        for (size_t member_index = 0;
-             member_index < members.type_identifier_count; member_index += 1) {
-            if (sxml_type_enumeration_value_subtype(
-                    search, (sxml_type_value_question){
-                                .value = question.value,
-                                .base_type =
-                                    members.type_identifiers[member_index]})) {
-                return true;
-            }
-        }
-        return false;
+        return sxml_type_value_goal(SXML_TYPE_GOAL_SOME_ENUMERATION_MEMBER,
+                                    question);
     }
     /* A singleton enumeration is a subtype of xs:string, and through the
        transitivity rule of everything xs:string is a subtype of. */
-    return sxml_type_item_subtype_of(
-        search, sxml_type_of_builtin(SXML_TYPE_XS_STRING), question.base_type);
+    return sxml_type_item_goal(sxml_type_of_builtin(SXML_TYPE_XS_STRING),
+                               question.base_type);
 }
 
 /* ---------------------------------------------------- Subtyping: nodes */
@@ -1219,7 +1425,7 @@ typedef struct sxml_type_node_test_pair {
 } sxml_type_node_test_pair;
 
 /* XPath 4.0, section 3.3.2.5.3 "Subtyping Nodes: Elements". */
-static bool sxml_type_element_subtype(sxml_type_subtype_search *search,
+static bool sxml_type_element_subtype(const sxml_type_registry *registry,
                                       sxml_type_node_test_pair pair) {
     const sxml_node_test *derived = pair.derived;
     const sxml_node_test *base = pair.base;
@@ -1233,9 +1439,8 @@ static bool sxml_type_element_subtype(sxml_type_subtype_search *search,
         return derived->is_schema_declaration && base_is_any_element;
     }
     if (!sxml_type_name_test_matches(
-            search->registry,
-            (sxml_type_name_test_pair){.derived = &derived->name_test,
-                                       .base = &base->name_test})) {
+            registry, (sxml_type_name_test_pair){.derived = &derived->name_test,
+                                                 .base = &base->name_test})) {
         return false;
     }
     if (base->type_annotation.index == SXML_TYPE_NONE ||
@@ -1253,15 +1458,12 @@ static bool sxml_type_element_subtype(sxml_type_subtype_search *search,
         return false;
     }
     return sxml_type_registry_derives(
-        search->registry,
-        (sxml_type_derivation_question){
-            .pair = {.derived_type = derived_type,
-                     .base_type = base->type_annotation},
-            .depth = 0});
+        registry, (sxml_type_pair){.derived_type = derived_type,
+                                   .base_type = base->type_annotation});
 }
 
 /* XPath 4.0, section 3.3.2.5.4 "Subtyping Nodes: Attributes". */
-static bool sxml_type_attribute_subtype(sxml_type_subtype_search *search,
+static bool sxml_type_attribute_subtype(const sxml_type_registry *registry,
                                         sxml_type_node_test_pair pair) {
     const sxml_node_test *derived = pair.derived;
     const sxml_node_test *base = pair.base;
@@ -1282,9 +1484,8 @@ static bool sxml_type_attribute_subtype(sxml_type_subtype_search *search,
                     derived->name_test.expanded_name.index);
     }
     if (!sxml_type_name_test_matches(
-            search->registry,
-            (sxml_type_name_test_pair){.derived = &derived->name_test,
-                                       .base = &base->name_test})) {
+            registry, (sxml_type_name_test_pair){.derived = &derived->name_test,
+                                                 .base = &base->name_test})) {
         return false;
     }
     if (base->type_annotation.index == SXML_TYPE_NONE ||
@@ -1295,95 +1496,58 @@ static bool sxml_type_attribute_subtype(sxml_type_subtype_search *search,
         return false;
     }
     return sxml_type_registry_derives(
-        search->registry,
-        (sxml_type_derivation_question){
-            .pair = {.derived_type = derived->type_annotation,
-                     .base_type = base->type_annotation},
-            .depth = 0});
+        registry, (sxml_type_pair){.derived_type = derived->type_annotation,
+                                   .base_type = base->type_annotation});
 }
 
-/*
- * document-node(element_test) ⊆ base (XPath 4.0, section 3.3.2.5.2), for an
- * element test of SXML_TYPE_NONE (document-node()) or an element test that
- * may be a choice: document-node(element(a|b)) is a subtype when
- * document-node(element(a)) and document-node(element(b)) both are.
- */
-typedef struct sxml_type_document_question {
-    sxml_type_identifier element_test;
-    sxml_type_identifier base_type;
-} sxml_type_document_question;
-
-static bool sxml_type_document_subtype(sxml_type_subtype_search *search,
-                                       sxml_type_document_question question) {
+static sxml_type_subtype_goal sxml_type_document_rules(
+    const sxml_type_subtype_search *search,
+    sxml_type_document_question question) {
     const sxml_type_registry *registry = search->registry;
     if (question.element_test.index != SXML_TYPE_NONE) {
         const sxml_type_description *element_test =
             sxml_type_registry_lookup(registry, question.element_test);
         if (element_test == NULL) {
-            return false;
+            return sxml_type_false_goal();
         }
         if (element_test->variety == SXML_TYPE_VARIETY_CHOICE) {
-            sxml_type_identifier_view members =
-                element_test->variety_details.member_types;
-            for (size_t member_index = 0;
-                 member_index < members.type_identifier_count;
-                 member_index += 1) {
-                if (!sxml_type_document_subtype(
-                        search,
-                        (sxml_type_document_question){
-                            .element_test =
-                                members.type_identifiers[member_index],
-                            .base_type = question.base_type})) {
-                    return false;
-                }
-            }
-            return true;
+            return sxml_type_document_goal(
+                SXML_TYPE_GOAL_EVERY_DOCUMENT_ELEMENT, question);
         }
     }
     sxml_type_identifier base_type = question.base_type;
     if (sxml_type_is(base_type, SXML_TYPE_ITEM) ||
         sxml_type_is(base_type, SXML_TYPE_GENERIC_NODE) ||
         sxml_type_is(base_type, SXML_TYPE_NODE)) {
-        return true;
+        return sxml_type_true_goal();
     }
     const sxml_type_description *base = sxml_type_registry_lookup(registry,
                                                                   base_type);
     if (base == NULL) {
-        return false;
+        return sxml_type_false_goal();
     }
     if (base->variety == SXML_TYPE_VARIETY_CHOICE) {
-        sxml_type_identifier_view members = base->variety_details.member_types;
-        for (size_t member_index = 0;
-             member_index < members.type_identifier_count; member_index += 1) {
-            if (sxml_type_document_subtype(
-                    search, (sxml_type_document_question){
-                                .element_test = question.element_test,
-                                .base_type =
-                                    members.type_identifiers[member_index]})) {
-                return true;
-            }
-        }
-        return false;
+        return sxml_type_document_goal(SXML_TYPE_GOAL_SOME_DOCUMENT_MEMBER,
+                                       question);
     }
     if (base->variety != SXML_TYPE_VARIETY_NODE_TEST ||
         base->variety_details.node_test.node_kind != SXML_NODE_KIND_DOCUMENT) {
-        return false;
+        return sxml_type_false_goal();
     }
     sxml_type_identifier base_element_test =
         base->variety_details.node_test.document_element_test;
     if (base_element_test.index == SXML_TYPE_NONE) {
-        return true;
+        return sxml_type_true_goal();
     }
     if (question.element_test.index == SXML_TYPE_NONE) {
-        return false;
+        return sxml_type_false_goal();
     }
-    return sxml_type_item_subtype_of(search, question.element_test,
-                                     base_element_test);
+    return sxml_type_item_goal(question.element_test, base_element_test);
 }
 
 /* XPath 4.0, section 3.3.2.5 for a node test other than a document test;
    base is not a choice. */
-static bool sxml_type_node_subtype(sxml_type_subtype_search *search,
+static bool sxml_type_node_subtype(const sxml_type_registry *registry,
                                    sxml_type_pair pair) {
     if (sxml_type_is(pair.base_type, SXML_TYPE_GENERIC_NODE)) {
         return true;
@@ -1395,9 +1559,9 @@ static bool sxml_type_node_subtype(sxml_type_subtype_search *search,
         return true;
     }
     const sxml_type_description *derived =
-        sxml_type_registry_lookup(search->registry, pair.derived_type);
+        sxml_type_registry_lookup(registry, pair.derived_type);
     const sxml_type_description *base =
-        sxml_type_registry_lookup(search->registry, pair.base_type);
+        sxml_type_registry_lookup(registry, pair.base_type);
     if (base->variety != SXML_TYPE_VARIETY_NODE_TEST) {
         return false;
     }
@@ -1410,9 +1574,9 @@ static bool sxml_type_node_subtype(sxml_type_subtype_search *search,
                                       .base = base_test};
     switch (derived_test->node_kind) {
     case SXML_NODE_KIND_ELEMENT:
-        return sxml_type_element_subtype(search, tests);
+        return sxml_type_element_subtype(registry, tests);
     case SXML_NODE_KIND_ATTRIBUTE:
-        return sxml_type_attribute_subtype(search, tests);
+        return sxml_type_attribute_subtype(registry, tests);
     case SXML_NODE_KIND_PROCESSING_INSTRUCTION:
         return base_test->name_test.name_test_kind ==
                    SXML_NAME_TEST_KIND_ANY_NAME ||
@@ -1430,17 +1594,17 @@ static bool sxml_type_node_subtype(sxml_type_subtype_search *search,
 }
 
 /* XPath 4.0, section 3.3.2.5.5 "Subtyping JNodes"; base is not a choice. */
-static bool sxml_type_json_node_subtype(sxml_type_subtype_search *search,
-                                        sxml_type_pair pair) {
+static sxml_type_subtype_goal sxml_type_json_node_rules(
+    const sxml_type_subtype_search *search, sxml_type_pair pair) {
     if (sxml_type_is(pair.base_type, SXML_TYPE_GENERIC_NODE)) {
-        return true;
+        return sxml_type_true_goal();
     }
     const sxml_type_description *derived =
         sxml_type_registry_lookup(search->registry, pair.derived_type);
     const sxml_type_description *base =
         sxml_type_registry_lookup(search->registry, pair.base_type);
     if (base->variety != SXML_TYPE_VARIETY_JSON_NODE_TEST) {
-        return false;
+        return sxml_type_false_goal();
     }
     const sxml_json_node_test *derived_test =
         &derived->variety_details.json_node_test;
@@ -1450,7 +1614,7 @@ static bool sxml_type_json_node_subtype(sxml_type_subtype_search *search,
         break;
     case SXML_JSON_KEY_CONSTRAINT_ROOT:
         if (derived_test->key_constraint != SXML_JSON_KEY_CONSTRAINT_ROOT) {
-            return false;
+            return sxml_type_false_goal();
         }
         break;
     case SXML_JSON_KEY_CONSTRAINT_CONSTANT:
@@ -1459,51 +1623,21 @@ static bool sxml_type_json_node_subtype(sxml_type_subtype_search *search,
                                          base_test->key_type) ||
             !sxml_byte_view_equals(derived_test->key_lexical_form,
                                    base_test->key_lexical_form)) {
-            return false;
+            return sxml_type_false_goal();
         }
         break;
     }
     if (!base_test->has_value_type) {
-        return true;
+        return sxml_type_true_goal();
     }
     /* jnode(C) constrains no value: its value type is item()*. */
     sxml_sequence_type derived_value = derived_test->has_value_type
                                            ? derived_test->value_type
                                            : sxml_type_any_sequence;
-    return sxml_type_sequence_subtype_of(search, derived_value,
-                                         base_test->value_type);
+    return sxml_type_sequence_goal(derived_value, base_test->value_type);
 }
 
 /* ---------------------------------------- Subtyping: function items */
-
-/* The field types of a record type, or item()* for record(*): what a
-   record contributes as the value type of map(xs:string, V). */
-typedef struct sxml_type_record_values {
-    const sxml_record_type *record_type;
-    sxml_sequence_type base_value_type;
-} sxml_type_record_values;
-
-/* Every value of the record, and so its value type, is a subtype of
-   question.base_value_type (XPath 4.0, section 3.3.2.9). */
-static bool sxml_type_record_values_subtype(sxml_type_subtype_search *search,
-                                            sxml_type_record_values question) {
-    const sxml_record_type *record = question.record_type;
-    if (record->is_any_record) {
-        return sxml_type_sequence_subtype_of(search, sxml_type_any_sequence,
-                                             question.base_value_type);
-    }
-    for (size_t field_index = 0;
-         field_index < record->record_fields.record_field_count;
-         field_index += 1) {
-        if (!sxml_type_sequence_subtype_of(
-                search,
-                record->record_fields.record_fields[field_index].field_type,
-                question.base_value_type)) {
-            return false;
-        }
-    }
-    return true;
-}
 
 /* The same sequence type, also allowing the empty sequence. */
 static sxml_sequence_type sxml_type_or_empty(sxml_sequence_type sequence_type) {
@@ -1517,73 +1651,43 @@ static sxml_sequence_type sxml_type_exactly_one(sxml_builtin_type builtin) {
                                 .occurrence = SXML_OCCURRENCE_EXACTLY_ONE};
 }
 
-typedef struct sxml_type_description_pair {
-    const sxml_type_description *derived;
-    const sxml_type_description *base;
-} sxml_type_description_pair;
-
 /*
  * A function, map, array or record type ⊆ function(b1, ..., bN) as RB
  * (XPath 4.0, sections 3.3.2.6 to 3.3.2.9 with the transitivity rule):
  * maps and records are function(xs:anyAtomicType) as V?, arrays are
- * function(xs:integer) as X.
+ * function(xs:integer) as X. The sub-goals are in sxml_type_next_goal.
  */
-static bool sxml_type_function_signature_subtype(
-    sxml_type_subtype_search *search, sxml_type_description_pair pair) {
+static sxml_type_subtype_goal sxml_type_function_signature_rules(
+    sxml_type_description_pair pair) {
     const sxml_function_type *base = &pair.base->variety_details.function_type;
-    sxml_sequence_type_view base_parameters = base->parameter_types;
+    size_t base_parameter_count = base->parameter_types.sequence_type_count;
     switch (pair.derived->variety) {
     case SXML_TYPE_VARIETY_FUNCTION: {
         const sxml_function_type *derived =
             &pair.derived->variety_details.function_type;
         if (derived->is_any_function ||
             derived->parameter_types.sequence_type_count !=
-                base_parameters.sequence_type_count ||
-            !sxml_type_sequence_subtype_of(search, derived->result_type,
-                                           base->result_type)) {
-            return false;
+                base_parameter_count) {
+            return sxml_type_false_goal();
         }
-        /* Parameters are contravariant. */
-        for (size_t parameter_index = 0;
-             parameter_index < base_parameters.sequence_type_count;
-             parameter_index += 1) {
-            if (!sxml_type_sequence_subtype_of(
-                    search, base_parameters.sequence_types[parameter_index],
-                    derived->parameter_types.sequence_types[parameter_index])) {
-                return false;
-            }
-        }
-        return true;
+        return sxml_type_descriptions_goal(SXML_TYPE_GOAL_FUNCTION_SIGNATURE,
+                                           pair);
     }
     case SXML_TYPE_VARIETY_MAP:
-        return base_parameters.sequence_type_count == 1 &&
-               sxml_type_sequence_subtype_of(
-                   search, base_parameters.sequence_types[0],
-                   sxml_type_exactly_one(SXML_TYPE_XS_ANY_ATOMIC_TYPE)) &&
-               sxml_type_sequence_subtype_of(
-                   search,
-                   sxml_type_or_empty(
-                       pair.derived->variety_details.map_type.value_type),
-                   base->result_type);
+        return base_parameter_count == 1
+                   ? sxml_type_descriptions_goal(
+                         SXML_TYPE_GOAL_MAP_AS_FUNCTION, pair)
+                   : sxml_type_false_goal();
     case SXML_TYPE_VARIETY_ARRAY:
-        return base_parameters.sequence_type_count == 1 &&
-               sxml_type_sequence_subtype_of(
-                   search, base_parameters.sequence_types[0],
-                   sxml_type_exactly_one(SXML_TYPE_XS_INTEGER)) &&
-               sxml_type_sequence_subtype_of(
-                   search, pair.derived->variety_details.array_type.member_type,
-                   base->result_type);
+        return base_parameter_count == 1
+                   ? sxml_type_descriptions_goal(
+                         SXML_TYPE_GOAL_ARRAY_AS_FUNCTION, pair)
+                   : sxml_type_false_goal();
     case SXML_TYPE_VARIETY_RECORD:
-        return base_parameters.sequence_type_count == 1 &&
-               sxml_type_sequence_subtype_of(
-                   search, base_parameters.sequence_types[0],
-                   sxml_type_exactly_one(SXML_TYPE_XS_ANY_ATOMIC_TYPE)) &&
-               sxml_type_sequence_allows_empty(base->result_type) &&
-               sxml_type_record_values_subtype(
-                   search,
-                   (sxml_type_record_values){
-                       .record_type = &pair.derived->variety_details.record_type,
-                       .base_value_type = base->result_type});
+        return base_parameter_count == 1
+                   ? sxml_type_descriptions_goal(
+                         SXML_TYPE_GOAL_RECORD_AS_FUNCTION, pair)
+                   : sxml_type_false_goal();
     case SXML_TYPE_VARIETY_COMPLEX:
     case SXML_TYPE_VARIETY_ANY_SIMPLE:
     case SXML_TYPE_VARIETY_ATOMIC:
@@ -1594,87 +1698,60 @@ static bool sxml_type_function_signature_subtype(
     case SXML_TYPE_VARIETY_JSON_NODE_TEST:
     case SXML_TYPE_VARIETY_ENUMERATION:
     case SXML_TYPE_VARIETY_CHOICE:
-        return false;
+        return sxml_type_false_goal();
     }
-    return false;
+    return sxml_type_false_goal();
 }
 
 /* A map or record type ⊆ map(K, V) (XPath 4.0, sections 3.3.2.7 and
    3.3.2.9; record(*) is map(xs:string, item()*)). */
-static bool sxml_type_map_subtype(sxml_type_subtype_search *search,
-                                  sxml_type_description_pair pair) {
+static sxml_type_subtype_goal sxml_type_map_rules(
+    sxml_type_description_pair pair) {
     const sxml_map_type *base = &pair.base->variety_details.map_type;
     if (pair.derived->variety == SXML_TYPE_VARIETY_MAP) {
-        const sxml_map_type *derived = &pair.derived->variety_details.map_type;
-        return base->is_any_map ||
-               (sxml_type_item_subtype_of(search, derived->key_type,
-                                          base->key_type) &&
-                sxml_type_sequence_subtype_of(search, derived->value_type,
-                                              base->value_type));
+        return base->is_any_map ? sxml_type_true_goal()
+                                : sxml_type_descriptions_goal(
+                                      SXML_TYPE_GOAL_MAP_AS_MAP, pair);
     }
     if (pair.derived->variety != SXML_TYPE_VARIETY_RECORD) {
-        return false;
+        return sxml_type_false_goal();
     }
-    return base->is_any_map ||
-           (sxml_type_item_subtype_of(search,
-                                      sxml_type_of_builtin(SXML_TYPE_XS_STRING),
-                                      base->key_type) &&
-            sxml_type_record_values_subtype(
-                search,
-                (sxml_type_record_values){
-                    .record_type = &pair.derived->variety_details.record_type,
-                    .base_value_type = base->value_type}));
+    return base->is_any_map ? sxml_type_true_goal()
+                            : sxml_type_descriptions_goal(
+                                  SXML_TYPE_GOAL_RECORD_AS_MAP, pair);
 }
 
-/* A record type ⊆ a structural record type (XPath 4.0, 3.3.2.9 and
-   3.3.2.10: a nominative type is a subtype of the structural type with its
-   fields, and through transitivity of that type's supertypes). */
-static bool sxml_type_record_subtype(sxml_type_subtype_search *search,
-                                     sxml_type_pair pair) {
+/* A record type ⊆ a record type (XPath 4.0, 3.3.2.9 and 3.3.2.10: a
+   nominative type is a subtype of the structural type with its fields, and
+   through transitivity of that type's supertypes). */
+static sxml_type_subtype_goal sxml_type_record_rules(
+    const sxml_type_subtype_search *search, sxml_type_pair pair) {
     const sxml_type_description *derived_description =
         sxml_type_registry_lookup(search->registry, pair.derived_type);
     const sxml_record_type *base =
         &sxml_type_registry_lookup(search->registry, pair.base_type)
              ->variety_details.record_type;
     if (derived_description->variety != SXML_TYPE_VARIETY_RECORD) {
-        return false;
+        return sxml_type_false_goal();
     }
     const sxml_record_type *derived =
         &derived_description->variety_details.record_type;
     if (base->is_any_record) {
-        return true;
+        return sxml_type_true_goal();
     }
     /* Nominative record types are subtypes only of themselves (3.3.2.10,
        iso-recursive); identity was checked before. */
     if (base->is_nominative || derived->is_any_record ||
         derived->record_fields.record_field_count !=
             base->record_fields.record_field_count) {
-        return false;
+        return sxml_type_false_goal();
     }
-    const sxml_type_entry *base_entry =
-        sxml_type_registry_entry_of(search->registry, pair.base_type);
-    for (size_t field_index = 0;
-         field_index < derived->record_fields.record_field_count;
-         field_index += 1) {
-        const sxml_record_field *field =
-            &derived->record_fields.record_fields[field_index];
-        size_t base_position = 0;
-        if (!sxml_type_entry_find_string(
-                (sxml_type_string_query){.entry = base_entry,
-                                         .text = field->field_name},
-                &base_position) ||
-            !sxml_type_sequence_subtype_of(
-                search, field->field_type,
-                base->record_fields.record_fields[base_position].field_type)) {
-            return false;
-        }
-    }
-    return true;
+    return sxml_type_pair_goal(SXML_TYPE_GOAL_RECORD_FIELDS, pair);
 }
 
 /* A function, map, array or record type ⊆ base, which is not a choice. */
-static bool sxml_type_function_item_subtype(sxml_type_subtype_search *search,
-                                            sxml_type_pair pair) {
+static sxml_type_subtype_goal sxml_type_function_item_rules(
+    const sxml_type_subtype_search *search, sxml_type_pair pair) {
     const sxml_type_description *derived =
         sxml_type_registry_lookup(search->registry, pair.derived_type);
     const sxml_type_description *base =
@@ -1684,18 +1761,24 @@ static bool sxml_type_function_item_subtype(sxml_type_subtype_search *search,
     switch (base->variety) {
     case SXML_TYPE_VARIETY_FUNCTION:
         /* Maps, arrays and records are function items (3.3.2.7 to 3.3.2.9). */
-        return base->variety_details.function_type.is_any_function ||
-               sxml_type_function_signature_subtype(search, descriptions);
+        if (base->variety_details.function_type.is_any_function) {
+            return sxml_type_true_goal();
+        }
+        return sxml_type_function_signature_rules(descriptions);
     case SXML_TYPE_VARIETY_MAP:
-        return sxml_type_map_subtype(search, descriptions);
+        return sxml_type_map_rules(descriptions);
     case SXML_TYPE_VARIETY_ARRAY:
-        return derived->variety == SXML_TYPE_VARIETY_ARRAY &&
-               (base->variety_details.array_type.is_any_array ||
-                sxml_type_sequence_subtype_of(
-                    search, derived->variety_details.array_type.member_type,
-                    base->variety_details.array_type.member_type));
+        if (derived->variety != SXML_TYPE_VARIETY_ARRAY) {
+            return sxml_type_false_goal();
+        }
+        if (base->variety_details.array_type.is_any_array) {
+            return sxml_type_true_goal();
+        }
+        return sxml_type_sequence_goal(
+            derived->variety_details.array_type.member_type,
+            base->variety_details.array_type.member_type);
     case SXML_TYPE_VARIETY_RECORD:
-        return sxml_type_record_subtype(search, pair);
+        return sxml_type_record_rules(search, pair);
     case SXML_TYPE_VARIETY_COMPLEX:
     case SXML_TYPE_VARIETY_ANY_SIMPLE:
     case SXML_TYPE_VARIETY_ATOMIC:
@@ -1706,9 +1789,9 @@ static bool sxml_type_function_item_subtype(sxml_type_subtype_search *search,
     case SXML_TYPE_VARIETY_JSON_NODE_TEST:
     case SXML_TYPE_VARIETY_ENUMERATION:
     case SXML_TYPE_VARIETY_CHOICE:
-        return false;
+        return sxml_type_false_goal();
     }
-    return false;
+    return sxml_type_false_goal();
 }
 
 /* --------------------------------------------- Subtyping: item types */
@@ -1775,60 +1858,19 @@ static sxml_type_identifier_view sxml_type_abstract_expansion(
     }
 }
 
-/* Every member of members ⊆ base. */
-typedef struct sxml_type_members_question {
-    sxml_type_identifier_view members;
-    sxml_type_identifier base_type;
-} sxml_type_members_question;
-
-static bool sxml_type_every_member_subtype(sxml_type_subtype_search *search,
-                                           sxml_type_members_question question) {
-    for (size_t member_index = 0;
-         member_index < question.members.type_identifier_count;
-         member_index += 1) {
-        if (!sxml_type_item_subtype_of(
-                search, question.members.type_identifiers[member_index],
-                question.base_type)) {
-            return false;
-        }
-    }
-    return true;
-}
-
-/* derived ⊆ some member of base, a choice item type (3.3.2.2). */
-static bool sxml_type_some_member_supertype(sxml_type_subtype_search *search,
-                                            sxml_type_pair pair) {
-    const sxml_type_description *base =
-        sxml_type_registry_lookup(search->registry, pair.base_type);
-    sxml_type_identifier_view members = base->variety_details.member_types;
-    for (size_t member_index = 0; member_index < members.type_identifier_count;
-         member_index += 1) {
-        if (sxml_type_item_subtype_of(search, pair.derived_type,
-                                      members.type_identifiers[member_index])) {
-            return true;
-        }
-    }
-    sxml_type_identifier_view expansion =
-        sxml_type_abstract_expansion(pair.derived_type);
-    return expansion.type_identifier_count != 0 &&
-           sxml_type_every_member_subtype(
-               search, (sxml_type_members_question){
-                           .members = expansion, .base_type = pair.base_type});
-}
-
 static bool sxml_type_is_generalized_atomic(sxml_type_variety variety) {
     return variety == SXML_TYPE_VARIETY_ATOMIC ||
            variety == SXML_TYPE_VARIETY_UNION;
 }
 
 /* The rules of XPath 4.0, section 3.3.2, for issued types. */
-static bool sxml_type_item_subtype_rules(sxml_type_subtype_search *search,
-                                         sxml_type_pair pair) {
+static sxml_type_subtype_goal sxml_type_item_rules(
+    const sxml_type_subtype_search *search, sxml_type_pair pair) {
     /* 3.3.2.1 General Subtyping Rules. */
     if (sxml_type_identifier_equals(pair.derived_type, pair.base_type) ||
         sxml_type_is(pair.base_type, SXML_TYPE_ITEM) ||
         sxml_type_is(pair.derived_type, SXML_TYPE_XS_ERROR)) {
-        return true;
+        return sxml_type_true_goal();
     }
     const sxml_type_description *derived =
         sxml_type_registry_lookup(search->registry, pair.derived_type);
@@ -1838,43 +1880,28 @@ static bool sxml_type_item_subtype_rules(sxml_type_subtype_search *search,
     switch (derived->variety) {
     case SXML_TYPE_VARIETY_CHOICE:
         /* 3.3.2.2: every member. */
-        return sxml_type_every_member_subtype(
-            search, (sxml_type_members_question){
-                        .members = derived->variety_details.member_types,
-                        .base_type = pair.base_type});
-    case SXML_TYPE_VARIETY_ENUMERATION: {
+        return sxml_type_members_goal((sxml_type_members_question){
+            .members = derived->variety_details.member_types,
+            .base_type = pair.base_type});
+    case SXML_TYPE_VARIETY_ENUMERATION:
         /* 3.3.2.2 and 3.3.2.4: a choice of singleton enumerations. */
-        sxml_byte_view_list values = derived->variety_details.enumeration_values;
-        for (size_t value_index = 0; value_index < values.byte_view_count;
-             value_index += 1) {
-            if (!sxml_type_enumeration_value_subtype(
-                    search,
-                    (sxml_type_value_question){
-                        .value = values.byte_views[value_index],
-                        .base_type = pair.base_type})) {
-                return false;
-            }
-        }
-        return true;
-    }
+        return sxml_type_pair_goal(SXML_TYPE_GOAL_EVERY_ENUMERATION_VALUE,
+                                   pair);
     case SXML_TYPE_VARIETY_UNION:
         /* 3.3.2.3: derives from, or every transitive member. */
         if (sxml_type_is_generalized_atomic(base->variety) &&
-            sxml_type_registry_derives(
-                search->registry,
-                (sxml_type_derivation_question){.pair = pair, .depth = 0})) {
-            return true;
+            sxml_type_registry_derives(search->registry, pair)) {
+            return sxml_type_true_goal();
         }
-        return sxml_type_every_member_subtype(
-            search, (sxml_type_members_question){
-                        .members = derived->variety_details.member_types,
-                        .base_type = pair.base_type});
+        return sxml_type_members_goal((sxml_type_members_question){
+            .members = derived->variety_details.member_types,
+            .base_type = pair.base_type});
     case SXML_TYPE_VARIETY_NODE_TEST:
         if (derived->variety_details.node_test.node_kind ==
             SXML_NODE_KIND_DOCUMENT) {
             /* Handles a base choice itself, to split element(a|b). */
-            return sxml_type_document_subtype(
-                search,
+            return sxml_type_document_goal(
+                SXML_TYPE_GOAL_DOCUMENT,
                 (sxml_type_document_question){
                     .element_test =
                         derived->variety_details.node_test.document_element_test,
@@ -1894,24 +1921,27 @@ static bool sxml_type_item_subtype_rules(sxml_type_subtype_search *search,
         break;
     }
     if (base->variety == SXML_TYPE_VARIETY_CHOICE) {
-        return sxml_type_some_member_supertype(search, pair);
+        /* 3.3.2.2: some member, else the abstract expansion. */
+        return sxml_type_pair_goal(SXML_TYPE_GOAL_SOME_MEMBER, pair);
     }
     switch (derived->variety) {
     case SXML_TYPE_VARIETY_ATOMIC:
         /* 3.3.2.3: generalized atomic types by derivation. */
         return sxml_type_is_generalized_atomic(base->variety) &&
-               sxml_type_registry_derives(
-                   search->registry,
-                   (sxml_type_derivation_question){.pair = pair, .depth = 0});
+                       sxml_type_registry_derives(search->registry, pair)
+                   ? sxml_type_true_goal()
+                   : sxml_type_false_goal();
     case SXML_TYPE_VARIETY_NODE_TEST:
-        return sxml_type_node_subtype(search, pair);
+        return sxml_type_node_subtype(search->registry, pair)
+                   ? sxml_type_true_goal()
+                   : sxml_type_false_goal();
     case SXML_TYPE_VARIETY_JSON_NODE_TEST:
-        return sxml_type_json_node_subtype(search, pair);
+        return sxml_type_json_node_rules(search, pair);
     case SXML_TYPE_VARIETY_FUNCTION:
     case SXML_TYPE_VARIETY_MAP:
     case SXML_TYPE_VARIETY_ARRAY:
     case SXML_TYPE_VARIETY_RECORD:
-        return sxml_type_function_item_subtype(search, pair);
+        return sxml_type_function_item_rules(search, pair);
     case SXML_TYPE_VARIETY_COMPLEX:
     case SXML_TYPE_VARIETY_ANY_SIMPLE:
     case SXML_TYPE_VARIETY_LIST:
@@ -1919,14 +1949,318 @@ static bool sxml_type_item_subtype_rules(sxml_type_subtype_search *search,
     case SXML_TYPE_VARIETY_ANY_ITEM:
     case SXML_TYPE_VARIETY_ENUMERATION:
     case SXML_TYPE_VARIETY_CHOICE:
-        return false;
+        return sxml_type_false_goal();
     }
-    return false;
+    return sxml_type_false_goal();
 }
 
-/* Applies the rules within the search budget; false when it runs out. */
-static bool sxml_type_item_subtype(sxml_type_subtype_search *search,
-                                   sxml_type_pair pair) {
+/* ------------------------------------------- Subtyping: the search */
+
+/* True for a conjunction, false for a disjunction. */
+static bool sxml_type_goal_is_conjunction(sxml_type_subtype_goal_kind kind) {
+    switch (kind) {
+    case SXML_TYPE_GOAL_SOME_MEMBER:
+    case SXML_TYPE_GOAL_SOME_ENUMERATION_MEMBER:
+    case SXML_TYPE_GOAL_SOME_DOCUMENT_MEMBER:
+        return false;
+    case SXML_TYPE_GOAL_TRUTH:
+    case SXML_TYPE_GOAL_ITEM:
+    case SXML_TYPE_GOAL_SEQUENCE:
+    case SXML_TYPE_GOAL_ENUMERATION_VALUE:
+    case SXML_TYPE_GOAL_DOCUMENT:
+    case SXML_TYPE_GOAL_EVERY_MEMBER:
+    case SXML_TYPE_GOAL_EVERY_ENUMERATION_VALUE:
+    case SXML_TYPE_GOAL_EVERY_DOCUMENT_ELEMENT:
+    case SXML_TYPE_GOAL_RECORD_VALUES:
+    case SXML_TYPE_GOAL_RECORD_FIELDS:
+    case SXML_TYPE_GOAL_FUNCTION_SIGNATURE:
+    case SXML_TYPE_GOAL_MAP_AS_FUNCTION:
+    case SXML_TYPE_GOAL_ARRAY_AS_FUNCTION:
+    case SXML_TYPE_GOAL_RECORD_AS_FUNCTION:
+    case SXML_TYPE_GOAL_MAP_AS_MAP:
+    case SXML_TYPE_GOAL_RECORD_AS_MAP:
+        return true;
+    }
+    return true;
+}
+
+/* The members of the choice type, of an issued identifier. */
+static sxml_type_identifier_view sxml_type_choice_members(
+    const sxml_type_subtype_search *search, sxml_type_identifier choice) {
+    return sxml_type_registry_lookup(search->registry, choice)
+        ->variety_details.member_types;
+}
+
+/* How many sub-goals a conjunction or disjunction has. */
+static size_t sxml_type_goal_count(const sxml_type_subtype_search *search,
+                                   const sxml_type_subtype_goal *goal) {
+    switch (goal->kind) {
+    case SXML_TYPE_GOAL_EVERY_MEMBER:
+        return goal->question.members.members.type_identifier_count;
+    case SXML_TYPE_GOAL_EVERY_ENUMERATION_VALUE:
+        return sxml_type_registry_lookup(search->registry,
+                                         goal->question.pair.derived_type)
+            ->variety_details.enumeration_values.byte_view_count;
+    case SXML_TYPE_GOAL_EVERY_DOCUMENT_ELEMENT:
+        return sxml_type_choice_members(search,
+                                        goal->question.document.element_test)
+            .type_identifier_count;
+    case SXML_TYPE_GOAL_RECORD_VALUES:
+        return goal->question.record_values.record_type->record_fields
+            .record_field_count;
+    case SXML_TYPE_GOAL_RECORD_FIELDS:
+        return sxml_type_registry_lookup(search->registry,
+                                         goal->question.pair.derived_type)
+            ->variety_details.record_type.record_fields.record_field_count;
+    case SXML_TYPE_GOAL_FUNCTION_SIGNATURE:
+        return 1 + goal->question.descriptions.base->variety_details
+                       .function_type.parameter_types.sequence_type_count;
+    case SXML_TYPE_GOAL_MAP_AS_FUNCTION:
+    case SXML_TYPE_GOAL_ARRAY_AS_FUNCTION:
+    case SXML_TYPE_GOAL_MAP_AS_MAP:
+    case SXML_TYPE_GOAL_RECORD_AS_MAP:
+        return 2;
+    case SXML_TYPE_GOAL_RECORD_AS_FUNCTION:
+        return 3;
+    case SXML_TYPE_GOAL_SOME_MEMBER:
+        return sxml_type_choice_members(search, goal->question.pair.base_type)
+                   .type_identifier_count +
+               (sxml_type_abstract_expansion(goal->question.pair.derived_type)
+                            .type_identifier_count != 0
+                    ? 1U
+                    : 0U);
+    case SXML_TYPE_GOAL_SOME_ENUMERATION_MEMBER:
+        return sxml_type_choice_members(search,
+                                        goal->question.value.base_type)
+            .type_identifier_count;
+    case SXML_TYPE_GOAL_SOME_DOCUMENT_MEMBER:
+        return sxml_type_choice_members(search,
+                                        goal->question.document.base_type)
+            .type_identifier_count;
+    case SXML_TYPE_GOAL_TRUTH:
+    case SXML_TYPE_GOAL_ITEM:
+    case SXML_TYPE_GOAL_SEQUENCE:
+    case SXML_TYPE_GOAL_ENUMERATION_VALUE:
+    case SXML_TYPE_GOAL_DOCUMENT:
+        return 0;
+    }
+    return 0;
+}
+
+/* The sub-goal of a function signature or a map, array or record as a
+   function or map, at position goal_index. */
+static sxml_type_subtype_goal sxml_type_signature_goal(
+    const sxml_type_subtype_frame *frame) {
+    const sxml_type_subtype_goal *goal = &frame->goal;
+    size_t goal_index = frame->next_goal_index;
+    const sxml_type_description *derived = goal->question.descriptions.derived;
+    const sxml_type_description *base = goal->question.descriptions.base;
+    switch (goal->kind) {
+    case SXML_TYPE_GOAL_FUNCTION_SIGNATURE: {
+        const sxml_function_type *derived_function =
+            &derived->variety_details.function_type;
+        const sxml_function_type *base_function =
+            &base->variety_details.function_type;
+        if (goal_index == 0) {
+            return sxml_type_sequence_goal(derived_function->result_type,
+                                           base_function->result_type);
+        }
+        /* Parameters are contravariant. */
+        return sxml_type_sequence_goal(
+            base_function->parameter_types.sequence_types[goal_index - 1],
+            derived_function->parameter_types.sequence_types[goal_index - 1]);
+    }
+    case SXML_TYPE_GOAL_MAP_AS_FUNCTION: {
+        const sxml_function_type *base_function =
+            &base->variety_details.function_type;
+        if (goal_index == 0) {
+            return sxml_type_sequence_goal(
+                base_function->parameter_types.sequence_types[0],
+                sxml_type_exactly_one(SXML_TYPE_XS_ANY_ATOMIC_TYPE));
+        }
+        return sxml_type_sequence_goal(
+            sxml_type_or_empty(derived->variety_details.map_type.value_type),
+            base_function->result_type);
+    }
+    case SXML_TYPE_GOAL_ARRAY_AS_FUNCTION: {
+        const sxml_function_type *base_function =
+            &base->variety_details.function_type;
+        if (goal_index == 0) {
+            return sxml_type_sequence_goal(
+                base_function->parameter_types.sequence_types[0],
+                sxml_type_exactly_one(SXML_TYPE_XS_INTEGER));
+        }
+        return sxml_type_sequence_goal(
+            derived->variety_details.array_type.member_type,
+            base_function->result_type);
+    }
+    case SXML_TYPE_GOAL_RECORD_AS_FUNCTION: {
+        const sxml_function_type *base_function =
+            &base->variety_details.function_type;
+        if (goal_index == 0) {
+            return sxml_type_sequence_goal(
+                base_function->parameter_types.sequence_types[0],
+                sxml_type_exactly_one(SXML_TYPE_XS_ANY_ATOMIC_TYPE));
+        }
+        if (goal_index == 1) {
+            return sxml_type_sequence_allows_empty(base_function->result_type)
+                       ? sxml_type_true_goal()
+                       : sxml_type_false_goal();
+        }
+        return sxml_type_record_values_goal(
+            &derived->variety_details.record_type, base_function->result_type);
+    }
+    case SXML_TYPE_GOAL_MAP_AS_MAP: {
+        const sxml_map_type *derived_map = &derived->variety_details.map_type;
+        const sxml_map_type *base_map = &base->variety_details.map_type;
+        if (goal_index == 0) {
+            return sxml_type_item_goal(derived_map->key_type,
+                                       base_map->key_type);
+        }
+        return sxml_type_sequence_goal(derived_map->value_type,
+                                       base_map->value_type);
+    }
+    case SXML_TYPE_GOAL_RECORD_AS_MAP: {
+        const sxml_map_type *base_map = &base->variety_details.map_type;
+        if (goal_index == 0) {
+            return sxml_type_item_goal(
+                sxml_type_of_builtin(SXML_TYPE_XS_STRING), base_map->key_type);
+        }
+        return sxml_type_record_values_goal(
+            &derived->variety_details.record_type, base_map->value_type);
+    }
+    case SXML_TYPE_GOAL_TRUTH:
+    case SXML_TYPE_GOAL_ITEM:
+    case SXML_TYPE_GOAL_SEQUENCE:
+    case SXML_TYPE_GOAL_ENUMERATION_VALUE:
+    case SXML_TYPE_GOAL_DOCUMENT:
+    case SXML_TYPE_GOAL_EVERY_MEMBER:
+    case SXML_TYPE_GOAL_EVERY_ENUMERATION_VALUE:
+    case SXML_TYPE_GOAL_EVERY_DOCUMENT_ELEMENT:
+    case SXML_TYPE_GOAL_RECORD_VALUES:
+    case SXML_TYPE_GOAL_RECORD_FIELDS:
+    case SXML_TYPE_GOAL_SOME_MEMBER:
+    case SXML_TYPE_GOAL_SOME_ENUMERATION_MEMBER:
+    case SXML_TYPE_GOAL_SOME_DOCUMENT_MEMBER:
+        break;
+    }
+    return sxml_type_false_goal();
+}
+
+/* Field goal_index of the derived record is in the base record, with a
+   supertype (3.3.2.9). */
+static sxml_type_subtype_goal sxml_type_record_field_goal(
+    const sxml_type_subtype_search *search,
+    const sxml_type_subtype_frame *frame) {
+    sxml_type_pair pair = frame->goal.question.pair;
+    const sxml_record_field *field =
+        &sxml_type_registry_lookup(search->registry, pair.derived_type)
+             ->variety_details.record_type.record_fields
+             .record_fields[frame->next_goal_index];
+    const sxml_record_type *base =
+        &sxml_type_registry_lookup(search->registry, pair.base_type)
+             ->variety_details.record_type;
+    size_t base_position = 0;
+    if (!sxml_type_entry_find_string(
+            (sxml_type_string_query){
+                .entry = sxml_type_registry_entry_of(search->registry,
+                                                     pair.base_type),
+                .text = field->field_name},
+            &base_position)) {
+        return sxml_type_false_goal();
+    }
+    return sxml_type_sequence_goal(
+        field->field_type,
+        base->record_fields.record_fields[base_position].field_type);
+}
+
+/* The sub-goal at frame->next_goal_index, below the goal count. */
+static sxml_type_subtype_goal sxml_type_next_goal(
+    const sxml_type_subtype_search *search,
+    const sxml_type_subtype_frame *frame) {
+    const sxml_type_subtype_goal *goal = &frame->goal;
+    size_t goal_index = frame->next_goal_index;
+    switch (goal->kind) {
+    case SXML_TYPE_GOAL_EVERY_MEMBER:
+        return sxml_type_item_goal(
+            goal->question.members.members.type_identifiers[goal_index],
+            goal->question.members.base_type);
+    case SXML_TYPE_GOAL_EVERY_ENUMERATION_VALUE:
+        return sxml_type_value_goal(
+            SXML_TYPE_GOAL_ENUMERATION_VALUE,
+            (sxml_type_value_question){
+                .value = sxml_type_registry_lookup(
+                             search->registry, goal->question.pair.derived_type)
+                             ->variety_details.enumeration_values
+                             .byte_views[goal_index],
+                .base_type = goal->question.pair.base_type});
+    case SXML_TYPE_GOAL_EVERY_DOCUMENT_ELEMENT:
+        return sxml_type_document_goal(
+            SXML_TYPE_GOAL_DOCUMENT,
+            (sxml_type_document_question){
+                .element_test =
+                    sxml_type_choice_members(
+                        search, goal->question.document.element_test)
+                        .type_identifiers[goal_index],
+                .base_type = goal->question.document.base_type});
+    case SXML_TYPE_GOAL_RECORD_VALUES:
+        return sxml_type_sequence_goal(
+            goal->question.record_values.record_type->record_fields
+                .record_fields[goal_index]
+                .field_type,
+            goal->question.record_values.base_value_type);
+    case SXML_TYPE_GOAL_RECORD_FIELDS:
+        return sxml_type_record_field_goal(search, frame);
+    case SXML_TYPE_GOAL_FUNCTION_SIGNATURE:
+    case SXML_TYPE_GOAL_MAP_AS_FUNCTION:
+    case SXML_TYPE_GOAL_ARRAY_AS_FUNCTION:
+    case SXML_TYPE_GOAL_RECORD_AS_FUNCTION:
+    case SXML_TYPE_GOAL_MAP_AS_MAP:
+    case SXML_TYPE_GOAL_RECORD_AS_MAP:
+        return sxml_type_signature_goal(frame);
+    case SXML_TYPE_GOAL_SOME_MEMBER: {
+        sxml_type_pair pair = goal->question.pair;
+        sxml_type_identifier_view members =
+            sxml_type_choice_members(search, pair.base_type);
+        if (goal_index < members.type_identifier_count) {
+            return sxml_type_item_goal(pair.derived_type,
+                                       members.type_identifiers[goal_index]);
+        }
+        return sxml_type_members_goal((sxml_type_members_question){
+            .members = sxml_type_abstract_expansion(pair.derived_type),
+            .base_type = pair.base_type});
+    }
+    case SXML_TYPE_GOAL_SOME_ENUMERATION_MEMBER:
+        return sxml_type_value_goal(
+            SXML_TYPE_GOAL_ENUMERATION_VALUE,
+            (sxml_type_value_question){
+                .value = goal->question.value.value,
+                .base_type = sxml_type_choice_members(
+                                 search, goal->question.value.base_type)
+                                 .type_identifiers[goal_index]});
+    case SXML_TYPE_GOAL_SOME_DOCUMENT_MEMBER:
+        return sxml_type_document_goal(
+            SXML_TYPE_GOAL_DOCUMENT,
+            (sxml_type_document_question){
+                .element_test = goal->question.document.element_test,
+                .base_type = sxml_type_choice_members(
+                                 search, goal->question.document.base_type)
+                                 .type_identifiers[goal_index]});
+    case SXML_TYPE_GOAL_TRUTH:
+    case SXML_TYPE_GOAL_ITEM:
+    case SXML_TYPE_GOAL_SEQUENCE:
+    case SXML_TYPE_GOAL_ENUMERATION_VALUE:
+    case SXML_TYPE_GOAL_DOCUMENT:
+        break;
+    }
+    return sxml_type_false_goal();
+}
+
+/* Enters the item goal of frame: false, and the goal is false, when the
+   budget is spent or a type was not issued. */
+static bool sxml_type_enter_item_goal(sxml_type_subtype_search *search,
+                                      sxml_type_subtype_frame *frame) {
+    sxml_type_pair pair = frame->goal.question.pair;
     if (search->remaining_step_count == 0 ||
         search->depth >= SXML_TYPE_SUBTYPE_MAXIMUM_DEPTH ||
         !sxml_type_registry_issued(search->registry, pair.derived_type) ||
@@ -1935,23 +2269,136 @@ static bool sxml_type_item_subtype(sxml_type_subtype_search *search,
     }
     search->remaining_step_count -= 1;
     search->depth += 1;
-    bool is_subtype = sxml_type_item_subtype_rules(search, pair);
-    search->depth -= 1;
-    return is_subtype;
+    frame->item_depth += 1;
+    return true;
 }
 
-static sxml_type_subtype_search sxml_type_new_search(
-    const sxml_type_registry *registry) {
-    return (sxml_type_subtype_search){
-        .registry = registry,
-        .depth = 0,
-        .remaining_step_count = SXML_TYPE_SUBTYPE_MAXIMUM_STEP_COUNT};
+/* What reducing a goal gave: an answer, or a conjunction or
+   disjunction. */
+typedef struct sxml_type_reduction {
+    bool is_answered;
+    bool answer;
+} sxml_type_reduction;
+
+/*
+ * Applies the rules to the goal of frame until it is answered or is a
+ * conjunction or disjunction, whose first sub-goal is then next.
+ */
+static sxml_type_reduction sxml_type_reduce_goal(
+    sxml_type_subtype_search *search, sxml_type_subtype_frame *frame) {
+    frame->next_goal_index = 0;
+    sxml_type_subtype_goal *goal = &frame->goal;
+    for (;;) {
+        switch (goal->kind) {
+        case SXML_TYPE_GOAL_TRUTH:
+            return (sxml_type_reduction){.is_answered = true,
+                                         .answer = goal->question.truth};
+        case SXML_TYPE_GOAL_ITEM:
+            if (!sxml_type_enter_item_goal(search, frame)) {
+                return (sxml_type_reduction){.is_answered = true,
+                                             .answer = false};
+            }
+            *goal = sxml_type_item_rules(search, goal->question.pair);
+            break;
+        case SXML_TYPE_GOAL_SEQUENCE:
+            *goal = sxml_type_sequence_rules(goal->question.sequence_pair);
+            break;
+        case SXML_TYPE_GOAL_ENUMERATION_VALUE:
+            *goal = sxml_type_enumeration_value_rules(search,
+                                                      goal->question.value);
+            break;
+        case SXML_TYPE_GOAL_DOCUMENT:
+            *goal = sxml_type_document_rules(search, goal->question.document);
+            break;
+        case SXML_TYPE_GOAL_EVERY_MEMBER:
+        case SXML_TYPE_GOAL_EVERY_ENUMERATION_VALUE:
+        case SXML_TYPE_GOAL_EVERY_DOCUMENT_ELEMENT:
+        case SXML_TYPE_GOAL_RECORD_VALUES:
+        case SXML_TYPE_GOAL_RECORD_FIELDS:
+        case SXML_TYPE_GOAL_FUNCTION_SIGNATURE:
+        case SXML_TYPE_GOAL_MAP_AS_FUNCTION:
+        case SXML_TYPE_GOAL_ARRAY_AS_FUNCTION:
+        case SXML_TYPE_GOAL_RECORD_AS_FUNCTION:
+        case SXML_TYPE_GOAL_MAP_AS_MAP:
+        case SXML_TYPE_GOAL_RECORD_AS_MAP:
+        case SXML_TYPE_GOAL_SOME_MEMBER:
+        case SXML_TYPE_GOAL_SOME_ENUMERATION_MEMBER:
+        case SXML_TYPE_GOAL_SOME_DOCUMENT_MEMBER:
+            return (sxml_type_reduction){.is_answered = false,
+                                         .answer = false};
+        }
+    }
+}
+
+/* The answer to goal, within the budget of search. */
+static bool sxml_type_answer_goal(sxml_type_subtype_search *search,
+                                  sxml_type_subtype_goal goal) {
+    search->frames[0] = (sxml_type_subtype_frame){
+        .goal = goal, .next_goal_index = 0, .item_depth = 0};
+    search->frame_count = 1;
+    sxml_type_reduction reduction =
+        sxml_type_reduce_goal(search, &search->frames[0]);
+    for (;;) {
+        sxml_type_subtype_frame *top = &search->frames[search->frame_count - 1];
+        if (reduction.is_answered) {
+            /* The goal of top is answered: give the answer to the frame
+               below, which is decided when the answer short-circuits it. */
+            search->depth -= top->item_depth;
+            search->frame_count -= 1;
+            if (search->frame_count == 0) {
+                return reduction.answer;
+            }
+            top = &search->frames[search->frame_count - 1];
+            if (reduction.answer !=
+                sxml_type_goal_is_conjunction(top->goal.kind)) {
+                continue;
+            }
+            reduction.is_answered = false;
+        }
+        size_t goal_count = sxml_type_goal_count(search, &top->goal);
+        if (top->next_goal_index == goal_count) {
+            /* Every sub-goal held (conjunction) or none did. */
+            reduction = (sxml_type_reduction){
+                .is_answered = true,
+                .answer = sxml_type_goal_is_conjunction(top->goal.kind)};
+            continue;
+        }
+        sxml_type_subtype_goal next_goal = sxml_type_next_goal(search, top);
+        top->next_goal_index += 1;
+        if (top->next_goal_index == goal_count) {
+            /* The last sub-goal answers for the frame. */
+            top->goal = next_goal;
+            reduction = sxml_type_reduce_goal(search, top);
+            continue;
+        }
+        if (search->frame_count == SXML_TYPE_SUBTYPE_MAXIMUM_FRAME_COUNT) {
+            /* Out of frames: the frame is false (D58). */
+            reduction = (sxml_type_reduction){.is_answered = true,
+                                              .answer = false};
+            continue;
+        }
+        sxml_type_subtype_frame *frame = &search->frames[search->frame_count];
+        search->frame_count += 1;
+        *frame = (sxml_type_subtype_frame){
+            .goal = next_goal, .next_goal_index = 0, .item_depth = 0};
+        reduction = sxml_type_reduce_goal(search, frame);
+    }
+}
+
+static bool sxml_type_answer(const sxml_type_registry *registry,
+                             sxml_type_subtype_goal goal) {
+    sxml_type_subtype_search search;
+    search.registry = registry;
+    search.depth = 0;
+    search.remaining_step_count = SXML_TYPE_SUBTYPE_MAXIMUM_STEP_COUNT;
+    search.frame_count = 0;
+    return sxml_type_answer_goal(&search, goal);
 }
 
 bool sxml_type_registry_is_subtype(const sxml_type_registry *registry,
                                    sxml_type_pair pair) {
-    sxml_type_subtype_search search = sxml_type_new_search(registry);
-    return sxml_type_item_subtype(&search, pair);
+    return sxml_type_answer(
+        registry, sxml_type_item_goal(pair.derived_type, pair.base_type));
 }
 
 static bool sxml_type_occurrence_is_valid(sxml_occurrence occurrence) {
@@ -1982,8 +2429,8 @@ bool sxml_type_registry_is_sequence_subtype(const sxml_type_registry *registry,
         !sxml_type_registry_sequence_type_is_valid(registry, pair.base_type)) {
         return false;
     }
-    sxml_type_subtype_search search = sxml_type_new_search(registry);
-    return sxml_type_sequence_subtype(&search, pair);
+    return sxml_type_answer(
+        registry, sxml_type_sequence_goal(pair.derived_type, pair.base_type));
 }
 
 /* ---------------------------------------------------------- Registration */

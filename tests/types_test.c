@@ -1542,6 +1542,177 @@ static void test_many_types_and_deep_nesting(sxml_test_state *state) {
     types_fixture_destroy(&fixture);
 }
 
+/* How nested_type nests: function(xs:string) as T, function(T) as item()*,
+   or (T | other). */
+typedef enum nesting_kind {
+    SXML_TEST_NESTING_KIND_RESULT,
+    SXML_TEST_NESTING_KIND_PARAMETER,
+    SXML_TEST_NESTING_KIND_CHOICE
+} nesting_kind;
+
+typedef struct nesting_plan {
+    nesting_kind kind;
+    sxml_type_identifier innermost_type;
+    /* The other member of SXML_TEST_NESTING_KIND_CHOICE. */
+    sxml_type_identifier other_type;
+    uint32_t depth;
+} nesting_plan;
+
+static sxml_type_identifier nested_type(types_fixture *fixture,
+                                        const nesting_plan *plan) {
+    sxml_type_identifier type = plan->innermost_type;
+    for (uint32_t level = 0; level < plan->depth && type.index != 0;
+         level += 1) {
+        switch (plan->kind) {
+        case SXML_TEST_NESTING_KIND_RESULT:
+            type = unary_function_of(
+                fixture,
+                (unary_signature){
+                    .parameter_type = exactly_one(builtin(SXML_TYPE_XS_STRING)),
+                    .result_type = exactly_one(type)});
+            break;
+        case SXML_TEST_NESTING_KIND_PARAMETER:
+            type = unary_function_of(
+                fixture, (unary_signature){.parameter_type = exactly_one(type),
+                                           .result_type = any_sequence()});
+            break;
+        case SXML_TEST_NESTING_KIND_CHOICE: {
+            const sxml_type_identifier members[] = {type, plan->other_type};
+            type = choice_of(fixture, LIST_OF(members));
+            break;
+        }
+        }
+    }
+    return type;
+}
+
+/* Nesting depths below and far beyond the subtype budget of D58. */
+#define SHALLOW_NESTING 100U
+#define DEEP_NESTING 10000U
+
+/* The same plan, shallow and deep. */
+typedef struct nested_pair {
+    sxml_type_identifier shallow;
+    sxml_type_identifier deep;
+} nested_pair;
+
+static nested_pair nested_types(types_fixture *fixture, nesting_plan plan) {
+    nested_pair pair = {.shallow = no_type, .deep = no_type};
+    plan.depth = SHALLOW_NESTING;
+    pair.shallow = nested_type(fixture, &plan);
+    plan.depth = DEEP_NESTING;
+    pair.deep = nested_type(fixture, &plan);
+    return pair;
+}
+
+/* Types nested 10,000 deep are compared on the search's own stack, not the
+   C stack (D71): beyond the budget the answer is a conservative false
+   (D58). Runs under the wasm preset too, whose C stack is 64 KiB. */
+static void test_deeply_nested_types_use_no_recursion(sxml_test_state *state) {
+    types_fixture fixture = {.name_pool = NULL, .registry = NULL};
+    SXML_TEST_REQUIRE(state, types_fixture_create(&fixture));
+    sxml_type_identifier integer = builtin(SXML_TYPE_XS_INTEGER);
+    sxml_type_identifier decimal = builtin(SXML_TYPE_XS_DECIMAL);
+    sxml_type_identifier boolean = builtin(SXML_TYPE_XS_BOOLEAN);
+
+    /* Results are covariant. */
+    nested_pair integer_results = nested_types(
+        &fixture, (nesting_plan){.kind = SXML_TEST_NESTING_KIND_RESULT,
+                                 .innermost_type = integer,
+                                 .other_type = no_type});
+    nested_pair decimal_results = nested_types(
+        &fixture, (nesting_plan){.kind = SXML_TEST_NESTING_KIND_RESULT,
+                                 .innermost_type = decimal,
+                                 .other_type = no_type});
+    SXML_TEST_REQUIRE(state, integer_results.deep.index != 0 &&
+                                 decimal_results.deep.index != 0);
+    SXML_TEST_EXPECT(state, is_subtype(&fixture, integer_results.shallow,
+                                       decimal_results.shallow));
+    SXML_TEST_EXPECT(state, !is_subtype(&fixture, decimal_results.shallow,
+                                        integer_results.shallow));
+    SXML_TEST_EXPECT(state, !is_subtype(&fixture, integer_results.deep,
+                                        decimal_results.deep));
+    SXML_TEST_EXPECT(state, is_subtype(&fixture, integer_results.deep,
+                                       integer_results.deep));
+    SXML_TEST_EXPECT(state, is_subtype(&fixture, integer_results.deep,
+                                       builtin(SXML_TYPE_FUNCTION)));
+
+    /* Parameters are contravariant: the direction turns at every level,
+       so at an even depth integers are below decimals again. */
+    nested_pair integer_parameters = nested_types(
+        &fixture, (nesting_plan){.kind = SXML_TEST_NESTING_KIND_PARAMETER,
+                                 .innermost_type = integer,
+                                 .other_type = no_type});
+    nested_pair decimal_parameters = nested_types(
+        &fixture, (nesting_plan){.kind = SXML_TEST_NESTING_KIND_PARAMETER,
+                                 .innermost_type = decimal,
+                                 .other_type = no_type});
+    SXML_TEST_REQUIRE(state, integer_parameters.deep.index != 0 &&
+                                 decimal_parameters.deep.index != 0);
+    SXML_TEST_EXPECT(state, is_subtype(&fixture, integer_parameters.shallow,
+                                       decimal_parameters.shallow));
+    SXML_TEST_EXPECT(state, !is_subtype(&fixture, decimal_parameters.shallow,
+                                        integer_parameters.shallow));
+    SXML_TEST_EXPECT(state, !is_subtype(&fixture, integer_parameters.deep,
+                                        decimal_parameters.deep));
+    SXML_TEST_EXPECT(state, is_sequence_subtype(
+                                &fixture, exactly_one(integer_parameters.deep),
+                                any_sequence()));
+
+    /* ((xs:integer | xs:boolean) | xs:boolean) | ... */
+    nested_pair choices = nested_types(
+        &fixture, (nesting_plan){.kind = SXML_TEST_NESTING_KIND_CHOICE,
+                                 .innermost_type = integer,
+                                 .other_type = boolean});
+    const sxml_type_identifier integer_or_boolean_members[] = {integer,
+                                                               boolean};
+    sxml_type_identifier integer_or_boolean =
+        choice_of(&fixture, LIST_OF(integer_or_boolean_members));
+    SXML_TEST_REQUIRE(state, choices.deep.index != 0);
+    SXML_TEST_EXPECT(state, is_subtype(&fixture, choices.shallow,
+                                       integer_or_boolean));
+    SXML_TEST_EXPECT(state, is_subtype(&fixture, integer, choices.shallow));
+    SXML_TEST_EXPECT(state, !is_subtype(&fixture, decimal, choices.shallow));
+    SXML_TEST_EXPECT(state, !is_subtype(&fixture, choices.deep,
+                                        integer_or_boolean));
+    SXML_TEST_EXPECT(state, !is_subtype(&fixture, integer, choices.deep));
+    SXML_TEST_EXPECT(state, is_subtype(&fixture, boolean, choices.deep));
+
+    /* An enumeration value is looked for through nested choices. */
+    sxml_byte_view x_values[] = {TEXT("x")};
+    sxml_type_identifier enumeration_x =
+        enumeration_of(&fixture, VALUES_OF(x_values));
+    nested_pair enumeration_choices = nested_types(
+        &fixture, (nesting_plan){.kind = SXML_TEST_NESTING_KIND_CHOICE,
+                                 .innermost_type = enumeration_x,
+                                 .other_type = boolean});
+    SXML_TEST_REQUIRE(state, enumeration_choices.deep.index != 0);
+    SXML_TEST_EXPECT(state, is_subtype(&fixture, enumeration_x,
+                                       enumeration_choices.shallow));
+    SXML_TEST_EXPECT(state, !is_subtype(&fixture, enumeration_x,
+                                        enumeration_choices.deep));
+
+    /* document-node(element(a)) is looked for through nested choices. */
+    sxml_type_identifier document_a =
+        document_of(&fixture, element_named(&fixture, TEXT("a")));
+    nested_pair document_choices = nested_types(
+        &fixture,
+        (nesting_plan){.kind = SXML_TEST_NESTING_KIND_CHOICE,
+                       .innermost_type = document_a,
+                       .other_type = document_of(
+                           &fixture, element_named(&fixture, TEXT("b")))});
+    SXML_TEST_REQUIRE(state, document_choices.deep.index != 0);
+    SXML_TEST_EXPECT(state, is_subtype(&fixture, document_a,
+                                       document_choices.shallow));
+    /* Each level needs a frame: beyond the frames of the search the
+       answer is a conservative false. */
+    SXML_TEST_EXPECT(state, !is_subtype(&fixture, document_a,
+                                        document_choices.deep));
+    SXML_TEST_EXPECT(state, is_subtype(&fixture, document_choices.deep,
+                                       builtin(SXML_TYPE_ITEM)));
+    types_fixture_destroy(&fixture);
+}
+
 /* --------------------------------------------------- Allocation failures */
 
 /* Creates a registry through allocator, registers and declares types of
@@ -1755,6 +1926,8 @@ static const sxml_test_case types_test_cases[] = {
     {.name = "registered_type_limit", .function = test_registered_type_limit},
     {.name = "many_types_and_deep_nesting",
      .function = test_many_types_and_deep_nesting},
+    {.name = "deeply_nested_types_use_no_recursion",
+     .function = test_deeply_nested_types_use_no_recursion},
     {.name = "registry_survives_every_allocation_failure",
      .function = test_registry_survives_every_allocation_failure},
     {.name = "failed_registration_can_be_retried",
