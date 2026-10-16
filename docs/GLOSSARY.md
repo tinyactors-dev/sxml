@@ -250,6 +250,9 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `string_value` | `dm:string-value` of a node |
 | `typed_value` | `dm:typed-value` of a node |
 | `base_uri` | `dm:base-uri` of a node |
+| `uri_reference` | A URI or relative reference split into scheme, authority, path, query and fragment (RFC 3986, section 4.1) |
+| `reference_resolution` | Turning a relative reference into a URI against a base URI (RFC 3986, section 5.2) |
+| `dot_segment` | A `.` or `..` path segment, removed by reference resolution (RFC 3986, section 5.2.4) |
 | `document_uri` | `dm:document-uri` of a document node |
 | `unparsed_entity` | An unparsed entity of a document: system and public identifier |
 | `byte_view_list` | A read-only pointer to byte views plus `byte_view_count` |
