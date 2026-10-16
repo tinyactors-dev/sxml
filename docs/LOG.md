@@ -4,6 +4,13 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 1.2 done (D57): libmpdec 4.0.1 vendored and patched (scoped
+  allocation of D42, size_t-based configuration, WASI), `src/decimal.c`:
+  parse, canonical text, exact add/subtract/multiply, divide (34 digits),
+  idiv, mod, round (all nine modes), compare, int64/uint64/double/float
+  conversions. `tests/decimal_test.c`: 24 cases incl. allocation failures
+  and two heaps on two threads. `debug`, `debug-gcc`, `wasm`: 42/42; lint
+  clean. WebAssembly growth: +89 KB stripped (+35 KB gzip).
 - 1.4 and 1.5 done (D52, D55), design only: `src/xpath_ast_internal.h`
   (one kind per visible XPath production, children by grammar field,
   fixed-capacity arrays sized from the CST, front-end entry points for
