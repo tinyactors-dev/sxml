@@ -1258,6 +1258,37 @@ targets), `src/cast_lexical.c` (lexical forms, canonical text).
 - **castable**: dynamic and type errors of the cast give false; errors
   reading the operand, XPST0080, memory and limits are returned.
 
+### D67. Tree, axes and arena tree (packet 1.11)
+Recorded 2026-10-16. `src/tree_internal.h` holds `struct sxml_tree` (the
+arena tree embeds it) and node-reference helpers.
+- **Wrapper**: caches node count and name pool at initialize (trees are
+  immutable); the identifier is issued last, so a failed initialize uses
+  none. Namespace node names are found in the pool, interned only if new.
+- **Axes** keep only origin and next node and derive each step from
+  descriptions (D39 numbering): descendants/following by
+  `N + 1 + attribute_count(N)`; preceding scans backwards from the
+  reference node (an attribute's or namespace node's element), skipping
+  attributes and nodes whose subtree reaches it (ancestors). Following of
+  an attribute or namespace node includes its element's descendants.
+- **copy_node** walks index order and closes elements by parent links:
+  linear, constant C stack. Preserve sends the bindings the copy's parent
+  lacks plus undeclarations; no-preserve sends none and lets fixup bind
+  what names use. Without type preservation nilled is dropped, ID flags
+  kept. `inherits_namespaces` cannot be honoured for the top element (P6).
+- **Arena tree**: one `sxml_arena` over initial memory and the allocator.
+  Nodes in segments of 16·2^k (never moved or copied); content in a text
+  store whose pending run becomes one text node; in-scope lists shared
+  when an element declares nothing new (xml binding in a base list).
+  Fixup at header close: names keep a bound prefix, else bind it unless
+  the element declared it otherwise, else reuse a prefix bound to the URI,
+  else `ns0`, `ns1`...; a no-namespace element undeclares the default.
+  XQDY0025, XQDY0102, XQDY0101 (xml/xmlns misuse) and XQDY0044 are raised
+  into the configured error record. Duplicate checks scan up to 8
+  attributes, then use a hash index. `maximum_depth` counts open
+  elements; the text limit counts every byte copied into the store.
+  Unparsed entities only before document content. After a failed event
+  only finalize/destroy is meaningful.
+
 ## Proposed
 
 ### P2. `sxml_atomic_comparison` needs the item heap (from D60)
@@ -1289,3 +1320,12 @@ the IR's MAP has no such check; a following STEP raises XPTY0020 instead,
 and `$atoms/string()` raises nothing. Proposed: a flag
 `SXML_IR_MAP_REQUIRES_NODES` in `sxml_ir_map_flag`, set by lowering on
 the MAP of a path and checked by the evaluator.
+
+### P6. No-inherit for the top element of a copy (from D67)
+`sxml_copy_request.inherits_namespaces` false means the copied element
+must not inherit the new parent's bindings (XQuery 4.0 copy-namespaces
+no-inherit), but `sxml_tree_builder_copy_node` cannot see the builder's
+in-scope namespaces to undeclare them. Proposed: `bool
+inherits_namespaces` (default true) in `sxml_element_start_event`, so a
+builder starts such an element from the xml binding alone. Until then the
+flag is ignored (XPath has no constructors, so Phase 1 is unaffected).
