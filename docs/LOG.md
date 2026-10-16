@@ -4,6 +4,17 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 1.20 done (D78): core function library. `src/function_library.c`
+  (index over the configured parts, type text resolved on first find,
+  xs: constructors, `sxml_function_table_find`), parts numeric, string,
+  sequence, node, context, error, plus `function_library_deep_equal.c`
+  (explicit stack) and `function_library_case.c` (Unicode 16.0 case maps,
+  `tools/generate-case-tables.py`). ~110 functions; fn:sort and fn:replace
+  resumable. 18 cases in `tests/function_library_test.c` (slice lines,
+  allocation-failure loops); `debug`, `debug-gcc`, `wasm`: function_library
+  passes (the new `xml` test fails on gcc/wasm, not 1.20); lint clean, no
+  call cycles. Scratch QT4 run of the F&O sets touched: about 93% of
+  applicable cases (rest: collations, regex seed limits, evaluator gaps).
 - 1.14 done (D81, D69): the XML parser. `src/xml.c` (CST walk over
   explicit entity frames, all 16 builder checks, namespaces, events),
   `src/xml_encoding.c` (UTF-8, UTF-16, ISO-8859-1, US-ASCII; positions),
