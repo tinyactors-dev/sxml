@@ -180,14 +180,18 @@ typedef struct sxml_sequence sxml_sequence;
  * $err:module, $err:line-number and $err:column-number.
  *
  * Errors raised by sxml itself need no memory: their code and description
- * are static text (D21). Errors raised by fn:error, whose description and
- * value are computed, point into memory owned by the evaluating object.
- * Lifetime is the same as for sxml_diagnostic: valid until that object is
- * next used or finalized.
+ * are static text (D21). An error whose description or value is computed
+ * (fn:error, a host function) is raised through sxml_item_heap_raise_error
+ * (include/sxml/xdm.h): the item heap keeps the text and the value, and the
+ * record points into the heap until the next error raised on it, until
+ * sxml_item_heap_clear_raised_error, or until the heap is finalized,
+ * whichever comes first (D41). A catch clause that binds $err:value retains
+ * the value before evaluating anything else.
  */
 typedef struct sxml_error_record {
     sxml_error_code code;
-    /* The error value; NULL when the error has none. Borrowed. */
+    /* The error value; NULL when the error has none (fn:error called with
+       fewer than three arguments). Borrowed, as described above. */
     const sxml_sequence *value;
     sxml_diagnostic diagnostic;
 } sxml_error_record;

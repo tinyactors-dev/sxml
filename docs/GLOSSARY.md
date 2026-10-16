@@ -170,3 +170,9 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `integer_range` | The bounds of a range sequence (`first_integer` to `last_integer`) |
 | `pair` | Two values a function relates or compares (`type_pair`, `item_pair`, `node_pair`) |
 | `update` | Describes one change to a persistent map or array (`map_update`, `array_update`) |
+| `name_test` | Which names a node test or path step matches: any name, one expanded name, or a wildcard |
+| `wildcard` | A name test with `*` for the namespace (`*:local`) or the local name (`prefix:*`, `Q{uri}*`) |
+| `duplicate_attribute_policy` | What a tree builder does with a second attribute of the same name: reject (XQuery) or replace (XSLT) |
+| `raised_error` | The error an item heap keeps for an error record whose description or value was computed (`sxml_item_heap_raise_error`) |
+| `error_status` | The status an error is raised with: static, dynamic or type error |
+| `emptiness` | Whether a sequence has no items, as tested by `sxml_sequence_test_emptiness` (`fn:empty`) |

@@ -277,6 +277,38 @@ typedef enum sxml_node_kind {
 } sxml_node_kind;
 
 /*
+ * Which names a name test matches (XPath 4.0, NameTest and Wildcard in
+ * section 4.7 "Path Expressions"; the same NameTest is used in the element
+ * and attribute tests of section 3.2.7 and in the NameTestUnion of
+ * element(a | p:*)).
+ */
+typedef enum sxml_name_test_kind {
+    /* "*": any name. */
+    SXML_NAME_TEST_KIND_ANY_NAME,
+    /* An EQName: exactly expanded_name. */
+    SXML_NAME_TEST_KIND_EXPANDED_NAME,
+    /* "prefix:*" or "Q{uri}*": any local name in namespace_uri
+       (SXML_NAMESPACE_NONE for "Q{}*"). */
+    SXML_NAME_TEST_KIND_NAMESPACE_WILDCARD,
+    /* "*:local": local_name in any namespace or in none. */
+    SXML_NAME_TEST_KIND_LOCAL_NAME_WILDCARD,
+} sxml_name_test_kind;
+
+/*
+ * A name test. Only the fields its kind names are meaningful. A plain
+ * value; when it is part of a registered item type, the registry copies
+ * local_name.
+ */
+typedef struct sxml_name_test {
+    sxml_name_test_kind name_test_kind;
+    sxml_name_identifier expanded_name;
+    sxml_namespace_uri_identifier namespace_uri;
+    /* For SXML_NAME_TEST_KIND_LOCAL_NAME_WILDCARD: the local name, an
+       NCName in UTF-8. */
+    sxml_byte_view local_name;
+} sxml_name_test;
+
+/*
  * The parts of a node test (XPath 4.0, section 3.2.7):
  * element(name, type?), attribute(name, type), document-node(element(...)),
  * processing-instruction(name), schema-element(name), and the simple kind
@@ -285,17 +317,19 @@ typedef enum sxml_node_kind {
  */
 typedef struct sxml_node_test {
     sxml_node_kind node_kind;
-    /* The required node name; 0 matches any name. For a
-       processing-instruction test, a name in no namespace whose local name
-       is the target. */
-    sxml_name_identifier node_name;
+    /* The names the node may have; SXML_NAME_TEST_KIND_ANY_NAME for a test
+       without a name. A processing-instruction test with a target is an
+       SXML_NAME_TEST_KIND_EXPANDED_NAME test of a name in no namespace
+       whose local name is the target. */
+    sxml_name_test name_test;
     /* The required type annotation (the node must be annotated with it or a
        type derived from it); SXML_TYPE_NONE when unconstrained. */
     sxml_type_identifier type_annotation;
     /* element(N, T?): nilled elements match too. */
     bool allows_nilled;
     /* schema-element(N) or schema-attribute(N): matched through the
-       substitution group of the declaration named node_name (Phase 5). */
+       substitution group of the declaration named by name_test, which is
+       then an SXML_NAME_TEST_KIND_EXPANDED_NAME test (Phase 5). */
     bool is_schema_declaration;
     /* For SXML_NODE_KIND_DOCUMENT: a node test for the document element,
        SXML_TYPE_NONE when unconstrained. */
@@ -505,10 +539,11 @@ typedef struct sxml_type_pair {
 } sxml_type_pair;
 
 /*
- * True when pair.derived_type is pair.base_type or is derived from it, directly or through a chain of base types, by
- * restriction, list or union (XSD 1.1 Part 1, "Type Derivation OK
- * (Complex)" and "Type Derivation OK (Simple)"). Also true when base_type is
- * a union that has derived_type among its transitive members. This is the
+ * True when pair.derived_type is pair.base_type or is derived from it,
+ * directly or through a chain of base types, by restriction, list or
+ * union (XSD 1.1 Part 1, "Type Derivation OK (Complex)" and "Type
+ * Derivation OK (Simple)"). Also true when base_type is a union that has
+ * derived_type among its transitive members. This is the
  * relation that type annotations are tested with, for example
  * instance of xs:integer on an xs:short item.
  *
@@ -519,10 +554,11 @@ SXML_EXPORT bool sxml_type_registry_is_derived_from(
     const sxml_type_registry *registry, sxml_type_pair pair);
 
 /*
- * True when pair.derived_type is a subtype of pair.base_type in the sense of XPath 4.0, section 3.3.2 "Subtypes of Item
- * Types": the general rules, choice types, atomic and union types,
- * enumerations, node tests, JNode tests, function types (contravariant
- * parameters), maps, arrays and records. Never allocates.
+ * True when pair.derived_type is a subtype of pair.base_type in the sense
+ * of XPath 4.0, section 3.3.2 "Subtypes of Item Types": the general rules,
+ * choice types, atomic and union types, enumerations, node tests, JNode
+ * tests, function types (contravariant parameters), maps, arrays and
+ * records. Never allocates.
  *
  * False when either identifier was not issued by the registry.
  */
@@ -536,9 +572,10 @@ typedef struct sxml_sequence_type_pair {
 } sxml_sequence_type_pair;
 
 /*
- * True when pair.derived_type is a subtype of pair.base_type (XPath 4.0, section 3.3.1 "Subtypes of Sequence Types"):
- * the occurrence of the first allows a subset of the counts of the second
- * and, unless it is SXML_OCCURRENCE_ZERO, its item type is a subtype.
+ * True when pair.derived_type is a subtype of pair.base_type (XPath 4.0,
+ * section 3.3.1 "Subtypes of Sequence Types"): the occurrence of the first
+ * allows a subset of the counts of the second and, unless it is
+ * SXML_OCCURRENCE_ZERO, its item type is a subtype.
  * False when an identifier was not issued by the registry.
  */
 SXML_EXPORT bool sxml_type_registry_is_sequence_subtype(
@@ -612,7 +649,6 @@ typedef struct sxml_record_field_query {
  * when record_type is not a record type with such a field. O(1) average:
  * records of one type share this lookup, the key "shape" of D7.
  */
-
 SXML_EXPORT bool sxml_type_registry_find_record_field(
     const sxml_type_registry *registry, sxml_record_field_query query,
     size_t *field_index);

@@ -219,6 +219,18 @@ SXML_EXPORT bool sxml_name_pool_find_name(const sxml_name_pool *name_pool,
                                           sxml_name_identifier *identifier);
 
 /*
+ * Looks a namespace URI up without interning it, as sxml_name_pool_find_name
+ * does for names: writes its identifier to *identifier and returns true when
+ * it was interned before (the empty text gives SXML_NAMESPACE_NONE); returns
+ * false, leaving *identifier untouched, otherwise. Together with
+ * sxml_name_pool_find_name it lets a name from untrusted input be looked up
+ * without growing the pool. Never allocates.
+ */
+SXML_EXPORT bool sxml_name_pool_find_namespace_uri(
+    const sxml_name_pool *name_pool, sxml_byte_view namespace_uri,
+    sxml_namespace_uri_identifier *identifier);
+
+/*
  * Writes the text of a namespace URI identifier to *namespace_uri (empty for
  * SXML_NAMESPACE_NONE). The view is owned by the pool. Returns
  * SXML_STATUS_INDEX_OUT_OF_RANGE for an identifier the pool did not issue.

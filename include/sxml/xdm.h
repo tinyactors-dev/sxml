@@ -37,9 +37,12 @@
  *   remove, slice, finish or call write an owned value to their output: the
  *   caller must release it exactly once with sxml_item_release or
  *   sxml_sequence_release.
- * - Functions whose names contain get or describe write borrowed values:
- *   valid as long as the value they were read from, never released by the
- *   caller. To keep one longer, retain it.
+ * - Functions whose names contain get, describe or find, and the next
+ *   functions of iterators, write borrowed values: valid as long as the
+ *   value they were read from, never released by the caller. To keep one
+ *   longer, retain it. (The next operation of a sequence generator, which
+ *   sxml calls, is the one exception: it hands over an owned item, as its
+ *   declaration says.)
  * - Inputs are always borrowed. A function that stores an input (a vector
  *   storing its items, a map storing a key) retains it itself; the caller
  *   still owns its own reference.
@@ -56,7 +59,8 @@
  * Requests that can raise a specification error carry an optional error
  * record; such a function returns SXML_STATUS_DYNAMIC_ERROR or
  * SXML_STATUS_TYPE_ERROR and fills it. Outputs are untouched on failure
- * (D20).
+ * (D20). An error with a computed description or value is kept by the item
+ * heap (sxml_item_heap_raise_error, D41).
  *
  * Thread safety (D35)
  * -------------------
@@ -91,7 +95,8 @@ typedef struct sxml_item_heap_configuration {
 
 /* What an item heap holds, for tests and limits. */
 typedef struct sxml_item_heap_counts {
-    /* Cells not yet freed. A test that released everything expects 0. */
+    /* Cells not yet freed. A test that released everything expects 0; a
+       raised error's value counts until sxml_item_heap_clear_raised_error. */
     uint64_t live_cell_count;
     /* Bytes in live cells. */
     uint64_t live_byte_count;
@@ -501,8 +506,8 @@ typedef struct sxml_integer_range {
 
 /*
  * Makes the sequence first_integer to last_integer of xs:integer items
- * (XPath 4.0, section 4.8.2 "Range Expressions"): empty when first is greater than last.
- * O(1) in time and memory. Bounds beyond int64_t are the evaluator's
+ * (XPath 4.0, section 4.8.2 "Range Expressions"): empty when first_integer
+ * is greater than last_integer. O(1) in time and memory. Bounds beyond int64_t are the evaluator's
  * concern (it materializes or raises an error).
  *
  * Returns the heap's failures.
@@ -543,9 +548,12 @@ typedef struct sxml_generation_request {
  * at a time).
  */
 typedef struct sxml_sequence_generator_operations {
-    /* Produces the next item, owned, in step->item and sets
-       step->has_item; or sets has_item false at the end. Called again only
-       while items are left; never after an end or an error. */
+    /* Produces the next item, owned (the lazy sequence takes the
+       reference), in step->item and sets step->has_item; or sets has_item
+       false at the end. Called again only while items are left; never
+       after an end or an error. An error with a computed description or
+       value is raised with sxml_item_heap_raise_error on
+       request->item_heap. */
     sxml_status (*next)(void *state, const sxml_generation_request *request,
                         sxml_iteration_step *step);
     /* Releases state; called once, when the lazy sequence's cell is freed.
@@ -581,9 +589,20 @@ SXML_NODISCARD SXML_EXPORT sxml_status sxml_sequence_count(
     sxml_sequence sequence, sxml_error_record *error_record,
     uint64_t *item_count);
 
-/* True when sequence has no items. Reads at most one item of a lazy
-   sequence; a generator failure makes it report false. */
-SXML_EXPORT bool sxml_sequence_is_empty(sxml_sequence sequence);
+/* The outcome of sxml_sequence_test_emptiness. */
+typedef struct sxml_emptiness {
+    bool is_empty;
+} sxml_emptiness;
+
+/*
+ * Writes to *emptiness whether sequence has no items (fn:empty, fn:exists).
+ * Reads at most one item of a lazy sequence. Returns the generator's
+ * failures, with error_record (which may be NULL) filled; *emptiness is
+ * then untouched.
+ */
+SXML_NODISCARD SXML_EXPORT sxml_status sxml_sequence_test_emptiness(
+    sxml_sequence sequence, sxml_error_record *error_record,
+    sxml_emptiness *emptiness);
 
 /* An item to read from a sequence by position. */
 typedef struct sxml_item_request {
@@ -606,7 +625,8 @@ SXML_NODISCARD SXML_EXPORT sxml_status sxml_sequence_get_item(
 
 /*
  * Walks the items of a sequence in order (dm:iterate-sequence). A plain
- * value the caller keeps; its fields are private to sxml. It borrows the
+ * value the caller keeps; its fields are private to sxml, and its size is
+ * part of the ABI so callers can keep it on the stack. It borrows the
  * sequence, which must outlive it, and the items it yields are borrowed
  * from the sequence.
  */
@@ -671,7 +691,8 @@ SXML_EXPORT void sxml_sequence_builder_finalize(
 
 /*
  * Allocates a sequence builder through allocator and initializes it.
- * allocator is stored and must outlive the builder.
+ * allocator is stored and must outlive the builder. Returns the failures of
+ * sxml_sequence_builder_initialize and sxml_allocator_allocate.
  */
 SXML_NODISCARD SXML_EXPORT sxml_status sxml_sequence_builder_create(
     sxml_allocator allocator,
@@ -706,6 +727,55 @@ SXML_NODISCARD SXML_EXPORT sxml_status sxml_sequence_builder_append_sequence(
  */
 SXML_NODISCARD SXML_EXPORT sxml_status sxml_sequence_builder_finish(
     sxml_sequence_builder *builder, sxml_sequence *sequence);
+
+/* -------------------------------------------------------- Raised errors */
+
+/*
+ * A specification error whose description or value is computed (fn:error,
+ * an extension function, a lazy sequence re-reporting its error), to be
+ * kept by the item heap. Errors with only static text need none of this:
+ * fill the error record directly (D21).
+ */
+typedef struct sxml_error_raise_request {
+    /* SXML_STATUS_STATIC_ERROR, SXML_STATUS_DYNAMIC_ERROR or
+       SXML_STATUS_TYPE_ERROR. */
+    sxml_status error_status;
+    /* Copied. */
+    sxml_error_code code;
+    /* UTF-8, copied; may be empty. */
+    sxml_byte_view description;
+    /* $err:value. When has_value is false the record's value is NULL. */
+    bool has_value;
+    /* Retained by the heap. */
+    sxml_sequence value;
+    /* location.source_name is copied. */
+    sxml_source_location location;
+} sxml_error_raise_request;
+
+/*
+ * Keeps a copy of request in item_heap, replacing (and releasing) the error
+ * raised on it before, and fills *error_record with views of the copy: the
+ * code, description, value and location. They stay valid until the next
+ * error raised on the heap, sxml_item_heap_clear_raised_error, or
+ * sxml_item_heap_finalize (D41). error_record may be NULL: then nothing is
+ * kept.
+ *
+ * Returns request->error_status once the record is filled, so a function
+ * body can end with "return sxml_item_heap_raise_error(...)";
+ * SXML_STATUS_INVALID_ARGUMENT when error_status is not one for which
+ * sxml_status_has_error_record is true; and the heap's failures
+ * (SXML_STATUS_OUT_OF_MEMORY, SXML_STATUS_LIMIT_EXCEEDED), leaving
+ * *error_record untouched.
+ */
+SXML_NODISCARD SXML_EXPORT sxml_status sxml_item_heap_raise_error(
+    sxml_item_heap *item_heap, const sxml_error_raise_request *request,
+    sxml_error_record *error_record);
+
+/*
+ * Releases the error last raised on item_heap. Records filled from it
+ * become invalid. Does nothing when none is kept.
+ */
+SXML_EXPORT void sxml_item_heap_clear_raised_error(sxml_item_heap *item_heap);
 
 /* ------------------------------------------------------------ Node items */
 
@@ -810,7 +880,7 @@ typedef struct sxml_function_annotation_view {
 /*
  * What a function body receives. All borrowed for the call. The arguments
  * have already been coerced to the parameter types (XPath 4.0, section 3.4
- * "Coercion Rules"); there are exactly arity of them.
+ * "Coercion Rules") by the caller; there are exactly arity of them.
  */
 typedef struct sxml_function_call {
     /* The item being called: a body reads its captured values through
@@ -900,6 +970,12 @@ SXML_NODISCARD SXML_EXPORT sxml_status sxml_function_item_describe(
  * Calls call->function_item with call->arguments (dynamic function call,
  * XPath 4.0, section 4.6.3) and writes the result, owned, to *result. Maps
  * and arrays are called as map:get and array:get.
+ *
+ * The caller coerces the arguments to the parameter types of the signature
+ * first (XPath 4.0, section 3.4): coercion needs atomization, casting and
+ * function coercion, which belong to the evaluator, not the substrate. The
+ * call checks only the number of arguments; the result is not checked
+ * against the result type either.
  *
  * Returns SXML_STATUS_TYPE_ERROR (XPTY0004) for a wrong number of
  * arguments, SXML_STATUS_DYNAMIC_ERROR (FOAY0001) for an array index out of
@@ -1149,7 +1225,8 @@ typedef struct sxml_json_node_description {
     bool has_parent;
     sxml_item parent;
     /* ·jkey·: the map key, or the 1-based position as xs:integer under an
-       array or sequence JNode. Absent for a root. */
+       array or sequence JNode. For a root, which has no key, a
+       zero-initialized sxml_item (not an item). */
     sxml_item json_key;
     /* ·jvalue·. */
     sxml_sequence json_value;

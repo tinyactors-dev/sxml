@@ -411,8 +411,8 @@ typedef enum sxml_axis {
 
 /*
  * Walks one axis from an origin node. A plain value the caller keeps, for
- * example on the stack; its fields are private to sxml. It does not retain
- * the tree, which must outlive it.
+ * example on the stack; its fields are private to sxml and its size is part
+ * of the ABI. It does not retain the tree, which must outlive it.
  *
  * Forward axes yield nodes in document order, reverse axes (parent,
  * ancestor, preceding...) in reverse document order, so that the position
@@ -521,9 +521,18 @@ typedef struct sxml_processing_instruction_event {
  *
  * Builders keep XDM's constraints: adjacent text events form one text node
  * and empty text makes no node (XDM 4.0, section 7.5.7.1); a second
- * attribute with the same name is an error (XQDY0025 in XQuery); element
- * and attribute names whose prefix is not bound, or bound to another URI,
- * get a binding through namespace fixup (XSLT 4.0, section 5.7.3).
+ * attribute with the same name is handled by the builder's
+ * sxml_duplicate_attribute_policy; element and attribute names whose prefix
+ * is not bound, or bound to another URI, get a binding through namespace
+ * fixup (XSLT 4.0, section 5.7.3). Two namespace bindings of one prefix to
+ * different URIs on one element raise XQDY0102.
+ *
+ * Specification errors carry the XQuery error codes; an XSLT evaluator
+ * rewrites them to its own (XQDY0102 to XTDE0430, for example). The event
+ * grammar is the caller's contract, not a user error: XQuery and XSLT
+ * evaluators check themselves that no attribute follows content (XQTY0024,
+ * XTDE0410) before sending events, and the XML parser checks well-formedness
+ * (WFC: Unique Att Spec included) before sending its events.
  *
  * Every operation returns SXML_STATUS_INVALID_ARGUMENT for an event out of
  * order, the allocator's failures, SXML_STATUS_LIMIT_EXCEEDED at a
@@ -585,6 +594,16 @@ SXML_NODISCARD SXML_EXPORT sxml_status sxml_tree_builder_copy_node(
 
 /* --------------------------------------------------------- Arena tree */
 
+/* What a tree builder does with a second attribute of the same name on one
+   element. */
+typedef enum sxml_duplicate_attribute_policy {
+    /* Raise XQDY0025 (XQuery 4.0 element constructors). */
+    SXML_DUPLICATE_ATTRIBUTE_POLICY_REJECT,
+    /* The later attribute replaces the earlier one, keeping its position
+       (XSLT 4.0, section 5.7.1 "Constructing Complex Content"). */
+    SXML_DUPLICATE_ATTRIBUTE_POLICY_REPLACE,
+} sxml_duplicate_attribute_policy;
+
 /*
  * The built-in tree. Its nodes live in arrays indexed by node index (kind,
  * name, parent, last descendant, ...), and its text in one byte store, all
@@ -619,6 +638,9 @@ typedef struct sxml_arena_tree_configuration {
     /* Keep the source location of each node, for dm:location and error
        messages. */
     bool keeps_locations;
+    /* REJECT for the XML parser (which has checked already) and XQuery,
+       REPLACE for XSLT. */
+    sxml_duplicate_attribute_policy duplicate_attribute_policy;
     /* When true, the arena tree, which must have been made by
        sxml_arena_tree_create, destroys itself when its tree loses the last
        reference. Trees built during evaluation use this. When false, the
