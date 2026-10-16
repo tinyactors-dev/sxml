@@ -4,6 +4,20 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 1.26 done (D86, P9): fuzz targets. `tests/fuzz/` (xml_parse, xpath_compile,
+  xpath_evaluate, regex, cast; per-input leak checks and sxml-error
+  statuses), preset `fuzz`, `tools/fuzz.sh`, `tools/fuzz-seeds.py` (xmlconf
+  and QT4 seeds). 10 minutes each, 4 at once: cast 1.66M inputs, regex
+  784k, xml 80k, compile 35k: clean; evaluate: clean but for 2 QT4 seeds
+  that time out (fold-left over map:merge, 6 s and 18 s under ASan:
+  map:merge re-inserts every entry; P9 for unbounded evaluation). Fixed:
+  UTF-16 surrogates broken by the D80-to-D81 rename (xml/encodings failed
+  on HEAD); null+0 for empty tokenized attribute values (xml.c) and empty
+  lexical forms (cast_lexical.c); O(depth^2) content walk in xml.c (100000
+  levels: 600 s to 7 s); choice map key types rejected by the type
+  registry (fn:replace's signature); comparisons walking ranges for dates
+  (evaluator.c). Each with a regression test. CI 60 s per target waits for
+  1.27 (`ci.yml`).
 - 1.22 done (D82): JSON, parse-xml, adaptive output. `grammars/json`
   (strict RFC 8259 tree-sitter grammar; D12 kept, reasons in D82),
   `src/json.c` (one cursor loop into JSON events; value sink and XML

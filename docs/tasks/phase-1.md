@@ -331,6 +331,9 @@ After 1.12, 1.14. Owns `tests/fuzz/`, a `fuzz` preset in `CMakePresets.json`.
 libFuzzer targets (Clang) for XML parsing and XPath compilation, seeded from
 `third_party/xmlconf` and the slice, with memory limits. Done when each runs
 10 minutes clean (LOG) and CI runs each for 60 seconds.
+**Done** 2026-10-16 (D86): five targets, each 10 minutes clean (LOG) but
+for two evaluator timeouts (P9); CI's 60 s per target is a `ci.yml`
+change for 1.27.
 
 ### 1.27 Conformance dashboard (implementation)
 After 1.25. Owns `tools/conformance-report.py`, `docs/CONFORMANCE.md`,
