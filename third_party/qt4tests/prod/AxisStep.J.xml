@@ -1,0 +1,2541 @@
+<?xml version="1.0" encoding="us-ascii"?>
+<test-set xmlns="http://www.w3.org/2010/09/qt-fots-catalog" name="prod-AxisStep.J" covers-40="PR2083">
+   <description>Tests for axis steps with JNodes</description>
+   
+   <test-case name="JAxes-001">
+      <description> Evaluate all axes in JSON document with map as root </description>
+      <created by="Michael Kay" on="2025-07-15"/>
+      <dependency type="spec" value="XQ40+"/>
+      <module uri="http://www.w3.org/TestModules/AxisStepJ/Histogram" file="AxisStep.J/histogram.xq"/>
+      <test>
+         import module namespace ax="http://www.w3.org/TestModules/AxisStepJ/Histogram";
+         let $in := json-doc("AxisStep.J/json-map.json")
+         return ax:histogram(jtree($in))
+      </test>
+      <result>
+         <assert-deep-eq>{
+            "ancestor": 0,
+            "ancestor-or-self": 1,
+            "child": 1,
+            "descendant": 20,
+            "descendant-or-self": 21,
+            "following": 0,
+            "following-or-self": 1,
+            "following-sibling": 0,
+            "following-sibling-or-self": 1,
+            "parent": 0,
+            "preceding": 0,
+            "preceding-or-self": 1,
+            "preceding-sibling": 0,
+            "preceding-sibling-or-self": 1,
+            "self": 1
+            }
+         </assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-002">
+      <description> Evaluate all axes in JSON document with map as root </description>
+      <created by="Michael Kay" on="2025-07-15"/>
+      <dependency type="spec" value="XQ40+"/>
+      <module uri="http://www.w3.org/TestModules/AxisStepJ/Histogram" file="AxisStep.J/histogram.xq"/>
+      <test>
+         import module namespace ax="http://www.w3.org/TestModules/AxisStepJ/Histogram";
+         let $in := json-doc("AxisStep.J/json-map.json")
+         return ax:histogram(jtree($in)/root)
+      </test>
+      <result>
+         <assert-deep-eq>{
+            "ancestor": 1,
+            "ancestor-or-self": 2,
+            "child": 7,
+            "descendant": 19,
+            "descendant-or-self": 20,
+            "following": 0,
+            "following-or-self": 1,
+            "following-sibling": 0,
+            "following-sibling-or-self": 1,
+            "parent": 1,
+            "preceding": 0,
+            "preceding-or-self": 1,
+            "preceding-sibling": 0,
+            "preceding-sibling-or-self": 1,
+            "self": 1
+            }
+         </assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-003">
+      <description> Evaluate all axes in JSON document with map as root </description>
+      <created by="Michael Kay" on="2025-07-15"/>
+      <dependency type="spec" value="XQ40+"/>
+      <module uri="http://www.w3.org/TestModules/AxisStepJ/Histogram" file="AxisStep.J/histogram.xq"/>
+      <test>
+         import module namespace ax="http://www.w3.org/TestModules/AxisStepJ/Histogram";
+         let $in := json-doc("AxisStep.J/json-map.json")
+         return ax:histogram(jtree($in)/root/A)
+      </test>
+      <result>
+         <assert-deep-eq>{
+            "ancestor": 2,
+            "ancestor-or-self": 3,
+            "child": 3,
+            "descendant": 3,
+            "descendant-or-self": 4,
+            "following": 15,
+            "following-or-self": 16,
+            "following-sibling": 6,
+            "following-sibling-or-self": 7,
+            "parent": 1,
+            "preceding": 0,
+            "preceding-or-self": 1,
+            "preceding-sibling": 0,
+            "preceding-sibling-or-self": 1,
+            "self": 1
+            }
+         </assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-004">
+      <description> Evaluate all axes in JSON document with map as root </description>
+      <created by="Michael Kay" on="2025-07-15"/>
+      <dependency type="spec" value="XQ40+"/>
+      <module uri="http://www.w3.org/TestModules/AxisStepJ/Histogram" file="AxisStep.J/histogram.xq"/>
+      <test>
+         import module namespace ax="http://www.w3.org/TestModules/AxisStepJ/Histogram";
+         let $in := json-doc("AxisStep.J/json-map.json")
+         return ax:histogram(jtree($in)/root/B)
+      </test>
+      <result> 
+         <assert-deep-eq>{
+            "ancestor": 2,
+            "ancestor-or-self": 3,
+            "child": 3,
+            "descendant": 3,
+            "descendant-or-self": 4,
+            "following": 11,
+            "following-or-self": 12,
+            "following-sibling": 5,
+            "following-sibling-or-self": 6,
+            "parent": 1,
+            "preceding": 4,
+            "preceding-or-self": 5,
+            "preceding-sibling": 1,
+            "preceding-sibling-or-self": 2,
+            "self": 1
+            }
+         </assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-005">
+      <description> Evaluate all axes in JSON document with map as root </description>
+      <created by="Michael Kay" on="2025-07-15"/>
+      <dependency type="spec" value="XQ40+"/>
+      <module uri="http://www.w3.org/TestModules/AxisStepJ/Histogram" file="AxisStep.J/histogram.xq"/>
+      <test>
+         import module namespace ax="http://www.w3.org/TestModules/AxisStepJ/Histogram";
+         let $in := json-doc("AxisStep.J/json-map.json")
+         return ax:histogram(jtree($in)/root/C)
+      </test>
+      <result>
+         <assert-deep-eq>{
+            "ancestor": 2,
+            "ancestor-or-self": 3,
+            "child": 0,
+            "descendant": 0,
+            "descendant-or-self": 1,
+            "following": 10,
+            "following-or-self": 11,
+            "following-sibling": 4,
+            "following-sibling-or-self": 5,
+            "parent": 1,
+            "preceding": 8,
+            "preceding-or-self": 9,
+            "preceding-sibling": 2,
+            "preceding-sibling-or-self": 3,
+            "self": 1
+            }
+         </assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-006">
+      <description> Evaluate all axes in JSON document with map as root </description>
+      <created by="Michael Kay" on="2025-07-15"/>
+      <dependency type="spec" value="XQ40+"/>
+      <module uri="http://www.w3.org/TestModules/AxisStepJ/Histogram" file="AxisStep.J/histogram.xq"/>
+      <test>
+         import module namespace ax="http://www.w3.org/TestModules/AxisStepJ/Histogram";
+         let $in := json-doc("AxisStep.J/json-map.json")
+         return ax:histogram(jtree($in)/root/D)
+      </test>
+      <result>
+         <assert-deep-eq>{
+            "ancestor": 2,
+            "ancestor-or-self": 3,
+            "child": 0,
+            "descendant": 0,
+            "descendant-or-self": 1,
+            "following": 9,
+            "following-or-self": 10,
+            "following-sibling": 3,
+            "following-sibling-or-self": 4,
+            "parent": 1,
+            "preceding": 9,
+            "preceding-or-self": 10,
+            "preceding-sibling": 3,
+            "preceding-sibling-or-self": 4,
+            "self": 1
+            }
+         </assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-007">
+      <description> Evaluate all axes in JSON document with map as root </description>
+      <created by="Michael Kay" on="2025-07-15"/>
+      <dependency type="spec" value="XQ40+"/>
+      <module uri="http://www.w3.org/TestModules/AxisStepJ/Histogram" file="AxisStep.J/histogram.xq"/>
+      <test>
+         import module namespace ax="http://www.w3.org/TestModules/AxisStepJ/Histogram";
+         let $in := json-doc("AxisStep.J/json-map.json")
+         return ax:histogram(jtree($in)/root/E)
+      </test>
+      <result>
+         <assert-deep-eq>{
+            "ancestor": 2,
+            "ancestor-or-self": 3,
+            "child": 0,
+            "descendant": 0,
+            "descendant-or-self": 1,
+            "following": 8,
+            "following-or-self": 9,
+            "following-sibling": 2,
+            "following-sibling-or-self": 3,
+            "parent": 1,
+            "preceding": 10,
+            "preceding-or-self": 11,
+            "preceding-sibling": 4,
+            "preceding-sibling-or-self": 5,
+            "self": 1
+            }
+         </assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-008">
+      <description> Evaluate all axes in JSON document with map as root </description>
+      <created by="Michael Kay" on="2025-07-15"/>
+      <dependency type="spec" value="XQ40+"/>
+      <module uri="http://www.w3.org/TestModules/AxisStepJ/Histogram" file="AxisStep.J/histogram.xq"/>
+      <test>
+         import module namespace ax="http://www.w3.org/TestModules/AxisStepJ/Histogram";
+         let $in := json-doc("AxisStep.J/json-map.json")
+         return ax:histogram(jtree($in)/root/F)
+      </test>
+      <result>
+         <assert-deep-eq>{
+            "ancestor": 2,
+            "ancestor-or-self": 3,
+            "child": 0,
+            "descendant": 0,
+            "descendant-or-self": 1,
+            "following": 7,
+            "following-or-self": 8,
+            "following-sibling": 1,
+            "following-sibling-or-self": 2,
+            "parent": 1,
+            "preceding": 11,
+            "preceding-or-self": 12,
+            "preceding-sibling": 5,
+            "preceding-sibling-or-self": 6,
+            "self": 1
+            }
+         </assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-009">
+      <description> Evaluate all axes in JSON document with map as root </description>
+      <created by="Michael Kay" on="2025-07-15"/>
+      <dependency type="spec" value="XQ40+"/>
+      <module uri="http://www.w3.org/TestModules/AxisStepJ/Histogram" file="AxisStep.J/histogram.xq"/>
+      <test>
+         import module namespace ax="http://www.w3.org/TestModules/AxisStepJ/Histogram";
+         let $in := json-doc("AxisStep.J/json-map.json")
+         return ax:histogram(jtree($in)/root/G)
+      </test>
+      <result> 
+         <assert-deep-eq>{
+            "ancestor": 2,
+            "ancestor-or-self": 3,
+            "child": 2,
+            "descendant": 6,
+            "descendant-or-self": 7,
+            "following": 0,
+            "following-or-self": 1,
+            "following-sibling": 0,
+            "following-sibling-or-self": 1,
+            "parent": 1,
+            "preceding": 12,
+            "preceding-or-self": 13,
+            "preceding-sibling": 6,
+            "preceding-sibling-or-self": 7,
+            "self": 1
+            }
+         </assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-010">
+      <description> Evaluate all axes in JSON document with map as root </description>
+      <created by="Michael Kay" on="2025-07-15"/>
+      <dependency type="spec" value="XQ40+"/>
+      <module uri="http://www.w3.org/TestModules/AxisStepJ/Histogram" file="AxisStep.J/histogram.xq"/>
+      <test>
+         import module namespace ax="http://www.w3.org/TestModules/AxisStepJ/Histogram";
+         let $in := json-doc("AxisStep.J/json-map.json")
+         return ax:histogram(jtree($in)/root/G/p)
+      </test>
+      <result>
+         <assert-deep-eq>{
+            "ancestor": 3,
+            "ancestor-or-self": 4,
+            "child": 2,
+            "descendant": 2,
+            "descendant-or-self": 3,
+            "following": 3,
+            "following-or-self": 4,
+            "following-sibling": 1,
+            "following-sibling-or-self": 2,
+            "parent": 1,
+            "preceding": 12,
+            "preceding-or-self": 13,
+            "preceding-sibling": 0,
+            "preceding-sibling-or-self": 1,
+            "self": 1
+            }
+         </assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-011">
+      <description> Evaluate all axes in JSON document with map as root </description>
+      <created by="Michael Kay" on="2025-07-15"/>
+      <dependency type="spec" value="XQ40+"/>
+      <module uri="http://www.w3.org/TestModules/AxisStepJ/Histogram" file="AxisStep.J/histogram.xq"/>
+      <test>
+         import module namespace ax="http://www.w3.org/TestModules/AxisStepJ/Histogram";
+         let $in := json-doc("AxisStep.J/json-map.json")
+         return ax:histogram(jtree($in)/root/G/q)
+      </test>
+      <result>
+         <assert-deep-eq>{
+            "ancestor": 3,
+            "ancestor-or-self": 4,
+            "child": 2,
+            "descendant": 2,
+            "descendant-or-self": 3,
+            "following": 0,
+            "following-or-self": 1,
+            "following-sibling": 0,
+            "following-sibling-or-self": 1,
+            "parent": 1,
+            "preceding": 15,
+            "preceding-or-self": 16,
+            "preceding-sibling": 1,
+            "preceding-sibling-or-self": 2,
+            "self": 1
+            }
+         </assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-021">
+      <description> Evaluate all axes in JSON document with array as root </description>
+      <created by="Michael Kay" on="2025-08-02"/>
+      <dependency type="spec" value="XQ40+"/>
+      <module uri="http://www.w3.org/TestModules/AxisStepJ/Histogram" file="AxisStep.J/histogram.xq"/>
+      <test>
+         import module namespace ax="http://www.w3.org/TestModules/AxisStepJ/Histogram";
+         let $in := json-doc("AxisStep.J/json-array.json")
+         return ax:histogram(jtree($in))
+      </test>
+      <result>
+         <assert-deep-eq>{
+            "ancestor": 0,
+            "ancestor-or-self": 1,
+            "child": 1,
+            "descendant": 22,
+            "descendant-or-self": 23,
+            "following": 0,
+            "following-or-self": 1,
+            "following-sibling": 0,
+            "following-sibling-or-self": 1,
+            "parent": 0,
+            "preceding": 0,
+            "preceding-or-self": 1,
+            "preceding-sibling": 0,
+            "preceding-sibling-or-self": 1,
+            "self": 1
+            }
+         </assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-022">
+      <description> Evaluate all axes in JSON document with array as root </description>
+      <created by="Michael Kay" on="2025-08-02"/>
+      <dependency type="spec" value="XQ40+"/>
+      <module uri="http://www.w3.org/TestModules/AxisStepJ/Histogram" file="AxisStep.J/histogram.xq"/>
+      <test>
+         import module namespace ax="http://www.w3.org/TestModules/AxisStepJ/Histogram";
+         let $in := json-doc("AxisStep.J/json-array.json")
+         return ax:histogram(jtree($in)/*/root)
+      </test>
+      <result>
+         <assert-deep-eq>{
+            "ancestor": 2,
+            "ancestor-or-self": 3,
+            "child": 7,
+            "descendant": 19,
+            "descendant-or-self": 20,
+            "following": 1,
+            "following-or-self": 2,
+            "following-sibling": 1,
+            "following-sibling-or-self": 2,
+            "parent": 1,
+            "preceding": 0,
+            "preceding-or-self": 1,
+            "preceding-sibling": 0,
+            "preceding-sibling-or-self": 1,
+            "self": 1
+            }
+         </assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-023">
+      <description> Evaluate all axes in JSON document with array as root </description>
+      <created by="Michael Kay" on="2025-08-02"/>
+      <dependency type="spec" value="XQ40+"/>
+      <module uri="http://www.w3.org/TestModules/AxisStepJ/Histogram" file="AxisStep.J/histogram.xq"/>
+      <test>
+         import module namespace ax="http://www.w3.org/TestModules/AxisStepJ/Histogram";
+         let $in := json-doc("AxisStep.J/json-array.json")
+         return ax:histogram(jtree($in)/*/root/A)
+      </test>
+      <result>
+         <assert-deep-eq>{
+            "ancestor": 3,
+            "ancestor-or-self": 4,
+            "child": 3,
+            "descendant": 3,
+            "descendant-or-self": 4,
+            "following": 16,
+            "following-or-self": 17,
+            "following-sibling": 6,
+            "following-sibling-or-self": 7,
+            "parent": 1,
+            "preceding": 0,
+            "preceding-or-self": 1,
+            "preceding-sibling": 0,
+            "preceding-sibling-or-self": 1,
+            "self": 1
+            }
+         </assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-024">
+      <description> Evaluate all axes in JSON document with array as root </description>
+      <created by="Michael Kay" on="2025-08-02"/>
+      <dependency type="spec" value="XQ40+"/>
+      <module uri="http://www.w3.org/TestModules/AxisStepJ/Histogram" file="AxisStep.J/histogram.xq"/>
+      <test>
+         import module namespace ax="http://www.w3.org/TestModules/AxisStepJ/Histogram";
+         let $in := json-doc("AxisStep.J/json-array.json")
+         return ax:histogram(jtree($in)/*/root/B)
+      </test>
+      <result> 
+         <assert-deep-eq>{
+            "ancestor": 3,
+            "ancestor-or-self": 4,
+            "child": 3,
+            "descendant": 3,
+            "descendant-or-self": 4,
+            "following": 12,
+            "following-or-self": 13,
+            "following-sibling": 5,
+            "following-sibling-or-self": 6,
+            "parent": 1,
+            "preceding": 4,
+            "preceding-or-self": 5,
+            "preceding-sibling": 1,
+            "preceding-sibling-or-self": 2,
+            "self": 1
+            }
+         </assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-025">
+      <description> Evaluate all axes in JSON document with array as root </description>
+      <created by="Michael Kay" on="2025-08-02"/>
+      <dependency type="spec" value="XQ40+"/>
+      <module uri="http://www.w3.org/TestModules/AxisStepJ/Histogram" file="AxisStep.J/histogram.xq"/>
+      <test>
+         import module namespace ax="http://www.w3.org/TestModules/AxisStepJ/Histogram";
+         let $in := json-doc("AxisStep.J/json-array.json")
+         return ax:histogram(jtree($in)/*/root/C)
+      </test>
+      <result>
+         <assert-deep-eq>{
+            "ancestor": 3,
+            "ancestor-or-self": 4,
+            "child": 0,
+            "descendant": 0,
+            "descendant-or-self": 1,
+            "following": 11,
+            "following-or-self": 12,
+            "following-sibling": 4,
+            "following-sibling-or-self": 5,
+            "parent": 1,
+            "preceding": 8,
+            "preceding-or-self": 9,
+            "preceding-sibling": 2,
+            "preceding-sibling-or-self": 3,
+            "self": 1
+            }
+         </assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-026">
+      <description> Evaluate all axes in JSON document with array as root </description>
+      <created by="Michael Kay" on="2025-08-02"/>
+      <dependency type="spec" value="XQ40+"/>
+      <module uri="http://www.w3.org/TestModules/AxisStepJ/Histogram" file="AxisStep.J/histogram.xq"/>
+      <test>
+         import module namespace ax="http://www.w3.org/TestModules/AxisStepJ/Histogram";
+         let $in := json-doc("AxisStep.J/json-array.json")
+         return ax:histogram(jtree($in)/*/root/D)
+      </test>
+      <result>
+         <assert-deep-eq>{
+            "ancestor": 3,
+            "ancestor-or-self": 4,
+            "child": 0,
+            "descendant": 0,
+            "descendant-or-self": 1,
+            "following": 10,
+            "following-or-self": 11,
+            "following-sibling": 3,
+            "following-sibling-or-self": 4,
+            "parent": 1,
+            "preceding": 9,
+            "preceding-or-self": 10,
+            "preceding-sibling": 3,
+            "preceding-sibling-or-self": 4,
+            "self": 1
+            }
+         </assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-027">
+      <description> Evaluate all axes in JSON document with array as root </description>
+      <created by="Michael Kay" on="2025-08-02"/>
+      <dependency type="spec" value="XQ40+"/>
+      <module uri="http://www.w3.org/TestModules/AxisStepJ/Histogram" file="AxisStep.J/histogram.xq"/>
+      <test>
+         import module namespace ax="http://www.w3.org/TestModules/AxisStepJ/Histogram";
+         let $in := json-doc("AxisStep.J/json-array.json")
+         return ax:histogram(jtree($in)/*/root/E)
+      </test>
+      <result>
+         <assert-deep-eq>{
+            "ancestor": 3,
+            "ancestor-or-self": 4,
+            "child": 0,
+            "descendant": 0,
+            "descendant-or-self": 1,
+            "following": 9,
+            "following-or-self": 10,
+            "following-sibling": 2,
+            "following-sibling-or-self": 3,
+            "parent": 1,
+            "preceding": 10,
+            "preceding-or-self": 11,
+            "preceding-sibling": 4,
+            "preceding-sibling-or-self": 5,
+            "self": 1
+            }
+         </assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-028">
+      <description> Evaluate all axes in JSON document with array as root </description>
+      <created by="Michael Kay" on="2025-08-02"/>
+      <dependency type="spec" value="XQ40+"/>
+      <module uri="http://www.w3.org/TestModules/AxisStepJ/Histogram" file="AxisStep.J/histogram.xq"/>
+      <test>
+         import module namespace ax="http://www.w3.org/TestModules/AxisStepJ/Histogram";
+         let $in := json-doc("AxisStep.J/json-array.json")
+         return ax:histogram(jtree($in)/*/root/F)
+      </test>
+      <result>
+         <assert-deep-eq>{
+            "ancestor": 3,
+            "ancestor-or-self": 4,
+            "child": 0,
+            "descendant": 0,
+            "descendant-or-self": 1,
+            "following": 8,
+            "following-or-self": 9,
+            "following-sibling": 1,
+            "following-sibling-or-self": 2,
+            "parent": 1,
+            "preceding": 11,
+            "preceding-or-self": 12,
+            "preceding-sibling": 5,
+            "preceding-sibling-or-self": 6,
+            "self": 1
+            }
+         </assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-029">
+      <description> Evaluate all axes in JSON document with array as root </description>
+      <created by="Michael Kay" on="2025-08-02"/>
+      <dependency type="spec" value="XQ40+"/>
+      <module uri="http://www.w3.org/TestModules/AxisStepJ/Histogram" file="AxisStep.J/histogram.xq"/>
+      <test>
+         import module namespace ax="http://www.w3.org/TestModules/AxisStepJ/Histogram";
+         let $in := json-doc("AxisStep.J/json-array.json")
+         return ax:histogram(jtree($in)/*/root/G)
+      </test>
+      <result> 
+         <assert-deep-eq>{
+            "ancestor": 3,
+            "ancestor-or-self": 4,
+            "child": 2,
+            "descendant": 6,
+            "descendant-or-self": 7,
+            "following": 1,
+            "following-or-self": 2,
+            "following-sibling": 0,
+            "following-sibling-or-self": 1,
+            "parent": 1,
+            "preceding": 12,
+            "preceding-or-self": 13,
+            "preceding-sibling": 6,
+            "preceding-sibling-or-self": 7,
+            "self": 1
+            }
+         </assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-030">
+      <description> Evaluate all axes in JSON document with array as root </description>
+      <created by="Michael Kay" on="2025-08-02"/>
+      <dependency type="spec" value="XQ40+"/>
+      <module uri="http://www.w3.org/TestModules/AxisStepJ/Histogram" file="AxisStep.J/histogram.xq"/>
+      <test>
+         import module namespace ax="http://www.w3.org/TestModules/AxisStepJ/Histogram";
+         let $in := json-doc("AxisStep.J/json-array.json")
+         return ax:histogram(jtree($in)/*/root/G/p)
+      </test>
+      <result>
+         <assert-deep-eq>{
+            "ancestor": 4,
+            "ancestor-or-self": 5,
+            "child": 2,
+            "descendant": 2,
+            "descendant-or-self": 3,
+            "following": 4,
+            "following-or-self": 5,
+            "following-sibling": 1,
+            "following-sibling-or-self": 2,
+            "parent": 1,
+            "preceding": 12,
+            "preceding-or-self": 13,
+            "preceding-sibling": 0,
+            "preceding-sibling-or-self": 1,
+            "self": 1
+            }
+         </assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-031">
+      <description> Evaluate all axes in JSON document with array as root </description>
+      <created by="Michael Kay" on="2025-08-02"/>
+      <dependency type="spec" value="XQ40+"/>
+      <module uri="http://www.w3.org/TestModules/AxisStepJ/Histogram" file="AxisStep.J/histogram.xq"/>
+      <test>
+         import module namespace ax="http://www.w3.org/TestModules/AxisStepJ/Histogram";
+         let $in := json-doc("AxisStep.J/json-array.json")
+         return ax:histogram(jtree($in)/*/root/G/q)
+      </test>
+      <result>
+         <assert-deep-eq>{
+            "ancestor": 4,
+            "ancestor-or-self": 5,
+            "child": 2,
+            "descendant": 2,
+            "descendant-or-self": 3,
+            "following": 1,
+            "following-or-self": 2,
+            "following-sibling": 0,
+            "following-sibling-or-self": 1,
+            "parent": 1,
+            "preceding": 15,
+            "preceding-or-self": 16,
+            "preceding-sibling": 1,
+            "preceding-sibling-or-self": 2,
+            "self": 1
+            }
+         </assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-032">
+      <description> Evaluate all axes in JSON document with array as root </description>
+      <created by="Michael Kay" on="2025-08-02"/>
+      <dependency type="spec" value="XQ40+"/>
+      <module uri="http://www.w3.org/TestModules/AxisStepJ/Histogram" file="AxisStep.J/histogram.xq"/>
+      <test>
+         import module namespace ax="http://www.w3.org/TestModules/AxisStepJ/Histogram";
+         let $in := json-doc("AxisStep.J/json-array.json")
+         return ax:histogram(jtree($in)/*)
+      </test>
+      <result>
+         <assert-deep-eq>{
+            "ancestor": 1,
+            "ancestor-or-self": 2,
+            "child": 2,
+            "descendant": 21,
+            "descendant-or-self": 22,
+            "following": 0,
+            "following-or-self": 1,
+            "following-sibling": 0,
+            "following-sibling-or-self": 1,
+            "parent": 1,
+            "preceding": 0,
+            "preceding-or-self": 1,
+            "preceding-sibling": 0,
+            "preceding-sibling-or-self": 1,
+            "self": 1
+            }
+         </assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-033">
+      <description> Evaluate all axes in JSON document with array as root </description>
+      <created by="Michael Kay" on="2025-08-02"/>
+      <dependency type="spec" value="XQ40+"/>
+      <module uri="http://www.w3.org/TestModules/AxisStepJ/Histogram" file="AxisStep.J/histogram.xq"/>
+      <test>
+         import module namespace ax="http://www.w3.org/TestModules/AxisStepJ/Histogram";
+         let $in := json-doc("AxisStep.J/json-array.json")
+         return ax:histogram(jtree($in)/*/root2)
+      </test>
+      <result>
+         <assert-deep-eq>{
+            "ancestor": 2,
+            "ancestor-or-self": 3,
+            "child": 0,
+            "descendant": 0,
+            "descendant-or-self": 1,
+            "following": 0,
+            "following-or-self": 1,
+            "following-sibling": 0,
+            "following-sibling-or-self": 1,
+            "parent": 1,
+            "preceding": 20,
+            "preceding-or-self": 21,
+            "preceding-sibling": 1,
+            "preceding-sibling-or-self": 2,
+            "self": 1
+            }
+         </assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-041" covers-40="PR2878">
+      <description> Evaluate all axes in JSON document, modified using map:put() </description>
+      <created by="Michael Kay" on="2025-08-20"/>
+      <modified by="Michael Kay" on="2026-09-22" change="PR2878"/>
+      <dependency type="spec" value="XQ40+"/>
+      <module uri="http://www.w3.org/TestModules/AxisStepJ/Histogram" file="AxisStep.J/histogram.xq"/>
+      <test>
+         import module namespace ax="http://www.w3.org/TestModules/AxisStepJ/Histogram";
+         let $in := json-doc("AxisStep.J/json-map.json")
+         let $rootPlus := jtree($in)/root => jvalue() => map:put("H", [1, 2, (3, 4)])
+         let $inPlus := { "root": $rootPlus }
+         return ax:histogram(jtree($inPlus)/root/C)
+      </test>
+      <result>
+         <assert-deep-eq>{
+            "ancestor": 2,
+            "ancestor-or-self": 3,
+            "child": 0,
+            "descendant": 0,
+            "descendant-or-self": 1,
+            "following": 16,
+            "following-or-self": 17,
+            "following-sibling": 5,
+            "following-sibling-or-self": 6,
+            "parent": 1,
+            "preceding": 8,
+            "preceding-or-self": 9,
+            "preceding-sibling": 2,
+            "preceding-sibling-or-self": 3,
+            "self": 1
+            }
+         </assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-042" covers-40="PR2878">
+      <description> Evaluate all axes in JSON document, modified using map:remove() and map:put() </description>
+      <created by="Michael Kay" on="2025-08-20"/>
+      <modified by="Michael Kay" on="2026-09-22" change="PR2878"/>
+      <dependency type="spec" value="XQ40+"/>
+      <module uri="http://www.w3.org/TestModules/AxisStepJ/Histogram" file="AxisStep.J/histogram.xq"/>
+      <test>
+         import module namespace ax="http://www.w3.org/TestModules/AxisStepJ/Histogram";
+         let $in := json-doc("AxisStep.J/json-map.json")
+         let $rootPlus := jtree($in)/root => jvalue() => map:remove("A") => map:put("H", [1, 2, (3, 4)]) 
+         let $inPlus := { "root": $rootPlus }
+         return ax:histogram(jtree($inPlus)/root/C)
+      </test>
+      <result>
+         <assert-deep-eq>{
+            "ancestor": 2,
+            "ancestor-or-self": 3,
+            "child": 0,
+            "descendant": 0,
+            "descendant-or-self": 1,
+            "following": 16,
+            "following-or-self": 17,
+            "following-sibling": 5,
+            "following-sibling-or-self": 6,
+            "parent": 1,
+            "preceding": 4,
+            "preceding-or-self": 5,
+            "preceding-sibling": 1,
+            "preceding-sibling-or-self": 2,
+            "self": 1
+            }
+         </assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-201" covers-40="PR2667">
+      <description> Use /{...} with maps: strings, implicit child axis </description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Michael Kay" on="2026-06-17" change="PR2667"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test>
+         let $map := {"x":1, "y":2, "z":3}
+         return $map/"z" =!> jvalue()
+      </test>
+      <result>
+         <assert-deep-eq>3</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-202" covers-40="PR2667">
+      <description> Use /{...} with maps: strings, implicit child axis, multiple keys </description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Michael Kay" on="2026-06-17" change="PR2667"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $map := {"x":1, "y":2, "z":3}
+         return $map/("z", "x") =!> jvalue()
+      </test>
+      <result>
+         <assert-deep-eq>1, 3</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-203" covers-40="PR2667">
+      <description> Use /{...} with maps: strings, explicit child axis, absent keys </description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Michael Kay" on="2026-06-17" change="PR2667"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $map := {"x":1, "y":2, "z":3}
+         return $map/("z", "x", "w") =!> jvalue()
+      </test>
+      <result>
+         <assert-deep-eq>1, 3</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-204" covers-40="PR2667">
+      <description> Use /{...} with maps: strings, explicit child axis </description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Michael Kay" on="2026-06-17" change="PR2667"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $map := {"x":1, "y":2, "z":3}
+         return $map/child::{"z"} =!> jvalue()
+      </test>
+      <result>
+         <assert-deep-eq>3</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-205" covers-40="PR2667">
+      <description> Use /{...} with maps: strings, explicit child axis, multiple keys </description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Michael Kay" on="2026-06-17" change="PR2667"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $map := {"x":1, "y":2, "z":3}
+         return $map/child::{"z", "x"} =!> jvalue()
+      </test>
+      <result>
+         <assert-deep-eq>1, 3</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-206" covers-40="PR2667">
+      <description> Use /{...} with maps: strings, explicit child axis, absent keys </description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Michael Kay" on="2026-06-17" change="PR2667"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $map := {"x":1, "y":2, "z":3}
+         return $map/child::{"z", "x", "w"} =!> jvalue()
+      </test>
+      <result>
+         <assert-deep-eq>1, 3</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-207" covers-40="PR2667">
+      <description> Use /{...} with maps: strings, descendant axis </description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Michael Kay" on="2026-06-17" change="PR2667"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $map := {"x":1, "y":2, "z":3}
+         return $map/descendant::{"z"} =!> jvalue()
+      </test>
+      <result>
+         <assert-deep-eq>3</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-208" covers-40="PR2667">
+      <description> Use /{...} with maps: strings, descendant child axis, multiple keys </description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Michael Kay" on="2026-06-17" change="PR2667"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $map := {"x":1, "y":2, "z":3}
+         return $map/descendant::{"z", "x"} =!> jvalue()
+      </test>
+      <result>
+         <assert-deep-eq>1, 3</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-209" covers-40="PR2667">
+      <description> Use /{...} with maps: strings, descendant axis, absent keys </description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Michael Kay" on="2026-06-17" change="PR2667"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $map := {"x":1, "y":2, "z":3, "*":{"x": 42}}
+         return $map/descendant::{"z", "x", "w"} =!> jvalue()
+      </test>
+      <result>
+         <assert-deep-eq>1, 3, 42</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-210" covers-40="PR2667">
+      <description> Use /{...} with maps: strings, // operator </description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Michael Kay" on="2026-06-17" change="PR2667"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $map := {"x":1, "y":2, "z":3}
+         return $map//self::{"z"} =!> jvalue()
+      </test>
+      <result>
+         <assert-deep-eq>3</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-211" covers-40="PR2667">
+      <description> Use /{...} with maps: strings, // operator, multiple keys </description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Michael Kay" on="2026-06-17" change="PR2667"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $map := {"x":1, "y":2, "z":3}
+         return $map//self::{"z", "x"} =!> jvalue()
+      </test>
+      <result>
+         <assert-deep-eq>1, 3</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-212" covers-40="PR2667">
+      <description> Use /{...} with maps: strings, // operator, absent keys </description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Michael Kay" on="2026-06-17" change="PR2667"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $map := {"x":1, "y":2, "z":3, "*":{"x": 42}}
+         return $map//self::{"z", "x", "w"} =!> jvalue()
+      </test>
+      <result>
+         <assert-deep-eq>1, 3, 42</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-213" covers-40="PR2667">
+      <description> Use /{...} with maps: integer keys, implicit child axis </description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Michael Kay" on="2026-06-17" change="PR2667"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $map := {11:1, 12:2, 13:3}
+         return $map/13 =!> jvalue()
+      </test>
+      <result>
+         <assert-deep-eq>3</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-214" covers-40="PR2667">
+      <description> Use /{...} with maps: integer keys, implicit child axis, multiple keys </description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Michael Kay" on="2026-06-17" change="PR2667"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $map := {11:1, 12:2, 13:3}
+         return $map/(13, 11) =!> jvalue()
+      </test>
+      <result>
+         <assert-deep-eq>1, 3</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-215" covers-40="PR2667">
+      <description> Use /{...} with maps: integer keys, explicit child axis, absent keys </description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Michael Kay" on="2026-06-17" change="PR2667"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $map := {11:1, 12:2, 13:3}
+         let $thirteen := 13
+         let $eleven := $thirteen - 2
+         return $map/child::{$thirteen, $eleven, -1} =!> jvalue()
+      </test>
+      <result>
+         <assert-deep-eq>1, 3</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-216" covers-40="PR2667">
+      <description> Use /{...} with maps: QName keys, // operator </description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Michael Kay" on="2026-06-17" change="PR2667"/>
+      <modified by="Christian Gruen" on="2026-06-23" change="PR2667"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $map := {#xml:space: true(), #xml:id: true(), #xml:base: false()}
+         return $map//self::{#xml:base, #xml:space} ! { 'k': jkey(), 'v': jvalue() }
+      </test>
+      <result>
+         <assert-deep-eq>{'k':#xml:space, 'v':true()}, {'k':#xml:base, 'v':false()}</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-217" covers-40="PR2667">
+      <description> Use /{...} with maps: QName keys, // operator </description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Michael Kay" on="2026-06-17" change="PR2667"/>
+      <modified by="Christian Gruen" on="2026-06-23" change="PR2667"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $map := {#xml:space: true(), #xml:id: true(), #xml:base: false()}
+         return $map//(#xml:base, #xml:space) ! { 'k': jkey(), 'v': jvalue() }
+      </test>
+      <result>
+         <assert-deep-eq>{'k':#xml:space, 'v':true()}, {'k':#xml:base, 'v':false()}</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-218" covers-40="PR2667">
+      <description> Use axis::(...) with maps: enclosed expression required </description>
+      <created by="Michael Kay" on="2025-09-18"/>
+      <modified by="Michael Kay" on="2026-06-17" change="PR2667"/>
+      <modified by="Christian Gruen" on="2026-06-23" change="PR2667"/>
+      <modified by="Christian Gruen" on="2026-07-04" change="PR2667"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $map := {#xml:space: true(), #xml:id: true(), #xml:base: false()}
+         return $map//self::(#xml:base, #xml:space) ! { 'k': jkey(), 'v': jvalue() }
+      </test>
+      <result>
+         <error code="XPST0003"/>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-219" covers-40="PR2667 PR2712">
+      <description>Evaluate a dynamic node test with an absent focus.</description>
+      <created by="Christian Gruen" on="2026-07-21"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $map := {"x":1, "y":2, "z":3}
+         return $map/child::{string(.)}
+      </test>
+      <result>
+         <error code="XPDY0002"/>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-220" covers-40="PR2667 PR2712">
+      <description>Evaluate a dynamic node test with an absent focus.</description>
+      <created by="Christian Gruen" on="2026-07-21"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $map := {"x":1, "y":2, "z":3}
+         return $map/child::{jkey()}
+      </test>
+      <result>
+         <error code="XPDY0002"/>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-221" covers-40="PR2667 PR2712">
+      <description>Evaluate a dynamic node test with an absent focus.</description>
+      <created by="Christian Gruen" on="2026-07-21"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+         parse-xml('<a><b name="b"/><c name="x"/></a>')/*/child::{@name}
+      ]]></test>
+      <result>
+         <error code="XPDY0002"/>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-222" covers-40="PR2667">
+      <description>Evaluate a dynamic node test with an absent focus.</description>
+      <created by="Christian Gruen" on="2026-07-21"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $map := {"x":1, "y":2, "z":3}
+         for $k in ("x", "z")
+         return $map/child::{$k} =!> jvalue()
+      </test>
+      <result>
+         <assert-deep-eq>1, 3</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-223" covers-40="PR2851">
+      <description>Evaluate a dynamic node test with arbitrary atomic values.</description>
+      <created by="Christian Gruen" on="2026-08-26"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+         count(parse-xml('<a><b/></a>')/*/child::{1})
+      ]]></test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-224" covers-40="PR2851">
+      <description>Evaluate a dynamic node test with arbitrary atomic values.</description>
+      <created by="Christian Gruen" on="2026-08-26"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+         count(parse-xml('<a><b/></a>')/*/child::{"x y"})
+      ]]></test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-225" covers-40="PR2851">
+      <description>Evaluate a dynamic node test with arbitrary atomic values.</description>
+      <created by="Christian Gruen" on="2026-08-26"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+         count(parse-xml('<a><b/></a>')/*/child::{xs:date("2020-01-01")})
+      ]]></test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-226" covers-40="PR2851">
+      <description>Evaluate a dynamic node test with arbitrary atomic values.</description>
+      <created by="Christian Gruen" on="2026-08-26"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+         parse-xml('<a><b/></a>')/*/child::{1, "b"} ! name()
+      ]]></test>
+      <result>
+         <assert-eq>"b"</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-250" covers-40="PR2667">
+      <description> Use /{...} with arrays </description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Michael Kay" on="2026-06-17" change="PR2667"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $array := ["x", "y", "z"]
+         return $array/2 => jvalue()
+      </test>
+      <result>
+         <assert-deep-eq>"y"</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-251" covers-40="PR2667">
+      <description> Use /{...} with arrays </description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Michael Kay" on="2026-06-17" change="PR2667"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $array := ["x", "y", "z"]
+         return $array/child::{2, 1} =!> jvalue()
+      </test>
+      <result>
+         <assert-deep-eq>"x", "y"</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-252" covers-40="PR2667">
+      <description> Use /{...} with arrays </description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Michael Kay" on="2026-06-17" change="PR2667"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $array := ["x", "y", "z"]
+         return $array//self::{2, 1, 0} =!> jvalue()
+      </test>
+      <result>
+         <assert-deep-eq>"x", "y"</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-253" covers-40="PR2667">
+      <description> Use /{...} with arrays </description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Michael Kay" on="2026-06-17" change="PR2667"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $array := ["x", "y", "z", ["a", "b", "c"]]
+         return $array/descendant::{2, 1, 0} =!> jvalue()
+      </test>
+      <result>
+         <assert-deep-eq>"x", "y", "a", "b"</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-254" covers-40="PR2667">
+      <description> Use /{...} with arrays </description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Michael Kay" on="2026-06-17" change="PR2667"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $array := ["x", "y", "z", ["a", "b", "c"]]
+         return $array/descendant::{"a"} =!> jvalue()
+      </test>
+      <result>
+         <assert-empty/>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-255" covers-40="PR2667">
+      <description> NodeTest {} is allowed and matches nothing </description>
+      <created by="Michael Kay" on="2026-06-18"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $array := ["x", "y", "z", ["a", "b", "c"]]
+         return $array/descendant::{}
+      </test>
+      <result>
+         <assert-empty/>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-256" covers-40="PR2667 PR2712">
+      <description> Dynamic NodeTest {} is evaluated with an absent focus </description>
+      <created by="Michael Kay" on="2026-07-22"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $array := ["x", "y", "z", ["a", "b", "c"]]
+         return $array/descendant::{jkey()}
+      </test>
+      <result>
+         <error code="XPDY0002"/>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-257" covers-40="PR2667 PR2712">
+      <description> Dynamic NodeTest {} is evaluated with an absent focus </description>
+      <created by="Michael Kay" on="2026-07-22"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $array := ["x", "y", "z", ["a", "b", "c"]]
+         return $array/descendant::{last()}
+      </test>
+      <result>
+         <error code="XPDY0002"/>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-258" covers-40="PR2667 PR2712">
+      <description> Dynamic NodeTest {} is evaluated with an absent focus </description>
+      <created by="Michael Kay" on="2026-07-22"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $array := ["x", "y", "z", ["a", "b", "c"]]
+         return $array/descendant::{data()}
+      </test>
+      <result>
+         <error code="XPDY0002"/>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-270" covers-40="PR2667">
+      <description> Use $x/2 where type of $x is statically unknown</description>
+      <created by="Michael Kay" on="2026-06-17"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+         let $x := if (current-date() lt xs:date('2000-01-01')) then parse-xml('<x/>') else [4,5,6]
+         return $x/2
+      ]]></test>
+      <result>
+         <assert-eq>5</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-271" covers-40="PR2667">
+      <description> Use $x/2 where type of $x is statically unknown</description>
+      <created by="Michael Kay" on="2026-06-17"/>
+      <modified by="Christian Gruen" on="2026-06-23" change="PR2667"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+         let $x := if (current-date() gt xs:date('2000-01-01')) then parse-xml('<x/>') else [4,5,6]
+         return $x/2
+      ]]></test>
+      <result>
+         <assert-eq>2</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="JAxes-280" covers-40="PR2083">
+      <description>Axis steps with JNodes.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>{ xs:double('NaN'): 1 }/child::{ xs:double('NaN') } =!> jvalue()</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="JAxes-281" covers-40="PR2083">
+      <description>Axis steps with JNodes.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>{ xs:float('NaN'): 1 }/child::{ xs:double('NaN') } =!> jvalue()</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="JAxes-282" covers-40="PR2083">
+      <description>Axis steps with JNodes.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>{ 1: 'a' }/child::{ 1e0, 1.0 } =!> jvalue()</test>
+      <result>
+         <assert-eq>'a'</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="JAxes-283" covers-40="PR2083">
+      <description>Axis steps with JNodes.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>[ 'a', 'b' ]/child::{ 2e0 } =!> jvalue()</test>
+      <result>
+         <assert-eq>'b'</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="JAxes-284" covers-40="PR2083">
+      <description>Axis steps with JNodes.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>count([ 'a', 'b' ]/child::{ 1.5 })</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="JAxes-285" covers-40="PR2083">
+      <description>Axis steps with JNodes.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>count([ 'a', 'b' ]/child::{ 0, -1, 3, 9223372036854775807 })</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="JAxes-286" covers-40="PR2083">
+      <description>Axis steps with JNodes.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>count([ 'a', 'b' ]/child::{ '1', xs:untypedAtomic('1') })</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="JAxes-287" covers-40="PR2083">
+      <description>Axis steps with JNodes.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>count([ 'a', 'b' ]/child::{ xs:double('INF'), xs:double('NaN') })</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="JAxes-288" covers-40="PR2083">
+      <description>Axis steps with JNodes.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>count({ '1': 'a' }/1), count({ 1: 'a' }/'1')</test>
+      <result>
+         <assert-deep-eq>0, 0</assert-deep-eq>
+      </result>
+   </test-case>
+
+   <test-case name="JAxes-289" covers-40="PR2083">
+      <description>Axis steps with JNodes.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>{ xs:anyURI('a'): 1, xs:untypedAtomic('b'): 2 }/(a, b) =!> jvalue()</test>
+      <result>
+         <assert-deep-eq>1, 2</assert-deep-eq>
+      </result>
+   </test-case>
+
+   <test-case name="JAxes-290" covers-40="PR2083">
+      <description>Axis steps with JNodes.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $map := { 'a': 1 }
+         return (
+           $map/child::{ xs:untypedAtomic('a') },
+           $map/child::{ xs:anyURI('a') }
+         ) ! jvalue()
+      </test>
+      <result>
+         <assert-deep-eq>1, 1</assert-deep-eq>
+      </result>
+   </test-case>
+
+   <test-case name="JAxes-291" covers-40="PR2083">
+      <description>Axis steps with JNodes.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>count({ #a: 1 }/a)</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="JAxes-292" covers-40="PR2083">
+      <description>Axis steps with JNodes.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>{ #a: 1 }/Q{}a =!> jvalue()</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="JAxes-293" covers-40="PR2083">
+      <description>Axis steps with JNodes.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>count({ 'a': 1 }/*:a)</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="JAxes-294" covers-40="PR2083">
+      <description>Axis steps with JNodes.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>{ #Q{u}a: 1, #Q{v}a: 2, #Q{u}b: 3 }/*:a =!> jvalue()</test>
+      <result>
+         <assert-deep-eq>1, 2</assert-deep-eq>
+      </result>
+   </test-case>
+
+   <test-case name="JAxes-295" covers-40="PR2083">
+      <description>Axis steps with JNodes.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>{ #Q{u}a: 1, #Q{v}a: 2, #Q{u}b: 3 }/Q{u}* =!> jvalue()</test>
+      <result>
+         <assert-deep-eq>1, 3</assert-deep-eq>
+      </result>
+   </test-case>
+
+   <test-case name="JAxes-296" covers-40="PR2083">
+      <description>Axis steps with JNodes.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test>
+         declare namespace p = 'u';
+         { #Q{u}a: 1, #Q{v}a: 2, #Q{u}b: 3 }/p:* =!> jvalue()
+      </test>
+      <result>
+         <assert-deep-eq>1, 3</assert-deep-eq>
+      </result>
+   </test-case>
+
+   <test-case name="JAxes-297" covers-40="PR2083">
+      <description>Axis steps with JNodes.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>{ #Q{u}a: 1, 'a': 2 }/* =!> jvalue()</test>
+      <result>
+         <assert-deep-eq>1, 2</assert-deep-eq>
+      </result>
+   </test-case>
+
+   <test-case name="JAxes-298" covers-40="PR2083">
+      <description>Axis steps with JNodes.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         count({ xs:date('2001-01-01'): 1 }/child::{ xs:dateTime('2001-01-01T00:00:00') }),
+         count({ true(): 1 }/child::{ 1 })
+      </test>
+      <result>
+         <assert-deep-eq>0, 0</assert-deep-eq>
+      </result>
+   </test-case>
+
+   <test-case name="JAxes-299" covers-40="PR2083">
+      <description>Axis steps with JNodes.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>count(({}/*, []/*, []//*, [ [], {} ]/*/*))</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="JAxes-300">
+      <description> Use type tests - implicit child axis</description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Christian Gruen" on="2026-02-10" change="syntax updated"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $map := {"w": 11e0, "x": 12, "y": 12.1, "z": 12e0}
+         return $map/jnode(*, xs:double) =!> jkey()
+      </test>
+      <result>
+         <assert-deep-eq>"w", "z"</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-301">
+      <description> Use type tests - explicit child axis</description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Christian Gruen" on="2026-02-10" change="syntax updated"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $map := {"w": 11e0, "x": 12, "y": 12.1, "z": 12e0}
+         return $map/child::jnode(*, xs:double) =!> jkey()
+      </test>
+      <result>
+         <assert-deep-eq>"w", "z"</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-302">
+      <description> Use type tests - explicit descendant axis</description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Christian Gruen" on="2026-02-10" change="syntax updated"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $map := {"w": 11e0, "x": 12, "y": 12.1, "z": 12e0, "*": {"w": 15e0}}
+         return $map/descendant::jnode(*, xs:double) =!> jkey()
+      </test>
+      <result>
+         <assert-deep-eq>"w", "z", "w"</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-303">
+      <description> Use type tests - // operator</description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Christian Gruen" on="2026-02-10" change="syntax updated"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $map := {"w": 11e0, "x": 12, "y": 12.1, "z": 12e0, "*": {"w": 15e0}}
+         return $map//jnode(*, xs:double) =!> jkey()
+      </test>
+      <result>
+         <assert-deep-eq>"w", "z", "w"</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-304" covers-40="PR2878">
+      <description> Use type test with occurrence indicator</description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Christian Gruen" on="2026-02-10" change="syntax updated"/>
+      <modified by="Michael Kay" on="2026-09-22" change="PR2878"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $map := {"v": (), "w": 11e0, "x": 12, "y": 12.1, "z": 12e0, "*": {"w": (15e0, 16e0)}}
+         return $map//jnode(*, xs:double*) =!> jkey()
+      </test>
+      <result>
+         <assert-deep-eq>"v", "w", "z", "w", 1, 2</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-310" covers-40="PR2566">
+      <description> Use record type tests - implicit child axis</description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Michael Kay" on="2026-02-10" change="syntax updated"/>
+      <modified by="Christian Gruen" on="2026-07-29" change="PR2566"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $w as record(A as xs:double, B as xs:string) := {"A":11e0, "B":"B"}
+         let $x as record(A as xs:integer, B as xs:string) := {"A":12, "B":"B"}
+         let $y as record(A as xs:decimal, B as xs:string) := {"A":12.1, "B":"B"}
+         let $z as record(A as xs:double, B as xs:string) := {"A":12e0, "B":"B"}
+         let $map := {"w": $w, "x": $x, "y": $y, "z": $z}
+         return $map/jnode(*, record(A as xs:double, B as xs:string)) =!> jkey()
+      </test>
+      <result>
+         <assert-deep-eq>"w", "z"</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-311" covers-40="PR2566">
+      <description> Use record type tests - explicit child axis</description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Michael Kay" on="2026-02-10" change="syntax updated"/>
+      <modified by="Christian Gruen" on="2026-07-29" change="PR2566"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $w as record(A as xs:double, B as xs:string) := {"A":11e0, "B":"B"}
+         let $x as record(A as xs:integer, B as xs:string) := {"A":12, "B":"B"}
+         let $y as record(A as xs:decimal, B as xs:string) := {"A":12.1, "B":"B"}
+         let $z as record(A as xs:double, B as xs:string) := {"A":12e0, "B":"B"}
+         let $map := {"w": $w, "x": $x, "y": $y, "z": $z}
+         return $map/child::jnode(*, record(A as xs:double, B as xs:string)) =!> jkey()
+      </test>
+      <result>
+         <assert-deep-eq>"w", "z"</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-312" covers-40="PR2566">
+      <description> Use record type tests - explicit descendant axis</description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Michael Kay" on="2026-02-10" change="syntax updated"/>
+      <modified by="Christian Gruen" on="2026-07-29" change="PR2566"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $w as record(A as xs:double, B as xs:string) := {"A":11e0, "B":"B"}
+         let $x as record(A as xs:integer, B as xs:string) := {"A":12, "B":"B"}
+         let $y as record(A as xs:decimal, B as xs:string) := {"A":12.1, "B":"B"}
+         let $z as record(A as xs:double, B as xs:string) := {"A":12e0, "B":"B"}
+         let $map := {"w": $w, "x": $x, "y": $y, "z": $z}
+         return $map/descendant::jnode(*, record(A as xs:double, B as xs:string)) =!> jkey()
+      </test>
+      <result>
+         <assert-deep-eq>"w", "z"</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-313">
+      <description> Use record type tests - // operator</description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Michael Kay" on="2026-02-10" change="syntax updated"/>
+      <modified by="Christian Gruen" on="2026-03-05" change="PR2413"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $map := {"w": {"A":11e0, "B":"B"}, 
+                      "x": {"A":12, "B":"B"}, 
+                      "y": {"A":12.1, "B":"B"}, 
+                      "z": {"A":12e0, "B":"B"},
+                      "*": {"A":12e0, "B":{"A":12e0, "B":"B"}}}
+         return $map//*[jnode(A, xs:double)] =!> jkey()
+      </test>
+      <result>
+         <assert-deep-eq>"w", "z", "*", "B"</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-314" covers-40="PR2878">
+      <description> Use record type tests - // operator</description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Michael Kay" on="2026-02-10" change="syntax updated"/>
+      <modified by="Christian Gruen" on="2026-03-05" change="PR2413"/>
+      <modified by="Michael Kay" on="2026-09-22" change="PR2878"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $map := {"w": {"A":11e0, "B":"B"}, 
+                      "x": {"A":12, "B":"B"}, 
+                      "y": {"A":12.1, "B":"B"}, 
+                      "z": {"A":12e0, "B":"B"},
+                      "*": {"A":12e0, "B":({"A":12e0, "B":"B"}, {"A":22e0, "B":"BB"})}}
+         return $map//*[jnode(A, xs:double)][count(B) = 1] =!> jkey()
+      </test>
+      <result>
+         <assert-deep-eq>"w", "z", "*", 1, 2</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-315" covers-40="PR2566">
+      <description> Use record type tests - occurrence indicator</description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Christian Gruen" on="2026-02-10" change="syntax updated"/>
+      <modified by="Christian Gruen" on="2026-07-29" change="PR2566"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $w as record(A as xs:double, B as xs:string) := {"A":11e0, "B":"B"}
+         let $x as record(A as xs:integer, B as xs:string) := {"A":12, "B":"B"}
+         let $y as record(A as xs:decimal, B as xs:string) := {"A":12.1, "B":"B"}
+         let $z as record(A as xs:double, B as xs:string) := {"A":12e0, "B":"B"}
+         let $map := {"v": (), "w": $w, "x": $x, "y": $y, "z": $z}
+         return $map/child::jnode(*, record(A as xs:double, B as xs:string)?) =!> jkey()
+      </test>
+      <result>
+         <assert-deep-eq>"v", "w", "z"</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-316">
+      <description> Use record type tests - invalid occurrence indicator</description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Michael Kay" on="2026-02-10" change="syntax updated"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $map := {"v": (),
+                      "w": {"A":11e0, "B":"B"}, 
+                      "x": {"A":12, "B":"B"}, 
+                      "y": {"A":12.1, "B":"B"}, 
+                      "z": {"A":12e0, "B":"B"}}
+         return $map/child::jnode(*, record(A as xs:double, B as xs:string))? =!> jkey()
+      </test>
+      <result>
+         <error code="XPST0003"/>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-320">
+      <description> Use type tests - enum</description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Michael Kay" on="2026-02-10" change="syntax updated"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $map := {"x": "red", "y": "green", "z": "blue"}
+         return $map/jnode(*, enum("green")) =!> jkey()
+      </test>
+      <result>
+         <assert-deep-eq>"y"</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-321">
+      <description> Use type tests - enum</description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Michael Kay" on="2026-02-10" change="syntax updated"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $map := {"x": "red", "y": "green", "z": "blue"}
+         return $map/jnode(*, enum("green", "red")) =!> jkey()
+      </test>
+      <result>
+         <assert-deep-eq>"x", "y"</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-322">
+      <description> Use type tests - enum</description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Christian Gruen" on="2026-02-10" change="syntax updated"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $map := {"x": "red", "y": "green", "z": "blue"}
+         return $map/jnode(*, enum("green", "red")) =!> jkey()
+      </test>
+      <result>
+         <assert-deep-eq>"x", "y"</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-323">
+      <description> Use type tests - enum</description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Christian Gruen" on="2026-02-10" change="syntax updated"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $map := {"x": "red", "y": "green", "z": "blue", "*": ()}
+         return $map/jnode(*, enum("green", "red")?) =!> jkey()
+      </test>
+      <result>
+         <assert-deep-eq>"x", "y", "*"</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-324">
+      <description> Use type tests - array with record(enum)</description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Michael Kay" on="2026-02-10" change="syntax updated"/>
+      <modified by="Christian Gruen" on="2026-03-05" change="PR2413"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $array := [{"x": "red", "y": "green"}, {"x": "pink", "y": "teal"}]
+         return $array/*[jnode(x, enum("red"))]/y => string()
+      </test>
+      <result>
+         <assert-deep-eq>"green"</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-325">
+      <description> Use type tests - array with XNode</description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Christian Gruen" on="2026-02-10" change="syntax updated"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+         let $xml := parse-xml("<doc><p id='a17'/><p id='a18'/></doc>")
+         let $array := [$xml//p[@id='a17'], $xml//@id[.='a18']]
+         return $array/jnode(*, element(p)) -> jvalue() -> @id -> string()
+      ]]></test>
+      <result>
+         <assert-deep-eq>"a17"</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-326">
+      <description> Use type tests - array with XNode</description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Christian Gruen" on="2026-02-10" change="syntax updated"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+         let $xml := parse-xml("<doc><p id='a17'/><p id='a18'/></doc>")
+         let $array := [$xml//p[@id='a17'], $xml//@id[.='a18']]
+         return $array/jnode(*, attribute(id)) => string()
+      ]]></test>
+      <result>
+         <assert-deep-eq>"a18"</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-327">
+      <description> Use type tests - item()</description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Michael Kay" on="2026-02-10" change="syntax updated"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+         let $array := [1, xs:date('2002-02-02'), #xml:space, contains#2, {}]
+         return count($array/jnode(*, item()))
+      ]]></test>
+      <result>
+         <assert-eq>5</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-328">
+      <description> Use type tests - child::item()</description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Michael Kay" on="2026-02-10" change="syntax updated"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+         let $array := [1, xs:date('2002-02-02'), #xml:space, contains#2, {}]
+         return count($array/child::jnode(*, item()))
+      ]]></test>
+      <result>
+         <assert-eq>5</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-329">
+      <description> Use type tests - jnode(*, item()?)</description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Christian Gruen" on="2026-02-10" change="syntax updated"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+         let $array := [1, (), xs:date('2002-02-02'), #xml:space, contains#2, (3,4,5)]
+         return count($array/jnode(*, item()?))
+      ]]></test>
+      <result>
+         <assert-eq>5</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-330">
+      <description> Use type tests - jnode()</description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Michael Kay" on="2026-02-10" change="correct expected results"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+         let $array := [1, xs:date('2002-02-02'), #xml:space, contains#2, {}, jtree([])]
+         return count($array/jnode())
+      ]]></test>
+      <result>
+         <assert-eq>6</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-331">
+      <description> Use type tests - child::jnode()</description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Christian Gruen" on="2026-02-10" change="syntax updated"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+         let $array := [1, xs:date('2002-02-02'), #xml:space, contains#2, {}]
+         return count($array/child::jnode(*, xs:date))
+      ]]></test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-332">
+      <description> Use type tests - node()</description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Michael Kay" on="2026-02-27" change="correct expected results"/>
+      <modified by="Christian Gruen" on="2026-09-01" change="PR2795"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+         let $array := [1, xs:date('2002-02-02'), #xml:space, contains#2, {}]
+         return count($array/node())
+      ]]></test>
+      <result>
+         <assert-eq>5</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-333">
+      <description> Use type tests - child::node()</description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Michael Kay" on="2026-02-27" change="correct expected results"/>
+      <modified by="Christian Gruen" on="2026-09-01" change="PR2795"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+         let $array := [1, (), jtree([]), parse-xml("<doc/>"), ([], [])]
+         return count($array/child::node())
+      ]]></test>
+      <result>
+         <assert-eq>5</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-334">
+      <description> Use type tests - child::jnode(*, node()?)</description>
+      <created by="Michael Kay" on="2025-09-01"/>
+      <modified by="Christian Gruen" on="2026-02-10" change="syntax updated"/>
+      <modified by="Christian Gruen" on="2026-09-01" change="PR2795"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+         let $array := [1, (), jtree([]), parse-xml("<doc/>"), ([], [])]
+         return count($array/child::jnode(*, node()?))
+      ]]></test>
+      <result>
+         <assert-eq>3</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-335" covers-40="PR2795">
+      <description>Generalized node type tests</description>
+      <created by="Christian Gruen" on="2026-09-01"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+         let $array := [1, xs:date('2002-02-02'), #xml:space, contains#2, {}]
+         return count($array/xnode())
+      ]]></test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="JAxes-336" covers-40="PR2795">
+      <description>Generalized node type tests</description>
+      <created by="Christian Gruen" on="2026-09-01"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+         let $array := [1, (), jtree([]), parse-xml("<doc/>"), ([], [])]
+         return count($array/child::xnode())
+      ]]></test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-337" covers-40="PR2878">
+      <description>JNodes and sequences</description>
+      <created by="Michael Kay" on="2026-09-22"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+         let $array := [(), 1, (1, 2), (1, 2, 3)]
+         return count($array/*)
+      ]]></test>
+      <result>
+         <assert-eq>4</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-338" covers-40="PR2878">
+      <description>JNodes and sequences</description>
+      <created by="Michael Kay" on="2026-09-22"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+         let $array := [(), 1, (1, 2), (1, 2, 3)]
+         return count($array/*/*)
+      ]]></test>
+      <result>
+         <assert-eq>5</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-339" covers-40="PR2878">
+      <description>JNodes and sequences</description>
+      <created by="Michael Kay" on="2026-09-22"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+         let $map := {'A':(), 'B':1, 'C':(1, 2), 'D':(1, 2, 3)}
+         return count($map/*)
+      ]]></test>
+      <result>
+         <assert-eq>4</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-340" covers-40="PR2878">
+      <description>JNodes and sequences</description>
+      <created by="Michael Kay" on="2026-09-22"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+         let $map := {'A':(), 'B':1, 'C':(1, 2), 'D':(1, 2, 3)}
+         return count($map/*/*)
+      ]]></test>
+      <result>
+         <assert-eq>5</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-341" covers-40="PR2878">
+      <description>JNodes and sequences</description>
+      <created by="Michael Kay" on="2026-09-22"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+         let $map := {'A':(), 'B':1, 'C':(1, 2), 'D':(1, 2, 3)}
+         return string-join($map/D/1/following-sibling::*, '|')
+      ]]></test>
+      <result>
+         <assert-eq>"2|3"</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-342" covers-40="PR2878">
+      <description>JNodes and sequences</description>
+      <created by="Michael Kay" on="2026-09-22"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+         let $map := {'A':(), 'B':1, 'C':(1, 2), 'D':(1, 2, 3)}
+         return string-join($map/D/3/preceding-sibling::*, '|')
+      ]]></test>
+      <result>
+         <assert-eq>"1|2"</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-343" covers-40="PR2878">
+      <description>JNodes and sequences</description>
+      <created by="Michael Kay" on="2026-09-22"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+         let $map := {'A':(), 'B':1, 'C':(1, 2), 'D':[([1,2], [3,4], [5,6])]}
+         return string-join($map/D/1/2/*, '|')
+      ]]></test>
+      <result>
+         <assert-eq>"3|4"</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-344" covers-40="PR2878">
+      <description>JNodes and sequences</description>
+      <created by="Michael Kay" on="2026-09-22"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+         let $map := {'A':(), 'B':1, 'C':(1, 2), 'D':[([1,2], [3,4], [5,6])]}
+         return $map/D/1/2/following-sibling::* ! array:size(.)
+      ]]></test>
+      <result>
+         <assert-eq>2</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-345" covers-40="PR2878">
+      <description>JNodes and sequences</description>
+      <created by="Michael Kay" on="2026-09-22"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+         let $map := {'A':(), 'B':1, 'C':(1, 2), 'D':[([1,2], [3,4], [5,6])]}
+         return string-join($map/D/1/3/preceding-sibling::*/*, '|')
+      ]]></test>
+      <result>
+         <assert-eq>"1|2|3|4"</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-370" covers-40="PR2878">
+      <description>JNodes and sequences: item axis</description>
+      <created by="Michael Kay" on="2026-09-22"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+         let $map := {'A':(), 'B':1, 'C':(2, 3)}
+         return string-join($map/*/item::*, '|')
+      ]]></test>
+      <result>
+         <assert-eq>"1|2|3"</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-371" covers-40="PR2878">
+      <description>JNodes and sequences: item axis</description>
+      <created by="Michael Kay" on="2026-09-22"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+         let $map := {'A':[], 'B':[1], 'C':[(2, 3)]}
+         return string-join($map/*/*/item::*, '|')
+      ]]></test>
+      <result>
+         <assert-eq>"1|2|3"</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-372" covers-40="PR2878">
+      <description>JNodes and sequences: item axis</description>
+      <created by="Michael Kay" on="2026-09-22"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+         let $map := {'A':[], 'B':[1], 'C':[(2, 3)]}
+         return string-join($map/*/*/item::*/../.. ! jkey(.), '|')
+      ]]></test>
+      <result>
+         <assert-eq>"B|C"</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="JAxes-380" covers-40="PR2878">
+      <description>Axis steps with JNodes.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>jtree(1)/item::* ! [ jkey(), jvalue() ]</test>
+      <result>
+         <assert-deep-eq>[ 1, 1 ]</assert-deep-eq>
+      </result>
+   </test-case>
+
+   <test-case name="JAxes-381" covers-40="PR2878">
+      <description>Axis steps with JNodes.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>count(jtree(())/item::*)</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="JAxes-382" covers-40="PR2878">
+      <description>Axis steps with JNodes.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $j := jtree((1, 2))
+         return every $i in 1 to 2 satisfies $j/item::*[$i] is $j/*[$i]
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="JAxes-383" covers-40="PR2878">
+      <description>Axis steps with JNodes.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>jtree({ 'a': 1 })/item::* ! map:keys(jvalue())</test>
+      <result>
+         <assert-eq>'a'</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="JAxes-384" covers-40="PR2878">
+      <description>Axis steps with JNodes.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $j := jtree(1)
+         return ($j/item::*/parent::* is $j, $j/item::*/ancestor::* is $j)
+      </test>
+      <result>
+         <assert-deep-eq>true(), true()</assert-deep-eq>
+      </result>
+   </test-case>
+
+   <test-case name="JAxes-385" covers-40="PR2878">
+      <description>Axis steps with JNodes.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $j := jtree(1)
+         return (count($j/*), count($j/descendant::*), count($j/item::* intersect $j/*))
+      </test>
+      <result>
+         <assert-deep-eq>0, 0, 0</assert-deep-eq>
+      </result>
+   </test-case>
+
+   <test-case name="JAxes-386" covers-40="PR2878">
+      <description>Axis steps with JNodes.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $j := jtree(1)
+         return count($j/item::*/(
+           following-sibling::*, preceding-sibling::*, following::*, preceding::*
+         ))
+      </test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="JAxes-387" covers-40="PR2878">
+      <description>Axis steps with JNodes.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>jtree(1)/item::*/item::*/item::* ! count(ancestor::*)</test>
+      <result>
+         <assert-eq>3</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="JAxes-388" covers-40="PR2878">
+      <description>Axis steps with JNodes.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $j := jtree(1)
+         return $j/item::* is $j/item::*
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="JAxes-389" covers-40="PR2878">
+      <description>Axis steps with JNodes.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         jtree(1)/item::{ 1 } =!> jvalue(),
+         count(jtree(1)/item::{ 2 }),
+         count(jtree(1)/item::a)
+      </test>
+      <result>
+         <assert-deep-eq>1, 0, 0</assert-deep-eq>
+      </result>
+   </test-case>
+
+   <test-case name="JAxes-390" covers-40="PR2878">
+      <description>Axis steps with JNodes.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>jtree([ (1, 2, 3) ])/1/item::{ 3, 2 } =!> jvalue()</test>
+      <result>
+         <assert-deep-eq>2, 3</assert-deep-eq>
+      </result>
+   </test-case>
+
+   <test-case name="JAxes-391" covers-40="PR2878">
+      <description>Axis steps with JNodes.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>jtree([ (1, 'a', 2) ])/1/item::jnode(*, xs:integer) =!> jvalue()</test>
+      <result>
+         <assert-deep-eq>1, 2</assert-deep-eq>
+      </result>
+   </test-case>
+
+   <test-case name="JAxes-392" covers-40="PR2878">
+      <description>Axis steps with JNodes.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>jtree([ 1, (2, 3), () ])/* ! count(item::*)</test>
+      <result>
+         <assert-deep-eq>1, 2, 0</assert-deep-eq>
+      </result>
+   </test-case>
+
+   <test-case name="JAxes-393" covers-40="PR2878">
+      <description>Axis steps with JNodes.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>{ 'a': [ 'x' ] }/a/item::*/1 =!> jvalue()</test>
+      <result>
+         <assert-eq>'x'</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="JAxes-394" covers-40="PR2878">
+      <description>Axis steps with JNodes.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[parse-xml('<a/>')/item::*]]></test>
+      <result>
+         <error code="XPTY0004"/>
+      </result>
+   </test-case>
+
+   <test-case name="JAxes-395" covers-40="PR2878">
+      <description>Axis steps with JNodes.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>count(jtree(1)/item::* ! siblings())</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="JAxes-400" covers-40="PR2083 PR2627">
+      <description>Axis steps with JNodes.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>{ 'a': 1 }/@a</test>
+      <result>
+         <error code="XPTY0004"/>
+      </result>
+   </test-case>
+
+   <test-case name="JAxes-401" covers-40="PR2083 PR2627">
+      <description>Axis steps with JNodes.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>[ 1 ]/attribute::node()</test>
+      <result>
+         <error code="XPTY0004"/>
+      </result>
+   </test-case>
+
+   <test-case name="JAxes-402" covers-40="PR2083 PR2627">
+      <description>Axis steps with JNodes.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[[ parse-xml('<a b="c"/>')/a ]/1/@b]]></test>
+      <result>
+         <error code="XPTY0004"/>
+      </result>
+   </test-case>
+
+   <test-case name="JAxes-410" covers-40="PR2878">
+      <description>Axis steps with JNodes.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>jtree({ 'x': (1, 2) })/descendant::{ 2 } =!> jvalue()</test>
+      <result>
+         <assert-eq>2</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="JAxes-411" covers-40="PR2878">
+      <description>Axis steps with JNodes.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>jtree([ (1, 2) ])//self::{ 2 } =!> jvalue()</test>
+      <result>
+         <assert-eq>2</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="JAxes-412" covers-40="PR2878">
+      <description>Axis steps with JNodes.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $j := jtree({ 'a': 1, 'b': 2 })
+         return (
+           count($j/item::*/preceding-sibling::*),
+           count($j/item::*/following-sibling::*),
+           count($j/item::*/preceding-sibling-or-self::*),
+           count($j/item::*/following-sibling-or-self::*)
+         )
+      </test>
+      <result>
+         <assert-deep-eq>0, 0, 1, 1</assert-deep-eq>
+      </result>
+   </test-case>
+
+   <test-case name="JAxes-413" covers-40="PR2878">
+      <description>Axis steps with JNodes.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $j := jtree({ 'a': 1, 'b': 2 })
+         return (
+           count($j/item::*/preceding::*),
+           count($j/item::*/following::*),
+           count($j/item::*/preceding-or-self::*),
+           count($j/item::*/following-or-self::*)
+         )
+      </test>
+      <result>
+         <assert-deep-eq>0, 0, 1, 1</assert-deep-eq>
+      </result>
+   </test-case>
+
+   <test-case name="JAxes-414" covers-40="PR2878">
+      <description>Axis steps with JNodes.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $j := jtree([ [ 1 ], [ 2 ] ])
+         return $j/2/item::*/preceding::* =!> jvalue()
+      </test>
+      <result>
+         <assert-deep-eq>[ 1 ], 1</assert-deep-eq>
+      </result>
+   </test-case>
+
+   <test-case name="JAxes-901">
+      <description> Obsolete syntax </description>
+      <created by="Michael Kay" on="2026-02-10"/>
+      <modified by="Christian Gruen" on="2026-03-05" change="alternative error code added"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+         let $array := [1, (), jtree([]), parse-xml("<doc/>"), ([], [])]
+         return count($array/type(xs:integer))
+      ]]></test>
+      <result>
+         <any-of>
+            <error code="XPST0003"/>
+            <error code="XPST0017"/>
+         </any-of>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-902">
+      <description> Obsolete syntax </description>
+      <created by="Michael Kay" on="2026-02-10"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+         let $array := [1, 2, 3]
+         return count($array/record(min, max))
+      ]]></test>
+      <result>
+         <error code="XPST0003"/>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-903">
+      <description> Obsolete syntax </description>
+      <created by="Michael Kay" on="2026-02-10"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+         let $array := [1, 2, 3]
+         return count($array/child::record(min, max))
+      ]]></test>
+      <result>
+         <error code="XPST0003"/>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-904">
+      <description> Obsolete syntax </description>
+      <created by="Michael Kay" on="2026-02-10"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+         let $array := [1, 2, 3]
+         return count($array/child::map(*))
+      ]]></test>
+      <result>
+         <error code="XPST0003"/>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-905">
+      <description> Obsolete syntax </description>
+      <created by="Michael Kay" on="2026-02-10"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+         let $array := [1, 2, 3]
+         return count($array/child::~map(*))
+      ]]></test>
+      <result>
+         <error code="XPST0003"/>
+      </result>
+   </test-case>
+   
+   <test-case name="JAxes-906" covers-40="PR2795">
+      <description>Generalized node type tests (gnode() has been dropped)</description>
+      <created by="Christian Gruen" on="2026-09-01"/>
+      <modified by="Gunther Rademacher" on="2026-09-02" change="remove error code XPST0003"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+         let $array := [1, (), jtree([]), parse-xml("<doc/>"), ([], [])]
+         return count($array/gnode())
+      ]]></test>
+      <result>
+         <error code="XPST0017"/>
+      </result>
+   </test-case>
+
+   <test-case name="JAxes-907" covers-40="PR2795">
+      <description>Generalized node type tests (gnode() has been dropped)</description>
+      <created by="Christian Gruen" on="2026-09-01"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+         let $array := [1, (), jtree([]), parse-xml("<doc/>"), ([], [])]
+         return count($array/child::gnode())
+      ]]></test>
+      <result>
+         <error code="XPST0003"/>
+      </result>
+   </test-case>
+   
+ 
+</test-set>

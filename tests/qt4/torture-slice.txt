@@ -1,7 +1,7 @@
 # Torture slice: the first conformance target (Phase 0 task 0.9).
 #
 # Test cases from the W3C QT4 test suite (qt4cg/qt4tests at the commit pinned
-# in tools/fetch-test-suites.sh, decision D13) that stress the XDM value model:
+# in tools/update-test-suites.sh, decision D13) that stress the XDM value model:
 # function items, maps, arrays, JSON, node identity and order across several
 # documents, casting, ranges and errors. A base of arithmetic, string, path and
 # comparison tests makes the slice a coherent first target.

@@ -1,0 +1,812 @@
+<?xml version="1.0" encoding="us-ascii"?>
+<test-set xmlns="http://www.w3.org/2010/09/qt-fots-catalog" name="prod-SwitchExpr" covers-30="switch version-decl-30">
+   <description>Tests for the SwitchExpr production</description>
+   <link type="spec" document="http://www.w3.org/TR/xquery-30/"
+         idref="doc-xquery30-SwitchExpr"/>
+   <link type="spec" document="FuncOps" section-number="3.11" idref="id-switch"/>
+   
+   <dependency type="spec" value="XQ30+"/>   
+
+   <test-case name="switch-001">
+      <description> basic switch example </description>
+      <created by="Michael Kay" on="2010-03-16"/>
+      <test><![CDATA[xquery version "3.0"; 
+        declare variable $animal as xs:string := "Cat"; 
+        <out>{ switch ($animal) 
+            case "Cow" return "Moo" 
+            case "Cat" return "Meow" 
+            case "Duck" return "Quack" 
+            default return "What's that odd noise?" }</out>]]></test>
+      <result>
+         <assert-xml><![CDATA[<out>Meow</out>]]></assert-xml>            
+      </result>
+   </test-case>
+
+   <test-case name="switch-002">
+      <description> basic switch example, matches default clause </description>
+      <created by="Michael Kay" on="2010-03-16"/>
+      <test><![CDATA[xquery version "3.0"; 
+        declare variable $animal as xs:string := "Dog"; 
+        <out>{ switch ($animal) 
+            case "Cow" return "Moo"
+            case "Cat" return "Meow" 
+            case "Duck" return "Quack" 
+            default return "What's that odd noise?" }</out>]]></test>
+      <result>
+         <assert-xml><![CDATA[<out>What's that odd noise?</out>]]></assert-xml>
+      </result>
+   </test-case>
+
+   <test-case name="switch-003">
+      <description> switch test, non-constant case clause </description>
+      <created by="Michael Kay" on="2010-03-16"/>
+      <test><![CDATA[xquery version "3.0"; 
+        declare variable $animal as xs:string := "!?!?"; 
+        <out>{ switch (upper-case($animal)) 
+            case "COW" return "Moo"
+            case "CAT" return "Meow" 
+            case "DUCK" return "Quack" 
+            case lower-case($animal) return "Oink" 
+            default return "What's that odd noise?" }</out>]]></test>
+      <result>
+         <assert-xml><![CDATA[<out>Oink</out>]]></assert-xml>
+      </result>
+   </test-case>
+
+   <test-case name="switch-004">
+      <description> switch test, multiple case clauses </description>
+      <created by="Michael Kay" on="2010-03-16"/>
+      <test><![CDATA[xquery version "3.0"; 
+        declare variable $animal as xs:string := "goose"; 
+        <out>{ switch (upper-case($animal)) 
+            case "COW" return "Moo" 
+            case "CAT" return "Meow" 
+            case "DUCK" case "GOOSE" return "Quack" 
+            case "PIG" case "SWINE" return "Oink" 
+            default return "What's that odd noise?" }</out>]]></test>
+      <result>
+         <assert-xml><![CDATA[<out>Quack</out>]]></assert-xml>
+      </result>
+   </test-case>
+
+   <test-case name="switch-005">
+      <description> switch test, multiple case clauses </description>
+      <created by="Michael Kay" on="2010-03-16"/>
+      <test><![CDATA[xquery version "3.0"; 
+        declare variable $animal as xs:string := "duck"; 
+        <out>{ switch (upper-case($animal)) 
+            case "COW" return "Moo" 
+            case "CAT" return "Meow" 
+            case "DUCK" case "GOOSE" return "Quack" 
+            case "PIG" case "SWINE" return "Oink" 
+            default return "What's that odd noise?" }</out>]]></test>
+      <result>
+         <assert-xml><![CDATA[<out>Quack</out>]]></assert-xml>
+      </result>
+   </test-case>
+
+   <test-case name="switch-006">
+      <description> switch test, numeric case clauses, no type error </description>
+      <created by="Michael Kay" on="2010-03-16"/>
+      <test><![CDATA[xquery version "3.0"; 
+        declare variable $number as xs:decimal := 42; 
+        <out>{ switch ($number) case 21 return "Moo" 
+            case current-time() return "Meow" 
+            case 42 return "Quack" 
+            default return 3.14159 }</out>]]></test>
+      <result>
+         <assert-xml><![CDATA[<out>Quack</out>]]></assert-xml>
+      </result>
+   </test-case>
+
+   <test-case name="switch-007">
+      <description> switch test, untypedAtomic is converted to string </description>
+      <created by="Michael Kay" on="2010-03-16"/>
+      <test><![CDATA[xquery version "3.0"; 
+        declare variable $in := <a>42</a>; 
+        <out>{ switch ($in) 
+            case 42 return "Moo" 
+            case "42" return "Meow" 
+            case 42e0 return "Quack" 
+            case "42e0" return "Oink" 
+            default return "Expletive deleted" }</out>]]></test>
+      <result>
+         <assert-xml><![CDATA[<out>Meow</out>]]></assert-xml>
+      </result>
+   </test-case>
+
+   <test-case name="switch-008">
+      <description> switch test, untypedAtomic is converted to string </description>
+      <created by="Michael Kay" on="2010-03-16"/>
+      <test><![CDATA[xquery version "3.0"; 
+        declare variable $in := "42"; 
+        <out>{ switch ($in) 
+            case 42 return "Moo" 
+            case <a>42</a> return "Meow" 
+            case 42e0 return "Quack" 
+            case "42e0" return "Oink" 
+            default return "Expletive deleted" }</out>]]></test>
+      <result>
+         <assert-xml><![CDATA[<out>Meow</out>]]></assert-xml>
+      </result>
+   </test-case>
+
+   <test-case name="switch-009">
+      <description> switch test, empty matches empty </description>
+      <created by="Michael Kay" on="2010-03-16"/>
+      <test><![CDATA[xquery version "3.0"; 
+        declare variable $in := (); 
+        <out>{ switch ($in) 
+            case 42 return "Moo" 
+            case <a>42</a> return "Meow" 
+            case 42e0 return "Quack" 
+            case "42e0" return "Oink" 
+            case () return "Woof" 
+            default return "Expletive deleted" }</out>]]></test>
+      <result>
+         <assert-xml><![CDATA[<out>Woof</out>]]></assert-xml>
+      </result>
+   </test-case>
+
+   <test-case name="switch-010">
+      <description> switch test, non-matching empty </description>
+      <created by="Michael Kay" on="2010-03-16"/>
+      <test><![CDATA[xquery version "3.0"; 
+        declare variable $in := 21; 
+        <out>{ switch ($in) 
+            case 42 return "Moo" 
+            case <a>42</a> return "Meow" 
+            case 42e0 return "Quack" 
+            case "42e0" return "Oink" 
+            case () return "Woof" 
+            default return "Expletive deleted" }</out>]]></test>
+      <result>
+         <assert-xml><![CDATA[<out>Expletive deleted</out>]]></assert-xml>
+      </result>
+   </test-case>
+
+   <test-case name="switch-011">
+      <description> switch test, NaN matches NaN </description>
+      <created by="Michael Kay" on="2010-03-16"/>
+      <test><![CDATA[xquery version "3.0"; 
+        declare variable $in := xs:double('NaN'); 
+        <out>{ switch ($in) 
+            case 42 return "Moo" 
+            case <a>42</a> return "Meow" 
+            case 42e0 return "Quack" 
+            case "42e0" return "Oink" 
+            case xs:float('NaN') return "Woof" 
+            default return "Expletive deleted" }</out>]]></test>
+      <result>
+         <assert-xml><![CDATA[<out>Woof</out>]]></assert-xml>
+      </result>
+   </test-case>
+
+   <test-case name="switch-012">
+      <description> switch test, no dynamic errors </description>
+      <created by="Michael Kay" on="2010-03-16"/>
+      <test><![CDATA[xquery version "3.0"; 
+        declare variable $in := 25; 
+        declare variable $zero := 0; 
+        <out>{ switch ($in) 
+            case 42 return $in div $zero 
+            case 25 return "Baa" 
+            case 39 return $in div $zero 
+            default return "Woof" }</out>]]></test>
+      <result>
+         <assert-xml><![CDATA[<out>Baa</out>]]></assert-xml>
+      </result>
+   </test-case>
+
+   <test-case name="switch-013">
+      <description> switch test, no dynamic errors </description>
+      <created by="Michael Kay" on="2010-03-16"/>
+      <test><![CDATA[xquery version "3.0"; 
+        declare variable $in := 25; 
+        declare variable $zero := 0; 
+        <out>{ switch ($in) 
+            case 42 return "Quack" 
+            case 25 return "Baa" 
+            case $in div $zero return "Neigh" 
+            default return "Woof" }</out>]]></test>
+      <result>
+         <assert-xml><![CDATA[<out>Baa</out>]]></assert-xml>
+      </result>
+   </test-case>
+   
+   <test-case name="switch-014">
+      <description> switch test, QName value </description>
+      <created by="Michael Kay after Christian Gruen" on="2017-09-22"/>
+      <test> 
+         let $v := xs:QName('a')
+         return switch($v)
+            case $v return 1
+            default return 2
+      </test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="switch-015">
+      <description> switch test, xs:date value </description>
+      <created by="Michael Kay after Christian Gruen" on="2017-09-22"/>
+      <test> 
+         let $v := xs:date('2001-01-01')
+         return switch($v)
+         case $v return 1
+         default return 2
+      </test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="switch-016">
+      <description> switch test, xs:date value one with timezone </description>
+      <created by="Michael Kay" on="2017-09-22"/>
+      <test> 
+         let $v := xs:dateTime('2001-01-01T12:00:00')
+         return switch($v)
+         case current-dateTime() return 1
+         default return 2
+      </test>
+      <result>
+         <assert-eq>2</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="switch-017">
+      <description> switch test, xs:dateTime value one with timezone </description>
+      <created by="Michael Kay" on="2017-09-22"/>
+      <test> 
+         let $v := current-dateTime()
+         return switch($v)
+         case xs:dateTime('2001-01-01T12:00:00') return 1
+         default return 2
+      </test>
+      <result>
+         <assert-eq>2</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="switch-018">
+      <description> switch test, xs:time value both with timezone</description>
+      <created by="Michael Kay" on="2017-09-22"/>
+      <test> 
+         let $v := xs:time('00:00:00Z')
+         return switch($v)
+         case xs:time('24:00:00Z') return 1
+         default return 2
+      </test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="switch-019">
+      <description>Expression masquerading as a switch</description>
+      <created by="Michael Kay" on="2023-09-07"/>
+      <test><![CDATA[ 
+         let $v := parse-xml("<switch>2</switch>")
+         return $v//switch
+      ]]></test>
+      <result>
+         <assert-eq>"2"</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="switch-020">
+      <description>Expression masquerading as a switch</description>
+      <created by="Michael Kay" on="2023-09-07"/>
+      <test><![CDATA[ 
+         parse-xml("<switch>2</switch>") ! (switch (switch) case '2' return 2 default return 1)
+      ]]></test>
+      <result>
+         <assert-eq>2</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="switch-401" covers-40="PR364">
+      <description> switch, case operand &gt;1 item, allowed in 4.0 </description>
+      <created by="Christian Gruen" on="2023-04-06"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test><![CDATA[
+        declare variable $in external := 2; 
+        switch ($in) 
+            case 1 return "Moo" 
+            case 5 return "Meow" 
+            case 3 return "Quack" 
+            case ($in to 4) return "Oink" 
+            default return "Baa" ]]></test>
+      <result>
+         <assert-eq>"Oink"</assert-eq>            
+      </result>
+   </test-case>
+   
+   <test-case name="switch-402" covers-40="PR364">
+      <description> switch, doesn't match empty sequence </description>
+      <created by="Michael Kay" on="2023-05-18"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test><![CDATA[
+        declare variable $in external := 6; 
+        switch ($in) 
+            case 1 return "Moo" 
+            case 5 return "Meow" 
+            case 3 return "Quack" 
+            case ($in to 4) return "Oink" 
+            default return "Baa"]]></test>
+      <result>
+         <assert-eq>"Baa"</assert-eq>       
+      </result>
+   </test-case>
+   
+   <test-case name="switch-403" covers-40="PR364 PR587">
+      <description> switch, does match empty sequence </description>
+      <created by="Michael Kay" on="2023-05-18"/>
+      <modified by="Michael Kay" on="2023-07-01" change="new syntax with braces"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test><![CDATA[
+        declare variable $in := (5 to 20)[year-from-date(current-date()) = .]; 
+        switch (head($in)) {
+            case 1 return "Moo" 
+            case 5 return "Meow" 
+            case 3 return "Quack" 
+            case ($in, $in) return "Oink" 
+            default return "Baa"
+        }]]></test>
+      <result>
+         <assert-eq>"Oink"</assert-eq>       
+      </result>
+   </test-case>
+   
+   <test-case name="switch-404" covers-40="PR364">
+      <description> switch, heterogenous types </description>
+      <created by="Michael Kay" on="2023-05-18"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test><![CDATA[
+        declare variable $in := (1 to 20)[year-from-date(current-date()) idiv 1000 = .]; 
+        <out>{ switch (head($in)) 
+            case 1 return "Moo" 
+            case 5 to 10 return "Meow" 
+            case 3 return "Quack"
+            case () return "Empty"
+            case ("a", "b", true(), 2) return "Oink" 
+            default return "Baa" }</out>]]></test>
+      <result>
+         <assert-eq>"Oink"</assert-eq>       
+      </result>
+   </test-case>
+   
+   <test-case name="switch-405" covers-40="PR587">
+      <description> basic switch example with braces</description>
+      <created by="Michael Kay" on="2023-07-01"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test><![CDATA[xquery version "4.0"; 
+        declare variable $animal as xs:string := "Cat"; 
+        switch ($animal) {
+            case "Cow" return "Moo" 
+            case "Cat" return "Meow" 
+            case "Duck" return "Quack" 
+            default return "What's that odd noise?" 
+        }]]></test>
+      <result>
+         <assert-eq>"Meow"</assert-eq>            
+      </result>
+   </test-case>
+   
+   <test-case name="switch-406" covers-40="PR587 PR678 PR1692">
+      <description> switch example with omitted comparand, using braces</description>
+      <created by="Michael Kay" on="2023-09-06"/>
+      <modified by="Michael Kay" on="2025-01-15" change="PR1692"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test><![CDATA[xquery version "4.0"; 
+        declare variable $animal as xs:string := "Cat"; 
+        switch () {
+            case $animal eq "Cow" return "Moo" 
+            case $animal eq "Cat" return "Meow" 
+            case $animal eq "Duck" return "Quack" 
+            default return "What's that odd noise?" 
+        }]]></test>
+      <result>
+         <assert-eq>"Meow"</assert-eq>            
+      </result>
+   </test-case>
+   
+   <test-case name="switch-407" covers-40="PR678 PR1692">
+      <description> switch example with omitted comparand, sans braces</description>
+      <created by="Michael Kay" on="2023-09-06"/>
+      <modified by="Michael Kay" on="2025-01-15" change="PR1692"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test><![CDATA[xquery version "4.0"; 
+        declare variable $animal as xs:string := "Cat"; 
+        switch ()
+            case $animal eq "Cow" return "Moo" 
+            case $animal eq "Cat" return "Meow" 
+            case $animal eq "Duck" return "Quack" 
+            default return "What's that odd noise?" 
+        ]]></test>
+      <result>
+         <assert-eq>"Meow"</assert-eq>            
+      </result>
+   </test-case>
+   
+   <test-case name="switch-408" covers-40="PR678 PR1692">
+      <description>
+         switch example with omitted comparand, sans braces, with a disorienting comment
+      </description>
+      <created by="Michael Kay" on="2025-01-15"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test><![CDATA[xquery version "4.0"; 
+        declare variable $animal as xs:string := "Cat"; 
+        switch (:$animal:) ()
+            case $animal eq "Cow" return "Moo" 
+            case $animal eq "Cat" return "Meow" 
+            case $animal eq "Duck" return "Quack" 
+            default return "What's that odd noise?" 
+        ]]></test>
+      <result>
+         <assert-eq>"Meow"</assert-eq>            
+      </result>
+   </test-case>
+   
+   <test-case name="switch-409" covers-40="PR1692">
+      <description>
+         Omitted comparand now requires empty parens
+      </description>
+      <created by="Michael Kay" on="2025-01-15"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test><![CDATA[xquery version "4.0"; 
+        declare variable $animal as xs:string := "Cat"; 
+        switch 
+            case $animal eq "Cow" return "Moo" 
+            case $animal eq "Cat" return "Meow" 
+            case $animal eq "Duck" return "Quack" 
+            default return "What's that odd noise?" 
+        ]]></test>
+      <result>
+         <error code="XPST0003"/>           
+      </result>
+   </test-case>
+
+   <test-case name="switch-410" covers-40="PR587">
+      <description>Switch expression with braced cases</description>
+      <created by="Christian Gruen" on="2026-10-04"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test>switch (2) { case 1 return 'a' case 2 return 'b' default return 'c' }</test>
+      <result>
+         <assert-eq>"b"</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="switch-411" covers-40="PR587">
+      <description>Switch expression with braced cases</description>
+      <created by="Christian Gruen" on="2026-10-04"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test>switch (2) { case 1 return 'a' }</test>
+      <result>
+         <error code="XPST0003"/>
+      </result>
+   </test-case>
+
+   <test-case name="switch-412" covers-40="PR587">
+      <description>Switch expression with braced cases</description>
+      <created by="Christian Gruen" on="2026-10-04"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test>(switch (1) { case 1 return { 'a': 1 } default return { } })?a</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="switch-901">
+      <description> switch, type error, switch operand &gt;1 item </description>
+      <created by="Michael Kay" on="2010-03-16"/>
+      <test><![CDATA[xquery version "3.0"; 
+        declare variable $in := 2; 
+        <out>{ switch (1 to $in) 
+            case 1 return "Moo" 
+            case 2 return "Meow" 
+            case 3 return "Quack" 
+            case 4 return "Oink" 
+            default return "Baa" }</out>]]></test>
+      <result>
+         <error code="XPTY0004"/>
+      </result>
+   </test-case>
+
+   <test-case name="switch-902">
+      <description> switch, type error, case operand &gt;1 item </description>
+      <created by="Michael Kay" on="2010-03-16"/>
+      <modified by="Christian Gruen" on="2023-04-06" change="Version dependencies added"/>
+      <dependency type="spec" value="XQ30 XQ31"/>
+      <test><![CDATA[xquery version "3.0"; 
+        declare variable $in := 2; 
+        <out>{ switch ($in) 
+            case 1 return "Moo" 
+            case 5 return "Meow" 
+            case 3 return "Quack" 
+            case ($in to 4) return "Oink" 
+            default return "Baa" }</out>]]></test>
+      <result>
+         <error code="XPTY0004"/>
+      </result>
+   </test-case>
+
+   <test-case name="switch-903">
+      <description> switch, static error, no cases </description>
+      <created by="Michael Kay" on="2010-03-16"/>
+      <test><![CDATA[xquery version "3.0"; 
+        declare variable $in := 2; 
+        <out>{ switch ($in) default return "Baa" }</out>]]></test>
+      <result>
+         <error code="XPST0003"/>
+      </result>
+   </test-case>
+
+   <test-case name="switch-904">
+      <description> switch, static error, no default </description>
+      <created by="Michael Kay" on="2010-03-16"/>
+      <test><![CDATA[xquery version "3.0"; 
+        declare variable $in := 2; 
+        <out>{ switch ($in) 
+            case 1 return "Moo" 
+            case 5 return "Meow" 
+            case 3 return "Quack" 
+            case ($in to 4) return "Oink" }</out>]]></test>
+      <result>
+         <error code="XPST0003"/>
+      </result>
+   </test-case>
+
+   <test-case name="switch-905">
+      <description> switch, static error, empty case list </description>
+      <created by="Michael Kay" on="2010-03-16"/>
+      <test><![CDATA[xquery version "3.0"; 
+        declare variable $in := 2; 
+        <out>{ switch ($in) 
+            case 1 return "Moo" 
+            case 5 return "Meow" return "Quack" 
+            case ($in to 4) return "Oink" 
+            default return "Baa" }</out>]]></test>
+      <result>
+         <error code="XPST0003"/>
+      </result>
+   </test-case>
+
+   <test-case name="switch-906">
+      <description> switch, static error, not an ExprSingle </description>
+      <created by="Michael Kay" on="2010-03-16"/>
+      <test><![CDATA[xquery version "3.0"; 
+        declare variable $in := 2; 
+        <out>{ switch ($in) 
+            case 1 return "Moo", "Boo" 
+            case 5 return "Meow" 
+            case 7 return "Quack" 
+            case 4 return "Oink" 
+            default return "Baa" }</out>]]></test>
+      <result>
+         <error code="XPST0003"/>
+      </result>
+   </test-case>
+
+   <test-case name="switch-907">
+      <description> switch, static error, params required </description>
+      <created by="Michael Kay" on="2010-03-16"/>
+      <test><![CDATA[xquery version "3.0"; 
+        declare variable $in := 2; 
+        <out>{ switch $in 
+            case 1 return "Moo", "Boo" 
+            case 5 return "Meow" 
+            case 7 return "Quack" 
+            case 4 return "Oink" 
+            default return "Baa" }</out>]]></test>
+      <result>
+         <any-of>
+            <error code="XPST0003"/>
+         </any-of>
+      </result>
+   </test-case>
+
+   <test-case name="switch-908">
+      <description> switch, static error, curlies not allowed </description>
+      <created by="Michael Kay" on="2010-03-16"/>
+      <test><![CDATA[xquery version "3.0"; 
+        declare variable $in := 2; 
+        <out>{ switch ($in) { 
+            case 1 return "Moo", "Boo" 
+            case 5 return "Meow" 
+            case 7 return "Quack" 
+            case 4 return "Oink" 
+            default return "Baa" } }</out>]]></test>
+      <result>
+         <error code="XPST0003"/>
+      </result>
+   </test-case>
+
+   <test-case name="switch-909">
+      <description> switch, static error, colons not allowed </description>
+      <created by="Michael Kay" on="2010-03-16"/>
+      <test><![CDATA[xquery version "3.0"; 
+        declare variable $in := 2; 
+        <out>{ switch ($in) 
+            case 1: return "Moo", "Boo" 
+            case 5: return "Meow" 
+            case 7: return "Quack" 
+            case 4: return "Oink" 
+            default: return "Baa" }</out>]]></test>
+      <result>
+         <error code="XPST0003"/>
+      </result>
+   </test-case>
+   <test-case name="switch-910" covers-40="PR364">
+      <description>Switch expressions in XQuery 4.0.</description>
+      <created by="Christian Gruen" on="2026-10-01"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test>switch ('x') { case (1, 'x') return 'a' default return 'b' }</test>
+      <result>
+         <assert-eq>"a"</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="switch-911" covers-40="PR364">
+      <description>Switch expressions in XQuery 4.0.</description>
+      <created by="Christian Gruen" on="2026-10-01"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test>switch (xs:double('NaN')) { case (1, xs:double('NaN')) return 'a' default return 'b' }</test>
+      <result>
+         <assert-eq>"a"</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="switch-912" covers-40="PR364">
+      <description>Switch expressions in XQuery 4.0.</description>
+      <created by="Christian Gruen" on="2026-10-01"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test>switch (3) { case (1, 2), (3, 4) return 'a' default return 'b' }</test>
+      <result>
+         <assert-eq>"a"</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="switch-913" covers-40="PR364">
+      <description>Switch expressions in XQuery 4.0.</description>
+      <created by="Christian Gruen" on="2026-10-01"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test><![CDATA[switch (<a>2</a>) { case (1, 2) return 'a' case ('2', 3) return 'b' default return 'c' }]]></test>
+      <result>
+         <assert-eq>"b"</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="switch-914" covers-40="PR678">
+      <description>Switch expressions in XQuery 4.0.</description>
+      <created by="Christian Gruen" on="2026-10-01"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test>switch () { case 1 return 'a' case 'true' return 'b' case true() return 'c' default return 'd' }</test>
+      <result>
+         <assert-eq>"c"</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="switch-915" covers-40="PR678">
+      <description>Switch expressions in XQuery 4.0.</description>
+      <created by="Christian Gruen" on="2026-10-01"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test>switch () { case (false(), true()) return 'a' default return 'b' }</test>
+      <result>
+         <assert-eq>"a"</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="switch-916" covers-40="PR678">
+      <description>Switch expressions in XQuery 4.0.</description>
+      <created by="Christian Gruen" on="2026-10-01"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test>switch () { case 1 = 2 return 'a' default return 'b' }</test>
+      <result>
+         <assert-eq>"b"</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="switch-917" covers-40="PR678">
+      <description>Switch expressions in XQuery 4.0.</description>
+      <created by="Christian Gruen" on="2026-10-01"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test>switch () { case () return 'a' default return 'b' }</test>
+      <result>
+         <assert-eq>"b"</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="switch-918" covers-40="PR587">
+      <description>Switch expressions in XQuery 4.0.</description>
+      <created by="Christian Gruen" on="2026-10-02"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test>switch (1) { case 1 return 'a' default return 'b' } || 'c'</test>
+      <result>
+         <error code="XPST0003"/>
+      </result>
+   </test-case>
+
+   <test-case name="switch-919" covers-40="PR587">
+      <description>Switch expressions in XQuery 4.0.</description>
+      <created by="Christian Gruen" on="2026-10-02"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test>(switch (1) { case 1 return 'a' default return 'b' }) || 'c'</test>
+      <result>
+         <assert-eq>"ac"</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="switch-920" covers-40="PR587">
+      <description>Switch expressions in XQuery 4.0.</description>
+      <created by="Christian Gruen" on="2026-10-02"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test>switch (1) { case 1 return switch (2) { case 2 return 'a' default return 'b' } default return 'c' }</test>
+      <result>
+         <assert-eq>"a"</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="switch-921" covers-40="PR587">
+      <description>Switch expressions in XQuery 4.0.</description>
+      <created by="Christian Gruen" on="2026-10-02"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test>switch (1) { case 1 return 'a' }</test>
+      <result>
+         <error code="XPST0003"/>
+      </result>
+   </test-case>
+
+   <test-case name="switch-922" covers-40="PR587">
+      <description>Switch expressions in XQuery 4.0.</description>
+      <created by="Christian Gruen" on="2026-10-02"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test>switch (1) { case 1 return 'a' default return 'b'</test>
+      <result>
+         <error code="XPST0003"/>
+      </result>
+   </test-case>
+
+   <test-case name="switch-923" covers-40="PR587">
+      <description>Switch expressions in XQuery 4.0.</description>
+      <created by="Christian Gruen" on="2026-10-02"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test><![CDATA[switch (<?_ _?>) { case '_' return 'a' default return 'b' }]]></test>
+      <result>
+         <assert-eq>"a"</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="switch-924" covers-40="PR587">
+      <description>Switch expressions in XQuery 4.0.</description>
+      <created by="Christian Gruen" on="2026-10-02"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test><![CDATA[switch (string(<?_ x?>)) { case 'a' return 1 case 'x' case 'y' return 2 default return 3 }]]></test>
+      <result>
+         <assert-eq>2</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="switch-925" covers-40="PR587">
+      <description>Switch expressions in XQuery 4.0.</description>
+      <created by="Christian Gruen" on="2026-10-02"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test><![CDATA[switch (<a/>/text()) { case () return 'a' default return 'b' }]]></test>
+      <result>
+         <assert-eq>"a"</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="switch-926" covers-40="PR678">
+      <description>Switch expressions in XQuery 4.0.</description>
+      <created by="Christian Gruen" on="2026-10-02"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test><![CDATA[switch () { case exists(<a/>/text()) return 'a' case exists(<?_ _?>) return 'b' default return 'c' }]]></test>
+      <result>
+         <assert-eq>"b"</assert-eq>
+      </result>
+   </test-case>
+
+</test-set>

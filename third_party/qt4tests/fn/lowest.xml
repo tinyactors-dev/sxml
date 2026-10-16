@@ -1,0 +1,341 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<test-set xmlns="http://www.w3.org/2010/09/qt-fots-catalog" name="fn-lowest" covers-40="fn-lowest">
+   <description>Tests for the fn:lowest function (4.0 proposal)</description>
+   
+   <dependency type="spec" value="XP40+ XQ40+"/>
+    
+   <test-case name="lowest-001">
+      <description>test lowest()</description>
+      <created by="Michael Kay" on="2014-04-13"/>
+      <test>
+         lowest(doc('highest/highest-001.xml')/*/*, (), function($item as element()){xs:decimal($item)})
+      </test>
+      <result>
+         <all-of>
+            <assert>count($result) = 1</assert>
+            <assert>$result[1][@id="6"]='-56.0'</assert>
+         </all-of>
+      </result>
+   </test-case>
+   
+   <test-case name="lowest-002">
+      <description>test lowest() on an empty sequence</description>
+      <created by="Michael Kay" on="2014-04-13"/>
+      <test>
+         lowest(doc('highest/highest-001.xml')/*/*[@non-existent], (), function($item as element()){xs:decimal($item)})
+      </test>
+      <result>
+         <assert-empty/>
+      </result>
+   </test-case>
+   
+   <test-case name="lowest-003">
+      <description>test lowest() using collations</description>
+      <created by="Michael Kay" on="2014-04-13"/>
+      <test>
+         lowest(doc('highest/highest-003.xml')/*/*, "http://www.w3.org/2005/xpath-functions/collation/html-ascii-case-insensitive", function($item as element()){xs:string($item)})
+      </test>
+      <result>
+         <all-of>
+            <assert>count($result) = 1</assert>
+            <assert>$result[1][@id="2"]='cart'</assert>
+         </all-of>
+      </result>
+   </test-case>
+   
+   <test-case name="lowest-004">
+      <description>test lowest() with a default collation</description>
+      <created by="Michael Kay" on="2014-04-13"/>
+      <modified by="Christian Gruen" on="2024-03-18" change="collation declaration added"/>
+      <dependency type="spec" value="XQ31+"/>
+      <test>
+         declare default collation 'http://www.w3.org/2005/xpath-functions/collation/html-ascii-case-insensitive';
+         lowest(doc('highest/highest-003.xml')/*/*, (), string#1)        
+      </test>
+      <result>
+         <all-of>
+            <assert>$result[1][@id="2"]='cart'</assert>
+         </all-of>
+      </result>
+   </test-case>
+   
+   <test-case name="lowest-005">
+      <description>test lowest() : second argument is a system function</description>
+      <created by="Michael Kay" on="2014-04-13"/>
+      <test>
+         lowest(doc('highest/highest-005.xml')/*/*, (), round#1)   
+      </test>
+      <result>
+         <all-of>
+            <assert>$result[1][@id="6"]='-56.0'</assert>
+         </all-of>
+      </result>
+   </test-case> 
+
+   <test-case name="lowest-100">
+      <description>Empty sequence</description>
+      <created by="Christian Gruen" on="2022-08-09"/>
+      <test><![CDATA[fn:lowest(())]]></test>
+      <result>
+         <assert-empty/>
+      </result>
+   </test-case>
+   <test-case name="lowest-101">
+      <description>Filter yielding single string</description>
+      <created by="Christian Gruen" on="2022-08-09"/>
+      <test><![CDATA[fn:lowest(('a', 'b', 'c', 'd', 'e', 'f')[. = 'f'])]]></test>
+      <result>
+         <assert-string-value>f</assert-string-value>
+      </result>
+   </test-case>
+   <test-case name="lowest-102">
+      <description>Filter yielding empty sequence</description>
+      <created by="Christian Gruen" on="2022-08-09"/>
+      <test><![CDATA[fn:lowest(('a', 'b', 'c', 'd', 'e', 'f')[. = 'g'])]]></test>
+      <result>
+         <assert-empty/>
+      </result>
+   </test-case>
+   <test-case name="lowest-103">
+      <description>Single string</description>
+      <created by="Christian Gruen" on="2022-08-09"/>
+      <test><![CDATA[fn:lowest('x')]]></test>
+      <result>
+         <assert-string-value>x</assert-string-value>
+      </result>
+   </test-case>
+   <test-case name="lowest-104">
+      <description>Doubles</description>
+      <created by="Christian Gruen" on="2022-08-09"/>
+      <test><![CDATA[fn:lowest((1e0, 2e0))]]></test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+   <test-case name="lowest-105">
+      <description>Integers</description>
+      <created by="Christian Gruen" on="2022-08-09"/>
+      <test><![CDATA[fn:lowest((8 to 11))]]></test>
+      <result>
+         <assert-eq>8</assert-eq>
+      </result>
+   </test-case>
+   <test-case name="lowest-106">
+      <description>Reversed integers</description>
+      <created by="Christian Gruen" on="2022-08-09"/>
+      <test><![CDATA[fn:lowest(reverse(8 to 11))]]></test>
+      <result>
+         <assert-eq>8</assert-eq>
+      </result>
+   </test-case>
+   <test-case name="lowest-107">
+      <description>Integers compared as strings</description>
+      <created by="Christian Gruen" on="2022-08-09"/>
+      <test><![CDATA[fn:lowest((8 to 11), (), string#1)]]></test>
+      <result>
+         <assert-eq>10</assert-eq>
+      </result>
+   </test-case>
+   <test-case name="lowest-108">
+      <description>Reversed integers compared as strings</description>
+      <created by="Christian Gruen" on="2022-08-09"/>
+      <test><![CDATA[fn:lowest(reverse(8 to 11), (), string#1)]]></test>
+      <result>
+         <assert-eq>10</assert-eq>
+      </result>
+   </test-case>
+   <test-case name="lowest-109">
+      <description>Integers ignored by the comparator</description>
+      <created by="Christian Gruen" on="2022-08-09"/>
+      <test><![CDATA[fn:lowest((3, 2, 1), (), function($k) { true() })]]></test>
+      <result>
+         <assert-deep-eq>3, 2, 1</assert-deep-eq>
+      </result>
+   </test-case>
+   <test-case name="lowest-110">
+      <description>Integers compared by their string length</description>
+      <created by="Christian Gruen" on="2022-08-09"/>
+      <test><![CDATA[fn:lowest((8 to 11), (), function($k) { string-length(string($k)) })]]></test>
+      <result>
+         <assert-deep-eq>8, 9</assert-deep-eq>
+      </result>
+   </test-case>
+   <test-case name="lowest-111">
+      <description>Reversed integers compared by their string length</description>
+      <created by="Christian Gruen" on="2022-08-09"/>
+      <test><![CDATA[fn:lowest(reverse(8 to 11), (), function($k) { string-length(string($k)) })]]></test>
+      <result>
+         <assert-deep-eq>9, 8</assert-deep-eq>
+      </result>
+   </test-case>
+   <test-case name="lowest-112">
+      <description>Elements with numeric attribute comparison</description>
+      <created by="Christian Gruen" on="2022-08-09"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test><![CDATA[fn:lowest((<a _='1'/>, <b _='2'/>), (), function($k) { $k/@* }) ! name()]]></test>
+      <result>
+         <assert-string-value>a</assert-string-value>
+      </result>
+   </test-case>
+   <test-case name="lowest-113">
+      <description>Element with numeric attribute comparison</description>
+      <created by="Christian Gruen" on="2022-08-09"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test><![CDATA[fn:lowest(<_ _='1'/>, (), function($a) { $a/@* })]]></test>
+      <result>
+         <assert-xml><![CDATA[<_ _="1"/>]]></assert-xml>
+      </result>
+   </test-case>
+   <test-case name="lowest-114">
+      <description>Elements with numeric attribute comparison</description>
+      <created by="Christian Gruen" on="2022-08-09"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test><![CDATA[fn:lowest((<_ _='9'/>, <_ _='10'/>), (), function($a) { $a/@* })]]></test>
+      <result>
+         <assert-xml><![CDATA[<_ _="9"/>]]></assert-xml>
+      </result>
+   </test-case>
+   <test-case name="lowest-115">
+      <description>Element with attribute string comparison</description>
+      <created by="Christian Gruen" on="2022-08-09"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test><![CDATA[fn:lowest((<_ _='9'/>, <_ _='10'/>), (), function($a) { string($a/@*) })]]></test>
+      <result>
+         <assert-xml><![CDATA[<_ _="10"/>]]></assert-xml>
+      </result>
+   </test-case>
+   <test-case name="lowest-116">
+      <description>Replicated argument</description>
+      <created by="Christian Gruen" on="2022-08-09"/>
+      <test><![CDATA[fn:lowest(replicate('a', 2))]]></test>
+      <result>
+         <assert-deep-eq>'a', 'a'</assert-deep-eq>
+      </result>
+   </test-case>
+   <test-case name="lowest-117">
+      <description>Replicated argument</description>
+      <created by="Christian Gruen" on="2022-08-09"/>
+      <test><![CDATA[fn:lowest(replicate(5, 2))]]></test>
+      <result>
+         <assert-deep-eq>5, 5</assert-deep-eq>
+      </result>
+   </test-case>
+   <test-case name="lowest-118">
+      <description>Reversed argument</description>
+      <created by="Christian Gruen" on="2022-08-09"/>
+      <test><![CDATA[fn:lowest(reverse( (1 to 6)[. > 3] ))]]></test>
+      <result>
+         <assert-eq>4</assert-eq>
+      </result>
+   </test-case>
+   <test-case name="lowest-119">
+      <description>Arguments of different types</description>
+      <created by="Christian Gruen" on="2022-08-09"/>
+      <test><![CDATA[fn:lowest((1, 'x'))]]></test>
+      <result>
+         <error code="XPTY0004"/>
+      </result>
+   </test-case>
+   <test-case name="lowest-120">
+      <description>Comparison of dates</description>
+      <created by="Christian Gruen" on="2022-08-09"/>
+      <modified by="Christian Gruen" on="2025-12-15"/>
+      <test><![CDATA[fn:lowest((xs:gYear('9998'), xs:gYear('9999')))]]></test>
+      <result>
+         <assert-eq>xs:gYear('9998')</assert-eq>
+      </result>
+   </test-case>
+   <test-case name="lowest-121">
+      <description>Argument that cannot be compared</description>
+      <created by="Christian Gruen" on="2022-08-09"/>
+      <modified by="Michael Kay" on="2023-02-02" 
+         change="with a singleton sequence, a processor could avoid evaluating the sort key"/>
+      <modified by="Christian Gruen" on="2023-04-06" change="Syntax error fixed"/>
+      <test><![CDATA[fn:lowest((true#0, false#0))]]></test>
+      <result>
+         <error code="FOTY0013"/>
+      </result>
+   </test-case>
+   <test-case name="lowest-122">
+      <description>Untyped data that cannot be converted to xs:double</description>
+      <created by="Christian Gruen" on="2022-11-24"/>
+      <test><![CDATA[fn:lowest((xs:untypedAtomic('1'), xs:untypedAtomic('')))]]></test>
+      <result>
+         <error code="FORG0001"/>
+      </result>
+   </test-case>
+   <test-case name="lowest-123">
+      <description>Untyped data that cannot be converted to xs:double</description>
+      <created by="Christian Gruen" on="2022-11-24"/>
+      <test><![CDATA[fn:lowest((xs:untypedAtomic(''), xs:untypedAtomic('1')))]]></test>
+      <result>
+         <error code="FORG0001"/>
+      </result>
+   </test-case>
+   <test-case name="lowest-124">
+      <description>Untyped data that cannot be converted to xs:double</description>
+      <created by="Christian Gruen" on="2022-11-24"/>
+      <test><![CDATA[fn:lowest(replicate(xs:untypedAtomic(''), 2))]]></test>
+      <result>
+         <error code="FORG0001"/>
+      </result>
+   </test-case>
+
+   <test-case name="lowest-125">
+      <description>Evaluation of lowest function.</description>
+      <created by="Christian Gruen" on="2026-10-02"/>
+      <test>lowest(('a', 'B', 'c'), 'http://www.w3.org/2005/xpath-functions/collation/codepoint')</test>
+      <result>
+         <assert-eq>'B'</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="lowest-126">
+      <description>Evaluation of lowest function.</description>
+      <created by="Christian Gruen" on="2026-10-02"/>
+      <test>lowest(('A', 'b', 'a'), 'http://www.w3.org/2005/xpath-functions/collation/html-ascii-case-insensitive')</test>
+      <result>
+         <assert-deep-eq>'A', 'a'</assert-deep-eq>
+      </result>
+   </test-case>
+
+   <test-case name="lowest-127">
+      <description>Evaluation of lowest function.</description>
+      <created by="Christian Gruen" on="2026-10-02"/>
+      <test>lowest(('a', 'b'), ())</test>
+      <result>
+         <assert-eq>'a'</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="lowest-128">
+      <description>Evaluation of lowest function.</description>
+      <created by="Christian Gruen" on="2026-10-02"/>
+      <test>lowest(('a', 'b'), 'http://example.com/unknown-collation')</test>
+      <result>
+         <error code="FOCH0002"/>
+      </result>
+   </test-case>
+
+   <test-case name="lowest-901">
+      <description>test lowest() second argument is a call on a function with the wrong signature</description>
+      <created by="Michael Kay" on="2014-04-13"/>
+      <test>
+         lowest(doc('highest/highest-005.xml')/*/*, (), round#2)   
+      </test>
+      <result>
+         <error code="XPTY0004"/>
+      </result>
+   </test-case>
+   
+   <test-case name="lowest-902">
+      <description>test lowest() implicit string-to-double conversion fails</description>
+      <created by="Michael Kay" on="2014-04-13"/>
+      <test>
+         lowest(doc('highest/highest-003.xml')/*/*)        
+      </test>
+      <result>
+         <error code="FORG0001"/>
+      </result>
+   </test-case>
+</test-set>

@@ -1,0 +1,916 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<test-set xmlns="http://www.w3.org/2010/09/qt-fots-catalog" name="fn-path" covers-30="fn-path">
+   <description>tests for the fn:path() function introduced in XPath 3.0</description>
+   <link type="spec" document="http://www.w3.org/TR/xpath-functions-11/" idref="func-abs"/>
+   <dependency type="spec" value="XP30+ XQ30+"/>
+   
+   <environment name="pathdata">
+      <source role="." file="path/pathdata.xml">
+         <description>A file containing data for testing the fn:path() function</description>
+         <created by="Michael Kay" on="2010-12-08"/>
+      </source>
+   </environment>
+   
+   <test-case name="path001">
+      <description>path() applied to empty sequence</description>
+      <created by="Michael Kay" on="2011-06-08"/>
+      <environment ref="pathdata"/>
+      <test>fn:path(())</test>
+      <result>
+         <assert-empty/>
+      </result>
+   </test-case>
+   
+   <test-case name="path002">
+      <description>path() applied to top-level element</description>
+      <created by="Michael Kay" on="2011-06-08"/>
+      <modified by="Michael Kay" on="2012-03-08" change="see bug #15399"/>
+      <environment ref="pathdata"/>
+      <test>fn:path(/*)</test>
+      <result>
+         <all-of>
+            <assert-string-value>/Q{http://www.w3.org/2010/09/qt-fots-catalog}test-set[1]</assert-string-value>
+            <assert-type>xs:string</assert-type>
+         </all-of>
+      </result>
+   </test-case>
+   
+   <test-case name="path003">
+      <description>path() applied to nested element</description>
+      <created by="Michael Kay" on="2011-06-08"/>
+      <modified by="Michael Kay" on="2012-03-08" change="see bug #15399"/>
+      <environment ref="pathdata"/>
+      <test>fn:path((//*:all-of)[1])</test>
+      <result>
+         <all-of>
+            <assert-string-value>/Q{http://www.w3.org/2010/09/qt-fots-catalog}test-set[1]/Q{http://www.w3.org/2010/09/qt-fots-catalog}test-case[1]/Q{http://www.w3.org/2010/09/qt-fots-catalog}result[1]/Q{http://www.w3.org/2010/09/qt-fots-catalog}all-of[1]</assert-string-value>
+            <assert-type>xs:string</assert-type>
+         </all-of>
+      </result>
+   </test-case>
+   
+   <test-case name="path004">
+      <description>path() applied to non-first sibling element</description>
+      <created by="Michael Kay" on="2011-06-08"/>
+      <modified by="Michael Kay" on="2012-03-08" change="see bug #15399"/>
+      <environment ref="pathdata"/>
+      <test>fn:path(//*[@name="fn-absintg1args-1"])</test>
+      <result>
+         <all-of>
+            <assert-string-value>/Q{http://www.w3.org/2010/09/qt-fots-catalog}test-set[1]/Q{http://www.w3.org/2010/09/qt-fots-catalog}test-case[4]</assert-string-value>
+            <assert-type>xs:string</assert-type>
+         </all-of>
+      </result>
+   </test-case>
+   
+   <test-case name="path005">
+      <description>path() applied to no-namespace attribute</description>
+      <created by="Michael Kay" on="2011-06-08"/>
+      <modified by="Michael Kay" on="2011-11-17" change="fix bug 14827"/>
+      <modified by="Michael Kay" on="2012-03-08" change="see bug #15399"/>
+      <environment ref="pathdata"/>
+      <test>fn:path((//@idref)[1])</test>
+      <result>
+         <all-of>
+            <assert-string-value>/Q{http://www.w3.org/2010/09/qt-fots-catalog}test-set[1]/Q{http://www.w3.org/2010/09/qt-fots-catalog}link[1]/@idref</assert-string-value>
+            <assert-type>xs:string</assert-type>
+         </all-of>
+      </result>
+   </test-case>
+   
+   <test-case name="path006">
+      <description>path() applied to namespaced attribute</description>
+      <created by="Michael Kay" on="2011-06-08"/>
+      <modified by="Michael Kay" on="2012-03-08" change="see bug #15399"/>
+      <environment ref="pathdata"/>
+      <test>fn:path((//*:source)[3]/@xml:id)</test>
+      <result>
+         <all-of>
+            <assert-string-value>/Q{http://www.w3.org/2010/09/qt-fots-catalog}test-set[1]/Q{http://www.w3.org/2010/09/qt-fots-catalog}environment[3]/Q{http://www.w3.org/2010/09/qt-fots-catalog}source[1]/@Q{http://www.w3.org/XML/1998/namespace}id</assert-string-value>
+            <assert-type>xs:string</assert-type>
+         </all-of>
+      </result>
+   </test-case>
+   
+   <test-case name="path007">
+      <description>path() applied to comment</description>
+      <created by="Michael Kay" on="2011-06-08"/>
+      <modified by="Michael Kay" on="2012-03-08" change="see bug #15399"/>
+      <environment ref="pathdata"/>
+      <test>fn:path((//comment())[2])</test>
+      <result>
+         <all-of>
+            <assert-string-value>/Q{http://www.w3.org/2010/09/qt-fots-catalog}test-set[1]/Q{http://www.w3.org/2010/09/qt-fots-catalog}test-case[2]/Q{http://www.w3.org/2010/09/qt-fots-catalog}description[1]/comment()[1]</assert-string-value>
+            <assert-type>xs:string</assert-type>
+         </all-of>
+      </result>
+   </test-case>
+   
+   <test-case name="path008">
+      <description>path() applied to text node</description>
+      <created by="Michael Kay" on="2011-06-08"/>
+      <environment ref="pathdata"/>
+      <test>fn:path(//text()[.='2147483647'][1])</test>
+      <result>
+         <all-of>
+            <assert-string-value>/Q{http://www.w3.org/2010/09/qt-fots-catalog}test-set[1]/Q{http://www.w3.org/2010/09/qt-fots-catalog}test-case[3]/Q{http://www.w3.org/2010/09/qt-fots-catalog}result[1]/Q{http://www.w3.org/2010/09/qt-fots-catalog}all-of[1]/Q{http://www.w3.org/2010/09/qt-fots-catalog}assert-eq[1]/text()[1]</assert-string-value>
+            <assert-type>xs:string</assert-type>
+         </all-of>
+      </result>
+   </test-case>
+   
+   <test-case name="path009">
+      <description>path() applied to PI</description>
+      <created by="Michael Kay" on="2011-06-08"/>
+      <modified by="Michael Kay" on="2012-05-16" change="see bug 14278"/>
+      <environment ref="pathdata"/>
+      <test>fn:path(//processing-instruction()[1])</test>
+      <result>
+         <all-of>
+            <assert-string-value>/processing-instruction(xml-stylesheet)[1]</assert-string-value>
+            <assert-type>xs:string</assert-type>
+         </all-of>
+      </result>
+   </test-case>
+   
+   <test-case name="path010">
+      <description>path() applied to no-namespace element</description>
+      <created by="Michael Kay" on="2011-06-08"/>
+      <modified by="Michael Kay" on="2012-03-08" change="see bug #15399"/>
+      <environment ref="pathdata"/>
+      <test>fn:path(//p)</test>
+      <result>
+         <all-of>
+            <assert-string-value>/Q{http://www.w3.org/2010/09/qt-fots-catalog}test-set[1]/Q{}p[1]</assert-string-value>
+            <assert-type>xs:string</assert-type>
+         </all-of>
+      </result>
+   </test-case>
+   
+   <test-case name="path011">
+      <description>path() applied to a named namespace node</description>
+      <created by="Michael Kay" on="2011-06-08"/>
+      <modified by="Michael Kay" on="2012-03-08" change="see bug #15399"/>
+      <environment ref="pathdata"/>
+      <dependency type="spec" value="XP30+"/>
+      <dependency type="feature" value="namespace-axis"/>
+      <test>fn:path((//namespace::xml)[1])</test>
+      <result>
+         <all-of>
+            <assert-string-value>/Q{http://www.w3.org/2010/09/qt-fots-catalog}test-set[1]/namespace::xml</assert-string-value>
+            <assert-type>xs:string</assert-type>
+         </all-of>
+      </result>
+   </test-case>
+   
+   <test-case name="path012">
+      <description>path() applied to a named namespace node</description>
+      <created by="Michael Kay" on="2011-06-08"/>
+      <modified by="Michael Kay" on="2012-03-08" change="see bug #15399"/>
+      <environment ref="pathdata"/>
+      <dependency type="spec" value="XP30+"/>
+      <dependency type="feature" value="namespace-axis"/>
+      <test>fn:path((//namespace::xml)[1])</test>
+      <result>
+         <all-of>
+            <assert-string-value>/Q{http://www.w3.org/2010/09/qt-fots-catalog}test-set[1]/namespace::xml</assert-string-value>
+            <assert-type>xs:string</assert-type>
+         </all-of>
+      </result>
+   </test-case>
+   
+   <test-case name="path013">
+      <description>path() applied to an unnamed namespace node</description>
+      <created by="Michael Kay" on="2011-06-08"/>
+      <modified by="Michael Kay" on="2011-12-06" change="see bug 14892"/>
+      <modified by="Michael Kay" on="2012-03-08" change="see bug #15399"/>
+      <environment ref="pathdata"/>
+      <dependency type="spec" value="XP30+"/>
+      <dependency type="feature" value="namespace-axis"/>
+      <test>fn:path((//namespace::*[name()=''])[1])</test>
+      <result>
+         <all-of>
+            <assert-string-value>/Q{http://www.w3.org/2010/09/qt-fots-catalog}test-set[1]/namespace::*[Q{http://www.w3.org/2005/xpath-functions}local-name()=""]</assert-string-value>
+            <assert-type>xs:string</assert-type>
+         </all-of>
+      </result>
+   </test-case>
+   
+   <test-case name="path014">
+      <description>path() applied to a parentless element</description>
+      <created by="Michael Kay" on="2011-06-08"/>
+      <modified by="Michael Kay" on="2011-08-10" change="remove dependency on special fots:copy() function"/>
+      <modified by="O'Neil Delpratt" on="2012-05-22" change="Bug fix related to bug #15643: Change to error code"/>
+      <modified by="Michael Kay" on="2012-05-29" change="Bug 16184: this is no longer an error"/>
+      <environment ref="works-mod"/>
+      <module uri="http://www.w3.org/QT3/copy" file="id/copy.xq"/>
+      <dependency type="spec" value="XQ30+"/>
+      <test>
+        import module namespace copy="http://www.w3.org/QT3/copy";
+        fn:path(copy:copy((//employee)[1])/pnum)
+      </test>
+      <result>
+         <assert-string-value>Q{http://www.w3.org/2005/xpath-functions}root()/Q{}pnum[1]</assert-string-value>
+      </result>
+   </test-case>
+   
+   <test-case name="path015">
+      <description>path() applied to document node</description>
+      <created by="Michael Kay" on="2011-06-08"/>
+      <environment ref="pathdata"/>
+      <test>fn:path(/)</test>
+      <result>
+         <all-of>
+            <assert-string-value>/</assert-string-value>
+            <assert-type>xs:string</assert-type>
+         </all-of>
+      </result>
+   </test-case>
+   
+   <test-case name="path016">
+      <description>path() applied to a parentless attribute node</description>
+      <created by="Michael Kay" on="2012-05-29"/>
+      <dependency type="spec" value="XQ30+"/>
+      <test>fn:path(attribute name {"fred"})</test>
+      <result>
+         <all-of>
+            <assert-string-value>Q{http://www.w3.org/2005/xpath-functions}root()</assert-string-value>
+            <assert-type>xs:string</assert-type>
+         </all-of>
+      </result>
+   </test-case>
+   
+   <test-case name="path017">
+      <description>path() applied to a parentless text node</description>
+      <created by="Michael Kay" on="2012-05-29"/>
+      <dependency type="spec" value="XQ30+"/>
+      <test>fn:path(text{"fred"})</test>
+      <result>
+         <all-of>
+            <assert-string-value>Q{http://www.w3.org/2005/xpath-functions}root()</assert-string-value>
+            <assert-type>xs:string</assert-type>
+         </all-of>
+      </result>
+   </test-case>
+   
+   <test-case name="path018">
+      <description>path() applied to an attribute of an element root</description>
+      <created by="Michael Kay" on="2012-05-29"/>
+      <dependency type="spec" value="XQ30+"/>
+      <test><![CDATA[fn:path(<a b="c"/>/@b)]]></test>
+      <result>
+         <all-of>
+            <assert-string-value>Q{http://www.w3.org/2005/xpath-functions}root()/@b</assert-string-value>
+            <assert-type>xs:string</assert-type>
+         </all-of>
+      </result>
+   </test-case>
+   
+   <test-case name="path019">
+      <description>path() applied to an element child of an element root</description>
+      <created by="Michael Kay" on="2012-05-29"/>
+      <dependency type="spec" value="XQ30+"/>
+      <test><![CDATA[fn:path(<a><b/><b/></a>/(b[2]))]]></test>
+      <result>
+         <all-of>
+            <assert-string-value>Q{http://www.w3.org/2005/xpath-functions}root()/Q{}b[2]</assert-string-value>
+            <assert-type>xs:string</assert-type>
+         </all-of>
+      </result>
+   </test-case>
+   
+   <test-case name="path020">
+      <description>path() with no arguments</description>
+      <created by="Michael Kay" on="2012-05-29"/>
+      <environment ref="pathdata"/>
+      <test>(//*:all-of)[1] ! fn:path()</test>
+      <result>
+         <all-of>
+            <assert-string-value>/Q{http://www.w3.org/2010/09/qt-fots-catalog}test-set[1]/Q{http://www.w3.org/2010/09/qt-fots-catalog}test-case[1]/Q{http://www.w3.org/2010/09/qt-fots-catalog}result[1]/Q{http://www.w3.org/2010/09/qt-fots-catalog}all-of[1]</assert-string-value>
+            <assert-type>xs:string</assert-type>
+         </all-of>
+      </result>
+   </test-case>
+   
+   <test-case name="path040" covers-40="PR1620">
+      <description>path with indexes=false</description>
+      <created by="Michael Kay" on="2024-12-04"/>
+      <environment ref="pathdata"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>fn:path((//*:all-of)[1], {"indexes":false()})</test>
+      <result>
+         <all-of>
+            <assert-string-value>/Q{http://www.w3.org/2010/09/qt-fots-catalog}test-set/Q{http://www.w3.org/2010/09/qt-fots-catalog}test-case/Q{http://www.w3.org/2010/09/qt-fots-catalog}result/Q{http://www.w3.org/2010/09/qt-fots-catalog}all-of</assert-string-value>
+            <assert-type>xs:string</assert-type>
+         </all-of>
+      </result>
+   </test-case>
+   
+   <test-case name="path041" covers-40="PR1620">
+      <description>path() with namespaces option (using default namespace)</description>
+      <created by="Michael Kay" on="2024-12-04"/>
+      <environment ref="pathdata"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>fn:path(//*[@name="fn-absintg1args-1"], {"namespaces": in-scope-namespaces(/*)})</test>
+      <result>
+         <all-of>
+            <assert-string-value>/test-set[1]/test-case[4]</assert-string-value>
+            <assert-type>xs:string</assert-type>
+         </all-of>
+      </result>
+   </test-case>
+   
+   <test-case name="path042" covers-40="PR1620">
+      <description>path() with namespaces option (using default namespace) and no indexes</description>
+      <created by="Michael Kay" on="2024-12-04"/>
+      <environment ref="pathdata"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         fn:path(//*[@name="fn-absintg1args-1"], 
+         {"namespaces": in-scope-namespaces(/*), "indexes": false()})</test>
+      <result>
+         <all-of>
+            <assert-string-value>/test-set/test-case</assert-string-value>
+            <assert-type>xs:string</assert-type>
+         </all-of>
+      </result>
+   </test-case>
+   
+   <test-case name="path043" covers-40="PR1620">
+      <description>path() with namespaces option (using non-default namespace)</description>
+      <created by="Michael Kay" on="2024-12-04"/>
+      <environment ref="pathdata"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         fn:path(//*[@name="fn-absintg1args-1"], 
+           {"namespaces": {"ppp": "http://www.w3.org/2010/09/qt-fots-catalog"}})</test>
+      <result>
+         <all-of>
+            <assert-string-value>/ppp:test-set[1]/ppp:test-case[4]</assert-string-value>
+            <assert-type>xs:string</assert-type>
+         </all-of>
+      </result>
+   </test-case>
+   
+   <test-case name="path044" covers-40="PR1620">
+      <description>path() with namespaces option (duplicate prefixes)</description>
+      <created by="Michael Kay" on="2024-12-04"/>
+      <environment ref="pathdata"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         fn:path(//*[@name="fn-absintg1args-1"], 
+           {"namespaces": {"ppp": "http://www.w3.org/2010/09/qt-fots-catalog",
+                           "qqq": "http://www.w3.org/2010/09/qt-fots-catalog"}})</test>
+      <result>
+         <all-of>
+            <any-of>
+               <assert-string-value>/ppp:test-set[1]/ppp:test-case[4]</assert-string-value>
+               <assert-string-value>/qqq:test-set[1]/qqq:test-case[4]</assert-string-value>
+            </any-of>
+            <assert-type>xs:string</assert-type>
+         </all-of>
+      </result>
+   </test-case>
+   
+   <test-case name="path045" covers-40="PR1620">
+      <description>path() applied to a parentless attribute node, with namespace for fn:root()</description>
+      <created by="Michael Kay" on="2024-12-04"/>
+      <modified by="Gunther Rademacher" on="2025-09-23" change="remove XP40+ dependency"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test>fn:path(attribute name {"fred"},
+                {"namespaces": {"fn": "http://www.w3.org/2005/xpath-functions"}})</test>
+      <result>
+         <all-of>
+            <assert-string-value>fn:root()</assert-string-value>
+            <assert-type>xs:string</assert-type>
+         </all-of>
+      </result>
+   </test-case>
+   
+   <test-case name="path046" covers-40="PR1620">
+      <description>path() applied to no-namespace element, with namespace map</description>
+      <created by="Michael Kay" on="2024-12-04"/>
+      <environment ref="pathdata"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>fn:path(//p, {"namespaces": {
+                             "" : "",
+                             "z": "http://www.w3.org/2010/09/qt-fots-catalog" 
+                          }})</test>
+      <result>
+         <all-of>
+            <assert-string-value>/z:test-set[1]/p[1]</assert-string-value>
+            <assert-type>xs:string</assert-type>
+         </all-of>
+      </result>
+   </test-case>
+   
+   <test-case name="path047" covers-40="PR1620">
+      <description>First argument is (), options supplied</description>
+      <created by="Michael Kay" on="2024-12-04"/>
+      <environment ref="pathdata"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>fn:path(//nonexistent, {"namespaces": {
+                             "" : "",
+                             "z": "http://www.w3.org/2010/09/qt-fots-catalog" 
+                          }})</test>
+      <result>
+         <assert-empty/>
+      </result>
+   </test-case>
+   
+   <test-case name="path048" covers-40="PR1620">
+      <description>First argument is context item, options supplied</description>
+      <created by="Michael Kay" on="2024-12-04"/>
+      <environment ref="pathdata"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>//p ! fn:path(., {"namespaces": {
+                             "" : "",
+                             "z": "http://www.w3.org/2010/09/qt-fots-catalog" 
+                          }})</test>
+      <result>
+         <all-of>
+            <assert-string-value>/z:test-set[1]/p[1]</assert-string-value>
+            <assert-type>xs:string</assert-type>
+         </all-of>
+      </result>
+   </test-case>
+   
+   <test-case name="path049" covers-40="PR1620">
+      <description>First argument is omitted, options supplied</description>
+      <created by="Michael Kay" on="2024-12-04"/>
+      <environment ref="pathdata"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>//p ! fn:path(options := {"namespaces": {
+                             "" : "",
+                             "z": "http://www.w3.org/2010/09/qt-fots-catalog" 
+                          }, 
+                          "indexes" :false() })</test>
+      <result>
+         <all-of>
+            <assert-string-value>/z:test-set/p</assert-string-value>
+            <assert-type>xs:string</assert-type>
+         </all-of>
+      </result>
+   </test-case>
+   
+   <test-case name="path050" covers-40="PR1620">
+      <description>First argument is implicit, options supplied</description>
+      <created by="Michael Kay" on="2024-12-04"/>
+      <environment ref="pathdata"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>//p => fn:path({"namespaces": {
+                             "" : "",
+                             "z": "http://www.w3.org/2010/09/qt-fots-catalog" 
+                          }, 
+                          "indexes" :false() })</test>
+      <result>
+         <all-of>
+            <assert-string-value>/z:test-set/p</assert-string-value>
+            <assert-type>xs:string</assert-type>
+         </all-of>
+      </result>
+   </test-case>
+   
+   <test-case name="path051" covers-40="PR1620">
+      <description>First argument is implicit, options supplied with keyword</description>
+      <created by="Michael Kay" on="2024-12-04"/>
+      <environment ref="pathdata"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>//p => fn:path({"namespaces": {
+                             "" : "",
+                             "z": "http://www.w3.org/2010/09/qt-fots-catalog" 
+                          }, 
+                          "indexes" :false() })</test>
+      <result>
+         <all-of>
+            <assert-string-value>/z:test-set/p</assert-string-value>
+            <assert-type>xs:string</assert-type>
+         </all-of>
+      </result>
+   </test-case>
+   
+   <test-case name="path052" covers-40="PR1620">
+      <description>Partial function application binding first argument</description>
+      <created by="Michael Kay" on="2024-12-04"/>
+      <environment ref="pathdata"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $path := fn:path(//p, ?)
+         let $nsOption := {"namespaces": {
+                             "" : "",
+                             "z": "http://www.w3.org/2010/09/qt-fots-catalog" 
+                          }}
+         return [$path($nsOption), $path($nsOption => map:put("indexes", false()))]                 
+      </test>
+      <result>
+         <assert-deep-eq>["/z:test-set[1]/p[1]", "/z:test-set/p"]</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="path053" covers-40="PR1620">
+      <description>Partial function application binding second argument</description>
+      <created by="Michael Kay" on="2024-12-04"/>
+      <environment ref="pathdata"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $nsOption := {"namespaces": {
+                             "" : "",
+                             "z": "http://www.w3.org/2010/09/qt-fots-catalog" 
+                          }}
+         let $path := fn:path(?, $nsOption)                         
+         return [$path(()), $path(//p), $path(/*), $path(/*/@name)]                 
+      </test>
+      <result>
+         <assert-deep-eq>[(), "/z:test-set[1]/p[1]", "/z:test-set[1]", "/z:test-set[1]/@name"]</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="path054" covers-40="PR1886">
+      <description>lexical option</description>
+      <created by="Michael Kay" on="2025-03-25"/>
+      <environment ref="pathdata"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>//p => fn:path({"lexical": true()})</test>
+      <result>
+         <all-of>
+            <assert-string-value>/test-set[1]/p[1]</assert-string-value>
+            <assert-type>xs:string</assert-type>
+         </all-of>
+      </result>
+   </test-case>
+   
+   <test-case name="path055" covers-40="PR1886">
+      <description>lexical option: path to namespaced attribute</description>
+      <created by="Michael Kay" on="2025-03-25"/>
+      <environment ref="pathdata"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>(//@xml:id)[1] => fn:path({"lexical": true()})</test>
+      <result>
+         <all-of>
+            <assert-string-value>/test-set[1]/environment[3]/source[1]/@xml:id</assert-string-value>
+            <assert-type>xs:string</assert-type>
+         </all-of>
+      </result>
+   </test-case>
+   
+   <test-case name="path056" covers-40="PR1886">
+      <description>lexical option: path to non-namespaced attribute</description>
+      <created by="Michael Kay" on="2025-03-25"/>
+      <environment ref="pathdata"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>(//*:test-case/@name)[1] => fn:path({"lexical": true()})</test>
+      <result>
+         <all-of>
+            <assert-string-value>/test-set[1]/test-case[1]/@name</assert-string-value>
+            <assert-type>xs:string</assert-type>
+         </all-of>
+      </result>
+   </test-case>
+   
+   <test-case name="path057" covers-40="PR1886">
+      <description>relative path to an attribute of an element root</description>
+      <created by="Michael Kay" on="2025-03-25"/>
+      <modified by="Gunther Rademacher" on="2025-09-23" change="remove XP40+ dependency"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test><![CDATA[
+         let $doc := <z><z><z><a b="c"/></z></z></z>
+         return fn:path($doc//@b, {'origin':$doc, 'lexical':true()})
+      ]]></test>
+      <result>
+         <all-of>
+            <assert-string-value>z[1]/z[1]/a[1]/@b</assert-string-value>
+            <assert-type>xs:string</assert-type>
+         </all-of>
+      </result>
+   </test-case>
+   
+   <test-case name="path058" covers-40="PR1886">
+      <description>origin option: relative path to attribute</description>
+      <created by="Michael Kay" on="2025-03-25"/>
+      <environment ref="pathdata"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>(//*:test-case/@name)[1] => fn:path({"origin": /*})</test>
+      <result>
+         <all-of>
+            <assert-string-value>Q{http://www.w3.org/2010/09/qt-fots-catalog}test-case[1]/@name</assert-string-value>
+            <assert-type>xs:string</assert-type>
+         </all-of>
+      </result>
+   </test-case>
+   
+   <test-case name="path059" covers-40="PR1886">
+      <description>origin option: relative path to element</description>
+      <created by="Michael Kay" on="2025-03-25"/>
+      <environment ref="pathdata"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>(//*:test-case/*:result/*:all-of/*:assert-eq)[1] => fn:path({"origin": /*, 'lexical':true()})</test>
+      <result>
+         <all-of>
+            <assert-string-value>test-case[1]/result[1]/all-of[1]/assert-eq[1]</assert-string-value>
+            <assert-type>xs:string</assert-type>
+         </all-of>
+      </result>
+   </test-case>
+   
+   <test-case name="path060" covers-40="PR1886">
+      <description>lexical option</description>
+      <created by="Michael Kay" on="2025-03-25"/>
+      <modified by="Christian Gruen" on="2025-03-31" change="error code"/>
+      <environment ref="pathdata"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>//p => fn:path({"lexical": true(), 'indexes': false()})</test>
+      <result>
+         <all-of>
+            <assert-string-value>/test-set/p</assert-string-value>
+            <assert-type>xs:string</assert-type>
+         </all-of>
+      </result>
+   </test-case>
+   
+   <test-case name="path061" covers-40="PR1886">
+      <description>origin must be an ancestor of target node</description>
+      <created by="Michael Kay" on="2025-03-25"/>
+      <modified by="Christian Gruen" on="2025-03-31" change="error code"/>
+      <environment ref="pathdata"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>(//*:assert-eq)[1] => fn:path({"lexical": true(), 'origin': //p})</test>
+      <result>
+         <error code="FOPA0001"/>
+      </result>
+   </test-case>
+   
+   <test-case name="path062" covers-40="PR1886">
+      <description>origin must be an ancestor of target node</description>
+      <created by="Michael Kay" on="2025-03-25"/>
+      <modified by="Christian Gruen" on="2025-03-31" change="error code"/>
+      <environment ref="pathdata"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>(//@xml:id)[1] => fn:path({"lexical": true(), 'origin': //p})</test>
+      <result>
+         <error code="FOPA0001"/>
+      </result>
+   </test-case>
+   
+   <test-case name="path063" covers-40="PR1886">
+      <description>origin must be an ancestor of target node</description>
+      <created by="Michael Kay" on="2025-03-25"/>
+      <modified by="Christian Gruen" on="2025-03-31" change="encoding of query"/>
+      <environment ref="pathdata"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+        (//@xml:id)[1] => fn:path({"lexical": true(), 'origin': parse-xml('<doc/>')})
+      ]]></test>
+      <result>
+         <error code="FOPA0001"/>
+      </result>
+   </test-case>
+   
+   <test-case name="path064" covers-40="PR1886">
+      <description>origin must be an ancestor of target node</description>
+      <created by="Michael Kay" on="2025-03-25"/>
+      <modified by="Christian Gruen" on="2025-03-31" change="error code"/>
+      <environment ref="pathdata"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>fn:path(/, {'origin': /})</test>
+      <result>
+         <error code="FOPA0001"/>
+      </result>
+   </test-case>
+   
+   <test-case name="path065" covers-40="PR2049">
+      <description> In 4.0, context value can be an empty sequence. </description>
+      <created by="Michael Kay" on="2025-06-13"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>() -> path()</test>
+      <result>
+         <assert-empty/>
+      </result>
+   </test-case>
+   
+   <test-case name="path066" covers-40="PR2049">
+      <description> In 4.0, context value can be a non-singleton sequence. </description>
+      <created by="Michael Kay" on="2025-06-13"/>
+      <environment ref="pathdata"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>(/, /*) -> path()</test>
+      <result>
+         <error code="XPTY0004"/>
+      </result>
+   </test-case>
+   
+   <test-case name="path100" covers-40="PR2149">
+      <description>Apply to JNodes</description>
+      <created by="Michael Kay" on="2025-08-13"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>jtree([]) => path()</test>
+      <result>
+         <assert-string-value>/</assert-string-value>
+      </result>
+   </test-case>
+   
+   <test-case name="path101" covers-40="PR2149">
+      <description>Apply to JNodes</description>
+      <created by="Michael Kay" on="2025-08-13"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>jtree({}) => path()</test>
+      <result>
+         <assert-string-value>/</assert-string-value>
+      </result>
+   </test-case>
+   
+   <test-case name="path102" covers-40="PR2149">
+      <description>Apply to JNodes</description>
+      <created by="Michael Kay" on="2025-08-13"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>jtree([1,2,3]) => path()</test>
+      <result>
+         <assert-string-value>/</assert-string-value>
+      </result>
+   </test-case>
+   
+   <test-case name="path103" covers-40="PR2149 PR2706">
+      <description>Apply to JNodes</description>
+      <created by="Michael Kay" on="2025-08-13"/>
+      <modified by="Christian Gruen" on="2026-02-10" change="syntax updated"/>
+      <modified by="Christian Gruen" on="2026-07-08" change="PR2706"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>jtree([1,2,[5,6,7]])/jnode(*, array(xs:integer)) => path()</test>
+      <result>
+         <assert-string-value>/3</assert-string-value>
+      </result>
+   </test-case>
+   
+   <test-case name="path104" covers-40="PR2149 PR2706">
+      <description>Apply to JNodes</description>
+      <created by="Michael Kay" on="2025-08-13"/>
+      <modified by="Christian Gruen" on="2026-07-08" change="PR2706"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>jtree([1,2,{'x':[5,6,7]}])//x => path()</test>
+      <result>
+         <assert-string-value>/3/x</assert-string-value>
+      </result>
+   </test-case>
+   
+   <test-case name="path105" covers-40="PR2149 PR2706">
+      <description>Apply to JNodes</description>
+      <created by="Michael Kay" on="2025-08-13"/>
+      <modified by="Christian Gruen" on="2026-07-08" change="PR2706"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>jtree([1,2,[{'x':[5,6,7]}]])//x => path()</test>
+      <result>
+         <assert-string-value>/3/1/x</assert-string-value>
+      </result>
+   </test-case>
+   
+   <test-case name="path106" covers-40="PR2149 PR2706">
+      <description>Apply to JNodes, with origin</description>
+      <created by="Michael Kay" on="2025-08-13"/>
+      <modified by="Christian Gruen" on="2026-07-08" change="PR2706"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>let $in := jtree([1,2,[{'x':[5,6,7]}]]) return path($in//x, {'origin':$in/*[3]})</test>
+      <result>
+         <assert-string-value>1/x</assert-string-value>
+      </result>
+   </test-case>
+   
+   <test-case name="path107" covers-40="PR2149">
+      <description>Apply to JNodes, with invalid origin</description>
+      <created by="Michael Kay" on="2025-08-13"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>let $in := jtree([1,2,[{'x':[5,6,7]}]]) return path($in//x, {'origin':$in/*[1]})</test>
+      <result>
+         <error code="FOPA0001"/>
+      </result>
+   </test-case>
+   
+   <test-case name="path108" covers-40="PR2149 PR2667 PR2706">
+      <description>Apply to JNodes, with non-NCName key</description>
+      <created by="Michael Kay" on="2025-08-13"/>
+      <modified by="Michael Kay" on="2026-06-24" change="PR2667"/>
+      <modified by="Christian Gruen" on="2026-07-08" change="PR2706"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>jtree([1,2,[{'12x':[5,6,7]}]])//'12x' => path()</test>
+      <result>
+         <assert-string-value>/3/1/"12x"</assert-string-value>
+      </result>
+   </test-case>
+   
+   <test-case name="path109" covers-40="PR2149 PR2667 PR2706">
+      <description>Apply to JNodes, with integer key</description>
+      <created by="Michael Kay" on="2025-08-13"/>
+      <modified by="Michael Kay" on="2026-06-24" change="PR2667"/>
+      <modified by="Christian Gruen" on="2026-07-08" change="PR2706"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>jtree([1,2,[{17:[5,6,7]}]])//17 => path()</test>
+      <result>
+         <assert-string-value>/3/1/17</assert-string-value>
+      </result>
+   </test-case>
+   
+   <test-case name="path110" covers-40="PR2149 PR2706">
+      <description>Apply to JNodes, with QName key</description>
+      <created by="Michael Kay" on="2025-08-13"/>
+      <modified by="Christian Gruen" on="2026-07-08" change="PR2706"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>jtree([1,2,[{#xml:space:[5,6,7]}]])//xml:space => path()</test>
+      <result>
+         <assert-string-value>/3/1/#Q{http://www.w3.org/XML/1998/namespace}space</assert-string-value>
+      </result>
+   </test-case>
+   
+   <test-case name="path111" covers-40="PR2149 PR2706">
+      <description>Apply to JNodes, with xs:date key</description>
+      <created by="Michael Kay" on="2025-08-13"/>
+      <modified by="Christian Gruen" on="2026-02-10" change="syntax updated"/>
+      <modified by="Christian Gruen" on="2026-07-08" change="PR2706"/>
+      <modified by="Christian Gruen" on="2026-07-29" change="added child:: axis"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>jtree([1,2,[{xs:date('1999-12-31'):current-date()}]])//jnode(*, xs:date) => path()</test>
+      <result>
+         <assert-string-value>/3/1/child::{xs:date("1999-12-31")}</assert-string-value>
+      </result>
+   </test-case>
+   
+   <test-case name="path112" covers-40="PR2149 PR2706">
+      <description>Apply to JNodes, with boolean key</description>
+      <created by="Michael Kay" on="2025-08-13"/>
+      <modified by="Christian Gruen" on="2026-02-10" change="syntax updated"/>
+      <modified by="Christian Gruen" on="2026-07-08" change="PR2706"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>jtree([1,2,[{true():false()}]])//jnode(*, xs:boolean) => path()</test>
+      <result>
+         <assert-string-value>/3/1/true()</assert-string-value>
+      </result>
+   </test-case>
+   
+   <test-case name="path113" covers-40="PR2149 PR2667 PR2706">
+      <description>Apply to JNodes, with non-NCName key including quotation marks</description>
+      <created by="Michael Kay" on="2026-08-13"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>jtree([1,2,[{'He said: "don''t"':[5,6,7]}]])//'He said: "don''t"' => path()</test>
+      <result>
+         <assert-string-value>/3/1/"He said: ""don't"""</assert-string-value>
+      </result>
+   </test-case>
+   
+   <test-case name="path114" covers-40="PR2149 PR2667 PR2706">
+      <description>Apply to JNodes, with untypedAtomic key castable to NCName</description>
+      <created by="Michael Kay" on="2026-08-13"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>jtree([1,2,[{xs:untypedAtomic('fred'):[5,6,7]}]])//fred => path()</test>
+      <result>
+         <assert-string-value>/3/1/fred</assert-string-value>
+      </result>
+   </test-case>
+   
+   <test-case name="path115" covers-40="PR2149 PR2667 PR2706">
+      <description>Apply to JNodes, with xs:anyURI key not castable to NCName</description>
+      <created by="Michael Kay" on="2026-08-13"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>jtree([1,2,[{xs:anyURI('http://www.w3.org/'):[5,6,7]}]])//'http://www.w3.org/' => path()</test>
+      <result>
+         <assert-string-value>/3/1/"http://www.w3.org/"</assert-string-value>
+      </result>
+   </test-case>
+   
+   <test-case name="path116" covers-40="PR2149 PR2667 PR2706">
+      <description>Apply to JNodes, with xs:anyURI key containing quotes</description>
+      <created by="Michael Kay" on="2026-08-13"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>jtree([1,2,[{xs:anyURI('http://www.w3.org/?boss="Tim Berners-Lee"'):[5,6,7]}]])//*[jkey(.) instance of xs:anyURI] => path()</test>
+      <result>
+         <assert-string-value>/3/1/"http://www.w3.org/?boss=""Tim Berners-Lee"""</assert-string-value>
+      </result>
+   </test-case>
+   
+   <test-case name="path117" covers-40="PR2149 PR2667 PR2706">
+      <description>Apply to JNodes, with xs:dayTimeDuration key</description>
+      <created by="Michael Kay" on="2026-08-13"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>jtree([1,2,[{xs:dayTimeDuration('PT6H'):[5,6,7]}]])//*[jkey(.) instance of xs:duration] => path()</test>
+      <result>
+         <assert-string-value>/3/1/child::{xs:dayTimeDuration("PT6H")}</assert-string-value>
+      </result>
+   </test-case>
+   
+   <test-case name="path118" covers-40="PR2149 PR2667 PR2706">
+      <description>Apply to JNodes, with xs:boolean key</description>
+      <created by="Michael Kay" on="2026-08-13"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>jtree([1,2,[{true():[5,6,7]}]])/descendant::{true()} => path()</test>
+      <result>
+         <assert-string-value>/3/1/true()</assert-string-value>
+      </result>
+   </test-case>
+   
+   <test-case name="path119" covers-40="PR2149 PR2667 PR2706">
+      <description>Apply to JNodes, with xs:boolean key</description>
+      <created by="Michael Kay" on="2026-08-13"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>jtree([1,2,[{false():[5,6,7]}]])/descendant::{false()} => path()</test>
+      <result>
+         <assert-string-value>/3/1/false()</assert-string-value>
+      </result>
+   </test-case>
+   
+</test-set>

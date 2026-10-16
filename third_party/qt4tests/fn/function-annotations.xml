@@ -1,0 +1,309 @@
+<?xml version="1.0" encoding="us-ascii"?>
+<test-set xmlns="http://www.w3.org/2010/09/qt-fots-catalog" 
+          name="fn-function-annotations" covers-40="PR710">
+   <description>Tests for the function-annotations() function</description>
+   <link type="spec" document="http://www.w3.org/TR/xpath-functions-40/"
+         idref="func-function-annotations"/>
+   
+   <dependency type="feature" value="higherOrderFunctions"/>
+   <dependency type="spec" value="XP40+ XQ40+"/>
+
+   <test-case name="fn-function-annotations-001">
+      <description>No arguments</description>
+      <created by="Christian Gruen" on="2023-09-17"/>
+      <test>fn:function-annotations()</test>
+      <result>
+         <error code="XPST0017" />
+      </result>
+   </test-case>
+
+   <test-case name="fn-function-annotations-002">
+      <description>Arity zero</description>
+      <created by="Christian Gruen" on="2023-09-17"/>
+      <test>fn:function-annotations#0</test>
+      <result>
+         <error code="XPST0017" />
+      </result>
+   </test-case>
+
+   <test-case name="fn-function-annotations-003">
+      <description>Two arguments</description>
+      <created by="Christian Gruen" on="2023-09-17"/>
+      <test>fn:function-annotations(fn:dateTime#2, fn:dateTime#2)</test>
+      <result>
+         <error code="XPST0017" />
+      </result>
+   </test-case>
+
+   <test-case name="fn-function-annotations-004">
+      <description>Arity two</description>
+      <created by="Christian Gruen" on="2023-09-17"/>
+      <test>fn:function-annotations#2</test>
+      <result>
+         <error code="XPST0017" />
+      </result>
+   </test-case>
+
+   <test-case name="fn-function-annotations-005">
+      <description>Arity one, existence check</description>
+      <created by="Christian Gruen" on="2023-09-17"/>
+      <test>exists(fn:function-annotations#1)</test>
+      <result>
+         <assert-true />
+      </result>
+   </test-case>
+
+   <test-case name="fn-function-annotations-006">
+      <description>Empty sequence as argument</description>
+      <created by="Christian Gruen" on="2023-09-17"/>
+      <test>fn:function-annotations( () )</test>
+      <result>
+         <error code="XPTY0004" />
+      </result>
+   </test-case>
+
+   <test-case name="fn-function-annotations-007">
+      <description>Argument of type xs:anyAtomicType</description>
+      <created by="Christian Gruen" on="2023-09-17"/>
+      <test>fn:function-annotations( 1 )</test>
+      <result>
+         <error code="XPTY0004" />
+      </result>
+   </test-case>
+
+   <test-case name="fn-function-annotations-008">
+      <description>Argument of type node()</description>
+      <created by="Christian Gruen" on="2023-09-17"/>
+      <test>fn:function-annotations( fn:analyze-string((), "unused") )</test>
+      <result>
+         <error code="XPTY0004" />
+      </result>
+   </test-case>
+
+   <test-case name="fn-function-annotations-009">
+      <description>Argument, type checking</description>
+      <created by="Christian Gruen" on="2023-09-17"/>
+      <test>fn:function-annotations( (fn:concat#2, fn:concat#3) )</test>
+      <result>
+         <error code="XPTY0004" />
+      </result>
+   </test-case>
+
+   <test-case name="fn-function-annotations-010">
+      <description>Argument, dynamic type checking</description>
+      <created by="Christian Gruen" on="2023-09-17"/>
+      <dependency type="feature" value="staticTyping"/>
+      <test>fn:function-annotations( if ( fn:current-dateTime() eq
+                                    fn:dateTime( fn:current-date(),
+                                                 fn:current-time() ))
+                               then fn:dateTime#2
+                               else 1 )</test>
+      <result>
+         <error code="XPTY0004" />
+      </result>
+   </test-case>
+
+   <test-case name="fn-function-annotations-011">
+      <description>Argument, dynamic type checking</description>
+      <created by="Christian Gruen" on="2023-09-17"/>
+      <test>( fn:function-annotations( if (current-date() eq xs:date('1900-01-01'))
+                                 then fn:dateTime#2
+                                 else 1 ),
+              fn:function-annotations( if (current-date() eq xs:date('1900-01-01'))
+                                 then 1
+                                 else fn:dateTime#2 ) )</test>
+      <result>
+    <error code="XPTY0004" />
+      </result>
+   </test-case>
+
+   <test-case name="fn-function-annotations-012">
+      <description>Argument, dynamic type checking</description>
+      <created by="Christian Gruen" on="2023-09-17"/>
+      <dependency type="feature" value="staticTyping"/>
+      <test>fn:function-annotations( if ( fn:current-dateTime() eq
+                                    fn:dateTime( fn:current-date(),
+                                                 fn:current-time() ))
+                               then fn:dateTime#2
+                               else () )</test>
+      <result>
+         <error code="XPTY0004" />
+      </result>
+   </test-case>
+
+   <test-case name="fn-function-annotations-013">
+      <description>Argument, dynamic type checking</description>
+      <created by="Christian Gruen" on="2023-09-17"/>
+      <test>( fn:function-annotations( if (current-date() eq xs:date('1900-01-01'))
+                                 then fn:dateTime#2
+                                 else () ),
+              fn:function-annotations( if (current-date() eq xs:date('1900-01-01'))
+                                 then ()
+                                 else fn:dateTime#2 ) )</test>
+      <result>
+    <error code="XPTY0004" />
+      </result>
+   </test-case>
+
+   <test-case name="fn-function-annotations-014">
+      <description>Test return type</description>
+      <created by="Christian Gruen" on="2023-09-17"/>
+      <modified by="Michael Kay" on="2024-12-19"/>
+      <test>fn:function-annotations( fn:substring#2 )</test>
+      <result>
+         <assert-type>map(xs:QName, xs:anyAtomicType*)*</assert-type>
+      </result>
+   </test-case>
+
+   <test-case name="fn-function-annotations-015">
+      <description>Result for built-in function: key</description>
+      <created by="Christian Gruen" on="2023-09-17"/>
+      <test>fn:function-annotations(true#0) ! map:keys(.)</test>
+      <result>
+         <assert-empty/>
+      </result>
+   </test-case>
+
+   <test-case name="fn-function-annotations-016">
+      <description>Result for built-in function: value</description>
+      <created by="Christian Gruen" on="2023-09-17"/>
+      <test>fn:function-annotations(true#0) ! map:items(.)</test>
+      <result>
+         <assert-empty/>
+      </result>
+   </test-case>
+
+   <test-case name="fn-function-annotations-017">
+      <description>Function item</description>
+      <created by="Christian Gruen" on="2023-09-17"/>
+      <modified by="Michael Kay" on="2024-08-19" change="spec change, PR1393"/>
+      <modified by="Michael Kay" on="2024-08-19" change="spec change, PR1666"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test><![CDATA[
+declare %private function local:inc($c) { $c + 1 };
+function-annotations(local:inc#1)
+       ]]></test>
+      <result>
+         <assert-deep-eq>map { QName('http://www.w3.org/2012/xquery', 'private'): () }</assert-deep-eq>
+      </result>
+   </test-case>
+
+   <test-case name="fn-function-annotations-018" covers-40="PR1828">
+      <description>Partial function application: annotations are retained</description>
+      <created by="Christian Gruen" on="2023-09-17"/>
+      <modified by="Michael Kay" on="2024-08-19" change="spec change, PR1393"/>
+      <modified by="Michael Kay" on="2024-08-19" change="spec change, PR1666"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test><![CDATA[
+let $f := %Q{uri}name('a', 'b') function($a, $b) {}
+return function-annotations($f(?, 5))
+      ]]></test>
+      <result>
+         <assert-deep-eq>map { QName('uri', 'name'): ('a', 'b') }</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-function-annotations-019">
+      <description>Multiple annotations</description>
+      <created by="Michael Kay" on="2024-08-19"/>
+      <modified by="Michael Kay" on="2024-08-19" change="spec change, PR1666"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test><![CDATA[
+declare %private %local:optimized(true()) function local:inc($c) { $c + 1 };
+function-annotations(local:inc#1) => map:merge()
+       ]]></test>
+      <result>
+         <assert-deep-eq>map { QName('http://www.w3.org/2012/xquery', 'private'): (),
+                               QName('http://www.w3.org/2005/xquery-local-functions', 'optimized'): true() }
+         </assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-function-annotations-020">
+      <description>Multiple annotations, duplicate names</description>
+      <created by="Michael Kay" on="2024-08-19"/>
+      <modified by="Michael Kay" on="2024-08-19" change="spec change, PR1666"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test><![CDATA[
+declare %private %local:optimized(true()) %local:optimized(false()) function local:inc($c) { $c + 1 };
+function-annotations(local:inc#1)
+       ]]></test>
+      <result>
+         <assert-deep-eq>map { QName('http://www.w3.org/2012/xquery', 'private'): () },
+                         map { QName('http://www.w3.org/2005/xquery-local-functions', 'optimized'): true() },
+                         map { QName('http://www.w3.org/2005/xquery-local-functions', 'optimized'): false() }
+         </assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-function-annotations-021" covers-40="PR1828">
+      <description>Explicit annotations on inline function expression</description>
+      <created by="Michael Kay" on="2025-02-21"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test><![CDATA[
+let $f := %Q{http://local/}incremental(true()) function ($c) { $c + 1 }
+return function-annotations($f)
+       ]]></test>
+      <result>
+         <assert-deep-eq>map { QName('http://local/', 'incremental'): true() }</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-function-annotations-022" covers-40="PR1828">
+      <description>Explicit multiple annotations on inline function expression</description>
+      <created by="Michael Kay" on="2025-02-21"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test><![CDATA[
+let $f := %Q{http://local/}color("red") %Q{http://local/}color("green") function ($c) { $c + 1 }
+return function-annotations($f)
+       ]]></test>
+      <result>
+         <assert-deep-eq>
+            { QName('http://local/', 'color'): "red" },
+            { QName('http://local/', 'color'): "green" }
+         </assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-function-annotations-023" covers-40="PR1828">
+      <description>Annotations retained by partial application</description>
+      <created by="Michael Kay" on="2025-02-21"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test><![CDATA[
+let $f := %Q{http://local/}color("red") %Q{http://local/}color("green") function ($c, $d) { $c + $d }
+return function-annotations($f(?, 1))
+       ]]></test>
+      <result>
+         <assert-deep-eq>
+            { QName('http://local/', 'color'): "red" },
+            { QName('http://local/', 'color'): "green" }
+         </assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-function-annotations-024" covers-40="PR2061">
+      <description>QName-valued annotations</description>
+      <created by="Michael Kay" on="2025-06-30"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test><![CDATA[
+declare %private %local:charm(#local:absent) function local:inc($c) { $c + 1 };
+function-annotations(local:inc#1) => map:merge()
+       ]]></test>
+      <result>
+         <assert-deep-eq>map { QName('http://www.w3.org/2012/xquery', 'private'): (),
+                               QName('http://www.w3.org/2005/xquery-local-functions', 'charm'): QName('http://www.w3.org/2005/xquery-local-functions', 'absent') }
+         </assert-deep-eq>
+      </result>
+   </test-case>
+
+   <test-case name="fn-function-annotations-025">
+      <description>Evaluation of function-annotations function.</description>
+      <created by="Christian Gruen" on="2026-10-04"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test>(%local:x fn() { 1 }, %local:y fn() { 1 }) ! map:keys(function-annotations(.)) ! local-name-from-QName(.)</test>
+      <result>
+         <assert-deep-eq>"x", "y"</assert-deep-eq>
+      </result>
+   </test-case>
+
+</test-set>

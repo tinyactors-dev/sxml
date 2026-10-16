@@ -1,0 +1,224 @@
+<?xml version="1.0" encoding="us-ascii"?>
+<test-set xmlns="http://www.w3.org/2010/09/qt-fots-catalog" name="fn-siblings" covers-40="PR1547">
+   <description>Tests for the siblings() function</description>
+
+         
+   <environment name="compass">
+      <source role="." file="../prod/AxisStep/TreeCompass.xml">
+        <description>Data for fn:sibling tests.</description>
+        <created by="Michael Kay" on="2024-11-06"/>
+      </source>
+   </environment>      
+   
+   <dependency type="spec" value="XP40+ XQ40+"/>
+
+   <test-case name="fn-siblings-001">
+      <description>Simple test - document node</description>
+      <created by="Michael Kay" on="2024-11-06"/>
+      <environment ref="compass"/>
+      <test>count(fn:siblings(/))</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-siblings-002">
+      <description>Simple test - outermost element</description>
+      <created by="Michael Kay" on="2024-11-06"/>
+      <environment ref="compass"/>
+      <test>count(fn:siblings(/*))</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-siblings-003">
+      <description>Simple test - element nodes</description>
+      <created by="Michael Kay" on="2024-11-06"/>
+      <environment ref="compass"/>
+      <test>count(fn:siblings(//north))</test>
+      <result>
+         <assert-eq>7</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-siblings-004">
+      <description>Attribute node</description>
+      <created by="Michael Kay" on="2024-11-06"/>
+      <environment ref="compass"/>
+      <test>count(fn:siblings(//north/@mark))</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-siblings-005">
+      <description>Empty argument</description>
+      <created by="Michael Kay" on="2024-11-06"/>
+      <environment ref="compass"/>
+      <test>count(fn:siblings(//north/passage))</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-siblings-006">
+      <description>Results in document order</description>
+      <created by="Michael Kay" on="2024-11-06"/>
+      <environment ref="compass"/>
+      <test>deep-equal(fn:siblings(//north), //far-north/child::node())</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-siblings-007">
+      <description>Context item as default</description>
+      <created by="Michael Kay" on="2024-11-06"/>
+      <environment ref="compass"/>
+      <test>//north/count(fn:siblings())</test>
+      <result>
+         <assert-eq>7</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-siblings-008">
+      <description>No context value</description>
+      <created by="Michael Kay" on="2024-11-06"/>
+      <environment ref="compass"/>
+      <test>fn(){siblings()}()</test>
+      <result>
+         <error code="XPDY0002"/>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-siblings-009">
+      <description>Context value is not a node</description>
+      <created by="Michael Kay" on="2024-11-06"/>
+      <environment ref="compass"/>
+      <test>23 ! siblings()</test>
+      <result>
+         <error code="XPTY0004"/>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-siblings-010">
+      <description>Context value is multiple nodes</description>
+      <created by="Michael Kay" on="2024-11-06"/>
+      <modified by="Gunther Rademacher" on="2026-05-19" change="replace outdated FilterExprAM syntax"/>
+      <environment ref="compass"/>
+      <test>(//north, //far-north) => fn{siblings()}()</test>
+      <result>
+         <error code="XPTY0004"/>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-siblings-011">
+      <description>Namespace node</description>
+      <created by="Michael Kay" on="2024-11-06"/>
+      <environment ref="compass"/>
+      <dependency type="spec" value="XP40+"/>
+      <test>string(fn:siblings(//north/namespace::xml))</test>
+      <result>
+         <assert-eq>"http://www.w3.org/XML/1998/namespace"</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-siblings-012">
+      <description>Namespace node</description>
+      <created by="Michael Kay" on="2024-11-06"/>
+      <environment ref="compass"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test>namespace {"p"} {"http://p.ns/"}</test>
+      <result>
+         <assert-eq>"http://p.ns/"</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-siblings-013" covers-40="PR2049">
+      <description> In 4.0, context value can be an empty sequence. </description>
+      <created by="Michael Kay" on="2025-06-13"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>() -> siblings()</test>
+      <result>
+         <assert-empty/>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-siblings-101" covers-40="PR2149 PR2667">
+      <description> Children of a JNode wrapping an array </description>
+      <created by="Michael Kay" on="2025-09-09"/>
+      <modified by="Michael Kay" on="2026-06-24" change="PR2667"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $array := ["p", "q", "r", "s", "t"]
+         return siblings($array/3) =!> jvalue()</test>
+      <result>
+         <assert-deep-eq>"p", "q", "r", "s", "t"</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-siblings-102" covers-40="PR2149 PR2667">
+      <description> Children of a JNode wrapping an array </description>
+      <created by="Michael Kay" on="2025-09-09"/>
+      <modified by="Michael Kay" on="2026-06-24" change="PR2667"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $array := ["p", "q", "r", "s", "t"]
+         return $array/3 -> siblings() =!> jvalue()</test>
+      <result>
+         <assert-deep-eq>"p", "q", "r", "s", "t"</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-siblings-103" covers-40="PR2149">
+      <description> Children of a JNode wrapping a map </description>
+      <created by="Michael Kay" on="2025-09-09"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $map := {"p":1, "q":2, "r":3, "s":4, "t":5}
+         return siblings($map/s) =!> jvalue()</test>
+      <result>
+         <assert-deep-eq>1 to 5</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-siblings-104" covers-40="PR2149">
+      <description> Children of a JNode wrapping an array </description>
+      <created by="Michael Kay" on="2025-09-09"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $map := {"p":1, "q":2, "r":3, "s":4, "t":5}
+         return $map/s -> siblings() =!> jvalue()</test>
+      <result>
+         <assert-deep-eq>1 to 5</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-siblings-105" covers-40="PR2149">
+      <description> Siblings of a root JNode </description>
+      <created by="Michael Kay" on="2025-09-09"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $map := {"p":1, "q":2, "r":3, "s":4, "t":5}
+         return jtree($map) -> siblings()</test>
+      <result>
+         <assert-deep-eq>jtree({"p":1, "q":2, "r":3, "s":4, "t":5})</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-siblings-106" covers-40="PR2149">
+      <description> Siblings of a leaf JNode </description>
+      <created by="Michael Kay" on="2025-09-09"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $map := {"p":1, "q":2, "r":3, "s":4, "t":5}
+         return $map/q/* -> siblings()</test>
+      <result>
+         <assert-empty/>
+      </result>
+   </test-case>
+   
+   
+ 
+</test-set>

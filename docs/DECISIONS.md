@@ -77,11 +77,17 @@ parsing"), confirmed for XML as well as the query languages.
   `ts_set_allocator` is called, and that hook is process-global, so sxml does
   not call it. This exemption is limited to the parse step.
 
-### D13. Conformance test suites are fetched, not vendored
+### D13. Conformance test suites are vendored
 The W3C QT4 test suite (`qt4cg/qt4tests`) and the XSLT 4.0 test suite
-(`qt4cg/xslt40-test`) are fetched at a pinned commit by
-`tools/fetch-test-suites.sh` into `third_party/` (ignored by git). Test lists
-in `tests/qt4/` refer to test cases by name.
+(`qt4cg/xslt40-test`) are committed under `third_party/qt4tests/` and
+`third_party/xslt40-test/` at a pinned commit, recorded in
+`third_party/<suite>.commit`. `tools/update-test-suites.sh` moves them to a
+new commit. Test lists in `tests/qt4/` refer to test cases by name.
+Revised 2026-10-16: first fetched on demand into an ignored directory; the
+owner asked for them to be vendored so they are not downloaded again for every
+session and CI run. From xslt40-test, `report/`, `admin/unicode.xml`, the
+zipped QT3 tests and the DocBook toolchain `.jar` files are left out, because no
+test reads them (about 370 MB remain for both suites).
 Pinned commits: qt4tests `166453359bd7770fb113b6d9c9015df7f7fa5d02`,
 xslt40-test `91328fbf0fed4a5d2813eb3661808ee53cb961ba` (both HEAD on
 2026-10-16). Spec applicability: a test-case `spec` dependency replaces the

@@ -1,0 +1,1085 @@
+<?xml version="1.0" encoding="us-ascii"?>
+<test-set xmlns="http://www.w3.org/2010/09/qt-fots-catalog" name="prod-MapType">
+   <description>Tests for the MapType production: map types in XPath 3.1</description>
+
+         
+   <dependency type="spec" value="XP31+ XQ31+"/>      
+
+   <test-case name="MapType-001" covers="map-constructor map-general">
+      <description>instance of generic map type</description>
+      <created by="Michael Kay" on="2014-10-08"/>
+      <test>map{} instance of map(*)</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-002" covers="map-constructor map-general">
+      <description>instance of generic map type</description>
+      <created by="Michael Kay" on="2014-10-08"/>
+      <test>map{1:"London"} instance of map(*)</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-003" covers="map-constructor map-general">
+      <description>instance of generic map type</description>
+      <created by="Michael Kay" on="2014-10-08"/>
+      <test>map{1:"London", "London":1} instance of map(*)</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>   
+   
+   <test-case name="MapType-004" covers="map-constructor map-general">
+      <description>instance of specific map type</description>
+      <created by="Michael Kay" on="2014-10-08"/>
+      <test>map{} instance of map(xs:integer, xs:string)</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-005" covers="map-constructor map-general">
+      <description>instance of generic map type</description>
+      <created by="Michael Kay" on="2014-10-08"/>
+      <test>map{1:"London"} instance of map(xs:integer, xs:string)</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-006" covers="map-constructor map-general">
+      <description>instance of generic map type</description>
+      <created by="Michael Kay" on="2014-10-08"/>
+      <test>map{1:"London", "London":1} instance of map(xs:integer, xs:string)</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>   
+   
+   <test-case name="MapType-007" covers="map-constructor map-general">
+      <description>invalid map type</description>
+      <created by="Michael Kay" on="2014-10-08"/>
+      <test>map{1:"London"} instance of map(xs:integer)</test>
+      <result>
+         <error code="XPST0003"/>
+      </result>
+   </test-case> 
+   
+   <test-case name="MapType-008" covers="map-constructor map-general">
+      <description>invalid map type</description>
+      <created by="Michael Kay" on="2014-10-08"/>
+      <test>map{1:"London"} instance of map(integer, string)</test>
+      <result>
+         <error code="XPST0051"/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-009" covers="map-constructor map-general">
+      <description>instance of map type after remove</description>
+      <created by="Michael Kay" on="2014-10-08"/>
+      <environment ref="map"/>
+      <test>map:remove(map{1:"London", "London":1}, "London") instance of map(xs:integer, xs:string)</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>  
+   
+   <test-case name="MapType-010" covers="map-constructor map-general">
+      <description>instance of map type after addition</description>
+      <created by="Michael Kay" on="2014-10-08"/>
+      <environment ref="map"/>
+      <test>map:put(map{1:"London", 2:"Paris"}, 3, current-date()) instance of map(xs:integer, xs:string)</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-011" covers="map-constructor map-general">
+      <description>instance of a less specific map type</description>
+      <created by="Michael Kay" on="2014-10-08"/>
+      <environment ref="map"/>
+      <test>map:put(map{1:"London", 2:"Paris"}, 3, "Berlin") instance of map(xs:decimal, xs:string+)</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-012" covers="map-constructor map-general">
+      <description>map test requiring empty sequence</description>
+      <created by="Michael Kay" on="2014-10-08"/>
+      <test>map{"London":(), "Paris":(), "Berlin":()} instance of map(xs:string, empty-sequence())</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-013" covers="map-constructor map-general">
+      <description>map test requiring empty sequence</description>
+      <created by="Michael Kay" on="2014-10-08"/>
+      <test>map{"London":(), "Paris":(), "Berlin":(), "Rome":5} instance of map(xs:string, empty-sequence())</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-014" covers="map-constructor map-general">
+      <description>map test with cardinality constraint</description>
+      <created by="Michael Kay" on="2014-10-08"/>
+      <test>map{"London":1, "Paris":2, "Berlin":3, "Rome":()} instance of map(xs:string, xs:integer?)</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-015" covers="map-constructor map-general">
+      <description>map test with cardinality constraint</description>
+      <created by="Michael Kay" on="2014-10-08"/>
+      <test>map{"London":1, "Paris":2, "Berlin":3, "Rome":()} instance of map(xs:string, xs:integer+)</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-016" covers="map-constructor map-general">
+      <description>key type must be an item type</description>
+      <created by="Michael Kay" on="2014-10-08"/>
+      <test>map{"London":1, "Paris":2, "Berlin":3, "Rome":5} instance of map(xs:string+, xs:integer+)</test>
+      <result>
+         <error code="XPST0003"/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-017" covers="map-constructor map-general">
+      <description>sequence of maps</description>
+      <created by="Michael Kay" on="2014-10-08"/>
+      <test>map{"London":1, "Paris":2, "Berlin":3, "Rome":5} instance of map(xs:string, xs:integer+)*</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-018" covers="map-constructor map-general">
+      <description>sequence of maps</description>
+      <created by="Michael Kay" on="2014-10-08"/>
+      <test>(map{"London":1, "Paris":2, "Berlin":3, "Rome":5}, map{}) instance of map(xs:string, xs:integer+)*</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-019" covers="map-constructor map-general">
+      <description>sequence of maps</description>
+      <created by="Michael Kay" on="2014-10-08"/>
+      <test>(map{"London":1, "Paris":2, "Berlin":3, "Rome":5}, map{}) instance of map(xs:string, xs:integer+)?</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-020" covers="map-contains map-constructor">
+      <description>no conversion on function call</description>
+      <created by="Michael Kay" on="2014-10-08"/>
+      <environment ref="map"/>
+      <dependency type="feature" value="higherOrderFunctions"/>
+      <dependency type="spec" value="XP31 XQ31"/>
+      <test>
+         let $f := function($m as map(xs:integer, xs:integer)) as xs:boolean {
+             map:contains($m, 17)
+         }
+         return $f(map{17: xs:untypedAtomic('234')})
+      </test>
+      <result>
+         <error code="XPTY0004"/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-021" covers-40="PR1501">
+      <description>conversion on function call occurs in 4.0</description>
+      <created by="Michael Kay" on="2025-02-21"/>
+      <environment ref="map"/>
+      <dependency type="feature" value="higherOrderFunctions"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $f := function($m as map(xs:integer, xs:integer)) as xs:boolean {
+             map:contains($m, 17)
+         }
+         return $f(map{17: xs:untypedAtomic('234')})
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-040" covers="map-size map-general">
+      <description>map type subsumption</description>
+      <created by="Michael Kay" on="2014-10-08"/>
+      <environment ref="map"/>
+      <dependency type="feature" value="higherOrderFunctions"/>
+      <test>
+         function($m as map(xs:integer, xs:string)) as xs:integer {map:size($m)} 
+         instance of function(map(*)) as xs:integer
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-041" covers="map-size map-general">
+      <description>map type subsumption</description>
+      <created by="Michael Kay" on="2014-10-08"/>
+      <environment ref="map"/>
+      <dependency type="feature" value="higherOrderFunctions"/>
+      <test>
+         function($m as map(xs:integer, xs:string)) as xs:integer {map:size($m)} 
+         instance of function(map(xs:decimal, xs:string+)) as xs:integer
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-042" covers="map-size map-general">
+      <description>map type subsumption</description>
+      <created by="Michael Kay" on="2014-10-08"/>
+      <environment ref="map"/>
+      <dependency type="feature" value="higherOrderFunctions"/>
+      <test>
+         function($m as map(*)) as xs:integer {map:size($m)} 
+         instance of function(function(*)) as xs:integer</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-043" covers="map-size map-general">
+      <description>map type subsumption</description>
+      <created by="Michael Kay" on="2014-10-08"/>
+      <environment ref="map"/>
+      <dependency type="feature" value="higherOrderFunctions"/>
+      <test>
+         function($m as map(xs:integer, xs:string)) as xs:integer {map:size($m)} 
+         instance of function(function(*)) as xs:integer
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-044" covers="map-size map-general">
+      <description>map type subsumption</description>
+      <created by="Michael Kay" on="2014-10-08"/>
+      <environment ref="map"/>
+      <dependency type="feature" value="higherOrderFunctions"/>
+      <test>
+         function($m as map(xs:integer, xs:string)) as xs:integer {map:size($m)} 
+         instance of function(function(xs:anyAtomicType) as item()*) as xs:integer
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-045" covers="map-size map-general">
+      <description>map type subsumption</description>
+      <created by="Michael Kay" on="2014-10-08"/>
+      <environment ref="map"/>
+      <dependency type="feature" value="higherOrderFunctions"/>
+      <test>
+         function($m as map(xs:integer, xs:string)) as xs:integer {map:size($m)} 
+         instance of function(function(xs:integer) as item()*) as xs:integer
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-046" covers="map-size map-general">
+      <description>empty map type</description>
+      <created by="Michael Kay" on="2018-03-18"/>
+      <environment ref="map"/>
+      <dependency type="feature" value="higherOrderFunctions"/>
+      <test>
+         map{} instance of map(xs:integer, map(xs:integer, xs:string))
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-047" covers="map-size map-general">
+      <description>empty map type (assumes dynamic type checking)</description>
+      <created by="Michael Kay" on="2018-03-13"/>
+      <modified by="Michael Kay" on="2018-07-24" change="Use valid XPath syntax for let expression"/>
+      <environment ref="map"/>
+      <dependency type="feature" value="higherOrderFunctions"/>
+      <test>
+         let $f := function() as map(xs:integer, xs:string) {map{}},
+             $g := function($m as map(xs:string, xs:integer)) as xs:boolean {map:size($m) = 0}
+         return $g($f())
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-048" covers="map-size map-general">
+      <description>map type subsumption</description>
+      <created by="Michael Kay" on="2018-03-13"/>
+      <environment ref="map"/>
+      <dependency type="feature" value="higherOrderFunctions"/>
+      <test>
+         let $f := function($m as map(xs:integer, xs:string)) as xs:integer {map:size($m)} 
+         return $f(map{})
+      </test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-049" covers="map-size map-general">
+      <description>map type subsumption</description>
+      <created by="Michael Kay" on="2018-03-13"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XQ30+"/>
+      <dependency type="feature" value="higherOrderFunctions"/>
+      <test>
+         declare function local:f ($m as map(xs:integer, xs:string)) as xs:integer {map:size($m)};
+         let $g as map(xs:string, xs:date) := map:remove(map{'a':current-date()}, 'a') 
+         return local:f($g)
+      </test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-050" covers="map-size map-general">
+      <description>map type subsumption</description>
+      <created by="Michael Kay" on="2014-10-08"/>
+      <environment ref="map"/>
+      <dependency type="feature" value="higherOrderFunctions"/>
+      <test>
+         function($m as map(*)) as xs:integer {map:size($m)} 
+         instance of function(map(xs:integer, xs:string)) as xs:integer
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-051" covers="map-size map-general">
+      <description>map type subsumption</description>
+      <created by="Michael Kay" on="2014-10-08"/>
+      <environment ref="map"/>
+      <dependency type="feature" value="higherOrderFunctions"/>
+      <test>
+         function($m as map(xs:decimal, xs:string+)) as xs:integer {map:size($m)} 
+         instance of function(map(xs:integer, xs:string)) as xs:integer
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-052" covers="map-general">
+      <description>map type subsumption</description>
+      <created by="Michael Kay" on="2014-10-08"/>
+      <dependency type="feature" value="higherOrderFunctions"/>
+      <test>
+         function($m as function(*)) as xs:integer {function-arity($m)} 
+         instance of function(map(*)) as xs:integer</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-053" covers="map-general">
+      <description>map type subsumption</description>
+      <created by="Michael Kay" on="2014-10-08"/>
+      <dependency type="feature" value="higherOrderFunctions"/>
+      <test>
+         function($m as function(*)) as xs:integer {function-arity($m)} 
+         instance of function(map(xs:integer, xs:string)) as xs:integer
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-054" covers="map-size">
+      <description>map type subsumption</description>
+      <created by="Michael Kay" on="2014-10-08"/>
+      <environment ref="map"/>
+      <dependency type="feature" value="higherOrderFunctions"/>
+      <test>
+         function($m as function(xs:anyAtomicType) as item()*) as xs:integer {map:size($m)} 
+         instance of function(map(xs:integer, xs:string)) as xs:integer
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-055" covers="map-general">
+      <description>Dynamic function call with operand a map</description>
+      <created by="Debbie Lockett" on="2016-04-18"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <test>map{1:2, 2:4, 3:6}(2)</test>
+      <result>
+         <assert-eq>4</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-057" covers="map-general">
+      <description>Dynamic function call with operand a map</description>
+      <created by="Debbie Lockett" on="2016-04-18"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <test>let $map:= map{1:'a', 2:'b', 3:'c', 4:'d'} return $map(3)</test>
+      <result>
+         <assert-deep-eq>'c'</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-058" covers="map-general">
+      <description>Map as a function of xs:anyAtomicType</description>
+      <created by="Michael Kay after Christian Gruen" on="2019-09-06"/>
+      <modified by="Michael Kay" on="2020-01-14" change="Test requires XQuery; change dependencies"/>
+      <modified by="Michael Kay" on="2020-08-23" change="See https://github.com/w3c/qt3tests/issues/28"/>
+      <modified by="Michael Kay" on="2020-10-16" change="Add HOF dependency"/>
+      <modified by="Michael Kay" on="2024-03-28" change="Change expected result. See qt4tests issue 109."/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XQ31"/>
+      <dependency type="feature" value="higherOrderFunctions"/>
+      <test>let $s as function(xs:anyAtomicType) as xs:string? := map { 1:'A','x':'B' }
+         return $s?*
+      </test>
+      <result>
+         <assert-permutation>"A", "B"</assert-permutation>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-058a" covers-40="PR1023" covers="map-general">
+      <description>Map as a function of xs:anyAtomicType. A coerced function is not a map.</description>
+      <created by="Michael Kay after Christian Gruen" on="2019-09-06"/>
+      <modified by="Michael Kay" on="2020-01-14" change="Test requires XQuery; change dependencies"/>
+      <modified by="Michael Kay" on="2020-08-23" change="See https://github.com/w3c/qt3tests/issues/28"/>
+      <modified by="Michael Kay" on="2020-10-16" change="Add HOF dependency"/>
+      <modified by="Michael Kay" on="2024-03-28" change="Change expected result. See qt4tests issue 109."/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XQ40+"/>
+      <dependency type="feature" value="higherOrderFunctions"/>
+      <test>let $s as function(xs:anyAtomicType) as xs:string? := map { 1:'A','x':'B' }
+            return $s?*
+      </test>
+      <result>
+         <error code="XPTY0004"/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-059" covers="map-general">
+      <description>Map as a function, invoking transitivity (see https://github.com/w3c/qt3tests/issues/28)</description>
+      <created by="Michael Kay" on="2020-08-23"/>
+      <modified by="Michael Kay" on="2020-10-16" change="Add HOF dependency"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <dependency type="feature" value="higherOrderFunctions"/>
+      <test>map { 1:'A','x':'B' } instance of function(xs:integer) as xs:string?</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-060" covers="map-general">
+      <description>Map as a function, invoking transitivity (see https://github.com/w3c/qt3tests/issues/28)</description>
+      <created by="Michael Kay" on="2020-08-23"/>
+      <modified by="Michael Kay" on="2020-10-16" change="Add HOF dependency"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <dependency type="feature" value="higherOrderFunctions"/>
+      <test>map { 1:'A','x':'B' } instance of function(xs:integer) as item()*</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-061" covers="map-general">
+      <description>Map as a function, invoking transitivity (see https://github.com/w3c/qt3tests/issues/28)</description>
+      <created by="Michael Kay" on="2020-08-23"/>
+      <modified by="Michael Kay" on="2020-10-16" change="Add HOF dependency"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <dependency type="feature" value="higherOrderFunctions"/>
+      <test>map { 1:'A','x':'B' } instance of function(xs:integer) as xs:string</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-062" covers="map-general">
+      <description>Map as a function, invoking transitivity (see https://github.com/w3c/qt3tests/issues/28)</description>
+      <created by="Michael Kay" on="2020-08-23"/>
+      <modified by="Michael Kay" on="2020-10-16" change="Add HOF dependency"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <dependency type="feature" value="higherOrderFunctions"/>
+      <test>map { 1:'A','x':'B' } instance of function(xs:integer) as item()+</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-063" covers="map-general">
+      <description>Map as a function, invoking transitivity (see https://github.com/w3c/qt3tests/issues/28)</description>
+      <created by="Michael Kay" on="2020-08-23"/>
+      <modified by="Michael Kay" on="2020-10-16" change="Add HOF dependency"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <dependency type="feature" value="higherOrderFunctions"/>
+      <test>map {} instance of function(xs:integer) as empty-sequence()</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-064" covers="map-general">
+      <description>Map as a function, invoking transitivity (see https://github.com/w3c/qt3tests/issues/28)</description>
+      <created by="Michael Kay" on="2020-08-23"/>
+      <modified by="Michael Kay" on="2020-10-16" change="Add HOF dependency"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <dependency type="feature" value="higherOrderFunctions"/>
+      <test>map {12: ()} instance of function(xs:decimal) as empty-sequence()</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-065" covers="map-general">
+      <description>Map as a function, invoking transitivity (see https://github.com/w3c/qt3tests/issues/28)</description>
+      <created by="Michael Kay" on="2020-08-23"/>
+      <modified by="Michael Kay" on="2020-10-16" change="Add HOF dependency"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <dependency type="feature" value="higherOrderFunctions"/>
+      <test>map {12: ()} instance of function(xs:decimal) as xs:string*</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-066" covers="map-general">
+      <description>Map as a function, invoking transitivity (see https://github.com/w3c/qt3tests/issues/28)</description>
+      <created by="Michael Kay" on="2020-08-23"/>
+      <modified by="Michael Kay" on="2020-10-16" change="Add HOF dependency"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <dependency type="feature" value="higherOrderFunctions"/>
+      <test>map {12: "z"} instance of function(xs:decimal) as xs:string</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-067" covers="map-general">
+      <description>Map key can be a built-in union type</description>
+      <created by="Michael Kay" on="2023-08-08"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <dependency type="feature" value="higherOrderFunctions"/>
+      <test>map {12: "z"} instance of map(xs:numeric, xs:string)</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-068" covers="map-general">
+      <description>Map key can be a built-in union type</description>
+      <created by="Michael Kay" on="2023-08-08"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <dependency type="feature" value="higherOrderFunctions"/>
+      <test>map {'abc': "z"} instance of map(xs:numeric, xs:string)</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-069" covers="map-general">
+      <description>Map key can be a schema-defined union type</description>
+      <created by="Michael Kay" on="2023-08-08"/>
+      <environment>
+         <schema uri="http://www.w3.org/XQueryTest/unionListDefined" file="SchemaImport/unionListDefined.xsd">
+            <description>A schema defining a motley collection of union types.</description>
+            <created by="Michael Kay" on="2006-11-14"/>
+         </schema>
+      </environment> 
+      <dependency type="spec" value="XQ31+"/>
+      <dependency type="feature" value="higherOrderFunctions"/>
+      <dependency type="feature" value="schemaImport"/>
+      <test>
+         import schema namespace u="http://www.w3.org/XQueryTest/unionListDefined";
+         map {current-date(): "z"} instance of map(u:approximateDate, xs:string)</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-070" covers="map-general">
+      <description>Map key cannot be an impure union type</description>
+      <created by="Michael Kay" on="2023-08-08"/>
+      <environment>
+         <schema uri="http://www.w3.org/XQueryTest/unionListDefined" file="SchemaImport/unionListDefined.xsd">
+            <description>A schema defining a motley collection of union types.</description>
+            <created by="Michael Kay" on="2006-11-14"/>
+         </schema>
+      </environment> 
+      <dependency type="spec" value="XQ31+"/>
+      <dependency type="feature" value="higherOrderFunctions"/>
+      <dependency type="feature" value="schemaImport"/>
+      <test>
+         import schema namespace u="http://www.w3.org/XQueryTest/unionListDefined";
+         map {current-date(): "z"} instance of map(u:impureUnionType, xs:string)</test>
+      <result>
+         <error code="XPST0051"/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-071" covers-40="PR254">
+      <description>Map as a function: once coerced, it is no longer a map</description>
+      <created by="Michael Kay" on="2024-03-28"/>
+      <modified by="Michael Kay" on="2026-04-10" change="test is specific to 4.0; let clauses in 3.1 don't do coercion"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $f as function(xs:integer) as xs:string := map { 1:'A','x':'B' }
+         return $f instance of map(*)</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-072" covers-40="PR254" >
+      <description>Coercion applied to a map returned from a function</description>
+      <created by="Michael Kay" on="2024-03-28"/>
+      <modified by="Michael Kay" on="2026-04-10" change="test is specific to 4.0; let clauses in 3.1 don't do coercion"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $f as (function() as (function(xs:integer) as xs:string)) := fn() {
+            map { 1:'A','x':'B' }
+         }
+         return $f() instance of map(*)</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-073" >
+      <description>Treat a map as a function</description>
+      <created by="Michael Kay after Christian Gruen" on="2024-03-28"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <dependency type="feature" value="higherOrderFunctions"/>
+      <test>
+         let $s := map { 1: 'A', 'x': 'B' } treat as function(xs:anyAtomicType) as xs:string?
+         return $s?*
+      </test>
+      <result>
+         <assert-permutation>"A", "B"</assert-permutation>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-080" covers-40="PR1501">
+      <description>Map coercion</description>
+      <created by="Christian Gruen" on="2025-01-22"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+let $m as map(xs:integer, xs:byte*) := { 1: (1, 2) }
+return $m instance of map(xs:integer, xs:byte*)
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="MapType-081" covers-40="PR1501">
+      <description>Map coercion</description>
+      <created by="Christian Gruen" on="2025-01-22"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+let $m as map(xs:integer, xs:byte*) := { 1: (1.2, 2) }
+return $m
+      </test>
+      <result>
+         <error code="XPTY0004"/>
+      </result>
+   </test-case>
+
+   <test-case name="MapType-082" covers-40="PR1501">
+      <description>Map coercion</description>
+      <created by="Christian Gruen" on="2025-01-22"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+let $m as map(xs:integer, xs:byte?) := { 1: (1, 2) }
+return $m
+      </test>
+      <result>
+         <error code="XPTY0004"/>
+      </result>
+   </test-case>
+
+   <test-case name="MapType-083" covers-40="PR1501">
+      <description>Map coercion</description>
+      <created by="Christian Gruen" on="2025-01-22"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+let $m as map(xs:integer, xs:string) := { 1: xs:anyURI('URI') }
+return $m?* instance of xs:string
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="MapType-084" covers-40="PR1501">
+      <description>Map coercion</description>
+      <created by="Christian Gruen" on="2025-01-22"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+let $m as map(xs:integer, empty-sequence()) := { 1: () }
+return $m
+      </test>
+      <result>
+         <assert-deep-eq>{ 1: () }</assert-deep-eq>
+      </result>
+   </test-case>
+
+   <test-case name="MapType-085" covers-40="PR1501">
+      <description>Map coercion</description>
+      <created by="Christian Gruen" on="2025-01-22"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+let $m as map(xs:integer, empty-sequence()) := { 1: 1 }
+return $m
+      </test>
+      <result>
+         <error code="XPTY0004"/>
+      </result>
+   </test-case>
+
+   <test-case name="MapType-086" covers-40="PR1501">
+      <description>Map coercion</description>
+      <created by="Christian Gruen" on="2025-01-22"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+let $f as map(xs:byte, empty-sequence()) := { 1: () }
+return map:keys($f) instance of xs:byte
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="MapType-087" covers-40="PR1501">
+      <description>Map coercion</description>
+      <created by="Christian Gruen" on="2025-01-22"/>
+      <modified by="Gunther Rademacher" on="2025-02-27" change="Removed XP40 dependency"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test>
+let $f as map(xs:integer, element()) := { 1: element a {} }
+return local-name($f?*)
+      </test>
+      <result>
+         <assert-string-value>a</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="MapType-088" covers-40="PR1501">
+      <description>Map coercion</description>
+      <created by="Christian Gruen" on="2025-01-22"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+let $f as map(xs:byte, xs:byte)* := ({ 1: 2 }, { 3: 4 })
+return sum($f?*)
+      </test>
+      <result>
+         <assert-eq>6</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="MapType-089" covers-40="PR1501">
+      <description>Map coercion</description>
+      <created by="Christian Gruen" on="2025-01-22"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+let $f as map(xs:byte, xs:byte)* := ({ 1: 2 }, { 3: 456 })
+return sum($f?*)
+      </test>
+      <result>
+         <any-of>
+            <error code="XPTY0004"/>
+            <error code="FORG0001"/>
+         </any-of>
+      </result>
+   </test-case>
+
+   <test-case name="MapType-090" covers-40="PR1501">
+      <description>Map coercion</description>
+      <created by="Christian Gruen" on="2025-01-22"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+let $m as map(xs:integer, xs:short*) := { 1: 0 to 0x7FFF }
+return sum($m?*)
+      </test>
+      <result>
+         <assert-eq>536854528</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="MapType-091" covers-40="PR1501">
+      <description>Map coercion</description>
+      <created by="Christian Gruen" on="2025-01-22"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+let $m as map(xs:integer, xs:short*) := { 1: 0 to 0x8000 }
+return $m
+      </test>
+      <result>
+         <any-of>
+            <error code="XPTY0004"/>
+            <error code="FORG0001"/>
+         </any-of>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-092" covers-40="PR1501">
+      <description>Map coercion resulting in duplicates</description>
+      <created by="Michael Kay" on="2025-02-21"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+let $m as map(xs:float, xs:string) := { 1.0000000000001: "one", 1.0000000000002: "two" }
+return $m
+      </test>
+      <result>
+         <error code="XPTY0004"/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-093" covers-40="PR28">
+      <description>Map type after a sequence of inserts and removes (testing caching of type information)</description>
+      <created by="Michael Kay" on="2026-01-16"/>
+      <modified by="Michael Kay" on="2026-04-13" change="multiple let clauses require XP40+"/>
+      <dependency type="spec" value="XP40+ XQ31+"/>
+      <test>
+        let $m1 := map{"x":1, "y":2, "z":3}
+        let $b1 := $m1 instance of map(xs:string, xs:integer)
+        let $m2 := map:put($m1, "w", 4)
+        let $b2 := $m2 instance of map(xs:string, xs:integer)
+        let $m3 := map:remove($m1, "x")
+        let $b3 := $m3 instance of map(xs:string, xs:integer)
+        let $m4 := map:remove($m1, "a")
+        let $b4 := $m4 instance of map(xs:string, xs:integer)
+        let $b5 := $m4 instance of map(xs:string, xs:numeric)
+        let $m6 := map:put($m1, "a", 1.0e1)
+        let $b6 := $m6 instance of map(xs:string, xs:numeric)
+        let $m7 := map:put($m1, "a", true())
+        let $b7 := $m7 instance of map(xs:string, xs:numeric)
+        let $b8 := $m7 instance of map(xs:string, xs:anyAtomicType)
+        return ($b1, $b2, $b3, $b4, $b5, $b6, $b7, $b8)
+      </test>
+      <result>
+         <assert-deep-eq>true(), true(), true(), true(), true(), true(), false(), true()</assert-deep-eq>
+      </result>
+   </test-case>
+
+   <test-case name="MapType-094">
+      <description>Map incremental put with type information</description>
+      <created by="O'Neil Delpratt" on="2026-01-20"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <test>let $x := map:merge((1 to 20)!map{.:.})
+         return let $p := fold-left(
+         (21 to 26),
+         $x,
+         function($m, $k) {
+         map:put($m, $k, $k)  treat as map(xs:numeric, xs:numeric)})
+         return  map:size($p)</test>
+      <result>
+         <assert-deep-eq>26</assert-deep-eq>
+      </result>
+   </test-case>
+
+
+   <test-case name="MapType-095">
+      <description>Map incremental map:remove with type information</description>
+      <created by="O'Neil Delpratt" on="2026-01-20"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <test>let $x := map:merge((1 to 20)!map{.:.})
+         return let $p := fold-left(
+         (5 to 10),
+         $x,
+         function($m, $k) {
+         map:remove($m, $k)  treat as map(xs:numeric, xs:numeric)})
+         return $p?*</test>
+      <result>
+         <assert-deep-eq>1,2 , 3, 4, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   
+   <test-case name="MapType-096" covers-40="PR28">
+      <description>Map incremental put with duplicate keys - should fail</description>
+      <created by="O'Neil Delpratt" on="2026-01-20"/>
+      <modified by="Michael Kay" on="2026-04-13" change="multiple let clauses require XP40+"/>
+      <dependency type="spec" value="XP40+ XQ31+"/>
+      <test>let $m1 := map{1:1, 2:2, 3:3}
+         let $m2 := map{2:1, 3:2, 4:3}
+         let $m3 := map:merge((map:put($m1, 4, 5), $m2), map{ "duplicates": "reject" })
+      return map:size($m3)</test>
+      <result>
+         <error code="FOJS0003"/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-097" covers-40="PR28">
+      <description>Map incremental put with rule to replace duplicate keys</description>
+      <created by="O'Neil Delpratt" on="2026-01-20"/>
+      <modified by="Michael Kay" on="2026-04-13" change="multiple let clauses require XP40+"/>
+      <dependency type="spec" value="XP40+ XQ31+"/>
+      <test>let $m1 := map{1:1, 2:2, 3:3}
+         let $m2 := map{2:1, 3:2, 4:3}
+         let $m3 := map:merge((map:put($m1, 4, 5), $m2))
+         return map:size($m3)</test>
+      <result>
+         <assert-eq>4</assert-eq>
+      </result>
+   </test-case>
+   
+   
+   <test-case name="MapType-098" covers-40="PR28">
+      <description>Map incremental remove with rule to replace duplicate keys</description>
+      <created by="O'Neil Delpratt" on="2026-01-20"/>
+      <modified by="Michael Kay" on="2026-04-13" change="multiple let clauses require XP40+"/>
+      <dependency type="spec" value="XP40+ XQ31+"/>
+      <test>let $m1 := map{1:1, 2:2, 3:3}
+         let $m2 := map{2:1, 3:2, 4:3}
+         let $m3 := map:merge((map:remove($m1, 1), $m2))
+         return map:size($m3)</test>
+      <result>
+         <assert-eq>3</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-099" covers-40="PR28">
+      <description>Map incremental remove with rule to replace duplicate keys</description>
+      <created by="O'Neil Delpratt" on="2026-01-20"/>
+      <modified by="Michael Kay" on="2026-04-13" change="multiple let clauses require XP40+"/>
+      <dependency type="spec" value="XP40+ XQ31+"/>
+      <test>let $m1 := map{1:1, 2:2, 3:3}
+         let $m2 := map{2:1, 3:2, 4:3}
+         let $m3 := map:merge((map:remove($m1, 1), $m2), map{"duplicates": "use-last" })
+         return map:size($m3)</test>
+      <result>
+         <assert-eq>3</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-100" covers-40="PR28">
+      <description>Map incremental remove with rule to throw error for duplicate keys</description>
+      <created by="O'Neil Delpratt" on="2026-01-20"/>
+      <modified by="Michael Kay" on="2026-04-13" change="multiple let clauses require XP40+"/>
+      <dependency type="spec" value="XP40+ XQ31+"/>
+      <test>let $m1 := map{1:1, 2:2, 3:3}
+         let $m2 := map{2:1, 3:2, 4:3}
+         let $m3 := map:merge((map:remove($m1, 1), $m2), map{ "duplicates": "reject" })
+         return map:size($m3)</test>
+      <result>
+         <error code="FOJS0003"/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-101" covers-40="PR691">
+      <description>Enum type as map key type</description>
+      <created by="Michael Kay" on="2026-06-30"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>{'a':1, 'b':2, 'c':3} instance of map(enum('a', 'b', 'c'), xs:integer)</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapType-102">
+      <description>Saxon bug 7224</description>
+      <created by="Michael Kay after Gunther Rademacher" on="2026-08-25"/>
+      <dependency type="spec" value="XQ31+"/>
+      <test><![CDATA[
+   declare function local:f1($y as xs:string, $z as map(xs:string,item()*)) as xs:string {
+      if ($z instance of map(xs:string,xs:string)) then
+        local:f2($y, $z)
+      else
+        "42"
+    };
+
+   declare function local:f2($y as xs:string, $z as map(xs:string, xs:string)) as xs:string {
+      codepoints-to-string(
+        fold-left(1, string-to-codepoints("a"),
+          function ($u as xs:integer*, $v as xs:integer) as xs:integer* {
+            $u ! string-to-codepoints($z(codepoints-to-string(.)))
+          }
+        )
+      )
+   };
+
+   local:f1("a", map { "a": map { "b": "b" }, "c": "c" })         
+                 
+      ]]></test>
+      <result>
+         <assert-eq>"42"</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="MapType-103">
+      <description>Maps are not coerced to function(*).</description>
+      <created by="Christian Gruen" on="2026-10-01"/>
+      <dependency type="spec" value="XQ31+"/>
+      <test>let $f as function(*) := map { 'a': 1 } return $f instance of map(*)</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="MapType-104">
+      <description>Maps are not coerced to function(*).</description>
+      <created by="Christian Gruen" on="2026-10-01"/>
+      <dependency type="spec" value="XQ31+"/>
+      <test>declare function local:f($f as function(*)) { $f?a }; local:f(map { 'a': 1 })</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="MapType-105">
+      <description>Maps are not coerced to function(*).</description>
+      <created by="Christian Gruen" on="2026-10-01"/>
+      <dependency type="spec" value="XQ31+"/>
+      <test>let $f as function(*)* := (map { 'a': 1 }, map { 'b': 2 }) return $f?*</test>
+      <result>
+         <assert-deep-eq>1, 2</assert-deep-eq>
+      </result>
+   </test-case>
+
+   <test-case name="MapType-106">
+      <description>Instance checks of empty maps.</description>
+      <created by="Christian Gruen" on="2026-10-07"/>
+      <test>
+         map { } instance of map(xs:string, xs:integer),
+         map { } instance of map(xs:integer, xs:string)
+      </test>
+      <result>
+         <assert-deep-eq>true(), true()</assert-deep-eq>
+      </result>
+   </test-case>
+
+</test-set>

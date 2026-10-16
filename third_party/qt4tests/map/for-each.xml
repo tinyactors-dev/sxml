@@ -1,0 +1,317 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<test-set xmlns="http://www.w3.org/2010/09/qt-fots-catalog" name="map-for-each"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" covers="map-for-each">
+    <description>Tests for the map:for-each function introduced in XPath 3.1</description>
+    <link type="spec" document="http://www.w3.org/TR/xpath-functions-30/" idref="func-map-for-each"/>
+    <dependency type="spec" value="XP31+ XQ31+ XT30+"/>
+    <dependency type="feature" value="higherOrderFunctions"/>
+
+    <test-case name="map-for-each-001">
+        <description>Keys in empty map</description>
+        <created by="Michael Kay, Saxonica" on="2014-05-13"/>
+        <modified by="Michael Kay, Saxonica" on="2014-09-18" 
+                  change="All tests in this test set renamed (for-each-entry -- for-each)"/>
+        <environment ref="map"/>
+        <test>map:for-each(map{}, concat#2)</test>
+        <result>
+            <assert-empty/>
+        </result>
+    </test-case>
+    <test-case name="map-for-each-002">
+        <description>Keys in empty map</description>
+        <created by="Michael Kay, Saxonica" on="2014-05-13"/>
+        <environment ref="map"/>
+        <test>map:for-each(map:merge(()), function($k,$v){$k||$v})</test>
+        <result>
+            <assert-empty/>
+        </result>
+    </test-case>
+    <test-case name="map-for-each-003">
+        <description>Keys in singleton map</description>
+        <created by="Michael Kay, Saxonica" on="2014-05-13"/>
+        <environment ref="map"/>
+        <test>map:for-each(map{"a":1}, function($k,$v){$k})</test>
+        <result>
+            <all-of>
+                <assert-count>1</assert-count>
+                <assert-type>xs:string</assert-type>
+                <assert-eq>"a"</assert-eq>
+            </all-of>
+        </result>
+    </test-case>
+    <test-case name="map-for-each-004">
+        <description>Keys in singleton map</description>
+        <created by="Michael Kay, Saxonica" on="2014-05-13"/>
+        <environment ref="map"/>
+        <test>map:for-each(map:entry("a", "1"), function($k,$v){$k})</test>
+        <result>
+            <all-of>
+                <assert-count>1</assert-count>
+                <assert-type>xs:string</assert-type>
+                <assert-eq>"a"</assert-eq>
+            </all-of>
+        </result>
+    </test-case>
+    <test-case name="map-for-each-005">
+        <description>Keys in two-entry map</description>
+        <created by="Michael Kay, Saxonica" on="2014-05-13"/>
+        <environment ref="map"/>
+        <test>map:for-each(map:merge((map:entry("a", "1"), map:entry("b", 2))), function($k,$v){$k})</test>
+        <result>
+            <all-of>
+                <assert>$result = "a"</assert>
+                <assert>$result = "b"</assert>
+                <assert-count>2</assert-count>
+            </all-of>
+        </result>
+    </test-case>
+    <test-case name="map-for-each-006">
+        <description>Size of two-entry map</description>
+        <created by="Michael Kay, Saxonica" on="2014-05-13"/>
+        <environment ref="map"/>
+        <test>map:for-each(map{"a":1, "b":2}, function($k,$v){$k})</test>
+        <result>
+            <all-of>
+                <assert>$result = "a"</assert>
+                <assert>$result = "b"</assert>
+                <assert-count>2</assert-count>
+            </all-of>
+        </result>
+    </test-case>
+    <test-case name="map-for-each-007">
+        <description>Elimination of duplicates</description>
+        <created by="Michael Kay, Saxonica" on="2014-05-13"/>
+        <modified by="O'Neil Delpratt, Saxonica" on="2014-12-16" change="bug 27180: Added error code"/>
+        <environment ref="map"/>
+        <test>map:for-each(map{"a":1, "a":2}, function($k,$v){$k})</test>
+        <result>
+           <error code="XQDY0137"/>
+        </result>
+    </test-case>
+    <test-case name="map-for-each-008">
+        <description>Elimination of duplicates</description>
+        <created by="Michael Kay, Saxonica" on="2014-05-13"/>
+        <environment ref="map"/>
+        <test>map:for-each(map:merge((map:entry("a",1), map:entry("a",2))), function($k,$v){$k})</test>
+        <result>
+            <all-of>
+                <assert-count>1</assert-count>
+                <assert-type>xs:string</assert-type>
+                <assert-eq>"a"</assert-eq>
+            </all-of>
+        </result>
+    </test-case>
+    <test-case name="map-for-each-009">
+        <description>Keys after removing an entry</description>
+        <created by="Michael Kay, Saxonica" on="2014-05-13"/>
+        <environment ref="map"/>
+        <test>map:for-each(map:remove(map{"a":1,"b":2}, "b"), function($k,$v){$k})</test>
+        <result>
+            <all-of>
+                <assert-count>1</assert-count>
+                <assert-type>xs:string</assert-type>
+                <assert-eq>"a"</assert-eq>
+            </all-of>
+        </result>
+    </test-case>
+    <test-case name="map-for-each-010">
+        <description>Keys after removing the only entry</description>
+        <created by="Michael Kay, Saxonica" on="2014-05-13"/>
+        <environment ref="map"/>
+        <test>map:for-each(map:remove(map:entry(1,2),1), function($k,$v){$k})</test>
+        <result>
+            <assert-empty/>
+        </result>
+    </test-case>
+    <test-case name="map-for-each-011">
+        <description>Keys after removing the only two entries</description>
+        <created by="Michael Kay, Saxonica" on="2014-05-13"/>
+        <environment ref="map"/>
+        <test>map:for-each(map:remove(map:remove(map{"a":1,"b":2},"b"),"a"), function($k,$v){$k})</test>
+        <result>
+            <assert-empty/>
+        </result>
+    </test-case>
+    <test-case name="map-for-each-012">
+        <description>Keys after adding a NaN entry</description>
+        <created by="Michael Kay, Saxonica" on="2014-05-13"/>
+        <modified by="Michael Kay, Saxonica" on="2014-03-28" change="NaN is now allowed as a key value"/>
+        <environment ref="map"/>
+        <test>map:for-each(map{number('NaN'):1,"b":2}, function($k,$v){$k})</test>
+        <result>
+            <assert-count>2</assert-count>
+        </result>
+    </test-case>
+    <test-case name="map-for-each-013">
+        <description>Size after a null remove operation</description>
+        <created by="Michael Kay, Saxonica" on="2014-05-13"/>
+        <environment ref="map"/>
+        <test>map:for-each(map:remove(map{"a":1,"b":2}, "c"), function($k,$v){$k})</test>
+        <result>
+            <all-of>
+                <assert>$result = "a"</assert>
+                <assert>$result = "b"</assert>
+                <assert-count>2</assert-count>
+            </all-of>
+        </result>
+    </test-case>
+    <test-case name="map-for-each-014">
+        <description>Keys for a large map</description>
+        <created by="Michael Kay, Saxonica" on="2014-05-13"/>
+        <environment ref="map"/>
+        <test>map:for-each(map:merge(for $n in 1 to 500000 return map:entry($n, $n+1)), function($k,$v){$k})</test>
+        <result>
+            <all-of>
+                <assert>$result = 1</assert>
+                <assert>$result = 500000</assert>
+                <assert-count>500000</assert-count>
+            </all-of>
+        </result>
+    </test-case>
+    <test-case name="map-for-each-015">
+        <description>Access both key and value</description>
+        <created by="Michael Kay, Saxonica" on="2014-05-13"/>
+        <environment ref="map"/>
+        <test>map:for-each(map{"a":1, "b":2}, function($k,$v){$k||$v})</test>
+        <result>
+            <all-of>
+                <assert>$result = "a1"</assert>
+                <assert>$result = "b2"</assert>
+                <assert-count>2</assert-count>
+            </all-of>
+        </result>
+    </test-case>
+    <test-case name="map-for-each-016">
+        <description>Invert a map</description>
+        <created by="Michael Kay, Saxonica" on="2014-05-13"/>
+        <environment ref="map"/>
+        <test>map:merge(map:for-each(map{"a":1, "b":2}, function($k,$v){map{$v : $k}}))</test>
+        <result>
+            <all-of>
+                <assert>$result(1) eq "a"</assert>
+                <assert>$result(2) eq "b"</assert>
+                <assert-count>1</assert-count>
+            </all-of>
+        </result>
+    </test-case>
+    <test-case name="map-for-each-017">
+        <description>Convert a map to XML</description>
+        <created by="Michael Kay, Saxonica" on="2014-05-13"/>
+        <environment ref="map"/>
+        <dependency type="spec" value="XQ31+"/>
+        <test><![CDATA[<e>{map:for-each(map{"a":1, "b":2}, function($k,$v){attribute{$k}{$v}})}</e>]]></test>
+        <result>
+            <assert-xml><![CDATA[<e a="1" b="2"/>]]></assert-xml>
+        </result>
+    </test-case>
+    
+    <test-case name="map-for-each-401" covers-40="arity-coercion">
+        <description>Callback function has reduced arity</description>
+        <created by="Michael Kay, Saxonica" on="2023-05-20"/>
+        <environment ref="map"/>
+        <dependency type="spec" value="XQ40+"/>
+        <test><![CDATA[<e>{map:for-each(map{"a":1, "b":2}, function($k){attribute{$k}{'99'}})}</e>]]></test>
+        <result>
+            <assert-xml><![CDATA[<e a="99" b="99"/>]]></assert-xml>
+        </result>
+    </test-case>
+    
+    <test-case name="map-for-each-402" covers-40="arity-coercion">
+        <description>Callback function has reduced arity</description>
+        <created by="Michael Kay, Saxonica" on="2023-05-20"/>
+        <environment ref="map"/>
+        <dependency type="spec" value="XQ40+ XP40+"/>
+        <test>string-join(map:for-each(map{"a":1, "b":2, "c":3}, function(){'x'}))</test>
+        <result>
+            <assert-eq>"xxx"</assert-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-for-each-403" covers-40="arity-coercion">
+        <description>Callback function has increased arity</description>
+        <created by="Michael Kay, Saxonica" on="2023-05-20"/>
+        <modified by="Christian Gruen" on="2025-10-15"/>
+        <environment ref="map"/>
+        <dependency type="spec" value="XQ40+ XP40+"/>
+        <test>string-join(map:for-each(map{"a":1, "b":2, "c":3}, function($w, $x, $y, $z){'x'}))</test>
+        <result>
+            <error code="XPTY0004"/>
+        </result>
+    </test-case>
+    
+    <test-case name="map-for-each-403a" covers-40="PR2225">
+        <description>Callback function with positional argument</description>
+        <created by="Christian Gruen" on="2025-10-15"/>
+        <environment ref="map"/>
+        <dependency type="spec" value="XQ40+ XP40+"/>
+        <test>string-join(map:for-each(map{"a":1, "b":2, "c":3}, function($x, $y, $z){'x'}))</test>
+        <result>
+            <assert-string-value>xxx</assert-string-value>
+        </result>
+    </test-case>
+    
+    <test-case name="map-for-each-404" covers-40="arity-coercion">
+        <description>Callback function is a map, which has arity 1</description>
+        <created by="Michael Kay, Saxonica" on="2023-05-20"/>
+        <environment ref="map"/>
+        <dependency type="spec" value="XQ40+ XP40+"/>
+        <test>string-join(map:for-each(map{"a":1, "b":2, "c":3}, map{"b":"B", "c":"C"}))</test>
+        <result>
+            <any-of>
+                <assert-eq>"BC"</assert-eq>
+                <assert-eq>"CB"</assert-eq>
+            </any-of>
+        </result>
+    </test-case>
+    
+    <test-case name="map-for-each-405" covers-40="arity-coercion">
+        <description>Callback function is an array, which has arity 1</description>
+        <created by="Michael Kay, Saxonica" on="2023-05-20"/>
+        <environment ref="map"/>
+        <dependency type="spec" value="XQ40+ XP40+"/>
+        <test>sum(map:for-each(map{1:(), 2:(), 3:()}, [11, 22, 33]))</test>
+        <result>
+            <assert-eq>66</assert-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-for-each-410" covers-40="PR2225">
+        <description>Callback function with positional argument</description>
+        <created by="Christian Gruen" on="2025-10-15"/>
+        <dependency type="spec" value="XQ40+ XP40+"/>
+        <test>map:for-each({}, fn($k, $v, $p) {})</test>
+        <result>
+            <assert-empty/>
+        </result>
+    </test-case>
+ 
+    <test-case name="map-for-each-411" covers-40="PR2225">
+        <description>Callback function with positional argument</description>
+        <created by="Christian Gruen" on="2025-10-15"/>
+        <dependency type="spec" value="XQ40+ XP40+"/>
+        <test>map:for-each({ "a": 1, "b": 2, "c": 3 }, fn($k, $v, $p) { $p * 2 })</test>
+        <result>
+            <assert-deep-eq>2, 4, 6</assert-deep-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-for-each-412" covers-40="PR2225">
+        <description>Callback function with positional argument</description>
+        <created by="Christian Gruen" on="2025-10-15"/>
+        <dependency type="spec" value="XQ40+ XP40+"/>
+        <test>map:for-each(map:build(1 to 5), fn($k, $v, $p) { $k * $v * $p })</test>
+        <result>
+            <assert-deep-eq>1, 8, 27, 64, 125</assert-deep-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-for-each-413" covers-40="PR2225">
+        <description>Callback function with positional argument</description>
+        <created by="Christian Gruen" on="2025-10-15"/>
+        <dependency type="spec" value="XQ40+ XP40+"/>
+        <test>map:for-each(map:build(1 to 6, format-integer(?, 'w')), substring#3)</test>
+        <result>
+            <assert-deep-eq>'o', 'wo', 'ree', 'r', '', ''</assert-deep-eq>
+        </result>
+    </test-case>
+</test-set>

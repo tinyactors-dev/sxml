@@ -10,7 +10,7 @@ optionally followed by `# reason`. The script reports, and exits non-zero for:
   - test cases not applicable to the requested spec (default XP40).
 Spec applicability follows docs/QT4_CATALOG.md: a test-case `spec` dependency
 replaces the test-set one; no `spec` dependency means every spec.
-SUITE_DIRECTORY defaults to third_party/qt4tests (see tools/fetch-test-suites.sh).
+SUITE_DIRECTORY defaults to third_party/qt4tests (vendored, see tools/update-test-suites.sh).
 """
 
 import argparse
@@ -66,7 +66,7 @@ def main():
         repository_root, "third_party", "qt4tests"
     )
     if not os.path.exists(os.path.join(suite_directory, "catalog.xml")):
-        sys.exit(f"{suite_directory}: no catalog.xml; run tools/fetch-test-suites.sh")
+        sys.exit(f"{suite_directory}: no catalog.xml; see tools/update-test-suites.sh")
     language = arguments.spec[:2]
     version = int(arguments.spec[2:])
 

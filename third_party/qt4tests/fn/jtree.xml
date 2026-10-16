@@ -1,0 +1,298 @@
+<?xml version="1.0" encoding="us-ascii"?>
+<test-set xmlns="http://www.w3.org/2010/09/qt-fots-catalog" name="fn-jtree" covers-40="PR2031">
+   <description>Tests for the fn:jtree() function</description>
+
+
+   <dependency type="spec" value="XP40+ XQ40+"/>
+   
+   <test-case name="fn-jtree-001">
+      <description> JNode applied to an array </description>
+      <created by="Michael Kay" on="2025-06-16"/>
+      <test>fn:jtree([1,2,3]) => fn:jvalue()</test>
+      <result>
+         <all-of>
+            <assert-type>array(xs:integer)</assert-type>
+            <assert-deep-eq>[1,2,3]</assert-deep-eq>
+         </all-of>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-jtree-002">
+      <description> JNode applied to a map </description>
+      <created by="Michael Kay" on="2025-06-16"/>
+      <test>fn:jtree({"a": 1, "b": 2}) => fn:jvalue()</test>
+      <result>
+         <all-of>
+            <assert-type>map(xs:string, xs:integer)</assert-type>
+            <assert-deep-eq>{"a": 1, "b": 2}</assert-deep-eq>
+         </all-of>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-jtree-003">
+      <description> JNode applied to empty sequence </description>
+      <created by="Michael Kay" on="2025-06-16"/>
+      <modified by="Christian Gruen" on="2026-08-26" change="PR2840"/>
+      <test>fn:jtree(()) => fn:jvalue()</test>
+      <result>
+         <assert-empty/>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-jtree-004">
+      <description> JNode applied to a JNode - the JNode is wrapped a second time </description>
+      <created by="Michael Kay" on="2025-06-16"/>
+      <modified by="Christian Gruen" on="2026-08-26" change="PR2840"/>
+      <test>fn:jtree(fn:jtree([1,2,3])) => fn:jvalue() => fn:jvalue()</test>
+      <result>
+         <all-of>
+            <assert-type>array(xs:integer)</assert-type>
+            <assert-deep-eq>[1,2,3]</assert-deep-eq>
+         </all-of>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-jtree-005">
+      <description> JNode applied to an atomic value </description>
+      <created by="Michael Kay" on="2025-06-16"/>
+      <modified by="Christian Gruen" on="2026-08-26" change="PR2840"/>
+      <test>fn:jtree(22) => fn:jvalue()</test>
+      <result>
+         <assert-eq>22</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-jtree-006">
+      <description> JNode applied to an array - type of result</description>
+      <created by="Michael Kay" on="2025-06-16"/>
+      <modified by="Christian Gruen" on="2026-02-10" change="syntax updated"/>
+      <test>fn:jtree([1,2,3]) instance of jnode(*, array(xs:integer))</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-jtree-007">
+      <description> JNode applied to a map - type of result</description>
+      <created by="Michael Kay" on="2025-06-16"/>
+      <modified by="Christian Gruen" on="2026-02-10" change="syntax updated"/>
+      <test>fn:jtree({"a":1, "b": 2}) instance of jnode(*, map(xs:string, xs:integer))</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-jtree-008">
+      <description> JNode applied to an array - type of result</description>
+      <created by="Michael Kay" on="2025-06-16"/>
+      <test>fn:jtree([1,2,3]) instance of jnode()</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-jtree-009">
+      <description> JNode applied to a map - type of result</description>
+      <created by="Michael Kay" on="2025-06-16"/>
+      <test>fn:jtree({"a":1, "b": 2}) instance of jnode()</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-jtree-010">
+      <description> JNode coerced to atomic value</description>
+      <created by="Michael Kay" on="2025-06-16"/>
+      <test>fn:jtree([22]) gt 21</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-jtree-011">
+      <description> JNode coerced to atomic value</description>
+      <created by="Michael Kay" on="2025-06-16"/>
+      <test>fn:jtree([22]) + 21</test>
+      <result>
+         <assert-eq>43</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-jtree-012">
+      <description> JNode coerced to array</description>
+      <created by="Michael Kay" on="2025-06-16"/>
+      <test>fn:jtree([22, 23]) => array:size()</test>
+      <result>
+         <assert-eq>2</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-jtree-013">
+      <description> JNode coerced to map</description>
+      <created by="Michael Kay" on="2025-06-16"/>
+      <test>fn:jtree({"a":1, "b":2}) => map:size()</test>
+      <result>
+         <assert-eq>2</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-jtree-014">
+      <description> Parent of root JNode is absent </description>
+      <created by="Michael Kay" on="2025-06-16"/>
+      <test>fn:jtree({}) / parent::*</test>
+      <result>
+         <assert-empty/>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-jtree-015">
+      <description> Selector of root JNode is absent </description>
+      <created by="Michael Kay" on="2025-06-16"/>
+      <test>fn:jtree({"a":1, "b":2}) => fn:jkey()</test>
+      <result>
+         <assert-empty/>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-jtree-017">
+      <description> Array with one child: selector </description>
+      <created by="Michael Kay" on="2025-06-16"/>
+      <test>fn:jtree([12]) / child::* => fn:jkey()</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-jtree-019">
+      <description> Array with one child: parent </description>
+      <created by="Michael Kay" on="2025-06-16"/>
+      <test>fn:jtree([12]) / child::* / parent::* => fn:jvalue()</test>
+      <result>
+         <assert-deep-eq>[12]</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-jtree-020">
+      <description> Array with one child: value </description>
+      <created by="Michael Kay" on="2025-06-16"/>
+      <test>fn:jtree([12]) / child::* => fn:jvalue()</test>
+      <result>
+         <assert-deep-eq>12</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-jtree-021">
+      <description> Array with one child: implicit atomization </description>
+      <created by="Michael Kay" on="2025-06-16"/>
+      <test>fn:jtree([12]) / child::* + 2</test>
+      <result>
+         <assert-deep-eq>14</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-jtree-022">
+      <description> Map with one child: selector </description>
+      <created by="Michael Kay" on="2025-06-16"/>
+      <test>fn:jtree({"a":1}) / child::* => fn:jkey()</test>
+      <result>
+         <assert-eq>"a"</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-jtree-024">
+      <description> Map with one child: parent </description>
+      <created by="Michael Kay" on="2025-06-16"/>
+      <test>fn:jtree({"a":1}) / child::* / parent::* => fn:jvalue()</test>
+      <result>
+         <assert-deep-eq>{"a":1}</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-jtree-025">
+      <description> Map with one child: value </description>
+      <created by="Michael Kay" on="2025-06-16"/>
+      <test>fn:jtree({"a":13}) / child::* => fn:jvalue()</test>
+      <result>
+         <assert-deep-eq>13</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-jtree-026">
+      <description> Map with one child: implicit atomization </description>
+      <created by="Michael Kay" on="2025-06-16"/>
+      <test>fn:jtree({"a":13}) / child::* + 2</test>
+      <result>
+         <assert-deep-eq>15</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-jtree-027" covers-40="PR2840">
+      <description> Apply to atomic value</description>
+      <created by="Michael Kay" on="2025-06-16"/>
+      <test>fn:jtree(42) => jvalue()</test>
+      <result>
+         <assert-eq>42</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-jtree-028" covers-40="PR2840">
+      <description> Apply to function item </description>
+      <created by="Michael Kay" on="2025-06-16"/>
+      <test>fn:jtree(fn:abs#1) => jvalue() => apply([-42])</test>
+      <result>
+         <assert-eq>42</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-jtree-029" covers-40="PR2840">
+      <description> Apply to XNode </description>
+      <created by="Michael Kay" on="2025-06-16"/>
+      <test><![CDATA[(fn:jtree(parse-xml("<a id='42'/>")) => jvalue()) -> //@id ]]></test>
+      <result>
+         <assert-eq>"42"</assert-eq>
+      </result>
+   </test-case>
+
+
+
+   <test-case name="fn-jtree-030" covers-40="PR2840">
+      <description>Evaluation of fn:jtree with arbitrary input.</description>
+      <created by="Christian Gruen" on="2026-10-01"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>jtree(1) ! (jvalue(.), . instance of jnode())</test>
+      <result>
+         <assert-deep-eq>1, true()</assert-deep-eq>
+      </result>
+   </test-case>
+
+   <test-case name="fn-jtree-031" covers-40="PR2840">
+      <description>Evaluation of fn:jtree with arbitrary input.</description>
+      <created by="Christian Gruen" on="2026-10-01"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>jtree(()) ! (empty(jvalue(.)), empty(jkey(.)))</test>
+      <result>
+         <assert-deep-eq>true(), true()</assert-deep-eq>
+      </result>
+   </test-case>
+
+   <test-case name="fn-jtree-032" covers-40="PR2840">
+      <description>Evaluation of fn:jtree with arbitrary input.</description>
+      <created by="Christian Gruen" on="2026-10-01"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>jtree((1, 'a'))/* ! (jkey(.), jvalue(.))</test>
+      <result>
+         <assert-deep-eq>1, 1, 2, "a"</assert-deep-eq>
+      </result>
+   </test-case>
+
+   <test-case name="fn-jtree-033" covers-40="PR2840">
+      <description>Evaluation of fn:jtree with arbitrary input.</description>
+      <created by="Christian Gruen" on="2026-10-01"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[jtree(parse-xml('<a/>')/a) ! (jvalue(.) instance of element(a))]]></test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+</test-set>

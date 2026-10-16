@@ -1,0 +1,213 @@
+<?xml version="1.0" encoding="us-ascii"?>
+<test-set xmlns="http://www.w3.org/2010/09/qt-fots-catalog" name="fn-divide-decimals" covers-40="PR1671">
+    <description>Tests for the fn:divide-decimals function</description>
+    
+    <dependency type="spec" value="XP40+ XQ40+"/>
+    
+ 
+    <test-case name="divide-decimals-001">
+        <description>Basic test that the function exists and returns the right type</description>
+        <created by="Michael Kay" on="2025-01-01"/>
+        <test>divide-decimals(100, 30, 2)</test>
+        <result>
+            <all-of>
+                <assert-type>record(quotient as xs:decimal, remainder as xs:decimal)</assert-type>
+                <assert-deep-eq>{"quotient": 3.33, "remainder": 0.1}</assert-deep-eq>
+            </all-of>
+        </result>
+    </test-case>
+    
+    <test-case name="divide-decimals-002">
+        <description>Value less than 1</description>
+        <created by="Michael Kay" on="2025-01-01"/>
+        <test>divide-decimals(100, 300, 2)</test>
+        <result>
+            <assert-deep-eq>{"quotient": 0.33, "remainder": 1}</assert-deep-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="divide-decimals-003">
+        <description>Value less than 0.1</description>
+        <created by="Michael Kay" on="2025-01-01"/>
+        <test>divide-decimals(10, 300, 2)</test>
+        <result>
+            <assert-deep-eq>{"quotient": 0.03, "remainder": 1}</assert-deep-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="divide-decimals-004">
+        <description>Value less than 0.01</description>
+        <created by="Michael Kay" on="2025-01-01"/>
+        <test>divide-decimals(1, 300, 2)</test>
+        <result>
+            <assert-deep-eq>{"quotient": 0, "remainder": 1.00}</assert-deep-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="divide-decimals-005">
+        <description>Value is an integer</description>
+        <created by="Michael Kay" on="2025-01-01"/>
+        <test>divide-decimals(300, 10, 5)</test>
+        <result>
+            <assert-deep-eq>{"quotient": 30, "remainder": 0}</assert-deep-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="divide-decimals-006">
+        <description>Zero decimal places</description>
+        <created by="Michael Kay" on="2025-01-01"/>
+        <test>divide-decimals(100, 30, 0)</test>
+        <result>
+            <assert-deep-eq>{"quotient": 3, "remainder": 10}</assert-deep-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="divide-decimals-007">
+        <description>Negative precision</description>
+        <created by="Michael Kay" on="2025-01-01"/>
+        <test>divide-decimals(1000, 25, -1)</test>
+        <result>
+            <assert-deep-eq>{"quotient": 40, "remainder": 0}</assert-deep-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="divide-decimals-008">
+        <description>Negative precision</description>
+        <created by="Michael Kay" on="2025-01-01"/>
+        <test>divide-decimals(420, 10, -1)</test>
+        <result>
+            <assert-deep-eq>{"quotient": 40, "remainder": 20}</assert-deep-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="divide-decimals-009">
+        <description>One seventh</description>
+        <created by="Michael Kay" on="2025-01-01"/>
+        <test>divide-decimals(100, 700, 6)</test>
+        <result>
+            <assert-deep-eq>{"quotient": 0.142857, "remainder": 0.0001}</assert-deep-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="divide-decimals-010">
+        <description>Negative numerator</description>
+        <created by="Michael Kay" on="2025-01-01"/>
+        <test>divide-decimals(-10, 3)</test>
+        <result>
+            <assert-deep-eq>{"quotient": -3, "remainder": -1}</assert-deep-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="divide-decimals-011">
+        <description>Negative denominator</description>
+        <created by="Michael Kay" on="2025-01-01"/>
+        <test>divide-decimals(10, -3)</test>
+        <result>
+            <assert-deep-eq>{"quotient": -3, "remainder": 1}</assert-deep-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="divide-decimals-012">
+        <description>Negative numerator and denominator</description>
+        <created by="Michael Kay" on="2025-01-01"/>
+        <test>divide-decimals(-10, -3)</test>
+        <result>
+            <assert-deep-eq>{"quotient": 3, "remainder": -1}</assert-deep-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="divide-decimals-013">
+        <description>Division by zero</description>
+        <created by="Michael Kay" on="2025-01-01"/>
+        <test>divide-decimals(29, 0)</test>
+        <result>
+            <error code="FOAR0001"/>
+        </result>
+    </test-case>
+    
+    <test-case name="divide-decimals-014">
+        <description>Division by zero</description>
+        <created by="Michael Kay" on="2025-01-01"/>
+        <test>divide-decimals(29, 0, 18)</test>
+        <result>
+            <error code="FOAR0001"/>
+        </result>
+    </test-case>
+    
+    <test-case name="divide-decimals-015" covers-40="PR1711">
+      <description>divide-decimals- crazy positive precision</description>
+      <created by="Michael Kay" on="2025-01-21"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>divide-decimals(10, 3, 100_000)</test>
+      <result>
+         <assert>$result?quotient gt 3.3333333 and $result?quotient lt 3.3333334</assert>
+      </result>
+   </test-case>
+   
+   <test-case name="divide-decimals-016" covers-40="PR1711">
+      <description>divide-decimals - crazy positive precision, decimal division</description>
+      <created by="Michael Kay" on="2025-01-21"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>divide-decimals(20, 10, 100_000)</test>
+      <result>
+         <assert>$result?quotient eq 2</assert>
+      </result>
+   </test-case>
+   
+   <test-case name="divide-decimals-017" covers-40="PR1711">
+      <description>divide-decimals - crazy positive precision, divide by zero</description>
+      <created by="Michael Kay" on="2025-01-21"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>divide-decimals(18, 0, 100_000)</test>
+      <result>
+         <error code="FOAR0001"/>
+      </result>
+   </test-case>
+    
+   <test-case name="divide-decimals-018" covers-40="PR1711">
+      <description>divide-decimals - crazy negative precision</description>
+      <created by="Michael Kay" on="2025-01-21"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>divide-decimals(1.1, 100_000, -100_000_000)</test>
+      <result>
+         <assert>$result?quotient = 0</assert>
+      </result>
+   </test-case>
+ 
+   <test-case name="divide-decimals-019" covers-40="PR2833">
+      <description>Test the fn:division-record type and its constructor.</description>
+      <created by="Christian Gruen" on="2026-08-19"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>divide-decimals(100, 30, 2)</test>
+      <result>
+         <assert-type>fn:division-record</assert-type>
+      </result>
+   </test-case>
+ 
+   <test-case name="divide-decimals-020" covers-40="PR2833">
+      <description>Test the fn:division-record type and its coercion from a map.</description>
+      <created by="Christian Gruen" on="2026-08-19"/>
+      <modified by="Christian Gruen" on="2026-09-01" change="PR2768"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>let $r as fn:division-record := { 'quotient': 3.33, 'remainder': 0.1 } return $r</test>
+      <result>
+         <all-of>
+            <assert-type>fn:division-record</assert-type>
+            <assert-deep-eq>{"quotient": 3.33, "remainder": 0.1}</assert-deep-eq>
+         </all-of>
+      </result>
+   </test-case>
+ 
+   <test-case name="divide-decimals-021" covers-40="PR2833">
+      <description>Test the fn:division-record type and its coercion from a map.</description>
+      <created by="Christian Gruen" on="2026-08-19"/>
+      <modified by="Christian Gruen" on="2026-09-01" change="PR2768"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>let $r as fn:division-record := { 'quotient': 1 } return $r</test>
+      <result>
+         <error code="XPTY0004"/>
+      </result>
+   </test-case>
+ 
+    
+</test-set>

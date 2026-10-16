@@ -1,0 +1,243 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<test-set xmlns="http://www.w3.org/2010/09/qt-fots-catalog" name="fn-transitive-closure"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" covers-40="PR521 PR761">
+    <description>
+        Tests for the fn:transitive-closure function introduced in XPath 4.0.
+        All tests rewritten 2023-11-22 to reflect the revised specification introduced by PR 761
+    </description>
+    <link type="spec" document="http://www.w3.org/TR/xpath-functions-30/" idref="func-transitive-closure"/>
+    <dependency type="spec" value="XP40+ XQ40+"/>
+    <dependency type="feature" value="higherOrderFunctions"/>
+    
+    <environment name="trans-A">
+        <source role="." file="transitive-closure/xpath-grammar.xml"/>
+    </environment>
+
+    <test-case name="trans-closure-001">
+        <description>Empty sequence as input</description>
+        <created by="Michael Kay" on="2023-11-22"/>
+        <environment ref="trans-A"/>
+        <test>transitive-closure((), identity#1)</test>
+        <result>
+            <assert-empty/>
+        </result>
+    </test-case>
+    
+    <test-case name="trans-closure-002">
+        <description>Closure of identity function</description>
+        <created by="Michael Kay" on="2023-11-22"/>       
+        <environment ref="trans-A"/>
+        <test>transitive-closure(., identity#1)</test>
+        <result>
+            <assert>$result/Q{http://www.w3.org/2001/03/XPath/grammar}grammar</assert>
+        </result>
+    </test-case>
+    
+    <test-case name="trans-closure-003">
+        <description>Closure over @ref element references</description>
+        <created by="Michael Kay" on="2023-11-22"/>       
+        <environment ref="trans-A"/>
+        <test>(//*:production[@name="VarRef"] =!> transitive-closure(
+                    function($prod){root($prod)//*:production[@name = $prod//*:ref/@name]}))
+                    /@name
+               => string-join(' ')
+        </test>
+        <result>
+            <assert-eq>"VarName _QName_or_EQName EQName QName FunctionQName"</assert-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="trans-closure-003a">
+        <description>Closure over @ref element references - test XQuery reference implementation</description>
+        <created by="Michael Kay" on="2023-11-22"/>       
+        <environment ref="trans-A"/>
+        <dependency type="spec" value="XQ40+"/>
+        <test>
+            declare %private function local:tc-inclusive(
+              $nodes as node()*,
+              $step as (function(node()) as node()*)	
+            ) as node()* {
+              let $nextStep := $nodes/$step(.)
+              let $newNodes := $nextStep except $nodes
+              return if (exists($newNodes))
+                     then $nodes | local:tc-inclusive($newNodes, $step)
+                     else $nodes
+            };
+            declare function local:transitive-closure (
+              $node  as node(),
+              $step as (function(node()) as node()*)	
+            ) as node()* {
+              local:tc-inclusive($node/$step(.), $step)
+            };
+
+            (//*:production[@name="VarRef"] =!> local:transitive-closure(
+                  function($prod){root($prod)//*:production[@name = $prod//*:ref/@name]})
+                  )/@name
+            => string-join(' ')
+        </test>
+        <result>
+            <assert-eq>"VarName _QName_or_EQName EQName QName FunctionQName"</assert-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="trans-closure-004">
+        <description>Closure over @ref element references</description>
+        <created by="Michael Kay" on="2023-11-22"/>       
+        <environment ref="trans-A"/>
+        <test>(//*:production[@name="NumericLiteral"] =!> transitive-closure(
+            function($prod){root($prod)//(*:production|*:token)[@name = $prod//*:ref/@name]})
+              )/@name
+            => string-join(' ')
+        </test>
+        <result>
+            <assert-eq>"IntegerLiteral HexIntegerLiteral BinaryIntegerLiteral DecimalLiteral DoubleLiteral Digits DecDigit HexDigits HexDigit BinaryDigits BinaryDigit"</assert-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="trans-closure-004a">
+        <description>Closure over @ref element references - test XQuery reference implementation</description>
+        <created by="Michael Kay" on="2023-11-22"/>       
+        <environment ref="trans-A"/>
+        <dependency type="spec" value="XQ40+"/>
+        <test>
+            declare %private function local:tc-inclusive(
+              $nodes as node()*,
+              $step as (function(node()) as node()*)	
+            ) as node()* {
+              let $nextStep := $nodes/$step(.)
+              let $newNodes := $nextStep except $nodes
+              return if (exists($newNodes))
+                     then $nodes | local:tc-inclusive($newNodes, $step)
+                     else $nodes
+            };
+            declare function local:transitive-closure (
+              $node  as node(),
+              $step as (function(node()) as node()*)	
+            ) as node()* {
+              local:tc-inclusive($node/$step(.), $step)
+            };
+            
+            
+            (//*:production[@name="NumericLiteral"] =!> local:transitive-closure(
+                 function($prod){root($prod)//(*:production|*:token)[@name = $prod//*:ref/@name]})
+            )/@name
+            => string-join(' ')
+        </test>
+        <result>
+            <assert-eq>"IntegerLiteral HexIntegerLiteral BinaryIntegerLiteral DecimalLiteral DoubleLiteral Digits DecDigit HexDigits HexDigit BinaryDigits BinaryDigit"</assert-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="trans-closure-005">
+        <description>Example from spec</description>
+        <created by="Michael Kay" on="2023-11-22"/>       
+        <test><![CDATA[let $data := parse-xml('
+            <doc>
+                <person id="0"/>
+                <person id="1" manager="0"/>
+                <person id="2" manager="0"/>
+                <person id="3" manager="2"/>
+                <person id="4" manager="2"/>
+                <person id="5" manager="1"/>
+                <person id="6" manager="3"/>
+                <person id="7" manager="6"/>
+                <person id="8" manager="6"/>
+            </doc>')
+            return transitive-closure($data//person[@id='2'], 
+                                      function($p){$data//person[@manager=$p/@id]})
+                    /string(@id)               
+        ]]></test>
+        <result>
+            <assert-deep-eq>("3", "4", "6", "7", "8")</assert-deep-eq>
+        </result>
+    </test-case>
+    
+ 
+    
+    <test-case name="trans-closure-008">
+        <description>Example from spec</description>
+        <created by="Michael Kay" on="2023-11-22"/>       
+        <test><![CDATA[let $data := parse-xml('
+            <doc>
+                <person id="0"/>
+                <person id="1" manager="0"/>
+                <person id="2" manager="0"/>
+                <person id="3" manager="2"/>
+                <person id="4" manager="2"/>
+                <person id="5" manager="1"/>
+                <person id="6" manager="3"/>
+                <person id="7" manager="6"/>
+                <person id="8" manager="6"/>
+            </doc>')
+            return transitive-closure($data, function{child::*})/@id/string()               
+        ]]></test>
+        <result>
+            <assert-deep-eq>("0", "1", "2", "3", "4", "5", "6", "7", "8")</assert-deep-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="trans-closure-009">
+        <description>Cycles are not a problem</description>
+        <created by="Michael Kay" on="2023-11-22"/>       
+        <test><![CDATA[let $data := parse-xml('
+            <doc>
+                <person id="0"/>
+                <person id="1" manager="0"/>
+                <person id="2" manager="0"/>
+                <person id="3" manager="2"/>
+                <person id="4" manager="2"/>
+                <person id="5" manager="1"/>
+                <person id="6" manager="3"/>
+                <person id="7" manager="6"/>
+                <person id="8" manager="6"/>
+            </doc>')
+            return transitive-closure($data//person[@id='4'], function{../child::*})/@id/string()               
+        ]]></test>
+        <result>
+            <assert-deep-eq>("0", "1", "2", "3", "4", "5", "6", "7", "8")</assert-deep-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="trans-closure-025">
+        <description>Example from spec, adapted to JNodes</description>
+        <created by="Michael Kay" on="2025-08-04"/> 
+        <modified by="Michael Kay" on="2026-02-11" change="JNode selector syntax changed"/> 
+        <modified by="Christian Gruen" on="2026-03-05" change="PR2413"/>
+        <modified by="Christian Gruen" on="2026-06-23" change="PR2667"/>
+        <test><![CDATA[
+let $data := parse-json('[ { "id": 0 },
+  { "id": 1, "manager": 0 },
+  { "id": 2, "manager": 0 },
+  { "id": 3, "manager": 2 },
+  { "id": 4, "manager": 2 },
+  { "id": 5, "manager": 1 },
+  { "id": 6, "manager": 3 },
+  { "id": 7, "manager": 6 },
+  { "id": 8, "manager": 6 }
+]') => jtree()  
+return transitive-closure(
+  $data//jnode(*, map(*))[id = 2], 
+  fn($p) { $data//jnode(*, map(*))[manager = $p/id] }
+) ! string(id)
+        ]]></test>
+        <result>
+            <assert-deep-eq>("3", "4", "6", "7", "8")</assert-deep-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="trans-closure-903">
+        <description>Apply result to non-node</description>
+        <created by="Michael Kay" on="2023-11-22"/>
+        <dependency type="spec" value="XQ40+"/>
+        <test><![CDATA[
+            transitive-closure(42, root#1)            
+        ]]></test>
+        <result>
+            <error code="XPTY0004"/>
+        </result>
+    </test-case>
+    
+ 
+ 
+
+</test-set>

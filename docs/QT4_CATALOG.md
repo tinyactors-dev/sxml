@@ -2,7 +2,7 @@
 
 A reference for writing the conformance test driver. It covers the W3C QT4
 test suite (`qt4cg/qt4tests`) and gives an outline of the XSLT 4.0 suite
-(`qt4cg/xslt40-test`). Both are fetched by `tools/fetch-test-suites.sh` into
+(`qt4cg/xslt40-test`). Both are vendored by `tools/update-test-suites.sh` into
 `third_party/` at the commits pinned in decision D13. The authoritative
 definition is `third_party/qt4tests/catalog-schema.xsd` together with
 `guide/running.html`.

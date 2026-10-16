@@ -4,6 +4,8 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- Conformance suites vendored under `third_party/` (D13 revised);
+  `tools/update-test-suites.sh` replaces the fetch script.
 - 0.1–0.4 done: CMake presets `debug`, `debug-gcc`, `release`, `msvc`, `wasm`
   (D14); test runner with one executable per module (D16); `tools/lint.sh`
   with clang-tidy and ast-grep rules (D17); CI workflow (D18, not yet run on

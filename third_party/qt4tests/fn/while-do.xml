@@ -1,0 +1,351 @@
+<test-set xmlns="http://www.w3.org/2010/09/qt-fots-catalog" name="fn-while-do" covers-40="PR962">
+  <description>Tests for the fn:while-do function</description>
+  
+  <dependency type="spec" value="XP40+ XQ40+"/>
+
+  <test-case name="while-do-001">
+    <description>Test successful at first call (no error)</description>
+    <created by="Christian Gruen" on="2022-10-13"/>
+    <test><![CDATA[while-do(1, not#1, function($_) { error() })]]></test>
+    <result>
+      <assert-eq>1</assert-eq>
+    </result>
+  </test-case>
+  
+  <test-case name="while-do-002">
+    <description>Test fails</description>
+    <created by="Christian Gruen" on="2022-10-13"/>
+    <test><![CDATA[while-do(1, boolean#1, function($_) { error() })]]></test>
+    <result>
+      <error code="FOER0000"/>
+    </result>
+  </test-case>
+  
+  <test-case name="while-do-003">
+    <description>Test successful at first call</description>
+    <created by="Christian Gruen" on="2022-10-13"/>
+    <test><![CDATA[while-do(1, empty#1, identity#1)]]></test>
+    <result>
+      <assert-eq>1</assert-eq>
+    </result>
+  </test-case>
+  
+  <test-case name="while-do-004">
+    <description>One iteration, return string of empty sequence</description>
+    <created by="Christian Gruen" on="2022-10-13"/>
+    <test><![CDATA[while-do((), empty#1, string#1)]]></test>
+    <result>
+      <assert-string-value/>
+    </result>
+  </test-case>
+  
+  <test-case name="while-do-005">
+    <description>Skip numbers smaller than 23</description>
+    <created by="Christian Gruen" on="2022-10-13"/>
+    <test><![CDATA[while-do((21 to 24), function($s) { head($s) < 23 }, tail#1)]]></test>
+    <result>
+      <assert-deep-eq>23, 24</assert-deep-eq>
+    </result>
+  </test-case>
+  
+  <test-case name="while-do-006">
+    <description>Decrement integers in sequence until sum is small enough</description>
+    <created by="Christian Gruen" on="2022-10-13"/>
+    <test><![CDATA[
+      while-do((6 to 8), function($s) { sum($s) > 10 }, function($s) { $s ! (. - 1) })
+    ]]></test>
+    <result>
+      <assert-deep-eq>2, 3, 4</assert-deep-eq>
+    </result>
+  </test-case>
+  
+  <test-case name="while-do-007">
+    <description>Skip items of a sequence until one of two conditions is met</description>
+    <created by="Christian Gruen" on="2022-10-13"/>
+    <test><![CDATA[
+      while-do(
+        reverse(1 to 100),
+        function($s) { sum($s) > 20 or head($s) > 4 },
+        function($s) { tail($s) }
+      )
+    ]]></test>
+    <result>
+      <assert-deep-eq>4, 3, 2, 1</assert-deep-eq>
+    </result>
+  </test-case>
+  
+  <test-case name="while-do-008">
+    <description>Increment integer until limit is reached</description>
+    <created by="Christian Gruen" on="2022-10-13"/>
+    <test><![CDATA[
+      while-do(1, function($x) { $x < 10000 }, function($x) { $x + 1 })
+    ]]></test>
+    <result>
+      <assert-eq>10000</assert-eq>
+    </result>
+  </test-case>
+  
+  <test-case name="while-do-009">
+    <description>Double integer value until limit is reached</description>
+    <created by="Christian Gruen" on="2022-10-13"/>
+    <test><![CDATA[
+      while-do(2, function($x) { $x < 1000 }, function($x) { $x * $x })
+    ]]></test>
+    <result>
+      <assert-eq>65536</assert-eq>
+    </result>
+  </test-case>
+  
+  <test-case name="while-do-010">
+    <description>Double length of sequence until limit is reached</description>
+    <created by="Christian Gruen" on="2022-10-13"/>
+    <test><![CDATA[
+      while-do(1, function($x) { count($x) < 3 }, function($x) { $x, $x })
+    ]]></test>
+    <result>
+      <assert-deep-eq>1, 1, 1, 1</assert-deep-eq>
+    </result>
+  </test-case>
+  
+  <test-case name="while-do-011">
+    <description>Drop first and last items of a sequence</description>
+    <created by="Christian Gruen" on="2022-10-13"/>
+    <test><![CDATA[
+      while-do(
+        (1 to 100),
+        function($s) { $s[last()] - $s[1] > 1 },
+        function($s) { subsequence($s, 2, count($s) - 2) }
+      )
+    ]]></test>
+    <result>
+      <assert-deep-eq>50, 51</assert-deep-eq>
+    </result>
+  </test-case>
+  
+  <test-case name="while-do-012">
+    <description>Swap numeric type of item</description>
+    <created by="Christian Gruen" on="2022-10-13"/>
+    <test><![CDATA[
+      while-do(
+        1e0,
+        function($x) { $x instance of xs:float },
+        function($x) { if($x instance of xs:double) then xs:float($x) else xs:double($x) }
+      )
+    ]]></test>
+    <result>
+      <assert-eq>1</assert-eq>
+    </result>
+  </test-case>
+  
+  <test-case name="while-do-013">
+    <description>Iteratively change numeric type of item</description>
+    <created by="Christian Gruen" on="2022-10-13"/>
+    <test><![CDATA[
+      while-do(
+        1,
+        function($x) { not($x instance of xs:byte) },
+        function($x) { if($x instance of xs:short) then xs:byte($x) else xs:short($x) }
+      )
+    ]]></test>
+    <result>
+      <assert-eq>1</assert-eq>
+    </result>
+  </test-case>
+  
+  <test-case name="while-do-014">
+    <description>Remove characters from a string until searched character is not found</description>
+    <created by="Christian Gruen" on="2022-10-13"/>
+    <test><![CDATA[
+      while-do(
+        map { 'string': 'muckanaghederdauhaulia', 'remove': 'a' },
+        function($x) { characters($x?string) = $x?remove },
+        function($x) { map {
+          'string': replace($x?string, $x?remove, ''),
+          'remove': codepoints-to-string(string-to-codepoints($x?remove) ! (. + 2))
+        } }
+      )?string
+    ]]></test>
+    <result>
+      <assert-string-value>unhdrduhul</assert-string-value>
+    </result>
+  </test-case>
+  
+  <test-case name="while-do-015">
+    <description>Find first non-existing number in a sequence</description>
+    <created by="Christian Gruen" on="2022-10-13"/>
+    <test><![CDATA[
+      let $s := (1 to 1000)
+      return while-do(1, function($x) { $x = $s }, function($x) { $x + 1 })
+    ]]></test>
+    <result>
+      <assert-eq>1001</assert-eq>
+    </result>
+  </test-case>
+  
+  <test-case name="while-do-016">
+    <description>Compute square root</description>
+    <created by="Christian Gruen" on="2022-10-13"/>
+    <test><![CDATA[
+      let $i := 3936256
+      return while-do(
+        $i,
+        function($x) { abs($x * $x - $i) >= 0.0000000001 },
+        function($x) { ($x + $i div $x) div 2 }
+      ) => round()
+    ]]></test>
+    <result>
+      <assert-eq>1984</assert-eq>
+    </result>
+  </test-case>
+  
+  <test-case name="while-do-017" covers-40="PR254">
+    <description>Static predicate (1)</description>
+    <created by="Christian Gruen" on="2023-11-18"/>
+    <test><![CDATA[while-do(1, false#0, identity#1)]]></test>
+    <result>
+      <assert-eq>1</assert-eq>
+    </result>
+  </test-case>
+  <test-case name="while-do-018" covers-40="PR254">
+    <description>Static predicate (2)</description>
+    <created by="Christian Gruen" on="2023-11-18"/>
+    <test><![CDATA[while-do((1, 2), false#0, identity#1)]]></test>
+    <result>
+      <assert-deep-eq>1, 2</assert-deep-eq>
+    </result>
+  </test-case>
+  
+  <test-case name="while-do-019" covers-40="PR828">
+    <description>Positional argument, static action</description>
+    <created by="Christian Gruen" on="2023-11-18"/>
+    <test><![CDATA[head(while-do((1, 2), fn($x, $p) { $p < 2 }, identity#1))]]></test>
+    <result>
+      <assert-eq>1</assert-eq>
+    </result>
+  </test-case>
+  
+  <test-case name="while-do-020" covers-40="PR828">
+    <description>Positional argument, dynamic action</description>
+    <created by="Christian Gruen" on="2023-11-18"/>
+    <test><![CDATA[head(while-do((1, 2), fn($x, $p) { $p < 2 }, fn($s as xs:integer+) { $s[2], $s[1] }))]]></test>
+    <result>
+      <assert-eq>2</assert-eq>
+    </result>
+  </test-case>
+  
+  <test-case name="while-do-021" covers-40="PR828">
+    <description>Positional argument, positional action</description>
+    <created by="Christian Gruen" on="2023-11-18"/>
+    <test><![CDATA[while-do(1, fn($_, $p) { $p <= 10 }, op('*'))]]></test>
+    <result>
+      <assert-eq>3628800</assert-eq>
+    </result>
+  </test-case>
+  
+  <test-case name="while-do-022" covers-40="PR828">
+    <description>Positional argument, positional action</description>
+    <created by="Christian Gruen" on="2023-11-18"/>
+    <test>while-do(1, op('='), op('+'))</test>
+    <result>
+      <assert-eq>4</assert-eq>
+    </result>
+  </test-case>
+  
+  <test-case name="while-do-023" covers-40="PR828">
+    <description>Positional arguments, dynamic actions</description>
+    <created by="Christian Gruen" on="2023-11-18"/>
+    <test><![CDATA[
+for $pred in (false#0, op('='))
+for $action in (identity#1, op('+'))
+return while-do(1, $pred, $action)]]></test>
+    <result>
+      <assert-deep-eq>1, 1, 1, 4</assert-deep-eq>
+    </result>
+  </test-case>
+  
+  <test-case name="while-do-024" covers-40="PR254">
+    <description>Zero-arity action</description>
+    <created by="Michael Kay" on="2023-12-04"/>
+    <test>while-do(1, fn($it, $pos){$pos lt 5}, true#0)</test>
+    <result>
+      <assert-true/>
+    </result>
+  </test-case>
+
+  <test-case name="while-do-error-001" covers-40="PR828">
+    <description>Wrong predicate type</description>
+    <created by="Christian Gruen" on="2023-11-18"/>
+    <test><![CDATA[
+head(while-do(
+  (1, 2),
+  fn($x as xs:integer, $p) { $p < 2 },
+  fn($s) { $s[2], $s[1] }
+))]]></test>
+    <result>
+      <error code="XPTY0004"/>
+    </result>
+  </test-case>
+  
+  <test-case name="while-do-error-002" covers-40="PR828">
+    <description>Wrong predicate type</description>
+    <created by="Christian Gruen" on="2023-11-18"/>
+    <test><![CDATA[
+head(while-do(
+  (1, 2),
+  fn($x, $p as xs:string) { $p < 2 },
+  fn($s) { $s[2], $s[1] }
+))]]></test>
+    <result>
+      <error code="XPTY0004"/>
+    </result>
+  </test-case>
+  
+  <test-case name="while-do-error-003" covers-40="PR828">
+    <description>Wrong action type</description>
+    <created by="Christian Gruen" on="2023-11-18"/>
+    <test><![CDATA[
+head(while-do(
+  (1, 2),
+  fn($x, $p) { $p < 2 },
+  fn($s as xs:integer) { $s[2], $s[1] }
+))]]></test>
+    <result>
+      <error code="XPTY0004"/>
+    </result>
+  </test-case>
+  
+  <test-case name="while-do-error-004" covers-40="PR828">
+    <description>Wrong action type</description>
+    <created by="Christian Gruen" on="2023-11-18"/>
+    <test><![CDATA[
+head(while-do(
+  (),
+  empty#1,
+  fn($s, $p as xs:string) { $p }
+))]]></test>
+    <result>
+      <error code="XPTY0004"/>
+    </result>
+  </test-case>
+  
+  <test-case name="while-do-025" covers-40="PR1182">
+    <description>Predicate returning the empty sequence.</description>
+    <created by="Christian Gruen" on="2026-10-01"/>
+    <dependency type="spec" value="XP40+ XQ40+"/>
+    <test><![CDATA[while-do(1, fn($x) { if ($x < 4) then true() else () }, fn($x) { $x + 1 })]]></test>
+    <result>
+      <assert-eq>4</assert-eq>
+    </result>
+  </test-case>
+
+  <test-case name="while-do-026" covers-40="PR1182">
+    <description>Predicate returning the empty sequence.</description>
+    <created by="Christian Gruen" on="2026-10-01"/>
+    <dependency type="spec" value="XP40+ XQ40+"/>
+    <test>while-do(1, fn($x) { () }, fn($x) { error() })</test>
+    <result>
+      <assert-eq>1</assert-eq>
+    </result>
+  </test-case>
+
+</test-set>

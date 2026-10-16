@@ -1,0 +1,771 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<test-set xmlns="http://www.w3.org/2010/09/qt-fots-catalog" name="map-build" covers-40="PR203">
+    <description>Tests for the map:build function in XPath 4.0</description>
+    <dependency type="spec" value="XP40+ XQ40+"/>
+
+    <test-case name="map-build-001">
+        <description>Trivial call</description>
+        <created by="Michael Kay, Saxonica" on="2022-10-12"/>
+        <environment ref="map"/>
+        <test>map:build(()) => map:size()</test>
+        <result>
+            <assert-eq>0</assert-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-002">
+        <description>Both key and value functions present</description>
+        <created by="Michael Kay, Saxonica" on="2022-10-12"/>
+        <environment ref="map"/>
+        <test>
+            let $days := ("Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday")
+            return map:build(1 to 7, function($i){$days[$i]}, function($x){$x})?Wednesday
+        </test>
+        <result>
+            <assert-eq>4</assert-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-003">
+        <description>Key function present, value defaulted</description>
+        <created by="Michael Kay, Saxonica" on="2022-10-12"/>
+        <environment ref="map"/>
+        <test>
+            let $days := ("Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday")
+            return map:build(1 to 7, function($i){$days[$i]})?Wednesday
+        </test>
+        <result>
+            <assert-eq>4</assert-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-004">
+        <description>Key function defaulted, value present</description>
+        <created by="Michael Kay, Saxonica" on="2022-10-12"/>
+        <environment ref="map"/>
+        <test>
+            let $days := ("Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday")
+            return map:build($days, value := function($n){$days => index-of($n)})?Wednesday
+        </test>
+        <result>
+            <assert-eq>4</assert-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-005">
+        <description>Key function defaulted, value present, duplicates</description>
+        <created by="Michael Kay, Saxonica" on="2022-10-12"/>
+        <modified by="Michael Kay, Saxonica" on="2022-11-23" change="change test to deliver expected result"/>
+        <modified by="Michael Kay, Saxonica" on="2024-03-25" change="argument keyword changed from 'key' to 'keys'"/>
+        <modified by="Michael Kay, Saxonica" on="2025-01-29" change="combine is now part of options"/>
+        <environment ref="map"/>
+        <test>
+            let $days := ("Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"),
+                $fortnight := ($days, reverse($days))
+            return map:build(1 to count($fortnight), 
+                             key := function($n){$fortnight[$n]},
+                             value := identity#1, 
+                             options := {'duplicates' : op('*')})
+                   ?Tuesday
+        </test>
+        <result>
+            <assert-eq>36</assert-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-006">
+        <description>duplicates option</description>
+        <created by="Michael Kay, Saxonica" on="2025-01-29"/>
+        <modified by="Christian Gruen" on="2025-01-30" change="Implementation-dependent key handling"/>
+        <test>
+            map:build((1, 2, 3, 1.0e0), options:={'duplicates':'use-first'})
+        </test>
+        <result>
+            <all-of>
+                <assert-deep-eq>{1:1, 2:2, 3:3}</assert-deep-eq>
+                <assert>deep-equal(map:keys($result), (1, 2, 3))</assert>
+                <assert>map:keys($result)[1] instance of xs:numeric</assert>
+                <assert>map:items($result)[1] instance of xs:integer</assert>
+            </all-of>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-007">
+        <description>duplicates option</description>
+        <created by="Michael Kay, Saxonica" on="2025-01-29"/>
+        <modified by="Michael Kay, Saxonica" on="2025-08-21" change="Either of the duplicate keys may be chosen"/>
+        <test>
+            map:build((1, 2, 3, 1.0e0), options:={'duplicates':'use-last'})
+        </test>
+        <result>
+            <all-of>
+                <assert-deep-eq>{1:1, 2:2, 3:3}</assert-deep-eq>
+                <assert>deep-equal(map:keys($result), (1, 2, 3))</assert>
+                <assert>deep-equal(map:items($result), (1, 2, 3))</assert>
+                <assert>map:keys($result)[1] instance of (xs:integer|xs:double)</assert>
+                <assert>map:items($result)[1] instance of xs:double</assert>
+            </all-of>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-008">
+        <description>duplicates option</description>
+        <created by="Michael Kay, Saxonica" on="2025-01-29"/>
+        <modified by="Michael Kay, Saxonica" on="2025-08-21" change="Either of the duplicate keys may be chosen"/>
+        <test>
+            map:build((1, 2, 3, 1.0e0), options:={'duplicates':'use-any'})
+        </test>
+        <result>
+            <all-of>
+                <assert-deep-eq>{1:1, 2:2, 3:3}</assert-deep-eq>
+                <assert>deep-equal(map:keys($result), (1, 2, 3))</assert>
+                <assert>deep-equal(map:items($result), (1, 2, 3))</assert>
+                <assert>map:keys($result)[1] instance of (xs:integer|xs:double)</assert>
+                <assert>map:items($result)[1] instance of xs:numeric</assert>
+            </all-of>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-009">
+        <description>duplicates option</description>
+        <created by="Michael Kay, Saxonica" on="2025-01-29"/>
+        <modified by="Michael Kay, Saxonica" on="2025-08-21" change="Either of the duplicate keys may be chosen"/>
+        <test>
+            map:build((1, 2, 3, 1.0e0), options:={'duplicates':'combine'})
+        </test>
+        <result>
+            <all-of>
+                <assert-deep-eq>{1:(1, 1e0), 2:2, 3:3}</assert-deep-eq>
+                <assert>deep-equal(map:keys($result), (1, 2, 3))</assert>
+                <assert>deep-equal(map:items($result), (1, 1.0e0, 2, 3))</assert>
+                <assert>map:keys($result)[1] instance of (xs:integer|xs:double)</assert>
+                <assert>map:items($result)[1] instance of xs:numeric</assert>
+            </all-of>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-010">
+        <description>duplicates option</description>
+        <created by="Michael Kay, Saxonica" on="2025-01-29"/>
+        <test>
+            map:build((1, 2, 3, 1.0e0), options:={'duplicates':'reject'})
+        </test>
+        <result>
+            <error code="FOJS0003"/>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-011">
+        <description>duplicates option, invalid</description>
+        <created by="Michael Kay, Saxonica" on="2025-01-29"/>
+        <modified by="Christian Gruen" on="2025-01-30" change="Error code added to allow enum check"/>
+        <test>
+            map:build((1, 2, 3, 1.0e0), options:={'duplicates':'invalid'})
+        </test>
+        <result>
+            <any-of>
+               <error code="XPTY0004"/>
+               <error code="FOJS0005"/>
+            </any-of>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-013">
+        <description>duplicates option with keys and values</description>
+        <created by="Michael Kay, Saxonica" on="2025-01-29"/>
+        <test>
+            map:build(1 to 10, 
+                      key := fn{. mod 5}, 
+                      value := fn{. + 1}, 
+                      options:={'duplicates':'use-first'})
+        </test>
+        <result>
+            <all-of>
+                <assert-deep-eq>{1:2, 2:3, 3:4, 4:5, 0:6}</assert-deep-eq>
+                <assert>deep-equal(map:keys($result), (1,2,3,4,0))</assert>
+            </all-of>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-014">
+        <description>duplicates option with keys and values</description>
+        <created by="Michael Kay, Saxonica" on="2025-01-29"/>
+        <test>
+            map:build(1 to 10, 
+                      key := fn{. mod 5}, 
+                      value := fn{. + 1}, 
+                      options:={'duplicates':'use-last'})
+        </test>
+        <result>
+            <all-of>
+                <assert-deep-eq>{1:7, 2:8, 3:9, 4:10, 0:11}</assert-deep-eq>
+                <assert>deep-equal(map:keys($result), (1,2,3,4,0))</assert>
+            </all-of>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-015">
+        <description>duplicates option with keys and values</description>
+        <created by="Michael Kay, Saxonica" on="2025-01-29"/>
+        <test>
+            map:build(1 to 10, 
+                      key := fn{. mod 5}, 
+                      value := fn{. + 1}, 
+                      options:={'duplicates':'combine'})
+        </test>
+        <result>
+            <assert-deep-eq>{1:(2,7), 2:(3,8), 3:(4,9), 4:(5,10), 0:(6,11)}</assert-deep-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-016">
+        <description>keys argument set to ()</description>
+        <created by="Michael Kay, Saxonica" on="2025-05-10"/>
+        <test>
+            map:build(1 to 5, (), fn{.*2})
+        </test>
+        <result>
+            <assert-deep-eq>{1:2, 2:4, 3:6, 4:8, 5:10}</assert-deep-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-017">
+        <description>value argument set to ()</description>
+        <created by="Michael Kay, Saxonica" on="2025-05-10"/>
+        <test>
+            map:build(1 to 5, fn{.*2}, ())
+        </test>
+        <result>
+            <assert-deep-eq>{2:1, 4:2, 6:3, 8:4, 10:5}</assert-deep-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-018">
+        <description>options argument set to ()</description>
+        <created by="Michael Kay, Saxonica" on="2025-05-10"/>
+        <test>
+            map:build(1 to 5, fn{.*2}, fn{.*3}, ())
+        </test>
+        <result>
+            <assert-deep-eq>{2:3, 4:6, 6:9, 8:12, 10:15}</assert-deep-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-019">
+        <description>Build map from JSON. This example was originally in the spec, but was
+        challenged, see issue 2408. It's invalid because `ancestor-or-self::jnode()?name` isn't
+        a PostfixExpr and therefore isn't allowed on the RHS of the "/" operator</description>
+        <created by="Michael Kay, Saxonica" on="2026-04-24"/>
+        <test>
+    let $tree := parse-json('{
+            "type": "package",
+            "name": "org",
+            "content": [
+                { "type": "package",
+                  "name": "xml",
+                  "content": [
+                      { "type": "package",
+                        "name": "sax",
+                        "content": [
+                            { "type": "class",
+                              "name": "Attributes"},
+                            { "type": "class",
+                              "name": "ContentHandler"},
+                            { "type": "class",
+                              "name": "XMLReader"}
+                         ]
+                      }]
+                 }]
+             }')
+             return map:build($tree/descendant-or-self::jnode(*, record(type, name, content?)),
+                              fn{./ancestor-or-self::jnode()?name => string-join(".")},
+                              fn{`{?type} {?name}`})
+                                         map:build(1 to 5, fn{.*2}, fn{.*3}, ())
+        </test>
+        <result>
+            <error code="XPST0003"/>
+            <!--<assert-deep-eq>{   "org":"package org",
+                                "org.xml":"package xml",
+                                "org.xml.sax":"package sax",
+                                "org.xml.sax.Attributes":"class Attributes",
+                                "org.xml.sax.ContentHandler":"class ContentHandler",
+                                "org.xml.sax.XMLReader":"class XMLReader"}
+            </assert-deep-eq>-->
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-101">
+        <description>Empty sequence, named function reference</description>
+        <created by="Christian Gruen" on="2022-08-10"/>
+        <test><![CDATA[map:build((), boolean#1)]]></test>
+        <result>
+            <assert-deep-eq>map{}</assert-deep-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-102">
+        <description>Integer, named function reference</description>
+        <created by="Christian Gruen" on="2022-08-10"/>
+        <test><![CDATA[map:build(0, boolean#1)]]></test>
+        <result>
+            <assert-deep-eq>map{false():0}</assert-deep-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-103">
+        <description>Integer, named function reference</description>
+        <created by="Christian Gruen" on="2022-08-10"/>
+        <test><![CDATA[map:build(1, boolean#1)]]></test>
+        <result>
+            <assert-deep-eq>map{true():1}</assert-deep-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-104">
+        <description>Integers, named function reference</description>
+        <created by="Christian Gruen" on="2022-08-10"/>
+        <test><![CDATA[map:build((0, 1), boolean#1) => map:size()]]></test>
+        <result>
+            <assert-eq>2</assert-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-105">
+        <description>Integers, function item</description>
+        <created by="Christian Gruen" on="2022-08-10"/>
+        <test><![CDATA[map:build((0, 1), function($i) { boolean($i)[.] })]]></test>
+        <result>
+            <assert-deep-eq>map{true():1}</assert-deep-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-106">
+        <description>Integer range, function yielding empty sequence</description>
+        <created by="Christian Gruen" on="2022-08-10"/>
+        <test><![CDATA[map:build((1 to 100), function($i) { })]]></test>
+        <result>
+            <assert-deep-eq>map{}</assert-deep-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-107">
+        <description>Integer range, named function reference</description>
+        <created by="Christian Gruen" on="2022-08-10"/>
+        <test><![CDATA[map:build((1 to 100), boolean#1) => map:size()]]></test>
+        <result>
+            <assert-eq>1</assert-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-108">
+        <description>Integer range, named function reference</description>
+        <created by="Christian Gruen" on="2022-08-10"/>
+        <test><![CDATA[map:build((1 to 100), string#1) => map:size()]]></test>
+        <result>
+            <assert-eq>100</assert-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-109">
+        <description>Integer range, function item</description>
+        <created by="Christian Gruen" on="2022-08-10"/>
+        <test><![CDATA[map:build((1 to 100), function($i) { $i mod 10 }) => map:size()]]></test>
+        <result>
+            <assert-eq>10</assert-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-110">
+        <description>Strings, named function reference</description>
+        <created by="Christian Gruen" on="2022-08-10"/>
+        <test><![CDATA[map:build(('January', 'February', 'March', 'April', 'May', 'June', 'July', 'August',
+      'September', 'October', 'November', 'December'), string-length#1) => map:size()]]></test>
+        <result>
+            <assert-eq>7</assert-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-111">
+        <description>Integer range, function item</description>
+        <created by="Christian Gruen" on="2022-08-10"/>
+        <test><![CDATA[map:build((1 to 100), function($i) { $i mod 10 }) => map:size()]]></test>
+        <result>
+            <assert-eq>10</assert-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-112">
+        <description>Nodes, named function reference</description>
+        <created by="Christian Gruen" on="2022-08-10"/>
+        <dependency type="spec" value="XQ40+"/>
+        <test><![CDATA[map:build(<xml>{ (1 to 9) ! <sub>{ . }</sub> }</xml>/*, string-length#1) => map:keys()]]></test>
+        <result>
+            <assert-eq>1</assert-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-113">
+        <description>Filter expression selecting appropriate functions</description>
+        <created by="Christian Gruen" on="2022-08-10"/>
+        <test><![CDATA[for $f in (true#0, false#0, concat#2, substring#2, contains#2, identity#1)[function-arity(.) = 1]
+      return map:build(5, $f)]]></test>
+        <result>
+            <assert-deep-eq>map{5:5}</assert-deep-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-114">
+        <description>Filter expression selecting appropriate functions</description>
+        <created by="Christian Gruen" on="2022-08-10"/>
+        <test><![CDATA[for $f in (1, 2, 3, 4, string#1, 6)[. instance of function(*)] return  map:build(8, $f)]]></test>
+        <result>
+            <assert-deep-eq>map{"8":8}</assert-deep-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-115" covers-40="PR1041">
+        <description>Key expression selects multiple items</description>
+        <created by="Michael Kay" on="2024-02-27"/>
+        <test>let $m := map:build(1 to 10, fn{., .+10, .+20}) return ($m?1, $m?12, $m?23)</test>
+        <result>
+            <assert-deep-eq>1, 2, 3</assert-deep-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-116" covers-40="PR1041">
+        <description>Key expression selects multiple items (PR 1041)</description>
+        <created by="Michael Kay" on="2024-02-28"/>
+        <test>let $m := map:build(tokenize("The cat sat on the mat"), characters#1)
+              return $m("a")
+        </test>
+        <result>
+            <assert-deep-eq>"cat", "sat", "mat"</assert-deep-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-117">
+        <description>Result of defaulted key function is atomized</description>
+        <created by="Michael Kay" on="2024-02-28"/>
+        <test><![CDATA[
+            let $data := parse-xml("<doc><a p='1'>one</a><a p='2'>two</a><a p='3'>three</a></doc>")
+            let $map := map:build($data//a)
+            return $map?two/string(@p)
+        ]]></test>
+        <result>
+            <assert-eq>'2'</assert-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-118">
+        <description>Result of defaulted key function is atomized</description>
+        <created by="Michael Kay" on="2024-02-28"/>
+        <test><![CDATA[
+            let $data := parse-xml("<doc><a p='1'>one</a><a p='2'>two</a><a p='3'>three</a></doc>")
+            let $map := map:build($data//a/@p, value:=fn{..})
+            return string($map?'2')
+        ]]></test>
+        <result>
+            <assert-eq>'two'</assert-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-119" covers-40="PR1041">
+        <description>Test equivalence of implementation given in spec</description>
+        <created by="Michael Kay" on="2024-03-13"/>
+        <modified by="Michael Kay, Saxonica" on="2025-01-29" change="combine is now part of options"/>
+        <test>let $m := map:build(tokenize("The cat sat on the mat"), 
+                                  characters#1, upper-case#1, {'duplicates': concat#2})
+              let $n := fold-left(tokenize("The cat sat on the mat"), map { }, fn($map, $item) {
+                           let $v := upper-case($item)
+                           return fold-left(characters($item), $map, fn($m, $k) {
+                                if (map:contains($m, $k)) then (
+                                   map:put($m, $k, concat($m($k), $v))
+                                ) else (
+                                   map:put($m, $k, $v)
+                                )
+                           })
+                        })
+             return deep-equal($m, $n)
+        </test>
+        <result>
+            <assert-true/>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-120" covers-40="PR1703">
+        <description>Order is retained</description>
+        <created by="Michael Kay, Saxonica" on="2025-01-22"/>
+        <environment ref="map"/>
+        <test>
+            let $days := ("Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday")
+            return map:build(1 to 7, function($i){$days[$i]}, function($x){$x}) => map:keys()
+        </test>
+        <result>
+            <assert-deep-eq>"Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"</assert-deep-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-121" covers-40="PR1703">
+        <description>Order is retained</description>
+        <created by="Michael Kay, Saxonica" on="2025-01-22"/>
+        <environment ref="map"/>
+        <test>
+            let $days := ("Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday")
+            return map:build(reverse(1 to 7), function($i){$days[$i]}, function($x){$x}) => map:keys()
+        </test>
+        <result>
+            <assert-deep-eq>reverse(("Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"))</assert-deep-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-122" covers-40="PR1703">
+        <description>Order is retained</description>
+        <created by="Michael Kay, Saxonica" on="2025-01-22"/>
+        <environment ref="map"/>
+        <test>
+            let $days := ("Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday")
+            return map:build(reverse(1 to 7), function($i){$days[$i]}, function($x){$x}) => map:keys()
+        </test>
+        <result>
+            <assert-deep-eq>reverse(("Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"))</assert-deep-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-123" covers-40="PR1041">
+        <description>Test equivalence of another implementation given in spec</description>
+        <created by="Michael Kay" on="2025-01-29"/>
+        <modified by="Michael Kay" on="2025-08-21" change="map:pair/of-pairs no longer in spec"/>
+        <modified by="Christian Gruen" on="2025-10-10"/>
+        <test>let $m := map:build(tokenize("The cat sat on the mat"), characters#1, upper-case#1, 
+                           options := {'duplicates':concat#2})
+              let $alt-build := fn($input, $key, $value, $options) {
+                                  for-each(
+                                    $input, 
+                                    fn($item) {
+                                      for-each($key($item), fn($k) {
+                                        map:entry($k, $value($item))
+                                      }
+                                    )}
+                                  ) => map:merge($options) }            
+              let $n := $alt-build(tokenize("The cat sat on the mat"), characters#1, upper-case#1, 
+                                   {'duplicates':concat#2})           
+              return deep-equal(serialize($m, {'method':'adaptive'}), 
+                                serialize($n, {'method':'adaptive'}))
+        </test>
+        <result>
+            <assert-true/>
+        </result>
+    </test-case>
+    
+    
+    
+    <!-- Following tests copied (mutatis mutandis) from map-group-by (MHK, 2023-06-28) -->
+    
+    <test-case name="map-build-201">
+        <description>Empty sequence, named function reference</description>
+        <created by="Christian Gruen" on="2022-08-10"/>
+        <test><![CDATA[map:build((), boolean#1)]]></test>
+        <result>
+            <assert-deep-eq>map{}</assert-deep-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-202">
+        <description>Integer, named function reference</description>
+        <created by="Christian Gruen" on="2022-08-10"/>
+        <test><![CDATA[map:build(0, boolean#1)]]></test>
+        <result>
+            <assert-deep-eq>map{false():0}</assert-deep-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-203">
+        <description>Integer, named function reference</description>
+        <created by="Christian Gruen" on="2022-08-10"/>
+        <test><![CDATA[map:build(1, boolean#1)]]></test>
+        <result>
+            <assert-deep-eq>map{true():1}</assert-deep-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-204">
+        <description>Integers, named function reference</description>
+        <created by="Christian Gruen" on="2022-08-10"/>
+        <test><![CDATA[map:build((0, 1), boolean#1) => map:size()]]></test>
+        <result>
+            <assert-eq>2</assert-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-205">
+        <description>Integers, function item</description>
+        <created by="Christian Gruen" on="2022-08-10"/>
+        <test><![CDATA[map:build((0, 1), function($i) { boolean($i)[.] })]]></test>
+        <result>
+            <assert-deep-eq>map{true():1}</assert-deep-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-206">
+        <description>Integer range, function yielding empty sequence</description>
+        <created by="Christian Gruen" on="2022-08-10"/>
+        <test><![CDATA[map:build((1 to 100), function($i) { })]]></test>
+        <result>
+            <assert-deep-eq>map{}</assert-deep-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-207">
+        <description>Integer range, named function reference</description>
+        <created by="Christian Gruen" on="2022-08-10"/>
+        <test><![CDATA[map:build((1 to 100), boolean#1) => map:size()]]></test>
+        <result>
+            <assert-eq>1</assert-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-208">
+        <description>Integer range, named function reference</description>
+        <created by="Christian Gruen" on="2022-08-10"/>
+        <test><![CDATA[map:build((1 to 100), string#1) => map:size()]]></test>
+        <result>
+            <assert-eq>100</assert-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-209">
+        <description>Integer range, function item</description>
+        <created by="Christian Gruen" on="2022-08-10"/>
+        <test><![CDATA[map:build((1 to 100), function($i) { $i mod 10 }) => map:size()]]></test>
+        <result>
+            <assert-eq>10</assert-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-210">
+        <description>Strings, named function reference</description>
+        <created by="Christian Gruen" on="2022-08-10"/>
+        <test><![CDATA[map:build(('January', 'February', 'March', 'April', 'May', 'June', 'July', 'August',
+      'September', 'October', 'November', 'December'), string-length#1) => map:size()]]></test>
+        <result>
+            <assert-eq>7</assert-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-211">
+        <description>Integer range, function item</description>
+        <created by="Christian Gruen" on="2022-08-10"/>
+        <test><![CDATA[map:build((1 to 100), function($i) { $i mod 10 }) => map:size()]]></test>
+        <result>
+            <assert-eq>10</assert-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-212">
+        <description>Nodes, named function reference</description>
+        <created by="Christian Gruen" on="2022-08-10"/>
+        <dependency type="spec" value="XQ40+"/>
+        <test><![CDATA[map:build(<xml>{ (1 to 9) ! <sub>{ . }</sub> }</xml>/*, string-length#1) => map:keys()]]></test>
+        <result>
+            <assert-eq>1</assert-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-213">
+        <description>Filter expression selecting appropriate functions</description>
+        <created by="Christian Gruen" on="2022-08-10"/>
+        <test><![CDATA[for $f in (true#0, false#0, concat#2, substring#2, contains#2, identity#1)[function-arity(.) = 1]
+      return map:build(5, $f)]]></test>
+        <result>
+            <assert-deep-eq>map{5:5}</assert-deep-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-214">
+        <description>Filter expression selecting appropriate functions</description>
+        <created by="Christian Gruen" on="2022-08-10"/>
+        <test><![CDATA[for $f in (1, 2, 3, 4, string#1, 6)[. instance of function(*)] return  map:build(8, $f)]]></test>
+        <result>
+            <assert-deep-eq>map{"8":8}</assert-deep-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-220" covers-40="PR1174">
+        <description>Key depends on position</description>
+        <created by="Michael Kay" on="2024-06-26"/>
+        <test>map:build(("A", "B", "C", "D"), fn($it, $pos){$pos})</test>
+        <result>
+            <assert-deep-eq>map{1:"A", 2:"B", 3:"C", 4:"D"}</assert-deep-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-221" covers-40="PR1174">
+        <description>Value depends on position</description>
+        <created by="Michael Kay" on="2024-06-26"/>
+        <test>map:build(("A", "B", "C", "D"), value := fn($it, $pos){$pos})</test>
+        <result>
+            <assert-deep-eq>map{"A":1, "B":2, "C":3, "D":4}</assert-deep-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-222" covers-40="PR1174">
+        <description>Value depends on position, with duplicates</description>
+        <created by="Michael Kay" on="2024-06-26"/>
+        <test>map:build(("A", "B", "C", "A"), 
+                        value := fn($it, $pos){$pos}, 
+                        options := {'duplicates' : op('+')})</test>
+        <result>
+            <assert-deep-eq>map{"A":5, "B":2, "C":3}</assert-deep-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-223" covers-40="PR1174">
+        <description>See spec issue 1978</description>
+        <created by="Michael Kay" on="2025-05-04"/>
+        <modified by="Michael Kay" on="2025-08-21" change="correct expected results"/>
+        <test>
+            let $input := ("apple", "apricot", "banana", "blueberry", "cherry")
+            return map:build(
+                    distinct-values($input =!> characters()), 
+                    identity#1, 
+                    fn($char){$input[duplicate-values(characters(.)) = $char]}
+            )
+        </test>
+        <result>
+            <assert-deep-eq> map{
+  "a":  "banana",
+  "b": "blueberry",
+  "c": (),
+  "e": "blueberry",
+  "h": (),
+  "i": (),
+  "l": (), (: Lowercase L :)
+  "n": "banana",
+  "o": (),
+  "p": "apple",
+  "r": ("blueberry", "cherry"),
+  "t": (),
+  "u": (),
+  "y": ()
+}</assert-deep-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="map-build-224" covers-40="PR1174">
+        <description>Example from xpath-ng slack discussion: frequency distribution</description>
+        <created by="Michael Kay after Christian Gruen" on="2025-11-09"/>
+        <test>map:build(
+                  (1 to 100_000) ! string-length(),
+                  fn { . },
+                  fn { 1 },
+                  { 'duplicates': fn { . + 1 } }
+                )
+        </test>
+        <result>
+            <assert-deep-eq>map{1:9, 2:90, 3:900, 4:9000, 5:90000, 6:1}</assert-deep-eq>
+        </result>
+    </test-case>
+    
+ 
+
+</test-set>

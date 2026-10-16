@@ -1,0 +1,2058 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-set xmlns="http://www.w3.org/2010/09/qt-fots-catalog" name="fn-replace">
+   <description>Tests for the replace() function</description>
+   <link type="spec" document="http://www.w3.org/TR/xpath-functions-30/" idref="func-replace"/>
+
+   <test-case name="fn-replace3args-1">
+      <description> Evaluates The "replace" function with the arguments set as follows: $input = xs:string(lower bound) $pattern = xs:string(lower bound) $replacement = xs:string(lower bound) </description>
+      <created by="Carmelo Montanez" on="2004-12-13"/>
+      <test>fn:replace("This is a characte","This is a characte","This is a characte")</test>
+      <result>
+         <assert-string-value>This is a characte</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace3args-2">
+      <description> Evaluates The "replace" function with the arguments set as follows: $input = xs:string(mid range) $pattern = xs:string(lower bound) $replacement = xs:string(lower bound) </description>
+      <created by="Carmelo Montanez" on="2004-12-13"/>
+      <test>fn:replace("This is a characte","This is a characte","This is a characte")</test>
+      <result>
+         <assert-string-value>This is a characte</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace3args-3">
+      <description> Evaluates The "replace" function with the arguments set as follows: $input = xs:string(upper bound) $pattern = xs:string(lower bound) $replacement = xs:string(lower bound) </description>
+      <created by="Carmelo Montanez" on="2004-12-13"/>
+      <test>fn:replace("This is a characte","This is a characte","This is a characte")</test>
+      <result>
+         <assert-string-value>This is a characte</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace3args-4">
+      <description> Evaluates The "replace" function with the arguments set as follows: $input = xs:string(lower bound) $pattern = xs:string(mid range) $replacement = xs:string(lower bound) </description>
+      <created by="Carmelo Montanez" on="2004-12-13"/>
+      <test>fn:replace("This is a characte","This is a characte","This is a characte")</test>
+      <result>
+         <assert-string-value>This is a characte</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace3args-5">
+      <description> Evaluates The "replace" function with the arguments set as follows: $input = xs:string(lower bound) $pattern = xs:string(upper bound) $replacement = xs:string(lower bound) </description>
+      <created by="Carmelo Montanez" on="2004-12-13"/>
+      <test>fn:replace("This is a characte","This is a characte","This is a characte")</test>
+      <result>
+         <assert-string-value>This is a characte</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace3args-6">
+      <description> Evaluates The "replace" function with the arguments set as follows: $input = xs:string(lower bound) $pattern = xs:string(lower bound) $replacement = xs:string(mid range) </description>
+      <created by="Carmelo Montanez" on="2004-12-13"/>
+      <test>fn:replace("This is a characte","This is a characte","This is a characte")</test>
+      <result>
+         <assert-string-value>This is a characte</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace3args-7">
+      <description> Evaluates The "replace" function with the arguments set as follows: $input = xs:string(lower bound) $pattern = xs:string(lower bound) $replacement = xs:string(upper bound) </description>
+      <created by="Carmelo Montanez" on="2004-12-13"/>
+      <test>fn:replace(xs:string("This is a characte"),xs:string("This is a characte"),xs:string("This is a characte"))</test>
+      <result>
+         <assert-string-value>This is a characte</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replaceErr-1">
+      <description>Invalid flag for fn:matches fourth argument. </description>
+      <created by="Carmelo Montanez" on="2005-10-04"/>
+      <test>fn:replace("abracadabra", "bra", "*", "p")</test>
+      <result>
+         <error code="FORX0001"/>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replaceErr-2">
+      <description>the value of $replacement contains a "\" character that is not part of a "\\" pair, unless it is immediately followed by a "$" character. </description>
+      <created by="Carmelo Montanez" on="2005-10-04"/>
+      <test>fn:replace("abracadabra", "bra", "\")</test>
+      <result>
+         <error code="FORX0004"/>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replaceErr-3">
+      <description>The value of $replacement contains a "$" character that is not immediately followed by a digit 0-9 and not immediately preceded by a "\". </description>
+      <created by="Carmelo Montanez" on="2005-10-04"/>
+      <test>fn:replace("abracadabra", "bra", "$y")</test>
+      <result>
+         <error code="FORX0004"/>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-1">
+      <description>Evaluation of replace function with replacement = "*" as an example 1 for this function. </description>
+      <created by="Carmelo Montanez" on="2005-10-13"/>
+      <test>replace("abracadabra", "bra", "*")</test>
+      <result>
+         <assert-string-value>a*cada*</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-2">
+      <description>Evaluation of replace function with pattern = "a.*a" and replacement = "*" as an example 2 for this function. </description>
+      <created by="Carmelo Montanez" on="2005-10-13"/>
+      <test>replace("abracadabra", "a.*a", "*")</test>
+      <result>
+         <assert-string-value>*</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-3">
+      <description>Evaluation of replace function with pattern = "a.*?a" and replacement = "*" as an example 3 for this function. </description>
+      <created by="Carmelo Montanez" on="2005-10-13"/>
+      <test>replace("abracadabra", "a.*?a", "*")</test>
+      <result>
+         <assert-string-value>*c*bra</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-4">
+      <description>Evaluation of replace function with pattern = "a" and replacement = "" as an example 4 for this function. </description>
+      <created by="Carmelo Montanez" on="2005-10-13"/>
+      <test>replace("abracadabra", "a", "")</test>
+      <result>
+         <assert-string-value>brcdbr</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-5">
+      <description>Evaluation of replace function with pattern = "a(.)" and replacement = "a$1$1" as an example 5 for this function. </description>
+      <created by="Carmelo Montanez" on="2005-10-13"/>
+      <test>replace("abracadabra", "a(.)", "a$1$1")</test>
+      <result>
+         <assert-string-value>abbraccaddabbra</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-6">
+      <description>Evaluation of replace function with pattern = ".*?" 
+         and replacement = "$1" as an example 6 for this function. Should raise an error 
+      </description>
+      <created by="Carmelo Montanez" on="2005-10-13"/>
+      <dependency type="spec" value="XP20 XP30 XP31 XQ30 XQ31"/>
+      <test>replace("abracadabra", ".*?", "$1")</test>
+      <result>
+         <error code="FORX0003"/>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-replace-6a" covers-40="PR1856">
+      <description>Evaluation of replace function with pattern = ".*?" 
+         and replacement = "$1" as an example 6 for this function. No error in 4.0 
+      </description>
+      <created by="Michael Kay" on="2025-03-09"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace("abracadabra", ".*?", "$1")</test>
+      <result>
+         <assert-string-value>abracadabra</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-7">
+      <description>Evaluation of replace function with pattern = "A+" and replacement = "b" as an example 7 for this function. </description>
+      <created by="Carmelo Montanez" on="2005-10-13"/>
+      <test>replace("AAAA", "A+", "b")</test>
+      <result>
+         <assert-string-value>b</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-8">
+      <description>Evaluation of replace function with pattern = "A+?" and replacement = "b" as an example 8 for this function. </description>
+      <created by="Carmelo Montanez" on="2005-10-13"/>
+      <test>replace("AAAA", "A+?", "b")</test>
+      <result>
+         <assert-string-value>bbbb</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-9">
+      <description>Evaluation of replace function with pattern = "^(.*?)d(.*)" and replacement = "$1c$2" as an example 9 for this function. </description>
+      <created by="Carmelo Montanez" on="2005-10-13"/>
+      <test>replace("darted", "^(.*?)d(.*)$", "$1c$2")</test>
+      <result>
+         <assert-string-value>carted</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-10">
+      <description>Two alternatives within the pattern both match at the same position in the $input. The first one is chosen. </description>
+      <created by="Carmelo Montanez" on="2005-10-13"/>
+      <test>fn:replace("abcd", "(ab)|(a)", "[1=$1][2=$2]")</test>
+      <result>
+         <assert-string-value>[1=ab][2=]cd</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-11">
+      <description>Evaluation of fn:replace function with input set to empty sequence. Uses the fn:count function to avoid empty file. </description>
+      <created by="Carmelo Montanez" on="2005-10-13"/>
+      <test>fn:count(fn:replace((), "bra", "*"))</test>
+      <result>
+         <assert-string-value>1</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-12">
+      <description>Evaluate that calling function with flags omitted is same as flags being the zero length string. </description>
+      <created by="Carmelo Montanez" on="2005-10-13"/>
+      <test>replace("abracadabra", "bra", "*", "")</test>
+      <result>
+         <assert-string-value>a*cada*</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-13">
+      <description>Evaluation of replace function with pattern set to "\?" for an input string that contains "?". </description>
+      <created by="Carmelo Montanez" on="2005-10-13"/>
+      <test>fn:replace("abracadabra?abracadabra", "\?", "with")</test>
+      <result>
+         <assert-string-value>abracadabrawithabracadabra</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-14">
+      <description>Evaluation of replace function with pattern set to "\*" for an input string that contains "*". </description>
+      <created by="Carmelo Montanez" on="2005-10-13"/>
+      <test>fn:replace("abracadabra*abracadabra", "\*", "with")</test>
+      <result>
+         <assert-string-value>abracadabrawithabracadabra</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-15">
+      <description>Evaluation of replace function with pattern set to "\+" for an input string that contains "+". </description>
+      <created by="Carmelo Montanez" on="2005-10-13"/>
+      <test>fn:replace("abracadabra+abracadabra", "\+", "with")</test>
+      <result>
+         <assert-string-value>abracadabrawithabracadabra</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-16">
+      <description>Evaluation of replace function with pattern set to "\{" for an input string that contains "}". </description>
+      <created by="Carmelo Montanez" on="2005-10-13"/>
+      <test>fn:replace("abracadabra{abracadabra", "\{", "with")</test>
+      <result>
+         <assert-string-value>abracadabrawithabracadabra</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-17">
+      <description>Evaluation of replace function with pattern set to "\}" for an input string that contains "}". </description>
+      <created by="Carmelo Montanez" on="2005-10-13"/>
+      <test>fn:replace("abracadabra}abracadabra", "\}", "with")</test>
+      <result>
+         <assert-string-value>abracadabrawithabracadabra</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-18">
+      <description>Evaluation of replace function with pattern set to "\(" for an input string that contains "(". </description>
+      <created by="Carmelo Montanez" on="2005-10-13"/>
+      <test>fn:replace("abracadabra(abracadabra", "\(", "with")</test>
+      <result>
+         <assert-string-value>abracadabrawithabracadabra</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-19">
+      <description>Evaluation of replace function with pattern set to "\)" for an input string that contains ")". </description>
+      <created by="Carmelo Montanez" on="2005-10-13"/>
+      <test>fn:replace("abracadabra)abracadabra", "\)", "with")</test>
+      <result>
+         <assert-string-value>abracadabrawithabracadabra</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-20">
+      <description>Evaluation of replace function with pattern set to "\[" for an input string that contains "[". </description>
+      <created by="Carmelo Montanez" on="2005-10-13"/>
+      <test>fn:replace("abracadabra[abracadabra", "\[", "with")</test>
+      <result>
+         <assert-string-value>abracadabrawithabracadabra</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-21">
+      <description>Evaluation of replace function with pattern set to "\]" for an input string that contains "]". </description>
+      <created by="Carmelo Montanez" on="2005-10-13"/>
+      <test>fn:replace("abracadabra]abracadabra", "\]", "with")</test>
+      <result>
+         <assert-string-value>abracadabrawithabracadabra</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-22">
+      <description>Evaluation of replace function with pattern set to "\-" for an input string that contains "-". </description>
+      <created by="Carmelo Montanez" on="2005-10-14"/>
+      <test>fn:replace("abracadabra-abracadabra", "\-","with")</test>
+      <result>
+         <assert-string-value>abracadabrawithabracadabra</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-23">
+      <description>Evaluation of replace function with pattern set to "\." for an input string that contains ".". </description>
+      <created by="Carmelo Montanez" on="2005-10-14"/>
+      <test>fn:replace("abracadabra.abracadabra", "\.","with")</test>
+      <result>
+         <assert-string-value>abracadabrawithabracadabra</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-24">
+      <description>Evaluation of replace function with pattern set to "\|" for an input string that contains "|". </description>
+      <created by="Carmelo Montanez" on="2005-10-14"/>
+      <test>fn:replace("abracadabra|abracadabra", "\|","with")</test>
+      <result>
+         <assert-string-value>abracadabrawithabracadabra</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-25">
+      <description>Evaluation of replace function with pattern set to "\\" for an input string that contains "\". </description>
+      <created by="Carmelo Montanez" on="2005-10-14"/>
+      <test>fn:replace("abracadabra\abracadabra", "\\","with")</test>
+      <result>
+         <assert-string-value>abracadabrawithabracadabra</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-26">
+      <description>Evaluation of replace function with pattern set to "\t" for an input string that contains the tab character. </description>
+      <created by="Carmelo Montanez" on="2005-10-14"/>
+      <test>fn:replace("abracadabra	abracadabra", "\t","with")</test>
+      <result>
+         <assert-string-value>abracadabrawithabracadabra</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-27">
+      <description>Evaluation of replace function with pattern set to "\n" for an input string that contains the newline character. </description>
+      <created by="Carmelo Montanez" on="2005-10-14"/>
+      <test>fn:replace("abracadabra
+abracadabra", "\n","with")</test>
+      <result>
+         <assert-string-value>abracadabrawithabracadabra</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-28">
+      <description>Evaluation of replace function with pattern set to "aa{1}" (exact quantity) for an input string that contains the "aa" string. </description>
+      <created by="Carmelo Montanez" on="2005-10-14"/>
+      <test>fn:replace("abracadabraabracadabra", "aa{1}","with")</test>
+      <result>
+         <assert-string-value>abracadabrwithbracadabra</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-29">
+      <description>Evaluation of replace function with pattern set to "aa{1,}" (min quantity) for an input string that contains the "aa" string twice. </description>
+      <created by="Carmelo Montanez" on="2005-10-14"/>
+      <test>fn:replace("abracadabraabracadabraabracadabra", "aa{1,}","with")</test>
+      <result>
+         <assert-string-value>abracadabrwithbracadabrwithbracadabra</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-30">
+      <description>Evaluation of replace function with pattern set to "aa{1,2}" (range quantity) for an input string that contains the "aa" string twice. </description>
+      <created by="Carmelo Montanez" on="2005-10-14"/>
+      <test>fn:replace("abracadabraabracadabraabracadabra", "aa{1,2}","with")</test>
+      <result>
+         <assert-string-value>abracadabrwithbracadabrwithbracadabra</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-31">
+      <description>Evaluation of replace function with pattern set to "\^". </description>
+      <created by="Carmelo Montanez" on="2005-10-14"/>
+      <test>fn:replace("abracadabra^abracadabra", "\^","with")</test>
+      <result>
+         <assert-string-value>abracadabrawithabracadabra</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-32">
+      <description>Evaluation of replace function with pattern set to "^a". </description>
+      <created by="Carmelo Montanez" on="2005-10-14"/>
+      <test>fn:replace("abracadabra", "^a","with")</test>
+      <result>
+         <assert-string-value>withbracadabra</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-33">
+      <description>Evaluation of replace function with pattern that does not match the input string. </description>
+      <created by="Carmelo Montanez" on="2005-10-14"/>
+      <test>fn:replace("abracadabra", "ww","with")</test>
+      <result>
+         <assert-string-value>abracadabra</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-34" covers-30="regex-q-flag">
+      <description>Evaluation of replace function with q flag.</description>
+      <created by="Michael Kay" on="2012-01-08"/>
+      <dependency type="spec" value="XP30+ XQ30+"/>
+      <test>fn:replace("abracadabra", "a", "$1", "q")</test>
+      <result>
+         <assert-string-value>$1br$1c$1d$1br$1</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-35" covers-30="regex-q-flag">
+      <description>Evaluation of replace function with q flag.</description>
+      <created by="Michael Kay" on="2012-01-08"/>
+      <dependency type="spec" value="XP30+ XQ30+"/>
+      <test>fn:replace("a?bracadabra?", "a?", "\$1", "q")</test>
+      <result>
+         <assert-string-value>\$1bracadabr\$1</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-36" covers-30="regex-non-capturing">
+      <description>Evaluation of replace function with non-capturing groups.</description>
+      <created by="Michael Kay" on="2012-01-08"/>
+      <dependency type="spec" value="XP30+ XQ30+"/>
+      <test>fn:replace("abracadabra", "([aA])(?:br)([aA])", "$1**$2")</test>
+      <result>
+         <assert-string-value>a**acada**a</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-37">
+      <description>Evaluation of replace function with escaped $ sign in replacement string.</description>
+      <created by="Michael Kay" on="2012-01-08"/>
+      <test>fn:replace("abracadabra", "a", "\$")</test>
+      <result>
+         <assert-string-value>$br$c$d$br$</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-38">
+      <description>Evaluation of replace function with escaped $ sign in replacement string.</description>
+      <created by="Michael Kay" on="2012-01-08"/>
+      <test>fn:replace("abracadabra", "(a)", "\$$1")</test>
+      <result>
+         <assert-string-value>$abr$ac$ad$abr$a</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-39">
+      <description>Evaluation of replace function with escaped \ sign in replacement string.</description>
+      <created by="Michael Kay" on="2012-01-08"/>
+      <test>fn:replace("abracadabra", "a", "\\")</test>
+      <result>
+         <assert-string-value>\br\c\d\br\</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-40">
+      <description>Evaluation of replace with double-digit capture</description>
+      <created by="Michael Kay" on="2012-01-08"/>
+      <test>fn:replace("abracadabra", "((((( ((((( (((((a))))) ))))) )))))", "|$1$15|", "x")</test>
+      <result>
+         <assert-string-value>|aa|br|aa|c|aa|d|aa|br|aa|</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-41">
+      <description>Evaluation of replace with double-digit capture</description>
+      <created by="Michael Kay" on="2012-01-08"/>
+      <test>fn:replace("abracadabra", "((((( ((((( (((((a))))) ))))) )))))", "$1520", "x")</test>
+      <result>
+         <assert-string-value>a20bra20ca20da20bra20</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-42">
+      <description>Evaluation of replace with double-digit capture beyond max capture value</description>
+      <created by="Michael Kay" on="2012-01-08"/>
+      <test>fn:replace("abracadabra", "((((( ((((( (((((a)(b))))) ))))) )))))", "($14.$15.$16.$17)", "x")</test>
+      <result>
+         <assert-string-value>(ab.a.b.ab7)racad(ab.a.b.ab7)ra</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-43" covers-30="regex-dot-matching-cr">
+      <description> "." does NOT match CR in default mode</description>
+      <created by="Tim Mills" on="2012-09-25"/>
+      <test>fn:replace(concat('Mary', codepoints-to-string(13), 'Jones'), 'Mary.Jones', 'Jacob Jones')</test>
+      <result>
+         <assert-eq>concat('Mary', codepoints-to-string(13), 'Jones')</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-44" covers-30="regex-dot-matching-cr">
+      <description> "." does match CR in dot-all mode</description>
+      <created by="Tim Mills" on="2012-09-25"/>
+      <test>fn:replace(concat('Mary', codepoints-to-string(13), 'Jones'), 'Mary.Jones', 'Jacob Jones', 's')</test>
+      <result>
+         <assert-eq>'Jacob Jones'</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-45">
+      <description>fn:replace, using $0</description>
+      <created by="Andrew Eisenberg" on="2013-05-24"/>
+      <test>replace("Now, let's SEND OUT for QUICHE!!", "[A-Z][A-Z]+", "$0$0")</test>
+      <result>
+         <assert-eq>"Now, let's SENDSEND OUTOUT for QUICHEQUICHE!!"</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-46">
+      <description>fn:replace, Saxon bug 2166</description>
+      <created by="Michael Kay" on="2014-10-07"/>
+      <test>replace("12-34", "^\d+(-(\d+))?$", "$2")</test>
+      <result>
+         <assert-eq>"34"</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-47">
+      <description>fn:replace, Saxon bug 2390 (reluctant quantifiers, backtracking, and captured groups)</description>
+      <created by="Michael Kay (from Gerrit Imsieke)" on="2015-06-03"/>
+      <test>replace('abc', '^.+?(b+)?$', '$1')</test>
+      <result>
+         <assert-eq>""</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-48">
+      <description>fn:replace, Saxon bug 2390 (choice, backtracking, and captured groups)</description>
+      <created by="Michael Kay" on="2015-06-03"/>
+      <test>replace('abcd', '^a(.).$|^a...$', '$1')</test>
+      <result>
+         <assert-eq>""</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-49" covers-30="regex-q-flag">
+      <description>Evaluation of replace function with q flag, with pattern set to "\".</description>
+      <created by="Debbie Lockett, Saxonica" on="2016-03-09"/>
+      <dependency type="spec" value="XP30+ XQ30+"/>
+      <test>fn:replace("a/b/c", "/", "\", "q")</test>
+      <result>
+         <assert-string-value>a\b\c</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-50" covers-30="regex-q-flag">
+      <description>Evaluation of replace function with q flag, with pattern set to "\\", example
+         from spec. (See bug #29522)</description>
+      <created by="Debbie Lockett, Saxonica" on="2016-03-09"/>
+      <dependency type="spec" value="XP30+ XQ30+"/>
+      <test>fn:replace("a\b\c", "\", "\\", "q")</test>
+      <result>
+         <assert-string-value>a\\b\\c</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-51" covers-30="regex-q-flag">
+      <description>Evaluation of replace function with q flag, with pattern set to "$", example from
+         spec. (See bug #29522)</description>
+      <created by="Debbie Lockett, Saxonica" on="2016-03-09"/>
+      <dependency type="spec" value="XP30+ XQ30+"/>
+      <test>fn:replace("a/b/c", "/", "$", "q")</test>
+      <result>
+         <assert-string-value>a$b$c</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-52" covers-30="regex-q-flag">
+      <description>Evaluation of replace function with q flag, with pattern set to "$'". (See bug #29522)</description>
+      <created by="Debbie Lockett, Saxonica" on="2016-03-09"/>
+      <dependency type="spec" value="XP30+ XQ30+"/>
+      <test>fn:replace("a/b/c", "/", "$'", "q")</test>
+      <result>
+         <assert-string-value>a$'b$'c</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-53" covers-30="regex-q-flag">
+      <description>Evaluation of replace function with q flag, with pattern set to "$`". (See bug #29522)</description>
+      <created by="Debbie Lockett, Saxonica" on="2016-03-09"/>
+      <dependency type="spec" value="XP30+ XQ30+"/>
+      <test>fn:replace("a/b/c", "/", "$`", "q")</test>
+      <result>
+         <assert-string-value>a$`b$`c</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-54">
+      <description>Evaluation of replace with single-digit capture at end of replacement string. Saxon bug 2735.</description>
+      <created by="Michael Kay" on="2016-05-05"/>
+      <test>fn:replace("abracadabra", "((((( ((((( (((((a))))) ))))) )))))", "$1$1", "x")</test>
+      <result>
+         <assert-string-value>aabraacaadaabraa</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-55">
+      <description>Test case with undefined captures. Saxon bug 2865.</description>
+      <created by="Michael Kay after Gunther Rademacher" on="2016-07-31"/>
+      <modified by="Tim Mills" on="2016-08-10" change="See Bug 29767"/>
+      <test>replace('abcdefghijk', '(a)|(b)|(c)|(d)|(e)|(f)|(g)|(h)|(i)|(j)', '$1')
+      </test>
+      <result>
+         <assert-string-value>ak</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-56">
+      <description>Test case based on Saxon bug 3429.</description>
+      <created by="Michael Kay after Stefan Poeschel" on="2017-09-06"/>
+      <test>replace('10%', '^\d*\.?\d+', '')</test>
+      <result>
+         <assert-string-value>%</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-57">
+      <description>Evaluation of replace with unmatched double-digit capturing group. Saxon bug 4076.</description>
+      <created by="Debbie Lockett, Saxonica" on="2018-12-21"/>
+      <test>replace('987654321A', '^(9)(8)(7)(6)(5)(4)(3)(2)(1)((A*?)|(.+))$', '$9$11$12')</test>
+      <result>
+         <assert-string-value>1A</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-58">
+      <description>Evaluation of replace with emoji. Saxon bug 5174.</description>
+      <created by="Michael Kay after Martin Honnen" on="2021-11-24"/>
+      <modified by="Michael Kay" on="2022-07-11" change="add dependency (arrow operator)"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <test>let $in := codepoints-to-string((72, 101, 108, 108, 111, 32, 128512, 128515, 128516, 32, 
+                                             128156, 129446, 32, 252, 228, 246, 36)) 
+         return replace($in, "\p{IsEmoticons}+", "") => string-to-codepoints()</test>
+      <result>
+         <assert-deep-eq>72, 101, 108, 108, 111, 32, 32, 
+            128156, 129446, 32, 252, 228, 246, 36</assert-deep-eq>
+      </result>
+   </test-case>
+
+   <test-case name="K-ReplaceFunc-1">
+      <description> The flags argument cannot contain whitespace. </description>
+      <created by="Frans Englich" on="2007-11-26"/>
+      <test>replace("input", "pattern", "replacement", " ")</test>
+      <result>
+         <error code="FORX0001"/>
+      </result>
+   </test-case>
+
+   <test-case name="K-ReplaceFunc-2">
+      <description> The pattern can't be the empty sequence. </description>
+      <created by="Frans Englich" on="2007-11-26"/>
+      <test>replace("input", (), "replacement")</test>
+      <result>
+         <error code="XPTY0004"/>
+      </result>
+   </test-case>
+
+   <test-case name="K-ReplaceFunc-3">
+      <description> The replacement can't be the empty sequence. </description>
+      <created by="Frans Englich" on="2007-11-26"/>
+      <modified by="Christian Gruen" on="2023-04-06" change="Version dependencies added"/>
+      <dependency type="spec" value="XP20 XP30 XP31 XQ10 XQ30 XQ31"/>
+      <test>replace("input", "pattern", ())</test>
+      <result>
+         <error code="XPTY0004"/>
+      </result>
+   </test-case>
+
+   <test-case name="K-ReplaceFunc-4">
+      <description> The flags argument cannot contain 'X'. </description>
+      <created by="Frans Englich" on="2007-11-26"/>
+      <test>replace("input", "pattern", "replacement", "X")</test>
+      <result>
+         <error code="FORX0001"/>
+      </result>
+   </test-case>
+
+   <test-case name="K-ReplaceFunc-5">
+      <description> Only four arguments are accepted. </description>
+      <created by="Frans Englich" on="2007-11-26"/>
+      <modified by="Christian Gruen" on="2023-04-06" change="Version dependencies added"/>
+      <dependency type="spec" value="XP20 XP30 XP31 XQ10 XQ30 XQ31"/>
+      <test>replace("input", "pattern", "replacement", "", ())</test>
+      <result>
+         <error code="XPST0017"/>
+      </result>
+   </test-case>
+
+   <test-case name="K-ReplaceFunc-6">
+      <description> A '\' cannot occur at the end of the line. </description>
+      <created by="Frans Englich" on="2007-11-26"/>
+      <test>replace("input", "in", "thisIsInvalid\")</test>
+      <result>
+         <error code="FORX0004"/>
+      </result>
+   </test-case>
+
+   <test-case name="K-ReplaceFunc-7">
+      <description> A '$' cannot occur at the end of the line. </description>
+      <created by="Frans Englich" on="2007-11-26"/>
+      <test>replace("input", "(input)", "thisIsInvalid$")</test>
+      <result>
+         <error code="FORX0004"/>
+      </result>
+   </test-case>
+
+   <test-case name="K-ReplaceFunc-8">
+      <description> A '\' cannot be used to escape whitespace. </description>
+      <created by="Frans Englich" on="2007-11-26"/>
+      <test>replace("input", "in", "thisIsInvalid\ ")</test>
+      <result>
+         <error code="FORX0004"/>
+      </result>
+   </test-case>
+
+   <test-case name="K-ReplaceFunc-9">
+      <description> A '$' cannot be followed by whitespace. </description>
+      <created by="Frans Englich" on="2007-11-26"/>
+      <test>replace("input", "in", "thisIsInvalid$ ")</test>
+      <result>
+         <error code="FORX0004"/>
+      </result>
+   </test-case>
+
+   <test-case name="K2-ReplaceFunc-1">
+      <description> Unexpectedly ending escape. </description>
+      <created by="Frans Englich" on="2007-11-26"/>
+      <test>replace("a a a ", "(a )", "replacment: \1")</test>
+      <result>
+         <error code="FORX0004"/>
+      </result>
+   </test-case>
+
+   <test-case name="K2-ReplaceFunc-2">
+      <description> Unexpectedly ending escape. </description>
+      <created by="Frans Englich" on="2007-11-26"/>
+      <test>replace("a a a ", "(a )", "replacment: \1")</test>
+      <result>
+         <error code="FORX0004"/>
+      </result>
+   </test-case>
+
+   <test-case name="K2-ReplaceFunc-3">
+      <description> Use a back reference that isn't preceeded by sufficiently many captures, and therefore match the empty sequence. </description>
+      <created by="Frans Englich" on="2007-11-26"/>
+      <test>replace("abcd", "(a)\2(b)", "")</test>
+      <result>
+         <error code="FORX0002"/>
+      </result>
+   </test-case>
+
+   <test-case name="K2-ReplaceFunc-4">
+      <description> Use a back reference inside a character class. </description>
+      <created by="Frans Englich" on="2007-11-26"/>
+      <test>replace("abcd", "(asd)[\1]", "")</test>
+      <result>
+         <error code="FORX0002"/>
+      </result>
+   </test-case>
+
+   <test-case name="K2-ReplaceFunc-5">
+      <description> Use a back reference inside a character class(#2). </description>
+      <created by="Frans Englich" on="2007-11-26"/>
+      <test>replace("abcd", "(asd)[asd\1]", "")</test>
+      <result>
+         <error code="FORX0002"/>
+      </result>
+   </test-case>
+
+   <test-case name="K2-ReplaceFunc-6">
+      <description> Use a back reference inside a character class(#3). </description>
+      <created by="Frans Englich" on="2007-11-26"/>
+      <test>replace("abcd", "(asd)[asd\0]", "")</test>
+      <result>
+         <error code="FORX0002"/>
+      </result>
+   </test-case>
+
+   <test-case name="K2-ReplaceFunc-7">
+      <description> Use a back reference inside a character class(#3). </description>
+      <created by="Frans Englich" on="2007-11-26"/>
+      <test>replace("abcd", "1[asd\0]", "")</test>
+      <result>
+         <error code="FORX0002"/>
+      </result>
+   </test-case>
+
+   <test-case name="K2-ReplaceFunc-8">
+      <description> Use fn:replace inside user function. </description>
+      <created by="Frans Englich" on="2008-06-06"/>
+      <modified by="Michael Kay" on="2017-01-04" change="remove dependency on XML serialization"/>
+      <dependency type="spec" value="XQ10+"/>
+      <test><![CDATA[
+         declare function local:doReplace($input as xs:string?, $pattern as xs:string, $replacement as xs:string) as xs:string { 
+            fn:replace($input, $pattern, $replacement) 
+         }; 
+         <result> <para>{fn:replace("ThiY Ybcd.", "Y", "Q")}</para> <para>{local:doReplace("ThiY iY a abYY.", "Y", "Q")}</para> </result>, 
+         fn:replace("ThiY abcdY.", "Y", "Q"), 
+         local:doReplace("ThiY iY a abYY.", "Y", "Q")
+      ]]></test>
+      <result>
+         <all-of>
+            <assert>$result[1]/para[1] = "ThiQ Qbcd."</assert>
+            <assert>$result[1]/para[2] = "ThiQ iQ a abQQ."</assert>
+            <assert>$result[2] = "ThiQ abcdQ."</assert>
+            <assert>$result[3] = "ThiQ iQ a abQQ."</assert>
+         </all-of>
+      </result>
+   </test-case>
+
+   <test-case name="cbcl-fn-replace-001">
+      <description> Tests a replace with prepared value evaluated to a boolean </description>
+      <created by="Nick Jones" on="2008-06-10"/>
+      <test>
+      boolean(replace(if(exists((1 to 10)[. mod 2 = 0])) then "blah" else (),"a","e","m"))
+   </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="cbcl-fn-replace-002">
+      <description> Tests a prepared expression which matches the empty sequence </description>
+      <created by="Nick Jones" on="2008-06-16"/>
+      <dependency type="spec" value="XP20 XP30 XP31 XQ30 XQ31"/>
+      <test>replace("a","","b")</test>
+      <result>
+         <error code="FORX0003"/>
+      </result>
+   </test-case>
+   
+   <test-case name="cbcl-fn-replace-002a" covers-40="PR1856">
+      <description> Tests a prepared expression which matches the empty sequence </description>
+      <created by="Nick Jones" on="2008-06-16"/>
+      <modified by="Michael Kay" on="2025-04-04" change="new results for 4.0"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace("a","","b")</test>
+      <result>
+         <assert-string-value>bab</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="cbcl-fn-replace-003">
+      <description> Tests empty regex on prepared fn:replace </description>
+      <created by="Nick Jones" on="2008-06-17"/>
+      <dependency type="spec" value="XP20 XP30 XP31 XQ30 XQ31"/>
+      <test>
+        replace(string-join(for $x in (1 to 10)[. mod 2 = 0] return string($x),","), "", "c")
+      </test>
+      <result>
+         <error code="FORX0003"/>
+      </result>
+   </test-case>
+   
+   <test-case name="cbcl-fn-replace-003a" covers-40="PR1856">
+      <description> Tests empty regex on prepared fn:replace </description>
+      <created by="Nick Jones" on="2008-06-17"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+        replace(string-join(for $x in (1 to 10)[. mod 2 = 0] return string($x),","),"","c")
+      </test>
+      <result>
+         <assert-string-value>c2c,c4c,c6c,c8c,c1c0c</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="cbcl-fn-replace-004">
+      <description> Tests empty regex on prepared fn:replace </description>
+      <created by="Nick Jones" on="2008-06-17"/>
+      <dependency type="spec" value="XP20 XP30 XP31 XQ30 XQ31"/>
+      <test>
+        replace(string-join(for $x in (1 to 10)[. mod 2 = 0] return string($x),","),"","c","m")
+      </test>
+      <result>
+         <error code="FORX0003"/>
+      </result>
+   </test-case>
+   
+   <test-case name="cbcl-fn-replace-004a" covers-40="PR1856">
+      <description> Tests empty regex on prepared fn:replace </description>
+      <created by="Nick Jones" on="2008-06-17"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+        replace(string-join(for $x in (1 to 10)[. mod 2 = 0] return string($x),","),"","c","m")
+      </test>
+      <result>
+         <assert-string-value>c2c,c4c,c6c,c8c,c1c0c</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="cbcl-fn-replace-005">
+      <description> Tests empty regex on prepared fn:replace </description>
+      <created by="Nick Jones" on="2008-06-17"/>
+      <dependency type="spec" value="XP20 XP30 XP31 XQ30 XQ31"/>
+      <test>
+        replace(string-join(for $x in (1 to 10)[. mod 2 = 0] return string($x),","),"","c","m")
+      </test>
+      <result>
+         <error code="FORX0003"/>
+      </result>
+   </test-case>
+   
+   <test-case name="cbcl-fn-replace-005a" covers-40="PR1856">
+      <description> Tests empty regex on prepared fn:replace </description>
+      <created by="Nick Jones" on="2008-06-17"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+        replace(string-join(for $x in (1 to 10)[. mod 2 = 0] return string($x),","),"","c","m")
+      </test>
+      <result>
+         <assert-string-value>c2c,c4c,c6c,c8c,c1c0c</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-100" covers-40="PR1897">
+      <description>No replace string and function: empty string</description>
+      <created by="Christian Gruen" on="2022-08-17"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[fn:replace("a", "a", ())]]></test>
+      <result>
+         <assert-string-value/>
+      </result>
+   </test-case>
+   <test-case name="fn-replace-101" covers-40="PR1897">
+      <description>Function yielding empty sequence</description>
+      <created by="Christian Gruen" on="2022-08-17"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[fn:replace("b", "b", function($k, $g) { })]]></test>
+      <result>
+         <assert-string-value/>
+      </result>
+   </test-case>
+   <test-case name="fn-replace-102" covers-40="PR1897">
+      <description>Convert string to upper case</description>
+      <created by="Christian Gruen" on="2022-08-17"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[fn:replace("c", "c", function($k, $g) { upper-case($k) })]]></test>
+      <result>
+         <assert-string-value>C</assert-string-value>
+      </result>
+   </test-case>
+   <test-case name="fn-replace-103" covers-40="PR1897">
+      <description>Duplicate found string</description>
+      <created by="Christian Gruen" on="2022-08-17"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[fn:replace("de", ".", function($k, $g) { $k || $k })]]></test>
+      <result>
+         <assert-string-value>ddee</assert-string-value>
+      </result>
+   </test-case>
+   <test-case name="fn-replace-104" covers-40="PR1897">
+      <description>Increment number of chapter (taken from spec)</description>
+      <created by="Christian Gruen" on="2022-08-17"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+        fn:replace("Chapter 9", "[0-9]+", 
+          function($k, $g) { string(number($k) + 1) })
+      ]]></test>
+      <result>
+         <assert-string-value>Chapter 10</assert-string-value>
+      </result>
+   </test-case>
+   <test-case name="fn-replace-105" covers-40="PR1897">
+      <description>Replace IATA codes (taken from spec)</description>
+      <created by="Christian Gruen" on="2022-08-17"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+        let $map := map { 'LAX': 'Los Angeles', 'LHR': 'London' }
+        return fn:replace("LHR to LAX", "[A-Z]{3}",
+          function($s, $g) { $map($s) })
+      ]]></test>
+      <result>
+         <assert-string-value>London to Los Angeles</assert-string-value>
+      </result>
+   </test-case>
+   <test-case name="fn-replace-106" covers-40="PR1897">
+      <description>Convert coordinates (taken from spec)</description>
+      <created by="Christian Gruen" on="2022-08-17"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <modified by="Michael Kay" on="2026-07-19" change="2nd argument of callback is now a map"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+        fn:replace("57°43′30″", "([0-9]+)°([0-9]+)′([0-9]+)″", function($s, $g) {
+          string(number($g?1) + number($g?2) div 60 + number($g?3) div 3600) || '°'
+        })
+      ]]></test>
+      <result>
+         <assert-string-value>57.725°</assert-string-value>
+      </result>
+   </test-case>
+   <test-case name="fn-replace-107" covers-40="PR1897">
+      <description>Duplicate string prefixes</description>
+      <created by="Christian Gruen" on="2022-08-17"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <modified by="Michael Kay" on="2026-07-19" change="2nd argument of callback is now a map"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+        fn:replace("A1 B234", "([A-Z]+)([0-9]+)", function($s, $g) {
+          string-join(characters($g?2) ! ($g?1 || .))
+        })
+      ]]></test>
+      <result>
+         <assert-string-value>A1 B2B3B4</assert-string-value>
+      </result>
+   </test-case>
+   <test-case name="fn-replace-108" covers-40="PR1897">
+      <description>Remove strings, based on parenthesized number</description>
+      <created by="Christian Gruen" on="2022-08-17"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <modified by="Michael Kay" on="2026-07-19" change="2nd argument of callback is now a map"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+        fn:replace("A(0)B(1)C(0)D(9)", "(.)\((\d)\)", function($s, $g) {
+          $g?1[$g?2 != '0']
+        })
+      ]]></test>
+      <result>
+         <assert-string-value>BD</assert-string-value>
+      </result>
+   </test-case>
+   <test-case name="fn-replace-109" covers-40="PR1897">
+      <description>Named function reference: Chop first characters</description>
+      <created by="Christian Gruen" on="2022-08-17"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <modified by="Michael Kay" on="2026-07-19" change="2nd argument of callback is now a map"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+        fn:replace("chop first character ", "(.).*? ", fn($s, $g){substring-after($s, $g?1)})
+      ]]></test>
+      <result>
+         <assert-string-value>hop irst haracter </assert-string-value>
+      </result>
+   </test-case>
+   <test-case name="fn-replace-110" covers-40="PR1897">
+      <description>Partial function application: Chop second character from each match</description>
+      <created by="Christian Gruen" on="2022-08-17"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <modified by="Michael Kay" on="2026-07-19" change="2nd argument of callback is now a map"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+        fn:replace("12345678", ".(.)", fn($s, $g){replace($s, $g?1, '')})
+      ]]></test>
+      <result>
+         <assert-string-value>1357</assert-string-value>
+      </result>
+   </test-case>
+   <test-case name="fn-replace-111" covers-40="PR1897">
+      <description>Named function references: Return head or tail of match group</description>
+      <created by="Christian Gruen" on="2022-08-17"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <modified by="Michael Kay" on="2026-07-19" change="2nd argument of callback is now a map"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+        for $function in (map:get(?, 1), map:get(?, 2))
+        return fn:replace("1234", "(.)(.)", function($s, $g) { $function($g) })
+      ]]></test>
+      <result>
+         <assert-deep-eq>'13', '24'</assert-deep-eq>
+      </result>
+   </test-case>
+   <test-case name="fn-replace-112" covers-40="PR1897">
+      <description>Named function references: Return substrings</description>
+      <created by="Christian Gruen" on="2022-08-17"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <modified by="Michael Kay" on="2026-07-19" change="2nd argument of callback is now a map"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+        for $function in (substring-before#2, substring-after#2)
+        let $f2 := function($s, $g){$function($s, $g?1)}
+        return fn:replace("1234", ".(..)", $f2)
+      ]]></test>
+      <result>
+         <assert-deep-eq>'14', '4'</assert-deep-eq>
+      </result>
+   </test-case>
+   <test-case name="fn-replace-113" covers-40="PR1897">
+      <description>Function lookups</description>
+      <created by="Christian Gruen" on="2022-08-17"/>
+      <modified by="Michael Kay" on="2023-11-18" change="Use XPath syntax"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <modified by="Michael Kay" on="2026-07-19" change="2nd argument of callback is now a map"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+        for $before in (true(), false()) return
+        let $name := 'fn:substring-' || (if($before) then 'before' else 'after')
+        let $function := function-lookup(xs:QName($name), 2)
+        return fn:replace("1234", ".(..)", fn($s, $g) {$function($s, $g?1)})
+      ]]></test>
+      <result>
+         <assert-deep-eq>'14', '4'</assert-deep-eq>
+      </result>
+   </test-case>
+   <test-case name="fn-replace-114" covers-40="PR1856 PR1897">
+      <description>Empty replacement pattern</description>
+      <created by="Christian Gruen" on="2022-08-17"/>
+      <modified by="Michael Kay" on="2025-03-09" change="now allowed"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <modified by="Gunther Rademacher" on="2025-04-04" change="add replacement for second match"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[fn:replace("W", ".*", function($k, $g) {"~"})]]></test>
+      <result>
+         <assert-string-value>~~</assert-string-value>
+      </result>
+   </test-case>
+   <test-case name="fn-replace-115" covers-40="PR1897">
+      <description>Allow return types other than strings</description>
+      <created by="Christian Gruen" on="2022-08-17"/>
+      <modified by="Michael Kay" on="2023-10-30" change="result is a string not a boolean"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <modified by="Michael Kay" on="2026-07-19" change="2nd argument of callback is now a map"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[fn:replace("X", ".", fn($s, $g) {contains($s, $g?1)})]]></test>
+      <result>
+         <assert-eq>"true"</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-116" covers-40="PR1897">
+      <description> test fn:replace with () as flags argument </description>
+      <created by="Michael Kay" on="2023-08-06"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace("alphabet", "a", "X", ())</test>
+      <result>
+         <assert-eq>"XlphXbet"</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-replace-117" covers-40="PR1897">
+      <description>Arity-1 callback</description>
+      <created by="Michael Kay" on="2026-07-19"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>fn:replace("X", ".", lower-case#1)</test>
+      <result>
+         <assert-eq>"x"</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-replace-118" covers-40="PR1897">
+      <description>Arity-0 callback</description>
+      <created by="Michael Kay" on="2026-07-19"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>fn:replace("XYZ", "[XYZ]", fn(){'[*]'})</test>
+      <result>
+         <assert-eq>"[*][*][*]"</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-201" covers-40="PR1897">
+      <description>Evaluation of replace function with replacement = "*" as an example 1 for this function. </description>
+      <created by="Michael Kay after Carmelo Montanez" on="2005-10-13"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace("abracadabra", "bra", function{"*"})</test>
+      <result>
+         <assert-string-value>a*cada*</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-202" covers-40="PR1897">
+      <description>Evaluation of replace function with pattern = "a.*a" and replacement = "*" as an example 2 for this function. </description>
+      <created by="Michael Kay after Carmelo Montanez" on="2005-10-13"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace("abracadabra", "a.*a", fn{"*"})</test>
+      <result>
+         <assert-string-value>*</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-203" covers-40="PR1897">
+      <description>Evaluation of replace function with pattern = "a.*?a" and replacement = "*" as an example 3 for this function. </description>
+      <created by="Michael Kay after Carmelo Montanez" on="2005-10-13"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace("abracadabra", "a.*?a", fn{"*"})</test>
+      <result>
+         <assert-string-value>*c*bra</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-204" covers-40="PR1897">
+      <description>Evaluation of replace function with pattern = "a" and replacement = "" as an example 4 for this function. </description>
+      <created by="Michael Kay after Carmelo Montanez" on="2005-10-13"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace("abracadabra", "a", fn{""})</test>
+      <result>
+         <assert-string-value>brcdbr</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-205" covers-40="PR1897">
+      <description>Evaluation of replace function with pattern = "a(.)" and replacement = "a$1$1" as an example 5 for this function. </description>
+      <created by="Michael Kay after Carmelo Montanez" on="2005-10-13"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace("abracadabra", "a(.)", fn{"a"||substring(.,2)||substring(.,2)})</test>
+      <result>
+         <assert-string-value>abbraccaddabbra</assert-string-value>
+      </result>
+   </test-case>
+
+
+
+   <test-case name="fn-replace-207" covers-40="PR1897">
+      <description>Evaluation of replace function with pattern = "A+" and replacement = "b" as an example 7 for this function. </description>
+      <created by="Michael Kay after Carmelo Montanez" on="2005-10-13"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace("AAAA", "A+", fn{"b"})</test>
+      <result>
+         <assert-string-value>b</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-208" covers-40="PR1897">
+      <description>Evaluation of replace function with pattern = "A+?" and replacement = "b" as an example 8 for this function. </description>
+      <created by="Michael Kay after Carmelo Montanez" on="2005-10-13"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace("AAAA", "A+?", fn{"b"})</test>
+      <result>
+         <assert-string-value>bbbb</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-211" covers-40="PR1897">
+      <description>Evaluation of fn:replace function with input set to empty sequence. Uses the fn:count function to avoid empty file. </description>
+      <created by="Michael Kay after Carmelo Montanez" on="2005-10-13"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>fn:count(replace((), "bra", fn{"*"}))</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-212" covers-40="PR1897">
+      <description>Evaluate that calling function with flags omitted is same as flags being the zero length string. </description>
+      <created by="Michael Kay after Carmelo Montanez" on="2005-10-13"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace("abracadabra", "bra", fn{"*"}, flags := "")</test>
+      <result>
+         <assert-string-value>a*cada*</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-213" covers-40="PR1897">
+      <description>Evaluation of replace function with pattern set to "\?" for an input string that contains "?". </description>
+      <created by="Michael Kay after Carmelo Montanez" on="2005-10-13"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace("abracadabra?abracadabra", "\?", fn{"with"})</test>
+      <result>
+         <assert-string-value>abracadabrawithabracadabra</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-214" covers-40="PR1897">
+      <description>Evaluation of replace function with pattern set to "\*" for an input string that contains "*". </description>
+      <created by="Michael Kay after Carmelo Montanez" on="2005-10-13"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace("abracadabra*abracadabra", "\*", fn{"with"})</test>
+      <result>
+         <assert-string-value>abracadabrawithabracadabra</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-215" covers-40="PR1897">
+      <description>Evaluation of replace function with pattern set to "\+" for an input string that contains "+". </description>
+      <created by="Michael Kay after Carmelo Montanez" on="2005-10-13"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace("abracadabra+abracadabra", "\+", fn{"with"})</test>
+      <result>
+         <assert-string-value>abracadabrawithabracadabra</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-216" covers-40="PR1897">
+      <description>Evaluation of replace function with pattern set to "\{" for an input string that contains "}". </description>
+      <created by="Michael Kay after Carmelo Montanez" on="2005-10-13"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace("abracadabra{abracadabra", "\{", fn{"with"})</test>
+      <result>
+         <assert-string-value>abracadabrawithabracadabra</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-217" covers-40="PR1897">
+      <description>Evaluation of replace function with pattern set to "\}" for an input string that contains "}". </description>
+      <created by="Michael Kay after Carmelo Montanez" on="2005-10-13"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace("abracadabra}abracadabra", "\}", fn{"with"})</test>
+      <result>
+         <assert-string-value>abracadabrawithabracadabra</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-218" covers-40="PR1897">
+      <description>Evaluation of replace function with pattern set to "\(" for an input string that contains "(". </description>
+      <created by="Michael Kay after Carmelo Montanez" on="2005-10-13"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace("abracadabra(abracadabra", "\(", fn{"with"})</test>
+      <result>
+         <assert-string-value>abracadabrawithabracadabra</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-219" covers-40="PR1897">
+      <description>Evaluation of replace function with pattern set to "\)" for an input string that contains ")". </description>
+      <created by="Michael Kay after Carmelo Montanez" on="2005-10-13"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace("abracadabra)abracadabra", "\)", fn{"with"})</test>
+      <result>
+         <assert-string-value>abracadabrawithabracadabra</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-220" covers-40="PR1897">
+      <description>Evaluation of replace function with pattern set to "\[" for an input string that contains "[". </description>
+      <created by="Michael Kay after Carmelo Montanez" on="2005-10-13"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace("abracadabra[abracadabra", "\[", fn{"with"})</test>
+      <result>
+         <assert-string-value>abracadabrawithabracadabra</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-221" covers-40="PR1897">
+      <description>Evaluation of replace function with pattern set to "\]" for an input string that contains "]". </description>
+      <created by="Michael Kay after Carmelo Montanez" on="2005-10-13"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace("abracadabra]abracadabra", "\]", fn{"with"})</test>
+      <result>
+         <assert-string-value>abracadabrawithabracadabra</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-222" covers-40="PR1897">
+      <description>Evaluation of replace function with pattern set to "\-" for an input string that contains "-". </description>
+      <created by="Michael Kay after Carmelo Montanez" on="2020-02-08"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace("abracadabra-abracadabra", "\-",fn{"with"})</test>
+      <result>
+         <assert-string-value>abracadabrawithabracadabra</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-223" covers-40="PR1897">
+      <description>Evaluation of replace function with pattern set to "\." for an input string that contains ".". </description>
+      <created by="Michael Kay after Carmelo Montanez" on="2020-02-08"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace("abracadabra.abracadabra", "\.", fn{"with"})</test>
+      <result>
+         <assert-string-value>abracadabrawithabracadabra</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-224" covers-40="PR1897">
+      <description>Evaluation of replace function with pattern set to "\|" for an input string that contains "|". </description>
+      <created by="Michael Kay after Carmelo Montanez" on="2020-02-08"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace("abracadabra|abracadabra", "\|", fn{"with"})</test>
+      <result>
+         <assert-string-value>abracadabrawithabracadabra</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-225" covers-40="PR1897">
+      <description>Evaluation of replace function with pattern set to "\\" for an input string that contains "\". </description>
+      <created by="Michael Kay after Carmelo Montanez" on="2020-02-08"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace("abracadabra\abracadabra", "\\", fn{"with"})</test>
+      <result>
+         <assert-string-value>abracadabrawithabracadabra</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-226" covers-40="PR1897">
+      <description>Evaluation of replace function with pattern set to "\t" for an input string that contains the tab character. </description>
+      <created by="Michael Kay after Carmelo Montanez" on="2020-02-08"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace("abracadabra	abracadabra", "\t", fn{"with"})</test>
+      <result>
+         <assert-string-value>abracadabrawithabracadabra</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-227" covers-40="PR1897">
+      <description>Evaluation of replace function with pattern set to "\n" for an input string that contains the newline character. </description>
+      <created by="Michael Kay after Carmelo Montanez" on="2020-02-08"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace("abracadabra
+abracadabra", "\n", fn{"with"})</test>
+      <result>
+         <assert-string-value>abracadabrawithabracadabra</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-228" covers-40="PR1897">
+      <description>Evaluation of replace function with pattern set to "aa{1}" (exact quantity) for an input string that contains the "aa" string. </description>
+      <created by="Michael Kay after Carmelo Montanez" on="2020-02-08"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace("abracadabraabracadabra", "aa{1}", fn{"with"})</test>
+      <result>
+         <assert-string-value>abracadabrwithbracadabra</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-229" covers-40="PR1897">
+      <description>Evaluation of replace function with pattern set to "aa{1,}" (min quantity) for an input string that contains the "aa" string twice. </description>
+      <created by="Michael Kay after Carmelo Montanez" on="2020-02-08"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace("abracadabraabracadabraabracadabra", "aa{1,}", fn{"with"})</test>
+      <result>
+         <assert-string-value>abracadabrwithbracadabrwithbracadabra</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-230" covers-40="PR1897">
+      <description>Evaluation of replace function with pattern set to "aa{1,2}" (range quantity) for an input string that contains the "aa" string twice. </description>
+      <created by="Michael Kay after Carmelo Montanez" on="2020-02-08"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace("abracadabraabracadabraabracadabra", "aa{1,2}", fn{"with"})</test>
+      <result>
+         <assert-string-value>abracadabrwithbracadabrwithbracadabra</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-231" covers-40="PR1897">
+      <description>Evaluation of replace function with pattern set to "\^". </description>
+      <created by="Michael Kay after Carmelo Montanez" on="2020-02-08"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace("abracadabra^abracadabra", "\^", fn{"with"})</test>
+      <result>
+         <assert-string-value>abracadabrawithabracadabra</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-232" covers-40="PR1897">
+      <description>Evaluation of replace function with pattern set to "^a". </description>
+      <created by="Michael Kay after Carmelo Montanez" on="2020-02-08"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace("abracadabra", "^a", fn{"with"})</test>
+      <result>
+         <assert-string-value>withbracadabra</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-233" covers-40="PR1897">
+      <description>Evaluation of replace function with pattern that does not match the input string. </description>
+      <created by="Michael Kay after Carmelo Montanez" on="2020-02-08"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace("abracadabra", "ww", fn{"with"})</test>
+      <result>
+         <assert-string-value>abracadabra</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-234" covers-40="PR1897">
+      <description>Evaluation of replace function with q flag.</description>
+      <created by="Michael Kay" on="2020-02-08"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace("abracadabra", "a",  fn{"$1"}, flags := "q")</test>
+      <result>
+         <assert-string-value>$1br$1c$1d$1br$1</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-235" covers-40="PR1897">
+      <description>Evaluation of replace function with q flag.</description>
+      <created by="Michael Kay" on="2020-02-08"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace("a?bracadabra?", "a?", fn{"\$1"}, flags := "q")</test>
+      <result>
+         <assert-string-value>\$1bracadabr\$1</assert-string-value>
+      </result>
+   </test-case>
+
+
+
+   <test-case name="fn-replace-243" covers-40="PR1897">
+      <description> "." does NOT match CR in default mode</description>
+      <created by="Michael Kay after Tim Mills" on="2020-02-08"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace(concat('Mary', codepoints-to-string(13), 'Jones'), 'Mary.Jones', fn{'Jacob Jones'})</test>
+      <result>
+         <assert-eq>concat('Mary', codepoints-to-string(13), 'Jones')</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-244" covers-40="PR1897">
+      <description> "." does match CR in dot-all mode</description>
+      <created by="Michael Kay after Tim Mills" on="2020-02-08"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace(concat('Mary', codepoints-to-string(13), 'Jones'), 'Mary.Jones', fn{'Jacob Jones'}, flags := 's')</test>
+      <result>
+         <assert-eq>'Jacob Jones'</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-245" covers-40="PR1897">
+      <description>fn:replace, using $0</description>
+      <created by="Michael Kay after Andrew Eisenberg" on="2020-02-08"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace("Now, let's SEND OUT for QUICHE!!", "[A-Z][A-Z]+", fn{.||.})</test>
+      <result>
+         <assert-eq>"Now, let's SENDSEND OUTOUT for QUICHEQUICHE!!"</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-249" covers-40="PR1897">
+      <description>Evaluation of replace function with q flag, with pattern set to "\".</description>
+      <created by="Michael Kay after Debbie Lockett" on="2020-02-08"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace("a/b/c", "/", fn{"\"}, flags := "q")</test>
+      <result>
+         <assert-string-value>a\b\c</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-250" covers-40="PR1897">
+      <description>Evaluation of replace function with q flag, with pattern set to "\\", example
+         from spec. (See bug #29522)</description>
+      <created by="Michael Kay after Debbie Lockett" on="2020-02-08"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace("a\b\c", "\", fn{"\\"}, flags := "q")</test>
+      <result>
+         <assert-string-value>a\\b\\c</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-251" covers-40="PR1897">
+      <description>Evaluation of replace function with q flag, with pattern set to "$", example from
+         spec. (See bug #29522)</description>
+      <created by="Michael Kay after Debbie Lockett" on="2020-02-08"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace("a/b/c", "/", fn{"$"}, flags := "q")</test>
+      <result>
+         <assert-string-value>a$b$c</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-252" covers-40="PR1897">
+      <description>Evaluation of replace function with q flag, with pattern set to "$'". (See bug #29522)</description>
+      <created by="Michael Kay after Debbie Lockett" on="2020-02-08"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace("a/b/c", "/", fn{"$'"}, flags := "q")</test>
+      <result>
+         <assert-string-value>a$'b$'c</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-253" covers-40="PR1897">
+      <description>Evaluation of replace function with q flag, with pattern set to "$`". (See bug #29522)</description>
+      <created by="Michael Kay after Debbie Lockett" on="2020-02-08"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace("a/b/c", "/", fn{"$`"}, flags := "q")</test>
+      <result>
+         <assert-string-value>a$`b$`c</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-256" covers-40="PR1897">
+      <description>Test case based on Saxon bug 3429.</description>
+      <created by="Michael Kay after Stefan Poeschel" on="2020-02-08"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace('10%', '^\d*\.?\d+', fn{''})</test>
+      <result>
+         <assert-string-value>%</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-270" covers-40="PR1897">
+      <description>Convert matching strings to upper case.</description>
+      <created by="Michael Kay" on="2020-02-08"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace('AND so TO bed', '[A-Za-z]+', upper-case#1, 'i')</test>
+      <result>
+         <assert-string-value>AND SO TO BED</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-271" covers-40="PR1897">
+      <description>Arithmetic on numeric substrings.</description>
+      <created by="Michael Kay" on="2020-02-08"/>
+      <modified by="Michael Kay" on="2025-03-26" change="combine replacement and action args"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace('Part 3 Chapter 5', '[0-9]+', fn{string(number(.)+1)})</test>
+      <result>
+         <assert-string-value>Part 4 Chapter 6</assert-string-value>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-replace-300" covers-40="PR1022">
+      <description>Comments in regex.</description>
+      <created by="Michael Kay" on="2024-02-13"/>
+      <modified by="Gunther Rademacher" on="2024-02-19" change="replace by $3-$1-$2, not $3-$2-$1"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace('02/17/2024', '(#month#..)/(#day#..)/(#year#....)', '$3-$1-$2', 'c')</test>
+      <result>
+         <assert-string-value>2024-02-17</assert-string-value>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-replace-301" covers-40="PR1022">
+      <description>Escaped hash sign in regex.</description>
+      <created by="Michael Kay" on="2024-02-13"/>
+      <modified by="Gunther Rademacher" on="2024-02-19" change="replace by $3-$1-$2, not $3-$2-$1"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace('#02/#17/#2024', '\#(#month#..)/\#(#day#..)/\#(#year#....)', '$3-$1-$2', 'c')</test>
+      <result>
+         <assert-string-value>2024-02-17</assert-string-value>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-replace-302" covers-40="PR1022">
+      <description>Escaped hash sign in regex.</description>
+      <created by="Michael Kay" on="2024-02-13"/>
+      <modified by="Gunther Rademacher" on="2024-02-19" change="replace by $3-$1-$2, not $3-$2-$1"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace('#02/#17/#2024', '[#](#month#..)/[#](#day#..)/[#](#year#....)', '$3-$1-$2', 'c')</test>
+      <result>
+         <assert-string-value>2024-02-17</assert-string-value>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-replace-303" covers-40="PR1022">
+      <description>Comment runs to end of string.</description>
+      <created by="Michael Kay" on="2024-02-13"/>
+      <modified by="Gunther Rademacher" on="2024-02-19" change="replace by $3-$1-$2, not $3-$2-$1"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace('02/17/2024', '(#month#..)/(#day#..)/(#year#....)# the end', '$3-$1-$2', 'c')</test>
+      <result>
+         <assert-string-value>2024-02-17</assert-string-value>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-replace-304" covers-40="PR1022">
+      <description>Adjacent comments in regex.</description>
+      <created by="Michael Kay" on="2024-02-13"/>
+      <modified by="Gunther Rademacher" on="2024-02-19" change="replace by $3-$1-$2, not $3-$2-$1"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace('02/17/2024', '(#month#..)/(#day#..)/(#year##4 digits#....)', '$3-$1-$2', 'c')</test>
+      <result>
+         <assert-string-value>2024-02-17</assert-string-value>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-replace-305" covers-40="PR1022">
+      <description>Escaped hash with no 'c' flag.</description>
+      <created by="Michael Kay" on="2024-02-13"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace('#banana#', '\#', '%')</test>
+      <result>
+         <assert-string-value>%banana%</assert-string-value>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-replace-306">
+      <description>Escaped hash disallowed in 3.1.</description>
+      <created by="Michael Kay" on="2024-02-13"/>
+      <dependency type="spec" value="XP30 XP31 XQ30 XQ31"/>
+      <test>replace('#banana#', '\#', '%')</test>
+      <result>
+         <error code="FORX0002"/>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-replace-307">
+      <description>'c' flag disallowed in 3.1.</description>
+      <created by="Michael Kay" on="2024-02-13"/>
+      <dependency type="spec" value="XP30 XP31 XQ30 XQ31"/>
+      <test>replace('#banana#', '#', '%', 'c')</test>
+      <result>
+         <error code="FORX0001"/>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-replace-308">
+      <description>comments disallowed in 3.1.</description>
+      <created by="Michael Kay" on="2024-02-13"/>
+      <dependency type="spec" value="XP30 XP31 XQ30 XQ31"/>
+      <test>replace('banana', 'banana#123#', '%')</test>
+      <result>
+         <assert-string-value>banana</assert-string-value>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-replace-309" covers-40="PR1022">
+      <description>regex ends with #</description>
+      <created by="Michael Kay" on="2024-02-13"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace('banana', 'a#', '@', 'c')</test>
+      <result>
+         <assert-string-value>b@n@n@</assert-string-value>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-replace-310" covers-40="PR1022">
+      <description>Flags c and q together: c is ignored</description>
+      <created by="Michael Kay" on="2024-02-13"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace('ba(#)ana', 'a(#)a', '@', 'cq')</test>
+      <result>
+         <assert-string-value>b@na</assert-string-value>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-replace-311" covers-40="PR1022">
+      <description>Flags c and x together</description>
+      <created by="Michael Kay" on="2024-02-13"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace('banana', '( # make upper case # a )', 'A', 'cx')</test>
+      <result>
+         <assert-string-value>bAnAnA</assert-string-value>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-replace-312" covers-40="PR1022">
+      <description>Flags c and x together, confusingly</description>
+      <created by="Michael Kay" on="2024-02-13"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace('banana', '( #[# a #]#)', 'A', 'cx')</test>
+      <result>
+         <assert-string-value>bAnAnA</assert-string-value>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-replace-313" covers-40="PR1022">
+      <description># can be used in CharClass</description>
+      <created by="Michael Kay" on="2024-02-13"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace('ba#¢∞§¶nana', '[∞§¶#¢]', '', 'c')</test>
+      <result>
+         <assert-string-value>banana</assert-string-value>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-replace-314" covers-40="PR1022">
+      <description># can be used in CharClass containing an escaped ']'</description>
+      <created by="Michael Kay" on="2024-02-13"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace('ba#¢∞§¶nana', '[∞§\]¶#¢]', '', 'c')</test>
+      <result>
+         <assert-string-value>banana</assert-string-value>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-replace-315" covers-40="PR1022">
+      <description># can be escaped in CharClass</description>
+      <created by="Michael Kay" on="2024-02-13"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace('ba#na\na', '[\#]', '')</test>
+      <result>
+         <assert-string-value>bana\na</assert-string-value>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-replace-316" covers-40="PR1856">
+      <description>Can now replace zero-length string</description>
+      <created by="Michael Kay" on="2024-02-13"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace('a nice cup of tea', '\b', '|')</test>
+      <result>
+         <assert-string-value>|a| |nice| |cup| |of| |tea|</assert-string-value>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-replace-317" covers-40="PR1856">
+      <description>Can now replace zero-length string</description>
+      <created by="Michael Kay" on="2024-02-13"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace('a nice cup of tea', '(?=\W)', '|')</test>
+      <result>
+         <assert-string-value>a| nice| cup| of| tea</assert-string-value>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-replace-318" covers-40="PR1856">
+      <description>Use substring captured by lookahead</description>
+      <created by="Michael Kay" on="2024-03-11"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>replace('a nice cup of tea', '\s(?=...(.))', ' $1')</test>
+      <result>
+         <assert-string-value>a enice  cup tof tea</assert-string-value>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-replace-319" covers-40="PR2793">
+      <description>Replace named capture groups</description>
+      <created by="Michael Kay" on="2026-07-17"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[replace('2026-07-17', '(?<year>....)-(?<month>..)-(?<day>..)', '$<day>/$<month>/$<year>')]]></test>
+      <result>
+         <assert-string-value>17/07/2026</assert-string-value>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-replace-320" covers-40="PR2793">
+      <description>Use named capture groups in callback</description>
+      <created by="Michael Kay" on="2026-07-17"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[replace('17/7/2026', '(?<day>.+)/(?<month>.+)/(?<year>....)', fn($s, $g){$g -> `{?year}-{?month}-{?day}`})]]></test>
+      <result>
+         <assert-string-value>2026-7-17</assert-string-value>
+      </result>
+   </test-case>
+   
+   <test-case name="fn-replace-321" covers-40="PR2793">
+      <description>Replace named capture groups using a callback function</description>
+      <created by="Michael Kay" on="2026-07-17"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[replace('2026/7/17', '(?<year>.+)/(?<month>.+)/(?<day>.+)', fn($s, $g){ build-dateTime($g) })]]></test>
+      <result>
+         <assert-string-value>2026-07-17</assert-string-value>
+      </result>
+   </test-case>
+
+
+   <test-case name="fn-replace-322" covers-40="PR2793">
+      <description>Named capture groups in fn:replace.</description>
+      <created by="Christian Gruen" on="2026-08-12"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[replace('ab', '(?<x>a)|(?<y>b)', '[$<x>$<y>]')]]></test>
+      <result>
+         <assert-string-value>[a][b]</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-323" covers-40="PR2793">
+      <description>Named capture groups in fn:replace.</description>
+      <created by="Christian Gruen" on="2026-08-12"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[replace('2026-06-25', '(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2})', '$3/$2/$1')]]></test>
+      <result>
+         <assert-string-value>25/06/2026</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-324" covers-40="PR2793">
+      <description>Named capture groups in fn:replace.</description>
+      <created by="Christian Gruen" on="2026-08-12"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[replace('a', '(?<x>a)', '\$<x>')]]></test>
+      <result>
+         <assert-string-value>$&lt;x&gt;</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-325" covers-40="PR2793">
+      <description>Named capture groups in fn:replace.</description>
+      <created by="Christian Gruen" on="2026-08-12"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[replace('a', 'a', '$<x>', 'q')]]></test>
+      <result>
+         <assert-string-value>$&lt;x&gt;</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-326" covers-40="PR2793">
+      <description>Named capture groups in fn:replace.</description>
+      <created by="Christian Gruen" on="2026-08-12"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[replace('a nice', '\s(?=(?<nx>.))', '[$<nx>]')]]></test>
+      <result>
+         <assert-string-value>a[n]nice</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-327" covers-40="PR2793">
+      <description>Named capture groups in fn:replace.</description>
+      <created by="Christian Gruen" on="2026-08-12"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[replace('ab', '(?<x>a)(b)', fn($s, $g) { string-join(map:keys($g) ! string(.), '|') })]]></test>
+      <result>
+         <assert-string-value>x|2</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-328" covers-40="PR2793">
+      <description>Named capture groups in fn:replace.</description>
+      <created by="Christian Gruen" on="2026-08-12"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[replace('ab', '(?<x>a)|(?<y>b)', fn($s, $g) { '{' || string-join(map:keys($g) ! string(.), ',') || '}' })]]></test>
+      <result>
+         <assert-string-value>{x}{y}</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-329" covers-40="PR2793">
+      <description>Named capture groups in fn:replace.</description>
+      <created by="Christian Gruen" on="2026-08-12"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[replace('a', '(?<x>a)', fn($s, $g) { string(map:contains($g, 1)) })]]></test>
+      <result>
+         <assert-string-value>false</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-330" covers-40="PR2793">
+      <description>Named capture groups in fn:replace.</description>
+      <created by="Christian Gruen" on="2026-08-12"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[replace('a', '(a)', fn($s, $g) { string(map:contains($g, 0)) })]]></test>
+      <result>
+         <assert-string-value>false</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-331" covers-40="PR2793">
+      <description>Named capture groups in fn:replace.</description>
+      <created by="Christian Gruen" on="2026-08-12"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[replace('42 plus 7', '(?<first>\d+) plus (?<second>\d+)', fn($s, $g) { string($g?first + $g?second) })]]></test>
+      <result>
+         <assert-string-value>49</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-332" covers-40="PR2793">
+      <description>Named capture groups in fn:replace.</description>
+      <created by="Christian Gruen" on="2026-08-12"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[replace('a', '(?<x>a)', '$<x')]]></test>
+      <result>
+         <error code="FORX0004"/>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-333" covers-40="PR2793">
+      <description>Named capture groups in fn:replace.</description>
+      <created by="Christian Gruen" on="2026-08-12"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[replace('a', '(?<x>a)', '$<z>')]]></test>
+      <result>
+         <error code="FORX0004"/>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-334" covers-40="PR2793">
+      <description>Named capture groups in fn:replace.</description>
+      <created by="Christian Gruen" on="2026-08-12"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[replace('a', '(?<x>a)', '$<1x>')]]></test>
+      <result>
+         <error code="FORX0004"/>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-335" covers-40="PR2793">
+      <description>Named capture groups in fn:replace.</description>
+      <created by="Christian Gruen" on="2026-08-12"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[replace('a', '(?<x>a)', '$<>')]]></test>
+      <result>
+         <error code="FORX0004"/>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-336" covers-40="PR2793">
+      <description>Named capture groups in fn:replace.</description>
+      <created by="Christian Gruen" on="2026-08-12"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[replace('a', 'a', '$<x>')]]></test>
+      <result>
+         <error code="FORX0004"/>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-337">
+      <description>Regular expressions in fn:replace.</description>
+      <created by="Christian Gruen" on="2026-10-01"/>
+      <test>replace('x$', '\$', '\\$')</test>
+      <result>
+         <error code="FORX0004"/>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-338">
+      <description>Regular expressions in fn:replace.</description>
+      <created by="Christian Gruen" on="2026-10-01"/>
+      <test>replace('ab', '\$', '\\$')</test>
+      <result>
+         <error code="FORX0004"/>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-339">
+      <description>Regular expressions in fn:replace.</description>
+      <created by="Christian Gruen" on="2026-10-01"/>
+      <dependency type="spec" value="XP30+ XQ30+"/>
+      <test>replace('A$B.b', 'b', '$\', 'qi')</test>
+      <result>
+         <assert-string-value>A$$\.$\</assert-string-value>
+      </result>
+   </test-case>
+
+   <test-case name="fn-replace-340" covers-40="PR2793">
+      <description>Regular expressions in fn:replace.</description>
+      <created by="Christian Gruen" on="2026-10-01"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[replace('aba', '(?<n>a)?b\k<n>', '[$<n>]')]]></test>
+      <result>
+         <assert-string-value>[a]</assert-string-value>
+      </result>
+   </test-case>
+
+</test-set>

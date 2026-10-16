@@ -1,0 +1,3 @@
+# Vendored conformance suites: keep them out of GitHub language statistics.
+third_party/qt4tests/** linguist-vendored
+third_party/xslt40-test/** linguist-vendored

@@ -1,0 +1,276 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<test-set xmlns="http://www.w3.org/2010/09/qt-fots-catalog" name="array-get"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" covers="array-get">
+    <description>Tests for the array:get function introduced in XPath 3.1</description>
+    <link type="spec" document="http://www.w3.org/TR/xpath-functions-31/" idref="func-array-get"/>
+    <dependency type="spec" value="XP31+ XQ31+"/>
+
+    <test-case name="array-get-001">
+        <description>Get item from array</description>
+        <created by="Michael Kay" on="2014-11-20"/>
+        <environment ref="array"/>
+        <test>array:get([5,6,7], 1)</test>
+        <result>
+            <all-of>
+                <assert-type>xs:integer</assert-type>
+                <assert-eq>5</assert-eq>                
+            </all-of>
+        </result>
+    </test-case>
+    
+    <test-case name="array-get-002">
+        <description>Get array item from array</description>
+        <created by="Michael Kay" on="2014-11-20"/>
+        <environment ref="array"/>
+        <test>array:get([5,[6,7]], 2)</test>
+        <result>
+            <all-of>
+                <assert-type>array(*)</assert-type>
+                <assert-deep-eq>[6,7]</assert-deep-eq>                
+            </all-of>
+        </result>
+    </test-case>
+    
+    <test-case name="array-get-003">
+        <description>Get item from array: error case</description>
+        <created by="Michael Kay" on="2014-11-20"/>
+        <environment ref="array"/>
+        <test>array:get([5,6,7], -1)</test>
+        <result>
+            <error code="FOAY0001"/>
+        </result>
+    </test-case>
+    
+    <test-case name="array-get-004">
+        <description>Get item from array: error case</description>
+        <created by="Michael Kay" on="2014-11-20"/>
+        <environment ref="array"/>
+        <test>array:get([5,6,7], 0)</test>
+        <result>
+            <error code="FOAY0001"/>
+        </result>
+    </test-case>
+    
+    <test-case name="array-get-005">
+        <description>Get item from array: error case</description>
+        <created by="Michael Kay" on="2014-11-20"/>
+        <environment ref="array"/>
+        <test>array:get([], 1)</test>
+        <result>
+            <error code="FOAY0001"/>
+        </result>
+    </test-case>
+    
+    <test-case name="array-get-006">
+        <description>Get item from array: error case</description>
+        <created by="Michael Kay" on="2014-11-20"/>
+        <environment ref="array"/>
+        <test>array:get([1,2,3], 1.2)</test>
+        <result>
+            <error code="XPTY0004"/>
+        </result>
+    </test-case>
+    
+    <test-case name="array-get-007">
+        <description>Get item from array: error case</description>
+        <created by="Michael Kay" on="2014-11-20"/>
+        <environment ref="array"/>
+        <test>array:get([1,2,3], 1 to 2)</test>
+        <result>
+            <error code="XPTY0004"/>
+        </result>
+    </test-case>
+    
+    <test-case name="array-get-008">
+        <description>Get item from array: error case</description>
+        <created by="Michael Kay" on="2014-11-20"/>
+        <environment ref="array"/>
+        <test>array:get([1,2,3], ())</test>
+        <result>
+            <error code="XPTY0004"/>
+        </result>
+    </test-case>
+    
+    <test-case name="array-get-009">
+        <description>Get item from array: error case</description>
+        <created by="Michael Kay" on="2014-11-20"/>
+        <environment ref="array"/>
+        <test>array:get((), 1)</test>
+        <result>
+            <error code="XPTY0004"/>
+        </result>
+    </test-case>
+    
+    <test-case name="array-get-010">
+        <description>array index out of range </description>
+        <created by="Michael Kay after Christian Gruen" on="2017-11-09"/>
+        <dependency type="spec" value="XP31+ XQ31+"/>
+        <test>array:get([1], 4294967297)</test>
+        <result>
+            <error code="FOAY0001"/>
+        </result>
+    </test-case>
+    
+    <test-case name="array-get-400" covers-40="PR289 PR1901">
+        <description>array index out of range with fallback</description>
+        <created by="Michael Kay" on="2023-03-26"/>
+        <modified by="Michael Kay, Saxonica" on="2025-05-08" change="PR1901"/>
+        <dependency type="spec" value="XP40+ XQ40+"/>
+        <test>array:get([1], 4294967297, ())</test>
+        <result>
+            <assert-empty/>
+        </result>
+    </test-case>
+    
+    <test-case name="array-get-401" covers-40="PR289 PR1901">
+        <description>Unused fallback</description>
+        <created by="Michael Kay" on="2023-03-26"/>
+        <modified by="Michael Kay, Saxonica" on="2025-05-08" change="PR1901"/>
+        <dependency type="spec" value="XP40+ XQ40+"/>
+        <test>array:get([1,2,3], 2, ())</test>
+        <result>
+            <assert-eq>2</assert-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="array-get-402" covers-40="PR289 PR1901">
+        <description>Index-dependent fallback</description>
+        <created by="Michael Kay" on="2023-03-26"/>
+        <modified by="Michael Kay, Saxonica" on="2025-05-08" change="PR1901"/>
+        <dependency type="spec" value="XP40+ XQ40+"/>
+        <test>array:get([1,2,3], -1, 1)</test>
+        <result>
+            <assert-eq>1</assert-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="array-get-403" covers-40="PR289 PR1901">
+        <description>Array as fallback</description>
+        <created by="Michael Kay" on="2023-03-26"/>
+        <modified by="Michael Kay, Saxonica" on="2025-05-08" change="PR1901"/>
+        <dependency type="spec" value="XP40+ XQ40+"/>
+        <test>array:get([1,2,3], 27, array{1 to 100})</test>
+        <result>
+            <assert-deep-eq>array{1 to 100}</assert-deep-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="array-get-404" covers-40="PR289 PR1901">
+        <description>Partial fallback</description>
+        <created by="Michael Kay" on="2023-03-26"/>
+        <modified by="Michael Kay, Saxonica" on="2025-05-08" change="PR1901"/>
+        <dependency type="spec" value="XP40+ XQ40+"/>
+        <test>array:get([1,2,3], -3, array{1 to 100})</test>
+        <result>
+            <assert-deep-eq>array{1 to 100}</assert-deep-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="array-get-405" covers-40="PR289 PR1901">
+        <description>Map as fallback</description>
+        <created by="Michael Kay" on="2023-03-26"/>
+        <modified by="Michael Kay, Saxonica" on="2025-05-08" change="PR1901"/>
+        <dependency type="spec" value="XP40+ XQ40+"/>
+        <test>array:get([1,2,3], -3, default := map{-3:()})</test>
+        <result>
+            <assert-deep-eq>map{-3:()}</assert-deep-eq>
+        </result>
+    </test-case>
+    
+    <test-case name="array-get-406" covers-40="PR289 PR1901">
+        <description>Function as fallback</description>
+        <created by="Michael Kay" on="2023-03-26"/>
+        <modified by="Michael Kay, Saxonica" on="2025-05-08" change="PR1901"/>
+        <dependency type="spec" value="XP40+ XQ40+"/>
+        <test>array:get([1,2,3], -3, function($x as node()){22})</test>
+        <result>
+            <assert-type>function(*)</assert-type>
+        </result>
+    </test-case>
+ 
+
+ 
+    <test-case name="array-get-407">
+        <description>Values at the limits of numeric precision.</description>
+        <created by="Christian Gruen" on="2026-10-03"/>
+        <dependency type="spec" value="XP31+ XQ31+"/>
+        <test>array:get([1, 2, 3], 4294967297)</test>
+        <result>
+            <error code="FOAY0001"/>
+        </result>
+    </test-case>
+
+    <test-case name="array-get-408">
+        <description>Values at the limits of numeric precision.</description>
+        <created by="Christian Gruen" on="2026-10-03"/>
+        <dependency type="spec" value="XP31+ XQ31+"/>
+        <test>[1, 2, 3](4294967297)</test>
+        <result>
+            <error code="FOAY0001"/>
+        </result>
+    </test-case>
+
+    <test-case name="array-get-409">
+        <description>Values at the limits of numeric precision.</description>
+        <created by="Christian Gruen" on="2026-10-03"/>
+        <dependency type="spec" value="XP31+ XQ31+"/>
+        <test>[1, 2, 3]?(4294967298)</test>
+        <result>
+            <error code="FOAY0001"/>
+        </result>
+    </test-case>
+
+    <test-case name="array-get-410">
+        <description>Values at the limits of numeric precision.</description>
+        <created by="Christian Gruen" on="2026-10-03"/>
+        <dependency type="spec" value="XP31+ XQ31+"/>
+        <test>array:get([1, 2, 3], -4294967295)</test>
+        <result>
+            <error code="FOAY0001"/>
+        </result>
+    </test-case>
+
+    <test-case name="array-get-411">
+        <description>Values at the limits of numeric precision.</description>
+        <created by="Christian Gruen" on="2026-10-03"/>
+        <dependency type="spec" value="XP31+ XQ31+"/>
+        <test>array:get([1, 2, 3], 18446744073709551617)</test>
+        <result>
+            <any-of>
+                <error code="FOAY0001"/>
+                <error code="FOAR0002"/>
+            </any-of>
+        </result>
+    </test-case>
+
+    <test-case name="array-get-412">
+        <description>Values at the limits of numeric precision.</description>
+        <created by="Christian Gruen" on="2026-10-04"/>
+        <dependency type="spec" value="XP31+ XQ31+"/>
+        <test>[1, 2](xs:unsignedLong("2"))</test>
+        <result>
+            <assert-eq>2</assert-eq>
+        </result>
+    </test-case>
+
+    <test-case name="array-get-413">
+        <description>Values at the limits of numeric precision.</description>
+        <created by="Christian Gruen" on="2026-10-04"/>
+        <dependency type="spec" value="XP31+ XQ31+"/>
+        <test>[1, 2]?(xs:unsignedLong("2"))</test>
+        <result>
+            <assert-eq>2</assert-eq>
+        </result>
+    </test-case>
+
+    <test-case name="array-get-414">
+        <description>Values at the limits of numeric precision.</description>
+        <created by="Christian Gruen" on="2026-10-04"/>
+        <dependency type="spec" value="XP31+ XQ31+"/>
+        <test>array:get([1, 2], xs:unsignedByte(2))</test>
+        <result>
+            <assert-eq>2</assert-eq>
+        </result>
+    </test-case>
+
+</test-set>

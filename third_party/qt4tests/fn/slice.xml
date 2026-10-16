@@ -1,0 +1,940 @@
+<?xml version="1.0" encoding="us-ascii"?>
+<test-set xmlns="http://www.w3.org/2010/09/qt-fots-catalog" name="fn-slice" covers-40="fn-slice">
+  <description>Tests for the fn:slice() function (4.0 proposal)</description>
+  <link type="spec" document="http://www.w3.org/TR/xpath-functions-30/" idref="func-slice"/>
+
+  <dependency type="feature" value="higherOrderFunctions"/>
+  <dependency type="spec" value="XP40+ XQ40+"/>
+  
+  
+  <test-case name="slice-01">
+    <description>Empty sequence</description>
+    <created by="Michael Kay" on="2020-12-03"/>
+    <modified by="Michael Kay" on="2023-06-28" change="optional params no longer supplied as a map"/>
+    <test>slice((), start:=1)</test>
+    <result>
+      <assert-empty/>
+    </result>
+  </test-case>
+  
+  <test-case name="slice-02">
+    <description>start</description>
+    <created by="Michael Kay" on="2020-12-03"/>
+    <modified by="Christian Gruen" on="2023-04-06" change="Syntax updated"/>
+    <test>slice(("a", "b", "c", "d", "e"), start := 3)</test>
+    <result>
+      <assert-deep-eq>("c", "d", "e")</assert-deep-eq>
+    </result>
+  </test-case>
+  
+  <test-case name="slice-100">
+    <description>Empty sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[() => fn:slice(0)]]></test>
+    <result>
+      <assert-empty/>
+    </result>
+  </test-case>
+  <test-case name="slice-101">
+    <description>Empty sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[() => fn:slice(1, 2, 3)]]></test>
+    <result>
+      <assert-empty/>
+    </result>
+  </test-case>
+  <test-case name="slice-102">
+    <description>Empty sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[() => fn:slice(-1, -2, -3)]]></test>
+    <result>
+      <assert-empty/>
+    </result>
+  </test-case>
+  <test-case name="slice-103">
+    <description>Empty sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[() => fn:slice(0, 0, 0)]]></test>
+    <result>
+      <assert-empty/>
+    </result>
+  </test-case>
+  <test-case name="slice-104">
+    <description>Single string</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA['a' => fn:slice(0)]]></test>
+    <result>
+      <assert-string-value>a</assert-string-value>
+    </result>
+  </test-case>
+  <test-case name="slice-105">
+    <description>Single string</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA['a' => fn:slice(0, 0)]]></test>
+    <result>
+      <assert-string-value>a</assert-string-value>
+    </result>
+  </test-case>
+  <test-case name="slice-106">
+    <description>Single string</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA['a' => fn:slice(0, 0, 0)]]></test>
+    <result>
+      <assert-string-value>a</assert-string-value>
+    </result>
+  </test-case>
+  <test-case name="slice-107">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g') => fn:slice(2, 4)]]></test>
+    <result>
+      <assert-deep-eq>'b', 'c', 'd'</assert-deep-eq>
+    </result>
+  </test-case>
+  <test-case name="slice-108">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g') => fn:slice(2, 4)]]></test>
+    <result>
+      <assert-deep-eq>'b', 'c', 'd'</assert-deep-eq>
+    </result>
+  </test-case>
+  <test-case name="slice-109">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g') => fn:slice(2)]]></test>
+    <result>
+      <assert-deep-eq>'b', 'c', 'd', 'e', 'f', 'g'</assert-deep-eq>
+    </result>
+  </test-case>
+  <test-case name="slice-110">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g') => fn:slice((), 2)]]></test>
+    <result>
+      <assert-deep-eq>'a', 'b'</assert-deep-eq>
+    </result>
+  </test-case>
+  <test-case name="slice-111">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g') => fn:slice(3, 3)]]></test>
+    <result>
+      <assert-string-value>c</assert-string-value>
+    </result>
+  </test-case>
+  <test-case name="slice-112">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g') => fn:slice(4, 3)]]></test>
+    <result>
+      <assert-deep-eq>'d', 'c'</assert-deep-eq>
+    </result>
+  </test-case>
+  <test-case name="slice-113">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g') => fn:slice(2, 5, 2)]]></test>
+    <result>
+      <assert-deep-eq>'b', 'd'</assert-deep-eq>
+    </result>
+  </test-case>
+  <test-case name="slice-114">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g') => fn:slice(5, 2, -2)]]></test>
+    <result>
+      <assert-deep-eq>'e', 'c'</assert-deep-eq>
+    </result>
+  </test-case>
+  <test-case name="slice-115">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g') => fn:slice(2, 5, -2)]]></test>
+    <result>
+      <assert-empty/>
+    </result>
+  </test-case>
+  <test-case name="slice-116">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g') => fn:slice(5, 2, 2)]]></test>
+    <result>
+      <assert-empty/>
+    </result>
+  </test-case>
+  <test-case name="slice-117">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g') => fn:slice()]]></test>
+    <result>
+      <assert-deep-eq>'a', 'b', 'c', 'd', 'e', 'f', 'g'</assert-deep-eq>
+    </result>
+  </test-case>
+  <test-case name="slice-118">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g') => fn:slice(-1)]]></test>
+    <result>
+      <assert-string-value>g</assert-string-value>
+    </result>
+  </test-case>
+  <test-case name="slice-119">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g') => fn:slice(-3)]]></test>
+    <result>
+      <assert-deep-eq>'e', 'f', 'g'</assert-deep-eq>
+    </result>
+  </test-case>
+  <test-case name="slice-120">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g') => fn:slice((), -2)]]></test>
+    <result>
+      <assert-deep-eq>'a', 'b', 'c', 'd', 'e', 'f'</assert-deep-eq>
+    </result>
+  </test-case>
+  <test-case name="slice-121">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g') => fn:slice(2, -2)]]></test>
+    <result>
+      <assert-deep-eq>'b', 'c', 'd', 'e', 'f'</assert-deep-eq>
+    </result>
+  </test-case>
+  <test-case name="slice-122">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g') => fn:slice(-2, 2)]]></test>
+    <result>
+      <assert-deep-eq>'f', 'e', 'd', 'c', 'b'</assert-deep-eq>
+    </result>
+  </test-case>
+  <test-case name="slice-123">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g') => fn:slice(-4, -2)]]></test>
+    <result>
+      <assert-deep-eq>'d', 'e', 'f'</assert-deep-eq>
+    </result>
+  </test-case>
+  <test-case name="slice-124">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g') => fn:slice(-2, -4)]]></test>
+    <result>
+      <assert-deep-eq>'f', 'e', 'd'</assert-deep-eq>
+    </result>
+  </test-case>
+  <test-case name="slice-125">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g') => fn:slice(-4, -2, 2)]]></test>
+    <result>
+      <assert-deep-eq>'d', 'f'</assert-deep-eq>
+    </result>
+  </test-case>
+  <test-case name="slice-126">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g') => fn:slice(-2, -4, -2)]]></test>
+    <result>
+      <assert-deep-eq>'f', 'd'</assert-deep-eq>
+    </result>
+  </test-case>
+  <test-case name="slice-127">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g')[. < 'c'] => fn:slice(0)]]></test>
+    <result>
+      <assert-deep-eq>'a', 'b'</assert-deep-eq>
+    </result>
+  </test-case>
+  <test-case name="slice-128">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g')[. < 'c'] => fn:slice(1)]]></test>
+    <result>
+      <assert-deep-eq>'a', 'b'</assert-deep-eq>
+    </result>
+  </test-case>
+  <test-case name="slice-129">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g')[. < 'c'] => fn:slice(-1)]]></test>
+    <result>
+      <assert-string-value>b</assert-string-value>
+    </result>
+  </test-case>
+  <test-case name="slice-130">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g')[. < 'c'] => fn:slice(1, 2)]]></test>
+    <result>
+      <assert-deep-eq>'a', 'b'</assert-deep-eq>
+    </result>
+  </test-case>
+  <test-case name="slice-131">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g')[. < 'c'] => fn:slice(-1, 2)]]></test>
+    <result>
+      <assert-string-value>b</assert-string-value>
+    </result>
+  </test-case>
+  <test-case name="slice-132">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g')[. < 'c'] => fn:slice(1, -2)]]></test>
+    <result>
+      <assert-string-value>a</assert-string-value>
+    </result>
+  </test-case>
+  <test-case name="slice-133">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g')[. < 'c'] => fn:slice(-1, -2)]]></test>
+    <result>
+      <assert-deep-eq>'b', 'a'</assert-deep-eq>
+    </result>
+  </test-case>
+  <test-case name="slice-134">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g')[. < 'c'] => fn:slice(1, 2, 3)]]></test>
+    <result>
+      <assert-string-value>a</assert-string-value>
+    </result>
+  </test-case>
+  <test-case name="slice-135">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g')[. < 'c'] => fn:slice(1, 2, -3)]]></test>
+    <result>
+      <assert-empty/>
+    </result>
+  </test-case>
+  <test-case name="slice-136">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g')[. < 'c'] => fn:slice(1, -2, 3)]]></test>
+    <result>
+      <assert-string-value>a</assert-string-value>
+    </result>
+  </test-case>
+  <test-case name="slice-137">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g')[. < 'c'] => fn:slice(1, -2, -3)]]></test>
+    <result>
+      <assert-string-value>a</assert-string-value>
+    </result>
+  </test-case>
+  <test-case name="slice-138">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g')[. < 'c'] => fn:slice(-1, 2, 3)]]></test>
+    <result>
+      <assert-string-value>b</assert-string-value>
+    </result>
+  </test-case>
+  <test-case name="slice-139">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g')[. < 'c'] => fn:slice(-1, 2, -3)]]></test>
+    <result>
+      <assert-string-value>b</assert-string-value>
+    </result>
+  </test-case>
+  <test-case name="slice-140">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g')[. < 'c'] => fn:slice(-1, -2, 3)]]></test>
+    <result>
+      <assert-empty/>
+    </result>
+  </test-case>
+  <test-case name="slice-141">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g')[. < 'c'] => fn:slice(-1, -2, -3)]]></test>
+    <result>
+      <assert-string-value>b</assert-string-value>
+    </result>
+  </test-case>
+  <test-case name="slice-142">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g')[. < 'b'] => fn:slice(0)]]></test>
+    <result>
+      <assert-string-value>a</assert-string-value>
+    </result>
+  </test-case>
+  <test-case name="slice-143">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g')[. < 'b'] => fn:slice(1)]]></test>
+    <result>
+      <assert-string-value>a</assert-string-value>
+    </result>
+  </test-case>
+  <test-case name="slice-144">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g')[. < 'b'] => fn:slice(-1)]]></test>
+    <result>
+      <assert-string-value>a</assert-string-value>
+    </result>
+  </test-case>
+  <test-case name="slice-145">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g')[. < 'b'] => fn:slice(1, 2)]]></test>
+    <result>
+      <assert-string-value>a</assert-string-value>
+    </result>
+  </test-case>
+  <test-case name="slice-146">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g')[. < 'b'] => fn:slice(-1, 2)]]></test>
+    <result>
+      <assert-string-value>a</assert-string-value>
+    </result>
+  </test-case>
+  <test-case name="slice-147">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g')[. < 'b'] => fn:slice(1, -2)]]></test>
+    <result>
+      <assert-string-value>a</assert-string-value>
+    </result>
+  </test-case>
+  <test-case name="slice-148">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g')[. < 'b'] => fn:slice(-1, -2)]]></test>
+    <result>
+      <assert-string-value>a</assert-string-value>
+    </result>
+  </test-case>
+  <test-case name="slice-149">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g')[. < 'b'] => fn:slice(1, 2, 3)]]></test>
+    <result>
+      <assert-string-value>a</assert-string-value>
+    </result>
+  </test-case>
+  <test-case name="slice-150">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g')[. < 'b'] => fn:slice(1, 2, -3)]]></test>
+    <result>
+      <assert-empty/>
+    </result>
+  </test-case>
+  <test-case name="slice-151">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g')[. < 'b'] => fn:slice(1, -2, 3)]]></test>
+    <result>
+      <assert-empty/>
+    </result>
+  </test-case>
+  <test-case name="slice-152">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g')[. < 'b'] => fn:slice(1, -2, -3)]]></test>
+    <result>
+      <assert-string-value>a</assert-string-value>
+    </result>
+  </test-case>
+  <test-case name="slice-153">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g')[. < 'b'] => fn:slice(-1, 2, 3)]]></test>
+    <result>
+      <assert-string-value>a</assert-string-value>
+    </result>
+  </test-case>
+  <test-case name="slice-154">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g')[. < 'b'] => fn:slice(-1, 2, -3)]]></test>
+    <result>
+      <assert-empty/>
+    </result>
+  </test-case>
+  <test-case name="slice-155">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g')[. < 'b'] => fn:slice(-1, -2, 3)]]></test>
+    <result>
+      <assert-empty/>
+    </result>
+  </test-case>
+  <test-case name="slice-156">
+    <description>String sequence</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g')[. < 'b'] => fn:slice(-1, -2, -3)]]></test>
+    <result>
+      <assert-string-value>a</assert-string-value>
+    </result>
+  </test-case>
+  <test-case name="slice-157">
+    <description>Integer range</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[(1 to 1000) => fn:slice(-1001) => count()]]></test>
+    <result>
+      <assert-eq>1000</assert-eq>
+    </result>
+  </test-case>
+  <test-case name="slice-158">
+    <description>Integer range</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[(1 to 1000) => fn:slice(-1000) => count()]]></test>
+    <result>
+      <assert-eq>1000</assert-eq>
+    </result>
+  </test-case>
+  <test-case name="slice-159">
+    <description>Integer range</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[(1 to 1000) => fn:slice(-999) => count()]]></test>
+    <result>
+      <assert-eq>999</assert-eq>
+    </result>
+  </test-case>
+  <test-case name="slice-160">
+    <description>Integer range</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[(1 to 1000) => fn:slice(-2) => count()]]></test>
+    <result>
+      <assert-eq>2</assert-eq>
+    </result>
+  </test-case>
+  <test-case name="slice-161">
+    <description>Integer range</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[(1 to 1000) => fn:slice(-1) => count()]]></test>
+    <result>
+      <assert-eq>1</assert-eq>
+    </result>
+  </test-case>
+  <test-case name="slice-162">
+    <description>Integer range</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[(1 to 1000) => fn:slice(0) => count()]]></test>
+    <result>
+      <assert-eq>1000</assert-eq>
+    </result>
+  </test-case>
+  <test-case name="slice-163">
+    <description>Integer range</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[(1 to 1000) => fn:slice(1) => count()]]></test>
+    <result>
+      <assert-eq>1000</assert-eq>
+    </result>
+  </test-case>
+  <test-case name="slice-164">
+    <description>Integer range</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[(1 to 1000) => fn:slice(2) => count()]]></test>
+    <result>
+      <assert-eq>999</assert-eq>
+    </result>
+  </test-case>
+  <test-case name="slice-165">
+    <description>Integer range</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[(1 to 1000) => fn:slice(999) => count()]]></test>
+    <result>
+      <assert-eq>2</assert-eq>
+    </result>
+  </test-case>
+  <test-case name="slice-166">
+    <description>Integer range</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[(1 to 1000) => fn:slice(1000) => count()]]></test>
+    <result>
+      <assert-eq>1</assert-eq>
+    </result>
+  </test-case>
+  <test-case name="slice-167">
+    <description>Integer range</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <test><![CDATA[(1 to 1000) => fn:slice(1001) => count()]]></test>
+    <result>
+      <assert-eq>1</assert-eq>
+    </result>
+  </test-case>
+  <test-case name="slice-168">
+    <description>Integer range, argument wrapped in node constructor</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <modified by="Michael Kay" on="2022-09-30" change="rename test"/>
+    <dependency type="spec" value="XQ40+"/>
+    <test><![CDATA[(1 to 1000) => fn:slice(data(attribute _ { '1000' }))]]></test>
+    <result>
+      <assert-eq>1000</assert-eq>
+    </result>
+  </test-case>
+  <test-case name="slice-169">
+    <description>Integer range, argument wrapped in node constructor</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <modified by="Michael Kay" on="2022-09-30" change="rename test"/>
+    <dependency type="spec" value="XQ40+"/>
+    <test><![CDATA[(1 to 1000) => fn:slice(1000, data(attribute _ { '1000' }))]]></test>
+    <result>
+      <assert-eq>1000</assert-eq>
+    </result>
+  </test-case>
+  <test-case name="slice-170">
+    <description>Integer range, argument wrapped in node constructor</description>
+    <created by="Christian Gruen" on="2022-08-11"/>
+    <modified by="Michael Kay" on="2022-09-30" change="rename test"/>
+    <dependency type="spec" value="XQ40+"/>
+    <test><![CDATA[(1 to 1000) => fn:slice(1000, 1000, data(attribute _ { '1' }))]]></test>
+    <result>
+      <assert-eq>1000</assert-eq>
+    </result>
+  </test-case>
+  <test-case name="slice-171" covers-40="PR2800">
+    <description>Negative step, defaulted bounds.</description>
+    <created by="Christian Gruen" on="2026-07-21"/>
+    <test><![CDATA[() => fn:slice(step := -1)]]></test>
+    <result>
+      <assert-empty/>
+    </result>
+  </test-case>
+  <test-case name="slice-172" covers-40="PR2800">
+    <description>Negative step, defaulted bounds.</description>
+    <created by="Christian Gruen" on="2026-07-21"/>
+    <test><![CDATA['a' => fn:slice(step := -1)]]></test>
+    <result>
+      <assert-string-value>a</assert-string-value>
+    </result>
+  </test-case>
+  <test-case name="slice-173" covers-40="PR2800">
+    <description>Negative step, defaulted bounds.</description>
+    <created by="Christian Gruen" on="2026-07-21"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g') => fn:slice(step := -1)]]></test>
+    <result>
+      <assert-deep-eq>'g', 'f', 'e', 'd', 'c', 'b', 'a'</assert-deep-eq>
+    </result>
+  </test-case>
+  <test-case name="slice-174" covers-40="PR2800">
+    <description>Negative step, defaulted bounds.</description>
+    <created by="Christian Gruen" on="2026-07-21"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g') => fn:slice(0, 0, -1)]]></test>
+    <result>
+      <assert-deep-eq>'g', 'f', 'e', 'd', 'c', 'b', 'a'</assert-deep-eq>
+    </result>
+  </test-case>
+  <test-case name="slice-175" covers-40="PR2800">
+    <description>Negative step, defaulted bounds.</description>
+    <created by="Christian Gruen" on="2026-07-21"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g') => fn:slice((), (), -1)]]></test>
+    <result>
+      <assert-deep-eq>'g', 'f', 'e', 'd', 'c', 'b', 'a'</assert-deep-eq>
+    </result>
+  </test-case>
+  <test-case name="slice-176" covers-40="PR2800">
+    <description>Negative step, defaulted bounds.</description>
+    <created by="Christian Gruen" on="2026-07-21"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g') => fn:slice(step := -2)]]></test>
+    <result>
+      <assert-deep-eq>'g', 'e', 'c', 'a'</assert-deep-eq>
+    </result>
+  </test-case>
+  <test-case name="slice-177" covers-40="PR2800">
+    <description>Negative step, defaulted bounds.</description>
+    <created by="Christian Gruen" on="2026-07-21"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g') => fn:slice(step := -3)]]></test>
+    <result>
+      <assert-deep-eq>'g', 'd', 'a'</assert-deep-eq>
+    </result>
+  </test-case>
+  <test-case name="slice-178" covers-40="PR2800">
+    <description>Negative step, defaulted bounds.</description>
+    <created by="Christian Gruen" on="2026-07-21"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g') => fn:slice(start := 3, step := -1)]]></test>
+    <result>
+      <assert-deep-eq>'c', 'b', 'a'</assert-deep-eq>
+    </result>
+  </test-case>
+  <test-case name="slice-179" covers-40="PR2800">
+    <description>Negative step, defaulted bounds.</description>
+    <created by="Christian Gruen" on="2026-07-21"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g') => fn:slice(end := 3, step := -1)]]></test>
+    <result>
+      <assert-deep-eq>'g', 'f', 'e', 'd', 'c'</assert-deep-eq>
+    </result>
+  </test-case>
+  <test-case name="slice-180" covers-40="PR2800">
+    <description>Negative step, defaulted bounds.</description>
+    <created by="Christian Gruen" on="2026-07-21"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g') => fn:slice(start := -2, step := -1)]]></test>
+    <result>
+      <assert-deep-eq>'f', 'e', 'd', 'c', 'b', 'a'</assert-deep-eq>
+    </result>
+  </test-case>
+  <test-case name="slice-181" covers-40="PR2800">
+    <description>Negative step, defaulted bounds.</description>
+    <created by="Christian Gruen" on="2026-07-21"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g') => fn:slice(end := -2, step := -1)]]></test>
+    <result>
+      <assert-deep-eq>'g', 'f'</assert-deep-eq>
+    </result>
+  </test-case>
+  <test-case name="slice-182" covers-40="PR2800">
+    <description>Negative step, defaulted bounds.</description>
+    <created by="Christian Gruen" on="2026-07-21"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g') => fn:slice(0, -3, -2)]]></test>
+    <result>
+      <assert-deep-eq>'g', 'e'</assert-deep-eq>
+    </result>
+  </test-case>
+  <test-case name="slice-183" covers-40="PR2800">
+    <description>Negative step, defaulted bounds.</description>
+    <created by="Christian Gruen" on="2026-07-21"/>
+    <test><![CDATA[('a', 'b', 'c', 'd', 'e', 'f', 'g')[. < 'c'] => fn:slice(step := -1)]]></test>
+    <result>
+      <assert-deep-eq>'b', 'a'</assert-deep-eq>
+    </result>
+  </test-case>
+  <test-case name="slice-184" covers-40="PR2800">
+    <description>Negative step, defaulted bounds.</description>
+    <created by="Christian Gruen" on="2026-07-21"/>
+    <test><![CDATA[(1 to 5) => fn:slice(step := -1)]]></test>
+    <result>
+      <assert-deep-eq>5, 4, 3, 2, 1</assert-deep-eq>
+    </result>
+  </test-case>
+  
+  <test-case name="slice-185" covers-40="PR2800">
+    <description>Optimization opportunity</description>
+    <created by="Michael Kay" on="2026-07-28"/>
+    <dependency type="spec" value="XQ40+"/>
+    <test><![CDATA[
+      let $in := <doc> {
+         for $i in 1 to 10000 return <a nr="{$i}"/>
+      } </doc>
+      return ($in/*[last()]/preceding-sibling-or-self::* => slice(step := -1, end := -5)) ! number(@nr)
+      ]]></test>
+    <result>
+      <assert-deep-eq>10000, 9999, 9998, 9997, 9996</assert-deep-eq>
+    </result>
+  </test-case>
+
+  <test-case name="slice-186">
+    <description>Values at the limits of numeric precision.</description>
+    <created by="Christian Gruen" on="2026-10-03"/>
+    <dependency type="spec" value="XP40+ XQ40+"/>
+    <test>slice(("a", "b", "c"), -4294967296, (), 2)</test>
+    <result>
+      <any-of>
+        <assert-eq>"b"</assert-eq>
+        <error code="FOAR0002"/>
+      </any-of>
+    </result>
+  </test-case>
+
+  <test-case name="slice-187">
+    <description>Values at the limits of numeric precision.</description>
+    <created by="Christian Gruen" on="2026-10-03"/>
+    <dependency type="spec" value="XP40+ XQ40+"/>
+    <test>slice(("a", "b", "c"), 1, 3, 4294967297)</test>
+    <result>
+      <any-of>
+        <assert-eq>"a"</assert-eq>
+        <error code="FOAR0002"/>
+      </any-of>
+    </result>
+  </test-case>
+
+  <test-case name="slice-188">
+    <description>Values at the limits of numeric precision.</description>
+    <created by="Christian Gruen" on="2026-10-03"/>
+    <dependency type="spec" value="XP40+ XQ40+"/>
+    <test>slice(("a", "b", "c"), 4294967297)</test>
+    <result>
+      <any-of>
+        <assert-eq>"c"</assert-eq>
+        <error code="FOAR0002"/>
+      </any-of>
+    </result>
+  </test-case>
+
+  <test-case name="slice-189">
+    <description>Values at the limits of numeric precision.</description>
+    <created by="Christian Gruen" on="2026-10-03"/>
+    <dependency type="spec" value="XP40+ XQ40+"/>
+    <test>slice(("a", "b", "c"), -4294967297)</test>
+    <result>
+      <any-of>
+        <assert-deep-eq>"a", "b", "c"</assert-deep-eq>
+        <error code="FOAR0002"/>
+      </any-of>
+    </result>
+  </test-case>
+
+  <test-case name="slice-190">
+    <description>Values at the limits of numeric precision.</description>
+    <created by="Christian Gruen" on="2026-10-03"/>
+    <dependency type="spec" value="XP40+ XQ40+"/>
+    <test>slice(("a", "b", "c"), (), (), -2147483648)</test>
+    <result>
+      <any-of>
+        <assert-eq>"c"</assert-eq>
+        <error code="FOAR0002"/>
+      </any-of>
+    </result>
+  </test-case>
+
+  <test-case name="slice-191">
+    <description>Values at the limits of numeric precision.</description>
+    <created by="Christian Gruen" on="2026-10-03"/>
+    <dependency type="spec" value="XP40+ XQ40+"/>
+    <test>slice(("a", "b", "c"), -2147483648, -3, 2)</test>
+    <result>
+      <any-of>
+        <assert-empty/>
+        <error code="FOAR0002"/>
+      </any-of>
+    </result>
+  </test-case>
+
+  <test-case name="slice-192">
+    <description>Values at the limits of numeric precision.</description>
+    <created by="Christian Gruen" on="2026-10-03"/>
+    <dependency type="spec" value="XP40+ XQ40+"/>
+    <test>slice(("a", "b", "c"), -2147483648, -3, 5)</test>
+    <result>
+      <any-of>
+        <assert-eq>"a"</assert-eq>
+        <error code="FOAR0002"/>
+      </any-of>
+    </result>
+  </test-case>
+
+  <test-case name="slice-193">
+    <description>Values at the limits of numeric precision.</description>
+    <created by="Christian Gruen" on="2026-10-03"/>
+    <dependency type="spec" value="XP40+ XQ40+"/>
+    <test>slice(("a", "b", "c"), 2, 2147483648, 2147483647)</test>
+    <result>
+      <any-of>
+        <assert-eq>"b"</assert-eq>
+        <error code="FOAR0002"/>
+      </any-of>
+    </result>
+  </test-case>
+
+  <test-case name="slice-194">
+    <description>Values at the limits of numeric precision.</description>
+    <created by="Christian Gruen" on="2026-10-03"/>
+    <dependency type="spec" value="XP40+ XQ40+"/>
+    <test>slice(("a", "b", "c"), -9223372036854775807 - 1, 9223372036854775807, 2)</test>
+    <result>
+      <any-of>
+        <assert-eq>"b"</assert-eq>
+        <error code="FOAR0002"/>
+      </any-of>
+    </result>
+  </test-case>
+
+  <test-case name="slice-195">
+    <description>Values at the limits of numeric precision.</description>
+    <created by="Christian Gruen" on="2026-10-03"/>
+    <dependency type="spec" value="XP40+ XQ40+"/>
+    <test>slice(("a", "b", "c"), 9223372036854775807, -9223372036854775807 - 1, -2)</test>
+    <result>
+      <any-of>
+        <assert-deep-eq>"c", "a"</assert-deep-eq>
+        <error code="FOAR0002"/>
+      </any-of>
+    </result>
+  </test-case>
+
+  <test-case name="slice-196">
+    <description>Values at the limits of numeric precision.</description>
+    <created by="Christian Gruen" on="2026-10-03"/>
+    <dependency type="spec" value="XP40+ XQ40+"/>
+    <test>slice(("a", "b", "c"), (), (), -9223372036854775807 - 1)</test>
+    <result>
+      <any-of>
+        <assert-eq>"c"</assert-eq>
+        <error code="FOAR0002"/>
+      </any-of>
+    </result>
+  </test-case>
+
+  <test-case name="slice-197">
+    <description>Values at the limits of numeric precision.</description>
+    <created by="Christian Gruen" on="2026-10-03"/>
+    <dependency type="spec" value="XP40+ XQ40+"/>
+    <test>slice(("a", "b", "c"), 1, 3, 9223372036854775807)</test>
+    <result>
+      <any-of>
+        <assert-eq>"a"</assert-eq>
+        <error code="FOAR0002"/>
+      </any-of>
+    </result>
+  </test-case>
+
+  <test-case name="slice-198">
+    <description>Values at the limits of numeric precision.</description>
+    <created by="Christian Gruen" on="2026-10-03"/>
+    <dependency type="spec" value="XP40+ XQ40+"/>
+    <test>slice(("a", "b", "c"), 18446744073709551617)</test>
+    <result>
+      <any-of>
+        <assert-eq>"c"</assert-eq>
+        <error code="FOAR0002"/>
+      </any-of>
+    </result>
+  </test-case>
+
+  <test-case name="slice-200">
+    <description>Values at the limits of numeric precision.</description>
+    <created by="Christian Gruen" on="2026-10-16"/>
+    <dependency type="spec" value="XP40+ XQ40+"/>
+    <test>slice(("a", "b", "c"), 2147483648)</test>
+    <result>
+      <any-of>
+        <assert-eq>"c"</assert-eq>
+        <error code="FOAR0002"/>
+      </any-of>
+    </result>
+  </test-case>
+
+  <test-case name="slice-201">
+    <description>Values at the limits of numeric precision.</description>
+    <created by="Christian Gruen" on="2026-10-16"/>
+    <dependency type="spec" value="XP40+ XQ40+"/>
+    <test>slice(("a", "b", "c"), -2147483649)</test>
+    <result>
+      <any-of>
+        <assert-deep-eq>"a", "b", "c"</assert-deep-eq>
+        <error code="FOAR0002"/>
+      </any-of>
+    </result>
+  </test-case>
+
+  <test-case name="slice-202">
+    <description>Values at the limits of numeric precision.</description>
+    <created by="Christian Gruen" on="2026-10-16"/>
+    <dependency type="spec" value="XP40+ XQ40+"/>
+    <test>slice(("a", "b", "c"), (), (), 2147483648)</test>
+    <result>
+      <any-of>
+        <assert-eq>"a"</assert-eq>
+        <error code="FOAR0002"/>
+      </any-of>
+    </result>
+  </test-case>
+
+</test-set>

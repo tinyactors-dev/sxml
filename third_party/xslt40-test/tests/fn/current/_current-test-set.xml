@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<test-set xmlns="http://www.w3.org/2012/10/xslt-test-catalog" xmlns:xs="http://www.w3.org/2001/XMLSchema" name="current">
+    <description>Tests the current() function</description>
+    
+    <test-case name="current-001">
+        <description>Test of current() in a match pattern</description>
+        <created by="Michael Kay after T. Hatanaka" on="2016-08-01"/>
+        <environment>
+            <source role="." file="current-001.xml"/>
+        </environment>
+        <test>
+            <stylesheet file="current-001.xsl"/>
+        </test>
+        <result>
+            <assert-xml><![CDATA[<test><foo/><foo/><!--match--></test>]]></assert-xml>
+        </result>
+    </test-case>
+    
+    <test-case name="current-401">
+        <description>Test of current#0 named function reference - OK in 4.0</description>
+        <created by="Michael Kay" on="2023-03-24"/>
+        <modified by="Michael Kay" on="2025-05-30" change="The spec for current() explicitly says this is an error"/>
+        <dependencies>
+            <spec value="XSLT40+"/>
+        </dependencies>
+        <test>
+            <stylesheet file="current-401.xsl"/>
+        </test>
+        <result>
+            <error code="XTDE1360"/>
+        </result>
+    </test-case>
+    
+    <test-case name="current-401a">
+        <description>Test of current#0 named function reference - fails in 3.0</description>
+        <created by="Michael Kay" on="2023-03-24"/>
+        <dependencies>
+            <spec value="XSLT30"/>
+        </dependencies>
+        <test>
+            <stylesheet file="current-401.xsl"/>
+        </test>
+        <result>
+            <error code="XTDE1360"/>
+        </result>
+    </test-case>
+    
+</test-set>
+    

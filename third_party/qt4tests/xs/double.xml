@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<test-set xmlns="http://www.w3.org/2010/09/qt-fots-catalog" name="xs-double">
+   <description>Tests features of XSD 1.1 doubles</description>
+
+   
+
+   <test-case name="xs-double-001">
+      <description>Test -0 in xs:double</description>
+      <created by="Norman Walsh" on="2011-07-28"/>
+      <dependency type="xsd-version" value="1.1"/>
+      <test>fn:string(xs:double("-0"))</test>
+      <result>
+        <assert-eq>fn:string("-0")</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="xs-double-002">
+      <description>Distinguish positive from negative zero</description>
+      <created by="Michael Kay" on="2011-07-28"/>
+      <dependency type="xsd-version" value="1.1"/>
+      <test>1 div xs:double("-0") ne 1 div xs:double("0")</test>
+      <result>
+        <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="xs-double-001a" covers-40="PR2522">
+      <description>Test -0 in xs:double</description>
+      <created by="Norman Walsh" on="2011-07-28"/>
+      <modified by="Christian Gruen" on="2026-10-16" change="PR2522"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>fn:string(xs:double("-0"))</test>
+      <result>
+        <assert-eq>fn:string("-0")</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="xs-double-002a" covers-40="PR2522">
+      <description>Distinguish positive from negative zero</description>
+      <created by="Michael Kay" on="2011-07-28"/>
+      <modified by="Christian Gruen" on="2026-10-16" change="PR2522"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>1 div xs:double("-0") ne 1 div xs:double("0")</test>
+      <result>
+        <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="xs-double-003">
+      <description>Ensure +INF accepted in XSD 1.1</description>
+      <created by="Michael Kay" on="2011-07-28"/>
+      <dependency type="xsd-version" value="1.1"/>
+      <test>exists(xs:double("+INF"))</test>
+      <result>
+        <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="xs-double-004">
+      <description>Ensure +INF rejected in XSD 1.0</description>
+      <created by="Michael Kay" on="2011-07-28"/>
+      <dependency type="xsd-version" value="1.0"/>
+      <dependency type="spec" value="XP20 XP30 XP31 XQ30 XQ31"/>
+      <test>exists(xs:double("+INF"))</test>
+      <result>
+        <error code="FORG0001"/>
+      </result>
+   </test-case>
+  
+   <test-case name="xs-double-004a" covers-40="PR2522">
+      <description>Ensure +INF accepted in 4.0</description>
+      <created by="Michael Kay" on="2011-07-28"/>
+      <modified by="Michael Kay" on="2026-03-28" change="allowed in 4.0, see PR2522"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>exists(xs:double("+INF"))</test>
+      <result>
+        <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="xs-double-005">
+      <description>Parse a particular number known to cause trouble in Java and PHP.
+        Some versions of Java go into an infinite loop on this one.
+        You may be able to fix this by applying a Java patch: see
+        http://www.oracle.com/technetwork/topics/security/alert-cve-2010-4476-305811.html</description>
+      <created by="Michael Kay" on="2011-07-28"/>
+      <modified by="Christian Gruen" on="2026-10-16" change="no XSD version dependency"/>
+      <test>xs:double("2.2250738585072012e-308")</test>
+      <result>
+        <assert-type>xs:double</assert-type>
+      </result>
+   </test-case>
+  
+  <test-case name="xs-double-006">
+      <description>Cast double to integer: negative values</description>
+      <created by="Michael Kay" on="2026-05-01"/>
+      <test>("-3.4028235E38", -123e20, -1.234e16, -99999999.9999e0, -456e0, -0.001e0, -1e-10, -1e-20, -0) ! xs:double(.) ! xs:integer(.)</test>
+      <result>
+        <any-of>
+          <assert-deep-eq>(-340282349999999991754788743781432688640, -12300000000000001048576, 
+            -12340000000000000, -99999999, -456, 0, 0, 0, 0)</assert-deep-eq>
+          <error code="FOCA0003"/>
+        </any-of>
+      </result>
+   </test-case>
+   
+   <test-case name="xs-double-007">
+      <description>Cast double to integer: positive values</description>
+      <created by="Michael Kay" on="2026-05-01"/>
+      <test>("3.4028235E38", 123e20, 1.234e16, 99999999.9999e0, 456e0, 0.001e0, 1e-10, 1e-20, 0) ! xs:double(.) ! xs:integer(.)</test>
+      <result>
+        <any-of>
+          <assert-deep-eq>(340282349999999991754788743781432688640, 12300000000000001048576, 
+            12340000000000000, 99999999, 456, 0, 0, 0, 0)</assert-deep-eq>
+          <error code="FOCA0003"/>
+        </any-of>
+      </result>
+   </test-case>
+  
+  <test-case name="xs-double-401" covers-40="PR662">
+    <description>Zero argument constructor</description>
+    <created by="Michael Kay" on="2023-12-08"/>   
+    <dependency type="spec" value="XP40+ XQ40+"></dependency>
+    <test>"3.14159" ! xs:double() ! round(.)</test>
+    <result>
+      <assert-eq>3</assert-eq>
+    </result>
+  </test-case>
+  
+  <test-case name="xs-double-402" covers-40="PR662">
+    <description>Zero argument function reference</description>
+    <created by="Michael Kay" on="2023-12-08"/>   
+    <dependency type="spec" value="XP40+ XQ40+"></dependency>
+    <test>for $f in ((1 to 5) ! xs:double#0) return 3+$f() </test>
+    <result>
+      <assert-deep-eq>4,5,6,7,8</assert-deep-eq>
+    </result>
+  </test-case>
+  
+  <test-case name="xs-double-403" covers-40="PR662">
+    <description>Double supplied as argument to function expecting decimal: static call</description>
+    <created by="Michael Kay" on="2024-02-06"/>   
+    <dependency type="spec" value="XQ40+"></dependency>
+    <test>
+      declare function local:increment($x as xs:decimal){$x + 1};
+      local:increment(math:pi()) => round(2)
+    </test>
+    <result>
+      <all-of>
+        <assert-eq>4.14</assert-eq>
+        <assert-type>xs:decimal</assert-type>
+      </all-of>
+    </result>
+  </test-case>
+  
+  <test-case name="xs-double-404" covers-40="PR662">
+    <description>Double supplied as argument to function expecting decimal: dynamic call</description>
+    <created by="Michael Kay" on="2024-02-06"/>
+    <environment ref="math"/>      
+    <dependency type="spec" value="XP40+ XQ40+"></dependency>
+    <test>function($x as xs:decimal){$x + 1}(math:pi()) => round(2)</test>
+    <result>
+      <all-of>
+        <assert-eq>4.14</assert-eq>
+        <assert-type>xs:decimal</assert-type>
+      </all-of>
+    </result>
+  </test-case>
+  
+  <test-case name="xs-double-405" covers-40="PR662">
+    <description>Float supplied as argument to function expecting decimal: static call</description>
+    <created by="Michael Kay" on="2024-02-06"/>      
+    <dependency type="spec" value="XQ40+"></dependency>
+    <test>
+      declare function local:increment($x as xs:decimal){$x + 1};
+      local:increment(xs:float(math:pi())) => round(2)
+    </test>
+    <result>
+      <all-of>
+        <assert-eq>4.14</assert-eq>
+        <assert-type>xs:decimal</assert-type>
+      </all-of>
+    </result>
+  </test-case>
+  
+  <test-case name="xs-double-406" covers-40="PR662">
+    <description>Float supplied as argument to function expecting decimal: dynamic call</description>
+    <created by="Michael Kay" on="2024-02-06"/>
+    <environment ref="math"/>      
+    <dependency type="spec" value="XP40+ XQ40+"/>
+    <test>function($x as xs:decimal){$x + 1}(xs:float(math:pi())) => round(2)</test>
+    <result>
+      <all-of>
+        <assert-eq>4.14</assert-eq>
+        <assert-type>xs:decimal</assert-type>
+      </all-of>
+    </result>
+  </test-case>
+   
+ 
+
+</test-set>

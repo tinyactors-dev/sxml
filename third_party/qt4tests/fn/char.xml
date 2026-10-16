@@ -1,0 +1,532 @@
+<test-set xmlns="http://www.w3.org/2010/09/qt-fots-catalog" name="fn-char" covers-40="PR261">
+  <description>Tests for the fn:char function</description>
+
+  <dependency type="spec" value="XP40+ XQ40+"/>
+
+  <test-case name="char-001">
+    <description>Test all HTML entities</description>
+    <created by="Michael Kay" on="2023-03-18"/>
+    <test>
+      let $entities := json-doc('char/entities.json')
+      (: entities.json copied from https://html.spec.whatwg.org/entities.json on 2023-03-18 :)
+      return 
+          for $k1 in map:keys($entities), 
+              $k2 in $k1 => substring(2) => translate(';', ''),
+              $str in $entities($k1)?characters
+          return if (char($k2) ne $str) { $k2 }
+    </test>
+    <result>
+      <assert-string-value/> <!-- expect empty string -->
+    </result>
+  </test-case>
+  
+  <test-case name="char-002" covers-40="PR306">
+    <description>Test NewLine HTML entity</description>
+    <created by="Michael Kay" on="2023-03-18"/>
+    <test>
+      string-to-codepoints(char('NewLine')) eq 10
+    </test>
+    <result>
+      <assert-true/>
+    </result>
+  </test-case>
+  
+  <test-case name="char-003">
+    <description>Test nbsp HTML entity</description>
+    <created by="Michael Kay" on="2023-03-18"/>
+    <test>
+      string-to-codepoints(char('nbsp')) eq 160
+    </test>
+    <result>
+      <assert-true/>
+    </result>
+  </test-case>
+  
+  <test-case name="char-004">
+    <description>Test multi-character HTML entity</description>
+    <created by="Michael Kay" on="2023-03-18"/>
+    <test>
+      deep-equal(string-to-codepoints(char('NotEqualTilde')), (8770, 824))
+    </test>
+    <result>
+      <assert-true/>
+    </result>
+  </test-case>
+  
+  <test-case name="char-005">
+    <description>Test unknown HTML entity</description>
+    <created by="Michael Kay" on="2023-03-18"/>
+    <test>
+      char('Unknown')
+    </test>
+    <result>
+      <error code="FOCH0005"/>
+    </result>
+  </test-case>
+  
+  <test-case name="char-006">
+    <description>Test HTML entity in wrong case</description>
+    <created by="Michael Kay" on="2023-03-18"/>
+    <test>
+      char('NBSP')
+    </test>
+    <result>
+      <error code="FOCH0005"/>
+    </result>
+  </test-case>
+  
+  <test-case name="char-007">
+    <description>Test HTML entity with disallowed ampersand</description>
+    <created by="Michael Kay" on="2023-03-18"/>
+    <test>
+      char(`&amp;nbsp`)
+    </test>
+    <result>
+      <error code="FOCH0005"/>
+    </result>
+  </test-case>
+  
+  <test-case name="char-008">
+    <description>Test HTML entity with disallowed semicolon</description>
+    <created by="Michael Kay" on="2023-03-18"/>
+    <test>
+      char('Auml;')
+    </test>
+    <result>
+      <error code="FOCH0005"/>
+    </result>
+  </test-case>
+  
+  <test-case name="char-009">
+    <description>Test empty string</description>
+    <created by="Michael Kay" on="2023-03-18"/>
+    <test>
+      char('')
+    </test>
+    <result>
+      <error code="FOCH0005"/>
+    </result>
+  </test-case>
+  
+  <test-case name="char-010">
+    <description>Test empty sequence</description>
+    <created by="Michael Kay" on="2023-03-18"/>
+    <test>
+      char(())
+    </test>
+    <result>
+      <error code="XPTY0004"/>
+    </result>
+  </test-case>
+  
+  <test-case name="char-011">
+    <description>Test multiple characters</description>
+    <created by="Michael Kay" on="2023-03-18"/>
+    <test>
+      char(('lt', 'gt'))
+    </test>
+    <result>
+      <error code="XPTY0004"/>
+    </result>
+  </test-case>
+  
+  <test-case name="char-012">
+    <description>Test multiple characters</description>
+    <created by="Michael Kay" on="2023-03-18"/>
+    <test>
+      char('lt gt')
+    </test>
+    <result>
+      <error code="FOCH0005"/>
+    </result>
+  </test-case>
+  
+  <test-case name="char-013">
+    <description>Test disallowed whitespace</description>
+    <created by="Michael Kay" on="2023-03-18"/>
+    <test>
+      char(' npsb ')
+    </test>
+    <result>
+      <error code="FOCH0005"/>
+    </result>
+  </test-case>
+  
+  <test-case name="char-100">
+    <description>Test decimal numeric character</description>
+    <created by="Michael Kay" on="2023-03-18"/>
+    <modified by="Michael Kay" on="2024-02-06" change="dropped in favour of numeric arguments"/>
+    <test>
+      char('#60')
+    </test>
+    <result>
+      <error code="FOCH0005"/>
+    </result>
+  </test-case>
+  
+  <test-case name="char-101">
+    <description>Test decimal numeric character with leading zeroes</description>
+    <created by="Michael Kay" on="2023-03-18"/>
+    <modified by="Michael Kay" on="2024-02-06" change="dropped in favour of numeric arguments"/>
+    <test>
+      char('#0060')
+    </test>
+    <result>
+      <error code="FOCH0005"/>
+    </result>
+  </test-case>
+  
+  <test-case name="char-102">
+    <description>Test hexadecimal numeric character</description>
+    <created by="Michael Kay" on="2023-03-18"/>
+    <modified by="Michael Kay" on="2024-02-06" change="dropped in favour of numeric arguments"/>
+    <test>
+      char('#x25EF') = char('xcirc')
+    </test>
+    <result>
+      <error code="FOCH0005"/>
+    </result>
+  </test-case>
+  
+  <test-case name="char-103">
+    <description>Test hexadecimal numeric character with leading zeros</description>
+    <created by="Michael Kay" on="2023-03-18"/>
+    <modified by="Michael Kay" on="2024-02-06" change="dropped in favour of numeric arguments"/>
+    <test>
+      char('#x00025EF') = char('xcirc')
+    </test>
+    <result>
+      <error code="FOCH0005"/>
+    </result>
+  </test-case>
+  
+  <test-case name="char-200">
+    <description>Test escaped newline</description>
+    <created by="Michael Kay" on="2023-03-18"/>
+    <test>
+      char('\n') eq char(10)
+    </test>
+    <result>
+      <assert-true/>
+    </result>
+  </test-case>
+  
+  <test-case name="char-201">
+    <description>Test escaped tab</description>
+    <created by="Michael Kay" on="2023-03-18"/>
+    <test>
+      char('\t') eq char(9)
+    </test>
+    <result>
+      <assert-true/>
+    </result>
+  </test-case>
+  
+  <test-case name="char-202">
+    <description>Test escaped CR</description>
+    <created by="Michael Kay" on="2023-03-18"/>
+    <test>
+      char('\r') eq char(13)
+    </test>
+    <result>
+      <assert-true/>
+    </result>
+  </test-case>
+  
+  <test-case name="char-203">
+    <description>Test invalid escaped char</description>
+    <created by="Michael Kay" on="2023-03-18"/>
+    <test>
+      char('\\')
+    </test>
+    <result>
+      <error code="FOCH0005"/>
+    </result>
+  </test-case>
+  
+  <test-case name="char-204">
+    <description>Test lone backslash</description>
+    <created by="Michael Kay" on="2023-03-18"/>
+    <test>
+      char('\')
+    </test>
+    <result>
+      <error code="FOCH0005"/>
+    </result>
+  </test-case>
+  
+  <test-case name="char-205" covers-40="PR2622">
+    <description>Test backspace</description>
+    <created by="Michael Kay" on="2023-03-18"/>
+    <test>
+      string-to-codepoints(char('\b'))
+    </test>
+    <result>
+      <assert-eq>8</assert-eq>
+    </result>
+  </test-case>
+  
+  <test-case name="char-206" covers-40="PR2622">
+    <description>Test formfeed</description>
+    <created by="Michael Kay" on="2023-03-18"/>
+    <test>
+      string-to-codepoints(char('\f'))
+    </test>
+    <result>
+      <assert-eq>12</assert-eq>
+    </result>
+  </test-case>
+  
+  <test-case name="char-300" covers-40="PR993">
+    <description>Test decimal numeric character</description>
+    <created by="Michael Kay" on="2024-02-03"/>
+    <test>
+      char(60)
+    </test>
+    <result>
+      <assert-eq>'&lt;'</assert-eq>
+    </result>
+  </test-case>
+  
+  <test-case name="char-301" covers-40="PR993">
+    <description>Test decimal numeric character with leading zeroes</description>
+    <created by="Michael Kay" on="2024-02-03"/>
+    <test>
+      char(0060)
+    </test>
+    <result>
+      <assert-eq>'&lt;'</assert-eq>
+    </result>
+  </test-case>
+  
+  <test-case name="char-302" covers-40="PR993">
+    <description>Test hexadecimal numeric character</description>
+    <created by="Michael Kay" on="2024-02-03"/>
+    <test>
+      char(0x25EF) = char('xcirc')
+    </test>
+    <result>
+      <assert-true/>
+    </result>
+  </test-case>
+  
+  <test-case name="char-303" covers-40="PR993">
+    <description>Test hexadecimal numeric character with leading zeros</description>
+    <created by="Michael Kay" on="2024-02-03"/>
+    <test>
+      char(0x000_25EF) = char('xcirc')
+    </test>
+    <result>
+      <assert-true/>
+    </result>
+  </test-case>
+  
+  <test-case name="char-304" covers-40="PR993">
+    <description>Test hexadecimal numeric character with mixed case</description>
+    <created by="Michael Kay" on="2024-02-03"/>
+    <test>
+      char(0x0_00_25_eF) = char('xcirc')
+    </test>
+    <result>
+      <assert-true/>
+    </result>
+  </test-case>
+  
+  <test-case name="char-305" covers-40="PR993">
+    <description>Test numeric character out of range</description>
+    <created by="Michael Kay" on="2024-02-03"/>
+    <test>
+      char(0)
+    </test>
+    <result>
+      <error code="XPTY0004"/>
+    </result>
+  </test-case>
+  
+  <test-case name="char-306" covers-40="PR993">
+    <description>Test numeric character out of range</description>
+    <created by="Michael Kay" on="2024-02-03"/>
+    <test>
+      char(-1)
+    </test>
+    <result>
+      <error code="XPTY0004"/>
+    </result>
+  </test-case>
+  
+  <test-case name="char-307" covers-40="PR993">
+    <description>Test numeric character out of range</description>
+    <created by="Michael Kay" on="2024-02-03"/>
+    <test>
+      char(99_999_999)
+    </test>
+    <result>
+      <error code="FOCH0005"/>
+    </result>
+  </test-case>
+  
+  <test-case name="char-308" covers-40="PR993">
+    <description>Test numeric character out of range</description>
+    <created by="Michael Kay" on="2024-02-03"/>
+    <test>
+      char(999_999_999_999_999_999)
+    </test>
+    <result>
+      <error code="FOCH0005"/>
+    </result>
+  </test-case>
+  
+  <test-case name="char-309" covers-40="PR993">
+    <description>Test numeric character referring to unpaired surrogate</description>
+    <created by="Michael Kay" on="2024-02-03"/>
+    <test>
+      char(0xDEAD)
+    </test>
+    <result>
+      <error code="FOCH0005"/>
+    </result>
+  </test-case>
+
+  <test-case name="char-310" covers-40="PR546">
+    <description>Permitted characters in a string value.</description>
+    <created by="Christian Gruen" on="2026-09-08"/>
+    <test>
+      char('\b') eq char(8)
+    </test>
+    <result>
+      <assert-true/>
+    </result>
+  </test-case>
+
+  <test-case name="char-311" covers-40="PR546">
+    <description>Permitted characters in a string value.</description>
+    <created by="Christian Gruen" on="2026-09-08"/>
+    <test>
+      char('\f') eq char(12)
+    </test>
+    <result>
+      <assert-true/>
+    </result>
+  </test-case>
+
+  <test-case name="char-312" covers-40="PR546">
+    <description>Permitted characters in a string value.</description>
+    <created by="Christian Gruen" on="2026-09-08"/>
+    <test>
+      string-to-codepoints(char(1))
+    </test>
+    <result>
+      <assert-eq>1</assert-eq>
+    </result>
+  </test-case>
+
+  <test-case name="char-313" covers-40="PR546">
+    <description>Permitted characters in a string value.</description>
+    <created by="Christian Gruen" on="2026-09-08"/>
+    <test>
+      string-to-codepoints(char(31))
+    </test>
+    <result>
+      <assert-eq>31</assert-eq>
+    </result>
+  </test-case>
+
+  <test-case name="char-314" covers-40="PR546">
+    <description>Permitted characters in a string value.</description>
+    <created by="Christian Gruen" on="2026-09-08"/>
+    <test>
+      string-to-codepoints(char(0xD7FF))
+    </test>
+    <result>
+      <assert-eq>55295</assert-eq>
+    </result>
+  </test-case>
+
+  <test-case name="char-315" covers-40="PR546">
+    <description>Permitted characters in a string value.</description>
+    <created by="Christian Gruen" on="2026-09-08"/>
+    <test>
+      string-to-codepoints(char(0xE000))
+    </test>
+    <result>
+      <assert-eq>57344</assert-eq>
+    </result>
+  </test-case>
+
+  <test-case name="char-316" covers-40="PR546">
+    <description>Permitted characters in a string value.</description>
+    <created by="Christian Gruen" on="2026-09-08"/>
+    <test>
+      string-to-codepoints(char(0x10FFFF))
+    </test>
+    <result>
+      <assert-eq>1114111</assert-eq>
+    </result>
+  </test-case>
+
+  <test-case name="char-317" covers-40="PR546">
+    <description>Permitted characters in a string value.</description>
+    <created by="Christian Gruen" on="2026-09-08"/>
+    <test>char(0xD800)</test>
+    <result>
+      <error code="FOCH0005"/>
+    </result>
+  </test-case>
+
+  <test-case name="char-318" covers-40="PR546">
+    <description>Permitted characters in a string value.</description>
+    <created by="Christian Gruen" on="2026-09-08"/>
+    <test>char(0xDFFF)</test>
+    <result>
+      <error code="FOCH0005"/>
+    </result>
+  </test-case>
+
+  <test-case name="char-319" covers-40="PR546">
+    <description>Permitted characters in a string value.</description>
+    <created by="Christian Gruen" on="2026-09-08"/>
+    <test>char(1) eq codepoints-to-string(1)</test>
+    <result>
+      <assert-true/>
+    </result>
+  </test-case>
+
+  <test-case name="char-320" covers-40="PR546">
+    <description>Permitted characters in a string value.</description>
+    <created by="Christian Gruen" on="2026-09-08"/>
+    <test>char(8) eq codepoints-to-string(8)</test>
+    <result>
+      <assert-true/>
+    </result>
+  </test-case>
+
+  <test-case name="char-321" covers-40="PR546">
+    <description>Permitted characters in a string value.</description>
+    <created by="Christian Gruen" on="2026-09-08"/>
+    <test>char(31) eq codepoints-to-string(31)</test>
+    <result>
+      <assert-true/>
+    </result>
+  </test-case>
+
+  <test-case name="char-322">
+    <description>Values at the limits of numeric precision.</description>
+    <created by="Christian Gruen" on="2026-10-04"/>
+    <dependency type="spec" value="XP40+ XQ40+"/>
+    <test>char(4294967361)</test>
+    <result>
+      <error code="FOCH0005"/>
+    </result>
+  </test-case>
+
+  <test-case name="char-323">
+    <description>Values at the limits of numeric precision.</description>
+    <created by="Christian Gruen" on="2026-10-04"/>
+    <dependency type="spec" value="XP40+ XQ40+"/>
+    <test>char(-4294967231)</test>
+    <result>
+      <error code="XPTY0004"/>
+    </result>
+  </test-case>
+
+</test-set>

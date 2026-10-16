@@ -1,0 +1,2443 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-set xmlns="http://www.w3.org/2010/09/qt-fots-catalog" name="fn-compare">
+   <description>Tests for the compare() function</description>
+   <link type="spec" document="http://www.w3.org/TR/xpath-functions-30/"
+         idref="func-compare"/>
+
+   <test-case name="fn-compare2args-1">
+      <description>Evaluates The "compare" function with the arguments set as follows: $comparand1 = xs:string(lower bound) $comparand2 = xs:string(lower bound)</description>
+      <created by="Carmelo Montanez" on="2004-12-13"/>
+      <test>fn:compare(xs:string("This is a characte"),xs:string("This is a characte"))</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="fn-compare2args-2">
+      <description>Evaluates The "compare" function with the arguments set as follows: $comparand1 = xs:string(mid range) $comparand2 = xs:string(lower bound)</description>
+      <created by="Carmelo Montanez" on="2004-12-13"/>
+      <test>fn:compare(xs:string("This is a characte"),xs:string("This is a characte"))</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="fn-compare2args-3">
+      <description>Evaluates The "compare" function with the arguments set as follows: $comparand1 = xs:string(upper bound) $comparand2 = xs:string(lower bound)</description>
+      <created by="Carmelo Montanez" on="2004-12-13"/>
+      <test>fn:compare(xs:string("This is a characte"),xs:string("This is a characte"))</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="fn-compare2args-4">
+      <description>Evaluates The "compare" function with the arguments set as follows: $comparand1 = xs:string(lower bound) $comparand2 = xs:string(mid range)</description>
+      <created by="Carmelo Montanez" on="2004-12-13"/>
+      <test>fn:compare(xs:string("This is a characte"),xs:string("This is a characte"))</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="fn-compare2args-5">
+      <description>Evaluates The "compare" function with the arguments set as follows: $comparand1 = xs:string(lower bound) $comparand2 = xs:string(upper bound)</description>
+      <created by="Carmelo Montanez" on="2004-12-13"/>
+      <test>fn:compare(xs:string("This is a characte"),xs:string("This is a characte"))</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="fn-compare-1">
+      <description>Evaluates The "compare" function with the arguments set as follows: $arg1 = "" $arg2 = ""</description>
+      <created by="Carmelo Montanez" on="2005-06-01"/>
+      <test>fn:compare("","")</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="fn-compare-2">
+      <description>Evaluates The "compare" function with the arguments set as follows: $arg1 = "" $arg2 = "A Character String"</description>
+      <created by="Carmelo Montanez" on="2005-06-01"/>
+      <test>fn:compare("","A Character String")</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="fn-compare-3">
+      <description>Evaluates The "compare" function with the arguments set as follows: $arg1 = "A Character String" $arg2 = ""</description>
+      <created by="Carmelo Montanez" on="2005-06-01"/>
+      <test>fn:compare("A Character String","")</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="fn-compare-4">
+      <description>Evaluates The "compare" function with the arguments set as follows: $arg1 = () $arg2 = ""</description>
+      <created by="Carmelo Montanez" on="2005-06-01"/>
+      <test>fn:count(fn:compare((),""))</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="fn-compare-5">
+      <description>Evaluates The "compare" function with the arguments set as follows: $arg1 = "" $arg2 = ()</description>
+      <created by="Carmelo Montanez" on="2005-06-01"/>
+      <test>fn:count(fn:compare("",()))</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="fn-compare-6">
+      <description>Evaluates The "compare" function with the arguments set as follows: $arg1 = "A Character String" $arg2 = ()</description>
+      <created by="Carmelo Montanez" on="2005-06-01"/>
+      <test>fn:count(fn:compare("A Character String",()))</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="fn-compare-7">
+      <description>Evaluates The "compare" function with the arguments set as follows: $arg1 = () $arg2 = "A Character String"</description>
+      <created by="Carmelo Montanez" on="2005-06-01"/>
+      <test>fn:count(fn:compare((),"A Character String"))</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="fn-compare-8">
+      <description>Evaluates The "compare" function with the arguments set as follows: $arg1 = "AAAAABBBBBCCCCC" $arg2 = "BBBBB"</description>
+      <created by="Carmelo Montanez" on="2005-06-01"/>
+      <test>fn:compare("AAAAABBBBBCCCCC","BBBBB")</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="fn-compare-9">
+      <description>Evaluates The "compare" function with the arguments set as follows: $arg1 = "AAAAABBBBB" $arg2 = " "</description>
+      <created by="Carmelo Montanez" on="2005-06-01"/>
+      <test>fn:compare("AAAAABBBBB"," ")</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="fn-compare-10">
+      <description>Evaluates The "compare" function with the arguments set as follows: $arg1 = " " $arg2 = " AAAAABBBBB"</description>
+      <created by="Carmelo Montanez" on="2005-06-01"/>
+      <test>fn:compare(" ","AAAAABBBBB")</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="fn-compare-11">
+      <description>Evaluates The "compare" function using it as a argument of a fn:not - returns true</description>
+      <created by="Carmelo Montanez" on="2005-06-01"/>
+      <test>fn:not(fn:compare("A","A"))</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="fn-compare-12">
+      <description>Evaluates The "compare" function using it as a argument of a fn:not - returns false</description>
+      <created by="Carmelo Montanez" on="2005-06-01"/>
+      <test>fn:not(fn:compare("A","B"))</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+
+   <test-case name="fn-compare-13">
+      <description>Evaluates The "compare" function with the arguments set as follows: $arg1 = xs:string("A") $arg2 = "A"</description>
+      <created by="Carmelo Montanez" on="2005-06-01"/>
+      <test>fn:compare(xs:string("A"),"A")</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="fn-compare-14">
+      <description>Evaluates The "compare" function with the arguments set as follows: $arg1 = "A" $arg2 = xs:string("A")</description>
+      <created by="Carmelo Montanez" on="2005-06-01"/>
+      <test>fn:compare("A",xs:string("A"))</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="fn-compare-15">
+      <description>Evaluates The "compare" function with the arguments set as follows: $arg1 = "A" $arg2 = "a"</description>
+      <created by="Carmelo Montanez" on="2005-06-01"/>
+      <test>fn:compare("A","a")</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="fn-compare-16">
+      <description>Evaluates The "compare" function with the arguments set as follows: $arg1 = "a" $arg2 = "A"</description>
+      <created by="Carmelo Montanez" on="2005-06-01"/>
+      <test>fn:compare("a","A")</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="fn-compare-17">
+      <description>Evaluates The "compare" function with the arguments set as follows: $arg1 = "compare" $arg2 = "compare"</description>
+      <created by="Carmelo Montanez" on="2005-06-01"/>
+      <test>fn:compare("compare","compare")</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="fn-compare-18">
+      <description>Evaluates The "compare" function with the arguments set as follows: $arg1 = "comparecompare" $arg2 = "compare"</description>
+      <created by="Carmelo Montanez" on="2005-06-01"/>
+      <test>fn:compare("comparecompare","compare")</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="fn-compare-19">
+      <description>Evaluates The "compare" function with the arguments set as follows: $arg1 = "****" $arg2 = "***"</description>
+      <created by="Carmelo Montanez" on="2005-06-01"/>
+      <test>fn:compare("****","***")</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="fn-compare-20">
+      <description>Evaluates The "compare" function with the arguments set as follows: $arg1 = "12345" $arg2 = "1234"</description>
+      <created by="Carmelo Montanez" on="2005-06-01"/>
+      <test>fn:compare("12345","1234")</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="fn-compare-21">
+      <description>Evaluates The "compare" function with the arguments set as follows: $arg1 = "compare" $arg2 = "erapmoc" ("compare" backwards)</description>
+      <created by="Carmelo Montanez" on="2005-06-01"/>
+      <test>fn:compare("compare","erapmoc")</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="fn-compare-22">
+      <description>Description Evaluates The "compare" function with a nonexistent collation.</description>
+      <created by="Carmelo Montanez" on="2005-11-25"/>
+      <test>fn:compare("a","a","CollationA")</test>
+      <result>
+         <error code="FOCH0002"/>
+      </result>
+   </test-case>
+
+   <test-case name="K-compareFunc-1">
+      <description>A test whose essence is: `codepoint-equal()`.</description>
+      <created by="Frans Englich" on="2007-11-26"/>
+      <test>codepoint-equal()</test>
+      <result>
+         <error code="XPST0017"/>
+      </result>
+   </test-case>
+
+   <test-case name="K-compareFunc-2">
+      <description>A test whose essence is: `codepoint-equal(())`.</description>
+      <created by="Frans Englich" on="2007-11-26"/>
+      <test>codepoint-equal(())</test>
+      <result>
+         <error code="XPST0017"/>
+      </result>
+   </test-case>
+
+   <test-case name="K-compareFunc-3">
+      <description>A test whose essence is: `codepoint-equal((), (), ())`.</description>
+      <created by="Frans Englich" on="2007-11-26"/>
+      <test>codepoint-equal((), (), ())</test>
+      <result>
+         <error code="XPST0017"/>
+      </result>
+   </test-case>
+
+   <test-case name="K-compareFunc-4">
+      <description>A test whose essence is: `empty(codepoint-equal((), "a string"))`.</description>
+      <created by="Frans Englich" on="2007-11-26"/>
+      <test>empty(codepoint-equal((), "a string"))</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="K-compareFunc-5">
+      <description>A test whose essence is: `empty(codepoint-equal("a string", ()))`.</description>
+      <created by="Frans Englich" on="2007-11-26"/>
+      <test>empty(codepoint-equal("a string", ()))</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="K-compareFunc-6">
+      <description>A test whose essence is: `codepoint-equal("a string", "a string")`.</description>
+      <created by="Frans Englich" on="2007-11-26"/>
+      <test>codepoint-equal("a string", "a string")</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="K-compareFunc-7">
+      <description>A test whose essence is: `not(codepoint-equal("cow", "a string"))`.</description>
+      <created by="Frans Englich" on="2007-11-26"/>
+      <test>not(codepoint-equal("cow", "a string"))</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="K-compareFunc-8">
+      <description>A test whose essence is: `compare()`.</description>
+      <created by="Frans Englich" on="2007-11-26"/>
+      <test>compare()</test>
+      <result>
+         <error code="XPST0017"/>
+      </result>
+   </test-case>
+
+   <test-case name="K-compareFunc-9">
+      <description>A test whose essence is: `compare(())`.</description>
+      <created by="Frans Englich" on="2007-11-26"/>
+      <test>compare(())</test>
+      <result>
+         <error code="XPST0017"/>
+      </result>
+   </test-case>
+
+   <test-case name="K-compareFunc-10">
+      <description>A test whose essence is: `compare((), (), "http://www.w3.org/2005/xpath-functions/collation/codepoint", "wrong param")`.</description>
+      <created by="Frans Englich" on="2007-11-26"/>
+      <test>compare((), (), "http://www.w3.org/2005/xpath-functions/collation/codepoint", "wrong param")</test>
+      <result>
+         <error code="XPST0017"/>
+      </result>
+   </test-case>
+
+   <test-case name="K-compareFunc-11">
+      <description>A test whose essence is: `empty(compare((), "a string"))`.</description>
+      <created by="Frans Englich" on="2007-11-26"/>
+      <test>empty(compare((), "a string"))</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="K-compareFunc-12">
+      <description>A test whose essence is: `empty(compare("a string", ()))`.</description>
+      <created by="Frans Englich" on="2007-11-26"/>
+      <test>empty(compare("a string", ()))</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="K-compareFunc-13">
+      <description>A test whose essence is: `empty(compare("a string", (), "http://www.w3.org/2005/xpath-functions/collation/codepoint"))`.</description>
+      <created by="Frans Englich" on="2007-11-26"/>
+      <test>empty(compare("a string", (), "http://www.w3.org/2005/xpath-functions/collation/codepoint"))</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="K-compareFunc-14">
+      <description>A test whose essence is: `compare("str", "str") instance of xs:integer`.</description>
+      <created by="Frans Englich" on="2007-11-26"/>
+      <test>compare("str", "str") instance of xs:integer</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="K-compareFunc-15">
+      <description>A test whose essence is: `empty(compare("a string", "a string", "http://www.example.com/COLLATION/NOT/SUPPORTED"))`.</description>
+      <created by="Frans Englich" on="2007-11-26"/>
+      <test>empty(compare("a string", "a string", "http://www.example.com/COLLATION/NOT/SUPPORTED"))</test>
+      <result>
+         <any-of>
+            <assert-false/>
+            <error code="FOCH0002"/>
+         </any-of>
+      </result>
+   </test-case>
+
+   <test-case name="compare-001">
+      <description>Simple use of compare to compare strings</description>
+      <created by="Michael Kay" on="2011-06-29"/>
+      <test>compare("a", "b")</test>
+      <result>
+         <all-of>
+            <assert-eq>-1</assert-eq>
+            <assert-type>xs:integer</assert-type>
+         </all-of>
+      </result>
+   </test-case>
+
+   <test-case name="compare-002">
+      <description>Simple use of compare to compare strings</description>
+      <created by="Michael Kay" on="2011-06-29"/>
+      <test>compare("b", "a")</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-003">
+      <description>Simple use of compare to compare strings</description>
+      <created by="Michael Kay" on="2011-06-29"/>
+      <test>compare("b", "b")</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-004">
+      <description>compare() with empty sequence as argument</description>
+      <created by="Michael Kay" on="2011-06-29"/>
+      <test>compare("b", ())</test>
+      <result>
+         <assert-empty/>
+      </result>
+   </test-case>
+
+   <test-case name="compare-005">
+      <description>compare() with empty sequence as argument</description>
+      <created by="Michael Kay" on="2011-06-29"/>
+      <test>compare((), "b")</test>
+      <result>
+         <assert-empty/>
+      </result>
+   </test-case>
+
+   <test-case name="compare-006">
+      <description>compare() with empty sequence as argument</description>
+      <created by="Michael Kay" on="2011-06-29"/>
+      <test>compare((), ())</test>
+      <result>
+         <assert-empty/>
+      </result>
+   </test-case>
+
+   <test-case name="compare-007">
+      <description>compare() with non-BMP characters</description>
+      <created by="Michael Kay" on="2011-06-29"/>
+      <test>compare("&#65537;", "&#65538;", "http://www.w3.org/2005/xpath-functions/collation/codepoint")</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-008">
+      <description>check that Unicode codepoint collation is used, not comparison of UTF16 surrogates</description>
+      <created by="Michael Kay" on="2011-06-29"/>
+      <test>compare("&#65537;", "&#65520;", "http://www.w3.org/2005/xpath-functions/collation/codepoint")</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-009">
+      <description>check that Unicode codepoint collation is used, not comparison of UTF16 surrogates</description>
+      <created by="Michael Kay" on="2011-06-29"/>
+      <test>compare("&#65537;", "&#65520;", "http://www.w3.org/2005/xpath-functions/collation/codepoint")</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-010">
+      <description>Use case-blind collation, if supported</description>
+      <created by="Michael Kay" on="2011-06-29"/>
+      <modified by="O'Neil Delpratt" on="2013-08-02" change="Added feature dependency - Fix to bug issue #22423" />
+      <environment>
+         <collation uri="http://www.w3.org/2005/xpath-functions/collation/html-ascii-case-insensitive"/>
+      </environment>
+      <dependency type="feature" value="non_unicode_codepoint_collation"/>
+      <test>compare("a", "A", "http://www.w3.org/2005/xpath-functions/collation/html-ascii-case-insensitive")</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-011">
+      <description>compare() only works on strings</description>
+      <created by="Michael Kay" on="2012-05-30"/>
+      <modified by="Christian Gruen" on="2024-01-16" change="dependencies changed"/>
+      <dependency type="spec" value="XP20 XP30 XP31 XQ10 XQ30 XQ31"/>
+      <test>compare(123, 456)</test>
+      <result>
+         <error code="XPTY0004"/>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-011a" covers-40="PR909">
+      <description>compare integers</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(123, 456)</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-012">
+      <description>compare() only works on strings, but xs:anyURI gets promoted</description>
+      <created by="Michael Kay" on="2012-05-30"/>
+      <test>compare(xs:anyURI('http://www.example.com/'), 'http://www.example.com/')</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-013">
+      <description>compare() only works on strings, but xs:untypedAtomic gets promoted</description>
+      <created by="Michael Kay" on="2012-05-30"/>
+      <test>compare(xs:untypedAtomic('http://www.example.com/'), 'http://www.example.com/')</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-014" covers="html-ascii-case-insensitive">
+      <description>Use HTML case-blind collation</description>
+      <created by="Michael Kay" on="2014-12-04"/>
+      <environment>
+         <collation uri="http://www.w3.org/2005/xpath-functions/collation/html-ascii-case-insensitive"/>
+      </environment>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <test>compare("a", "A", "http://www.w3.org/2005/xpath-functions/collation/html-ascii-case-insensitive")</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-015" covers="html-ascii-case-insensitive">
+      <description>Use HTML case-blind collation: test with non-letter characters</description>
+      <created by="Michael Kay" on="2014-12-04"/>
+      <environment>
+         <collation uri="http://www.w3.org/2005/xpath-functions/collation/html-ascii-case-insensitive"/>
+      </environment>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <test>compare("123 - ; ^ a", "123 -  ; ^ a", "http://www.w3.org/2005/xpath-functions/collation/html-ascii-case-insensitive") eq 0</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-016" covers="html-ascii-case-insensitive">
+      <description>Use HTML case-blind collation: test with non-ASCII letters (actual order is not defined)</description>
+      <created by="Michael Kay" on="2014-12-04"/>
+      <environment>
+         <collation uri="http://www.w3.org/2005/xpath-functions/collation/html-ascii-case-insensitive"/>
+      </environment>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <test>compare("&#xc1;", "&#xe1;", "http://www.w3.org/2005/xpath-functions/collation/html-ascii-case-insensitive") eq 0</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-016a" covers="html-ascii-case-insensitive" covers-40="PR680">
+      <description>Use HTML case-blind collation: test with non-ASCII letters (order is defined in 4.0)</description>
+      <created by="Michael Kay" on="2014-12-04"/>
+      <environment>
+         <collation uri="http://www.w3.org/2005/xpath-functions/collation/html-ascii-case-insensitive"/>
+      </environment>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare("&#xc1;", "&#xe1;", "http://www.w3.org/2005/xpath-functions/collation/html-ascii-case-insensitive")</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-017" covers="uca-collation">
+      <description> Use compare() with a UCA collation and primary matching</description>
+      <created by="Michael Kay" on="2016-09-23"/>
+      <modified by="Christian Gruen" on="2022-08-22" change="dependencies changed"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <test>fn:compare("database", "DATABASE", "http://www.w3.org/2013/collation/UCA?lang=en;strength=primary")</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-018" covers="uca-collation">
+      <description> Use compare() with a UCA collation and primary matching</description>
+      <created by="Michael Kay" on="2016-09-23"/>
+      <modified by="Christian Gruen" on="2022-08-22" change="dependencies changed"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <test>fn:compare("database", "DÃTABASE", "http://www.w3.org/2013/collation/UCA?lang=en;strength=primary")</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-019" covers="uca-collation">
+      <description> Use compare() with a UCA collation and primary matching</description>
+      <created by="Michael Kay" on="2016-09-23"/>
+      <modified by="Christian Gruen" on="2022-08-22" change="dependencies changed"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <test>fn:compare("database", "database", "http://www.w3.org/2013/collation/UCA?lang=en;strength=primary")</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-020" covers="uca-collation">
+      <description> Use compare() with a UCA collation and primary matching</description>
+      <created by="Michael Kay" on="2016-09-23"/>
+      <modified by="Christian Gruen" on="2022-08-22" change="dependencies changed"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <test>fn:compare("database", "Databases", "http://www.w3.org/2013/collation/UCA?lang=en;strength=primary")</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-021" covers="uca-collation">
+      <description> Use compare() with a UCA collation and primary matching</description>
+      <created by="Michael Kay" on="2016-09-23"/>
+      <modified by="Christian Gruen" on="2022-08-22" change="dependencies changed"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <test>fn:compare("databases", "Database", "http://www.w3.org/2013/collation/UCA?lang=en;strength=primary")</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-022" covers="uca-collation">
+      <description> Use compare() with a UCA collation and secondary matching</description>
+      <created by="Michael Kay" on="2016-09-23"/>
+      <modified by="Christian Gruen" on="2022-08-22" change="dependencies changed"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <test>fn:compare("database", "DATABASE", "http://www.w3.org/2013/collation/UCA?lang=en;strength=secondary")</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-023" covers="uca-collation">
+      <description> Use compare() with a UCA collation and secondary matching</description>
+      <created by="Michael Kay" on="2016-09-23"/>
+      <modified by="Christian Gruen" on="2022-08-22" change="dependencies changed"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <test>fn:compare("database", "DÃTABASE", "http://www.w3.org/2013/collation/UCA?lang=en;strength=secondary") != 0</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-024" covers="uca-collation">
+      <description> Use compare() with a UCA collation and secondary matching</description>
+      <created by="Michael Kay" on="2016-09-23"/>
+      <modified by="Christian Gruen" on="2022-08-22" change="dependencies changed"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <test>fn:compare("database", "database", "http://www.w3.org/2013/collation/UCA?lang=en;strength=secondary")</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-025" covers="uca-collation">
+      <description> Use compare() with a UCA collation and secondary matching</description>
+      <created by="Michael Kay" on="2016-09-23"/>
+      <modified by="Christian Gruen" on="2022-08-22" change="dependencies changed"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <test>fn:compare("database", "Databases", "http://www.w3.org/2013/collation/UCA?lang=en;strength=secondary")</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-026" covers="uca-collation">
+      <description> Use compare() with a UCA collation and secondary matching</description>
+      <created by="Michael Kay" on="2016-09-23"/>
+      <modified by="Christian Gruen" on="2022-08-22" change="dependencies changed"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <test>fn:compare("databases", "Database", "http://www.w3.org/2013/collation/UCA?lang=en;strength=secondary")</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-027" covers="uca-collation">
+      <description> Use compare() with a UCA collation and tertiary matching</description>
+      <created by="Michael Kay" on="2016-09-23"/>
+      <modified by="Christian Gruen" on="2022-08-22" change="dependencies changed"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <test>fn:compare("database", "dâtabase", "http://www.w3.org/2013/collation/UCA?lang=en;strength=tertiary") = 0</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-028" covers="uca-collation">
+      <description> Use compare() with a UCA collation and tertiary matching</description>
+      <created by="Michael Kay" on="2016-09-23"/>
+      <modified by="Christian Gruen" on="2022-08-22" change="dependencies changed"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <test>fn:compare("database", "DATABASE", "http://www.w3.org/2013/collation/UCA?lang=en;strength=tertiary") = 0</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-029" covers="uca-collation">
+      <description> Use compare() with a UCA collation and tertiary matching</description>
+      <created by="Michael Kay" on="2016-09-23"/>
+      <modified by="Christian Gruen" on="2022-08-22" change="dependencies changed"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <test>fn:compare("database", "database", "http://www.w3.org/2013/collation/UCA?lang=en;strength=tertiary")</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-030" covers="uca-collation">
+      <description> Use compare() with a UCA collation and tertiary matching</description>
+      <created by="Michael Kay" on="2016-09-23"/>
+      <modified by="Christian Gruen" on="2022-08-22" change="dependencies changed"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <test>fn:compare("database", "Database", "http://www.w3.org/2013/collation/UCA?lang=en;strength=tertiary;caseFirst=lower")</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-031" covers="uca-collation">
+      <description> Use compare() with a UCA collation and tertiary matching</description>
+      <created by="Michael Kay" on="2016-09-23"/>
+      <modified by="O'Neil Delpratt" on="2016-10-25" change="Bug #29931: Added dependency advanced-uca-fallback"/>
+      <modified by="Christian Gruen" on="2022-08-22" change="dependencies changed"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <dependency type="feature" value="advanced-uca-fallback"/>
+      <test>fn:compare("database", "Database", "http://www.w3.org/2013/collation/UCA?lang=en;strength=tertiary;caseFirst=upper")</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-032" covers="uca-collation">
+      <description> Use compare() with a UCA collation and tertiary matching</description>
+      <created by="Michael Kay" on="2016-09-23"/>
+      <modified by="Christian Gruen" on="2022-08-22" change="dependencies changed"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <test>fn:compare("databases", "Database", "http://www.w3.org/2013/collation/UCA?lang=en;strength=tertiary;caseFirst=lower")</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-033" covers="uca-collation">
+      <description> Use compare() with a UCA collation and tertiary matching</description>
+      <created by="Michael Kay" on="2016-09-23"/>
+      <modified by="Christian Gruen" on="2022-08-22" change="dependencies changed"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <test>fn:compare("dâtabases", "Database", "http://www.w3.org/2013/collation/UCA?lang=en;strength=tertiary;caseFirst=lower")</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-034" covers="uca-collation">
+      <description> Use compare() with a UCA collation with numeric matching</description>
+      <created by="Michael Kay" on="2016-09-23"/>
+      <modified by="O'Neil Delpratt" on="2016-10-25" change="Bug #29931: Added dependency advanced-uca-fallback"/>
+      <modified by="Christian Gruen" on="2022-08-22" change="dependencies changed"/>
+      <dependency type="feature" value="advanced-uca-fallback"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <test>fn:compare("Chap2", "Chap10", "http://www.w3.org/2013/collation/UCA?lang=en;numeric=yes")</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-035" covers="uca-collation">
+      <description> Use compare() with a UCA collation with numeric matching</description>
+      <created by="Michael Kay" on="2016-09-23"/>
+      <modified by="O'Neil Delpratt" on="2016-10-25" change="Bug #29931: Added dependency advanced-uca-fallback"/>
+      <modified by="Christian Gruen" on="2022-08-22" change="dependencies changed"/>
+      <dependency type="feature" value="advanced-uca-fallback"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <test>fn:compare("Chap2-b", "Chap10-b", "http://www.w3.org/2013/collation/UCA?lang=en;numeric=yes")</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-036" covers="uca-collation">
+      <description> Use compare() with a UCA collation : ignore accents but not case</description>
+      <created by="Michael Kay" on="2016-09-23"/>
+      <modified by="Christian Gruen" on="2022-08-22" change="dependencies changed"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <test>fn:compare("DATABASE", "DÃTABASE", "http://www.w3.org/2013/collation/UCA?lang=en;strength=primary;caseLevel=yes")</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-037" covers="uca-collation">
+      <description> Use compare() with a UCA collation : ignore accents but not case</description>
+      <created by="Michael Kay" on="2016-09-23"/>
+      <modified by="O'Neil Delpratt" on="2016-10-25" change="Bug #29931: Added dependency advanced-uca-fallback"/>
+      <modified by="Christian Gruen" on="2022-08-22" change="dependencies changed"/>
+      <dependency type="feature" value="advanced-uca-fallback"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <test>fn:compare("DATABASE", "DÃTAbase", "http://www.w3.org/2013/collation/UCA?lang=en;strength=primary;caseLevel=yes;caseFirst=lower")</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-038" covers="uca-collation">
+      <description> Use compare() with a UCA collation : first accent is the most significant</description>
+      <created by="Michael Kay" on="2016-09-23"/>
+      <modified by="Christian Gruen" on="2022-08-22" change="dependencies changed"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <test>fn:compare("DATABÃSE", "DÃTABASE", "http://www.w3.org/2013/collation/UCA?lang=en;strength=tertiary")</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-039" covers="uca-collation">
+      <description> Use compare() with a UCA collation : last accent is the most significant</description>
+      <created by="Michael Kay" on="2016-09-23"/>
+      <modified by="O'Neil Delpratt" on="2016-10-25" change="Bug #29931: Added dependency advanced-uca-fallback"/>
+      <modified by="Christian Gruen" on="2022-08-22" change="dependencies changed"/>
+      <dependency type="feature" value="advanced-uca-fallback"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <test>fn:compare("DATABÃSE", "DÃTABASE", "http://www.w3.org/2013/collation/UCA?lang=en;strength=tertiary;backwards=yes")</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-040" covers="uca-collation">
+      <description> Use compare() with a UCA collation : alternate=blanked : spaces insignificant at the tertiary level</description>
+      <created by="Michael Kay" on="2016-09-23"/>
+      <modified by="O'Neil Delpratt" on="2016-10-25" change="Bug #29931: Added dependency advanced-uca-fallback"/>
+      <modified by="Christian Gruen" on="2022-08-22" change="dependencies changed"/>
+      <dependency type="feature" value="advanced-uca-fallback"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <test>fn:compare("database", "data base", "http://www.w3.org/2013/collation/UCA?lang=en;alternate=blanked;strength=tertiary") = 0</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-041" covers="uca-collation">
+      <description> Use compare() with a UCA collation : alternate=blanked : spaces insignificant at the quaternary level</description>
+      <created by="Michael Kay" on="2016-09-23"/>
+      <modified by="O'Neil Delpratt" on="2016-10-25" change="Bug #29931: Added dependency advanced-uca-fallback"/>
+      <modified by="Christian Gruen" on="2022-08-22" change="dependencies changed"/>
+      <dependency type="feature" value="advanced-uca-fallback"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <test>fn:compare("database", "data base", "http://www.w3.org/2013/collation/UCA?lang=en;alternate=blanked;strength=quaternary") = 0</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-042" covers="uca-collation">
+      <description> 
+         Use compare() with a UCA collation : alternate=blanked : spaces significant at the identical level
+      
+         Note (MHK 2017-03-17):
+         
+         In Unicode TR10, §4.3 suggests that sorting using strength=identical should compute a sort key as follows: 
+         "after all the level weights have been added, append a copy of the NFD version of the original string". 
+         This implies that any difference between the two strings causes them to be not equal.
+         
+         §3.6 says (for alternate=blanked): "Variable collation elements and any subsequent ignorable collation 
+         elements are reset so that all weights (except for the identical level) are zero."
+         
+         So reading the two in combination, it seems that strength=identical wins in this case; the space is ignored
+         for ordering comparisons, but in the last resort it affects equality comparison.
+      </description>
+      <created by="Michael Kay" on="2016-09-23"/>
+      <modified by="Christian Gruen" on="2022-08-22" change="dependencies changed"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <test>fn:compare("database", "data base", "http://www.w3.org/2013/collation/UCA?lang=en;alternate=blanked;strength=identical") = 0</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-043" covers="uca-collation">
+      <description> Use compare() with a UCA collation : alternate=shifted : spaces insignificant at the tertiary level</description>
+      <created by="Michael Kay" on="2016-09-23"/>
+      <modified by="O'Neil Delpratt" on="2016-10-25" change="Bug #29931: Added dependency advanced-uca-fallback"/>
+      <modified by="Christian Gruen" on="2022-08-22" change="dependencies changed"/>
+      <dependency type="feature" value="advanced-uca-fallback"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <test>fn:compare("database", "data base", "http://www.w3.org/2013/collation/UCA?lang=en;alternate=shifted;strength=tertiary") = 0</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-044" covers="uca-collation">
+      <description> Use compare() with a UCA collation : alternate=shifted : spaces significant at the quaternary level</description>
+      <created by="Michael Kay" on="2016-09-23"/>
+      <modified by="Christian Gruen" on="2022-08-22" change="dependencies changed"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <test>fn:compare("database", "data base", "http://www.w3.org/2013/collation/UCA?lang=en;alternate=shifted;strength=quaternary") = 0</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-045" covers="uca-collation">
+      <description> Use compare() with a UCA collation : alternate=shifted : spaces significant at the identical level</description>
+      <created by="Michael Kay" on="2016-09-23"/>
+      <modified by="Christian Gruen" on="2022-08-22" change="dependencies changed"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <test>fn:compare("database", "data base", "http://www.w3.org/2013/collation/UCA?lang=en;alternate=shifted;strength=identical") = 0</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-402"  covers-40="PR909">
+      <description>Collation set to empty sequence</description>
+      <created by="Michael Kay" on="2023-07-04"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare("b", "a", ())</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-403"  covers-40="PR909">
+      <description>Collation set to empty sequence</description>
+      <created by="Michael Kay" on="2023-07-04"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare("b", "b", collation:=())</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-404"  covers-40="PR909">
+      <description>Collation set to empty sequence dynamically</description>
+      <created by="Michael Kay" on="2023-07-04"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare("b", "c", collation:=("a","b","c")[year-from-date(current-date())])</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-405" covers-40="PR680">
+      <description>Use HTML case-blind collation with ordering (rules are defined in 4.0)</description>
+      <created by="Michael Kay" on="2023-09-19"/>
+      <environment>
+         <collation uri="http://www.w3.org/2005/xpath-functions/collation/html-ascii-case-insensitive"/>
+      </environment>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <test>compare("a1", "A0", "http://www.w3.org/2005/xpath-functions/collation/html-ascii-case-insensitive")</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-406" covers-40="PR680">
+      <description>Use HTML case-blind collation with ordering (rules are defined in 4.0)</description>
+      <created by="Michael Kay" on="2023-09-19"/>
+      <environment>
+         <collation uri="http://www.w3.org/2005/xpath-functions/collation/html-ascii-case-insensitive"/>
+      </environment>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare("A1", "ä1", "http://www.w3.org/2005/xpath-functions/collation/html-ascii-case-insensitive")</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-407" covers-40="PR680">
+      <description>Use HTML case-blind collation with ordering (rules are defined in 4.0)</description>
+      <created by="Michael Kay" on="2023-09-19"/>
+      <environment>
+         <collation uri="http://www.w3.org/2005/xpath-functions/collation/html-ascii-case-insensitive"/>
+      </environment>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare("aÄ1", "Aä1", "http://www.w3.org/2005/xpath-functions/collation/html-ascii-case-insensitive")</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-408" covers-40="PR1945">
+      <description>Use Unicode case-blind collation: test with ASCII letters</description>
+      <created by="Michael Kay" on="2014-12-04"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <test>compare("a", "B", "http://www.w3.org/2005/xpath-functions/collation/unicode-case-insensitive")</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-409" covers-40="PR1945">
+      <description>Use Unicode case-blind collation: test with ASCII letters</description>
+      <created by="Michael Kay" on="2014-12-04"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <test>compare("b", "A", "http://www.w3.org/2005/xpath-functions/collation/unicode-case-insensitive")</test>
+      <result>
+         <assert-eq>+1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-410" covers-40="PR1945">
+      <description>Use Unicode case-blind collation: test with non-ASCII letters</description>
+      <created by="Michael Kay" on="2014-12-04"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <test>compare("ä", "Ä", "http://www.w3.org/2005/xpath-functions/collation/unicode-case-insensitive")</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-411" covers-40="PR1945">
+      <description>Use Unicode case-blind collation: test with non-ASCII letters</description>
+      <created by="Michael Kay" on="2014-12-04"/>
+      <dependency type="spec" value="XP31+ XQ31+"/>
+      <test>compare("bää", "BÄÄB", "http://www.w3.org/2005/xpath-functions/collation/unicode-case-insensitive")</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-412" covers-40="PR680">
+      <description>Use HTML case-blind collation with ordering.</description>
+      <created by="Christian Gruen" on="2026-10-03"/>
+      <environment>
+         <collation uri="http://www.w3.org/2005/xpath-functions/collation/html-ascii-case-insensitive"/>
+      </environment>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare("Z", "a", "http://www.w3.org/2005/xpath-functions/collation/html-ascii-case-insensitive")</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="K2-CompareFunc-1" covers-40="PR909">
+      <description>Use a complex collation argument.</description>
+      <created by="Frans Englich" on="2007-11-26"/>
+      <test>compare("a", "a", ("http://www.w3.org/2005/xpath-functions/collation/codepoint", ()))</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="K2-CompareFunc-2" covers-40="PR909">
+      <description>Use a complex collation argument.</description>
+      <created by="Frans Englich" on="2007-11-26"/>
+      <test>compare("a", "a", ((), "http://www.w3.org/2005/xpath-functions/collation/codepoint"))</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="K2-CompareFunc-3" covers-40="PR909">
+      <description> Use a complex collation argument. </description>
+      <created by="Frans Englich" on="2007-11-26"/>
+      <test>compare("a", "a", ((), "http://www.w3.org/2005/xpath-functions/collation/codepoint", ()))</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="K2-CompareFunc-4" covers-40="PR909">
+      <description> Compare two values returned from fn:lower-case(). </description>
+      <created by="Frans Englich" on="2007-11-26"/>
+      <dependency type="spec" value="XP30+ XQ10+"/>
+      <test>let $vA := ("B STRING", current-time())[1] treat as xs:string, 
+        $vB  := ("b string", current-time())[1] treat as xs:string
+        return compare(lower-case($vA), lower-case($vB))</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="K2-CompareFunc-5" covers-40="PR909">
+      <description> Compare two values returned from fn:upper-case(). </description>
+      <created by="Frans Englich" on="2007-11-26"/>
+      <dependency type="spec" value="XP30+ XQ10+"/>
+      <test>let $vA := ("B STRING", current-time())[1] treat as xs:string, 
+                $vB  := ("b string", current-time())[1] treat as xs:string 
+        return compare(upper-case($vA), upper-case($vB))</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="K2-CompareFunc-6" covers-40="PR909">
+      <description> Compare two non-matching values returned from fn:lower-case(). </description>
+      <created by="Frans Englich" on="2007-11-26"/>
+      <dependency type="spec" value="XP30+ XQ10+"/>
+      <test>let $vA  := ("B STRING", current-time())[1] treat as xs:string, 
+                $vB  := ("no match", current-time())[1] treat as xs:string 
+        return compare(lower-case($vA), lower-case($vB))</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="K2-CompareFunc-7" covers-40="PR909">
+      <description> Compare two non-matching values returned from fn:upper-case(). </description>
+      <created by="Frans Englich" on="2007-11-26"/>
+      <dependency type="spec" value="XP30+ XQ10+"/>
+      <test>let $vA  := ("B STRING", current-time())[1] treat as xs:string, 
+                $vB  := ("no match", current-time())[1] treat as xs:string 
+        return compare(upper-case($vA), upper-case($vB))</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="K2-CompareFunc-8" covers-40="PR909">
+      <description> Compare two non-matching values returned from fn:lower-case() and fn:upper-case(). </description>
+      <created by="Frans Englich" on="2007-11-26"/>
+      <dependency type="spec" value="XP30+ XQ10+"/>
+      <test>let $vA  := ("B STRING", current-time())[1] treat as xs:string, 
+                $vB  := ("no match", current-time())[1] treat as xs:string 
+        return compare(upper-case($vA), lower-case($vB))</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="K2-CompareFunc-9" covers-40="PR909">
+      <description> Compare two non-matching values returned from fn:lower-case() and fn:upper-case(). </description>
+      <created by="Frans Englich" on="2007-11-26"/>
+      <dependency type="spec" value="XP30+ XQ10+"/>
+      <test>let $vA  := ("B STRING", current-time())[1] treat as xs:string, 
+                $vB  := ("no match", current-time())[1] treat as xs:string 
+        return compare(lower-case($vA), upper-case($vB))</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-boolean-01" covers-40="PR909">
+      <description>compare booleans</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(false(), true())</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-boolean-02" covers-40="PR909">
+      <description>compare booleans</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(false(), false())</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-boolean-03" covers-40="PR909">
+      <description>compare booleans</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(true(), true())</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-boolean-04" covers-40="PR909">
+      <description>compare boolean</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(true(), false())</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-boolean-05" covers-40="PR909">
+      <description>compare boolean</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+let $v := current-date() ! year-from-date(.) ! (. > 1000, . < 1000)
+for $a in $v
+for $b in $v
+return compare($a, $b)
+      ]]></test>
+      <result>
+         <assert-deep-eq>0, 1, -1, 0</assert-deep-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-integer-01" covers-40="PR909">
+      <description>compare integers</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(-1, 0)</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-integer-02" covers-40="PR909">
+      <description>compare integers</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(0, 0)</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-integer-03" covers-40="PR909">
+      <description>compare integers</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(1, 0)</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-integer-04" covers-40="PR909">
+      <description>compare integer limits</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(-0x7FFFFFFFFFFFFFFF, 0x7FFFFFFFFFFFFFFF)</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-integer-05" covers-40="PR909">
+      <description>compare integer limits</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(0x7FFFFFFFFFFFFFFF, -0x7FFFFFFFFFFFFFFF)</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-double-01" covers-40="PR909">
+      <description>compare doubles</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(-1e0, 0e0)</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-double-02" covers-40="PR909">
+      <description>compare doubles</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(0e0, 0e0)</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-double-03" covers-40="PR909">
+      <description>compare doubles</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(1e0, 0e0)</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-double-04" covers-40="PR909">
+      <description>compare double limits</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(-1.79769313486231580e308, 1.79769313486231580e308)</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-double-05" covers-40="PR909">
+      <description>compare double limits</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(1.79769313486231580e308, -1.79769313486231580e308)</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-double-06" covers-40="PR909">
+      <description>compare zero</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(0e0, -0e0)</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-double-07" covers-40="PR909">
+      <description>compare NaN</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(0 div 0e0, 0 div 0e0)</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-double-08" covers-40="PR909">
+      <description>compare NaN</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(0 div 0e0, 0)</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-double-09" covers-40="PR909">
+      <description>compare NaN</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(0, 0 div 0e0)</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-double-10" covers-40="PR909">
+      <description>compare INF</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(-1 div 0e0, 1 div 0e0)</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-double-11" covers-40="PR909">
+      <description>compare INF</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(1 div 0e0, -1 div 0e0)</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-double-12" covers-40="PR909">
+      <description>compare INF</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+for $a in (-1 div 0e0, 0, 1 div 0e0)
+for $b in (-1 div 0e0, 0, 1 div 0e0)
+return compare($a, $b)
+      ]]></test>
+      <result>
+         <assert-deep-eq>0, -1, -1, 1, 0, -1, 1, 1, 0</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-float-01" covers-40="PR909">
+      <description>compare doubles</description>
+      <created by="Michael Kay" on="2024-03-23"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(-1e0 cast as xs:float, 0e0 cast as xs:float)</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-float-02" covers-40="PR909">
+      <description>compare doubles</description>
+      <created by="Michael Kay" on="2024-03-23"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(0e0 cast as xs:float, 0e0 cast as xs:float)</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-float-03" covers-40="PR909">
+      <description>compare doubles</description>
+      <created by="Michael Kay" on="2024-03-23"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(1e0 cast as xs:float, 0e0 cast as xs:float)</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-float-04" covers-40="PR909">
+      <description>compare double limits</description>
+      <created by="Michael Kay" on="2024-03-23"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(-1.79769313486231580e308 cast as xs:float, 1.79769313486231580e308 cast as xs:float)</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-float-05" covers-40="PR909">
+      <description>compare double limits</description>
+      <created by="Michael Kay" on="2024-03-23"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(1.79769313486231580e308 cast as xs:float, -1.79769313486231580e308 cast as xs:float)</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-float-06" covers-40="PR909">
+      <description>compare zero</description>
+      <created by="Michael Kay" on="2024-03-23"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(0e0 cast as xs:float, -0e0 cast as xs:float)</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-float-07" covers-40="PR909">
+      <description>compare NaN</description>
+      <created by="Michael Kay" on="2024-03-23"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(0 div 0e0 cast as xs:float, 0 div 0e0 cast as xs:float)</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-float-08" covers-40="PR909">
+      <description>compare NaN</description>
+      <created by="Michael Kay" on="2024-03-23"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(0 div 0e0 cast as xs:float, 0)</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-float-09" covers-40="PR909">
+      <description>compare NaN</description>
+      <created by="Michael Kay" on="2024-03-23"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(0, 0 div 0e0 cast as xs:float)</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-float-10" covers-40="PR909">
+      <description>compare INF</description>
+      <created by="Michael Kay" on="2024-03-23"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(-1 div 0e0 cast as xs:float, 1 div 0e0 cast as xs:float)</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-float-11" covers-40="PR909">
+      <description>compare INF</description>
+      <created by="Michael Kay" on="2024-03-23"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(1 div 0e0 cast as xs:float, -1 div 0e0 cast as xs:float)</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-float-12" covers-40="PR909">
+      <description>compare INF</description>
+      <created by="Michael Kay" on="2024-03-23"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+for $a in (-1 div 0e0 cast as xs:float, 0, 1 div 0e0 cast as xs:float)
+for $b in (-1 div 0e0 cast as xs:float, 0, 1 div 0e0 cast as xs:float)
+return compare($a, $b)
+      ]]></test>
+      <result>
+         <assert-deep-eq>0, -1, -1, 1, 0, -1, 1, 1, 0</assert-deep-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-decimal-01" covers-40="PR909">
+      <description>compare decimals</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(-1.0, 0.0)</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-decimal-02" covers-40="PR909">
+      <description>compare decimals</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(0.0, 0.0)</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-decimal-03" covers-40="PR909">
+      <description>compare decimals</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(1.0, 0.0)</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-double-to-decimal-01" covers-40="PR909">
+      <description>compare NaN</description>
+      <created by="Michael Kay" on="2024-03-23"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(number('NaN'), 2.0)</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-double-to-decimal-02" covers-40="PR909">
+      <description>compare NaN</description>
+      <created by="Michael Kay" on="2024-03-23"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(2.0, number('NaN'))</test>
+      <result>
+         <assert-eq>+1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-double-to-decimal-03" covers-40="PR909">
+      <description>compare negative infinity</description>
+      <created by="Michael Kay" on="2024-03-23"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(number('-INF'), 2.0)</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-double-to-decimal-04" covers-40="PR909">
+      <description>compare negative infinity</description>
+      <created by="Michael Kay" on="2024-03-23"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(2.0, number('-INF'))</test>
+      <result>
+         <assert-eq>+1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-double-to-decimal-05" covers-40="PR909">
+      <description>compare positive infinity</description>
+      <created by="Michael Kay" on="2024-03-23"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(number('INF'), 2.0)</test>
+      <result>
+         <assert-eq>+1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-double-to-decimal-06" covers-40="PR909">
+      <description>compare positive infinity</description>
+      <created by="Michael Kay" on="2024-03-23"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(2.0, number('INF'))</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-double-to-decimal-07" covers-40="PR909">
+      <description>compare whole numbers</description>
+      <created by="Michael Kay" on="2024-03-23"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(2e0, 2)</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-double-to-decimal-08" covers-40="PR909">
+      <description>compare whole numbers</description>
+      <created by="Michael Kay" on="2024-03-23"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(2, 2.0e0)</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-double-to-decimal-09" covers-40="PR909">
+      <description>compare inexact (3.1e0 = 3.100000000000000088817841970012523233890533447265625)</description>
+      <created by="Michael Kay" on="2024-03-23"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(3.1e0, 3.1)</test>
+      <result>
+         <assert-eq>+1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-double-to-decimal-10" covers-40="PR909">
+      <description>compare inexact (3.1e0 = 3.100000000000000088817841970012523233890533447265625)</description>
+      <created by="Michael Kay" on="2024-03-23"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(3.1, 3.1e0)</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-float-to-decimal-01" covers-40="PR909">
+      <description>compare NaN</description>
+      <created by="Michael Kay" on="2024-03-23"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(number('NaN') cast as xs:float, 2.0)</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-float-to-decimal-02" covers-40="PR909">
+      <description>compare NaN</description>
+      <created by="Michael Kay" on="2024-03-23"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(2.0, number('NaN') cast as xs:float)</test>
+      <result>
+         <assert-eq>+1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-float-to-decimal-03" covers-40="PR909">
+      <description>compare negative infinity</description>
+      <created by="Michael Kay" on="2024-03-23"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(number('-INF') cast as xs:float, 2.0)</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-float-to-decimal-04" covers-40="PR909">
+      <description>compare negative infinity</description>
+      <created by="Michael Kay" on="2024-03-23"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(2.0, number('-INF') cast as xs:float)</test>
+      <result>
+         <assert-eq>+1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-float-to-decimal-05" covers-40="PR909">
+      <description>compare positive infinity</description>
+      <created by="Michael Kay" on="2024-03-23"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(number('INF') cast as xs:float, 2.0)</test>
+      <result>
+         <assert-eq>+1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-float-to-decimal-06" covers-40="PR909">
+      <description>compare positive infinity</description>
+      <created by="Michael Kay" on="2024-03-23"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(2.0, number('INF') cast as xs:float)</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-float-to-decimal-07" covers-40="PR909">
+      <description>compare whole numbers</description>
+      <created by="Michael Kay" on="2024-03-23"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(2e0 cast as xs:float, 2)</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-float-to-decimal-08" covers-40="PR909">
+      <description>compare whole numbers</description>
+      <created by="Michael Kay" on="2024-03-23"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(2, 2.0e0 cast as xs:float)</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-float-to-decimal-09" covers-40="PR909">
+      <description>compare inexact (xs:float(3.1e0) = 3.099999904632568359375)</description>
+      <created by="Michael Kay" on="2024-03-23"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(3.1e0 cast as xs:float, 3.1)</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-float-to-decimal-10" covers-40="PR909">
+      <description>compare inexact (xs:float(3.1e0) = 3.099999904632568359375)</description>
+      <created by="Michael Kay" on="2024-03-23"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(3.1, 3.1e0 cast as xs:float)</test>
+      <result>
+         <assert-eq>+1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-binary-01" covers-40="PR909">
+      <description>compare binaries</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:hexBinary(''), xs:hexBinary('41'))</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-binary-02" covers-40="PR909">
+      <description>compare binaries</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:hexBinary('41'), xs:hexBinary('41'))</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-binary-03" covers-40="PR909">
+      <description>compare binaries</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:hexBinary('41'), xs:hexBinary(''))</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-binary-04" covers-40="PR909">
+      <description>compare binaries</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:base64Binary(''), xs:base64Binary('QQ=='))</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-binary-05" covers-40="PR909">
+      <description>compare binaries</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:base64Binary('QQ=='), xs:base64Binary('QQ=='))</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-binary-06" covers-40="PR909">
+      <description>compare binaries</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:base64Binary('QQ=='), xs:base64Binary(''))</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-binary-07" covers-40="PR909">
+      <description>compare binaries</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:hexBinary(''), xs:base64Binary('QQ=='))</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-binary-08" covers-40="PR909">
+      <description>compare binaries</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:hexBinary('41'), xs:base64Binary('QQ=='))</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-binary-09" covers-40="PR909">
+      <description>compare binaries</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:hexBinary('41'), xs:base64Binary(''))</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-date-01" covers-40="PR909">
+      <description>compare dates</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:date('2000-01-01'), xs:date('2001-01-01'))</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-date-02" covers-40="PR909">
+      <description>compare dates</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:date('2001-01-01'), xs:date('2001-01-01'))</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-date-03" covers-40="PR909">
+      <description>compare dates</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:date('2002-01-01'), xs:date('2001-01-01'))</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-date-04" covers-40="PR909">
+      <description>compare dates</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:date('2001-01-01+07:00'), xs:date('2001-01-01-07:00'))</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-time-01" covers-40="PR909">
+      <description>compare times</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:time('00:00:00'), xs:time('11:59:59'))</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-time-02" covers-40="PR909">
+      <description>compare times</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:time('11:59:59'), xs:time('11:59:59'))</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-time-03" covers-40="PR909">
+      <description>compare times</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:time('23:59:59'), xs:time('11:59:59'))</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-time-04" covers-40="PR909">
+      <description>compare times</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:time('11:59:59+07:00'), xs:time('11:59:59-07:00'))</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-dateTime-01" covers-40="PR909">
+      <description>compare dateTimes</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:dateTime('2001-01-01T00:00:00'), xs:dateTime('2001-01-01T11:59:59'))</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-dateTime-02" covers-40="PR909">
+      <description>compare dateTimes</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:dateTime('2001-01-01T11:59:59'), xs:dateTime('2001-01-01T11:59:59'))</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-dateTime-03" covers-40="PR909">
+      <description>compare dateTimes</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:dateTime('2001-01-01T23:59:59'), xs:dateTime('2001-01-01T11:59:59'))</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-dateTime-04" covers-40="PR909">
+      <description>compare dateTimes</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:dateTime('2001-01-01T11:59:59+07:00'), xs:dateTime('2001-01-01T11:59:59-07:00'))</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-dateTime-05" covers-40="PR909">
+      <description>compare xs:dateTime values with and without timezone</description>
+      <created by="Michael Kay" on="2024-03-23"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(current-dateTime(), xs:dateTime('2000-03-23T12:00:00'))</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-dayTimeDuration-01" covers-40="PR909">
+      <description>compare dayTimeDurations</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:dayTimeDuration('P09D'), xs:dayTimeDuration('P10D'))</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-dayTimeDuration-02" covers-40="PR909">
+      <description>compare dayTimeDurations</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:dayTimeDuration('P10D'), xs:dayTimeDuration('P10D'))</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-dayTimeDuration-03" covers-40="PR909">
+      <description>compare dayTimeDurations</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:dayTimeDuration('P11D'), xs:dayTimeDuration('P10D'))</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-yearMonthDuration-01" covers-40="PR909">
+      <description>compare yearMonthDurations</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:yearMonthDuration('P2000Y'), xs:yearMonthDuration('P2001Y'))</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-yearMonthDuration-02" covers-40="PR909">
+      <description>compare yearMonthDurations</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:yearMonthDuration('P2001Y'), xs:yearMonthDuration('P2001Y'))</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-yearMonthDuration-03" covers-40="PR909">
+      <description>compare yearMonthDurations</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:yearMonthDuration('P2002Y'), xs:yearMonthDuration('P2001Y'))</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="compare-duration-00" covers-40="PR2256">
+      <description>compare xs:duration values</description>
+      <created by="Michael Kay" on="2024-03-23"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:duration('P1Y'), xs:yearMonthDuration('P12M'))</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-duration-01" covers-40="PR2256">
+      <description>compare xs:duration values</description>
+      <created by="Michael Kay" on="2025-12-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:duration('P1Y'), xs:duration('P13M'))</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-duration-02" covers-40="PR2256">
+      <description>compare xs:duration values</description>
+      <created by="Michael Kay" on="2025-12-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:duration('-P1Y'), xs:duration('P1Y1M'))</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-duration-03" covers-40="PR2256">
+      <description>compare xs:duration values</description>
+      <created by="Michael Kay" on="2025-12-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:duration('-P6M'), xs:duration('-P1Y'))</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-duration-04" covers-40="PR2256">
+      <description>compare xs:duration values</description>
+      <created by="Michael Kay" on="2025-12-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:duration('P1Y'), xs:duration('P1Y1D'))</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-duration-05" covers-40="PR2256">
+      <description>compare xs:duration values</description>
+      <created by="Michael Kay" on="2024-03-23"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:duration('P2Y'), xs:duration('P1000D'))</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-duration-06" covers-40="PR2256">
+      <description>compare xs:duration values</description>
+      <created by="Michael Kay" on="2025-12-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:duration('PT1M'), xs:duration('PT59.999S'))</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-duration-07" covers-40="PR2256">
+      <description>compare xs:duration values</description>
+      <created by="Michael Kay" on="2025-12-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:duration('PT1H'), xs:duration('PT60M0.00S'))</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-duration-08" covers-40="PR2256">
+      <description>compare xs:duration values</description>
+      <created by="Michael Kay" on="2025-12-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:duration('P0Y'), xs:duration('PT0S'))</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-duration-09" covers-40="PR2256">
+      <description>compare xs:duration values</description>
+      <created by="Michael Kay" on="2025-12-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:duration('P1Y1MT1H1M'), xs:duration('P1Y1MT1H1M1S'))</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-QName-01" covers-40="PR2256">
+      <description>compare xs:QName values</description>
+      <created by="Michael Kay" on="2025-12-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(#Q{}alpha, #Q{}beta)</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-QName-02" covers-40="PR2256">
+      <description>compare xs:QName values</description>
+      <created by="Michael Kay" on="2025-12-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(#Q{}alpha, #Q{http://example.com/}alpha)</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-QName-03" covers-40="PR2256">
+      <description>compare xs:QName values</description>
+      <created by="Michael Kay" on="2025-12-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(#Q{http://example.com/ns}alpha, #Q{http://example.com/}alpha)</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-QName-04" covers-40="PR2256">
+      <description>compare xs:QName values</description>
+      <created by="Michael Kay" on="2025-12-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(#Q{http://example.com/ns}alpha, #Q{http://example.com/}beta)</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-QName-05" covers-40="PR2256">
+      <description>compare xs:QName values</description>
+      <created by="Michael Kay" on="2025-12-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(#Q{http://example.com/}p:alpha, #Q{http://example.com/}q:alpha)</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-gYear-01" covers-40="PR2256">
+      <description>compare xs:gYear values</description>
+      <created by="Michael Kay" on="2025-12-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:gYear("2005"), xs:gYear("2010"))</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-gYear-02" covers-40="PR2256">
+      <description>compare xs:gYear values</description>
+      <created by="Michael Kay" on="2025-12-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:gYear("2010"), xs:gYear("2010"))</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-gYear-03" covers-40="PR2256">
+      <description>compare xs:gYear values</description>
+      <created by="Michael Kay" on="2025-12-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:gYear("2005+02:00"), xs:gYear("2005+03:00"))</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-gYear-04" covers-40="PR2256">
+      <description>compare xs:gYear values</description>
+      <created by="Michael Kay" on="2025-12-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:gYear("2005+03:00"), xs:gYear("2005+03:00"))</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-gYear-05" covers-40="PR2256">
+      <description>compare xs:gYear values</description>
+      <created by="Michael Kay" on="2025-12-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $tz := implicit-timezone()
+         let $($hh, $mm) := (hours-from-duration($tz), minutes-from-duration($tz))
+         let $TZ := `{if ($hh ge 0) {'+'}}{format-integer($hh, '00')}:{format-integer($mm, '00')}` 
+         return compare(xs:gYear(`2005{$TZ}`), xs:gYear("2005"))</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-gYearMonth-01" covers-40="PR2256">
+      <description>compare xs:gYearMonth values</description>
+      <created by="Michael Kay" on="2025-12-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:gYearMonth("2005-10"), xs:gYearMonth("2010-01"))</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-gYearMonth-02" covers-40="PR2256">
+      <description>compare xs:gYearMonth values</description>
+      <created by="Michael Kay" on="2025-12-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:gYearMonth("2005-12"), xs:gYearMonth("2005-11"))</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-gYearMonth-03" covers-40="PR2256">
+      <description>compare xs:gYearMonth values</description>
+      <created by="Michael Kay" on="2025-12-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:gYearMonth("2005-10-05:00"), xs:gYearMonth("2010-01+01:00"))</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-gYearMonth-04" covers-40="PR2256">
+      <description>compare xs:gYearMonth values</description>
+      <created by="Michael Kay" on="2025-12-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:gYearMonth("2005-12-05:00"), xs:gYearMonth("2005-12-05:00"))</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-gYearMonth-05" covers-40="PR2256">
+      <description>compare xs:gYearMonth values</description>
+      <created by="Michael Kay" on="2025-12-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $tz := implicit-timezone()
+         let $($hh, $mm) := (hours-from-duration($tz), minutes-from-duration($tz))
+         let $TZ := `{if ($hh ge 0) {'+'}}{format-integer($hh, '00')}:{format-integer($mm, '00')}` 
+         return compare(xs:gYearMonth(`2005-08{$TZ}`), xs:gYearMonth("2005-08"))
+      </test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-gYearMonth-06" covers-40="PR2256">
+      <description>compare xs:gYearMonth values</description>
+      <created by="Michael Kay" on="2025-12-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $tz := implicit-timezone()
+         let $($hh, $mm) := (hours-from-duration($tz), minutes-from-duration($tz))
+         let $TZ := `{if ($hh ge 0) {'+'}}{format-integer($hh+1, '00')}:{format-integer($mm, '00')}` 
+         return compare(xs:gYearMonth(`2005-08{$TZ}`), xs:gYearMonth("2005-08"))
+      </test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-gMonthDay-01" covers-40="PR2256">
+      <description>compare xs:gMonthDay values</description>
+      <created by="Michael Kay" on="2025-12-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:gMonthDay("--02-28"), xs:gMonthDay("--02-29"))</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-gMonthDay-02" covers-40="PR2256">
+      <description>compare xs:gMonthDay values</description>
+      <created by="Michael Kay" on="2025-12-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:gMonthDay("--12-25"), xs:gMonthDay("--12-25"))</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-gMonthDay-03" covers-40="PR2256">
+      <description>compare xs:gMonthDay values</description>
+      <created by="Michael Kay" on="2025-12-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:gMonthDay("--02-29+03:00"), xs:gMonthDay("--02-29+02:00"))</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-gMonthDay-04" covers-40="PR2256">
+      <description>compare xs:gMonthDay values</description>
+      <created by="Michael Kay" on="2025-12-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:gMonthDay("--12-25-05:00"), xs:gMonthDay("--12-25-05:00"))</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-gMonthDay-05" covers-40="PR2256">
+      <description>compare xs:gMonthDay values</description>
+      <created by="Michael Kay" on="2025-12-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         let $tz := implicit-timezone()
+         let $($hh, $mm) := (hours-from-duration($tz), minutes-from-duration($tz))
+         let $TZ := `{if ($hh ge 0) {'+'}}{format-integer($hh, '00')}:{format-integer($mm, '00')}` 
+         return compare(xs:gMonthDay(`--02-29{$TZ}`), xs:gMonthDay("--02-29"))
+      </test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-gMonth-01" covers-40="PR2256">
+      <description>compare xs:gMonth values</description>
+      <created by="Michael Kay" on="2025-12-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:gMonth("--10"), xs:gMonth("--11"))</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-gMonth-02" covers-40="PR2256">
+      <description>compare xs:gMonth values</description>
+      <created by="Michael Kay" on="2025-12-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:gMonth("--12"), xs:gMonth("--12"))</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-gMonth-03" covers-40="PR2256">
+      <description>compare xs:gMonth values</description>
+      <created by="Michael Kay" on="2025-12-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:gMonth("--10+02:00"), xs:gMonth("--11+02:00"))</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-gMonth-04" covers-40="PR2256">
+      <description>compare xs:gMonth values</description>
+      <created by="Michael Kay" on="2025-12-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:gMonth("--12-05:00"), xs:gMonth("--12-05:00"))</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-gDay-01" covers-40="PR2256">
+      <description>compare xs:gDay values</description>
+      <created by="Michael Kay" on="2025-12-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:gDay("---28"), xs:gDay("---29"))</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-gDay-02" covers-40="PR2256">
+      <description>compare xs:gDay values</description>
+      <created by="Michael Kay" on="2025-12-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:gDay("---25"), xs:gDay("---25"))</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-gDay-03" covers-40="PR2256">
+      <description>compare xs:gDay values</description>
+      <created by="Michael Kay" on="2025-12-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:gDay("---29+03:00"), xs:gDay("---29+02:00"))</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-gDay-04" covers-40="PR2256">
+      <description>compare xs:gDay values</description>
+      <created by="Michael Kay" on="2025-12-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:gDay("---25-05:00"), xs:gDay("---25-05:00"))</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+   
+   
+   
+   <test-case name="compare-error-01" covers-40="PR909">
+      <description>compare xs:QNames</description>
+      <created by="Michael Kay" on="2024-03-23"/>
+      <modified by="Christian Gruen" on="2025-12-15"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(xs:QName('one'), xs:QName('two'))</test>
+      <result>
+         <assert-eq>-1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="compare-error-02" covers-40="PR909">
+      <description>compare integer to string</description>
+      <created by="Michael Kay" on="2024-03-23"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>compare(1, "fred")</test>
+      <result>
+         <error code="XPTY0004"/>
+      </result>
+   </test-case>
+
+  
+</test-set>

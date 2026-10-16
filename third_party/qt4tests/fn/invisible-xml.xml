@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-set xmlns="http://www.w3.org/2010/09/qt-fots-catalog" name="fn-invisible-xml" covers-40="PR791">
+   <description>Tests for the invisible-xml() function</description>
+   <link type="spec" document="http://www.w3.org/TR/xpath-functions-30/"
+         idref="func-invisible-xml"/>
+   
+   <dependency type="spec" value="XP40+ XQ40+"/>
+
+   <test-case name="invisible-xml-001">
+      <description>Empty sequence argument</description>
+      <created by="Michael Kay" on="2024-02-02"/>
+      <test>invisible-xml(()) instance of function(*)</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="invisible-xml-002">
+      <description>Simple date grammar from spec</description>
+      <created by="Michael Kay" on="2024-02-02"/>
+      <test>
+         let $grammar := "
+           date = year, -'-', month, -'-', day .
+           year = d, d, d, d .
+           month = '0', d | '1', ['0'|'1'|'2'] .
+           day = ['0'|'1'|'2'], d | '3', ['0'|'1'] .
+           -d = ['0'-'9'] .
+         "
+         let $parse := invisible-xml($grammar)
+         return $parse("2023-10-31")
+      </test>
+      <result>
+         <assert-xml><![CDATA[<date><year>2023</year><month>10</month><day>31</day></date>]]></assert-xml>
+      </result>
+   </test-case>
+
+   <test-case name="invisible-xml-003">
+      <description>Simple date grammar as XML</description>
+      <created by="Norm Tovey-Walsh" on="2024-08-29"/>
+      <modified by="Christian Gruen" on="2025-11-03"/>
+      <test>
+         let $grammar := <![CDATA[parse-xml("<ixml><rule name='date'><alt><nonterminal name='year'/>
+           <literal tmark='-' string='-'/><nonterminal name='month'/><literal tmark='-' string='-'/>
+           <nonterminal name='day'/></alt></rule><rule name='year'><alt><nonterminal name='d'/>
+           <nonterminal name='d'/><nonterminal name='d'/><nonterminal name='d'/></alt></rule>
+           <rule name='month'><alt><literal string='0'/><nonterminal name='d'/></alt><alt>
+           <literal string='1'/><inclusion><member string='0'/><member string='1'/><member string='2'/>
+           </inclusion></alt></rule><rule name='day'><alt><inclusion><member string='0'/>
+           <member string='1'/><member string='2'/></inclusion><nonterminal name='d'/></alt>
+           <alt><literal string='3'/><inclusion><member string='0'/><member string='1'/>
+           </inclusion></alt></rule><rule mark='-' name='d'><alt><inclusion>
+           <member from='0' to='9'/></inclusion></alt></rule></ixml>")]]>
+         let $parse := invisible-xml($grammar/ixml)
+         return $parse("2023-10-31")
+      </test>
+      <result>
+         <assert-xml><![CDATA[<date><year>2023</year><month>10</month><day>31</day></date>]]></assert-xml>
+      </result>
+   </test-case>
+   
+   <test-case name="invisible-xml-006">
+      <description>Simple grammar: document node</description>
+      <created by="Christian Gruen" on="2025-11-03"/>
+      <test><![CDATA[
+        let $grammar := parse-xml("<ixml><rule name='s'/></ixml>")
+        return invisible-xml($grammar)('')
+      ]]></test>
+      <result>
+         <error code="FOIX0001"/>
+      </result>
+   </test-case>
+   
+   <test-case name="invisible-xml-007">
+      <description>Simple grammar: element</description>
+      <created by="Christian Gruen" on="2025-11-03"/>
+      <modified by="Norm Tovey-Walsh" on="2026-08-27"
+                change="Fix the missing alt in the rule per iXML"/>
+      <test><![CDATA[
+        let $grammar := parse-xml("<ixml><rule name='s'><alt/></rule></ixml>")/*
+        return invisible-xml($grammar)('')
+      ]]></test>
+      <result>
+         <assert-xml><![CDATA[<s/>]]></assert-xml>
+      </result>
+   </test-case>
+   
+   <test-case name="invisible-xml-008">
+      <description>Evaluation of invisible-xml function.</description>
+      <created by="Christian Gruen" on="2026-10-02"/>
+      <test>invisible-xml() instance of fn(xs:string) as item()</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="invisible-xml-009">
+      <description>Evaluation of invisible-xml function.</description>
+      <created by="Christian Gruen" on="2026-10-02"/>
+      <test>invisible-xml()("s = 'a'.")//rule/@name ! string()</test>
+      <result>
+         <assert-eq>'s'</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="invisible-xml-010">
+      <description>Evaluation of invisible-xml function.</description>
+      <created by="Christian Gruen" on="2026-10-02"/>
+      <test>deep-equal(invisible-xml()("s = 'a'."), invisible-xml(())("s = 'a'."))</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="invisible-xml-011">
+      <description>Evaluation of invisible-xml function.</description>
+      <created by="Christian Gruen" on="2026-10-02"/>
+      <test>invisible-xml()('not a grammar')/*/@Q{http://invisiblexml.org/NS}state ! string()</test>
+      <result>
+         <assert-eq>'failed'</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="invisible-xml-901">
+      <description>Bad grammar, fail-on-error=true</description>
+      <created by="Michael Kay" on="2024-02-02"/>
+      <test>invisible-xml("(((((", map{"fail-on-error":true()})</test>
+      <result>
+         <error code="FOIX0001"/>
+      </result>
+   </test-case>
+   
+   <test-case name="invisible-xml-902">
+      <description>Bad grammar, fail-on-error=false</description>
+      <created by="Michael Kay" on="2024-02-02"/>
+      <modified by="Gunther Rademacher" on="2024-02-05" change="expect error code FOIX0001"/>
+      <test>invisible-xml("(((((", map{"fail-on-error":false()})</test>
+      <result>
+         <error code="FOIX0001"/>
+      </result>
+   </test-case>
+
+   <test-case name="invisible-xml-903">
+      <description>Bad input, fail-on-error=true</description>
+      <created by="Gunther Rademacher" on="2024-02-05"/>
+      <test>invisible-xml("S:.", map{"fail-on-error":true()})("-")</test>
+      <result>
+         <error code="FOIX0002"/>
+      </result>
+   </test-case>
+
+   <test-case name="invisible-xml-904">
+      <description>Bad input, fail-on-error=false</description>
+      <created by="Gunther Rademacher" on="2024-02-05"/>
+      <test>invisible-xml("S:.", map{"fail-on-error":false()})("-")</test>
+      <result>
+         <assert>$result//@Q{http://invisiblexml.org/NS}state = 'failed'</assert>
+      </result>
+   </test-case>
+
+   <test-case name="invisible-xml-905">
+      <description>Bad input, fail-on-error default</description>
+      <created by="Gunther Rademacher" on="2024-02-05"/>
+      <test>invisible-xml("S:.")("-")</test>
+      <result>
+         <assert>$result//@Q{http://invisiblexml.org/NS}state = 'failed'</assert>
+      </result>
+   </test-case>
+   
+   <test-case name="invisible-xml-906">
+      <description>Bad input, fail-on-error invalid option value</description>
+      <created by="Michael Kay" on="2024-02-06"/>
+      <test>invisible-xml("S:.", map{"fail-on-error":"maybe"})("-")</test>
+      <result>
+         <error code="XPTY0004"/>
+      </result>
+   </test-case>
+   
+   <test-case name="invisible-xml-907">
+      <description>Bad input, fail-on-error invalid option value</description>
+      <created by="Michael Kay" on="2024-02-06"/>
+      <test>invisible-xml("S:.", map{"fail-on-error":()})("-")</test>
+      <result>
+         <error code="XPTY0004"/>
+      </result>
+   </test-case>
+
+</test-set>

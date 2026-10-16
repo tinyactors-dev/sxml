@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="us-ascii"?>
+<test-set xmlns="http://www.w3.org/2010/09/qt-fots-catalog" name="array-items" covers-40="PR1687">
+   <description>Tests for the XPath 4.0 array:items() function</description>
+ 
+   
+   <dependency type="spec" value="XP40+ XQ40+"/>
+
+   <test-case name="array-items-001">
+      <description> Deconstruct an empty array </description>
+      <created by="Michael Kay" on="2024-03-15"/>
+      <test>array:items([])</test>
+      <result>
+         <assert-empty/>
+      </result>
+   </test-case>
+   
+   <test-case name="array-items-002">
+      <description> Deconstruct a singleton array </description>
+      <created by="Michael Kay" on="2024-03-15"/>
+      <test>array:items([1])</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="array-items-003">
+      <description> Deconstruct a more complex array </description>
+      <created by="Michael Kay" on="2024-03-15"/>
+      <test>array:items([1, (2,3)])</test>
+      <result>
+         <assert-count>3</assert-count>
+      </result>
+   </test-case>
+   
+   <test-case name="array-items-004">
+      <description> Deconstruct a more complex array </description>
+      <created by="Michael Kay" on="2024-03-15"/>
+      <test>array:items([1, (2,3)])</test>
+      <result>
+         <assert-deep-eq>1, 2, 3</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="array-items-005">
+      <description> Deconstruct a more complex array </description>
+      <created by="Michael Kay" on="2024-03-15"/>
+      <test>array:items([1, (2,3), ()])</test>
+      <result>
+         <assert-deep-eq>1, 2, 3</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="array-items-006">
+      <description> Not recursive </description>
+      <created by="Michael Kay" on="2024-03-15"/>
+      <test>array:items([1, [2,3], []])</test>
+      <result>
+         <assert-deep-eq>1, [2,3], []</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="array-items-901">
+      <description> Argument must not be empty sequence </description>
+      <created by="Michael Kay" on="2024-03-15"/>
+      <test>array:items(())</test>
+      <result>
+         <error code="XPTY0004"/>
+      </result>
+   </test-case>
+   
+   <test-case name="array-items-902">
+      <description> Argument must not be sequence of arrays</description>
+      <created by="Michael Kay" on="2024-03-15"/>
+      <test>array:items(([1], [2]))</test>
+      <result>
+         <error code="XPTY0004"/>
+      </result>
+   </test-case>
+   
+   
+   
+ 
+
+ 
+</test-set>

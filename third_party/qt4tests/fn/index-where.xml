@@ -1,0 +1,219 @@
+<?xml version="1.0" encoding="us-ascii"?>
+<test-set xmlns="http://www.w3.org/2010/09/qt-fots-catalog" name="fn-index-where" covers-40="PR258">
+  <description>Tests for the fn:index-where() function (4.0)</description>
+  
+  <dependency type="spec" value="XP40+ XQ40+"/>
+  
+  <test-case name="index-where-01">
+    <description>Empty sequence</description>
+    <created by="Michael Kay" on="2020-02-09"/>
+    <test>index-where((), function($x) {true()})</test>
+    <result>
+      <assert-empty/>
+    </result>
+  </test-case>
+  
+  <test-case name="index-where-02">
+    <description>No matches</description>
+    <created by="Michael Kay" on="2020-02-09"/>
+    <test>index-where(1 to 100, function($x) {$x lt 0})</test>
+    <result>
+      <assert-empty/>
+    </result>
+  </test-case>
+  
+  <test-case name="index-where-03">
+    <description>All matches</description>
+    <created by="Michael Kay" on="2020-02-09"/>
+    <test>index-where(1 to 100, function($x) {$x gt 0})</test>
+    <result>
+      <assert-deep-eq>1 to 100</assert-deep-eq>
+    </result>
+  </test-case>
+  
+  <test-case name="index-where-04">
+    <description>Selective matches</description>
+    <created by="Michael Kay" on="2020-02-09"/>
+    <test>index-where(1 to 100, function($x) {$x mod 30 = 0})</test>
+    <result>
+      <assert-deep-eq>30, 60, 90</assert-deep-eq>
+    </result>
+  </test-case>
+  
+  <test-case name="index-where-05" covers-40="PR254">
+    <description>Zero-arity callback function</description>
+    <created by="Michael Kay" on="2023-11-30"/>
+    <test>index-where(101 to 200, true#0)</test>
+    <result>
+      <assert-deep-eq>1 to 100</assert-deep-eq>
+    </result>
+  </test-case>
+  
+  <test-case name="index-where-06" covers-40="PR254">
+    <description>Zero-arity callback function</description>
+    <created by="Michael Kay" on="2023-11-30"/>
+    <test>index-where(101 to 200, false#0)</test>
+    <result>
+      <assert-empty/>
+    </result>
+  </test-case>
+  
+  <test-case name="index-where-07" covers-40="PR828">
+    <description>Arity-2 callback function</description>
+    <created by="Michael Kay" on="2023-11-30"/>
+    <test>index-where((1 to 20, 22 to 50), fn($it, $pos){$it=$pos})</test>
+    <result>
+      <assert-deep-eq>1 to 20</assert-deep-eq>
+    </result>
+  </test-case>
+  
+  <test-case name="index-where-08" covers-40="PR828">
+    <description>Arity-2 callback function</description>
+    <created by="Michael Kay" on="2023-11-30"/>
+    <test>index-where(100 to 200, fn($it, $pos){$pos gt 80})</test>
+    <result>
+      <assert-deep-eq>81 to 101</assert-deep-eq>
+    </result>
+  </test-case>
+  
+  <test-case name="index-where-50">
+    <description>Worked example</description>
+    <created by="Michael Kay" on="2020-02-09"/>
+    <dependency type="spec" value="XQ40+"/>      
+    <test><![CDATA[
+      let $D := function($x){document{$x}},
+          $E := function($n, $x){element{$n}{$x}},
+          $input := parse-xml("<doc><p/><q/><r/><h1/><p/><q/><h1/><p/></doc>"),
+          $seq := $input/doc/*,
+          $headings := index-where($seq, function($x) {local-name($x)='h1'})
+      return $D($E('result',(
+          if (head($headings) != 1) then $E('preface', subsequence($seq, 1, head($headings)-1)) else (),
+          for-each-pair($headings, tail($headings), function($x, $y){$E('section', subsequence($seq, $x, $y - $x))}),
+          $E('section', subsequence($seq, $headings[last()])))))  
+      ]]></test>
+    <result>
+      <assert-xml><![CDATA[<result><preface><p/><q/><r/></preface><section><h1/><p/><q/></section><section><h1/><p/></section></result>]]></assert-xml>
+    </result>
+  </test-case>
+  
+  <test-case name="index-where-100">
+    <description>Empty sequence, named function reference</description>
+    <created by="Christian Gruen" on="2022-08-10"/>
+    <test><![CDATA[fn:index-where((), boolean#1)]]></test>
+    <result>
+      <assert-empty/>
+    </result>
+  </test-case>
+  
+  <test-case name="index-where-101">
+    <description>Single integer, named function reference</description>
+    <created by="Christian Gruen" on="2022-08-10"/>
+    <test><![CDATA[fn:index-where(0, boolean#1)]]></test>
+    <result>
+      <assert-empty/>
+    </result>
+  </test-case>
+  
+  <test-case name="index-where-102">
+    <description>Single integer, named function reference</description>
+    <created by="Christian Gruen" on="2022-08-10"/>
+    <test><![CDATA[fn:index-where(1, boolean#1)]]></test>
+    <result>
+      <assert-eq>1</assert-eq>
+    </result>
+  </test-case>
+  
+  <test-case name="index-where-103">
+    <description>Integer sequence, named function reference</description>
+    <created by="Christian Gruen" on="2022-08-10"/>
+    <test><![CDATA[fn:index-where((0, 4, 9), boolean#1)]]></test>
+    <result>
+      <assert-deep-eq>2, 3</assert-deep-eq>
+    </result>
+  </test-case>
+  
+  <test-case name="index-where-104">
+    <description>Function item</description>
+    <created by="Christian Gruen" on="2022-08-10"/>
+    <test><![CDATA[fn:index-where(1 to 9, function($n) { $n mod 5 = 0 })]]></test>
+    <result>
+      <assert-eq>5</assert-eq>
+    </result>
+  </test-case>
+  
+  <test-case name="index-where-105">
+    <description>Partial function application</description>
+    <created by="Christian Gruen" on="2022-08-10"/>
+    <test><![CDATA[fn:index-where(('January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'), contains(?, 'z'))]]></test>
+    <result>
+      <assert-empty/>
+    </result>
+  </test-case>
+  
+  <test-case name="index-where-106">
+    <description>Partial function application</description>
+    <created by="Christian Gruen" on="2022-08-10"/>
+    <test><![CDATA[fn:index-where(('January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'), contains(?, 'v'))]]></test>
+    <result>
+      <assert-eq>11</assert-eq>
+    </result>
+  </test-case>
+  
+  <test-case name="index-where-107">
+    <description>Partial function application</description>
+    <created by="Christian Gruen" on="2022-08-10"/>
+    <test><![CDATA[fn:index-where(('January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'), starts-with(?, 'J'))]]></test>
+    <result>
+      <assert-deep-eq>1, 6, 7</assert-deep-eq>
+    </result>
+  </test-case>
+  
+  <test-case name="index-where-108">
+    <description>Filter expression, named function reference</description>
+    <created by="Christian Gruen" on="2022-08-10"/>
+    <test><![CDATA[fn:index-where((0 to 5)[. = 0], not#1)]]></test>
+    <result>
+      <assert-eq>1</assert-eq>
+    </result>
+  </test-case>
+  
+  <test-case name="index-where-109">
+    <description>Filter expression, named function reference</description>
+    <created by="Christian Gruen" on="2022-08-10"/>
+    <test><![CDATA[fn:index-where((0 to 5)[. = 6], not#1)]]></test>
+    <result>
+      <assert-empty/>
+    </result>
+  </test-case>
+  
+  <test-case name="index-where-110" covers-40="PR2218">
+    <description>Numeric comparison</description>
+    <created by="Michael Kay" on="2025-10-01"/>
+    <dependency type="spec" value="XP40+ XQ40+"/>
+    <test>index-where((1.1, 2.1, 3.1, 4.1, 1.1e0, 2.1e0, 3.1e0, 4.1e0), fn{. = 3.1e0})</test>
+    <result>
+        <assert-eq>7</assert-eq>
+    </result>
+  </test-case>
+
+  <test-case name="index-where-111" covers-40="PR1182">
+    <description>Predicate returning the empty sequence.</description>
+    <created by="Christian Gruen" on="2026-10-01"/>
+    <dependency type="spec" value="XP40+ XQ40+"/>
+    <test>index-where((1, 2, 3, 2), fn($x) { if ($x = 2) then true() else () })</test>
+    <result>
+      <assert-deep-eq>2, 4</assert-deep-eq>
+    </result>
+  </test-case>
+
+  <test-case name="index-where-112" covers-40="PR1182">
+    <description>Predicate returning the empty sequence.</description>
+    <created by="Christian Gruen" on="2026-10-01"/>
+    <dependency type="spec" value="XP40+ XQ40+"/>
+    <test>index-where((1, 2, 3), fn($x) { () })</test>
+    <result>
+      <assert-empty/>
+    </result>
+  </test-case>
+
+</test-set>

@@ -1,0 +1,2217 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<test-set xmlns="http://www.w3.org/2010/09/qt-fots-catalog"
+          name="misc-Subtyping" covers-40="PR2202 PR1400 PR1332 PR153 PR202">
+   <description>
+        Tests for subtyping relationships.
+   </description>
+   
+   <dependency type="spec" value="XQ40+"/>
+   <!-- Note: these tests all depend on 4.0 because they make use of the 4.0 feature to supply
+        a library module to fn:load-xquery-module as a string, rather than as a URI. Some
+        of them also use 4.0-specific types such as element(a|b) -->
+   
+   <dependency type="feature" value="fn-load-xquery-module"/>
+   <!-- Note: the implementation of these tests invokes fn:load-xquery-module, and therefore
+      only runs if a suitable XQuery processor is available -->
+   
+   <test-case name="subtyping-001">
+      <description>Atomic types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('xs:integer', 'xs:decimal')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-002">
+      <description>Atomic types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('xs:dayTimeDuration', 'xs:duration')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-003">
+      <description>Atomic types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('xs:int', 'xs:long*')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-004">
+      <description>Atomic types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('xs:int', 'xs:int?')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-005">
+      <description>Atomic types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('xs:dateTime', 'xs:dateTime')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-006">
+      <description>Atomic types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('xs:boolean', 'xs:dateTime')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-010">
+      <description>Enumeration types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('enum("ABC")', 'xs:string')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-011">
+      <description>Enumeration types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('enum("ABC")', 'xs:NCName')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-020">
+      <description>Choice types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('xs:integer', '(xs:string | xs:decimal)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-021">
+      <description>Choice types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('xs:int+', '(xs:string | xs:long)*')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-022" covers-40="PR1400">
+      <description>Choice types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('(xs:date | xs:time)', '(xs:time | xs:dateTime | xs:date)+')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-023" covers-40="PR1400">
+      <description>Choice types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('(xs:hexBinary | xs:base64Binary)', '(xs:base64Binary | xs:hexBinary)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-024" covers-40="PR1400">
+      <description>Choice types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('(xs:hexBinary | xs:base64Binary | xs:string)', '(xs:base64Binary | xs:hexBinary)')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-025" covers-40="PR1400">
+      <description>Choice types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('(xs:long | xs:int)', 'xs:integer')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-026" covers-40="PR1400">
+      <description>Choice types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('record(a, b)', '(map(*) | array(*))')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-027" covers-40="PR2491">
+      <description>Choice types</description>
+      <created by="Michael Kay" on="2026-03-03"/>
+      <modified by="Christian Gruen" on="2026-09-01" change="PR2795"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('node()', '(xnode() | jnode())')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-028" covers-40="PR2491">
+      <description>Choice types</description>
+      <created by="Michael Kay" on="2026-03-03"/>
+      <modified by="Christian Gruen" on="2026-09-01" change="PR2795"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('(xnode() | jnode())', 'node()')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-029" covers-40="PR2491">
+      <description>Choice types</description>
+      <created by="Michael Kay" on="2026-03-03"/>
+      <modified by="Christian Gruen" on="2026-09-01" change="PR2795"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('xnode()', '(element() | attribute() | text() | comment() | processing-instruction() | document-node() | namespace-node())')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-030" covers-40="PR2491">
+      <description>Choice types</description>
+      <created by="Michael Kay" on="2026-03-03"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('node()', '(element() | attribute() | text() | comment() | processing-instruction() | document-node() | namespace-node() | jnode())')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-031" covers-40="PR2491">
+      <description>Choice types</description>
+      <created by="Michael Kay" on="2026-03-03"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('(element() | attribute() | text() | comment() | processing-instruction() | document-node() | namespace-node())', '(node() | xs:integer)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-032" covers-40="PR2491">
+      <description>Choice types</description>
+      <created by="Michael Kay" on="2026-03-03"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('item()', '(node() | jnode() | xs:anyAtomicType | function(*))')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-033" covers-40="PR2491">
+      <description>Choice types</description>
+      <created by="Michael Kay" on="2026-03-03"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('(node() | jnode() | xs:anyAtomicType | function(*))+', 'item()*')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-050">
+      <description>Node types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('element()', 'node()')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-051">
+      <description>Node types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('element()', 'item()')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-052">
+      <description>Node types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('element(a)', 'element(*)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-053">
+      <description>Node types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('element(*)', 'element(a)')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-054">
+      <description>Node types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('element(a|b)', 'element(a)')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-055">
+      <description>Node types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('element(a|b|c)', 'element(b|c)')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-056">
+      <description>Node types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('element(a|b)', 'element(b|c|a)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-057">
+      <description>Node types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('element(p1:*)', 'element(p1:a)')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-058">
+      <description>Node types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('element(p1:a)', 'element(p1:*)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-059">
+      <description>Node types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('element(p1:*|p2:*)', 'element(p1:*)')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-060">
+      <description>Node types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('element(p1:*)', 'element(p1:*|p2:*)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-061">
+      <description>Node types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('element(*:a)', 'element(a)')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-062">
+      <description>Node types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('element(a|b)', 'element(*:a|*:b)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-063">
+      <description>Node types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('element(*:a|*:b)', 'element(a|b|c)')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-064">
+      <description>Node types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('element(a|b)', '(element(a)|element(b))')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-065">
+      <description>Node types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('element(a|b|c)', '(element(a)|element(b))')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-066">
+      <description>Node types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <modified by="Michael Kay" on="2024-10-17" change="correct expected result"/>
+      <modified by="Christian Gruen" on="2025-03-31" change="typedData dependency added"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="typedData"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('element(a|b, xs:long)', '(element(a, xs:integer)|element(b, xs:decimal))')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-067">
+      <description>Node types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <modified by="Michael Kay" on="2024-10-17" change="correct expected result"/>
+      <modified by="Christian Gruen" on="2025-03-31" change="typedData dependency added"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="typedData"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('(element(a, xs:integer)|element(b, xs:integer))', 'element(a|b, xs:decimal)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-070">
+      <description>Node types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <modified by="Christian Gruen" on="2025-03-31" change="typedData dependency added"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="typedData"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('element(a, xs:integer)', 'element(a, xs:decimal)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-071">
+      <description>Node types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <modified by="Christian Gruen" on="2025-03-31" change="typedData dependency added"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="typedData"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('element(a, xs:integer)', 'element(a, xs:long)')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-072">
+      <description>Node types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <modified by="Christian Gruen" on="2025-03-31" change="typedData dependency added"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="typedData"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('element(a, xs:numeric)', 'element(a, xs:long)')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-073">
+      <description>Node types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <modified by="Christian Gruen" on="2025-03-31" change="typedData dependency added"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="typedData"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('element(a, xs:long)', 'element(a, xs:numeric)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-074">
+      <description>Node types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <modified by="Michael Kay" on="2024-10-17" change="syntax of second type was invalid"/>
+      <modified by="Christian Gruen" on="2025-03-31" change="typedData dependency added"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="typedData"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('element(p1:*, xs:long)', 'element(*, xs:numeric)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-075">
+      <description>Node types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <modified by="Christian Gruen" on="2025-03-31" change="typedData dependency added"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="typedData"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('element(a|b|c, xs:boolean)', '(element(a)|element(b)|element(c))')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-076" covers-40="PR1604">
+      <description>Node types</description>
+      <created by="Michael Kay" on="2024-11-29"/>
+      <modified by="Gunther Rademacher" on="2025-12-03" change="change expected result to true"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('document-node(a|b)', '(document-node(a)|document-node(b)|document-node(c))')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-077" covers-40="PR1604 PR1898">
+      <description>Node types</description>
+      <created by="Michael Kay" on="2024-11-29"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('document-node(a)', 'document-node(element(a))')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-078" covers-40="PR1604 PR1898">
+      <description>Node types</description>
+      <created by="Michael Kay" on="2024-11-29"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('document-node(element(a))', 'document-node(*)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-079" covers-40="PR1604 PR1898">
+      <description>Node types</description>
+      <created by="Michael Kay" on="2024-11-29"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('document-node(*)', 'document-node()')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-080" covers-40="PR1604 PR1898">
+      <description>Node types</description>
+      <created by="Michael Kay" on="2024-11-29"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('document-node()', 'document-node(*)')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-100">
+      <description>Record types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <modified by="Christian Gruen" on="2026-03-05" change="PR2413"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('record(a)', 'map(*)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-101">
+      <description>Record types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('record(a,b)', 'record(a)')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-102">
+      <description>Record types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <modified by="Christian Gruen" on="2026-03-05" change="PR2413"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('record(a,b)', 'map(*)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-103">
+      <description>Record types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('record(a,b as xs:integer)', 'record(a,b as xs:decimal)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-104">
+      <description>Record types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('record(a,b as xs:decimal)', 'record(a,b as xs:integer)')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-105">
+      <description>Record types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <modified by="Christian Gruen" on="2026-03-05" change="PR2413"/>
+      <modified by="Gunther Rademacher" on="2026-03-11" change="expect true regardless of order"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('record(a,b as xs:decimal)', 'record(b as xs:decimal, a)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-106">
+      <description>Record types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('record(a,b)', 'record(b,a)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-107">
+      <description>Record types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <modified by="Christian Gruen" on="2026-07-02" change="PR2566"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('record(a as xs:int, b)', 'record(b, a as xs:int?)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-108">
+      <description>Record types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <modified by="Christian Gruen" on="2026-07-02" change="PR2566"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('record(a as xs:int?, b)', 'record(b, a as xs:int)')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-109">
+      <description>Record types</description>
+      <created by="Michael Kay" on="2025-11-07"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('record(a)', 'map(*)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-110">
+      <description>Record types</description>
+      <created by="Michael Kay" on="2025-11-07"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('record(a)', 'map(xs:string, item()*)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-111">
+      <description>Record types</description>
+      <created by="Michael Kay" on="2025-11-07"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('record(a)', 'map(xs:anyAtomicType, item()*)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-112">
+      <description>Record types</description>
+      <created by="Michael Kay" on="2025-11-07"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('record(a)', 'map(xs:untypedAtomic, item()*)')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-113">
+      <description>Record types</description>
+      <created by="Michael Kay" on="2025-11-07"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('record(a)', 'function(*)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-114">
+      <description>Record types</description>
+      <created by="Michael Kay" on="2025-11-07"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('record(a)', 'function(xs:string) as item()*')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-115">
+      <description>Record types</description>
+      <created by="Michael Kay" on="2025-11-07"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('record(a)', 'function(xs:anyAtomicType) as item()*')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-116">
+      <description>Record types</description>
+      <created by="Michael Kay" on="2025-11-07"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('record(a)', 'function(xs:string) as xs:integer')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-117">
+      <description>Record types</description>
+      <created by="Michael Kay" on="2025-11-07"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('record(a)', 'function(item()) as item()*')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-150">
+      <description>JNodes</description>
+      <created by="Michael Kay" on="2025-07-31"/>
+      <modified by="Christian Gruen" on="2026-09-01" change="PR2795"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('jnode()', 'node()')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-151">
+      <description>JNodes</description>
+      <created by="Michael Kay" on="2025-07-31"/>
+      <modified by="Christian Gruen" on="2026-02-10" change="syntax updated"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('jnode(*, xs:integer)', 'jnode()')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-152">
+      <description>JNodes</description>
+      <created by="Michael Kay" on="2025-07-31"/>
+      <modified by="Christian Gruen" on="2026-02-10" change="syntax updated"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('jnode(*, xs:integer)', 'jnode(*, xs:decimal)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-153">
+      <description>JNodes</description>
+      <created by="Michael Kay" on="2025-07-31"/>
+      <modified by="Christian Gruen" on="2026-02-10" change="syntax updated"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('jnode(*, xs:integer)', 'jnode(*, xs:string)')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-154">
+      <description>JNodes</description>
+      <created by="Michael Kay" on="2025-07-31"/>
+      <modified by="Christian Gruen" on="2026-09-01" change="PR2795"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('xnode()', 'node()')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-155" covers-40="PR2795">
+      <description>Generalized node types</description>
+      <created by="Christian Gruen" on="2026-09-01"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('node()', 'xnode()')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+
+   <test-case name="subtyping-156" covers-40="PR2795">
+      <description>Generalized node types</description>
+      <created by="Christian Gruen" on="2026-09-01"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('jnode()', 'xnode()')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+
+   <test-case name="subtyping-157" covers-40="PR2795">
+      <description>Generalized node types</description>
+      <created by="Christian Gruen" on="2026-09-01"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('element()', 'xnode()')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="subtyping-158" covers-40="PR2795">
+      <description>Generalized node types</description>
+      <created by="Christian Gruen" on="2026-09-01"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('xnode()', 'jnode()')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+
+   <test-case name="subtyping-159" covers-40="PR2795">
+      <description>Generalized node types</description>
+      <created by="Christian Gruen" on="2026-09-01"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('item()', '(node() | xs:anyAtomicType | function(*))')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="subtyping-160" covers-40="PR2795">
+      <description>Generalized node types</description>
+      <created by="Christian Gruen" on="2026-09-01"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('(node() | xs:anyAtomicType | function(*))', 'item()')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="subtyping-200">
+      <description>Special types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('empty-sequence()', 'map(*)*')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-201">
+      <description>Special types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('empty-sequence()', 'empty-sequence()')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <!-- Test dropped. The way we test subtyping using function return types doesn't work for this
+      case, because the function `fn() as xs:error {$cmp:var}` doesn't actually return the declared
+      return type -->
+   <!--<test-case name="subtyping-202">
+      <description>Special types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('xs:error', 'empty-sequence()')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>-->
+   
+   <test-case name="subtyping-203">
+      <description>Special types</description>
+      <created by="Michael Kay" on="2024-08-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('empty-sequence()', 'xs:error*')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-301">
+      <description>Schema-aware node types</description>
+      <created by="Michael Kay" on="2025-09-20"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="schemaImport"/>
+      <dependency type="xsd-version" value="1.0"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtypeSA('element(sub:F, sub:HtR)', 'element(*, sub:HtR)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-302">
+      <description>Schema-aware node types</description>
+      <created by="Michael Kay" on="2025-09-20"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="schemaImport"/>
+      <dependency type="xsd-version" value="1.0"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtypeSA('element(sub:F, sub:HtR)', 'element(sub:G, sub:HtR)')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-303">
+      <description>Schema-aware node types</description>
+      <created by="Michael Kay" on="2025-09-20"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="schemaImport"/>
+      <dependency type="xsd-version" value="1.0"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtypeSA('element(sub:F, sub:HtR)', 'element(sub:F|sub:G, sub:HtR)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-304">
+      <description>Schema-aware node types</description>
+      <created by="Michael Kay" on="2025-09-20"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="schemaImport"/>
+      <dependency type="xsd-version" value="1.0"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtypeSA('element(sub:F, sub:HtRR)', 'element(sub:F, sub:HtR)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-305">
+      <description>Schema-aware node types</description>
+      <created by="Michael Kay" on="2025-09-20"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="schemaImport"/>
+      <dependency type="xsd-version" value="1.0"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtypeSA('element(sub:F, sub:HtR)', 'element(sub:F, sub:HtRR)')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-306">
+      <description>Schema-aware node types</description>
+      <created by="Michael Kay" on="2025-09-20"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="schemaImport"/>
+      <dependency type="xsd-version" value="1.0"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtypeSA('document-node(element(sub:F, sub:HtRR))', 'document-node(element(sub:F, sub:HtR))')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-307">
+      <description>Schema-aware node types</description>
+      <created by="Michael Kay" on="2025-09-20"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="schemaImport"/>
+      <dependency type="xsd-version" value="1.0"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtypeSA('document-node(element(sub:F, sub:HtR))', 'document-node(element(sub:F, sub:HtR))')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-308">
+      <description>Schema-aware node types</description>
+      <created by="Michael Kay" on="2025-09-20"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="schemaImport"/>
+      <dependency type="xsd-version" value="1.0"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtypeSA('element(sub:F, sub:HtR)', 'element(sub:F, sub:HtR?)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-309">
+      <description>Schema-aware node types</description>
+      <created by="Michael Kay" on="2025-09-20"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="schemaImport"/>
+      <dependency type="xsd-version" value="1.0"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtypeSA('element(sub:F, sub:HtR?)', 'element(sub:F, sub:HtR)')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-310">
+      <description>Schema-aware node types</description>
+      <created by="Michael Kay" on="2025-09-20"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="schemaImport"/>
+      <dependency type="xsd-version" value="1.0"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtypeSA('element(sub:F, sub:HtRR)', 'element(*:F, sub:HtR?)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-311">
+      <description>Schema-aware node types</description>
+      <created by="Michael Kay" on="2025-09-20"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="schemaImport"/>
+      <dependency type="xsd-version" value="1.0"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtypeSA('element(sub:F, sub:HtRR?)', 'element(sub:*, sub:HtR?)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-320">
+      <description>Schema-aware node types</description>
+      <created by="Michael Kay" on="2025-09-20"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="schemaImport"/>
+      <dependency type="xsd-version" value="1.0"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtypeSA('schema-element(sub:F)', 'schema-element(sub:F)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-321">
+      <description>Schema-aware node types</description>
+      <created by="Michael Kay" on="2025-09-20"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="schemaImport"/>
+      <dependency type="xsd-version" value="1.0"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtypeSA('schema-element(sub:B)', 'schema-element(sub:A)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-322">
+      <description>Schema-aware node types</description>
+      <created by="Michael Kay" on="2025-09-20"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="schemaImport"/>
+      <dependency type="xsd-version" value="1.0"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtypeSA('schema-element(sub:A)', 'schema-element(sub:B)')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-323">
+      <description>Schema-aware node types</description>
+      <created by="Michael Kay" on="2025-09-20"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="schemaImport"/>
+      <dependency type="xsd-version" value="1.0"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtypeSA('element(sub:B)', 'schema-element(sub:B)')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-324">
+      <description>Schema-aware node types</description>
+      <created by="Michael Kay" on="2025-09-20"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="schemaImport"/>
+      <dependency type="xsd-version" value="1.0"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtypeSA('schema-element(sub:B)', 'element(sub:B)')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-325">
+      <description>Schema-aware node types</description>
+      <created by="Michael Kay" on="2025-09-20"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="schemaImport"/>
+      <dependency type="xsd-version" value="1.0"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtypeSA('schema-attribute(sub:ATT)', 'schema-attribute(sub:ATT)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-326">
+      <description>Schema-aware node types</description>
+      <created by="Michael Kay" on="2025-09-20"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="schemaImport"/>
+      <dependency type="xsd-version" value="1.0"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtypeSA('attribute(sub:ATT)', 'schema-attribute(sub:ATT)')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-327" covers-40="PR2202">
+      <description>Schema-aware node types - new 4.0 rules</description>
+      <created by="Michael Kay" on="2025-09-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="schemaImport"/>
+      <dependency type="xsd-version" value="1.0"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtypeSA('schema-attribute(sub:ATT)', 'attribute(sub:ATT)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-328" covers-40="PR2202">
+      <description>Schema-aware node types - new 4.0 rules</description>
+      <created by="Michael Kay" on="2025-09-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="schemaImport"/>
+      <dependency type="xsd-version" value="1.0"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtypeSA('schema-attribute(sub:ATT)', 'attribute()')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-329" covers-40="PR2202">
+      <description>Schema-aware node types - new 4.0 rules</description>
+      <created by="Michael Kay" on="2025-09-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="schemaImport"/>
+      <dependency type="xsd-version" value="1.0"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtypeSA('schema-attribute(sub:ATT)', 'attribute(sub:ATT | sub:ELE)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-330" covers-40="PR2202">
+      <description>Schema-aware node types - new 4.0 rules</description>
+      <created by="Michael Kay" on="2025-09-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="schemaImport"/>
+      <dependency type="xsd-version" value="1.0"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtypeSA('schema-attribute(sub:ATT)', 'attribute(*:ATT)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-331" covers-40="PR2202">
+      <description>Schema-aware node types - new 4.0 rules</description>
+      <created by="Michael Kay" on="2025-09-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="schemaImport"/>
+      <dependency type="xsd-version" value="1.0"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtypeSA('attribute(sub:ATT)', 'schema-attribute(sub:ATT)')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-332" covers-40="PR2202">
+      <description>Schema-aware node types - new 4.0 rules</description>
+      <created by="Michael Kay" on="2025-09-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="schemaImport"/>
+      <dependency type="xsd-version" value="1.0"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtypeSA('schema-attribute(sub:ATT)', 'attribute(sub:ATT, xs:NCName)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-333" covers-40="PR2202">
+      <description>Schema-aware node types - new 4.0 rules</description>
+      <created by="Michael Kay" on="2025-09-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="schemaImport"/>
+      <dependency type="xsd-version" value="1.0"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtypeSA('schema-attribute(sub:ATT)', 'attribute(sub:ATT, xs:string)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-334" covers-40="PR2202">
+      <description>Schema-aware node types - new 4.0 rules</description>
+      <created by="Michael Kay" on="2025-09-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="schemaImport"/>
+      <dependency type="xsd-version" value="1.0"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtypeSA('schema-attribute(sub:ATT)', 'attribute(sub:ATT, xs:ID)')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-335" covers-40="PR2202">
+      <description>Schema-aware node types - new 4.0 rules</description>
+      <created by="Michael Kay" on="2025-09-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="schemaImport"/>
+      <dependency type="xsd-version" value="1.0"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtypeSA('attribute(sub:ATT, xs:ID)', 'schema-attribute(sub:ATT)')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-340" covers-40="PR2202">
+      <description>Schema-aware node types - new 4.0 rules</description>
+      <created by="Michael Kay" on="2025-09-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="schemaImport"/>
+      <dependency type="xsd-version" value="1.0"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtypeSA('schema-element(sub:F)', 'element()')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-341" covers-40="PR2202">
+      <description>Schema-aware node types - new 4.0 rules</description>
+      <created by="Michael Kay" on="2025-09-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="schemaImport"/>
+      <dependency type="xsd-version" value="1.0"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtypeSA('schema-element(sub:F)', 'element(*)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-342" covers-40="PR2202">
+      <description>Schema-aware node types - new 4.0 rules - non-nillable schema-element()</description>
+      <created by="Michael Kay" on="2025-09-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="schemaImport"/>
+      <dependency type="xsd-version" value="1.0"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtypeSA('schema-element(sub:C)', 'element(*, xs:anyType)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-343" covers-40="PR2202">
+      <description>Schema-aware node types - new 4.0 rules - non-nillable schema-element()</description>
+      <created by="Michael Kay" on="2025-09-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="schemaImport"/>
+      <dependency type="xsd-version" value="1.0"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtypeSA('schema-element(sub:C)', 'element(*, xs:untyped)')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-344" covers-40="PR2202">
+      <description>Schema-aware node types - new 4.0 rules - non-nillable schema-element()</description>
+      <created by="Michael Kay" on="2025-09-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="schemaImport"/>
+      <dependency type="xsd-version" value="1.0"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtypeSA('schema-element(sub:C)', 'element(sub:C, xs:anyType)')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-345" covers-40="PR2202">
+      <description>Schema-aware node types - new 4.0 rules - non-nillable schema-element()</description>
+      <created by="Michael Kay" on="2025-09-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="schemaImport"/>
+      <dependency type="xsd-version" value="1.0"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtypeSA('schema-element(sub:C)', 'element(sub:C)')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-346" covers-40="PR2202">
+      <description>Schema-aware node types - new 4.0 rules - non-nillable schema-element()</description>
+      <created by="Michael Kay" on="2025-09-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="schemaImport"/>
+      <dependency type="xsd-version" value="1.0"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtypeSA('schema-element(sub:C)', 'element(*, sub:Ht)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-347" covers-40="PR2202">
+      <description>Schema-aware node types - new 4.0 rules - non-nillable schema-element()</description>
+      <created by="Michael Kay" on="2025-09-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="schemaImport"/>
+      <dependency type="xsd-version" value="1.0"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtypeSA('schema-element(sub:C)', 'element(*, sub:Ht?)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-350" covers-40="PR2202">
+      <description>Schema-aware node types - new 4.0 rules - nillable schema-element()</description>
+      <created by="Michael Kay" on="2025-09-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="schemaImport"/>
+      <dependency type="xsd-version" value="1.0"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtypeSA('schema-element(sub:B)', 'element(sub:B)')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-351" covers-40="PR2202">
+      <description>Schema-aware node types - new 4.0 rules - nillable schema-element()</description>
+      <created by="Michael Kay" on="2025-09-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="schemaImport"/>
+      <dependency type="xsd-version" value="1.0"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtypeSA('schema-element(sub:B)', 'element(*, xs:anyType?)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-352" covers-40="PR2202">
+      <description>Schema-aware node types - new 4.0 rules - nillable schema-element()</description>
+      <created by="Michael Kay" on="2025-09-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="schemaImport"/>
+      <dependency type="xsd-version" value="1.0"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtypeSA('schema-element(sub:B)', 'element(sub:B, xs:anyType)')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-353" covers-40="PR2202">
+      <description>Schema-aware node types - new 4.0 rules - nillable schema-element()</description>
+      <created by="Michael Kay" on="2025-09-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="schemaImport"/>
+      <dependency type="xsd-version" value="1.0"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtypeSA('schema-element(sub:B)', 'element(*, sub:Ht)')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-354" covers-40="PR2202">
+      <description>Schema-aware node types - new 4.0 rules - nillable schema-element()</description>
+      <created by="Michael Kay" on="2025-09-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="schemaImport"/>
+      <dependency type="xsd-version" value="1.0"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtypeSA('schema-element(sub:B)', 'element(*, sub:Ht?)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-355" covers-40="PR2202">
+      <description>Schema-aware node types - new 4.0 rules - nillable schema-element()</description>
+      <created by="Michael Kay" on="2025-09-21"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <dependency type="feature" value="schemaImport"/>
+      <dependency type="xsd-version" value="1.0"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtypeSA('schema-element(sub:B)', 'element(*, sub:HtR?)')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-400">
+      <description>Array types</description>
+      <created by="Michael Kay" on="2025-11-07"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('array(*)', 'array(*)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-401">
+      <description>Array types</description>
+      <created by="Michael Kay" on="2025-11-07"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('array(xs:integer)', 'array(*)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-402">
+      <description>Array types</description>
+      <created by="Michael Kay" on="2025-11-07"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('array(xs:integer)', 'array(xs:decimal)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-403">
+      <description>Array types</description>
+      <created by="Michael Kay" on="2025-11-07"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('array(xs:integer)', 'array(xs:integer+)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-404">
+      <description>Array types</description>
+      <created by="Michael Kay" on="2025-11-07"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('array(xs:integer)', 'array(xs:string)')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-405">
+      <description>Array types</description>
+      <created by="Michael Kay" on="2025-11-07"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('array(xs:integer*)', 'array(xs:integer+)')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-406">
+      <description>Array types</description>
+      <created by="Michael Kay" on="2025-11-07"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('array(xs:integer+)', 'array(xs:integer*)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-407">
+      <description>Array types</description>
+      <created by="Michael Kay" on="2025-11-07"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('array(xs:integer)', 'map(xs:integer, xs:integer)')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-408">
+      <description>Array types</description>
+      <created by="Michael Kay" on="2025-11-07"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('array(xs:integer)', 'function(xs:integer) as xs:integer')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-409">
+      <description>Array types</description>
+      <created by="Michael Kay" on="2025-11-07"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('array(xs:integer)', 'function(xs:anyAtomicType) as xs:integer')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-410">
+      <description>Array types</description>
+      <created by="Michael Kay" on="2025-11-07"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('array(xs:integer)', 'function(xs:integer) as xs:decimal')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-411">
+      <description>Array types</description>
+      <created by="Michael Kay" on="2025-11-07"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('array(xs:integer)', 'function(xs:long) as xs:decimal')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-412">
+      <description>Array types</description>
+      <created by="Michael Kay" on="2025-11-07"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('array(xs:integer)', 'function(item()) as xs:integer')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-413">
+      <description>Array types</description>
+      <created by="Michael Kay" on="2025-11-07"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('array(xs:integer)', 'function(xs:integer) as xs:string')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-414">
+      <description>Array types</description>
+      <created by="Michael Kay" on="2025-11-07"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('function(xs:integer) as xs:integer', 'array(xs:integer)')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-500">
+      <description>Map types</description>
+      <created by="Michael Kay" on="2025-11-07"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('map(*)', 'map(*)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-501">
+      <description>Map types</description>
+      <created by="Michael Kay" on="2025-11-07"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('map(xs:integer, xs:NCName)', 'map(xs:decimal, xs:string)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-502">
+      <description>Map types</description>
+      <created by="Michael Kay" on="2025-11-07"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('map(xs:integer, xs:NCName)', 'map(*)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-503">
+      <description>Map types</description>
+      <created by="Michael Kay" on="2025-11-07"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('map(xs:integer, xs:NCName)', 'map(xs:decimal, xs:string+)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-504">
+      <description>Map types</description>
+      <created by="Michael Kay" on="2025-11-07"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('map(xs:integer, xs:NCName)', 'map(xs:long, xs:string+)')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-505">
+      <description>Map types</description>
+      <created by="Michael Kay" on="2025-11-07"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('map(xs:long, xs:string)', 'map(xs:integer, xs:string)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-506">
+      <description>Map types</description>
+      <created by="Michael Kay" on="2025-11-07"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('map(xs:long, xs:string)', 'map(xs:integer, xs:string+)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-507">
+      <description>Map types</description>
+      <created by="Michael Kay" on="2025-11-07"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('map(xs:long, xs:string+)', 'map(xs:integer, xs:string*)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-508">
+      <description>Map types</description>
+      <created by="Michael Kay" on="2025-11-07"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('map(*)', 'function(*)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-509">
+      <description>Map types</description>
+      <created by="Michael Kay" on="2025-11-07"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('map(xs:string, xs:date)', 'function(*)')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-510">
+      <description>Map types</description>
+      <created by="Michael Kay" on="2025-11-07"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('map(xs:string, xs:dayTimeDuration+)', 'function(xs:anyAtomicType) as xs:duration*')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-511">
+      <description>Map types</description>
+      <created by="Michael Kay" on="2025-11-07"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('map(xs:string, xs:dayTimeDuration+)', 'function(xs:anyAtomicType) as xs:duration+')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-512">
+      <description>Map types</description>
+      <created by="Michael Kay" on="2025-11-07"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('map(xs:string, xs:date)', 'function(xs:anyAtomicType) as xs:date?')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-513">
+      <description>Map types</description>
+      <created by="Michael Kay" on="2025-11-07"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('map(xs:string, xs:date)', 'function(xs:anyAtomicType) as xs:date')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-514">
+      <description>Map types</description>
+      <created by="Michael Kay" on="2025-11-07"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('map(xs:string, xs:date)', 'function(xs:anyAtomicType) as xs:date+')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-515">
+      <description>Map types</description>
+      <created by="Michael Kay" on="2025-11-07"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('map(xs:string, xs:date)', 'function(xs:string) as xs:date?')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-516">
+      <description>Map types</description>
+      <created by="Michael Kay" on="2025-11-07"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('map(xs:string, xs:date)', 'function(xs:NCName) as xs:date?')
+      </test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-517">
+      <description>Map types</description>
+      <created by="Michael Kay" on="2025-11-07"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('map(xs:string, xs:date)', 'function(item()) as xs:date?')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-518">
+      <description>Map types</description>
+      <created by="Michael Kay" on="2025-11-07"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('function(xs:string) as xs:integer?', 'map(xs:string, xs:integer)')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="subtyping-519">
+      <description>Map types</description>
+      <created by="Michael Kay" on="2025-11-07"/>
+      <module uri="http://www.w3.org/qt4cg/subtyping" file="Subtyping/compareTypes.xquery"/>
+      <test>
+         import module namespace sub="http://www.w3.org/qt4cg/subtyping";
+         sub:isSubtype('function(xs:string) as xs:integer?', 'map(*)')
+      </test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+ 
+ 
+</test-set>

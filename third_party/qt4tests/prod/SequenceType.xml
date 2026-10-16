@@ -1,0 +1,838 @@
+<?xml version="1.0" encoding="us-ascii"?>
+<test-set xmlns="http://www.w3.org/2010/09/qt-fots-catalog" name="prod-SequenceType">
+   <description>Tests for the SequenceType production</description>
+   <link type="spec" document="http://www.w3.org/TR/xquery-30/" idref="doc-xquery30-SequenceType"/>
+   <link type="spec" document="XQuery" section-number="2.5.4" idref="id-sequencetype-matching"/>
+
+   <test-case name="sequence-type-1">
+      <description> Evaluate simple sequence type using instance of and integers. </description>
+      <created by="Carmelo Montanez" on="2006-03-29"/>
+      <test>(1,2,3) instance of xs:integer*</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="sequence-type-2">
+      <description> Evaluate simple sequence type using instance of and doubles. </description>
+      <created by="Carmelo Montanez" on="2006-03-29"/>
+      <test>(1E3,2E3,3E3) instance of xs:double*</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="sequence-type-3">
+      <description> Evaluate simple sequence type using instance of and decimal. </description>
+      <created by="Carmelo Montanez" on="2006-03-29"/>
+      <test>(1.1,3.2,4.5) instance of xs:decimal*</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="sequence-type-4">
+      <description> Evaluate simple sequence type using instance of and string. </description>
+      <created by="Carmelo Montanez" on="2006-03-29"/>
+      <test>("ab","cde","fgh") instance of xs:string*</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="sequence-type-5">
+      <description> Evaluate simple sequence type using instance of and strings. uses "integer*" on string sequence. </description>
+      <created by="Carmelo Montanez" on="2006-03-29"/>
+      <test>("ab","cde","fgh") instance of xs:integer*</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+
+   <test-case name="sequence-type-6">
+      <description> Evaluate simple sequence type using instance of and string. uses "integer?". </description>
+      <created by="Carmelo Montanez" on="2006-03-29"/>
+      <test>(1) instance of xs:integer?</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="sequence-type-7">
+      <description> Evaluate simple sequence type using instance of and integer. uses "integer?". </description>
+      <created by="Carmelo Montanez" on="2006-03-29"/>
+      <test>(1,2) instance of xs:integer?</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+
+   <test-case name="sequence-type-8">
+      <description> Evaluate simple sequence type using instance of and integer. uses "integer+". </description>
+      <created by="Carmelo Montanez" on="2006-03-29"/>
+      <test>(1,2) instance of xs:integer+</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="sequence-type-9">
+      <description> Evaluate simple sequence type using castable and integer. uses "integer?". </description>
+      <created by="Carmelo Montanez" on="2006-03-29"/>
+      <test>(2) castable as xs:integer?</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="sequence-type-10">
+      <description> Evaluate simple sequence type using castable and integer. uses "integer?" on sequence of two integers. </description>
+      <created by="Carmelo Montanez" on="2006-03-29"/>
+      <test>(1,2) castable as xs:integer?</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+
+   <test-case name="sequence-type-11">
+      <description> Evaluate simple sequence type using castable and double. uses "double?" on sequence of one double. </description>
+      <created by="Carmelo Montanez" on="2006-03-29"/>
+      <test>(1E3) castable as xs:double?</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="sequence-type-12">
+      <description> Evaluate simple sequence type using castable and double. uses "double?" on sequence of two doubles. </description>
+      <created by="Carmelo Montanez" on="2006-03-29"/>
+      <test>(1E3,2E3) castable as xs:double?</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+
+   <test-case name="sequence-type-13">
+      <description> Evaluate simple sequence type using castable and decimal. uses "decimal?" on sequence of one decimal. </description>
+      <created by="Carmelo Montanez" on="2006-03-29"/>
+      <test>(1.2) castable as xs:decimal?</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="sequence-type-14">
+      <description> Evaluate simple sequence type using castable and decimal. uses "decimal?" on sequence of two decimals. </description>
+      <created by="Carmelo Montanez" on="2006-03-29"/>
+      <test>(1.2,2.1) castable as xs:decimal?</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+
+   <test-case name="sequence-type-15">
+      <description> Evaluate simple sequence type using castable and string. uses "string?" on sequence of one string. </description>
+      <created by="Carmelo Montanez" on="2006-03-29"/>
+      <test>("abc") castable as xs:string?</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="sequence-type-16">
+      <description> Evaluate simple sequence type using castable and string. uses "string?" on sequence of two strings. </description>
+      <created by="Carmelo Montanez" on="2006-03-29"/>
+      <test>("abc","def") castable as xs:string?</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+
+   <test-case name="sequence-type-17">
+      <description> Evaluate simple sequence type using castable and integer. uses "integer?" on sequence of one string. </description>
+      <created by="Carmelo Montanez" on="2006-03-29"/>
+      <test>("abc") castable as xs:integer?</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+
+   <test-case name="sequence-type-18">
+      <description> Evaluate simple sequence type using castable and integer. uses "integer?" on sequence of two strings. </description>
+      <created by="Carmelo Montanez" on="2006-03-29"/>
+      <test>("abc","def") castable as xs:integer?</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+
+   <test-case name="sequence-type-19">
+      <description> Evaluate simple sequence type using instance and boolean. uses "boolean*" on sequence of two booleans. </description>
+      <created by="Carmelo Montanez" on="2006-03-29"/>
+      <test>(fn:true(),fn:false()) instance of xs:boolean*</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="sequence-type-20">
+      <description> Evaluate simple sequence type using instance and boolean. uses "boolean?" on sequence of two booleans. </description>
+      <created by="Carmelo Montanez" on="2006-03-29"/>
+      <test>(fn:true(),fn:false()) instance of xs:boolean?</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+
+   <test-case name="sequence-type-21">
+      <description> Evaluate simple sequence type using instance and boolean. uses "boolean+" on sequence of two booleans. </description>
+      <created by="Carmelo Montanez" on="2006-03-29"/>
+      <test>(fn:true(),fn:false()) instance of xs:boolean+</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="sequence-type-40" covers-40="PR2452">
+      <description> Item type jnode </description>
+      <created by="Michael Kay" on="2026-02-27"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>jtree([23]) instance of jnode((), array(xs:integer))</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="sequence-type-41" covers-40="PR2452">
+      <description> Item type jnode </description>
+      <created by="Michael Kay" on="2026-02-27"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>jtree([23]) instance of jnode(())</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="sequence-type-42" covers-40="PR2452">
+      <description> Item type jnode </description>
+      <created by="Michael Kay" on="2026-02-27"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>jtree([23]) instance of jnode(*)</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="sequence-type-43" covers-40="PR2452 PR2515">
+      <description> Item type jnode </description>
+      <created by="Michael Kay" on="2026-02-27"/>
+      <modified by="Michael Kay" on="2026-06-09" change="PR2515 makes this invalid"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>jtree([23]) instance of jnode(*, *)</test>
+      <result>
+         <error code="XPST0003"/>
+      </result>
+   </test-case>
+   
+   <test-case name="sequence-type-44" covers-40="PR2452 PR2667">
+      <description> Item type jnode </description>
+      <created by="Michael Kay" on="2026-02-27"/>
+      <modified by="Michael Kay" on="2026-06-25" change="PR2667"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>[{'m':23}]/1 instance of jnode(1, map(xs:string, xs:integer))</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="sequence-type-45" covers-40="PR2452 PR2667">
+      <description> Item type jnode </description>
+      <created by="Michael Kay" on="2026-02-27"/>
+      <modified by="Michael Kay" on="2026-06-25" change="PR2667"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>[{'m':23}]/1 instance of jnode(1, map(xs:string, xs:integer))</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="sequence-type-46" covers-40="PR2452 PR2667">
+      <description> Item type jnode </description>
+      <created by="Michael Kay" on="2026-02-27"/>
+      <modified by="Michael Kay" on="2026-06-25" change="PR2667"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>[{'m':23}]/1/m instance of jnode(m, xs:integer)</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="sequence-type-47" covers-40="PR2452 PR2667">
+      <description> Item type jnode </description>
+      <created by="Michael Kay" on="2026-02-27"/>
+      <modified by="Michael Kay" on="2026-06-25" change="PR2667"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>[{'m':23}]/1/m instance of jnode('m', xs:integer)</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="sequence-type-48" covers-40="PR2452 PR2667">
+      <description> Item type jnode </description>
+      <created by="Michael Kay" on="2026-02-27"/>
+      <modified by="Michael Kay" on="2026-06-25" change="PR2667"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>[{-1:23}]/1/(-1) instance of jnode(-1, xs:integer)</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="sequence-type-49" covers-40="PR2452 PR2667">
+      <description> Item type jnode </description>
+      <created by="Michael Kay" on="2026-02-27"/>
+      <modified by="Michael Kay" on="2026-06-25" change="PR2667"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>[{true():(23, 24)}]/1/true() instance of jnode(true(), xs:integer+)</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="sequence-type-50" covers-40="PR2452 PR2667">
+      <description> Item type jnode </description>
+      <created by="Michael Kay" on="2026-02-27"/>
+      <modified by="Michael Kay" on="2026-06-25" change="PR2667"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>[{true():(23, 24)}]/1/true() instance of jnode(*, xs:integer+)</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="sequence-type-51" covers-40="PR2452 PR2667">
+      <description> Item type jnode </description>
+      <created by="Michael Kay" on="2026-02-27"/>
+      <modified by="Michael Kay" on="2026-06-25" change="PR2667"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>[{true():(23, 24)}]/1/true() instance of jnode((), xs:integer+)</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="sequence-type-52" covers-40="PR2452 PR2667">
+      <description> Item type jnode </description>
+      <created by="Michael Kay" on="2026-02-27"/>
+      <modified by="Michael Kay" on="2026-06-25" change="PR2667"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>[{true():(23, 24)}]/1/true() instance of jnode(*, xs:integer)</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="sequence-type-53" covers-40="PR2452 PR2667">
+      <description> Item type jnode </description>
+      <created by="Michael Kay" on="2026-02-27"/>
+      <modified by="Michael Kay" on="2026-06-25" change="PR2667"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>[{true():(23, 24)}]/1/true() instance of jnode(*, xs:integer)</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="sequence-type-54" covers-40="PR2452 PR2667">
+      <description> Item type jnode </description>
+      <created by="Michael Kay" on="2026-02-27"/>
+      <modified by="Michael Kay" on="2026-06-25" change="PR2667"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>[{false():(23, 24)}]/1/* instance of jnode(false(), xs:integer*)</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="sequence-type-60" covers-40="PR2452 PR2667">
+      <description>Item type jnode.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         [ 'x' ]/1 instance of jnode(1.0),
+         [ 'x' ]/1 instance of jnode(1e0),
+         [ 'x' ]/1 instance of jnode('1'),
+         { 1.5: 'x' }/* instance of jnode(1.5e0)
+      </test>
+      <result>
+         <assert-deep-eq>true(), true(), false(), true()</assert-deep-eq>
+      </result>
+   </test-case>
+
+   <test-case name="sequence-type-61" covers-40="PR2452 PR2667">
+      <description>Item type jnode.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         { #xml:space: 'x' }/* instance of jnode(#xml:space),
+         { 'a': 'x' }/* instance of jnode(#a),
+         { xs:untypedAtomic('a'): 'x' }/* instance of jnode(a),
+         { xs:anyURI('a'): 'x' }/* instance of jnode('a')
+      </test>
+      <result>
+         <assert-deep-eq>true(), false(), true(), true()</assert-deep-eq>
+      </result>
+   </test-case>
+
+   <test-case name="sequence-type-62" covers-40="PR2452 PR2667">
+      <description>Item type jnode.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         [ 1 ]/1 instance of jnode(-1),
+         [ 1 ]/1 instance of jnode(true()),
+         { true(): 1 }/* instance of jnode(true()),
+         { true(): 1 }/* instance of jnode(1)
+      </test>
+      <result>
+         <assert-deep-eq>false(), false(), true(), false()</assert-deep-eq>
+      </result>
+   </test-case>
+
+   <test-case name="sequence-type-63" covers-40="PR2452 PR2667">
+      <description>Item type jnode.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         jtree(()) instance of jnode((), empty-sequence()),
+         { 'a': () }/a instance of jnode(a, empty-sequence()),
+         { 'a': () }/a instance of jnode(*, xs:integer),
+         { 'a': () }/a instance of jnode(*, xs:integer?)
+      </test>
+      <result>
+         <assert-deep-eq>true(), true(), false(), true()</assert-deep-eq>
+      </result>
+   </test-case>
+
+   <test-case name="sequence-type-64" covers-40="PR2452 PR2667">
+      <description>Item type jnode.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         { 'a': ({}, {}) }/a instance of jnode(*, map(*)),
+         { 'a': ({}, {}) }/a instance of jnode(*, map(*)+),
+         jtree([]) instance of jnode((), array(xs:string)),
+         jtree(1)/item::* instance of jnode(1, xs:integer)
+      </test>
+      <result>
+         <assert-deep-eq>false(), true(), true(), true()</assert-deep-eq>
+      </result>
+   </test-case>
+
+   <test-case name="sequence-type-65" covers-40="PR2452 PR2667">
+      <description>Item type jnode.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>
+         jtree(1) instance of jnode(()),
+         [ 1 ]/1 instance of jnode(()),
+         jtree(jtree(1)) instance of jnode((), jnode((), xs:integer)),
+         { 'a': 1 }/a instance of jnode(a, jnode())
+      </test>
+      <result>
+         <assert-deep-eq>true(), false(), true(), false()</assert-deep-eq>
+      </result>
+   </test-case>
+
+   <test-case name="sequence-type-66" covers-40="PR2452 PR2667">
+      <description>Item type jnode.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test><![CDATA[
+         { 'a': 1 }/a instance of xnode(),
+         { 'a': parse-xml('<a/>')/a }/a instance of element(),
+         { 'a': 1 }/a instance of xs:integer,
+         { 'a': 1 }/a instance of node()
+      ]]></test>
+      <result>
+         <assert-deep-eq>false(), false(), false(), true()</assert-deep-eq>
+      </result>
+   </test-case>
+
+   <test-case name="sequence-type-67" covers-40="PR2452 PR2667">
+      <description>Item type jnode.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>{ 'a': 1 }/a treat as xs:integer</test>
+      <result>
+         <error code="XPDY0050"/>
+      </result>
+   </test-case>
+
+   <test-case name="sequence-type-68" covers-40="PR2452 PR2667">
+      <description>Item type jnode.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test>
+         typeswitch ({ 'a': 1 }/a)
+           case jnode(b) return 'b'
+           case jnode(a, xs:string) return 'a-string'
+           case jnode(a) return 'a'
+           default return 'none'
+      </test>
+      <result>
+         <assert-eq>'a'</assert-eq>
+      </result>
+   </test-case>
+
+   <test-case name="sequence-type-69" covers-40="PR2452 PR2667">
+      <description>Item type jnode.</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test>
+         declare type local:a as jnode(a, xs:integer);
+         { 'a': 1, 'b': 2 }/* ! (. instance of local:a)
+      </test>
+      <result>
+         <assert-deep-eq>true(), false()</assert-deep-eq>
+      </result>
+   </test-case>
+
+   <test-case name="built-in-record-type-002" covers-40="PR1991 PR2566">
+      <description> Test existence of built-in-record type fn:load-xquery-module-record. </description>
+      <created by="Michael Kay" on="2025-05-29"/>
+      <modified by="Christian Gruen" on="2026-07-29" change="PR2566"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>let $r as fn:load-xquery-module-record :=
+            {'variables':{xs:QName('temp'): 0},
+             'functions':{xs:QName('abs'): {1: fn:abs#1}}
+             }
+            return $r instance of fn:load-xquery-module-record</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="built-in-record-type-003" covers-40="PR1991 PR2566">
+      <description> Test existence of built-in-record type fn:parsed-csv-structure-record. </description>
+      <created by="Michael Kay" on="2025-05-29"/>
+      <modified by="Gunther Rademacher" on="2025-07-15" change="change get result type from xs:string? to xs:string"/>
+      <modified by="Christian Gruen" on="2026-07-29" change="PR2566"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>let $r as fn:parsed-csv-structure-record :=
+            {'columns':('a','b','c'),
+             'column-index':{'a':1, 'b':2, 'c':3},
+             'rows':(["p","q","r"], ["s", "t", "u"]),
+             'get':fn($row as xs:positiveInteger, $col as (xs:positiveInteger|xs:string)) as xs:string {"banana"}
+             }
+            return $r instance of fn:parsed-csv-structure-record</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="built-in-record-type-004" covers-40="PR1991 PR2566 PR2950">
+      <description> Test existence of built-in-record type fn:random-number-generator-record. </description>
+      <created by="Michael Kay" on="2025-05-29"/>
+      <modified by="Christian Gruen" on="2026-07-29" change="PR2566"/>
+      <modified by="Michael Ennen" on="2026-10-01" change="Add the required take field (PR2950)."/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>let $r as fn:random-number-generator-record :=
+            {'number':0.937e0,
+             'next': fn() as fn:random-number-generator-record { fn:random-number-generator() },
+             'permute': fn($in){reverse($in)},
+             'take': fn:random-number-generator()?take
+            }
+            return $r instance of fn:random-number-generator-record</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="built-in-record-type-005" covers-40="PR1991 PR2566">
+      <description> Test existence of built-in-record type fn:schema-type-record. </description>
+      <created by="Michael Kay" on="2025-05-29"/>
+      <modified by="Christian Gruen" on="2026-07-29" change="PR2566"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>let $r as fn:schema-type-record :=
+            {'name':xs:QName('platonic'),
+             'is-simple':true(),
+             'base-type':fn() as fn:schema-type-record {atomic-type-annotation(3)},
+             'primitive-type':fn() as fn:schema-type-record {atomic-type-annotation(3)},
+             'variety':'atomic' cast as enum('atomic'),
+             'members':fn() as fn:schema-type-record* {()},
+             'simple-content-type':fn() as fn:schema-type-record {atomic-type-annotation(3)},
+             'matches':fn($x as xs:anyAtomicType) as xs:boolean {true()},
+             'constructor':xs:integer#1
+             }
+            return $r instance of fn:schema-type-record</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="built-in-record-type-006" covers-40="PR1991 PR2566">
+      <description> Test existence of built-in-record type fn:uri-structure-record. </description>
+      <created by="Michael Kay" on="2025-05-29"/>
+      <modified by="Christian Gruen" on="2026-07-29" change="PR2566"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>let $r as fn:uri-structure-record :=
+            {'uri':'http://www.w3.org/example.xml',
+             'scheme':'http',
+             'absolute':true(),
+             'hierarchical':true(),
+             'authority':'',
+             'userinfo':(),
+             'host':'www.w3.org',
+             'port':8080,
+             'path':'example.xml',
+             'query':(),
+             'fragment':(),
+             'path-segments':(),
+             'query-parameters':{},
+             'filepath':()
+             }
+            return $r instance of fn:uri-structure-record</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="built-in-record-type-102" covers-40="PR1991">
+      <description> Test existence of built-in-record type fn:load-xquery-module-record. </description>
+      <created by="Michael Kay" on="2025-05-29"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <dependency type="feature" value="fn-load-xquery-module"/>
+      <module uri="http://www.w3.org/fots/fn/load-xquery-module/valid/module"
+         file="../fn/load-xquery-module/valid-module.xqm"/>
+      <test>load-xquery-module("http://www.w3.org/fots/fn/load-xquery-module/valid/module")
+                   instance of fn:load-xquery-module-record</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="built-in-record-type-103" covers-40="PR1991">
+      <description> Test existence of built-in-record type fn:parsed-csv-structure-record. </description>
+      <created by="Michael Kay" on="2025-05-29"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>parse-csv("a,b,c") instance of fn:parsed-csv-structure-record</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="built-in-record-type-104" covers-40="PR1991">
+      <description> Test existence of built-in-record type fn:random-number-generator-record. </description>
+      <created by="Michael Kay" on="2025-05-29"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>fn:random-number-generator(0.5) instance of fn:random-number-generator-record</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="built-in-record-type-105" covers-40="PR1991">
+      <description> Test existence of built-in-record type fn:schema-type-record. </description>
+      <created by="Michael Kay" on="2025-05-29"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>atomic-type-annotation(23) instance of fn:schema-type-record</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="built-in-record-type-106" covers-40="PR1991">
+      <description> Test existence of built-in-record type fn:uri-structure-record. </description>
+      <created by="Michael Kay" on="2025-05-29"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>parse-uri("http://example.com/") instance of fn:uri-structure-record</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="built-in-record-type-202" covers-40="PR1991">
+      <description> fn:load-xquery-module-record is not extensible </description>
+      <created by="Michael Kay" on="2025-05-29"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>{'variables':{xs:QName('temp'): 0}, 
+             'functions':{xs:QName('abs'): {1: fn:abs#1}},
+             'extra':42
+             } 
+                instance of fn:load-xquery-module-record</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="built-in-record-type-203" covers-40="PR1991">
+      <description> fn:parsed-csv-structure-record is not extensible. </description>
+      <created by="Michael Kay" on="2025-05-29"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>{'columns':('a','b','c'), 
+             'column-index':{'a':1, 'b':2, 'c':3}, 
+             'rows':(["p","q","r"], ["s", "t", "u"]), 
+             'get':fn($row as xs:positiveInteger, $col as (xs:positiveInteger|xs:string)) as xs:string? {"banana"},
+             'extra':42
+             } instance of fn:parsed-csv-structure-record</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="built-in-record-type-204" covers-40="PR1991">
+      <description> fn:random-number-generator-record is not extensible. </description>
+      <created by="Michael Kay" on="2025-05-29"/>
+      <modified by="Christian Gruen" on="2026-07-02" change="PR2413"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>{'number':0.937e0,
+             'next': fn() as fn:random-number-generator-record { fn:random-number-generator() },
+             'permute': fn($in){reverse($in)},
+             'extra': 42
+            } instance of fn:random-number-generator-record</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="built-in-record-type-205" covers-40="PR1991">
+      <description> fn:schema-type-record is not extensible. </description>
+      <created by="Michael Kay" on="2025-05-29"/>
+      <modified by="Christian Gruen" on="2026-07-02" change="PR2413"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>{'name':xs:QName('platonic'), 
+             'is-simple':true(),
+             'base-type':fn() as fn:schema-type-record {atomic-type-annotation(3)},
+             'primitive-type':fn() as fn:schema-type-record {atomic-type-annotation(3)},
+             'variety':'atomic' cast as enum('atomic'),
+             'members':fn() as fn:schema-type-record* {()},
+             'simple-content-type':fn() as fn:schema-type-record {atomic-type-annotation(3)},
+             'matches':fn($x as xs:anyAtomicType) as xs:boolean {true()},
+             'constructor':xs:integer#1,
+             'extra':42
+             } instance of fn:schema-type-record</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+
+   <test-case name="built-in-record-type-206" covers-40="PR1991">
+      <description> fn:uri-structure-record is not extensible. </description>
+      <created by="Michael Kay" on="2025-05-29"/>
+      <modified by="Christian Gruen" on="2026-07-02" change="PR2413"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>{'uri':'http://www.w3.org/example.xml', 
+             'scheme':'http',
+             'absolute':true(),
+             'hierarchical':true(),
+             'authority':'',
+             'userinfo':(),
+             'host':'www.w3.org',
+             'port':8080,
+             'path':'example.xml',
+             'query':(),
+             'fragment':(),
+             'path-segments':(),
+             'query-parameters':{},
+             'filepath':(),
+             'extra':42
+             } instance of fn:uri-structure-record</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="built-in-record-type-302" covers-40="PR1991">
+      <description> Invalid instance of built-in-record type fn:load-xquery-module-record. </description>
+      <created by="Michael Kay" on="2025-05-29"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>{'variables':{xs:QName('temp'): 0}, 
+             'functions':{xs:QName('abs'): fn:abs#1} (: wrong, value must be a map :)
+             } 
+                instance of fn:load-xquery-module-record</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+
+   <test-case name="built-in-record-type-303" covers-40="PR1991">
+      <description> Invalid instance of built-in-record type fn:parsed-csv-structure-record. </description>
+      <created by="Michael Kay" on="2025-05-29"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>{'columns':('a','b','c'), 
+             'column-index':{'a':1, 'b':2, 'c':3}, 
+             'rows':(["p","q","r"], ["s", "t", "u"]), 
+             'get':fn($row as xs:positiveInteger, $col as (xs:positiveInteger|xs:string)) as xs:anyAtomicType? {"banana"}
+                    (: wrong, must have correct return type :)
+             } instance of fn:parsed-csv-structure-record</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+
+   <test-case name="built-in-record-type-304" covers-40="PR1991">
+      <description> Invalid instance of built-in-record type fn:random-number-generator-record. </description>
+      <created by="Michael Kay" on="2025-05-29"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>{'number':0.937e0, 
+             'next': fn() { fn:random-number-generator() }, (:wrong, must have correct return type :)
+             'permute': fn($in){reverse($in)} 
+            } instance of fn:random-number-generator-record</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+
+   <test-case name="built-in-record-type-305" covers-40="PR1991 PR2566">
+      <description> Invalid instance of built-in-record type fn:schema-type-record. </description>
+      <created by="Michael Kay" on="2025-05-29"/>
+      <modified by="Gunther Rademacher" on="2025-10-21" change="flip result to true, because 'atomic' is a valid enum instance since #2154"/>
+      <modified by="Christian Gruen" on="2026-07-29" change="PR2566"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>let $r as fn:schema-type-record :=
+            {'name':xs:QName('platonic'),
+             'is-simple':true(),
+             'base-type':fn() as fn:schema-type-record {atomic-type-annotation(3)},
+             'primitive-type':fn() as fn:schema-type-record {atomic-type-annotation(3)},
+             'variety':'atomic',
+             'members':fn() as fn:schema-type-record* {()},
+             'simple-content-type':fn() as fn:schema-type-record {atomic-type-annotation(3)},
+             'matches':fn($x as xs:anyAtomicType) as xs:boolean {true()},
+             'constructor':xs:integer#1
+             }
+            return $r instance of fn:schema-type-record</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="built-in-record-type-306" covers-40="PR1991 PR2566">
+      <description> Invalid instance of built-in-record type fn:uri-structure-record. </description>
+      <created by="Michael Kay" on="2025-05-29"/>
+      <modified by="Christian Gruen" on="2026-07-29" change="PR2566"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>let $r as fn:uri-structure-record :=
+            {'uri':'http://www.w3.org/example.xml',
+             'scheme':'http',
+             'absolute':true(),
+             'hierarchical':true(),
+             'authority':'',
+             'userinfo':(),
+             'host':'www.w3.org',
+             'port':8080,
+             'path':'example.xml',
+             'query':(),
+             'fragment':(),
+             'path-segments':(),
+             'query-parameters':{},
+             'filepath':()
+             }
+            return $r instance of fn:uri-structure-record</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+</test-set>

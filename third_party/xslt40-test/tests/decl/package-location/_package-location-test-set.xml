@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<test-set xmlns:xs="http://www.w3.org/2001/XMLSchema"
+    xmlns="http://www.w3.org/2012/10/xslt-test-catalog" name="package-location">
+    <description>Tests xsl:package-location in XSLT 4.0. This is an initial setup of 
+        folder and files, modeled after the use-package test set. Many more tests are
+        to be added, based on feedback.</description>
+    
+    <keywords>packages location</keywords>
+    
+    <environment name="package-location-env-001a">
+        <!-- MHK: commented out because it causes test catalog-005 to fail -->
+        <!--<package file="package-location-base-001a.xsl" role="secondary"
+            uri="http://www.w3.org/xslt30tests/use-package-base-001" package-version="1.0.0"/>-->
+    </environment>
+
+    <environment name="package-location-env-001b">
+        <!-- MHK: commented out because it causes test catalog-005 to fail -->
+        <!--<package file="package-location-base-001b.xsl" role="secondary"
+            uri="http://www.w3.org/xslt30tests/use-package-base-001" package-version="1.0.0"/>-->
+    </environment>
+
+    <environment name="package-location-env-004">
+        <package file="package-location-base-004a.xsl" role="secondary"
+            uri="http://www.w3.org/xslt30tests/package-location-base-004" package-version="1.0.0"/>
+        <package file="package-location-base-004b.xsl" role="secondary"
+            uri="http://www.w3.org/xslt30tests/package-location-base-004" package-version="2.0.0"/>
+        <package file="package-location-base-004c.xsl" role="secondary"
+            uri="http://www.w3.org/xslt30tests/package-location-base-004" package-version="3.5.4"/>
+        <package file="package-location-base-004d.xsl" role="secondary"
+            uri="http://www.w3.org/xslt30tests/package-location-base-004"
+            package-version="2.0.0-alpha"/>
+        <package file="package-location-base-004e.xsl" role="secondary"
+            uri="http://www.w3.org/xslt30tests/package-location-base-004"
+            package-version="2.0.0-beta"/>
+    </environment>
+
+    <dependencies>
+        <spec value="XSLT40+"/>
+    </dependencies>
+    
+    <test-case name="package-location-001">
+        <description>Successful use of a public function defined in a library package, regular XSLT file accessed by href.</description>
+        <created by="Joel Kalvesmaki" on="2025-06-08"/>
+        <test>
+            <package file="package-location-001.xsl" role="principal"/>
+            <initial-template name="main"/>
+        </test>
+        <result>
+            <assert>/out/@q = 'package-location/package-location-base-001a.xsl'</assert>
+        </result>
+    </test-case>
+    
+    <test-case name="package-location-002">
+        <description>Successful use of a public function defined in a library package, accessed by 
+            local environment, not href.</description>
+        <created by="Joel Kalvesmaki" on="2025-06-08"/>
+        <environment ref="package-location-env-001b"/>
+        <test>
+            <package file="package-location-002.xsl" role="principal"/>
+            <initial-template name="main"/>
+        </test>
+        <result>
+            <assert>/out/@q = 'package-location/package-location-base-001b.xsl'</assert>
+        </result>
+    </test-case>
+    
+    <test-case name="package-location-003">
+        <description>Successful use of a public function defined in a library package, zipped XSLT file accessed by 
+            href, not environment.</description>
+        <created by="Joel Kalvesmaki" on="2025-06-08"/>
+        <environment ref="package-location-env-001b"/>
+        <test>
+            <package file="package-location-003.xsl" role="principal"/>
+            <initial-template name="main"/>
+        </test>
+        <result>
+            <assert>/out/@q = 'package-location-base-001.zip!/package-location-base-001a.xsl'</assert>
+        </result>
+    </test-case>
+    
+    <test-case name="package-location-004">
+        <description>Successful use of a public function defined in a library package, Saxon compiled XSLT file accessed by href.</description>
+        <created by="Joel Kalvesmaki" on="2025-06-08"/>
+        <test>
+            <package file="package-location-004.xsl" role="principal"/>
+            <initial-template name="main"/>
+        </test>
+        <result>
+            <assert>/out/@q = 'package-location/package-location-base-001a.sef'</assert>
+        </result>
+    </test-case>
+    
+    <test-case name="package-location-005">
+        <description>Successful use of a public function defined in a library package, tarballed XSLT file accessed by 
+            href, not environment.</description>
+        <created by="Joel Kalvesmaki" on="2025-06-08"/>
+        <environment ref="package-location-env-001b"/>
+        <test>
+            <package file="package-location-005.xsl" role="principal"/>
+            <initial-template name="main"/>
+        </test>
+        <result>
+            <assert>/out/@q = 'package-location-base-001.tar!/package-location-base-001a.xsl'</assert>
+        </result>
+    </test-case>
+    
+    <test-case name="package-location-291">
+        <description>Testing package location - attribute archive-type is present without the attribute path-in-archive</description>
+        <created by="Joel Kalvesmaki" on="2025-05-20"/>
+        <environment ref="package-location-env-004"/>
+        <test>
+            <package file="package-location-291.xsl" role="principal"/>
+            <initial-template name="main"/>
+        </test>
+        <result>
+            <error code="XTSE3004"/>
+        </result>
+    </test-case>
+
+
+</test-set>

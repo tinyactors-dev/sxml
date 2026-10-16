@@ -1,0 +1,321 @@
+<?xml version="1.0" encoding="us-ascii"?>
+<test-set xmlns="http://www.w3.org/2010/09/qt-fots-catalog" name="fn-some" covers-40="PR152">
+   <description>Tests for the fn:some() function (4.0)</description>
+   
+   <dependency type="spec" value="XP40+ XQ40+"/>
+   
+   <test-case name="some-1">
+      <description> Call on fn:some and addition expression. Returns false </description>
+      <created by="Michael Kay after Carmelo Montanez" on="2020-11-29"/>
+      <test>some((1, 2), function($x){$x + $x = 3})</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+
+   <test-case name="some-2">
+      <description> Call on fn:some and addition expression. Returns true </description>
+      <created by="Michael Kay after Carmelo Montanez" on="2020-11-29"/>
+      <test>some((1, 2), function($x){$x + $x = 2})</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="some-3">
+      <description> Call on fn:some and a subtraction expression. Returns false </description>
+      <created by="Michael Kay after Carmelo Montanez" on="2020-11-29"/>
+      <test>some((1, 2), function($x){$x - 2 = 2})</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="some-4">
+      <description>some() applied to empty sequence</description>
+      <created by="Michael Kay" on="2020-11-29"/>
+      <test>some(year-from-date(current-date()) to 0, is-NaN#1)</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="some-5">
+      <description>some() with function returning non-boolean</description>
+      <created by="Michael Kay" on="2020-11-29"/>
+      <test>some(1 to 10, function($x){seconds($x + 1)})</test>
+      <result>
+         <error code="XPTY0004"/>
+      </result>
+   </test-case>
+   
+   <test-case name="some-6">
+      <description>some() with function having wrong arity</description>
+      <created by="Michael Kay" on="2020-11-29"/>
+      <test>some(10 to 20, function($x, $y, $z){$x + 1})</test>
+      <result>
+         <error code="XPTY0004"/>
+      </result>
+   </test-case>
+   
+   <test-case name="some-7">
+      <description>some() with function accepting wrong type</description>
+      <created by="Michael Kay" on="2020-11-29"/>
+      <test>some(10 to 20, function($x){name($x) = 'alpha'})</test>
+      <result>
+         <error code="XPTY0004"/>
+      </result>
+   </test-case>
+
+   <test-case name="some-16">
+      <description> Call on fn:some and use of logical expression (and). </description>
+      <created by="Michael Kay after Carmelo Montanez" on="2020-11-29"/>
+      <test>some((1, 2), function($x){ $x = 1 and ($x +1) = 2})</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="some-17">
+      <description> Call on fn:some and and use of string data. </description>
+      <created by="Michael Kay after Carmelo Montanez" on="2020-11-29"/>
+      <test>some(("A","B","C"), function($x){ $x = "A" })</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="some-18">
+      <description> Call on fn:some with multiple variables and addition expression </description>
+      <created by="Michael Kay after Carmelo Montanez" on="2020-11-29"/>
+      <test>some((1,2,3), function($x){some((4,5,6), function($y){$x + $y = 5})})</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="some-19">
+      <description> Call on fn:some and and use of string data. </description>
+      <created by="Michael Kay after Carmelo Montanez" on="2020-11-29"/>
+      <test>some((1,"B",true()), function($x){ $x instance of xs:string })</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="some-20">
+      <description>fn:some#1, empty sequence</description>
+      <created by="Michael Kay" on="2022-09-13"/>
+      <test>some(())</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="some-21">
+      <description>fn:some#1, returning true</description>
+      <created by="Michael Kay" on="2022-09-13"/>
+      <test>some((1=5, 2=2, 3=6))</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="some-22">
+      <description>fn:some#1, returning false</description>
+      <created by="Michael Kay" on="2022-09-13"/>
+      <test>some((1=2, 2=5, 3=6))</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="some-23">
+      <description>fn:some#1, computing EBV</description>
+      <created by="Michael Kay" on="2022-09-13"/>
+      <modified by="Christian Gruen" on="2024-03-06"/>
+      <test>some((1=2, 2=4, 17))</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="some-24">
+      <description>fn:some#1, returning true or error</description>
+      <created by="Michael Kay" on="2022-09-13"/>
+      <modified by="Christian Gruen" on="2026-09-13"/>
+      <test>some((1=1, 2=3, 17, current-date()))</test>
+      <result>
+         <any-of>
+            <assert-true/>
+            <error code="XPTY0004"/>
+            <error code="FORG0006"/>
+         </any-of>
+      </result>
+   </test-case>
+   
+   <test-case name="some-25">
+      <description>fn:some#2, function requires coercion, success case</description>
+      <created by="Michael Kay" on="2022-09-13"/>
+      <test>some(-5 to +5, function($x){$x gt 0})</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="some-26">
+      <description>fn:some#2, function requires coercion, failure case</description>
+      <created by="Michael Kay" on="2022-09-13"/>
+      <test>some((false(), current-date(), 'zizzy'), function($x){$x})</test>
+      <result>
+         <error code="XPTY0004"/>
+      </result>
+   </test-case>
+   
+   <test-case name="some-27" covers-40="PR254">
+      <description>fn:some#2, arity-0 callback</description>
+      <created by="Michael Kay" on="2023-11-30"/>
+      <test>some(1 to 10, true#0)</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="some-28" covers-40="PR254">
+      <description>fn:some#2, arity-0 callback, empty argument</description>
+      <created by="Michael Kay" on="2023-11-30"/>
+      <test>some((), true#0)</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="some-29" covers-40="PR254">
+      <description>fn:some#2, arity-0 callback, empty argument</description>
+      <created by="Michael Kay" on="2023-11-30"/>
+      <test>some((), false#0)</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="some-30" covers-40="PR828">
+      <description>fn:some#2, arity-0 callback, empty argument</description>
+      <created by="Michael Kay" on="2023-11-30"/>
+      <test>some(1 to 10, false#0)</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="some-31" covers-40="PR828">
+      <description>fn:some#2, arity-2 callback</description>
+      <created by="Michael Kay" on="2023-11-30"/>
+      <test>some(1 to 10, fn($it, $pos){$it eq $pos})</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="some-32">
+      <description>fn:some#2, arity-2 callback</description>
+      <created by="Michael Kay" on="2023-11-30"/>
+      <test>some((1 to 10, 12), fn($it, $pos){$it eq $pos})</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="some-33">
+      <description>fn:some#2, arity-2 callback, empty sequence</description>
+      <created by="Michael Kay" on="2023-11-30"/>
+      <test>some((), fn($it, $pos){$it eq $pos})</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+   
+   <test-case name="some-34" covers-40="PR1053">
+      <description>some#1, EBV is computed - issue 1047</description>
+      <created by="Michael Kay" on="2024-02-28"/>
+      <modified by="Christian Gruen" on="2024-03-06"/>
+      <test>some(([false()], [true()], [false()]))</test>
+      <result>
+         <error code="FORG0006"/>
+      </result>
+   </test-case>
+   
+   <test-case name="some-35" covers-40="PR1053">
+      <description>some#1, EBV is computed - issue 1047</description>
+      <created by="Michael Kay" on="2024-02-28"/>
+      <modified by="Christian Gruen" on="2024-03-06"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test><![CDATA[some((<a>false</a>, <a>false</a>, <a>false</a>))]]></test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="some-36" covers-40="PR1053">
+      <description>some#1, EBV is computed - issue 1047</description>
+      <created by="Michael Kay" on="2024-02-28"/>
+      <modified by="Christian Gruen" on="2024-03-06"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test><![CDATA[some((<a>0</a>, <a>0</a>, <a>0</a>))]]></test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="some-37" covers-40="PR1053">
+      <description>some#2, result is atomized and converted to boolean</description>
+      <created by="Michael Kay" on="2024-02-28"/>
+      <test>some((0, 1, 0), xs:untypedAtomic#1)</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="some-38" covers-40="PR1053">
+      <description>some#2, result is atomized and converted to boolean</description>
+      <created by="Michael Kay" on="2024-02-28"/>
+      <dependency type="spec" value="XQ40+"/>
+      <test>some((0, 1, 0), fn{element a{.}})</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+ 
+   
+   <test-case name="some-empty" covers-40="PR901">
+      <description>Optional argument: empty sequence</description>
+      <created by="Christian Gruen" on="2024-01-16"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>some((0 to 5) ! boolean(.), ())</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="some-39" covers-40="PR1182">
+      <description>Predicate returning the empty sequence.</description>
+      <created by="Christian Gruen" on="2026-10-01"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>some((1, 2, 3), fn($x) { if ($x = 2) then () else false() })</test>
+      <result>
+         <assert-false/>
+      </result>
+   </test-case>
+
+   <test-case name="some-40" covers-40="PR1182">
+      <description>Predicate returning the empty sequence.</description>
+      <created by="Christian Gruen" on="2026-10-01"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>some((1, 2, 3), fn($x) { if ($x = 3) then true() else () })</test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+</test-set>

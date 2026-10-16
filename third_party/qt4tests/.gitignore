@@ -1,0 +1,11 @@
+# Ephemeral artefacts
+*.log*
+/results/
+/tools/tmp/
+
+# Local IDE artefacts
+*.iml
+.idea/
+*.xpr
+.project
+.classpath

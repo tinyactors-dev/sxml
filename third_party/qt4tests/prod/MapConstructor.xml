@@ -1,0 +1,1040 @@
+<?xml version="1.0" encoding="us-ascii"?>
+<test-set xmlns="http://www.w3.org/2010/09/qt-fots-catalog" name="prod-MapConstructor">
+   <description>Tests for the MapConstructor production: map constructor expressions in XPath 3.1</description>
+
+         
+   <dependency type="spec" value="XP31+ XQ31+"/>      
+
+   <test-case name="MapConstructor-001">
+      <description>empty map</description>
+      <created by="Michael Kay" on="2016-02-08"/>
+      <environment ref="map"/>
+      <test>map:size(map{})</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-002">
+      <description>empty map</description>
+      <created by="Michael Kay" on="2016-02-08"/>
+      <environment ref="map"/>
+      <test>map:size(map{     })</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-003">
+      <description>empty map</description>
+      <created by="Michael Kay" on="2016-02-08"/>
+      <environment ref="map"/>
+      <test>map:size(map {})</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-004">
+      <description>singleton map</description>
+      <created by="Michael Kay" on="2016-02-08"/>
+      <environment ref="map"/>
+      <test>map:size(map{"a":2})</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-005">
+      <description>singleton map</description>
+      <created by="Michael Kay" on="2016-02-08"/>
+      <environment ref="map"/>
+      <test>map:size(map{ "a" : 2 })</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-006">
+      <description>doubleton map</description>
+      <created by="Michael Kay" on="2016-02-08"/>
+      <environment ref="map"/>
+      <test>map:size(map{"a":2,"b":3})</test>
+      <result>
+         <assert-eq>2</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-007">
+      <description>doubleton map</description>
+      <created by="Michael Kay" on="2016-02-08"/>
+      <environment ref="map"/>
+      <test>map:size(map { "a" : 2 , "b" : 3 })</test>
+      <result>
+         <assert-eq>2</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-008">
+      <description>no trailing comma allowed</description>
+      <created by="Michael Kay" on="2016-02-08"/>
+      <environment ref="map"/>
+      <test>map:size(map {"a":2, })</test>
+      <result>
+         <error code="XPST0003"/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-009">
+      <description>no leading comma allowed</description>
+      <created by="Michael Kay" on="2016-02-08"/>
+      <environment ref="map"/>
+      <test>map:size(map {,"a":2})</test>
+      <result>
+         <error code="XPST0003"/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-010">
+      <description>key must be an ExprSingle</description>
+      <created by="Michael Kay" on="2016-02-08"/>
+      <dependency type="spec" value="XP30 XP31"/>
+      <environment ref="map"/>
+      <test>map:size(map {"a","b":2})</test>
+      <result>
+         <error code="XPST0003"/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-010a" covers-40="PR2094">
+      <description>map entry can be an ExprSingle</description>
+      <created by="Christian Gruen" on="2025-07-17"/>
+      <dependency type="spec" value="XQ40+ XP40+"/>
+      <environment ref="map"/>
+      <test>map:size(map {"a","b":2})</test>
+      <result>
+         <error code="XPTY0004"/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-011">
+      <description>value must be an ExprSingle</description>
+      <created by="Michael Kay" on="2016-02-08"/>
+      <dependency type="spec" value="XP30 XP31"/>
+      <environment ref="map"/>
+      <test>map:size(map {"a":2,3})</test>
+      <result>
+         <error code="XPST0003"/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-011a" covers-40="PR2094">
+      <description>map entry can be an ExprSingle</description>
+      <created by="Christian Gruen" on="2025-07-17"/>
+      <dependency type="spec" value="XQ40+ XP40+"/>
+      <environment ref="map"/>
+      <test>map:size(map {"a":2,3})</test>
+      <result>
+         <error code="XPTY0004"/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-012">
+      <description>key can be a node constructor</description>
+      <created by="Michael Kay" on="2016-02-08"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XQ31+"/> 
+      <test><![CDATA[map:size(map {<a>x</a>:2})]]></test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-013">
+      <description>value can be a node constructor</description>
+      <created by="Michael Kay" on="2016-02-08"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XQ31+"/> 
+      <test><![CDATA[map:size(map {2:<a>x</a>})]]></test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-014">
+      <description>value can be a node constructor with embedded content</description>
+      <created by="Michael Kay" on="2016-02-08"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XQ31+"/> 
+      <test><![CDATA[map:size(map {2:<a>x{25}y</a>})]]></test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-015">
+      <description>colon after NCName is OK</description>
+      <created by="Michael Kay" on="2016-02-08"/>
+      <modified by="Michael Kay" on="2016-02-23" change="corrected results"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XQ31+"/> 
+      <test><![CDATA[map:size(<a><b>x</b></a>/map{b:2})]]></test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-016">
+      <description>colon after NCName is not OK if followed by another name</description>
+      <created by="Michael Kay" on="2016-02-08"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XQ31"/> 
+      <test><![CDATA[declare namespace b = "http://b.com"; map:size(<a><b:b>x</b:b></a>/map{b:b})]]></test>
+      <result>
+         <error code="XPST0003"/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-016a" covers-40="PR2094">
+      <description>map entry can be an ExprSingle</description>
+      <created by="Christian Gruen" on="2025-07-17"/>
+      <modified by="Gunther Rademacher" on="2025-08-07" change="set dependency to XQ40+"/>
+      <dependency type="spec" value="XQ40+"/>
+      <environment ref="map"/>
+      <test><![CDATA[declare namespace b = "http://b.com"; map:size(<a><b:b>x</b:b></a>/map{b:b})]]></test>
+      <result>
+         <error code="XPTY0004"/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-017">
+      <description>colon here should be OK</description>
+      <created by="Michael Kay" on="2016-02-08"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XQ31+"/> 
+      <test><![CDATA[map:size(<a><b>x</b></a>/map{self::a: b})]]></test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-018">
+      <description>colon here is not OK</description>
+      <created by="Michael Kay" on="2016-02-08"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XQ31"/> 
+      <test><![CDATA[declare namespace a = "http://a.com"; map:size(<a><a:b>x</a:b></a>/map{self::a:b})]]></test>
+      <result>
+         <error code="XPST0003"/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-018a" covers-40="PR2094">
+      <description>map entry can be an ExprSingle</description>
+      <created by="Christian Gruen" on="2025-07-17"/>
+      <modified by="Michael Kay" on="2025-07-31" 
+         change="Allow implausibility error. The required type of an expression within map{} is map(*)?, the
+         supplied value has type element(*)?, the intersection of these types is ()."/>
+      <dependency type="spec" value="XQ40+"/>
+      <environment ref="map"/>
+      <test><![CDATA[declare namespace a = "http://a.com"; map:size(<a><a:b>x</a:b></a>/map{self::a:b})]]></test>
+      <result>
+         <any-of>
+            <assert-eq>0</assert-eq>
+            <error code="XPTY0004"/>
+         </any-of>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-019">
+      <description>colon here should be OK</description>
+      <created by="Michael Kay" on="2016-02-08"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XQ31+"/> 
+      <test><![CDATA[map:size(<a><b>x</b></a>/map{*:b:b})]]></test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-020">
+      <description>colon here should be OK</description>
+      <created by="Michael Kay" on="2016-02-08"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XQ31+"/> 
+      <test><![CDATA[map:size(<a><b>x</b></a>/map{* :b})]]></test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-021">
+      <description>colon here should be OK</description>
+      <created by="Michael Kay" on="2016-02-08"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XQ31+"/> 
+      <test><![CDATA[map:size(<a><self>x</self></a>/map{self:2})]]></test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-022">
+      <description>rhs can be a map</description>
+      <created by="Michael Kay" on="2016-02-08"/>
+      <environment ref="map"/>
+      <test>map:size(map{2:map{3:4}})</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-023">
+      <description>lhs must be a singleton</description>
+      <created by="Michael Kay" on="2016-02-08"/>
+      <environment ref="map"/>
+      <test>map:size(map{(1 to 5)[. gt year-from-date(current-date())]:93})</test>
+      <result>
+         <error code="XPTY0004"/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-024">
+      <description>lhs must be a singleton</description>
+      <created by="Michael Kay" on="2016-02-08"/>
+      <environment ref="map"/>
+      <test>map:size(map{(1 to 5)[. lt year-from-date(current-date())]:93})</test>
+      <result>
+         <error code="XPTY0004"/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-025">
+      <description>
+         Colon here is questionable. We are testing the rule in A.2:
+         "When tokenizing, the longest possible match that is consistent with the EBNF is used."
+         After a lookup operator, an NCName is consistent with the EBNF but a QName (containing a colon)
+         is not, so the tokenizer should extract the NCName "a".
+      </description>
+      <created by="Michael Kay" on="2016-02-08"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP30 XP31 XQ30 XQ31"/>
+      <test>let $m := map{'a':1} return map:size(map{$m?a:true()})</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-025a" covers-40="PR519">
+      <description>
+         The tokenization rules have changed in 4.0; the longest-token rule is no longer
+         qualified by the phrase "longest possible match that is consistent with the EBNF".
+         That makes this case clearly an error in 4.0. (Specifically, "a:true" is treated
+         as a single token, causing a syntax error because `?` cannot be followed by a QName).
+         See https://github.com/w3c/qt3tests/issues/63
+      </description>
+      <created by="Michael Kay" on="2016-02-08"/>
+      <modified by="Michael Kay" on="2024-05-25" change="see qt3tests bug 63"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>let $m := map{'a':1} return map:size(map{$m?a:true()})</test>
+      <result>
+         <error code="XPST0003"/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-026">
+      <description>colon after a QName is OK</description>
+      <created by="Michael Kay" on="2016-02-08"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XQ31+"/> 
+      <test><![CDATA[declare namespace z = "http://z.com"; map:size(<a><z:b>x</z:b></a>/map{z:b:z:b})]]></test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+
+  <test-case name="MapConstructor-027">
+      <description>Bug 29501</description>
+      <created by="Josh Spiegel" on="2016-05-04"/>
+      <dependency type="spec" value="XQ31+"/>
+      <test><![CDATA[
+
+        declare namespace a = "http://example.com";
+
+        <dot>
+          <a:b>key</a:b>
+          <c>value</c>
+        </dot>
+        !
+        map{a:b:c}
+
+        =>
+        deep-equal(map{"key":<c>value</c>})
+      ]]></test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="MapConstructor-028">
+      <description>Bug 29501</description>
+      <created by="Josh Spiegel" on="2016-05-04"/>
+      <dependency type="spec" value="XQ31+"/>
+      <test><![CDATA[
+
+        declare namespace a = "http://example.com";
+
+        <dot>
+          <a:b>key</a:b>
+          <c>value</c>
+        </dot>
+        !
+        map{a:*:c}
+
+        =>
+        deep-equal(map{"key":<c>value</c>})
+
+      ]]></test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="MapConstructor-029">
+      <description>Bug 29501</description>
+      <created by="Josh Spiegel" on="2016-05-04"/>
+      <dependency type="spec" value="XQ31+"/>
+      <test><![CDATA[
+
+        declare namespace a = "http://example.com";
+
+        <dot>
+          <a:b>key</a:b>
+          <c>value</c>
+        </dot>
+        !
+        map{*:b:c}
+
+        =>
+        deep-equal(map{"key":<c>value</c>})
+      ]]></test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="MapConstructor-030">
+      <description>Bug 29501</description>
+      <created by="Josh Spiegel" on="2016-05-04"/>
+      <dependency type="spec" value="XQ31+"/>
+      <test><![CDATA[
+
+        declare namespace a = "http://example.com";
+
+        <dot>
+          <a:b>key</a:b>
+        </dot>
+        !
+        map{a:b:*}
+
+        =>
+        deep-equal(map{"key":<a:b xmlns:a="http://example.com">key</a:b>})
+      ]]></test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="MapConstructor-031">
+      <description>Bug 29501</description>
+      <created by="Josh Spiegel" on="2016-05-04"/>
+      <dependency type="spec" value="XQ31+"/>
+      <test><![CDATA[
+
+        declare namespace a = "http://example.com";
+
+        <dot>
+          <a:b>key</a:b>
+        </dot>
+        !
+        map{a:*:*}
+
+        =>
+        deep-equal(map{"key":<a:b xmlns:a="http://example.com">key</a:b>})
+      ]]></test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="MapConstructor-032">
+      <description>Bug 29501</description>
+      <created by="Josh Spiegel" on="2016-05-04"/>
+      <dependency type="spec" value="XQ31+"/>
+      <test><![CDATA[
+
+        declare namespace a = "http://example.com";
+
+        <dot>
+          <a:b>key</a:b>
+        </dot>
+        !
+        map{*:b:*}
+
+        => 
+        deep-equal(map{"key":<a:b xmlns:a="http://example.com">key</a:b>})
+
+      ]]></test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="MapConstructor-033">
+      <description>Bug 29501</description>
+      <created by="Josh Spiegel" on="2016-05-04"/>
+      <dependency type="spec" value="XQ31+"/>
+      <test><![CDATA[
+        <e><f>foo</f></e> ! map{*:*}
+        =>
+        deep-equal(map{"foo":<f>foo</f>})
+      ]]></test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="MapConstructor-034">
+      <description>Bug 29501</description>
+      <created by="Josh Spiegel" on="2016-05-04"/>
+      <dependency type="spec" value="XQ31+"/>
+      <test><![CDATA[
+        <e><f>foo</f></e> ! map{*:f:*:f}
+        =>
+        deep-equal(map{"foo":<f>foo</f>})
+      ]]></test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+
+   <test-case name="MapConstructor-035">
+      <description>Bug 29501</description>
+      <created by="Josh Spiegel" on="2016-05-04"/>
+      <dependency type="spec" value="XQ31+"/>
+      <test><![CDATA[
+         <e><f>4</f></e>!map{*:*div*,*||*:*}
+         =>
+         deep-equal(map{"44":<f>4</f>,"4":1})
+      ]]></test>
+      <result>
+         <assert-true/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-036">
+      <description>Duplicate keys</description>
+      <created by="Michael Kay" on="2016-07-28"/>
+      <environment ref="map"/>
+      <test>map{2+2: "a", 5-1: "b"}</test>
+      <result>
+         <error code="XQDY0137"/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-037">
+      <description>Duplicate keys</description>
+      <created by="Michael Kay" on="2016-07-28"/>
+      <environment ref="map"/>
+      <test>map{xs:integer(2): 5, xs:float("2.0"): 8}</test>
+      <result>
+         <error code="XQDY0137"/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-038">
+      <description>Duplicate keys</description>
+      <created by="Michael Kay" on="2016-07-28"/>
+      <environment ref="map"/>
+      <test>map{xs:double("NaN"): true(), xs:float("NaN"): false()}</test>
+      <result>
+         <error code="XQDY0137"/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-039">
+      <description>Duplicate keys</description>
+      <created by="Michael Kay" on="2016-07-28"/>
+      <environment ref="map"/>
+      <test>map{xs:double("INF"): true(), xs:float("INF"): false()}</test>
+      <result>
+         <error code="XQDY0137"/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-040">
+      <description>Duplicate keys</description>
+      <created by="Michael Kay" on="2016-07-28"/>
+      <environment ref="map"/>
+      <test>map{xs:double("-INF"): true(), xs:float("-INF"): false()}</test>
+      <result>
+         <error code="XQDY0137"/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-041">
+      <description>Duplicate keys</description>
+      <created by="Michael Kay" on="2016-07-28"/>
+      <environment ref="map"/>
+      <test>map{xs:time("24:00:00"): true(), xs:time("00:00:00"): false()}</test>
+      <result>
+         <error code="XQDY0137"/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-042">
+      <description>Duplicate keys</description>
+      <created by="Michael Kay" on="2016-07-28"/>
+      <environment ref="map"/>
+      <test>map{xs:time("05:00:00+05:00"): true(), xs:time("00:00:00Z"): false()}</test>
+      <result>
+         <error code="XQDY0137"/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-401" covers-40="PR1071">
+      <description>empty map (4.0 syntax)</description>
+      <created by="Michael Kay" on="2024-03-12"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>map:size({})</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-402" covers-40="PR1071">
+      <description>empty map (4.0 syntax)</description>
+      <created by="Michael Kay" on="2024-03-12"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>map:size({     })</test>
+      <result>
+         <assert-eq>0</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-403" covers-40="PR1071">
+      <description>nested map (4.0 syntax)</description>
+      <created by="Michael Kay" on="2024-03-12"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>map:size({1:{}})</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-404" covers-40="PR1071">
+      <description>singleton map (4.0 syntax)</description>
+      <created by="Michael Kay" on="2024-03-12"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>map:size({"a":2})</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-405" covers-40="PR1071">
+      <description>singleton map (4.0 syntax)</description>
+      <created by="Michael Kay" on="2024-03-12"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>map:size({ "a" : 2 })</test>
+      <result>
+         <assert-eq>1</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-406" covers-40="PR1071">
+      <description>doubleton map (4.0 syntax)</description>
+      <created by="Michael Kay" on="2024-03-12"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>map:size({"a":2,"b":3})</test>
+      <result>
+         <assert-eq>2</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-407" covers-40="PR1071">
+      <description>type error: key must be an atomic value</description>
+      <created by="Michael Kay" on="2024-03-12"/>
+      <modified by="Christian Gruen" on="2025-05-27" change="error code added"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>map:size({{}:{}})</test>
+      <result>
+         <any-of>
+            <error code="FOTY0013"/>
+            <error code="XPTY0004"/>
+         </any-of>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-408" covers-40="PR1327 PR1511">
+      <description>bare brace syntax allowed after "return"</description>
+      <created by="Michael Kay" on="2024-03-12"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>for $i in 1 to 3 return {$i : $i+1}</test>
+      <result>
+         <assert-deep-eq>map{1 : 2}, map{2 : 3}, map{3 : 4}</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-409" covers-40="PR1327 PR1511">
+      <description>bare brace syntax allowed after "then"</description>
+      <created by="Michael Kay" on="2024-03-12"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>if (3 gt 4) then {1:2} else {1:3}</test>
+      <result>
+         <assert-deep-eq>map{1 : 3}</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-410" covers-40="PR1327 PR1511">
+      <description>bare brace syntax allowed after "in"</description>
+      <created by="Michael Kay" on="2024-03-12"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>for key $k value $v in {1:2} return ($k, $v)</test>
+      <result>
+         <assert-deep-eq>1, 2</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-411" covers-40="PR1327">
+      <description>bare brace allowed after ":="</description>
+      <created by="Michael Kay" on="2024-03-12"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>let $map := {1:2} return $map?1</test>
+      <result>
+         <assert-eq>2</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-412" covers-40="PR1327">
+      <description>bare brace allowed within parens</description>
+      <created by="Michael Kay" on="2024-03-12"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>(if (3 gt 4) then ({1:2}) else ({1:3}))?1</test>
+      <result>
+         <assert-eq>3</assert-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-413" covers-40="PR1327">
+      <description>bare brace allowed after ","</description>
+      <created by="Michael Kay" on="2024-03-12"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>map:merge(({1:2}, {2:3}))</test>
+      <result>
+         <assert-deep-eq>map{1:2, 2:3}</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-414" covers-40="PR1327">
+      <description>bare brace allowed after ","</description>
+      <created by="Michael Kay" on="2024-03-12"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>[{1:2}, {2:3}]</test>
+      <result>
+         <assert-deep-eq>[{1:2}, {2:3}]</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-415" covers-40="PR1327">
+      <description>bare brace allowed after ","</description>
+      <created by="Michael Kay" on="2024-03-12"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>parse-json("[2]", {"liberal":true()})</test>
+      <result>
+         <assert-deep-eq>[2]</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-420" covers-40="PR1703">
+      <description>Results retain order in 4.0</description>
+      <created by="Michael Kay" on="2025-01-22"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>{ "x":0, "s":0, 12:0, xs:date('2025-01-01'):0, "a":0, true():0, 1e0:0 } => map:keys()</test>
+      <result>
+         <assert-deep-eq>"x", "s", 12, xs:date('2025-01-01'), "a", true(), 1e0 </assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-421" covers-40="PR1703">
+      <description>Results retain order in 4.0</description>
+      <created by="Michael Kay" on="2025-01-22"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>{ "x":0, "s":0, 12:0, xs:date('2025-01-01'):0, "a":0, true():0, 1e0:0 }
+         => map:remove(("a", 12))
+         => map:keys()</test>
+      <result>
+         <assert-deep-eq>"x", "s", xs:date('2025-01-01'), true(), 1e0 </assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-422" covers-40="PR1703">
+      <description>Results retain order in 4.0</description>
+      <created by="Michael Kay" on="2025-01-22"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>{ "x":0, "s":0, 12:0, xs:date('2025-01-01'):0, "a":0, true():0, 1e0:0 }
+         => map:put("", 0)
+         => map:keys()</test>
+      <result>
+         <assert-deep-eq>"x", "s", 12, xs:date('2025-01-01'), "a", true(), 1e0, "" </assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-423" covers-40="PR1703">
+      <description>All keys and values statically known strings</description>
+      <created by="Michael Kay" on="2025-01-24"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>{ "x":0, "s":0, "a":0, "y":0, "p":0 } => map:keys()</test>
+      <result>
+         <assert-deep-eq>"x", "s", "a", "y", "p" </assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-424" covers-40="PR1703">
+      <description>All keys statically known strings, values dynamic</description>
+      <created by="Michael Kay" on="2025-01-24"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>{ "x":current-date(), "s":0, "a":0, "y":0, "p":implicit-timezone() } => map:keys()</test>
+      <result>
+         <assert-deep-eq>"x", "s", "a", "y", "p" </assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-425" covers-40="PR1703">
+      <description>All keys and values statically known integers</description>
+      <created by="Michael Kay" on="2025-01-24"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>{ 12:false(), 3:true(), 7:true(), 6:false(), 4:false(), 11:true() } => map:keys()</test>
+      <result>
+         <assert-deep-eq>12, 3, 7, 6, 4, 11</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-426" covers-40="PR1703">
+      <description>All keys statically known integers, values dynamic</description>
+      <created by="Michael Kay" on="2025-01-24"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>{ 12:current-date(), 3:true(), 7:true(), 6:false(), 4:false(), 11:implicit-timezone() } => map:keys()</test>
+      <result>
+         <assert-deep-eq>12, 3, 7, 6, 4, 11</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-450" covers-40="PR2094">
+      <description>Conditional entries</description>
+      <created by="Michael Kay" on="2025-07-13"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>{ "a": 1, if (current-date() gt xs:date('1900-01-01')) { { "b": 1 } } } => map:keys()</test>
+      <result>
+         <assert-deep-eq>"a", "b"</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-451" covers-40="PR2094">
+      <description>Conditional entries</description>
+      <created by="Michael Kay" on="2025-07-13"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>{ "a": 1, if (current-date() lt xs:date('1900-01-01')) { { "b": 1 } } } => map:keys()</test>
+      <result>
+         <assert-deep-eq>"a"</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-452" covers-40="PR2094">
+      <description>Repeated entries</description>
+      <created by="Michael Kay" on="2025-07-13"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>{ (1 to 5) ! {2*.: .*.} }</test>
+      <result>
+         <assert-deep-eq>{2: 1, 4: 4, 6: 9, 8: 16, 10: 25}</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-453" covers-40="PR2094">
+      <description>Invalid example</description>
+      <created by="Michael Kay" on="2025-07-13"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>{ "a" : 1, "b" } => map:keys()</test>
+      <result>
+         <error code="XPTY0004"/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-454" covers-40="PR2094">
+      <description>Valid example</description>
+      <created by="Michael Kay" on="2025-07-13"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>{ {}, {}, {} }</test>
+      <result>
+         <assert-deep-eq>{}</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-455" covers-40="PR2094">
+      <description>Invalid example</description>
+      <created by="Michael Kay" on="2025-07-13"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>{ "a": 1, ("b": 2) } => map:keys()</test>
+      <result>
+         <error code="XPST0003"/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-456" covers-40="PR2094">
+      <description>Duplicates</description>
+      <created by="Michael Kay" on="2025-07-13"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>{ {"a": 1}, {"b": 2}, "a":3 } => map:keys()</test>
+      <result>
+         <error code="XQDY0137"/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-500" covers-40="PR2541">
+      <description>JNodes</description>
+      <created by="Christian Gruen" on="2026-04-07"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>{ "a": "A" }/. -> { . }</test>
+      <result>
+         <assert-deep-eq>{ "a": "A" }</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-501" covers-40="PR2541">
+      <description>JNodes</description>
+      <created by="Christian Gruen" on="2026-04-07"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>{ "a": "A" }/a -> { . }</test>
+      <result>
+         <assert-deep-eq>{ "a": "A" }</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-502" covers-40="PR2541">
+      <description>JNodes</description>
+      <created by="Christian Gruen" on="2026-04-07"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>{ "a": "A" }/a -> { .. }</test>
+      <result>
+         <assert-deep-eq>{ "a": "A" }</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-503" covers-40="PR2541">
+      <description>JNodes</description>
+      <created by="Christian Gruen" on="2026-04-07"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>{ "a": "A" }/a -> { ../.. }</test>
+      <result>
+         <assert-deep-eq>{}</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-504" covers-40="PR2541">
+      <description>JNodes</description>
+      <created by="Christian Gruen" on="2026-04-07"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>{ "a": "A", "b": "B" }/* -> { . }</test>
+      <result>
+         <assert-deep-eq>{ "a": "A", "b": "B" }</assert-deep-eq>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-505" covers-40="PR2541">
+      <description>JNodes</description>
+      <created by="Christian Gruen" on="2026-04-07"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>{ "a": "A" }/(., *) -> { . }</test>
+      <result>
+         <error code="XQDY0137"/>
+      </result>
+   </test-case>
+   
+   <test-case name="MapConstructor-506" covers-40="PR2541">
+      <description>JNodes</description>
+      <created by="Christian Gruen" on="2026-04-07"/>
+      <environment ref="map"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>({ "a": "A" }, { "a": "AA" })/a -> { . }</test>
+      <result>
+         <error code="XQDY0137"/>
+      </result>
+   </test-case>
+
+   <test-case name="MapConstructor-510" covers-40="PR2541">
+      <description>JNodes</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>{ jtree(({ "a": "A" }, { "b": "B" })) }</test>
+      <result>
+         <assert-deep-eq>{ "a": "A", "b": "B" }</assert-deep-eq>
+      </result>
+   </test-case>
+
+   <test-case name="MapConstructor-511" covers-40="PR2541">
+      <description>JNodes</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>{ jtree(()) }</test>
+      <result>
+         <assert-deep-eq>{}</assert-deep-eq>
+      </result>
+   </test-case>
+
+   <test-case name="MapConstructor-512" covers-40="PR2541">
+      <description>JNodes</description>
+      <created by="Christian Gruen" on="2026-10-14"/>
+      <dependency type="spec" value="XP40+ XQ40+"/>
+      <test>{ jtree(("a", { "b": "B" })) }</test>
+      <result>
+         <error code="XPTY0004"/>
+      </result>
+   </test-case>
+
+</test-set>
