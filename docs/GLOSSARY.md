@@ -298,7 +298,7 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `expression_text` | The source text of an expression or query |
 | `evaluation` | One run of a compiled expression or query against a dynamic context |
 | `evaluation_depth` | How deeply evaluation nests (function calls, nested expressions); bounded so deep recursion is a limit, not a stack overflow |
-| `evaluator_task` | One entry of the evaluator's task stack: an expression, call or native step being evaluated, with the state that resumes it when a nested value arrives (D71, D73) |
+| `evaluator_task` | One entry of the evaluator's task stack: an expression, call or native step being evaluated, with the state that resumes it when a nested value arrives (D71, D75) |
 | `task_stack` | The evaluator's explicit stack of evaluator tasks, in allocator memory, which replaces recursion on the C stack |
 | `tail_call` | A call whose value is the value of the function making it; the evaluator reuses that function's frame |
 | `native_step` | One run of a resumable native body: it finishes with a value, or asks the evaluator to call a function item and to run the next step with the result |

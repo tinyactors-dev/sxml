@@ -1459,7 +1459,7 @@ only). `sxml_json_node_make_root` and `sxml_json_node_make_child` count
 their value's items, so a lazy value's generator may fail inside them; both
 contracts now list those failures. They take no error record, so the status
 comes without one: callers that need the error read the value first. The
-evaluator never makes lazy sequences whose generator evaluates IR (D74), and
+evaluator never makes lazy sequences whose generator evaluates IR (D75), and
 it reads values completely before fn:jtree sees them.
 
 ### D74. libmpdec keeps no large buffers on the stack
@@ -1497,18 +1497,77 @@ default digit limit.
   path on wasm), and every allocation failure of a long
   product reported and clean.
 
+### D75. The evaluator: an explicit-stack machine (packet 1.18)
+Recorded 2026-10-16. `src/evaluator.c` (dynamic context, machine,
+expressions), `src/evaluator_function.c` (atomization, effective boolean
+value, type matching, coercion, function items and bodies),
+`src/evaluator_path.c` (steps over XNodes and JNodes, document order, node
+sets, merge sort). Internal headers changed as D71 requires.
+- **Machine** (D71): every expression with a nested expression, every call
+  and every native step is an `evaluator_task` on a task stack in allocator
+  memory; one loop runs the top task; a finished task hands its value to
+  the task below. LET bodies, CONDITIONAL branches and calls in tail
+  position replace their task; a tail call reuses the caller's frame
+  (100k-deep non-tail recursion and 200k tail calls with depth limit 10 are
+  tested, also on wasm). Leaf work (operators, casts, axes, atomization,
+  matching) is plain C over explicit stacks of its own.
+- **Depth** = calls in progress (IR calls and resumable native calls);
+  `maximum_evaluation_depth` 0 means 10^6 (heap, not C stack, per level);
+  beyond it LIMIT_EXCEEDED. `maximum_frame_slot_count` bounds slots.
+- **Reentry**: `sxml_evaluator_evaluate`, `sxml_evaluator_call_function_item`
+  and the call operations of IR, coerced and resumable native bodies run
+  the machine only on an idle dynamic context (INVALID_ARGUMENT
+  otherwise). Inside a run the machine recognizes those bodies by their
+  operations pointer and calls them through tasks; maps, arrays,
+  constructor functions and host bodies are leaves.
+- **Resumable native bodies** (`function_library_internal.h`): a row with
+  `CALLS_FUNCTION_ITEMS` has a `resumable_body` (step function, state size,
+  `release_state`) instead of `call`. Each `native_step` finishes with a
+  value or asks for one call of a function item; the evaluator coerces the
+  arguments, makes the call on its stack and runs the next step with the
+  result (owned). State is evaluator memory, zeroed, released exactly once.
+  1.21 writes fn:for-each, filter, fold-*, sort with keys, apply,
+  partial-apply's bodies, map:/array:for-each this way;
+  `sxml_native_function_body_operations` is now defined in
+  `src/evaluator_function.c`, because the evaluator dispatches on it.
+- **Lazy sequences**: the evaluator makes none whose generator evaluates
+  IR; MAP, FILTER, paths and calls build complete values (Phase 1).
+- **Coercion** (XPath 4.0, 3.4): atomization, untypedAtomic cast (XPTY0117
+  for QName/NOTATION), numeric and URI promotion, relabelling to a derived
+  type of the same primitive only when the cast keeps the value (3 to
+  xs:positiveInteger yes, 4.2 to xs:integer no), function coercion by a
+  coerced-function body (lower arity allowed, extra arguments dropped),
+  then a full type match. Type matching handles occurrences, atomic,
+  union, enumeration, node, JNode (key and value), function, map, array,
+  record and choice types on an explicit stack with backtracking for
+  choices.
+- **Paths**: STEP from a JNode reads element tests as key tests and runs
+  every axis over the JTree; several origins are put in document order;
+  DOCUMENT_ORDER keeps sorted input as it is. Constant numeric predicates
+  index directly.
+- **Errors** get the source span of the failing expression when the record
+  has no location. The implicit timezone is read from the clock only when
+  an operand is a date, time or duration (null clock: UTC).
+- **Not yet**: TRY_CATCH, constructors, APPLY_TEMPLATES and global
+  initializers return UNSUPPORTED_FEATURE; static namespaces are not
+  available to casts to xs:QName at run time (predeclared prefixes only).
+
+### D76. XPTY0019 for the path operator (P5)
+Recorded 2026-10-16 by packet 1.18, on the orchestrator's acceptance of P5.
+`SXML_IR_MAP_REQUIRES_NODES` in `sxml_ir_map_flag`: lowering sets it on the
+MAP of `E1/E2` and of `//`; the evaluator raises XPTY0019 (XPath 4.0,
+section 4.6.3) for an input item that is not a generic node. The text form
+does not print the flag, so the golden dumps of D63 are unchanged; the
+verifier accepts it.
+
+### D77. Namespace node tests with a name (P4)
+Recorded 2026-10-16 by packet 1.18, on the orchestrator's acceptance of P4
+(design edit to the comment of `sxml_node_test` in `include/sxml/types.h`).
+The registry's normal form accepts any name test for
+`SXML_NODE_KIND_NAMESPACE` (no type, no document element); lowering
+resolves `namespace::x` like an attribute name (no namespace), so it
+matches the namespace node whose prefix is x; a prefixed name matches
+nothing. The node-test matcher compares the namespace node's name, which
+the tree interns as the prefix in no namespace (D67).
+
 ## Proposed
-
-### P4. Namespace node tests with a name (from D63)
-`namespace::x` is a STEP whose node test is a namespace test named x (a
-prefix, in no namespace), but the type registry's normal form (D58)
-accepts namespace tests only without a name. Proposed: accept an
-`EXPANDED_NAME` name test in no namespace for `SXML_NODE_KIND_NAMESPACE`.
-Until then such steps are not lowered.
-
-### P5. XPTY0019 for the path operator (from D63)
-`E1/E2` raises XPTY0019 when E1 yields an item that is not a node, but
-the IR's MAP has no such check; a following STEP raises XPTY0020 instead,
-and `$atoms/string()` raises nothing. Proposed: a flag
-`SXML_IR_MAP_REQUIRES_NODES` in `sxml_ir_map_flag`, set by lowering on
-the MAP of a path and checked by the evaluator.
