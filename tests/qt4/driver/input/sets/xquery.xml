@@ -1,0 +1,17 @@
+<test-set xmlns="http://www.w3.org/2010/09/qt-fots-catalog" name="set-xquery">
+   <dependency type="spec" value="XQ10+"/>
+   <test-case name="xquery-only">
+      <test>1</test>
+      <result><assert-eq>1</assert-eq></result>
+   </test-case>
+   <test-case name="replaced-spec">
+      <dependency type="spec" value="XP30+ XQ30+"/>
+      <test>2</test>
+      <result><assert-eq>2</assert-eq></result>
+   </test-case>
+   <test-case name="old-xpath">
+      <dependency type="spec" value="XP20 XP30"/>
+      <test>3</test>
+      <result><assert-eq>3</assert-eq></result>
+   </test-case>
+</test-set>

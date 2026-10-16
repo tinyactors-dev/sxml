@@ -1,0 +1,8 @@
+# A test list for the driver's tests.
+set-basic absent-environment  # a reason
+set-xquery replaced-spec
+
+set-basic catalog-environment
+no-such-set some-case
+set-basic no-such-case
+set-basic local-environment

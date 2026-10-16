@@ -1,0 +1,14 @@
+set-basic absent-environment
+  dependency feature higherOrderFunctions
+set-xquery replaced-spec
+set-basic catalog-environment
+  environment shared (catalog)
+  source . docs/a.xml
+  namespace p urn:p
+  dependency feature higherOrderFunctions
+set-basic local-environment
+  environment local (test set)
+  source $doc docs/b.xml uri http://example.com/b.xml
+  source - docs/a.xml uri http://example.com/a.xml
+  dependency feature higherOrderFunctions
+4 test cases: 4 applicable, 0 skipped

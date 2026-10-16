@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<test-set xmlns="http://www.w3.org/2010/09/qt-fots-catalog" name="set-basic">
+   <description>Every kind of environment and dependency the driver reads.</description>
+   <environment name="local">
+      <source role="$doc" file="../docs/b.xml" uri="http://example.com/b.xml"/>
+      <source file="../docs/a.xml" uri="http://example.com/a.xml"/>
+   </environment>
+   <environment name="overridden">
+      <source role="." file="../docs/b.xml"/>
+   </environment>
+   <dependency type="feature" value="higherOrderFunctions"/>
+
+   <test-case name="absent-environment">
+      <description>No environment element: an empty context.</description>
+      <created by="sxml" on="2026-10-16"/>
+      <test>1 + 1</test>
+      <result><assert-eq>2</assert-eq></result>
+   </test-case>
+   <test-case name="catalog-environment">
+      <environment ref="shared"/>
+      <test>p:a</test>
+      <result><assert-count>1</assert-count></result>
+   </test-case>
+   <test-case name="local-environment">
+      <environment ref="local"/>
+      <test>doc('http://example.com/a.xml')</test>
+      <result><assert-count>1</assert-count></result>
+   </test-case>
+   <test-case name="local-overrides-catalog">
+      <environment ref="overridden"/>
+      <test>b</test>
+      <result><assert-count>1</assert-count></result>
+   </test-case>
+   <test-case name="named-inline-environment">
+      <environment name="empty"/>
+      <test>.</test>
+      <result><error code="XPDY0002"/></result>
+   </test-case>
+   <test-case name="inline-environment">
+      <environment>
+         <param name="x" select="'a b'" as="xs:string"/>
+         <param name="y" select="2" declared="true"/>
+         <namespace prefix="" uri="urn:default"/>
+         <context-item select="3"/>
+         <static-base-uri uri="http://example.com/base/"/>
+         <collation uri="http://www.w3.org/2005/xpath-functions/collation/codepoint" default="true"/>
+      </environment>
+      <test>$x</test>
+      <result><assert-eq>'a b'</assert-eq></result>
+   </test-case>
+   <test-case name="undefined-base-uri">
+      <environment>
+         <static-base-uri uri="#UNDEFINED"/>
+      </environment>
+      <test>static-base-uri()</test>
+      <result><assert-empty/></result>
+   </test-case>
+   <test-case name="query-file">
+      <test file="../queries/q.xq"/>
+      <result><assert-eq>2</assert-eq></result>
+   </test-case>
+   <test-case name="xquery-spec">
+      <dependency type="spec" value="XQ40+"/>
+      <test>1</test>
+      <result><assert-eq>1</assert-eq></result>
+   </test-case>
+   <test-case name="schema-feature">
+      <dependency type="feature" value="schemaImport"/>
+      <test>1</test>
+      <result><assert-eq>1</assert-eq></result>
+   </test-case>
+   <test-case name="not-serialization">
+      <dependency type="feature" value="serialization" satisfied="false"/>
+      <test>1</test>
+      <result><assert-eq>1</assert-eq></result>
+   </test-case>
+   <test-case name="not-higher-order">
+      <dependency type="feature" value="higherOrderFunctions" satisfied="false"/>
+      <test>1</test>
+      <result><error code="XPST0017"/></result>
+   </test-case>
+   <test-case name="xml-versions">
+      <dependency type="xml-version" value="1.0:5+ 1.1"/>
+      <test>1</test>
+      <result><assert-eq>1</assert-eq></result>
+   </test-case>
+   <test-case name="resource">
+      <environment>
+         <resource uri="http://example.com/t.txt" file="../docs/t.txt" media-type="text/plain" encoding="utf-8"/>
+      </environment>
+      <test>unparsed-text('http://example.com/t.txt')</test>
+      <result><assert-eq>'t'</assert-eq></result>
+   </test-case>
+   <test-case name="collection">
+      <environment>
+         <collection uri="http://example.com/c">
+            <source file="../docs/a.xml"/>
+            <resource uri="http://example.com/t.txt" file="../docs/t.txt"/>
+            <query><![CDATA[<x/>]]></query>
+         </collection>
+      </environment>
+      <test>collection('http://example.com/c')</test>
+      <result><assert-count>3</assert-count></result>
+   </test-case>
+   <test-case name="other-collation">
+      <environment>
+         <collation uri="http://www.w3.org/2013/collation/UCA"/>
+      </environment>
+      <test>1</test>
+      <result><assert-eq>1</assert-eq></result>
+   </test-case>
+   <test-case name="decimal-formats">
+      <environment>
+         <decimal-format decimal-separator=","/>
+         <decimal-format name="f" grouping-separator="."/>
+      </environment>
+      <test>format-number(1, '#')</test>
+      <result><assert-eq>'1'</assert-eq></result>
+   </test-case>
+   <test-case name="schema-import">
+      <environment>
+         <schema uri="urn:s" file="../docs/s.xsd"/>
+         <source role="." file="../docs/a.xml" validation="strict"/>
+      </environment>
+      <test>1</test>
+      <result><assert-eq>1</assert-eq></result>
+   </test-case>
+   <test-case name="validated-source">
+      <environment>
+         <source role="." file="../docs/a.xml" validation="lax"/>
+      </environment>
+      <test>1</test>
+      <result><assert-eq>1</assert-eq></result>
+   </test-case>
+   <test-case name="library-module">
+      <module uri="urn:m" file="../queries/m.xqm" location="m.xqm"/>
+      <test>1</test>
+      <result><assert-eq>1</assert-eq></result>
+   </test-case>
+   <test-case name="split-text">
+      <test><![CDATA[1 +]]><!-- a comment --><![CDATA[ 2]]></test>
+      <result><assert-eq>3</assert-eq></result>
+   </test-case>
+</test-set>

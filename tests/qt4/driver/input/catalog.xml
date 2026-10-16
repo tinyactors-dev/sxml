@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- A small QT4 catalog for the driver's tests (tests/qt4/driver). -->
+<catalog xmlns="http://www.w3.org/2010/09/qt-fots-catalog"
+         test-suite="FOTS" version="4.0">
+   <environment name="empty"/>
+   <environment name="shared">
+      <source role="." file="docs/a.xml">
+         <description>The context value</description>
+      </source>
+      <namespace prefix="p" uri="urn:p"/>
+   </environment>
+   <environment name="overridden">
+      <source role="." file="docs/a.xml"/>
+   </environment>
+   <test-set name="set-basic" file="sets/basic.xml"/>
+   <test-set name="set-xquery" file="sets/xquery.xml"/>
+   <test-set name="set-bad-environment" file="sets/bad-environment.xml"/>
+   <test-set name="set-missing" file="sets/missing.xml"/>
+   <test-set name="set-broken" file="sets/broken.xml"/>
+</catalog>

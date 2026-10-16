@@ -1,0 +1,93 @@
+set-basic absent-environment
+  dependency feature higherOrderFunctions
+set-basic catalog-environment
+  environment shared (catalog)
+  source . docs/a.xml
+  namespace p urn:p
+  dependency feature higherOrderFunctions
+set-basic local-environment
+  environment local (test set)
+  source $doc docs/b.xml uri http://example.com/b.xml
+  source - docs/a.xml uri http://example.com/a.xml
+  dependency feature higherOrderFunctions
+set-basic local-overrides-catalog
+  environment overridden (test set)
+  source . docs/b.xml
+  dependency feature higherOrderFunctions
+set-basic named-inline-environment
+  environment (inline)
+  dependency feature higherOrderFunctions
+set-basic inline-environment
+  environment (inline)
+  param x select 'a b' as xs:string
+  param y select 2 declared
+  namespace - urn:default
+  context-item 3
+  static-base-uri http://example.com/base/
+  collation http://www.w3.org/2005/xpath-functions/collation/codepoint default
+  dependency feature higherOrderFunctions
+set-basic undefined-base-uri
+  environment (inline)
+  static-base-uri #UNDEFINED
+  dependency feature higherOrderFunctions
+set-basic query-file
+  query-file queries/q.xq
+  dependency feature higherOrderFunctions
+set-basic xquery-spec
+  dependency feature higherOrderFunctions
+set-basic schema-feature
+  dependency feature higherOrderFunctions
+  dependency feature schemaImport
+  skip: feature schemaImport
+set-basic not-serialization
+  dependency feature higherOrderFunctions
+  dependency feature serialization unsatisfied
+set-basic not-higher-order
+  dependency feature higherOrderFunctions
+  dependency feature higherOrderFunctions unsatisfied
+  skip: feature higherOrderFunctions (satisfied)
+set-basic xml-versions
+  dependency feature higherOrderFunctions
+  dependency xml-version 1.0:5+ 1.1
+set-basic resource
+  environment (inline)
+  resource http://example.com/t.txt docs/t.txt media-type text/plain encoding utf-8
+  dependency feature higherOrderFunctions
+  skip: environment resource
+set-basic collection
+  environment (inline)
+  collection http://example.com/c
+    source - docs/a.xml
+    resource http://example.com/t.txt docs/t.txt
+    query <x/>
+  dependency feature higherOrderFunctions
+  skip: environment collection
+set-basic other-collation
+  environment (inline)
+  collation http://www.w3.org/2013/collation/UCA
+  dependency feature higherOrderFunctions
+  skip: environment collation
+set-basic decimal-formats
+  environment (inline)
+  decimal-format -
+  decimal-format f
+  dependency feature higherOrderFunctions
+  skip: environment decimal-format
+set-basic schema-import
+  environment (inline)
+  source . docs/a.xml validation strict
+  schema urn:s docs/s.xsd
+  dependency feature higherOrderFunctions
+  skip: environment source validation
+set-basic validated-source
+  environment (inline)
+  source . docs/a.xml validation lax
+  dependency feature higherOrderFunctions
+  skip: environment source validation
+set-basic library-module
+  module urn:m queries/m.xqm location m.xqm
+  dependency feature higherOrderFunctions
+  skip: module
+set-basic split-text
+  dependency feature higherOrderFunctions
+21 test cases: 12 applicable, 9 skipped

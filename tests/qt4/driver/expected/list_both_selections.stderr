@@ -1,0 +1,3 @@
+sxml-qt4 list: give TEST-LIST or --test-set, not both
+Usage: sxml-qt4 list [--catalog=FILE] [--spec=SPEC] [--test-set=NAME] [TEST-LIST]
+Try 'sxml-qt4 list --help'.

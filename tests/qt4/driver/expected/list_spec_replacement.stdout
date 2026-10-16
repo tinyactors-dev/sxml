@@ -1,0 +1,6 @@
+set-xquery xquery-only
+  skip: spec XQ10+
+set-xquery replaced-spec
+set-xquery old-xpath
+  skip: spec XP20 XP30
+3 test cases: 1 applicable, 2 skipped

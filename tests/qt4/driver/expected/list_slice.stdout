@@ -1,0 +1,354 @@
+op-numeric-add K-NumericAdd-29
+op-numeric-add op-numeric-addint2args-1
+op-numeric-divide K-NumericDivide-24
+op-numeric-divide op-numeric-divideint2args-1
+op-numeric-divide op-numeric-dividepint2args-5
+op-numeric-integer-divide K-NumericIntegerDivide-17
+op-numeric-integer-divide op-numeric-integer-divideint2args-1
+op-numeric-mod op-numeric-modint2args-1
+op-numeric-mod K2-NumericMod-9
+op-numeric-multiply K-NumericMultiply-2
+op-numeric-multiply op-numeric-multiplydec2args-1
+op-numeric-equal op-numeric-equalint2args-1
+op-numeric-equal op-numeric-equalulng2args-3
+op-string-equal K-StringEqual-1
+prod-ValueComp K-ValCompTypeChecking-1
+prod-ValueComp K-ValCompTypeChecking-40
+prod-ValueComp value-comp-ne-string-15
+  environment works (catalog)
+  source . docs/works.xml
+prod-GeneralComp.eq generalexpression1
+prod-GeneralComp.eq K-GenCompEq-40
+prod-GeneralComp.eq generalexpression92
+  environment works-and-staff (catalog)
+  source $works docs/works.xml
+  source $staff docs/staff.xml
+prod-GeneralComp.lt generalexpression199
+prod-GeneralComp.lt generalexpression281
+  environment works (catalog)
+  source . docs/works.xml
+fn-deep-equal fn-deep-equalint2args-1
+fn-deep-equal fn-deep-equal-arrays-11
+fn-concat fn-concatint2args-1
+fn-substring fn-substring-1
+fn-substring fn-substring-25
+fn-substring substring-40-001
+fn-string-join fn-string-join-16
+fn-tokenize fn-tokenize-1a
+fn-tokenize fn-tokenize-35
+prod-PathExpr PathExpr-21
+  environment OneTopElement (test set)
+  source . prod/PathExpr/OneTopElement.xml
+prod-PathExpr PathExpr-1
+  environment OneTopElement (test set)
+  source . prod/PathExpr/OneTopElement.xml
+prod-AxisStep Axes001-1
+  environment TreeTrunc (test set)
+  source . prod/AxisStep/TreeTrunc.xml
+prod-AxisStep Axes032-1
+  environment TreeTrunc (test set)
+  source . prod/AxisStep/TreeTrunc.xml
+prod-Predicate filterexpressionhc2
+prod-Predicate K-FilterExpr-24
+prod-Predicate K-FilterExpr-64
+op-bang bang-1
+op-bang bang-7
+  environment works-mod (catalog)
+  source . docs/works-mod.xml
+op-bang bang-13
+  environment works-mod (catalog)
+  source . docs/works-mod.xml
+prod-QuantifiedExpr quantExpr-1
+prod-QuantifiedExpr K-QuantExprWithout-79
+prod-IfExpr K-CondExpr-3
+op-to rangeExpr-1
+op-to K-RangeExpr-17
+op-to RangeExpr-402b
+op-to RangeExpr-408a
+op-to rangeExpr-31
+op-to RangeExpr-411a
+prod-CastExpr casthc1
+prod-CastExpr casthc13
+prod-CastExpr casthc25
+prod-CastExpr casthc31
+prod-CastExpr CastAs009
+prod-CastExpr CastAs021
+prod-CastExpr CastAs072
+prod-CastExpr CastAs090
+prod-CastExpr CastAs234
+prod-CastExpr CastAs510
+prod-CastExpr K-SeqExprCast-379
+prod-CastExpr K-SeqExprCast-656
+prod-CastExpr K-SeqExprCast-932
+prod-CastExpr K2-SeqExprCast-269
+prod-CastableExpr CastableAs008
+prod-CastableExpr CastableAs017
+prod-CastableExpr CastableAs197
+prod-TreatExpr treat-as-1
+prod-TreatExpr treat-as-14
+prod-InstanceofExpr instanceof1
+prod-InstanceofExpr instanceof71
+prod-InstanceofExpr K-SeqExprInstanceOf-6
+prod-InlineFunctionExpr inline-fn-001
+  dependency feature higherOrderFunctions
+prod-InlineFunctionExpr inline-fn-004
+  dependency feature higherOrderFunctions
+prod-InlineFunctionExpr inline-fn-005
+  dependency feature higherOrderFunctions
+prod-InlineFunctionExpr inline-fn-008
+  dependency feature higherOrderFunctions
+prod-InlineFunctionExpr inline-fn-010
+  dependency feature higherOrderFunctions
+prod-InlineFunctionExpr inline-fn-011
+  dependency feature higherOrderFunctions
+prod-InlineFunctionExpr inline-fn-013
+  dependency feature higherOrderFunctions
+prod-InlineFunctionExpr inline-fn-021
+  dependency feature higherOrderFunctions
+prod-InlineFunctionExpr inline-fn-026
+  dependency feature higherOrderFunctions
+prod-InlineFunctionExpr inline-fn-027
+  dependency feature higherOrderFunctions
+prod-InlineFunctionExpr inline-fn-030
+  dependency feature higherOrderFunctions
+prod-NamedFunctionRef function-literal-038
+  dependency feature higherOrderFunctions
+prod-NamedFunctionRef function-literal-044
+  dependency feature higherOrderFunctions
+prod-NamedFunctionRef function-literal-028
+  dependency feature higherOrderFunctions
+prod-DynamicFunctionCall DynamicFunctionCall-009
+prod-DynamicFunctionCall DynamicFunctionCall-143
+prod-DynamicFunctionCall DynamicFunctionCall-146
+prod-ArrowExpr ArrowPostfix-001
+prod-ArrowExpr ArrowPostfix-004
+  dependency feature higherOrderFunctions
+prod-ArrowExpr ArrowPostfix-022
+prod-ArrowExpr ArrowPostfix-108
+prod-ArrowExpr ArrowExpr-407
+fn-partial-apply fn-partial-apply-01
+fn-partial-apply fn-partial-apply-13
+fn-apply fn-apply-01
+  dependency feature higherOrderFunctions
+fn-apply fn-apply-06
+  dependency feature higherOrderFunctions
+fn-function-arity fn-function-arity-019
+  dependency feature higherOrderFunctions
+fn-function-lookup fn-function-lookup-336
+  dependency feature higherOrderFunctions
+misc-HigherOrderFunctions hof-005
+  dependency feature higherOrderFunctions
+misc-HigherOrderFunctions hof-920
+  dependency feature higherOrderFunctions
+misc-HigherOrderFunctions function-item-9
+  dependency feature higherOrderFunctions
+fn-for-each for-each-001
+  dependency feature higherOrderFunctions
+fn-for-each for-each-008
+  dependency feature higherOrderFunctions
+fn-for-each for-each-402
+  dependency feature higherOrderFunctions
+fn-for-each for-each-901
+  dependency feature higherOrderFunctions
+fn-filter filter-001
+  dependency feature higherOrderFunctions
+fn-filter fn-filter-003
+  dependency feature higherOrderFunctions
+fn-filter fn-filter-020
+  dependency feature higherOrderFunctions
+fn-fold-left fold-left-001
+  environment empty (catalog)
+  dependency feature higherOrderFunctions
+fn-fold-left fold-left-005
+  environment empty (catalog)
+  dependency feature higherOrderFunctions
+fn-fold-left fold-left-007
+  environment empty (catalog)
+  dependency feature higherOrderFunctions
+fn-fold-left fold-left-011
+  environment empty (catalog)
+  dependency feature higherOrderFunctions
+fn-fold-right fold-right-001
+  environment empty (catalog)
+  dependency feature higherOrderFunctions
+fn-fold-right fold-right-013
+  environment empty (catalog)
+  dependency feature higherOrderFunctions
+fn-for-each-pair for-each-pair-001
+  dependency feature higherOrderFunctions
+fn-for-each-pair fn-for-each-pair-027
+  dependency feature higherOrderFunctions
+fn-sort fn-sort-10
+fn-sort fn-sort-19
+fn-sort fn-sort-22
+  environment map (catalog)
+  namespace map http://www.w3.org/2005/xpath-functions/map
+  dependency feature higherOrderFunctions
+fn-sort fn-sort-error-1
+prod-MapConstructor MapConstructor-001
+  environment map (catalog)
+  namespace map http://www.w3.org/2005/xpath-functions/map
+prod-MapConstructor MapConstructor-023
+  environment map (catalog)
+  namespace map http://www.w3.org/2005/xpath-functions/map
+prod-MapConstructor MapConstructor-403
+  environment map (catalog)
+  namespace map http://www.w3.org/2005/xpath-functions/map
+map-get map-get-001
+  environment map (catalog)
+  namespace map http://www.w3.org/2005/xpath-functions/map
+map-get map-get-014
+  environment map (catalog)
+  namespace map http://www.w3.org/2005/xpath-functions/map
+map-get map-get-401
+  environment map (catalog)
+  namespace map http://www.w3.org/2005/xpath-functions/map
+map-put map-put-002-hof
+  environment map (catalog)
+  namespace map http://www.w3.org/2005/xpath-functions/map
+  dependency feature higherOrderFunctions
+map-put map-put-008
+  environment map (catalog)
+  namespace map http://www.w3.org/2005/xpath-functions/map
+map-put map-put-019
+  environment map (catalog)
+  namespace map http://www.w3.org/2005/xpath-functions/map
+map-merge map-merge-001
+  environment map (catalog)
+  namespace map http://www.w3.org/2005/xpath-functions/map
+map-merge map-merge-006e
+  environment map (catalog)
+  namespace map http://www.w3.org/2005/xpath-functions/map
+map-merge map-merge-401
+  environment map (catalog)
+  namespace map http://www.w3.org/2005/xpath-functions/map
+map-keys map-keys-008
+  environment map (catalog)
+  namespace map http://www.w3.org/2005/xpath-functions/map
+map-for-each map-for-each-013
+  environment map (catalog)
+  namespace map http://www.w3.org/2005/xpath-functions/map
+  dependency feature higherOrderFunctions
+map-contains map-contains-014
+  environment map (catalog)
+  namespace map http://www.w3.org/2005/xpath-functions/map
+map-size map-size-009
+  environment map (catalog)
+  namespace map http://www.w3.org/2005/xpath-functions/map
+map-entry map-entry-004
+  environment map (catalog)
+  namespace map http://www.w3.org/2005/xpath-functions/map
+prod-Lookup Lookup-001
+prod-Lookup Lookup-028
+prod-Lookup Lookup-159
+prod-Lookup Lookup-225
+prod-UnaryLookup UnaryLookup-001
+prod-UnaryLookup UnaryLookup-023
+prod-SquareArrayConstructor SquareArray-001
+prod-SquareArrayConstructor SquareArray-003
+  environment array (catalog)
+  namespace array http://www.w3.org/2005/xpath-functions/array
+prod-CurlyArrayConstructor CurlyArray-004
+  environment array (catalog)
+  namespace array http://www.w3.org/2005/xpath-functions/array
+array-get array-get-001
+  environment array (catalog)
+  namespace array http://www.w3.org/2005/xpath-functions/array
+array-get array-get-009
+  environment array (catalog)
+  namespace array http://www.w3.org/2005/xpath-functions/array
+array-get array-get-406
+array-append array-append-105
+  environment array (catalog)
+  namespace array http://www.w3.org/2005/xpath-functions/array
+array-flatten array-flatten-001
+  environment array (catalog)
+  namespace array http://www.w3.org/2005/xpath-functions/array
+array-flatten array-flatten-004
+  environment array (catalog)
+  namespace array http://www.w3.org/2005/xpath-functions/array
+array-fold-left array-fold-left-101
+  environment array (catalog)
+  namespace array http://www.w3.org/2005/xpath-functions/array
+  dependency feature higherOrderFunctions
+array-for-each array-for-each-008
+  environment array (catalog)
+  namespace array http://www.w3.org/2005/xpath-functions/array
+  dependency feature higherOrderFunctions
+  dependency feature higherOrderFunctions
+array-sort array-sort-012a
+  environment array (catalog)
+  namespace array http://www.w3.org/2005/xpath-functions/array
+  dependency feature higherOrderFunctions
+array-size array-size-004
+  environment array (catalog)
+  namespace array http://www.w3.org/2005/xpath-functions/array
+array-put array-put-001
+  environment array (catalog)
+  namespace array http://www.w3.org/2005/xpath-functions/array
+array-put array-put-006
+  environment array (catalog)
+  namespace array http://www.w3.org/2005/xpath-functions/array
+array-subarray array-subarray-312
+  environment array (catalog)
+  namespace array http://www.w3.org/2005/xpath-functions/array
+fn-parse-json fn-parse-json-001
+fn-parse-json fn-parse-json-017
+fn-parse-json fn-parse-json-021
+fn-parse-json fn-parse-json-023
+fn-parse-json fn-parse-json-034
+fn-parse-json fn-parse-json-040
+fn-parse-json fn-parse-json-050
+fn-parse-json fn-parse-json-052
+fn-parse-json fn-parse-json-709
+fn-parse-json fn-parse-json-740
+fn-parse-json fn-parse-json-908
+fn-parse-json fn-parse-json-934
+fn-json-to-xml fn-json-to-xml-empty
+fn-json-to-xml json-to-xml-error-033
+fn-xml-to-json xml-to-json-012
+fn-xml-to-json xml-to-json-015
+fn-xml-to-json xml-to-json-017
+fn-xml-to-json xml-to-json-403
+op-is-same-node nodeexpression12
+  environment works-and-staff (catalog)
+  source $works docs/works.xml
+  source $staff docs/staff.xml
+op-node-before nodeexpression28
+  environment works-and-staff (catalog)
+  source $works docs/works.xml
+  source $staff docs/staff.xml
+op-node-after nodeexpression44
+  environment works-and-staff (catalog)
+  source $works docs/works.xml
+  source $staff docs/staff.xml
+op-union fn-union-node-args-002
+  environment bib2 (test set)
+  source . op/union/bib2.xml
+op-union op-union-406
+op-union K2-SeqUnion-5
+op-intersect K2-SeqIntersect-48
+  environment bib2 (test set)
+  source . op/union/bib2.xml
+op-except fn-except-node-args-001
+  environment bib2 (test set)
+  source . op/union/bib2.xml
+fn-distinct-ordered-nodes d-o-n-004
+fn-distinct-ordered-nodes d-o-n-005
+fn-distinct-ordered-nodes d-o-n-007
+fn-doc fn-doc-6
+  environment works-and-staff-uri (test set)
+  source - docs/works.xml uri http://www.w3.org/fots/docs/works.xml
+  source - docs/staff.xml uri http://www.w3.org/fots/docs/staff.xml
+  param works select 'http://www.w3.org/fots/docs/works.xml' as xs:string
+  param staff select 'http://www.w3.org/fots/docs/staff.xml' as xs:string
+fn-parse-xml parse-xml-012
+  environment (inline)
+fn-parse-xml parse-xml-014
+  environment (inline)
+fn-root fn-root-29
+fn-deep-equal deep-equal-40-comments-001
+fn-error fn-error-1
+fn-error fn-error-20
+fn-error cbcl-error-017
+198 test cases: 198 applicable, 0 skipped

@@ -1,0 +1,2 @@
+sxml-qt4 list: list.txt:6: unknown test set 'no-such-set'
+sxml-qt4 list: list.txt:7: unknown test case 'no-such-case'

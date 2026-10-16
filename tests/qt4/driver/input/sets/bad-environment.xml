@@ -1,0 +1,11 @@
+<test-set xmlns="http://www.w3.org/2010/09/qt-fots-catalog" name="set-bad-environment">
+   <test-case name="bad-environment-1">
+      <environment ref="no-such-environment"/>
+      <test>1</test>
+      <result><assert-eq>1</assert-eq></result>
+   </test-case>
+   <test-case name="bad-environment-2">
+      <test>2</test>
+      <result><assert-eq>2</assert-eq></result>
+   </test-case>
+</test-set>

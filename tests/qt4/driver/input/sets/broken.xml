@@ -1,0 +1,3 @@
+<test-set xmlns="http://www.w3.org/2010/09/qt-fots-catalog" name="set-broken">
+   <test-case name="broken-1">
+</test-set>

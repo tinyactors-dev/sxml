@@ -1,0 +1,14 @@
+sxml-qt4 - the W3C QT4 test-suite driver of sxml (a developer tool)
+
+Usage: sxml-qt4 [--version] COMMAND [ARGUMENT...]
+
+Commands:
+  help  Show help for the program or for one command
+  list  List test cases with their environments and applicability
+
+Options:
+  -h, --help     Show this help and exit
+      --version  Print the version and exit
+
+Run 'sxml-qt4 help COMMAND' for help on one command.
+Report bugs at https://github.com/dhamidi/sxml/issues
