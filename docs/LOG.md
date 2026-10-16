@@ -4,6 +4,17 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 0.8 done (review agent, D11): rubric run over all ten headers. Fixed:
+  wildcard name tests in node tests; lookup of namespace URIs without
+  interning; fn:empty on lazy sequences no longer swallows errors
+  (`sxml_sequence_test_emptiness`); coercion is the caller's in dynamic
+  calls; computed error descriptions and values kept by the item heap
+  (`sxml_item_heap_raise_error`, D41); duplicate attribute policy for XQuery
+  versus XSLT builders; ownership verbs, iterator ABI and comment wrapping
+  (D43). libmpdec hooks confirmed process-global; scoped thread-local
+  allocator decided (D42). D3 (Phase 0 time box) recorded, D4-D10 confirmed.
+  6/6 suites pass under `debug`, `debug-gcc`, `wasm`; lint clean; CI green.
+  Phase 0 gate passed by agent review.
 - 0.7 done: substrate headers `name.h` (name pool, D31), `types.h` (type
   registry with constant built-in identifiers, interned item types, sequence
   types, D32), `tree.h` (tree interface with preorder node numbering,
@@ -64,3 +75,35 @@ One short entry per week, newest first: what passed, what's next, what is blocke
   lists 198 XP40 tests, checked by `tools/check-test-list.py`.
 - Repository bootstrapped with plan, guidelines, glossary and decisions.
 - Next: Phase 0 tasks 0.1–0.4.
+
+## Open questions at the Phase 0 gate (task 0.8)
+
+Questions the review left open, for the owner or a later phase. None blocks
+Phase 1.
+
+1. **Thread-local scope for libmpdec (D42).** It keeps heaps independent and
+   leaves no state between calls, but it is the one thread-local in sxml.
+   Accept it, or require the own-decimal fallback?
+2. **Phase 0 time box (D3).** Recorded by the review agent because the
+   original D3 was never written; the owner may want another length.
+3. **Typed values (from 0.7).** Kept as one optional `get_typed_value`
+   operation in `sxml_tree_operations`. Phase 5 publishes a separate schema
+   interface only if validated trees need more than typed values and the
+   `is_id`/`is_idrefs`/`is_nilled` flags; "interfaces are not extended in
+   place" applies.
+4. **Inline decimals (from 0.7).** Not added: integers that fit `int64_t`
+   are inline already (D36); a scaled-integer fast path for short decimals
+   can be a later cell format without an interface change.
+5. **Sharing one parsed document between threads (D35).** Still deferred;
+   the likely shape is an immortal, frozen tree with a read-only name pool.
+6. **Error record lifetime for host bindings (from 0.5).** Kept as borrowed
+   views (D21, D41); bindings copy what they keep.
+7. **Strings without a copy.** `sxml_atomic_item_make` copies text, so
+   `fn:substring` and string concatenation cannot share or adopt a buffer.
+   If profiling in Phase 2 shows the cost, add a constructor that adopts a
+   heap buffer, with a decision record (the substrate is frozen at the
+   Phase 1 gate).
+8. **Schema-derived atomic types (Phase 5).** The registry has no function
+   to register them yet; it will be a new function, with a record.
+9. **Document and collection resolution (D30).** Designed with the dynamic
+   context in Phase 1, outside the substrate headers.

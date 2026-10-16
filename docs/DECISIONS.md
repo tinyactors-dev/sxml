@@ -13,16 +13,33 @@ Portable C17 with C23 features behind macros, following `docs/C_GUIDELINES.md`.
 Chosen for the widest linking reach (every platform and language can call C).
 Memory-safety risk is mitigated by sanitizers, fuzzing and checked arithmetic.
 
+### D3. Phase 0 time box
+Recorded 2026-10-16 at the Phase 0 gate review. The original file skipped
+D3 (no commit ever used the number); the plan's risk table names a
+"Time-boxed Phase 0" without a length, so this record fills it. Phase 0 is
+time-boxed to two weeks from its start (2026-10-16 to 2026-10-30). When the
+box ends, open design questions are written down as decision records or
+"Proposed" items and design stops; they are not a reason to extend Phase 0.
+Phase 0 closed on its first day, well inside the box.
+
 ### D4. License: MIT
+Confirmed at the Phase 0 gate (2026-10-16). Vendored code is compatible:
+tree-sitter (MIT, D12, D15), the W3C test suites (test data only, D13),
+mpdecimal (BSD-2-Clause, D8, D42).
 
 ### D5. Build on an existing engine?
 Start from scratch in C. Study Xee (Rust, MIT, https://github.com/Paligo/xee)
 closely: it implements most of XPath 3.1 with one IR and bytecode interpreter
 shared by XPath and XSLT, the same architecture as this plan.
+Confirmed at the Phase 0 gate: the substrate keeps the IR out of the value
+model (function bodies are an interface, D38), and parsing uses tree-sitter
+(D12) rather than a hand-written parser.
 
 ### D6. String representation
 UTF-8, with a per-string flag for ASCII-only content so codepoint indexing is
 O(1) in the common case. Codepoint count cached on first use.
+Confirmed at the Phase 0 gate, refined by D25: count and flag are computed
+when the string is validated, not cached later.
 
 ### D7. Ordered maps (XDM 4.0)
 XDM 4.0 maps keep insertion order. Design after Saxon 13 (Michael Kay,
@@ -32,20 +49,31 @@ XDM 4.0 maps keep insertion order. Design after Saxon 13 (Michael Kay,
 - a separate persistent layer for later `map:put` / `map:remove`;
 - shared key "shapes" for records;
 - entries addressable by position, needed for JNode sibling navigation.
+Confirmed at the Phase 0 gate; the design is in D37. The 2026 drafts
+dropped extensible record types (`record(a, *)`) and optional field markers
+(`a?`); a field whose type allows the empty sequence may be absent from a
+map that matches, and coercion fills it, so record cells hold every field.
 
 ### D8. Decimal arithmetic
 libmpdec (mpdecimal, BSD-2-Clause). Check whether its allocator hooks are
 process-global; if so, wrap it so the no-global-state rule holds.
+Checked at the Phase 0 gate: they are process-global, so the wrapping is
+decided in D42. D36 uses libmpdec for integers beyond `int64_t` too.
 
 ### D9. Regular expressions
 Own engine for the XSD/XPath regex dialect, designed after Saxon HE's engine
 (regexml is a Rust port that shows the approach). Check the license of any
 source before porting code.
+Confirmed at the Phase 0 gate, unchanged; it is a Phase 2 packet (PLAN.md,
+risks) and needs no substrate support beyond `sxml_string`.
 
 ### D10. WebAssembly toolchain
 WASI SDK producing a standalone module, wrapped by a small hand-written
 TypeScript package. The core does no I/O of its own, so Emscripten's
 JavaScript system emulation is not needed.
+Confirmed at the Phase 0 gate: the `wasm` preset builds with WASI SDK 34
+and runs the tests under Node.js (D14, D18). The TypeScript package arrives
+with the first public API (Phase 1 onwards).
 
 ### D11. Phase gates closed by agent review
 Recorded 2026-10-16. The project owner chose, when asked, that work proceeds
@@ -191,6 +219,9 @@ XQuery catch clause binds: `$err:code`, `$err:description`, `$err:value`,
 - `SXML_STATUS_STATIC_ERROR`, `_DYNAMIC_ERROR`, `_TYPE_ERROR` mean "details
   in the error record" (`sxml_status_has_error_record`); every other status
   is a condition of the C interface.
+- Amended by D41: computed descriptions and values are kept by the item
+  heap, which a native function body can reach, rather than by "the object
+  that raised the error", which a body does not have.
 
 ### D22. The allocator interface has no reallocate
 Recorded 2026-10-16 (task 0.5). `sxml_allocator_operations` has `allocate`
@@ -516,3 +547,65 @@ arena tree stores nodes in index-addressed arrays and text in one store
 (D24), shares in-scope namespace lists between elements that declare
 nothing, keeps source locations on request, and enforces node-count, depth
 and text-size limits for untrusted input.
+
+### D41. Raised errors are kept by the item heap
+Recorded 2026-10-16 (task 0.8, header review). An error record holds
+borrowed views (D21), but fn:error and other native function bodies have no
+object of their own that outlives the call to keep a computed description
+or `$err:value` in. `sxml_item_heap_raise_error` copies the code,
+description and source name into the heap and retains the value; the record
+points there until the next error raised on that heap,
+`sxml_item_heap_clear_raised_error`, or finalization. One raised error per
+heap is enough: a catch clause retains `$err:value` (and makes its
+description an item) before evaluating anything else, and an error that
+propagates is the latest one. The function returns the error status itself
+so bodies can `return` it. A lazy sequence that must report its error again
+keeps its own copy and raises it again.
+
+### D42. libmpdec allocation through a scoped allocator
+Recorded 2026-10-16 (task 0.8), completing D8. Checked in mpdecimal 2.5.1
+(`mpalloc.c`, as bundled by CPython 3.12): `mpd_mallocfunc`,
+`mpd_callocfunc`, `mpd_reallocfunc` and `mpd_free` are process-global
+function pointers without a state argument, `MPD_MINALLOC` and
+`mpd_traphandler` are globals too, and the internal resize path
+(`mpd_qresize`; about 90 allocation call sites in `mpdecimal.c` alone)
+receives no context. Chosen, for the decimal packet of Phase 2:
+- Vendor libmpdec (mpdecimal 4.0.x, pinned like D15) under
+  `third_party/mpdecimal/`. Patch only `mpalloc.c` and the matching
+  declarations: the four hooks become fixed functions that allocate through
+  the `sxml_allocator` of the current decimal scope.
+- The scope is one thread-local pointer, set by sxml's decimal module on
+  entry to every operation that may allocate and restored before it returns
+  (so nesting works); it holds the item heap's allocator. Every block
+  starts with a header naming its allocator, so free and resize never
+  depend on the scope. No state survives between library calls, two heaps
+  on two threads never share it, and nothing is visible to the host: the
+  no-global-state rule holds in effect. This thread-local is the only one
+  in sxml and is documented at its definition.
+- sxml never calls `mpd_setminalloc` and runs contexts with no traps, so
+  the other globals stay constant and `mpd_traphandler` is never called.
+- Rejected: threading an allocator through every allocation site (a large,
+  permanent patch against upstream), and a process-wide hook (breaks heap
+  independence, D35). Fallback if the patch or the WebAssembly size budget
+  fails: an own decimal module (add, subtract, multiply, divide with the
+  precision rules of F&O 4.0), behind the same cell format.
+
+### D43. Header review findings (task 0.8)
+Recorded 2026-10-16. Changes made by the Phase 0 review agent (D11):
+- `types.h`: node tests carry an `sxml_name_test` (any name, expanded name,
+  `prefix:*`/`Q{uri}*`, `*:local`), because XPath 4.0 element and attribute
+  tests take a NameTestUnion with wildcards (`element(p:*)`); the same
+  struct serves path steps.
+- `name.h`: `sxml_name_pool_find_namespace_uri`, so a name from untrusted
+  input can be looked up without interning its namespace URI.
+- `xdm.h`: `sxml_sequence_test_emptiness` replaces a `bool` predicate that
+  swallowed generator errors (fn:empty on a lazy sequence must raise them);
+  `sxml_function_item_call` does not coerce arguments, the evaluator does
+  (coercion needs casting and function coercion); the borrowed-output verbs
+  are get, describe, find and iterator next; iterator sizes are ABI.
+- `tree.h`: `sxml_duplicate_attribute_policy` in the arena tree
+  configuration (XQuery rejects with XQDY0025, XSLT 4.0 section 5.7.1
+  replaces); builder errors use XQuery codes and XSLT rewrites them; the
+  event order is the caller's contract (XQTY0024 and XTDE0410 are checked
+  by the evaluators, well-formedness by the XML parser).
+- `status.h` and `xdm.h`: D41.

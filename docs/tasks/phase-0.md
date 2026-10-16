@@ -38,7 +38,7 @@ Do the tasks in order. Finish each with a commit and a short entry in
     (`tree_identifier` + `node_index`), document order across trees.
   Each object type follows the lifecycle rules: requirements query,
   `initialize`/`finalize`, `create`/`destroy`.
-- [ ] **0.8 Header self-review.** Run the review rubric from
+- [x] **0.8 Header self-review.** Run the review rubric from
   `docs/C_GUIDELINES.md` over every header and fix findings. List open
   questions at the end of `docs/LOG.md`.
 - [x] **0.9 Torture slice selection.** Choose 100–200 tests from the W3C QT4
@@ -48,8 +48,9 @@ Do the tasks in order. Finish each with a commit and a short entry in
 
 ## Gate
 
-- [ ] Human review of all headers in `include/sxml/` completed.
-- [ ] CI green on all platforms.
-- [ ] Decisions D3–D10 in `docs/DECISIONS.md` confirmed or revised.
+- [x] Human review of all headers in `include/sxml/` completed (agent review, D11, D43).
+- [x] CI green on all platforms (agent review: run 12 on `b238ec8`; local `debug`, `debug-gcc`, `wasm` after 0.8).
+- [x] Decisions D3–D10 in `docs/DECISIONS.md` confirmed or revised (agent review: D3 recorded, D8 completed by D42).
 
-Only after every gate box is ticked by a human does Phase 1 begin.
+Only after every gate box is ticked by a human does Phase 1 begin. Per D11,
+boxes marked "(agent review)" were ticked by the review agent instead.
