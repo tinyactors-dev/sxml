@@ -310,6 +310,8 @@ After 1.3, 1.14, the CLI framework (D44). Owns `tests/qt4/driver/`. Golden:
 XP40 spec and dependency filtering (`docs/QT4_CATALOG.md`); environments
 (sources, params, static base URI); runs a list file or `--test-set=NAME`.
 Done when it resolves the 198 slice cases natively and on `wasm`.
+**Done** 2026-10-16 (D83): `sxml-qt4 list`; 198/198 resolve under `debug`,
+`debug-gcc` and `wasm`; P8 (quadratic XML positions) proposed.
 
 ### 1.25 QT4 driver: assertions and reports (implementation)
 After 1.23, 1.24. Owns `tests/qt4/driver/assertion.c`, `report.c` and, from
