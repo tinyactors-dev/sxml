@@ -4,6 +4,15 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 1.11 done (D67): trees. `src/tree.c` (wrapper, reference count and
+  owner, namespace nodes on demand, document order, iterative
+  `copy_node`), `src/tree_axis.c` (all 17 axes incl. -or-self),
+  `src/arena_tree.c` (node segments, text store, text merging, duplicate
+  attribute policies with a hash index, namespace fixup, limits,
+  locations, unparsed entities, self-destruction). Node items now retain
+  their tree (1.7 hand-off). 27 cases in `tests/tree_test.c` (64-row axis
+  table) and `tests/arena_tree_test.c`; `debug`, `debug-gcc`, `wasm`:
+  55/55; lint clean. Open: P6 (no-inherit copies).
 - 1.15 done (D66): `src/cast.c`, `src/cast_lexical.c`,
   `src/cast_internal.h`: the F&O 4.0 casting table, lexical forms of every
   primitive type, canonical text (XPath rules for xs:double/xs:float,
