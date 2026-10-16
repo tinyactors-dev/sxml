@@ -784,4 +784,27 @@ Recorded 2026-10-16, completing D47. Headers: `xml.h` (needs `tree.h`) <
   collations, default language, fn:trace output, cancellation, a seed for
   fn:random-number-generator.
 
+### D52. The abstract syntax tree (packet 1.4)
+Recorded 2026-10-16. `src/xpath_ast_internal.h`, internal. One node kind
+per visible production of `grammars/xpath` (D29), except `comment`, and
+`axis` and `occurrence_indicator`, which only hold a token and become their
+parent's detail; anonymous field tokens (operator, quantifier,
+abbreviation) become detail or flags. Children are linked in source order
+and tagged with their grammar field, so lists are "children with field F"
+and code finds children by field, never by position: XQuery and pattern
+grammars, which add node types and add fields to four XPath types, only
+append to the kind and field enumerations. Nodes and decoded text live in
+two fixed-capacity arrays (D24) sized from the concrete syntax tree (its
+node count bounds the AST nodes, the source byte count bounds decoded
+text), so building never grows; index 0 means "no node". Names are kept as
+written (prefix, local name, braced URI); string literals and template
+parts are unescaped and numeric literals lose `_` and `0x`/`0b`, while
+lowering makes the atomic items. Each node has a source span (byte offset
+and count, line, column in codepoints). Front-end entry points
+`sxml_xpath_build_ast` and `sxml_xpath_build_sequence_type_ast` are
+declared there and defined by packet 1.16 in `src/xpath_parse.c`; the
+lifecycle and builder functions go in `src/xpath_ast.c`, also written by
+1.16 (the AST module's only producer in Phase 1). Identifiers use the
+module prefix `sxml_ast_`, since XQuery and patterns share the tree.
+
 ## Proposed
