@@ -727,4 +727,61 @@ maps it to a specification error (for example `fn:doc` and FODC0002) does
 so itself. Rejected: reusing `SXML_STATUS_INVALID_ARGUMENT`, which blames
 the caller for a platform failure.
 
+### D51. The Phase 1 public API (packet 1.3)
+Recorded 2026-10-16, completing D47. Headers: `xml.h` (needs `tree.h`) <
+`processor.h` (`xdm.h`, `xml.h`) < `xpath.h`; `serialize.h` needs only
+`xdm.h` (it serializes from an item heap).
+- **XML parser**: a reusable object (allocator, name pool,
+  `sxml_xml_limits`: depth, entity expansion bytes) that parses a whole
+  document in memory into any `sxml_tree_builder`, or only checks it
+  (`sxml check`). Failures are interface statuses (`MALFORMED_INPUT`,
+  `INVALID_UTF8`, `UNSUPPORTED_FEATURE` for other encodings,
+  `LIMIT_EXCEEDED`) with a diagnostic naming the failed production or WFC:
+  well-formedness errors have no QName codes; fn:doc and fn:parse-xml turn
+  them into FODC0002 and FODC0006. Nothing outside the input is read.
+- **Processor**: pool, registry and heap in its memory, one allocator for
+  everything, one limits struct, a resource resolver and a clock;
+  `sxml_processor_parse_document` gives an owned document node whose arena
+  tree destroys itself when unreferenced.
+- **Resource resolver**: one `resolve` operation with an
+  `sxml_resource_kind` (only `XML_DOCUMENT` now; text, XQuery modules and
+  XSLT stylesheet modules later), after Saxon's ResourceResolver, so later
+  phases add kinds instead of publishing new interfaces. It answers bytes
+  (sxml parses them with the processor's limits), a document node, or
+  none. "Not available" (a missing file, a refused URI, a failed read) is
+  `SXML_RESOURCE_FORM_NONE`, which fn:doc raises as FODC0002; a failure
+  status (D50 included) stops the evaluation. The null resolver makes
+  nothing available (the library does no I/O); the default implementation
+  and test double is `sxml_table_resource_resolver` over in-memory entries.
+- **Clock**: read at most once per evaluation, so fn:current-dateTime is
+  stable; `sxml_system_clock` (C17 `timespec_get`, implicit timezone UTC)
+  and `sxml_fixed_clock`.
+- **Contexts**: `sxml_static_context_configuration` and
+  `sxml_dynamic_context_configuration` are plain structs embedded by value
+  in requests; zero means the default context. XQuery and XSLT reuse them.
+  Names are name pool identifiers and types registry identifiers, as in the
+  substrate. External variables are declared with a type and bound by name
+  (coerced, XPTY0004; unbound XPDY0002); the context value is a sequence
+  (XPath 4.0) with a presence flag; available documents make `fn:doc(uri)`
+  the very node bound elsewhere (QT4 sources with a `uri`). A namespace
+  binding with prefix 0 is the default namespace for elements and types.
+- **Expressions**: `sxml_xpath_expression` follows the lifecycle quintet;
+  initialize compiles. The compiled form is allocated from the processor
+  and counted, so inline function items in a result outlive the expression
+  (D38). Results are complete: nothing lazy that can fail later.
+  Evaluations may nest. `sxml_xpath_parse_sequence_type` turns declared
+  types given as text (279 QT4 `param ... as=`) into sequence types.
+- **Serialization**: `sxml_output_stream` (one `write`, which returns D50's
+  status when the platform refuses), the `sxml_output_buffer` as default
+  and test double, and `sxml_serialize_sequence` with the adaptive method;
+  the method enum and parameters struct grow in Phase 3.
+- **Limits**: 0 means no bound, except `maximum_expression_depth` and
+  `maximum_evaluation_depth`, where 0 means sxml's default: no bound would
+  mean a C stack overflow.
+- Left out until needed, each a new field that designated initializers
+  keep source-compatible: host extension functions in the static context
+  (meanwhile a function item bound to a variable), decimal formats,
+  collations, default language, fn:trace output, cancellation, a seed for
+  fn:random-number-generator.
+
 ## Proposed
