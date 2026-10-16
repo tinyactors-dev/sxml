@@ -23,6 +23,7 @@
 #include "sxml/xdm.h"
 #include "sxml/xml.h"
 #include "test_runner.h"
+#include "xml_internal.h"
 
 #include <stdalign.h>
 #include <stdio.h>
@@ -761,7 +762,10 @@ static void test_limits_bound_the_work(sxml_test_state *state) {
 
 /* Deep documents and long entity chains need no C stack (D81). */
 static void test_deep_input_is_walked_iteratively(sxml_test_state *state) {
-    enum { SXML_TEST_DEPTH = 100000, SXML_TEST_CHAIN = 2000 };
+    /* 30000 levels: far beyond what a recursive walk survives on an 8 MB
+       stack under the sanitizers, and linear time since the cursor depth
+       is kept (100000 took 6 s under ASan for no more coverage). */
+    enum { SXML_TEST_DEPTH = 30000, SXML_TEST_CHAIN = 2000 };
     const sxml_allocator allocator = sxml_default_allocator();
     void *memory = NULL;
     SXML_TEST_REQUIRE(
@@ -984,6 +988,107 @@ static void test_empty_tokenized_values(sxml_test_state *state) {
                "D<a @{http://www.w3.org/XML/1998/namespace}id=!id</>/D");
 }
 
+/* A position asked after a later one is the position a fresh walk gives
+   (P8): every pair of offsets, over line ends of each kind, a byte order
+   mark and characters of each UTF-8 length (XML 1.0, section 2.11). */
+static void test_positions_move_back(sxml_test_state *state) {
+    static const uint8_t text[] = "\xEF\xBB\xBF<a\r\n b='\xC3\xA9'\r"
+                                  "c='\xF0\x9F\x98\x80'\n\n>x\xE2\x82\xAC\r\r</a>";
+    const sxml_byte_view view = {.bytes = text, .byte_count = sizeof text - 1};
+    static const sxml_xml_encoding encodings[] = {
+        SXML_XML_ENCODING_UTF8, SXML_XML_ENCODING_UTF16_LITTLE_ENDIAN};
+    for (size_t encoding_index = 0; encoding_index < 2; encoding_index++) {
+        const sxml_xml_position_tracker_configuration configuration = {
+            .text = view,
+            .input_encoding = encodings[encoding_index],
+            .has_byte_order_mark = true};
+        for (size_t first = 0; first <= view.byte_count; first++) {
+            for (size_t second = 0; second <= view.byte_count; second++) {
+                sxml_xml_position_tracker moved =
+                    sxml_xml_position_tracker_start(configuration);
+                (void)sxml_xml_position_tracker_locate(&moved, first);
+                const sxml_xml_position after_move =
+                    sxml_xml_position_tracker_locate(&moved, second);
+                sxml_xml_position_tracker fresh =
+                    sxml_xml_position_tracker_start(configuration);
+                const sxml_xml_position expected =
+                    sxml_xml_position_tracker_locate(&fresh, second);
+                SXML_TEST_EXPECT(
+                    state,
+                    after_move.line_number == expected.line_number &&
+                        after_move.column_number == expected.column_number &&
+                        after_move.input_byte_offset ==
+                            expected.input_byte_offset);
+                /* The tracker goes on from there as a fresh one does. */
+                const sxml_xml_position at_end =
+                    sxml_xml_position_tracker_locate(&moved, view.byte_count);
+                const sxml_xml_position expected_end =
+                    sxml_xml_position_tracker_locate(&fresh, view.byte_count);
+                SXML_TEST_EXPECT(
+                    state, at_end.line_number == expected_end.line_number &&
+                               at_end.column_number ==
+                                   expected_end.column_number &&
+                               at_end.input_byte_offset ==
+                                   expected_end.input_byte_offset);
+            }
+        }
+    }
+}
+
+/* Parsing time grows linearly with the document (D87): 10000 elements
+   with attributes on lines of their own, about 400 KB, in well under a
+   second; when every element's position restarted from the beginning
+   (P8) this walked 2 GB and took minutes under the sanitizers. No clock
+   is read (WASI has none for the process); a regression shows as a test
+   that runs into the ctest timeout. */
+static void test_large_documents_parse_in_linear_time(sxml_test_state *state) {
+    enum { SXML_TEST_ELEMENT_COUNT = 10000, SXML_TEST_ITEM_BYTE_COUNT = 64 };
+    const sxml_allocator allocator = sxml_default_allocator();
+    void *memory = NULL;
+    const size_t capacity =
+        (size_t)SXML_TEST_ELEMENT_COUNT * SXML_TEST_ITEM_BYTE_COUNT + 64;
+    SXML_TEST_REQUIRE(
+        state, sxml_allocator_allocate(
+                   allocator,
+                   (sxml_allocation_request){.byte_count = capacity,
+                                             .alignment = 1},
+                   &memory) == SXML_STATUS_OK);
+    char *text = memory;
+    size_t byte_count = (size_t)snprintf(text, 64, "<root>\n");
+    for (int item_index = 0; item_index < SXML_TEST_ELEMENT_COUNT;
+         item_index++) {
+        byte_count += (size_t)snprintf(
+            text + byte_count, SXML_TEST_ITEM_BYTE_COUNT,
+            "<item id='i%d'\n  kind=\"k\">t\xC3\xA9xt %d</item>\n",
+            item_index, item_index);
+    }
+    byte_count += (size_t)snprintf(text + byte_count, 64, "</root>");
+    parser_fixture fixture;
+    SXML_TEST_REQUIRE(state,
+                      fixture_create(&fixture, no_limits) == SXML_STATUS_OK);
+    sxml_diagnostic diagnostic = empty_diagnostic();
+    const sxml_xml_parse_request request =
+        request_for((sxml_byte_view){.bytes = (const uint8_t *)text,
+                                     .byte_count = byte_count},
+                    &diagnostic);
+    event_log log = {.name_pool = fixture.name_pool,
+                     .text = "",
+                     .byte_count = 0,
+                     .element_location = diagnostic.location};
+    SXML_TEST_EXPECT(state,
+                     sxml_xml_parser_parse(
+                         fixture.parser, &request,
+                         (sxml_tree_builder){.state = &log,
+                                             .operations = &log_operations}) ==
+                         SXML_STATUS_OK);
+    /* The last item starts on line 2 + 2 * (count - 1). */
+    SXML_TEST_EXPECT(state, log.element_location.line_number ==
+                                2 + 2 * (SXML_TEST_ELEMENT_COUNT - 1));
+    SXML_TEST_EXPECT(state, log.element_location.column_number == 1);
+    sxml_allocator_release(allocator, memory);
+    fixture_destroy(&fixture);
+}
+
 static const sxml_test_case xml_test_cases[] = {
     {.name = "parser_lifecycle", .function = test_parser_lifecycle},
     {.name = "events_follow_the_document",
@@ -1008,6 +1113,9 @@ static const sxml_test_case xml_test_cases[] = {
     {.name = "parsing_survives_every_allocation_failure",
      .function = test_parsing_survives_every_allocation_failure},
     {.name = "empty_tokenized_values", .function = test_empty_tokenized_values},
+    {.name = "positions_move_back", .function = test_positions_move_back},
+    {.name = "large_documents_parse_in_linear_time",
+     .function = test_large_documents_parse_in_linear_time},
 };
 
 int main(int argument_count, char **arguments) {

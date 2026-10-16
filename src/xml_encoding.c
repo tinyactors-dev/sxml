@@ -585,6 +585,64 @@ static size_t sxml_xml_input_byte_count(sxml_xml_encoding encoding,
     return 1;
 }
 
+/*
+ * Moves the tracker back to text_offset, which lies between the start of
+ * the text and the tracker, undoing what the forward walk counted: the
+ * parser asks for an element's position after its attributes' (P8), and a
+ * restart from the beginning there made every parse quadratic. Costs the
+ * distance moved, plus the start of the line when a line end is crossed.
+ */
+static void
+sxml_xml_position_tracker_move_back(sxml_xml_position_tracker *tracker,
+                                    size_t text_offset) {
+    const uint8_t *bytes = tracker->text.bytes;
+    bool crosses_line_end = false;
+    for (size_t byte_offset = text_offset; byte_offset < tracker->text_offset;
+         byte_offset++) {
+        const uint8_t byte = bytes[byte_offset];
+        if ((byte & 0xC0) == 0x80) {
+            continue;
+        }
+        tracker->input_offset -=
+            sxml_xml_input_byte_count(tracker->input_encoding, byte);
+        /* XML 1.0, section 2.11: the LF of CR LF ended no line of its own. */
+        if (byte == '\r') {
+            tracker->line_number -= 1;
+            crosses_line_end = true;
+        } else if (byte == '\n') {
+            const bool follows_carriage_return =
+                byte_offset > tracker->text_start_offset &&
+                bytes[byte_offset - 1] == '\r';
+            if (!follows_carriage_return) {
+                tracker->line_number -= 1;
+            }
+            crosses_line_end = true;
+        } else {
+            tracker->column_number -= 1;
+        }
+    }
+    if (crosses_line_end) {
+        /* The column counts the codepoints since the last line end. */
+        size_t line_start = text_offset;
+        while (line_start > tracker->text_start_offset &&
+               bytes[line_start - 1] != '\r' &&
+               bytes[line_start - 1] != '\n') {
+            line_start -= 1;
+        }
+        tracker->column_number = 1;
+        for (size_t byte_offset = line_start; byte_offset < text_offset;
+             byte_offset++) {
+            if ((bytes[byte_offset] & 0xC0) != 0x80) {
+                tracker->column_number += 1;
+            }
+        }
+    }
+    tracker->follows_carriage_return =
+        text_offset > tracker->text_start_offset &&
+        bytes[text_offset - 1] == '\r';
+    tracker->text_offset = text_offset;
+}
+
 sxml_xml_position
 sxml_xml_position_tracker_locate(sxml_xml_position_tracker *tracker,
                                  size_t text_offset) {
@@ -593,11 +651,18 @@ sxml_xml_position_tracker_locate(sxml_xml_position_tracker *tracker,
             .line_number = 1, .column_number = 1, .input_byte_offset = 0};
     }
     if (text_offset < tracker->text_offset) {
-        *tracker = sxml_xml_position_tracker_start(
-            (sxml_xml_position_tracker_configuration){
-                .text = tracker->text,
-                .input_encoding = tracker->input_encoding,
-                .has_byte_order_mark = tracker->input_start_offset != 0});
+        /* Going back from where the tracker is costs the distance; going
+           forward from the start costs text_offset: take the shorter. */
+        if (tracker->text_offset - text_offset <=
+            text_offset - tracker->text_start_offset) {
+            sxml_xml_position_tracker_move_back(tracker, text_offset);
+        } else {
+            *tracker = sxml_xml_position_tracker_start(
+                (sxml_xml_position_tracker_configuration){
+                    .text = tracker->text,
+                    .input_encoding = tracker->input_encoding,
+                    .has_byte_order_mark = tracker->input_start_offset != 0});
+        }
     }
     while (tracker->text_offset < text_offset &&
            tracker->text_offset < tracker->text.byte_count) {

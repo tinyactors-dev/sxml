@@ -230,9 +230,11 @@ bool sxml_xml_text_is_name(sxml_byte_view name);
 
 /*
  * Turns byte offsets in the UTF-8 text of a document into line, column
- * (in codepoints) and the byte offset in the original input. Advances
- * forward through the text, so offsets asked in increasing order cost
- * linear time in all; an earlier offset restarts from the beginning.
+ * (in codepoints) and the byte offset in the original input. Moves
+ * through the text from the last offset asked, so offsets asked in
+ * increasing order cost linear time in all, and an earlier offset costs
+ * its distance back (or a restart from the beginning, when that is
+ * shorter), plus the start of its line when a line end lies between.
  * Line ends are LF, CR LF and lone CR (XML 1.0, section 2.11).
  */
 typedef struct sxml_xml_position_tracker {
