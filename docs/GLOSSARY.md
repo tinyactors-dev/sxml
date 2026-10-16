@@ -32,12 +32,37 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `byte_view` | A read-only pointer plus `byte_count` |
 | `memory_view` | A writable pointer plus `byte_count` |
 | `allocator` | The memory interface: state plus operations table |
+| `null_allocator` | An `allocator` whose operations is NULL: it never allocates; in a configuration it means "must not grow" |
+| `default_allocator` | The allocator over the C library heap |
+| `backing_allocator` | The allocator another allocator passes its requests on to |
+| `counting_allocator` | The allocator test double: counts allocations and fails a chosen one |
+| `allocation_request` | Byte count and alignment of one allocation |
+| `allocation_number` | Position of an allocate call among all calls to one allocator, from 1 |
+| `alignment` | A power of two that an address must be a multiple of |
+| `arena` | Bump allocator whose allocations are released together |
+| `block` | One piece of memory an arena takes from its block allocator |
+| `byte_range` | A byte offset plus a byte count within a view |
+| `byte_offset` | A position measured in bytes from the start of something |
+| `operand` | One input of a checked arithmetic function (`left_operand`, `right_operand`) |
 | `memory_requirements` | Size and alignment an object needs |
 | `configuration` | Struct describing how an object is set up |
 | `request` | Struct describing one operation |
 | `status` | The result code of a fallible function (`sxml_status`) |
 | `error_record` | A specification error code (such as `FOAR0001`) with details |
 | `diagnostic` | Caller-supplied record receiving position and context of a failure |
+| `error_code` | The expanded QName of a specification error, such as `err:FOAR0001` |
+| `error_value` | The optional sequence that an error carries (`$err:value`) |
+| `source_location` | Source name, line number, column number and byte offset of a position in a source text |
+| `source_name` | The name a caller gives a source text: module URI or file name |
+| `line_number` | Line of a source position, from 1; 0 means unknown |
+| `column_number` | Column of a source position in codepoints, from 1; 0 means unknown |
+| `codepoint` | A Unicode scalar value, held in `uint32_t` |
+| `string` | `sxml_string`: well-formed UTF-8 bytes with codepoint count and ASCII flag |
+| `utf8` | UTF-8 encoded text, as a byte view; allowed short form |
+| `is_ascii` | The flag of a string whose bytes are all below 0x80 (D6) |
+| `codepoint_iterator` | Walks the codepoints of a string in order |
+| `ordering` | Result of a three-way comparison: less, equal or greater |
+| `placement` | The memory an object is placed in by `initialize` |
 | `static_context` | XPath static context |
 | `dynamic_context` | XPath dynamic context |
 | `focus` | Context item, context position and context size together |
