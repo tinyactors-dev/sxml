@@ -1495,16 +1495,9 @@ static sxml_ordering sxml_decimal_integer_compare(
                                   .byte_count = sizeof(integer_text_bytes)}));
 }
 
-/*
- * Orders two numbers by exact magnitude across the numeric types (F&O 4.0,
- * section 2.2.1 and fn:compare), NaN first and equal to itself. Never
- * allocates.
- */
-static sxml_ordering sxml_numbers_compare(sxml_number first,
-                                          sxml_number second) {
-    if (first.number_form > second.number_form) {
-        return sxml_ordering_reverse(sxml_numbers_compare(second, first));
-    }
+/* sxml_numbers_compare for first.number_form at most second.number_form. */
+static sxml_ordering sxml_ordered_forms_compare(sxml_number first,
+                                                sxml_number second) {
     switch (first.number_form) {
     case SXML_NUMBER_FORM_INTEGER:
         switch (second.number_form) {
@@ -1532,10 +1525,26 @@ static sxml_ordering sxml_numbers_compare(sxml_number first,
     return SXML_ORDERING_EQUAL;
 }
 
+/*
+ * Orders two numbers by exact magnitude across the numeric types (F&O 4.0,
+ * section 2.2.1 and fn:compare), NaN first and equal to itself. Never
+ * allocates. Swaps the operands instead of recursing (D71).
+ */
+static sxml_ordering sxml_numbers_compare(sxml_number first,
+                                          sxml_number second) {
+    if (first.number_form > second.number_form) {
+        return sxml_ordering_reverse(
+            sxml_ordered_forms_compare(second, first));
+    }
+    return sxml_ordered_forms_compare(first, second);
+}
+
 /* Equality by exact magnitude; NaN equals NaN (fn:atomic-equal). */
 static bool sxml_numbers_are_equal(sxml_number first, sxml_number second) {
     if (first.number_form > second.number_form) {
-        return sxml_numbers_are_equal(second, first);
+        sxml_number swapped = first;
+        first = second;
+        second = swapped;
     }
     if (first.number_form == SXML_NUMBER_FORM_INTEGER &&
         second.number_form == SXML_NUMBER_FORM_DOUBLE) {
