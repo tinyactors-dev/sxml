@@ -79,7 +79,37 @@ const char *mpd_version(void);
 /******************************************************************************/
 /*                              Configuration                                 */
 /******************************************************************************/
-@MPD_HEADER_CONFIG@
+/* sxml patch (D42, D49): configure substitutes one fixed configuration
+   here. sxml builds libmpdec with CMake for every target from one source
+   tree (Linux, macOS, Windows, iOS, Android, 32-bit WebAssembly), so the
+   header picks the configuration from the width of size_t instead, as the
+   universal header of configure does from the architecture. The portable C
+   arithmetic (ANSI) is used everywhere; GCC and Clang add __uint128_t on
+   64-bit targets. LIBMPDEC_SXML_BUILD is defined only while compiling
+   libmpdec itself (third_party/mpdecimal/CMakeLists.txt). */
+#if defined(MPD_CONFIG_64) || defined(MPD_CONFIG_32) || \
+    defined(CONFIG_64) || defined(CONFIG_32)
+  #error "the sxml header selects the configuration itself."
+#endif
+
+#if SIZE_MAX == UINT64_MAX
+  #define MPD_CONFIG_64 1
+  #ifdef LIBMPDEC_SXML_BUILD
+    #define CONFIG_64
+    #define ANSI
+    #if defined(__SIZEOF_INT128__) && !defined(_MSC_VER)
+      #define HAVE_UINT128_T
+    #endif
+  #endif
+#elif SIZE_MAX == UINT32_MAX
+  #define MPD_CONFIG_32 1
+  #ifdef LIBMPDEC_SXML_BUILD
+    #define CONFIG_32
+    #define ANSI
+  #endif
+#else
+  #error "size_t must have 32 or 64 bits."
+#endif
 
 
 /* BEGIN MPD_CONFIG_64 */
@@ -770,10 +800,24 @@ void mpd_copy_flags(mpd_t *result, const mpd_t *a);
 /*                            Memory handling                                 */
 /******************************************************************************/
 
-extern void *(* mpd_mallocfunc)(size_t size);
-extern void *(* mpd_callocfunc)(size_t nmemb, size_t size);
-extern void *(* mpd_reallocfunc)(void *ptr, size_t size);
-extern void (* mpd_free)(void *ptr);
+/* sxml patch (D42): upstream declares these four as process-global
+   function pointers that a program may replace. Here they are fixed
+   functions (mpalloc.c) that allocate through the allocator of the current
+   decimal scope; set the scope with mpd_sxml_exchange_allocator_scope. */
+void *mpd_mallocfunc(size_t size);
+void *mpd_callocfunc(size_t nmemb, size_t size);
+void *mpd_reallocfunc(void *ptr, size_t size);
+void mpd_free(void *ptr);
+
+/* sxml patch (D42): makes *allocator the allocator of the current thread's
+   decimal scope and returns the previous one, to be restored with a second
+   call before the operation returns. NULL ends the scope: allocation then
+   fails with MPD_Malloc_error. allocator must stay valid until it is
+   replaced. Freeing and resizing never depend on the scope: every block
+   records the allocator it came from. */
+struct sxml_allocator;
+const struct sxml_allocator *mpd_sxml_exchange_allocator_scope(
+    const struct sxml_allocator *allocator);
 
 void *mpd_callocfunc_em(size_t nmemb, size_t size);
 

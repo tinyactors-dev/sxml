@@ -25,7 +25,11 @@
  */
 
 
+/* sxml patch (D42, D49): WASI has no signals. sxml runs every context
+   without traps, so the trap handler is never called (D42). */
+#ifndef __wasi__
 #include <signal.h>
+#endif
 #include <stdio.h>
 #include <string.h>
 
@@ -36,7 +40,9 @@ void
 mpd_dflt_traphandler(mpd_context_t *ctx)
 {
     (void)ctx;
+#ifndef __wasi__
     raise(SIGFPE);
+#endif
 }
 
 void (* mpd_traphandler)(mpd_context_t *) = mpd_dflt_traphandler;

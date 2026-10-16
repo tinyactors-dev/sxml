@@ -34,6 +34,10 @@
 #include "mpdecimal.h"
 #include "typearith.h"
 
+#include <stdalign.h>
+
+#include "sxml/memory.h"
+
 
 #if defined(_MSC_VER)
   #pragma warning(disable : 4232)
@@ -44,11 +48,149 @@
    at program start using mpd_setminalloc(). */
 mpd_ssize_t MPD_MINALLOC = MPD_MINALLOC_MIN;
 
-/* Custom allocation and free functions */
-void *(* mpd_mallocfunc)(size_t size) = malloc;
-void *(* mpd_reallocfunc)(void *ptr, size_t size) = realloc;
-void *(* mpd_callocfunc)(size_t nmemb, size_t size) = calloc;
-void (* mpd_free)(void *ptr) = free;
+/*
+ * sxml patch (D42): allocation through a scoped sxml_allocator.
+ *
+ * Upstream, the four functions below are process-global function pointers
+ * defaulting to malloc, realloc, calloc and free. sxml must not have global
+ * mutable state, and two item heaps on two threads must not share an
+ * allocator (D35), so they are fixed functions that allocate through the
+ * allocator of the current decimal scope.
+ *
+ * The decimal scope is the one thread-local variable of sxml. sxml's
+ * decimal module (src/decimal.c) sets it on entry to every operation that
+ * may allocate and restores the previous value before returning, so it
+ * holds no state between library calls, nests, and is never visible to the
+ * host. It lives here rather than in src/ so that libmpdec does not depend
+ * on the sxml library (which links libmpdec).
+ *
+ * Every block starts with a header naming the allocator it came from and its
+ * usable size, so mpd_free and mpd_reallocfunc work outside any scope and
+ * with a different scope than the one that allocated. The header keeps the
+ * alignment malloc guarantees, which libmpdec expects.
+ */
+#if defined(_MSC_VER) && !defined(__clang__)
+  #define MPD_SXML_THREAD_LOCAL __declspec(thread)
+#else
+  #define MPD_SXML_THREAD_LOCAL _Thread_local
+#endif
+
+static MPD_SXML_THREAD_LOCAL const sxml_allocator *mpd_sxml_scope_allocator;
+
+/* The strictest alignment of the scalar types: what malloc guarantees.
+   Spelled out because MSVC's C headers do not define max_align_t. */
+typedef union mpd_sxml_alignment {
+    long double long_double_member;
+    double double_member;
+    uint64_t uint64_member;
+    void *pointer_member;
+} mpd_sxml_alignment;
+
+typedef union mpd_sxml_block_header {
+    struct {
+        sxml_allocator allocator;
+        size_t byte_count;
+    } block;
+    mpd_sxml_alignment alignment;
+} mpd_sxml_block_header;
+
+const struct sxml_allocator *
+mpd_sxml_exchange_allocator_scope(const struct sxml_allocator *allocator)
+{
+    const sxml_allocator *previous = mpd_sxml_scope_allocator;
+    mpd_sxml_scope_allocator = allocator;
+    return previous;
+}
+
+/* Allocates size bytes through allocator; NULL on failure. The allocator's
+   operations are called directly: libmpdec must not depend on the sxml
+   library, so sxml_allocator_allocate is not available here. */
+static void *
+mpd_sxml_allocate(sxml_allocator allocator, size_t size)
+{
+    mpd_sxml_block_header *header;
+    void *memory = NULL;
+
+    if (allocator.operations == NULL ||
+        size > SIZE_MAX - sizeof(mpd_sxml_block_header)) {
+        return NULL;
+    }
+    if (allocator.operations->allocate(
+            allocator.state,
+            (sxml_allocation_request){
+                .byte_count = sizeof(mpd_sxml_block_header) + size,
+                .alignment = alignof(mpd_sxml_block_header),
+            },
+            &memory) != SXML_STATUS_OK ||
+        memory == NULL) {
+        return NULL;
+    }
+    header = memory;
+    header->block.allocator = allocator;
+    header->block.byte_count = size;
+    return header + 1;
+}
+
+static mpd_sxml_block_header *
+mpd_sxml_header_of(void *ptr)
+{
+    return (mpd_sxml_block_header *)ptr - 1;
+}
+
+void *
+mpd_mallocfunc(size_t size)
+{
+    if (mpd_sxml_scope_allocator == NULL) {
+        return NULL;
+    }
+    return mpd_sxml_allocate(*mpd_sxml_scope_allocator, size);
+}
+
+void *
+mpd_callocfunc(size_t nmemb, size_t size)
+{
+    return mpd_callocfunc_em(nmemb, size);
+}
+
+void
+mpd_free(void *ptr)
+{
+    mpd_sxml_block_header *header;
+
+    if (ptr == NULL) {
+        return;
+    }
+    header = mpd_sxml_header_of(ptr);
+    header->block.allocator.operations->release(
+        header->block.allocator.state, header);
+}
+
+/* The allocator interface has no reallocate (D22): allocate from the
+   block's own allocator, copy and release. On failure the old block is
+   kept, as realloc does. A smaller size keeps the block as it is. */
+void *
+mpd_reallocfunc(void *ptr, size_t size)
+{
+    mpd_sxml_block_header *header;
+    void *new_block;
+
+    if (ptr == NULL) {
+        return mpd_mallocfunc(size);
+    }
+    header = mpd_sxml_header_of(ptr);
+    if (size <= header->block.byte_count) {
+        /* Shrinking keeps the block: it cannot fail, and libmpdec only
+           shrinks to give memory back early. */
+        return ptr;
+    }
+    new_block = mpd_sxml_allocate(header->block.allocator, size);
+    if (new_block == NULL) {
+        return NULL;
+    }
+    memcpy(new_block, ptr, header->block.byte_count);
+    mpd_free(ptr);
+    return new_block;
+}
 
 
 /* emulate calloc if it is not available */
