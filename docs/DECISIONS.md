@@ -300,3 +300,32 @@ Appendix A, XSLT 4.0 6.3 and Appendix E) as of 2026-10-16.
 - `tools/qt4-parse-check.py` (with `tools/qt4-parse-harness.c`) parses every
   applicable QT4 query and reports false rejects and false accepts; the
   harness also applies the A.3.2 delimitation check.
+
+### D28. XML 1.0 grammar
+Recorded 2026-10-16. `grammars/xml` is written for sxml, not vendored:
+tree-sitter-grammars/tree-sitter-xml (MIT) was studied but is too lenient and
+its tag-stack scanner is unsafe for deep or non-ASCII documents (reasons in
+`grammars/xml/README.md`; credit in `grammars/xml/NOTICE`).
+- Node names spell out the XML 1.0 production names in snake_case
+  (`STag` is `start_tag`, `CharData` is `character_data`); names, values and
+  identifiers are fields. Content items are direct children of `element`.
+- External scanner (`src/scanner.c`): element names on a tag stack, so a
+  mismatched end tag is an `ERROR` (WFC Element Type Match); character data,
+  CDATA text, comment text and PI content with their delimiters and [2] Char;
+  PI targets other than `xml`. The stack is a persistent, interned table of
+  (parent frame, name) pairs owned by the scanner; the serialized state is one
+  4-byte frame index, so depth and name length are unlimited. The scanner
+  allocates through `ts_malloc`/`ts_calloc`/`ts_realloc` (D12 exemption).
+- Only the document and its internal subset are parsed; parameter-entity
+  references inside internal-subset declarations are a grammar error
+  (WFC PEs in Internal Subset). The external subset and text declarations
+  have no grammar.
+- Every well-formedness check the grammar cannot make is listed in
+  `grammars/xml/README.md` ("What the tree builder checks"). Entity
+  replacement text is checked by parsing it wrapped in a dummy element.
+- `grammars/CMakeLists.txt` registers every `grammars/<language>/src/parser.c`
+  with `sxml_add_grammar`; a new grammar needs no CMake edit.
+- Measured: W3C XML suite (standalone, XML 1.0 Fifth Edition) valid 601/601
+  and invalid 175/175 parse cleanly, not-wf 870/948 rejected by the grammar
+  (the other 78 are builder constraints); all 3583 well-formed UTF-8 `*.xml`
+  files of the QT4 and XSLT 4.0 suites parse cleanly.

@@ -4,6 +4,13 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- XML 1.0 grammar `grammars/xml` (D28): strict grammar plus external
+  scanner (tag stack, text tokens, [2] Char), corpus tests (59 pass).
+  W3C XML suite: valid 601/601 and invalid 175/175 parse cleanly, not-wf
+  870/948 rejected by the grammar; the rest is listed for the tree builder in
+  `grammars/xml/README.md`. QT4 + XSLT 4.0 suites: every well-formed UTF-8
+  `*.xml` file (3583 of 3612) parses cleanly. `grammars/CMakeLists.txt`
+  builds every generated grammar.
 - `string.h` implemented in `src/string.c` (D27): strict UTF-8 validation,
   ASCII flag, codepoint count, `codepoint_at`, iterator, codepoint
   comparison; 29 cases in `tests/string_test.c` pass under `debug`,
