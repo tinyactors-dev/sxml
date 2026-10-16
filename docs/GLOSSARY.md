@@ -313,6 +313,10 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `expression_text` | The source text of an expression or query |
 | `evaluation` | One run of a compiled expression or query against a dynamic context |
 | `evaluation_depth` | How deeply evaluation nests (function calls, nested expressions); bounded so deep recursion is a limit, not a stack overflow |
+| `evaluation_step` | One unit of evaluator work counted against `maximum_evaluation_step_count`: a task the machine runs, or an item pair a general comparison reads |
+| `static_base_uri` | The base URI of the static context (XPath 4.0, section 2.2.1), against which fn:doc and fn:resolve-uri resolve relative URIs |
+| `uri_resolution` | Resolving a URI reference against a base URI (RFC 3986, section 5.2) |
+| `loaded_document` | A document fn:doc loaded during one evaluation, kept so the same URI gives the same node |
 | `evaluator_task` | One entry of the evaluator's task stack: an expression, call or native step being evaluated, with the state that resumes it when a nested value arrives (D71, D75) |
 | `task_stack` | The evaluator's explicit stack of evaluator tasks, in allocator memory, which replaces recursion on the C stack |
 | `tail_call` | A call whose value is the value of the function making it; the evaluator reuses that function's frame |
