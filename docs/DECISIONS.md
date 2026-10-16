@@ -1311,6 +1311,19 @@ and P3 (design edits to `include/sxml/xdm.h`).
   (OUT_OF_MEMORY, LIMIT_EXCEEDED), since record keys are made lazily (D61);
   `sxml_map_find` and `sxml_json_node_make_child` already list them.
 
+### D69. No-inherit for the top element of a copy (P6)
+Recorded 2026-10-16 by packet 1.14, on the orchestrator's acceptance of P6
+(design edit to `include/sxml/tree.h`). `sxml_element_start_event` gains
+`bool ignores_parent_namespaces`: true makes the element start from the
+xml binding alone (plus its own bindings and fixup), not from its parent's
+in-scope namespaces. Named so that zero, the default of every existing
+designated initializer, keeps inheriting (P6 had proposed
+`inherits_namespaces` defaulting to true, which zero cannot express).
+`sxml_tree_builder_copy_node` sets it on the copy's top element when
+`inherits_namespaces` is false (XQuery 4.0 copy-namespaces no-inherit);
+descendants inherit from the top element as usual. The arena tree honours
+it when it computes the header element's inherited list.
+
 ## Proposed
 
 ### P4. Namespace node tests with a name (from D63)
@@ -1326,12 +1339,3 @@ the IR's MAP has no such check; a following STEP raises XPTY0020 instead,
 and `$atoms/string()` raises nothing. Proposed: a flag
 `SXML_IR_MAP_REQUIRES_NODES` in `sxml_ir_map_flag`, set by lowering on
 the MAP of a path and checked by the evaluator.
-
-### P6. No-inherit for the top element of a copy (from D67)
-`sxml_copy_request.inherits_namespaces` false means the copied element
-must not inherit the new parent's bindings (XQuery 4.0 copy-namespaces
-no-inherit), but `sxml_tree_builder_copy_node` cannot see the builder's
-in-scope namespaces to undeclare them. Proposed: `bool
-inherits_namespaces` (default true) in `sxml_element_start_event`, so a
-builder starts such an element from the xml binding alone. Until then the
-flag is ignored (XPath has no constructors, so Phase 1 is unaffected).
