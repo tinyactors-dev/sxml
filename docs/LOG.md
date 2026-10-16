@@ -4,6 +4,15 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 1.6 done (D58): type registry, all of `types.h`: static built-in
+  descriptions (names interned per pool), interned registered item types
+  in a normal form, nominative record types (declare, define, recursive),
+  record field and enumeration value indexes, derivation, and the
+  XPath 4.0 §3.3 subtype relations (choices, unions, enumerations, node,
+  JNode, function, map, array, record rules; transitivity folded into the
+  rules) with a depth and step budget. map-put-002-hof holds.
+  `tests/types_test.c`: 28 cases incl. allocation-failure loops; `debug`,
+  `debug-gcc`, `wasm`: 44/44 tests; lint clean.
 - 1.16 done (D59): XPath front end, `src/xpath_parse.c` (CST to AST in one
   iterative cursor walk; XPST0003 with location for ERROR/MISSING, A.3.2
   delimitation and prefixed lookup keys; literals and names decoded;
