@@ -366,3 +366,11 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `comparison_pair` | Two items, or two runs of children, waiting to be compared on the explicit stack of deep equality |
 | `sort_key_value` | The atomized key of one item in `fn:sort`: a sequence of atomic items compared item by item |
 | `random_seed` | The value that fixes the numbers of `fn:random-number-generator` |
+| `traversal` | A higher-order function's walk over the items of a sequence, members of an array or entries of a map, asking for one call of a function item per position (`fn:for-each`, `fn:filter`, `map:for-each`, ...) |
+| `accumulator` | The value a fold carries from one call of its function item to the next (`fn:fold-left`, `fn:scan`) |
+| `comparator` | A function item of `fn:sort-with` that orders two items by returning a negative, zero or positive integer |
+| `sort_key_definition` | One key of `fn:sort-by`: a key function (or `fn:data#1`), a collation and an order direction (F&O 4.0, `fn:sort-key-record`) |
+| `partially_applied_function` | The function item `fn:partial-apply` or a placeholder call makes: the wrapped function with some arguments bound, captured with it |
+| `operator_function` | A function item made by `fn:op`: `fn($x, $y) { $x op $y }` for one binary operator |
+| `assembly` | How `map:build` and `map:merge` add entries one by one to a map, combining duplicate keys by the `duplicates` option |
+| `duplicates_policy` | The `duplicates` option of `map:build` and `map:merge`: reject, use-first, use-last, use-any, combine, or a function |
