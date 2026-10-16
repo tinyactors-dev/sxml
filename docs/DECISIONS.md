@@ -1176,6 +1176,28 @@ seal), which 1.23 calls.
   static analysis uses `sxml_xpath_find_function`; 1.20 may define the
   wrapper over it.
 
+### D64. Arrays and function items (packet 1.10)
+Recorded 2026-10-16. `src/xdm_array.c`, `src/xdm_function.c`.
+- **Arrays** are AVL trees of `array_node` cells (one cell class): a flat
+  node holds members inline (`sxml_array_make`, so get is O(1)); a run node
+  names a part of a flat node's members (splitting a leaf copies nothing);
+  a branch node joins two subtrees. The array item's cell is the root; the
+  empty array is a flat node of no members. Every update is split plus
+  join (Blelloch et al., "Just Join", without middle keys): append, put,
+  insert, remove and slice are O(log n), get O(log n). 10^5 appends are
+  tested at most 1 + 3 x height allocations each; deep nesting frees
+  through the pending list.
+- **Function items**: the signature must be a registered function type
+  other than function(*) (arity = its parameter count), else
+  INVALID_ARGUMENT. Annotations are kept as the borrowed view; captured
+  values are retained; the body's `retain` runs once on make and
+  `release` once when the cell is freed.
+- **Maps and arrays as functions**: `sxml_function_item_describe` gives a
+  stateless static body (map:get through `sxml_map_find`, array:get with
+  1-based positions). The bodies check their argument although coercion is
+  the caller's: not one atomic key / one integer is XPTY0004; a position
+  out of range, also beyond int64_t, is FOAY0001.
+
 ## Proposed
 
 ### P2. `sxml_atomic_comparison` needs the item heap (from D60)
