@@ -4,6 +4,10 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- `string.h` implemented in `src/string.c` (D27): strict UTF-8 validation,
+  ASCII flag, codepoint count, `codepoint_at`, iterator, codepoint
+  comparison; 29 cases in `tests/string_test.c` pass under `debug`,
+  `debug-gcc` and `wasm`; lint clean.
 - 0.5–0.6 done: core headers `status.h` (statuses, `SXML_NODISCARD`, error
   record and diagnostic, D21), `view.h` (D19), `memory.h` (views, checked
   arithmetic, memory requirements, allocator interface without reallocate

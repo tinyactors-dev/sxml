@@ -61,6 +61,9 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `utf8` | UTF-8 encoded text, as a byte view; allowed short form |
 | `is_ascii` | The flag of a string whose bytes are all below 0x80 (D6) |
 | `codepoint_iterator` | Walks the codepoints of a string in order |
+| `lead_byte` | The first byte of the UTF-8 encoding of one codepoint |
+| `continuation_byte` | A later byte of the UTF-8 encoding of one codepoint, 0x80 to 0xBF |
+| `encoded_byte_count` | The number of bytes in the UTF-8 encoding of one codepoint, 1 to 4 |
 | `ordering` | Result of a three-way comparison: less, equal or greater |
 | `placement` | The memory an object is placed in by `initialize` |
 | `static_context` | XPath static context |

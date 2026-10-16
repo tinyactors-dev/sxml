@@ -19,6 +19,7 @@ endfunction()
 sxml_add_test(allocator)
 sxml_add_test(memory)
 sxml_add_test(status)
+sxml_add_test(string)
 sxml_add_test(version)
 
 sxml_add_test(tree_sitter_runtime)

@@ -44,6 +44,7 @@ set(SXML_SOURCES
     src/allocator.c
     src/memory.c
     src/status.c
+    src/string.c
     src/version.c
 )
 

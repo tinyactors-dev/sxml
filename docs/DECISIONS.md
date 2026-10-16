@@ -255,3 +255,16 @@ pointers are allowed. An external boundary that takes a NUL-terminated string
 `// ast-grep-ignore: pointer-parameter-without-length`. `tests/` is not
 covered: the test runner takes `argv`. `SXML_TEST_REQUIRE` now branches on the
 condition itself, so clang-analyzer knows what holds after it.
+
+### D27. string.h implemented in Phase 0
+Recorded 2026-10-16, amending the last sentence of D25: `src/string.c`
+implements `include/sxml/string.h` unchanged, with 29 cases in
+`tests/string_test.c` (including an exhaustive check of all scalar values and
+of every lead/second byte pair against table 3-7). Choices the header leaves
+open: on bytes that are not well-formed, decoding stays within the view,
+decodes a byte that cannot start an encoding as itself, and decodes a
+truncated encoding from the bytes present; `sxml_string_codepoint_at` returns
+`SXML_STATUS_INDEX_OUT_OF_RANGE` when the bytes run out before the index, and
+takes the ASCII fast path only when the index is also below `byte_count`.
+`compare` and `equals` work on bytes (D25). Validation is a plain byte loop;
+a word-at-a-time ASCII scan can come later without an interface change.
