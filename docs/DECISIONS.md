@@ -1366,3 +1366,11 @@ the IR's MAP has no such check; a following STEP raises XPTY0020 instead,
 and `$atoms/string()` raises nothing. Proposed: a flag
 `SXML_IR_MAP_REQUIRES_NODES` in `sxml_ir_map_flag`, set by lowering on
 the MAP of a path and checked by the evaluator.
+
+### P7. JNode making may fail with a lazy value's error (from D70)
+`sxml_json_node_make_root` and `sxml_json_node_make_child` count the
+value to find the child count, which reads a lazy sequence to its end;
+its generator may fail, but both contracts list only the heap's failures
+and take no error record. Proposed: add "and a lazy value's generator
+failures" to both comments (the evaluator materializes values before
+fn:jtree anyway), or let the cell count children on first describe.
