@@ -1424,6 +1424,16 @@ GNode comparisons).
   traps under `wasm`. The operator tests avoid it; the decimal owner must
   fix it (smaller BUFSIZE under WASI or a bigger stack).
 
+### D73. JNode making may fail with a lazy value's error (P7)
+Recorded 2026-10-16 by packet 1.18, on the orchestrator's acceptance of P7
+(option "amend contract"; design edit to `include/sxml/xdm.h`, comments
+only). `sxml_json_node_make_root` and `sxml_json_node_make_child` count
+their value's items, so a lazy value's generator may fail inside them; both
+contracts now list those failures. They take no error record, so the status
+comes without one: callers that need the error read the value first. The
+evaluator never makes lazy sequences whose generator evaluates IR (D74), and
+it reads values completely before fn:jtree sees them.
+
 ## Proposed
 
 ### P4. Namespace node tests with a name (from D63)
@@ -1439,11 +1449,3 @@ the IR's MAP has no such check; a following STEP raises XPTY0020 instead,
 and `$atoms/string()` raises nothing. Proposed: a flag
 `SXML_IR_MAP_REQUIRES_NODES` in `sxml_ir_map_flag`, set by lowering on
 the MAP of a path and checked by the evaluator.
-
-### P7. JNode making may fail with a lazy value's error (from D70)
-`sxml_json_node_make_root` and `sxml_json_node_make_child` count the
-value to find the child count, which reads a lazy sequence to its end;
-its generator may fail, but both contracts list only the heap's failures
-and take no error record. Proposed: add "and a lazy value's generator
-failures" to both comments (the evaluator materializes values before
-fn:jtree anyway), or let the cell count children on first describe.

@@ -1228,7 +1228,10 @@ SXML_NODISCARD SXML_EXPORT sxml_status sxml_array_slice(
 /*
  * Makes a root JNode over value (fn:jtree, F&O 4.0, section 16.1.1) and
  * writes it, owned, to *json_node. value is retained. Returns the heap's
- * failures.
+ * failures and, because the root counts the items of value, the failures
+ * of a lazy value's generator (SXML_STATUS_DYNAMIC_ERROR or
+ * SXML_STATUS_TYPE_ERROR without an error record to fill: read value first
+ * to see its error; D73).
  */
 SXML_NODISCARD SXML_EXPORT sxml_status sxml_json_node_make_root(
     sxml_item_heap *item_heap, sxml_sequence value, sxml_item *json_node);
@@ -1273,8 +1276,9 @@ typedef struct sxml_json_child_request {
  * (sxml_generic_node_is_same_node).
  *
  * Returns SXML_STATUS_INDEX_OUT_OF_RANGE past the last child,
- * SXML_STATUS_INVALID_ARGUMENT when json_node is not a JNode, and the
- * heap's failures.
+ * SXML_STATUS_INVALID_ARGUMENT when json_node is not a JNode, the heap's
+ * failures and, because the child counts the items of its value, the
+ * failures of a lazy value's generator, as sxml_json_node_make_root (D73).
  */
 SXML_NODISCARD SXML_EXPORT sxml_status sxml_json_node_make_child(
     sxml_item_heap *item_heap, sxml_json_child_request request,
