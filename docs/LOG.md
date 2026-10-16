@@ -4,6 +4,14 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 1.16 done (D59): XPath front end, `src/xpath_parse.c` (CST to AST in one
+  iterative cursor walk; XPST0003 with location for ERROR/MISSING, A.3.2
+  delimitation and prefixed lookup keys; literals and names decoded;
+  sequence types through `() instance of`) and `src/xpath_ast.c` (AST
+  lifecycle and builder). All 198 slice queries and all 32,542 valid XP40
+  queries build; the two D29 false accepts are now rejected. 32 unit cases
+  in `tests/xpath_ast_test.c` and `tests/xpath_parse_test.c`; `debug`,
+  `debug-gcc`, `wasm` pass, lint clean.
 - 1.17 done (D53): regex seed. `src/regex_internal.h` is the interface
   the D9 engine keeps (flags with FORX0001; immutable compiled regex with
   FORX0002 and exact memory requirements; per-thread matcher with
