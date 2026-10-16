@@ -359,3 +359,10 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `backtrack_stack` | The stack of choices and undo entries of a backtracking matcher; it grows through an allocator within a limit |
 | `step_count` | Instructions a regex matcher has run in one search; `maximum_step_count` bounds it for untrusted regexes |
 | `group_frame` | The regex compiler's record of a group whose ")" has not been read (and of the whole regex), kept on an explicit stack instead of recursing (D71) |
+| `library_part` | The native functions of one `src/function_library_<part>.c` file: one `sxml_native_function_view`, named in a function library's configuration |
+| `collation` | Rules for comparing strings, named by a URI; Phase 1 knows only the Unicode codepoint collation (F&O 4.0, section 5.3) |
+| `case_mapping` | The Unicode full case mapping of `fn:upper-case` and `fn:lower-case`: one codepoint to one or more (F&O 4.0, section 5.4) |
+| `deep_equality` | `fn:deep-equal` of two sequences: items compared pairwise, into nodes, maps and arrays (F&O 4.0, section 14.2.4) |
+| `comparison_pair` | Two items, or two runs of children, waiting to be compared on the explicit stack of deep equality |
+| `sort_key_value` | The atomized key of one item in `fn:sort`: a sequence of atomic items compared item by item |
+| `random_seed` | The value that fixes the numbers of `fn:random-number-generator` |
