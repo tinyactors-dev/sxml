@@ -195,6 +195,14 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `sequence_generator` | Interface that produces the items of a lazy sequence on demand |
 | `entry_index` | Position of an entry in a map's entry order, from 0 |
 | `duplicate_key_policy` | What building a map does with keys that are atomic-equal: reject, keep first, keep last |
+| `entry_block` | A map made from an entry list: its entries in entry order in one cell, with a hash index (D61) |
+| `hash_index` | An open-addressing table from key hash to entry index, built for an entry block |
+| `persistent_map` | A map made by put or remove: an entry tree and a key tree that share structure with the map they came from (D61) |
+| `map_node` | One node of an entry tree or a key tree: an entry, its key hash and entry stamp, two subtrees (D61) |
+| `entry_tree` | The balanced tree of a persistent map's entries ordered by entry stamp, counting entries per subtree so entries are found by entry index |
+| `key_tree` | The balanced tree of a persistent map's keys ordered by key hash, then entry stamp, for lookup by key |
+| `entry_stamp` | The number a persistent map gives a key when it enters; entry order is stamp order |
+| `field_key` | The xs:string key item of one record field, made by a record on first need |
 | `member_index` | Position of a member in an array, from 0 |
 | `field_index` | Position of a field in a record type, from 0 |
 | `arity` | Number of parameters of a function item |
