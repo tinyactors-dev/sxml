@@ -984,4 +984,32 @@ Recorded 2026-10-16.
   rule is monotone, so running out answers false, never a wrong true; this
   bounds work on hostile types.
 
+### D59. The XPath front end (packet 1.16)
+Recorded 2026-10-16. `src/xpath_parse.c` builds the AST of D52 in one
+iterative walk of a tree-sitter cursor in source order; the current AST
+parent is kept through the AST's own parent links, so nesting depth costs
+no C stack (20,000 nested parentheses pass under the `wasm` preset). Node
+types and field names map to kinds and fields through sorted static
+tables; the AST capacity is `ts_node_descendant_count` of the top node.
+- Checks of D29 in the walk: A.3.2 delimitation over the terminals in
+  order (non-delimiting: keywords, `ncname`, `prefixed_name`,
+  `uri_qualified_name` and the numeric literals; a comment separates) and
+  a `prefixed_name` in the `key` field of `lookup` or `unary_lookup`.
+  Every failure, and the first ERROR or MISSING node, is XPST0003 with a
+  static description, the source name, line, codepoint column and byte
+  offset. With these, XP40 has no false rejects or false accepts left
+  (32,542 valid queries build; Lookup-156 and MapConstructor-025a, the
+  two D29 false accepts, now fail).
+- A sequence type is parsed as the type of `() instance of T`: the
+  prefix is served before the text through a `TSInput` callback (no
+  copy), the result must be that instance-of expression with the type
+  starting in the text, and spans are relative to the text.
+- tree-sitter aliases each token of `alias(seq('(', ')'), jroot_selector)`
+  separately; the front end makes one JROOT_SELECTOR spanning both.
+- `maximum_expression_depth` counts AST nodes from the root (depth 1).
+- The only memory taken from the request's allocator is the AST, one
+  allocation; tree-sitter's parser, tree and cursors use malloc (D12).
+- AST builder tests are in `tests/xpath_ast_test.c` (module prefix
+  `xpath`, D45), front-end tests in `tests/xpath_parse_test.c`.
+
 ## Proposed
