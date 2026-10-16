@@ -52,6 +52,19 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "MinSizeRel"
       }
+    },
+    {
+      "name": "fuzz",
+      "displayName": "libFuzzer targets (tests/fuzz), Clang, AddressSanitizer and UndefinedBehaviorSanitizer",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_C_FLAGS": "-fsanitize=fuzzer-no-link",
+        "SXML_ENABLE_SANITIZERS": "ON",
+        "SXML_BUILD_FUZZERS": "ON",
+        "SXML_BUILD_APPS": "OFF"
+      }
     }
   ],
   "buildPresets": [
@@ -60,6 +73,7 @@
     { "name": "release", "configurePreset": "release" },
     { "name": "msvc", "configurePreset": "msvc", "configuration": "Debug" },
     { "name": "wasm", "configurePreset": "wasm" },
+    { "name": "fuzz", "configurePreset": "fuzz" },
     { "name": "lint", "configurePreset": "debug", "targets": ["lint"] }
   ],
   "testPresets": [
@@ -77,6 +91,12 @@
     { "name": "debug-gcc", "inherits": "base", "configurePreset": "debug-gcc" },
     { "name": "release", "inherits": "base", "configurePreset": "release" },
     { "name": "msvc", "inherits": "base", "configurePreset": "msvc", "configuration": "Debug" },
-    { "name": "wasm", "inherits": "base", "configurePreset": "wasm" }
+    { "name": "wasm", "inherits": "base", "configurePreset": "wasm" },
+    {
+      "name": "fuzz",
+      "inherits": "base",
+      "configurePreset": "fuzz",
+      "filter": { "include": { "name": "_fuzz$" } }
+    }
   ]
 }
