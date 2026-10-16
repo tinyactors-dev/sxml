@@ -161,6 +161,10 @@ After 1.7. Owns `src/xdm_array.c`, `src/xdm_function.c`,
 with O(log n) put, insert, remove and slice; function items (D38); maps and
 arrays answering `sxml_function_item_call`. Done when 10⁵ appends stay
 O(n log n) and captures are released with the item. Spec: XDM 4.0 §8.1, §8.4.
+**Done** 2026-10-16 (D64): AVL arrays of flat, run and branch nodes (split
+and join; 10^5 appends at most 1 + 3 x height allocations each), function
+items with retained captures and body state, maps and arrays as map:get
+and array:get.
 
 ### 1.11 Tree: interface, axes, arena tree, builder (implementation)
 After 1.7. Owns `src/tree.c`, `src/tree_axis.c`, `src/arena_tree.c`,
