@@ -1,0 +1,30 @@
+# Enforces docs/C_GUIDELINES.md. Every warning is an error in CI.
+Checks: >
+  -*,
+  bugprone-*,
+  cert-*,
+  clang-analyzer-*,
+  readability-identifier-length,
+  readability-identifier-naming,
+  readability-function-size,
+  -bugprone-easily-swappable-parameters
+WarningsAsErrors: '*'
+HeaderFilterRegex: '(include/sxml|src)/.*'
+CheckOptions:
+  readability-identifier-length.MinimumVariableNameLength: 3
+  readability-identifier-length.MinimumParameterNameLength: 3
+  readability-identifier-length.MinimumLoopCounterNameLength: 5
+  readability-identifier-length.IgnoredVariableNames: '^$'
+  readability-identifier-length.IgnoredParameterNames: '^$'
+  readability-identifier-length.IgnoredLoopCounterNames: '^$'
+  readability-function-size.ParameterThreshold: 3
+  readability-identifier-naming.GlobalFunctionCase: lower_case
+  readability-identifier-naming.GlobalFunctionPrefix: sxml_
+  readability-identifier-naming.FunctionCase: lower_case
+  readability-identifier-naming.TypedefCase: lower_case
+  readability-identifier-naming.StructCase: lower_case
+  readability-identifier-naming.VariableCase: lower_case
+  readability-identifier-naming.ParameterCase: lower_case
+  readability-identifier-naming.EnumConstantCase: UPPER_CASE
+  readability-identifier-naming.EnumConstantPrefix: SXML_
+  readability-identifier-naming.MacroDefinitionCase: UPPER_CASE
