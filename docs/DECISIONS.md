@@ -1324,6 +1324,33 @@ designated initializer, keeps inheriting (P6 had proposed
 descendants inherit from the top element as usual. The arena tree honours
 it when it computes the header element's inherited list.
 
+### D70. Node items, accessors and JNodes (packet 1.13)
+Recorded 2026-10-16. `src/xdm_node.c`, `src/xdm_json_node.c`.
+- **Node items** are inline (D60 layout) and retain their tree.
+- **String value** of a document or element walks the index range up to
+  `last_descendant` (D39) for text nodes; one text node is passed as is,
+  more are joined in heap scratch memory released before returning.
+- **Typed value**: derived (xs:untypedAtomic for documents, text,
+  elements, attributes; xs:string for comments, PIs, namespace nodes)
+  when the annotation is none, xs:untyped or xs:untypedAtomic, or the
+  tree has no `get_typed_value`; otherwise the tree answers.
+- **Base URI**: the xml:base values of the element and its ancestors, up
+  to the first absolute one, resolved outermost-in against the tree's
+  base URI (RFC 3986, section 5.2.2, strict; checked on all 42 examples
+  of section 5.4). A relative value with no base is kept as written. No
+  base URI for namespace nodes and for parentless attributes, text and
+  comments; a parentless PI has the tree's. xml:base values are not
+  percent-encoded first (XML Base, section 3.1).
+- **JNodes**: one cell holds parent (retained), key, value, child
+  position, child count (computed at make), depth and JTree identifier
+  (issued last, so a failed root uses none). Under a map: one child per
+  entry; an array: per member; two or more items: per item, keyed by
+  position from 1; anything else is a leaf. Identity and order compare
+  the paths of child positions from the root in O(depth) without memory:
+  equal positions under one parent select the same key, so this is XDM's
+  "same parent and atomic-equal key". The generic node functions live in
+  `src/xdm_json_node.c`.
+
 ## Proposed
 
 ### P4. Namespace node tests with a name (from D63)
