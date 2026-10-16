@@ -29,7 +29,7 @@ Do the tasks in order. Finish each with a commit and a short entry in
   `src/allocator.c` (default allocator and a test double that counts and can
   fail allocations), with tests. This module becomes the golden file all later
   work imitates.
-- [ ] **0.7 Substrate headers (design task).** Write, with contract comments:
+- [x] **0.7 Substrate headers (design task).** Write, with contract comments:
   - `include/sxml/types.h` — type registry and `sxml_type_identifier`.
   - `include/sxml/xdm.h` — items, sequences (empty, single item, vector, range,
     lazy), atomic items with type identifiers, function items, maps (D7),

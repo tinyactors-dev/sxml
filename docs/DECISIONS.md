@@ -350,3 +350,169 @@ patterns `~T`), the drafts win. (This record was first committed as a second
   false accepts of 363 XPST0003 queries; XQ40 0 of 43,663 and 3 of 772;
   XSLT 4.0 patterns 3 false rejects of 19,168 (invalid DocBook patterns).
   Details in `grammars/xquery/README.md`.
+
+### D30. Substrate headers and their order
+Recorded 2026-10-16 (task 0.7). The substrate is five headers, each including
+only those before it: `name.h` (name pool) < `types.h` (type registry,
+sequence types, node kinds) < `tree.h` (tree interface, node references,
+axes, tree builder, arena tree) < `xdm.h` (item heap, items, sequences,
+atomic items, node items, function items, maps, records, arrays, JNodes).
+`tree.h` forward-declares `sxml_item_heap`; `status.h` already declares
+`sxml_sequence`, which `xdm.h` defines. Accessors that produce XDM values
+from nodes (string value, typed value, base URI) are in `xdm.h`; structural
+accessors in `tree.h`. There is no "processor" object in the substrate: the
+name pool, type registry and item heap are separate objects with stored
+references (heap -> registry -> pool), and the Phase 1 processor owns them.
+Document and collection resolution (`fn:doc`, `fn:collection`,
+`fn:unparsed-text`, module import) is a host interface of the dynamic
+context, designed with it in Phase 1, not a substrate header: what it
+returns (a tree made through `sxml_tree_builder`, or bytes) is already
+covered here.
+
+### D31. Name pool
+Recorded 2026-10-16 (task 0.7). Namespace URIs, prefixes and expanded names
+are interned into dense 32-bit identifiers in a per-processor
+`sxml_name_pool`; comparing names is comparing integers, and nodes and QName
+items hold no text. URI and prefix identifier 0 mean "none"; name identifier
+0 means "no name". A fixed set of well-known namespaces (`xml`, `xs`, `fn`,
+`err`, ...) have constant identifiers in every pool. Names are never
+removed; `maximum_byte_count` bounds growth on untrusted input, and
+`sxml_name_pool_find_name` looks up without interning. Prefixes are kept
+beside names, never part of their identity (XDM 4.0, section 5.6).
+
+### D32. Type registry and sequence types
+Recorded 2026-10-16 (task 0.7). `sxml_type_identifier` (32-bit index) names
+every type: schema types and item types share one space, since atomic types
+are both (XDM 4.0, section 4.1.2). Built-in types (all XSD/XDM built-ins
+including `xs:untyped`, `xs:numeric`, `xs:error`, the list types, and the
+generic item types `item()`, `node()`, `element()`, `function(*)`,
+`map(*)`, `array(*)`, `record(*)`, ...) have constant identifiers
+`SXML_TYPE_*` below 70, described by static const data; the enum only grows.
+Identifiers 70-511 are reserved for later built-ins; registered types start
+at 512. Item types written in queries (node tests, function, map, array,
+record, enumeration, choice and JNode types) are registered and interned,
+so structural equality is identifier equality; nominative record types are
+declared, then defined, so they can be recursive. Schema types (Phase 5)
+are registered into the same table. A sequence type is not registered: it
+is the plain value `sxml_sequence_type` (item type + occurrence), with
+occurrences as bit sets so occurrence subtyping is a subset test.
+Predicates (`is_derived_from`, `is_subtype`) return `bool` and treat unknown
+identifiers as false.
+
+### D33. XDM values are immutable and reference counted
+Recorded 2026-10-16 (task 0.7). Considered: an arena per evaluation (simple,
+but garbage grows without bound in long loops and folds, and values that
+escape the evaluation, such as results, global variables, XSLT keys and
+cached documents, need another mechanism), tracing garbage collection (needs
+root scanning of C stacks), and reference counting. Chosen: immutable values
+with reference counts on heap cells, small values inline. XDM values cannot
+form cycles (built bottom-up, never changed; closures capture values), so
+counting reclaims everything. Rules: outputs of make/put/append/... are
+owned (+1) and released exactly once; get/describe outputs are borrowed;
+inputs are borrowed and functions that store an input retain it themselves.
+Retain and release are no-ops on inline values and on immortal cells
+(static data, counts that would overflow). Cells live in an `sxml_item_heap`
+and record their heap, so `sxml_item_release(item)` needs no other
+argument. `sxml_item_heap_read_counts` reports live cells, so every test
+can check for leaks (with D23's counting allocator for failure paths). Trees
+are counted too: node items retain their tree.
+
+### D34. Item and sequence representation
+Recorded 2026-10-16 (task 0.7). `sxml_item` and `sxml_sequence` are 16-byte
+plain values with private fields; the size is frozen as ABI (static assert).
+Inline: booleans, doubles, floats, integers that fit `int64_t` (any integer
+type), QName/NOTATION (name identifier + prefix identifier), node references
+(tree pointer + node index + namespace number). Cells: strings, decimals,
+big integers, dates, durations, binary, function items, maps, arrays, JNodes.
+A sequence is the empty sequence (all zero), one inline item (an item is a
+singleton sequence, XDM 4.0, section 3.2), or a cell: vector, integer range
+(two `int64_t` bounds), concatenation (flattened parts), or lazy (a
+`sxml_sequence_generator`, memoized so every reading sees the same items).
+One read interface serves all: count, get item by index, iterator. Item
+counts and indices in sequences are `uint64_t`, since `1 to 10000000000` is
+valid on 32-bit WebAssembly; counts of things held in memory are `size_t`.
+
+### D35. Thread confinement
+Recorded 2026-10-16 (task 0.7). Reference counts are not atomic and the name
+pool, registry and lazy indexes mutate on read. Rule: an item heap and
+everything tied to it (its name pool, type registry, trees and values) are
+used by one thread at a time; separate heaps are fully independent. Static
+const data and functions on inline values are safe from any thread. Sharing
+one parsed document between threads is not supported in year one; if needed
+later it becomes a new decision (an immortal, frozen tree with a read-only
+name pool is the likely shape).
+
+### D36. Numbers, dates and durations
+Recorded 2026-10-16 (task 0.7). `xs:integer` is unbounded: values that fit
+`int64_t` are inline; arithmetic that overflows moves to a cell holding a
+libmpdec value with exponent 0 (D8), so there is one arbitrary-precision
+library, not two. `xs:decimal` is always a libmpdec cell. Date/time values
+keep the seven XDM components (local values, optional timezone in minutes)
+with `int64_t` year and nanosecond seconds; durations are months plus
+seconds plus nanoseconds (XDM 4.0, section 5.7 note). Nine fractional digits
+exceed the required three; more digits are truncated by casting. The public
+`sxml_atomic_datum` reads and writes every datum; decimals are exchanged as
+canonical text, cached in the cell on first read.
+
+### D37. Maps, records, arrays and JNodes
+Recorded 2026-10-16 (task 0.7). Maps follow D7: entry order kept, entries
+addressable by position (`sxml_map_get_entry`), hash index built on first
+lookup, persistent put/remove sharing structure. Keys compare by
+`fn:atomic-equal` with a consistent `sxml_atomic_item_hash` (equal numeric
+values of different types hash alike). Map construction takes a whole entry
+list and a duplicate-key policy (reject with XQDY0137, use first, use last);
+combining duplicates with a function is left to `map:build`/`map:merge`.
+Records are maps whose cell holds only field values plus the record type,
+whose field names and name index live once in the type registry (D7's
+shared shapes); `map:put` on a record gives a plain map. Arrays are
+persistent vectors of sequences with O(log n) updates. A JNode is a cell
+(parent, key, value, child index, JTree identifier); roots take a fresh tree
+identifier so JTrees order among XTrees; children are made on demand and
+are identical when parent and key are (XDM 4.0, section 8.5).
+
+### D38. Function items
+Recorded 2026-10-16 (task 0.7). A function item cell holds name (optional),
+signature (a registered function type; arity is its parameter count),
+annotations (borrowed from the body's owner), captured values (retained) and
+a body. The body is an interface (`sxml_function_body`: state, `call`,
+optional `retain`/`release`) shared by native C functions and IR functions:
+the evaluator supplies the operations of IR bodies, so the substrate never
+sees the IR. Bodies receive arguments already coerced, the item (for
+captures), the dynamic context (opaque), the heap and an error record.
+Partial application and function coercion are native bodies capturing the
+wrapped function. Maps and arrays answer `sxml_function_item_call` as
+`map:get`/`array:get`. Function identity is not modelled (withdrawn from
+XDM 4.0, section 8.1).
+
+### D39. Trees: interface, node numbering, document order
+Recorded 2026-10-16 (task 0.7). `sxml_tree` wraps an implementation (state +
+`sxml_tree_operations`) with a tree identifier and a reference count; the
+built-in `sxml_arena_tree` is one implementation and hosts can supply
+others. Contract for every implementation: node indices are in document
+order (preorder, attributes right after their element), so document order
+in a tree is an integer comparison, descendants are an index range
+(`last_descendant`), and attributes are the indices after their element.
+Namespace nodes are not stored: a namespace node is (element index,
+namespace number from 1) into the element's in-scope namespaces, which keeps
+lexicographic order correct (XDM 4.0, section 6.2). Across trees, order is
+by tree identifier, issued in increasing order by the item heap to XTrees and
+JTrees alike, so it is stable and consistent (XDM 4.0, section 6.2). An
+`sxml_node_reference` is tree pointer + node index + namespace number and
+does not retain; node items do. When the count drops to zero the tree's
+owner is told (evaluation-built arena trees destroy themselves; host trees
+are destroyed by the host). Axes, XPath 4.0's `-or-self` axes included, are
+iterated by the library over the interface.
+
+### D40. Tree builder and arena tree
+Recorded 2026-10-16 (task 0.7). One event interface, `sxml_tree_builder`
+(start/end document and element, namespace binding, attribute, text,
+comment, processing instruction, unparsed entity), is fed by the XML parser,
+XQuery constructors and XSLT instructions, and implemented by the arena tree
+and later by serializers, so results can stream to output. Builders merge
+adjacent text, drop empty text, reject duplicate attributes and perform
+namespace fixup (XSLT 4.0, section 5.7.3). `sxml_tree_builder_copy_node`
+replays a subtree as events (deep copy with copy-namespaces modes). The
+arena tree stores nodes in index-addressed arrays and text in one store
+(D24), shares in-scope namespace lists between elements that declare
+nothing, keeps source locations on request, and enforces node-count, depth
+and text-size limits for untrusted input.

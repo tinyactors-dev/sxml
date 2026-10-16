@@ -4,6 +4,20 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 0.7 done: substrate headers `name.h` (name pool, D31), `types.h` (type
+  registry with constant built-in identifiers, interned item types, sequence
+  types, D32), `tree.h` (tree interface with preorder node numbering,
+  namespace nodes by number, document order by tree identifier, axes, tree
+  builder events, arena tree, D39-D40) and `xdm.h` (item heap; 16-byte items
+  and sequences; immutable reference-counted values; atomic datums; vector,
+  range, concatenation and lazy sequences; function bodies as an interface;
+  ordered persistent maps, records, arrays, JNodes; D33-D38). Header order
+  and resolver deferral in D30, thread confinement in D35. Design only:
+  header check and lints green under Clang and GCC, no implementation.
+- Open questions for 0.8: whether `sxml_tree_operations` should be split
+  (one optional typed-value op versus a separate schema interface in
+  Phase 5); whether decimals should get an inline fast path; how a host
+  shares one parsed document between threads (D35 defers it).
 - Query grammars (D29): tree-sitter grammars for XPath 4.0
   (`grammars/xpath`), XQuery 4.0 (`grammars/xquery`, inherits XPath) and
   XSLT 4.0 patterns (`grammars/xslt_pattern`, inherits XPath), with one shared

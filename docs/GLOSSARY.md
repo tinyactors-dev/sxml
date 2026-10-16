@@ -84,3 +84,89 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `test_suite` | The unit tests of one module: one test executable |
 | `test_case` | One named test function within a test suite |
 | `test_check` | One checked condition within a test case |
+| `name_pool` | Per-processor table that interns namespace URIs, prefixes and expanded names into small identifiers |
+| `name_identifier` | Identifier of an interned expanded name (namespace URI plus local name) in a name pool |
+| `namespace_uri_identifier` | Identifier of an interned namespace URI; 0 is "no namespace" |
+| `namespace_prefix_identifier` | Identifier of an interned prefix; 0 is "no prefix" |
+| `name_parts` | The namespace URI identifier and local name of a name identifier, as returned by the name pool |
+| `builtin_type` | A type predefined by XSD, XDM or XPath, with a constant type identifier (`SXML_TYPE_XS_INTEGER`) |
+| `schema_type` | A type that can annotate a node: complex, atomic, list or union (XDM 4.0, section 4.1.2) |
+| `type_variety` | What kind of type a type identifier names: complex, atomic, list, union, or a kind of item type |
+| `type_description` | What the type registry reports about one type: variety, name, base type and variety-specific parts |
+| `base_type` | The type a schema type is derived from by restriction, list or union |
+| `primitive_type` | The primitive atomic type an atomic type is derived from (`xs:integer` gives `xs:decimal`) |
+| `is_derived_from` | Schema type derivation: the base type chain reaches the other type (XSD 1.1 Part 1, section 3.16.6) |
+| `subtype` | The item type or sequence type relation of XPath 4.0, section 3.3 |
+| `item_type` | A class of items, such as `xs:integer`, `element(a)` or `map(xs:string, item())` |
+| `sequence_type` | An item type plus an occurrence |
+| `occurrence` | How many items a sequence type allows: zero, one, zero or one, zero or more, one or more |
+| `record_type` | An item type whose instances are records; a list of fields |
+| `record_field` | One field of a record type: a name and a sequence type |
+| `structural_record_type` | A record type matched by its fields (`record(a as xs:int)`) |
+| `nominative_record_type` | A named record type matched only by records annotated with it |
+| `enumeration_type` | An item type matching a fixed set of strings (`enum("a", "b")`) |
+| `choice_item_type` | An item type matching items of any of its alternatives (`(A \| B)`) |
+| `function_type` | The item type of function items with given parameter and result types; a function's signature |
+| `node_test` | An item type over XNodes: a node kind, an optional name and an optional type annotation |
+| `json_node_test` | An item type over JNodes: `jnode(key, value type)` |
+| `type_annotation` | The type identifier an atomic item, node or record is annotated with |
+| `item_heap` | Per-processor owner of the reference-counted cells that items and sequences point to |
+| `cell` | A reference-counted, immutable heap object holding the data of an item or sequence that does not fit inline |
+| `retain` / `release` | Add / drop one reference to an item, sequence or tree |
+| `immortal` | A cell or tree that is never released (static data); retain and release do nothing to it |
+| `item_kind` | Atomic item, node (XNode), JNode, function item, map or array |
+| `generic_node` | A GNode: a node (XNode) or a JNode (XDM 4.0, section 6) |
+| `datum` | The value of an atomic item, without its type annotation (XDM 4.0, section 5) |
+| `datum_kind` | The C representation a datum is read and written in (boolean, integer, string, ...) |
+| `date_time` | The seven components of a date/time datum (XDM 4.0, section 5.4) |
+| `duration` | A duration datum: months plus seconds and nanoseconds (XDM 4.0, section 5.5) |
+| `timezone_offset_minutes` | A timezone as minutes east of UTC, from -840 to 840 |
+| `atomic_equal` | The context-free equality of map keys (F&O 4.0, section 2.2.1 `fn:atomic-equal`) |
+| `atomic_hash` | A hash consistent with `atomic_equal` |
+| `sequence_representation` | How a sequence is stored: empty, single item, vector, integer range, concatenation, lazy |
+| `item_count` | Number of items: `uint64_t` for a sequence (a range may hold more than fits in memory), `size_t` in an `item_view` |
+| `item_index` | Position of an item in a sequence, from 0 |
+| `item_view` | A read-only pointer to items plus `item_count` |
+| `sequence_view` | A read-only pointer to sequences plus `sequence_count` |
+| `sequence_iterator` | Walks the items of a sequence in order |
+| `iteration_step` | What one call to an iterator yields: whether there was an item, and the item |
+| `sequence_builder` | Collects items one by one into a new sequence |
+| `sequence_generator` | Interface that produces the items of a lazy sequence on demand |
+| `entry_index` | Position of an entry in a map's entry order, from 0 |
+| `duplicate_key_policy` | What building a map does with keys that are atomic-equal: reject, keep first, keep last |
+| `member_index` | Position of a member in an array, from 0 |
+| `field_index` | Position of a field in a record type, from 0 |
+| `arity` | Number of parameters of a function item |
+| `function_annotation` | An annotation name with a sequence of atomic items (`%private`) |
+| `function_body` | Interface that runs a function item: native C code or an evaluator for the IR |
+| `function_call` | What a function body receives: the function item, the arguments, the dynamic context |
+| `captured_value` | A nonlocal variable value a function item keeps (its closure) |
+| `json_key` | The ·jkey· of a JNode: the map key or 1-based array or sequence position under its parent |
+| `json_value` | The ·jvalue· of a JNode: the value it wraps |
+| `json_tree` | A JTree: the JNodes reachable from one root JNode |
+| `child_index` | Position of a child among the children of its parent, from 0 |
+| `node_kind` | One of the seven XNode kinds: document, element, attribute, text, comment, processing instruction, namespace |
+| `node_reference` | A tree plus a node index (plus a namespace number for namespace nodes); identifies a node |
+| `namespace_number` | Which in-scope namespace of an element a namespace node is, from 1; 0 for other nodes |
+| `node_description` | What a tree reports about one node: kind, name, parent, siblings, children, type annotation, flags |
+| `last_descendant` | The node index of the last node in a node's subtree (the node itself when it has none) |
+| `tree_operations` | The operations table a tree implementation supplies |
+| `tree_owner` | Interface told when a tree is no longer referenced, so its owner can free it |
+| `arena_tree` | The built-in tree: nodes in arrays indexed by node index, built by a tree builder |
+| `tree_builder` | Interface receiving construction events in document order (parser, constructors, serializers) |
+| `event` | One step given to a tree builder: start element, attribute, text, ... |
+| `namespace_binding` | A prefix bound to a namespace URI |
+| `in_scope_namespaces` | The namespace bindings in effect on an element (XDM 4.0, `dm:namespace-nodes`) |
+| `string_value` | `dm:string-value` of a node |
+| `typed_value` | `dm:typed-value` of a node |
+| `base_uri` | `dm:base-uri` of a node |
+| `document_uri` | `dm:document-uri` of a document node |
+| `unparsed_entity` | An unparsed entity of a document: system and public identifier |
+| `byte_view_list` | A read-only pointer to byte views plus `byte_view_count` |
+| `processor` | The object (Phase 1) that owns one name pool, type registry and item heap and compiles and runs queries |
+| `well_known_namespace` | A namespace with a fixed `namespace_uri_identifier` in every name pool (`SXML_NAMESPACE_XML_SCHEMA`) |
+| `axis` | An XPath axis (`SXML_AXIS_CHILD`, ...), walked by an `axis_iterator` |
+| `axis_iterator` | Walks the nodes of one axis from an origin node |
+| `integer_range` | The bounds of a range sequence (`first_integer` to `last_integer`) |
+| `pair` | Two values a function relates or compares (`type_pair`, `item_pair`, `node_pair`) |
+| `update` | Describes one change to a persistent map or array (`map_update`, `array_update`) |
