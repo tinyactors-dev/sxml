@@ -1,0 +1,301 @@
+/*
+ * The abstract syntax tree of the query languages: lifecycle and builder
+ * functions (src/xpath_ast_internal.h, docs/DECISIONS.md D24, D52).
+ *
+ * Golden file: src/memory.c (lifecycle in one caller-provided block,
+ * create on top of initialize, outputs untouched on failure, D20).
+ *
+ * Layout of the block: the sxml_ast header, then node_capacity + 1 nodes,
+ * then text_byte_capacity bytes of text. Nothing grows after
+ * initialization, so the AST never moves and never allocates again.
+ */
+#include "xpath_ast_internal.h"
+
+#include <stdalign.h>
+#include <string.h>
+
+/* Where the parts of an AST live inside its block. */
+typedef struct sxml_ast_layout {
+    sxml_memory_requirements requirements;
+    size_t nodes_byte_offset;
+    size_t text_byte_offset;
+} sxml_ast_layout;
+
+static sxml_status
+sxml_ast_compute_layout(const sxml_ast_configuration *configuration,
+                        sxml_ast_layout *layout) {
+    if (configuration->node_capacity > (size_t)UINT32_MAX - 1U ||
+        configuration->text_byte_capacity > (size_t)UINT32_MAX) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    sxml_memory_requirements requirements = {
+        .byte_count = sizeof(sxml_ast),
+        .alignment = alignof(sxml_ast),
+    };
+    /* One more node than the capacity: entry 0 is the "no node" sentinel. */
+    size_t nodes_byte_count = 0;
+    sxml_status status =
+        sxml_size_multiply(configuration->node_capacity + 1U,
+                           sizeof(sxml_ast_node), &nodes_byte_count);
+    size_t nodes_byte_offset = 0;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_memory_requirements_append(
+            &requirements,
+            (sxml_memory_requirements){.byte_count = nodes_byte_count,
+                                       .alignment = alignof(sxml_ast_node)},
+            &nodes_byte_offset);
+    }
+    size_t text_byte_offset = 0;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_memory_requirements_append(
+            &requirements,
+            (sxml_memory_requirements){.byte_count =
+                                           configuration->text_byte_capacity,
+                                       .alignment = 1},
+            &text_byte_offset);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    *layout = (sxml_ast_layout){.requirements = requirements,
+                                .nodes_byte_offset = nodes_byte_offset,
+                                .text_byte_offset = text_byte_offset};
+    return SXML_STATUS_OK;
+}
+
+sxml_status
+sxml_ast_memory_requirements(const sxml_ast_configuration *configuration,
+                             sxml_memory_requirements *requirements) {
+    sxml_ast_layout layout = {
+        .requirements = {.byte_count = 0, .alignment = 1},
+        .nodes_byte_offset = 0,
+        .text_byte_offset = 0,
+    };
+    sxml_status status = sxml_ast_compute_layout(configuration, &layout);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    *requirements = layout.requirements;
+    return SXML_STATUS_OK;
+}
+
+sxml_status sxml_ast_initialize(sxml_memory_view memory,
+                                const sxml_ast_configuration *configuration,
+                                sxml_ast **ast) {
+    sxml_ast_layout layout = {
+        .requirements = {.byte_count = 0, .alignment = 1},
+        .nodes_byte_offset = 0,
+        .text_byte_offset = 0,
+    };
+    sxml_status status = sxml_ast_compute_layout(configuration, &layout);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    status = sxml_memory_view_check_requirements(memory, layout.requirements);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    /* check_requirements has checked size and alignment of the block, and
+       the layout aligned each part within it. */
+    void *header_memory = memory.bytes;
+    void *nodes_memory = memory.bytes + layout.nodes_byte_offset;
+    sxml_ast *new_ast = header_memory;
+    sxml_ast_node *nodes = nodes_memory;
+    memset(&nodes[0], 0, sizeof(nodes[0]));
+    *new_ast = (sxml_ast){
+        .nodes = nodes,
+        .node_count = 1,
+        .node_capacity = (uint32_t)configuration->node_capacity,
+        .text_bytes = memory.bytes + layout.text_byte_offset,
+        .text_byte_count = 0,
+        .text_byte_capacity = (uint32_t)configuration->text_byte_capacity,
+        .source_name = configuration->source_name,
+        .root = {.value = 0},
+        .allocator = {.state = NULL, .operations = NULL},
+    };
+    *ast = new_ast;
+    return SXML_STATUS_OK;
+}
+
+void sxml_ast_finalize(sxml_ast *ast) {
+    if (ast == NULL) {
+        return;
+    }
+    /* Every read through the accessors now ends at the sentinel. */
+    ast->node_count = 0;
+    ast->text_byte_count = 0;
+    ast->root = (sxml_ast_node_index){.value = 0};
+}
+
+sxml_status sxml_ast_create(sxml_allocator allocator,
+                            const sxml_ast_configuration *configuration,
+                            sxml_ast **ast) {
+    sxml_memory_requirements requirements = {.byte_count = 0, .alignment = 1};
+    sxml_status status =
+        sxml_ast_memory_requirements(configuration, &requirements);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    void *memory = NULL;
+    status = sxml_allocator_allocate(allocator,
+                                     (sxml_allocation_request){
+                                         .byte_count = requirements.byte_count,
+                                         .alignment = requirements.alignment,
+                                     },
+                                     &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_ast *new_ast = NULL;
+    status = sxml_ast_initialize(
+        (sxml_memory_view){
+            .bytes = memory,
+            .byte_count = requirements.byte_count,
+        },
+        configuration, &new_ast);
+    if (status != SXML_STATUS_OK) {
+        sxml_allocator_release(allocator, memory);
+        return status;
+    }
+    new_ast->allocator = allocator;
+    *ast = new_ast;
+    return SXML_STATUS_OK;
+}
+
+void sxml_ast_destroy(sxml_ast *ast) {
+    if (ast == NULL) {
+        return;
+    }
+    /* Finalizing may not touch the AST afterwards, so keep the allocator. */
+    sxml_allocator allocator = ast->allocator;
+    sxml_ast_finalize(ast);
+    sxml_allocator_release(allocator, ast);
+}
+
+/* --------------------------------------------------------------- Builder */
+
+static bool sxml_ast_text_is_in_store(const sxml_ast *ast, sxml_ast_text text) {
+    return text.byte_offset <= ast->text_byte_count &&
+           text.byte_count <= ast->text_byte_count - text.byte_offset;
+}
+
+/* True for the kinds whose payload is a name (sxml_ast_kind). */
+static bool sxml_ast_kind_has_name_payload(sxml_ast_kind kind) {
+    return kind == SXML_AST_KIND_NCNAME ||
+           kind == SXML_AST_KIND_PREFIXED_NAME ||
+           kind == SXML_AST_KIND_URI_QUALIFIED_NAME ||
+           kind == SXML_AST_KIND_WILDCARD;
+}
+
+/* True for the kinds whose payload is a text (sxml_ast_kind). */
+static bool sxml_ast_kind_has_text_payload(sxml_ast_kind kind) {
+    return kind == SXML_AST_KIND_INTEGER_LITERAL ||
+           kind == SXML_AST_KIND_HEX_INTEGER_LITERAL ||
+           kind == SXML_AST_KIND_BINARY_INTEGER_LITERAL ||
+           kind == SXML_AST_KIND_DECIMAL_LITERAL ||
+           kind == SXML_AST_KIND_DOUBLE_LITERAL ||
+           kind == SXML_AST_KIND_STRING_LITERAL ||
+           kind == SXML_AST_KIND_STRING_TEMPLATE_FIXED_PART;
+}
+
+static bool sxml_ast_payload_is_in_store(const sxml_ast *ast,
+                                         const sxml_ast_node_request *request) {
+    if (sxml_ast_kind_has_name_payload(request->kind)) {
+        const sxml_ast_name *name = &request->payload.name;
+        return sxml_ast_text_is_in_store(ast, name->namespace_prefix) &&
+               sxml_ast_text_is_in_store(ast, name->local_name) &&
+               sxml_ast_text_is_in_store(ast, name->namespace_uri);
+    }
+    if (sxml_ast_kind_has_text_payload(request->kind)) {
+        return sxml_ast_text_is_in_store(ast, request->payload.text);
+    }
+    return true;
+}
+
+sxml_status sxml_ast_add_node(sxml_ast *ast,
+                              const sxml_ast_node_request *request,
+                              sxml_ast_node_index *node) {
+    if (request->kind == SXML_AST_KIND_NONE ||
+        request->kind >= SXML_AST_KIND_COUNT ||
+        !sxml_ast_payload_is_in_store(ast, request)) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    /* node_count includes the sentinel, so node_count - 1 nodes are used. */
+    if (ast->node_count - 1U >= ast->node_capacity) {
+        return SXML_STATUS_CAPACITY_EXCEEDED;
+    }
+    const sxml_ast_node_index index = {.value = ast->node_count};
+    ast->nodes[index.value] = (sxml_ast_node){
+        .kind = request->kind,
+        .field = SXML_AST_FIELD_NONE,
+        .detail = request->detail,
+        .flags = request->flags,
+        .parent = {.value = 0},
+        .first_child = {.value = 0},
+        .last_child = {.value = 0},
+        .next_sibling = {.value = 0},
+        .source_span = request->source_span,
+        .payload = request->payload,
+    };
+    ast->node_count += 1U;
+    *node = index;
+    return SXML_STATUS_OK;
+}
+
+static bool sxml_ast_index_is_in_use(const sxml_ast *ast,
+                                     sxml_ast_node_index index) {
+    return index.value != 0 && index.value < ast->node_count;
+}
+
+sxml_status sxml_ast_append_child(sxml_ast *ast,
+                                  sxml_ast_child_request request) {
+    if (!sxml_ast_index_is_in_use(ast, request.parent) ||
+        !sxml_ast_index_is_in_use(ast, request.child) ||
+        request.parent.value == request.child.value ||
+        request.field == SXML_AST_FIELD_NONE ||
+        request.field >= SXML_AST_FIELD_COUNT) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    sxml_ast_node *child = &ast->nodes[request.child.value];
+    if (child->parent.value != 0) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    sxml_ast_node *parent = &ast->nodes[request.parent.value];
+    if (parent->last_child.value == 0) {
+        parent->first_child = request.child;
+    } else {
+        ast->nodes[parent->last_child.value].next_sibling = request.child;
+    }
+    parent->last_child = request.child;
+    child->parent = request.parent;
+    child->field = request.field;
+    return SXML_STATUS_OK;
+}
+
+sxml_status sxml_ast_append_text(sxml_ast *ast, sxml_byte_view bytes,
+                                 sxml_ast_text *text) {
+    const bool extends_text = text->byte_count != 0;
+    if (extends_text &&
+        (!sxml_ast_text_is_in_store(ast, *text) ||
+         text->byte_offset + text->byte_count != ast->text_byte_count)) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    if (bytes.byte_count >
+        (size_t)(ast->text_byte_capacity - ast->text_byte_count)) {
+        return SXML_STATUS_CAPACITY_EXCEEDED;
+    }
+    const uint32_t start = ast->text_byte_count;
+    if (bytes.byte_count != 0) {
+        memcpy(ast->text_bytes + start, bytes.bytes, bytes.byte_count);
+    }
+    /* The capacity check bounds byte_count by a uint32_t difference. */
+    const uint32_t appended_byte_count = (uint32_t)bytes.byte_count;
+    ast->text_byte_count = start + appended_byte_count;
+    if (extends_text) {
+        text->byte_count += appended_byte_count;
+    } else {
+        *text = (sxml_ast_text){.byte_offset = start,
+                                .byte_count = appended_byte_count};
+    }
+    return SXML_STATUS_OK;
+}
