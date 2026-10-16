@@ -948,4 +948,40 @@ Recorded 2026-10-16, completing D42 and D49.
   shortest conversion, canonical text and `to_double` grows by 89 KB
   (35 KB gzip) over one using only the allocator.
 
+### D58. Type registry internals and the subtype search (packet 1.6)
+Recorded 2026-10-16.
+- **Storage**: built-in descriptions are static (`src/types_builtin.c`);
+  their names are interned at initialization and found through a fixed
+  256-slot index inside the registry. Registered types are an entry array
+  plus two open-addressing indexes (structure, names), as in D54; copied
+  views live in an arena of 4 KiB blocks, released at finalize. A
+  registration that fails after copying leaves its copies unused there.
+- **Normal form**: registered descriptions are normalized before interning
+  (name test fields its kind does not use cleared; `allows_nilled` only on
+  `element(N, T)`; `map(*)`, `array(*)`, `function(*)` and `jnode(*)` carry
+  their explicit equivalents, as the built-ins do), so `map(*)` with any
+  key gives `SXML_TYPE_MAP` and a node test of kind any gives xnode().
+  node() and xnode() share a description; node() is told apart by
+  identifier. A choice of one member is that member.
+- **Rejected on registration** (INVALID_ARGUMENT): duplicate enumeration
+  values and duplicate field names (the front end removes duplicate enum
+  values first), empty choices and enumerations, map keys that are not
+  atomic, union or enumeration types, `document-node()` around anything
+  but element tests, JNode key constants outside the six key types.
+- **Subtyping** follows XPath 4.0 §3.3.2 rule by rule; transitivity is
+  built into the rules where it adds pairs (maps, arrays, records as
+  functions; records as maps; nominative records as their structural
+  twin). A choice as derived type is split first (every member), then a
+  choice as base (some member, else the abstract expansion of
+  xs:anyAtomicType, xnode(), node(), item()); `document-node(element(a|b))`
+  is split per element. Two places are slightly more permissive than the
+  letter of §3.3.2.2 (a derived member is compared with the whole base
+  choice, so a union member may spread over several base members); both are
+  sound. Without schemas (Phase 5) schema-element/-attribute tests are
+  subtypes only of themselves, `element()`/`attribute()` and same-name
+  `attribute(N)`. JNode key constants compare by type and lexical form.
+- **Budget**: one question may nest 128 deep and apply 10⁶ rules. Every
+  rule is monotone, so running out answers false, never a wrong true; this
+  bounds work on hostile types.
+
 ## Proposed
