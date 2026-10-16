@@ -4,6 +4,18 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 1.22 done (D82): JSON, parse-xml, adaptive output. `grammars/json`
+  (strict RFC 8259 tree-sitter grammar; D12 kept, reasons in D82),
+  `src/json.c` (one cursor loop into JSON events; value sink and XML
+  sink; xml-to-json writer with FOJS0006/0007 checks and a key index),
+  `src/function_library_json.c` (parse-json, json-to-xml, xml-to-json,
+  jtree, parse-xml through the document loader), `src/serialize.c`
+  (output buffer, adaptive method on a heap stack). 12 cases in
+  `tests/json_test.c` (all 22 JSON/parse-xml/JNode slice lines, 100,000
+  nesting levels, allocation-failure loops), 8 in `tests/serialize_test.c`.
+  `debug`, `debug-gcc`, `wasm` pass except the `xml` test (fails at HEAD,
+  not 1.22); lint clean, no call cycles. Not yet: a `fallback` function,
+  strip-space="all".
 - XML fix (D87, P8 accepted): the position tracker moves back in place
   instead of restarting from byte 0, so parsing is linear: `sxml-qt4 list
   tests/qt4/torture-slice.txt` 23.3 s -> 0.76 s (release). The `xml` ctest
