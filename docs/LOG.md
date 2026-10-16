@@ -11,7 +11,7 @@ One short entry per week, newest first: what passed, what's next, what is blocke
   backtracking for choices, coercion incl. function coercion),
   `src/evaluator_path.c` (XNode and JNode axes, document order, node
   sets). Resumable native bodies for 1.21 in
-  `function_library_internal.h`. P4, P5, P7 accepted. 21 cases in
+  `function_library_internal.h`. P4, P5, P7 accepted. 19 cases in
   `tests/evaluator_test.c` (about 90 slice lines without library calls,
   100k-deep recursion, 100k fold-left steps, allocation-failure loop);
   `debug`, `debug-gcc`, `wasm`: 60/60; lint clean, no call cycles.
