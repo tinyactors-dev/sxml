@@ -1012,4 +1012,60 @@ tables; the AST capacity is `ts_node_descendant_count` of the top node.
 - AST builder tests are in `tests/xpath_ast_test.c` (module prefix
   `xpath`, D45), front-end tests in `tests/xpath_parse_test.c`.
 
+### D60. Item heap, cells and atomic items (packet 1.7)
+Recorded 2026-10-16. `src/xdm_internal.h` is the shared interface of the
+value model; later XDM packets add files, not edits.
+- **Layout**: `sxml_item.representation` is an internal enum (inline
+  boolean, integer, float, double, QName; atomic, JNode, function, map,
+  array cells; from 64 the sequence cells vector, integer range,
+  concatenation, lazy); 0 is "no item" and, as sequence content, the empty
+  sequence. Atomic items keep their primitive type in `flags`, so type
+  families need no registry; `type_or_node_index` holds the annotation
+  (node index for XNodes).
+- **Cells**: header (cell class, heap, byte count, reference count) at the
+  start of a module's struct. A `sxml_cell_class` (static const) gives
+  `release_contents` and, for sequence cells, count/get item/iterator
+  next, so `src/xdm.c` dispatches to range, concatenation and lazy cells
+  (1.8) without link-time dependencies. Releasing the last reference
+  queues the cell on the heap's pending list; the outermost release frees
+  the list in a loop, so deep values free in constant C stack (a 10^6
+  chain is tested). Count overflow makes a cell immortal.
+- **Memory**: every byte the heap hands out counts in `live_byte_count`
+  and against `maximum_byte_count`: cells, side tables
+  (`sxml_item_heap_allocate_bytes`), the raised error, and decimal
+  coefficients, which go through `sxml_item_heap_as_allocator` (a hidden
+  size header per block) as the heap's decimal configuration.
+- **Decimals**: a decimal cell stores its canonical text (made with the
+  cell, not on first read), the nearest double and whether it equals it
+  exactly. atomic-equal, the hash and compare therefore never allocate:
+  doubles are compared through their exact decimal text, built on the
+  stack. Numbers equal to some double hash as that double, others as
+  their canonical text, so 1, 1.0, 1.0e0 and xs:float 1 hash alike.
+- **Compare** follows F&O 4.0 `fn:compare` with PR2256 (QT4 fn-compare):
+  durations by months then seconds, binary by octets across hex and
+  base64, QNames by namespace URI then local name. QName order needs the
+  name pool, which `sxml_atomic_comparison` lacks: internal
+  `sxml_atomic_item_compare_in_heap` takes the heap; the public function
+  returns `SXML_STATUS_UNSUPPORTED_FEATURE` for distinct names (P2).
+- **Making**: strings are revalidated as UTF-8 and checked against the
+  derived types (NCName, token, language, ...); integer subtypes by range,
+  beyond `int64_t` only where the type allows (unsignedLong up to
+  2^64-1). `sxml_atomic_item_make_taking_decimal` lets operators and
+  casting hand over a computed `sxml_decimal`.
+- **Node items**: `sxml_item_retain`/`_release` must retain the tree, but
+  `src/tree.c` arrives with 1.11. `src/xdm.c` has two empty static
+  functions, `sxml_node_item_retain_tree`/`_release_tree`; packet 1.11
+  fills them with `sxml_tree_retain`/`sxml_tree_release` (a two-line
+  hand-off; no node item exists before 1.13).
+- `sxml_error_record_report` fills an error record from a
+  `sxml_static_error` (err namespace), for every packet's static errors.
+
 ## Proposed
+
+### P2. `sxml_atomic_comparison` needs the item heap (from D60)
+fn:compare orders xs:QName values by namespace URI and local name (F&O
+4.0, PR2256; QT4 compare-QName-01 to -04), which needs the name pool, but
+`sxml_atomic_comparison` in `xdm.h` carries only the items. Proposed: add
+`const sxml_item_heap *item_heap` (may be NULL) to it and drop the
+internal `sxml_atomic_item_compare_in_heap`. Until then the evaluator calls
+the internal function.
