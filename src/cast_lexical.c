@@ -120,14 +120,22 @@ static bool sxml_is_decimal_digit(uint8_t byte) {
     return byte >= '0' && byte <= '9';
 }
 
+/* The bytes of text from byte_offset on. The empty text may have no bytes
+   at all (NULL), and a null pointer takes no offset, not even 0. */
+static const uint8_t *sxml_text_bytes_at(sxml_byte_view text,
+                                         size_t byte_offset) {
+    return text.bytes == NULL ? NULL : text.bytes + byte_offset;
+}
+
 /* Consumes a run of decimal digits, possibly empty, and returns it. */
 static sxml_byte_view sxml_cursor_read_digits(sxml_text_cursor *cursor) {
     size_t first_offset = cursor->byte_offset;
     while (sxml_is_decimal_digit(sxml_cursor_peek(cursor))) {
         cursor->byte_offset += 1;
     }
-    return (sxml_byte_view){.bytes = cursor->text.bytes + first_offset,
-                            .byte_count = cursor->byte_offset - first_offset};
+    return (sxml_byte_view){
+        .bytes = sxml_text_bytes_at(cursor->text, first_offset),
+        .byte_count = cursor->byte_offset - first_offset};
 }
 
 /* The value of digits, or false when it exceeds maximum. */
@@ -327,7 +335,7 @@ static bool sxml_split_binary_lexical_form(sxml_byte_view text,
     if (!form->is_negative) {
         (void)sxml_cursor_accept(&cursor, '+');
     }
-    sxml_byte_view rest = {.bytes = text.bytes + cursor.byte_offset,
+    sxml_byte_view rest = {.bytes = sxml_text_bytes_at(text, cursor.byte_offset),
                            .byte_count = text.byte_count - cursor.byte_offset};
     if (sxml_byte_view_equals(rest, SXML_BYTE_VIEW_FROM_LITERAL("INF"))) {
         form->is_infinite = true;

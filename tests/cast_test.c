@@ -1475,6 +1475,38 @@ test_casts_survive_every_allocation_failure(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, failing_allocation_number > 10);
 }
 
+/* The empty text without bytes (NULL), as an empty string literal gives
+   it: FORG0001 for every type whose lexical space lacks "", and no offset
+   applied to the null pointer on the way (found by
+   tests/fuzz/xpath_evaluate_fuzz.c, packet 1.26, on xs:int("")). */
+static void test_empty_text_without_bytes(sxml_test_state *state) {
+    cast_fixture fixture;
+    SXML_TEST_REQUIRE(state, cast_fixture_create(&fixture) == SXML_STATUS_OK);
+    static const sxml_builtin_type targets[] = {
+        SXML_TYPE_XS_INT,      SXML_TYPE_XS_DECIMAL, SXML_TYPE_XS_DOUBLE,
+        SXML_TYPE_XS_FLOAT,    SXML_TYPE_XS_DATE,    SXML_TYPE_XS_DATE_TIME,
+        SXML_TYPE_XS_DURATION, SXML_TYPE_XS_G_YEAR,  SXML_TYPE_XS_BOOLEAN};
+    for (size_t target_index = 0;
+         target_index < sizeof(targets) / sizeof(targets[0]); target_index++) {
+        sxml_error_record error_record = {.value = NULL};
+        sxml_sequence value = sxml_sequence_empty();
+        SXML_TEST_EXPECT(
+            state, sxml_cast_make_value_from_text(
+                       fixture.item_heap,
+                       &(sxml_text_cast_request){
+                           .text = {.bytes = NULL, .byte_count = 0},
+                           .target_type = builtin(targets[target_index]),
+                           .namespace_bindings = {NULL, 0},
+                           .error_record = &error_record},
+                       &value) == SXML_STATUS_DYNAMIC_ERROR);
+        SXML_TEST_EXPECT(state, sxml_byte_view_equals(
+                                    error_record.code.local_name,
+                                    SXML_BYTE_VIEW_FROM_LITERAL("FORG0001")));
+    }
+    SXML_TEST_EXPECT(state, live_cell_count(&fixture) == 0);
+    cast_fixture_destroy(&fixture);
+}
+
 static const sxml_test_case cast_test_cases[] = {
     {.name = "slice_cast_lines", .function = test_slice_cast_lines},
     {.name = "duration_cast_to_itself_is_equal",
@@ -1507,6 +1539,8 @@ static const sxml_test_case cast_test_cases[] = {
      .function = test_canonical_text_reports_its_size},
     {.name = "casts_survive_every_allocation_failure",
      .function = test_casts_survive_every_allocation_failure},
+    {.name = "empty_text_without_bytes",
+     .function = test_empty_text_without_bytes},
 };
 
 int main(int argument_count, char **arguments) {
