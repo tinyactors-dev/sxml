@@ -1253,6 +1253,73 @@ static void test_copy_node_copies_namespace_nodes(sxml_test_state *state) {
     tree_fixture_destroy(&fixture);
 }
 
+/* Copies element a of the fixed document into <holder xmlns:h="urn:h">
+   and dumps the result. */
+static sxml_status copy_into_holder(const tree_fixture *fixture,
+                                    const sxml_copy_request *request,
+                                    char *text) {
+    text[0] = '\0';
+    sxml_arena_tree_configuration configuration = arena_configuration(fixture);
+    built_tree copy = {.arena_tree = NULL, .tree = NULL};
+    sxml_status status = sxml_arena_tree_create(
+        sxml_default_allocator(), &configuration, &copy.arena_tree);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    event_writer writer = {
+        .fixture = fixture,
+        .builder = sxml_arena_tree_as_tree_builder(copy.arena_tree),
+        .status = SXML_STATUS_OK};
+    write_element(&writer, "holder");
+    write_namespace(&writer, "h", "urn:h");
+    status = writer.status;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_tree_builder_copy_node(writer.builder, request);
+    }
+    if (status == SXML_STATUS_OK) {
+        write_end_element(&writer);
+        status = writer.status;
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_arena_tree_finish(copy.arena_tree, &copy.tree);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = dump_node(fixture,
+                           (sxml_node_reference){.tree = copy.tree,
+                                                 .node_index = {.index = 0},
+                                                 .namespace_number = 0},
+                           text);
+    }
+    built_tree_destroy(&copy);
+    return status;
+}
+
+/* copy-namespaces inherit and no-inherit (XQuery 4.0, section 5.6.7): only
+   the top element of the copy is cut off from the new parent's bindings,
+   and its descendants then inherit from it (D69). */
+static void test_copy_node_honours_no_inherit(sxml_test_state *state) {
+    tree_fixture fixture;
+    SXML_TEST_REQUIRE(state, tree_fixture_create(&fixture) == SXML_STATUS_OK);
+    built_tree built;
+    SXML_TEST_REQUIRE(state, build_fixed_document(&fixture, &built) ==
+                                 SXML_STATUS_OK);
+    char text[TEST_TEXT_BYTE_COUNT];
+    sxml_copy_request request = copy_request_of(fixed_node(&built, 2));
+    SXML_TEST_REQUIRE(state, copy_into_holder(&fixture, &request, text) ==
+                                 SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, strstr(text, "<a xmlns:h=urn:h") != NULL);
+    request.inherits_namespaces = false;
+    SXML_TEST_REQUIRE(state, copy_into_holder(&fixture, &request, text) ==
+                                 SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state,
+                     strcmp(text, "<holder xmlns:h=urn:h><a xmlns:p=urn:p "
+                                  "id=\"1\" x=\"2\"><b xmlns:p=urn:p></>'t1'"
+                                  "<c xmlns:p=urn:p><d xmlns:p=urn:p></></></>"
+                                  "</>") == 0);
+    built_tree_destroy(&built);
+    tree_fixture_destroy(&fixture);
+}
+
 /* Nested 10^5 deep: copying and walking use constant C stack. */
 static void test_deep_trees_copy_and_walk_iteratively(sxml_test_state *state) {
     tree_fixture fixture;
@@ -1343,6 +1410,8 @@ static const sxml_test_case tree_test_cases[] = {
      .function = test_copy_node_rebuilds_subtrees},
     {.name = "copy_node_copies_namespace_nodes",
      .function = test_copy_node_copies_namespace_nodes},
+    {.name = "copy_node_honours_no_inherit",
+     .function = test_copy_node_honours_no_inherit},
     {.name = "deep_trees_copy_and_walk_iteratively",
      .function = test_deep_trees_copy_and_walk_iteratively},
 };

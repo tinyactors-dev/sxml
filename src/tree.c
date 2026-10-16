@@ -492,6 +492,7 @@ typedef struct sxml_element_copy {
     /* The in-scope namespaces the copy's parent already has from this
        copy; empty for the copy's top element. */
     sxml_namespace_binding_view parent_bindings;
+    bool is_top_element;
 } sxml_element_copy;
 
 /*
@@ -603,6 +604,10 @@ static sxml_status sxml_node_copy_start_element(
         .is_id = description->is_id,
         .is_idrefs = description->is_idrefs,
         .is_nilled = preserves_types && description->is_nilled,
+        /* Only the top element of a copy can be cut off from its new
+           parent's bindings; its descendants inherit from it. */
+        .ignores_parent_namespaces = element->is_top_element &&
+                                     !copy->request->inherits_namespaces,
         .location = {.source_name = {.bytes = NULL, .byte_count = 0},
                      .line_number = 0,
                      .column_number = 0,
@@ -728,7 +733,8 @@ static sxml_status sxml_node_copy_send_descendant(
     return sxml_node_copy_start_element(
         copy, &(sxml_element_copy){.node_number = node_number,
                                    .description = description,
-                                   .parent_bindings = parent_bindings});
+                                   .parent_bindings = parent_bindings,
+                                   .is_top_element = false});
 }
 
 /*
@@ -837,14 +843,15 @@ sxml_status sxml_tree_builder_copy_node(sxml_tree_builder builder,
         return sxml_node_copy_send_document(&copy, &root);
     case SXML_NODE_KIND_ELEMENT:
         /* The top element gets every in-scope namespace it has; whether it
-           also inherits those of the element it is copied into is up to
-           the builder (inherits_namespaces, D67). */
+           also inherits those of the element it is copied into is the
+           builder's work, asked for by ignores_parent_namespaces (D69). */
         status = sxml_node_copy_start_element(
             &copy, &(sxml_element_copy){
                        .node_number = root_number,
                        .description = &root,
                        .parent_bindings = {.namespace_bindings = NULL,
-                                           .namespace_binding_count = 0}});
+                                           .namespace_binding_count = 0},
+                       .is_top_element = true});
         if (status == SXML_STATUS_OK) {
             status = sxml_node_copy_send_content(&copy, root_number, &root);
         }

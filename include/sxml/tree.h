@@ -471,6 +471,11 @@ typedef struct sxml_element_start_event {
     bool is_id;
     bool is_idrefs;
     bool is_nilled;
+    /* When true, the element does not inherit the in-scope namespaces of
+       the element it is built in: it starts from the xml binding alone,
+       plus its own bindings and those namespace fixup makes (XQuery 4.0
+       copy-namespaces no-inherit, D69). False, the default, inherits. */
+    bool ignores_parent_namespaces;
     /* Where the element starts in its source; line_number 0 when unknown. */
     sxml_source_location location;
 } sxml_element_start_event;

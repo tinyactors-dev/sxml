@@ -141,6 +141,9 @@ struct sxml_arena_tree {
        and the hash index of its attributes once it has many. */
     bool is_in_header;
     uint32_t header_element;
+    /* The header element inherits nothing from its parent (copy-namespaces
+       no-inherit, D69). */
+    bool header_ignores_parent_namespaces;
     sxml_namespace_binding *declared_bindings;
     size_t declared_binding_count;
     size_t declared_binding_capacity;
@@ -798,7 +801,8 @@ static sxml_status sxml_arena_tree_get_inherited_bindings(
     sxml_arena_tree *arena_tree, sxml_namespace_binding_view *bindings) {
     const sxml_arena_node *element =
         sxml_arena_tree_get_node(arena_tree, arena_tree->header_element);
-    if ((element->flags & SXML_ARENA_NODE_HAS_PARENT) != 0) {
+    if ((element->flags & SXML_ARENA_NODE_HAS_PARENT) != 0 &&
+        !arena_tree->header_ignores_parent_namespaces) {
         const sxml_arena_node *parent =
             sxml_arena_tree_get_node(arena_tree, element->parent);
         if (parent->node_kind == SXML_NODE_KIND_ELEMENT) {
@@ -1534,6 +1538,8 @@ static sxml_status sxml_arena_tree_start_element(
     arena_tree->element_depth += 1;
     arena_tree->is_in_header = true;
     arena_tree->header_element = node_number;
+    arena_tree->header_ignores_parent_namespaces =
+        event->ignores_parent_namespaces;
     arena_tree->declared_binding_count = 0;
     arena_tree->has_attribute_index = false;
     arena_tree->phase = SXML_ARENA_TREE_PHASE_BUILDING;
