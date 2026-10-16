@@ -4,6 +4,16 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 1.3 done (D51): public API headers `xml.h` (reusable XML parser into
+  any tree builder, or check only; diagnostics with line and column),
+  `processor.h` (processor owning pool, registry and heap; limits; resource
+  resolver for `fn:doc` with a table resolver; system and fixed clocks;
+  `sxml_processor_parse_document`), `xpath.h` (static and dynamic context
+  configurations shared with later XQuery and XSLT, compiled expressions,
+  evaluation, SequenceType from text) and `serialize.h` (output stream,
+  output buffer, adaptive method). Design only: header check under
+  `debug`, `debug-gcc` and `wasm`, lint clean. Implemented by 1.14, 1.22
+  and 1.23; the driver (1.24) and the CLI's `check` and `xpath` use them.
 - CLI (D44, `docs/CLI.md`): CLI framework in `apps/cli_framework/`
   (command tables, parser, help, "did you mean", exit codes 0-4, output
   streams) and the `sxml` program in `apps/sxml/` with `help`, `--help`,
