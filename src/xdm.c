@@ -445,16 +445,15 @@ sxml_type_identifier sxml_item_get_type_annotation(sxml_item item) {
     return sxml_builtin_type_identifier(SXML_TYPE_NONE);
 }
 
-/*
- * A node item holds a reference to its tree (D33, D39). The tree's count
- * belongs to src/tree.c, which packet 1.11 adds after this file; until
- * then no node item can be made (sxml_node_item_make arrives with packet
- * 1.13), and these two calls are completed by packet 1.11 as recorded in
- * D60: sxml_tree_retain(tree) and sxml_tree_release(tree).
- */
-static void sxml_node_item_retain_tree(sxml_tree *tree) { (void)tree; }
+/* A node item holds a reference to its tree (D33, D39); the tree's count
+   is kept by src/tree.c (D60). */
+static void sxml_node_item_retain_tree(sxml_tree *tree) {
+    sxml_tree_retain(tree);
+}
 
-static void sxml_node_item_release_tree(sxml_tree *tree) { (void)tree; }
+static void sxml_node_item_release_tree(sxml_tree *tree) {
+    sxml_tree_release(tree);
+}
 
 void sxml_item_retain(sxml_item item) {
     if (sxml_item_has_cell(item)) {
