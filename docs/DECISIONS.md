@@ -1730,6 +1730,31 @@ it as the end; RFC 8259 forbids it unescaped). The walk is one loop over
 a tree cursor (D71) that sends JSON events to a sink: one sink makes
 maps, arrays and atomic items on explicit stacks, the other sends tree
 builder events. `src/json_internal.h` is the interface.
+- **Functions** (`src/function_library_json.c`, part
+  `sxml_function_library_json`): fn:parse-json, json-to-xml, xml-to-json,
+  jtree, parse-xml. Options follow F&O 4.0, 1.7: unknown string keys
+  XPTY0004, QName keys with a namespace ignored, values coerced
+  (`sxml_evaluator_coerce`), bad values FOJS0005; `liberal` accepts
+  nothing beyond RFC 8259. Characters an escape gives that xs:string
+  cannot hold (U+0000, unpaired surrogates, U+FFFE/FFFF) become U+FFFD;
+  a `fallback` function is UNSUPPORTED_FEATURE for now (it needs a
+  resumable body). json-to-xml: untyped tree in heap memory that destroys
+  itself, default namespace on the outer element, `validate=true`
+  FOJS0004. xml-to-json: FOJS0006 checks without a schema, duplicate
+  normalized keys through a hash index, `indent` adds nothing.
+  parse-xml: through the document loader (D55); xs:string as UTF-8,
+  binary values as their octets (the string's encoding declaration is
+  not ignored yet); dtd-validation, xinclude, strip-space="all" FODC0013,
+  xsd-validation other than skip FODC0009.
+- **Adaptive output** (`src/serialize.c`): frames on a heap stack (D71);
+  strings in double quotes with quotes doubled, also at the top level;
+  xs:double as mantissa and exponent (`1.0e0`), other non-string,
+  non-decimal types and non-finite doubles as `xs:TYPE("value")`; QNames
+  `#prefix:local` (array fn map math xs) or `#Q{uri}local`; anonymous
+  functions `(anonymous-function)#N`; nodes by the XML method without a
+  declaration, each element declaring the in-scope namespaces its written
+  parent lacks; JNodes `jtree(V)` / `jnode(K:V)`.
+- Root `CMakeLists.txt` links `sxml_grammar_json` (one line, 1.0's file).
 
 ### D83. The QT4 driver: catalog and environments (packet 1.24)
 Recorded 2026-10-16. `tests/qt4/driver/`, the developer tool `sxml-qt4`
