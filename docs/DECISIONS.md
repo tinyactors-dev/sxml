@@ -1289,23 +1289,24 @@ arena tree embeds it) and node-reference helpers.
   Unparsed entities only before document content. After a failed event
   only finalize/destroy is meaningful.
 
+### D68. Name pool in comparisons; record entries may fail (P2, P3)
+Recorded 2026-10-16 by packet 1.19, on the orchestrator's acceptance of P2
+and P3 (design edits to `include/sxml/xdm.h`).
+- **P2 accepted**: `sxml_atomic_comparison` gains `const sxml_name_pool
+  *name_pool`, NULL allowed when no xs:QName or xs:NOTATION is compared
+  (a pool, not the heap: ordering names needs nothing else).
+  `sxml_atomic_item_compare` now orders QNames by namespace URI, then local
+  name (F&O 4.0, fn:compare, PR2256); two different names without a pool
+  give SXML_STATUS_INVALID_ARGUMENT. The internal
+  `sxml_atomic_item_compare_in_heap` stays (it uses the heap's pool, else
+  the comparison's) because `src/xdm_internal.h` is not this packet's; it
+  can go when 1.7's files are next edited.
+- **P3 accepted, option "document"**: the contract of `sxml_map_get_entry`
+  states that the first call on a record may return the heap's failures
+  (OUT_OF_MEMORY, LIMIT_EXCEEDED), since record keys are made lazily (D61);
+  `sxml_map_find` and `sxml_json_node_make_child` already list them.
+
 ## Proposed
-
-### P2. `sxml_atomic_comparison` needs the item heap (from D60)
-fn:compare orders xs:QName values by namespace URI and local name (F&O
-4.0, PR2256; QT4 compare-QName-01 to -04), which needs the name pool, but
-`sxml_atomic_comparison` in `xdm.h` carries only the items. Proposed: add
-`const sxml_item_heap *item_heap` (may be NULL) to it and drop the
-internal `sxml_atomic_item_compare_in_heap`. Until then the evaluator calls
-the internal function.
-
-### P3. `sxml_map_get_entry` may fail for lack of memory (from D61)
-A record makes its `field_key` items on first need, since the heap has no
-table to share them per record type; `sxml_map_get_entry` on a record can
-therefore return the heap's failures, which its contract in `xdm.h` does
-not list. Proposed: add "and the heap's failures (a record makes its keys
-on first use)" to that comment, or give the heap a per-record-type key
-table so records share their keys as D7 intends.
 
 ### P4. Namespace node tests with a name (from D63)
 `namespace::x` is a STEP whose node test is a namespace test named x (a
