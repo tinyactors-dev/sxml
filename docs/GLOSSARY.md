@@ -139,6 +139,10 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `ast_field` | The role of a child in its AST parent: a field name of the grammar (`left`, `predicate`, `argument`) |
 | `source_span` | Where a syntax node is: byte offset and byte count, with line and column of its first byte; a `source_location` without the source name |
 | `operator` | The token that selects what an operator expression computes (`SXML_AST_OPERATOR_PLUS`); in the IR, what a binary or unary expression computes |
+| `arithmetic_operator` | What an arithmetic expression computes: add, subtract, multiply, divide, integer divide or modulo (XPath 4.0, section 4.9) |
+| `comparison_operator` | What a value or general comparison tests: equal, not equal, less, less or equal, greater, greater or equal |
+| `value_comparison` | `eq`, `ne`, `lt`, `le`, `gt`, `ge` on two single atomic items, through fn:compare (XPath 4.0, section 4.11.1) |
+| `general_comparison` | `=`, `!=`, `<`, `<=`, `>`, `>=`: true when some pair of atomized items has the relationship (XPath 4.0, section 4.11.2) |
 | `test_suite` | The unit tests of one module: one test executable |
 | `test_case` | One named test function within a test suite |
 | `test_check` | One checked condition within a test case |
