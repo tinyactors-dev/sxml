@@ -261,6 +261,18 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `xml_parser` | Reads XML 1.0 bytes and sends their tree builder events (`include/sxml/xml.h`) |
 | `encoding_name` | The name of a character encoding (`UTF-8`, `ISO-8859-1`), from outside a document or from its encoding declaration |
 | `entity_expansion` | The text that replacing entity references produces (XML 1.0, section 4.4); bounded for untrusted input |
+| `character_encoding` | How a document's characters are stored as bytes: UTF-8, UTF-16 (little or big endian), ISO-8859-1 or US-ASCII (`sxml_xml_encoding`, XML 1.0, section 4.3.3) |
+| `byte_order_mark` | U+FEFF at the start of a document, which identifies UTF-8 or the byte order of UTF-16 (XML 1.0, Appendix F) |
+| `transcoding` | Converting a document from its character encoding into UTF-8 before parsing |
+| `line_end_normalization` | Turning CR LF and lone CR into LF in all text of a document (XML 1.0, section 2.11) |
+| `general_entity` | An entity referenced as `&name;` (XML 1.0, section 4): internal (with replacement text), external parsed, or unparsed |
+| `parameter_entity` | An entity referenced as `%name;` inside the DTD (XML 1.0, section 4) |
+| `replacement_text` | The text an internal entity stands for: its literal value with character references expanded and general entity references kept (XML 1.0, section 4.5) |
+| `entity_frame` | One level of nested entity expansion in the XML parser: the replacement text being walked and the entity it belongs to |
+| `internal_subset` | The declarations between `[` and `]` of a document type declaration (XML 1.0, section 2.8) |
+| `attribute_definition` | One attribute of an attribute-list declaration: its name, type and default (XML 1.0, section 3.3) |
+| `attribute_default` | The value an attribute definition supplies when an element does not specify the attribute (XML 1.0, section 3.3.2) |
+| `file_reader` | Interface through which a command of the sxml program reads a named file or standard input (`sxml_cli_file_reader`) |
 | `resource` | What a resource resolver delivers for a URI: bytes, a document node, or nothing |
 | `resource_resolver` | Host interface that retrieves resources by URI, for `fn:doc` and, later, text, modules and stylesheets |
 | `resource_kind` | What a resource is wanted for: an XML document for `fn:doc`, ... |
