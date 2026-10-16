@@ -184,6 +184,9 @@ own table); placeholders, arrows and lookups lowered as specified; capture
 lists; verifier. Done when K-QuantExprWithout-79, fn-filter-003 and
 map-merge-001 fail statically and IR dumps of 20 slice queries match golden
 text. Spec: XPath 4.0 §2.2.1, §3.
+**Done** 2026-10-16 (D63): also `src/xpath_static_internal.h`; 28 slice
+dumps and 46 construct dumps match golden text; all valid XP40 queries
+lower without a verifier failure (P4, P5 proposed).
 
 ### 1.13 Node items, JNodes, node accessors (implementation)
 After 1.9, 1.10, 1.11. Owns `src/xdm_node.c`, `src/xdm_json_node.c`,
