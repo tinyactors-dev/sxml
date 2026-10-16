@@ -715,12 +715,16 @@ slice divides and multiplies decimals and builds integer ranges beyond
 Phase 1 (packet 1.2). Decimal formatting and the rest of the decimal
 function library stay in Phase 2.
 
-## Proposed
+### D50. A status for failed input and output
+Recorded 2026-10-16 (was P1, from D44; accepted by the orchestrator, added
+in packet 1.0). `SXML_STATUS_INPUT_OUTPUT_FAILED` in `include/sxml/status.h`
+means the platform refused to read or write bytes for a host interface (a
+closed pipe, a full disk, a missing file) while the sxml object and its
+arguments were fine. Host callbacks that read or write bytes return it: the
+CLI's output streams and platform layer now, the serializer's output and
+the document resolver of D30 later. It carries no error record; a host that
+maps it to a specification error (for example `fn:doc` and FODC0002) does
+so itself. Rejected: reusing `SXML_STATUS_INVALID_ARGUMENT`, which blames
+the caller for a platform failure.
 
-### P1. A status for failed input and output (from D44)
-Host interfaces that read or write bytes (the CLI's output streams now, the
-serializer's output and the document resolver later) have no status for
-"the platform refused the read or write". The CLI platform layer returns
-`SXML_STATUS_INVALID_ARGUMENT` meanwhile. Proposal: add
-`SXML_STATUS_INPUT_OUTPUT_FAILED` to `include/sxml/status.h` (a header
-change, so the owner or the header packet decides).
+## Proposed
