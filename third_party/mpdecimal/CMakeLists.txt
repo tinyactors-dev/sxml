@@ -7,6 +7,8 @@
 #   libmpdec/mpdecimal.h  configuration chosen from the width of size_t;
 #                         the allocation hooks are functions, not pointers.
 #   libmpdec/mpalloc.c    the hooks allocate through the decimal scope.
+#   libmpdec/context.c    WASI has no signals (D57).
+#   libmpdec/transpose.c  transform buffers on the heap, not the stack (D74).
 
 add_library(sxml_mpdecimal STATIC
     libmpdec/basearith.c

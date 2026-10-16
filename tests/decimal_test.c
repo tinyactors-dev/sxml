@@ -929,6 +929,214 @@ static void test_memory_comes_from_the_configured_allocator(
     sxml_counting_allocator_finalize(first_fixture.counting_allocator);
 }
 
+/* ------------------------------------------- Products at the digit limit */
+
+/* 30000 nines squared have 60000 digits: on WebAssembly (9 digits a word)
+   a power-of-two transform of 8192 words, which takes libmpdec's six-step
+   path; 5000 and 10000 nines take its four-step path there. */
+#define TEST_LARGE_OPERAND_DIGIT_COUNT 30000U
+#define TEST_LARGE_PRODUCT_DIGIT_COUNT (2U * TEST_LARGE_OPERAND_DIGIT_COUNT)
+
+/* Text storage of the large cases. Static: the WebAssembly stack has only
+   64 KiB, which is what these cases check libmpdec respects (D74). */
+typedef struct large_texts {
+    uint8_t operand[TEST_LARGE_OPERAND_DIGIT_COUNT];
+    uint8_t expected[TEST_LARGE_PRODUCT_DIGIT_COUNT];
+    uint8_t written[TEST_LARGE_PRODUCT_DIGIT_COUNT + 8];
+} large_texts;
+
+static large_texts *large_texts_storage(void) {
+    static large_texts texts;
+    return &texts;
+}
+
+/* digit_count nines: 10^digit_count - 1. */
+static sxml_byte_view nines_text(large_texts *texts, size_t digit_count) {
+    memset(texts->operand, '9', digit_count);
+    return (sxml_byte_view){.bytes = texts->operand, .byte_count = digit_count};
+}
+
+/* 1 followed by zero_count zeros: 10^zero_count. */
+static sxml_byte_view power_of_ten_text(large_texts *texts, size_t zero_count) {
+    texts->operand[0] = '1';
+    memset(texts->operand + 1, '0', zero_count);
+    return (sxml_byte_view){.bytes = texts->operand,
+                            .byte_count = zero_count + 1};
+}
+
+/* The square of digit_count nines: (10^k - 1)^2 = 10^2k - 2*10^k + 1, that
+   is k-1 nines, an eight, k-1 zeros and a one. */
+static sxml_byte_view square_of_nines_text(large_texts *texts,
+                                           size_t digit_count) {
+    memset(texts->expected, '9', digit_count - 1);
+    texts->expected[digit_count - 1] = '8';
+    memset(texts->expected + digit_count, '0', digit_count - 1);
+    texts->expected[2 * digit_count - 1] = '1';
+    return (sxml_byte_view){.bytes = texts->expected,
+                            .byte_count = 2 * digit_count};
+}
+
+/* True when the canonical text of decimal is expected_text; writes into
+   the large storage, not onto the stack. */
+static bool has_large_text(large_texts *texts, text_expectation expectation) {
+    sxml_byte_view text = {.bytes = NULL, .byte_count = 0};
+    return sxml_decimal_write_canonical_text(
+               expectation.decimal,
+               (sxml_memory_view){.bytes = texts->written,
+                                  .byte_count = sizeof(texts->written)},
+               &text) == SXML_STATUS_OK &&
+           sxml_byte_view_equals(text, expectation.expected_text);
+}
+
+/* What square_and_divide_back found: the first failure, and whether every
+   result it computed had the expected text. */
+typedef struct square_outcome {
+    sxml_status status;
+    bool results_match;
+} square_outcome;
+
+/*
+ * Squares digit_count nines with configuration, divides the square by the
+ * nines again (sxml_decimal_divide and sxml_decimal_integer_divide) and
+ * checks the three results.
+ */
+static square_outcome square_and_divide_back(
+    const sxml_decimal_configuration *configuration, size_t digit_count) {
+    large_texts *texts = large_texts_storage();
+    sxml_decimal nines = empty_decimal();
+    sxml_decimal square = empty_decimal();
+    sxml_decimal quotient = empty_decimal();
+    sxml_decimal integer_quotient = empty_decimal();
+    bool results_match = true;
+    sxml_status status = sxml_decimal_parse(
+        configuration, nines_text(texts, digit_count), &nines);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_decimal_multiply(
+            configuration,
+            &(sxml_decimal_operands){.left_operand = &nines,
+                                     .right_operand = &nines},
+            &square);
+    }
+    if (status == SXML_STATUS_OK &&
+        !has_large_text(texts, (text_expectation){
+                                   .decimal = &square,
+                                   .expected_text = square_of_nines_text(
+                                       texts, digit_count)})) {
+        results_match = false;
+    }
+    sxml_decimal_operands back = {.left_operand = &square,
+                                  .right_operand = &nines};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_decimal_divide(configuration, &back, &quotient);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_decimal_integer_divide(configuration, &back,
+                                             &integer_quotient);
+    }
+    if (status == SXML_STATUS_OK &&
+        (!has_large_text(texts,
+                         (text_expectation){
+                             .decimal = &quotient,
+                             .expected_text = nines_text(texts, digit_count)}) ||
+         !has_large_text(texts, (text_expectation){
+                                    .decimal = &integer_quotient,
+                                    .expected_text =
+                                        nines_text(texts, digit_count)}))) {
+        results_match = false;
+    }
+    sxml_decimal_finalize(&integer_quotient);
+    sxml_decimal_finalize(&quotient);
+    sxml_decimal_finalize(&square);
+    sxml_decimal_finalize(&nines);
+    return (square_outcome){.status = status, .results_match = results_match};
+}
+
+/* True when squaring and dividing back succeeded with the right results. */
+static bool square_and_divide_back_hold(
+    const sxml_decimal_configuration *configuration, size_t digit_count) {
+    square_outcome outcome =
+        square_and_divide_back(configuration, digit_count);
+    return outcome.status == SXML_STATUS_OK && outcome.results_match;
+}
+
+/* Multiplies two copies of operand_text; true when that exceeds the digit
+   limit of configuration and leaves the result untouched. */
+static bool square_exceeds_limit(
+    const sxml_decimal_configuration *configuration,
+    sxml_byte_view operand_text) {
+    sxml_decimal operand = empty_decimal();
+    sxml_decimal result = empty_decimal();
+    bool exceeds = false;
+    if (sxml_decimal_parse(configuration, operand_text, &operand) ==
+        SXML_STATUS_OK) {
+        exceeds = sxml_decimal_multiply(
+                      configuration,
+                      &(sxml_decimal_operands){.left_operand = &operand,
+                                               .right_operand = &operand},
+                      &result) == SXML_STATUS_LIMIT_EXCEEDED &&
+                  decimal_is_untouched(&result);
+    }
+    sxml_decimal_finalize(&operand);
+    return exceeds;
+}
+
+/*
+ * libmpdec's long products (number-theoretic transforms) kept up to 128 KiB
+ * of buffers on the stack and trapped on WebAssembly's 64 KiB stack
+ * (D72, fixed by D74). These cases run there too.
+ */
+static void test_products_at_the_default_digit_limit(sxml_test_state *state) {
+    sxml_decimal_configuration configuration = default_configuration();
+    large_texts *texts = large_texts_storage();
+    /* A 10000-digit product and its quotients: exact, within the limit. */
+    SXML_TEST_EXPECT(state, square_and_divide_back_hold(&configuration, 5000));
+    /* Operands of the largest size: the product is computed, then refused. */
+    SXML_TEST_EXPECT(
+        state,
+        square_exceeds_limit(&configuration,
+                             nines_text(texts, SXML_DECIMAL_DEFAULT_MAXIMUM_DIGIT_COUNT)));
+    SXML_TEST_EXPECT(state, square_exceeds_limit(
+                                &configuration, power_of_ten_text(texts, 6000)));
+}
+
+static void test_products_beyond_the_default_digit_limit(
+    sxml_test_state *state) {
+    sxml_decimal_configuration configuration = default_configuration();
+    configuration.maximum_digit_count = TEST_LARGE_PRODUCT_DIGIT_COUNT;
+    SXML_TEST_EXPECT(state, square_and_divide_back_hold(
+                                &configuration, TEST_LARGE_OPERAND_DIGIT_COUNT));
+}
+
+/* The transform buffers come from the configured allocator: each failure
+   of a long product is reported and leaks nothing. */
+static void test_long_product_allocation_failures_are_reported_and_clean(
+    sxml_test_state *state) {
+    uint64_t failing_allocation_number = 1;
+    for (;;) {
+        counting_fixture fixture = {.storage = {0}, .counting_allocator = NULL};
+        SXML_TEST_REQUIRE(state, counting_fixture_initialize(
+                                     &fixture, failing_allocation_number) ==
+                                     SXML_STATUS_OK);
+        sxml_decimal_configuration configuration = configuration_of(
+            sxml_counting_allocator_as_allocator(fixture.counting_allocator));
+        square_outcome outcome = square_and_divide_back(&configuration, 5000);
+        sxml_status status = outcome.status;
+        SXML_TEST_EXPECT(state, outcome.results_match);
+        sxml_allocation_counts counts = counting_fixture_counts(&fixture);
+        sxml_counting_allocator_finalize(fixture.counting_allocator);
+        SXML_TEST_EXPECT(state, counts.live_allocation_count == 0);
+        if (status == SXML_STATUS_OK) {
+            SXML_TEST_EXPECT(state, counts.failed_allocation_count == 0);
+            break;
+        }
+        SXML_TEST_EXPECT(state, status == SXML_STATUS_OUT_OF_MEMORY);
+        SXML_TEST_EXPECT(state, counts.failed_allocation_count == 1);
+        failing_allocation_number += 1;
+        SXML_TEST_REQUIRE(state, failing_allocation_number < 10000);
+    }
+    SXML_TEST_EXPECT(state, failing_allocation_number > 10);
+}
+
 /* ------------------------------------------------ Allocation failures */
 
 /*
@@ -1169,8 +1377,14 @@ static const sxml_test_case decimal_test_cases[] = {
      .function = test_scope_is_restored_after_each_operation},
     {.name = "memory_comes_from_the_configured_allocator",
      .function = test_memory_comes_from_the_configured_allocator},
+    {.name = "products_at_the_default_digit_limit",
+     .function = test_products_at_the_default_digit_limit},
+    {.name = "products_beyond_the_default_digit_limit",
+     .function = test_products_beyond_the_default_digit_limit},
     {.name = "every_allocation_failure_is_reported_and_clean",
      .function = test_every_allocation_failure_is_reported_and_clean},
+    {.name = "long_product_allocation_failures_are_reported_and_clean",
+     .function = test_long_product_allocation_failures_are_reported_and_clean},
     {.name = "two_heaps_work_on_two_threads",
      .function = test_two_heaps_work_on_two_threads},
 };

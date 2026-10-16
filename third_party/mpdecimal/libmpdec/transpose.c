@@ -70,11 +70,17 @@ std_trans(mpd_uint_t dest[], mpd_uint_t src[], mpd_size_t rows, mpd_size_t cols)
  * FORWARD_CYCLE: even/odd permutation of the halfrows.
  * BACKWARD_CYCLE: reverse the even/odd permutation.
  */
+/*
+ * sxml patch (D74): upstream keeps buf1 and buf2 (BUFSIZE words each) on
+ * the stack: 32 KiB with 32-bit words, half of the 64 KiB WebAssembly
+ * stack. They are one heap block from mpd_alloc instead (the current
+ * decimal scope, D42), never larger than a half-row; failure returns 0
+ * like the allocation of 'done', and the caller reports MPD_Malloc_error.
+ */
 static int
 swap_halfrows_pow2(mpd_uint_t *matrix, mpd_size_t rows, mpd_size_t cols, int dir)
 {
-    mpd_uint_t buf1[BUFSIZE];
-    mpd_uint_t buf2[BUFSIZE];
+    mpd_uint_t *buf1, *buf2;
     mpd_uint_t *readbuf, *writebuf, *hp;
     mpd_size_t *done, dbits;
     mpd_size_t b = BUFSIZE, stride;
@@ -102,6 +108,15 @@ swap_halfrows_pow2(mpd_uint_t *matrix, mpd_size_t rows, mpd_size_t cols, int dir
     if ((done = mpd_calloc(hmax/(sizeof *done) + 1, sizeof *done)) == NULL) {
         return 0;
     }
+    /* sxml patch (D74): the two buffers come from the heap. */
+    if (b > cols/2) {
+        b = cols/2;
+    }
+    if ((buf1 = mpd_alloc(mul_size_t(2, b), sizeof *buf1)) == NULL) {
+        mpd_free(done);
+        return 0;
+    }
+    buf2 = buf1 + b;
 
     for (hn = 1; hn <= hmax; hn += 2) {
 
@@ -141,6 +156,7 @@ swap_halfrows_pow2(mpd_uint_t *matrix, mpd_size_t rows, mpd_size_t cols, int dir
         }
     }
 
+    mpd_free(buf1); /* sxml patch (D74) */
     mpd_free(done);
     return 1;
 }
@@ -171,18 +187,30 @@ squaretrans(mpd_uint_t *buf, mpd_size_t cols)
  * Transpose 2^n * 2^n matrix. For cache efficiency, the matrix is split into
  * square blocks with side length 'SIDE'. First, the blocks are transposed,
  * then a square transposition is done on each individual block.
+ *
+ * sxml patch (D74): upstream keeps buf1 and buf2 (SIDE*SIDE words each) on
+ * the stack: 128 KiB with 32-bit words, twice the 64 KiB WebAssembly stack,
+ * so any product long enough for the four-step transform trapped there. They
+ * are one heap block from mpd_alloc instead (the current decimal scope,
+ * D42), sized for the actual block side, and the function returns 0 when
+ * the allocation fails (upstream returned void); transpose_pow2 passes that
+ * on, and the caller reports MPD_Malloc_error.
  */
-static void
+static int
 squaretrans_pow2(mpd_uint_t *matrix, mpd_size_t size)
 {
-    mpd_uint_t buf1[SIDE*SIDE];
-    mpd_uint_t buf2[SIDE*SIDE];
+    mpd_uint_t *buf1, *buf2;
     mpd_uint_t *to, *from;
     mpd_size_t b = size;
     mpd_size_t r, c;
     mpd_size_t i;
 
     while (b > SIDE) b >>= 1;
+
+    if ((buf1 = mpd_alloc(mul_size_t(2, b*b), sizeof *buf1)) == NULL) {
+        return 0;
+    }
+    buf2 = buf1 + b*b;
 
     for (r = 0; r < size; r += b) {
 
@@ -236,6 +264,8 @@ squaretrans_pow2(mpd_uint_t *matrix, mpd_size_t size)
         }
     }
 
+    mpd_free(buf1); /* sxml patch (D74) */
+    return 1;
 }
 
 /*
@@ -250,19 +280,26 @@ transpose_pow2(mpd_uint_t *matrix, mpd_size_t rows, mpd_size_t cols)
     assert(ispower2(rows));
     assert(ispower2(cols));
 
+    /* sxml patch (D74): squaretrans_pow2 can fail; pass that on. */
     if (cols == rows) {
-        squaretrans_pow2(matrix, rows);
+        if (!squaretrans_pow2(matrix, rows)) {
+            return 0;
+        }
     }
     else if (cols == mul_size_t(2, rows)) {
         if (!swap_halfrows_pow2(matrix, rows, cols, FORWARD_CYCLE)) {
             return 0;
         }
-        squaretrans_pow2(matrix, rows);
-        squaretrans_pow2(matrix+(size/2), rows);
+        if (!squaretrans_pow2(matrix, rows) ||
+            !squaretrans_pow2(matrix+(size/2), rows)) {
+            return 0;
+        }
     }
     else if (rows == mul_size_t(2, cols)) {
-        squaretrans_pow2(matrix, cols);
-        squaretrans_pow2(matrix+(size/2), cols);
+        if (!squaretrans_pow2(matrix, cols) ||
+            !squaretrans_pow2(matrix+(size/2), cols)) {
+            return 0;
+        }
         if (!swap_halfrows_pow2(matrix, cols, rows, BACKWARD_CYCLE)) {
             return 0;
         }
