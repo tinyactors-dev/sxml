@@ -911,4 +911,39 @@ are allowed when the byte count comes from checked size arithmetic. Printing
 functions stay banned outside the CLI platform layer (D17, D44). Existing byte
 loops may stay; new code uses `memcpy`.
 
+### D57. Decimal arithmetic over libmpdec (packet 1.2)
+Recorded 2026-10-16, completing D42 and D49.
+- **Vendoring**: mpdecimal 4.0.1 (`third_party/mpdecimal.version`), libmpdec
+  only; patches marked "sxml patch" in `mpalloc.c`, `mpdecimal.h` and
+  `context.c`. The configuration is chosen in `mpdecimal.h` from the width
+  of `size_t` (CONFIG_64 or CONFIG_32 with the portable ANSI arithmetic,
+  `__uint128_t` under GCC and Clang), so one header serves every target,
+  32-bit WebAssembly included; no MASM or inline assembler. WASI has no
+  `signal.h`: the never-called trap handler does nothing there.
+- **Scope location**: the D42 thread-local lives in the patched `mpalloc.c`,
+  not in `src/`, so libmpdec does not depend on the sxml library that links
+  it; `src/decimal.c` sets it with `mpd_sxml_exchange_allocator_scope`.
+  Shrinking a block keeps it (never fails); growth is allocate, copy,
+  release (D22).
+- **Value type**: `sxml_decimal` wraps an `mpd_t` with a static struct and
+  a dynamic coefficient: movable byte for byte, made by the functions that
+  write it, released by `sxml_decimal_finalize` without a scope. No
+  create/destroy: cells (1.7) embed it.
+- **Limits and precision**: a configuration (allocator,
+  `maximum_digit_count` default 10000, `division_digit_count` default 34)
+  per item heap. Sums, differences, products, `idiv` and `mod` are exact or
+  `SXML_STATUS_LIMIT_EXCEEDED` (FOAR0002); quotients are computed to
+  max(34, digits of both operands) significant digits, half to even
+  (op-numeric-dividepint2args-5 then gives its second allowed result).
+  Division by zero is `SXML_STATUS_INVALID_ARGUMENT` (callers raise
+  FOAR0001).
+- **Binary floating point**: casting uses the shortest round-trip decimal
+  (`0.1e0` gives `0.1`, as XPath processors do); `fn:atomic-equal` and
+  numeric comparison use the exact value. Decimal to double/float goes
+  through `strtod`/`strtof` on text without a decimal point (locale-free),
+  780 digits plus a sticky digit, so rounding is exact.
+- **Size**: a stripped `wasm32-wasip1` program using parse, divide,
+  shortest conversion, canonical text and `to_double` grows by 89 KB
+  (35 KB gzip) over one using only the allocator.
+
 ## Proposed
