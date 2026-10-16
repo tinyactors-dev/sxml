@@ -165,6 +165,14 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `type_annotation` | The type identifier an atomic item, node or record is annotated with |
 | `item_heap` | Per-processor owner of the reference-counted cells that items and sequences point to |
 | `cell` | A reference-counted, immutable heap object holding the data of an item or sequence that does not fit inline |
+| `cell_class` | The static const operations of one kind of cell: its name, `release_contents` and, for sequence cells, the read interface (`src/xdm_internal.h`) |
+| `release_contents` | The cell class operation that releases what a cell holds before the heap frees it |
+| `pending_cell` | A cell whose last reference is gone, waiting on the item heap's list to be freed without recursion |
+| `item_representation` | How an `sxml_item` is stored: which inline value or which kind of cell its payload holds (`SXML_ITEM_REPRESENTATION_*`) |
+| `sequence_cell` | A cell that holds a sequence of two or more items: vector, integer range, concatenation or lazy |
+| `atomic_family` | The atomic items that compare with one another: numbers, strings (with `xs:anyURI`, `xs:untypedAtomic`), binary, or one other primitive type |
+| `exact_text` | The canonical decimal text of the exact value of a double, as compared with decimals |
+| `static_error` | A specification error whose code and description are static text, reported without the heap (`sxml_static_error`) |
 | `retain` / `release` | Add / drop one reference to an item, sequence or tree |
 | `immortal` | A cell or tree that is never released (static data); retain and release do nothing to it |
 | `item_kind` | Atomic item, node (XNode), JNode, function item, map or array |
