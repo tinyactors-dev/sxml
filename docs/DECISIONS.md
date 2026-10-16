@@ -862,4 +862,43 @@ they were. Interned URI identifiers start at
 `src/name_internal.h` gives `sxml_name_pool_name_limit` (and URI, prefix)
 so tables indexed by identifier can be sized.
 
+### D55. IR, passes, evaluator and function table (packet 1.5)
+Recorded 2026-10-16, completing D46. Four internal headers.
+- `src/ir_internal.h`: a unit holds every array (expressions, atoms,
+  functions, constants, globals; reserved: catch clauses, name tests,
+  namespace bindings, parameter bindings, modes, template rules), index 0
+  meaning none; it grows while built, is sealed before evaluation and is
+  reference counted, so function items made from IR functions keep it
+  alive (D38, D51). Slots number from 1: parameters, then captured
+  variables, then locals. 25 expression kinds for XPath (MAP, FILTER,
+  SORT, QUANTIFIED bind the focus to slots; STEP yields axis order and
+  DOCUMENT_ORDER sorts; COERCE and RAISE are explicit) plus reserved
+  TRY_CATCH, seven constructors, SHALLOW_COPY and APPLY_TEMPLATES. The
+  header writes out the IR of `let $f := function($x){$x + .} return
+  $f(4)`, `/a/b[2]`, an XQuery FLWOR with order by (tuples as arrays, no
+  new kind) and an XSLT apply-templates (named extension point: modes
+  and template rules, match functions from patterns). group by and
+  windows use internal native rows. Globals read by an inline function
+  are captured, so escaped closures need no global table of their own.
+- `src/ir_pass_internal.h`: `sxml_ir_pass` (name, function over a
+  request), `sxml_ir_standard_passes` = {verifier}, `sxml_ir_run_passes`
+  optionally verifying after each pass; passes only add and replace.
+- `src/evaluator_internal.h`: `struct sxml_dynamic_context` (heap,
+  frames, clock read once, document loader, function table for
+  fn:function-lookup, depth limit, globals); `sxml_evaluator_evaluate`;
+  coercion, dynamic calls with coercion and the effective boolean value
+  for native bodies; the function body operations of IR functions. fn:doc
+  and fn:parse-xml go through an internal `sxml_document_loader` that the
+  processor (1.23) implements, so 1.20 and 1.22 test with doubles.
+- `src/function_library_internal.h`: native rows give parameter and
+  result types as F&O-spelled text ("fn(item(), xs:integer) as
+  xs:boolean?"), resolved once per library through the front end and
+  static analysis; defaults are required, the context value (lowering
+  supplies it) or supplied by the body; properties flag dynamic-context
+  use, nondeterminism, higher-order calls and position/last. One
+  `extern const sxml_native_function_view` per part file; the
+  configuration names the parts, so no file lists another's functions.
+  Static analysis finds functions through the `sxml_function_table`
+  interface (tests bring their own).
+
 ## Proposed
