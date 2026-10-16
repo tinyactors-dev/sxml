@@ -274,6 +274,8 @@ tokenize true upper-case year-from-date`; for the driver and a margin:
 `contains current-dateTime distinct-values empty ends-with exists head max
 min name normalize-space tail`; `xs:` constructors. Done when each has a
 unit case (deep-equal 4.0 rules, FOER0000). Spec: F&O 4.0 per function.
+**Done** 2026-10-16 (D78): also deep-equal and case-table files, fn:sort
+and fn:replace resumable; partial deep-equal options documented in D78.
 
 ### 1.21 Function library: higher-order, maps, arrays (implementation)
 After 1.18. Owns `src/function_library_{higher_order,map,array}.c`,
