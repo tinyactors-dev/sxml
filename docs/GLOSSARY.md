@@ -236,6 +236,12 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `arena_tree` | The built-in tree: nodes in arrays indexed by node index, built by a tree builder |
 | `tree_builder` | Interface receiving construction events in document order (parser, constructors, serializers) |
 | `event` | One step given to a tree builder: start element, attribute, text, ... |
+| `namespace_fixup` | What a tree builder does so every element and attribute name has a binding of its prefix to its namespace URI: adds bindings, undeclares the default namespace, or picks another prefix (XSLT 4.0, section 5.7.3) |
+| `declared_namespace_bindings` | The namespace bindings an element has itself, sent or added by namespace fixup, as opposed to those it inherits from its parent |
+| `generated_prefix` | A prefix namespace fixup makes up (`ns0`, `ns1`, ...) when a name's own prefix is taken by another namespace URI |
+| `text_store` | The blocks of an arena tree that hold node content (text, attribute values, comments, ...) back to back |
+| `node_segment` | One of the blocks holding an arena tree's nodes; segment k holds 16·2^k nodes, so nodes never move as the tree grows |
+| `reference_node` | For the preceding and following axes from an attribute or namespace node: its parent element, whose position decides which nodes come before and after |
 | `namespace_binding` | A prefix bound to a namespace URI |
 | `in_scope_namespaces` | The namespace bindings in effect on an element (XDM 4.0, `dm:namespace-nodes`) |
 | `string_value` | `dm:string-value` of a node |
