@@ -4,6 +4,13 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- Phase 1 planned: `docs/tasks/phase-1.md` splits the torture slice into
+  30 packets with owned files, dependencies and an 11-wave parallel plan.
+  Decisions: glob-based registration and file ownership (D45), internal
+  tree-walking ANF-like IR with a pass seam (D46), public `xml.h`,
+  `processor.h`, `xpath.h`, `serialize.h` (D47), regex seed (D48),
+  libmpdec in Phase 1 (D49). The 198 slice queries use about 53 `fn:`
+  functions, 9 `map:` and 9 `array:` functions and 17 `xs:` constructors.
 - 0.8 done (review agent, D11): rubric run over all ten headers. Fixed:
   wildcard name tests in node tests; lookup of namespace URIs without
   interning; fn:empty on lazy sequences no longer swallows errors

@@ -609,3 +609,75 @@ Recorded 2026-10-16. Changes made by the Phase 0 review agent (D11):
   event order is the caller's contract (XQTY0024 and XTDE0410 are checked
   by the evaluators, well-formedness by the XML parser).
 - `status.h` and `xdm.h`: D41.
+
+### D45. Phase 1 work packets and conflict-free registration
+Recorded 2026-10-16 (Phase 1 planning; D44 is left to the CLI work, which
+cites it). Phase 1 is split into packets of one agent session
+(`docs/tasks/phase-1.md`) that run in parallel in one working tree. Each
+packet names the files it owns; packets that can run together own disjoint
+files. To make additions conflict-free, packet 1.0 replaces the explicit
+lists with globs: `src/*.c` is the library and every `tests/<name>_test.c`
+is the ctest test `<name>`; `tests/qt4/driver`, `tests/fuzz` (with
+`SXML_BUILD_FUZZERS`) and `third_party/mpdecimal` join the build when their
+`CMakeLists.txt` exists. `src/` stays flat; a module owns the prefix
+`src/<module>[_<part>].c` and `src/<module>_internal.h`. The ledgers
+(DECISIONS, GLOSSARY, LOG) take one small insertion per change, committed
+at once and alone; a D-number is claimed by re-reading the file first.
+Rejected: one subdirectory per module (breaks the module/header pairing of
+`docs/C_GUIDELINES.md` for little gain) and per-packet branches (the brief
+forbids branches).
+
+### D46. The shared IR is internal, tree-walking and ANF-like
+Recorded 2026-10-16 (Phase 1 planning; designed in packet 1.5).
+- **Internal**, in `src/ir_internal.h`, not a public header. XPath, XQuery
+  and XSLT front ends are all in this repository, so nothing outside needs
+  to produce IR; a public IR would join the frozen ABI before XQuery and
+  XSLT have tested it. Hosts extend sxml through function bodies (D38) and
+  the resolver, not through IR. If a later need appears (an external
+  front end, a persisted compiled form), a decision publishes a versioned
+  copy.
+- **Shape**, after Xee's `xee-ir` (D5): expressions whose operands are
+  atoms (a constant or a variable slot), with `let` bindings for
+  intermediate values; branches, loop bodies and function bodies are nested
+  expressions. The focus is not implicit state: map, filter, quantified,
+  sort and path-step nodes bind the context item, position and size as
+  ordinary variables, so closures capture them like any variable and
+  XPDY0002 is a static or dynamic check on an unbound slot. Variables are
+  resolved to frame slots during lowering; function definitions carry
+  their capture list. Node-construction, `try`/`catch` and template-rule
+  nodes are reserved for XQuery and XSLT (XSLT rules lower to IR functions
+  plus a rule table, as in Xee).
+- **Evaluation** walks the IR (no bytecode: PLAN.md non-goal), with
+  evaluation depth bounded so deep recursion returns a limit status.
+- **Optimizer seam**: `src/ir_pass_internal.h` declares a pass as an
+  IR-to-IR function over a compiled unit, run in a fixed list between
+  lowering and evaluation. Phase 1 has only a verifier pass; rewrites
+  (constant folding, type-based simplification) come later as new passes,
+  each with tests that compare results with and without it.
+
+### D47. Phase 1 public API headers
+Recorded 2026-10-16 (Phase 1 planning; designed in packet 1.3). Four new
+public headers, outside the substrate: `xml.h` (XML parser into any
+`sxml_tree_builder`), `processor.h` (the processor of D30, owning name pool,
+type registry and item heap, plus the host resolver interface for `fn:doc`
+and the implicit timezone and current dateTime), `xpath.h` (static context
+configuration, compile, evaluate) and `serialize.h` (adaptive method only in
+Phase 1; XML, JSON and text methods arrive with XQuery in Phase 3). The CLI
+and the QT4 driver use only these and the substrate headers. They are not
+frozen at the Phase 1 gate; they become stable with the first public release
+(Phase 2). The TypeScript package of D10 also waits for Phase 2: Phase 1
+runs the slice under Node.js WASI only.
+
+### D48. A regular expression seed in Phase 1
+Recorded 2026-10-16. Three slice tests need `fn:tokenize`, but the D9
+engine is a Phase 2 packet. Phase 1 has a small backtracking matcher for a
+subset of the XPath dialect behind `src/regex_internal.h` (compile, match at
+a position, step limit), which the D9 engine later implements unchanged.
+Syntax outside the subset raises FORX0002 rather than matching wrongly.
+
+### D49. libmpdec arrives in Phase 1
+Recorded 2026-10-16, amending D42 ("for the decimal packet of Phase 2"). The
+slice divides and multiplies decimals and builds integer ranges beyond
+`int64_t` (D36), so mpdecimal is vendored and wrapped as D42 describes in
+Phase 1 (packet 1.2). Decimal formatting and the rest of the decimal
+function library stay in Phase 2.
