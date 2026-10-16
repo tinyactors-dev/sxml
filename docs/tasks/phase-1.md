@@ -253,6 +253,8 @@ After 1.8, 1.15. Owns `src/operator.c`, `src/operator_compare.c`,
 arithmetic with integer overflow into libmpdec, value and general
 comparisons with untypedAtomic rules. Done when those slice lines pass as
 unit cases. Spec: XPath 4.0 "Arithmetic Expressions", "Comparison Expressions".
+**Done** 2026-10-16 (D68, D72): also `src/operator_temporal.c`, GNode
+comparisons; P2 and P3 accepted.
 
 ### 1.20 Function library: core (implementation)
 After 1.17, 1.18. Owns `src/function_library.c`,
