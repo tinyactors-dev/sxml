@@ -1,5 +1,7 @@
 # Continuous integration (docs/tasks/phase-0.md, task 0.4; docs/DECISIONS.md, D18).
 # Every job builds and tests; the lint gates run once, on Linux with Clang.
+# The sxml program and its CLI framework (apps/, D44) build in every job and
+# their tests (ctest names cli_* and cli/*) run in every job, Windows included.
 name: ci
 
 on:
@@ -68,7 +70,7 @@ jobs:
         run: ctest --preset debug
 
   windows:
-    name: Windows (MSVC, build only)
+    name: Windows (MSVC, build; sxml program tests)
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
@@ -76,6 +78,8 @@ jobs:
         run: cmake --preset msvc
       - name: Build
         run: cmake --build --preset msvc
+      - name: Test the sxml program
+        run: ctest --preset msvc -R "^cli"
 
   wasi:
     name: WebAssembly (WASI SDK)
