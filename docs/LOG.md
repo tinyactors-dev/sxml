@@ -4,6 +4,19 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 1.18b done (D85): follow-ups from 1.20/1.21. Dynamic calls on a
+  sequence of functions (evaluator's `call_each` body) and dynamic partial
+  application per function; maps and arrays become JNodes on the left of
+  `/` and as step origins; the coercion rules on an explicit stack
+  (choices/unions by alternative, typed arrays, maps, records, JNodes, full
+  implicit-casting table, function coercion even for instances), so
+  fn:replace's `$replacement` has its F&O 4.0 type again; integer ranges
+  match in O(1) (codepoints-to-string(65 to 2^32) fails fast, FOCH0001);
+  a left-out body-supplied parameter before a keyword argument gets ();
+  array:index-of; static namespaces kept in the IR unit for run-time
+  casts to xs:QName. Scratch QT4 comparison over ~70 sets: no regressions;
+  DynamicFunctionCall 33 -> 65/73, RecordType 12 -> 16, ChoiceItemType
+  23 -> 27, PathExpr-J 30 -> 48.
 - 1.24 done (D83, P8): the QT4 driver `sxml-qt4` in `tests/qt4/driver/`
   (catalog, environments, applicability, test lists, `list` command) on
   the CLI framework, reading the suite with sxml's own XML parser through

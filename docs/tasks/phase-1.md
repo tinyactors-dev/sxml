@@ -252,6 +252,9 @@ stack overflow. Spec: XPath 4.0 §3, §4.
 **Done** 2026-10-16 (D75): explicit-stack machine (D71), resumable native
 bodies for 1.21; P4 (D77), P5 (D76), P7 (D73) accepted; slice lines
 without library calls pass as unit cases in `tests/evaluator_test.c`.
+**1.18b follow-ups** 2026-10-16 (D85): dynamic calls on function
+sequences, maps/arrays in paths, coercion engine, keyword defaults,
+array:index-of, static namespaces for QName casts.
 
 ### 1.19 Comparisons and arithmetic (implementation)
 After 1.8, 1.15. Owns `src/operator.c`, `src/operator_compare.c`,
