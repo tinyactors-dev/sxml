@@ -1,9 +1,10 @@
 # Lint gates (docs/C_GUIDELINES.md, "Enforcement"; docs/DECISIONS.md, D17).
 #
 #   lint-clang-tidy  clang-tidy with .clang-tidy over project translation units
-#                    (src/, tests/, and one generated unit per public header).
+#                    (src/, tests/, apps/, and one generated unit per public
+#                    header).
 #   lint-ast-grep    the structural rules in tools/ast-grep/ over include/,
-#                    src/ and tests/.
+#                    src/, tests/ and apps/.
 #   lint             both.
 #
 # Third-party and generated grammar code is never linted (D12).
@@ -15,6 +16,11 @@ find_program(SXML_AST_GREP_EXECUTABLE ast-grep
 file(GLOB_RECURSE SXML_LINT_SOURCES CONFIGURE_DEPENDS
     "${PROJECT_SOURCE_DIR}/src/*.c"
     "${PROJECT_SOURCE_DIR}/tests/*.c")
+if(SXML_BUILD_APPS)
+    file(GLOB_RECURSE SXML_LINT_APP_SOURCES CONFIGURE_DEPENDS
+        "${PROJECT_SOURCE_DIR}/apps/*.c")
+    list(APPEND SXML_LINT_SOURCES ${SXML_LINT_APP_SOURCES})
+endif()
 list(APPEND SXML_LINT_SOURCES ${SXML_HEADER_CHECK_SOURCES})
 
 if(SXML_CLANG_TIDY_EXECUTABLE)
@@ -39,7 +45,7 @@ if(SXML_AST_GREP_EXECUTABLE)
         COMMAND "${SXML_AST_GREP_EXECUTABLE}" scan
             --config "${PROJECT_SOURCE_DIR}/tools/ast-grep/sgconfig.yml"
             --error
-            include src tests
+            include src tests apps
         WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
         COMMENT "ast-grep rules from tools/ast-grep over project code"
         VERBATIM)

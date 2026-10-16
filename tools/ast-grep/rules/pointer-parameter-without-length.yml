@@ -5,7 +5,7 @@ message: "Byte pointer parameter '$PARAMETER': pass bytes as an sxml_byte_view o
 note: >
   docs/C_GUIDELINES.md, "Memory and buffers": a pointer to data never travels
   without its length. Flags parameters that are a single pointer to char,
-  signed or unsigned char, uint8_t or int8_t, in include/ and src/. Pointers to
+  signed or unsigned char, uint8_t or int8_t, in include/, src/ and apps/. Pointers to
   objects (sxml_arena *), opaque state (void *) and pointers to pointers are
   not data and are allowed. An external boundary that must take a
   NUL-terminated string says so with
@@ -13,6 +13,7 @@ note: >
 files:
   - "**/include/**"
   - "**/src/**"
+  - "**/apps/**"
 rule:
   kind: parameter_declaration
   pattern: $PARAMETER

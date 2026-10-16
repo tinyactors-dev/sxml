@@ -9,7 +9,7 @@ Checks: >
   readability-function-size,
   -bugprone-easily-swappable-parameters
 WarningsAsErrors: '*'
-HeaderFilterRegex: '(include/sxml|src|tests)/[^/]*$'
+HeaderFilterRegex: '(include/sxml|src|tests|apps/[^/]*)/[^/]*$'
 CheckOptions:
   readability-identifier-length.MinimumVariableNameLength: 3
   readability-identifier-length.MinimumParameterNameLength: 3

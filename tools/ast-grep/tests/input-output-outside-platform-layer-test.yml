@@ -1,0 +1,10 @@
+id: input-output-outside-platform-layer
+valid:
+  - "sxml_cli_writer_write(writer, text);"
+  - "status = sxml_cli_output_stream_write(stream, bytes);"
+invalid:
+  - "fwrite(bytes, 1, count, stdout);"
+  - "fprintf(stderr, \"failed\");"
+  - "file = fopen(name, \"rb\");"
+  - "value = getenv(\"NO_COLOR\");"
+  - "exit(2);"
