@@ -1,0 +1,19 @@
+{
+  "grammars": [
+    {
+      "name": "json",
+      "camelcase": "JSON",
+      "scope": "source.json",
+      "path": ".",
+      "file-types": ["json"]
+    }
+  ],
+  "metadata": {
+    "version": "0.1.0",
+    "license": "MIT",
+    "description": "Strict RFC 8259 JSON grammar for sxml",
+    "links": {
+      "repository": "https://github.com/dhamidi/sxml"
+    }
+  }
+}

@@ -1,0 +1,73 @@
+==================
+Empty object
+==================
+{}
+---
+
+(document
+  value: (object))
+
+==================
+Object with members
+==================
+{"a": 1, "b": [true, false, null]}
+---
+
+(document
+  value: (object
+    member: (member
+      key: (string
+        (unescaped_text))
+      value: (number))
+    member: (member
+      key: (string
+        (unescaped_text))
+      value: (array
+        member: (true)
+        member: (false)
+        member: (null)))))
+
+==================
+Strings with escapes
+==================
+["a\"b\\c\/\u00e9\uD834\udD1E", ""]
+---
+
+(document
+  value: (array
+    member: (string
+      (unescaped_text)
+      (escape_sequence)
+      (unescaped_text)
+      (escape_sequence)
+      (unescaped_text)
+      (escape_sequence)
+      (escape_sequence)
+      (escape_sequence)
+      (escape_sequence))
+    member: (string)))
+
+==================
+Numbers
+==================
+[0, -0, 12, -1.5, 2e10, 3.25E-2, 0.123]
+---
+
+(document
+  value: (array
+    member: (number)
+    member: (number)
+    member: (number)
+    member: (number)
+    member: (number)
+    member: (number)
+    member: (number)))
+
+==================
+Scalar at the top level
+==================
+ null 
+---
+
+(document
+  value: (null))
