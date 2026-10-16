@@ -946,10 +946,22 @@ sxml_status sxml_evaluator_make_step_value(sxml_dynamic_context *dynamic_context
         case SXML_ITEM_KIND_JSON_NODE:
             status = sxml_step_json_node(&output, step.item, request->axis);
             break;
+        case SXML_ITEM_KIND_MAP:
+        case SXML_ITEM_KIND_ARRAY: {
+            /* XPath 4.0 (editor's draft of 13 October 2026), section
+               4.7.5: a map or array origin is converted to a JNode as if
+               by fn:jtree. */
+            sxml_item root = {.representation = 0};
+            status = sxml_json_node_make_root(dynamic_context->item_heap,
+                                              sxml_sequence_from_item(step.item), &root);
+            if (status == SXML_STATUS_OK) {
+                status = sxml_step_json_node(&output, root, request->axis);
+                sxml_item_release(root);
+            }
+            break;
+        }
         case SXML_ITEM_KIND_ATOMIC:
         case SXML_ITEM_KIND_FUNCTION:
-        case SXML_ITEM_KIND_MAP:
-        case SXML_ITEM_KIND_ARRAY:
             status = sxml_error_record_report(request->error_record,
                                               &sxml_step_origin_error);
             break;

@@ -1033,9 +1033,59 @@ static sxml_status sxml_type_matcher_unwind(sxml_type_matcher *matcher,
     return SXML_STATUS_OK;
 }
 
+/*
+ * A range of integers (D62) against a sequence type, in O(1): every item
+ * is an xs:integer, so the range matches when xs:integer is a subtype of
+ * the item type and the occurrence allows the count. Sets
+ * *decision->is_decided only then; other types are matched item by item.
+ */
+typedef struct sxml_range_decision {
+    bool is_decided;
+    bool is_match;
+} sxml_range_decision;
+
+static sxml_status sxml_decide_range_match(const sxml_type_registry *registry,
+                                           const sxml_type_match_request *request,
+                                           sxml_range_decision *decision) {
+    *decision = (sxml_range_decision){.is_decided = false, .is_match = false};
+    if (sxml_sequence_get_representation(request->value) !=
+        SXML_SEQUENCE_REPRESENTATION_INTEGER_RANGE) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_sequence_type type = request->sequence_type;
+    const bool holds_integers =
+        type.item_type.index == SXML_TYPE_ITEM ||
+        sxml_type_registry_is_subtype(
+            registry,
+            (sxml_type_pair){.derived_type = sxml_builtin_type_identifier(SXML_TYPE_XS_INTEGER),
+                             .base_type = type.item_type});
+    if (!holds_integers && type.occurrence != SXML_OCCURRENCE_ZERO) {
+        return SXML_STATUS_OK;
+    }
+    uint64_t item_count = 0;
+    const sxml_status status =
+        sxml_sequence_count(request->value, request->error_record, &item_count);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    decision->is_decided = true;
+    decision->is_match = sxml_occurrence_allows(type.occurrence, item_count) &&
+                         (holds_integers || item_count == 0);
+    return SXML_STATUS_OK;
+}
+
 sxml_status sxml_evaluator_match_sequence_type(
     sxml_dynamic_context *dynamic_context, const sxml_type_match_request *request,
     sxml_type_match *match) {
+    sxml_range_decision decision;
+    sxml_status range_status = sxml_decide_range_match(
+        sxml_item_heap_get_type_registry(dynamic_context->item_heap), request, &decision);
+    if (range_status != SXML_STATUS_OK || decision.is_decided) {
+        if (range_status == SXML_STATUS_OK) {
+            match->is_match = decision.is_match;
+        }
+        return range_status;
+    }
     /* The most common case needs no stack: one item against a type it
        matches by annotation. */
     sxml_type_matcher matcher = {
@@ -1080,6 +1130,8 @@ typedef struct sxml_atomic_coercion {
        (SXML_TYPE_NONE for unions, enumerations and choices). */
     sxml_type_identifier item_type;
     sxml_type_identifier primitive_type;
+    /* True when item_type is an enumeration type. */
+    bool is_enumeration;
     sxml_error_record *error_record;
 } sxml_atomic_coercion;
 
@@ -1215,15 +1267,60 @@ static sxml_status sxml_coerce_atomic_item(const sxml_atomic_coercion *coercion,
         sxml_type_is_derived(registry, annotation, SXML_TYPE_XS_DECIMAL);
     const bool is_float = item_primitive.index == SXML_TYPE_XS_FLOAT;
     /* Numeric promotion: decimals to xs:float and xs:double, xs:float to
-       xs:double (section 3.4.3, B.1). */
-    if ((coercion->primitive_type.index == SXML_TYPE_XS_DOUBLE &&
-         (is_decimal || is_float)) ||
-        (coercion->primitive_type.index == SXML_TYPE_XS_FLOAT && is_decimal)) {
+       xs:double; URI promotion: xs:anyURI to xs:string. The required type
+       must be the "to" type exactly (XPath 4.0, section 3.4.2, implicit
+       casting): an xs:anyURI is not cast to xs:NCName. */
+    if ((target.index == SXML_TYPE_XS_DOUBLE && (is_decimal || is_float)) ||
+        (target.index == SXML_TYPE_XS_FLOAT && is_decimal) ||
+        (target.index == SXML_TYPE_XS_STRING &&
+         item_primitive.index == SXML_TYPE_XS_ANY_URI)) {
         return sxml_coercion_cast(coercion, item, &outcome->result);
     }
-    /* URI promotion: xs:anyURI to xs:string. */
-    if (coercion->primitive_type.index == SXML_TYPE_XS_STRING &&
-        item_primitive.index == SXML_TYPE_XS_ANY_URI) {
+    /* An enumeration type and an xs:anyURI: cast to xs:string, then the
+       value must be one of the enumeration's (section 3.4.2). */
+    if (coercion->is_enumeration && item_primitive.index == SXML_TYPE_XS_ANY_URI) {
+        sxml_sequence string = sxml_sequence_empty();
+        status = sxml_cast_make_value(
+            coercion->dynamic_context->item_heap,
+            &(sxml_cast_request){.value = sxml_sequence_from_item(item),
+                                 .target_type =
+                                     sxml_builtin_type_identifier(SXML_TYPE_XS_STRING),
+                                 .allows_empty = false,
+                                 .namespace_bindings = {.namespace_bindings = NULL,
+                                                        .namespace_binding_count = 0},
+                                 .error_record = coercion->error_record},
+            &string);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_evaluator_match_sequence_type(
+                coercion->dynamic_context,
+                &(sxml_type_match_request){
+                    .value = string,
+                    .sequence_type = {.item_type = target,
+                                      .occurrence = SXML_OCCURRENCE_EXACTLY_ONE},
+                    .error_record = coercion->error_record},
+                &match);
+        }
+        if (status != SXML_STATUS_OK || !match.is_match) {
+            sxml_sequence_release(string);
+            outcome->does_not_match = status == SXML_STATUS_OK;
+            return status;
+        }
+        outcome->result = string;
+        return SXML_STATUS_OK;
+    }
+    /* The rest of the implicit casting table of XPath 4.0, section 3.4.2,
+       where the required type is the "to" type exactly: xs:double and
+       xs:float to xs:decimal, xs:double to xs:float, xs:string to
+       xs:anyURI, and between xs:hexBinary and xs:base64Binary. */
+    const bool is_double = item_primitive.index == SXML_TYPE_XS_DOUBLE;
+    if ((target.index == SXML_TYPE_XS_DECIMAL && (is_double || is_float)) ||
+        (target.index == SXML_TYPE_XS_FLOAT && is_double) ||
+        (target.index == SXML_TYPE_XS_ANY_URI &&
+         item_primitive.index == SXML_TYPE_XS_STRING) ||
+        (target.index == SXML_TYPE_XS_HEX_BINARY &&
+         item_primitive.index == SXML_TYPE_XS_BASE64_BINARY) ||
+        (target.index == SXML_TYPE_XS_BASE64_BINARY &&
+         item_primitive.index == SXML_TYPE_XS_HEX_BINARY)) {
         return sxml_coercion_cast(coercion, item, &outcome->result);
     }
     /* Relabelling (XPath 4.0, section 3.4.3): an item of the target's
@@ -1279,192 +1376,1026 @@ static sxml_status sxml_report_coercion_error(sxml_ir_coercion_role role,
     return sxml_error_record_report(error_record, &sxml_coercion_error);
 }
 
-/* The atomic part of coercion: atomizes request->value and coerces each
-   item, writing the new value, owned, to *result. */
-static sxml_status sxml_coerce_atomic_value(sxml_dynamic_context *dynamic_context,
-                                            const sxml_coercion_request *request,
-                                            sxml_sequence *result) {
+/*
+ * Function coercion of one function item (XPath 4.0, section 3.4.4): an
+ * item that does not match the typed function type required is wrapped
+ * in a coerced function of that type, which coerces its arguments and
+ * result on each call. A function of lower arity is accepted and called
+ * with the leading arguments only; a higher arity is a type error. Writes
+ * the wrapped item, owned, to *wrapped.
+ */
+typedef struct sxml_function_wrapping {
+    sxml_item function_item;
+    sxml_type_identifier required_type;
+    sxml_error_record *error_record;
+} sxml_function_wrapping;
+
+static sxml_status sxml_wrap_function_item(sxml_dynamic_context *dynamic_context,
+                                           const sxml_function_wrapping *wrapping,
+                                           sxml_item *wrapped) {
     const sxml_type_registry *registry =
         sxml_item_heap_get_type_registry(dynamic_context->item_heap);
-    sxml_type_description description;
+    sxml_type_description required_description;
     sxml_status status = sxml_type_registry_describe_type(
-        registry, request->sequence_type.item_type, &description);
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    const sxml_atomic_coercion coercion = {
-        .dynamic_context = dynamic_context,
-        .registry = registry,
-        .item_type = request->sequence_type.item_type,
-        .primitive_type = description.variety == SXML_TYPE_VARIETY_ATOMIC
-                              ? description.primitive_type
-                              : sxml_builtin_type_identifier(SXML_TYPE_NONE),
-        .error_record = request->error_record};
-    sxml_sequence atomized = sxml_sequence_empty();
-    status = sxml_evaluator_atomize(
-        dynamic_context,
-        &(sxml_atomization_request){.value = request->value,
-                                    .error_record = request->error_record},
-        &atomized);
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    sxml_sequence_builder *builder = NULL;
-    sxml_sequence_iterator iterator = sxml_sequence_iterator_start(atomized);
-    uint64_t item_index = 0;
-    while (status == SXML_STATUS_OK) {
-        sxml_iteration_step step;
-        status = sxml_sequence_iterator_next(&iterator, request->error_record, &step);
-        if (status != SXML_STATUS_OK || !step.has_item) {
-            break;
-        }
-        sxml_atomic_coercion_outcome outcome;
-        status = sxml_coerce_atomic_item(&coercion, step.item, &outcome);
-        if (status != SXML_STATUS_OK) {
-            break;
-        }
-        if (outcome.does_not_match) {
-            status = sxml_report_coercion_error(request->role, request->error_record);
-            break;
-        }
-        if (!outcome.is_unchanged && builder == NULL) {
-            /* The first changed item: copy the items before it. */
-            status = sxml_sequence_builder_create(
-                dynamic_context->allocator,
-                &(sxml_sequence_builder_configuration){.item_heap =
-                                                           dynamic_context->item_heap},
-                &builder);
-            for (uint64_t earlier_index = 0;
-                 status == SXML_STATUS_OK && earlier_index < item_index;
-                 earlier_index += 1) {
-                sxml_item earlier = {.representation = 0};
-                status = sxml_sequence_get_item(
-                    atomized,
-                    (sxml_item_request){.item_index = earlier_index,
-                                        .error_record = request->error_record},
-                    &earlier);
-                if (status == SXML_STATUS_OK) {
-                    status = sxml_sequence_builder_append_item(builder, earlier);
-                }
-            }
-        }
-        if (status == SXML_STATUS_OK && builder != NULL) {
-            if (outcome.is_unchanged) {
-                status = sxml_sequence_builder_append_item(builder, step.item);
-            } else {
-                status = sxml_sequence_builder_append_sequence(
-                    builder, outcome.result, request->error_record);
-            }
-        }
-        if (!outcome.is_unchanged) {
-            sxml_sequence_release(outcome.result);
-        }
-        item_index += 1;
-    }
-    sxml_sequence value = atomized;
-    if (status == SXML_STATUS_OK && builder != NULL) {
-        status = sxml_sequence_builder_finish(builder, &value);
-        sxml_sequence_release(atomized);
-    } else if (status != SXML_STATUS_OK) {
-        sxml_sequence_release(atomized);
-    }
-    sxml_sequence_builder_destroy(builder);
+        registry, wrapping->required_type, &required_description);
+    sxml_function_item_description description;
     if (status == SXML_STATUS_OK) {
-        *result = value;
+        status = sxml_function_item_describe(wrapping->function_item, &description);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (description.arity > required_description.variety_details.function_type
+                                .parameter_types.sequence_type_count) {
+        return sxml_error_record_report(wrapping->error_record, &sxml_function_arity_error);
+    }
+    return sxml_function_item_make(
+        dynamic_context->item_heap,
+        &(sxml_function_item_request){
+            .function_name = description.function_name,
+            .signature = wrapping->required_type,
+            .function_annotations = {.function_annotations = NULL,
+                                     .function_annotation_count = 0},
+            .captured_values = {.sequences = &(sxml_sequence){wrapping->function_item},
+                                .sequence_count = 1},
+            .body = {.state = NULL,
+                     .operations = &sxml_evaluator_coerced_function_body_operations}},
+        wrapped);
+}
+
+/*
+ * The coercion rules (XPath 4.0, section 3.4) on an explicit stack (D71):
+ * the frames of glossary `coercion_frame`. SEQUENCE coerces each item of a
+ * value to an item type, then checks the count; ITEM applies the item
+ * coercion rules of section 3.4.2 to one item, deciding at once or turning
+ * into another frame in place; CHOICE tries the alternatives of a choice
+ * or union type in order (a failure above it unwinds to it); ARRAY_MEMBERS,
+ * MAP_ENTRIES and RECORD_FIELDS coerce the parts of an array, a map or a
+ * record and build the new item when a part changed. Every frame finishes
+ * with a result for the frame below: "unchanged", or a new value.
+ */
+typedef enum sxml_coercion_frame_kind {
+    SXML_COERCION_FRAME_KIND_SEQUENCE,
+    SXML_COERCION_FRAME_KIND_ITEM,
+    SXML_COERCION_FRAME_KIND_CHOICE,
+    SXML_COERCION_FRAME_KIND_ARRAY_MEMBERS,
+    SXML_COERCION_FRAME_KIND_MAP_ENTRIES,
+    SXML_COERCION_FRAME_KIND_RECORD_FIELDS,
+} sxml_coercion_frame_kind;
+
+/* The steps of a CHOICE. */
+typedef enum sxml_choice_phase {
+    /* Looking for an alternative the item matches. */
+    SXML_CHOICE_PHASE_SCANNING,
+    /* Trying the alternatives in order, the item matching none. */
+    SXML_CHOICE_PHASE_TRYING,
+    /* Coercing to the alternative the item matches. */
+    SXML_CHOICE_PHASE_CONVERTING,
+} sxml_choice_phase;
+
+typedef struct sxml_coercion_frame {
+    sxml_coercion_frame_kind frame_kind;
+    /* Where this frame's errors go: the request's record, or the scratch
+       record for an alternative after the first. */
+    sxml_error_record *error_record;
+    /* SEQUENCE: the value (owned when owns_input) and its required type;
+       the count is checked only when checks_occurrence. is_derived is set
+       for a value made from the item being coerced (atomized, or a JNode's
+       jvalue), which is never "unchanged". */
+    sxml_sequence input;
+    bool owns_input;
+    bool checks_occurrence;
+    bool is_derived;
+    sxml_sequence_type sequence_type;
+    sxml_sequence_iterator iterator;
+    uint64_t item_index;
+    sxml_item current_item;
+    /* Owned; made at the first changed item. */
+    sxml_sequence_builder *builder;
+    /* ITEM, CHOICE, ARRAY_MEMBERS, MAP_ENTRIES, RECORD_FIELDS: the item,
+       borrowed. ITEM, CHOICE: its required type; MAP_ENTRIES: the key type
+       (sequence_type is the value type); RECORD_FIELDS: the record type;
+       ARRAY_MEMBERS: sequence_type is the member type. */
+    sxml_item item;
+    sxml_type_identifier item_type;
+    /* CHOICE: the alternatives; RECORD_FIELDS: the fields. Borrowed from
+       the registry. */
+    sxml_type_identifier_view alternatives;
+    const sxml_record_field *record_fields;
+    uint32_t phase;
+    size_t next_index;
+    size_t part_count;
+    bool has_changed;
+    /* ARRAY_MEMBERS: the members; MAP_ENTRIES: key and value of each
+       entry; RECORD_FIELDS: the field values. Owned, stored_count of them
+       set. */
+    sxml_sequence *parts;
+    size_t stored_count;
+    /* RECORD_FIELDS, MAP_ENTRIES: the value being coerced, borrowed. */
+    sxml_sequence current_value;
+    /* CHOICE: how the first alternative failed. */
+    sxml_status first_failure;
+} sxml_coercion_frame;
+
+typedef struct sxml_coercion_engine {
+    sxml_dynamic_context *dynamic_context;
+    const sxml_type_registry *registry;
+    sxml_ir_coercion_role role;
+    sxml_error_record scratch_record;
+    sxml_coercion_frame *frames;
+    size_t frame_count;
+    size_t frame_capacity;
+    /* What the frame popped last handed down: a result (owned value unless
+       is_unchanged) or, after an unwind to a CHOICE, a failure. */
+    bool has_result;
+    bool is_unchanged;
+    sxml_sequence result;
+    bool has_failure;
+    sxml_status failure_status;
+} sxml_coercion_engine;
+
+static sxml_coercion_frame sxml_coercion_sequence_frame(sxml_sequence value,
+                                                        sxml_sequence_type type,
+                                                        sxml_error_record *error_record) {
+    sxml_coercion_frame frame;
+    memset(&frame, 0, sizeof(frame));
+    frame.frame_kind = SXML_COERCION_FRAME_KIND_SEQUENCE;
+    frame.error_record = error_record;
+    frame.input = value;
+    frame.checks_occurrence = true;
+    frame.sequence_type = type;
+    frame.iterator = sxml_sequence_iterator_start(value);
+    frame.current_value = sxml_sequence_empty();
+    return frame;
+}
+
+static sxml_coercion_frame sxml_coercion_item_frame(sxml_item item, sxml_type_identifier type,
+                                                    sxml_error_record *error_record) {
+    sxml_coercion_frame frame =
+        sxml_coercion_sequence_frame(sxml_sequence_empty(),
+                                     (sxml_sequence_type){.item_type = type,
+                                                          .occurrence =
+                                                              SXML_OCCURRENCE_EXACTLY_ONE},
+                                     error_record);
+    frame.frame_kind = SXML_COERCION_FRAME_KIND_ITEM;
+    frame.item = item;
+    frame.item_type = type;
+    return frame;
+}
+
+static sxml_status sxml_coercion_push(sxml_coercion_engine *engine, sxml_coercion_frame frame) {
+    if (engine->frame_count == engine->frame_capacity) {
+        void *elements = engine->frames;
+        sxml_status status = sxml_evaluator_grow(
+            engine->dynamic_context->allocator,
+            &(sxml_evaluator_growth){.elements = &elements,
+                                     .element_capacity = &engine->frame_capacity,
+                                     .element_count = engine->frame_count,
+                                     .required_count = engine->frame_count + 1,
+                                     .element_byte_count = sizeof(sxml_coercion_frame),
+                                     .alignment = alignof(sxml_coercion_frame)});
+        if (status != SXML_STATUS_OK) {
+            if (frame.owns_input) {
+                sxml_sequence_release(frame.input);
+            }
+            return status;
+        }
+        engine->frames = elements;
+    }
+    engine->frames[engine->frame_count] = frame;
+    engine->frame_count += 1;
+    return SXML_STATUS_OK;
+}
+
+static void sxml_coercion_release_frame(sxml_coercion_engine *engine,
+                                        sxml_coercion_frame *frame) {
+    if (frame->owns_input) {
+        sxml_sequence_release(frame->input);
+        frame->owns_input = false;
+    }
+    sxml_sequence_builder_destroy(frame->builder);
+    frame->builder = NULL;
+    if (frame->parts != NULL) {
+        for (size_t part_index = 0; part_index < frame->stored_count; part_index += 1) {
+            sxml_sequence_release(frame->parts[part_index]);
+        }
+        sxml_allocator_release(engine->dynamic_context->allocator, frame->parts);
+        frame->parts = NULL;
+    }
+}
+
+/* Pops the top frame, handing down result (owned; ignored when
+   is_unchanged). */
+typedef struct sxml_coercion_result {
+    bool is_unchanged;
+    sxml_sequence value;
+} sxml_coercion_result;
+
+static sxml_status sxml_coercion_finish(sxml_coercion_engine *engine,
+                                        sxml_coercion_result result) {
+    sxml_coercion_frame *frame = &engine->frames[engine->frame_count - 1];
+    sxml_coercion_release_frame(engine, frame);
+    engine->frame_count -= 1;
+    engine->has_result = true;
+    engine->is_unchanged = result.is_unchanged;
+    engine->result = result.is_unchanged ? sxml_sequence_empty() : result.value;
+    if (result.is_unchanged) {
+        sxml_sequence_release(result.value);
+    }
+    return SXML_STATUS_OK;
+}
+
+static sxml_status sxml_coercion_finish_unchanged(sxml_coercion_engine *engine) {
+    return sxml_coercion_finish(
+        engine, (sxml_coercion_result){.is_unchanged = true, .value = sxml_sequence_empty()});
+}
+
+/* Takes the result handed down: *changed_value is the new value (owned),
+   or empty when unchanged (then *is_unchanged). */
+static sxml_coercion_result sxml_coercion_take_result(sxml_coercion_engine *engine) {
+    const sxml_coercion_result result = {.is_unchanged = engine->is_unchanged,
+                                         .value = engine->result};
+    engine->has_result = false;
+    engine->is_unchanged = false;
+    engine->result = sxml_sequence_empty();
+    return result;
+}
+
+/* Allocates count empty parts for the top frame. */
+static sxml_status sxml_coercion_allocate_parts(sxml_coercion_engine *engine,
+                                                sxml_coercion_frame *frame, size_t count) {
+    frame->parts = NULL;
+    frame->stored_count = 0;
+    if (count == 0) {
+        return SXML_STATUS_OK;
+    }
+    size_t byte_count = 0;
+    sxml_status status = sxml_size_multiply(count, sizeof(sxml_sequence), &byte_count);
+    void *memory = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_allocator_allocate(
+            engine->dynamic_context->allocator,
+            (sxml_allocation_request){.byte_count = byte_count,
+                                      .alignment = alignof(sxml_sequence)},
+            &memory);
+    }
+    if (status == SXML_STATUS_OK) {
+        frame->parts = memory;
     }
     return status;
 }
 
-/* Function coercion (XPath 4.0, section 3.4.4): each function item that
-   does not match the required function type is wrapped in a coerced
-   function of that type. Writes the new value, owned, to *result. */
-static sxml_status sxml_coerce_function_value(sxml_dynamic_context *dynamic_context,
-                                              const sxml_coercion_request *request,
-                                              sxml_sequence *result) {
-    const sxml_type_registry *registry =
-        sxml_item_heap_get_type_registry(dynamic_context->item_heap);
-    const sxml_type_identifier required = request->sequence_type.item_type;
-    sxml_type_description required_description;
-    sxml_status status =
-        sxml_type_registry_describe_type(registry, required, &required_description);
+/* Stores a part: the coerced value, or original (retained) when the
+   result is unchanged. */
+static void sxml_coercion_store_part(sxml_coercion_frame *frame,
+                                     sxml_coercion_result result, sxml_sequence original) {
+    if (result.is_unchanged) {
+        sxml_sequence_retain(original);
+        frame->parts[frame->stored_count] = original;
+    } else {
+        frame->parts[frame->stored_count] = result.value;
+        frame->has_changed = true;
+    }
+    frame->stored_count += 1;
+}
+
+/* SEQUENCE: each item against the item type, then the count (section
+   3.4: the cardinality of the coerced value V'). */
+static sxml_status sxml_coercion_step_sequence(sxml_coercion_engine *engine,
+                                               sxml_coercion_frame *frame) {
+    sxml_status status = SXML_STATUS_OK;
+    if (engine->has_result) {
+        const sxml_coercion_result result = sxml_coercion_take_result(engine);
+        if (!result.is_unchanged && frame->builder == NULL) {
+            /* The first changed item: copy the items before it. */
+            status = sxml_sequence_builder_create(
+                engine->dynamic_context->allocator,
+                &(sxml_sequence_builder_configuration){
+                    .item_heap = engine->dynamic_context->item_heap},
+                &frame->builder);
+            for (uint64_t earlier_index = 0;
+                 status == SXML_STATUS_OK && earlier_index < frame->item_index;
+                 earlier_index += 1) {
+                sxml_item earlier = {.representation = 0};
+                status = sxml_sequence_get_item(
+                    frame->input,
+                    (sxml_item_request){.item_index = earlier_index,
+                                        .error_record = frame->error_record},
+                    &earlier);
+                if (status == SXML_STATUS_OK) {
+                    status = sxml_sequence_builder_append_item(frame->builder, earlier);
+                }
+            }
+        }
+        if (status == SXML_STATUS_OK && frame->builder != NULL) {
+            status = result.is_unchanged
+                         ? sxml_sequence_builder_append_item(frame->builder,
+                                                             frame->current_item)
+                         : sxml_sequence_builder_append_sequence(
+                               frame->builder, result.value, frame->error_record);
+        }
+        sxml_sequence_release(result.value);
+        frame->item_index += 1;
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+    }
+    sxml_iteration_step step = {.has_item = false};
+    if (frame->sequence_type.occurrence != SXML_OCCURRENCE_ZERO &&
+        frame->sequence_type.item_type.index != SXML_TYPE_ITEM) {
+        status = sxml_sequence_iterator_next(&frame->iterator, frame->error_record, &step);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+    }
+    if (step.has_item) {
+        frame->current_item = step.item;
+        return sxml_coercion_push(engine,
+                                  sxml_coercion_item_frame(step.item,
+                                                           frame->sequence_type.item_type,
+                                                           frame->error_record));
+    }
+    sxml_sequence value = frame->input;
+    if (frame->builder != NULL) {
+        status = sxml_sequence_builder_finish(frame->builder, &value);
+    } else {
+        sxml_sequence_retain(value);
+    }
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    const sxml_function_type *function_type =
-        &required_description.variety_details.function_type;
-    sxml_sequence_builder *builder = NULL;
-    status = sxml_sequence_builder_create(
-        dynamic_context->allocator,
-        &(sxml_sequence_builder_configuration){.item_heap =
-                                                   dynamic_context->item_heap},
-        &builder);
-    sxml_sequence_iterator iterator = sxml_sequence_iterator_start(request->value);
-    bool has_changed = false;
-    while (status == SXML_STATUS_OK) {
-        sxml_iteration_step step;
-        status = sxml_sequence_iterator_next(&iterator, request->error_record, &step);
-        if (status != SXML_STATUS_OK || !step.has_item) {
-            break;
+    if (frame->checks_occurrence) {
+        uint64_t item_count = 0;
+        status = sxml_sequence_count(value, frame->error_record, &item_count);
+        if (status == SXML_STATUS_OK &&
+            !sxml_occurrence_allows(frame->sequence_type.occurrence, item_count)) {
+            status = sxml_report_coercion_error(engine->role, frame->error_record);
         }
-        if (!sxml_item_is_function_item(step.item) ||
-            sxml_type_registry_is_subtype(
-                registry,
-                (sxml_type_pair){.derived_type =
-                                     sxml_item_get_type_annotation(step.item),
-                                 .base_type = required})) {
-            /* Already of the type, or not a function: the final match
-               decides. */
-            status = sxml_sequence_builder_append_item(builder, step.item);
-            continue;
-        }
-        sxml_function_item_description description;
-        status = sxml_function_item_describe(step.item, &description);
         if (status != SXML_STATUS_OK) {
-            break;
+            sxml_sequence_release(value);
+            return status;
         }
-        /* XPath 4.0, section 3.4.4: a function of lower arity is accepted
-           and called with the leading arguments only; a higher arity is a
-           type error. */
-        if (description.arity >
-            function_type->parameter_types.sequence_type_count) {
-            status = sxml_error_record_report(request->error_record,
-                                              &sxml_function_arity_error);
-            break;
+    }
+    const bool is_unchanged = frame->builder == NULL && !frame->is_derived;
+    return sxml_coercion_finish(engine,
+                                (sxml_coercion_result){.is_unchanged = is_unchanged,
+                                                       .value = value});
+}
+
+/* True when an item that matches type may still be changed by coercing
+   it to type: typed function types (function coercion), record types
+   (entry order and annotation), typed arrays and maps (their parts), and
+   choices with such alternatives. */
+static sxml_status sxml_type_converts_matching_items(const sxml_type_registry *registry,
+                                                     sxml_type_identifier type,
+                                                     sxml_atomicity *converts) {
+    bool *does_convert = &converts->is_atomic;
+    *does_convert = false;
+    sxml_type_description description;
+    sxml_status status = sxml_type_registry_describe_type(registry, type, &description);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    switch (description.variety) {
+    case SXML_TYPE_VARIETY_FUNCTION:
+        *does_convert = !description.variety_details.function_type.is_any_function;
+        break;
+    case SXML_TYPE_VARIETY_RECORD:
+        *does_convert = !description.variety_details.record_type.is_any_record;
+        break;
+    case SXML_TYPE_VARIETY_ARRAY:
+        *does_convert = !description.variety_details.array_type.is_any_array;
+        break;
+    case SXML_TYPE_VARIETY_MAP:
+        *does_convert = !description.variety_details.map_type.is_any_map;
+        break;
+    case SXML_TYPE_VARIETY_CHOICE: {
+        const sxml_type_identifier_view members = description.variety_details.member_types;
+        for (size_t member_index = 0;
+             !*does_convert && member_index < members.type_identifier_count;
+             member_index += 1) {
+            sxml_type_description member;
+            status = sxml_type_registry_describe_type(
+                registry, members.type_identifiers[member_index], &member);
+            if (status != SXML_STATUS_OK) {
+                return status;
+            }
+            /* One level is looked at; anything that is not atomic or a
+               node test may convert. */
+            *does_convert = member.variety == SXML_TYPE_VARIETY_FUNCTION ||
+                            member.variety == SXML_TYPE_VARIETY_RECORD ||
+                            member.variety == SXML_TYPE_VARIETY_ARRAY ||
+                            member.variety == SXML_TYPE_VARIETY_MAP ||
+                            member.variety == SXML_TYPE_VARIETY_CHOICE;
         }
-        sxml_item coerced = {.representation = 0};
-        status = sxml_function_item_make(
-            dynamic_context->item_heap,
-            &(sxml_function_item_request){
-                .function_name = description.function_name,
-                .signature = required,
-                .function_annotations = {.function_annotations = NULL,
-                                         .function_annotation_count = 0},
-                .captured_values = {.sequences = &(sxml_sequence){step.item},
-                                    .sequence_count = 1},
-                .body = {.state = NULL,
-                         .operations =
-                             &sxml_evaluator_coerced_function_body_operations}},
-            &coerced);
+        break;
+    }
+    case SXML_TYPE_VARIETY_COMPLEX:
+    case SXML_TYPE_VARIETY_ANY_SIMPLE:
+    case SXML_TYPE_VARIETY_ATOMIC:
+    case SXML_TYPE_VARIETY_LIST:
+    case SXML_TYPE_VARIETY_UNION:
+    case SXML_TYPE_VARIETY_ENUMERATION:
+    case SXML_TYPE_VARIETY_ANY_ITEM:
+    case SXML_TYPE_VARIETY_NODE_TEST:
+    case SXML_TYPE_VARIETY_JSON_NODE_TEST:
+        break;
+    }
+    return SXML_STATUS_OK;
+}
+
+/* Whether item matches type (one item). */
+typedef struct sxml_coercion_question {
+    sxml_item item;
+    sxml_type_identifier type;
+} sxml_coercion_question;
+
+static sxml_status sxml_coercion_item_matches(sxml_coercion_engine *engine,
+                                              sxml_coercion_question question,
+                                              sxml_type_match *match) {
+    return sxml_evaluator_match_sequence_type(
+        engine->dynamic_context,
+        &(sxml_type_match_request){
+            .value = sxml_sequence_from_item(question.item),
+            .sequence_type = {.item_type = question.type,
+                              .occurrence = SXML_OCCURRENCE_EXACTLY_ONE},
+            .error_record = NULL},
+        match);
+}
+
+/* Turns the ITEM frame into a SEQUENCE over a value made from its item. */
+/* A value made from an item; is_owned when the frame takes it over. */
+typedef struct sxml_derived_value {
+    sxml_sequence value;
+    bool is_owned;
+} sxml_derived_value;
+
+static void sxml_coercion_become_derived_sequence(sxml_coercion_frame *frame,
+                                                  sxml_derived_value derived) {
+    const sxml_sequence value = derived.value;
+    const bool owns_value = derived.is_owned;
+    const sxml_type_identifier type = frame->item_type;
+    *frame = sxml_coercion_sequence_frame(
+        value,
+        (sxml_sequence_type){.item_type = type, .occurrence = SXML_OCCURRENCE_ZERO_OR_MORE},
+        frame->error_record);
+    frame->owns_input = owns_value;
+    frame->checks_occurrence = false;
+    frame->is_derived = true;
+}
+
+/* ITEM: the item coercion rules of XPath 4.0, section 3.4.2, in order. */
+static sxml_status sxml_coercion_step_item(sxml_coercion_engine *engine,
+                                           sxml_coercion_frame *frame) {
+    const sxml_item item = frame->item;
+    const sxml_type_identifier type = frame->item_type;
+    if (type.index == SXML_TYPE_ITEM) {
+        return sxml_coercion_finish_unchanged(engine);
+    }
+    sxml_type_description description;
+    sxml_status status =
+        sxml_type_registry_describe_type(engine->registry, type, &description);
+    sxml_atomicity atomicity = {.is_atomic = false};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_type_is_generalized_atomic(engine->registry, type, &atomicity);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    const bool is_atomic_item = sxml_item_is_atomic(item);
+    /* A generalized atomic type and an item that is not atomic: atomize,
+       then coerce each atomic item. */
+    if (atomicity.is_atomic && !is_atomic_item) {
+        sxml_sequence atomized = sxml_sequence_empty();
+        status = sxml_evaluator_atomize(
+            engine->dynamic_context,
+            &(sxml_atomization_request){.value = sxml_sequence_from_item(item),
+                                        .error_record = frame->error_record},
+            &atomized);
         if (status == SXML_STATUS_OK) {
-            status = sxml_sequence_builder_append_item(builder, coerced);
-            sxml_item_release(coerced);
-            has_changed = true;
+            sxml_coercion_become_derived_sequence(
+                frame, (sxml_derived_value){.value = atomized, .is_owned = true});
+        }
+        return status;
+    }
+    /* A choice or union type: the first alternative the item matches, or
+       each alternative in turn. */
+    if (description.variety == SXML_TYPE_VARIETY_CHOICE ||
+        description.variety == SXML_TYPE_VARIETY_UNION) {
+        frame->frame_kind = SXML_COERCION_FRAME_KIND_CHOICE;
+        frame->alternatives = description.variety_details.member_types;
+        frame->phase = SXML_CHOICE_PHASE_SCANNING;
+        frame->next_index = 0;
+        return SXML_STATUS_OK;
+    }
+    if (is_atomic_item && (description.variety == SXML_TYPE_VARIETY_ATOMIC ||
+                           description.variety == SXML_TYPE_VARIETY_ENUMERATION)) {
+        const sxml_atomic_coercion coercion = {
+            .dynamic_context = engine->dynamic_context,
+            .registry = engine->registry,
+            .item_type = type,
+            .primitive_type = description.variety == SXML_TYPE_VARIETY_ATOMIC
+                                  ? description.primitive_type
+                                  : sxml_builtin_type_identifier(SXML_TYPE_NONE),
+            .is_enumeration = description.variety == SXML_TYPE_VARIETY_ENUMERATION,
+            .error_record = frame->error_record};
+        sxml_atomic_coercion_outcome outcome;
+        status = sxml_coerce_atomic_item(&coercion, item, &outcome);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        if (outcome.does_not_match) {
+            return sxml_report_coercion_error(engine->role, frame->error_record);
+        }
+        return sxml_coercion_finish(engine,
+                                    (sxml_coercion_result){.is_unchanged = outcome.is_unchanged,
+                                                           .value = outcome.result});
+    }
+    const sxml_item_kind kind = sxml_item_get_kind(item);
+    if (kind == SXML_ITEM_KIND_JSON_NODE) {
+        /* A JNode that does not match: each item of its jvalue. */
+        sxml_type_match match = {.is_match = false};
+        status = sxml_coercion_item_matches(
+            engine, (sxml_coercion_question){.item = item, .type = type}, &match);
+        if (status != SXML_STATUS_OK || match.is_match) {
+            return status != SXML_STATUS_OK ? status : sxml_coercion_finish_unchanged(engine);
+        }
+        sxml_json_node_description node;
+        status = sxml_json_node_describe(item, &node);
+        if (status == SXML_STATUS_OK) {
+            sxml_coercion_become_derived_sequence(
+                frame, (sxml_derived_value){.value = node.json_value, .is_owned = false});
+        }
+        return status;
+    }
+    switch (description.variety) {
+    case SXML_TYPE_VARIETY_ARRAY: {
+        const sxml_array_type *array_type = &description.variety_details.array_type;
+        if (kind != SXML_ITEM_KIND_ARRAY || array_type->is_any_array) {
+            break;
+        }
+        size_t member_count = 0;
+        status = sxml_array_get_size(item, &member_count);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_coercion_allocate_parts(engine, frame, member_count);
+        }
+        if (status == SXML_STATUS_OK) {
+            frame->frame_kind = SXML_COERCION_FRAME_KIND_ARRAY_MEMBERS;
+            frame->sequence_type = array_type->member_type;
+            frame->part_count = member_count;
+            frame->next_index = 0;
+        }
+        return status;
+    }
+    case SXML_TYPE_VARIETY_MAP: {
+        const sxml_map_type *map_type = &description.variety_details.map_type;
+        if (kind != SXML_ITEM_KIND_MAP || map_type->is_any_map) {
+            break;
+        }
+        size_t entry_count = 0;
+        size_t part_count = 0;
+        status = sxml_map_get_size(item, &entry_count);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_size_multiply(entry_count, 2, &part_count);
+        }
+        if (status == SXML_STATUS_OK) {
+            status = sxml_coercion_allocate_parts(engine, frame, part_count);
+        }
+        if (status == SXML_STATUS_OK) {
+            frame->frame_kind = SXML_COERCION_FRAME_KIND_MAP_ENTRIES;
+            frame->item_type = map_type->key_type;
+            frame->sequence_type = map_type->value_type;
+            frame->part_count = entry_count;
+            frame->next_index = 0;
+            frame->phase = 0;
+        }
+        return status;
+    }
+    case SXML_TYPE_VARIETY_RECORD: {
+        const sxml_record_type *record_type = &description.variety_details.record_type;
+        if (kind != SXML_ITEM_KIND_MAP || record_type->is_any_record ||
+            record_type->is_nominative ||
+            sxml_item_get_type_annotation(item).index == type.index) {
+            break;
+        }
+        /* An entry whose key names no field is a type error (section
+           3.4.2: surplus entries are rejected). */
+        const sxml_type_matcher key_checker = {.dynamic_context = engine->dynamic_context,
+                                               .registry = engine->registry,
+                                               .error_record = NULL,
+                                               .frames = NULL,
+                                               .frame_count = 0,
+                                               .frame_capacity = 0};
+        sxml_type_match keys_match = {.is_match = false};
+        status = sxml_map_keys_are_fields(
+            &key_checker, (sxml_record_question){.map = item, .record_type = type},
+            &keys_match);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        if (!keys_match.is_match) {
+            return sxml_report_coercion_error(engine->role, frame->error_record);
+        }
+        const size_t field_count = record_type->record_fields.record_field_count;
+        status = sxml_coercion_allocate_parts(engine, frame, field_count);
+        if (status == SXML_STATUS_OK) {
+            frame->frame_kind = SXML_COERCION_FRAME_KIND_RECORD_FIELDS;
+            frame->record_fields = record_type->record_fields.record_fields;
+            frame->part_count = field_count;
+            frame->next_index = 0;
+        }
+        return status;
+    }
+    case SXML_TYPE_VARIETY_FUNCTION: {
+        /* Function coercion applies even to an item that is already an
+           instance of the type (section 3.4.2, note; 3.4.4): only a
+           signature that is the type itself needs no wrapper. */
+        if (description.variety_details.function_type.is_any_function ||
+            !sxml_item_is_function_item(item) ||
+            sxml_item_get_type_annotation(item).index == type.index) {
+            break;
+        }
+        sxml_item wrapped = {.representation = 0};
+        status = sxml_wrap_function_item(
+            engine->dynamic_context,
+            &(sxml_function_wrapping){.function_item = item,
+                                      .required_type = type,
+                                      .error_record = frame->error_record},
+            &wrapped);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        return sxml_coercion_finish(
+            engine, (sxml_coercion_result){.is_unchanged = false,
+                                           .value = sxml_sequence_from_item(wrapped)});
+    }
+    case SXML_TYPE_VARIETY_COMPLEX:
+    case SXML_TYPE_VARIETY_ANY_SIMPLE:
+    case SXML_TYPE_VARIETY_ATOMIC:
+    case SXML_TYPE_VARIETY_LIST:
+    case SXML_TYPE_VARIETY_UNION:
+    case SXML_TYPE_VARIETY_ENUMERATION:
+    case SXML_TYPE_VARIETY_ANY_ITEM:
+    case SXML_TYPE_VARIETY_NODE_TEST:
+    case SXML_TYPE_VARIETY_JSON_NODE_TEST:
+    case SXML_TYPE_VARIETY_CHOICE:
+        break;
+    }
+    /* No rule applies: the item stays, and the final match decides
+       (section 3.4). */
+    return sxml_coercion_finish_unchanged(engine);
+}
+
+/* CHOICE (section 3.4.2): an item that matches an alternative is coerced
+   to the first one it matches; otherwise each alternative is tried in
+   order, and the error is the first attempt's. */
+static sxml_status sxml_coercion_step_choice(sxml_coercion_engine *engine,
+                                             sxml_coercion_frame *frame) {
+    const size_t alternative_count = frame->alternatives.type_identifier_count;
+    switch ((sxml_choice_phase)frame->phase) {
+    case SXML_CHOICE_PHASE_SCANNING:
+        for (size_t alternative_index = 0; alternative_index < alternative_count;
+             alternative_index += 1) {
+            const sxml_type_identifier alternative =
+                frame->alternatives.type_identifiers[alternative_index];
+            sxml_type_match match = {.is_match = false};
+            sxml_status status =
+                sxml_coercion_item_matches(
+                engine, (sxml_coercion_question){.item = frame->item, .type = alternative},
+                &match);
+            if (status != SXML_STATUS_OK) {
+                return status;
+            }
+            if (!match.is_match) {
+                continue;
+            }
+            sxml_atomicity converts = {.is_atomic = false};
+            status = sxml_type_converts_matching_items(engine->registry, alternative,
+                                                       &converts);
+            if (status != SXML_STATUS_OK || !converts.is_atomic) {
+                return status != SXML_STATUS_OK ? status
+                                                : sxml_coercion_finish_unchanged(engine);
+            }
+            frame->phase = SXML_CHOICE_PHASE_CONVERTING;
+            return sxml_coercion_push(
+                engine, sxml_coercion_item_frame(frame->item, alternative, frame->error_record));
+        }
+        if (alternative_count == 0) {
+            return sxml_report_coercion_error(engine->role, frame->error_record);
+        }
+        frame->phase = SXML_CHOICE_PHASE_TRYING;
+        frame->next_index = 1;
+        return sxml_coercion_push(
+            engine, sxml_coercion_item_frame(frame->item, frame->alternatives.type_identifiers[0],
+                                             frame->error_record));
+    case SXML_CHOICE_PHASE_TRYING:
+        if (engine->has_failure) {
+            engine->has_failure = false;
+            if (frame->next_index == 1) {
+                frame->first_failure = engine->failure_status;
+            }
+            if (frame->next_index == alternative_count) {
+                /* Every alternative failed: the first failure stands, in
+                   the frame's record. */
+                return frame->first_failure;
+            }
+            const sxml_type_identifier alternative =
+                frame->alternatives.type_identifiers[frame->next_index];
+            frame->next_index += 1;
+            return sxml_coercion_push(
+                engine,
+                sxml_coercion_item_frame(frame->item, alternative, &engine->scratch_record));
+        }
+        return sxml_coercion_finish(engine, sxml_coercion_take_result(engine));
+    case SXML_CHOICE_PHASE_CONVERTING:
+        return sxml_coercion_finish(engine, sxml_coercion_take_result(engine));
+    }
+    return SXML_STATUS_INVALID_ARGUMENT;
+}
+
+/* ARRAY_MEMBERS: each member to the member type (section 3.4.2). */
+static sxml_status sxml_coercion_step_array(sxml_coercion_engine *engine,
+                                            sxml_coercion_frame *frame) {
+    if (engine->has_result) {
+        sxml_coercion_store_part(frame, sxml_coercion_take_result(engine),
+                                 frame->current_value);
+    }
+    if (frame->next_index == frame->part_count) {
+        if (!frame->has_changed) {
+            return sxml_coercion_finish_unchanged(engine);
+        }
+        sxml_item array = {.representation = 0};
+        sxml_status status = sxml_array_make(
+            engine->dynamic_context->item_heap,
+            (sxml_sequence_view){.sequences = frame->parts, .sequence_count = frame->stored_count},
+            &array);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        return sxml_coercion_finish(engine,
+                                    (sxml_coercion_result){.is_unchanged = false,
+                                                           .value = sxml_sequence_from_item(array)});
+    }
+    sxml_sequence member = sxml_sequence_empty();
+    sxml_status status = sxml_array_get_member(frame->item, frame->next_index, &member);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    frame->next_index += 1;
+    frame->current_value = member;
+    return sxml_coercion_push(
+        engine, sxml_coercion_sequence_frame(member, frame->sequence_type, frame->error_record));
+}
+
+static const sxml_static_error sxml_duplicate_key_coercion_error = {
+    .error_status = SXML_STATUS_TYPE_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XPTY0004"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "Coercing the keys of a map makes two of them equal (XPath 4.0, section "
+        "3.4.2)"),
+};
+
+/* MAP_ENTRIES: each key to the key type, each value to the value type;
+   duplicate keys after that are XPTY0004 (section 3.4.2). Phase 0: the
+   next key; 1: its result came; 2: the value's result came. */
+static sxml_status sxml_coercion_step_map(sxml_coercion_engine *engine,
+                                          sxml_coercion_frame *frame) {
+    sxml_status status = SXML_STATUS_OK;
+    sxml_map_entry entry;
+    if (engine->has_result && frame->phase == 1) {
+        status = sxml_map_get_entry(frame->item, frame->next_index, &entry);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        sxml_coercion_store_part(frame, sxml_coercion_take_result(engine),
+                                 sxml_sequence_from_item(entry.key));
+        frame->phase = 2;
+        frame->current_value = entry.value;
+        return sxml_coercion_push(engine, sxml_coercion_sequence_frame(entry.value,
+                                                                       frame->sequence_type,
+                                                                       frame->error_record));
+    }
+    if (engine->has_result) {
+        sxml_coercion_store_part(frame, sxml_coercion_take_result(engine),
+                                 frame->current_value);
+        frame->next_index += 1;
+        frame->phase = 0;
+    }
+    if (frame->next_index < frame->part_count) {
+        status = sxml_map_get_entry(frame->item, frame->next_index, &entry);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        frame->phase = 1;
+        return sxml_coercion_push(
+            engine, sxml_coercion_item_frame(entry.key, frame->item_type, frame->error_record));
+    }
+    if (!frame->has_changed) {
+        return sxml_coercion_finish_unchanged(engine);
+    }
+    void *memory = NULL;
+    size_t byte_count = 0;
+    status = sxml_size_multiply(frame->part_count, sizeof(sxml_map_entry), &byte_count);
+    if (status == SXML_STATUS_OK && byte_count > 0) {
+        status = sxml_allocator_allocate(
+            engine->dynamic_context->allocator,
+            (sxml_allocation_request){.byte_count = byte_count,
+                                      .alignment = alignof(sxml_map_entry)},
+            &memory);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_map_entry *entries = memory;
+    for (size_t entry_index = 0; entries != NULL && entry_index < frame->part_count;
+         entry_index += 1) {
+        const sxml_sequence key = frame->parts[2 * entry_index];
+        if (sxml_sequence_get_representation(key) != SXML_SEQUENCE_REPRESENTATION_SINGLE_ITEM ||
+            !sxml_item_is_atomic(key.content)) {
+            status = sxml_report_coercion_error(engine->role, frame->error_record);
+            break;
+        }
+        entries[entry_index] =
+            (sxml_map_entry){.key = key.content, .value = frame->parts[2 * entry_index + 1]};
+    }
+    sxml_item map = {.representation = 0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_map_make(
+            engine->dynamic_context->item_heap,
+            &(sxml_map_request){
+                .map_entries = {.map_entries = entries, .map_entry_count = frame->part_count},
+                .duplicate_key_policy = SXML_DUPLICATE_KEY_POLICY_REJECT,
+                .error_record = NULL},
+            &map);
+        if (status == SXML_STATUS_DYNAMIC_ERROR) {
+            status = sxml_error_record_report(frame->error_record,
+                                              &sxml_duplicate_key_coercion_error);
         }
     }
-    sxml_sequence value = sxml_sequence_empty();
+    if (memory != NULL) {
+        sxml_allocator_release(engine->dynamic_context->allocator, memory);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_coercion_finish(engine,
+                                (sxml_coercion_result){.is_unchanged = false,
+                                                       .value = sxml_sequence_from_item(map)});
+}
+
+/* RECORD_FIELDS: a new record of the type, each field's value (the empty
+   sequence when the map has no such entry) coerced to the field's type
+   (section 3.4.2). */
+static sxml_status sxml_coercion_step_record(sxml_coercion_engine *engine,
+                                             sxml_coercion_frame *frame) {
+    if (engine->has_result) {
+        sxml_coercion_store_part(frame, sxml_coercion_take_result(engine),
+                                 frame->current_value);
+    }
+    if (frame->next_index == frame->part_count) {
+        sxml_item record = {.representation = 0};
+        sxml_status status = sxml_record_make(
+            engine->dynamic_context->item_heap,
+            &(sxml_record_request){.record_type = frame->item_type,
+                                   .field_values = {.sequences = frame->parts,
+                                                    .sequence_count = frame->stored_count}},
+            &record);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        return sxml_coercion_finish(engine,
+                                    (sxml_coercion_result){.is_unchanged = false,
+                                                           .value = sxml_sequence_from_item(record)});
+    }
+    const sxml_record_field *field = &frame->record_fields[frame->next_index];
+    sxml_item key = {.representation = 0};
+    sxml_status status = sxml_atomic_item_make(
+        engine->dynamic_context->item_heap,
+        &(sxml_atomic_item_request){
+            .type = sxml_builtin_type_identifier(SXML_TYPE_XS_STRING),
+            .datum = {.datum_kind = SXML_DATUM_KIND_STRING,
+                      .datum_details = {.string = {.utf8 = field->field_name,
+                                                   .codepoint_count = 0,
+                                                   .is_ascii = false}}}},
+        &key);
+    sxml_map_lookup lookup = {.is_found = false};
     if (status == SXML_STATUS_OK) {
-        if (has_changed) {
-            status = sxml_sequence_builder_finish(builder, &value);
-        } else {
-            sxml_sequence_retain(request->value);
-            value = request->value;
+        status = sxml_map_find(frame->item, key, &lookup);
+        sxml_item_release(key);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    frame->next_index += 1;
+    frame->current_value = lookup.is_found ? lookup.entry.value : sxml_sequence_empty();
+    return sxml_coercion_push(engine, sxml_coercion_sequence_frame(frame->current_value,
+                                                                   field->field_type,
+                                                                   frame->error_record));
+}
+
+static sxml_status sxml_coercion_step(sxml_coercion_engine *engine) {
+    sxml_coercion_frame *frame = &engine->frames[engine->frame_count - 1];
+    switch (frame->frame_kind) {
+    case SXML_COERCION_FRAME_KIND_SEQUENCE:
+        return sxml_coercion_step_sequence(engine, frame);
+    case SXML_COERCION_FRAME_KIND_ITEM:
+        return sxml_coercion_step_item(engine, frame);
+    case SXML_COERCION_FRAME_KIND_CHOICE:
+        return sxml_coercion_step_choice(engine, frame);
+    case SXML_COERCION_FRAME_KIND_ARRAY_MEMBERS:
+        return sxml_coercion_step_array(engine, frame);
+    case SXML_COERCION_FRAME_KIND_MAP_ENTRIES:
+        return sxml_coercion_step_map(engine, frame);
+    case SXML_COERCION_FRAME_KIND_RECORD_FIELDS:
+        return sxml_coercion_step_record(engine, frame);
+    }
+    return SXML_STATUS_INVALID_ARGUMENT;
+}
+
+/* After a failure with an error record: pops frames down to the nearest
+   CHOICE still trying alternatives and tells it; *is_caught is false when
+   there is none (every frame is gone). */
+typedef struct sxml_coercion_failure {
+    sxml_status status;
+} sxml_coercion_failure;
+
+static void sxml_coercion_unwind(sxml_coercion_engine *engine, sxml_coercion_failure failure,
+                                 sxml_emptiness *is_caught) {
+    bool *caught = &is_caught->is_empty;
+    *caught = false;
+    engine->failure_status = failure.status;
+    sxml_sequence_release(engine->result);
+    engine->result = sxml_sequence_empty();
+    engine->has_result = false;
+    /* The failing frame itself goes first, even a CHOICE. */
+    if (engine->frame_count > 0) {
+        sxml_coercion_release_frame(engine, &engine->frames[engine->frame_count - 1]);
+        engine->frame_count -= 1;
+    }
+    while (engine->frame_count > 0) {
+        sxml_coercion_frame *frame = &engine->frames[engine->frame_count - 1];
+        if (frame->frame_kind == SXML_COERCION_FRAME_KIND_CHOICE &&
+            frame->phase == SXML_CHOICE_PHASE_TRYING) {
+            engine->has_failure = true;
+            *caught = true;
+            return;
+        }
+        sxml_coercion_release_frame(engine, frame);
+        engine->frame_count -= 1;
+    }
+}
+
+/* Runs the coercion rules on request->value; writes the new value, owned,
+   to *result. */
+static sxml_status sxml_run_coercion(sxml_dynamic_context *dynamic_context,
+                                     const sxml_coercion_request *request,
+                                     sxml_sequence *result) {
+    sxml_coercion_engine engine = {
+        .dynamic_context = dynamic_context,
+        .registry = sxml_item_heap_get_type_registry(dynamic_context->item_heap),
+        .role = request->role,
+        .scratch_record = {.value = NULL},
+        .frames = NULL,
+        .frame_count = 0,
+        .frame_capacity = 0,
+        .has_result = false,
+        .is_unchanged = false,
+        .result = sxml_sequence_empty(),
+        .has_failure = false,
+        .failure_status = SXML_STATUS_OK};
+    sxml_status status = sxml_coercion_push(
+        &engine, sxml_coercion_sequence_frame(request->value, request->sequence_type,
+                                              request->error_record));
+    while (status == SXML_STATUS_OK && engine.frame_count > 0) {
+        status = sxml_coercion_step(&engine);
+        if (sxml_status_has_error_record(status)) {
+            sxml_emptiness is_caught = {.is_empty = false};
+            sxml_coercion_unwind(&engine, (sxml_coercion_failure){.status = status},
+                                 &is_caught);
+            if (is_caught.is_empty) {
+                status = SXML_STATUS_OK;
+            }
         }
     }
-    sxml_sequence_builder_destroy(builder);
-    if (status == SXML_STATUS_OK) {
-        *result = value;
+    while (engine.frame_count > 0) {
+        sxml_coercion_release_frame(&engine, &engine.frames[engine.frame_count - 1]);
+        engine.frame_count -= 1;
     }
-    return status;
+    if (engine.frames != NULL) {
+        sxml_allocator_release(dynamic_context->allocator, engine.frames);
+    }
+    if (status != SXML_STATUS_OK) {
+        sxml_sequence_release(engine.result);
+        return status;
+    }
+    const sxml_coercion_result outcome = sxml_coercion_take_result(&engine);
+    if (outcome.is_unchanged) {
+        sxml_sequence_retain(request->value);
+        *result = request->value;
+    } else {
+        *result = outcome.value;
+    }
+    return SXML_STATUS_OK;
 }
 
 sxml_status sxml_evaluator_coerce(sxml_dynamic_context *dynamic_context,
@@ -1479,38 +2410,58 @@ sxml_status sxml_evaluator_coerce(sxml_dynamic_context *dynamic_context,
     }
     const sxml_type_registry *registry =
         sxml_item_heap_get_type_registry(dynamic_context->item_heap);
-    sxml_atomicity atomicity = {.is_atomic = false};
-    sxml_status status = SXML_STATUS_OK;
-    if (sequence_type.occurrence != SXML_OCCURRENCE_ZERO) {
-        status = sxml_type_is_generalized_atomic(registry, sequence_type.item_type,
-                                                 &atomicity);
-    }
-    const bool is_atomic = atomicity.is_atomic;
+    /* A range that matches is unchanged by coercion: an xs:integer stays
+       itself for any supertype (XPath 4.0, section 3.4.2), and the range
+       may be far too long to walk (cbcl-codepoints-to-string-021). */
+    sxml_range_decision decision;
+    sxml_status status = sxml_decide_range_match(
+        registry,
+        &(sxml_type_match_request){.value = request->value,
+                                   .sequence_type = sequence_type,
+                                   .error_record = request->error_record},
+        &decision);
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    sxml_sequence value = sxml_sequence_empty();
-    if (is_atomic) {
-        status = sxml_coerce_atomic_value(dynamic_context, request, &value);
-    } else {
-        sxml_type_description description;
-        status = sxml_type_registry_describe_type(registry, sequence_type.item_type,
-                                                  &description);
-        if (status == SXML_STATUS_OK &&
-            sequence_type.occurrence != SXML_OCCURRENCE_ZERO &&
-            description.variety == SXML_TYPE_VARIETY_FUNCTION &&
-            !description.variety_details.function_type.is_any_function) {
-            status = sxml_coerce_function_value(dynamic_context, request, &value);
-        } else if (status == SXML_STATUS_OK) {
-            sxml_sequence_retain(request->value);
-            value = request->value;
-        }
+    if (decision.is_decided && decision.is_match) {
+        sxml_sequence_retain(request->value);
+        *result = request->value;
+        return SXML_STATUS_OK;
     }
+    if (decision.is_decided) {
+        /* Its items would stay as they are: the count is wrong. */
+        return sxml_report_coercion_error(request->role, request->error_record);
+    }
+    /* A value that already matches a type whose matching items stay as
+       they are needs no coercion: one match instead of the rules. */
+    sxml_atomicity converts = {.is_atomic = true};
+    if (sequence_type.occurrence != SXML_OCCURRENCE_ZERO) {
+        status = sxml_type_converts_matching_items(registry, sequence_type.item_type,
+                                                   &converts);
+    }
+    sxml_type_match match = {.is_match = false};
+    if (status == SXML_STATUS_OK && !converts.is_atomic) {
+        status = sxml_evaluator_match_sequence_type(
+            dynamic_context,
+            &(sxml_type_match_request){.value = request->value,
+                                       .sequence_type = sequence_type,
+                                       .error_record = request->error_record},
+            &match);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (match.is_match) {
+        sxml_sequence_retain(request->value);
+        *result = request->value;
+        return SXML_STATUS_OK;
+    }
+    sxml_sequence value = sxml_sequence_empty();
+    status = sxml_run_coercion(dynamic_context, request, &value);
     if (status != SXML_STATUS_OK) {
         return status;
     }
     /* Finally the value must match (section 3.4, last rule). */
-    sxml_type_match match = {.is_match = false};
     status = sxml_evaluator_match_sequence_type(
         dynamic_context,
         &(sxml_type_match_request){.value = value,
