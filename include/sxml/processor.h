@@ -16,7 +16,7 @@
 
 /*
  * The processor: the object a host creates first (docs/DECISIONS.md, D30,
- * D47, D50).
+ * D47, D51).
  *
  * A processor owns one name pool, one type registry and one item heap
  * (include/sxml/name.h, types.h, xdm.h), and everything compiled or
@@ -181,8 +181,9 @@ typedef struct sxml_resource_resolver_operations {
     /* Retrieves the resource request describes into *resource. Returns
        SXML_STATUS_OK, with SXML_RESOURCE_FORM_NONE, for anything a query
        should see as "not available" (a missing file, a refused URI, a
-       network failure). Any other status stops the evaluation with that
-       status: keep those for conditions such as running out of memory. */
+       failed read, a network failure). Any other status stops the
+       evaluation with that status: keep those for conditions such as
+       running out of memory. */
     sxml_status (*resolve)(void *state, const sxml_resource_request *request,
                            sxml_resource *resource);
     /* Optional. Called once for every resolve that returned SXML_STATUS_OK,

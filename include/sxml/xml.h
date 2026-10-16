@@ -13,7 +13,7 @@
 
 /*
  * The XML parser: XML 1.0 bytes in, tree builder events out
- * (docs/DECISIONS.md, D12, D28, D50).
+ * (docs/DECISIONS.md, D12, D28, D51).
  *
  * The parser reads a whole document from memory, checks that it is
  * well-formed (XML 1.0 Fifth Edition) and namespace-well-formed (Namespaces

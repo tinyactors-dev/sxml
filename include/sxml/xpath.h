@@ -16,7 +16,7 @@
 
 /*
  * XPath 4.0: the static context, compilation, the dynamic context and
- * evaluation (docs/DECISIONS.md, D47, D50).
+ * evaluation (docs/DECISIONS.md, D47, D51).
  *
  * An expression is compiled once against a static context into an
  * sxml_xpath_expression and evaluated any number of times, each time

@@ -12,7 +12,7 @@
 
 /*
  * Serialization: a sequence to bytes (Serialization 4.0;
- * docs/DECISIONS.md, D47, D50).
+ * docs/DECISIONS.md, D47, D51).
  *
  * Bytes go to an sxml_output_stream, an interface the host implements over
  * its own output (a file, standard output, a JavaScript callback);
@@ -32,8 +32,10 @@
 
 /* The operations of an output stream. Tables are static const. */
 typedef struct sxml_output_stream_operations {
-    /* Writes all of bytes, after everything written before. A failure
-       stops the serialization, which returns the status unchanged. */
+    /* Writes all of bytes, after everything written before. Returns
+       SXML_STATUS_INPUT_OUTPUT_FAILED when the platform refuses the write
+       (D50). A failure stops the serialization, which returns the status
+       unchanged. */
     sxml_status (*write)(void *state, sxml_byte_view bytes);
 } sxml_output_stream_operations;
 
