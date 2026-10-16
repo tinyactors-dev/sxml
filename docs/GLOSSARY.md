@@ -72,6 +72,15 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `context_item` | The item the focus is on |
 | `intermediate_representation` | The shared IR; `ir` allowed as a module name only |
 | `grammar` | A tree-sitter grammar under `grammars/<language>/`, and the parser generated from it |
+| `concrete_syntax_tree` | The tree-sitter parse tree of a query or document, before sxml builds its own structures |
+| `query_scanner` | The external tree-sitter scanner shared by the XPath, XQuery and XSLT pattern grammars |
+| `keyword_name` | A keyword used as a name; XPath 4.0 keywords are not reserved |
+| `direct_constructor` | XQuery XML-like node constructor syntax: `<a b="{1}">text</a>`, `<!-- -->`, `<?pi?>` |
+| `computed_constructor` | Node constructor written with a keyword: `element #a { ... }` |
+| `string_template` | XPath 4.0 `` `text {expression}` `` |
+| `string_constructor` | XQuery ```` ``[text `{expression}`]`` ```` |
+| `pragma` | XQuery `(# name contents #)` before an extension expression |
+| `pattern` | An XSLT 4.0 match pattern (XSLT 4.0, section 6.3) |
 | `test_suite` | The unit tests of one module: one test executable |
 | `test_case` | One named test function within a test suite |
 | `test_check` | One checked condition within a test case |
