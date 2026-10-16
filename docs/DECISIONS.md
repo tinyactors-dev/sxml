@@ -1198,6 +1198,28 @@ Recorded 2026-10-16. `src/xdm_array.c`, `src/xdm_function.c`.
   the caller's: not one atomic key / one integer is XPTY0004; a position
   out of range, also beyond int64_t, is FOAY0001.
 
+### D65. WASI test runner disables V8 fast API calls
+
+- **Problem**: the `xpath_parse` test crashed Node.js (SIGSEGV, exit 139)
+  about one run in eight on the `wasm` preset; `deep_nesting_needs_no_recursion`
+  alone, after it had passed. Not a memory error in sxml: the same test is
+  clean under ASan/UBSan (Clang, GCC) and valgrind, and the crash is not a
+  wasm trap or a stack overflow (it happens with `--stack-size=200` too).
+- **Cause**: in Node 22 the WASI imports are V8 fast API callbacks. `fd_write`
+  allocates through uvwasi, which reports external memory to V8 and can start
+  a full garbage collection inside the fast call; the collector then faults
+  walking the optimized wasm frame (`InnerPointerToCodeCache::GetCacheEntry`).
+  Whether a collection falls there depends on heap timing, hence one run in
+  eight; tests that grow linear memory a lot (20,000 nested parentheses)
+  make it likely. `--no-allow-allocation-in-fast-api-call` turns it into a
+  deterministic V8 abort in `WASI::FdWrite`'s FastCallback (45 of 60 runs).
+- **Decision**: `tools/run-wasi.mjs` sets `--no-turbo-fast-api-calls` through
+  `v8.setFlagsFromString` before compiling the module, so WASI functions are
+  called the ordinary way. 0 failures in 110 runs afterwards, also with
+  allocation in fast calls forbidden. The test depth and the wasm stack size
+  stay as they are; the library is not involved. Revisit when the runner's
+  Node version no longer uses fast calls for WASI.
+
 ## Proposed
 
 ### P2. `sxml_atomic_comparison` needs the item heap (from D60)
