@@ -205,6 +205,8 @@ After 1.7. Owns `src/cast.c`, `src/cast_lexical.c`, `src/cast_internal.h`,
 slice uses, integer subtypes with facets, `xs:NMTOKENS`; cast and castable
 (FORG0001, FOCA0002, XPTY0004). Done when the cast slice lines pass as unit
 cases. Spec: F&O 4.0 "Casting"; XSD 1.1 Part 2.
+**Done** 2026-10-16 (D66): all 17 cast slice lines pass as unit cases in
+`tests/cast_test.c` (17 cases, allocation-failure loop included).
 
 ### 1.16 XPath front end: CST to AST (implementation)
 After 1.4. Owns `src/xpath_parse.c`, `tests/xpath_parse_test.c`. Any
