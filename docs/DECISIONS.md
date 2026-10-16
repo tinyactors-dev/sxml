@@ -1630,4 +1630,53 @@ Recorded 2026-10-16, completing D79.
 - **Not yet**: array:index-of (needs 1.20's deep-equal); a dynamic call on
   a sequence of functions (DynamicFunctionCall-146) is the evaluator's.
 
+### D81. The XML parser (packet 1.14)
+Recorded 2026-10-16. `src/xml.c` (walk and checks), `src/xml_encoding.c`
+(encodings, character classes, positions), `src/xml_entity.c` (buffers,
+DTD tables with hash indices).
+- **Decoding**: Appendix F detection; UTF-8 and US-ASCII are parsed in
+  place, UTF-16 and ISO-8859-1 are transcoded to a UTF-8 copy kept by the
+  parser. UCS-4, EBCDIC and other names are UNSUPPORTED_FEATURE; an 8-bit
+  document declaring UTF-16, a UTF-8 mark with another declared name, or
+  BOM-less UTF-16 not declared UTF-16LE/BE is MALFORMED (4.3.3). U+0000 is
+  refused before parsing (tree-sitter would read it as the end).
+  Diagnostics give line, column (codepoints) and the input byte offset.
+- **Walks** without C recursion (D71): the internal subset, then the
+  document's children, each over a stack of entity frames (cursor + tree)
+  in allocator memory. A general entity in content is reparsed as
+  `<x>TEXT</x>` (4.3.2); its tree is cached per entity for the parse;
+  replacement text without `<` or `&` is sent as text without a parse.
+  An internal parameter entity between declarations is included by
+  parsing `<!DOCTYPE d [TEXT]><d/>` (2.8); conditional sections in it are
+  not supported (the grammar has none). Entities in attribute values are
+  expanded with an explicit stack (4.4.5). Element nesting is bounded by
+  `maximum_depth`, expansion by `maximum_entity_expansion_byte_count`
+  (every replacement text counted, parameter entities included).
+- **Choices**: line ends are normalized as text is emitted (pieces split
+  at CR, the builder joins them), not in a copy; replacement text is not
+  normalized again. Predefined entity names are always predefined
+  (declarations of them are ignored). External parsed entities are
+  skipped in content (4.4.3); undeclared ones are skipped when WFC Entity
+  Declared does not apply. xml:id is an ID and collapsed; DTD types ID,
+  IDREF(S) give is_id/is_idrefs. Element types and attribute names in
+  DTD declarations must be QNames too. version 1.1 documents are parsed
+  by the 1.0 rules, except that `xmlns:p=""` undeclares p (Namespaces
+  1.1, section 5). Unparsed entity system identifiers are passed as
+  written, not resolved against the base URI.
+- **Measured**: W3C suite (Fifth Edition selection of D28) valid 601/601,
+  invalid 175/175, not-wf 948/948 through the library
+  (`tests/xml_conformance_test.c`, which reads `third_party/xmlconf` from
+  the source tree and passes with a "skipped" line where it cannot, as
+  under WASI). Of the 9 NAMESPACE="no" valid/invalid tests, 8 are refused
+  as not namespace-well-formed and counted as passing. QT4 suite: 1046 of
+  1051 `*.xml` files parse; the 5 refused are not well-formed on purpose
+  (bad bytes, U+00BC in names, unknown encoding "foo", `invalid-xml.xml`).
+  XSLT 4.0 suite, the 2541 files under 5 MB: 18 refused, 17 not
+  well-formed on purpose and `xml-version-03.xml`, an XML 1.1 document
+  with character references to control characters (1.0 rules apply).
+- **CLI**: `sxml check` (docs/CLI.md); the framework gains
+  `sxml_cli_file_reader` in the invocation, implemented over stdio in
+  `apps/sxml/platform_stdio.c`; CLI golden tests run in `tests/cli/input/`
+  so file names work under WASI too.
+
 ## Proposed
