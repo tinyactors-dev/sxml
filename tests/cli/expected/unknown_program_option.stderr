@@ -1,0 +1,3 @@
+sxml: unknown option '--verison'; did you mean '--version'?
+Usage: sxml [--version] COMMAND [ARGUMENT...]
+Try 'sxml --help'.

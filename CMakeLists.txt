@@ -10,6 +10,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 option(SXML_BUILD_SHARED "Build sxml as a shared library instead of a static one" OFF)
 option(SXML_ENABLE_SANITIZERS "Build every target with AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
 option(SXML_BUILD_TESTS "Build the unit tests" ON)
+option(SXML_BUILD_APPS "Build the sxml command-line program and its CLI framework (apps/)" ON)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(SxmlCompilerFlags)
@@ -85,6 +86,12 @@ sxml_apply_project_flags(sxml_header_check)
 if(SXML_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
+endif()
+
+# The sxml command-line program and its tests (docs/CLI.md, D44). Uses only
+# the public API. After tests/, whose test runner its tests link.
+if(SXML_BUILD_APPS)
+    add_subdirectory(apps)
 endif()
 
 include(SxmlLint)

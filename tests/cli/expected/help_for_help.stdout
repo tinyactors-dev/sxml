@@ -1,0 +1,16 @@
+sxml help - Show help for the program or for one command
+
+Usage: sxml help [COMMAND]
+
+Without COMMAND, shows the list of commands. With COMMAND, shows the
+same help as 'COMMAND --help'.
+
+Options:
+  -h, --help  Show this help and exit
+
+Arguments:
+  COMMAND  The command to show help for
+
+Examples:
+  sxml help
+  sxml help version

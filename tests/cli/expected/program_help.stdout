@@ -1,0 +1,14 @@
+sxml - command-line interface to the sxml XML library
+
+Usage: sxml [--version] COMMAND [ARGUMENT...]
+
+Commands:
+  help     Show help for the program or for one command
+  version  Print the sxml library version
+
+Options:
+  -h, --help     Show this help and exit
+      --version  Print the version and exit
+
+Run 'sxml help COMMAND' for help on one command.
+Report bugs at https://github.com/dhamidi/sxml/issues
