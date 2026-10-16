@@ -1570,4 +1570,17 @@ matches the namespace node whose prefix is x; a prefixed name matches
 nothing. The node-test matcher compares the namespace node's name, which
 the tree interns as the prefix in no namespace (D67).
 
+### D78. Function library: core (packet 1.20)
+Recorded 2026-10-16; written first so packet 1.21 can rely on it.
+- **Assembly**: `src/function_library.c` indexes whatever parts its
+  configuration names (D55); no file lists another file's rows, and no
+  shared list exists to edit. 1.21 only defines
+  `sxml_function_library_higher_order`, `_map` and `_array` in its own
+  files; the processor (1.23) names every part, unit tests name the parts
+  they test (plus a test-only part of their own if they need one).
+  `sxml_function_table_find` is defined in `src/function_library.c`.
+- **fn:sort** (every arity, with or without `$key`) is one resumable row
+  in `src/function_library_sequence.c` (1.20); 1.21 writes `array:sort`
+  only. fn:position and fn:last are rows of `src/function_library_context.c`.
+
 ## Proposed
