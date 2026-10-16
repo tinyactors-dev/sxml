@@ -124,6 +124,7 @@ After 1.1. Owns `src/types.c`, `src/types_builtin.c`, `src/types_internal.h`,
 `tests/types_test.c`. All of `types.h` (D32, D43). Done when `map(xs:string,
 xs:integer+)` is a subtype of `function(xs:string) as item()*`
 (map-put-002-hof). Spec: XPath 4.0 "Subtype Relationships"; XDM 4.0 §4.
+**Done** 2026-10-16 (D58).
 
 ### 1.7 Item heap and atomic core (implementation)
 After 1.2, 1.6. Owns `src/xdm.c`, `src/xdm_internal.h`, `src/xdm_atomic.c`,
