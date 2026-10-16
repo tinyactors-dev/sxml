@@ -1597,4 +1597,37 @@ Recorded 2026-10-16; written first so packet 1.20 can rely on it.
   included. 1.20 writes none of these rows.
 - Every row that calls a function item has a resumable body (D71, D75).
 
+### D80. Higher-order, map and array functions (packet 1.21)
+Recorded 2026-10-16, completing D79.
+- **Engines**: `src/function_library_higher_order_internal.h` declares
+  three resumable engines defined in the higher-order part and used by all
+  three parts: a traversal (one call per item, member or entry, with its
+  position; for-each, filter, index-where, take-/drop-while, every, some,
+  for-each-pair, array:build/for-each/filter/index-where/for-each-pair,
+  map:for-each/filter), folds (fold-left/right, scan, array folds) and
+  sorts (sort-by, sort-with, highest, lowest, array:sort/-by/-with). Keys
+  are computed one call each, then sorted by `sxml_evaluator_sort_indices`;
+  sort-with runs a bottom-up merge sort one comparator call per step. No
+  engine calls a function item (D71).
+- **Hidden rows**: partially applied functions and fn:op's functions are
+  function items whose body is a row no part lists (native operations,
+  D75): captured values hold the wrapped function, the bound positions and
+  values, or the operator's code.
+- **Types the front end lacks**: the `$keys` of sort-by are `map(*)*`
+  (the grammar has no optional or extensible record fields); the engine
+  checks `key`, `collation` and `order` and atomizes key values itself.
+  fn:partial-apply takes `map(xs:integer, item()*)` because map coercion
+  does not relabel keys (an xs:integer key is not an
+  xs:positiveInteger); a position below 1 is XPTY0004.
+- **Placeholders**: lowering turns `$f(?)` into fn:partial-apply with the
+  empty map, so the empty map returns `$function` unchanged only for an
+  anonymous function item; a map, an array or a named function is
+  wrapped, so `$m(?)` is not a map (hof-920) and has no name (XPath 4.0,
+  4.5.2.5).
+- **fn:function-lookup** uses the dynamic context's function table; a row
+  that needs the focus at that arity raises XPDY0002 at lookup (F&O 4.0
+  allows raising early), IR functions (XQuery) are UNSUPPORTED_FEATURE.
+- **Not yet**: array:index-of (needs 1.20's deep-equal); a dynamic call on
+  a sequence of functions (DynamicFunctionCall-146) is the evaluator's.
+
 ## Proposed
