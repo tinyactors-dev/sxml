@@ -1804,6 +1804,54 @@ on the CLI framework (D44), public API only.
   1.27: a Linux job `cmake --preset fuzz && cmake --build --preset fuzz &&
   tools/fuzz.sh --no-build --build-directory build/fuzz --seconds 60`.
 
+### D85. Evaluator follow-ups: calls, paths, coercion, namespaces (packet 1.18b)
+Recorded 2026-10-16. Gaps reported by 1.20 and 1.21; sections are those of
+the XPath 4.0 editor's draft of 13 October 2026 (vendored with QT4).
+- **Dynamic calls** (4.6.3.1): the target is coerced to `function(*)*` (a
+  JNode gives its jvalue); one function is called as before (tail calls
+  kept), none gives (), several go through `call_each`, a resumable body of
+  the evaluator's own (not a library row) that calls each in turn and
+  concatenates. A dynamic partial application (4.6.4) lowers to a MAP over
+  the target whose body is fn:partial-apply on the focus (golden hof-920
+  of D63 changed).
+- **Paths** (4.7.3, 4.7.5): maps and arrays on the left of `/` and `//`
+  and as the origin of a step become JNode roots as if by fn:jtree. The
+  error codes stay XPTY0019 and XPTY0020 (D76); the draft's XPTY0004 (PR
+  2627) and its selector interpretation of non-navigational steps are not
+  done.
+- **Coercion** (3.4.2) runs on an explicit stack of `coercion_frame`s:
+  choices and unions take the first alternative an item matches, else try
+  each in order and keep the first attempt's error; typed arrays, maps and
+  records are coerced part by part (records built with sxml_record_make;
+  surplus keys and keys equal after coercion are XPTY0004); a JNode that
+  does not match is coerced through its jvalue; the whole implicit-casting
+  table applies when the required type is the "to" type exactly (so no
+  xs:anyURI to xs:NCName); an enumeration accepts an xs:anyURI by its
+  string; function coercion wraps even an instance of the type, except an
+  item whose signature is that type. A value that matches a type whose
+  matching items never change is returned after one match; an integer
+  range is matched in O(1) (xs:integer a subtype of the item type).
+- **fn:replace**: `$replacement` has its F&O 4.0 type again, `(xs:string |
+  fn(xs:untypedAtomic, map((xs:integer | xs:string), xs:untypedAtomic)) as
+  item()?)?`; the function gets untyped values (integer group keys only:
+  the regex seed has no named groups), coerced by the call; D78's coercion
+  in the body is gone.
+- **Lowering**: a parameter whose default the body supplies, left out
+  before a keyword argument, gets () when its type allows it: every such
+  default in F&O 4.0 is () or default-on-empty (section 1.5), except
+  `$timezone` of adjust-*-to-timezone, a last parameter. Otherwise still
+  UNSUPPORTED_FEATURE.
+- **Static namespaces**: a unit keeps the statically known namespaces
+  beyond the predeclared ones (`sxml_ir_unit_set_static_namespaces`,
+  `_get_static_namespaces`; collected by `sxml_xpath_collect_namespaces`:
+  the expression's declarations, then the configuration's); CAST,
+  CASTABLE and xs: constructor calls pass them to the cast. xs:QName#1 as
+  a function item still sees the predeclared prefixes only.
+- **array:index-of** calls fn:deep-equal's body once per member (a leaf).
+- **number(xs:integer(...)) eq integer** is false by design: comparisons
+  are decimal-exact since PR 2218 (QT4 fn-numberintg1args-2a); the cases
+  that expect true depend on XP20 to XP31 only.
+
 ## Proposed
 
 ### P8. XML parser positions are quadratic in document size (from 1.24)
