@@ -4,6 +4,14 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- D71 for the regex seed (D53 amended): `src/regex.c` parses in one
+  loop with a stack of group frames (16 inline, then `stack_allocator`),
+  emits each atom once and copies it for quantifiers, reads and matches
+  class subtraction chains in loops; misc-no-recursion clean. Fixed a
+  write past the arrays for a trailing x{0}. Groups and subtraction
+  nested 10,000 deep compile and match (also on wasm); 400,000 random
+  regexes behave as before; regex 26/26, `debug`, `debug-gcc`, `wasm`:
+  59/59; lint clean.
 - D71 for the value model: `src/xdm_map.c` (insert, remove, replace
   value, key search, build) and `src/xdm_array.c` (join, split) walk their
   AVL trees in loops over fixed 96-entry paths on the C stack (no tree
