@@ -1,11 +1,11 @@
 /*
  * External scanner shared by the XPath 4.0, XQuery 4.0 and XSLT 4.0 pattern
- * grammars (docs/DECISIONS.md, D27).
+ * grammars (docs/DECISIONS.md, D29).
  *
  * Each grammars/<language>/src/scanner.c includes this file and defines the
  * five tree-sitter entry points for its language with
- * SXML_QUERY_SCANNER_DEFINE(<language>). The scanner keeps no state between
- * tokens: the set of valid tokens tells it where it is.
+ * SXML_QUERY_SCANNER_DEFINE(<language>, <has direct constructors>). The
+ * scanner keeps no state between tokens: the set of valid tokens tells it where it is.
  *
  * It recognizes the terminals a context-free tokenizer cannot:
  * - nested comments "(: ... :)" (XPath 4.0 A.3.1 Comment, gn: comments);
@@ -299,10 +299,29 @@ static bool query_scanner_consume_direct_comment_rest(TSLexer *lexer)
     return false;
 }
 
-/* After "<?": PITarget (S DirPIContents)? "?>" (XQuery 4.0 3.9.3.2). */
+/*
+ * After "<?": PITarget (S DirPIContents)? "?>" (XQuery 4.0 3.9.3.2).
+ * PITarget is a Name other than "xml" in any case (XML 1.0 [17]); with
+ * namespaces it is also an NCName (XML Names 1.0, section 7).
+ */
 static bool query_scanner_consume_direct_processing_instruction_rest(TSLexer *lexer)
 {
-    if (!query_scanner_consume_name(lexer)) {
+    static const char reserved_target[] = "xml";
+    uint32_t target_length = 0;
+    bool matches_reserved_target = true;
+    if (query_scanner_is_at_end(lexer) || !query_scanner_is_name_start(lexer->lookahead)) {
+        return false;
+    }
+    while (!query_scanner_is_at_end(lexer) && query_scanner_is_name_character(lexer->lookahead)) {
+        int32_t character = lexer->lookahead;
+        int32_t lower_case = character >= 'A' && character <= 'Z' ? character + ('a' - 'A') : character;
+        if (target_length >= 3 || lower_case != reserved_target[target_length]) {
+            matches_reserved_target = false;
+        }
+        target_length += 1;
+        query_scanner_advance(lexer);
+    }
+    if (matches_reserved_target && target_length == 3) {
         return false;
     }
     if (lexer->lookahead == '?') {
@@ -366,6 +385,11 @@ static bool query_scanner_consume_literal(TSLexer *lexer, const char *literal)
  */
 static bool query_scanner_scan_less_than(TSLexer *lexer, const bool *valid_symbols)
 {
+    /*
+     * A.3: the "<" analysis does not depend on the syntactic context, so a
+     * constructor is recognized even where the grammar expects the operator
+     * "<"; the parser then reports the syntax error.
+     */
     query_scanner_advance(lexer);
     lexer->mark_end(lexer);
     int32_t character = lexer->lookahead;
@@ -376,7 +400,7 @@ static bool query_scanner_scan_less_than(TSLexer *lexer, const bool *valid_symbo
     }
     if (character == '!') {
         query_scanner_advance(lexer);
-        if (lexer->lookahead == '-' && valid_symbols[QUERY_TOKEN_DIRECT_COMMENT_CONSTRUCTOR]) {
+        if (lexer->lookahead == '-') {
             if (!query_scanner_consume_literal(lexer, "--")
                 || !query_scanner_consume_direct_comment_rest(lexer)) {
                 return false;
@@ -395,9 +419,6 @@ static bool query_scanner_scan_less_than(TSLexer *lexer, const bool *valid_symbo
         return false;
     }
     if (character == '?') {
-        if (!valid_symbols[QUERY_TOKEN_DIRECT_PROCESSING_INSTRUCTION_CONSTRUCTOR]) {
-            return false;
-        }
         query_scanner_advance(lexer);
         if (!query_scanner_consume_direct_processing_instruction_rest(lexer)) {
             return false;
@@ -405,7 +426,7 @@ static bool query_scanner_scan_less_than(TSLexer *lexer, const bool *valid_symbo
         lexer->mark_end(lexer);
         return query_scanner_accept(lexer, QUERY_TOKEN_DIRECT_PROCESSING_INSTRUCTION_CONSTRUCTOR);
     }
-    if (valid_symbols[QUERY_TOKEN_DIRECT_ELEMENT_OPEN] && query_scanner_starts_direct_element(lexer)) {
+    if (query_scanner_starts_direct_element(lexer)) {
         return query_scanner_accept(lexer, QUERY_TOKEN_DIRECT_ELEMENT_OPEN);
     }
     return false;
@@ -625,7 +646,14 @@ static bool query_scanner_scan_pragma_contents(TSLexer *lexer)
     return false;
 }
 
-static bool query_scanner_scan(TSLexer *lexer, const bool *valid_symbols)
+/* What distinguishes the languages that share this scanner. */
+typedef struct query_scanner_options {
+    /* XQuery: "<" may start a direct constructor (XQuery 4.0 A.3). */
+    bool recognizes_direct_constructors;
+} query_scanner_options;
+
+static bool query_scanner_scan(TSLexer *lexer, const bool *valid_symbols,
+                               const query_scanner_options *options)
 {
     /* During error recovery every token is valid; produce nothing. */
     if (valid_symbols[QUERY_TOKEN_ERROR_SENTINEL]) {
@@ -653,7 +681,8 @@ static bool query_scanner_scan(TSLexer *lexer, const bool *valid_symbols)
         || valid_symbols[QUERY_TOKEN_DIRECT_EMPTY_TAG_END]) {
         return query_scanner_scan_tag(lexer, valid_symbols);
     }
-    if (valid_symbols[QUERY_TOKEN_PRAGMA_CONTENTS] && query_scanner_is_whitespace(lexer->lookahead)) {
+    /* Pragma ::= "(#" S EQName (S PragmaContents)? "#)" is ws:explicit. */
+    if (valid_symbols[QUERY_TOKEN_PRAGMA_CONTENTS]) {
         return query_scanner_scan_pragma_contents(lexer);
     }
 
@@ -671,24 +700,30 @@ static bool query_scanner_scan(TSLexer *lexer, const bool *valid_symbols)
         /* XQuery 4.0 A.3: "(#" followed by whitespace starts a pragma. */
         if (lexer->lookahead == '#' && valid_symbols[QUERY_TOKEN_PRAGMA_OPEN]) {
             query_scanner_advance(lexer);
-            lexer->mark_end(lexer);
-            if (query_scanner_is_whitespace(lexer->lookahead)) {
-                return query_scanner_accept(lexer, QUERY_TOKEN_PRAGMA_OPEN);
+            if (!query_scanner_is_whitespace(lexer->lookahead)) {
+                return false;
             }
+            query_scanner_skip_whitespace(lexer);
+            lexer->mark_end(lexer);
+            /* No comment may stand for the S after "(#". */
+            if (lexer->lookahead == '(') {
+                query_scanner_advance(lexer);
+                if (lexer->lookahead == ':') {
+                    return false;
+                }
+            }
+            return query_scanner_accept(lexer, QUERY_TOKEN_PRAGMA_OPEN);
         }
         return false;
     }
-    if (lexer->lookahead == '<'
-        && (valid_symbols[QUERY_TOKEN_DIRECT_ELEMENT_OPEN]
-            || valid_symbols[QUERY_TOKEN_DIRECT_COMMENT_CONSTRUCTOR]
-            || valid_symbols[QUERY_TOKEN_DIRECT_PROCESSING_INSTRUCTION_CONSTRUCTOR])) {
+    if (lexer->lookahead == '<' && options->recognizes_direct_constructors) {
         return query_scanner_scan_less_than(lexer, valid_symbols);
     }
     return false;
 }
 
 /* Defines the tree-sitter external scanner entry points for one language. */
-#define SXML_QUERY_SCANNER_DEFINE(language)                                                       \
+#define SXML_QUERY_SCANNER_DEFINE(language, has_direct_constructors)                                                     \
     void *tree_sitter_##language##_external_scanner_create(void)                                  \
     {                                                                                             \
         return NULL;                                                                              \
@@ -714,7 +749,9 @@ static bool query_scanner_scan(TSLexer *lexer, const bool *valid_symbols)
                                                         const bool *valid_symbols)                \
     {                                                                                             \
         (void)payload;                                                                            \
-        return query_scanner_scan(lexer, valid_symbols);                                          \
+        return query_scanner_scan(                                                                \
+            lexer, valid_symbols,                                                                 \
+            &(query_scanner_options){.recognizes_direct_constructors = (has_direct_constructors)}); \
     }
 
 #endif

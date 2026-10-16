@@ -1,0 +1,223 @@
+============================================================
+Version declaration and main module
+============================================================
+
+xquery version "4.0" encoding "UTF-8"; 1
+
+---
+
+(module
+  (version_declaration
+    (string_literal)
+    (string_literal))
+  (main_module
+    (integer_literal)))
+
+============================================================
+Encoding only
+============================================================
+
+xquery encoding "UTF-8"; 1
+
+---
+
+(module
+  (version_declaration
+    (string_literal))
+  (main_module
+    (integer_literal)))
+
+============================================================
+Library module
+============================================================
+
+module namespace m = "urn:m"; declare function m:f() { 1 };
+
+---
+
+(module
+  (library_module
+    (module_declaration
+      (ncname)
+      (string_literal))
+    (prolog
+      (function_declaration
+        (prefixed_name)
+        (enclosed_expression
+          (integer_literal))))))
+
+============================================================
+Setters
+============================================================
+
+declare boundary-space preserve;
+declare default collation "http://www.w3.org/2005/xpath-functions/collation/codepoint";
+declare base-uri "http://example.com/";
+declare construction strip;
+declare ordering unordered;
+declare default order empty greatest;
+declare copy-namespaces no-preserve, inherit;
+declare decimal-format d decimal-separator = "," grouping-separator = ".";
+declare default decimal-format NaN = "nan";
+declare namespace p = "urn:p";
+declare fixed default element namespace "urn:e";
+declare default function namespace "urn:f";
+1
+
+---
+
+(module
+  (main_module
+    (prolog
+      (boundary_space_declaration)
+      (default_collation_declaration
+        (string_literal))
+      (base_uri_declaration
+        (string_literal))
+      (construction_declaration)
+      (ordering_mode_declaration)
+      (empty_order_declaration)
+      (copy_namespaces_declaration)
+      (decimal_format_declaration
+        (ncname)
+        (decimal_format_property
+          (string_literal))
+        (decimal_format_property
+          (string_literal)))
+      (decimal_format_declaration
+        (decimal_format_property
+          (string_literal)))
+      (namespace_declaration
+        (ncname)
+        (string_literal))
+      (default_namespace_declaration
+        (string_literal))
+      (default_namespace_declaration
+        (string_literal)))
+    (integer_literal)))
+
+============================================================
+Imports
+============================================================
+
+import schema namespace s = "urn:s" at "s.xsd"; import schema default element namespace "urn:t"; import module namespace m = "urn:m" at "a.xq", "b.xq"; 1
+
+---
+
+(module
+  (main_module
+    (prolog
+      (schema_import
+        (schema_prefix
+          (ncname))
+        (string_literal)
+        (string_literal))
+      (schema_import
+        (schema_prefix)
+        (string_literal))
+      (module_import
+        (ncname)
+        (string_literal)
+        (string_literal)
+        (string_literal)))
+    (integer_literal)))
+
+============================================================
+Declarations
+============================================================
+
+declare context value as item() := .;
+declare context item as node() external;
+declare %private variable $v as xs:integer := 1;
+declare variable $w external := 2;
+declare %public %Q{urn:x}y("a", 1) function local:f($a as xs:integer := 1, $b) as xs:integer { $a };
+declare function local:g() external;
+declare type my:t as xs:integer;
+declare record my:point(x as xs:double, %static y := 0);
+declare option p:o "value";
+1
+
+---
+
+(module
+  (main_module
+    (prolog
+      (context_value_declaration
+        (sequence_type
+          (any_item_type))
+        (context_value_reference))
+      (context_value_declaration
+        (gnode_type))
+      (variable_declaration
+        (annotation
+          (ncname))
+        (variable_name_and_type
+          (ncname)
+          (type_declaration
+            (sequence_type
+              (prefixed_name))))
+        (integer_literal))
+      (variable_declaration
+        (variable_name_and_type
+          (ncname))
+        (integer_literal))
+      (function_declaration
+        (annotation
+          (ncname))
+        (annotation
+          (uri_qualified_name)
+          (string_literal)
+          (integer_literal))
+        (prefixed_name)
+        (parameter_with_default
+          (variable_name_and_type
+            (ncname)
+            (type_declaration
+              (sequence_type
+                (prefixed_name))))
+          (integer_literal))
+        (parameter_with_default
+          (variable_name_and_type
+            (ncname)))
+        (type_declaration
+          (sequence_type
+            (prefixed_name)))
+        (enclosed_expression
+          (variable_reference
+            (ncname))))
+      (function_declaration
+        (prefixed_name))
+      (item_type_declaration
+        (prefixed_name)
+        (prefixed_name))
+      (nominative_record_type_declaration
+        (prefixed_name)
+        (extended_field_declaration
+          (ncname)
+          (sequence_type
+            (prefixed_name)))
+        (extended_field_declaration
+          (ncname)
+          (integer_literal)))
+      (option_declaration
+        (prefixed_name)
+        (string_literal)))
+    (integer_literal)))
+
+============================================================
+Declare as a name in the query body
+============================================================
+
+declare variable $x := 1; declare
+
+---
+
+(module
+  (main_module
+    (prolog
+      (variable_declaration
+        (variable_name_and_type
+          (ncname))
+        (integer_literal)))
+    (axis_step
+      (ncname))))

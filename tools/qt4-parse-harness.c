@@ -1,5 +1,5 @@
 /*
- * Parse harness for tools/qt4-parse-check.py (docs/DECISIONS.md, D27).
+ * Parse harness for tools/qt4-parse-check.py (docs/DECISIONS.md, D29).
  *
  * Reads queries from standard input, each as a line holding the byte count
  * followed by that many bytes, parses each with one tree-sitter grammar and

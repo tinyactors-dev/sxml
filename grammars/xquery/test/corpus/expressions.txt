@@ -1,0 +1,310 @@
+============================================================
+Switch
+============================================================
+
+switch ($x) case 1 case 2 return "a" default return "b"
+
+---
+
+(module
+  (main_module
+    (switch_expression
+      (variable_reference
+        (ncname))
+      (switch_case_clause
+        (integer_literal)
+        (integer_literal)
+        (string_literal))
+      (string_literal))))
+
+============================================================
+Braced switch
+============================================================
+
+switch ($x) { case 1 return 2 default return 3 }
+
+---
+
+(module
+  (main_module
+    (switch_expression
+      (variable_reference
+        (ncname))
+      (switch_case_clause
+        (integer_literal)
+        (integer_literal))
+      (integer_literal))))
+
+============================================================
+Typeswitch
+============================================================
+
+typeswitch ($x) case $i as xs:integer | xs:short return $i case element() return 1 default $d return 0
+
+---
+
+(module
+  (main_module
+    (typeswitch_expression
+      (variable_reference
+        (ncname))
+      (typeswitch_case_clause
+        (ncname)
+        (sequence_type
+          (prefixed_name))
+        (sequence_type
+          (prefixed_name))
+        (variable_reference
+          (ncname)))
+      (typeswitch_case_clause
+        (sequence_type
+          (element_node_type))
+        (integer_literal))
+      (typeswitch_default_clause
+        (ncname)
+        (integer_literal)))))
+
+============================================================
+Braced typeswitch
+============================================================
+
+typeswitch ($x) { case xs:string return 1 default return 2 }
+
+---
+
+(module
+  (main_module
+    (typeswitch_expression
+      (variable_reference
+        (ncname))
+      (typeswitch_case_clause
+        (sequence_type
+          (prefixed_name))
+        (integer_literal))
+      (typeswitch_default_clause
+        (integer_literal)))))
+
+============================================================
+Try catch finally
+============================================================
+
+try { 1 div 0 } catch err:FOAR0001 | err:XPTY0004 { 2 } catch * { 3 } finally { 4 }
+
+---
+
+(module
+  (main_module
+    (try_catch_expression
+      (enclosed_expression
+        (multiplicative_expression
+          (integer_literal)
+          (integer_literal)))
+      (catch_clause
+        (name_test_union
+          (prefixed_name)
+          (prefixed_name))
+        (enclosed_expression
+          (integer_literal)))
+      (catch_clause
+        (name_test_union
+          (wildcard))
+        (enclosed_expression
+          (integer_literal)))
+      (finally_clause
+        (enclosed_expression
+          (integer_literal))))))
+
+============================================================
+Try finally
+============================================================
+
+try { 1 } finally { 2 }
+
+---
+
+(module
+  (main_module
+    (try_catch_expression
+      (enclosed_expression
+        (integer_literal))
+      (finally_clause
+        (enclosed_expression
+          (integer_literal))))))
+
+============================================================
+Validate
+============================================================
+
+(validate { $d }, validate lax { $d }, validate strict { $d }, validate type my:t { $d })
+
+---
+
+(module
+  (main_module
+    (parenthesized_expression
+      (sequence_expression
+        (validate_expression
+          (variable_reference
+            (ncname)))
+        (validate_expression
+          (variable_reference
+            (ncname)))
+        (validate_expression
+          (variable_reference
+            (ncname)))
+        (validate_expression
+          (prefixed_name)
+          (variable_reference
+            (ncname)))))))
+
+============================================================
+Extension expression
+============================================================
+
+(# ex:p contents here #) (# ex:q #) { 1 }
+
+---
+
+(module
+  (main_module
+    (extension_expression
+      (pragma
+        (prefixed_name)
+        (pragma_contents))
+      (pragma
+        (prefixed_name)
+        (pragma_contents))
+      (integer_literal))))
+
+============================================================
+Ordered and unordered
+============================================================
+
+ordered { 1 }, unordered { 2 }
+
+---
+
+(module
+  (main_module
+    (sequence_expression
+      (ordered_expression
+        (enclosed_expression
+          (integer_literal)))
+      (unordered_expression
+        (enclosed_expression
+          (integer_literal))))))
+
+============================================================
+String constructor
+============================================================
+
+``[Hello `{$name}`! ] ` and `{ }` end]``
+
+---
+
+(module
+  (main_module
+    (string_constructor
+      (string_constructor_characters)
+      (string_interpolation
+        (variable_reference
+          (ncname)))
+      (string_constructor_characters)
+      (string_interpolation)
+      (string_constructor_characters))))
+
+============================================================
+Inline function with annotation
+============================================================
+
+%private function($a) { $a }
+
+---
+
+(module
+  (main_module
+    (inline_function_expression
+      (annotation
+        (ncname))
+      (variable_name_and_type
+        (ncname))
+      (enclosed_expression
+        (variable_reference
+          (ncname))))))
+
+============================================================
+Annotated function type
+============================================================
+
+$f instance of %updating function(*)
+
+---
+
+(module
+  (main_module
+    (instance_of_expression
+      (variable_reference
+        (ncname))
+      (sequence_type
+        (any_function_type
+          (annotation
+            (ncname)))))))
+
+============================================================
+Computed constructors with plain names
+============================================================
+
+(element foo { 1 }, attribute bar { 2 }, namespace p { "urn:p" }, processing-instruction pi { "x" })
+
+---
+
+(module
+  (main_module
+    (parenthesized_expression
+      (sequence_expression
+        (computed_element_constructor
+          (ncname)
+          (enclosed_expression
+            (integer_literal)))
+        (computed_attribute_constructor
+          (ncname)
+          (enclosed_expression
+            (integer_literal)))
+        (computed_namespace_constructor
+          (ncname)
+          (enclosed_expression
+            (string_literal)))
+        (computed_processing_instruction_constructor
+          (ncname)
+          (enclosed_expression
+            (string_literal)))))))
+
+============================================================
+Computed constructor with a keyword name
+============================================================
+
+element instance { 1 }
+
+---
+
+(module
+  (main_module
+    (computed_element_constructor
+      (ncname)
+      (enclosed_expression
+        (integer_literal)))))
+
+============================================================
+Reserved name after element is an operator
+============================================================
+
+element div {}
+
+---
+
+(module
+  (main_module
+    (multiplicative_expression
+      (axis_step
+        (ncname))
+      (map_constructor))))

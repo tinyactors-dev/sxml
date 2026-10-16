@@ -1,0 +1,171 @@
+============================================================
+Full FLWOR
+============================================================
+
+for $x allowing empty at $i in $seq
+let $y := $x
+where $y > 1
+while $i < 10
+group by $k := $x mod 2 collation "c"
+stable order by $y descending empty least collation "c", $i
+count $c
+trace $c
+return $c
+
+---
+
+(module
+  (main_module
+    (flwor_expression
+      (for_clause
+        (for_item_binding
+          (variable_name_and_type
+            (ncname))
+          (allowing_empty)
+          (positional_variable
+            (ncname))
+          (variable_reference
+            (ncname))))
+      (let_clause
+        (let_value_binding
+          (variable_name_and_type
+            (ncname))
+          (variable_reference
+            (ncname))))
+      (where_clause
+        (comparison_expression
+          (variable_reference
+            (ncname))
+          (integer_literal)))
+      (while_clause
+        (comparison_expression
+          (variable_reference
+            (ncname))
+          (integer_literal)))
+      (group_by_clause
+        (grouping_specification
+          (ncname)
+          (multiplicative_expression
+            (variable_reference
+              (ncname))
+            (integer_literal))
+          (string_literal)))
+      (order_by_clause
+        (order_specification
+          (variable_reference
+            (ncname))
+          (string_literal))
+        (order_specification
+          (variable_reference
+            (ncname))))
+      (count_clause
+        (ncname))
+      (trace_clause
+        (variable_reference
+          (ncname)))
+      (return_clause
+        (variable_reference
+          (ncname))))))
+
+============================================================
+Tumbling window
+============================================================
+
+for tumbling window $w in 1 to 10 start $s at $i previous $p next $n when true() only end $e when false() return $w
+
+---
+
+(module
+  (main_module
+    (flwor_expression
+      (tumbling_window_clause
+        (variable_name_and_type
+          (ncname))
+        (range_expression
+          (integer_literal)
+          (integer_literal))
+        (window_start_condition
+          (ncname)
+          (positional_variable
+            (ncname))
+          (ncname)
+          (ncname)
+          (function_call
+            (ncname)
+            (argument_list)))
+        (window_end_condition
+          (ncname)
+          (function_call
+            (ncname)
+            (argument_list))))
+      (return_clause
+        (variable_reference
+          (ncname))))))
+
+============================================================
+Sliding window
+============================================================
+
+for sliding window $w in 1 to 10 start when true() end when true() return $w
+
+---
+
+(module
+  (main_module
+    (flwor_expression
+      (sliding_window_clause
+        (variable_name_and_type
+          (ncname))
+        (range_expression
+          (integer_literal)
+          (integer_literal))
+        (window_start_condition
+          (function_call
+            (ncname)
+            (argument_list)))
+        (window_end_condition
+          (function_call
+            (ncname)
+            (argument_list))))
+      (return_clause
+        (variable_reference
+          (ncname))))))
+
+============================================================
+XPath style bindings
+============================================================
+
+for member $m in $a, key $k value $v in $map let $($a, $b) := (1, 2) return 1
+
+---
+
+(module
+  (main_module
+    (flwor_expression
+      (for_clause
+        (for_member_binding
+          (variable_name_and_type
+            (ncname))
+          (variable_reference
+            (ncname)))
+        (for_entry_binding
+          (for_entry_key_binding
+            (variable_name_and_type
+              (ncname)))
+          (for_entry_value_binding
+            (variable_name_and_type
+              (ncname)))
+          (variable_reference
+            (ncname))))
+      (let_clause
+        (let_sequence_binding
+          (variable_name_and_type
+            (ncname))
+          (variable_name_and_type
+            (ncname))
+          (parenthesized_expression
+            (sequence_expression
+              (integer_literal)
+              (integer_literal)))))
+      (return_clause
+        (integer_literal)))))

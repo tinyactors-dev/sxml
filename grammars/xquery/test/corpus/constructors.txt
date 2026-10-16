@@ -1,0 +1,139 @@
+============================================================
+Direct element with attributes
+============================================================
+
+<a b="x{1}y" c='z' d="&lt;&#65;{{}}""">text</a>
+
+---
+
+(module
+  (main_module
+    (direct_element_constructor
+      (qname)
+      (direct_attribute
+        (qname)
+        (direct_attribute_value
+          (attribute_value_text)
+          (enclosed_expression
+            (integer_literal))
+          (attribute_value_text)))
+      (direct_attribute
+        (qname)
+        (direct_attribute_value
+          (attribute_value_text)))
+      (direct_attribute
+        (qname)
+        (direct_attribute_value
+          (attribute_value_text)))
+      (direct_element_text)
+      (qname))))
+
+============================================================
+Direct element content
+============================================================
+
+<a>text {$x} &amp; <b/><!-- comment --><?pi data?><![CDATA[<x>]]> (: not a comment :)</a>
+
+---
+
+(module
+  (main_module
+    (direct_element_constructor
+      (qname)
+      (direct_element_text)
+      (enclosed_expression
+        (variable_reference
+          (ncname)))
+      (direct_element_text)
+      (direct_element_constructor
+        (qname))
+      (direct_comment_constructor)
+      (direct_processing_instruction_constructor)
+      (cdata_section)
+      (direct_element_text)
+      (qname))))
+
+============================================================
+Nested elements with whitespace
+============================================================
+
+<a>
+  <b c = "1" />
+</a >
+
+---
+
+(module
+  (main_module
+    (direct_element_constructor
+      (qname)
+      (direct_element_text)
+      (direct_element_constructor
+        (qname)
+        (direct_attribute
+          (qname)
+          (direct_attribute_value
+            (attribute_value_text))))
+      (direct_element_text)
+      (qname))))
+
+============================================================
+Direct comment and processing instruction
+============================================================
+
+(<!-- c -->, <?target content?>)
+
+---
+
+(module
+  (main_module
+    (parenthesized_expression
+      (sequence_expression
+        (direct_comment_constructor)
+        (direct_processing_instruction_constructor)))))
+
+============================================================
+Less than operator
+============================================================
+
+$a < $b
+
+---
+
+(module
+  (main_module
+    (comparison_expression
+      (variable_reference
+        (ncname))
+      (variable_reference
+        (ncname)))))
+
+============================================================
+Less than without space
+============================================================
+
+$a<b
+
+---
+
+(module
+  (main_module
+    (comparison_expression
+      (variable_reference
+        (ncname))
+      (axis_step
+        (ncname)))))
+
+============================================================
+Slash then direct element
+============================================================
+
+/<a/>
+
+---
+
+(module
+  (main_module
+    (absolute_path_expression
+      (direct_element_constructor
+        (qname)))))

@@ -1,0 +1,19 @@
+{
+  "grammars": [
+    {
+      "name": "xquery",
+      "camelcase": "XQuery",
+      "scope": "source.xquery",
+      "path": ".",
+      "file-types": ["xq"]
+    }
+  ],
+  "metadata": {
+    "version": "0.1.0",
+    "license": "MIT",
+    "description": "XQuery 4.0 grammar for sxml",
+    "links": {
+      "repository": "https://github.com/dhamidi/sxml"
+    }
+  }
+}

@@ -1,5 +1,5 @@
 /**
- * XPath 4.0 grammar for sxml (docs/DECISIONS.md, D12 and D27).
+ * XPath 4.0 grammar for sxml (docs/DECISIONS.md, D12 and D29).
  *
  * Source of truth: XPath 4.0, W3C QT4 CG draft, Appendix A
  * (https://qt4cg.org/specifications/xquery-40/xpath-40.html#nt-bnf).

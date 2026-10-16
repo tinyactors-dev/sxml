@@ -1,5 +1,5 @@
 // Lexical building blocks shared by the XPath 4.0, XQuery 4.0 and XSLT 4.0
-// pattern grammars (docs/DECISIONS.md, D27).
+// pattern grammars (docs/DECISIONS.md, D29).
 //
 // XPath 4.0 A.3 Lexical structure: keywords are not reserved, so every keyword
 // may also be used as a name. The grammars list the keywords here once and
