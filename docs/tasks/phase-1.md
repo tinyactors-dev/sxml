@@ -193,6 +193,9 @@ After 1.9, 1.10, 1.11. Owns `src/xdm_node.c`, `src/xdm_json_node.c`,
 `tests/xdm_node_test.c`. Node items; string value, typed value, base URI;
 JNodes made on demand, identical for equal parent and key. Done when
 op-union-406 and fn-root-29 hold as unit cases. Spec: XDM 4.0 §8.5.
+**Done** 2026-10-16 (D70): both hold in `tests/xdm_node_test.c` (12
+cases, RFC 3986 §5.4 resolution examples, allocation-failure loop); P7
+open (lazy values in JNode making).
 
 ### 1.14 XML parser (implementation)
 After 1.3, 1.11. Owns `src/xml.c`, `src/xml_encoding.c`, `src/xml_entity.c`,
