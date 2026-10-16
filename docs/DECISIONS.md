@@ -1351,6 +1351,31 @@ Recorded 2026-10-16. `src/xdm_node.c`, `src/xdm_json_node.c`.
   "same parent and atomic-equal key". The generic node functions live in
   `src/xdm_json_node.c`.
 
+### D71. No C recursion
+Recorded 2026-10-16 at the owner's request ("make sure we don't use C
+recursion"). Project code never recurses: not directly, not through a chain of
+functions, not through function pointers or operations tables. Every walk over
+nested structure (CST, AST, IR, types, regex patterns, maps, arrays, trees,
+JNodes, sequences) is a loop over an explicit stack or work list in allocator
+memory, bounded by a configured limit that reports `LIMIT_EXCEEDED` (or the
+specification's error). Consequences:
+- clang-tidy `misc-no-recursion` is on (`.clang-tidy`); it sees recursion
+  within one file. Review checks recursion across files and through pointers.
+- The evaluator is an explicit-stack machine. Calling a function item from a
+  native function (for example `fn:for-each`, `fn:sort` with a key, `fn:fold-left`)
+  must not re-enter the evaluator on the C stack: native higher-order
+  functions are written as resumable steps that ask the evaluator to make the
+  call and resume them with the result. The same holds for lazy sequence
+  generators that evaluate IR. Packets 1.18 and 1.21 follow this.
+- Limits such as `maximum_expression_depth` bound heap use, not C stack, so
+  their defaults no longer depend on the WebAssembly stack size (this replaces
+  the 32-level lowering depth of D63).
+- Existing recursive code is rewritten: `xpath_lower.c`, `xpath_static.c`,
+  `ir.c`, `types.c`, `cast.c`, `regex.c`, `xdm_map.c`, `xdm_array.c`,
+  `xdm_atomic.c` and two tests.
+- Vendored third-party code (tree-sitter, libmpdec) is exempt; the generated
+  grammar scanners are ours and have no recursion.
+
 ## Proposed
 
 ### P4. Namespace node tests with a name (from D63)

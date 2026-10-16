@@ -237,6 +237,15 @@ typedef struct sxml_memory_view {
 - **Untrusted input cannot cause unbounded work or memory.** Limits such as
   maximum nesting depth are part of the configuration.
 - **No variable-length arrays and no `alloca`.**
+- **No recursion.** No function calls itself, directly, through other
+  functions, or through a function pointer or operations table. Walks over
+  trees, expressions, types, patterns and nested values use a loop with an
+  explicit stack or work list that lives in allocator memory and is bounded by
+  a configured limit. Nesting depth in the input then costs heap, never C
+  stack, so deep input cannot overflow the stack on any platform (WebAssembly
+  has 64 KiB by default). Enforced by clang-tidy `misc-no-recursion` within a
+  file; recursion through function pointers or across files is checked in
+  review. Vendored third-party code is exempt (D12).
 - **Size arithmetic is checked** with checked-add and checked-multiply helpers.
 
 ## Modules and headers

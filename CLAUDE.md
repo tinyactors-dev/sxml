@@ -33,6 +33,8 @@ start Phase 2 work until the Phase 1 gate is closed the same way.
 - Every object type supports `initialize`/`finalize` on caller memory and
   `create`/`destroy` through an allocator, plus a `memory_requirements` query.
 - No global mutable state.
+- No C recursion, direct or indirect (also not through function pointers):
+  use loops with explicit stacks in allocator memory (D71).
 - A pointer to data always travels with its length in a view struct.
 - New domain terms go into `docs/GLOSSARY.md` before they appear in code.
 
