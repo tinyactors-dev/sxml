@@ -147,6 +147,9 @@ typedef sxml_status (*sxml_native_function_call)(
 typedef struct sxml_native_function {
     /* fn, map, array or math; the namespace of the function's name. */
     sxml_well_known_namespace function_namespace;
+    /* Bits of sxml_native_function_property. Next to function_namespace
+       so the struct has no padding (D63). */
+    uint32_t properties;
     /* An NCName, such as "string-join". */
     sxml_byte_view local_name;
     /* In order. The arities are from the count of required parameters up
@@ -154,8 +157,6 @@ typedef struct sxml_native_function {
     sxml_function_parameter_view parameters;
     /* An XPath 4.0 SequenceType as text. */
     sxml_byte_view result_type;
-    /* Bits of sxml_native_function_property. */
-    uint32_t properties;
     /* NULL only with SXML_NATIVE_FUNCTION_READS_CONTEXT_POSITION or
        _SIZE. */
     sxml_native_function_call call;
