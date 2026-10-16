@@ -4,7 +4,7 @@
  * Casting (F&O 4.0, section 19 "Casting"; XPath 4.0, section 4.17 "Cast
  * expressions"): converting an atomic item to a target type, the lexical
  * forms casting from xs:string parses, and the canonical text casting to
- * xs:string writes (docs/DECISIONS.md, D65).
+ * xs:string writes (docs/DECISIONS.md, D66).
  *
  * Users: the evaluator (cast as, castable as, constructor functions, the
  * untypedAtomic casting and the numeric and URI promotion of coercion), the
