@@ -19,13 +19,13 @@ Do the tasks in order. Finish each with a commit and a short entry in
   bare `bool` parameters.
 - [x] **0.4 CI.** GitHub Actions: Linux (Clang and GCC, debug preset), macOS
   (Clang), Windows (MSVC, build only), WASI build. Each runs build, lints, tests.
-- [ ] **0.5 Core headers (design task).** Write, with contract comments, no
+- [x] **0.5 Core headers (design task).** Write, with contract comments, no
   implementation yet:
   - `include/sxml/status.h` — `sxml_status`, `SXML_NODISCARD`, error record.
   - `include/sxml/memory.h` — byte and memory views, `sxml_memory_requirements`,
     `sxml_allocator` interface, checked size arithmetic helpers.
   - `include/sxml/string.h` — UTF-8 strings with the ASCII-only flag (D6).
-- [ ] **0.6 Golden module.** Implement `memory.h` fully in `src/memory.c` and
+- [x] **0.6 Golden module.** Implement `memory.h` fully in `src/memory.c` and
   `src/allocator.c` (default allocator and a test double that counts and can
   fail allocations), with tests. This module becomes the golden file all later
   work imitates.

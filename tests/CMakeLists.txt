@@ -16,6 +16,9 @@ function(sxml_add_test module)
     add_test(NAME ${module} COMMAND ${module}_test)
 endfunction()
 
+sxml_add_test(allocator)
+sxml_add_test(memory)
+sxml_add_test(status)
 sxml_add_test(version)
 
 sxml_add_test(tree_sitter_runtime)

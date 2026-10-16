@@ -41,6 +41,9 @@ add_subdirectory(third_party)
 # The library. One module, one header pair: include/sxml/<module>.h and
 # src/<module>.c (docs/C_GUIDELINES.md, "Modules and headers").
 set(SXML_SOURCES
+    src/allocator.c
+    src/memory.c
+    src/status.c
     src/version.c
 )
 

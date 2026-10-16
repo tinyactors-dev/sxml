@@ -4,6 +4,19 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 0.5–0.6 done: core headers `status.h` (statuses, `SXML_NODISCARD`, error
+  record and diagnostic, D21), `view.h` (D19), `memory.h` (views, checked
+  arithmetic, memory requirements, allocator interface without reallocate
+  (D22), default and counting allocators (D23), arena (D24)) and `string.h`
+  (D25, designed, not implemented). Golden module `src/memory.c` +
+  `src/allocator.c` (+ `src/status.c`) with 47 unit test cases in
+  `tests/memory_test.c`, `allocator_test.c`, `status_test.c`; 5/5 suites pass
+  under `debug`, `debug-gcc`, `release`, `wasm` and a shared GCC build; lint
+  clean. New lint `pointer-parameter-without-length` (D26). Failure-path
+  convention: outputs untouched on failure (D20).
+- Open questions for 0.8: should `string.h` be implemented before the Phase 0
+  gate; is the borrowed-view lifetime of error records (D21) acceptable for
+  host bindings, which will copy them anyway.
 - Conformance suites vendored under `third_party/` (D13 revised);
   `tools/update-test-suites.sh` replaces the fetch script.
 - 0.1–0.4 done: CMake presets `debug`, `debug-gcc`, `release`, `msvc`, `wasm`

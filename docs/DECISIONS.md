@@ -151,3 +151,107 @@ Recorded 2026-10-16 (task 0.4). `.github/workflows/ci.yml`: Linux Clang
 (`debug`, plus lints) and GCC (`debug-gcc`), macOS Clang (`debug`), Windows
 MSVC (`msvc`, build only), WASI (`wasm`, tests under Node.js 22). Lints run
 on Linux Clang only.
+
+### D19. View types in their own header
+Recorded 2026-10-16 (task 0.5). `sxml_byte_view` and `sxml_memory_view` live
+in `include/sxml/view.h`, with `SXML_BYTE_VIEW_INITIALIZER` (brace form, for
+static tables) and `SXML_BYTE_VIEW_FROM_LITERAL` (compound literal).
+`status.h` needs byte views and `memory.h` needs `sxml_status`, so the views
+cannot live in either without a cycle. `memory.h` includes `view.h`, so
+"memory.h provides the views" still holds. The view functions
+(`sxml_byte_view_equals`, `sxml_memory_view_slice`, ...) are in `memory.h`.
+The header `sxml/string.h` shares its file name with `<string.h>`; it is
+only ever included as `"sxml/string.h"` and `include/sxml/` is never put on
+an include path itself.
+
+### D20. Outputs on failure are left untouched
+Recorded 2026-10-16 (task 0.5). Project-wide default, chosen from the two
+options in `docs/C_GUIDELINES.md` ("Ownership and lifetimes"): a function
+that fails does not write its outputs. A declaration that deviates says so
+(the only one so far: `sxml_utf8_validate` fills its result on both
+outcomes, to report where the input stops being valid). Lifecycle functions
+check the configuration and memory before writing anything.
+
+### D21. Error records and diagnostics hold borrowed views
+Recorded 2026-10-16 (task 0.5). `sxml_diagnostic` (description +
+`sxml_source_location`: source name, line, column in codepoints, byte offset)
+receives details of any failure. `sxml_error_record` adds the error code
+(`sxml_error_code`: namespace URI, local name, display prefix) and the error
+value (`const sxml_sequence *`, forward-declared in `status.h`; `xdm.h` in
+task 0.7 must define `struct sxml_sequence`). Together they carry what an
+XQuery catch clause binds: `$err:code`, `$err:description`, `$err:value`,
+`$err:module`, `$err:line-number`, `$err:column-number`.
+- All text is borrowed views: static text for errors sxml raises itself (so
+  the common case allocates nothing), or memory owned by the object that
+  raised the error (fn:error with a computed description or value). They are
+  valid until that object is next used or finalized. No fixed-capacity
+  description buffer: it would put a frozen size into the ABI and truncate.
+- `SXML_STATUS_STATIC_ERROR`, `_DYNAMIC_ERROR`, `_TYPE_ERROR` mean "details
+  in the error record" (`sxml_status_has_error_record`); every other status
+  is a condition of the C interface.
+
+### D22. The allocator interface has no reallocate
+Recorded 2026-10-16 (task 0.5). `sxml_allocator_operations` has `allocate`
+and `release` only, as in `docs/C_GUIDELINES.md`. A reallocate would need the
+old size and alignment in its request, every host allocator (JavaScript,
+Swift, Kotlin) would have to implement it, and the main grower, the arena,
+grows by adding blocks. Growable arrays allocate anew and copy, geometrically,
+which is amortized O(1). Interfaces are not extended in place, so if
+profiling shows a need, a new interface type is published. `allocate` rejects
+`byte_count` 0 (`SXML_STATUS_INVALID_ARGUMENT`), avoiding `malloc(0)`'s
+implementation-defined result. The wrappers check every request, so
+implementations may trust their arguments, and `sxml_allocator_allocate`
+also checks the alignment of what an implementation returns. An allocator
+with `operations == NULL` is the null allocator: "this object must not grow".
+The default allocator uses `malloc` up to `alignof(max_align_t)` and
+`aligned_alloc` above it (size rounded up to the alignment for C libraries
+that still require it); on Windows it uses `_aligned_malloc` for everything,
+since `_aligned_free` cannot release `malloc` memory.
+
+### D23. The counting allocator is public
+Recorded 2026-10-16 (task 0.6). The allocator test double,
+`sxml_counting_allocator`, is in `memory.h` and the library, not in
+`tests/`, so embedders can drive the failure paths of their own code. It
+wraps a backing allocator, counts attempts, failures, releases, live
+allocations and bytes, and fails exactly the allocation numbered
+`failing_allocation_number` (from 1; 0 = none). Test pattern for every module
+(see `test_arena_survives_every_allocation_failure` in
+`tests/memory_test.c`): run the operation with failing number 1, 2, 3, ...
+until it succeeds; after each run `live_allocation_count` must be 0.
+
+### D24. The arena is part of the memory substrate
+Recorded 2026-10-16 (task 0.5). `sxml_arena` in `memory.h`: bump allocation
+from caller `initial_memory`, then from blocks of `block_byte_count` taken
+from `block_allocator`; a request too large for a block gets a block of its
+own and the current block keeps serving small requests. The null allocator
+as block allocator gives a fixed-capacity arena
+(`SXML_STATUS_CAPACITY_EXCEEDED`); `maximum_block_byte_count` bounds growth
+for untrusted input (`SXML_STATUS_LIMIT_EXCEEDED`, 0 = no bound). Memory goes
+back only on `sxml_arena_reset`, `_finalize` or `_destroy`;
+`sxml_arena_as_allocator` exposes it as an `sxml_allocator` whose release does
+nothing. Typed, index-addressed storage for trees and XDM values (task 0.7)
+builds on it rather than replacing it.
+
+### D25. Strings validate eagerly
+Recorded 2026-10-16 (task 0.5). D6 holds: `sxml_string` is a UTF-8 byte view
+with an `is_ascii` flag and a codepoint count. Both are computed in the same
+pass that validates the bytes (`sxml_string_from_utf8`), so "cached on first
+use" is "computed at construction", with no extra pass and no mutable cache
+in a value type. `is_ascii == false` makes no claim, so a zero-initialized
+`sxml_string` is a valid empty string. Validation is strict (Unicode 16.0
+§3.9 table 3-7: no overlongs, surrogates or values above U+10FFFF).
+Comparison is by codepoint, implemented as byte comparison, which gives the
+same order for well-formed UTF-8. A constructor for producers that already
+know the count (the XML parser) can be added later as a new function.
+`string.h` is designed but not implemented in Phase 0.
+
+### D26. Lint for byte pointers without a length
+Recorded 2026-10-16 (task 0.6), completing D17. The ast-grep rule
+`pointer-parameter-without-length` flags parameters in `include/` and `src/`
+that are a single pointer to `char`, `signed char`, `unsigned char`, `uint8_t`
+or `int8_t`. Object pointers, `void *` state or memory, and pointers to
+pointers are allowed. An external boundary that takes a NUL-terminated string
+(so far only `sxml_byte_view_from_c_string`) marks the line before with
+`// ast-grep-ignore: pointer-parameter-without-length`. `tests/` is not
+covered: the test runner takes `argv`. `SXML_TEST_REQUIRE` now branches on the
+condition itself, so clang-analyzer knows what holds after it.

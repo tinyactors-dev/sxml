@@ -1,0 +1,14 @@
+id: pointer-parameter-without-length
+valid:
+  - "sxml_status sxml_string_from_utf8(sxml_byte_view utf8, sxml_string *string);"
+  - "void sxml_arena_finalize(sxml_arena *arena);"
+  - "typedef void (*sxml_release_function)(void *state, void *memory);"
+  - "int main(int argument_count, char **arguments);"
+  - "void sxml_take(const uint8_t **cursor);"
+invalid:
+  - "void sxml_copy(const uint8_t *bytes, size_t byte_count);"
+  - "void sxml_write(char *text);"
+  - "void sxml_write(const char *text);"
+  - "void sxml_scan(unsigned char *bytes);"
+  - "typedef void (*sxml_sink)(void *state, const uint8_t *bytes);"
+  - "void sxml_prototype(const char *);"

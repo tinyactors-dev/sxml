@@ -93,9 +93,9 @@ bool sxml_test_record_check(sxml_test_state *state, sxml_test_check check);
 /* Number of elements of a test case array. */
 #define SXML_TEST_COUNT(array) (sizeof(array) / sizeof((array)[0]))
 
-#define SXML_TEST_CHECK_OF(condition)                                         \
+#define SXML_TEST_CHECK_OF(passed_value, condition)                           \
     ((sxml_test_check){                                                       \
-        .passed = (bool)(condition),                                          \
+        .passed = (passed_value),                                             \
         .expression = #condition,                                             \
         .file_name = __FILE__,                                                \
         .line_number = (uint32_t)__LINE__,                                    \
@@ -103,13 +103,22 @@ bool sxml_test_record_check(sxml_test_state *state, sxml_test_check check);
 
 /* Checks condition; on failure records it and the case continues. */
 #define SXML_TEST_EXPECT(state, condition)                                    \
-    ((void)sxml_test_record_check((state), SXML_TEST_CHECK_OF(condition)))
+    ((void)sxml_test_record_check(                                            \
+        (state), SXML_TEST_CHECK_OF((bool)(condition), condition)))
 
-/* Checks condition; on failure records it and returns from the case. */
+/*
+ * Checks condition; on failure records it and returns from the case. The
+ * branch tests the condition itself, not the result of the recording call,
+ * so the static analyzer knows that the code after it runs only when the
+ * condition holds.
+ */
 #define SXML_TEST_REQUIRE(state, condition)                                   \
     do {                                                                      \
-        if (!sxml_test_record_check((state),                                  \
-                                    SXML_TEST_CHECK_OF(condition))) {         \
+        const bool sxml_test_condition_holds = (bool)(condition);             \
+        (void)sxml_test_record_check(                                         \
+            (state),                                                          \
+            SXML_TEST_CHECK_OF(sxml_test_condition_holds, condition));        \
+        if (!sxml_test_condition_holds) {                                     \
             return;                                                           \
         }                                                                     \
     } while (false)
