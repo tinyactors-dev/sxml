@@ -4,6 +4,11 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 1.1 done (D54): name pool, all of `name.h`: hash-indexed interning of
+  URIs, prefixes and names, static well-known namespaces, find without
+  interning, byte limit; `src/name_internal.h` gives identifier limits.
+  `tests/name_test.c`: 18 cases incl. allocation-failure and limit loops.
+  `debug`, `debug-gcc`, `wasm`: 41/41 tests; lint clean.
 - 1.0 done: `src/*.c` and `tests/*_test.c` registered by glob (D45);
   `sxml` links the xml and xpath grammars and `sxml_mpdecimal` once
   vendored; `tests/qt4/driver`, `tests/fuzz` (`SXML_BUILD_FUZZERS`) and
