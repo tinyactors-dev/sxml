@@ -193,7 +193,14 @@ cleanly. The 29 with `ERROR` nodes:
   `strm/si-for-each-group/account*.xml`, `si-group-039-Formatted.xml`), and
   an empty file.
 
-No well-formed UTF-8 file in either suite produces an error.
+No well-formed UTF-8 file in either suite produces an error. (The CLI
+decodes UTF-16 with a byte order mark itself; a caller of the library must
+pass `TSInputEncodingUTF16LE`/`BE` for such input.)
+
+The same inputs, and the W3C suite below, were also parsed through the
+library (`ts_parser_parse_string`, generated parser and scanner built with
+AddressSanitizer and UndefinedBehaviorSanitizer): same verdicts, no
+sanitizer findings.
 
 **W3C XML conformance suite** (`xmlts20130923.tar.gz`): tests with
 `ENTITIES="none"`, XML 1.0 and Namespaces 1.0 recommendations, Fifth Edition
