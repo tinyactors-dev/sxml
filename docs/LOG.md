@@ -4,6 +4,16 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 1.19 done (D68, D72): operators. `src/operator.c` (promotion, numeric
+  operators with int64 overflow into libmpdec, exact double idiv/mod,
+  unary), `src/operator_temporal.c` (duration, date and time arithmetic,
+  PR2628 scaling), `src/operator_compare.c` (value comparisons via
+  fn:compare, general comparisons with the PR2218 untyped rules, GNode
+  comparisons). P2 and P3 accepted into `xdm.h` (D68); recursion removed
+  from `xdm_atomic.c` (D71). The 22 arithmetic and comparison slice lines
+  hold as unit cases; 15 cases in `tests/operator_test.c`; `debug`,
+  `debug-gcc`, `wasm`: 59/59; lint clean. Open: libmpdec FNT
+  multiplication overflows the wasm stack (D72).
 - 1.13 done (D70): `src/xdm_node.c` (node items, string value, typed
   value derived or from the tree, base URI through xml:base with RFC 3986
   resolution), `src/xdm_json_node.c` (JNodes on demand, identity and
