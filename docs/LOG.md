@@ -4,6 +4,17 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 1.18 done (D75, D76, D77, D73): the evaluator. `src/evaluator.c`
+  (explicit-stack machine: tasks for expressions, calls and native steps
+  in allocator memory, tail calls reuse frames, depth as LIMIT_EXCEEDED),
+  `src/evaluator_function.c` (atomization, EBV, type matching with
+  backtracking for choices, coercion incl. function coercion),
+  `src/evaluator_path.c` (XNode and JNode axes, document order, node
+  sets). Resumable native bodies for 1.21 in
+  `function_library_internal.h`. P4, P5, P7 accepted. 21 cases in
+  `tests/evaluator_test.c` (about 90 slice lines without library calls,
+  100k-deep recursion, 100k fold-left steps, allocation-failure loop);
+  `debug`, `debug-gcc`, `wasm`: 60/60; lint clean, no call cycles.
 - D71 for lowering, type resolution and type text: `src/xpath_lower.c` is a
   machine of frames in allocator memory (procedures with resumable steps),
   `src/xpath_static.c` and `src/ir.c` use 64-frame stacks; lowering's
