@@ -198,6 +198,12 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `member_index` | Position of a member in an array, from 0 |
 | `field_index` | Position of a field in a record type, from 0 |
 | `arity` | Number of parameters of a function item |
+| `array_node` | A cell of an array's persistent balanced tree (`src/xdm_array.c`): a flat node, a run node or a branch node; an array item's cell is the root array node |
+| `flat_node` | An array node that holds its members inline, as `sxml_array_make` builds them |
+| `run_node` | An array leaf that names a contiguous part of a flat node's members, so splitting a leaf copies nothing |
+| `branch_node` | An array node with a left and a right subtree; its members are the left's followed by the right's |
+| `node_height` | Of an array node: 0 for leaves, one more than the taller subtree for a branch node (AVL balance) |
+| `join` / `split` | Concatenate two array trees, keeping balance / cut an array tree before a member index into two |
 | `function_annotation` | An annotation name with a sequence of atomic items (`%private`) |
 | `function_body` | Interface that runs a function item: native C code or an evaluator for the IR |
 | `function_call` | What a function body receives: the function item, the arguments, the dynamic context |
