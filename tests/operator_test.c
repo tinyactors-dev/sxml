@@ -944,7 +944,7 @@ static void test_decimal_digit_limit_is_overflow(sxml_test_state *state) {
                       operator_fixture_create(&fixture) == SXML_STATUS_OK);
     /* 10^10000 - 1 has the 10000 digits of D57; one more is too many.
        (Addition, not multiplication: libmpdec's large products overflow
-       the 64 KiB WebAssembly stack, see the log of packet 1.19.) */
+       the 64 KiB WebAssembly stack, D72.) */
     static char digits[10001];
     memset(digits, '9', 10000);
     digits[10000] = 0;
