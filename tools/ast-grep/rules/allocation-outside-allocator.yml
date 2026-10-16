@@ -1,0 +1,13 @@
+id: allocation-outside-allocator
+language: c
+severity: error
+message: "'$FUNCTION' may be called only in src/allocator.c; take memory from the caller or an sxml_allocator."
+note: docs/C_GUIDELINES.md, "Ownership and lifetimes"; CLAUDE.md, "Non-negotiable rules".
+ignores:
+  - "**/src/allocator.c"
+rule:
+  kind: call_expression
+  has:
+    field: function
+    pattern: $FUNCTION
+    regex: '^(malloc|calloc|realloc|free|aligned_alloc|reallocarray|posix_memalign|strdup|strndup|_aligned_malloc|_aligned_free)$'

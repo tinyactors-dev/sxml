@@ -1,0 +1,8 @@
+id: library-exits-or-prints
+valid:
+  - "return SXML_STATUS_UNEXPECTED_END_OF_INPUT;"
+invalid:
+  - "abort();"
+  - "exit(1);"
+  - "printf(\"%d\", value);"
+  - "fprintf(stderr, \"failed\");"

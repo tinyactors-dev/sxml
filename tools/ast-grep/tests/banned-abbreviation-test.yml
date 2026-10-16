@@ -1,0 +1,13 @@
+id: banned-abbreviation
+valid:
+  - "size_t byte_count = 0;"
+  - "struct sxml_byte_view { const uint8_t *bytes; size_t byte_count; };"
+  - "for (size_t entry_index = 0; entry_index < entry_count; entry_index += 1) {}"
+  - "size_t length = strlen(text);"
+invalid:
+  - "size_t len = 0;"
+  - "char *buf_start = 0;"
+  - "struct view { const char *ptr; };"
+  - "typedef struct parser_ctx parser_ctx;"
+  - "for (int i = 0; i < 3; i += 1) {}"
+  - "sxml_status ret = SXML_STATUS_OK;"

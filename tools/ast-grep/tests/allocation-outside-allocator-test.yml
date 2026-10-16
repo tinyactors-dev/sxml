@@ -1,0 +1,8 @@
+id: allocation-outside-allocator
+valid:
+  - "status = sxml_allocator_allocate(allocator, request, &memory);"
+invalid:
+  - "void *memory = malloc(byte_count);"
+  - "free(memory);"
+  - "memory = realloc(memory, byte_count);"
+  - "void *memory = calloc(1, byte_count);"

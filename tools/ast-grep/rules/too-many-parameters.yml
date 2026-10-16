@@ -1,0 +1,20 @@
+id: too-many-parameters
+language: c
+severity: error
+message: "More than three parameters: group the arguments into a named struct."
+note: >
+  docs/C_GUIDELINES.md, "Function signatures": at most three parameters per
+  function and per function-pointer type, counting state and outputs. A
+  variadic '...' counts as a parameter.
+rule:
+  kind: parameter_list
+  has:
+    nthChild:
+      position: 4
+      ofRule:
+        any:
+          - kind: parameter_declaration
+          - kind: variadic_parameter
+    any:
+      - kind: parameter_declaration
+      - kind: variadic_parameter

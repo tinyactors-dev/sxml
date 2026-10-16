@@ -1,0 +1,10 @@
+id: too-many-parameters
+valid:
+  - "sxml_status sxml_parser_read_document(sxml_parser *parser, const sxml_read_request *request, sxml_document **document);"
+  - "typedef void (*sxml_release_function)(void *state, void *memory);"
+  - "void sxml_nothing(void);"
+invalid:
+  - "sxml_status sxml_copy(void *target, const void *source, size_t byte_count, size_t alignment);"
+  - "typedef void (*sxml_visit_function)(void *state, size_t first, size_t second, size_t third);"
+  - "int sxml_format(void *state, const char *format, size_t byte_count, ...);"
+  - "static void sxml_helper(int first, int second, int third, int fourth) {}"

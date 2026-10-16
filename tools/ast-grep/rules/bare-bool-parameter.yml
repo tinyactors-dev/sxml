@@ -1,0 +1,10 @@
+id: bare-bool-parameter
+language: c
+severity: error
+message: "Bare bool parameter: write two functions, or make the flag a named field of a request or configuration struct."
+note: docs/C_GUIDELINES.md, "Function signatures".
+rule:
+  kind: parameter_declaration
+  has:
+    field: type
+    regex: '^(bool|_Bool)$'

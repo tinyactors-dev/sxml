@@ -1,0 +1,13 @@
+id: library-exits-or-prints
+language: c
+severity: error
+message: "Library code never calls '$FUNCTION': report an sxml_status and fill the caller's diagnostic instead."
+note: docs/C_GUIDELINES.md, "Errors". Applies to src/ only; tests may print.
+files:
+  - "**/src/**"
+rule:
+  kind: call_expression
+  has:
+    field: function
+    pattern: $FUNCTION
+    regex: '^(abort|exit|_Exit|quick_exit|printf|fprintf|vprintf|vfprintf|puts|fputs|putchar|perror)$'

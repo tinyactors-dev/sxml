@@ -1,0 +1,82 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": { "major": 3, "minor": 24, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {
+      "name": "debug",
+      "displayName": "Debug, Clang, AddressSanitizer and UndefinedBehaviorSanitizer",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_C_COMPILER": "clang",
+        "SXML_ENABLE_SANITIZERS": "ON"
+      }
+    },
+    {
+      "name": "debug-gcc",
+      "displayName": "Debug, GCC, AddressSanitizer and UndefinedBehaviorSanitizer",
+      "inherits": "debug",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "gcc"
+      }
+    },
+    {
+      "name": "release",
+      "displayName": "Release, default compiler",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "msvc",
+      "displayName": "MSVC, Visual Studio generator (Windows)",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "generator": "Visual Studio 17 2022",
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" }
+    },
+    {
+      "name": "wasm",
+      "displayName": "WebAssembly (WASI SDK, wasm32-wasip1)",
+      "inherits": "base",
+      "toolchainFile": "${sourceDir}/cmake/wasi-sdk.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "MinSizeRel"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "debug", "configurePreset": "debug" },
+    { "name": "debug-gcc", "configurePreset": "debug-gcc" },
+    { "name": "release", "configurePreset": "release" },
+    { "name": "msvc", "configurePreset": "msvc", "configuration": "Debug" },
+    { "name": "wasm", "configurePreset": "wasm" },
+    { "name": "lint", "configurePreset": "debug", "targets": ["lint"] }
+  ],
+  "testPresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "output": { "outputOnFailure": true },
+      "execution": { "noTestsAction": "error" },
+      "environment": {
+        "ASAN_OPTIONS": "halt_on_error=1",
+        "UBSAN_OPTIONS": "print_stacktrace=1:halt_on_error=1"
+      }
+    },
+    { "name": "debug", "inherits": "base", "configurePreset": "debug" },
+    { "name": "debug-gcc", "inherits": "base", "configurePreset": "debug-gcc" },
+    { "name": "release", "inherits": "base", "configurePreset": "release" },
+    { "name": "msvc", "inherits": "base", "configurePreset": "msvc", "configuration": "Debug" },
+    { "name": "wasm", "inherits": "base", "configurePreset": "wasm" }
+  ]
+}

@@ -1,0 +1,15 @@
+id: banned-abbreviation
+language: c
+severity: error
+message: "Spell the identifier out: '$NAME' uses a banned abbreviation or a single letter."
+note: >
+  docs/C_GUIDELINES.md, "Naming": no ctx, buf, len, str, ptr, tmp, cnt, idx,
+  num, cfg, res, ret, val, msg, err (as a whole name or as one word of a
+  snake_case name) and no single-letter names, loop counters included.
+rule:
+  pattern: $NAME
+  any:
+    - kind: identifier
+    - kind: field_identifier
+    - kind: type_identifier
+  regex: '^[A-Za-z]$|(^|_)(ctx|buf|len|str|ptr|tmp|cnt|idx|num|cfg|res|ret|val|msg|err)(_|$)'

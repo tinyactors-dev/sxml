@@ -1,0 +1,9 @@
+# Build trees (one per CMake preset).
+/build/
+
+# Conformance test suites, fetched by tools/fetch-test-suites.sh (D13).
+/third_party/qt4tests/
+/third_party/xslt40-test/
+
+# Pinned Node.js tools (ast-grep, tree-sitter-cli), installed by `npm ci --prefix tools`.
+/tools/node_modules/

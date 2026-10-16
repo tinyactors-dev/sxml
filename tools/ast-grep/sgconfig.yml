@@ -1,0 +1,7 @@
+# ast-grep configuration for sxml lint rules (docs/C_GUIDELINES.md,
+# "Enforcement"; docs/DECISIONS.md, D17). Run through tools/lint.sh or the
+# lint-ast-grep CMake target, from the repository root, over include/ src/ tests/.
+ruleDirs:
+  - rules
+testConfigs:
+  - testDir: tests

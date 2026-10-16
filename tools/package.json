@@ -1,0 +1,10 @@
+{
+  "name": "sxml-tools",
+  "private": true,
+  "description": "Pinned developer tools for sxml: ast-grep (lint rules in tools/ast-grep) and tree-sitter-cli (tools/generate-grammars.sh). Install with: npm ci --prefix tools",
+  "license": "MIT",
+  "devDependencies": {
+    "@ast-grep/cli": "0.45.3",
+    "tree-sitter-cli": "0.27.1"
+  }
+}

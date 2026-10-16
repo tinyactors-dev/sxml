@@ -1,0 +1,8 @@
+id: bare-bool-parameter
+valid:
+  - "sxml_status sxml_parse(const sxml_read_request *request);"
+  - "typedef struct sxml_read_request { bool preserve_whitespace; } sxml_read_request;"
+invalid:
+  - "void sxml_parse(bool preserve_whitespace);"
+  - "void sxml_parse(const bool preserve_whitespace);"
+  - "typedef void (*sxml_toggle_function)(void *state, _Bool is_enabled);"
