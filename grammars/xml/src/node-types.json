@@ -1,0 +1,1083 @@
+[
+  {
+    "type": "attribute",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "name",
+            "named": true
+          }
+        ]
+      },
+      "value": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "attribute_value",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "attribute_definition",
+    "named": true,
+    "fields": {
+      "default": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "default_declaration",
+            "named": true
+          }
+        ]
+      },
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "name",
+            "named": true
+          }
+        ]
+      },
+      "type": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "enumeration",
+            "named": true
+          },
+          {
+            "type": "notation_type",
+            "named": true
+          },
+          {
+            "type": "string_type",
+            "named": true
+          },
+          {
+            "type": "tokenized_type",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "attribute_list_declaration",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "name",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "attribute_definition",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "attribute_value",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "attribute_value_text",
+          "named": true
+        },
+        {
+          "type": "character_reference",
+          "named": true
+        },
+        {
+          "type": "entity_reference",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "cdata_section",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "cdata_text",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "choice_group",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "content_particle",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "comment",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": false,
+      "types": [
+        {
+          "type": "comment_text",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "content_particle",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "choice_group",
+          "named": true
+        },
+        {
+          "type": "name",
+          "named": true
+        },
+        {
+          "type": "sequence_group",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "content_specification",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": false,
+      "types": [
+        {
+          "type": "element_content",
+          "named": true
+        },
+        {
+          "type": "mixed_content",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "default_declaration",
+    "named": true,
+    "fields": {
+      "value": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "attribute_value",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "doctype_declaration",
+    "named": true,
+    "fields": {
+      "external_id": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "external_identifier",
+            "named": true
+          }
+        ]
+      },
+      "internal_subset": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "internal_subset",
+            "named": true
+          }
+        ]
+      },
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "name",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "document",
+    "named": true,
+    "root": true,
+    "fields": {
+      "declaration": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "xml_declaration",
+            "named": true
+          }
+        ]
+      },
+      "doctype": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "doctype_declaration",
+            "named": true
+          }
+        ]
+      },
+      "root": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "element",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "comment",
+          "named": true
+        },
+        {
+          "type": "processing_instruction",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "element",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "cdata_section",
+          "named": true
+        },
+        {
+          "type": "character_data",
+          "named": true
+        },
+        {
+          "type": "character_reference",
+          "named": true
+        },
+        {
+          "type": "comment",
+          "named": true
+        },
+        {
+          "type": "element",
+          "named": true
+        },
+        {
+          "type": "empty_element_tag",
+          "named": true
+        },
+        {
+          "type": "end_tag",
+          "named": true
+        },
+        {
+          "type": "entity_reference",
+          "named": true
+        },
+        {
+          "type": "processing_instruction",
+          "named": true
+        },
+        {
+          "type": "start_tag",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "element_content",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "choice_group",
+          "named": true
+        },
+        {
+          "type": "sequence_group",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "element_declaration",
+    "named": true,
+    "fields": {
+      "content": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "content_specification",
+            "named": true
+          }
+        ]
+      },
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "name",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "empty_element_tag",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "name",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "attribute",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "end_tag",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "name",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "entity_reference",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "name",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "entity_value",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "character_reference",
+          "named": true
+        },
+        {
+          "type": "entity_reference",
+          "named": true
+        },
+        {
+          "type": "entity_value_text",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "enumeration",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "name_token",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "external_identifier",
+    "named": true,
+    "fields": {
+      "public_id": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "public_id_literal",
+            "named": true
+          }
+        ]
+      },
+      "system_id": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "system_literal",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "general_entity_declaration",
+    "named": true,
+    "fields": {
+      "external_id": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "external_identifier",
+            "named": true
+          }
+        ]
+      },
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "name",
+            "named": true
+          }
+        ]
+      },
+      "notation": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "name",
+            "named": true
+          }
+        ]
+      },
+      "value": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "entity_value",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "internal_subset",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "attribute_list_declaration",
+          "named": true
+        },
+        {
+          "type": "comment",
+          "named": true
+        },
+        {
+          "type": "element_declaration",
+          "named": true
+        },
+        {
+          "type": "general_entity_declaration",
+          "named": true
+        },
+        {
+          "type": "notation_declaration",
+          "named": true
+        },
+        {
+          "type": "parameter_entity_declaration",
+          "named": true
+        },
+        {
+          "type": "parameter_entity_reference",
+          "named": true
+        },
+        {
+          "type": "processing_instruction",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "mixed_content",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "name",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "notation_declaration",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "name",
+            "named": true
+          }
+        ]
+      },
+      "public_id": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "public_id_literal",
+            "named": true
+          }
+        ]
+      },
+      "system_id": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "system_literal",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "notation_type",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "name",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "parameter_entity_declaration",
+    "named": true,
+    "fields": {
+      "external_id": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "external_identifier",
+            "named": true
+          }
+        ]
+      },
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "name",
+            "named": true
+          }
+        ]
+      },
+      "value": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "entity_value",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "parameter_entity_reference",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "name",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "processing_instruction",
+    "named": true,
+    "fields": {
+      "content": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "processing_instruction_content",
+            "named": true
+          }
+        ]
+      },
+      "target": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "name",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "sequence_group",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "content_particle",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "start_tag",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "name",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "attribute",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "xml_declaration",
+    "named": true,
+    "fields": {
+      "encoding": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "encoding_name",
+            "named": true
+          }
+        ]
+      },
+      "standalone": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "standalone_value",
+            "named": true
+          }
+        ]
+      },
+      "version": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "version_number",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "\"",
+    "named": false
+  },
+  {
+    "type": "#FIXED",
+    "named": false
+  },
+  {
+    "type": "#IMPLIED",
+    "named": false
+  },
+  {
+    "type": "#PCDATA",
+    "named": false
+  },
+  {
+    "type": "#REQUIRED",
+    "named": false
+  },
+  {
+    "type": "%",
+    "named": false
+  },
+  {
+    "type": "&",
+    "named": false
+  },
+  {
+    "type": "'",
+    "named": false
+  },
+  {
+    "type": "(",
+    "named": false
+  },
+  {
+    "type": ")",
+    "named": false
+  },
+  {
+    "type": "*",
+    "named": false
+  },
+  {
+    "type": "+",
+    "named": false
+  },
+  {
+    "type": ",",
+    "named": false
+  },
+  {
+    "type": "-->",
+    "named": false
+  },
+  {
+    "type": "/>",
+    "named": false
+  },
+  {
+    "type": ";",
+    "named": false
+  },
+  {
+    "type": "<",
+    "named": false
+  },
+  {
+    "type": "<!--",
+    "named": false
+  },
+  {
+    "type": "<!ATTLIST",
+    "named": false
+  },
+  {
+    "type": "<!DOCTYPE",
+    "named": false
+  },
+  {
+    "type": "<!ELEMENT",
+    "named": false
+  },
+  {
+    "type": "<!ENTITY",
+    "named": false
+  },
+  {
+    "type": "<!NOTATION",
+    "named": false
+  },
+  {
+    "type": "<![CDATA[",
+    "named": false
+  },
+  {
+    "type": "</",
+    "named": false
+  },
+  {
+    "type": "<?",
+    "named": false
+  },
+  {
+    "type": "=",
+    "named": false
+  },
+  {
+    "type": ">",
+    "named": false
+  },
+  {
+    "type": "?",
+    "named": false
+  },
+  {
+    "type": "?>",
+    "named": false
+  },
+  {
+    "type": "ANY",
+    "named": false
+  },
+  {
+    "type": "EMPTY",
+    "named": false
+  },
+  {
+    "type": "NDATA",
+    "named": false
+  },
+  {
+    "type": "NOTATION",
+    "named": false
+  },
+  {
+    "type": "PUBLIC",
+    "named": false
+  },
+  {
+    "type": "SYSTEM",
+    "named": false
+  },
+  {
+    "type": "[",
+    "named": false
+  },
+  {
+    "type": "]",
+    "named": false
+  },
+  {
+    "type": "]]>",
+    "named": false
+  },
+  {
+    "type": "attribute_value_text",
+    "named": true
+  },
+  {
+    "type": "cdata_text",
+    "named": true
+  },
+  {
+    "type": "character_data",
+    "named": true
+  },
+  {
+    "type": "character_reference",
+    "named": true
+  },
+  {
+    "type": "comment_text",
+    "named": true
+  },
+  {
+    "type": "encoding",
+    "named": false
+  },
+  {
+    "type": "encoding_name",
+    "named": true
+  },
+  {
+    "type": "entity_value_text",
+    "named": true
+  },
+  {
+    "type": "name",
+    "named": true
+  },
+  {
+    "type": "name_token",
+    "named": true
+  },
+  {
+    "type": "processing_instruction_content",
+    "named": true
+  },
+  {
+    "type": "public_id_literal",
+    "named": true
+  },
+  {
+    "type": "standalone",
+    "named": false
+  },
+  {
+    "type": "standalone_value",
+    "named": true
+  },
+  {
+    "type": "string_type",
+    "named": true
+  },
+  {
+    "type": "system_literal",
+    "named": true
+  },
+  {
+    "type": "tokenized_type",
+    "named": true
+  },
+  {
+    "type": "version",
+    "named": false
+  },
+  {
+    "type": "version_number",
+    "named": true
+  },
+  {
+    "type": "xml",
+    "named": false
+  },
+  {
+    "type": "|",
+    "named": false
+  }
+]

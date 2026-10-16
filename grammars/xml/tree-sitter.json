@@ -1,0 +1,19 @@
+{
+  "grammars": [
+    {
+      "name": "xml",
+      "camelcase": "XML",
+      "scope": "text.xml",
+      "path": ".",
+      "file-types": ["xml"]
+    }
+  ],
+  "metadata": {
+    "version": "0.1.0",
+    "license": "MIT",
+    "description": "Strict XML 1.0 grammar for sxml",
+    "links": {
+      "repository": "https://github.com/dhamidi/sxml"
+    }
+  }
+}

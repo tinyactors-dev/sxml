@@ -1,0 +1,9 @@
+grammars/xml is original work of the sxml project (MIT, see the repository
+LICENSE).
+
+Its structure was informed by tree-sitter-grammars/tree-sitter-xml
+(MIT, Copyright (c) 2023 ObserverOfTime), studied at commit
+5000ae8f22d11fbe93939b05c1e37cf21117162d,
+https://github.com/tree-sitter-grammars/tree-sitter-xml. No code was copied:
+that grammar was not used because it is not strict enough for a
+well-formedness check (see README.md, "Why not tree-sitter-xml").

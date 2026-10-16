@@ -1,0 +1,205 @@
+================================================================================
+Empty element
+================================================================================
+<a/>
+
+--------------------------------------------------------------------------------
+
+(document
+  root: (element
+    (empty_element_tag
+      name: (name))))
+
+================================================================================
+Nested elements with character data
+================================================================================
+<a>one<b>two</b><c/>three</a>
+
+--------------------------------------------------------------------------------
+
+(document
+  root: (element
+    (start_tag
+      name: (name))
+    (character_data)
+    (element
+      (start_tag
+        name: (name))
+      (character_data)
+      (end_tag
+        name: (name)))
+    (element
+      (empty_element_tag
+        name: (name)))
+    (character_data)
+    (end_tag
+      name: (name))))
+
+================================================================================
+Attributes with both quote styles and references
+================================================================================
+<a x="1&amp;2" y = 'say "&#x41;"' z=""/>
+
+--------------------------------------------------------------------------------
+
+(document
+  root: (element
+    (empty_element_tag
+      name: (name)
+      (attribute
+        name: (name)
+        value: (attribute_value
+          (attribute_value_text)
+          (entity_reference
+            name: (name))
+          (attribute_value_text)))
+      (attribute
+        name: (name)
+        value: (attribute_value
+          (attribute_value_text)
+          (character_reference)
+          (attribute_value_text)))
+      (attribute
+        name: (name)
+        value: (attribute_value)))))
+
+================================================================================
+Whitespace before the end of tags
+================================================================================
+<a b="c" ></a >
+
+--------------------------------------------------------------------------------
+
+(document
+  root: (element
+    (start_tag
+      name: (name)
+      (attribute
+        name: (name)
+        value: (attribute_value
+          (attribute_value_text))))
+    (end_tag
+      name: (name))))
+
+================================================================================
+Names outside ASCII and with namespace prefixes
+================================================================================
+<ü:größe xmlns:ü="urn:x" ü:été="1">日本語</ü:größe>
+
+--------------------------------------------------------------------------------
+
+(document
+  root: (element
+    (start_tag
+      name: (name)
+      (attribute
+        name: (name)
+        value: (attribute_value
+          (attribute_value_text)))
+      (attribute
+        name: (name)
+        value: (attribute_value
+          (attribute_value_text))))
+    (character_data)
+    (end_tag
+      name: (name))))
+
+================================================================================
+References, CDATA sections, comments and processing instructions in content
+================================================================================
+<a>&lt;&#60;&#x3C;<![CDATA[<raw> & ]]><!-- note - here --><?target some ? content?></a>
+
+--------------------------------------------------------------------------------
+
+(document
+  root: (element
+    (start_tag
+      name: (name))
+    (entity_reference
+      name: (name))
+    (character_reference)
+    (character_reference)
+    (cdata_section
+      (cdata_text))
+    (comment
+      (comment_text))
+    (processing_instruction
+      target: (name)
+      content: (processing_instruction_content))
+    (end_tag
+      name: (name))))
+
+================================================================================
+Empty CDATA section, comment and processing instruction
+================================================================================
+<a><![CDATA[]]><!----><?t?><?t ?></a>
+
+--------------------------------------------------------------------------------
+
+(document
+  root: (element
+    (start_tag
+      name: (name))
+    (cdata_section)
+    (comment)
+    (processing_instruction
+      target: (name))
+    (processing_instruction
+      target: (name))
+    (end_tag
+      name: (name))))
+
+================================================================================
+Brackets before the end of a CDATA section
+================================================================================
+<a><![CDATA[x]]]]><![CDATA[]]]></a>
+
+--------------------------------------------------------------------------------
+
+(document
+  root: (element
+    (start_tag
+      name: (name))
+    (cdata_section
+      (cdata_text)
+      (cdata_text)
+      (cdata_text))
+    (cdata_section
+      (cdata_text))
+    (end_tag
+      name: (name))))
+
+================================================================================
+Brackets and greater-than signs in character data
+================================================================================
+<a>]] > ]>]</a>
+
+--------------------------------------------------------------------------------
+
+(document
+  root: (element
+    (start_tag
+      name: (name))
+    (character_data)
+    (end_tag
+      name: (name))))
+
+================================================================================
+Processing instruction targets that start with xml
+================================================================================
+<?xml-stylesheet href="s.xsl"?><a><?xml-model x?></a>
+
+--------------------------------------------------------------------------------
+
+(document
+  (processing_instruction
+    target: (name)
+    content: (processing_instruction_content))
+  root: (element
+    (start_tag
+      name: (name))
+    (processing_instruction
+      target: (name)
+      content: (processing_instruction_content))
+    (end_tag
+      name: (name))))

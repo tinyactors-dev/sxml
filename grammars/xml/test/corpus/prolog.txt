@@ -1,0 +1,211 @@
+================================================================================
+XML declaration with every part
+================================================================================
+<?xml version="1.0" encoding='UTF-8' standalone="no" ?><a/>
+
+--------------------------------------------------------------------------------
+
+(document
+  declaration: (xml_declaration
+    version: (version_number)
+    encoding: (encoding_name)
+    standalone: (standalone_value))
+  root: (element
+    (empty_element_tag
+      name: (name))))
+
+================================================================================
+XML declaration with version only, then Misc
+================================================================================
+<?xml version='1.1'?>
+<!-- comment -->
+<?pi?>
+<a/>
+<!-- after -->
+
+--------------------------------------------------------------------------------
+
+(document
+  declaration: (xml_declaration
+    version: (version_number))
+  (comment
+    (comment_text))
+  (processing_instruction
+    target: (name))
+  root: (element
+    (empty_element_tag
+      name: (name)))
+  (comment
+    (comment_text)))
+
+================================================================================
+Byte order mark
+================================================================================
+﻿<?xml version="1.0"?><a/>
+
+--------------------------------------------------------------------------------
+
+(document
+  declaration: (xml_declaration
+    version: (version_number))
+  root: (element
+    (empty_element_tag
+      name: (name))))
+
+================================================================================
+Document type declaration with external identifier only
+================================================================================
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" 'http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd'>
+<html/>
+
+--------------------------------------------------------------------------------
+
+(document
+  doctype: (doctype_declaration
+    name: (name)
+    external_id: (external_identifier
+      public_id: (public_id_literal)
+      system_id: (system_literal)))
+  root: (element
+    (empty_element_tag
+      name: (name))))
+
+================================================================================
+Internal subset with every kind of declaration
+================================================================================
+<!DOCTYPE doc SYSTEM "doc.dtd" [
+  <!ELEMENT doc (head, (p | list)*, foot?)>
+  <!ELEMENT p (#PCDATA | em)*>
+  <!ELEMENT em (#PCDATA)>
+  <!ELEMENT br EMPTY>
+  <!ELEMENT any ANY>
+  <!ATTLIST doc
+    id ID #REQUIRED
+    kind (a | b) "a"
+    note NOTATION (gif) #IMPLIED
+    version CDATA #FIXED "1&amp;0">
+  <!ENTITY copy "&#169; &amp; more">
+  <!ENTITY logo SYSTEM "logo.gif" NDATA gif>
+  <!ENTITY % extra SYSTEM "extra.ent">
+  <!NOTATION gif PUBLIC "image/gif">
+  <!NOTATION png SYSTEM "png">
+  %extra;
+  <?pi in subset?>
+  <!-- comment in subset -->
+]>
+<doc/>
+
+--------------------------------------------------------------------------------
+
+(document
+  doctype: (doctype_declaration
+    name: (name)
+    external_id: (external_identifier
+      system_id: (system_literal))
+    internal_subset: (internal_subset
+      (element_declaration
+        name: (name)
+        content: (content_specification
+          (element_content
+            (sequence_group
+              (content_particle
+                (name))
+              (content_particle
+                (choice_group
+                  (content_particle
+                    (name))
+                  (content_particle
+                    (name))))
+              (content_particle
+                (name))))))
+      (element_declaration
+        name: (name)
+        content: (content_specification
+          (mixed_content
+            (name))))
+      (element_declaration
+        name: (name)
+        content: (content_specification
+          (mixed_content)))
+      (element_declaration
+        name: (name)
+        content: (content_specification))
+      (element_declaration
+        name: (name)
+        content: (content_specification))
+      (attribute_list_declaration
+        name: (name)
+        (attribute_definition
+          name: (name)
+          type: (tokenized_type)
+          default: (default_declaration))
+        (attribute_definition
+          name: (name)
+          type: (enumeration
+            (name_token)
+            (name_token))
+          default: (default_declaration
+            value: (attribute_value
+              (attribute_value_text))))
+        (attribute_definition
+          name: (name)
+          type: (notation_type
+            (name))
+          default: (default_declaration))
+        (attribute_definition
+          name: (name)
+          type: (string_type)
+          default: (default_declaration
+            value: (attribute_value
+              (attribute_value_text)
+              (entity_reference
+                name: (name))
+              (attribute_value_text)))))
+      (general_entity_declaration
+        name: (name)
+        value: (entity_value
+          (character_reference)
+          (entity_value_text)
+          (entity_reference
+            name: (name))
+          (entity_value_text)))
+      (general_entity_declaration
+        name: (name)
+        external_id: (external_identifier
+          system_id: (system_literal))
+        notation: (name))
+      (parameter_entity_declaration
+        name: (name)
+        external_id: (external_identifier
+          system_id: (system_literal)))
+      (notation_declaration
+        name: (name)
+        public_id: (public_id_literal))
+      (notation_declaration
+        name: (name)
+        system_id: (system_literal))
+      (parameter_entity_reference
+        name: (name))
+      (processing_instruction
+        target: (name)
+        content: (processing_instruction_content))
+      (comment
+        (comment_text))))
+  root: (element
+    (empty_element_tag
+      name: (name))))
+
+================================================================================
+Empty internal subset
+================================================================================
+<!DOCTYPE a [ ]><a/>
+
+--------------------------------------------------------------------------------
+
+(document
+  doctype: (doctype_declaration
+    name: (name)
+    internal_subset: (internal_subset))
+  root: (element
+    (empty_element_tag
+      name: (name))))
