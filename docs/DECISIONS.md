@@ -1376,6 +1376,38 @@ specification's error). Consequences:
 - Vendored third-party code (tree-sitter, libmpdec) is exempt; the generated
   grammar scanners are ours and have no recursion.
 
+### D72. Arithmetic and comparison operators (packet 1.19)
+Recorded 2026-10-16. `src/operator_internal.h`; `src/operator.c`
+(operands, promotion, numbers, unary), `src/operator_temporal.c`
+(durations, dates, times), `src/operator_compare.c` (value, general and
+GNode comparisons).
+- **Interface**: own enums (`sxml_arithmetic_operator`,
+  `sxml_comparison_operator`, `sxml_node_comparison_operator`), not the IR's,
+  so the function library and later front ends share them; operands are
+  atomized sequences (atomizing is the evaluator's), results owned; the
+  implicit timezone and, for untyped-to-QName casts, namespace bindings
+  travel in the request. Non-atomic items are INVALID_ARGUMENT.
+- **Numbers**: int64 fast paths with checked arithmetic, else libmpdec;
+  integer div gives xs:decimal; xs:float computed in double and rounded
+  once; idiv and mod of doubles are exact (int64 within 2^53, else exact
+  decimals; no libm). Decimal LIMIT_EXCEEDED (digit or heap byte limit) is
+  FOAR0002.
+- **Durations** (PR2628): any xs:duration times/div a number cast to
+  xs:decimal (shortest digits, D57); months by fn:round#1, nanoseconds half
+  to even; NaN FOCA0005, times INF or div 0 FODT0002, div INF zero.
+  **Dates**: 400-year cycle days (Hinnant), so every int64 year works;
+  results beyond it FODT0001, differences beyond int64 seconds FODT0002.
+- **Comparisons**: value = NaN rule + fn:compare (`sxml_atomic_item_compare`
+  with the heap's name pool, D68); general: untyped vs number cast to the
+  number's primitive type, else xs:double; vs string or untyped compared as
+  text; else cast to the other primitive type; left outer, first error
+  ends. GNode: document order (equal only for the same node).
+- **Known problem (not this packet's)**: libmpdec's large-number
+  multiplication (`six_step_fnt`/`transpose_pow2`, two 4096-word stack
+  buffers) overflows the 64 KiB WebAssembly stack: 10^6000 * 10^6000
+  traps under `wasm`. The operator tests avoid it; the decimal owner must
+  fix it (smaller BUFSIZE under WASI or a bigger stack).
+
 ## Proposed
 
 ### P4. Namespace node tests with a name (from D63)
