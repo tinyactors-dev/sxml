@@ -1,0 +1,10 @@
+tree-sitter runtime, vendored for sxml (docs/DECISIONS.md, D12 and D15).
+
+Upstream:  https://github.com/tree-sitter/tree-sitter
+Tag:       v0.27.1
+Commit:    10eb5ac119eec9cb4267a8e035066473983f5f3a
+Copied:    LICENSE, lib/include/, lib/src/ (unmodified)
+
+To update: clone the new tag, replace lib/include and lib/src with the
+upstream directories, update this file and the tree-sitter-cli version in
+tools/package.json, then regenerate grammars with tools/generate-grammars.sh.
