@@ -1,0 +1,236 @@
+#pragma once
+
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+
+#include "function_library_internal.h"
+#include "ir_internal.h"
+#include "sxml/memory.h"
+#include "sxml/name.h"
+#include "sxml/status.h"
+#include "sxml/tree.h"
+#include "sxml/types.h"
+#include "sxml/view.h"
+#include "sxml/xdm.h"
+#include "sxml/xpath.h"
+#include "xpath_ast_internal.h"
+
+/*
+ * Static analysis and lowering of XPath 4.0 (docs/DECISIONS.md, D46, D55,
+ * D63). Internal to sxml.
+ *
+ *     text -> AST (src/xpath_parse.c) -> static analysis and lowering
+ *     (src/xpath_static.c, src/xpath_lower.c) -> passes (src/ir.c) -> seal
+ *
+ * Static analysis resolves what the AST keeps as written (D52) against the
+ * static context (XPath 4.0, section 2.2.1): namespace prefixes
+ * (XPST0081), variable names to slots or global variables (XPST0008),
+ * function names and arities through a function table (XPST0017), type
+ * names (XPST0051) and the item types of sequence types, which it
+ * registers. Lowering writes the IR of src/ir_internal.h; the IR there
+ * documents how each construct lowers.
+ *
+ * src/xpath_static.c holds the static context, names and types (also used
+ * by the function library to resolve the type text of its rows);
+ * src/xpath_lower.c holds lowering and compilation.
+ *
+ * Errors are static errors (SXML_STATUS_STATIC_ERROR) in the request's
+ * error record, with the code, a static description and the location of
+ * the AST node in the expression text. A failure of sxml itself or of a
+ * host object is an interface status with nothing in the record, except
+ * SXML_STATUS_UNSUPPORTED_FEATURE for a construct Phase 1 does not lower,
+ * whose record's diagnostic names it.
+ *
+ * Thread safety: the thread of the item heap (D35).
+ */
+
+/*
+ * The static context of one compilation. A plain value; every pointer and
+ * view is borrowed for the calls that receive it.
+ */
+typedef struct sxml_xpath_static_context {
+    /* Its name pool interns names; its type registry registers item
+       types; constants are made in it. */
+    sxml_item_heap *item_heap;
+    /* Memory for units and for scratch arrays. Not the null allocator. */
+    sxml_allocator allocator;
+    /* Added to the predeclared prefixes xml, xs, xsi, fn, map, array,
+       math and err; prefix 0 sets the default namespace for elements and
+       types (sxml_static_context_configuration). */
+    sxml_namespace_binding_view namespace_bindings;
+    /* The external variables in scope; variable n (from 1) becomes global
+       variable n of the unit, in this order. */
+    sxml_variable_declaration_view variable_declarations;
+    /* The statically known function definitions. A table whose operations
+       is NULL knows none. */
+    sxml_function_table function_table;
+} sxml_xpath_static_context;
+
+/* Writes a static error: the error code is err:code_local_name. */
+typedef struct sxml_xpath_static_error {
+    const sxml_ast *ast;
+    /* Where the error is; 0 for no location. */
+    sxml_ast_node_index node;
+    /* ASCII, such as "XPST0008"; static. */
+    sxml_byte_view code_local_name;
+    /* Static text. */
+    sxml_byte_view description;
+} sxml_xpath_static_error;
+
+/*
+ * Fills error_record (which may be NULL) with error and returns
+ * SXML_STATUS_STATIC_ERROR.
+ */
+SXML_NODISCARD sxml_status sxml_xpath_report_static_error(
+    const sxml_xpath_static_error *error, sxml_error_record *error_record);
+
+/* Which namespace an unprefixed name is in (XPath 4.0, section 2.2.1). */
+typedef enum sxml_xpath_name_role {
+    /* Element names in name tests and types: the default namespace for
+       elements and types. */
+    SXML_XPATH_NAME_ROLE_ELEMENT_OR_TYPE,
+    /* Function names: the default function namespace, fn in Phase 1. */
+    SXML_XPATH_NAME_ROLE_FUNCTION,
+    /* Variables, attributes, QName literals, processing-instruction
+       targets: no namespace. */
+    SXML_XPATH_NAME_ROLE_NO_NAMESPACE,
+} sxml_xpath_name_role;
+
+/* A name of the AST to resolve. */
+typedef struct sxml_xpath_name_request {
+    /* Its root's namespace declarations come first (XPath 4.0, A.1). */
+    const sxml_ast *ast;
+    /* An NCNAME, PREFIXED_NAME or URI_QUALIFIED_NAME node, or a WILDCARD
+       with a prefix or a braced URI. */
+    sxml_ast_node_index name_node;
+    sxml_xpath_name_role name_role;
+    const sxml_xpath_static_context *static_context;
+    sxml_error_record *error_record;
+} sxml_xpath_name_request;
+
+/* A resolved name: an interned namespace URI and the local name, borrowed
+   from the AST (empty for a wildcard). */
+typedef struct sxml_xpath_resolved_name {
+    sxml_namespace_uri_identifier namespace_uri;
+    sxml_byte_view local_name;
+} sxml_xpath_resolved_name;
+
+/*
+ * Resolves request->name_node: the prefix through the statically known
+ * namespaces, a braced URI with its whitespace normalized, an unprefixed
+ * name by its role. Interns the namespace URI. Returns
+ * SXML_STATUS_STATIC_ERROR (XPST0081 for an unknown prefix), and the name
+ * pool's and allocator's failures.
+ */
+SXML_NODISCARD sxml_status sxml_xpath_resolve_name(
+    const sxml_xpath_name_request *request,
+    sxml_xpath_resolved_name *resolved_name);
+
+/* A sequence type or item type of the AST to resolve. */
+typedef struct sxml_xpath_type_request {
+    const sxml_ast *ast;
+    /* A SEQUENCE_TYPE node for a sequence type; any item type kind or
+       name for an item type. */
+    sxml_ast_node_index type_node;
+    const sxml_xpath_static_context *static_context;
+    sxml_error_record *error_record;
+} sxml_xpath_type_request;
+
+/*
+ * Resolves a sequence type (XPath 4.0, section 3.1), registering its item
+ * type, and writes it to *sequence_type. Returns SXML_STATUS_STATIC_ERROR
+ * (XPST0081, XPST0051 for a name that is not an item type, XPST0008 for an
+ * unknown type or schema declaration in a node test, XPST0152 for a map
+ * key type that is not atomic, XPST0021 for duplicate record fields),
+ * SXML_STATUS_LIMIT_EXCEEDED for types nested deeper than
+ * SXML_XPATH_MAXIMUM_TYPE_DEPTH, SXML_STATUS_UNSUPPORTED_FEATURE, and the
+ * type registry's, name pool's and allocator's failures.
+ */
+SXML_NODISCARD sxml_status sxml_xpath_resolve_sequence_type(
+    const sxml_xpath_type_request *request, sxml_sequence_type *sequence_type);
+
+/* As sxml_xpath_resolve_sequence_type for an item type. */
+SXML_NODISCARD sxml_status sxml_xpath_resolve_item_type(
+    const sxml_xpath_type_request *request, sxml_type_identifier *item_type);
+
+/* Item types nest at most this deep (map(K, map(K, ...))). */
+#define SXML_XPATH_MAXIMUM_TYPE_DEPTH 64U
+
+/*
+ * Finds a function through table: what the function table interface does
+ * (sxml_function_table_find), with a table whose operations is NULL
+ * finding nothing.
+ */
+SXML_NODISCARD sxml_status sxml_xpath_find_function(
+    sxml_function_table table, const sxml_function_query *query,
+    sxml_function_entry *entry);
+
+/* ------------------------------------------------------------ Lowering */
+
+/*
+ * The deepest nesting of AST nodes lowering accepts when the request
+ * gives 0. Lowering recurses once per level of the AST (bounded by this),
+ * except along chains of binary operators, paths, postfix expressions and
+ * arrows, which it walks in a loop, so it is chosen for the 64 KiB stack
+ * of a WebAssembly module.
+ */
+#define SXML_XPATH_DEFAULT_MAXIMUM_EXPRESSION_DEPTH 32U
+
+typedef struct sxml_xpath_lowering_request {
+    /* An AST whose root is an XPATH node. */
+    const sxml_ast *ast;
+    const sxml_xpath_static_context *static_context;
+    /* sxml_ir_unit_configuration.maximum_expression_count. */
+    uint32_t maximum_expression_count;
+    /* Deepest nesting lowering accepts; 0 means
+       SXML_XPATH_DEFAULT_MAXIMUM_EXPRESSION_DEPTH. Beyond it lowering
+       stops with SXML_STATUS_LIMIT_EXCEEDED and the record's diagnostic
+       filled. */
+    uint32_t maximum_expression_depth;
+    sxml_error_record *error_record;
+} sxml_xpath_lowering_request;
+
+/*
+ * Lowers request->ast into a new unit, created through the static
+ * context's allocator, and writes it, owned (one reference), to *unit. The
+ * unit is not sealed and no pass has run. Its global variables are the
+ * static context's variable declarations, in order; its source name is the
+ * AST's.
+ *
+ * Returns SXML_STATUS_STATIC_ERROR with the error record filled,
+ * SXML_STATUS_LIMIT_EXCEEDED, SXML_STATUS_UNSUPPORTED_FEATURE for a
+ * construct Phase 1 does not lower (computed node constructors, method
+ * calls, "but with", destructuring let, for member and for key/value,
+ * dynamic node tests), SXML_STATUS_INVALID_ARGUMENT for an invalid static
+ * context (duplicate variable names, a prefix bound twice, the xml
+ * prefix rebound), and the failures of the function table, type registry,
+ * name pool, item heap and allocator. On failure nothing is left
+ * allocated, except item types the type registry interned.
+ */
+SXML_NODISCARD sxml_status sxml_xpath_lower(
+    const sxml_xpath_lowering_request *request, sxml_ir_unit **unit);
+
+/* An expression to compile, as the public sxml_xpath_expression does. */
+typedef struct sxml_xpath_compile_request {
+    /* UTF-8; borrowed for the call. */
+    sxml_byte_view expression_text;
+    /* Copied into the unit; may be empty. */
+    sxml_byte_view source_name;
+    const sxml_xpath_static_context *static_context;
+    uint32_t maximum_expression_count;
+    /* For the front end and lowering; 0 means
+       SXML_XPATH_DEFAULT_MAXIMUM_EXPRESSION_DEPTH. */
+    uint32_t maximum_expression_depth;
+    sxml_error_record *error_record;
+} sxml_xpath_compile_request;
+
+/*
+ * Parses, lowers, runs sxml_ir_standard_passes and seals: writes a sealed
+ * unit, owned, to *unit. Returns the failures of sxml_xpath_build_ast
+ * (XPST0003), sxml_xpath_lower and sxml_ir_run_passes (an
+ * SXML_STATUS_INVALID_ARGUMENT from the verifier is an error in sxml; the
+ * record's diagnostic then describes it).
+ */
+SXML_NODISCARD sxml_status sxml_xpath_compile(
+    const sxml_xpath_compile_request *request, sxml_ir_unit **unit);
