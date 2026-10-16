@@ -115,6 +115,7 @@ for `let $f := function($x){$x + .} return $f(4)` and `/a/b[2]` is written
 out in comments, and an XQuery FLWOR and an XSLT `apply-templates` lower into
 it with no new node kind (or a named extension point). Spec: XPath 4.0 §2.2,
 §3.4 (coercion rules).
+**Done** 2026-10-16 (D55).
 
 ### 1.6 Type registry and built-in types (implementation)
 After 1.1. Owns `src/types.c`, `src/types_builtin.c`, `src/types_internal.h`,
