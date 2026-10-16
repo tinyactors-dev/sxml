@@ -1087,6 +1087,36 @@ Recorded 2026-10-16. `src/xdm_map.c`; three cell classes behind
   Because field keys are made lazily, `sxml_map_get_entry` on a record can
   return the heap's failures on its first call (P3).
 
+### D62. Ranges, concatenations and lazy sequences (packet 1.8)
+Recorded 2026-10-16. `src/xdm_sequence.c` adds three sequence cell classes
+and `sxml_sequence_test_emptiness`; xdm.h and src/xdm.c are unchanged.
+- **Ranges** store the two `int64_t` bounds; an empty range is the empty
+  sequence and a one-integer range an inline item, so a range cell always
+  has two or more items. Members are computed in `uint64_t`; every index
+  below 2^64 is readable. Only the count of `INT64_MIN to INT64_MAX`
+  (2^64 items) does not fit: `sxml_sequence_count` raises XPDY0130 (XPath
+  4.0, implementation-dependent limit), as for a concatenation whose total
+  passes 2^64 - 1.
+- **Concatenations** drop empty inputs, flatten nested concatenations and
+  return a lone remaining part itself (retained). Part ends (items up to
+  and including each part) are a cache filled in order as reads count the
+  parts; `get_item` binary-searches the counted parts and asks each further
+  part for the item before counting it, so a lazy part is read only as far
+  as needed. Iteration uses `part_index`/`next_index_in_part`: O(1) per
+  item.
+- **Lazy sequences** keep produced items in a doubling array (room is made
+  before calling the generator, so an item is never lost and an allocation
+  failure is retryable). The generator always gets the cell's own error
+  record; a failure is final: its error is copied into the cell (the kept
+  error, D41) and raised again through the heap by every later read that
+  needs an item past the last produced one; items before it stay
+  readable. A non-error status (out of memory in the generator) is kept
+  and returned the same way. The generator's state is released only when
+  the cell is freed, as xdm.h says. A generator that reads its own lazy
+  sequence gets `SXML_STATUS_INVALID_ARGUMENT` instead of reentry.
+- **Emptiness** is `get_item(0)`: at most one item of a lazy sequence is
+  produced, and its error is reported (D43).
+
 ## Proposed
 
 ### P2. `sxml_atomic_comparison` needs the item heap (from D60)
