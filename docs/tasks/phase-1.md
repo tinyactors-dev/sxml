@@ -151,6 +151,9 @@ After 1.7. Owns `src/xdm_map.c`, `tests/xdm_map_test.c`. D37: entry order,
 lazy hash index, persistent put/remove, duplicate policies, records sharing
 registry shapes. Done when map-merge-401 order and map-get-014 (NaN key)
 hold and `map:put` on a record gives a map. Spec: XDM 4.0 §8.2, §8.3.
+**Done** 2026-10-16 (D61): entry blocks (index built while making, for
+duplicates), persistent maps of two AVL trees, records with lazily made
+field keys; P3 (`sxml_map_get_entry` on a record may fail for memory).
 
 ### 1.10 Arrays and function items (implementation)
 After 1.7. Owns `src/xdm_array.c`, `src/xdm_function.c`,
