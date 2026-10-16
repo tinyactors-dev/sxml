@@ -132,6 +132,10 @@ After 1.2, 1.6. Owns `src/xdm.c`, `src/xdm_internal.h`, `src/xdm_atomic.c`,
 errors (D41), tree identifiers, all atomic items and datums (D36),
 `atomic_equal`, `compare`, `hash`; vector sequences, builder, iterator. Done
 when equal numerics of different types hash alike. Spec: XDM 4.0 §3, §5.
+**Done** 2026-10-16 (D60): shared interface `src/xdm_internal.h` (cell
+classes, iterative release, heap byte accounting); node-item tree
+retention is a two-line hand-off to 1.11; QName order in `fn:compare`
+needs the heap (P2).
 
 ### 1.8 Range, concatenation and lazy sequences (implementation)
 After 1.7. Owns `src/xdm_sequence.c`, `tests/xdm_sequence_test.c`. Ranges
