@@ -298,6 +298,14 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `expression_text` | The source text of an expression or query |
 | `evaluation` | One run of a compiled expression or query against a dynamic context |
 | `evaluation_depth` | How deeply evaluation nests (function calls, nested expressions); bounded so deep recursion is a limit, not a stack overflow |
+| `evaluator_task` | One entry of the evaluator's task stack: an expression, call or native step being evaluated, with the state that resumes it when a nested value arrives (D71, D73) |
+| `task_stack` | The evaluator's explicit stack of evaluator tasks, in allocator memory, which replaces recursion on the C stack |
+| `tail_call` | A call whose value is the value of the function making it; the evaluator reuses that function's frame |
+| `native_step` | One run of a resumable native body: it finishes with a value, or asks the evaluator to call a function item and to run the next step with the result |
+| `resumable_native_body` | A native function body written as native steps, so a higher-order function never re-enters the evaluator on the C stack |
+| `function_coercion` | Wrapping a function item so that its arguments and result are coerced to a required function type (XPath 4.0, section 3.4.4) |
+| `atomization` | Replacing nodes by their typed values and arrays by their members, until only atomic items remain (XPath 4.0, section 2.5.3) |
+| `type_match_frame` | An entry on the explicit stack of matching a value against a sequence type (instance of, treat as, coercion) |
 | `expression_depth` | How deeply the syntax of an expression nests; bounded for untrusted expressions |
 | `serialization` | Turning a sequence into bytes (Serialization 4.0) |
 | `serialization_method` | The Serialization 4.0 output method: adaptive in Phase 1; xml, json, text and others later |
