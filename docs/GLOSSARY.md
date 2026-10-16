@@ -389,3 +389,13 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `operator_function` | A function item made by `fn:op`: `fn($x, $y) { $x op $y }` for one binary operator |
 | `assembly` | How `map:build` and `map:merge` add entries one by one to a map, combining duplicate keys by the `duplicates` option |
 | `duplicates_policy` | The `duplicates` option of `map:build` and `map:merge`: reject, use-first, use-last, use-any, combine, or a function |
+| `json_text` | A text in the JSON syntax of RFC 8259: the `$value` of `fn:parse-json` and `fn:json-to-xml` |
+| `json_event` | One step of walking a JSON text: the start or end of an object or array, a key, or a scalar; what a JSON sink receives |
+| `json_sink` | Interface receiving the JSON events of one walk: it makes XDM values (`fn:parse-json`) or tree builder events (`fn:json-to-xml`) |
+| `xml_representation_of_json` | The elements `map`, `array`, `string`, `number`, `boolean` and `null` in the fn namespace, with `key`, `escaped` and `escaped-key` attributes, that stand for a JSON text (F&O 4.0, section 17.4.2) |
+| `escaped_form` | Text whose special characters are kept as JSON escape sequences (option `escape`; attributes `escaped`, `escaped-key`) |
+| `permitted_character` | A codepoint an xs:string can hold: U+0001 to U+D7FF, U+E000 to U+FFFD, U+10000 to U+10FFFF (F&O 4.0, section 17.4.3) |
+| `number_format` | The `number-format` option of `fn:parse-json`: `double`, `decimal` or `adaptive` |
+| `null_value` | The value that stands for JSON null in `fn:parse-json` (option `null`, the empty sequence by default) |
+| `key_index` | The hash index of the keys of the JSON objects (or map elements) open at once, to find duplicate keys in O(1) |
+| `serialization_frame` | An entry of the serializer's explicit stack: an array, map, JNode or member sequence whose items are being written (D71) |
