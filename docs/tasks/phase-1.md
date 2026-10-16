@@ -299,6 +299,8 @@ After 1.5, 1.13, 1.14. Owns `src/json.c`, `src/function_library_json.c`,
 `json-to-xml`, `xml-to-json` (FOJS0006), `jtree`, `parse-xml`; `serialize.h`.
 Done when the JSON slice lines pass as unit cases. Spec: F&O 4.0 "Functions
 on JSON data"; RFC 8259; Serialization 4.0 "Adaptive output method".
+**Done** 2026-10-16 (D82): tree-sitter grammar `grammars/json`; 22 slice
+lines as unit cases in `tests/json_test.c`; `fallback` functions not yet.
 
 ### 1.23 Processor and XPath API (implementation)
 After 1.14, 1.18, 1.20, 1.21, 1.22. Owns `src/processor.c`, `src/xpath.c`,
