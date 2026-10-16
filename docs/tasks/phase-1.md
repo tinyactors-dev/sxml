@@ -77,6 +77,8 @@ canonical text, arithmetic incl. `idiv` and `mod`, compare, round, to and
 from `int64_t` and `double`. Done when two heaps on two threads work and the
 `wasm` size growth is logged. Spec: F&O 4.0 "Arithmetic operators on numeric
 values" (decimal precision), D36.
+**Done** 2026-10-16 (D57): two heaps on two threads tested; `wasm` growth
++89 KB stripped (+35 KB gzip), logged.
 
 ### 1.3 Public API: XML parser, processor, XPath, adaptive output (design)
 After 1.0. Owns `include/sxml/xml.h`, `processor.h`, `xpath.h`,
