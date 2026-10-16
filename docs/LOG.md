@@ -4,6 +4,15 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 1.14 done (D81, D69): the XML parser. `src/xml.c` (CST walk over
+  explicit entity frames, all 16 builder checks, namespaces, events),
+  `src/xml_encoding.c` (UTF-8, UTF-16, ISO-8859-1, US-ASCII; positions),
+  `src/xml_entity.c` (DTD tables). W3C suite through the library: valid
+  601/601, invalid 175/175, not-wf 948/948 (`xml_conformance` ctest, ~6 s
+  under ASan; skipped under WASI). QT4: 1046/1051 `*.xml` parse, the 5
+  others are bad on purpose. `sxml check [--format=text|json] FILE...`
+  with 9 golden tests; the CLI framework gained `sxml_cli_file_reader`.
+  P6 accepted as D69 (`ignores_parent_namespaces`).
 - 1.21 done (D79, D80): higher-order, map and array functions.
   `src/function_library_higher_order.c` (F&O 4.0 2.5 except fn:sort, 13,
   fn:op; traversal, fold and sort engines shared through
