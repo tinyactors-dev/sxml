@@ -18,7 +18,7 @@
  * Prepares standard output and standard error for byte-exact writes: on
  * Windows it switches them to binary mode, so "\n" is not written as
  * "\r\n"; elsewhere it does nothing. Call once, before any write. Returns
- * SXML_STATUS_INVALID_ARGUMENT when the platform refuses.
+ * SXML_STATUS_INPUT_OUTPUT_FAILED when the platform refuses.
  */
 SXML_NODISCARD sxml_status sxml_platform_prepare_streams(void);
 
@@ -30,7 +30,6 @@ sxml_cli_output_stream sxml_platform_standard_error(void);
 
 /*
  * Flushes standard output and standard error. Returns
- * SXML_STATUS_INVALID_ARGUMENT when a buffered write failed: the stream
- * interface has no input/output status yet (docs/DECISIONS.md, P1).
+ * SXML_STATUS_INPUT_OUTPUT_FAILED when a buffered write failed.
  */
 SXML_NODISCARD sxml_status sxml_platform_flush_streams(void);

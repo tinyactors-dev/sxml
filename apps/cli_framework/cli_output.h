@@ -30,10 +30,9 @@
 typedef struct sxml_cli_output_stream_operations {
     /* Writes all of bytes and returns SXML_STATUS_OK, or returns the
        failure that stopped the write: SXML_STATUS_CAPACITY_EXCEEDED for a
-       full memory stream, SXML_STATUS_INVALID_ARGUMENT when the platform
+       full memory stream, SXML_STATUS_INPUT_OUTPUT_FAILED when the platform
        refused the write (a closed pipe, a full disk). bytes is borrowed for
-       the call. Never called with an empty view. INVALID_ARGUMENT stands in
-       for an input/output status until one exists (docs/DECISIONS.md, P1). */
+       the call. Never called with an empty view. */
     sxml_status (*write)(void *state, sxml_byte_view bytes);
 } sxml_cli_output_stream_operations;
 

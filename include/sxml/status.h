@@ -80,6 +80,10 @@ typedef enum sxml_status {
     SXML_STATUS_INVALID_UTF8,
     /* The input uses a feature this build of sxml does not implement. */
     SXML_STATUS_UNSUPPORTED_FEATURE,
+    /* The platform refused to read or write bytes for a host interface (a
+       closed pipe, a full disk, a missing file); the sxml object and its
+       arguments were fine (D50). */
+    SXML_STATUS_INPUT_OUTPUT_FAILED,
 
     /* A static error was raised; details are in the error record
        (XPath 4.0, section 2.4.1 "Kinds of Errors"). */

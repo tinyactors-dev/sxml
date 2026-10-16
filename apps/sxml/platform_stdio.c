@@ -19,7 +19,7 @@ sxml_status sxml_platform_prepare_streams(void) {
        bytes exactly as given, on every platform. */
     if (_setmode(_fileno(stdout), _O_BINARY) == -1 ||
         _setmode(_fileno(stderr), _O_BINARY) == -1) {
-        return SXML_STATUS_INVALID_ARGUMENT;
+        return SXML_STATUS_INPUT_OUTPUT_FAILED;
     }
 #endif
     return SXML_STATUS_OK;
@@ -30,10 +30,9 @@ static sxml_status sxml_platform_write_operation(void *state,
     FILE *file = state;
     const size_t written_byte_count =
         fwrite(bytes.bytes, 1, bytes.byte_count, file);
-    /* No input/output status exists yet (docs/DECISIONS.md, P1). */
     return written_byte_count == bytes.byte_count
                ? SXML_STATUS_OK
-               : SXML_STATUS_INVALID_ARGUMENT;
+               : SXML_STATUS_INPUT_OUTPUT_FAILED;
 }
 
 static const sxml_cli_output_stream_operations sxml_platform_file_operations = {
@@ -58,7 +57,7 @@ sxml_status sxml_platform_flush_streams(void) {
     const bool output_failed = fflush(stdout) != 0 || ferror(stdout) != 0;
     const bool error_failed = fflush(stderr) != 0 || ferror(stderr) != 0;
     if (output_failed || error_failed) {
-        return SXML_STATUS_INVALID_ARGUMENT;
+        return SXML_STATUS_INPUT_OUTPUT_FAILED;
     }
     return SXML_STATUS_OK;
 }

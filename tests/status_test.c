@@ -20,6 +20,7 @@ static const sxml_status every_status[] = {
     SXML_STATUS_MALFORMED_INPUT,
     SXML_STATUS_INVALID_UTF8,
     SXML_STATUS_UNSUPPORTED_FEATURE,
+    SXML_STATUS_INPUT_OUTPUT_FAILED,
     SXML_STATUS_STATIC_ERROR,
     SXML_STATUS_DYNAMIC_ERROR,
     SXML_STATUS_TYPE_ERROR,
@@ -38,6 +39,13 @@ static void test_status_name_spells_the_constant(sxml_test_state *state) {
         state, sxml_byte_view_equals(
                    sxml_status_name(SXML_STATUS_INVALID_UTF8),
                    SXML_BYTE_VIEW_FROM_LITERAL("SXML_STATUS_INVALID_UTF8")));
+    SXML_TEST_EXPECT(state,
+                     sxml_byte_view_equals(
+                         sxml_status_name(SXML_STATUS_INPUT_OUTPUT_FAILED),
+                         SXML_BYTE_VIEW_FROM_LITERAL(
+                             "SXML_STATUS_INPUT_OUTPUT_FAILED")));
+    SXML_TEST_EXPECT(state, !sxml_status_has_error_record(
+                                SXML_STATUS_INPUT_OUTPUT_FAILED));
 }
 
 static void test_every_status_has_a_distinct_name(sxml_test_state *state) {
