@@ -610,6 +610,39 @@ Recorded 2026-10-16. Changes made by the Phase 0 review agent (D11):
   by the evaluators, well-formedness by the XML parser).
 - `status.h` and `xdm.h`: D41.
 
+### D44. The sxml command-line program and its CLI framework
+Recorded 2026-10-16. Rules and planned commands in `docs/CLI.md`.
+- Layout: `apps/cli_framework/` (static library `sxml_cli_framework`:
+  declarative command tables, parser, help, "did you mean", output streams,
+  dispatch); `apps/sxml/` (`sxml_program`: table and command functions;
+  executable target `sxml_cli`, output name `sxml`). Option
+  `SXML_BUILD_APPS` (default ON), added after `tests/`. Application code:
+  public `include/sxml/` API only, memory from an `sxml_allocator`.
+- I/O boundary: only `apps/sxml/platform_stdio.c` touches stdio; lint
+  `input-output-outside-platform-layer` enforces it for `apps/**`, and
+  `pointer-parameter-without-length` now covers `apps/` too.
+- One intent, one action: no option abbreviations, no aliases beyond
+  `help`/`--help`/`version`/`--version`, a repeated single option is a usage
+  error, `-h`/`--help` wins over everything before `--`, no implicit stdin,
+  no files written without `--output`, no network. Typos get a suggestion
+  (optimal string alignment distance), never an action.
+- Exit codes 0 success, 1 operation failed, 2 usage error, 3 input/output
+  error (incl. failed writes to stdout), 4 internal error.
+- Built-ins: `help [COMMAND]` and the program options `--help`,
+  `--version`; tables cannot redeclare them (`sxml_cli_program_validate`,
+  run at start: a broken table exits 4). The program name is fixed in the
+  table, never argv[0], so output is identical natively and under WASI.
+- Today's commands: `help`, `version [--format=text|json]`. Nothing else
+  is listed until it works.
+- Tests in `tests/cli/`, registered from `apps/CMakeLists.txt` so the
+  `tests/*_test.c` glob (D45) never sees them: framework unit tests and
+  golden end-to-end tests (stdout, stderr, exit code) under every preset,
+  MSVC included (CI runs `ctest -R ^cli` there).
+- The QT4 driver (packet 1.24) is a separate tool under `tests/qt4/driver/`
+  built on this framework, not an `sxml` subcommand: it reads the vendored
+  catalogs and is never shipped. Rejected: `sxml test-suite`, which would
+  advertise a developer tool to users.
+
 ### D45. Phase 1 work packets and conflict-free registration
 Recorded 2026-10-16 (Phase 1 planning; D44 is left to the CLI work, which
 cites it). Phase 1 is split into packets of one agent session
@@ -681,3 +714,13 @@ slice divides and multiplies decimals and builds integer ranges beyond
 `int64_t` (D36), so mpdecimal is vendored and wrapped as D42 describes in
 Phase 1 (packet 1.2). Decimal formatting and the rest of the decimal
 function library stay in Phase 2.
+
+## Proposed
+
+### P1. A status for failed input and output (from D44)
+Host interfaces that read or write bytes (the CLI's output streams now, the
+serializer's output and the document resolver later) have no status for
+"the platform refused the read or write". The CLI platform layer returns
+`SXML_STATUS_INVALID_ARGUMENT` meanwhile. Proposal: add
+`SXML_STATUS_INPUT_OUTPUT_FAILED` to `include/sxml/status.h` (a header
+change, so the owner or the header packet decides).
