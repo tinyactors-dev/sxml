@@ -850,6 +850,22 @@ and `\k`; with `i`, non-ASCII characters in the regex and back-references
 (case variants beyond ASCII need Unicode case data). A public step limit in
 `sxml_processor_limits` is left for the D9 packet (a new field).
 
+**No recursion (D71)**, amended 2026-10-16: the parser reads pieces in
+one loop and keeps open groups on an explicit stack of group frames,
+inline for `SXML_REGEX_INLINE_GROUP_DEPTH` (16) groups, then grown
+through the new `stack_allocator` of `sxml_regex_configuration` and
+released before the call returns (`sxml_regex_create` uses its own
+allocator; without one, deeper nesting is CAPACITY_EXCEEDED);
+`maximum_group_depth` (default 100) now bounds that heap. Every atom is
+parsed and emitted once: a "|" inserts the split of the branch before it,
+a quantifier inserts what precedes the first copy and appends copies of
+the atom's instructions (targets moved, progress registers renumbered,
+classes shared), so the lexical skipping and re-parsing are gone. Class
+subtraction is a chain, read and matched in loops. Arrays are sized by
+the most a pass wrote, which fixes a write past the arrays when an atom
+quantified with {0} came last (`(ab){0}` at the end). 400,000 random
+regexes compile, fail and match exactly as before.
+
 ### D54. Name pool internals (packet 1.1)
 Recorded 2026-10-16. Three tables (URIs, prefixes, names), each an entry
 array in issue order plus an open-addressing index (linear probing, at most

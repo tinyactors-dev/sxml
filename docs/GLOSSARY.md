@@ -358,3 +358,4 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `case_variant` | A character that `i` matches in place of another: same `fn:lower-case` or same `fn:upper-case` (F&O 4.0, section 6.2) |
 | `backtrack_stack` | The stack of choices and undo entries of a backtracking matcher; it grows through an allocator within a limit |
 | `step_count` | Instructions a regex matcher has run in one search; `maximum_step_count` bounds it for untrusted regexes |
+| `group_frame` | The regex compiler's record of a group whose ")" has not been read (and of the whole regex), kept on an explicit stack instead of recursing (D71) |
