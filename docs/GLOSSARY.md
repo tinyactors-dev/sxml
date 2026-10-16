@@ -48,6 +48,12 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `decimal_scope` | The thread-local allocator pointer libmpdec allocates through during one decimal operation (D42) |
 | `digit_count` | A number of decimal digits (`maximum_digit_count`, `division_digit_count`) |
 | `canonical_text` | The canonical lexical form of a value as UTF-8 bytes (F&O 4.0, section 19.1.2, casting to `xs:string`) |
+| `cast` | Converting an atomic item to a target type (F&O 4.0, section 19 "Casting"): `cast as`, constructor functions, and the untypedAtomic casting and promotion of coercion |
+| `castability` | Whether a value can be cast to a target type, as `castable as` answers |
+| `target_type` | The type a cast converts to: atomic, list, union, enumeration or choice of atomic types |
+| `lexical_form` | A string in the lexical space of a type (XSD 1.1 Part 2): what a cast from `xs:string` parses |
+| `whitespace_facet` | How a type treats whitespace before parsing a lexical form: preserve, replace or collapse (XSD 1.1 Part 2, section 4.3.6) |
+| `namespace_resolver` | Interface that finds the namespace URI bound to a prefix: the statically known namespaces when a cast makes an `xs:QName` |
 | `rounding_mode` | How a value is rounded to a precision: the `$rounding-mode` of `fn:round` (F&O 4.0) |
 | `precision` | In rounding, the number of digits kept after the decimal point; negative rounds to a power of ten (`fn:round`) |
 | `memory_requirements` | Size and alignment an object needs |
