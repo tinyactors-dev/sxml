@@ -197,6 +197,9 @@ After 1.4. Owns `src/xpath_parse.c`, `tests/xpath_parse_test.c`. Any
 the builder (A.3.2 delimitation, prefixed lookup key); literals decoded.
 Done when all 198 slice queries build an AST and every XP40 query that
 `tools/qt4-parse-check.py` accepts also builds one.
+**Done** 2026-10-16 (D59): also `src/xpath_ast.c` (D52) and
+`tests/xpath_ast_test.c`; 198/198 slice queries and 32,542/32,542 valid
+XP40 queries build, the two D29 false accepts now fail with XPST0003.
 
 ### 1.17 Regular expression seed (implementation)
 After 1.0. Owns `src/regex.c`, `src/regex_internal.h`, `tests/regex_test.c`.
