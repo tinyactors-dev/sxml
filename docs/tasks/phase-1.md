@@ -98,6 +98,7 @@ function references, `?` placeholders, static and dynamic `=>`, `map{}` and
 `{}`, square and curly arrays, `?*`, `?(expr)`, unary lookup, and sequence
 types such as `map(K, V)`, `function(T) as U`, `array(empty-sequence())`.
 Spec: XPath 4.0 Appendix A.
+**Done** 2026-10-16 (D52).
 
 ### 1.5 Shared IR, optimizer seam, evaluator interfaces (design)
 After 1.0. Owns `src/ir_internal.h`, `src/ir_pass_internal.h`,
