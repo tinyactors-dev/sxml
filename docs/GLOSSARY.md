@@ -160,6 +160,10 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `primitive_type` | The primitive atomic type an atomic type is derived from (`xs:integer` gives `xs:decimal`) |
 | `is_derived_from` | Schema type derivation: the base type chain reaches the other type (XSD 1.1 Part 1, section 3.16.6) |
 | `subtype` | The item type or sequence type relation of XPath 4.0, section 3.3 |
+| `subtype_goal` | One question in the and/or tree a subtype question is reduced to: an answer, an item or sequence type pair, or a conjunction or disjunction of sub-goals (D58) |
+| `subtype_frame` | A conjunction or disjunction of subtype goals on the explicit stack of a subtype search, waiting for the answer of its current sub-goal |
+| `derivation_frame` | A union base type on the explicit stack of a derivation question, whose members are tried in turn |
+| `cast_frame` | A cast to a union, choice or list target on the explicit stack of a cast, waiting for the cast of a member or token (D66) |
 | `item_type` | A class of items, such as `xs:integer`, `element(a)` or `map(xs:string, item())` |
 | `sequence_type` | An item type plus an occurrence |
 | `occurrence` | How many items a sequence type allows: zero, one, zero or one, zero or more, one or more |
