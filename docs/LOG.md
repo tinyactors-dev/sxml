@@ -4,6 +4,14 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 1.15 done (D66): `src/cast.c`, `src/cast_lexical.c`,
+  `src/cast_internal.h`: the F&O 4.0 casting table, lexical forms of every
+  primitive type, canonical text (XPath rules for xs:double/xs:float,
+  shortest digits), integer facets, xs:NMTOKENS, unions, enumerations and
+  choices, cast and castable (FORG0001, FOCA0002, XPTY0004, FONS0004,
+  FODT0001/2, XPST0080). The 17 cast slice lines pass as unit cases; 17
+  cases in `tests/cast_test.c` incl. an allocation-failure loop;
+  `debug`, `debug-gcc`, `wasm`: 53/53; lint clean.
 - 1.10 done (D64): `src/xdm_array.c`, persistent arrays as AVL trees of
   flat (made arrays, O(1) get), run (part of a flat node, no copying)
   and branch nodes; append, put, insert, remove and slice are split plus
