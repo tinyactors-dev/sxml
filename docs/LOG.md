@@ -4,6 +4,16 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 1.9 done (D61): `src/xdm_map.c`, maps and records. Entry blocks keep
+  entries in order with a hash index (more than 8 entries) built while
+  making, for the three duplicate key policies (XQDY0137); put and remove
+  give persistent maps (entry tree by stamp, key tree by hash; O(log n),
+  old versions intact); records hold field values, find fields through
+  the registry and make their xs:string keys on first need; put on a
+  record gives a map. map-merge-401/-402 order, map-get-014/-015 (NaN)
+  and map-put-011/-024/-025 hold as unit cases. 9 cases in
+  `tests/xdm_map_test.c` incl. an allocation-failure loop and a byte
+  limit; `debug`, `debug-gcc`, `wasm`: 50/50; lint clean. Open: P3.
 - 1.8 done (D62): `src/xdm_sequence.c`, integer ranges (`int64_t` bounds,
   `uint64_t` indices; 1 to 10^11 counts right on `wasm`), flattened
   concatenations with a part-end cache (binary search, lazy parts read
