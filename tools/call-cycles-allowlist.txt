@@ -5,53 +5,12 @@
 # loops over explicit stacks; whoever removes one deletes its lines.
 # This file must become empty, then the allowlist goes away.
 
-# src/types.c
-sxml_type_registry_derives
-
-# src/cast.c
-sxml_cast_to_list
-sxml_cast_to_members
-sxml_cast_to_target
-sxml_cast_tokens
-
 # src/ir.c
 write_item_type
 write_node_test
 write_registered_item_type
 write_sequence_type
 write_type_list
-
-# src/types.c
-sxml_type_document_subtype
-sxml_type_enumeration_value_subtype
-sxml_type_every_member_subtype
-sxml_type_function_item_subtype
-sxml_type_function_signature_subtype
-sxml_type_item_subtype
-sxml_type_item_subtype_of
-sxml_type_item_subtype_rules
-sxml_type_json_node_subtype
-sxml_type_map_subtype
-sxml_type_record_subtype
-sxml_type_record_values_subtype
-sxml_type_sequence_subtype
-sxml_type_sequence_subtype_of
-sxml_type_some_member_supertype
-
-# src/regex.c
-sxml_regex_compiler_parse_class_expression
-
-# src/regex.c
-sxml_regex_compiler_emit_atom_copy
-sxml_regex_compiler_emit_quantified_atom
-sxml_regex_compiler_parse_alternation
-sxml_regex_compiler_parse_atom
-sxml_regex_compiler_parse_branch
-sxml_regex_compiler_parse_group
-sxml_regex_compiler_parse_piece
-
-# src/regex.c
-sxml_regex_class_contains
 
 # src/xpath_lower.c, src/xpath_static.c
 resolve_choice_type
