@@ -44,6 +44,12 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `byte_range` | A byte offset plus a byte count within a view |
 | `byte_offset` | A position measured in bytes from the start of something |
 | `operand` | One input of a checked arithmetic function (`left_operand`, `right_operand`) |
+| `decimal` | An `xs:decimal` value, or an `xs:integer` beyond `int64_t`, as a libmpdec number (`sxml_decimal`, `src/decimal_internal.h`; D36, D42) |
+| `decimal_scope` | The thread-local allocator pointer libmpdec allocates through during one decimal operation (D42) |
+| `digit_count` | A number of decimal digits (`maximum_digit_count`, `division_digit_count`) |
+| `canonical_text` | The canonical lexical form of a value as UTF-8 bytes (F&O 4.0, section 19.1.2, casting to `xs:string`) |
+| `rounding_mode` | How a value is rounded to a precision: the `$rounding-mode` of `fn:round` (F&O 4.0) |
+| `precision` | In rounding, the number of digits kept after the decimal point; negative rounds to a power of ten (`fn:round`) |
 | `memory_requirements` | Size and alignment an object needs |
 | `configuration` | Struct describing how an object is set up |
 | `request` | Struct describing one operation |
