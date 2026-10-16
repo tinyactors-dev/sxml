@@ -1,0 +1,181 @@
+============================================================
+Any item
+============================================================
+
+.
+
+---
+
+(pattern
+  (simple_pattern
+    (any_item_pattern)))
+
+============================================================
+Any item with predicates
+============================================================
+
+.[. instance of xs:integer][. gt 0]
+
+---
+
+(pattern
+  (simple_pattern
+    (any_item_pattern)
+    (predicate
+      (instance_of_expression
+        (context_value_reference)
+        (sequence_type
+          (prefixed_name))))
+    (predicate
+      (comparison_expression
+        (context_value_reference)
+        (integer_literal)))))
+
+============================================================
+Atomic
+============================================================
+
+atomic(xs:integer | xs:string)
+
+---
+
+(pattern
+  (simple_pattern
+    (atomic_pattern
+      (prefixed_name)
+      (prefixed_name))))
+
+============================================================
+Map patterns
+============================================================
+
+map{"a": atomic(xs:integer)?, "b", *}
+
+---
+
+(pattern
+  (simple_pattern
+    (map_pattern
+      (map_entry_pattern
+        (string_literal)
+        (sequence_pattern
+          (simple_pattern
+            (atomic_pattern
+              (prefixed_name)))
+          (occurrence_indicator)))
+      (map_entry_pattern
+        (string_literal)))))
+
+============================================================
+Map pattern without keyword
+============================================================
+
+{*}
+
+---
+
+(pattern
+  (simple_pattern
+    (map_pattern)))
+
+============================================================
+Empty map pattern
+============================================================
+
+{}
+
+---
+
+(pattern
+  (simple_pattern
+    (map_pattern)))
+
+============================================================
+Record pattern
+============================================================
+
+record(my:person)
+
+---
+
+(pattern
+  (simple_pattern
+    (record_pattern
+      (prefixed_name))))
+
+============================================================
+Array pattern
+============================================================
+
+array(.*)
+
+---
+
+(pattern
+  (simple_pattern
+    (array_pattern
+      (sequence_pattern
+        (simple_pattern
+          (any_item_pattern))
+        (occurrence_indicator)))))
+
+============================================================
+JNode pattern
+============================================================
+
+jnode(*, {"Author": .[.="Dickens"], "Title", *})[ancestor::books]
+
+---
+
+(pattern
+  (simple_pattern
+    (jnode_pattern
+      (wildcard)
+      (sequence_pattern
+        (simple_pattern
+          (map_pattern
+            (map_entry_pattern
+              (string_literal)
+              (sequence_pattern
+                (simple_pattern
+                  (any_item_pattern)
+                  (predicate
+                    (comparison_expression
+                      (context_value_reference)
+                      (string_literal))))))
+            (map_entry_pattern
+              (string_literal))))))
+    (predicate
+      (axis_step
+        (axis)
+        (ncname)))))
+
+============================================================
+JNode pattern with constant selector
+============================================================
+
+jnode("code", atomic(xs:string))
+
+---
+
+(pattern
+  (simple_pattern
+    (jnode_pattern
+      (string_literal)
+      (sequence_pattern
+        (simple_pattern
+          (atomic_pattern
+            (prefixed_name)))))))
+
+============================================================
+Empty sequence pattern
+============================================================
+
+array(empty-sequence())
+
+---
+
+(pattern
+  (simple_pattern
+    (array_pattern
+      (sequence_pattern))))

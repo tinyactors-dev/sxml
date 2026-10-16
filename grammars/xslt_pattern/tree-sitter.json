@@ -1,0 +1,19 @@
+{
+  "grammars": [
+    {
+      "name": "xslt_pattern",
+      "camelcase": "XsltPattern",
+      "scope": "source.xslt-pattern",
+      "path": ".",
+      "file-types": ["xslp"]
+    }
+  ],
+  "metadata": {
+    "version": "0.1.0",
+    "license": "MIT",
+    "description": "XSLT 4.0 pattern grammar for sxml",
+    "links": {
+      "repository": "https://github.com/dhamidi/sxml"
+    }
+  }
+}

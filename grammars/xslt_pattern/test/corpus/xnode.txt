@@ -1,0 +1,300 @@
+============================================================
+Name
+============================================================
+
+para
+
+---
+
+(pattern
+  (axis_step_pattern
+    (ncname)))
+
+============================================================
+Wildcard
+============================================================
+
+*
+
+---
+
+(pattern
+  (axis_step_pattern
+    (wildcard)))
+
+============================================================
+Union
+============================================================
+
+chapter|appendix union preface
+
+---
+
+(pattern
+  (union_pattern
+    (union_pattern
+      (axis_step_pattern
+        (ncname))
+      (axis_step_pattern
+        (ncname)))
+    (axis_step_pattern
+      (ncname))))
+
+============================================================
+Intersect and except
+============================================================
+
+a intersect b except c
+
+---
+
+(pattern
+  (intersect_except_pattern
+    (intersect_except_pattern
+      (axis_step_pattern
+        (ncname))
+      (axis_step_pattern
+        (ncname)))
+    (axis_step_pattern
+      (ncname))))
+
+============================================================
+Forward axes
+============================================================
+
+child::a/descendant::b/attribute::c/self::d/descendant-or-self::e/namespace::f
+
+---
+
+(pattern
+  (relative_path_pattern
+    (relative_path_pattern
+      (relative_path_pattern
+        (relative_path_pattern
+          (relative_path_pattern
+            (axis_step_pattern
+              (forward_axis)
+              (ncname))
+            (axis_step_pattern
+              (forward_axis)
+              (ncname)))
+          (axis_step_pattern
+            (forward_axis)
+            (ncname)))
+        (axis_step_pattern
+          (forward_axis)
+          (ncname)))
+      (axis_step_pattern
+        (forward_axis)
+        (ncname)))
+    (axis_step_pattern
+      (forward_axis)
+      (ncname))))
+
+============================================================
+Union node test
+============================================================
+
+appendix/descendant::(para|table)
+
+---
+
+(pattern
+  (relative_path_pattern
+    (axis_step_pattern
+      (ncname))
+    (axis_step_pattern
+      (forward_axis)
+      (union_node_test
+        (ncname)
+        (ncname)))))
+
+============================================================
+Attribute abbreviations
+============================================================
+
+@class | @* | @(class|type)
+
+---
+
+(pattern
+  (union_pattern
+    (union_pattern
+      (axis_step_pattern
+        (ncname))
+      (axis_step_pattern
+        (wildcard)))
+    (axis_step_pattern
+      (union_node_test
+        (ncname)
+        (ncname)))))
+
+============================================================
+Kind tests
+============================================================
+
+text() | node() | comment() | processing-instruction(x) | document-node(element(a)) | element(*, xs:date) | attribute(*, xs:date) | schema-element(us:address) | namespace-node()
+
+---
+
+(pattern
+  (union_pattern
+    (union_pattern
+      (union_pattern
+        (union_pattern
+          (union_pattern
+            (union_pattern
+              (union_pattern
+                (union_pattern
+                  (axis_step_pattern
+                    (text_node_type))
+                  (axis_step_pattern
+                    (gnode_type)))
+                (axis_step_pattern
+                  (comment_node_type)))
+              (axis_step_pattern
+                (processing_instruction_node_type
+                  (ncname))))
+            (axis_step_pattern
+              (document_node_type
+                (element_node_type
+                  (name_test_union
+                    (ncname))))))
+          (axis_step_pattern
+            (element_node_type
+              (name_test_union
+                (wildcard))
+              (prefixed_name))))
+        (axis_step_pattern
+          (attribute_node_type
+            (name_test_union
+              (wildcard))
+            (prefixed_name))))
+      (axis_step_pattern
+        (schema_element_node_type
+          (prefixed_name))))
+    (axis_step_pattern
+      (namespace_node_type))))
+
+============================================================
+Root
+============================================================
+
+/
+
+---
+
+(pattern
+  (absolute_path_pattern))
+
+============================================================
+Root descendant
+============================================================
+
+//para
+
+---
+
+(pattern
+  (absolute_path_pattern
+    (axis_step_pattern
+      (ncname))))
+
+============================================================
+Rooted path
+============================================================
+
+$xyz[1]//*
+
+---
+
+(pattern
+  (rooted_path_pattern
+    (variable_reference
+      (ncname))
+    (predicate
+      (integer_literal))
+    (axis_step_pattern
+      (wildcard))))
+
+============================================================
+Function calls
+============================================================
+
+doc("product.xml")//* | id("W33") | key("k", $v)/a | fn:root()
+
+---
+
+(pattern
+  (union_pattern
+    (union_pattern
+      (union_pattern
+        (relative_path_pattern
+          (function_call_pattern
+            (ncname)
+            (string_literal))
+          (axis_step_pattern
+            (wildcard)))
+        (function_call_pattern
+          (ncname)
+          (string_literal)))
+      (relative_path_pattern
+        (function_call_pattern
+          (ncname)
+          (string_literal)
+          (variable_reference
+            (ncname)))
+        (axis_step_pattern
+          (ncname))))
+    (function_call_pattern
+      (prefixed_name))))
+
+============================================================
+Parenthesized pattern with predicate
+============================================================
+
+(a | b)[1]
+
+---
+
+(pattern
+  (filter_pattern
+    (parenthesized_pattern
+      (union_pattern
+        (axis_step_pattern
+          (ncname))
+        (axis_step_pattern
+          (ncname))))
+    (predicate
+      (integer_literal))))
+
+============================================================
+Predicates hold XPath expressions
+============================================================
+
+bullet[position() mod 2 = 0]/div[@class="appendix"]//p
+
+---
+
+(pattern
+  (relative_path_pattern
+    (relative_path_pattern
+      (axis_step_pattern
+        (ncname)
+        (predicate
+          (comparison_expression
+            (multiplicative_expression
+              (function_call
+                (ncname)
+                (argument_list))
+              (integer_literal))
+            (integer_literal))))
+      (axis_step_pattern
+        (ncname)
+        (predicate
+          (comparison_expression
+            (axis_step
+              (ncname))
+            (string_literal)))))
+    (axis_step_pattern
+      (ncname))))
