@@ -999,6 +999,17 @@ Recorded 2026-10-16.
 - **Budget**: one question may nest 128 deep and apply 10⁶ rules. Every
   rule is monotone, so running out answers false, never a wrong true; this
   bounds work on hostile types.
+- **No recursion (D71)**: the rules reduce a question to an and/or tree of
+  subtype goals, evaluated left to right with short-circuiting on an
+  explicit stack of subtype frames; the last sub-goal of a frame replaces
+  it, so array(array(...)) and function results take one frame however
+  deep. The header promises the subtype queries never allocate, so the 192
+  frames (about 6 KiB under wasm, 9 KiB on 64-bit) are a fixed array in the
+  query's own C frame; the 128 depth is unchanged. A goal that would need a
+  193rd frame is false: only choices nested inside choices (an enumeration
+  value or document-node() searched through a base choice of choices) need
+  frames without depth. Derivation tries union members depth first on a
+  fixed stack of 256 (the old derivation depth).
 
 ### D59. The XPath front end (packet 1.16)
 Recorded 2026-10-16. `src/xpath_parse.c` builds the AST of D52 in one
@@ -1275,7 +1286,8 @@ targets), `src/cast_lexical.c` (lexical forms, canonical text).
   **Enumerations**: cast to xs:string, then codepoint membership; the
   result is an xs:string. **Lists**: only from the string types
   (XPTY0004), collapsed and split, no tokens is FORG0001. Targets nest at
-  most 32 deep.
+  most 32 deep (LIMIT_EXCEEDED beyond): unions, choices and lists are cast
+  on an explicit stack of cast frames in heap memory (D71), grown up to 33.
 - **castable**: dynamic and type errors of the cast give false; errors
   reading the operand, XPST0080, memory and limits are returned.
 
@@ -1418,11 +1430,11 @@ GNode comparisons).
   number's primitive type, else xs:double; vs string or untyped compared as
   text; else cast to the other primitive type; left outer, first error
   ends. GNode: document order (equal only for the same node).
-- **Known problem (not this packet's)**: libmpdec's large-number
-  multiplication (`six_step_fnt`/`transpose_pow2`, two 4096-word stack
-  buffers) overflows the 64 KiB WebAssembly stack: 10^6000 * 10^6000
-  traps under `wasm`. The operator tests avoid it; the decimal owner must
-  fix it (smaller BUFSIZE under WASI or a bigger stack).
+- **Known problem (fixed by D74)**: libmpdec's large-number
+  multiplication (`six_step_fnt`/`transpose_pow2`, stack buffers of up to
+  128 KiB) overflowed the 64 KiB WebAssembly stack: 10^6000 * 10^6000
+  trapped under `wasm`. D74 moves the buffers to the heap; the operator
+  tests may now multiply at the digit limit.
 
 ### D73. JNode making may fail with a lazy value's error (P7)
 Recorded 2026-10-16 by packet 1.18, on the orchestrator's acceptance of P7
@@ -1433,6 +1445,41 @@ contracts now list those failures. They take no error record, so the status
 comes without one: callers that need the error read the value first. The
 evaluator never makes lazy sequences whose generator evaluates IR (D74), and
 it reads values completely before fn:jtree sees them.
+
+### D74. libmpdec keeps no large buffers on the stack
+Recorded 2026-10-16, amending D57. Upstream `transpose.c` holds two
+`SIDE*SIDE`-word buffers in `squaretrans_pow2` (128 KiB with 32-bit words)
+and two `BUFSIZE`-word buffers in `swap_halfrows_pow2` (32 KiB). Every
+product of more than 1024 words (on WebAssembly 9216 digits, smaller
+operand above 2304) whose transform is not a power of two up to 4096
+words takes the four- or six-step path through them and trapped on the
+64 KiB WebAssembly stack; an untrusted query could do it within the
+default digit limit.
+- **Patch** ("sxml patch (D74)" in `transpose.c`): both pairs are one heap
+  block from `mpd_alloc` (the current decimal scope, D42), sized for the
+  actual block; `squaretrans_pow2` now returns 0 on failure and
+  `transpose_pow2` passes it on, so the product reports `MPD_Malloc_error`
+  (OUT_OF_MEMORY) and leaks nothing.
+- **Audit** (`-fstack-usage`, wasm32 at `-Os`): after the patch the
+  largest libmpdec frame is 1248 bytes (`mpd_qpowmod`; 2.5 KiB on x86-64
+  GCC); the `MPD_MINALLOC_MAX` (64-word) buffers in `mpdecimal.c`,
+  `basearith.c` and `io.c` and the 3-word arrays in `fourstep.c`,
+  `sixstep.c`, `crt.c`, `numbertheory.c` stay. Measured by painting the
+  stack under wasm: multiply needs 785 bytes, divide and integer divide at
+  most 2.9 KiB, flat from 5000 to 16,000,000 digits.
+- **Recursion** (D71 exempts libmpdec): only `_kmul_worksize`,
+  `_karatsuba_rec` (operands of at most 1024 words: depth 7) and
+  `_karatsuba_rec_fnt` recurse. The last runs only for products above
+  3 * 2^25 words on 32-bit targets, more than two `MPD_MAX_PREC` (425
+  million digit) operands have, and above 3 * 2^32 words on 64-bit ones,
+  depth log2 of the size ratio with frames under 100 bytes. Newton
+  division and the integer power sxml uses are loops. So no recursion
+  patch and no lower cap on `maximum_digit_count` are needed.
+- **Tests** (`tests/decimal_test.c`): squares and quotients at 10,000
+  digits (four-step on wasm), 10^6000 * 10^6000 and two 10,000-digit
+  operands refused with LIMIT_EXCEEDED, 60,000 digits (the plain six-step
+  path on wasm), and every allocation failure of a long
+  product reported and clean.
 
 ## Proposed
 
