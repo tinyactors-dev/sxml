@@ -4,6 +4,14 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 1.8 done (D62): `src/xdm_sequence.c`, integer ranges (`int64_t` bounds,
+  `uint64_t` indices; 1 to 10^11 counts right on `wasm`), flattened
+  concatenations with a part-end cache (binary search, lazy parts read
+  only as far as needed), memoized lazy sequences whose kept error is
+  raised again on every later read, `sxml_sequence_test_emptiness`.
+  16 cases in `tests/xdm_sequence_test.c` incl. an allocation-failure
+  loop; `debug`, `debug-gcc`, `wasm`: 49/49; lint clean. Seen: wasm
+  `xpath_parse` segfaults intermittently (about 1 run in 8) on HEAD too.
 - 1.7 done (D60): item heap and atomic core. `src/xdm_internal.h` is the
   shared interface for 1.8-1.11 and 1.15 (item layout, cell classes with
   sequence read operations, iterative release, byte accounting incl.
