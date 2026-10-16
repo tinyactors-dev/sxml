@@ -49,7 +49,7 @@ Do the tasks in order. Finish each with a commit and a short entry in
 ## Gate
 
 - [x] Human review of all headers in `include/sxml/` completed (agent review, D11, D43).
-- [x] CI green on all platforms (agent review: run 12 on `b238ec8`; local `debug`, `debug-gcc`, `wasm` after 0.8).
+- [x] CI green on all platforms (agent review: run 38931572793 on `c4d88fd`, after 0.8; local `debug`, `debug-gcc`, `wasm`).
 - [x] Decisions D3–D10 in `docs/DECISIONS.md` confirmed or revised (agent review: D3 recorded, D8 completed by D42).
 
 Only after every gate box is ticked by a human does Phase 1 begin. Per D11,
