@@ -99,6 +99,16 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `effective_boolean_value` | The boolean value of a sequence (XPath 4.0, section 2.5.4) |
 | `pass` | An IR-to-IR function over a unit, run in a fixed list before the unit is sealed |
 | `verifier` | The pass that checks the invariants of a unit and changes nothing |
+| `static_analysis` | Resolving the names of an AST against the static context and reporting static errors (XPath 4.0, section 2.3.3.1) |
+| `lowering` | Translating an AST into IR expressions of a unit |
+| `predeclared_namespace` | A prefix bound in every static context (xml, xs, xsi, fn, map, array, math, err) |
+| `default_element_namespace` | The namespace of unprefixed element and type names in the static context |
+| `variable_scope` | The variables visible at one point of an expression, innermost binding first |
+| `free_variable` | A variable an inline function body reads but does not bind; the function captures it |
+| `argument_placeholder` | A `?` in an argument list, making the call a partial application |
+| `partial_application` | A function call with argument placeholders, giving a function item (XPath 4.0, section 4.5.2.5) |
+| `keyword_argument` | An argument given as `name := value` (XPath 4.0, section 4.5.1.1) |
+| `text_form` | The printed form of a unit, for golden tests and debugging |
 | `seal` | End the building of a unit: nothing in it moves afterwards |
 | `evaluator` | Walks the IR of a sealed unit and computes values |
 | `document_loader` | Internal interface through which fn:doc and fn:parse-xml obtain document nodes; the processor implements it |
