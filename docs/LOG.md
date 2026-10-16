@@ -4,6 +4,18 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 1.10 done (D64): `src/xdm_array.c`, persistent arrays as AVL trees of
+  flat (made arrays, O(1) get), run (part of a flat node, no copying)
+  and branch nodes; append, put, insert, remove and slice are split plus
+  join, O(log n). `src/xdm_function.c`: function items (signature must be
+  a non-wildcard function type; captures retained, body retained once and
+  released with the cell), arity check (XPTY0004), maps and arrays called
+  as map:get and array:get (FOAY0001, also beyond `int64_t`). 8 cases in
+  `tests/xdm_array_test.c` (random updates against a model with old
+  versions checked, 10^5 appends with allocations per append bounded,
+  10^5-deep nesting, failure loop, byte limit) and 6 in
+  `tests/xdm_function_test.c`; `debug`, `debug-gcc`, `wasm`: 52/52; lint
+  clean.
 - 1.9 done (D61): `src/xdm_map.c`, maps and records. Entry blocks keep
   entries in order with a hash index (more than 8 entries) built while
   making, for the three duplicate key policies (XQDY0137); put and remove
