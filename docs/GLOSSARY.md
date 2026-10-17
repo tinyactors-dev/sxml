@@ -543,6 +543,8 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `axis` | An XPath axis (`SXML_AXIS_CHILD`, ...), walked by an `axis_iterator` |
 | `axis_iterator` | Walks the nodes of one axis from an origin node |
 | `integer_range` | The bounds of a range sequence (`first_integer` to `last_integer`) |
+| `descending_integer_range` | A sequence representation holding an `integer_range` whose items run from `last_integer` down to `first_integer` (`fn:reverse` of a range, D143) |
+| `static_form` | The abstract syntax a function item was made from, compared up to the renaming of bound variables; two function items with the same static form and captured context are equivalent (F&O 4.0, section 1.9.5; D143) |
 | `pair` | Two values a function relates or compares (`type_pair`, `item_pair`, `node_pair`) |
 | `update` | Describes one change to a persistent map or array (`map_update`, `array_update`) |
 | `name_test` | Which names a node test or path step matches: any name, one expanded name, or a wildcard |
@@ -632,6 +634,8 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `xml_representation_of_json` | The elements `map`, `array`, `string`, `number`, `boolean` and `null` in the fn namespace, with `key`, `escaped` and `escaped-key` attributes, that stand for a JSON text (F&O 4.0, section 17.4.2) |
 | `escaped_form` | Text whose special characters are kept as JSON escape sequences (option `escape`; attributes `escaped`, `escaped-key`) |
 | `permitted_character` | A codepoint an xs:string can hold: U+0001 to U+D7FF, U+E000 to U+FFFD, U+10000 to U+10FFFF (F&O 4.0, section 17.4.3) |
+| `unpermitted_escape` | A JSON escape sequence for a codepoint that is not a `permitted_character` (U+0000, an unpaired surrogate, U+FFFE, U+FFFF); what the `fallback` option of `fn:parse-json` is called with (D143) |
+| `json_replacement` | The string value of the fallback function's result for one codepoint, inserted for each of its `unpermitted_escape`s (D143) |
 | `number_format` | The `number-format` option of `fn:parse-json`: `double`, `decimal` or `adaptive` |
 | `null_value` | The value that stands for JSON null in `fn:parse-json` (option `null`, the empty sequence by default) |
 | `key_index` | The hash index of the keys of the JSON objects (or map elements) open at once, to find duplicate keys in O(1) |
