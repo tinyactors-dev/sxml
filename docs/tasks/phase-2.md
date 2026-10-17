@@ -95,6 +95,9 @@ ones are used by 3.11, 4.3, 4.14); host environment variables;
 a trace and message sink (fn:trace, fn:message, xsl:message); the API
 version macro of the first release. Done when header check, lints and the
 rubric pass and 2.12 and 2.16 can be written against the headers alone.
+**Done** 2026-10-17 (D104): header check, lint and `debug`, `debug-gcc`,
+`wasm` pass; XP40 23,146 and the slice 198/198 unchanged. 2.12 defines
+`sxml_collation_is_supported` and `sxml_stream_trace_sink`.
 
 ### 2.3 Regular expression engine (implementation)
 After the Phase 1 gate. Owns `src/regex.c`, `src/regex_internal.h`,
