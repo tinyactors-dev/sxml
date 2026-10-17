@@ -674,10 +674,10 @@ static void continue_after_window(window_state *state, size_t end_index) {
 }
 
 /* Applies the truth of the condition of the current phase. */
-static sxml_status take_truth(window_state *state, bool is_true) {
+static sxml_status take_truth(window_state *state, sxml_effective_boolean_value truth) {
     switch (state->phase) {
     case SXML_XQUERY_WINDOW_PHASE_FIND_START:
-        if (!is_true) {
+        if (!truth.is_true) {
             state->search_index += 1;
             return SXML_STATUS_OK;
         }
@@ -691,7 +691,7 @@ static sxml_status take_truth(window_state *state, bool is_true) {
         }
         return SXML_STATUS_OK;
     case SXML_XQUERY_WINDOW_PHASE_FIND_END: {
-        if (!is_true) {
+        if (!truth.is_true) {
             state->end_index += 1;
             return SXML_STATUS_OK;
         }
@@ -701,7 +701,7 @@ static sxml_status take_truth(window_state *state, bool is_true) {
         return status;
     }
     case SXML_XQUERY_WINDOW_PHASE_FIND_NEXT_START: {
-        if (!is_true) {
+        if (!truth.is_true) {
             state->end_index += 1;
             return SXML_STATUS_OK;
         }
@@ -803,7 +803,7 @@ static sxml_status step_window(const sxml_native_step_request *request, sxml_nat
         release_call_arguments(state);
         state->is_calling = false;
         if (status == SXML_STATUS_OK) {
-            status = take_truth(state, truth.is_true);
+            status = take_truth(state, truth);
         }
     }
     while (status == SXML_STATUS_OK && state->phase != SXML_XQUERY_WINDOW_PHASE_DONE) {
@@ -827,7 +827,7 @@ static sxml_status step_window(const sxml_native_step_request *request, sxml_nat
         }
         if (emptiness.is_empty) {
             /* No "when": the condition is true (4.13.4). */
-            status = take_truth(state, true);
+            status = take_truth(state, (sxml_effective_boolean_value){.is_true = true});
             continue;
         }
         sxml_item function_item = {.representation = 0};
