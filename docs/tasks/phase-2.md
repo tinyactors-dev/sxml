@@ -86,6 +86,9 @@ Also an embedding entry: lower one XPath AST inside a caller's scope
 (variables already bound to slots, a focus or none, XSLT's in-scope
 functions), which XSLT instruction lowering needs. Done when the 28 slice
 IR dumps of D63 are unchanged and a probe part lowers a probe kind.
+**Done** 2026-10-17 (D103): `src/xpath_lower_internal.h`; lowering part
+registry in `cmake/SxmlParts.cmake` (added after 2.0); probe parts, the
+embedding entry and outside-run procedures tested in `tests/ir_test.c`.
 
 ### 2.2 Public API for Phase 2 (design)
 After the Phase 1 gate. Owns `include/sxml/processor.h`,
