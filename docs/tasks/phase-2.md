@@ -240,6 +240,10 @@ After 2.0. Owns `src/function_library_element_map.c`,
 element-to-map-plan, map-to-element (D40 tree builder for new trees).
 Done when fn-element-to-map, fn-element-to-map-plan, fn-map-to-element
 ≥ 95%. Spec: F&O 4.0 "Converting elements to maps".
+**Done** 2026-10-17 (D130): part `element_map`; fn-element-to-map
+179/181 run (two asserts on the context value the driver leaves
+absent), fn-element-to-map-plan 20/20, fn-map-to-element 224/228 (two
+expect XQuery entity decoding, two need fn:serialize).
 
 ### 2.11 URIs, QNames and hashes (implementation)
 After 2.0. Owns `src/function_library_uri.c`, `src/function_library_qname.c`,
