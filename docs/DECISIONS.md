@@ -1795,39 +1795,10 @@ on the CLI framework (D44), public API only.
   `tests/qt4/driver/input/` and the slice (`qt4/list_slice`: 198/198
   resolve and apply to XP40).
 
-### D86. Fuzz targets (packet 1.26)
-- **Targets.** Every `tests/fuzz/<name>_fuzz.c` is a libFuzzer executable
-  (glob, D45) linked with `tests/fuzz/fuzz_fixture.c`: `xml_parse_fuzz`
-  (parse into an arena tree and read every node back; `check` must give
-  the same status), `xpath_compile_fuzz` (both front ends, then
-  `sxml_xpath_compile` against the whole function library),
-  `xpath_evaluate_fuzz` (compile and evaluate with a parsed context
-  document and small limits; the internal evaluator until 1.23's
-  processor), `regex_fuzz` (flags byte, regex, NUL, input; every disjoint
-  match and its groups) and `cast_fuzz` (target byte, text; the canonical
-  text of an atomic result must cast back to the same canonical text).
-- **What a finding is.** A crash or sanitizer report; a leak (the counting
-  allocator's blocks and the item heap's cells are checked after every
-  input, on a fixture made fresh per input); an entry point returning
-  `INVALID_ARGUMENT`, `INSUFFICIENT_MEMORY`, `MISALIGNED_MEMORY` or
-  `INDEX_OUT_OF_RANGE` for arguments the target made valid (an error in
-  sxml: for compilation, the verifier or the function table); a broken
-  invariant above; a timeout (10 s per input). Deep input is not bounded
-  in the targets: it must cost heap, not C stack (D71).
-- **Build.** Preset `fuzz`: Clang, `RelWithDebInfo`, ASan and UBSan, the
-  library built with `-fsanitize=fuzzer-no-link`, no `apps/`.
-  `ctest --preset fuzz` runs each target on 2000 generated inputs.
-- **Running.** `tools/fuzz.sh --seconds N` runs every target at once for N
-  seconds in a kept work directory; seeds come from `tools/fuzz-seeds.py`
-  (xmlconf and QT4 documents, QT4 queries, the literal arguments of
-  `fn:matches`-like calls and `xs:T("...")` constructors; at most 4000 per
-  target), never committed (D13); the first run merges them into a corpus.
-  The script fails on any artifact, except timeouts of
-  `xpath_evaluate_fuzz`, which runs in fork mode and lists them for
-  triage until the evaluator has a step limit (P9).
-- **CI.** Running each target for 60 s in CI is a `ci.yml` change, owned by
-  1.27: a Linux job `cmake --preset fuzz && cmake --build --preset fuzz &&
-  tools/fuzz.sh --no-build --build-directory build/fuzz --seconds 60`.
+### D84. (not used)
+Recorded 2026-10-17 at the Phase 1 gate review. No record ever took this
+number (packets 1.18b and 1.26 recorded D85 and D86 out of order, now
+sorted); it stays empty so later references keep their numbers.
 
 ### D85. Evaluator follow-ups: calls, paths, coercion, namespaces (packet 1.18b)
 Recorded 2026-10-16. Gaps reported by 1.20 and 1.21; sections are those of
@@ -1876,6 +1847,40 @@ the XPath 4.0 editor's draft of 13 October 2026 (vendored with QT4).
 - **number(xs:integer(...)) eq integer** is false by design: comparisons
   are decimal-exact since PR 2218 (QT4 fn-numberintg1args-2a); the cases
   that expect true depend on XP20 to XP31 only.
+
+### D86. Fuzz targets (packet 1.26)
+- **Targets.** Every `tests/fuzz/<name>_fuzz.c` is a libFuzzer executable
+  (glob, D45) linked with `tests/fuzz/fuzz_fixture.c`: `xml_parse_fuzz`
+  (parse into an arena tree and read every node back; `check` must give
+  the same status), `xpath_compile_fuzz` (both front ends, then
+  `sxml_xpath_compile` against the whole function library),
+  `xpath_evaluate_fuzz` (compile and evaluate with a parsed context
+  document and small limits; the internal evaluator until 1.23's
+  processor), `regex_fuzz` (flags byte, regex, NUL, input; every disjoint
+  match and its groups) and `cast_fuzz` (target byte, text; the canonical
+  text of an atomic result must cast back to the same canonical text).
+- **What a finding is.** A crash or sanitizer report; a leak (the counting
+  allocator's blocks and the item heap's cells are checked after every
+  input, on a fixture made fresh per input); an entry point returning
+  `INVALID_ARGUMENT`, `INSUFFICIENT_MEMORY`, `MISALIGNED_MEMORY` or
+  `INDEX_OUT_OF_RANGE` for arguments the target made valid (an error in
+  sxml: for compilation, the verifier or the function table); a broken
+  invariant above; a timeout (10 s per input). Deep input is not bounded
+  in the targets: it must cost heap, not C stack (D71).
+- **Build.** Preset `fuzz`: Clang, `RelWithDebInfo`, ASan and UBSan, the
+  library built with `-fsanitize=fuzzer-no-link`, no `apps/`.
+  `ctest --preset fuzz` runs each target on 2000 generated inputs.
+- **Running.** `tools/fuzz.sh --seconds N` runs every target at once for N
+  seconds in a kept work directory; seeds come from `tools/fuzz-seeds.py`
+  (xmlconf and QT4 documents, QT4 queries, the literal arguments of
+  `fn:matches`-like calls and `xs:T("...")` constructors; at most 4000 per
+  target), never committed (D13); the first run merges them into a corpus.
+  The script fails on any artifact, except timeouts of
+  `xpath_evaluate_fuzz`, which runs in fork mode and lists them for
+  triage until the evaluator has a step limit (P9).
+- **CI.** Running each target for 60 s in CI is a `ci.yml` change, owned by
+  1.27: a Linux job `cmake --preset fuzz && cmake --build --preset fuzz &&
+  tools/fuzz.sh --no-build --build-directory build/fuzz --seconds 60`.
 
 ### D87. XML positions move back in place (P8)
 Recorded 2026-10-16. The position tracker of `src/xml_encoding.c` no
@@ -2197,5 +2202,98 @@ Recorded 2026-10-17 (non-goals per PLAN.md, made concrete).
   rules are run-time options (decimal formats, CSV delimiters) that a
   tree-sitter grammar cannot take. Everything else keeps D12, including
   XSLT value templates (`grammars/value_template`).
+
+### D98. Substrate review at the Phase 1 gate (packet 1.29)
+Recorded 2026-10-17 by the Phase 1 review agent (D11). Before the freeze
+(D99) every record that touched the substrate headers (D19-D43, D68, D69,
+D73, D77, D89) was checked against the Phase 2-4 task files; "Proposed" was
+empty. All earlier records stand. Found and changed:
+- **Base URI of a parentless root** (`tree.h`): the arena tree had no way
+  to give a constructed element, attribute, text, comment or PI a base URI;
+  only `start_document` carried one, but XQuery 4.0 constructors (packet
+  3.5) need the static base URI and XSLT 4.0 the instruction's (section
+  11.1: it matters only for a parentless node, a child takes its parent's;
+  XQuery copies behave the same, QT4 cbcl-base-uri-001 to -004). New field
+  `sxml_arena_tree_configuration.base_uri`, copied by `finish`, reported
+  as `sxml_tree_description.base_uri`; zero keeps the old behaviour.
+- **Parentless namespace nodes** (`tree.h`, contract only): computed
+  namespace constructors and xsl:namespace make namespace nodes without an
+  element, which D39's (element, namespace number) cannot name. A tree may
+  now hold one stored namespace node, its root (index 0, namespace number
+  0), built by an `add_namespace_binding` sent first; its name is the
+  prefix, its content the URI (empty URI: XQDY0101). The arena tree and
+  `sxml_tree_builder_copy_node` implement it (`src/arena_tree.c`,
+  `src/tree.c`, test `parentless_namespace_nodes_are_stored`); the adaptive
+  serializer and the evaluator's namespace paths still assume an element
+  and are packets 3.3 and 3.5's.
+- **Named item types** (`types.h`, comment): `find_type` no longer claims
+  to find them; XQuery `declare type` and xsl:item-type are aliases in a
+  module's static context, never registered by name.
+- **Host re-entry** (`xdm.h`, comment): a host function body, generator,
+  resolver or builder that starts an evaluation nests it on the C stack;
+  bounding that is the host's (D71 holds for sxml's own code).
+- `status.h`, `string.h`: "D92" is Unicode's definition D92, not this file's.
+Deferred, each needing its own record when it comes: adopting heap buffers
+for strings (Phase 0 question 7, only if Phase 2 profiling asks),
+registering schema-derived atomic types (Phase 5), a frozen shareable tree
+(D35), a per-element base URI for XSLT literal result elements that come
+from different stylesheet modules and are copied as parentless nodes with
+relative xml:base (no QT4 or XSLT test seen needs it).
+
+### D99. Substrate frozen
+Recorded 2026-10-17 at the Phase 1 gate (PLAN.md: "substrate frozen at the
+Phase 1 gate"). Frozen: `include/sxml/status.h`, `view.h`, `memory.h`,
+`string.h`, `name.h`, `types.h`, `tree.h`, `xdm.h` (with `export.h`), as of
+the commit that records this, including D98. Not frozen: `xml.h`,
+`processor.h`, `xpath.h`, `serialize.h`, `version.h` (D47: they change
+through their design packets, and after packet 2.2 only with a record,
+until release 0.2.0 makes them stable). Rule for a frozen header:
+- Any change, a comment that changes a contract included, needs a new
+  decision record first that names the header, the change and the packet
+  that needs it; implementation packets still write the need under
+  "Proposed" and stop (CLAUDE.md).
+- Allowed with a record: new functions, new types, new enumeration
+  constants at the end of an enumeration whose header says it only grows
+  (built-in types, well-known namespaces, statuses), and new fields at the
+  end of configuration and request structs whose zero value keeps the old
+  behaviour. Not allowed without reopening this record: changing or removing
+  a declaration, the meaning of an existing field or status, the 16-byte
+  item and sequence layout (D34), node numbering (D39), or an operations
+  table (interfaces are not extended in place: a new table type instead).
+- Comments that only fix wording or a citation need no record.
+- ABI: nothing is ABI-stable before release 0.2.0 (packet 2.18); the freeze
+  is about the design, so fields are still added at the end only.
+
+### D100. Phase 1 gate review (packet 1.29)
+Recorded 2026-10-17 by the review agent (D11), who did not write Phase 1.
+- **Rubric** over `include/sxml/` (all headers read), the evaluator,
+  lowering, XDM, tree, XML parser and processor (sampled), the rest spot
+  checked: names and glossary, at most three parameters (also every
+  function-pointer type), lifecycle quintets (public and internal types
+  complete), ownership, units, failure and thread safety in public headers,
+  error codes (61 distinct, all well formed), spec citations. No writable
+  file-scope data in `libsxml`, the CLI or the driver (release objects
+  have empty `.data` and `.bss`; libmpdec's are vendored, D42); no
+  `malloc`/`free` outside `src/allocator.c`; no printing, `abort` or
+  `exit` in `src/`.
+- **D71 through pointers**: every indirect call in `src/` was followed.
+  Cell release re-enters `sxml_cell_release` from `release_contents` only
+  to queue (a flat loop frees); concatenations are flattened, so a part is
+  never a concatenation; the evaluator runs IR, native-row and coerced
+  bodies as tasks and calls only map, array, constructor and host bodies
+  directly; `sxml_evaluator_call_function_item` refuses a running context;
+  arena-tree and tree-builder operations never call back into `tree.c`;
+  tree owners only destroy; generators, resolvers and output streams are
+  the host's. `tools/check-call-cycles.py` now also links the QT4 driver
+  (with the CLI framework) as a second program: 85 files, no cycle.
+- **CI cannot run**: every GitHub Actions job since 2026-10-16 is refused
+  ("recent account payments have failed or your spending limit needs to be
+  increased"); the last green run is 38931572793 (Phase 0 gate). All gate
+  checks were run locally (Linux x86-64, Clang and GCC, WASI SDK 34 on
+  Node 22): presets `debug`, `debug-gcc`, `release`, `wasm`, `fuzz`, lint,
+  slice, fuzzing, dashboard (numbers in LOG). macOS, Windows and MSVC are
+  unverified since the Phase 0 gate: an open gate risk, not ticked. The CI
+  boxes of the gate stay open until the owner restores billing and a run
+  is green.
 
 ## Proposed
