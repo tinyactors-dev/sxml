@@ -2324,7 +2324,17 @@ Recorded 2026-10-17, completing D45 and D55 for Phases 2 to 4.
   `try` (TRY_CATCH), `template` (APPLY_TEMPLATES) and `global` (no kind;
   `sxml_evaluator_start_global_initializers`, called before the main
   function's body runs for globals with an initializer and no value)
-  return UNSUPPORTED_FEATURE until 3.5, 3.6, 4.x and 3.8 fill them.
+  return UNSUPPORTED_FEATURE until 3.5, 3.6, 4.x and 3.10 fill them. A
+  given value of a global with an initializer wins (an external
+  variable's default). 3.10's reads on demand need the reading task to
+  wait for the initializer; if the global part cannot do it with tasks
+  pushed at the start (in dependency order), 3.10 proposes a machine
+  change.
+- **A part is live when its file is**: a committed part file joins every
+  build, the processor and the fuzz fixture at once, so its rows must not
+  repeat a name and arity another part serves (the library then refuses
+  to start, INVALID_ARGUMENT); a packet moving rows moves them in one
+  commit.
 - **Machine API** in `src/evaluator_machine_internal.h` (defined in
   `src/evaluator.c`): the task type, top task, push an expression task in
   the top task's frame, push a part task (a step function and owned state
