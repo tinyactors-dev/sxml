@@ -2447,4 +2447,57 @@ machine to other files.
   part would edit the core); running a nested machine for embedded
   expressions (C recursion through a step).
 
+### D104. The public API for Phase 2 (packet 2.2)
+Recorded 2026-10-17, completing D51's "left out until needed" for
+Phase 2. `processor.h`, `xpath.h`, `version.h`; only new fields at the end
+of structs and new constants at the end of enumerations, so Phase 1 code
+compiles unchanged (zero keeps the old behaviour).
+- **Decimal formats** (static context): `sxml_decimal_format` (name, index
+  0 the unnamed format) with properties as text, `{kind, value}`, one kind
+  per F&O 4.0 property (11). Text, not codepoints, because every source
+  gives text (xsl:decimal-format attributes, XQuery declarations, QT4
+  `decimal-format`), and 4.0's marker-and-rendition form (`%:pc`, type
+  `'.|.:.*'`) parses once in sxml. An absent kind has its default. A
+  breach (wrong form, markers not distinct, zero-digit not an Nd zero,
+  duplicate names) is INVALID_ARGUMENT for the XPath API; XQuery and XSLT
+  raise their own codes (XQST0097/8, XTSE1300) before handing formats over.
+- **Collations** (static context): `default_collation_uri` (empty is
+  codepoint; XPath 4.0 puts it in the dynamic context, but every host
+  knows it statically) and `collation_bindings`, host URIs that stand for
+  a supported collation (the spec's "mapping from URI to collation").
+  `sxml_collation_is_supported(uri)` tells hosts and the QT4 driver which
+  URIs sxml implements (D97); packet 2.12 defines it in `src/xpath.c`
+  over the collation lookup that 2.13 later completes. No host collation
+  interface: D97 keeps collations inside sxml.
+- **Dynamic context**: `default_language` (empty is "en"),
+  `environment_variables` (name/value views; sxml never reads the
+  platform's), `trace_sink` (null means the processor's).
+- **Resources**: kinds TEXT, BINARY, COLLECTION, URI_COLLECTION,
+  XQUERY_MODULE, XSLT_MODULE, XSLT_PACKAGE, each with the forms it allows
+  (a wrong form is INVALID_ARGUMENT); new form SEQUENCE with an owned
+  `items` sequence for collections; request fields `encoding_name`
+  (fn:unparsed-text's argument; sxml decodes by the resource's encoding,
+  then the request's, then BOM, then UTF-8), `is_default_collection`,
+  `target_namespace_uri` (import module) and `package_version`
+  (xsl:use-package; uri_reference is the package name). The table
+  resolver serves bytes for every kind that takes them. `processor.c`
+  gains the SEQUENCE case of fn:doc's switch (INVALID_ARGUMENT).
+- **Trace sink**: one interface for fn:trace, fn:message and xsl:message
+  (and failed xsl:assert): `receive(state, event)` with kind, label, value
+  (borrowed sequence), `is_terminating` and `error_code` for XSLT,
+  location and processor; the null sink discards; a failure stops the
+  evaluation; a sink may nest an evaluation, as a host function may.
+  `sxml_stream_trace_sink(&output_stream)` writes `label: value` lines
+  (adaptive, item separator " "): the default implementation and test
+  double, defined by 2.12 in `src/processor.c`. `processor.h` now
+  includes `serialize.h` (no cycle). The two new functions are declared
+  only until 2.12; nothing calls them before.
+- **Version**: `SXML_VERSION_ENCODE(major, minor, patch)`,
+  `SXML_VERSION_NUMBER` and `SXML_API_VERSION` = 0.2.0, the first public
+  release's API; 2.18 sets the version macros themselves.
+- Still left out, each a new field later: host extension functions,
+  cancellation, a random seed, default calendar and place.
+- From now on these headers change only through a record until 0.2.0
+  (D47, D99).
+
 ## Proposed
