@@ -15,6 +15,12 @@
  * deeply the expression nests. The concrete syntax tree is deleted before
  * returning.
  *
+ * The same walker serves the grammars that inherit from grammars/xpath
+ * (XQuery 4.0, XSLT 4.0 patterns): a parser part (D111,
+ * src/xpath_ast_internal.h) brings the grammar, its extra node types and
+ * fields, and hooks that the walk calls for tokens, payloads and complete
+ * nodes. With no part, the walk is exactly the XPath one.
+ *
  * The tree-sitter runtime allocates with malloc during the call; D12 accepts
  * that for the parse step. Everything that outlives the call is in the AST,
  * which comes from the caller's allocator.
@@ -346,7 +352,10 @@ static const char *const sxml_xpath_non_delimiting_node_types[] = {
     "decimal_literal", "double_literal",
 };
 
-/* Static descriptions for the XPST0003 error record (D21). */
+/* The code of syntax errors (XPath 4.0, 2.4.1) and the static descriptions
+   of its error record (D21). */
+static const sxml_byte_view sxml_xpath_syntax_error_code =
+    SXML_BYTE_VIEW_INITIALIZER("XPST0003");
 static const sxml_byte_view sxml_xpath_syntax_error_description =
     SXML_BYTE_VIEW_INITIALIZER("The text is not valid XPath 4.0 syntax "
                                "(XPath 4.0, Appendix A)");
@@ -382,9 +391,16 @@ typedef struct sxml_xpath_previous_terminal {
     uint32_t end_byte;
 } sxml_xpath_previous_terminal;
 
-/* The state of one call of the front end. */
-typedef struct sxml_xpath_front_end {
+/* The state of one call of the front end (sxml_ast_front_end in
+   src/xpath_ast_internal.h). */
+struct sxml_ast_front_end {
     const sxml_ast_build_request *request;
+    /* The parser part of a derived grammar (D111); NULL for XPath. */
+    const sxml_ast_parser_part *part;
+    /* For XPST0003 from an ERROR and from a MISSING node: the part's, or
+       the XPath ones. */
+    sxml_byte_view syntax_error_description;
+    sxml_byte_view missing_token_description;
     /* Bytes read in front of the expression text (the sequence type
        prefix); concrete syntax tree offsets are this much larger. */
     sxml_byte_view prefix;
@@ -394,10 +410,12 @@ typedef struct sxml_xpath_front_end {
     /* Advances in source order with the walk. */
     sxml_xpath_text_position position;
     sxml_xpath_previous_terminal previous_terminal;
-    /* Set when the front end reports XPST0003. */
+    /* Set when the front end reports a static error: XPST0003, or the code
+       a part raises. */
+    sxml_byte_view error_code;
     sxml_byte_view error_description;
     uint32_t error_byte_offset;
-} sxml_xpath_front_end;
+};
 
 /* A concrete syntax tree node with the AST kind it becomes. */
 typedef struct sxml_xpath_syntax_node {
@@ -416,7 +434,7 @@ static const char *sxml_xpath_read_input( // NOLINT(readability-function-size)
     void *payload, uint32_t byte_index, TSPoint position,
     uint32_t *bytes_read) {
     (void)position;
-    const sxml_xpath_front_end *front_end = payload;
+    const sxml_ast_front_end *front_end = payload;
     const sxml_byte_view prefix = front_end->prefix;
     const sxml_byte_view text = front_end->request->expression_text;
     /* The prefix and text counts were checked to fit uint32_t together. */
@@ -434,7 +452,7 @@ static const char *sxml_xpath_read_input( // NOLINT(readability-function-size)
 }
 
 /* Bytes of the expression text from a concrete syntax tree byte offset. */
-static uint32_t sxml_xpath_text_offset(const sxml_xpath_front_end *front_end,
+static uint32_t sxml_xpath_text_offset(const sxml_ast_front_end *front_end,
                                        uint32_t tree_byte_offset) {
     const uint32_t prefix_byte_count = (uint32_t)front_end->prefix.byte_count;
     return tree_byte_offset < prefix_byte_count
@@ -444,7 +462,7 @@ static uint32_t sxml_xpath_text_offset(const sxml_xpath_front_end *front_end,
 
 /* The source bytes of node, borrowed from the expression text. */
 static sxml_byte_view
-sxml_xpath_node_text(const sxml_xpath_front_end *front_end, TSNode node) {
+sxml_xpath_node_text(const sxml_ast_front_end *front_end, TSNode node) {
     const uint32_t start =
         sxml_xpath_text_offset(front_end, ts_node_start_byte(node));
     const uint32_t end =
@@ -478,7 +496,7 @@ static void sxml_xpath_advance_position(sxml_byte_view text,
 }
 
 /* The source span of node; advances the walk's position to its start. */
-static sxml_ast_source_span sxml_xpath_span_of(sxml_xpath_front_end *front_end,
+static sxml_ast_source_span sxml_xpath_span_of(sxml_ast_front_end *front_end,
                                                TSNode node) {
     const uint32_t start =
         sxml_xpath_text_offset(front_end, ts_node_start_byte(node));
@@ -496,8 +514,9 @@ static sxml_ast_source_span sxml_xpath_span_of(sxml_xpath_front_end *front_end,
 
 /* Records XPST0003 at node; returns SXML_STATUS_STATIC_ERROR. */
 static sxml_status
-sxml_xpath_report_syntax_error(sxml_xpath_front_end *front_end, TSNode node,
+sxml_xpath_report_syntax_error(sxml_ast_front_end *front_end, TSNode node,
                                sxml_byte_view description) {
+    front_end->error_code = sxml_xpath_syntax_error_code;
     front_end->error_description = description;
     front_end->error_byte_offset =
         sxml_xpath_text_offset(front_end, ts_node_start_byte(node));
@@ -526,17 +545,82 @@ static sxml_ast_kind sxml_xpath_kind_of_node_type(const char *node_type) {
     return SXML_AST_KIND_NONE;
 }
 
+/* Orders two byte strings as strcmp orders C strings. */
+static int sxml_xpath_compare_bytes(sxml_byte_view left, sxml_byte_view right) {
+    const size_t common = left.byte_count < right.byte_count
+                              ? left.byte_count
+                              : right.byte_count;
+    const int comparison =
+        common == 0 ? 0 : memcmp(left.bytes, right.bytes, common);
+    if (comparison != 0) {
+        return comparison;
+    }
+    if (left.byte_count == right.byte_count) {
+        return 0;
+    }
+    return left.byte_count < right.byte_count ? -1 : 1;
+}
+
+/* The kind a part's sorted table gives node_type; NONE when absent. */
+static sxml_ast_kind sxml_xpath_part_kind_of(sxml_ast_node_type_view table,
+                                             sxml_byte_view node_type) {
+    size_t low = 0;
+    size_t high = table.entry_count;
+    while (low < high) {
+        const size_t middle = low + (high - low) / 2U;
+        const int comparison = sxml_xpath_compare_bytes(
+            node_type, table.entries[middle].node_type);
+        if (comparison == 0) {
+            return table.entries[middle].kind;
+        }
+        if (comparison < 0) {
+            high = middle;
+        } else {
+            low = middle + 1U;
+        }
+    }
+    return SXML_AST_KIND_NONE;
+}
+
+/* The field a part's sorted table gives field_name; NONE when absent. */
+static sxml_ast_field sxml_xpath_part_field_of(sxml_ast_field_view table,
+                                               sxml_byte_view field_name) {
+    size_t low = 0;
+    size_t high = table.entry_count;
+    while (low < high) {
+        const size_t middle = low + (high - low) / 2U;
+        const int comparison = sxml_xpath_compare_bytes(
+            field_name, table.entries[middle].field_name);
+        if (comparison == 0) {
+            return table.entries[middle].field;
+        }
+        if (comparison < 0) {
+            high = middle;
+        } else {
+            low = middle + 1U;
+        }
+    }
+    return SXML_AST_FIELD_NONE;
+}
+
 /*
  * The AST kind node becomes; SXML_AST_KIND_NONE for anonymous tokens and
  * for the named nodes that make no AST node (comment, axis,
  * occurrence_indicator). A node of this kind opens an AST node, so the walk
  * calls this both on the way down and on the way up.
  */
-static sxml_ast_kind sxml_xpath_kind_of(TSNode node) {
+static sxml_ast_kind sxml_xpath_kind_of(const sxml_ast_front_end *front_end,
+                                        TSNode node) {
     if (!ts_node_is_named(node)) {
         return SXML_AST_KIND_NONE;
     }
-    return sxml_xpath_kind_of_node_type(ts_node_type(node));
+    const char *node_type = ts_node_type(node);
+    const sxml_ast_kind kind = sxml_xpath_kind_of_node_type(node_type);
+    if (kind != SXML_AST_KIND_NONE || front_end->part == NULL) {
+        return kind;
+    }
+    return sxml_xpath_part_kind_of(front_end->part->node_types,
+                                   sxml_byte_view_from_c_string(node_type));
 }
 
 /* The AST field of field_name; SXML_AST_FIELD_NONE for NULL or unknown. */
@@ -561,6 +645,44 @@ static sxml_ast_field sxml_xpath_field_of_name(const char *field_name) {
         }
     }
     return SXML_AST_FIELD_NONE;
+}
+
+/* A child's grammar field and the kind of its AST parent. */
+typedef struct sxml_xpath_field_query {
+    /* NULL when the grammar gives the child no field. */
+    const char *field_name;
+    sxml_ast_kind parent_kind;
+} sxml_xpath_field_query;
+
+/*
+ * The AST field of a named child: the XPath table's, else the part's;
+ * for a child without a grammar field, the part's unnamed child entry for
+ * the parent's kind (D111). SXML_AST_FIELD_NONE when there is none.
+ */
+static sxml_ast_field sxml_xpath_field_of(const sxml_ast_front_end *front_end,
+                                          sxml_xpath_field_query query) {
+    const sxml_ast_parser_part *part = front_end->part;
+    if (query.field_name == NULL) {
+        if (part == NULL) {
+            return SXML_AST_FIELD_NONE;
+        }
+        for (size_t entry_index = 0;
+             entry_index < part->unnamed_children.entry_count;
+             entry_index += 1U) {
+            const sxml_ast_unnamed_child_entry *entry =
+                &part->unnamed_children.entries[entry_index];
+            if (entry->parent_kind == query.parent_kind) {
+                return entry->field;
+            }
+        }
+        return SXML_AST_FIELD_NONE;
+    }
+    const sxml_ast_field field = sxml_xpath_field_of_name(query.field_name);
+    if (field != SXML_AST_FIELD_NONE || part == NULL) {
+        return field;
+    }
+    return sxml_xpath_part_field_of(
+        part->fields, sxml_byte_view_from_c_string(query.field_name));
 }
 
 static sxml_ast_operator sxml_xpath_operator_of(sxml_byte_view token) {
@@ -611,7 +733,7 @@ static bool sxml_xpath_is_non_delimiting(TSNode terminal) {
  * whitespace or a comment ("10div 3" is an error). Called for every
  * terminal in source order.
  */
-static sxml_status sxml_xpath_check_terminal(sxml_xpath_front_end *front_end,
+static sxml_status sxml_xpath_check_terminal(sxml_ast_front_end *front_end,
                                              TSNode terminal) {
     const bool is_non_delimiting = sxml_xpath_is_non_delimiting(terminal);
     const uint32_t start_byte = ts_node_start_byte(terminal);
@@ -865,7 +987,7 @@ static sxml_name_test_kind sxml_xpath_wildcard_kind(sxml_byte_view written) {
 
 /* Fills the payload of a leaf of kind syntax_node.kind from its text. */
 static sxml_status
-sxml_xpath_describe_payload(sxml_xpath_front_end *front_end,
+sxml_xpath_describe_payload(sxml_ast_front_end *front_end,
                             sxml_xpath_syntax_node syntax_node,
                             sxml_ast_node_request *request) {
     const sxml_byte_view written =
@@ -924,7 +1046,8 @@ sxml_xpath_describe_payload(sxml_xpath_front_end *front_end,
         return sxml_xpath_store_name(ast, written, &request->payload.name);
     }
     if (kind == SXML_AST_KIND_NCNAME || kind == SXML_AST_KIND_PREFIXED_NAME ||
-        kind == SXML_AST_KIND_URI_QUALIFIED_NAME) {
+        kind == SXML_AST_KIND_URI_QUALIFIED_NAME ||
+        kind == SXML_AST_KIND_QNAME) {
         return sxml_xpath_store_name(ast, written, &request->payload.name);
     }
     return SXML_STATUS_OK;
@@ -945,7 +1068,7 @@ static bool sxml_xpath_names_field(sxml_xpath_token token,
 }
 
 /* Adds what token says to request (detail and flags, D52). */
-static void sxml_xpath_apply_token(const sxml_xpath_front_end *front_end,
+static void sxml_xpath_apply_token(const sxml_ast_front_end *front_end,
                                    sxml_xpath_token token,
                                    sxml_ast_node_request *request) {
     const sxml_byte_view written = sxml_xpath_node_text(front_end, token.node);
@@ -1022,8 +1145,54 @@ static uint32_t sxml_xpath_jroot_selector_end(TSNode opening) {
     return ts_node_end_byte(opening);
 }
 
+/*
+ * Lets the part claim token (D111); true when it did, so the XPath rules
+ * are skipped.
+ */
+static bool sxml_xpath_apply_part_token(const sxml_ast_front_end *front_end,
+                                        sxml_xpath_token token,
+                                        sxml_ast_node_request *request) {
+    const sxml_ast_parser_part *part = front_end->part;
+    if (part == NULL || part->apply_token == NULL) {
+        return false;
+    }
+    const sxml_byte_view field_name =
+        token.field_name == NULL
+            ? (sxml_byte_view){.bytes = NULL, .byte_count = 0}
+            : sxml_byte_view_from_c_string(token.field_name);
+    return part->apply_token(
+        (sxml_ast_parser_token){
+            .field_name = field_name,
+            .written = sxml_xpath_node_text(front_end, token.node)},
+        request);
+}
+
+/*
+ * Fills the payload of request: through the part's describe_payload when
+ * there is one and it describes the node (D111), else with the XPath
+ * decoders.
+ */
+static sxml_status
+sxml_xpath_describe_part_payload(sxml_ast_front_end *front_end,
+                                 sxml_xpath_syntax_node syntax_node,
+                                 sxml_ast_node_request *request) {
+    const sxml_ast_parser_part *part = front_end->part;
+    if (part != NULL && part->describe_payload != NULL) {
+        sxml_ast_payload_outcome outcome = {.is_described = false};
+        const sxml_status status = part->describe_payload(
+            (sxml_ast_parser_node){
+                .front_end = front_end,
+                .written = sxml_xpath_node_text(front_end, syntax_node.node)},
+            request, &outcome);
+        if (status != SXML_STATUS_OK || outcome.is_described) {
+            return status;
+        }
+    }
+    return sxml_xpath_describe_payload(front_end, syntax_node, request);
+}
+
 /* Fills *request for syntax_node: kind, span, payload, detail and flags. */
-static sxml_status sxml_xpath_describe_node(sxml_xpath_front_end *front_end,
+static sxml_status sxml_xpath_describe_node(sxml_ast_front_end *front_end,
                                             sxml_xpath_syntax_node syntax_node,
                                             sxml_ast_node_request *request) {
     sxml_ast_node_request described = {
@@ -1046,7 +1215,7 @@ static sxml_status sxml_xpath_describe_node(sxml_xpath_front_end *front_end,
             end - described.source_span.byte_offset;
     }
     sxml_status status =
-        sxml_xpath_describe_payload(front_end, syntax_node, &described);
+        sxml_xpath_describe_part_payload(front_end, syntax_node, &described);
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -1055,14 +1224,13 @@ static sxml_status sxml_xpath_describe_node(sxml_xpath_front_end *front_end,
     bool has_child = ts_tree_cursor_goto_first_child(scan_cursor);
     while (has_child) {
         const TSNode child = ts_tree_cursor_current_node(scan_cursor);
-        if (sxml_xpath_kind_of(child) == SXML_AST_KIND_NONE) {
-            sxml_xpath_apply_token(
-                front_end,
-                (sxml_xpath_token){
-                    .node = child,
-                    .field_name =
-                        ts_tree_cursor_current_field_name(scan_cursor)},
-                &described);
+        if (sxml_xpath_kind_of(front_end, child) == SXML_AST_KIND_NONE) {
+            const sxml_xpath_token token = {
+                .node = child,
+                .field_name = ts_tree_cursor_current_field_name(scan_cursor)};
+            if (!sxml_xpath_apply_part_token(front_end, token, &described)) {
+                sxml_xpath_apply_token(front_end, token, &described);
+            }
         }
         has_child = ts_tree_cursor_goto_next_sibling(scan_cursor);
     }
@@ -1084,7 +1252,7 @@ typedef struct sxml_xpath_walk {
 
 /* True for a jroot_selector that is the ")" of "()" (see above). */
 static bool
-sxml_xpath_is_closing_jroot_selector(const sxml_xpath_front_end *front_end,
+sxml_xpath_is_closing_jroot_selector(const sxml_ast_front_end *front_end,
                                      sxml_xpath_syntax_node syntax_node) {
     if (syntax_node.kind != SXML_AST_KIND_JROOT_SELECTOR) {
         return false;
@@ -1094,17 +1262,27 @@ sxml_xpath_is_closing_jroot_selector(const sxml_xpath_front_end *front_end,
     return written.byte_count == 1U && written.bytes[0] == ')';
 }
 
+/* Calls the part's finish_node for a complete node (D111). */
+static sxml_status sxml_xpath_finish_node(sxml_ast_front_end *front_end,
+                                          sxml_ast_node_index node) {
+    const sxml_ast_parser_part *part = front_end->part;
+    if (part == NULL || part->finish_node == NULL) {
+        return SXML_STATUS_OK;
+    }
+    return part->finish_node(front_end, node);
+}
+
 /*
  * Makes the AST node for the cursor's current node, when it makes one, and
  * appends it to walk->parent in the field the cursor reports; walk is
  * in/out: a new node with children becomes the parent of what follows.
  */
-static sxml_status sxml_xpath_visit(sxml_xpath_front_end *front_end,
+static sxml_status sxml_xpath_visit(sxml_ast_front_end *front_end,
                                     const TSTreeCursor *cursor,
                                     sxml_xpath_walk *walk) {
     const TSNode node = ts_tree_cursor_current_node(cursor);
     const sxml_xpath_syntax_node syntax_node = {
-        .node = node, .kind = sxml_xpath_kind_of(node)};
+        .node = node, .kind = sxml_xpath_kind_of(front_end, node)};
     if (syntax_node.kind == SXML_AST_KIND_NONE ||
         sxml_xpath_is_closing_jroot_selector(front_end, syntax_node)) {
         return SXML_STATUS_OK;
@@ -1115,18 +1293,21 @@ static sxml_status sxml_xpath_visit(sxml_xpath_front_end *front_end,
     }
     sxml_ast_field field = SXML_AST_FIELD_NONE;
     if (walk->parent.value != 0) {
-        field =
-            sxml_xpath_field_of_name(ts_tree_cursor_current_field_name(cursor));
+        const sxml_ast_kind parent_kind =
+            sxml_ast_get_node(front_end->ast, walk->parent)->kind;
+        field = sxml_xpath_field_of(
+            front_end, (sxml_xpath_field_query){
+                           .field_name =
+                               ts_tree_cursor_current_field_name(cursor),
+                           .parent_kind = parent_kind});
         if (field == SXML_AST_FIELD_NONE) {
             /* Every named child of grammars/xpath has a field; a node
                without one is not XPath this front end knows. */
             return sxml_xpath_report_syntax_error(
-                front_end, node, sxml_xpath_syntax_error_description);
+                front_end, node, front_end->syntax_error_description);
         }
         /* XPath 4.0, 4.7.3: KeySpecifier allows an NCName, not a QName; the
            grammar accepts "a:b" there to keep it one token (D29). */
-        const sxml_ast_kind parent_kind =
-            sxml_ast_get_node(front_end->ast, walk->parent)->kind;
         if (syntax_node.kind == SXML_AST_KIND_PREFIXED_NAME &&
             field == SXML_AST_FIELD_KEY &&
             (parent_kind == SXML_AST_KIND_LOOKUP ||
@@ -1155,11 +1336,28 @@ static sxml_status sxml_xpath_visit(sxml_xpath_front_end *front_end,
         walk->top = added;
     }
     /* The AST node opens for the children the cursor visits next; a leaf
-       has none, so the walk never descends or returns through it. */
+       has none, so the walk never descends or returns through it, and it
+       is complete now. */
     if (ts_node_child_count(node) != 0) {
         walk->parent = added;
         walk->depth += 1U;
+        return SXML_STATUS_OK;
     }
+    return sxml_xpath_finish_node(front_end, added);
+}
+
+/*
+ * Closes walk->parent, whose concrete syntax tree node the walk leaves:
+ * the part's finish_node, then its parent becomes the walk's parent.
+ */
+static sxml_status sxml_xpath_close_node(sxml_ast_front_end *front_end,
+                                         sxml_xpath_walk *walk) {
+    const sxml_status status = sxml_xpath_finish_node(front_end, walk->parent);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    walk->parent = sxml_ast_get_node(front_end->ast, walk->parent)->parent;
+    walk->depth -= 1U;
     return SXML_STATUS_OK;
 }
 
@@ -1167,7 +1365,7 @@ static sxml_status sxml_xpath_visit(sxml_xpath_front_end *front_end,
  * Walks the concrete syntax tree below top in source order and builds its
  * AST; writes the AST node of top to *top_node.
  */
-static sxml_status sxml_xpath_build_tree(sxml_xpath_front_end *front_end,
+static sxml_status sxml_xpath_build_tree(sxml_ast_front_end *front_end,
                                          TSNode top,
                                          sxml_ast_node_index *top_node) {
     TSTreeCursor cursor = ts_tree_cursor_new(top);
@@ -1196,11 +1394,14 @@ static sxml_status sxml_xpath_build_tree(sxml_xpath_front_end *front_end,
                 is_walking = false;
                 break;
             }
-            if (sxml_xpath_kind_of(ts_tree_cursor_current_node(&cursor)) !=
+            if (sxml_xpath_kind_of(front_end,
+                                   ts_tree_cursor_current_node(&cursor)) !=
                 SXML_AST_KIND_NONE) {
-                walk.parent =
-                    sxml_ast_get_node(front_end->ast, walk.parent)->parent;
-                walk.depth -= 1U;
+                status = sxml_xpath_close_node(front_end, &walk);
+                if (status != SXML_STATUS_OK) {
+                    is_walking = false;
+                    break;
+                }
             }
         }
     }
@@ -1257,10 +1458,18 @@ static TSNode sxml_xpath_find_error(TSNode root) {
  * which must be the whole text. Writes a null node when the text is not
  * that.
  */
-static TSNode sxml_xpath_select_top(const sxml_xpath_front_end *front_end,
+static TSNode sxml_xpath_select_top(const sxml_ast_front_end *front_end,
                                     TSNode root) {
     const TSNode null_node = {
         .context = {0, 0, 0, 0}, .id = NULL, .tree = NULL};
+    if (front_end->part != NULL) {
+        /* A part's grammar: its start rule's node, whole (D111). */
+        return sxml_byte_view_equals(
+                   sxml_byte_view_from_c_string(ts_node_type(root)),
+                   front_end->part->root_node_type)
+                   ? root
+                   : null_node;
+    }
     if (strcmp(ts_node_type(root), "xpath") != 0) {
         return null_node;
     }
@@ -1284,9 +1493,10 @@ static TSNode sxml_xpath_select_top(const sxml_xpath_front_end *front_end,
     return type;
 }
 
-/* Fills the caller's error record for XPST0003 (XPath 4.0, 2.4.1). */
+/* Fills the caller's error record for XPST0003 (XPath 4.0, 2.4.1) or the
+   code a part raised. */
 static void
-sxml_xpath_fill_error_record(const sxml_xpath_front_end *front_end) {
+sxml_xpath_fill_error_record(const sxml_ast_front_end *front_end) {
     sxml_error_record *error_record = front_end->request->error_record;
     if (error_record == NULL) {
         return;
@@ -1300,7 +1510,7 @@ sxml_xpath_fill_error_record(const sxml_xpath_front_end *front_end) {
             {
                 .namespace_uri =
                     SXML_BYTE_VIEW_FROM_LITERAL(SXML_ERROR_NAMESPACE_URI),
-                .local_name = SXML_BYTE_VIEW_FROM_LITERAL("XPST0003"),
+                .local_name = front_end->error_code,
                 .namespace_prefix = SXML_BYTE_VIEW_FROM_LITERAL("err"),
             },
         .value = NULL,
@@ -1319,20 +1529,22 @@ sxml_xpath_fill_error_record(const sxml_xpath_front_end *front_end) {
 }
 
 /* Builds the AST of the top node of tree into a new AST. */
-static sxml_status sxml_xpath_build_from_tree(sxml_xpath_front_end *front_end,
+static sxml_status sxml_xpath_build_from_tree(sxml_ast_front_end *front_end,
                                               TSNode root, sxml_ast **ast) {
     const TSNode error_node = sxml_xpath_find_error(root);
     if (!ts_node_is_null(error_node)) {
         return sxml_xpath_report_syntax_error(
             front_end, error_node,
             ts_node_is_missing(error_node)
-                ? sxml_xpath_missing_token_description
-                : sxml_xpath_syntax_error_description);
+                ? front_end->missing_token_description
+                : front_end->syntax_error_description);
     }
     const TSNode top = sxml_xpath_select_top(front_end, root);
     if (ts_node_is_null(top)) {
         return sxml_xpath_report_syntax_error(
-            front_end, root, sxml_xpath_not_sequence_type_description);
+            front_end, root,
+            front_end->part == NULL ? sxml_xpath_not_sequence_type_description
+                                    : front_end->syntax_error_description);
     }
     /* D52: every AST node comes from a distinct concrete syntax tree node,
        and decoded text is never longer than its source. */
@@ -1362,9 +1574,25 @@ static sxml_status sxml_xpath_build_from_tree(sxml_xpath_front_end *front_end,
     return SXML_STATUS_OK;
 }
 
-/* Parses prefix followed by the request's text and builds the AST. */
+/* What to parse the request's text with: the XPath grammar after a
+   prefix, or a part's grammar (D111). */
+typedef struct sxml_xpath_grammar {
+    sxml_byte_view prefix;
+    const sxml_ast_parser_part *part;
+} sxml_xpath_grammar;
+
+/* The description, or fallback when it is empty. */
+static sxml_byte_view sxml_xpath_description_or(sxml_byte_view description,
+                                                sxml_byte_view fallback) {
+    return description.byte_count == 0 ? fallback : description;
+}
+
+/* Parses the request's text as grammar says and builds the AST. */
 static sxml_status sxml_xpath_parse(const sxml_ast_build_request *request,
-                                    sxml_byte_view prefix, sxml_ast **ast) {
+                                    sxml_xpath_grammar grammar,
+                                    sxml_ast **ast) {
+    const sxml_byte_view prefix = grammar.prefix;
+    const sxml_ast_parser_part *part = grammar.part;
     const sxml_byte_view text = request->expression_text;
     if (text.bytes == NULL && text.byte_count != 0) {
         return SXML_STATUS_INVALID_ARGUMENT;
@@ -1378,19 +1606,32 @@ static sxml_status sxml_xpath_parse(const sxml_ast_build_request *request,
     if (status != SXML_STATUS_OK) {
         return status;
     }
+    const TSLanguage *language =
+        part == NULL ? tree_sitter_xpath()
+        : part->language == NULL ? NULL
+                                 : part->language();
     TSParser *parser = ts_parser_new();
-    if (!ts_parser_set_language(parser, tree_sitter_xpath())) {
+    if (language == NULL || !ts_parser_set_language(parser, language)) {
         ts_parser_delete(parser);
         return SXML_STATUS_UNSUPPORTED_FEATURE;
     }
-    sxml_xpath_front_end front_end = {
+    const sxml_byte_view no_description = {.bytes = NULL, .byte_count = 0};
+    sxml_ast_front_end front_end = {
         .request = request,
+        .part = part,
+        .syntax_error_description = sxml_xpath_description_or(
+            part == NULL ? no_description : part->syntax_error_description,
+            sxml_xpath_syntax_error_description),
+        .missing_token_description = sxml_xpath_description_or(
+            part == NULL ? no_description : part->missing_token_description,
+            sxml_xpath_missing_token_description),
         .prefix = prefix,
         .ast = NULL,
         .position = {.byte_offset = 0, .line_number = 1, .column_number = 1},
         .previous_terminal = {.exists = false,
                               .is_non_delimiting = false,
                               .end_byte = 0},
+        .error_code = sxml_xpath_syntax_error_code,
         .error_description = {.bytes = NULL, .byte_count = 0},
         .error_byte_offset = 0,
     };
@@ -1421,12 +1662,52 @@ static sxml_status sxml_xpath_parse(const sxml_ast_build_request *request,
 sxml_status sxml_xpath_build_ast(const sxml_ast_build_request *request,
                                  sxml_ast **ast) {
     return sxml_xpath_parse(
-        request, (sxml_byte_view){.bytes = NULL, .byte_count = 0}, ast);
+        request,
+        (sxml_xpath_grammar){.prefix = {.bytes = NULL, .byte_count = 0},
+                             .part = NULL},
+        ast);
 }
 
 sxml_status
 sxml_xpath_build_sequence_type_ast(const sxml_ast_build_request *request,
                                    sxml_ast **ast) {
     return sxml_xpath_parse(
-        request, SXML_BYTE_VIEW_FROM_LITERAL(sxml_sequence_type_prefix), ast);
+        request,
+        (sxml_xpath_grammar){.prefix = SXML_BYTE_VIEW_FROM_LITERAL(
+                                 sxml_sequence_type_prefix),
+                             .part = NULL},
+        ast);
+}
+
+/* ------------------------------------------------------- Parser parts */
+
+sxml_status
+sxml_ast_build_with_parser_part(const sxml_ast_build_request *request,
+                                const sxml_ast_parser_part *part,
+                                sxml_ast **ast) {
+    if (part == NULL) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    return sxml_xpath_parse(
+        request,
+        (sxml_xpath_grammar){.prefix = {.bytes = NULL, .byte_count = 0},
+                             .part = part},
+        ast);
+}
+
+sxml_ast *sxml_ast_front_end_get_ast(sxml_ast_front_end *front_end) {
+    return front_end->ast;
+}
+
+sxml_byte_view
+sxml_ast_front_end_get_expression_text(const sxml_ast_front_end *front_end) {
+    return front_end->request->expression_text;
+}
+
+sxml_status sxml_ast_front_end_raise(sxml_ast_front_end *front_end,
+                                     sxml_ast_static_error error) {
+    front_end->error_code = error.error_code;
+    front_end->error_description = error.description;
+    front_end->error_byte_offset = error.byte_offset;
+    return SXML_STATUS_STATIC_ERROR;
 }

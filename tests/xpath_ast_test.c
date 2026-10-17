@@ -1,7 +1,9 @@
 /*
  * Tests for the AST lifecycle and builder functions of
- * src/xpath_ast_internal.h (src/xpath_ast.c). The front end that fills an
- * AST from XPath text is tested in tests/xpath_parse_test.c.
+ * src/xpath_ast_internal.h (src/xpath_ast.c), and for the parser part seam
+ * of the front end (D111) with test parts over grammars/xpath. The front
+ * end that fills an AST from XPath text is tested in
+ * tests/xpath_parse_test.c.
  *
  * Golden file: tests/memory_test.c.
  */
@@ -9,6 +11,11 @@
 #include "xpath_ast_internal.h"
 
 #include <stdalign.h>
+#include <string.h>
+
+/* Defined by the generated parser of grammars/xpath (D12). */
+const struct TSLanguage *
+tree_sitter_xpath(void); // NOLINT(readability-identifier-naming)
 
 /* Caller memory for objects placed with initialize; 16 suits every type. */
 #define TEST_STORAGE_ALIGNMENT 16
@@ -246,8 +253,92 @@ static void test_add_node_rejects_invalid_requests(sxml_test_state *state) {
         (sxml_ast_text){.byte_offset = 2, .byte_count = 0};
     SXML_TEST_EXPECT(state, sxml_ast_add_node(fixture.ast, &name, &node) ==
                                 SXML_STATUS_INVALID_ARGUMENT);
+    sxml_ast_node_request instruction =
+        leaf_request(SXML_AST_KIND_DIRECT_PROCESSING_INSTRUCTION_CONSTRUCTOR);
+    instruction.payload.processing_instruction.content =
+        (sxml_ast_text){.byte_offset = 0, .byte_count = 3};
+    SXML_TEST_EXPECT(state,
+                     sxml_ast_add_node(fixture.ast, &instruction, &node) ==
+                         SXML_STATUS_INVALID_ARGUMENT);
+    sxml_ast_node_request qualified_name = leaf_request(SXML_AST_KIND_QNAME);
+    qualified_name.payload.name.local_name =
+        (sxml_ast_text){.byte_offset = 1, .byte_count = 1};
+    SXML_TEST_EXPECT(state,
+                     sxml_ast_add_node(fixture.ast, &qualified_name, &node) ==
+                         SXML_STATUS_INVALID_ARGUMENT);
+    sxml_ast_node_request element_text =
+        leaf_request(SXML_AST_KIND_DIRECT_ELEMENT_TEXT);
+    element_text.payload.text =
+        (sxml_ast_text){.byte_offset = 0, .byte_count = 2};
+    SXML_TEST_EXPECT(state,
+                     sxml_ast_add_node(fixture.ast, &element_text, &node) ==
+                         SXML_STATUS_INVALID_ARGUMENT);
     SXML_TEST_EXPECT(state, node.value == 0);
     SXML_TEST_EXPECT(state, fixture.ast->node_count == 1);
+}
+
+static void test_add_node_takes_xquery_payloads(sxml_test_state *state) {
+    ast_fixture fixture = {.storage = {0}, .ast = NULL};
+    SXML_TEST_REQUIRE(
+        state, ast_fixture_initialize(&fixture, configuration_of(4, 16)) ==
+                   SXML_STATUS_OK);
+    sxml_ast *ast = fixture.ast;
+    sxml_ast_text target = {.byte_offset = 0, .byte_count = 0};
+    sxml_ast_text content = {.byte_offset = 0, .byte_count = 0};
+    SXML_TEST_REQUIRE(state, sxml_ast_append_text(
+                                 ast, SXML_BYTE_VIEW_FROM_LITERAL("pi"),
+                                 &target) == SXML_STATUS_OK);
+    SXML_TEST_REQUIRE(state, sxml_ast_append_text(
+                                 ast, SXML_BYTE_VIEW_FROM_LITERAL("data"),
+                                 &content) == SXML_STATUS_OK);
+    sxml_ast_node_request instruction =
+        leaf_request(SXML_AST_KIND_DIRECT_PROCESSING_INSTRUCTION_CONSTRUCTOR);
+    instruction.payload.processing_instruction =
+        (sxml_ast_processing_instruction){.target = target,
+                                          .content = content};
+    sxml_ast_node_index node = {.value = 0};
+    SXML_TEST_REQUIRE(state, sxml_ast_add_node(ast, &instruction, &node) ==
+                                 SXML_STATUS_OK);
+    const sxml_ast_processing_instruction stored =
+        sxml_ast_get_node(ast, node)->payload.processing_instruction;
+    SXML_TEST_EXPECT(state, sxml_byte_view_equals(
+                                sxml_ast_get_text(ast, stored.target),
+                                SXML_BYTE_VIEW_FROM_LITERAL("pi")));
+    SXML_TEST_EXPECT(state, sxml_byte_view_equals(
+                                sxml_ast_get_text(ast, stored.content),
+                                SXML_BYTE_VIEW_FROM_LITERAL("data")));
+}
+
+static void test_add_flags_marks_nodes(sxml_test_state *state) {
+    ast_fixture fixture = {.storage = {0}, .ast = NULL};
+    SXML_TEST_REQUIRE(
+        state, ast_fixture_initialize(&fixture, configuration_of(4, 0)) ==
+                   SXML_STATUS_OK);
+    sxml_ast *ast = fixture.ast;
+    sxml_ast_node_request text_request =
+        leaf_request(SXML_AST_KIND_DIRECT_ELEMENT_TEXT);
+    text_request.flags = (uint32_t)SXML_AST_FLAG_FIXED;
+    sxml_ast_node_index node = {.value = 0};
+    SXML_TEST_REQUIRE(state, sxml_ast_add_node(ast, &text_request, &node) ==
+                                 SXML_STATUS_OK);
+    SXML_TEST_EXPECT(
+        state,
+        sxml_ast_add_flags(
+            ast, (sxml_ast_flags_request){
+                     .node = node,
+                     .flags = (uint32_t)SXML_AST_FLAG_BOUNDARY_WHITESPACE}) ==
+            SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, sxml_ast_get_node(ast, node)->flags ==
+                                ((uint32_t)SXML_AST_FLAG_FIXED |
+                                 (uint32_t)SXML_AST_FLAG_BOUNDARY_WHITESPACE));
+    SXML_TEST_EXPECT(state, sxml_ast_add_flags(
+                                ast, (sxml_ast_flags_request){
+                                         .node = {.value = 0}, .flags = 1}) ==
+                                SXML_STATUS_INVALID_ARGUMENT);
+    SXML_TEST_EXPECT(state, sxml_ast_add_flags(
+                                ast, (sxml_ast_flags_request){
+                                         .node = {.value = 2}, .flags = 1}) ==
+                                SXML_STATUS_INVALID_ARGUMENT);
 }
 
 static void test_append_child_links_in_order(sxml_test_state *state) {
@@ -407,6 +498,241 @@ static void test_source_location_names_source(sxml_test_state *state) {
                                 SXML_BYTE_VIEW_FROM_LITERAL("test.xpath")));
 }
 
+/* ------------------------------------------------------ Parser parts */
+
+static sxml_ast_build_request build_request_of(sxml_byte_view text,
+                                               sxml_error_record *record) {
+    return (sxml_ast_build_request){
+        .expression_text = text,
+        .source_name = SXML_BYTE_VIEW_FROM_LITERAL("test.xq"),
+        .allocator = sxml_default_allocator(),
+        .maximum_expression_depth = 0,
+        .error_record = record,
+    };
+}
+
+/* A part that adds nothing: the XPath grammar's root, no tables, no hooks. */
+static const sxml_ast_parser_part inert_part = {
+    .language = tree_sitter_xpath,
+    .root_node_type = SXML_BYTE_VIEW_INITIALIZER("xpath"),
+    .node_types = {.entries = NULL, .entry_count = 0},
+    .fields = {.entries = NULL, .entry_count = 0},
+    .unnamed_children = {.entries = NULL, .entry_count = 0},
+    .syntax_error_description = {.bytes = NULL, .byte_count = 0},
+    .missing_token_description = {.bytes = NULL, .byte_count = 0},
+    .apply_token = NULL,
+    .describe_payload = NULL,
+    .finish_node = NULL,
+};
+
+/* Claims the operator of an additive expression and makes it MINUS. */
+static bool test_apply_token(sxml_ast_parser_token token,
+                             sxml_ast_node_request *request) {
+    if (request->kind != SXML_AST_KIND_ADDITIVE_EXPRESSION ||
+        !sxml_byte_view_equals(token.field_name,
+                               SXML_BYTE_VIEW_FROM_LITERAL("operator"))) {
+        return false;
+    }
+    request->detail.operator= SXML_AST_OPERATOR_MINUS;
+    return true;
+}
+
+/* Describes string literals itself: the payload is always "PART". */
+static sxml_status test_describe_payload(sxml_ast_parser_node node,
+                                         sxml_ast_node_request *request,
+                                         sxml_ast_payload_outcome *outcome) {
+    if (request->kind != SXML_AST_KIND_STRING_LITERAL) {
+        return SXML_STATUS_OK;
+    }
+    sxml_ast_text text = {.byte_offset = 0, .byte_count = 0};
+    const sxml_status status =
+        sxml_ast_append_text(sxml_ast_front_end_get_ast(node.front_end),
+                             SXML_BYTE_VIEW_FROM_LITERAL("PART"), &text);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    request->payload.text = text;
+    outcome->is_described = true;
+    return SXML_STATUS_OK;
+}
+
+/*
+ * Marks each complete node STABLE after checking that its children are
+ * complete; raises XQST0118 at the integer literal 13.
+ */
+static sxml_status test_finish_node(sxml_ast_front_end *front_end,
+                                    sxml_ast_node_index node) {
+    sxml_ast *ast = sxml_ast_front_end_get_ast(front_end);
+    const sxml_ast_node *finished = sxml_ast_get_node(ast, node);
+    for (sxml_ast_node_index child = finished->first_child; child.value != 0;
+         child = sxml_ast_get_node(ast, child)->next_sibling) {
+        if ((sxml_ast_get_node(ast, child)->flags &
+             (uint32_t)SXML_AST_FLAG_STABLE) == 0) {
+            return SXML_STATUS_INVALID_ARGUMENT;
+        }
+    }
+    if (finished->kind == SXML_AST_KIND_INTEGER_LITERAL &&
+        sxml_byte_view_equals(
+            sxml_ast_get_text(ast, finished->payload.text),
+            SXML_BYTE_VIEW_FROM_LITERAL("13"))) {
+        return sxml_ast_front_end_raise(
+            front_end,
+            (sxml_ast_static_error){
+                .error_code = SXML_BYTE_VIEW_FROM_LITERAL("XQST0118"),
+                .description = SXML_BYTE_VIEW_FROM_LITERAL("thirteen"),
+                .byte_offset = finished->source_span.byte_offset});
+    }
+    return sxml_ast_add_flags(
+        ast, (sxml_ast_flags_request){.node = node,
+                                      .flags = (uint32_t)SXML_AST_FLAG_STABLE});
+}
+
+static const sxml_ast_parser_part hooked_part = {
+    .language = tree_sitter_xpath,
+    .root_node_type = SXML_BYTE_VIEW_INITIALIZER("xpath"),
+    .node_types = {.entries = NULL, .entry_count = 0},
+    .fields = {.entries = NULL, .entry_count = 0},
+    .unnamed_children = {.entries = NULL, .entry_count = 0},
+    .syntax_error_description = SXML_BYTE_VIEW_INITIALIZER("not test syntax"),
+    .missing_token_description = {.bytes = NULL, .byte_count = 0},
+    .apply_token = test_apply_token,
+    .describe_payload = test_describe_payload,
+    .finish_node = test_finish_node,
+};
+
+/* True when both ASTs have the same nodes and the same text. */
+static bool asts_are_equal(const sxml_ast *left, const sxml_ast *right) {
+    return left->node_count == right->node_count &&
+           left->root.value == right->root.value &&
+           left->text_byte_count == right->text_byte_count &&
+           memcmp(left->nodes, right->nodes,
+                  left->node_count * sizeof(sxml_ast_node)) == 0 &&
+           (left->text_byte_count == 0 ||
+            memcmp(left->text_bytes, right->text_bytes,
+                   left->text_byte_count) == 0);
+}
+
+static void test_inert_part_builds_the_xpath_ast(sxml_test_state *state) {
+    static const char *const expressions[] = {
+        "for $x at $i in (1 to 3) return $x * 2",
+        "/p:a[@b = \"c\"\"\"]//d ! string(), 'it''s'",
+        "map { 'k': [1, 2] }?k?* => sum() otherwise jnode(())",
+        "`x{1}y{{`, -0x1_F, 1.5e3, fn($a as xs:integer) { $a }(1)",
+    };
+    for (size_t expression_index = 0;
+         expression_index < sizeof expressions / sizeof expressions[0];
+         expression_index += 1U) {
+        const sxml_ast_build_request request = build_request_of(
+            sxml_byte_view_from_c_string(expressions[expression_index]),
+            NULL);
+        sxml_ast *expected = NULL;
+        sxml_ast *built = NULL;
+        SXML_TEST_REQUIRE(state, sxml_xpath_build_ast(&request, &expected) ==
+                                     SXML_STATUS_OK);
+        SXML_TEST_EXPECT(state, sxml_ast_build_with_parser_part(
+                                    &request, &inert_part, &built) ==
+                                    SXML_STATUS_OK);
+        SXML_TEST_EXPECT(state,
+                         built != NULL && asts_are_equal(expected, built));
+        sxml_ast_destroy(built);
+        sxml_ast_destroy(expected);
+    }
+}
+
+static void test_part_hooks_run_in_order(sxml_test_state *state) {
+    const sxml_ast_build_request request = build_request_of(
+        SXML_BYTE_VIEW_FROM_LITERAL("'abcdefgh' , 1 + (2, 3)"), NULL);
+    sxml_ast *ast = NULL;
+    SXML_TEST_REQUIRE(state, sxml_ast_build_with_parser_part(
+                                 &request, &hooked_part, &ast) ==
+                                 SXML_STATUS_OK);
+    size_t literal_count = 0;
+    size_t additive_count = 0;
+    for (uint32_t node_index = 1; node_index < ast->node_count;
+         node_index += 1U) {
+        const sxml_ast_node *node = sxml_ast_get_node(
+            ast, (sxml_ast_node_index){.value = node_index});
+        /* finish_node ran once for every node, the root included. */
+        SXML_TEST_EXPECT(state,
+                         (node->flags & (uint32_t)SXML_AST_FLAG_STABLE) != 0);
+        if (node->kind == SXML_AST_KIND_STRING_LITERAL) {
+            literal_count += 1U;
+            SXML_TEST_EXPECT(state, sxml_byte_view_equals(
+                                        sxml_ast_get_text(ast, node->payload.text),
+                                        SXML_BYTE_VIEW_FROM_LITERAL("PART")));
+        }
+        if (node->kind == SXML_AST_KIND_ADDITIVE_EXPRESSION) {
+            additive_count += 1U;
+            SXML_TEST_EXPECT(state, node->detail.operator==
+                                        SXML_AST_OPERATOR_MINUS);
+        }
+    }
+    SXML_TEST_EXPECT(state, literal_count == 1);
+    SXML_TEST_EXPECT(state, additive_count == 1);
+    SXML_TEST_EXPECT(state, sxml_ast_get_node(ast, ast->root)->kind ==
+                                SXML_AST_KIND_XPATH);
+    sxml_ast_destroy(ast);
+}
+
+static void test_part_hook_raises_its_code(sxml_test_state *state) {
+    sxml_error_record record;
+    memset(&record, 0, sizeof record);
+    const sxml_ast_build_request request =
+        build_request_of(SXML_BYTE_VIEW_FROM_LITERAL("1,\n  13"), &record);
+    sxml_ast *ast = NULL;
+    SXML_TEST_EXPECT(state, sxml_ast_build_with_parser_part(
+                                &request, &hooked_part, &ast) ==
+                                SXML_STATUS_STATIC_ERROR);
+    SXML_TEST_EXPECT(state, ast == NULL);
+    SXML_TEST_EXPECT(state, sxml_byte_view_equals(
+                                record.code.local_name,
+                                SXML_BYTE_VIEW_FROM_LITERAL("XQST0118")));
+    SXML_TEST_EXPECT(state, sxml_byte_view_equals(
+                                record.code.namespace_uri,
+                                SXML_BYTE_VIEW_FROM_LITERAL(
+                                    SXML_ERROR_NAMESPACE_URI)));
+    SXML_TEST_EXPECT(state, sxml_byte_view_equals(
+                                record.diagnostic.description,
+                                SXML_BYTE_VIEW_FROM_LITERAL("thirteen")));
+    SXML_TEST_EXPECT(state, record.diagnostic.location.line_number == 2);
+    SXML_TEST_EXPECT(state, record.diagnostic.location.column_number == 3);
+    SXML_TEST_EXPECT(state, record.diagnostic.location.byte_offset == 5);
+}
+
+static void test_part_syntax_errors(sxml_test_state *state) {
+    sxml_error_record record;
+    memset(&record, 0, sizeof record);
+    const sxml_ast_build_request request =
+        build_request_of(SXML_BYTE_VIEW_FROM_LITERAL("1 +* 2"), &record);
+    sxml_ast *ast = NULL;
+    SXML_TEST_EXPECT(state, sxml_ast_build_with_parser_part(
+                                &request, &hooked_part, &ast) ==
+                                SXML_STATUS_STATIC_ERROR);
+    SXML_TEST_EXPECT(state, sxml_byte_view_equals(
+                                record.code.local_name,
+                                SXML_BYTE_VIEW_FROM_LITERAL("XPST0003")));
+    SXML_TEST_EXPECT(state, sxml_byte_view_equals(
+                                record.diagnostic.description,
+                                SXML_BYTE_VIEW_FROM_LITERAL("not test syntax")));
+    /* A root of another node type is XPST0003 too. */
+    sxml_ast_parser_part other_root = inert_part;
+    other_root.root_node_type = SXML_BYTE_VIEW_FROM_LITERAL("module");
+    const sxml_ast_build_request valid =
+        build_request_of(SXML_BYTE_VIEW_FROM_LITERAL("1"), &record);
+    SXML_TEST_EXPECT(state, sxml_ast_build_with_parser_part(
+                                &valid, &other_root, &ast) ==
+                                SXML_STATUS_STATIC_ERROR);
+    sxml_ast_parser_part no_language = inert_part;
+    no_language.language = NULL;
+    SXML_TEST_EXPECT(state, sxml_ast_build_with_parser_part(
+                                &valid, &no_language, &ast) ==
+                                SXML_STATUS_UNSUPPORTED_FEATURE);
+    SXML_TEST_EXPECT(state, sxml_ast_build_with_parser_part(&valid, NULL,
+                                                            &ast) ==
+                                SXML_STATUS_INVALID_ARGUMENT);
+    SXML_TEST_EXPECT(state, ast == NULL);
+}
+
 static const sxml_test_case xpath_ast_test_cases[] = {
     {.name = "requirements_grow_with_capacities",
      .function = test_requirements_grow_with_capacities},
@@ -424,6 +750,9 @@ static const sxml_test_case xpath_ast_test_cases[] = {
      .function = test_add_node_fills_capacity},
     {.name = "add_node_rejects_invalid_requests",
      .function = test_add_node_rejects_invalid_requests},
+    {.name = "add_node_takes_xquery_payloads",
+     .function = test_add_node_takes_xquery_payloads},
+    {.name = "add_flags_marks_nodes", .function = test_add_flags_marks_nodes},
     {.name = "append_child_links_in_order",
      .function = test_append_child_links_in_order},
     {.name = "append_child_rejects_invalid_links",
@@ -432,6 +761,13 @@ static const sxml_test_case xpath_ast_test_cases[] = {
      .function = test_append_text_starts_and_extends_texts},
     {.name = "source_location_names_source",
      .function = test_source_location_names_source},
+    {.name = "inert_part_builds_the_xpath_ast",
+     .function = test_inert_part_builds_the_xpath_ast},
+    {.name = "part_hooks_run_in_order",
+     .function = test_part_hooks_run_in_order},
+    {.name = "part_hook_raises_its_code",
+     .function = test_part_hook_raises_its_code},
+    {.name = "part_syntax_errors", .function = test_part_syntax_errors},
 };
 
 int main(int argument_count, char **arguments) {

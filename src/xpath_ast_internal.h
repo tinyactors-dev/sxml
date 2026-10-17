@@ -8,6 +8,7 @@
 #include "sxml/status.h"
 #include "sxml/types.h"
 #include "sxml/view.h"
+#include "sxml/xpath.h"
 
 /*
  * The abstract syntax tree of the query languages (docs/DECISIONS.md, D24,
@@ -75,30 +76,180 @@
  * grammars/xquery and grammars/xslt_pattern inherit from grammars/xpath
  * (D29), so their trees are XPath trees with more node types and fields:
  * - New kinds are appended to sxml_ast_kind and new fields to
- *   sxml_ast_field; existing values never change. XQuery adds 66 node types
- *   (prolog and its declarations, the FLWOR clauses where, order by, group
- *   by, count, window, while and trace, direct and computed constructors,
+ *   sxml_ast_field; existing values never change. XQuery adds 66 kinds
+ *   (D111; the 67th new node type, allowing_empty, is a flag): modules and
+ *   the prolog with its declarations, the FLWOR clauses where, while,
+ *   order by, group by, count, trace and the windows, direct constructors,
  *   string constructors, switch, typeswitch, try/catch, validate,
- *   extension expressions); XSLT patterns add 20 `..._pattern` types.
+ *   ordered/unordered and extension expressions. XSLT patterns will add
+ *   their `..._pattern` types the same way (Phase 4).
  * - Four XPath node types gain fields in XQuery: `annotation` on
  *   inline_function_expression, any_function_type and typed_function_type
- *   (children of a new kind ANNOTATION), and `allowing_empty` on
- *   for_item_binding (a new flag). Children are found by field, never by
+ *   (children of kind ANNOTATION), and `allowing_empty` on
+ *   for_item_binding (flag ALLOWING_EMPTY). XQuery's computed element and
+ *   attribute constructors also take a Name in field `name` (an
+ *   unreserved name, xgc: unreserved-name), the namespace and PI
+ *   constructors an NCNAME. Children are found by field, never by
  *   position, so code written for the XPath shape keeps working.
  * - XQuery FLWOR clauses are more children with field `clause` of the same
- *   flwor_expression node.
- * - Direct constructors become element, attribute and text nodes whose text
- *   payload is the decoded content (entity and character references
- *   replaced, boundary whitespace handled by the front end); the end tag
- *   name check (XQST0118) is made while building. Each decoded text is
- *   still no longer than its source, so the capacity rule holds.
- * - A query module is one AST whose root is `module`; each imported
- *   library module is a separate AST. An XSLT stylesheet is an XML
- *   document read through the XML parser; each XPath expression, attribute
- *   value template part, sequence type and pattern in it is parsed to its
- *   own AST, with source spans that point into the stylesheet.
+ *   FLWOR_EXPRESSION node, in source order.
+ * - Direct constructors are DIRECT_* nodes whose leaves carry decoded
+ *   text (see the kinds). Each decoded text is still no longer than its
+ *   source, so the capacity rule holds.
+ * - A query module is one AST whose root is MODULE; each imported library
+ *   module is a separate AST. An XSLT stylesheet is an XML document read
+ *   through the XML parser; each XPath expression, attribute value
+ *   template part, sequence type and pattern in it is parsed to its own
+ *   AST, with source spans that point into the stylesheet (D102).
  * - Entry points sxml_xquery_build_ast and sxml_xslt_pattern_build_ast take
- *   the request below and produce the same sxml_ast.
+ *   the request below and produce the same sxml_ast, through the parser
+ *   part seam at the end of this header.
+ *
+ * Lowering XQuery 4.0: five examples (D55, D103; src/ir_internal.h)
+ * -----------------------------------------------------------------
+ * Section numbers are of XQuery 4.0 (W3C QT4 CG draft, 13 October 2026).
+ * The IR is written in the text form of src/ir_internal.h; for kinds the
+ * text writer does not print fully yet (catch clauses, constructor
+ * content lists) the form shown is the one packets 3.6, 3.7 and 3.9 print.
+ * `$in` is global 1. The AST is abbreviated to kinds and fields.
+ *
+ * Example 1: FLWOR with group by (4.13.8)
+ *
+ *     for $x in $in let $k := $x mod 2 group by $k return count($x)
+ *
+ *     FLWOR_EXPRESSION
+ *       clause FOR_CLAUSE binding FOR_ITEM_BINDING (variable $x, sequence $in)
+ *       clause LET_CLAUSE binding LET_VALUE_BINDING (variable $k,
+ *                                                    value $x mod 2)
+ *       clause GROUP_BY_CLAUSE specification GROUPING_SPECIFICATION (name k)
+ *       return RETURN_CLAUSE (value count($x))
+ *
+ * The clauses before group by produce one tuple array per binding (one
+ * member per live variable, as order by does in src/ir_internal.h); the
+ * group-by native row (packet 3.8, internal, in no function table) takes
+ * the tuple arrays, the members that are grouping keys and their
+ * collations, and returns one array per group: the key members as atomic
+ * items, every other member the concatenation of its values in the group
+ * (4.13.8: non-grouping variables become sequences). A MAP unpacks them:
+ *
+ *     (let $1 (map $global:1 (focus $2 _ _)
+ *               (let $3 (binary modulo $2 2)
+ *                 (array-constructor square $2 $3)))
+ *       (let $4 (static-call Q{}group-by#3 $1 2 "")
+ *         (map $4 (focus $5 _ _)
+ *           (let $6 (lookup $5 1)
+ *             (static-call fn:count#1 $6)))))
+ *
+ * (2 is the key member, "" the codepoint collation; $k, member 2, is not
+ * read after the group by, so it is not unpacked.)
+ *
+ * Example 2: a tumbling window (4.13.4.1)
+ *
+ *     for tumbling window $w in (1 to 6)
+ *         start $s when true() end $e when $e - $s eq 2
+ *     return sum($w)
+ *
+ *     FLWOR_EXPRESSION
+ *       clause TUMBLING_WINDOW_CLAUSE (variable $w, sequence 1 to 6,
+ *         start WINDOW_START_CONDITION (current s, condition true()),
+ *         end WINDOW_END_CONDITION (current e, condition $e - $s eq 2))
+ *       return RETURN_CLAUSE (value sum($w))
+ *
+ * The window native row (3.8) takes the input, the start and end
+ * conditions as closures of the window variables (current, position,
+ * previous, next, D55; an absent variable is passed and ignored) and the
+ * kind (tumbling, sliding, `only end`), and returns one array per window
+ * whose members are the window and its bound variables:
+ *
+ *     (function 1 main (parameters 0) (captures) (slots 9)
+ *       (let $1 (binary range 1 6)
+ *         (let $2 (function-definition 2)
+ *           (let $3 (function-definition 3)
+ *             (let $4 (static-call Q{}tumbling-window#3 $1 $2 $3)
+ *               (map $4 (focus $5 _ _)
+ *                 (let $6 (lookup $5 1)
+ *                   (static-call fn:sum#1 $6))))))))
+ *     (function 2 anonymous (parameters 4) (captures) (slots 4) true())
+ *     (function 3 anonymous (parameters 8) (captures) (slots 10)
+ *       (let $9 (binary subtract $5 $1)
+ *         (let $10 (binary value-equal $9 2) $10)))
+ *
+ * (function 3's parameters 1 to 4 are the start variables $s, ..., 5 to 8
+ * the end variables $e, ...; it lowers `$e - $s` with $e as slot 5.)
+ *
+ * Example 3: a direct constructor with namespaces (4.12.1)
+ *
+ *     <p:a xmlns:p="urn:p" xmlns="urn:d" b="{1 + 1}">x<c/></p:a>
+ *
+ *     DIRECT_ELEMENT_CONSTRUCTOR (name QNAME p:a, end_name QNAME p:a)
+ *       attribute DIRECT_ATTRIBUTE (flag NAMESPACE_DECLARATION_ATTRIBUTE,
+ *         name QNAME xmlns:p, value DIRECT_ATTRIBUTE_VALUE
+ *                                (part ATTRIBUTE_VALUE_TEXT "urn:p"))
+ *       attribute DIRECT_ATTRIBUTE (flag NAMESPACE_DECLARATION_ATTRIBUTE,
+ *         name QNAME xmlns, value ... "urn:d")
+ *       attribute DIRECT_ATTRIBUTE (name QNAME b, value DIRECT_ATTRIBUTE_VALUE
+ *         (part ENCLOSED_EXPRESSION (expression 1 + 1)))
+ *       content DIRECT_ELEMENT_TEXT "x"
+ *       content DIRECT_ELEMENT_CONSTRUCTOR (name QNAME c)
+ *
+ * The namespace declaration attributes make no attribute node
+ * (4.12.1.2); they become the element's namespace bindings p=urn:p and
+ * ""=urn:d and extend the statically known namespaces and the default
+ * element namespace of everything inside, so c is {urn:d}c. Names are
+ * resolved while lowering, so they are constants:
+ *
+ *     (element-constructor Q{urn:p}p:a _ (namespaces p="urn:p" ""="urn:d")
+ *       (let $1 (binary add 1 1)
+ *         (let $2 (attribute-constructor b $1)
+ *           (let $3 (text-constructor "x")
+ *             (let $4 (element-constructor Q{urn:d}c _ (sequence))
+ *               (sequence $2 $3 $4))))))
+ *
+ * The content expression yields the attribute, text and element in order;
+ * ELEMENT_CONSTRUCTOR applies 4.12.1.3 "Content" to them (packet 3.5).
+ *
+ * Example 4: try/catch with finally (4.20)
+ *
+ *     try { 1 div 0 } catch err:FOAR0001 { $err:code } finally { () }
+ *
+ *     TRY_CATCH_EXPRESSION
+ *       body ENCLOSED_EXPRESSION (expression 1 div 0)
+ *       catch CATCH_CLAUSE (errors NAME_TEST_UNION (test err:FOAR0001),
+ *                           body ENCLOSED_EXPRESSION $err:code)
+ *       finally FINALLY_CLAUSE (body ENCLOSED_EXPRESSION ())
+ *
+ * The handler reads $err:code from the error details slot of its catch
+ * clause (src/ir_internal.h, sxml_ir_catch_clause):
+ *
+ *     (try-catch
+ *       (binary divide 1 0)
+ *       (catch (err:FOAR0001) $1
+ *         (lookup $1 "code"))
+ *       (finally (sequence)))
+ *
+ * Example 5: a prolog function (5.18)
+ *
+ *     declare function local:twice($x as xs:integer) as xs:integer
+ *       { $x * 2 };
+ *     local:twice(21)
+ *
+ *     MODULE module MAIN_MODULE
+ *       prolog PROLOG declaration FUNCTION_DECLARATION (name local:twice,
+ *         parameter PARAMETER_WITH_DEFAULT (variable $x as xs:integer),
+ *         return_type TYPE_DECLARATION xs:integer,
+ *         body ENCLOSED_EXPRESSION $x * 2)
+ *       body FUNCTION_CALL (name local:twice, arguments 21)
+ *
+ * The declared function is IR function 2 (D55: an IR function of the
+ * unit, called by STATIC_CALL); its result is coerced to the declared
+ * type:
+ *
+ *     (function 1 main (parameters 0) (captures) (slots 0)
+ *       (static-call function:2#1 21))
+ *     (function 2 Q{http://www.w3.org/2005/xquery-local-functions}twice
+ *               (parameters 1) (captures) (slots 2)
+ *       (let $2 (binary multiply $1 2)
+ *         (coerce $2 xs:integer function-result)))
  *
  * Thread safety: an AST is used by one thread at a time; separate ASTs are
  * independent.
@@ -196,7 +347,8 @@ typedef enum sxml_ast_kind {
        FOR_ENTRY_BINDING. */
     SXML_AST_KIND_FOR_CLAUSE,
     /* variable: VARIABLE_NAME_AND_TYPE; position?: POSITIONAL_VARIABLE;
-       sequence: Expression. "for $x at $i in E". */
+       sequence: Expression. "for $x at $i in E". Flag ALLOWING_EMPTY for
+       XQuery's "allowing empty" (4.13.2). */
     SXML_AST_KIND_FOR_ITEM_BINDING,
     /* As FOR_ITEM_BINDING: "for member $m in A". */
     SXML_AST_KIND_FOR_MEMBER_BINDING,
@@ -334,8 +486,9 @@ typedef enum sxml_ast_kind {
     /* name: Name (an EQName, such as Q{uri}f); arity: INTEGER_LITERAL.
        "f#2". */
     SXML_AST_KIND_NAMED_FUNCTION_REFERENCE,
-    /* parameter*: VARIABLE_NAME_AND_TYPE; return_type?: TYPE_DECLARATION;
-       body: ENCLOSED_EXPRESSION. Flag HAS_SIGNATURE when "(...)" was
+    /* annotation*: ANNOTATION (XQuery); parameter*:
+       VARIABLE_NAME_AND_TYPE; return_type?: TYPE_DECLARATION; body:
+       ENCLOSED_EXPRESSION. Flag HAS_SIGNATURE when "(...)" was
        written: without it, "fn { E }" is a focus function of one
        parameter that becomes the context value (4.5.6). "function" and
        "fn" are not distinguished. */
@@ -358,12 +511,13 @@ typedef enum sxml_ast_kind {
     SXML_AST_KIND_COMPUTED_DOCUMENT_CONSTRUCTOR,
     SXML_AST_KIND_COMPUTED_TEXT_CONSTRUCTOR,
     SXML_AST_KIND_COMPUTED_COMMENT_CONSTRUCTOR,
-    /* name?: QNAME_LITERAL or name_expression?: Expression (one of them);
-       content: ENCLOSED_EXPRESSION. */
+    /* name?: QNAME_LITERAL (in XQuery also a Name) or name_expression?:
+       Expression (one of them); content: ENCLOSED_EXPRESSION. */
     SXML_AST_KIND_COMPUTED_ELEMENT_CONSTRUCTOR,
     SXML_AST_KIND_COMPUTED_ATTRIBUTE_CONSTRUCTOR,
-    /* name?: MARKED_NCNAME or name_expression?: Expression (one of them);
-       content: ENCLOSED_EXPRESSION. */
+    /* name?: MARKED_NCNAME (in XQuery also an NCNAME) or
+       name_expression?: Expression (one of them); content:
+       ENCLOSED_EXPRESSION. */
     SXML_AST_KIND_COMPUTED_NAMESPACE_CONSTRUCTOR,
     SXML_AST_KIND_COMPUTED_PROCESSING_INSTRUCTION_CONSTRUCTOR,
     /* name: NCNAME. "#name". */
@@ -420,10 +574,11 @@ typedef enum sxml_ast_kind {
     SXML_AST_KIND_FIELD_DECLARATION,
     /* value+: STRING_LITERAL. enum("a", "b"). */
     SXML_AST_KIND_ENUMERATION_TYPE,
-    /* No fields: function(*) or fn(*). */
+    /* annotation*: ANNOTATION (XQuery). function(*) or fn(*). */
     SXML_AST_KIND_ANY_FUNCTION_TYPE,
-    /* parameter*: TYPED_FUNCTION_PARAMETER; return_type: SEQUENCE_TYPE.
-       function(T) as U. */
+    /* annotation*: ANNOTATION (XQuery); parameter*:
+       TYPED_FUNCTION_PARAMETER; return_type: SEQUENCE_TYPE. function(T) as
+       U. */
     SXML_AST_KIND_TYPED_FUNCTION_TYPE,
     /* name?: Name; type: SEQUENCE_TYPE. "$name as T" or "T". */
     SXML_AST_KIND_TYPED_FUNCTION_PARAMETER,
@@ -438,6 +593,206 @@ typedef enum sxml_ast_kind {
     /* namespace_uri and local_name: "Q{uri}n". A "Q{uri}p:n" form also
        sets namespace_prefix. */
     SXML_AST_KIND_URI_QUALIFIED_NAME,
+
+    /* ====== XQuery 4.0 (D111). Section numbers of XQuery 4.0 (QT4 CG
+       draft, 13 October 2026); productions of its Appendix A.1. Built by
+       sxml_xquery_build_ast (src/xquery_parse.c, packet 3.2). ====== */
+
+    /* --- Modules and the prolog (section 5) --- */
+    /* version?: VERSION_DECLARATION; module: MAIN_MODULE or
+       LIBRARY_MODULE. The grammar gives the module no field; the front
+       end puts it in field MODULE (sxml_ast_unnamed_child_entry). The root
+       of every XQuery AST. */
+    SXML_AST_KIND_MODULE,
+    /* version?: STRING_LITERAL; encoding?: STRING_LITERAL (at least one).
+       5.1. */
+    SXML_AST_KIND_VERSION_DECLARATION,
+    /* prolog?: PROLOG; body: Expression. Section 5, MainModule. */
+    SXML_AST_KIND_MAIN_MODULE,
+    /* declaration: MODULE_DECLARATION; prolog?: PROLOG. 5.2. */
+    SXML_AST_KIND_LIBRARY_MODULE,
+    /* prefix: NCNAME; uri: STRING_LITERAL. 5.2. */
+    SXML_AST_KIND_MODULE_DECLARATION,
+    /* declaration+: the declaration kinds below and NAMESPACE_DECLARATION,
+       in source order (the grammar keeps setters and imports before the
+       other declarations). */
+    SXML_AST_KIND_PROLOG,
+    /* uri: STRING_LITERAL. Detail keyword ELEMENT or FUNCTION; flag FIXED.
+       5.14. */
+    SXML_AST_KIND_DEFAULT_NAMESPACE_DECLARATION,
+    /* No fields. Detail keyword PRESERVE or STRIP. 5.3. */
+    SXML_AST_KIND_BOUNDARY_SPACE_DECLARATION,
+    /* uri: STRING_LITERAL. 5.4. */
+    SXML_AST_KIND_DEFAULT_COLLATION_DECLARATION,
+    /* uri: STRING_LITERAL. 5.5. */
+    SXML_AST_KIND_BASE_URI_DECLARATION,
+    /* No fields. Detail keyword PRESERVE or STRIP. 5.6. */
+    SXML_AST_KIND_CONSTRUCTION_DECLARATION,
+    /* No fields. Detail keyword ORDERED or UNORDERED. 5.7. */
+    SXML_AST_KIND_ORDERING_MODE_DECLARATION,
+    /* No fields. Detail keyword GREATEST or LEAST. 5.8. */
+    SXML_AST_KIND_EMPTY_ORDER_DECLARATION,
+    /* No fields. Flag PRESERVE_NAMESPACES for "preserve" (absent for
+       "no-preserve"), INHERIT_NAMESPACES for "inherit". 5.9. */
+    SXML_AST_KIND_COPY_NAMESPACES_DECLARATION,
+    /* name?: Name (absent for "declare default decimal-format");
+       property*: DECIMAL_FORMAT_PROPERTY. 5.10. */
+    SXML_AST_KIND_DECIMAL_FORMAT_DECLARATION,
+    /* value: STRING_LITERAL. Detail decimal_format_property, the property
+       name written. */
+    SXML_AST_KIND_DECIMAL_FORMAT_PROPERTY,
+    /* prefix?: SCHEMA_PREFIX; uri: STRING_LITERAL; location*:
+       STRING_LITERAL. 5.11; lowering raises XQST0009 (D97: no schema
+       awareness). */
+    SXML_AST_KIND_SCHEMA_IMPORT,
+    /* prefix?: NCNAME ("namespace p ="; absent for "default element
+       namespace"). Flag FIXED. */
+    SXML_AST_KIND_SCHEMA_PREFIX,
+    /* prefix?: NCNAME; uri: STRING_LITERAL; location*: STRING_LITERAL.
+       5.12. */
+    SXML_AST_KIND_MODULE_IMPORT,
+    /* type?: SEQUENCE_TYPE (detail keyword VALUE) or ItemType (keyword
+       ITEM); value?: Expression; default?: Expression. Flag EXTERNAL; value
+       only without it, default only with it. 5.17. */
+    SXML_AST_KIND_CONTEXT_VALUE_DECLARATION,
+    /* annotation*: ANNOTATION; variable: VARIABLE_NAME_AND_TYPE; value?:
+       Expression; default?: Expression. Flag EXTERNAL as for the context
+       value. 5.16. */
+    SXML_AST_KIND_VARIABLE_DECLARATION,
+    /* annotation*: ANNOTATION; name: Name; parameter*:
+       PARAMETER_WITH_DEFAULT; return_type?: TYPE_DECLARATION; body?:
+       ENCLOSED_EXPRESSION (absent with flag EXTERNAL). 5.18. */
+    SXML_AST_KIND_FUNCTION_DECLARATION,
+    /* variable: VARIABLE_NAME_AND_TYPE; default?: Expression. 5.18.3. */
+    SXML_AST_KIND_PARAMETER_WITH_DEFAULT,
+    /* annotation*: ANNOTATION; name: Name; type: ItemType. 5.19. */
+    SXML_AST_KIND_ITEM_TYPE_DECLARATION,
+    /* annotation*: ANNOTATION; name: Name; field*:
+       EXTENDED_FIELD_DECLARATION. 5.20. */
+    SXML_AST_KIND_NOMINATIVE_RECORD_TYPE_DECLARATION,
+    /* name: NCNAME or STRING_LITERAL; type?: SEQUENCE_TYPE; default?:
+       Expression. Flag STATIC for "%static". */
+    SXML_AST_KIND_EXTENDED_FIELD_DECLARATION,
+    /* name: Name; value: STRING_LITERAL. 5.21. */
+    SXML_AST_KIND_OPTION_DECLARATION,
+    /* name: Name; value*: Literal, NEGATIVE_NUMERIC_LITERAL, QNAME_LITERAL
+       or BOOLEAN_CONSTANT. "%name(...)", 5.15; also on inline functions
+       and function types. */
+    SXML_AST_KIND_ANNOTATION,
+
+    /* --- FLWOR clauses (4.13), children with field clause of
+       FLWOR_EXPRESSION, besides FOR_CLAUSE and LET_CLAUSE --- */
+    /* variable: VARIABLE_NAME_AND_TYPE; sequence: Expression; start?:
+       WINDOW_START_CONDITION; end?: WINDOW_END_CONDITION. 4.13.4.1. */
+    SXML_AST_KIND_TUMBLING_WINDOW_CLAUSE,
+    /* As TUMBLING_WINDOW_CLAUSE with end required. 4.13.4.2. */
+    SXML_AST_KIND_SLIDING_WINDOW_CLAUSE,
+    /* current?: Name; position?: POSITIONAL_VARIABLE; previous?: Name;
+       next?: Name; condition?: Expression ("when"). */
+    SXML_AST_KIND_WINDOW_START_CONDITION,
+    /* As WINDOW_START_CONDITION; flag ONLY for "only end". */
+    SXML_AST_KIND_WINDOW_END_CONDITION,
+    /* condition: Expression. 4.13.5. */
+    SXML_AST_KIND_WHERE_CLAUSE,
+    /* condition: Expression. 4.13.6. */
+    SXML_AST_KIND_WHILE_CLAUSE,
+    /* name: Name. "count $n", 4.13.7. */
+    SXML_AST_KIND_COUNT_CLAUSE,
+    /* specification+: GROUPING_SPECIFICATION. 4.13.8. */
+    SXML_AST_KIND_GROUP_BY_CLAUSE,
+    /* name: Name; type?: TYPE_DECLARATION; value?: Expression (":=");
+       collation?: STRING_LITERAL. */
+    SXML_AST_KIND_GROUPING_SPECIFICATION,
+    /* specification+: ORDER_SPECIFICATION. Flag STABLE. 4.13.9. */
+    SXML_AST_KIND_ORDER_BY_CLAUSE,
+    /* key: Expression; collation?: STRING_LITERAL. Flag DESCENDING (absent:
+       ascending), EMPTY_GREATEST or EMPTY_LEAST (neither: the prolog's
+       default order for empty sequences). */
+    SXML_AST_KIND_ORDER_SPECIFICATION,
+    /* value: Expression. "trace E", 4.13.10. */
+    SXML_AST_KIND_TRACE_CLAUSE,
+
+    /* --- Other expressions --- */
+    /* comparand?: Expression (absent in the 4.0 "switch ()" form);
+       case+: SWITCH_CASE_CLAUSE; default: Expression. The braced form is
+       not distinguished. 4.18. */
+    SXML_AST_KIND_SWITCH_EXPRESSION,
+    /* operand+: Expression (one per "case"); value: Expression. */
+    SXML_AST_KIND_SWITCH_CASE_CLAUSE,
+    /* operand: Expression; case+: TYPESWITCH_CASE_CLAUSE; default:
+       TYPESWITCH_DEFAULT_CLAUSE. 4.21.2. */
+    SXML_AST_KIND_TYPESWITCH_EXPRESSION,
+    /* variable?: Name; type+: SEQUENCE_TYPE (a union "T1 | T2"); value:
+       Expression. */
+    SXML_AST_KIND_TYPESWITCH_CASE_CLAUSE,
+    /* variable?: Name; value: Expression. */
+    SXML_AST_KIND_TYPESWITCH_DEFAULT_CLAUSE,
+    /* body: ENCLOSED_EXPRESSION; catch*: CATCH_CLAUSE; finally?:
+       FINALLY_CLAUSE (at least one of them). 4.20. */
+    SXML_AST_KIND_TRY_CATCH_EXPRESSION,
+    /* errors: NAME_TEST_UNION; body: ENCLOSED_EXPRESSION. */
+    SXML_AST_KIND_CATCH_CLAUSE,
+    /* body: ENCLOSED_EXPRESSION. */
+    SXML_AST_KIND_FINALLY_CLAUSE,
+    /* type?: Name ("validate type T"); expression: Expression. Detail
+       keyword LAX, STRICT or NONE. 4.25; lowering raises XQST0075 (D97). */
+    SXML_AST_KIND_VALIDATE_EXPRESSION,
+    /* pragma+: PRAGMA; expression?: Expression. 4.26. */
+    SXML_AST_KIND_EXTENSION_EXPRESSION,
+    /* name: Name; contents?: PRAGMA_CONTENTS. "(# name contents #)". */
+    SXML_AST_KIND_PRAGMA,
+    /* Payload text: the contents as written, without the whitespace that
+       separates them from the name. */
+    SXML_AST_KIND_PRAGMA_CONTENTS,
+    /* content: ENCLOSED_EXPRESSION. 4.15. */
+    SXML_AST_KIND_ORDERED_EXPRESSION,
+    SXML_AST_KIND_UNORDERED_EXPRESSION,
+    /* part*: STRING_CONSTRUCTOR_CHARACTERS or STRING_INTERPOLATION.
+       "``[...]``", 4.9.3. */
+    SXML_AST_KIND_STRING_CONSTRUCTOR,
+    /* Payload text as written (string constructors have no escapes). */
+    SXML_AST_KIND_STRING_CONSTRUCTOR_CHARACTERS,
+    /* expression?: Expression. "`{E}`". */
+    SXML_AST_KIND_STRING_INTERPOLATION,
+
+    /* --- Direct constructors (4.12.1, 4.12.2) --- */
+    /* name: QNAME; attribute*: DIRECT_ATTRIBUTE; content*:
+       DIRECT_ELEMENT_TEXT, CDATA_SECTION, ENCLOSED_EXPRESSION or a
+       direct constructor kind, in source order; end_name?: QNAME (absent
+       for "<a/>"; the front end checks it equals name, XQST0118). */
+    SXML_AST_KIND_DIRECT_ELEMENT_CONSTRUCTOR,
+    /* name: QNAME; value: DIRECT_ATTRIBUTE_VALUE. Flag
+       NAMESPACE_DECLARATION_ATTRIBUTE for "xmlns" and "xmlns:p" (4.12.1.2;
+       its value must be all ATTRIBUTE_VALUE_TEXT, XQST0022). The front end
+       raises XQST0040 for two attributes of one element with the same
+       name as written; same expanded names are lowering's (XQST0040). */
+    SXML_AST_KIND_DIRECT_ATTRIBUTE,
+    /* part*: ATTRIBUTE_VALUE_TEXT or ENCLOSED_EXPRESSION. "" has none. */
+    SXML_AST_KIND_DIRECT_ATTRIBUTE_VALUE,
+    /* Payload text, decoded (4.12.1.1): the doubled delimiter, "{{" and
+       "}}" unescaped, predefined entity and character references replaced
+       (XQST0090 for a reference to a character XML does not allow), then
+       each literal tab, line feed and carriage return a space (characters
+       from references are kept). */
+    SXML_AST_KIND_ATTRIBUTE_VALUE_TEXT,
+    /* Payload text, decoded: "{{" and "}}" unescaped, references
+       replaced (XQST0090). Flag BOUNDARY_WHITESPACE when it is boundary
+       whitespace (4.12.1.4: only whitespace written as such, delimited by
+       the start or end of the content, a direct constructor or an
+       enclosed expression); lowering drops it unless boundary-space is
+       preserve. */
+    SXML_AST_KIND_DIRECT_ELEMENT_TEXT,
+    /* Payload text: the characters between "<![CDATA[" and "]]>". */
+    SXML_AST_KIND_CDATA_SECTION,
+    /* Payload text: the characters between "<!--" and "-->". 4.12.2. */
+    SXML_AST_KIND_DIRECT_COMMENT_CONSTRUCTOR,
+    /* Payload processing_instruction: the target and the content after
+       the whitespace that follows it (empty when none). 4.12.2; a target
+       "xml" in any case is XPST0003. */
+    SXML_AST_KIND_DIRECT_PROCESSING_INSTRUCTION_CONSTRUCTOR,
+    /* Payload name: namespace_prefix and local_name as written in a tag
+       or attribute ("p:n" or "n"). */
+    SXML_AST_KIND_QNAME,
 
     /* One more than the largest kind; grows with Phases 3 and 4. */
     SXML_AST_KIND_COUNT,
@@ -493,6 +848,34 @@ typedef enum sxml_ast_field {
     SXML_AST_FIELD_URI,
     SXML_AST_FIELD_VALUE,
     SXML_AST_FIELD_VARIABLE,
+
+    /* XQuery 4.0 (D111): the fields of grammars/xquery that hold named
+       nodes and are not XPath's. */
+    SXML_AST_FIELD_ANNOTATION,
+    SXML_AST_FIELD_ATTRIBUTE,
+    SXML_AST_FIELD_CASE,
+    SXML_AST_FIELD_CATCH,
+    SXML_AST_FIELD_COLLATION,
+    SXML_AST_FIELD_COMPARAND,
+    SXML_AST_FIELD_CONTENTS,
+    SXML_AST_FIELD_CURRENT,
+    SXML_AST_FIELD_DEFAULT,
+    SXML_AST_FIELD_ENCODING,
+    SXML_AST_FIELD_END,
+    SXML_AST_FIELD_END_NAME,
+    SXML_AST_FIELD_ERRORS,
+    SXML_AST_FIELD_FINALLY,
+    SXML_AST_FIELD_LOCATION,
+    /* Not a grammar field: the child of MODULE, which has none. */
+    SXML_AST_FIELD_MODULE,
+    SXML_AST_FIELD_NEXT,
+    SXML_AST_FIELD_PRAGMA,
+    SXML_AST_FIELD_PREVIOUS,
+    SXML_AST_FIELD_PROLOG,
+    SXML_AST_FIELD_PROPERTY,
+    SXML_AST_FIELD_SPECIFICATION,
+    SXML_AST_FIELD_START,
+    SXML_AST_FIELD_VERSION,
 
     /* One more than the largest field; grows with Phases 3 and 4. */
     SXML_AST_FIELD_COUNT,
@@ -579,6 +962,32 @@ typedef enum sxml_ast_axis {
 } sxml_ast_axis;
 
 /*
+ * The keyword an XQuery declaration or expression chooses where the
+ * grammar offers several (its `mode` and `kind` fields, D111).
+ */
+typedef enum sxml_ast_keyword {
+    SXML_AST_KEYWORD_NONE = 0,
+    /* boundary-space and construction declarations. */
+    SXML_AST_KEYWORD_PRESERVE,
+    SXML_AST_KEYWORD_STRIP,
+    /* ordering mode declaration. */
+    SXML_AST_KEYWORD_ORDERED,
+    SXML_AST_KEYWORD_UNORDERED,
+    /* empty order declaration. */
+    SXML_AST_KEYWORD_GREATEST,
+    SXML_AST_KEYWORD_LEAST,
+    /* default namespace declaration. */
+    SXML_AST_KEYWORD_ELEMENT,
+    SXML_AST_KEYWORD_FUNCTION,
+    /* context value declaration: "context value" or "context item". */
+    SXML_AST_KEYWORD_VALUE,
+    SXML_AST_KEYWORD_ITEM,
+    /* validate expression. */
+    SXML_AST_KEYWORD_LAX,
+    SXML_AST_KEYWORD_STRICT,
+} sxml_ast_keyword;
+
+/*
  * The token a node records beyond its children. Which member is meaningful
  * is given by the kind (see sxml_ast_kind); every other kind leaves it
  * zero (operator SXML_AST_OPERATOR_NONE).
@@ -588,6 +997,8 @@ typedef union sxml_ast_detail {
     sxml_ast_axis axis;
     sxml_occurrence occurrence;
     sxml_name_test_kind name_test_kind;
+    sxml_ast_keyword keyword;
+    sxml_decimal_format_property_kind decimal_format_property;
 } sxml_ast_detail;
 
 /* Flags of a node (bits of sxml_ast_node.flags); see the kinds. */
@@ -604,6 +1015,31 @@ typedef enum sxml_ast_flag {
     SXML_AST_FLAG_TRUE = 1U << 4U,
     /* INLINE_FUNCTION_EXPRESSION with a parameter list. */
     SXML_AST_FLAG_HAS_SIGNATURE = 1U << 5U,
+    /* XQuery (D111). FOR_ITEM_BINDING with "allowing empty". */
+    SXML_AST_FLAG_ALLOWING_EMPTY = 1U << 6U,
+    /* DEFAULT_NAMESPACE_DECLARATION or SCHEMA_PREFIX with "fixed". */
+    SXML_AST_FLAG_FIXED = 1U << 7U,
+    /* CONTEXT_VALUE_DECLARATION, VARIABLE_DECLARATION or
+       FUNCTION_DECLARATION with "external". */
+    SXML_AST_FLAG_EXTERNAL = 1U << 8U,
+    /* ORDER_BY_CLAUSE with "stable". */
+    SXML_AST_FLAG_STABLE = 1U << 9U,
+    /* ORDER_SPECIFICATION with "descending". */
+    SXML_AST_FLAG_DESCENDING = 1U << 10U,
+    /* ORDER_SPECIFICATION with "empty greatest" or "empty least". */
+    SXML_AST_FLAG_EMPTY_GREATEST = 1U << 11U,
+    SXML_AST_FLAG_EMPTY_LEAST = 1U << 12U,
+    /* WINDOW_END_CONDITION with "only". */
+    SXML_AST_FLAG_ONLY = 1U << 13U,
+    /* EXTENDED_FIELD_DECLARATION with "%static". */
+    SXML_AST_FLAG_STATIC = 1U << 14U,
+    /* COPY_NAMESPACES_DECLARATION with "preserve" and with "inherit". */
+    SXML_AST_FLAG_PRESERVE_NAMESPACES = 1U << 15U,
+    SXML_AST_FLAG_INHERIT_NAMESPACES = 1U << 16U,
+    /* DIRECT_ELEMENT_TEXT that is boundary whitespace (4.12.1.4). */
+    SXML_AST_FLAG_BOUNDARY_WHITESPACE = 1U << 17U,
+    /* DIRECT_ATTRIBUTE named xmlns or xmlns:p (4.12.1.2). */
+    SXML_AST_FLAG_NAMESPACE_DECLARATION_ATTRIBUTE = 1U << 18U,
 } sxml_ast_flag;
 
 /* A name exactly as written; parts that were not written are empty. */
@@ -614,13 +1050,22 @@ typedef struct sxml_ast_name {
     sxml_ast_text namespace_uri;
 } sxml_ast_name;
 
+/* The two parts of a direct processing instruction constructor. */
+typedef struct sxml_ast_processing_instruction {
+    sxml_ast_text target;
+    sxml_ast_text content;
+} sxml_ast_processing_instruction;
+
 /*
- * Data a leaf carries: text for literal and fixed-part kinds, name for the
- * name kinds and WILDCARD. Zero for every other kind.
+ * Data a leaf carries: text for literal and fixed-part kinds and the
+ * XQuery text kinds, name for the name kinds, WILDCARD and QNAME,
+ * processing_instruction for DIRECT_PROCESSING_INSTRUCTION_CONSTRUCTOR.
+ * Zero for every other kind.
  */
 typedef union sxml_ast_payload {
     sxml_ast_text text;
     sxml_ast_name name;
+    sxml_ast_processing_instruction processing_instruction;
 } sxml_ast_payload;
 
 /* One node. Read through sxml_ast_get_node; written only by the builder. */
@@ -761,6 +1206,21 @@ SXML_NODISCARD sxml_status sxml_ast_append_text(sxml_ast *ast,
                                                 sxml_byte_view bytes,
                                                 sxml_ast_text *text);
 
+/* Flags to add to a node already in the AST. */
+typedef struct sxml_ast_flags_request {
+    sxml_ast_node_index node;
+    /* Bits of sxml_ast_flag, ORed into the node's flags. */
+    uint32_t flags;
+} sxml_ast_flags_request;
+
+/*
+ * Adds request.flags to the node, for marks that depend on the node's
+ * siblings (BOUNDARY_WHITESPACE, set by a parser part's finish_node).
+ * Returns SXML_STATUS_INVALID_ARGUMENT when the index is 0 or not in use.
+ */
+SXML_NODISCARD sxml_status sxml_ast_add_flags(sxml_ast *ast,
+                                              sxml_ast_flags_request request);
+
 /* ------------------------------------------------------------- Accessors */
 
 /*
@@ -896,3 +1356,194 @@ SXML_NODISCARD sxml_status sxml_xpath_build_ast(
  */
 SXML_NODISCARD sxml_status sxml_xpath_build_sequence_type_ast(
     const sxml_ast_build_request *request, sxml_ast **ast);
+
+/*
+ * Parses request->expression_text, an XQuery 4.0 module, with
+ * grammars/xquery and writes an AST, owned (release with sxml_ast_destroy),
+ * whose root is a MODULE node, to *ast. Defined in src/xquery_parse.c
+ * (packet 3.2) on top of sxml_ast_build_with_parser_part.
+ *
+ * Returns SXML_STATUS_STATIC_ERROR for text that is not an XQuery 4.0
+ * module (XPST0003, or the XQuery code a check of the front end raises:
+ * XQST0118, XQST0040, XQST0090, ...), SXML_STATUS_INVALID_UTF8,
+ * SXML_STATUS_LIMIT_EXCEEDED, and the failures of the allocator.
+ */
+SXML_NODISCARD sxml_status sxml_xquery_build_ast(
+    const sxml_ast_build_request *request, sxml_ast **ast);
+
+/* ---------------------------------------------------------- Parser parts */
+
+/*
+ * The parser part seam (D111). The XPath front end in src/xpath_parse.c is
+ * one walker for every grammar that inherits from grammars/xpath: it maps
+ * node types and fields through its own tables and those of a parser
+ * part, absorbs tokens into detail and flags, decodes payloads, makes the
+ * A.3.2 and lookup key checks, bounds the depth and fills the error
+ * record, all without recursion (D59, D71). A parser part is what one
+ * derived grammar adds (XQuery: packet 3.2, src/xquery_parse.c; XSLT
+ * patterns: Phase 4): the grammar, the node types and fields that are not
+ * XPath's, and three hooks the walker calls, in the way lowering parts add
+ * AST kinds to the lowerer (D103). Unlike lowering parts, parser parts are
+ * not registered by glob: each entry point (sxml_xquery_build_ast, ...)
+ * passes its own part, because the grammar is chosen by the entry point.
+ *
+ * How the walker uses a part, in source order for each concrete syntax
+ * tree node:
+ * 1. The node's AST kind is the XPath table's, else the part's
+ *    node_types; NONE (no AST node, the node's tokens are absorbed by its
+ *    parent) for anonymous nodes and for named nodes in neither table.
+ * 2. The node's field is the XPath table's, else the part's fields; a
+ *    named child without a field takes the part's unnamed_children entry
+ *    for its parent's kind; otherwise it is XPST0003.
+ * 3. Describing the node: describe_payload is called first and may fill
+ *    the payload (and detail and flags); when it does not, the XPath
+ *    decoders run (literals, names, wildcards; QNAME like a name). Then
+ *    for every child that makes no AST node, apply_token is called first;
+ *    when it does not claim the token, the XPath rules apply.
+ * 4. The node is added and appended to its parent. finish_node is called
+ *    when the node is complete: at once for a node without concrete
+ *    syntax tree children, else after its last child is complete. The
+ *    AST may then be read from the node down and from the node to the
+ *    root, and flags added with sxml_ast_add_flags.
+ * A hook may be NULL. A hook that fails stops the walk with its status;
+ * a syntax or static error is raised with sxml_ast_front_end_raise, so the
+ * walker fills the error record.
+ */
+
+/* A grammar's language; declared by the generated parser of each grammar. */
+struct TSLanguage; // NOLINT(readability-identifier-naming)
+
+/* The state of one call of the front end; opaque to parts. */
+typedef struct sxml_ast_front_end sxml_ast_front_end;
+
+/* A node type of a part's grammar and the AST kind it becomes. */
+typedef struct sxml_ast_node_type_entry {
+    sxml_byte_view node_type;
+    sxml_ast_kind kind;
+} sxml_ast_node_type_entry;
+
+/* Entries sorted by node_type in byte order (as strcmp orders them). */
+typedef struct sxml_ast_node_type_view {
+    const sxml_ast_node_type_entry *entries;
+    size_t entry_count;
+} sxml_ast_node_type_view;
+
+/* A field name of a part's grammar and the AST field it becomes. */
+typedef struct sxml_ast_field_entry {
+    sxml_byte_view field_name;
+    sxml_ast_field field;
+} sxml_ast_field_entry;
+
+/* Entries sorted by field_name in byte order. */
+typedef struct sxml_ast_field_view {
+    const sxml_ast_field_entry *entries;
+    size_t entry_count;
+} sxml_ast_field_view;
+
+/* The field a named child without a grammar field takes in a parent of
+   parent_kind (MODULE's module, D111). */
+typedef struct sxml_ast_unnamed_child_entry {
+    sxml_ast_kind parent_kind;
+    sxml_ast_field field;
+} sxml_ast_unnamed_child_entry;
+
+typedef struct sxml_ast_unnamed_child_view {
+    const sxml_ast_unnamed_child_entry *entries;
+    size_t entry_count;
+} sxml_ast_unnamed_child_view;
+
+/* A child that makes no AST node, as its parent is described. */
+typedef struct sxml_ast_parser_token {
+    /* The field the token has in its parent; empty when it has none. */
+    sxml_byte_view field_name;
+    /* The token's source text (for an absorbed named node such as
+       allowing_empty, all of its text). */
+    sxml_byte_view written;
+} sxml_ast_parser_token;
+
+/* A node about to be added, as described to describe_payload. */
+typedef struct sxml_ast_parser_node {
+    sxml_ast_front_end *front_end;
+    /* The node's source text, borrowed from the expression text. Its
+       offset in the text is request->source_span.byte_offset. */
+    sxml_byte_view written;
+} sxml_ast_parser_node;
+
+/*
+ * A part's hooks (C_GUIDELINES: at most three parameters).
+ * - apply_token: adds what token says to request->detail and
+ *   request->flags (request->kind is the parent's kind); returns true when
+ *   it did, so the XPath rules are skipped.
+ * - describe_payload: may store the payload of request through
+ *   sxml_ast_append_text on sxml_ast_front_end_get_ast(node.front_end),
+ *   and adjust detail and flags; sets outcome->is_described when it did,
+ *   so the XPath decoders are skipped. Called for every node of a kind.
+ * - finish_node: checks or completes node (see above).
+ */
+typedef bool (*sxml_ast_apply_token_function)(sxml_ast_parser_token token,
+                                              sxml_ast_node_request *request);
+/* What describe_payload did. */
+typedef struct sxml_ast_payload_outcome {
+    /* Set when the hook described the node. */
+    bool is_described;
+} sxml_ast_payload_outcome;
+
+typedef sxml_status (*sxml_ast_describe_payload_function)(
+    sxml_ast_parser_node node, sxml_ast_node_request *request,
+    sxml_ast_payload_outcome *outcome);
+typedef sxml_status (*sxml_ast_finish_node_function)(
+    sxml_ast_front_end *front_end, sxml_ast_node_index node);
+
+typedef struct sxml_ast_parser_part {
+    /* The generated parser's language function (tree_sitter_xquery). */
+    const struct TSLanguage *(*language)(void);
+    /* The node type the start rule makes ("module"); any other root is
+       XPST0003. */
+    sxml_byte_view root_node_type;
+    sxml_ast_node_type_view node_types;
+    sxml_ast_field_view fields;
+    sxml_ast_unnamed_child_view unnamed_children;
+    /* Descriptions for XPST0003 from an ERROR node and from a MISSING
+       node; empty means the XPath front end's. */
+    sxml_byte_view syntax_error_description;
+    sxml_byte_view missing_token_description;
+    sxml_ast_apply_token_function apply_token;
+    sxml_ast_describe_payload_function describe_payload;
+    sxml_ast_finish_node_function finish_node;
+} sxml_ast_parser_part;
+
+/*
+ * As sxml_xpath_build_ast with part's grammar, tables and hooks; the root
+ * is the AST node of part->root_node_type. Defined in src/xpath_parse.c.
+ * Returns the failures of sxml_xpath_build_ast, SXML_STATUS_UNSUPPORTED_
+ * FEATURE when part's language does not load, and those of the hooks.
+ */
+SXML_NODISCARD sxml_status sxml_ast_build_with_parser_part(
+    const sxml_ast_build_request *request, const sxml_ast_parser_part *part,
+    sxml_ast **ast);
+
+/* The AST being built, for hooks; valid during the call only. */
+sxml_ast *sxml_ast_front_end_get_ast(sxml_ast_front_end *front_end);
+
+/* The request's expression text, for hooks (spans are offsets into it). */
+sxml_byte_view
+sxml_ast_front_end_get_expression_text(const sxml_ast_front_end *front_end);
+
+/* A static error a hook raises. */
+typedef struct sxml_ast_static_error {
+    /* The local name of an err: code, such as "XQST0118"; static. */
+    sxml_byte_view error_code;
+    /* A static description (D21). */
+    sxml_byte_view description;
+    /* Where, as an offset into the expression text. */
+    uint32_t byte_offset;
+} sxml_ast_static_error;
+
+/*
+ * Records error for the error record of the request (the err namespace,
+ * the location computed from byte_offset) and returns
+ * SXML_STATUS_STATIC_ERROR, for the hook to return; the walk stops
+ * there.
+ */
+SXML_NODISCARD sxml_status sxml_ast_front_end_raise(
+    sxml_ast_front_end *front_end, sxml_ast_static_error error);

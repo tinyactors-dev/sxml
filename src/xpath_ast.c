@@ -184,7 +184,7 @@ static bool sxml_ast_kind_has_name_payload(sxml_ast_kind kind) {
     return kind == SXML_AST_KIND_NCNAME ||
            kind == SXML_AST_KIND_PREFIXED_NAME ||
            kind == SXML_AST_KIND_URI_QUALIFIED_NAME ||
-           kind == SXML_AST_KIND_WILDCARD;
+           kind == SXML_AST_KIND_WILDCARD || kind == SXML_AST_KIND_QNAME;
 }
 
 /* True for the kinds whose payload is a text (sxml_ast_kind). */
@@ -195,7 +195,13 @@ static bool sxml_ast_kind_has_text_payload(sxml_ast_kind kind) {
            kind == SXML_AST_KIND_DECIMAL_LITERAL ||
            kind == SXML_AST_KIND_DOUBLE_LITERAL ||
            kind == SXML_AST_KIND_STRING_LITERAL ||
-           kind == SXML_AST_KIND_STRING_TEMPLATE_FIXED_PART;
+           kind == SXML_AST_KIND_STRING_TEMPLATE_FIXED_PART ||
+           kind == SXML_AST_KIND_PRAGMA_CONTENTS ||
+           kind == SXML_AST_KIND_STRING_CONSTRUCTOR_CHARACTERS ||
+           kind == SXML_AST_KIND_ATTRIBUTE_VALUE_TEXT ||
+           kind == SXML_AST_KIND_DIRECT_ELEMENT_TEXT ||
+           kind == SXML_AST_KIND_CDATA_SECTION ||
+           kind == SXML_AST_KIND_DIRECT_COMMENT_CONSTRUCTOR;
 }
 
 static bool sxml_ast_payload_is_in_store(const sxml_ast *ast,
@@ -208,6 +214,13 @@ static bool sxml_ast_payload_is_in_store(const sxml_ast *ast,
     }
     if (sxml_ast_kind_has_text_payload(request->kind)) {
         return sxml_ast_text_is_in_store(ast, request->payload.text);
+    }
+    if (request->kind ==
+        SXML_AST_KIND_DIRECT_PROCESSING_INSTRUCTION_CONSTRUCTOR) {
+        const sxml_ast_processing_instruction *instruction =
+            &request->payload.processing_instruction;
+        return sxml_ast_text_is_in_store(ast, instruction->target) &&
+               sxml_ast_text_is_in_store(ast, instruction->content);
     }
     return true;
 }
@@ -269,6 +282,14 @@ sxml_status sxml_ast_append_child(sxml_ast *ast,
     parent->last_child = request.child;
     child->parent = request.parent;
     child->field = request.field;
+    return SXML_STATUS_OK;
+}
+
+sxml_status sxml_ast_add_flags(sxml_ast *ast, sxml_ast_flags_request request) {
+    if (!sxml_ast_index_is_in_use(ast, request.node)) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    ast->nodes[request.node.value].flags |= request.flags;
     return SXML_STATUS_OK;
 }
 
