@@ -230,6 +230,12 @@ prod-ItemTypeDecl, prod-NamedRecordTypeDecl, prod-DecimalFormatDecl,
 prod-OptionDecl.serialization and the other prod-*Decl sets ≥ 90%. Spec:
 XQuery 4.0 "Modules and Prologs".
 
+**Done** 2026-10-17 (D135): `src/xquery_static.c`, `src/xquery_prolog.c`
+(now also `sxml_xquery_lower` / `sxml_xquery_compile`),
+`src/evaluator_global.c`, `tests/xquery_prolog_test.c`; core additions in
+`src/xpath_static.c` (named item types, function namespace rule). See
+docs/LOG.md for the counts; open items under "Proposed" (D135).
+
 ### 3.11 Modules (implementation)
 After 3.10, 3.12. Owns `src/xquery_module.c`,
 `src/function_library_module.c`, `tests/xquery_module_test.c`. Library

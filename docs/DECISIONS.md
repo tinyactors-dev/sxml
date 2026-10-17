@@ -3927,6 +3927,25 @@ No new IR kind, no header change, no machinery beside the core's.
 - Rejected: computing on first read (needs every atom read in the
   machine to suspend: a change across `src/evaluator.c`); relowering in
   dependency order (two lowerings; the extra initializers cost one call).
+- **Later additions** (same packet): named item types are aliases in the
+  XPath static context (`named_item_types`, `sxml_xpath_find_named_type`,
+  also for cast targets; resolved in rounds, so forward references work)
+  with a cast as constructor function for generalized atomic types;
+  records are nominative registry types (reused when an earlier
+  compilation for the item heap declared the name) with a constructor
+  IR function (a map of the fields, %static fields' defaults, coerced to
+  the record); the QT4 tests call constructors of records without
+  `%constructor`, so every record gets one. Decimal formats (XQST0111,
+  XQST0114, XQST0097 for a value's form, XQST0098 otherwise) and the
+  default collation go into `unit_static_context` (D131), which the
+  module entry copies into the unit. `sxml_xpath_static_context` gets a
+  function namespace rule (fn; a declared default; no namespace first,
+  which the XQuery table falls back from to fn), replacing the interning
+  workaround above; an empty namespace declaration binds the prefix to no
+  namespace, which the core reads as undeclared (the lowerer accepts it);
+  `xq` is predeclared; annotations of inline functions and function types
+  are checked (XQST0045, XQST0125). Output declarations are checked by
+  name (XQST0109, XQST0110); their values are 3.12's to read.
 
 ### D136. Node, sequence, string and type functions (packet 2.17)
 Recorded 2026-10-17. F&O 4.0 sections are those of the current editor's
@@ -4298,6 +4317,25 @@ Recorded 2026-10-17, after D55, D101, D118, D124, D139, D142.
 Reserved here; the record is completed when the packet is ticked.
 
 ## Proposed
+
+- **Prolog follow-ups** (packet 3.10, D135). (a) For the owner of the
+  evaluator's SORT (`src/evaluator.c`): "empty greatest" with
+  "descending" puts empty keys last (and "empty least" first); XQuery
+  4.0, 4.13.9 orders empty as least/greatest before the direction
+  applies (QT4 emptyorderdecl-10, -11, -18, -19). (b) Parameter defaults
+  that read the focus (`$x := string()`) must see the caller's focus, and
+  fixed defaults (`$x := <a/>`) are one value for every call (5.18.3;
+  function-decl-40-040 to -060): proposed, lower a default at the call
+  site when it reads the focus, and a fixed one as a hidden global.
+  (c) A global whose own closure reads it (`declare variable $f := fn {
+  ... $f(...) }`) fails with XQDY0054, because closures capture globals
+  when made (D55); reading a global from an IR function of the same unit
+  at call time would fix it (vardeclerr-3a, K-InternalVariablesWith-50,
+  -52). (d) `fn:function-lookup` does not see declared functions (the
+  dynamic context's table is the processor's). (e) `declare default
+  element namespace "##any"` (5.14.1) is not supported. (f) For the QT4
+  driver (3.13): `assert-eq` should atomize the result (default_namespace-023,
+  -024, namespaceDecl-26).
 
 - **QT4 assertions see the result as the context value** (packet 2.15,
   D141; for the driver's owner): `<assert>` expressions such as
