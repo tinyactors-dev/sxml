@@ -113,6 +113,14 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `lowering_block` | The LETs bound while one expression is lowered, closed by its result (administrative normal form) |
 | `lowering_part` | A file defining `sxml_xpath_lowering_part_<part>`: AST kinds and the procedures or leaf functions lowering them for some languages, found by CMake's glob (D103) |
 | `embedding` | One XPath AST lowered inside a caller's scope: its variables, a focus of the caller's choice and the AST's own static context (D103) |
+| `binding_collection` | The value a for binding iterates (XPath 4.0, section 4.13.1): its items, the members of its arrays (`for member`) or the entries of its maps (`for key/value`) |
+| `range_variable` | A variable a for, let or quantifier binding binds to an item, member, key, value or part; the position variable is not one |
+| `destructuring_let` | A let binding of several variables to the parts of one value: `$( ... )` items of a sequence, `$[ ... ]` members of an array, `${ ... }` entries of a map by name (XPath 4.0, section 4.13.2) |
+| `dynamic_node_test` | A node test `{E}`: a node passes when its name, local name or ·jkey· is atomic-equal to an item of E's value (XPath 4.0, section 4.7.5) |
+| `item_axis` | The axis `item::`, defined for JNodes: the items of the origin's ·jvalue· as JNodes (XPath 4.0, section 4.7.4) |
+| `focus_constructor` | A constructor function call or reference that leaves its argument out and takes the context value: `xs:int()`, `xs:int#0` (XPath 4.0, section 4.5.1.3) |
+| `method_call` | `M =?> N(...)`: the function in entry N of each map of M, called with that map first (XPath 4.0, section 4.15.5) |
+| `but_with` | `A but with B`: record A with the entries of map B put in, use-last (XPath 4.0, section 4.15.4) |
 | `predeclared_namespace` | A prefix bound in every static context (xml, xs, xsi, fn, map, array, math, err) |
 | `default_element_namespace` | The namespace of unprefixed element and type names in the static context |
 | `variable_scope` | The variables visible at one point of an expression, innermost binding first |
