@@ -4524,6 +4524,10 @@ Reserved here; the record is completed when the packet is ticked.
 Recorded 2026-10-17, after D101, D135, D139, D142, D144, D145.
 Reserved here; the record is completed when the packet is ticked.
 
+### D151. Phase 2 gate review (packet 2.20)
+Recorded 2026-10-17, after D11, D95, D97, D123, D132.
+Reserved here; the record is completed when the gate is reviewed.
+
 ## Proposed
 
 - **XQuery's default for omit-xml-declaration** (packet 3.12, D146; for
