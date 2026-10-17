@@ -295,7 +295,6 @@ static const error_case error_cases[] = {
      SXML_STATUS_STATIC_ERROR, "XPST0008"},
     {"try { 1 } catch u:e { 2 }", SXML_STATUS_STATIC_ERROR, "XPST0081"},
     {"declare variable $x := 1; $x", SXML_STATUS_UNSUPPORTED_FEATURE, NULL},
-    {"for $x in 1 group by $x return $x", SXML_STATUS_UNSUPPORTED_FEATURE, NULL},
 };
 
 static void test_static_errors_have_codes(sxml_test_state *state) {

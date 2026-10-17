@@ -18,6 +18,7 @@
 #include "sxml/xdm.h"
 #include "xdm_internal.h"
 #include "xpath_lower_internal.h"
+#include "xquery_flwor_internal.h"
 
 #include <stdalign.h>
 #include <stdbool.h>
@@ -368,21 +369,13 @@ static sxml_status bind_unary_library_call(sxml_xpath_lowerer *state,
 
 /* ============================================================ FLWOR */
 
-/*
- * One variable of a tuple array's layout (glossary `tuple_layout`): its
- * name and either its member number (a variable bound to a slot) or its
- * atom (a constant or global, which is not packed).
- */
-typedef struct tuple_member {
-    sxml_name_identifier variable_name;
-    /* From 1; 0 when the variable is not packed. */
-    uint32_t member_number;
-    /* The variable's atom when it is not packed. */
-    sxml_ir_atom atom;
-} tuple_member;
+/* One variable of a tuple array's layout (src/xquery_flwor_internal.h). */
+typedef sxml_xquery_tuple_member tuple_member;
 
 /* Where a clause segment starts: a clause and, in a for or let clause,
-   one of its bindings. Clause 0 is the return clause. */
+   one of its bindings (in a group by clause one of its grouping
+   specifications, then binding 0 for the grouping itself). Clause 0 is
+   the return clause. */
 typedef struct clause_position {
     sxml_ast_node_index clause;
     sxml_ast_node_index binding;
@@ -391,16 +384,19 @@ typedef struct clause_position {
 static bool clause_has_bindings(const sxml_xpath_lowerer *state,
                                 sxml_ast_node_index clause) {
     const sxml_ast_kind kind = node_of(state, clause)->kind;
-    return kind == SXML_AST_KIND_FOR_CLAUSE || kind == SXML_AST_KIND_LET_CLAUSE;
+    return kind == SXML_AST_KIND_FOR_CLAUSE || kind == SXML_AST_KIND_LET_CLAUSE ||
+           kind == SXML_AST_KIND_GROUP_BY_CLAUSE;
 }
 
 static clause_position clause_start(const sxml_xpath_lowerer *state,
                                     sxml_ast_node_index clause) {
     return (clause_position){
         .clause = clause,
-        .binding = clause_has_bindings(state, clause)
-                       ? child_of(state, clause, SXML_AST_FIELD_BINDING)
-                       : (sxml_ast_node_index){.value = 0}};
+        .binding = !clause_has_bindings(state, clause)
+                       ? (sxml_ast_node_index){.value = 0}
+                   : node_of(state, clause)->kind == SXML_AST_KIND_GROUP_BY_CLAUSE
+                       ? child_of(state, clause, SXML_AST_FIELD_SPECIFICATION)
+                       : child_of(state, clause, SXML_AST_FIELD_BINDING)};
 }
 
 /* The position after position: the next binding of the clause, else the
@@ -409,7 +405,8 @@ static clause_position next_position(const sxml_xpath_lowerer *state,
                                      clause_position position) {
     if (position.binding.value != 0) {
         const sxml_ast_node_index binding = next_of(state, position.binding);
-        if (binding.value != 0) {
+        if (binding.value != 0 ||
+            node_of(state, position.clause)->kind == SXML_AST_KIND_GROUP_BY_CLAUSE) {
             return (clause_position){.clause = position.clause, .binding = binding};
         }
     }
@@ -424,8 +421,6 @@ static bool is_tuple_stream_clause(sxml_ast_kind kind) {
     case SXML_AST_KIND_COUNT_CLAUSE:
     case SXML_AST_KIND_WHILE_CLAUSE:
     case SXML_AST_KIND_GROUP_BY_CLAUSE:
-    case SXML_AST_KIND_TUMBLING_WINDOW_CLAUSE:
-    case SXML_AST_KIND_SLIDING_WINDOW_CLAUSE:
         return true;
     default:
         return false;
@@ -584,6 +579,9 @@ static sxml_status finish_with_tuple_array(sxml_xpath_lowering_machine *machine,
     flwor_locals *flwor = flwor_frame->locals;
     const size_t first_entry = flwor->scope_mark;
     const size_t entry_count = state->scope_entry_count - first_entry;
+    /* A group by packs every variable (src/xquery_flwor_internal.h). */
+    const bool packs_every_variable =
+        node_of(state, locals->position.clause)->kind == SXML_AST_KIND_GROUP_BY_CLAUSE;
     sxml_xpath_lowerer_release_scratch(state, flwor_frame->owned_memory[0]);
     flwor_frame->owned_memory[0] = NULL;
     flwor->members = NULL;
@@ -631,7 +629,7 @@ static sxml_status finish_with_tuple_array(sxml_xpath_lowering_machine *machine,
         tuple_member member = {.variable_name = entry->variable_name,
                                .member_number = 0,
                                .atom = entry->atom};
-        if (entry->atom.atom_kind == SXML_IR_ATOM_KIND_SLOT) {
+        if (packs_every_variable || entry->atom.atom_kind == SXML_IR_ATOM_KIND_SLOT) {
             atoms[packed_count] = entry->atom;
             packed_count += 1;
             member.member_number = packed_count;
@@ -1172,7 +1170,17 @@ static sxml_status begin_clause(sxml_xpath_lowering_machine *machine,
         return begin_return(machine, frame);
     }
     const sxml_ast_kind kind = node_of(state, clause)->kind;
-    if (is_tuple_stream_clause(kind)) {
+    if (is_tuple_stream_clause(kind) && locals->position.binding.value == 0) {
+        if (kind == SXML_AST_KIND_GROUP_BY_CLAUSE) {
+            const flwor_locals *flwor = locals->flwor_frame->locals;
+            const sxml_status status = sxml_xquery_bind_grouping_keys(
+                state, (sxml_xquery_grouping_keys){.clause = clause,
+                                                   .block = frame->block,
+                                                   .scope_mark = flwor->scope_mark});
+            if (status != SXML_STATUS_OK) {
+                return status;
+            }
+        }
         return finish_with_tuple_array(machine, frame);
     }
     switch ((uint32_t)kind) {
@@ -1194,6 +1202,28 @@ static sxml_status begin_clause(sxml_xpath_lowering_machine *machine,
                                           SXML_AST_FIELD_VALUE),
                          .block = frame->block,
                          .atom = &locals->value});
+    case SXML_AST_KIND_GROUP_BY_CLAUSE:
+        /* 4.13.8: a grouping specification with a value is a let. */
+        if (child_of(state, locals->position.binding, SXML_AST_FIELD_VALUE).value == 0) {
+            frame->step = SXML_XQUERY_CLAUSE_STEP_FINISH;
+            return push_rest(machine, frame, frame->block);
+        }
+        frame->step = SXML_XQUERY_CLAUSE_STEP_LET_BODY;
+        return sxml_xpath_lowering_call_atom(
+            machine, (sxml_xpath_lowering_atom_call){
+                         .node = child_of(state, locals->position.binding,
+                                          SXML_AST_FIELD_VALUE),
+                         .block = frame->block,
+                         .atom = &locals->value});
+    case SXML_AST_KIND_TUMBLING_WINDOW_CLAUSE:
+    case SXML_AST_KIND_SLIDING_WINDOW_CLAUSE:
+        /* 4.13.4.3: like a for clause, src/xquery_lower_window.c. */
+        frame->step = SXML_XQUERY_CLAUSE_STEP_FINISH;
+        return sxml_xquery_push_window_clause(
+            machine, &(sxml_xquery_segment_rest){.flwor_frame = locals->flwor_frame,
+                                                 .clause = clause,
+                                                 .block = frame->block,
+                                                 .rest = &locals->rest});
     case SXML_AST_KIND_WHERE_CLAUSE:
         /* 4.13.5: the tuples whose condition's effective boolean value is
            true. */
@@ -1224,13 +1254,18 @@ static sxml_status continue_let(sxml_xpath_lowering_machine *machine,
     clause_locals *locals = frame->locals;
     locals->scope_mark = state->scope_entry_count;
     const sxml_ast_node_index binding = locals->position.binding;
+    const sxml_ast_kind kind = node_of(state, binding)->kind;
+    /* A grouping specification has the name and type a variable has. */
     const sxml_status status =
-        node_of(state, binding)->kind == SXML_AST_KIND_LET_VALUE_BINDING
+        kind == SXML_AST_KIND_LET_VALUE_BINDING ||
+                kind == SXML_AST_KIND_GROUPING_SPECIFICATION
             ? sxml_xpath_lowerer_push_typed_variable(
                   state,
                   (sxml_xpath_lowering_typed_variable){
                       .block = frame->block,
-                      .variable = child_of(state, binding, SXML_AST_FIELD_VARIABLE),
+                      .variable = kind == SXML_AST_KIND_GROUPING_SPECIFICATION
+                                      ? binding
+                                      : child_of(state, binding, SXML_AST_FIELD_VARIABLE),
                       .value = locals->value})
             : push_destructured_variables(state, frame);
     if (status != SXML_STATUS_OK) {
@@ -1949,12 +1984,35 @@ static sxml_status finish_segment(sxml_xpath_lowering_machine *machine,
         return begin_order_by(machine, frame);
     case SXML_AST_KIND_WHILE_CLAUSE:
         return begin_while(machine, frame);
+    case SXML_AST_KIND_GROUP_BY_CLAUSE:
+        status = sxml_xquery_lower_group_by(
+            state,
+            &(sxml_xquery_grouping){.clause = locals->stream_clause,
+                                    .layout = {.members = locals->members,
+                                               .member_count = locals->member_count},
+                                    .block = frame->block},
+            &locals->tuples);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        return open_unpacking(machine, frame, (sxml_ast_node_index){.value = 0});
     default:
         return sxml_xpath_lowerer_report_unsupported(
             state, locals->stream_clause,
-            SXML_BYTE_VIEW_FROM_LITERAL(
-                "group by and window clauses are not lowered yet (packet 3.8)"));
+            SXML_BYTE_VIEW_FROM_LITERAL("this tuple stream clause is not lowered"));
     }
+}
+
+sxml_status sxml_xquery_push_segment_rest(sxml_xpath_lowering_machine *machine,
+                                          const sxml_xquery_segment_rest *request) {
+    return push_clause_frame(
+        machine,
+        (clause_frame_request){
+            .flwor_frame = request->flwor_frame,
+            .position = next_position(machine->state,
+                                      clause_start(machine->state, request->clause)),
+            .block = request->block,
+            .rest = request->rest});
 }
 
 /* A FLWOR expression (4.13): segments and tuple stream clauses in turn. */
