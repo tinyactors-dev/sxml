@@ -4,6 +4,16 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- Phases 2-4 planned (D95-D97): `docs/tasks/phase-2.md` (21 packets:
+  seams, regex, Unicode, collations, formatting, resources, driver, JS
+  package and release 0.2.0), `phase-3.md` (16: AST, front end,
+  serializers, constructors, try/catch, FLWOR, group/window, prolog,
+  modules, API, CLI) and `phase-4.md` (19: API, driver for xslt40-test,
+  stylesheet AST and reader, value templates, patterns, templates and
+  modes, grouping, keys, numbering, output, accumulators, packages).
+  Targets (D95): XP40 >= 90%, XQ40 >= 85% (XQ-only >= 75%), XSLT 4.0 in
+  scope (about 8,700 cases) >= 70%. Early packets of Phases 3 and 4 may
+  start after the Phase 1 gate (D96).
 - 1.27 done (D94): `tools/run-qt4.sh` (one `sxml-qt4` process per test
   set, parallel, timeout, crash recorded per set) and
   `tools/conformance-report.py` (dashboard, merged JSON, slice-baseline
