@@ -4,6 +4,23 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 2.4 done (D107): Unicode 16.0 tables and functions. `src/unicode.c`
+  (UAX #15 NFC/NFD/NFKC/NFKD and FULLY-NORMALIZED; UAX #29 extended
+  grapheme clusters with GB9c; HTML character reference names) over
+  `src/unicode_tables.c` from `tools/generate-unicode-tables.py`
+  (separate from the regex tables: no property in both);
+  `src/function_library_unicode.c`: fn:char, fn:characters,
+  fn:graphemes, fn:normalize-unicode. All 79,860 NormalizationTest.txt
+  checks (plus part 1 identities) and all 1,093 GraphemeBreakTest.txt
+  lines pass in a scratch probe; 13 unit cases with an
+  allocation-failure loop. QT4 (release): fn-graphemes 0 to 918 of 918,
+  fn-normalize-unicode 11 to 39 of 41 (the two left are "FULLY-NORMALIZED
+  unsupported" variants the driver still runs; 44 of 44 once it declares
+  the form), fn-char 24 to 47 of 48 (char-001 needs fn:json-doc),
+  fn-characters 1 to 8 of 8; XP40 24,704 passed on 79ae2d0 plus 2.4, no
+  test set lost; slice 198/198. `wasm` grows by about 143 KB (136 KB
+  data, mostly decompositions and the 2,125 names). `debug`, `debug-gcc`,
+  `wasm`, `release` 121/121, lint clean.
 - 2.3 done (D105, D114): the regex engine covers the F&O 4.0 dialect
   (\p/\P categories and blocks, \i \c, \b \B, lookahead/lookbehind in
   both spellings, named groups and \k<name>, XSD 1.1 hyphens, case-blind
