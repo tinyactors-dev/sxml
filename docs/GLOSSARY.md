@@ -257,6 +257,8 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `assertion_verdict` | What one QT4 result assertion, or a combination of them (`all-of`, `any-of`, `not`), says about a test's result: pass, wrong error, fail or unsupported |
 | `run_report` | The output of `sxml-qt4 run`: one entry per test case that did not pass, counts per test set and overall, as text or JSON |
 | `slice_baseline` | The number of torture-slice test cases that must pass (`tests/qt4/slice-baseline.txt`); it only goes up |
+| `xquery_slice` | The QT4 test cases of `tests/qt4/xquery-slice.txt`, run with `--spec=XQ40` by ctest `qt4/xquery-slice` against `tests/qt4/xquery-slice-baseline.txt`, which only goes up (packet 3.13) |
+| `qt4_xquery_adapter` | Temporary: the QT4 driver's stand-in for `include/sxml/xquery.h` (`tests/qt4/driver/xquery_adapter.c`), compiling through the internal `sxml_xquery_compile` until packet 3.12 implements the header (D134) |
 | `suite_path` | The path of a QT4 suite file relative to the directory of `catalog.xml`, with `.` and `..` segments removed |
 | `xslt_test_driver` | The XSLT 4.0 test-suite driver: the developer tool `sxml-xslt-test` under `tests/xslt/driver/`, a sibling of the QT4 driver that links its library (D117) |
 | `xslt_test_catalog` | The XSLT 4.0 suite's `catalog.xml` (`third_party/xslt40-test/`) as the driver holds it: its test-set entries and one open test set |
