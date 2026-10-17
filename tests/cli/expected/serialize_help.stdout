@@ -1,0 +1,21 @@
+sxml serialize - Write an XML document by a serialization method
+
+Usage: sxml serialize [--indent] [--method=METHOD] FILE
+
+Parses FILE as namespace-well-formed XML 1.0 and writes the document
+to standard output by the Serialization 4.0 method --method names
+(xml by default) with its default parameters; --indent indents. A
+FILE that is not well-formed is reported as FILE:LINE:COLUMN: message
+and exits 1; an unreadable file exits 3.
+
+Options:
+  -h, --help           Show this help and exit
+      --indent         Indent the output
+      --method=METHOD  Serialization method (one of: adaptive, xml, xhtml, html, text, json; default: xml)
+
+Arguments:
+  FILE  XML document to write; - reads standard input
+
+Examples:
+  sxml serialize --indent book.xml
+  sxml serialize --method=html page.xml

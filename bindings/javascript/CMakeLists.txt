@@ -39,10 +39,12 @@ if(SXML_BUILD_TESTS AND SXML_NODE_EXECUTABLE)
                 "${CMAKE_CURRENT_SOURCE_DIR}/node_modules/typescript/bin/tsc"
                 -p "${CMAKE_CURRENT_SOURCE_DIR}/tsconfig.json")
     endif()
+    # The CLI's budget grew with sxml xquery, which links the XQuery
+    # grammar (packet 3.12, D146; the owner confirms it under Proposed).
     if(TARGET sxml_cli)
         add_test(NAME javascript/size_budget
             COMMAND "${SXML_NODE_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test/size-budget.mjs"
-                "$<TARGET_FILE:sxml_cli>" 2000000 700000
+                "$<TARGET_FILE:sxml_cli>" 3700000 820000
                 "$<TARGET_FILE:sxml_javascript_module>" 2000000 700000)
     endif()
 endif()

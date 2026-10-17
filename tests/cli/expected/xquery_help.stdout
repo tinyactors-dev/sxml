@@ -1,0 +1,29 @@
+sxml xquery - Evaluate an XQuery 4.0 query
+
+Usage: sxml xquery [--context-item=FILE] [--expression=TEXT] [--param=NAME=VALUE]... [--method=METHOD] [QUERY-FILE]
+
+Compiles the XQuery 4.0 main module in QUERY-FILE, or given with
+--expression, and writes its result to standard output, serialized as
+the query's output declarations say (method xml unless they name
+another); --method replaces the method. --context-item=FILE parses
+FILE as the context item. --param=NAME=VALUE binds the external
+variable $NAME, which the query declares, to xs:untypedAtomic(VALUE).
+fn:doc reads local files only. An error of the query is reported on
+standard error as QUERY-FILE:LINE:COLUMN: err:CODE: description and
+exits 1; an unreadable file exits 3.
+
+Options:
+  -h, --help               Show this help and exit
+      --context-item=FILE  XML document to use as the context item; - reads standard input
+      --expression=TEXT    The query itself, instead of QUERY-FILE
+      --param=NAME=VALUE   Bind external variable $NAME to xs:untypedAtomic(VALUE) (repeatable)
+      --method=METHOD      Serialization method of the result, replacing the query's (one of: adaptive, xml, xhtml, html, text, json)
+
+Arguments:
+  QUERY-FILE  File holding the XQuery 4.0 main module; - reads standard input
+
+Examples:
+  sxml xquery report.xq
+  sxml xquery --expression='for $i in 1 to 3 return <i>{$i}</i>'
+  sxml xquery --context-item=book.xml --method=text titles.xq
+  sxml xquery --param=n=5 --expression='declare variable $n external; $n * 2'

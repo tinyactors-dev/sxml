@@ -3,10 +3,12 @@ sxml - command-line interface to the sxml XML library
 Usage: sxml [--version] COMMAND [ARGUMENT...]
 
 Commands:
-  help     Show help for the program or for one command
-  check    Check that XML documents are namespace-well-formed
-  version  Print the sxml library version
-  xpath    Evaluate an XPath 4.0 expression
+  help       Show help for the program or for one command
+  check      Check that XML documents are namespace-well-formed
+  serialize  Write an XML document by a serialization method
+  version    Print the sxml library version
+  xpath      Evaluate an XPath 4.0 expression
+  xquery     Evaluate an XQuery 4.0 query
 
 Options:
   -h, --help     Show this help and exit
