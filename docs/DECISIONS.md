@@ -3409,6 +3409,12 @@ parse-ietf-date. `src/operator_temporal.c` is unchanged.
   record type, Proposed); civil-timezone 4/9 (D97); days-in-month-006/007
   need fn:format-integer (2.9).
 
+### D123. CI is disabled for now; gates are checked locally
+Recorded 2026-10-17 at the owner's word ("CI is disabled, we don't need it at
+this point"). Gate boxes that name CI are satisfied by the same checks run
+locally (all presets, lint, slice, conformance runs, fuzzing). macOS, Windows
+and MSVC stay unverified until CI returns; that remains a known risk.
+
 ## Proposed
 
 - **IR adders for catch clauses and name tests** (packet 3.6, D109; for
