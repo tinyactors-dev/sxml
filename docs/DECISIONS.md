@@ -3462,6 +3462,29 @@ Recorded 2026-10-17; accepts the IR proposals of D109 and D110
   verifier (checked once in a scratch build, after giving
   `shallow_others` one content expression per copy: the IR is a tree).
 
+### D125. fn:divide-decimals and the precision it supports (packet 2.7)
+Recorded 2026-10-17. `sxml_decimal_divide_to_precision` (`src/decimal.c`),
+part `numeric` row `divide-decimals`.
+- **Method**: the divisor's power of ten is shifted by -precision (exact,
+  no digits move) and libmpdec's truncating `mpd_qdivint` and `mpd_qrem`
+  give quotient * 10^precision and the remainder value - quotient *
+  divisor in one exact step each (F&O 4.0, section 4.3.1); the quotient
+  has the sign of value / divisor, the remainder that of the value.
+- **Precision range** (the rules' "adjusted to the nearest value
+  supported"): a positive precision is lowered until quotient and
+  remainder both fit `maximum_digit_count` (bounds from the adjusted
+  exponents and the divisor's digits), to 0 at least; one below every
+  digit of the quotient is raised to just below it (the quotient is 0
+  either way). So `divide-decimals(10, 3, 100_000)` gives 9,997 decimal
+  places at the default limit; an integer quotient wider than the limit
+  is FOAR0002; a zero divisor FOAR0001.
+- **Result**: a map with keys "quotient" and "remainder" (xs:decimal),
+  row result type `record(quotient as xs:decimal, remainder as
+  xs:decimal)`. It is not annotated with fn:division-record: no static
+  context knows the F&O named record types yet (the Proposed item of D122; QT4
+  divide-decimals-019 to -021 and fn-random-number-generator-35a to -37a
+  wait for it).
+
 ## Proposed
 
 - **The item axis in the evaluator** (packet 2.5, D113; for the owner of
@@ -3550,3 +3573,16 @@ Recorded 2026-10-17; accepts the IR proposals of D109 and D110
   the fn namespace (fields whose type allows the empty sequence optional,
   as D7 says), so rows may also name them (`fn:dateTime-record?` for
   build-dateTime, which then gets the coercion for free).
+  Packet 2.7 (D125) adds `fn:division-record` (QT4 divide-decimals-019
+  to -021; fn-divide-decimals stays at 19 of 21 without it) and
+  `fn:random-number-generator-record` (fn-random-number-generator-35a to
+  -37a); the numeric rows would then name them as result types.
+
+- **fn:random-number-generator take(-1)** (packet 2.7, D125; for the
+  owner of `tests/function_library_test.c`): F&O 4.0, section 4.11.1
+  types `take` as `fn($count as xs:nonNegativeInteger) as xs:double*`, so
+  `take(-1)` and `take(())` are XPTY0004 (QT4
+  fn-random-number-generator-56, -57), but `test_random_number_generator`
+  expects `count(...?take(-1))` to be 0. Proposed: expect XPTY0004 there;
+  the numeric part then types the parameter and the function item as
+  xs:nonNegativeInteger (two lines in `src/function_library_numeric.c`).
