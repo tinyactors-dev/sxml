@@ -154,6 +154,15 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `enclosing_mode` | An `xsl:mode` with `xsl:template` children, the only rules of that mode (XSLT 4.0, 6.9.6) |
 | `stylesheet_level` | A stylesheet module with the modules it includes, directly or not: one import precedence (XSLT 4.0, 3.10.2) |
 | `invocation` | How the main function starts a transformation: a template to call, or templates applied to the global context item in an initial mode (XSLT 4.0, 2.4) |
+| `stylesheet_function` | A function an `xsl:function` declares; one IR function per arity of its arity range (XSLT 4.0, 10.3; D150) |
+| `arity_range` | The arities a function accepts: its required parameters up to all of them (XSLT 4.0, 10.3.1) |
+| `eclipsed` | Said of an `xsl:function` overridden by one of the same name, higher import precedence and an arity range holding all of its own (XSLT 4.0, 10.3.4.1) |
+| `attribute_set` | All `xsl:attribute-set` declarations of one name: one IR function of the focus that returns their attributes (XSLT 4.0, 10.2; D150) |
+| `attribute_set_invocation` | One name in an `[xsl:]use-attribute-sets` attribute, a call of that attribute set with the current focus (XSLT 4.0, 10.2.1) |
+| `component_lowering` | The stylesheet functions and attribute sets of one stylesheet lowering, with the function table each static context gets (D150) |
+| `whitespace_stripping` | Removing the whitespace text nodes that `xsl:strip-space` names from a copy of a source document (XSLT 4.0, 4.2.2; D150) |
+| `space_rule` | One name test of an `xsl:strip-space` or `xsl:preserve-space`, with its import precedence, default priority and declaration order |
+| `document_preparation` | A step the document loader applies to each document it gets from the resolver before keeping it: XSLT's whitespace stripping (D150) |
 | `snippet` | A fixed XPath text that lowering parses and lowers itself: the parts of built-in templates, the default select of `xsl:apply-templates` |
 | `grammar` | A tree-sitter grammar under `grammars/<language>/`, and the parser generated from it |
 | `concrete_syntax_tree` | The tree-sitter parse tree of a query or document, before sxml builds its own structures |
