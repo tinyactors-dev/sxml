@@ -5,10 +5,13 @@
  *
  * Golden file: tests/memory_test.c: lifecycle checks, then behaviour, then
  * allocation-failure loops (D23). Units are built by hand here; lowering
- * builds them in tests/xpath_static_test.c.
+ * builds them in tests/xpath_static_test.c. The last section checks the
+ * lowering seam (src/xpath_lower_internal.h, D103): probe lowering parts,
+ * the embedding entry and procedures run from outside a machine.
  */
 #include "ir_internal.h"
 #include "ir_pass_internal.h"
+#include "xpath_lower_internal.h"
 #include "sxml/name.h"
 #include "sxml/types.h"
 #include "sxml/xdm.h"
@@ -813,6 +816,648 @@ static void test_building_and_verifying_survive_every_allocation_failure(
     SXML_TEST_EXPECT(state, failing_allocation_number > 8);
 }
 
+/* ----------------------------------------------------- Lowering seam */
+
+/* An XPath AST of text, made with the default allocator. */
+static sxml_status build_ast(const char *expression_text, sxml_ast **ast) {
+    return sxml_xpath_build_ast(
+        &(sxml_ast_build_request){
+            .expression_text = sxml_byte_view_from_c_string(expression_text),
+            .source_name = SXML_BYTE_VIEW_FROM_LITERAL("probe.xpath"),
+            .allocator = sxml_default_allocator(),
+            .maximum_expression_depth = 0,
+            .error_record = NULL},
+        ast);
+}
+
+/* A unit, a lowerer over it and its main function, entered. */
+typedef struct main_function {
+    sxml_xpath_static_context static_context;
+    sxml_ir_unit *unit;
+    sxml_xpath_lowerer *lowerer;
+    sxml_ir_function_index function_index;
+    sxml_xpath_lowering_function_frame frame;
+    sxml_error_record error_record;
+} main_function;
+
+typedef struct main_request {
+    /* For lower_main: the main function's body. */
+    const char *expression_text;
+    sxml_xpath_lowering_part_view parts;
+    sxml_language language;
+    uint32_t maximum_expression_depth;
+} main_request;
+
+/* Makes the unit and lowerer and enters the main function, which reads
+   its focus from slots; seam must not move until end_main. */
+static sxml_status begin_main(const fixture *test_fixture, main_request request,
+                              main_function *seam) {
+    seam->static_context = (sxml_xpath_static_context){
+        .item_heap = test_fixture->item_heap,
+        .allocator = fixture_allocator(test_fixture),
+        .namespace_bindings = {.namespace_bindings = NULL,
+                               .namespace_binding_count = 0},
+        .variable_declarations = {.variable_declarations = NULL,
+                                  .variable_declaration_count = 0},
+        .function_table = {.state = NULL, .operations = NULL},
+        .static_base_uri = {.bytes = NULL, .byte_count = 0}};
+    seam->error_record = (sxml_error_record){0};
+    seam->unit = NULL;
+    seam->lowerer = NULL;
+    const sxml_ir_unit_configuration configuration =
+        unit_configuration(test_fixture);
+    sxml_status status =
+        sxml_ir_unit_create(fixture_allocator(test_fixture), &configuration,
+                            &seam->unit);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_create(
+            fixture_allocator(test_fixture),
+            &(sxml_xpath_lowerer_configuration){
+                .static_context = &seam->static_context,
+                .unit = seam->unit,
+                .language = request.language,
+                .parts = request.parts,
+                .maximum_expression_depth = request.maximum_expression_depth,
+                .error_record = &seam->error_record},
+            &seam->lowerer);
+    }
+    sxml_type_identifier signature = {0};
+    if (status == SXML_STATUS_OK) {
+        status = register_signature(test_fixture, 0, &signature);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ir_unit_add_function(
+            seam->unit, &(sxml_ir_function){.signature = signature},
+            &seam->function_index);
+    }
+    if (status == SXML_STATUS_OK) {
+        seam->frame = (sxml_xpath_lowering_function_frame){
+            .function = {.function_index = seam->function_index,
+                         .function_level = 0,
+                         .slot_count = 0,
+                         .captures = NULL,
+                         .capture_count = 0},
+            .focus = {.kind = SXML_XPATH_LOWERING_FOCUS_KIND_SLOTS}};
+        sxml_xpath_lowerer_enter_function(seam->lowerer, &seam->frame);
+    }
+    return status;
+}
+
+/* Leaves the main function and gives it body. */
+static sxml_status end_main(main_function *seam, sxml_ir_expression_index body) {
+    sxml_xpath_lowerer_leave_function(seam->lowerer, &seam->frame);
+    sxml_ir_function_replacement replacement = {
+        .index = seam->function_index,
+        .function = *sxml_ir_unit_get_function(seam->unit, seam->function_index)};
+    replacement.function.body = body;
+    replacement.function.slot_count = seam->frame.function.slot_count;
+    replacement.function.focus = seam->frame.focus.slots;
+    return sxml_ir_unit_replace_function(seam->unit, &replacement);
+}
+
+static void release_main(main_function *seam) {
+    sxml_xpath_lowerer_destroy(seam->lowerer);
+    sxml_ir_unit_release(seam->unit);
+}
+
+/* Whether unit's text is expected_text. */
+static bool unit_text_is(const sxml_ir_unit *unit, const char *expected_text) {
+    char text[1024];
+    size_t byte_count = 0;
+    if (sxml_ir_unit_write_text(unit,
+                                (sxml_memory_view){.bytes = (uint8_t *)text,
+                                                   .byte_count = sizeof(text)},
+                                &byte_count) != SXML_STATUS_OK) {
+        return false;
+    }
+    const bool is_equal = byte_count == strlen(expected_text) &&
+                          memcmp(text, expected_text, byte_count) == 0;
+    if (!is_equal) {
+        (void)fprintf(stderr, "unit text:\n%.*s", (int)byte_count, text);
+    }
+    return is_equal;
+}
+
+/* Probe procedure for "text { E }": E lowered to an atom, then cast to
+   xs:string. */
+typedef struct probe_text_locals {
+    sxml_ir_atom content;
+} probe_text_locals;
+
+static sxml_status continue_probe_text(sxml_xpath_lowering_machine *machine,
+                                       sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *lowerer = machine->state;
+    probe_text_locals *locals = frame->locals;
+    if (frame->step == 0) {
+        frame->step = 1;
+        return sxml_xpath_lowering_call_atom(
+            machine,
+            (sxml_xpath_lowering_atom_call){
+                .node = sxml_ast_find_child(
+                    lowerer->ast,
+                    (sxml_ast_child_query){.parent = frame->node,
+                                           .field = SXML_AST_FIELD_CONTENT}),
+                .block = frame->block,
+                .atom = &locals->content});
+    }
+    sxml_ir_expression_index cast = {0};
+    const sxml_status status = sxml_xpath_lowerer_add_expression(
+        lowerer,
+        (sxml_xpath_lowering_expression_to_add){
+            .node = frame->node,
+            .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_CAST,
+                           .cast = {.value = locals->content,
+                                    .target_type = sxml_builtin_type_identifier(
+                                        SXML_TYPE_XS_STRING),
+                                    .allows_empty = false}}},
+        &cast);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_xpath_lowering_finish_frame(machine, frame, cast);
+}
+
+static const sxml_xpath_lowering_procedure probe_text_procedure = {
+    .procedure_name = SXML_BYTE_VIEW_INITIALIZER("probe text"),
+    .step = continue_probe_text,
+    .locals_size = sizeof(probe_text_locals)};
+
+/* Probe leaf for "comment { E }": the string "probe", E not lowered. */
+static sxml_status lower_probe_comment(sxml_xpath_lowerer *lowerer,
+                                       sxml_xpath_lowering_node_in_block request,
+                                       sxml_ir_expression_index *expression) {
+    sxml_ir_atom text = {0};
+    const sxml_status status = sxml_xpath_lowerer_add_string_constant(
+        lowerer, SXML_BYTE_VIEW_FROM_LITERAL("probe"), &text);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_xpath_lowerer_add_expression(
+        lowerer,
+        (sxml_xpath_lowering_expression_to_add){
+            .node = request.node,
+            .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_ATOM,
+                           .atom = text}},
+        expression);
+}
+
+static const sxml_xpath_lowering_rule probe_rules[] = {
+    {.kind = SXML_AST_KIND_COMPUTED_TEXT_CONSTRUCTOR,
+     .procedure = &probe_text_procedure,
+     .leaf = NULL},
+    {.kind = SXML_AST_KIND_COMPUTED_COMMENT_CONSTRUCTOR,
+     .procedure = NULL,
+     .leaf = lower_probe_comment},
+};
+
+static const sxml_xpath_lowering_part probe_part = {
+    .languages = SXML_LANGUAGE_XPATH,
+    .rules = probe_rules,
+    .rule_count = SXML_TEST_COUNT(probe_rules)};
+
+/* An XQuery-only part that claims the same kind: skipped for XPath. */
+static const sxml_xpath_lowering_rule xquery_probe_rules[] = {
+    {.kind = SXML_AST_KIND_COMPUTED_TEXT_CONSTRUCTOR,
+     .procedure = NULL,
+     .leaf = lower_probe_comment},
+};
+
+static const sxml_xpath_lowering_part xquery_probe_part = {
+    .languages = SXML_LANGUAGE_XQUERY,
+    .rules = xquery_probe_rules,
+    .rule_count = SXML_TEST_COUNT(xquery_probe_rules)};
+
+static const sxml_xpath_lowering_registered_part probe_parts[] = {
+    {.part_name = SXML_BYTE_VIEW_INITIALIZER("xquery_probe"),
+     .part = &xquery_probe_part},
+    {.part_name = SXML_BYTE_VIEW_INITIALIZER("probe"), .part = &probe_part},
+};
+
+static const sxml_xpath_lowering_part_view probe_part_view = {
+    .parts = probe_parts, .part_count = SXML_TEST_COUNT(probe_parts)};
+
+/* Lowers text as the main function's body with request's parts. */
+static sxml_status lower_main(const fixture *test_fixture, main_request request,
+                              main_function *seam) {
+    *seam = (main_function){.unit = NULL, .lowerer = NULL};
+    sxml_ast *ast = NULL;
+    sxml_status status = build_ast(request.expression_text, &ast);
+    if (status == SXML_STATUS_OK) {
+        status = begin_main(test_fixture, request, seam);
+    }
+    sxml_ir_expression_index body = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_lower_embedded(
+            seam->lowerer,
+            &(sxml_xpath_lowering_embedding){.ast = ast,
+                                             .node = {.value = 0},
+                                             .static_context = NULL,
+                                             .focus = NULL},
+            &body);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = end_main(seam, body);
+    }
+    sxml_ast_destroy(ast);
+    return status;
+}
+
+static const char probe_text[] =
+    "(function 1 main (parameters 0) (captures) (slots 2)\n"
+    "  (let $1 (binary add 1 2)\n"
+    "    (let $2 (cast $1 xs:string)\n"
+    "      (sequence $2 \"probe\"))))\n";
+
+static void test_lowering_part_lowers_its_kinds(sxml_test_state *state) {
+    fixture test_fixture;
+    SXML_TEST_REQUIRE(state, fixture_create(0, &test_fixture) == SXML_STATUS_OK);
+    main_function seam;
+    SXML_TEST_EXPECT(
+        state, lower_main(&test_fixture,
+                          (main_request){.expression_text =
+                                             "text { 1 + 2 }, comment { 3 }",
+                                         .parts = probe_part_view,
+                                         .language = SXML_LANGUAGE_XPATH},
+                          &seam) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, unit_text_is(seam.unit, probe_text));
+    SXML_TEST_EXPECT(state, verify(&test_fixture, seam.unit, NULL) ==
+                                SXML_STATUS_OK);
+    release_main(&seam);
+    /* For XQuery the first part claims "text { }". */
+    SXML_TEST_EXPECT(
+        state, lower_main(&test_fixture,
+                          (main_request){.expression_text = "text { 1 + 2 }",
+                                         .parts = probe_part_view,
+                                         .language = SXML_LANGUAGE_XQUERY},
+                          &seam) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, unit_text_is(
+                                seam.unit,
+                                "(function 1 main (parameters 0) "
+                                "(captures) (slots 0)\n  \"probe\")\n"));
+    release_main(&seam);
+    SXML_TEST_EXPECT(state, live_allocations(&test_fixture) == 0);
+    SXML_TEST_EXPECT(state, live_cells(&test_fixture) == 0);
+    fixture_destroy(&test_fixture);
+}
+
+static void test_kinds_no_part_lowers_are_the_cores(sxml_test_state *state) {
+    fixture test_fixture;
+    SXML_TEST_REQUIRE(state, fixture_create(0, &test_fixture) == SXML_STATUS_OK);
+    main_function seam;
+    /* No registered part lowers computed constructors yet (3.9). */
+    SXML_TEST_EXPECT(state,
+                     lower_main(&test_fixture,
+                                (main_request){.expression_text = "text { 1 }",
+                                               .language = SXML_LANGUAGE_XPATH},
+                                &seam) == SXML_STATUS_UNSUPPORTED_FEATURE);
+    SXML_TEST_EXPECT(state, seam.error_record.diagnostic.location.column_number ==
+                                1);
+    release_main(&seam);
+    SXML_TEST_EXPECT(state, live_allocations(&test_fixture) == 0);
+    fixture_destroy(&test_fixture);
+}
+
+/* Each registered part has a name and rules of one kind per language:
+   no two parts lower the same kind for a language both serve. */
+static void test_registered_parts_claim_each_kind_once(sxml_test_state *state) {
+    const sxml_xpath_lowering_part_view parts =
+        sxml_xpath_lowering_registered_parts();
+    for (size_t part_index = 0; part_index < parts.part_count; part_index += 1) {
+        const sxml_xpath_lowering_part *part = parts.parts[part_index].part;
+        SXML_TEST_REQUIRE(state, part != NULL);
+        SXML_TEST_EXPECT(state, parts.parts[part_index].part_name.byte_count > 0);
+        SXML_TEST_EXPECT(state, (part->languages & ~SXML_LANGUAGE_SET_ALL) == 0);
+        for (size_t rule_index = 0; rule_index < part->rule_count;
+             rule_index += 1) {
+            const sxml_xpath_lowering_rule *rule = &part->rules[rule_index];
+            SXML_TEST_EXPECT(state,
+                             (rule->procedure == NULL) != (rule->leaf == NULL));
+            for (size_t other_index = 0; other_index <= part_index;
+                 other_index += 1) {
+                const sxml_xpath_lowering_part *other =
+                    parts.parts[other_index].part;
+                const size_t other_rule_count =
+                    other_index == part_index ? rule_index : other->rule_count;
+                for (size_t other_rule = 0; other_rule < other_rule_count;
+                     other_rule += 1) {
+                    SXML_TEST_EXPECT(
+                        state, other->rules[other_rule].kind != rule->kind ||
+                                   (other->languages & part->languages) == 0);
+                }
+            }
+        }
+    }
+}
+
+/* "$x + ." inside a caller's scope: $x is the caller's slot, the focus a
+   fixed value of the caller's. */
+static sxml_status lower_in_scope(const fixture *test_fixture,
+                                  main_function *seam) {
+    *seam = (main_function){.unit = NULL, .lowerer = NULL};
+    sxml_ast *ast = NULL;
+    sxml_status status = build_ast("$x + .", &ast);
+    if (status == SXML_STATUS_OK) {
+        status =
+            begin_main(test_fixture,
+                       (main_request){.language = SXML_LANGUAGE_XPATH}, seam);
+    }
+    sxml_name_identifier name = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_name_pool_intern_name(
+            test_fixture->name_pool,
+            &(sxml_name_request){.namespace_uri = {.index = 0},
+                                 .local_name = SXML_BYTE_VIEW_FROM_LITERAL("x")},
+            &name);
+    }
+    sxml_ir_slot variable_slot = {0};
+    sxml_ir_slot focus_slot = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_add_slot(seam->lowerer, &variable_slot);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_add_slot(seam->lowerer, &focus_slot);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_push_variable(
+            seam->lowerer,
+            (sxml_xpath_lowering_scope_entry){.variable_name = name,
+                                              .function_level = 0,
+                                              .atom = slot(variable_slot.value)});
+    }
+    sxml_xpath_lowering_focus focus = {
+        .kind = SXML_XPATH_LOWERING_FOCUS_KIND_FIXED,
+        .fixed_value = slot(focus_slot.value)};
+    sxml_ir_expression_index body = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_lower_embedded(
+            seam->lowerer,
+            &(sxml_xpath_lowering_embedding){.ast = ast,
+                                             .node = {.value = 0},
+                                             .static_context = NULL,
+                                             .focus = &focus},
+            &body);
+    }
+    if (status == SXML_STATUS_OK) {
+        /* The lowerer has its own focus and no AST again. */
+        status = seam->lowerer->ast == NULL &&
+                         seam->lowerer->function->focus == &seam->frame.focus
+                     ? end_main(seam, body)
+                     : SXML_STATUS_INVALID_ARGUMENT;
+    }
+    sxml_ast_destroy(ast);
+    return status;
+}
+
+static void test_embedding_lowers_in_the_callers_scope(sxml_test_state *state) {
+    fixture test_fixture;
+    SXML_TEST_REQUIRE(state, fixture_create(0, &test_fixture) == SXML_STATUS_OK);
+    main_function seam;
+    SXML_TEST_EXPECT(state, lower_in_scope(&test_fixture, &seam) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state,
+                     unit_text_is(seam.unit,
+                                  "(function 1 main (parameters 0) "
+                                  "(captures) (slots 2)\n"
+                                  "  (binary add $1 $2))\n"));
+    release_main(&seam);
+    SXML_TEST_EXPECT(state, live_allocations(&test_fixture) == 0);
+    fixture_destroy(&test_fixture);
+}
+
+/* A procedure pushed from outside a machine that embeds an AST from its
+   initial locals in its own block, as XSLT instruction lowering does. */
+typedef struct probe_outer_locals {
+    const sxml_ast *ast;
+    sxml_ir_atom value;
+} probe_outer_locals;
+
+static sxml_status continue_probe_outer(sxml_xpath_lowering_machine *machine,
+                                        sxml_xpath_lowering_frame *frame) {
+    probe_outer_locals *locals = frame->locals;
+    if (frame->step == 0) {
+        frame->step = 1;
+        return sxml_xpath_lowering_call_embedded(
+            machine,
+            &(sxml_xpath_lowering_embedded_call){
+                .embedding = {.ast = locals->ast,
+                              .node = {.value = 0},
+                              .static_context = NULL,
+                              .focus = NULL},
+                .block = frame->block,
+                .is_body = false,
+                .destination = {.atom = &locals->value,
+                                .atom_block = frame->block}});
+    }
+    sxml_ir_expression_index result = {0};
+    const sxml_status status = sxml_xpath_lowerer_add_expression(
+        machine->state,
+        (sxml_xpath_lowering_expression_to_add){
+            .node = {.value = 0},
+            .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_ATOM,
+                           .atom = locals->value}},
+        &result);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_xpath_lowering_finish_frame(machine, frame, result);
+}
+
+static const sxml_xpath_lowering_procedure probe_outer_procedure = {
+    .procedure_name = SXML_BYTE_VIEW_INITIALIZER("probe outer"),
+    .step = continue_probe_outer,
+    .locals_size = sizeof(probe_outer_locals)};
+
+static sxml_status run_outer_procedure(const fixture *test_fixture,
+                                       main_function *seam) {
+    *seam = (main_function){.unit = NULL, .lowerer = NULL};
+    sxml_ast *ast = NULL;
+    sxml_status status = build_ast("(1 to 3) ! (. * 2)", &ast);
+    if (status == SXML_STATUS_OK) {
+        status =
+            begin_main(test_fixture,
+                       (main_request){.language = SXML_LANGUAGE_XPATH}, seam);
+    }
+    sxml_ir_expression_index body = {0};
+    if (status == SXML_STATUS_OK) {
+        const probe_outer_locals initial = {.ast = ast, .value = {0}};
+        status = sxml_xpath_lowerer_run_procedure(
+            seam->lowerer,
+            &(sxml_xpath_lowering_procedure_call){
+                .procedure = &probe_outer_procedure,
+                .node = {.value = 0},
+                .block = NULL,
+                .is_body = true,
+                .destination = {.expression = &body},
+                .initial_locals = {.bytes = (const uint8_t *)&initial,
+                                   .byte_count = sizeof(initial)}});
+    }
+    if (status == SXML_STATUS_OK) {
+        status = end_main(seam, body);
+    }
+    sxml_ast_destroy(ast);
+    return status;
+}
+
+static const char outer_text[] =
+    "(function 1 main (parameters 0) (captures) (slots 3)\n"
+    "  (let $1 (binary range 1 3)\n"
+    "    (let $3 (map $1 (focus $2 _ _)\n"
+    "              (binary multiply $2 2))\n"
+    "      $3)))\n";
+
+static void test_procedures_run_from_outside_embed_asts(sxml_test_state *state) {
+    fixture test_fixture;
+    SXML_TEST_REQUIRE(state, fixture_create(0, &test_fixture) == SXML_STATUS_OK);
+    main_function seam;
+    SXML_TEST_EXPECT(state, run_outer_procedure(&test_fixture, &seam) ==
+                                SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, unit_text_is(seam.unit, outer_text));
+    release_main(&seam);
+    /* Nesting beyond maximum_expression_depth: the procedure holds one
+       level, the embedded expression needs more. */
+    sxml_ast *ast = NULL;
+    SXML_TEST_REQUIRE(state, build_ast("1", &ast) == SXML_STATUS_OK);
+    SXML_TEST_REQUIRE(state,
+                      begin_main(&test_fixture,
+                                 (main_request){.language = SXML_LANGUAGE_XPATH,
+                                                .maximum_expression_depth = 1},
+                                 &seam) == SXML_STATUS_OK);
+    sxml_ir_expression_index body = {0};
+    const probe_outer_locals initial = {.ast = ast, .value = {0}};
+    SXML_TEST_EXPECT(state,
+                     sxml_xpath_lowerer_run_procedure(
+                         seam.lowerer,
+                         &(sxml_xpath_lowering_procedure_call){
+                             .procedure = &probe_outer_procedure,
+                             .is_body = true,
+                             .destination = {.expression = &body},
+                             .initial_locals = {.bytes = (const uint8_t *)&initial,
+                                                .byte_count = sizeof(initial)}}) ==
+                         SXML_STATUS_LIMIT_EXCEEDED);
+    /* Initial locals larger than the locals. */
+    const uint8_t too_many[sizeof(probe_outer_locals) + 1] = {0};
+    SXML_TEST_EXPECT(state,
+                     sxml_xpath_lowerer_run_procedure(
+                         seam.lowerer,
+                         &(sxml_xpath_lowering_procedure_call){
+                             .procedure = &probe_outer_procedure,
+                             .is_body = true,
+                             .destination = {.expression = &body},
+                             .initial_locals = {.bytes = too_many,
+                                                .byte_count = sizeof(too_many)}}) ==
+                         SXML_STATUS_INVALID_ARGUMENT);
+    release_main(&seam);
+    sxml_ast_destroy(ast);
+    SXML_TEST_EXPECT(state, live_allocations(&test_fixture) == 0);
+    fixture_destroy(&test_fixture);
+}
+
+static void test_lowerer_lifecycle_checks_its_configuration(
+    sxml_test_state *state) {
+    fixture test_fixture;
+    SXML_TEST_REQUIRE(state, fixture_create(0, &test_fixture) == SXML_STATUS_OK);
+    main_function seam;
+    SXML_TEST_REQUIRE(
+        state, begin_main(&test_fixture,
+                          (main_request){.language = SXML_LANGUAGE_XPATH},
+                          &seam) == SXML_STATUS_OK);
+    sxml_xpath_lowerer_configuration configuration = {
+        .static_context = &seam.static_context, .unit = seam.unit};
+    sxml_memory_requirements requirements = {0};
+    SXML_TEST_EXPECT(state, sxml_xpath_lowerer_memory_requirements(
+                                &configuration, &requirements) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, requirements.byte_count == sizeof(sxml_xpath_lowerer));
+    alignas(sxml_xpath_lowerer) uint8_t memory[sizeof(sxml_xpath_lowerer) + 1];
+    sxml_xpath_lowerer *lowerer = NULL;
+    SXML_TEST_EXPECT(state, sxml_xpath_lowerer_initialize(
+                                (sxml_memory_view){.bytes = memory,
+                                                   .byte_count = sizeof(memory) - 2},
+                                &configuration,
+                                &lowerer) == SXML_STATUS_INSUFFICIENT_MEMORY);
+    SXML_TEST_EXPECT(state, sxml_xpath_lowerer_initialize(
+                                (sxml_memory_view){.bytes = memory + 1,
+                                                   .byte_count = sizeof(memory) - 1},
+                                &configuration,
+                                &lowerer) == SXML_STATUS_MISALIGNED_MEMORY);
+    SXML_TEST_EXPECT(state, lowerer == NULL);
+    SXML_TEST_EXPECT(state, sxml_xpath_lowerer_initialize(
+                                (sxml_memory_view){.bytes = memory,
+                                                   .byte_count = sizeof(memory)},
+                                &configuration, &lowerer) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, lowerer != NULL && lowerer->language ==
+                                                   SXML_LANGUAGE_XPATH);
+    sxml_xpath_lowerer_finalize(lowerer);
+    sxml_xpath_lowerer_finalize(NULL);
+    sxml_xpath_lowerer_destroy(NULL);
+    configuration.language = SXML_LANGUAGE_XSLT;
+    configuration.unit = NULL;
+    SXML_TEST_EXPECT(state,
+                     sxml_xpath_lowerer_create(fixture_allocator(&test_fixture),
+                                               &configuration, &lowerer) ==
+                         SXML_STATUS_INVALID_ARGUMENT);
+    /* An embedding with another item heap's static context. */
+    sxml_xpath_static_context other_context = seam.static_context;
+    other_context.item_heap = NULL;
+    sxml_ast *ast = NULL;
+    SXML_TEST_REQUIRE(state, build_ast("1", &ast) == SXML_STATUS_OK);
+    sxml_ir_expression_index body = {0};
+    SXML_TEST_EXPECT(state, sxml_xpath_lowerer_lower_embedded(
+                                seam.lowerer,
+                                &(sxml_xpath_lowering_embedding){
+                                    .ast = ast, .static_context = &other_context},
+                                &body) == SXML_STATUS_INVALID_ARGUMENT);
+    sxml_ast_destroy(ast);
+    release_main(&seam);
+    SXML_TEST_EXPECT(state, live_allocations(&test_fixture) == 0);
+    fixture_destroy(&test_fixture);
+}
+
+/* What one run of the seam's cases needs: a probe part, an embedding in
+   scope, an outer procedure. */
+static sxml_status run_seam_cases(const fixture *test_fixture) {
+    main_function seam;
+    sxml_status status = lower_main(
+        test_fixture,
+        (main_request){.expression_text = "text { 1 + 2 }, comment { 3 }",
+                       .parts = probe_part_view,
+                       .language = SXML_LANGUAGE_XPATH},
+        &seam);
+    release_main(&seam);
+    if (status == SXML_STATUS_OK) {
+        status = lower_in_scope(test_fixture, &seam);
+        release_main(&seam);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = run_outer_procedure(test_fixture, &seam);
+        release_main(&seam);
+    }
+    return status;
+}
+
+static void test_lowering_seam_survives_every_allocation_failure(
+    sxml_test_state *state) {
+    uint64_t failing_allocation_number = 1;
+    for (;;) {
+        fixture test_fixture;
+        SXML_TEST_REQUIRE(state, fixture_create(failing_allocation_number,
+                                                &test_fixture) == SXML_STATUS_OK);
+        const sxml_status status = run_seam_cases(&test_fixture);
+        const sxml_allocation_counts counts =
+            sxml_counting_allocator_read_counts(test_fixture.counting_allocator);
+        SXML_TEST_EXPECT(state, counts.live_allocation_count == 0);
+        SXML_TEST_EXPECT(state, live_cells(&test_fixture) == 0);
+        fixture_destroy(&test_fixture);
+        if (status == SXML_STATUS_OK) {
+            SXML_TEST_EXPECT(state, counts.failed_allocation_count == 0);
+            break;
+        }
+        SXML_TEST_EXPECT(state, status == SXML_STATUS_OUT_OF_MEMORY);
+        SXML_TEST_EXPECT(state, counts.failed_allocation_count == 1);
+        failing_allocation_number += 1;
+        SXML_TEST_REQUIRE(state, failing_allocation_number < 400);
+    }
+    SXML_TEST_EXPECT(state, failing_allocation_number > 20);
+}
+
 static const sxml_test_case ir_test_cases[] = {
     {.name = "unit_initializes_in_caller_memory_and_copies_source_name",
      .function = test_unit_initializes_in_caller_memory_and_copies_source_name},
@@ -836,6 +1481,20 @@ static const sxml_test_case ir_test_cases[] = {
      .function = test_pass_list_verifies_after_each_pass},
     {.name = "building_and_verifying_survive_every_allocation_failure",
      .function = test_building_and_verifying_survive_every_allocation_failure},
+    {.name = "lowering_part_lowers_its_kinds",
+     .function = test_lowering_part_lowers_its_kinds},
+    {.name = "kinds_no_part_lowers_are_the_cores",
+     .function = test_kinds_no_part_lowers_are_the_cores},
+    {.name = "registered_parts_claim_each_kind_once",
+     .function = test_registered_parts_claim_each_kind_once},
+    {.name = "embedding_lowers_in_the_callers_scope",
+     .function = test_embedding_lowers_in_the_callers_scope},
+    {.name = "procedures_run_from_outside_embed_asts",
+     .function = test_procedures_run_from_outside_embed_asts},
+    {.name = "lowerer_lifecycle_checks_its_configuration",
+     .function = test_lowerer_lifecycle_checks_its_configuration},
+    {.name = "lowering_seam_survives_every_allocation_failure",
+     .function = test_lowering_seam_survives_every_allocation_failure},
 };
 
 int main(int argument_count, char **arguments) {

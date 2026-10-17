@@ -8,7 +8,7 @@
  *
  * Administrative normal form. Every operand of an IR expression is an
  * atom, so an operand that is not a literal, a variable or the focus is
- * computed first and bound by LET. A lowering_block collects those LETs
+ * computed first and bound by LET. A sxml_xpath_lowering_block collects those LETs
  * while one expression is lowered: binding appends a LET whose body is
  * filled later (the next LET, or the block's result), so the LET chain
  * nests in evaluation order. Branches, loop bodies and function bodies are
@@ -41,8 +41,16 @@
  * first read, so a part of the focus nobody reads stays 0), or fixed (the
  * argument of a focus function and the value of "->", with position and
  * size 1).
+ *
+ * The seam (src/xpath_lower_internal.h, D103). The machine, the lowerer
+ * and the building blocks above are shared with lowering parts: files of
+ * XQuery and XSLT that lower kinds of their own (or the core's, for their
+ * language) and are found by CMake's glob. call_expression looks for a
+ * part's rule before the core's procedures and leaves. The embedding
+ * entry lowers an XPath AST inside a caller's scope; sxml_xpath_lower
+ * itself lowers its main function through it.
  */
-#include "xpath_static_internal.h"
+#include "xpath_lower_internal.h"
 
 #include "decimal_internal.h"
 #include "ir_pass_internal.h"
@@ -51,85 +59,11 @@
 #include <stdalign.h>
 #include <string.h>
 
-
-/* ----------------------------------------------------------------- State */
-
-typedef struct scope_entry {
-    sxml_name_identifier variable_name;
-    /* The level of the function that binds it: 0 for the main function,
-       one more for each inline function inside. */
-    uint32_t function_level;
-    /* Where its value is, in that function's frame. */
-    sxml_ir_atom atom;
-} scope_entry;
-
-/* A free variable of an inline function: a captured slot, or the
-   constant a let bound it to. */
-typedef struct capture_entry {
-    sxml_name_identifier variable_name;
-    sxml_ir_atom atom;
-} capture_entry;
-
-typedef enum focus_kind {
-    /* No focus: an inline function body. */
-    SXML_LOWERING_FOCUS_KIND_ABSENT,
-    /* Slots made on first read: the main function, MAP and FILTER. */
-    SXML_LOWERING_FOCUS_KIND_SLOTS,
-    /* A fixed value, position and size 1: a focus function, "->". */
-    SXML_LOWERING_FOCUS_KIND_FIXED,
-} focus_kind;
-
-typedef struct lowering_focus {
-    focus_kind kind;
-    sxml_ir_focus slots;
-    sxml_ir_atom fixed_value;
-} lowering_focus;
-
-typedef struct lowering_function {
-    sxml_ir_function_index function_index;
-    uint32_t function_level;
-    uint32_t slot_count;
-    lowering_focus *focus;
-    /* The free variables of an inline function and their slots. */
-    capture_entry *captures;
-    size_t capture_count;
-} lowering_function;
-
-typedef struct lowerer {
-    const sxml_ast *ast;
-    const sxml_xpath_static_context *static_context;
-    sxml_error_record *error_record;
-    sxml_ir_unit *unit;
-    sxml_allocator allocator;
-    sxml_name_pool *name_pool;
-    sxml_type_registry *type_registry;
-    sxml_item_heap *item_heap;
-    scope_entry *scope_entries;
-    size_t scope_entry_count;
-    size_t scope_entry_capacity;
-    lowering_function *function;
-    /* Per AST node, whether its subtree has a variable reference; made
-       for the first inline function (find_variable_subtrees). */
-    bool *has_variable_reference;
-    uint32_t depth;
-    uint32_t maximum_depth;
-    /* Constants made once per unit; index 0 until first needed. */
-    sxml_ir_constant_index true_constant;
-    sxml_ir_constant_index false_constant;
-    sxml_ir_constant_index one_constant;
-} lowerer;
-
-/* The LETs bound while lowering one expression; see the file comment. */
-typedef struct lowering_block {
-    sxml_ir_expression_index first;
-    sxml_ir_expression_index open_let;
-} lowering_block;
-
 /* ---------------------------------------------------------------- Errors */
 
 /* code_and_description is "CODE description": an eight-character error
    code, a space and the description, static text. */
-static sxml_status report_static_error(const lowerer *state,
+sxml_status sxml_xpath_lowerer_report_static_error(const sxml_xpath_lowerer *state,
                                        sxml_ast_node_index node,
                                        sxml_byte_view code_and_description) {
     return sxml_xpath_report_static_error(
@@ -143,7 +77,7 @@ static sxml_status report_static_error(const lowerer *state,
         state->error_record);
 }
 
-static sxml_status report_unsupported(const lowerer *state,
+sxml_status sxml_xpath_lowerer_report_unsupported(const sxml_xpath_lowerer *state,
                                       sxml_ast_node_index node,
                                       sxml_byte_view description) {
     if (state->error_record != NULL) {
@@ -156,29 +90,34 @@ static sxml_status report_unsupported(const lowerer *state,
 
 /* ------------------------------------------------------------- AST reads */
 
-static const sxml_ast_node *node_of(const lowerer *state,
+static const sxml_ast_node *node_of(const sxml_xpath_lowerer *state,
                                     sxml_ast_node_index node) {
     return sxml_ast_get_node(state->ast, node);
 }
 
-static sxml_ast_node_index child_of(const lowerer *state,
+static sxml_ast_node_index child_of(const sxml_xpath_lowerer *state,
                                     sxml_ast_node_index parent,
                                     sxml_ast_field field) {
     return sxml_ast_find_child(
         state->ast, (sxml_ast_child_query){.parent = parent, .field = field});
 }
 
-static sxml_ast_node_index next_of(const lowerer *state,
+static sxml_ast_node_index next_of(const sxml_xpath_lowerer *state,
                                    sxml_ast_node_index node) {
     return sxml_ast_find_next_with_same_field(state->ast, node);
 }
 
-static sxml_byte_view text_of(const lowerer *state, sxml_ast_node_index node) {
+static sxml_byte_view text_of(const sxml_xpath_lowerer *state, sxml_ast_node_index node) {
     return sxml_ast_get_text(state->ast, node_of(state, node)->payload.text);
 }
 
-static sxml_ir_source_span span_of(const lowerer *state,
+static sxml_ir_source_span span_of(const sxml_xpath_lowerer *state,
                                    sxml_ast_node_index node) {
+    if (state->ast == NULL) {
+        /* A procedure without an AST (XSLT instructions before any
+           embedding): no span. */
+        return (sxml_ir_source_span){.line_number = 0};
+    }
     const sxml_ast_source_span span = node_of(state, node)->source_span;
     return (sxml_ir_source_span){.byte_offset = span.byte_offset,
                                  .byte_count = span.byte_count,
@@ -188,14 +127,10 @@ static sxml_ir_source_span span_of(const lowerer *state,
 
 /* ------------------------------------------------------------ Memory */
 
-typedef struct scratch_request {
-    size_t element_count;
-    size_t element_size;
-    size_t element_alignment;
-} scratch_request;
-
-static sxml_status allocate_scratch(const lowerer *state,
-                                    scratch_request request, void **memory) {
+sxml_status
+sxml_xpath_lowerer_allocate_scratch(const sxml_xpath_lowerer *state,
+                                    sxml_xpath_lowering_scratch_request request,
+                                    void **memory) {
     /* At least one element, so that a successful call never gives NULL
        and code indexing the array needs no special case for none. */
     const size_t element_count =
@@ -213,25 +148,22 @@ static sxml_status allocate_scratch(const lowerer *state,
         memory);
 }
 
-static void release_scratch(const lowerer *state, void *memory) {
+void sxml_xpath_lowerer_release_scratch(const sxml_xpath_lowerer *state, void *memory) {
     sxml_allocator_release(state->allocator, memory);
 }
 
 /* ---------------------------------------------------------- Expressions */
 
-typedef struct expression_to_add {
-    sxml_ast_node_index node;
-    sxml_ir_expression expression;
-} expression_to_add;
-
-static sxml_status add_expression(lowerer *state, expression_to_add request,
+sxml_status
+sxml_xpath_lowerer_add_expression(sxml_xpath_lowerer *state,
+                                  sxml_xpath_lowering_expression_to_add request,
                                   sxml_ir_expression_index *index) {
     request.expression.source_span = span_of(state, request.node);
     return sxml_ir_unit_add_expression(state->unit, &request.expression,
                                        index);
 }
 
-static sxml_status new_slot(lowerer *state, sxml_ir_slot *slot) {
+sxml_status sxml_xpath_lowerer_add_slot(sxml_xpath_lowerer *state, sxml_ir_slot *slot) {
     if (state->function->slot_count == UINT32_MAX - 1U) {
         return SXML_STATUS_LIMIT_EXCEEDED;
     }
@@ -250,7 +182,7 @@ static sxml_ir_atom constant_atom(sxml_ir_constant_index constant) {
 }
 
 /* Sets the body of a LET whose body is still 0. */
-static sxml_status set_let_body(lowerer *state, sxml_ir_expression_index let,
+static sxml_status set_let_body(sxml_xpath_lowerer *state, sxml_ir_expression_index let,
                                 sxml_ir_expression_index body) {
     sxml_ir_expression_replacement replacement = {
         .index = let,
@@ -261,11 +193,11 @@ static sxml_status set_let_body(lowerer *state, sxml_ir_expression_index let,
 
 /* A value to bind in a block: appends "LET $new := expression". */
 typedef struct binding_request {
-    lowering_block *block;
+    sxml_xpath_lowering_block *block;
     sxml_ir_expression_index expression;
 } binding_request;
 
-static sxml_status bind_in_block(lowerer *state, binding_request request,
+static sxml_status bind_in_block(sxml_xpath_lowerer *state, binding_request request,
                                  sxml_ir_atom *atom) {
     const sxml_ir_expression *bound =
         sxml_ir_unit_get_expression(state->unit, request.expression);
@@ -276,7 +208,7 @@ static sxml_status bind_in_block(lowerer *state, binding_request request,
     }
     const sxml_ir_source_span span = bound->source_span;
     sxml_ir_slot slot = {0};
-    sxml_status status = new_slot(state, &slot);
+    sxml_status status = sxml_xpath_lowerer_add_slot(state, &slot);
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -292,7 +224,7 @@ static sxml_status bind_in_block(lowerer *state, binding_request request,
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    lowering_block *block = request.block;
+    sxml_xpath_lowering_block *block = request.block;
     if (block->open_let.value != 0) {
         status = set_let_body(state, block->open_let, let);
         if (status != SXML_STATUS_OK) {
@@ -306,13 +238,9 @@ static sxml_status bind_in_block(lowerer *state, binding_request request,
     return SXML_STATUS_OK;
 }
 
-/* Ends a block with result: the outermost LET, or result itself. */
-typedef struct block_result {
-    lowering_block block;
-    sxml_ir_expression_index result;
-} block_result;
-
-static sxml_status finish_block(lowerer *state, block_result request,
+sxml_status
+sxml_xpath_lowerer_finish_block(sxml_xpath_lowerer *state,
+                                sxml_xpath_lowering_block_result request,
                                 sxml_ir_expression_index *expression) {
     if (request.block.open_let.value == 0) {
         *expression = request.result;
@@ -332,22 +260,24 @@ typedef struct atom_at {
     sxml_ir_atom atom;
 } atom_at;
 
-static sxml_status add_atom_expression(lowerer *state, atom_at request,
+static sxml_status add_atom_expression(sxml_xpath_lowerer *state, atom_at request,
                                        sxml_ir_expression_index *expression) {
-    return add_expression(
+    return sxml_xpath_lowerer_add_expression(
         state,
-        (expression_to_add){
+        (sxml_xpath_lowering_expression_to_add){
             .node = request.node,
             .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_ATOM,
                            .atom = request.atom}},
         expression);
 }
 
-static sxml_status add_empty_sequence(lowerer *state, sxml_ast_node_index node,
+sxml_status
+sxml_xpath_lowerer_add_empty_sequence(sxml_xpath_lowerer *state,
+                                      sxml_ast_node_index node,
                                       sxml_ir_expression_index *expression) {
-    return add_expression(
+    return sxml_xpath_lowerer_add_expression(
         state,
-        (expression_to_add){
+        (sxml_xpath_lowering_expression_to_add){
             .node = node,
             .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_SEQUENCE,
                            .sequence = {.first_atom_index = 0,
@@ -358,8 +288,9 @@ static sxml_status add_empty_sequence(lowerer *state, sxml_ast_node_index node,
 /* ------------------------------------------------------------ Constants */
 
 /* Adds item, owned, as a constant; the item is released either way. */
-static sxml_status add_item_constant(lowerer *state, sxml_item item,
-                                     sxml_ir_atom *atom) {
+sxml_status sxml_xpath_lowerer_add_item_constant(sxml_xpath_lowerer *state,
+                                                 sxml_item item,
+                                                 sxml_ir_atom *atom) {
     const sxml_sequence value = sxml_sequence_from_item(item);
     sxml_ir_constant_index constant = {0};
     sxml_status status =
@@ -378,7 +309,7 @@ typedef enum shared_constant {
     SXML_LOWERING_SHARED_CONSTANT_ONE,
 } shared_constant;
 
-static sxml_status get_shared_constant(lowerer *state, shared_constant which,
+static sxml_status get_shared_constant(sxml_xpath_lowerer *state, shared_constant which,
                                        sxml_ir_atom *atom) {
     sxml_ir_constant_index *cached = NULL;
     sxml_item item = {0};
@@ -401,7 +332,7 @@ static sxml_status get_shared_constant(lowerer *state, shared_constant which,
         return SXML_STATUS_OK;
     }
     sxml_ir_atom new_atom = {0};
-    sxml_status status = add_item_constant(state, item, &new_atom);
+    sxml_status status = sxml_xpath_lowerer_add_item_constant(state, item, &new_atom);
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -415,7 +346,7 @@ typedef struct atomic_constant {
     sxml_atomic_datum datum;
 } atomic_constant;
 
-static sxml_status add_atomic_constant(lowerer *state, atomic_constant request,
+static sxml_status add_atomic_constant(sxml_xpath_lowerer *state, atomic_constant request,
                                        sxml_ir_atom *atom) {
     sxml_item item = {0};
     sxml_status status = sxml_atomic_item_make(
@@ -426,11 +357,12 @@ static sxml_status add_atomic_constant(lowerer *state, atomic_constant request,
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    return add_item_constant(state, item, atom);
+    return sxml_xpath_lowerer_add_item_constant(state, item, atom);
 }
 
-static sxml_status add_string_constant(lowerer *state, sxml_byte_view text,
-                                       sxml_ir_atom *atom) {
+sxml_status sxml_xpath_lowerer_add_string_constant(sxml_xpath_lowerer *state,
+                                                   sxml_byte_view text,
+                                                   sxml_ir_atom *atom) {
     sxml_string string = {0};
     sxml_status status = sxml_string_from_utf8(text, &string);
     if (status != SXML_STATUS_OK) {
@@ -465,7 +397,7 @@ static uint32_t digit_value(uint8_t digit) {
 /* An integer literal (XPath 4.0, A.3.1, IntegerLiteral, HexIntegerLiteral,
    BinaryIntegerLiteral): inline when it fits int64_t, otherwise a
    decimal cell (D36). */
-static sxml_status add_integer_constant(lowerer *state, integer_digits request,
+static sxml_status add_integer_constant(sxml_xpath_lowerer *state, integer_digits request,
                                         sxml_ir_atom *atom) {
     uint64_t value = 0;
     bool fits = true;
@@ -479,7 +411,7 @@ static sxml_status add_integer_constant(lowerer *state, integer_digits request,
         value = value * request.base + digit;
     }
     if (fits) {
-        return add_item_constant(
+        return sxml_xpath_lowerer_add_item_constant(
             state, sxml_atomic_item_from_integer((int64_t)value), atom);
     }
     /* Convert to decimal digits: each input digit multiplies the decimal
@@ -496,9 +428,9 @@ static sxml_status add_integer_constant(lowerer *state, integer_digits request,
             status = sxml_size_add(capacity, 1, &capacity);
         }
         if (status == SXML_STATUS_OK) {
-            status = allocate_scratch(
+            status = sxml_xpath_lowerer_allocate_scratch(
                 state,
-                (scratch_request){.element_count = capacity,
+                (sxml_xpath_lowering_scratch_request){.element_count = capacity,
                                   .element_size = 1,
                                   .element_alignment = 1},
                 &memory);
@@ -547,7 +479,7 @@ static sxml_status add_integer_constant(lowerer *state, integer_digits request,
             .datum = {.datum_kind = SXML_DATUM_KIND_DECIMAL,
                       .datum_details = {.decimal_text = decimal_text}}},
         atom);
-    release_scratch(state, memory);
+    sxml_xpath_lowerer_release_scratch(state, memory);
     return status;
 }
 
@@ -559,7 +491,7 @@ static sxml_status add_integer_constant(lowerer *state, integer_digits request,
  */
 #define DOUBLE_DIGIT_RANGE 400
 
-static sxml_status add_double_constant(lowerer *state, sxml_byte_view text,
+static sxml_status add_double_constant(sxml_xpath_lowerer *state, sxml_byte_view text,
                                        sxml_ir_atom *atom) {
     size_t exponent_index = 0;
     while (exponent_index < text.byte_count &&
@@ -608,9 +540,9 @@ static sxml_status add_double_constant(lowerer *state, sxml_byte_view text,
         const size_t zero_count = scale >= 0 ? (size_t)scale : (size_t)(-scale);
         const size_t capacity = digit_count + zero_count + 3;
         void *memory = NULL;
-        sxml_status status = allocate_scratch(
+        sxml_status status = sxml_xpath_lowerer_allocate_scratch(
             state,
-            (scratch_request){
+            (sxml_xpath_lowering_scratch_request){
                 .element_count = capacity, .element_size = 1, .element_alignment = 1},
             &memory);
         if (status != SXML_STATUS_OK) {
@@ -667,7 +599,7 @@ static sxml_status add_double_constant(lowerer *state, sxml_byte_view text,
             &configuration,
             (sxml_byte_view){.bytes = decimal_text, .byte_count = text_count},
             &decimal);
-        release_scratch(state, memory);
+        sxml_xpath_lowerer_release_scratch(state, memory);
         if (status != SXML_STATUS_OK) {
             /* The front end only gives well-formed literals. */
             return status == SXML_STATUS_MALFORMED_INPUT
@@ -677,32 +609,35 @@ static sxml_status add_double_constant(lowerer *state, sxml_byte_view text,
         double_number = sxml_decimal_to_double(&decimal);
         sxml_decimal_finalize(&decimal);
     }
-    return add_item_constant(state, sxml_atomic_item_from_double(double_number),
-                             atom);
+    return sxml_xpath_lowerer_add_item_constant(
+        state, sxml_atomic_item_from_double(double_number), atom);
 }
 
 /* ------------------------------------------------------------- Variables */
 
-static sxml_status push_variable(lowerer *state, scope_entry entry) {
+sxml_status
+sxml_xpath_lowerer_push_variable(sxml_xpath_lowerer *state,
+                                 sxml_xpath_lowering_scope_entry entry) {
     if (state->scope_entry_count == state->scope_entry_capacity) {
         const size_t new_capacity = state->scope_entry_capacity < 16
                                         ? 16
                                         : state->scope_entry_capacity * 2;
         void *memory = NULL;
-        sxml_status status = allocate_scratch(
+        sxml_status status = sxml_xpath_lowerer_allocate_scratch(
             state,
-            (scratch_request){.element_count = new_capacity,
-                              .element_size = sizeof(scope_entry),
-                              .element_alignment = alignof(scope_entry)},
+            (sxml_xpath_lowering_scratch_request){
+                .element_count = new_capacity,
+                .element_size = sizeof(sxml_xpath_lowering_scope_entry),
+                .element_alignment = alignof(sxml_xpath_lowering_scope_entry)},
             &memory);
         if (status != SXML_STATUS_OK) {
             return status;
         }
         if (state->scope_entry_count > 0) {
             memcpy(memory, state->scope_entries,
-                   state->scope_entry_count * sizeof(scope_entry));
+                   state->scope_entry_count * sizeof(sxml_xpath_lowering_scope_entry));
         }
-        release_scratch(state, state->scope_entries);
+        sxml_xpath_lowerer_release_scratch(state, state->scope_entries);
         state->scope_entries = memory;
         state->scope_entry_capacity = new_capacity;
     }
@@ -711,8 +646,15 @@ static sxml_status push_variable(lowerer *state, scope_entry entry) {
     return SXML_STATUS_OK;
 }
 
+void sxml_xpath_lowerer_pop_variables(sxml_xpath_lowerer *lowerer,
+                                      size_t entry_count) {
+    if (entry_count < lowerer->scope_entry_count) {
+        lowerer->scope_entry_count = entry_count;
+    }
+}
+
 /* The expanded name of a variable name node (no default namespace). */
-static sxml_status resolve_variable_name(lowerer *state,
+sxml_status sxml_xpath_lowerer_resolve_variable_name(sxml_xpath_lowerer *state,
                                          sxml_ast_node_index name_node,
                                          sxml_name_identifier *name) {
     sxml_xpath_resolved_name resolved = {0};
@@ -740,16 +682,17 @@ typedef struct variable_lookup {
     sxml_ir_atom atom;
 } variable_lookup;
 
-static sxml_status look_up_variable(const lowerer *state,
+static sxml_status look_up_variable(const sxml_xpath_lowerer *state,
                                     sxml_name_identifier name,
                                     variable_lookup *lookup) {
-    const lowering_function *function = state->function;
+    const sxml_xpath_lowering_function *function = state->function;
     bool is_outer = false;
     sxml_ir_atom atom = {0};
     bool is_found = false;
     for (size_t entry_number = state->scope_entry_count; entry_number > 0;
          entry_number -= 1) {
-        const scope_entry *entry = &state->scope_entries[entry_number - 1];
+        const sxml_xpath_lowering_scope_entry *entry =
+            &state->scope_entries[entry_number - 1];
         if (entry->variable_name.index == name.index) {
             is_found = true;
             is_outer = entry->function_level != function->function_level;
@@ -797,13 +740,12 @@ static sxml_status look_up_variable(const lowerer *state,
     return SXML_STATUS_OK;
 }
 
-static sxml_status lower_variable_reference(lowerer *state,
+static sxml_status lower_variable_reference(sxml_xpath_lowerer *state,
                                             sxml_ast_node_index node,
                                             sxml_ir_atom *atom) {
     sxml_name_identifier name = {0};
-    sxml_status status =
-        resolve_variable_name(state, child_of(state, node, SXML_AST_FIELD_NAME),
-                              &name);
+    sxml_status status = sxml_xpath_lowerer_resolve_variable_name(
+        state, child_of(state, node, SXML_AST_FIELD_NAME), &name);
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -814,8 +756,10 @@ static sxml_status lower_variable_reference(lowerer *state,
     }
     if (!lookup.is_found) {
         /* XPath 4.0, section 4.3.3: the variable must be in scope. */
-        return report_static_error(state, node,
-                                   SXML_BYTE_VIEW_FROM_LITERAL("XPST0008 the variable is not declared"));
+        return sxml_xpath_lowerer_report_static_error(
+            state, node,
+            SXML_BYTE_VIEW_FROM_LITERAL(
+                "XPST0008 the variable is not declared"));
     }
     *atom = lookup.atom;
     return SXML_STATUS_OK;
@@ -823,25 +767,13 @@ static sxml_status lower_variable_reference(lowerer *state,
 
 /* ----------------------------------------------------------------- Focus */
 
-typedef enum focus_part {
-    SXML_LOWERING_FOCUS_PART_VALUE,
-    SXML_LOWERING_FOCUS_PART_POSITION,
-    SXML_LOWERING_FOCUS_PART_SIZE,
-} focus_part;
-
-/* A raise of an error known statically, bound in block. */
-typedef struct raise_request {
-    sxml_ast_node_index node;
-    sxml_status error_status;
-    sxml_byte_view code_local_name;
-    sxml_byte_view description;
-} raise_request;
-
-static sxml_status add_raise(lowerer *state, raise_request request,
+sxml_status
+sxml_xpath_lowerer_add_raise(sxml_xpath_lowerer *state,
+                             sxml_xpath_lowering_raise_request request,
                              sxml_ir_expression_index *expression) {
-    return add_expression(
+    return sxml_xpath_lowerer_add_expression(
         state,
-        (expression_to_add){
+        (sxml_xpath_lowering_expression_to_add){
             .node = request.node,
             .expression = {
                 .expression_kind = SXML_IR_EXPRESSION_KIND_RAISE,
@@ -855,14 +787,14 @@ static sxml_status add_raise(lowerer *state, raise_request request,
         expression);
 }
 
-static sxml_status add_absent_focus_raise(lowerer *state,
+static sxml_status add_absent_focus_raise(sxml_xpath_lowerer *state,
                                           sxml_ast_node_index node,
                                           sxml_ir_expression_index *expression) {
     /* XPath 4.0, section 4.5.6: the body of an inline function has no
        focus; reading it raises XPDY0002 when evaluated. */
-    return add_raise(
+    return sxml_xpath_lowerer_add_raise(
         state,
-        (raise_request){
+        (sxml_xpath_lowering_raise_request){
             .node = node,
             .error_status = SXML_STATUS_DYNAMIC_ERROR,
             .code_local_name = SXML_BYTE_VIEW_FROM_LITERAL("XPDY0002"),
@@ -871,18 +803,14 @@ static sxml_status add_absent_focus_raise(lowerer *state,
         expression);
 }
 
-typedef struct focus_read {
-    lowering_block *block;
-    sxml_ast_node_index node;
-    focus_part part;
-} focus_read;
-
 /* The atom of one part of the current focus, made on first read. */
-static sxml_status read_focus(lowerer *state, focus_read request,
+sxml_status
+sxml_xpath_lowerer_read_focus(sxml_xpath_lowerer *state,
+                              sxml_xpath_lowering_focus_read request,
                               sxml_ir_atom *atom) {
-    lowering_focus *focus = state->function->focus;
+    sxml_xpath_lowering_focus *focus = state->function->focus;
     switch (focus->kind) {
-    case SXML_LOWERING_FOCUS_KIND_ABSENT: {
+    case SXML_XPATH_LOWERING_FOCUS_KIND_ABSENT: {
         sxml_ir_expression_index raise = {0};
         sxml_status status =
             add_absent_focus_raise(state, request.node, &raise);
@@ -894,22 +822,22 @@ static sxml_status read_focus(lowerer *state, focus_read request,
             (binding_request){.block = request.block, .expression = raise},
             atom);
     }
-    case SXML_LOWERING_FOCUS_KIND_FIXED:
-        if (request.part == SXML_LOWERING_FOCUS_PART_VALUE) {
+    case SXML_XPATH_LOWERING_FOCUS_KIND_FIXED:
+        if (request.part == SXML_XPATH_LOWERING_FOCUS_PART_VALUE) {
             *atom = focus->fixed_value;
             return SXML_STATUS_OK;
         }
         return get_shared_constant(state, SXML_LOWERING_SHARED_CONSTANT_ONE, atom);
-    case SXML_LOWERING_FOCUS_KIND_SLOTS:
+    case SXML_XPATH_LOWERING_FOCUS_KIND_SLOTS:
         break;
     }
-    sxml_ir_slot *slot = request.part == SXML_LOWERING_FOCUS_PART_VALUE
+    sxml_ir_slot *slot = request.part == SXML_XPATH_LOWERING_FOCUS_PART_VALUE
                              ? &focus->slots.context_value
-                         : request.part == SXML_LOWERING_FOCUS_PART_POSITION
+                         : request.part == SXML_XPATH_LOWERING_FOCUS_PART_POSITION
                              ? &focus->slots.context_position
                              : &focus->slots.context_size;
     if (slot->value == 0) {
-        sxml_status status = new_slot(state, slot);
+        sxml_status status = sxml_xpath_lowerer_add_slot(state, slot);
         if (status != SXML_STATUS_OK) {
             return status;
         }
@@ -927,12 +855,12 @@ static sxml_status read_focus(lowerer *state, focus_read request,
  * one, so nested inline functions without variables cost linear time, not
  * a walk of every enclosing function's whole body each.
  */
-static sxml_status find_variable_subtrees(lowerer *state) {
+static sxml_status find_variable_subtrees(sxml_xpath_lowerer *state) {
     const sxml_ast *ast = state->ast;
     void *memory = NULL;
-    sxml_status status = allocate_scratch(
+    sxml_status status = sxml_xpath_lowerer_allocate_scratch(
         state,
-        (scratch_request){.element_count = ast->node_count,
+        (sxml_xpath_lowering_scratch_request){.element_count = ast->node_count,
                           .element_size = sizeof(bool),
                           .element_alignment = alignof(bool)},
         &memory);
@@ -976,7 +904,7 @@ static sxml_status find_variable_subtrees(lowerer *state) {
 /* The next node of a preorder walk of root's subtree, through the AST's
    links, skipping subtrees without a variable reference; 0 after the
    last. */
-static sxml_ast_node_index next_in_subtree(const lowerer *state,
+static sxml_ast_node_index next_in_subtree(const sxml_xpath_lowerer *state,
                                            sxml_ast_node_index root,
                                            sxml_ast_node_index node) {
     const sxml_ast_node *current = node_of(state, node);
@@ -1006,7 +934,7 @@ typedef struct declared_name {
 
 /* Whether a binding node (a for, let or quantifier binding, a variable
    name and type, a positional variable) declares query.name. */
-static sxml_status binding_declares(lowerer *state, declared_name_query query,
+static sxml_status binding_declares(sxml_xpath_lowerer *state, declared_name_query query,
                                     declared_name *result) {
     sxml_ast_node_index candidates[4] = {{0}, {0}, {0}, {0}};
     size_t candidate_count = 0;
@@ -1035,7 +963,7 @@ static sxml_status binding_declares(lowerer *state, declared_name_query query,
     for (size_t candidate_index = 0; candidate_index < candidate_count;
          candidate_index += 1) {
         sxml_name_identifier name = {0};
-        sxml_status status = resolve_variable_name(
+        sxml_status status = sxml_xpath_lowerer_resolve_variable_name(
             state,
             child_of(state, candidates[candidate_index], SXML_AST_FIELD_NAME),
             &name);
@@ -1060,7 +988,7 @@ typedef struct earlier_binding_query {
     sxml_name_identifier name;
 } earlier_binding_query;
 
-static sxml_status earlier_binding_declares(lowerer *state,
+static sxml_status earlier_binding_declares(sxml_xpath_lowerer *state,
                                             earlier_binding_query query,
                                             declared_name *result) {
     for (sxml_ast_node_index binding = child_of(state, query.parent, query.field);
@@ -1086,7 +1014,7 @@ typedef struct bound_query {
     sxml_name_identifier name;
 } bound_query;
 
-static sxml_status is_bound_inside(lowerer *state, bound_query query,
+static sxml_status is_bound_inside(sxml_xpath_lowerer *state, bound_query query,
                                    declared_name *result) {
     sxml_ast_node_index child = query.reference;
     sxml_ast_node_index ancestor = node_of(state, child)->parent;
@@ -1165,7 +1093,7 @@ static sxml_status is_bound_inside(lowerer *state, bound_query query,
    enclosing function's frame. */
 typedef struct free_variables {
     /* Every free variable, capture_count of them. */
-    capture_entry *captures;
+    sxml_xpath_lowering_capture_entry *captures;
     size_t capture_count;
     size_t capture_capacity;
     /* The atoms the captured ones (not constants) have in the enclosing
@@ -1174,40 +1102,42 @@ typedef struct free_variables {
     size_t captured_count;
 } free_variables;
 
-static sxml_status add_free_variable(lowerer *state, free_variables *variables,
-                                     capture_entry capture) {
+static sxml_status add_free_variable(sxml_xpath_lowerer *state, free_variables *variables,
+                                     sxml_xpath_lowering_capture_entry capture) {
     if (variables->capture_count == variables->capture_capacity) {
         const size_t new_capacity =
             variables->capture_capacity < 4 ? 4
                                             : variables->capture_capacity * 2;
         void *capture_memory = NULL;
         void *atom_memory = NULL;
-        sxml_status status = allocate_scratch(
+        sxml_status status = sxml_xpath_lowerer_allocate_scratch(
             state,
-            (scratch_request){.element_count = new_capacity,
-                              .element_size = sizeof(capture_entry),
-                              .element_alignment = alignof(capture_entry)},
+            (sxml_xpath_lowering_scratch_request){
+                .element_count = new_capacity,
+                .element_size = sizeof(sxml_xpath_lowering_capture_entry),
+                .element_alignment =
+                    alignof(sxml_xpath_lowering_capture_entry)},
             &capture_memory);
         if (status == SXML_STATUS_OK) {
-            status = allocate_scratch(
+            status = sxml_xpath_lowerer_allocate_scratch(
                 state,
-                (scratch_request){.element_count = new_capacity,
+                (sxml_xpath_lowering_scratch_request){.element_count = new_capacity,
                                   .element_size = sizeof(sxml_ir_atom),
                                   .element_alignment = alignof(sxml_ir_atom)},
                 &atom_memory);
         }
         if (status != SXML_STATUS_OK) {
-            release_scratch(state, capture_memory);
+            sxml_xpath_lowerer_release_scratch(state, capture_memory);
             return status;
         }
         if (variables->capture_count > 0) {
             memcpy(capture_memory, variables->captures,
-                   variables->capture_count * sizeof(capture_entry));
+                   variables->capture_count * sizeof(sxml_xpath_lowering_capture_entry));
             memcpy(atom_memory, variables->outer_atoms,
                    variables->capture_count * sizeof(sxml_ir_atom));
         }
-        release_scratch(state, variables->captures);
-        release_scratch(state, variables->outer_atoms);
+        sxml_xpath_lowerer_release_scratch(state, variables->captures);
+        sxml_xpath_lowerer_release_scratch(state, variables->outer_atoms);
         variables->captures = capture_memory;
         variables->outer_atoms = atom_memory;
         variables->capture_capacity = new_capacity;
@@ -1224,7 +1154,7 @@ typedef struct free_variable_request {
     uint32_t first_slot;
 } free_variable_request;
 
-static sxml_status find_free_variables(lowerer *state,
+static sxml_status find_free_variables(sxml_xpath_lowerer *state,
                                        free_variable_request request,
                                        free_variables *variables) {
     const sxml_ast_node_index body =
@@ -1241,7 +1171,7 @@ static sxml_status find_free_variables(lowerer *state,
             continue;
         }
         sxml_name_identifier name = {0};
-        status = resolve_variable_name(
+        status = sxml_xpath_lowerer_resolve_variable_name(
             state, child_of(state, node, SXML_AST_FIELD_NAME), &name);
         if (status != SXML_STATUS_OK) {
             break;
@@ -1280,7 +1210,7 @@ static sxml_status find_free_variables(lowerer *state,
             lookup.atom.atom_kind == SXML_IR_ATOM_KIND_CONSTANT;
         status = add_free_variable(
             state, variables,
-            (capture_entry){
+            (sxml_xpath_lowering_capture_entry){
                 .variable_name = name,
                 .atom = is_constant
                             ? lookup.atom
@@ -1297,20 +1227,9 @@ static sxml_status find_free_variables(lowerer *state,
 
 /* ------------------------------------------------------------- Lowering */
 
-/* An AST node to lower and the block its LETs go to. */
-typedef struct node_in_block {
-    lowering_block *block;
-    sxml_ast_node_index node;
-} node_in_block;
-
-/* Binds expression in block unless it is an atom. */
-typedef struct expression_in_block {
-    lowering_block *block;
-    sxml_ir_expression_index expression;
-} expression_in_block;
-
-static sxml_status bind_expression(lowerer *state, expression_in_block request,
-                                   sxml_ir_atom *atom) {
+sxml_status sxml_xpath_lowerer_bind_expression(
+    sxml_xpath_lowerer *state, sxml_xpath_lowering_expression_in_block request,
+    sxml_ir_atom *atom) {
     return bind_in_block(state,
                          (binding_request){.block = request.block,
                                            .expression = request.expression},
@@ -1325,11 +1244,6 @@ typedef struct focused_body {
        made on first read. */
     sxml_ir_focus preset_slots;
 } focused_body;
-
-typedef struct focused_result {
-    sxml_ir_expression_index body;
-    sxml_ir_focus focus;
-} focused_result;
 
 /* ----------------------------------------------------------- Literals */
 
@@ -1349,7 +1263,8 @@ static bool is_atom_kind(sxml_ast_kind kind) {
     }
 }
 
-static sxml_status lower_qname_literal(lowerer *state, sxml_ast_node_index node,
+static sxml_status lower_qname_literal(sxml_xpath_lowerer *state,
+                                       sxml_ast_node_index node,
                                        sxml_ir_atom *atom) {
     const sxml_ast_node_index name_node =
         child_of(state, node, SXML_AST_FIELD_NAME);
@@ -1394,7 +1309,7 @@ static sxml_status lower_qname_literal(lowerer *state, sxml_ast_node_index node,
 }
 
 /* The atom of a literal or variable reference. */
-static sxml_status lower_atom_node(lowerer *state, sxml_ast_node_index node,
+static sxml_status lower_atom_node(sxml_xpath_lowerer *state, sxml_ast_node_index node,
                                    sxml_ir_atom *atom) {
     switch ((uint32_t)node_of(state, node)->kind) {
     case SXML_AST_KIND_INTEGER_LITERAL:
@@ -1425,7 +1340,7 @@ static sxml_status lower_atom_node(lowerer *state, sxml_ast_node_index node,
     case SXML_AST_KIND_DOUBLE_LITERAL:
         return add_double_constant(state, text_of(state, node), atom);
     case SXML_AST_KIND_STRING_LITERAL:
-        return add_string_constant(state, text_of(state, node), atom);
+        return sxml_xpath_lowerer_add_string_constant(state, text_of(state, node), atom);
     case SXML_AST_KIND_QNAME_LITERAL:
         return lower_qname_literal(state, node, atom);
     case SXML_AST_KIND_VARIABLE_REFERENCE:
@@ -1437,7 +1352,7 @@ static sxml_status lower_atom_node(lowerer *state, sxml_ast_node_index node,
 
 /* ------------------------------------------------------------ Types */
 
-static sxml_status resolve_sequence_type(lowerer *state,
+sxml_status sxml_xpath_lowerer_resolve_sequence_type(sxml_xpath_lowerer *state,
                                          sxml_ast_node_index node,
                                          sxml_sequence_type *sequence_type) {
     return sxml_xpath_resolve_sequence_type(
@@ -1448,7 +1363,9 @@ static sxml_status resolve_sequence_type(lowerer *state,
         sequence_type);
 }
 
-static sxml_status resolve_item_type(lowerer *state, sxml_ast_node_index node,
+sxml_status
+sxml_xpath_lowerer_resolve_item_type(sxml_xpath_lowerer *state,
+                                     sxml_ast_node_index node,
                                      sxml_type_identifier *item_type) {
     return sxml_xpath_resolve_item_type(
         &(sxml_xpath_type_request){.ast = state->ast,
@@ -1459,7 +1376,7 @@ static sxml_status resolve_item_type(lowerer *state, sxml_ast_node_index node,
 }
 
 /* The sequence type of an optional TYPE_DECLARATION; item()* without. */
-static sxml_status resolve_declared_type(lowerer *state,
+static sxml_status resolve_declared_type(sxml_xpath_lowerer *state,
                                          sxml_ast_node_index declaration,
                                          sxml_sequence_type *sequence_type) {
     if (declaration.value == 0) {
@@ -1468,7 +1385,7 @@ static sxml_status resolve_declared_type(lowerer *state,
             .occurrence = SXML_OCCURRENCE_ZERO_OR_MORE};
         return SXML_STATUS_OK;
     }
-    return resolve_sequence_type(
+    return sxml_xpath_lowerer_resolve_sequence_type(
         state, child_of(state, declaration, SXML_AST_FIELD_TYPE), sequence_type);
 }
 
@@ -1476,16 +1393,6 @@ static bool accepts_everything(sxml_sequence_type sequence_type) {
     return sequence_type.item_type.index == SXML_TYPE_ITEM &&
            sequence_type.occurrence == SXML_OCCURRENCE_ZERO_OR_MORE;
 }
-
-/* A value coerced to a type (XPath 4.0, section 3.4), bound in block; the
-   value itself when the type accepts everything. */
-typedef struct coercion_request {
-    lowering_block *block;
-    sxml_ast_node_index node;
-    sxml_ir_atom value;
-    sxml_sequence_type sequence_type;
-    sxml_ir_coercion_role role;
-} coercion_request;
 
 /* True when a constant atom already matches sequence_type, so coercing
    it would change nothing: one atomic item whose type is a subtype of the
@@ -1495,7 +1402,7 @@ typedef struct constant_match {
     sxml_sequence_type sequence_type;
 } constant_match;
 
-static bool constant_matches(const lowerer *state, constant_match request) {
+static bool constant_matches(const sxml_xpath_lowerer *state, constant_match request) {
     if (request.value.atom_kind != SXML_IR_ATOM_KIND_CONSTANT ||
         (request.sequence_type.occurrence & SXML_OCCURRENCE_EXACTLY_ONE) == 0) {
         return false;
@@ -1518,7 +1425,9 @@ static bool constant_matches(const lowerer *state, constant_match request) {
                          .base_type = request.sequence_type.item_type});
 }
 
-static sxml_status coerce_atom(lowerer *state, coercion_request request,
+sxml_status
+sxml_xpath_lowerer_coerce_atom(sxml_xpath_lowerer *state,
+                               sxml_xpath_lowering_coercion_request request,
                                sxml_ir_atom *atom) {
     if (accepts_everything(request.sequence_type) ||
         constant_matches(state,
@@ -1529,9 +1438,9 @@ static sxml_status coerce_atom(lowerer *state, coercion_request request,
         return SXML_STATUS_OK;
     }
     sxml_ir_expression_index coercion = {0};
-    sxml_status status = add_expression(
+    sxml_status status = sxml_xpath_lowerer_add_expression(
         state,
-        (expression_to_add){
+        (sxml_xpath_lowering_expression_to_add){
             .node = request.node,
             .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_COERCE,
                            .coercion = {.value = request.value,
@@ -1541,20 +1450,16 @@ static sxml_status coerce_atom(lowerer *state, coercion_request request,
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    return bind_expression(
+    return sxml_xpath_lowerer_bind_expression(
         state,
-        (expression_in_block){.block = request.block, .expression = coercion},
+        (sxml_xpath_lowering_expression_in_block){.block = request.block,
+                                                  .expression = coercion},
         atom);
 }
 
-/* Registers function(parameter_types) as result_type. */
-typedef struct signature_request {
-    sxml_sequence_type_view parameter_types;
-    sxml_sequence_type result_type;
-} signature_request;
-
-static sxml_status register_signature(lowerer *state, signature_request request,
-                                      sxml_type_identifier *signature) {
+sxml_status sxml_xpath_lowerer_register_signature(
+    sxml_xpath_lowerer *state, sxml_xpath_lowering_signature_request request,
+    sxml_type_identifier *signature) {
     return sxml_type_registry_register_item_type(
         state->type_registry,
         &(sxml_type_description){
@@ -1569,22 +1474,16 @@ static sxml_status register_signature(lowerer *state, signature_request request,
 
 /* ------------------------------------------------------------ Functions */
 
-/* Enters a new IR function: its frame, focus and scope level. */
-typedef struct function_frame {
-    lowering_function function;
-    lowering_focus focus;
-    lowering_function *outer_function;
-    size_t outer_scope_entry_count;
-} function_frame;
-
-static void enter_function(lowerer *state, function_frame *frame) {
+void sxml_xpath_lowerer_enter_function(
+    sxml_xpath_lowerer *state, sxml_xpath_lowering_function_frame *frame) {
     frame->outer_function = state->function;
     frame->outer_scope_entry_count = state->scope_entry_count;
     frame->function.focus = &frame->focus;
     state->function = &frame->function;
 }
 
-static void leave_function(lowerer *state, function_frame *frame) {
+void sxml_xpath_lowerer_leave_function(
+    sxml_xpath_lowerer *state, sxml_xpath_lowering_function_frame *frame) {
     state->function = frame->outer_function;
     state->scope_entry_count = frame->outer_scope_entry_count;
 }
@@ -1600,7 +1499,8 @@ typedef struct closure_request {
 } closure_request;
 
 /* Adds the closure's function (body still 0) and writes its index. */
-static sxml_status add_closure_function(lowerer *state, closure_request request,
+static sxml_status add_closure_function(sxml_xpath_lowerer *state,
+                                        closure_request request,
                                         sxml_ir_function_index *function) {
     sxml_ir_atom_list captures = {0};
     sxml_status status =
@@ -1634,11 +1534,11 @@ typedef struct closure_body {
 } closure_body;
 
 /* Sets a closure's body and writes the FUNCTION_DEFINITION that makes it. */
-static sxml_status finish_closure(lowerer *state, closure_body request,
+static sxml_status finish_closure(sxml_xpath_lowerer *state, closure_body request,
                                   sxml_ir_expression_index *definition) {
     sxml_ir_expression_index body = {0};
-    sxml_status status = add_expression(
-        state, (expression_to_add){.node = request.node,
+    sxml_status status = sxml_xpath_lowerer_add_expression(
+        state, (sxml_xpath_lowering_expression_to_add){.node = request.node,
                                    .expression = request.body},
         &body);
     if (status != SXML_STATUS_OK) {
@@ -1652,9 +1552,9 @@ static sxml_status finish_closure(lowerer *state, closure_body request,
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    return add_expression(
+    return sxml_xpath_lowerer_add_expression(
         state,
-        (expression_to_add){
+        (sxml_xpath_lowering_expression_to_add){
             .node = request.node,
             .expression = {
                 .expression_kind = SXML_IR_EXPRESSION_KIND_FUNCTION_DEFINITION,
@@ -1727,7 +1627,7 @@ typedef struct function_lookup {
     size_t arity;
 } function_lookup;
 
-static sxml_status find_function(lowerer *state, function_lookup lookup,
+static sxml_status find_function(sxml_xpath_lowerer *state, function_lookup lookup,
                                  sxml_function_entry *entry) {
     if (lookup.function_name.index == 0) {
         *entry = (sxml_function_entry){
@@ -1743,7 +1643,7 @@ static sxml_status find_function(lowerer *state, function_lookup lookup,
 
 /* The name identifier of a function name node, or 0 when the name was
    never interned (then no function has it). */
-static sxml_status resolve_function_name(lowerer *state,
+static sxml_status resolve_function_name(sxml_xpath_lowerer *state,
                                          sxml_ast_node_index name_node,
                                          sxml_name_identifier *name) {
     sxml_xpath_resolved_name resolved = {0};
@@ -1775,7 +1675,7 @@ typedef struct builtin_function_request {
     size_t arity;
 } builtin_function_request;
 
-static sxml_status find_builtin_function(lowerer *state,
+static sxml_status find_builtin_function(sxml_xpath_lowerer *state,
                                          builtin_function_request request,
                                          sxml_function_entry *entry) {
     sxml_name_identifier name = {.index = 0};
@@ -1793,10 +1693,11 @@ static sxml_status find_builtin_function(lowerer *state,
         return status;
     }
     if (entry->entry_kind == SXML_FUNCTION_ENTRY_KIND_NONE) {
-        return report_unsupported(
+        return sxml_xpath_lowerer_report_unsupported(
             state, request.node,
-            SXML_BYTE_VIEW_FROM_LITERAL("the function table lacks a function this construct is lowered "
-            "to (fn:root, fn:partial-apply or fn:string-join)"));
+            SXML_BYTE_VIEW_FROM_LITERAL(
+                "the function table lacks a function this construct is lowered "
+                "to (fn:root, fn:partial-apply or fn:string-join)"));
     }
     return SXML_STATUS_OK;
 }
@@ -1805,21 +1706,21 @@ static sxml_status find_builtin_function(lowerer *state,
    arguments to the parameter types and makes the STATIC_CALL, or a CAST
    for a constructor function. */
 typedef struct call_emission {
-    lowering_block *block;
+    sxml_xpath_lowering_block *block;
     const prepared_call *call;
     /* Coerce arguments (not for calls lowering makes of its own values). */
     bool coerces_arguments;
 } call_emission;
 
-static sxml_status emit_call(lowerer *state, call_emission request,
+static sxml_status emit_call(sxml_xpath_lowerer *state, call_emission request,
                              sxml_ir_expression_index *expression) {
     const prepared_call *call = request.call;
     if (call->entry.entry_kind == SXML_FUNCTION_ENTRY_KIND_CONSTRUCTOR) {
         /* XPath 4.0, section 4.5.1.3: a constructor function call is a
            cast that accepts the empty sequence. */
-        return add_expression(
+        return sxml_xpath_lowerer_add_expression(
             state,
-            (expression_to_add){
+            (sxml_xpath_lowering_expression_to_add){
                 .node = call->node,
                 .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_CAST,
                                .cast = {.value = call->arguments[0].atom,
@@ -1829,9 +1730,9 @@ static sxml_status emit_call(lowerer *state, call_emission request,
             expression);
     }
     void *memory = NULL;
-    sxml_status status = allocate_scratch(
+    sxml_status status = sxml_xpath_lowerer_allocate_scratch(
         state,
-        (scratch_request){.element_count = call->argument_count,
+        (sxml_xpath_lowering_scratch_request){.element_count = call->argument_count,
                           .element_size = sizeof(sxml_ir_atom),
                           .element_alignment = alignof(sxml_ir_atom)},
         &memory);
@@ -1844,9 +1745,9 @@ static sxml_status emit_call(lowerer *state, call_emission request,
          argument_index += 1) {
         atoms[argument_index] = call->arguments[argument_index].atom;
         if (request.coerces_arguments) {
-            status = coerce_atom(
+            status = sxml_xpath_lowerer_coerce_atom(
                 state,
-                (coercion_request){
+                (sxml_xpath_lowering_coercion_request){
                     .block = request.block,
                     .node = call->node,
                     .value = call->arguments[argument_index].atom,
@@ -1864,13 +1765,13 @@ static sxml_status emit_call(lowerer *state, call_emission request,
                                 .atom_count = call->argument_count},
             &arguments);
     }
-    release_scratch(state, memory);
+    sxml_xpath_lowerer_release_scratch(state, memory);
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    return add_expression(
+    return sxml_xpath_lowerer_add_expression(
         state,
-        (expression_to_add){
+        (sxml_xpath_lowering_expression_to_add){
             .node = call->node,
             .expression = {
                 .expression_kind = SXML_IR_EXPRESSION_KIND_STATIC_CALL,
@@ -1885,7 +1786,7 @@ static sxml_status emit_call(lowerer *state, call_emission request,
  * parameters are the placeholders, in order, and whose body calls the
  * function.
  */
-static sxml_status emit_partial_application(lowerer *state,
+static sxml_status emit_partial_application(sxml_xpath_lowerer *state,
                                             call_emission request,
                                             sxml_ir_expression_index *expression) {
     const prepared_call *call = request.call;
@@ -1893,24 +1794,24 @@ static sxml_status emit_partial_application(lowerer *state,
     void *types_memory = NULL;
     void *captures_memory = NULL;
     void *arguments_memory = NULL;
-    sxml_status status = allocate_scratch(
+    sxml_status status = sxml_xpath_lowerer_allocate_scratch(
         state,
-        (scratch_request){.element_count = call->placeholder_count,
+        (sxml_xpath_lowering_scratch_request){.element_count = call->placeholder_count,
                           .element_size = sizeof(sxml_sequence_type),
                           .element_alignment = alignof(sxml_sequence_type)},
         &types_memory);
     if (status == SXML_STATUS_OK) {
-        status = allocate_scratch(
+        status = sxml_xpath_lowerer_allocate_scratch(
             state,
-            (scratch_request){.element_count = supplied_count,
+            (sxml_xpath_lowering_scratch_request){.element_count = supplied_count,
                               .element_size = sizeof(sxml_ir_atom),
                               .element_alignment = alignof(sxml_ir_atom)},
             &captures_memory);
     }
     if (status == SXML_STATUS_OK) {
-        status = allocate_scratch(
+        status = sxml_xpath_lowerer_allocate_scratch(
             state,
-            (scratch_request){.element_count = call->argument_count,
+            (sxml_xpath_lowering_scratch_request){.element_count = call->argument_count,
                               .element_size = sizeof(sxml_ir_atom),
                               .element_alignment = alignof(sxml_ir_atom)},
             &arguments_memory);
@@ -1933,9 +1834,9 @@ static sxml_status emit_partial_application(lowerer *state,
             continue;
         }
         sxml_ir_atom supplied = {0};
-        status = coerce_atom(
+        status = sxml_xpath_lowerer_coerce_atom(
             state,
-            (coercion_request){.block = request.block,
+            (sxml_xpath_lowering_coercion_request){.block = request.block,
                                .node = call->node,
                                .value = call->arguments[argument_index].atom,
                                .sequence_type = parameter_type,
@@ -1953,9 +1854,9 @@ static sxml_status emit_partial_application(lowerer *state,
     }
     sxml_type_identifier signature = {0};
     if (status == SXML_STATUS_OK) {
-        status = register_signature(
+        status = sxml_xpath_lowerer_register_signature(
             state,
-            (signature_request){
+            (sxml_xpath_lowering_signature_request){
                 .parameter_types = {.sequence_types = placeholder_types,
                                     .sequence_type_count =
                                         call->placeholder_count},
@@ -2002,13 +1903,13 @@ static sxml_status emit_partial_application(lowerer *state,
                                                .node = call->node},
                                 expression);
     }
-    release_scratch(state, arguments_memory);
-    release_scratch(state, captures_memory);
-    release_scratch(state, types_memory);
+    sxml_xpath_lowerer_release_scratch(state, arguments_memory);
+    sxml_xpath_lowerer_release_scratch(state, captures_memory);
+    sxml_xpath_lowerer_release_scratch(state, types_memory);
     return status;
 }
 
-static sxml_status emit_prepared_call(lowerer *state, call_emission request,
+static sxml_status emit_prepared_call(sxml_xpath_lowerer *state, call_emission request,
                                       sxml_ir_expression_index *expression) {
     if (request.call->placeholder_count > 0) {
         return emit_partial_application(state, request, expression);
@@ -2033,8 +1934,10 @@ static size_t find_parameter(const sxml_function_entry *entry,
 }
 
 /* A named function reference (XPath 4.0, section 4.5.4). */
-static sxml_status lower_named_function_reference(
-    lowerer *state, node_in_block request, sxml_ir_expression_index *expression) {
+static sxml_status
+lower_named_function_reference(sxml_xpath_lowerer *state,
+                               sxml_xpath_lowering_node_in_block request,
+                               sxml_ir_expression_index *expression) {
     const sxml_ast_node_index node = request.node;
     sxml_name_identifier name = {0};
     sxml_status status = resolve_function_name(
@@ -2063,9 +1966,10 @@ static sxml_status lower_named_function_reference(
         }
     }
     if (entry.entry_kind == SXML_FUNCTION_ENTRY_KIND_NONE) {
-        return report_static_error(
+        return sxml_xpath_lowerer_report_static_error(
             state, node,
-            SXML_BYTE_VIEW_FROM_LITERAL("XPST0017 no function with this name and arity is known"));
+            SXML_BYTE_VIEW_FROM_LITERAL(
+                "XPST0017 no function with this name and arity is known"));
     }
     const uint32_t properties = native_properties(&entry);
     const bool reads_position_or_size =
@@ -2076,9 +1980,9 @@ static sxml_status lower_named_function_reference(
         entry.parameters.function_parameters[arity].parameter_default ==
             SXML_PARAMETER_DEFAULT_CONTEXT_VALUE;
     if (!reads_position_or_size && !omits_context_value) {
-        return add_expression(
+        return sxml_xpath_lowerer_add_expression(
             state,
-            (expression_to_add){
+            (sxml_xpath_lowering_expression_to_add){
                 .node = node,
                 .expression = {
                     .expression_kind = SXML_IR_EXPRESSION_KIND_FUNCTION_REFERENCE,
@@ -2092,14 +1996,14 @@ static sxml_status lower_named_function_reference(
     sxml_ir_atom captured = {0};
     sxml_function_entry call_entry = entry;
     if (reads_position_or_size) {
-        status = read_focus(
+        status = sxml_xpath_lowerer_read_focus(
             state,
-            (focus_read){
+            (sxml_xpath_lowering_focus_read){
                 .block = request.block,
                 .node = node,
                 .part = (properties & SXML_NATIVE_FUNCTION_READS_CONTEXT_POSITION) != 0
-                            ? SXML_LOWERING_FOCUS_PART_POSITION
-                            : SXML_LOWERING_FOCUS_PART_SIZE},
+                            ? SXML_XPATH_LOWERING_FOCUS_PART_POSITION
+                            : SXML_XPATH_LOWERING_FOCUS_PART_SIZE},
             &captured);
     } else {
         /* The closure calls the next arity with its parameters and the
@@ -2116,16 +2020,18 @@ static sxml_status lower_named_function_reference(
         }
         sxml_ir_atom value = {0};
         if (status == SXML_STATUS_OK) {
-            status = read_focus(state,
-                                (focus_read){.block = request.block,
-                                             .node = node,
-                                             .part = SXML_LOWERING_FOCUS_PART_VALUE},
-                                &value);
+            status = sxml_xpath_lowerer_read_focus(
+                state,
+                (sxml_xpath_lowering_focus_read){
+                    .block = request.block,
+                    .node = node,
+                    .part = SXML_XPATH_LOWERING_FOCUS_PART_VALUE},
+                &value);
         }
         if (status == SXML_STATUS_OK) {
-            status = coerce_atom(
+            status = sxml_xpath_lowerer_coerce_atom(
                 state,
-                (coercion_request){
+                (sxml_xpath_lowering_coercion_request){
                     .block = request.block,
                     .node = node,
                     .value = value,
@@ -2160,9 +2066,9 @@ static sxml_status lower_named_function_reference(
             expression);
     }
     void *memory = NULL;
-    status = allocate_scratch(
+    status = sxml_xpath_lowerer_allocate_scratch(
         state,
-        (scratch_request){.element_count = (size_t)arity + 1U,
+        (sxml_xpath_lowering_scratch_request){.element_count = (size_t)arity + 1U,
                           .element_size = sizeof(sxml_ir_atom),
                           .element_alignment = alignof(sxml_ir_atom)},
         &memory);
@@ -2180,7 +2086,7 @@ static sxml_status lower_named_function_reference(
         state->unit,
         (sxml_ir_atom_view){.atoms = atoms, .atom_count = (size_t)arity + 1U},
         &arguments);
-    release_scratch(state, memory);
+    sxml_xpath_lowerer_release_scratch(state, memory);
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -2292,7 +2198,7 @@ typedef struct node_test_request {
 } node_test_request;
 
 /* A node test that is not a union of node tests. */
-static sxml_status resolve_simple_node_test(lowerer *state,
+static sxml_status resolve_simple_node_test(sxml_xpath_lowerer *state,
                                             node_test_request request,
                                             sxml_type_identifier *node_test) {
     const sxml_ast_node *test = node_of(state, request.test);
@@ -2306,11 +2212,12 @@ static sxml_status resolve_simple_node_test(lowerer *state,
     case SXML_AST_KIND_WILDCARD:
         break;
     case SXML_AST_KIND_DYNAMIC_NODE_TEST:
-        return report_unsupported(state, request.test,
-                                  SXML_BYTE_VIEW_FROM_LITERAL("dynamic node tests are not lowered in "
-                                  "Phase 1"));
+        return sxml_xpath_lowerer_report_unsupported(
+            state, request.test,
+            SXML_BYTE_VIEW_FROM_LITERAL("dynamic node tests are not lowered in "
+                                        "Phase 1"));
     default:
-        return resolve_item_type(state, request.test, node_test);
+        return sxml_xpath_lowerer_resolve_item_type(state, request.test, node_test);
     }
     sxml_node_kind principal_kind = SXML_NODE_KIND_ELEMENT;
     sxml_xpath_name_role name_role = SXML_XPATH_NAME_ROLE_ELEMENT_OR_TYPE;
@@ -2389,7 +2296,7 @@ static sxml_status resolve_simple_node_test(lowerer *state,
 
 /* A node test; a union of node tests (XPath 4.0, 4.6.5.1) is a choice of
    its members, which are simple node tests (UnionNodeTest). */
-static sxml_status resolve_node_test(lowerer *state, node_test_request request,
+static sxml_status resolve_node_test(sxml_xpath_lowerer *state, node_test_request request,
                                      sxml_type_identifier *node_test) {
     if (node_of(state, request.test)->kind != SXML_AST_KIND_UNION_NODE_TEST) {
         return resolve_simple_node_test(state, request, node_test);
@@ -2401,9 +2308,9 @@ static sxml_status resolve_node_test(lowerer *state, node_test_request request,
         member_count += 1;
     }
     void *memory = NULL;
-    sxml_status status = allocate_scratch(
+    sxml_status status = sxml_xpath_lowerer_allocate_scratch(
         state,
-        (scratch_request){.element_count = member_count,
+        (sxml_xpath_lowering_scratch_request){.element_count = member_count,
                           .element_size = sizeof(sxml_type_identifier),
                           .element_alignment = alignof(sxml_type_identifier)},
         &memory);
@@ -2437,24 +2344,24 @@ static sxml_status resolve_node_test(lowerer *state, node_test_request request,
             *node_test = members[0];
         }
     }
-    release_scratch(state, memory);
+    sxml_xpath_lowerer_release_scratch(state, memory);
     return status;
 }
 
 /* A STEP from origin, bound in block. */
 typedef struct step_request {
-    lowering_block *block;
+    sxml_xpath_lowering_block *block;
     sxml_ast_node_index node;
     sxml_ir_atom origin;
     sxml_axis axis;
     sxml_type_identifier node_test;
 } step_request;
 
-static sxml_status add_step(lowerer *state, step_request request,
+static sxml_status add_step(sxml_xpath_lowerer *state, step_request request,
                             sxml_ir_expression_index *expression) {
-    return add_expression(
+    return sxml_xpath_lowerer_add_expression(
         state,
-        (expression_to_add){
+        (sxml_xpath_lowering_expression_to_add){
             .node = request.node,
             .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_STEP,
                            .step = {.origin = request.origin,
@@ -2463,11 +2370,11 @@ static sxml_status add_step(lowerer *state, step_request request,
         expression);
 }
 
-static sxml_status add_document_order(lowerer *state, atom_at request,
+static sxml_status add_document_order(sxml_xpath_lowerer *state, atom_at request,
                                       sxml_ir_expression_index *expression) {
-    return add_expression(
+    return sxml_xpath_lowerer_add_expression(
         state,
-        (expression_to_add){
+        (sxml_xpath_lowering_expression_to_add){
             .node = request.node,
             .expression = {
                 .expression_kind = SXML_IR_EXPRESSION_KIND_DOCUMENT_ORDER,
@@ -2478,15 +2385,15 @@ static sxml_status add_document_order(lowerer *state, atom_at request,
 /* "E1//" : E1/descendant-or-self::node(), a MAP of one step (XPath 4.0,
    section 4.6.3), in document order and bound. */
 typedef struct descendant_request {
-    lowering_block *block;
+    sxml_xpath_lowering_block *block;
     sxml_ast_node_index node;
     sxml_ir_atom input;
 } descendant_request;
 
-static sxml_status add_descendants(lowerer *state, descendant_request request,
+static sxml_status add_descendants(sxml_xpath_lowerer *state, descendant_request request,
                                    sxml_ir_atom *atom) {
     sxml_ir_slot item = {0};
-    sxml_status status = new_slot(state, &item);
+    sxml_status status = sxml_xpath_lowerer_add_slot(state, &item);
     sxml_ir_expression_index step = {0};
     if (status == SXML_STATUS_OK) {
         status = add_step(
@@ -2501,9 +2408,9 @@ static sxml_status add_descendants(lowerer *state, descendant_request request,
     }
     sxml_ir_expression_index map = {0};
     if (status == SXML_STATUS_OK) {
-        status = add_expression(
+        status = sxml_xpath_lowerer_add_expression(
             state,
-            (expression_to_add){
+            (sxml_xpath_lowering_expression_to_add){
                 .node = request.node,
                 .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_MAP,
                                .map = {.input = request.input,
@@ -2514,8 +2421,10 @@ static sxml_status add_descendants(lowerer *state, descendant_request request,
     }
     sxml_ir_atom mapped = {0};
     if (status == SXML_STATUS_OK) {
-        status = bind_expression(
-            state, (expression_in_block){.block = request.block, .expression = map},
+        status = sxml_xpath_lowerer_bind_expression(
+            state,
+            (sxml_xpath_lowering_expression_in_block){.block = request.block,
+                                                      .expression = map},
             &mapped);
     }
     sxml_ir_expression_index ordered = {0};
@@ -2526,8 +2435,10 @@ static sxml_status add_descendants(lowerer *state, descendant_request request,
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    return bind_expression(
-        state, (expression_in_block){.block = request.block, .expression = ordered},
+    return sxml_xpath_lowerer_bind_expression(
+        state,
+        (sxml_xpath_lowering_expression_in_block){.block = request.block,
+                                                  .expression = ordered},
         atom);
 }
 
@@ -2676,11 +2587,11 @@ typedef struct conditional_request {
     sxml_ir_expression_index else_branch;
 } conditional_request;
 
-static sxml_status add_conditional(lowerer *state, conditional_request request,
+static sxml_status add_conditional(sxml_xpath_lowerer *state, conditional_request request,
                                    sxml_ir_expression_index *expression) {
-    return add_expression(
+    return sxml_xpath_lowerer_add_expression(
         state,
-        (expression_to_add){
+        (sxml_xpath_lowering_expression_to_add){
             .node = request.node,
             .expression = {
                 .expression_kind = SXML_IR_EXPRESSION_KIND_CONDITIONAL,
@@ -2697,7 +2608,7 @@ typedef struct shared_constant_at {
 } shared_constant_at;
 
 static sxml_status add_shared_constant_expression(
-    lowerer *state, shared_constant_at request,
+    sxml_xpath_lowerer *state, shared_constant_at request,
     sxml_ir_expression_index *expression) {
     const sxml_ast_node_index node = request.node;
     const shared_constant which = request.which;
@@ -2718,7 +2629,8 @@ typedef struct binding_cursor {
 } binding_cursor;
 
 /* The binding after cursor, moving to the next clause of a FLWOR. */
-static binding_cursor next_binding(const lowerer *state, binding_cursor cursor) {
+static binding_cursor next_binding(const sxml_xpath_lowerer *state,
+                                   binding_cursor cursor) {
     sxml_ast_node_index binding = next_of(state, cursor.binding);
     sxml_ast_node_index clause = cursor.clause;
     while (binding.value == 0 && clause.value != 0) {
@@ -2728,17 +2640,10 @@ static binding_cursor next_binding(const lowerer *state, binding_cursor cursor) 
     return (binding_cursor){.clause = clause, .binding = binding};
 }
 
-/* A variable bound to slot, coerced in block when declared with a type,
-   then pushed on the scope. */
-typedef struct typed_variable {
-    lowering_block *block;
-    sxml_ast_node_index variable;
-    sxml_ir_atom value;
-} typed_variable;
-
-static sxml_status push_typed_variable(lowerer *state, typed_variable request) {
+sxml_status sxml_xpath_lowerer_push_typed_variable(
+    sxml_xpath_lowerer *state, sxml_xpath_lowering_typed_variable request) {
     sxml_name_identifier name = {0};
-    sxml_status status = resolve_variable_name(
+    sxml_status status = sxml_xpath_lowerer_resolve_variable_name(
         state, child_of(state, request.variable, SXML_AST_FIELD_NAME), &name);
     sxml_sequence_type declared_type = {0};
     if (status == SXML_STATUS_OK) {
@@ -2748,8 +2653,8 @@ static sxml_status push_typed_variable(lowerer *state, typed_variable request) {
     }
     sxml_ir_atom value = request.value;
     if (status == SXML_STATUS_OK) {
-        status = coerce_atom(state,
-                             (coercion_request){
+        status = sxml_xpath_lowerer_coerce_atom(state,
+                             (sxml_xpath_lowering_coercion_request){
                                  .block = request.block,
                                  .node = request.variable,
                                  .value = request.value,
@@ -2760,15 +2665,15 @@ static sxml_status push_typed_variable(lowerer *state, typed_variable request) {
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    return push_variable(
-        state, (scope_entry){.variable_name = name,
+    return sxml_xpath_lowerer_push_variable(
+        state, (sxml_xpath_lowering_scope_entry){.variable_name = name,
                              .function_level = state->function->function_level,
                              .atom = value});
 }
 
 /* A cast target type name (XPath 4.0, section 4.17.1): an atomic, list or
    union type; XPST0080 for the abstract ones, XPST0051 for others. */
-static sxml_status resolve_cast_target(lowerer *state,
+static sxml_status resolve_cast_target(sxml_xpath_lowerer *state,
                                        sxml_ast_node_index target,
                                        sxml_type_identifier *target_type) {
     const sxml_ast_node_index type_node =
@@ -2776,7 +2681,7 @@ static sxml_status resolve_cast_target(lowerer *state,
     const sxml_ast_kind kind = node_of(state, type_node)->kind;
     if (kind != SXML_AST_KIND_NCNAME && kind != SXML_AST_KIND_PREFIXED_NAME &&
         kind != SXML_AST_KIND_URI_QUALIFIED_NAME) {
-        return resolve_item_type(state, type_node, target_type);
+        return sxml_xpath_lowerer_resolve_item_type(state, type_node, target_type);
     }
     sxml_xpath_resolved_name resolved = {0};
     sxml_status status = sxml_xpath_resolve_name(
@@ -2801,15 +2706,18 @@ static sxml_status resolve_cast_target(lowerer *state,
         !sxml_type_registry_find_type(state->type_registry, name, &type) ||
         sxml_type_registry_describe_type(state->type_registry, type,
                                          &description) != SXML_STATUS_OK) {
-        return report_static_error(state, type_node,
-                                   SXML_BYTE_VIEW_FROM_LITERAL("XPST0051 the cast target type is not "
-                                   "defined"));
+        return sxml_xpath_lowerer_report_static_error(
+            state, type_node,
+            SXML_BYTE_VIEW_FROM_LITERAL("XPST0051 the cast target type is not "
+                                        "defined"));
     }
     if (type.index == SXML_TYPE_XS_NOTATION ||
         type.index == SXML_TYPE_XS_ANY_ATOMIC_TYPE ||
         type.index == SXML_TYPE_XS_ANY_SIMPLE_TYPE) {
-        return report_static_error(state, type_node,
-                                   SXML_BYTE_VIEW_FROM_LITERAL("XPST0080 the cast target type is abstract"));
+        return sxml_xpath_lowerer_report_static_error(
+            state, type_node,
+            SXML_BYTE_VIEW_FROM_LITERAL(
+                "XPST0080 the cast target type is abstract"));
     }
     switch (description.variety) {
     case SXML_TYPE_VARIETY_ATOMIC:
@@ -2830,13 +2738,17 @@ static sxml_status resolve_cast_target(lowerer *state,
     case SXML_TYPE_VARIETY_RECORD:
         break;
     }
-    return report_static_error(state, type_node,
-                               SXML_BYTE_VIEW_FROM_LITERAL("XPST0051 the cast target is not a simple type"));
+    return sxml_xpath_lowerer_report_static_error(
+        state, type_node,
+        SXML_BYTE_VIEW_FROM_LITERAL(
+            "XPST0051 the cast target is not a simple type"));
 }
 
 /* A literal or variable reference as an ATOM expression. */
-static sxml_status lower_atom_expression(
-    lowerer *state, node_in_block request, sxml_ir_expression_index *expression) {
+static sxml_status
+lower_atom_expression(sxml_xpath_lowerer *state,
+                      sxml_xpath_lowering_node_in_block request,
+                      sxml_ir_expression_index *expression) {
     sxml_ir_atom atom = {0};
     const sxml_status status = lower_atom_node(state, request.node, &atom);
     if (status != SXML_STATUS_OK) {
@@ -2847,17 +2759,21 @@ static sxml_status lower_atom_expression(
 }
 
 /* "." (XPath 4.0, section 4.3.4). */
-static sxml_status lower_context_value(
-    lowerer *state, node_in_block request, sxml_ir_expression_index *expression) {
-    if (state->function->focus->kind == SXML_LOWERING_FOCUS_KIND_ABSENT) {
+static sxml_status
+lower_context_value(sxml_xpath_lowerer *state,
+                    sxml_xpath_lowering_node_in_block request,
+                    sxml_ir_expression_index *expression) {
+    if (state->function->focus->kind == SXML_XPATH_LOWERING_FOCUS_KIND_ABSENT) {
         return add_absent_focus_raise(state, request.node, expression);
     }
     sxml_ir_atom atom = {0};
-    const sxml_status status = read_focus(state,
-                                          (focus_read){.block = request.block,
-                                                       .node = request.node,
-                                                       .part = SXML_LOWERING_FOCUS_PART_VALUE},
-                                          &atom);
+    const sxml_status status = sxml_xpath_lowerer_read_focus(
+        state,
+        (sxml_xpath_lowering_focus_read){
+            .block = request.block,
+            .node = request.node,
+            .part = SXML_XPATH_LOWERING_FOCUS_PART_VALUE},
+        &atom);
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -2872,7 +2788,8 @@ static sxml_status lower_context_value(
  * itself (operands, branches, bodies) is a procedure run by a frame: a
  * resumable step function and the locals it keeps between steps. A step
  * either finishes the frame, delivering its result, or asks for a part
- * with call_expression, call_atom, call_body or call_focused_body, which
+ * with sxml_xpath_lowering_call_expression, sxml_xpath_lowering_call_atom,
+ * sxml_xpath_lowering_call_body or sxml_xpath_lowering_call_focused_body, which
  * lowers the part at once when it needs no frame (a literal, a variable,
  * "."), or pushes a frame for it, and returns; the machine runs the frame
  * on top until it finishes, then the one below it again. So the nesting
@@ -2913,82 +2830,51 @@ typedef enum lowering_procedure {
     SXML_LOWERING_PROCEDURE_TYPED_EXPRESSION,
     SXML_LOWERING_PROCEDURE_IF,
     SXML_LOWERING_PROCEDURE_UNARY,
+    /* An XPath AST lowered in the caller's scope (the embedding entry). */
+    SXML_LOWERING_PROCEDURE_EMBEDDED,
 } lowering_procedure;
 
-/* Where a frame's result goes: an expression index, or the result bound
-   in atom_block and its atom, or (FOCUSED_BODY) a body and its focus. */
-typedef struct lowering_destination {
-    sxml_ir_expression_index *expression;
-    sxml_ir_atom *atom;
-    lowering_block *atom_block;
-    focused_result *focused;
-} lowering_destination;
-
-/* Scratch arrays a frame owns, released when it is popped. */
-#define FRAME_OWNED_MEMORY_COUNT 4U
-
-typedef struct lowering_frame lowering_frame;
-
-struct lowering_frame {
-    /* The frame that pushed this one; NULL for the first. */
-    lowering_frame *below;
-    lowering_procedure procedure;
-    /* Which step comes next; 0 for the first. */
-    uint32_t step;
-    /* Levels of maximum_expression_depth this frame holds. */
-    uint32_t depth_units;
-    bool is_finished;
-    sxml_ast_node_index node;
-    /* The block the procedure's LETs go to: the caller's, or own_block
-       when the frame lowers a body. */
-    lowering_block *block;
-    lowering_block own_block;
-    bool is_body;
-    lowering_destination destination;
-    void *owned_memory[FRAME_OWNED_MEMORY_COUNT];
-    /* The procedure's locals, right after the frame in its allocation. */
-    void *locals;
-};
-
-typedef struct lowering_machine {
-    lowerer *state;
-    lowering_frame *top;
-} lowering_machine;
+/* The descriptor of a core procedure (see "Dispatch and run"). */
+static const sxml_xpath_lowering_procedure *core_procedure(
+    lowering_procedure procedure);
 
 /* A frame to push. */
 typedef struct frame_request {
-    lowering_procedure procedure;
+    const sxml_xpath_lowering_procedure *procedure;
     sxml_ast_node_index node;
-    lowering_block *block;
+    sxml_xpath_lowering_block *block;
     bool is_body;
-    lowering_destination destination;
+    sxml_xpath_lowering_destination destination;
     uint32_t depth_units;
-    /* sizeof the procedure's locals, which start zeroed. */
-    size_t locals_size;
 } frame_request;
 
 /* The locals start at this offset in a frame's allocation. */
 #define FRAME_LOCALS_OFFSET                                                  \
-    ((sizeof(lowering_frame) + alignof(max_align_t) - 1U) /                  \
+    ((sizeof(sxml_xpath_lowering_frame) + alignof(max_align_t) - 1U) /       \
      alignof(max_align_t) * alignof(max_align_t))
 
-static sxml_status push_frame(lowering_machine *machine,
+static sxml_status push_frame(sxml_xpath_lowering_machine *machine,
                               const frame_request *request,
-                              lowering_frame **frame) {
-    lowerer *state = machine->state;
+                              sxml_xpath_lowering_frame **frame) {
+    sxml_xpath_lowerer *state = machine->state;
+    size_t byte_count = 0;
+    sxml_status status = sxml_size_add(
+        FRAME_LOCALS_OFFSET, request->procedure->locals_size, &byte_count);
     void *memory = NULL;
-    const size_t byte_count = FRAME_LOCALS_OFFSET + request->locals_size;
-    sxml_status status = allocate_scratch(
-        state,
-        (scratch_request){.element_count = byte_count,
-                          .element_size = 1,
-                          .element_alignment = alignof(max_align_t)},
-        &memory);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_allocate_scratch(
+            state,
+            (sxml_xpath_lowering_scratch_request){
+                .element_count = byte_count,
+                .element_size = 1,
+                .element_alignment = alignof(max_align_t)},
+            &memory);
+    }
     if (status != SXML_STATUS_OK) {
         return status;
     }
     memset(memory, 0, byte_count);
-    lowering_frame *new_frame = memory;
+    sxml_xpath_lowering_frame *new_frame = memory;
     new_frame->below = machine->top;
     new_frame->procedure = request->procedure;
     new_frame->depth_units = request->depth_units;
@@ -3003,108 +2889,133 @@ static sxml_status push_frame(lowering_machine *machine,
     return SXML_STATUS_OK;
 }
 
-static void pop_frame(lowering_machine *machine) {
-    lowerer *state = machine->state;
-    lowering_frame *frame = machine->top;
+static void pop_frame(sxml_xpath_lowering_machine *machine) {
+    sxml_xpath_lowerer *state = machine->state;
+    sxml_xpath_lowering_frame *frame = machine->top;
     machine->top = frame->below;
     state->depth -= frame->depth_units;
-    for (size_t memory_index = 0; memory_index < FRAME_OWNED_MEMORY_COUNT;
+    for (size_t memory_index = 0;
+         memory_index < SXML_XPATH_LOWERING_OWNED_MEMORY_COUNT;
          memory_index += 1) {
-        release_scratch(state, frame->owned_memory[memory_index]);
+        sxml_xpath_lowerer_release_scratch(state,
+                                           frame->owned_memory[memory_index]);
     }
-    release_scratch(state, frame);
+    sxml_xpath_lowerer_release_scratch(state, frame);
 }
 
-/* Allocates a scratch array the frame owns, as slot memory_index. */
-typedef struct owned_request {
-    size_t memory_index;
-    scratch_request scratch;
-} owned_request;
-
-static sxml_status allocate_owned(lowering_machine *machine,
-                                  lowering_frame *frame, owned_request request) {
-    return allocate_scratch(machine->state, request.scratch,
-                            &frame->owned_memory[request.memory_index]);
+sxml_status sxml_xpath_lowering_allocate_owned(
+    sxml_xpath_lowering_machine *machine, sxml_xpath_lowering_frame *frame,
+    sxml_xpath_lowering_owned_request request) {
+    if (request.memory_index >= SXML_XPATH_LOWERING_OWNED_MEMORY_COUNT ||
+        frame->owned_memory[request.memory_index] != NULL) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    return sxml_xpath_lowerer_allocate_scratch(
+        machine->state, request.scratch,
+        &frame->owned_memory[request.memory_index]);
 }
 
 /* Delivers result (an expression lowered for destination) as the
    destination asks: through the body's block first when the expression
    was lowered as a body, then bound in atom_block for an atom. */
 typedef struct delivery {
-    lowering_destination destination;
+    sxml_xpath_lowering_destination destination;
     /* The block result's LETs are in when it is a body; else NULL. */
-    const lowering_block *body_block;
+    const sxml_xpath_lowering_block *body_block;
     sxml_ir_expression_index result;
 } delivery;
 
-static sxml_status deliver(lowerer *state, delivery request) {
+static sxml_status deliver(sxml_xpath_lowerer *state, delivery request) {
     sxml_ir_expression_index result = request.result;
     if (request.body_block != NULL) {
-        sxml_status status = finish_block(
-            state, (block_result){.block = *request.body_block, .result = result},
+        sxml_status status = sxml_xpath_lowerer_finish_block(
+            state,
+            (sxml_xpath_lowering_block_result){.block = *request.body_block,
+                                               .result = result},
             &result);
         if (status != SXML_STATUS_OK) {
             return status;
         }
     }
     if (request.destination.atom != NULL) {
-        return bind_expression(
+        return sxml_xpath_lowerer_bind_expression(
             state,
-            (expression_in_block){.block = request.destination.atom_block,
-                                  .expression = result},
+            (sxml_xpath_lowering_expression_in_block){
+                .block = request.destination.atom_block, .expression = result},
             request.destination.atom);
+    }
+    if (request.destination.expression == NULL) {
+        /* A part's call without a destination. */
+        return SXML_STATUS_INVALID_ARGUMENT;
     }
     *request.destination.expression = result;
     return SXML_STATUS_OK;
 }
 
-/* Finishes frame with result. */
-static sxml_status finish_frame(lowering_machine *machine, lowering_frame *frame,
-                                sxml_ir_expression_index result) {
+sxml_status sxml_xpath_lowering_finish_frame(
+    sxml_xpath_lowering_machine *machine, sxml_xpath_lowering_frame *frame,
+    sxml_ir_expression_index result) {
     frame->is_finished = true;
     return deliver(machine->state,
                    (delivery){.destination = frame->destination,
-                              .body_block = frame->is_body ? &frame->own_block : NULL,
+                              .body_block = frame->is_body ? &frame->own_block
+                                                           : NULL,
                               .result = result});
 }
 
-/* A part to lower: node, for destination, in block or as a body. */
-typedef struct expression_call {
-    sxml_ast_node_index node;
-    lowering_block *block;
-    bool is_body;
-    lowering_destination destination;
-} expression_call;
-
-static sxml_status report_depth_exceeded(const lowerer *state,
+static sxml_status report_depth_exceeded(const sxml_xpath_lowerer *state,
                                          sxml_ast_node_index node) {
     if (state->error_record != NULL) {
         state->error_record->diagnostic = (sxml_diagnostic){
             .description = SXML_BYTE_VIEW_FROM_LITERAL(
                 "the expression is nested deeper than "
                 "maximum_expression_depth"),
-            .location = sxml_ast_get_source_location(state->ast, node)};
+            .location = state->ast == NULL
+                            ? (sxml_source_location){.line_number = 0}
+                            : sxml_ast_get_source_location(state->ast, node)};
     }
     return SXML_STATUS_LIMIT_EXCEEDED;
 }
 
-/* The procedure lowering an expression of kind; false for kinds lowered
-   at once (leaf_expression). */
-static bool procedure_of(sxml_ast_kind kind, lowering_procedure *procedure,
-                         size_t *locals_size);
+/* The core procedure lowering an expression of kind; false for kinds
+   lowered at once (lower_leaf_expression). */
+static bool procedure_of(sxml_ast_kind kind, lowering_procedure *procedure);
 
 /* Lowers an expression that needs no frame into block. */
-static sxml_status lower_leaf_expression(lowerer *state, node_in_block request,
-                                         sxml_ir_expression_index *expression);
+static sxml_status lower_leaf_expression(
+    sxml_xpath_lowerer *state, sxml_xpath_lowering_node_in_block request,
+    sxml_ir_expression_index *expression);
 
+/* The rule of the first lowering part that serves the lowerer's language
+   and lowers kind; NULL when no part does (the core lowers it). */
+static const sxml_xpath_lowering_rule *find_part_rule(
+    const sxml_xpath_lowerer *state, sxml_ast_kind kind) {
+    const sxml_xpath_lowering_part_view parts = state->parts;
+    for (size_t part_index = 0; part_index < parts.part_count;
+         part_index += 1) {
+        const sxml_xpath_lowering_part *part = parts.parts[part_index].part;
+        if (part == NULL ||
+            (part->languages & (sxml_language_set)state->language) == 0) {
+            continue;
+        }
+        for (size_t rule_index = 0; rule_index < part->rule_count;
+             rule_index += 1) {
+            if (part->rules[rule_index].kind == kind) {
+                return &part->rules[rule_index];
+            }
+        }
+    }
+    return NULL;
+}
 
 /* Lowers call.node for call.destination: at once when it needs no frame,
    else by pushing its frame. Parentheses and the XPATH root hold their
    inner expression's levels of maximum_expression_depth but no frame of
-   their own. */
-static sxml_status call_expression(lowering_machine *machine,
-                                   expression_call call) {
-    lowerer *state = machine->state;
+   their own. A lowering part's rule for the kind comes before the core. */
+sxml_status sxml_xpath_lowering_call_expression(
+    sxml_xpath_lowering_machine *machine,
+    sxml_xpath_lowering_expression_call call) {
+    sxml_xpath_lowerer *state = machine->state;
     sxml_ast_node_index node = call.node;
     uint32_t depth_units = 0;
     for (;;) {
@@ -3131,16 +3042,27 @@ static sxml_status call_expression(lowering_machine *machine,
         }
         node = inner;
     }
-    lowering_procedure procedure = SXML_LOWERING_PROCEDURE_CHAIN;
-    size_t locals_size = 0;
-    if (!procedure_of(node_of(state, node)->kind, &procedure, &locals_size)) {
-        lowering_block leaf_block = {{0}, {0}};
+    const sxml_ast_kind kind = node_of(state, node)->kind;
+    const sxml_xpath_lowering_rule *rule = find_part_rule(state, kind);
+    const sxml_xpath_lowering_procedure *procedure = NULL;
+    lowering_procedure core = SXML_LOWERING_PROCEDURE_CHAIN;
+    if (rule != NULL) {
+        if ((rule->procedure == NULL) == (rule->leaf == NULL)) {
+            /* A rule has exactly one of the two. */
+            return SXML_STATUS_INVALID_ARGUMENT;
+        }
+        procedure = rule->procedure;
+    } else if (procedure_of(kind, &core)) {
+        procedure = core_procedure(core);
+    }
+    if (procedure == NULL) {
+        sxml_xpath_lowering_block leaf_block = {{0}, {0}};
+        const sxml_xpath_lowering_node_in_block leaf = {
+            .block = call.is_body ? &leaf_block : call.block, .node = node};
         sxml_ir_expression_index result = {0};
-        sxml_status status = lower_leaf_expression(
-            state,
-            (node_in_block){.block = call.is_body ? &leaf_block : call.block,
-                            .node = node},
-            &result);
+        sxml_status status =
+            rule != NULL ? rule->leaf(state, leaf, &result)
+                         : lower_leaf_expression(state, leaf, &result);
         if (status != SXML_STATUS_OK) {
             return status;
         }
@@ -3149,57 +3071,52 @@ static sxml_status call_expression(lowering_machine *machine,
                                   .body_block = call.is_body ? &leaf_block : NULL,
                                   .result = result});
     }
-    lowering_frame *frame = NULL;
+    sxml_xpath_lowering_frame *frame = NULL;
     return push_frame(machine,
                       &(frame_request){.procedure = procedure,
                                        .node = node,
                                        .block = call.block,
                                        .is_body = call.is_body,
                                        .destination = call.destination,
-                                       .depth_units = depth_units,
-                                       .locals_size = locals_size},
+                                       .depth_units = depth_units},
                       &frame);
 }
 
-/* An operand to lower to an atom in block (lower_to_atom): literals,
-   variables and "." at once, other expressions bound in block. */
-typedef struct atom_call {
-    sxml_ast_node_index node;
-    lowering_block *block;
-    sxml_ir_atom *atom;
-} atom_call;
-
-static sxml_status call_atom(lowering_machine *machine, atom_call call) {
-    lowerer *state = machine->state;
+sxml_status sxml_xpath_lowering_call_atom(sxml_xpath_lowering_machine *machine,
+                                          sxml_xpath_lowering_atom_call call) {
+    sxml_xpath_lowerer *state = machine->state;
     const sxml_ast_kind kind = node_of(state, call.node)->kind;
     if (is_atom_kind(kind)) {
         return lower_atom_node(state, call.node, call.atom);
     }
     if (kind == SXML_AST_KIND_CONTEXT_VALUE_REFERENCE) {
-        return read_focus(state,
-                          (focus_read){.block = call.block,
-                                       .node = call.node,
-                                       .part = SXML_LOWERING_FOCUS_PART_VALUE},
-                          call.atom);
+        return sxml_xpath_lowerer_read_focus(
+            state,
+            (sxml_xpath_lowering_focus_read){
+                .block = call.block,
+                .node = call.node,
+                .part = SXML_XPATH_LOWERING_FOCUS_PART_VALUE},
+            call.atom);
     }
-    return call_expression(
+    return sxml_xpath_lowering_call_expression(
         machine,
-        (expression_call){.node = call.node,
-                          .block = call.block,
-                          .is_body = false,
-                          .destination = {.atom = call.atom,
-                                          .atom_block = call.block}});
+        (sxml_xpath_lowering_expression_call){
+            .node = call.node,
+            .block = call.block,
+            .is_body = false,
+            .destination = {.atom = call.atom, .atom_block = call.block}});
 }
 
-/* Lowers node as a block of its own (a branch, a body). */
-static sxml_status call_body(lowering_machine *machine,
-                             sxml_ast_node_index node,
-                             sxml_ir_expression_index *expression) {
-    return call_expression(
-        machine, (expression_call){.node = node,
-                                   .block = NULL,
-                                   .is_body = true,
-                                   .destination = {.expression = expression}});
+sxml_status sxml_xpath_lowering_call_body(sxml_xpath_lowering_machine *machine,
+                                          sxml_ast_node_index node,
+                                          sxml_ir_expression_index *expression) {
+    return sxml_xpath_lowering_call_expression(
+        machine,
+        (sxml_xpath_lowering_expression_call){
+            .node = node,
+            .block = NULL,
+            .is_body = true,
+            .destination = {.expression = expression}});
 }
 
 /* Pushes a frame for a part of a construct (no level of
@@ -3207,25 +3124,23 @@ static sxml_status call_body(lowering_machine *machine,
 typedef struct part_frame_request {
     lowering_procedure procedure;
     sxml_ast_node_index node;
-    lowering_block *block;
-    lowering_destination destination;
-    size_t locals_size;
+    sxml_xpath_lowering_block *block;
+    sxml_xpath_lowering_destination destination;
     /* The step it starts at. */
     uint32_t step;
 } part_frame_request;
 
-static sxml_status push_part_frame(lowering_machine *machine,
+static sxml_status push_part_frame(sxml_xpath_lowering_machine *machine,
                                    part_frame_request request,
-                                   lowering_frame **frame) {
+                                   sxml_xpath_lowering_frame **frame) {
     sxml_status status = push_frame(
         machine,
-        &(frame_request){.procedure = request.procedure,
+        &(frame_request){.procedure = core_procedure(request.procedure),
                          .node = request.node,
                          .block = request.block,
                          .is_body = false,
                          .destination = request.destination,
-                         .depth_units = 0,
-                         .locals_size = request.locals_size},
+                         .depth_units = 0},
         frame);
     if (status == SXML_STATUS_OK) {
         (*frame)->step = request.step;
@@ -3233,35 +3148,163 @@ static sxml_status push_part_frame(lowering_machine *machine,
     return status;
 }
 
+sxml_status sxml_xpath_lowering_push_procedure(
+    sxml_xpath_lowering_machine *machine,
+    const sxml_xpath_lowering_procedure_call *call,
+    sxml_xpath_lowering_frame **frame) {
+    sxml_xpath_lowerer *state = machine->state;
+    if (call->procedure == NULL || call->procedure->step == NULL ||
+        call->initial_locals.byte_count > call->procedure->locals_size ||
+        (call->initial_locals.byte_count > 0 &&
+         call->initial_locals.bytes == NULL) ||
+        (!call->is_body && call->block == NULL)) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    if (state->depth >= state->maximum_depth) {
+        return report_depth_exceeded(state, call->node);
+    }
+    sxml_xpath_lowering_frame *new_frame = NULL;
+    sxml_status status = push_frame(
+        machine,
+        &(frame_request){.procedure = call->procedure,
+                         .node = call->node,
+                         .block = call->block,
+                         .is_body = call->is_body,
+                         .destination = call->destination,
+                         .depth_units = 1},
+        &new_frame);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (call->initial_locals.byte_count > 0) {
+        memcpy(new_frame->locals, call->initial_locals.bytes,
+               call->initial_locals.byte_count);
+    }
+    *frame = new_frame;
+    return SXML_STATUS_OK;
+}
+
+/* ----------------------------------------------------------- Embedding */
+
+/* Checks a static context against the rules of
+   sxml_static_context_configuration (see "Entry points"). */
+static sxml_status check_static_context(const sxml_xpath_static_context *context);
+
+static bool allocators_are_equal(sxml_allocator first, sxml_allocator second) {
+    return first.state == second.state && first.operations == second.operations;
+}
+
+/* An XPath AST lowered in the caller's scope: the lowerer's AST, static
+   context and focus are the embedding's until the expression is lowered,
+   then the caller's again. The caller's flags of variable subtrees wait in
+   owned_memory[0], so a failure releases them with the frame. */
+typedef struct embedded_locals {
+    sxml_xpath_lowering_embedding embedding;
+    bool is_body;
+    const sxml_ast *outer_ast;
+    const sxml_xpath_static_context *outer_static_context;
+    sxml_xpath_lowering_focus *outer_focus;
+    sxml_ir_expression_index result;
+} embedded_locals;
+
+sxml_status sxml_xpath_lowering_call_embedded(
+    sxml_xpath_lowering_machine *machine,
+    const sxml_xpath_lowering_embedded_call *call) {
+    const sxml_xpath_lowerer *state = machine->state;
+    const sxml_xpath_lowering_embedding *embedding = &call->embedding;
+    if (state->function == NULL || embedding->ast == NULL ||
+        embedding->node.value >= embedding->ast->node_count ||
+        (!call->is_body && call->block == NULL)) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    const sxml_xpath_static_context *context = embedding->static_context;
+    if (context != NULL) {
+        if (context->item_heap != state->item_heap ||
+            !allocators_are_equal(context->allocator, state->allocator)) {
+            return SXML_STATUS_INVALID_ARGUMENT;
+        }
+        const sxml_status status = check_static_context(context);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+    }
+    sxml_xpath_lowering_frame *frame = NULL;
+    const sxml_status status = push_frame(
+        machine,
+        &(frame_request){
+            .procedure = core_procedure(SXML_LOWERING_PROCEDURE_EMBEDDED),
+            .node = {.value = 0},
+            .block = call->block,
+            .is_body = false,
+            .destination = call->destination,
+            .depth_units = 0},
+        &frame);
+    if (status == SXML_STATUS_OK) {
+        embedded_locals *locals = frame->locals;
+        locals->embedding = *embedding;
+        locals->is_body = call->is_body;
+    }
+    return status;
+}
+
+static sxml_status continue_embedded(sxml_xpath_lowering_machine *machine,
+                                     sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *state = machine->state;
+    embedded_locals *locals = frame->locals;
+    const sxml_xpath_lowering_embedding *embedding = &locals->embedding;
+    if (frame->step == 0) {
+        frame->step = 1;
+        locals->outer_ast = state->ast;
+        locals->outer_static_context = state->static_context;
+        frame->owned_memory[0] = state->has_variable_reference;
+        state->has_variable_reference = NULL;
+        state->ast = embedding->ast;
+        if (embedding->static_context != NULL) {
+            state->static_context = embedding->static_context;
+        }
+        if (embedding->focus != NULL) {
+            locals->outer_focus = state->function->focus;
+            state->function->focus = embedding->focus;
+        }
+        return sxml_xpath_lowering_call_expression(
+            machine,
+            (sxml_xpath_lowering_expression_call){
+                .node = embedding->node.value == 0 ? embedding->ast->root
+                                                   : embedding->node,
+                .block = frame->block,
+                .is_body = locals->is_body,
+                .destination = {.expression = &locals->result}});
+    }
+    sxml_xpath_lowerer_release_scratch(state, state->has_variable_reference);
+    state->has_variable_reference = frame->owned_memory[0];
+    frame->owned_memory[0] = NULL;
+    state->ast = locals->outer_ast;
+    state->static_context = locals->outer_static_context;
+    if (embedding->focus != NULL) {
+        state->function->focus = locals->outer_focus;
+    }
+    return sxml_xpath_lowering_finish_frame(machine, frame, locals->result);
+}
+
 /* ------------------------------------------------------- Focused body */
 
 /* A body lowered with a new focus of kind SLOTS (lower_focused_body). */
 typedef struct focused_body_locals {
     sxml_ir_focus preset_slots;
-    lowering_focus focus;
-    lowering_focus *outer_focus;
+    sxml_xpath_lowering_focus focus;
+    sxml_xpath_lowering_focus *outer_focus;
     sxml_ir_expression_index body;
 } focused_body_locals;
 
-/* Lowers node as a body with a new focus of kind SLOTS and writes the
-   body and the slots it bound to *result. */
-typedef struct focused_call {
-    sxml_ast_node_index node;
-    /* Slots already chosen; others are made on first read. */
-    sxml_ir_focus preset_slots;
-    focused_result *result;
-} focused_call;
-
-static sxml_status call_focused_body(lowering_machine *machine,
-                                     focused_call call) {
-    lowering_frame *frame = NULL;
+sxml_status sxml_xpath_lowering_call_focused_body(sxml_xpath_lowering_machine *machine,
+                                     sxml_xpath_lowering_focused_call call) {
+    sxml_xpath_lowering_frame *frame = NULL;
     sxml_status status = push_part_frame(
         machine,
         (part_frame_request){.procedure = SXML_LOWERING_PROCEDURE_FOCUSED_BODY,
                              .node = call.node,
                              .block = NULL,
                              .destination = {.focused = call.result},
-                             .locals_size = sizeof(focused_body_locals),
                              .step = 0},
         &frame);
     if (status == SXML_STATUS_OK) {
@@ -3271,25 +3314,25 @@ static sxml_status call_focused_body(lowering_machine *machine,
     return status;
 }
 
-static sxml_status continue_focused_body(lowering_machine *machine,
-                                         lowering_frame *frame) {
-    lowerer *state = machine->state;
+static sxml_status continue_focused_body(sxml_xpath_lowering_machine *machine,
+                                         sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *state = machine->state;
     focused_body_locals *locals = frame->locals;
     if (frame->step == 0) {
         frame->step = 1;
-        locals->focus = (lowering_focus){.kind = SXML_LOWERING_FOCUS_KIND_SLOTS,
-                                         .slots = locals->preset_slots};
+        locals->focus = (sxml_xpath_lowering_focus){
+            .kind = SXML_XPATH_LOWERING_FOCUS_KIND_SLOTS,
+            .slots = locals->preset_slots};
         locals->outer_focus = state->function->focus;
         state->function->focus = &locals->focus;
-        return call_body(machine, frame->node, &locals->body);
+        return sxml_xpath_lowering_call_body(machine, frame->node, &locals->body);
     }
     state->function->focus = locals->outer_focus;
     frame->is_finished = true;
-    *frame->destination.focused =
-        (focused_result){.body = locals->body, .focus = locals->focus.slots};
+    *frame->destination.focused = (sxml_xpath_lowering_focused_result){
+        .body = locals->body, .focus = locals->focus.slots};
     return SXML_STATUS_OK;
 }
-
 
 /* --------------------------------------------------------------- Paths */
 
@@ -3298,7 +3341,7 @@ static sxml_status continue_focused_body(lowering_machine *machine,
 typedef struct filter_locals {
     sxml_ir_atom input;
     sxml_ast_node_index predicate;
-    focused_result predicate_body;
+    sxml_xpath_lowering_focused_result predicate_body;
 } filter_locals;
 
 typedef struct filter_request {
@@ -3307,16 +3350,16 @@ typedef struct filter_request {
     sxml_ast_node_index predicate;
 } filter_request;
 
-static sxml_status push_filter(lowering_machine *machine, filter_request request,
+static sxml_status push_filter(sxml_xpath_lowering_machine *machine,
+                               filter_request request,
                                sxml_ir_expression_index *expression) {
-    lowering_frame *frame = NULL;
+    sxml_xpath_lowering_frame *frame = NULL;
     sxml_status status = push_part_frame(
         machine,
         (part_frame_request){.procedure = SXML_LOWERING_PROCEDURE_FILTER,
                              .node = request.node,
                              .block = NULL,
                              .destination = {.expression = expression},
-                             .locals_size = sizeof(filter_locals),
                              .step = 0},
         &frame);
     if (status == SXML_STATUS_OK) {
@@ -3327,23 +3370,23 @@ static sxml_status push_filter(lowering_machine *machine, filter_request request
     return status;
 }
 
-static sxml_status continue_filter(lowering_machine *machine,
-                                   lowering_frame *frame) {
-    lowerer *state = machine->state;
+static sxml_status continue_filter(sxml_xpath_lowering_machine *machine,
+                                   sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *state = machine->state;
     filter_locals *locals = frame->locals;
     if (frame->step == 0) {
         frame->step = 1;
-        return call_focused_body(
+        return sxml_xpath_lowering_call_focused_body(
             machine,
-            (focused_call){.node = child_of(state, locals->predicate,
+            (sxml_xpath_lowering_focused_call){.node = child_of(state, locals->predicate,
                                             SXML_AST_FIELD_EXPRESSION),
                            .preset_slots = {{0}, {0}, {0}},
                            .result = &locals->predicate_body});
     }
     sxml_ir_expression_index result = {0};
-    sxml_status status = add_expression(
+    sxml_status status = sxml_xpath_lowerer_add_expression(
         state,
-        (expression_to_add){
+        (sxml_xpath_lowering_expression_to_add){
             .node = frame->node,
             .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_FILTER,
                            .filter = {.input = locals->input,
@@ -3353,7 +3396,7 @@ static sxml_status continue_filter(lowering_machine *machine,
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    return finish_frame(machine, frame, result);
+    return sxml_xpath_lowering_finish_frame(machine, frame, result);
 }
 
 /* "E1/E2" over the atom of E1 (XPath 4.0, section 4.6.3): MAP binding
@@ -3361,27 +3404,26 @@ static sxml_status continue_filter(lowering_machine *machine,
 typedef struct path_map_locals {
     sxml_ir_atom input;
     sxml_ast_node_index right;
-    focused_result body;
+    sxml_xpath_lowering_focused_result body;
 } path_map_locals;
 
 typedef struct path_map_request {
     sxml_ast_node_index node;
-    lowering_block *block;
+    sxml_xpath_lowering_block *block;
     sxml_ir_atom input;
     sxml_ast_node_index right;
 } path_map_request;
 
-static sxml_status push_path_map(lowering_machine *machine,
+static sxml_status push_path_map(sxml_xpath_lowering_machine *machine,
                                  path_map_request request,
                                  sxml_ir_expression_index *expression) {
-    lowering_frame *frame = NULL;
+    sxml_xpath_lowering_frame *frame = NULL;
     sxml_status status = push_part_frame(
         machine,
         (part_frame_request){.procedure = SXML_LOWERING_PROCEDURE_PATH_MAP,
                              .node = request.node,
                              .block = request.block,
                              .destination = {.expression = expression},
-                             .locals_size = sizeof(path_map_locals),
                              .step = 0},
         &frame);
     if (status == SXML_STATUS_OK) {
@@ -3392,21 +3434,21 @@ static sxml_status push_path_map(lowering_machine *machine,
     return status;
 }
 
-static sxml_status continue_path_map(lowering_machine *machine,
-                                     lowering_frame *frame) {
-    lowerer *state = machine->state;
+static sxml_status continue_path_map(sxml_xpath_lowering_machine *machine,
+                                     sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *state = machine->state;
     path_map_locals *locals = frame->locals;
     if (frame->step == 0) {
         frame->step = 1;
-        return call_focused_body(
-            machine, (focused_call){.node = locals->right,
+        return sxml_xpath_lowering_call_focused_body(
+            machine, (sxml_xpath_lowering_focused_call){.node = locals->right,
                                     .preset_slots = {{0}, {0}, {0}},
                                     .result = &locals->body});
     }
     sxml_ir_expression_index map = {0};
-    sxml_status status = add_expression(
+    sxml_status status = sxml_xpath_lowerer_add_expression(
         state,
-        (expression_to_add){
+        (sxml_xpath_lowering_expression_to_add){
             .node = frame->node,
             .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_MAP,
                            .map = {.input = locals->input,
@@ -3416,8 +3458,10 @@ static sxml_status continue_path_map(lowering_machine *machine,
         &map);
     sxml_ir_atom mapped = {0};
     if (status == SXML_STATUS_OK) {
-        status = bind_expression(
-            state, (expression_in_block){.block = frame->block, .expression = map},
+        status = sxml_xpath_lowerer_bind_expression(
+            state,
+            (sxml_xpath_lowering_expression_in_block){.block = frame->block,
+                                                      .expression = map},
             &mapped);
     }
     sxml_ir_expression_index ordered = {0};
@@ -3428,7 +3472,7 @@ static sxml_status continue_path_map(lowering_machine *machine,
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    return finish_frame(machine, frame, ordered);
+    return sxml_xpath_lowering_finish_frame(machine, frame, ordered);
 }
 
 /* An axis step (XPath 4.0, section 4.6.4) with its predicates. */
@@ -3439,9 +3483,9 @@ typedef struct axis_step_locals {
     sxml_ast_node_index predicate;
 } axis_step_locals;
 
-static sxml_status begin_axis_step(lowering_machine *machine,
-                                   lowering_frame *frame) {
-    lowerer *state = machine->state;
+static sxml_status begin_axis_step(sxml_xpath_lowering_machine *machine,
+                                   sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *state = machine->state;
     axis_step_locals *locals = frame->locals;
     const sxml_ast_node_index node = frame->node;
     const sxml_ast_node *step = node_of(state, node);
@@ -3459,18 +3503,20 @@ static sxml_status begin_axis_step(lowering_machine *machine,
             axis = SXML_AXIS_NAMESPACE;
         }
     } else if (!axis_of(step->detail.axis, &axis)) {
-        return report_unsupported(state, node,
-                                  SXML_BYTE_VIEW_FROM_LITERAL("the item axis is not lowered in Phase 1"));
+        return sxml_xpath_lowerer_report_unsupported(
+            state, node,
+            SXML_BYTE_VIEW_FROM_LITERAL(
+                "the item axis is not lowered in Phase 1"));
     }
     sxml_type_identifier node_test = {0};
     sxml_status status = resolve_node_test(
         state, (node_test_request){.test = test, .axis = axis}, &node_test);
     sxml_ir_atom origin = {0};
     if (status == SXML_STATUS_OK) {
-        status = read_focus(state,
-                            (focus_read){.block = frame->block,
+        status = sxml_xpath_lowerer_read_focus(state,
+                            (sxml_xpath_lowering_focus_read){.block = frame->block,
                                          .node = node,
-                                         .part = SXML_LOWERING_FOCUS_PART_VALUE},
+                                         .part = SXML_XPATH_LOWERING_FOCUS_PART_VALUE},
                             &origin);
     }
     if (status == SXML_STATUS_OK) {
@@ -3487,9 +3533,9 @@ static sxml_status begin_axis_step(lowering_machine *machine,
     return status;
 }
 
-static sxml_status continue_axis_step(lowering_machine *machine,
-                                      lowering_frame *frame) {
-    lowerer *state = machine->state;
+static sxml_status continue_axis_step(sxml_xpath_lowering_machine *machine,
+                                      sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *state = machine->state;
     axis_step_locals *locals = frame->locals;
     if (frame->step == 0) {
         frame->step = 1;
@@ -3499,9 +3545,10 @@ static sxml_status continue_axis_step(lowering_machine *machine,
         const sxml_ast_node_index predicate = locals->predicate;
         locals->predicate = next_of(state, predicate);
         sxml_ir_atom input = {0};
-        sxml_status status = bind_expression(
+        sxml_status status = sxml_xpath_lowerer_bind_expression(
             state,
-            (expression_in_block){.block = frame->block, .expression = locals->result},
+            (sxml_xpath_lowering_expression_in_block){
+                .block = frame->block, .expression = locals->result},
             &input);
         if (status != SXML_STATUS_OK) {
             return status;
@@ -3516,9 +3563,10 @@ static sxml_status continue_axis_step(lowering_machine *machine,
         /* A step's value is in document order (XPath 4.0, section 4.6.4);
            a reverse axis yields its nodes nearest first. */
         sxml_ir_atom input = {0};
-        sxml_status status = bind_expression(
+        sxml_status status = sxml_xpath_lowerer_bind_expression(
             state,
-            (expression_in_block){.block = frame->block, .expression = locals->result},
+            (sxml_xpath_lowering_expression_in_block){
+                .block = frame->block, .expression = locals->result},
             &input);
         if (status == SXML_STATUS_OK) {
             status = add_document_order(
@@ -3529,7 +3577,7 @@ static sxml_status continue_axis_step(lowering_machine *machine,
             return status;
         }
     }
-    return finish_frame(machine, frame, locals->result);
+    return sxml_xpath_lowering_finish_frame(machine, frame, locals->result);
 }
 
 /* "/" at the start of a path (XPath 4.0, section 4.6.2):
@@ -3538,12 +3586,12 @@ typedef struct absolute_path_locals {
     sxml_ir_expression_index result;
 } absolute_path_locals;
 
-static sxml_status begin_absolute_path(lowering_machine *machine,
-                                       lowering_frame *frame) {
-    lowerer *state = machine->state;
+static sxml_status begin_absolute_path(sxml_xpath_lowering_machine *machine,
+                                       sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *state = machine->state;
     absolute_path_locals *locals = frame->locals;
     const sxml_ast_node_index node = frame->node;
-    lowering_block *block = frame->block;
+    sxml_xpath_lowering_block *block = frame->block;
     sxml_function_entry root_entry = {0};
     sxml_status status = find_builtin_function(
         state,
@@ -3554,10 +3602,10 @@ static sxml_status begin_absolute_path(lowering_machine *machine,
         &root_entry);
     sxml_ir_atom focus = {0};
     if (status == SXML_STATUS_OK) {
-        status = read_focus(state,
-                            (focus_read){.block = block,
+        status = sxml_xpath_lowerer_read_focus(state,
+                            (sxml_xpath_lowering_focus_read){.block = block,
                                          .node = node,
-                                         .part = SXML_LOWERING_FOCUS_PART_VALUE},
+                                         .part = SXML_XPATH_LOWERING_FOCUS_PART_VALUE},
                             &focus);
     }
     sxml_ir_expression_index self = {0};
@@ -3574,8 +3622,10 @@ static sxml_status begin_absolute_path(lowering_machine *machine,
     }
     call_argument root_argument = {.is_placeholder = false, .atom = {0}};
     if (status == SXML_STATUS_OK) {
-        status = bind_expression(
-            state, (expression_in_block){.block = block, .expression = self},
+        status = sxml_xpath_lowerer_bind_expression(
+            state,
+            (sxml_xpath_lowering_expression_in_block){.block = block,
+                                                      .expression = self},
             &root_argument.atom);
     }
     sxml_ir_expression_index root = {0};
@@ -3593,15 +3643,17 @@ static sxml_status begin_absolute_path(lowering_machine *machine,
     }
     sxml_ir_atom root_atom = {0};
     if (status == SXML_STATUS_OK) {
-        status = bind_expression(
-            state, (expression_in_block){.block = block, .expression = root},
+        status = sxml_xpath_lowerer_bind_expression(
+            state,
+            (sxml_xpath_lowering_expression_in_block){.block = block,
+                                                      .expression = root},
             &root_atom);
     }
     sxml_ir_expression_index document = {0};
     if (status == SXML_STATUS_OK) {
-        status = add_expression(
+        status = sxml_xpath_lowerer_add_expression(
             state,
-            (expression_to_add){
+            (sxml_xpath_lowering_expression_to_add){
                 .node = node,
                 .expression = {
                     .expression_kind = SXML_IR_EXPRESSION_KIND_TREAT,
@@ -3618,11 +3670,13 @@ static sxml_status begin_absolute_path(lowering_machine *machine,
     }
     const sxml_ast_node_index path = child_of(state, node, SXML_AST_FIELD_PATH);
     if (path.value == 0) {
-        return finish_frame(machine, frame, document);
+        return sxml_xpath_lowering_finish_frame(machine, frame, document);
     }
     sxml_ir_atom input = {0};
-    status = bind_expression(
-        state, (expression_in_block){.block = block, .expression = document},
+    status = sxml_xpath_lowerer_bind_expression(
+        state,
+        (sxml_xpath_lowering_expression_in_block){.block = block,
+                                                  .expression = document},
         &input);
     if (status == SXML_STATUS_OK &&
         node_of(state, node)->detail.operator == SXML_AST_OPERATOR_DOUBLE_SLASH) {
@@ -3642,14 +3696,14 @@ static sxml_status begin_absolute_path(lowering_machine *machine,
                          &locals->result);
 }
 
-static sxml_status continue_absolute_path(lowering_machine *machine,
-                                          lowering_frame *frame) {
+static sxml_status continue_absolute_path(sxml_xpath_lowering_machine *machine,
+                                          sxml_xpath_lowering_frame *frame) {
     if (frame->step == 0) {
         frame->step = 1;
         return begin_absolute_path(machine, frame);
     }
     const absolute_path_locals *locals = frame->locals;
-    return finish_frame(machine, frame, locals->result);
+    return sxml_xpath_lowering_finish_frame(machine, frame, locals->result);
 }
 
 /* A lookup "?key" of value (XPath 4.0, section 4.7.3); the frame's node is
@@ -3660,18 +3714,18 @@ typedef struct lookup_locals {
     sxml_ir_atom key;
 } lookup_locals;
 
-static sxml_status continue_lookup(lowering_machine *machine,
-                                   lowering_frame *frame) {
-    lowerer *state = machine->state;
+static sxml_status continue_lookup(sxml_xpath_lowering_machine *machine,
+                                   sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *state = machine->state;
     lookup_locals *locals = frame->locals;
     if (frame->step == 0) {
         /* "?key" on the context value (XPath 4.0, section 4.7.3.2). */
         frame->step = 1;
         locals->key_node = child_of(state, frame->node, SXML_AST_FIELD_KEY);
-        return read_focus(state,
-                          (focus_read){.block = frame->block,
+        return sxml_xpath_lowerer_read_focus(state,
+                          (sxml_xpath_lowering_focus_read){.block = frame->block,
                                        .node = frame->node,
-                                       .part = SXML_LOWERING_FOCUS_PART_VALUE},
+                                       .part = SXML_XPATH_LOWERING_FOCUS_PART_VALUE},
                           &locals->value);
     }
     if (frame->step == 1) {
@@ -3684,19 +3738,20 @@ static sxml_status continue_lookup(lowering_machine *machine,
         }
         if (key_node->kind == SXML_AST_KIND_NCNAME) {
             /* An NCName key is the string of that name. */
-            return add_string_constant(
+            return sxml_xpath_lowerer_add_string_constant(
                 state,
                 sxml_ast_get_text(state->ast, key_node->payload.name.local_name),
                 &locals->key);
         }
-        return call_atom(machine, (atom_call){.node = locals->key_node,
-                                              .block = frame->block,
-                                              .atom = &locals->key});
+        return sxml_xpath_lowering_call_atom(
+            machine, (sxml_xpath_lowering_atom_call){.node = locals->key_node,
+                                                     .block = frame->block,
+                                                     .atom = &locals->key});
     }
     sxml_ir_expression_index result = {0};
-    sxml_status status = add_expression(
+    sxml_status status = sxml_xpath_lowerer_add_expression(
         state,
-        (expression_to_add){
+        (sxml_xpath_lowering_expression_to_add){
             .node = frame->node,
             .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_LOOKUP,
                            .lookup = {.value = locals->value, .key = locals->key}}},
@@ -3704,9 +3759,8 @@ static sxml_status continue_lookup(lowering_machine *machine,
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    return finish_frame(machine, frame, result);
+    return sxml_xpath_lowering_finish_frame(machine, frame, result);
 }
-
 
 /* ------------------------------------------------------------- Chains */
 
@@ -3722,13 +3776,13 @@ typedef struct boolean_link_locals {
     sxml_ir_atom left;
     sxml_ir_expression_index decided;
     /* The right operand is a block of its own. */
-    lowering_block operand_block;
+    sxml_xpath_lowering_block operand_block;
     sxml_ir_atom value;
 } boolean_link_locals;
 
-static sxml_status continue_boolean_link(lowering_machine *machine,
-                                         lowering_frame *frame) {
-    lowerer *state = machine->state;
+static sxml_status continue_boolean_link(sxml_xpath_lowering_machine *machine,
+                                         sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *state = machine->state;
     boolean_link_locals *locals = frame->locals;
     const bool is_or =
         node_of(state, frame->node)->kind == SXML_AST_KIND_OR_EXPRESSION;
@@ -3746,9 +3800,11 @@ static sxml_status continue_boolean_link(lowering_machine *machine,
         if (status != SXML_STATUS_OK) {
             return status;
         }
-        return call_atom(machine, (atom_call){.node = right,
-                                              .block = &locals->operand_block,
-                                              .atom = &locals->value});
+        return sxml_xpath_lowering_call_atom(
+            machine,
+            (sxml_xpath_lowering_atom_call){.node = right,
+                                            .block = &locals->operand_block,
+                                            .atom = &locals->value});
     }
     sxml_ir_expression_index true_branch = {0};
     sxml_ir_expression_index false_branch = {0};
@@ -3775,9 +3831,10 @@ static sxml_status continue_boolean_link(lowering_machine *machine,
     }
     sxml_ir_expression_index right_value = {0};
     if (status == SXML_STATUS_OK) {
-        status = finish_block(
+        status = sxml_xpath_lowerer_finish_block(
             state,
-            (block_result){.block = locals->operand_block, .result = conditional},
+            (sxml_xpath_lowering_block_result){.block = locals->operand_block,
+                                               .result = conditional},
             &right_value);
     }
     sxml_ir_expression_index result = {0};
@@ -3794,7 +3851,7 @@ static sxml_status continue_boolean_link(lowering_machine *machine,
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    return finish_frame(machine, frame, result);
+    return sxml_xpath_lowering_finish_frame(machine, frame, result);
 }
 
 /* "otherwise" (XPath 4.0, section 4.14.2): the left value when it is not
@@ -3806,17 +3863,17 @@ typedef struct otherwise_link_locals {
     sxml_ir_expression_index right_value;
 } otherwise_link_locals;
 
-static sxml_status continue_otherwise_link(lowering_machine *machine,
-                                           lowering_frame *frame) {
-    lowerer *state = machine->state;
+static sxml_status continue_otherwise_link(sxml_xpath_lowering_machine *machine,
+                                           sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *state = machine->state;
     otherwise_link_locals *locals = frame->locals;
     const sxml_ast_node_index node = frame->node;
     if (frame->step == 0) {
         frame->step = 1;
         sxml_ir_expression_index exists = {0};
-        sxml_status status = add_expression(
+        sxml_status status = sxml_xpath_lowerer_add_expression(
             state,
-            (expression_to_add){
+            (sxml_xpath_lowering_expression_to_add){
                 .node = node,
                 .expression = {
                     .expression_kind = SXML_IR_EXPRESSION_KIND_INSTANCE_OF,
@@ -3827,9 +3884,10 @@ static sxml_status continue_otherwise_link(lowering_machine *machine,
                             .occurrence = SXML_OCCURRENCE_ONE_OR_MORE}}}},
             &exists);
         if (status == SXML_STATUS_OK) {
-            status = bind_expression(
+            status = sxml_xpath_lowerer_bind_expression(
                 state,
-                (expression_in_block){.block = frame->block, .expression = exists},
+                (sxml_xpath_lowering_expression_in_block){.block = frame->block,
+                                                          .expression = exists},
                 &locals->condition);
         }
         if (status == SXML_STATUS_OK) {
@@ -3840,8 +3898,9 @@ static sxml_status continue_otherwise_link(lowering_machine *machine,
         if (status != SXML_STATUS_OK) {
             return status;
         }
-        return call_body(machine, child_of(state, node, SXML_AST_FIELD_RIGHT),
-                         &locals->right_value);
+        return sxml_xpath_lowering_call_body(
+            machine, child_of(state, node, SXML_AST_FIELD_RIGHT),
+            &locals->right_value);
     }
     sxml_ir_expression_index result = {0};
     sxml_status status =
@@ -3854,7 +3913,7 @@ static sxml_status continue_otherwise_link(lowering_machine *machine,
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    return finish_frame(machine, frame, result);
+    return sxml_xpath_lowering_finish_frame(machine, frame, result);
 }
 
 /* An operator that is one BINARY expression. */
@@ -3863,9 +3922,9 @@ typedef struct binary_link_locals {
     sxml_ir_atom right;
 } binary_link_locals;
 
-static sxml_status continue_binary_link(lowering_machine *machine,
-                                        lowering_frame *frame) {
-    lowerer *state = machine->state;
+static sxml_status continue_binary_link(sxml_xpath_lowering_machine *machine,
+                                        sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *state = machine->state;
     binary_link_locals *locals = frame->locals;
     sxml_ir_binary_operator operator = SXML_IR_BINARY_OPERATOR_ADD;
     if (!binary_operator_of(node_of(state, frame->node)->detail.operator,
@@ -3874,16 +3933,17 @@ static sxml_status continue_binary_link(lowering_machine *machine,
     }
     if (frame->step == 0) {
         frame->step = 1;
-        return call_atom(
+        return sxml_xpath_lowering_call_atom(
             machine,
-            (atom_call){.node = child_of(state, frame->node, SXML_AST_FIELD_RIGHT),
-                        .block = frame->block,
-                        .atom = &locals->right});
+            (sxml_xpath_lowering_atom_call){
+                .node = child_of(state, frame->node, SXML_AST_FIELD_RIGHT),
+                .block = frame->block,
+                .atom = &locals->right});
     }
     sxml_ir_expression_index result = {0};
-    sxml_status status = add_expression(
+    sxml_status status = sxml_xpath_lowerer_add_expression(
         state,
-        (expression_to_add){
+        (sxml_xpath_lowering_expression_to_add){
             .node = frame->node,
             .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_BINARY,
                            .binary = {.operator = operator,
@@ -3893,63 +3953,64 @@ static sxml_status continue_binary_link(lowering_machine *machine,
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    return finish_frame(machine, frame, result);
+    return sxml_xpath_lowering_finish_frame(machine, frame, result);
 }
 
 /* "->" (XPath 4.0, section 4.19): the right operand with the left value as
    the context value, position and size 1. */
 typedef struct pipeline_link_locals {
     sxml_ir_atom left;
-    lowering_focus focus;
-    lowering_focus *outer_focus;
+    sxml_xpath_lowering_focus focus;
+    sxml_xpath_lowering_focus *outer_focus;
     sxml_ir_expression_index result;
 } pipeline_link_locals;
 
-static sxml_status continue_pipeline_link(lowering_machine *machine,
-                                          lowering_frame *frame) {
-    lowerer *state = machine->state;
+static sxml_status continue_pipeline_link(sxml_xpath_lowering_machine *machine,
+                                          sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *state = machine->state;
     pipeline_link_locals *locals = frame->locals;
     if (frame->step == 0) {
         frame->step = 1;
-        locals->focus = (lowering_focus){.kind = SXML_LOWERING_FOCUS_KIND_FIXED,
-                                         .fixed_value = locals->left};
+        locals->focus = (sxml_xpath_lowering_focus){
+            .kind = SXML_XPATH_LOWERING_FOCUS_KIND_FIXED,
+            .fixed_value = locals->left};
         locals->outer_focus = state->function->focus;
         state->function->focus = &locals->focus;
-        return call_expression(
+        return sxml_xpath_lowering_call_expression(
             machine,
-            (expression_call){
+            (sxml_xpath_lowering_expression_call){
                 .node = child_of(state, frame->node, SXML_AST_FIELD_RIGHT),
                 .block = frame->block,
                 .is_body = false,
                 .destination = {.expression = &locals->result}});
     }
     state->function->focus = locals->outer_focus;
-    return finish_frame(machine, frame, locals->result);
+    return sxml_xpath_lowering_finish_frame(machine, frame, locals->result);
 }
 
 /* "!" (XPath 4.0, section 4.18): MAP binding each item. */
 typedef struct simple_map_link_locals {
     sxml_ir_atom left;
-    focused_result body;
+    sxml_xpath_lowering_focused_result body;
 } simple_map_link_locals;
 
-static sxml_status continue_simple_map_link(lowering_machine *machine,
-                                            lowering_frame *frame) {
-    lowerer *state = machine->state;
+static sxml_status continue_simple_map_link(sxml_xpath_lowering_machine *machine,
+                                            sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *state = machine->state;
     simple_map_link_locals *locals = frame->locals;
     if (frame->step == 0) {
         frame->step = 1;
-        return call_focused_body(
+        return sxml_xpath_lowering_call_focused_body(
             machine,
-            (focused_call){
+            (sxml_xpath_lowering_focused_call){
                 .node = child_of(state, frame->node, SXML_AST_FIELD_RIGHT),
                 .preset_slots = {{0}, {0}, {0}},
                 .result = &locals->body});
     }
     sxml_ir_expression_index result = {0};
-    sxml_status status = add_expression(
+    sxml_status status = sxml_xpath_lowerer_add_expression(
         state,
-        (expression_to_add){
+        (sxml_xpath_lowering_expression_to_add){
             .node = frame->node,
             .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_MAP,
                            .map = {.input = locals->left,
@@ -3960,7 +4021,7 @@ static sxml_status continue_simple_map_link(lowering_machine *machine,
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    return finish_frame(machine, frame, result);
+    return sxml_xpath_lowering_finish_frame(machine, frame, result);
 }
 
 /* "=!>" (XPath 4.0, 4.20.2): a MAP over the value calling the target with
@@ -3969,21 +4030,21 @@ static sxml_status continue_simple_map_link(lowering_machine *machine,
 typedef struct arrow_map_locals {
     sxml_ir_atom left;
     sxml_ir_slot item;
-    lowering_block body_block;
+    sxml_xpath_lowering_block body_block;
     sxml_ir_expression_index result;
 } arrow_map_locals;
 
 /* A static call, prepared in one block and emitted in another. */
 typedef struct function_call_request {
     sxml_ast_node_index call_node;
-    lowering_block *preparation_block;
-    lowering_block *emission_block;
+    sxml_xpath_lowering_block *preparation_block;
+    sxml_xpath_lowering_block *emission_block;
     /* For "=>" and "=!>": the value or item, first argument. */
     bool has_leading_argument;
     sxml_ir_atom leading_argument;
 } function_call_request;
 
-static sxml_status push_function_call(lowering_machine *machine,
+static sxml_status push_function_call(sxml_xpath_lowering_machine *machine,
                                       function_call_request request,
                                       sxml_ir_expression_index *expression);
 
@@ -3991,28 +4052,28 @@ static sxml_status push_function_call(lowering_machine *machine,
    or of function_item, with the arguments of list lowered in block. */
 typedef struct dynamic_call_request {
     sxml_ast_node_index node;
-    lowering_block *block;
+    sxml_xpath_lowering_block *block;
     sxml_ast_node_index function_node;
-    lowering_block *function_block;
+    sxml_xpath_lowering_block *function_block;
     sxml_ir_atom function_item;
     sxml_ast_node_index list;
     bool has_leading_argument;
     sxml_ir_atom leading_argument;
 } dynamic_call_request;
 
-static sxml_status push_dynamic_call(lowering_machine *machine,
+static sxml_status push_dynamic_call(sxml_xpath_lowering_machine *machine,
                                      const dynamic_call_request *request,
                                      sxml_ir_expression_index *expression);
 
-static sxml_status continue_arrow_map(lowering_machine *machine,
-                                      lowering_frame *frame) {
-    lowerer *state = machine->state;
+static sxml_status continue_arrow_map(sxml_xpath_lowering_machine *machine,
+                                      sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *state = machine->state;
     arrow_map_locals *locals = frame->locals;
     const sxml_ast_node_index target =
         child_of(state, frame->node, SXML_AST_FIELD_TARGET);
     if (frame->step == 0) {
         frame->step = 1;
-        sxml_status status = new_slot(state, &locals->item);
+        sxml_status status = sxml_xpath_lowerer_add_slot(state, &locals->item);
         if (status != SXML_STATUS_OK) {
             return status;
         }
@@ -4042,14 +4103,16 @@ static sxml_status continue_arrow_map(lowering_machine *machine,
             &locals->result);
     }
     sxml_ir_expression_index body = {0};
-    sxml_status status = finish_block(
-        state, (block_result){.block = locals->body_block, .result = locals->result},
+    sxml_status status = sxml_xpath_lowerer_finish_block(
+        state,
+        (sxml_xpath_lowering_block_result){.block = locals->body_block,
+                                           .result = locals->result},
         &body);
     sxml_ir_expression_index result = {0};
     if (status == SXML_STATUS_OK) {
-        status = add_expression(
+        status = sxml_xpath_lowerer_add_expression(
             state,
-            (expression_to_add){
+            (sxml_xpath_lowering_expression_to_add){
                 .node = frame->node,
                 .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_MAP,
                                .map = {.input = locals->left,
@@ -4061,7 +4124,7 @@ static sxml_status continue_arrow_map(lowering_machine *machine,
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    return finish_frame(machine, frame, result);
+    return sxml_xpath_lowering_finish_frame(machine, frame, result);
 }
 
 /* A chain, lowered in a loop over its spine: its first operand, then one
@@ -4076,21 +4139,19 @@ typedef struct chain_locals {
 /* Pushes the frame of a link whose locals start with link_locals. */
 typedef struct link_frame_request {
     lowering_procedure procedure;
-    size_t locals_size;
 } link_frame_request;
 
-static sxml_status push_link_frame(lowering_machine *machine,
-                                   lowering_frame *chain,
+static sxml_status push_link_frame(sxml_xpath_lowering_machine *machine,
+                                   sxml_xpath_lowering_frame *chain,
                                    link_frame_request request) {
     chain_locals *locals = chain->locals;
-    lowering_frame *frame = NULL;
+    sxml_xpath_lowering_frame *frame = NULL;
     sxml_status status = push_part_frame(
         machine,
         (part_frame_request){.procedure = request.procedure,
                              .node = locals->link,
                              .block = chain->block,
                              .destination = {.expression = &locals->result},
-                             .locals_size = request.locals_size,
                              .step = 0},
         &frame);
     if (status == SXML_STATUS_OK) {
@@ -4101,17 +4162,16 @@ static sxml_status push_link_frame(lowering_machine *machine,
 }
 
 /* "=>" and "=!>" (XPath 4.0, 4.20). */
-static sxml_status begin_arrow(lowering_machine *machine,
-                               lowering_frame *chain) {
-    lowerer *state = machine->state;
+static sxml_status begin_arrow(sxml_xpath_lowering_machine *machine,
+                               sxml_xpath_lowering_frame *chain) {
+    sxml_xpath_lowerer *state = machine->state;
     chain_locals *locals = chain->locals;
     const sxml_ast_node_index node = locals->link;
     const sxml_ast_node_index target = child_of(state, node, SXML_AST_FIELD_TARGET);
     if (node_of(state, node)->detail.operator == SXML_AST_OPERATOR_MAPPING_ARROW) {
         return push_link_frame(
             machine, chain,
-            (link_frame_request){.procedure = SXML_LOWERING_PROCEDURE_ARROW_MAP,
-                                 .locals_size = sizeof(arrow_map_locals)});
+            (link_frame_request){.procedure = SXML_LOWERING_PROCEDURE_ARROW_MAP});
     }
     /* "=>": the value is the first argument (XPath 4.0, 4.20.1). */
     if (node_of(state, target)->kind == SXML_AST_KIND_FUNCTION_CALL) {
@@ -4138,9 +4198,9 @@ static sxml_status begin_arrow(lowering_machine *machine,
 }
 
 /* Starts lowering the chain's current link, applied to its left atom. */
-static sxml_status begin_chain_link(lowering_machine *machine,
-                                    lowering_frame *chain) {
-    lowerer *state = machine->state;
+static sxml_status begin_chain_link(sxml_xpath_lowering_machine *machine,
+                                    sxml_xpath_lowering_frame *chain) {
+    sxml_xpath_lowerer *state = machine->state;
     chain_locals *locals = chain->locals;
     const sxml_ast_node_index node = locals->link;
     switch ((uint32_t)node_of(state, node)->kind) {
@@ -4148,13 +4208,11 @@ static sxml_status begin_chain_link(lowering_machine *machine,
     case SXML_AST_KIND_AND_EXPRESSION:
         return push_link_frame(
             machine, chain,
-            (link_frame_request){.procedure = SXML_LOWERING_PROCEDURE_BOOLEAN_LINK,
-                                 .locals_size = sizeof(boolean_link_locals)});
+            (link_frame_request){.procedure = SXML_LOWERING_PROCEDURE_BOOLEAN_LINK});
     case SXML_AST_KIND_OTHERWISE_EXPRESSION:
         return push_link_frame(
             machine, chain,
-            (link_frame_request){.procedure = SXML_LOWERING_PROCEDURE_OTHERWISE_LINK,
-                                 .locals_size = sizeof(otherwise_link_locals)});
+            (link_frame_request){.procedure = SXML_LOWERING_PROCEDURE_OTHERWISE_LINK});
     case SXML_AST_KIND_COMPARISON_EXPRESSION:
     case SXML_AST_KIND_STRING_CONCATENATION_EXPRESSION:
     case SXML_AST_KIND_RANGE_EXPRESSION:
@@ -4164,18 +4222,15 @@ static sxml_status begin_chain_link(lowering_machine *machine,
     case SXML_AST_KIND_INTERSECT_EXCEPT_EXPRESSION:
         return push_link_frame(
             machine, chain,
-            (link_frame_request){.procedure = SXML_LOWERING_PROCEDURE_BINARY_LINK,
-                                 .locals_size = sizeof(binary_link_locals)});
+            (link_frame_request){.procedure = SXML_LOWERING_PROCEDURE_BINARY_LINK});
     case SXML_AST_KIND_PIPELINE_EXPRESSION:
         return push_link_frame(
             machine, chain,
-            (link_frame_request){.procedure = SXML_LOWERING_PROCEDURE_PIPELINE_LINK,
-                                 .locals_size = sizeof(pipeline_link_locals)});
+            (link_frame_request){.procedure = SXML_LOWERING_PROCEDURE_PIPELINE_LINK});
     case SXML_AST_KIND_SIMPLE_MAP_EXPRESSION:
         return push_link_frame(
             machine, chain,
-            (link_frame_request){.procedure = SXML_LOWERING_PROCEDURE_SIMPLE_MAP_LINK,
-                                 .locals_size = sizeof(simple_map_link_locals)});
+            (link_frame_request){.procedure = SXML_LOWERING_PROCEDURE_SIMPLE_MAP_LINK});
     case SXML_AST_KIND_RELATIVE_PATH_EXPRESSION: {
         /* "/" and "//" between two operands (XPath 4.0, section 4.6.3). */
         sxml_ir_atom input = locals->left;
@@ -4207,14 +4262,13 @@ static sxml_status begin_chain_link(lowering_machine *machine,
                 .predicate = child_of(state, node, SXML_AST_FIELD_PREDICATE)},
             &locals->result);
     case SXML_AST_KIND_LOOKUP_EXPRESSION: {
-        lowering_frame *frame = NULL;
+        sxml_xpath_lowering_frame *frame = NULL;
         sxml_status status = push_part_frame(
             machine,
             (part_frame_request){.procedure = SXML_LOWERING_PROCEDURE_LOOKUP,
                                  .node = node,
                                  .block = chain->block,
                                  .destination = {.expression = &locals->result},
-                                 .locals_size = sizeof(lookup_locals),
                                  .step = 1},
             &frame);
         if (status == SXML_STATUS_OK) {
@@ -4243,9 +4297,9 @@ static sxml_status begin_chain_link(lowering_machine *machine,
     }
 }
 
-static sxml_status continue_chain(lowering_machine *machine,
-                                  lowering_frame *frame) {
-    lowerer *state = machine->state;
+static sxml_status continue_chain(sxml_xpath_lowering_machine *machine,
+                                  sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *state = machine->state;
     chain_locals *locals = frame->locals;
     switch (frame->step) {
     case 0: {
@@ -4257,27 +4311,27 @@ static sxml_status continue_chain(lowering_machine *machine,
         }
         frame->step = 1;
         locals->link = node_of(state, bottom)->parent;
-        return call_atom(machine, (atom_call){.node = bottom,
-                                              .block = frame->block,
-                                              .atom = &locals->left});
+        return sxml_xpath_lowering_call_atom(
+            machine, (sxml_xpath_lowering_atom_call){.node = bottom,
+                                                     .block = frame->block,
+                                                     .atom = &locals->left});
     }
     case 1:
         frame->step = 2;
         return begin_chain_link(machine, frame);
     default:
         if (locals->link.value == frame->node.value) {
-            return finish_frame(machine, frame, locals->result);
+            return sxml_xpath_lowering_finish_frame(machine, frame, locals->result);
         }
         frame->step = 1;
         locals->link = node_of(state, locals->link)->parent;
-        return bind_expression(
+        return sxml_xpath_lowerer_bind_expression(
             state,
-            (expression_in_block){.block = frame->block,
+            (sxml_xpath_lowering_expression_in_block){.block = frame->block,
                                   .expression = locals->result},
             &locals->left);
     }
 }
-
 
 /* -------------------------------------------------------------- Calls */
 
@@ -4299,17 +4353,16 @@ typedef struct function_call_locals {
     bool *is_supplied;
 } function_call_locals;
 
-static sxml_status push_function_call(lowering_machine *machine,
+static sxml_status push_function_call(sxml_xpath_lowering_machine *machine,
                                       function_call_request request,
                                       sxml_ir_expression_index *expression) {
-    lowering_frame *frame = NULL;
+    sxml_xpath_lowering_frame *frame = NULL;
     sxml_status status = push_part_frame(
         machine,
         (part_frame_request){.procedure = SXML_LOWERING_PROCEDURE_FUNCTION_CALL,
                              .node = request.call_node,
                              .block = request.preparation_block,
                              .destination = {.expression = expression},
-                             .locals_size = sizeof(function_call_locals),
                              .step = 1},
         &frame);
     if (status == SXML_STATUS_OK) {
@@ -4321,9 +4374,9 @@ static sxml_status push_function_call(lowering_machine *machine,
 
 /* The function of a call and its arity, keyword arguments checked, the
    arguments allocated (prepare_call up to its arguments). */
-static sxml_status begin_function_call(lowering_machine *machine,
-                                       lowering_frame *frame) {
-    lowerer *state = machine->state;
+static sxml_status begin_function_call(sxml_xpath_lowering_machine *machine,
+                                       sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *state = machine->state;
     function_call_locals *locals = frame->locals;
     const sxml_ast_node_index call_node = frame->node;
     const sxml_ast_node_index list =
@@ -4355,9 +4408,10 @@ static sxml_status begin_function_call(lowering_machine *machine,
     if (entry.entry_kind == SXML_FUNCTION_ENTRY_KIND_NONE) {
         /* XPath 4.0, section 4.5.1.1: the name and arity must match a
            statically known function definition. */
-        return report_static_error(
+        return sxml_xpath_lowerer_report_static_error(
             state, call_node,
-            SXML_BYTE_VIEW_FROM_LITERAL("XPST0017 no function with this name and arity is known"));
+            SXML_BYTE_VIEW_FROM_LITERAL(
+                "XPST0017 no function with this name and arity is known"));
     }
     /* Keyword arguments (XPath 4.0, section 4.5.1.1) name parameters after
        the positional ones; the arity is the last one named. */
@@ -4375,10 +4429,11 @@ static sxml_status begin_function_call(lowering_machine *machine,
                 node_of(state, child_of(state, argument, SXML_AST_FIELD_NAME))
                     ->payload.name.local_name));
         if (parameter_index == SIZE_MAX || parameter_index < positional_count) {
-            return report_static_error(
+            return sxml_xpath_lowerer_report_static_error(
                 state, argument,
-                SXML_BYTE_VIEW_FROM_LITERAL("XPST0017 a keyword argument names no parameter after the "
-                "positional arguments"));
+                SXML_BYTE_VIEW_FROM_LITERAL(
+                    "XPST0017 a keyword argument names no parameter after the "
+                    "positional arguments"));
         }
         if (parameter_index + 1 > needed_arity) {
             needed_arity = parameter_index + 1;
@@ -4400,22 +4455,23 @@ static sxml_status begin_function_call(lowering_machine *machine,
             return status;
         }
         if (entry.entry_kind == SXML_FUNCTION_ENTRY_KIND_NONE) {
-            return report_static_error(
+            return sxml_xpath_lowerer_report_static_error(
                 state, call_node,
-                SXML_BYTE_VIEW_FROM_LITERAL("XPST0017 no function with this name and arity is known"));
+                SXML_BYTE_VIEW_FROM_LITERAL(
+                    "XPST0017 no function with this name and arity is known"));
         }
     }
     const size_t element_count = arity == 0 ? 1 : arity;
-    status = allocate_owned(
+    status = sxml_xpath_lowering_allocate_owned(
         machine, frame,
-        (owned_request){.memory_index = 0,
+        (sxml_xpath_lowering_owned_request){.memory_index = 0,
                         .scratch = {.element_count = element_count,
                                     .element_size = sizeof(call_argument),
                                     .element_alignment = alignof(call_argument)}});
     if (status == SXML_STATUS_OK) {
-        status = allocate_owned(
+        status = sxml_xpath_lowering_allocate_owned(
             machine, frame,
-            (owned_request){.memory_index = 1,
+            (sxml_xpath_lowering_owned_request){.memory_index = 1,
                             .scratch = {.element_count = element_count,
                                         .element_size = sizeof(bool),
                                         .element_alignment = alignof(bool)}});
@@ -4443,9 +4499,10 @@ static sxml_status begin_function_call(lowering_machine *machine,
 
 /* Lowers the next argument that is not a placeholder; false when none is
    left. */
-static bool next_call_argument(lowering_machine *machine, lowering_frame *frame,
+static bool next_call_argument(sxml_xpath_lowering_machine *machine,
+                               sxml_xpath_lowering_frame *frame,
                                sxml_status *status) {
-    lowerer *state = machine->state;
+    sxml_xpath_lowerer *state = machine->state;
     function_call_locals *locals = frame->locals;
     while (locals->argument.value != 0) {
         const sxml_ast_node_index argument = locals->argument;
@@ -4461,9 +4518,10 @@ static bool next_call_argument(lowering_machine *machine, lowering_frame *frame,
                         ->payload.name.local_name));
             value = child_of(state, argument, SXML_AST_FIELD_VALUE);
             if (target >= locals->arity || locals->is_supplied[target]) {
-                *status = report_static_error(
+                *status = sxml_xpath_lowerer_report_static_error(
                     state, argument,
-                    SXML_BYTE_VIEW_FROM_LITERAL("XPST0017 a parameter is given two arguments"));
+                    SXML_BYTE_VIEW_FROM_LITERAL(
+                        "XPST0017 a parameter is given two arguments"));
                 return true;
             }
         } else {
@@ -4475,8 +4533,8 @@ static bool next_call_argument(lowering_machine *machine, lowering_frame *frame,
             locals->placeholder_count += 1;
             continue;
         }
-        *status = call_atom(machine,
-                            (atom_call){.node = value,
+        *status = sxml_xpath_lowering_call_atom(machine,
+                            (sxml_xpath_lowering_atom_call){.node = value,
                                         .block = locals->request.preparation_block,
                                         .atom = &locals->arguments[target].atom});
         return true;
@@ -4485,9 +4543,9 @@ static bool next_call_argument(lowering_machine *machine, lowering_frame *frame,
 }
 
 /* After the arguments: the parameters left out, then the call. */
-static sxml_status finish_function_call(lowering_machine *machine,
-                                        lowering_frame *frame) {
-    lowerer *state = machine->state;
+static sxml_status finish_function_call(sxml_xpath_lowering_machine *machine,
+                                        sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *state = machine->state;
     function_call_locals *locals = frame->locals;
     const sxml_ast_node_index call_node = frame->node;
     const sxml_function_entry *entry = &locals->entry;
@@ -4504,14 +4562,18 @@ static sxml_status finish_function_call(lowering_machine *machine,
                       .parameter_default
                 : SXML_PARAMETER_DEFAULT_REQUIRED;
         if (parameter_default == SXML_PARAMETER_DEFAULT_CONTEXT_VALUE) {
-            status = read_focus(state,
-                                (focus_read){.block = locals->request.preparation_block,
-                                             .node = call_node,
-                                             .part = SXML_LOWERING_FOCUS_PART_VALUE},
-                                &locals->arguments[argument_index].atom);
+            status = sxml_xpath_lowerer_read_focus(
+                state,
+                (sxml_xpath_lowering_focus_read){
+                    .block = locals->request.preparation_block,
+                    .node = call_node,
+                    .part = SXML_XPATH_LOWERING_FOCUS_PART_VALUE},
+                &locals->arguments[argument_index].atom);
         } else if (parameter_default == SXML_PARAMETER_DEFAULT_REQUIRED) {
-            status = report_static_error(
-                state, call_node, SXML_BYTE_VIEW_FROM_LITERAL("XPST0017 a required parameter has no argument"));
+            status = sxml_xpath_lowerer_report_static_error(
+                state, call_node,
+                SXML_BYTE_VIEW_FROM_LITERAL(
+                    "XPST0017 a required parameter has no argument"));
         } else if (argument_index < entry->parameter_types.sequence_type_count &&
                    ((unsigned)entry->parameter_types.sequence_types[argument_index]
                         .occurrence &
@@ -4523,19 +4585,22 @@ static sxml_status finish_function_call(lowering_machine *machine,
                exception, $timezone of the adjust-*-to-timezone functions,
                is a last parameter, never left out before another. */
             sxml_ir_expression_index empty = {0};
-            status = add_empty_sequence(state, call_node, &empty);
+            status = sxml_xpath_lowerer_add_empty_sequence(state, call_node, &empty);
             if (status == SXML_STATUS_OK) {
-                status = bind_expression(
+                status = sxml_xpath_lowerer_bind_expression(
                     state,
-                    (expression_in_block){.block = locals->request.preparation_block,
-                                          .expression = empty},
+                    (sxml_xpath_lowering_expression_in_block){
+                        .block = locals->request.preparation_block,
+                        .expression = empty},
                     &locals->arguments[argument_index].atom);
             }
         } else {
-            status = report_unsupported(
+            status = sxml_xpath_lowerer_report_unsupported(
                 state, call_node,
-                SXML_BYTE_VIEW_FROM_LITERAL("a keyword argument after an omitted parameter whose default "
-                "the function supplies and whose type does not allow ()"));
+                SXML_BYTE_VIEW_FROM_LITERAL(
+                    "a keyword argument after an omitted parameter whose "
+                    "default "
+                    "the function supplies and whose type does not allow ()"));
         }
     }
     if (status != SXML_STATUS_OK) {
@@ -4546,7 +4611,7 @@ static sxml_status finish_function_call(lowering_machine *machine,
                                 .arguments = locals->arguments,
                                 .argument_count = locals->arity,
                                 .placeholder_count = locals->placeholder_count};
-    lowering_block *block = locals->request.emission_block;
+    sxml_xpath_lowering_block *block = locals->request.emission_block;
     sxml_ir_expression_index result = {0};
     const uint32_t properties = native_properties(&call.entry);
     if ((properties & (SXML_NATIVE_FUNCTION_READS_CONTEXT_POSITION |
@@ -4555,14 +4620,14 @@ static sxml_status finish_function_call(lowering_machine *machine,
         /* fn:position() and fn:last() read the focus (XPath 4.0, section
            2.2.2). */
         sxml_ir_atom atom = {0};
-        status = read_focus(
+        status = sxml_xpath_lowerer_read_focus(
             state,
-            (focus_read){
+            (sxml_xpath_lowering_focus_read){
                 .block = block,
                 .node = call.node,
                 .part = (properties & SXML_NATIVE_FUNCTION_READS_CONTEXT_POSITION) != 0
-                            ? SXML_LOWERING_FOCUS_PART_POSITION
-                            : SXML_LOWERING_FOCUS_PART_SIZE},
+                            ? SXML_XPATH_LOWERING_FOCUS_PART_POSITION
+                            : SXML_XPATH_LOWERING_FOCUS_PART_SIZE},
             &atom);
         if (status == SXML_STATUS_OK) {
             status = add_atom_expression(
@@ -4578,11 +4643,11 @@ static sxml_status finish_function_call(lowering_machine *machine,
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    return finish_frame(machine, frame, result);
+    return sxml_xpath_lowering_finish_frame(machine, frame, result);
 }
 
-static sxml_status continue_function_call(lowering_machine *machine,
-                                          lowering_frame *frame) {
+static sxml_status continue_function_call(sxml_xpath_lowering_machine *machine,
+                                          sxml_xpath_lowering_frame *frame) {
     function_call_locals *locals = frame->locals;
     switch (frame->step) {
     case 0:
@@ -4624,17 +4689,16 @@ typedef struct dynamic_call_locals {
     sxml_ir_map_entry *entries;
 } dynamic_call_locals;
 
-static sxml_status push_dynamic_call(lowering_machine *machine,
+static sxml_status push_dynamic_call(sxml_xpath_lowering_machine *machine,
                                      const dynamic_call_request *request,
                                      sxml_ir_expression_index *expression) {
-    lowering_frame *frame = NULL;
+    sxml_xpath_lowering_frame *frame = NULL;
     sxml_status status = push_part_frame(
         machine,
         (part_frame_request){.procedure = SXML_LOWERING_PROCEDURE_DYNAMIC_CALL,
                              .node = request->node,
                              .block = request->block,
                              .destination = {.expression = expression},
-                             .locals_size = sizeof(dynamic_call_locals),
                              .step = 0},
         &frame);
     if (status == SXML_STATUS_OK) {
@@ -4644,9 +4708,9 @@ static sxml_status push_dynamic_call(lowering_machine *machine,
     return status;
 }
 
-static sxml_status begin_dynamic_call_arguments(lowering_machine *machine,
-                                                lowering_frame *frame) {
-    lowerer *state = machine->state;
+static sxml_status begin_dynamic_call_arguments(sxml_xpath_lowering_machine *machine,
+                                                sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *state = machine->state;
     dynamic_call_locals *locals = frame->locals;
     const dynamic_call_request *request = &locals->request;
     size_t argument_count = request->has_leading_argument ? 1U : 0U;
@@ -4660,16 +4724,16 @@ static sxml_status begin_dynamic_call_arguments(lowering_machine *machine,
             placeholder_count += 1;
         }
     }
-    sxml_status status = allocate_owned(
+    sxml_status status = sxml_xpath_lowering_allocate_owned(
         machine, frame,
-        (owned_request){.memory_index = 0,
+        (sxml_xpath_lowering_owned_request){.memory_index = 0,
                         .scratch = {.element_count = argument_count,
                                     .element_size = sizeof(sxml_ir_atom),
                                     .element_alignment = alignof(sxml_ir_atom)}});
     if (status == SXML_STATUS_OK && placeholder_count > 0) {
-        status = allocate_owned(
+        status = sxml_xpath_lowering_allocate_owned(
             machine, frame,
-            (owned_request){
+            (sxml_xpath_lowering_owned_request){
                 .memory_index = 1,
                 .scratch = {.element_count = argument_count,
                             .element_size = sizeof(sxml_ir_map_entry),
@@ -4691,12 +4755,12 @@ static sxml_status begin_dynamic_call_arguments(lowering_machine *machine,
 }
 
 /* The call itself, after the arguments. */
-static sxml_status finish_dynamic_call(lowering_machine *machine,
-                                       lowering_frame *frame) {
-    lowerer *state = machine->state;
+static sxml_status finish_dynamic_call(sxml_xpath_lowering_machine *machine,
+                                       sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *state = machine->state;
     dynamic_call_locals *locals = frame->locals;
     const dynamic_call_request *request = &locals->request;
-    lowering_block *block = frame->block;
+    sxml_xpath_lowering_block *block = frame->block;
     sxml_ir_atom *atoms = locals->atoms;
     sxml_ir_expression_index result = {0};
     sxml_status status = SXML_STATUS_OK;
@@ -4708,9 +4772,9 @@ static sxml_status finish_dynamic_call(lowering_machine *machine,
                                 .atom_count = locals->argument_count},
             &arguments);
         if (status == SXML_STATUS_OK) {
-            status = add_expression(
+            status = sxml_xpath_lowerer_add_expression(
                 state,
-                (expression_to_add){
+                (sxml_xpath_lowering_expression_to_add){
                     .node = frame->node,
                     .expression = {
                         .expression_kind = SXML_IR_EXPRESSION_KIND_DYNAMIC_CALL,
@@ -4721,7 +4785,7 @@ static sxml_status finish_dynamic_call(lowering_machine *machine,
         if (status != SXML_STATUS_OK) {
             return status;
         }
-        return finish_frame(machine, frame, result);
+        return sxml_xpath_lowering_finish_frame(machine, frame, result);
     }
     /* Positions of the supplied arguments as xs:positiveInteger keys, the
        key type of fn:partial-apply's map (F&O 4.0). */
@@ -4754,9 +4818,9 @@ static sxml_status finish_dynamic_call(lowering_machine *machine,
     }
     sxml_ir_expression_index map = {0};
     if (status == SXML_STATUS_OK) {
-        status = add_expression(
+        status = sxml_xpath_lowerer_add_expression(
             state,
-            (expression_to_add){
+            (sxml_xpath_lowering_expression_to_add){
                 .node = frame->node,
                 .expression = {
                     .expression_kind = SXML_IR_EXPRESSION_KIND_MAP_CONSTRUCTOR,
@@ -4768,14 +4832,16 @@ static sxml_status finish_dynamic_call(lowering_machine *machine,
        applies fn:partial-apply to the focus. */
     sxml_ir_slot function_slot = {0};
     if (status == SXML_STATUS_OK) {
-        status = new_slot(state, &function_slot);
+        status = sxml_xpath_lowerer_add_slot(state, &function_slot);
     }
     call_argument call_arguments[2] = {
         {.is_placeholder = false, .atom = slot_atom(function_slot)},
         {.is_placeholder = false, .atom = {0}}};
     if (status == SXML_STATUS_OK) {
-        status = bind_expression(
-            state, (expression_in_block){.block = block, .expression = map},
+        status = sxml_xpath_lowerer_bind_expression(
+            state,
+            (sxml_xpath_lowering_expression_in_block){.block = block,
+                                                      .expression = map},
             &call_arguments[1].atom);
     }
     sxml_function_entry entry = {0};
@@ -4802,9 +4868,9 @@ static sxml_status finish_dynamic_call(lowering_machine *machine,
     }
     if (status == SXML_STATUS_OK) {
         const sxml_ir_expression_index body = result;
-        status = add_expression(
+        status = sxml_xpath_lowerer_add_expression(
             state,
-            (expression_to_add){
+            (sxml_xpath_lowering_expression_to_add){
                 .node = frame->node,
                 .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_MAP,
                                .map = {.input = request->function_item,
@@ -4816,12 +4882,12 @@ static sxml_status finish_dynamic_call(lowering_machine *machine,
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    return finish_frame(machine, frame, result);
+    return sxml_xpath_lowering_finish_frame(machine, frame, result);
 }
 
-static sxml_status continue_dynamic_call(lowering_machine *machine,
-                                         lowering_frame *frame) {
-    lowerer *state = machine->state;
+static sxml_status continue_dynamic_call(sxml_xpath_lowering_machine *machine,
+                                         sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *state = machine->state;
     dynamic_call_locals *locals = frame->locals;
     switch (frame->step) {
     case 0:
@@ -4829,10 +4895,11 @@ static sxml_status continue_dynamic_call(lowering_machine *machine,
         if (locals->request.function_node.value == 0) {
             return SXML_STATUS_OK;
         }
-        return call_atom(machine,
-                         (atom_call){.node = locals->request.function_node,
-                                     .block = locals->request.function_block,
-                                     .atom = &locals->request.function_item});
+        return sxml_xpath_lowering_call_atom(
+            machine, (sxml_xpath_lowering_atom_call){
+                         .node = locals->request.function_node,
+                         .block = locals->request.function_block,
+                         .atom = &locals->request.function_item});
     case 1:
         frame->step = 2;
         return begin_dynamic_call_arguments(machine, frame);
@@ -4848,8 +4915,8 @@ static sxml_status continue_dynamic_call(lowering_machine *machine,
                     (sxml_ir_atom){.atom_kind = SXML_IR_ATOM_KIND_NONE};
                 continue;
             }
-            return call_atom(machine,
-                             (atom_call){.node = argument,
+            return sxml_xpath_lowering_call_atom(machine,
+                             (sxml_xpath_lowering_atom_call){.node = argument,
                                          .block = frame->block,
                                          .atom = &locals->atoms[argument_index]});
         }
@@ -4864,18 +4931,18 @@ typedef struct inline_function_locals {
     size_t parameter_count;
     sxml_sequence_type result_type;
     sxml_ir_function_index function;
-    function_frame function_frame;
+    sxml_xpath_lowering_function_frame function_frame;
     /* The body's block, in the new function. */
-    lowering_block block;
+    sxml_xpath_lowering_block block;
     sxml_ast_node_index body_node;
     sxml_ir_expression_index result;
 } inline_function_locals;
 
 /* The signature and free variables of an inline function, then its body
    in a new IR function. */
-static sxml_status begin_inline_function(lowering_machine *machine,
-                                         lowering_frame *frame) {
-    lowerer *state = machine->state;
+static sxml_status begin_inline_function(sxml_xpath_lowering_machine *machine,
+                                         sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *state = machine->state;
     inline_function_locals *locals = frame->locals;
     const sxml_ast_node_index node = frame->node;
     const bool has_signature =
@@ -4894,17 +4961,17 @@ static sxml_status begin_inline_function(lowering_machine *machine,
     if (parameter_count >= UINT32_MAX / 2) {
         return SXML_STATUS_LIMIT_EXCEEDED;
     }
-    sxml_status status = allocate_owned(
+    sxml_status status = sxml_xpath_lowering_allocate_owned(
         machine, frame,
-        (owned_request){.memory_index = 0,
+        (sxml_xpath_lowering_owned_request){.memory_index = 0,
                         .scratch = {.element_count = parameter_count,
                                     .element_size = sizeof(sxml_sequence_type),
                                     .element_alignment =
                                         alignof(sxml_sequence_type)}});
     if (status == SXML_STATUS_OK) {
-        status = allocate_owned(
+        status = sxml_xpath_lowering_allocate_owned(
             machine, frame,
-            (owned_request){.memory_index = 1,
+            (sxml_xpath_lowering_owned_request){.memory_index = 1,
                             .scratch = {.element_count = parameter_count,
                                         .element_size = sizeof(sxml_name_identifier),
                                         .element_alignment =
@@ -4927,7 +4994,7 @@ static sxml_status begin_inline_function(lowering_machine *machine,
                            : (sxml_ast_node_index){.value = 0};
          status == SXML_STATUS_OK && parameter.value != 0;
          parameter = next_of(state, parameter)) {
-        status = resolve_variable_name(
+        status = sxml_xpath_lowerer_resolve_variable_name(
             state, child_of(state, parameter, SXML_AST_FIELD_NAME),
             &parameter_names[parameter_index]);
         for (size_t earlier_index = 0;
@@ -4936,9 +5003,10 @@ static sxml_status begin_inline_function(lowering_machine *machine,
             if (parameter_names[earlier_index].index ==
                 parameter_names[parameter_index].index) {
                 /* XPath 4.0, section 4.5.6: parameter names are distinct. */
-                status = report_static_error(
+                status = sxml_xpath_lowerer_report_static_error(
                     state, parameter,
-                    SXML_BYTE_VIEW_FROM_LITERAL("XPST0039 two parameters of a function have the same name"));
+                    SXML_BYTE_VIEW_FROM_LITERAL("XPST0039 two parameters of a "
+                                                "function have the same name"));
             }
         }
         if (status == SXML_STATUS_OK) {
@@ -4955,9 +5023,9 @@ static sxml_status begin_inline_function(lowering_machine *machine,
     }
     sxml_type_identifier signature = {0};
     if (status == SXML_STATUS_OK) {
-        status = register_signature(
+        status = sxml_xpath_lowerer_register_signature(
             state,
-            (signature_request){
+            (sxml_xpath_lowering_signature_request){
                 .parameter_types = {.sequence_types = parameter_types,
                                     .sequence_type_count = parameter_count},
                 .result_type = locals->result_type},
@@ -4991,24 +5059,24 @@ static sxml_status begin_inline_function(lowering_machine *machine,
     }
     locals->has_signature = has_signature;
     locals->parameter_count = parameter_count;
-    locals->function_frame = (function_frame){
+    locals->function_frame = (sxml_xpath_lowering_function_frame){
         .function = {.function_index = locals->function,
                      .function_level = state->function->function_level + 1U,
                      .slot_count =
                          (uint32_t)(parameter_count + variables.captured_count),
                      .captures = variables.captures,
                      .capture_count = variables.capture_count},
-        .focus = {.kind = has_signature ? SXML_LOWERING_FOCUS_KIND_ABSENT
-                                        : SXML_LOWERING_FOCUS_KIND_FIXED,
+        .focus = {.kind = has_signature ? SXML_XPATH_LOWERING_FOCUS_KIND_ABSENT
+                                        : SXML_XPATH_LOWERING_FOCUS_KIND_FIXED,
                   .fixed_value = slot_atom((sxml_ir_slot){.value = 1})},
     };
-    enter_function(state, &locals->function_frame);
+    sxml_xpath_lowerer_enter_function(state, &locals->function_frame);
     for (size_t name_index = 0;
          status == SXML_STATUS_OK && has_signature && name_index < parameter_count;
          name_index += 1) {
-        status = push_variable(
+        status = sxml_xpath_lowerer_push_variable(
             state,
-            (scope_entry){
+            (sxml_xpath_lowering_scope_entry){
                 .variable_name = parameter_names[name_index],
                 .function_level = locals->function_frame.function.function_level,
                 .atom = slot_atom((sxml_ir_slot){.value = (uint32_t)name_index + 1U})});
@@ -5017,16 +5085,16 @@ static sxml_status begin_inline_function(lowering_machine *machine,
         return status;
     }
     locals->body_node = child_of(state, node, SXML_AST_FIELD_BODY);
-    return call_expression(
-        machine, (expression_call){.node = locals->body_node,
+    return sxml_xpath_lowering_call_expression(
+        machine, (sxml_xpath_lowering_expression_call){.node = locals->body_node,
                                    .block = &locals->block,
                                    .is_body = false,
                                    .destination = {.expression = &locals->result}});
 }
 
-static sxml_status finish_inline_function(lowering_machine *machine,
-                                          lowering_frame *frame) {
-    lowerer *state = machine->state;
+static sxml_status finish_inline_function(sxml_xpath_lowering_machine *machine,
+                                          sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *state = machine->state;
     inline_function_locals *locals = frame->locals;
     sxml_ir_expression_index result = locals->result;
     sxml_status status = SXML_STATUS_OK;
@@ -5034,13 +5102,15 @@ static sxml_status finish_inline_function(lowering_machine *machine,
         /* The declared result type is checked by coercion (XPath 4.0,
            section 4.5.6). */
         sxml_ir_atom value = {0};
-        status = bind_expression(
-            state, (expression_in_block){.block = &locals->block, .expression = result},
+        status = sxml_xpath_lowerer_bind_expression(
+            state,
+            (sxml_xpath_lowering_expression_in_block){.block = &locals->block,
+                                                      .expression = result},
             &value);
         if (status == SXML_STATUS_OK) {
-            status = add_expression(
+            status = sxml_xpath_lowerer_add_expression(
                 state,
-                (expression_to_add){
+                (sxml_xpath_lowering_expression_to_add){
                     .node = locals->body_node,
                     .expression = {
                         .expression_kind = SXML_IR_EXPRESSION_KIND_COERCE,
@@ -5052,10 +5122,13 @@ static sxml_status finish_inline_function(lowering_machine *machine,
     }
     sxml_ir_expression_index body = {0};
     if (status == SXML_STATUS_OK) {
-        status = finish_block(
-            state, (block_result){.block = locals->block, .result = result}, &body);
+        status = sxml_xpath_lowerer_finish_block(
+            state,
+            (sxml_xpath_lowering_block_result){.block = locals->block,
+                                               .result = result},
+            &body);
     }
-    leave_function(state, &locals->function_frame);
+    sxml_xpath_lowerer_leave_function(state, &locals->function_frame);
     if (status == SXML_STATUS_OK) {
         sxml_ir_function_replacement replacement = {
             .index = locals->function,
@@ -5067,9 +5140,9 @@ static sxml_status finish_inline_function(lowering_machine *machine,
     }
     sxml_ir_expression_index definition = {0};
     if (status == SXML_STATUS_OK) {
-        status = add_expression(
+        status = sxml_xpath_lowerer_add_expression(
             state,
-            (expression_to_add){
+            (sxml_xpath_lowering_expression_to_add){
                 .node = frame->node,
                 .expression = {
                     .expression_kind = SXML_IR_EXPRESSION_KIND_FUNCTION_DEFINITION,
@@ -5079,18 +5152,17 @@ static sxml_status finish_inline_function(lowering_machine *machine,
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    return finish_frame(machine, frame, definition);
+    return sxml_xpath_lowering_finish_frame(machine, frame, definition);
 }
 
-static sxml_status continue_inline_function(lowering_machine *machine,
-                                            lowering_frame *frame) {
+static sxml_status continue_inline_function(sxml_xpath_lowering_machine *machine,
+                                            sxml_xpath_lowering_frame *frame) {
     if (frame->step == 0) {
         frame->step = 1;
         return begin_inline_function(machine, frame);
     }
     return finish_inline_function(machine, frame);
 }
-
 
 /* ------------------------------------------------------- FLWOR, some */
 
@@ -5108,7 +5180,7 @@ typedef struct binding_locals {
     sxml_ir_slot position;
     size_t scope_mark;
     /* A for or quantifier binding's body. */
-    lowering_block body_block;
+    sxml_xpath_lowering_block body_block;
     sxml_ir_expression_index rest;
 } binding_locals;
 
@@ -5125,18 +5197,17 @@ enum {
 
 /* Pushes the frame of the binding after the current one, lowered in
    block. */
-static sxml_status push_next_binding(lowering_machine *machine,
-                                     lowering_frame *frame,
-                                     lowering_block *block) {
+static sxml_status push_next_binding(sxml_xpath_lowering_machine *machine,
+                                     sxml_xpath_lowering_frame *frame,
+                                     sxml_xpath_lowering_block *block) {
     binding_locals *locals = frame->locals;
-    lowering_frame *next = NULL;
+    sxml_xpath_lowering_frame *next = NULL;
     sxml_status status = push_part_frame(
         machine,
         (part_frame_request){.procedure = SXML_LOWERING_PROCEDURE_BINDING,
                              .node = frame->node,
                              .block = block,
                              .destination = {.expression = &locals->rest},
-                             .locals_size = sizeof(binding_locals),
                              .step = SXML_LOWERING_BINDING_STEP_BINDING},
         &next);
     if (status == SXML_STATUS_OK) {
@@ -5150,17 +5221,17 @@ static sxml_status push_next_binding(lowering_machine *machine,
 }
 
 /* The binding at the cursor; the result after the last. */
-static sxml_status begin_binding(lowering_machine *machine,
-                                 lowering_frame *frame) {
-    lowerer *state = machine->state;
+static sxml_status begin_binding(sxml_xpath_lowering_machine *machine,
+                                 sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *state = machine->state;
     binding_locals *locals = frame->locals;
     const sxml_ast_node_index binding = locals->cursor.binding;
     if (binding.value == 0) {
         /* The return value, or the condition whose effective boolean value
            QUANTIFIED takes (XPath 4.0, section 4.15). */
         frame->step = SXML_LOWERING_BINDING_STEP_RESULT;
-        return call_expression(
-            machine, (expression_call){.node = locals->result,
+        return sxml_xpath_lowering_call_expression(
+            machine, (sxml_xpath_lowering_expression_call){.node = locals->result,
                                        .block = frame->block,
                                        .is_body = false,
                                        .destination = {.expression = &locals->rest}});
@@ -5169,60 +5240,62 @@ static sxml_status begin_binding(lowering_machine *machine,
     case SXML_AST_KIND_FOR_ITEM_BINDING:
     case SXML_AST_KIND_QUANTIFIER_BINDING:
         frame->step = SXML_LOWERING_BINDING_STEP_ITERATING_VALUE;
-        return call_atom(
+        return sxml_xpath_lowering_call_atom(
             machine,
-            (atom_call){.node = child_of(state, binding, SXML_AST_FIELD_SEQUENCE),
-                        .block = frame->block,
-                        .atom = &locals->value});
+            (sxml_xpath_lowering_atom_call){
+                .node = child_of(state, binding, SXML_AST_FIELD_SEQUENCE),
+                .block = frame->block,
+                .atom = &locals->value});
     case SXML_AST_KIND_LET_VALUE_BINDING:
         /* "let" (XPath 4.0, section 4.13.2): the value bound once. */
         frame->step = SXML_LOWERING_BINDING_STEP_LET_VALUE;
-        return call_atom(
-            machine,
-            (atom_call){.node = child_of(state, binding, SXML_AST_FIELD_VALUE),
-                        .block = frame->block,
-                        .atom = &locals->value});
+        return sxml_xpath_lowering_call_atom(
+            machine, (sxml_xpath_lowering_atom_call){
+                         .node = child_of(state, binding, SXML_AST_FIELD_VALUE),
+                         .block = frame->block,
+                         .atom = &locals->value});
     default:
-        return report_unsupported(
+        return sxml_xpath_lowerer_report_unsupported(
             state, binding,
-            SXML_BYTE_VIEW_FROM_LITERAL("for member, for key/value and destructuring let bindings are not "
-            "lowered in Phase 1"));
+            SXML_BYTE_VIEW_FROM_LITERAL("for member, for key/value and "
+                                        "destructuring let bindings are not "
+                                        "lowered in Phase 1"));
     }
 }
 
 /* A for or quantifier binding, its sequence lowered: a MAP or QUANTIFIED
    over it whose body is the rest of the bindings. */
-static sxml_status continue_iterating_binding(lowering_machine *machine,
-                                              lowering_frame *frame) {
-    lowerer *state = machine->state;
+static sxml_status continue_iterating_binding(sxml_xpath_lowering_machine *machine,
+                                              sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *state = machine->state;
     binding_locals *locals = frame->locals;
     const sxml_ast_node_index binding = locals->cursor.binding;
     const sxml_ast_node_index positional =
         child_of(state, binding, SXML_AST_FIELD_POSITION);
     if (frame->step == SXML_LOWERING_BINDING_STEP_ITERATING_VALUE) {
         frame->step = SXML_LOWERING_BINDING_STEP_ITERATING_REST;
-        sxml_status status = new_slot(state, &locals->item);
+        sxml_status status = sxml_xpath_lowerer_add_slot(state, &locals->item);
         if (status == SXML_STATUS_OK && positional.value != 0) {
-            status = new_slot(state, &locals->position);
+            status = sxml_xpath_lowerer_add_slot(state, &locals->position);
         }
         locals->scope_mark = state->scope_entry_count;
         if (status == SXML_STATUS_OK) {
-            status = push_typed_variable(
+            status = sxml_xpath_lowerer_push_typed_variable(
                 state,
-                (typed_variable){
+                (sxml_xpath_lowering_typed_variable){
                     .block = &locals->body_block,
                     .variable = child_of(state, binding, SXML_AST_FIELD_VARIABLE),
                     .value = slot_atom(locals->item)});
         }
         if (status == SXML_STATUS_OK && positional.value != 0) {
             sxml_name_identifier position_name = {0};
-            status = resolve_variable_name(
+            status = sxml_xpath_lowerer_resolve_variable_name(
                 state, child_of(state, positional, SXML_AST_FIELD_NAME),
                 &position_name);
             if (status == SXML_STATUS_OK) {
-                status = push_variable(
+                status = sxml_xpath_lowerer_push_variable(
                     state,
-                    (scope_entry){.variable_name = position_name,
+                    (sxml_xpath_lowering_scope_entry){.variable_name = position_name,
                                   .function_level = state->function->function_level,
                                   .atom = slot_atom(locals->position)});
             }
@@ -5233,15 +5306,17 @@ static sxml_status continue_iterating_binding(lowering_machine *machine,
         return push_next_binding(machine, frame, &locals->body_block);
     }
     sxml_ir_expression_index body = {0};
-    sxml_status status = finish_block(
-        state, (block_result){.block = locals->body_block, .result = locals->rest},
+    sxml_status status = sxml_xpath_lowerer_finish_block(
+        state,
+        (sxml_xpath_lowering_block_result){.block = locals->body_block,
+                                           .result = locals->rest},
         &body);
     state->scope_entry_count = locals->scope_mark;
     sxml_ir_expression_index result = {0};
     if (status == SXML_STATUS_OK && locals->is_quantified) {
-        status = add_expression(
+        status = sxml_xpath_lowerer_add_expression(
             state,
-            (expression_to_add){
+            (sxml_xpath_lowering_expression_to_add){
                 .node = binding,
                 .expression = {
                     .expression_kind = SXML_IR_EXPRESSION_KIND_QUANTIFIED,
@@ -5251,9 +5326,9 @@ static sxml_status continue_iterating_binding(lowering_machine *machine,
                                    .condition = body}}},
             &result);
     } else if (status == SXML_STATUS_OK) {
-        status = add_expression(
+        status = sxml_xpath_lowerer_add_expression(
             state,
-            (expression_to_add){
+            (sxml_xpath_lowering_expression_to_add){
                 .node = binding,
                 .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_MAP,
                                .map = {.input = locals->value,
@@ -5267,12 +5342,12 @@ static sxml_status continue_iterating_binding(lowering_machine *machine,
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    return finish_frame(machine, frame, result);
+    return sxml_xpath_lowering_finish_frame(machine, frame, result);
 }
 
-static sxml_status continue_binding(lowering_machine *machine,
-                                    lowering_frame *frame) {
-    lowerer *state = machine->state;
+static sxml_status continue_binding(sxml_xpath_lowering_machine *machine,
+                                    sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *state = machine->state;
     binding_locals *locals = frame->locals;
     switch (frame->step) {
     case SXML_LOWERING_BINDING_STEP_FROM_EXPRESSION: {
@@ -5308,9 +5383,9 @@ static sxml_status continue_binding(lowering_machine *machine,
     case SXML_LOWERING_BINDING_STEP_LET_VALUE: {
         frame->step = SXML_LOWERING_BINDING_STEP_LET_REST;
         locals->scope_mark = state->scope_entry_count;
-        const sxml_status status = push_typed_variable(
+        const sxml_status status = sxml_xpath_lowerer_push_typed_variable(
             state,
-            (typed_variable){
+            (sxml_xpath_lowering_typed_variable){
                 .block = frame->block,
                 .variable = child_of(state, locals->cursor.binding,
                                      SXML_AST_FIELD_VARIABLE),
@@ -5322,9 +5397,9 @@ static sxml_status continue_binding(lowering_machine *machine,
     }
     case SXML_LOWERING_BINDING_STEP_LET_REST:
         state->scope_entry_count = locals->scope_mark;
-        return finish_frame(machine, frame, locals->rest);
+        return sxml_xpath_lowering_finish_frame(machine, frame, locals->rest);
     default:
-        return finish_frame(machine, frame, locals->rest);
+        return sxml_xpath_lowering_finish_frame(machine, frame, locals->rest);
     }
 }
 
@@ -5342,18 +5417,18 @@ typedef struct atom_list_locals {
     sxml_ir_atom content;
 } atom_list_locals;
 
-static sxml_status continue_atom_list(lowering_machine *machine,
-                                      lowering_frame *frame) {
-    lowerer *state = machine->state;
+static sxml_status continue_atom_list(sxml_xpath_lowering_machine *machine,
+                                      sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *state = machine->state;
     atom_list_locals *locals = frame->locals;
     const sxml_ast_kind kind = node_of(state, frame->node)->kind;
     const bool is_curly = kind == SXML_AST_KIND_CURLY_ARRAY_CONSTRUCTOR;
     if (frame->step == 0) {
         frame->step = 1;
         if (is_curly) {
-            return call_atom(
+            return sxml_xpath_lowering_call_atom(
                 machine,
-                (atom_call){.node = child_of(state, frame->node,
+                (sxml_xpath_lowering_atom_call){.node = child_of(state, frame->node,
                                              SXML_AST_FIELD_CONTENT),
                             .block = frame->block,
                             .atom = &locals->content});
@@ -5366,9 +5441,9 @@ static sxml_status continue_atom_list(lowering_machine *machine,
              child = next_of(state, child)) {
             locals->atom_count += 1;
         }
-        const sxml_status status = allocate_owned(
+        const sxml_status status = sxml_xpath_lowering_allocate_owned(
             machine, frame,
-            (owned_request){.memory_index = 0,
+            (sxml_xpath_lowering_owned_request){.memory_index = 0,
                             .scratch = {.element_count = locals->atom_count,
                                         .element_size = sizeof(sxml_ir_atom),
                                         .element_alignment = alignof(sxml_ir_atom)}});
@@ -5380,9 +5455,11 @@ static sxml_status continue_atom_list(lowering_machine *machine,
         locals->child = next_of(state, child);
         const size_t atom_index = locals->atom_index;
         locals->atom_index += 1;
-        return call_atom(machine, (atom_call){.node = child,
-                                              .block = frame->block,
-                                              .atom = &locals->atoms[atom_index]});
+        return sxml_xpath_lowering_call_atom(
+            machine, (sxml_xpath_lowering_atom_call){
+                         .node = child,
+                         .block = frame->block,
+                         .atom = &locals->atoms[atom_index]});
     }
     sxml_ir_atom_list atoms = {0};
     sxml_status status = sxml_ir_unit_add_atoms(
@@ -5404,13 +5481,15 @@ static sxml_status continue_atom_list(lowering_machine *machine,
                                   .members = atoms}};
     }
     sxml_ir_expression_index result = {0};
-    status = add_expression(
-        state, (expression_to_add){.node = frame->node, .expression = expression},
+    status = sxml_xpath_lowerer_add_expression(
+        state,
+        (sxml_xpath_lowering_expression_to_add){.node = frame->node,
+                                                .expression = expression},
         &result);
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    return finish_frame(machine, frame, result);
+    return sxml_xpath_lowering_finish_frame(machine, frame, result);
 }
 
 /* "map { K: V, ... }" (XPath 4.0, section 4.7.1). */
@@ -5423,9 +5502,9 @@ typedef struct map_constructor_locals {
     sxml_ir_map_entry *entries;
 } map_constructor_locals;
 
-static sxml_status continue_map_constructor(lowering_machine *machine,
-                                            lowering_frame *frame) {
-    lowerer *state = machine->state;
+static sxml_status continue_map_constructor(sxml_xpath_lowering_machine *machine,
+                                            sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *state = machine->state;
     map_constructor_locals *locals = frame->locals;
     switch (frame->step) {
     case 0: {
@@ -5435,9 +5514,9 @@ static sxml_status continue_map_constructor(lowering_machine *machine,
              entry = next_of(state, entry)) {
             locals->entry_count += 1;
         }
-        const sxml_status status = allocate_owned(
+        const sxml_status status = sxml_xpath_lowering_allocate_owned(
             machine, frame,
-            (owned_request){
+            (sxml_xpath_lowering_owned_request){
                 .memory_index = 0,
                 .scratch = {.element_count = locals->entry_count,
                             .element_size = sizeof(sxml_ir_map_entry),
@@ -5450,11 +5529,12 @@ static sxml_status continue_map_constructor(lowering_machine *machine,
             frame->step = 2;
             sxml_ir_map_entry *entry = &locals->entries[locals->entry_index];
             *entry = (sxml_ir_map_entry){{0}, {0}};
-            return call_atom(
+            return sxml_xpath_lowering_call_atom(
                 machine,
-                (atom_call){.node = child_of(state, locals->entry, SXML_AST_FIELD_KEY),
-                            .block = frame->block,
-                            .atom = &entry->key});
+                (sxml_xpath_lowering_atom_call){
+                    .node = child_of(state, locals->entry, SXML_AST_FIELD_KEY),
+                    .block = frame->block,
+                    .atom = &entry->key});
         }
         break;
     default: {
@@ -5467,9 +5547,10 @@ static sxml_status continue_map_constructor(lowering_machine *machine,
         if (value.value == 0) {
             return SXML_STATUS_OK;
         }
-        return call_atom(machine, (atom_call){.node = value,
-                                              .block = frame->block,
-                                              .atom = &entry->value});
+        return sxml_xpath_lowering_call_atom(
+            machine, (sxml_xpath_lowering_atom_call){.node = value,
+                                                     .block = frame->block,
+                                                     .atom = &entry->value});
     }
     }
     sxml_ir_map_entry_list list = {0};
@@ -5480,9 +5561,9 @@ static sxml_status continue_map_constructor(lowering_machine *machine,
         &list);
     sxml_ir_expression_index result = {0};
     if (status == SXML_STATUS_OK) {
-        status = add_expression(
+        status = sxml_xpath_lowerer_add_expression(
             state,
-            (expression_to_add){
+            (sxml_xpath_lowering_expression_to_add){
                 .node = frame->node,
                 .expression = {
                     .expression_kind = SXML_IR_EXPRESSION_KIND_MAP_CONSTRUCTOR,
@@ -5492,7 +5573,7 @@ static sxml_status continue_map_constructor(lowering_machine *machine,
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    return finish_frame(machine, frame, result);
+    return sxml_xpath_lowering_finish_frame(machine, frame, result);
 }
 
 /* A string template (XPath 4.0, section 4.9.3): its parts joined by
@@ -5508,8 +5589,8 @@ typedef struct string_template_locals {
 } string_template_locals;
 
 /* Appends the atom of a part to the template's result. */
-static sxml_status append_template_part(lowerer *state,
-                                        lowering_frame *frame,
+static sxml_status append_template_part(sxml_xpath_lowerer *state,
+                                        sxml_xpath_lowering_frame *frame,
                                         sxml_ir_atom part_atom) {
     string_template_locals *locals = frame->locals;
     if (!locals->has_result) {
@@ -5518,9 +5599,9 @@ static sxml_status append_template_part(lowerer *state,
         return SXML_STATUS_OK;
     }
     sxml_ir_expression_index concatenation = {0};
-    sxml_status status = add_expression(
+    sxml_status status = sxml_xpath_lowerer_add_expression(
         state,
-        (expression_to_add){
+        (sxml_xpath_lowering_expression_to_add){
             .node = locals->current_part,
             .expression = {
                 .expression_kind = SXML_IR_EXPRESSION_KIND_BINARY,
@@ -5531,20 +5612,21 @@ static sxml_status append_template_part(lowerer *state,
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    return bind_expression(
+    return sxml_xpath_lowerer_bind_expression(
         state,
-        (expression_in_block){.block = frame->block, .expression = concatenation},
+        (sxml_xpath_lowering_expression_in_block){.block = frame->block,
+                                                  .expression = concatenation},
         &locals->result);
 }
 
 /* The enclosed expression's value joined with spaces, appended. */
-static sxml_status append_joined_part(lowering_machine *machine,
-                                      lowering_frame *frame) {
-    lowerer *state = machine->state;
+static sxml_status append_joined_part(sxml_xpath_lowering_machine *machine,
+                                      sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *state = machine->state;
     string_template_locals *locals = frame->locals;
     call_argument arguments[2] = {{.is_placeholder = false, .atom = locals->value},
                                   {.is_placeholder = false, .atom = {0}}};
-    sxml_status status = add_string_constant(
+    sxml_status status = sxml_xpath_lowerer_add_string_constant(
         state, SXML_BYTE_VIEW_FROM_LITERAL(" "), &arguments[1].atom);
     sxml_ir_expression_index joined = {0};
     if (status == SXML_STATUS_OK) {
@@ -5561,8 +5643,10 @@ static sxml_status append_joined_part(lowering_machine *machine,
     }
     sxml_ir_atom part_atom = {0};
     if (status == SXML_STATUS_OK) {
-        status = bind_expression(
-            state, (expression_in_block){.block = frame->block, .expression = joined},
+        status = sxml_xpath_lowerer_bind_expression(
+            state,
+            (sxml_xpath_lowering_expression_in_block){.block = frame->block,
+                                                      .expression = joined},
             &part_atom);
     }
     if (status != SXML_STATUS_OK) {
@@ -5571,9 +5655,9 @@ static sxml_status append_joined_part(lowering_machine *machine,
     return append_template_part(state, frame, part_atom);
 }
 
-static sxml_status continue_string_template(lowering_machine *machine,
-                                            lowering_frame *frame) {
-    lowerer *state = machine->state;
+static sxml_status continue_string_template(sxml_xpath_lowering_machine *machine,
+                                            sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *state = machine->state;
     string_template_locals *locals = frame->locals;
     if (frame->step == 0) {
         frame->step = 1;
@@ -5593,8 +5677,8 @@ static sxml_status continue_string_template(lowering_machine *machine,
         if (node_of(state, template_part)->kind ==
             SXML_AST_KIND_STRING_TEMPLATE_FIXED_PART) {
             sxml_ir_atom part_atom = {0};
-            status = add_string_constant(state, text_of(state, template_part),
-                                         &part_atom);
+            status = sxml_xpath_lowerer_add_string_constant(
+                state, text_of(state, template_part), &part_atom);
             if (status == SXML_STATUS_OK) {
                 status = append_template_part(state, frame, part_atom);
             }
@@ -5619,22 +5703,27 @@ static sxml_status continue_string_template(lowering_machine *machine,
             child_of(state, template_part, SXML_AST_FIELD_EXPRESSION);
         frame->step = 2;
         if (enclosed.value != 0) {
-            return call_atom(machine, (atom_call){.node = enclosed,
-                                                  .block = frame->block,
-                                                  .atom = &locals->value});
+            return sxml_xpath_lowering_call_atom(
+                machine,
+                (sxml_xpath_lowering_atom_call){.node = enclosed,
+                                                .block = frame->block,
+                                                .atom = &locals->value});
         }
         sxml_ir_expression_index empty = {0};
-        status = add_empty_sequence(state, template_part, &empty);
+        status = sxml_xpath_lowerer_add_empty_sequence(state, template_part, &empty);
         if (status != SXML_STATUS_OK) {
             return status;
         }
-        return bind_expression(
-            state, (expression_in_block){.block = frame->block, .expression = empty},
+        return sxml_xpath_lowerer_bind_expression(
+            state,
+            (sxml_xpath_lowering_expression_in_block){.block = frame->block,
+                                                      .expression = empty},
             &locals->value);
     }
     sxml_status status = SXML_STATUS_OK;
     if (!locals->has_result) {
-        status = add_string_constant(state, (sxml_byte_view){0}, &locals->result);
+        status = sxml_xpath_lowerer_add_string_constant(
+            state, (sxml_byte_view){0}, &locals->result);
     }
     sxml_ir_expression_index result = {0};
     if (status == SXML_STATUS_OK) {
@@ -5644,7 +5733,7 @@ static sxml_status continue_string_template(lowering_machine *machine,
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    return finish_frame(machine, frame, result);
+    return sxml_xpath_lowering_finish_frame(machine, frame, result);
 }
 
 /* A type test or cast: INSTANCE_OF, TREAT, CAST or CASTABLE. */
@@ -5652,18 +5741,18 @@ typedef struct typed_expression_locals {
     sxml_ir_atom value;
 } typed_expression_locals;
 
-static sxml_status continue_typed_expression(lowering_machine *machine,
-                                             lowering_frame *frame) {
-    lowerer *state = machine->state;
+static sxml_status continue_typed_expression(sxml_xpath_lowering_machine *machine,
+                                             sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *state = machine->state;
     typed_expression_locals *locals = frame->locals;
     const sxml_ast_node_index node = frame->node;
     if (frame->step == 0) {
         frame->step = 1;
-        return call_atom(
-            machine,
-            (atom_call){.node = child_of(state, node, SXML_AST_FIELD_VALUE),
-                        .block = frame->block,
-                        .atom = &locals->value});
+        return sxml_xpath_lowering_call_atom(
+            machine, (sxml_xpath_lowering_atom_call){
+                         .node = child_of(state, node, SXML_AST_FIELD_VALUE),
+                         .block = frame->block,
+                         .atom = &locals->value});
     }
     const sxml_ast_node_index type_node = child_of(state, node, SXML_AST_FIELD_TYPE);
     sxml_ir_expression expression = {0};
@@ -5672,7 +5761,8 @@ static sxml_status continue_typed_expression(lowering_machine *machine,
     case SXML_AST_KIND_INSTANCE_OF_EXPRESSION:
     case SXML_AST_KIND_TREAT_EXPRESSION: {
         sxml_sequence_type sequence_type = {0};
-        status = resolve_sequence_type(state, type_node, &sequence_type);
+        status = sxml_xpath_lowerer_resolve_sequence_type(state, type_node,
+                                                          &sequence_type);
         expression = (sxml_ir_expression){
             .expression_kind =
                 node_of(state, node)->kind == SXML_AST_KIND_INSTANCE_OF_EXPRESSION
@@ -5698,14 +5788,16 @@ static sxml_status continue_typed_expression(lowering_machine *machine,
     }
     sxml_ir_expression_index result = {0};
     if (status == SXML_STATUS_OK) {
-        status = add_expression(
-            state, (expression_to_add){.node = node, .expression = expression},
+        status = sxml_xpath_lowerer_add_expression(
+            state,
+            (sxml_xpath_lowering_expression_to_add){.node = node,
+                                                    .expression = expression},
             &result);
     }
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    return finish_frame(machine, frame, result);
+    return sxml_xpath_lowering_finish_frame(machine, frame, result);
 }
 
 /* "if (C) then T else E" (XPath 4.0, section 4.14.1). */
@@ -5715,31 +5807,34 @@ typedef struct if_locals {
     sxml_ir_expression_index else_branch;
 } if_locals;
 
-static sxml_status continue_if(lowering_machine *machine,
-                               lowering_frame *frame) {
-    lowerer *state = machine->state;
+static sxml_status continue_if(sxml_xpath_lowering_machine *machine,
+                               sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *state = machine->state;
     if_locals *locals = frame->locals;
     const sxml_ast_node_index node = frame->node;
     switch (frame->step) {
     case 0:
         frame->step = 1;
-        return call_atom(
+        return sxml_xpath_lowering_call_atom(
             machine,
-            (atom_call){.node = child_of(state, node, SXML_AST_FIELD_CONDITION),
-                        .block = frame->block,
-                        .atom = &locals->condition});
+            (sxml_xpath_lowering_atom_call){
+                .node = child_of(state, node, SXML_AST_FIELD_CONDITION),
+                .block = frame->block,
+                .atom = &locals->condition});
     case 1:
         frame->step = 2;
-        return call_body(machine, child_of(state, node, SXML_AST_FIELD_THEN),
-                         &locals->then_branch);
+        return sxml_xpath_lowering_call_body(
+            machine, child_of(state, node, SXML_AST_FIELD_THEN),
+            &locals->then_branch);
     case 2: {
         frame->step = 3;
         const sxml_ast_node_index else_node =
             child_of(state, node, SXML_AST_FIELD_ELSE);
         if (else_node.value == 0) {
-            return add_empty_sequence(state, node, &locals->else_branch);
+            return sxml_xpath_lowerer_add_empty_sequence(state, node,
+                                                         &locals->else_branch);
         }
-        return call_body(machine, else_node, &locals->else_branch);
+        return sxml_xpath_lowering_call_body(machine, else_node, &locals->else_branch);
     }
     default: {
         sxml_ir_expression_index result = {0};
@@ -5753,7 +5848,7 @@ static sxml_status continue_if(lowering_machine *machine,
         if (status != SXML_STATUS_OK) {
             return status;
         }
-        return finish_frame(machine, frame, result);
+        return sxml_xpath_lowering_finish_frame(machine, frame, result);
     }
     }
 }
@@ -5763,25 +5858,25 @@ typedef struct unary_locals {
     sxml_ir_atom operand;
 } unary_locals;
 
-static sxml_status continue_unary(lowering_machine *machine,
-                                  lowering_frame *frame) {
-    lowerer *state = machine->state;
+static sxml_status continue_unary(sxml_xpath_lowering_machine *machine,
+                                  sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *state = machine->state;
     unary_locals *locals = frame->locals;
     const sxml_ast_node_index node = frame->node;
     if (frame->step == 0) {
         frame->step = 1;
-        return call_atom(
-            machine,
-            (atom_call){.node = child_of(state, node, SXML_AST_FIELD_OPERAND),
-                        .block = frame->block,
-                        .atom = &locals->operand});
+        return sxml_xpath_lowering_call_atom(
+            machine, (sxml_xpath_lowering_atom_call){
+                         .node = child_of(state, node, SXML_AST_FIELD_OPERAND),
+                         .block = frame->block,
+                         .atom = &locals->operand});
     }
     const bool is_minus =
         node_of(state, node)->detail.operator == SXML_AST_OPERATOR_MINUS;
     sxml_ir_expression_index result = {0};
-    const sxml_status status = add_expression(
+    const sxml_status status = sxml_xpath_lowerer_add_expression(
         state,
-        (expression_to_add){
+        (sxml_xpath_lowering_expression_to_add){
             .node = node,
             .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_UNARY,
                            .unary = {.operator = is_minus
@@ -5792,16 +5887,14 @@ static sxml_status continue_unary(lowering_machine *machine,
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    return finish_frame(machine, frame, result);
+    return sxml_xpath_lowering_finish_frame(machine, frame, result);
 }
 
 /* --------------------------------------------------- Dispatch and run */
 
-static bool procedure_of(sxml_ast_kind kind, lowering_procedure *procedure,
-                         size_t *locals_size) {
+static bool procedure_of(sxml_ast_kind kind, lowering_procedure *procedure) {
     if (chain_field(kind) != SXML_AST_FIELD_NONE) {
         *procedure = SXML_LOWERING_PROCEDURE_CHAIN;
-        *locals_size = sizeof(chain_locals);
         return true;
     }
     switch ((uint32_t)kind) {
@@ -5809,63 +5902,53 @@ static bool procedure_of(sxml_ast_kind kind, lowering_procedure *procedure,
     case SXML_AST_KIND_SQUARE_ARRAY_CONSTRUCTOR:
     case SXML_AST_KIND_CURLY_ARRAY_CONSTRUCTOR:
         *procedure = SXML_LOWERING_PROCEDURE_ATOM_LIST;
-        *locals_size = sizeof(atom_list_locals);
         return true;
     case SXML_AST_KIND_FLWOR_EXPRESSION:
     case SXML_AST_KIND_QUANTIFIED_EXPRESSION:
         *procedure = SXML_LOWERING_PROCEDURE_BINDING;
-        *locals_size = sizeof(binding_locals);
         return true;
     case SXML_AST_KIND_IF_EXPRESSION:
         *procedure = SXML_LOWERING_PROCEDURE_IF;
-        *locals_size = sizeof(if_locals);
         return true;
     case SXML_AST_KIND_INSTANCE_OF_EXPRESSION:
     case SXML_AST_KIND_TREAT_EXPRESSION:
     case SXML_AST_KIND_CAST_EXPRESSION:
     case SXML_AST_KIND_CASTABLE_EXPRESSION:
         *procedure = SXML_LOWERING_PROCEDURE_TYPED_EXPRESSION;
-        *locals_size = sizeof(typed_expression_locals);
         return true;
     case SXML_AST_KIND_UNARY_EXPRESSION:
         *procedure = SXML_LOWERING_PROCEDURE_UNARY;
-        *locals_size = sizeof(unary_locals);
         return true;
     case SXML_AST_KIND_ABSOLUTE_PATH_EXPRESSION:
         *procedure = SXML_LOWERING_PROCEDURE_ABSOLUTE_PATH;
-        *locals_size = sizeof(absolute_path_locals);
         return true;
     case SXML_AST_KIND_AXIS_STEP:
         *procedure = SXML_LOWERING_PROCEDURE_AXIS_STEP;
-        *locals_size = sizeof(axis_step_locals);
         return true;
     case SXML_AST_KIND_UNARY_LOOKUP:
         *procedure = SXML_LOWERING_PROCEDURE_LOOKUP;
-        *locals_size = sizeof(lookup_locals);
         return true;
     case SXML_AST_KIND_FUNCTION_CALL:
         *procedure = SXML_LOWERING_PROCEDURE_FUNCTION_CALL;
-        *locals_size = sizeof(function_call_locals);
         return true;
     case SXML_AST_KIND_INLINE_FUNCTION_EXPRESSION:
         *procedure = SXML_LOWERING_PROCEDURE_INLINE_FUNCTION;
-        *locals_size = sizeof(inline_function_locals);
         return true;
     case SXML_AST_KIND_MAP_CONSTRUCTOR:
         *procedure = SXML_LOWERING_PROCEDURE_MAP_CONSTRUCTOR;
-        *locals_size = sizeof(map_constructor_locals);
         return true;
     case SXML_AST_KIND_STRING_TEMPLATE:
         *procedure = SXML_LOWERING_PROCEDURE_STRING_TEMPLATE;
-        *locals_size = sizeof(string_template_locals);
         return true;
     default:
         return false;
     }
 }
 
-static sxml_status lower_leaf_expression(lowerer *state, node_in_block request,
-                                         sxml_ir_expression_index *expression) {
+static sxml_status
+lower_leaf_expression(sxml_xpath_lowerer *state,
+                      sxml_xpath_lowering_node_in_block request,
+                      sxml_ir_expression_index *expression) {
     const sxml_ast_node_index node = request.node;
     const sxml_ast_kind kind = node_of(state, node)->kind;
     if (is_atom_kind(kind)) {
@@ -5874,8 +5957,9 @@ static sxml_status lower_leaf_expression(lowerer *state, node_in_block request,
     switch ((uint32_t)kind) {
     case SXML_AST_KIND_PARENTHESIZED_EXPRESSION:
     case SXML_AST_KIND_ENCLOSED_EXPRESSION:
-        /* "()" (call_expression lowers the inner expression of others). */
-        return add_empty_sequence(state, node, expression);
+        /* "()" (sxml_xpath_lowering_call_expression lowers the inner expression
+         * of others). */
+        return sxml_xpath_lowerer_add_empty_sequence(state, node, expression);
     case SXML_AST_KIND_CONTEXT_VALUE_REFERENCE:
         return lower_context_value(state, request, expression);
     case SXML_AST_KIND_NAMED_FUNCTION_REFERENCE:
@@ -5890,70 +5974,130 @@ static sxml_status lower_leaf_expression(lowerer *state, node_in_block request,
                              : SXML_LOWERING_SHARED_CONSTANT_FALSE},
             expression);
     default:
-        return report_unsupported(state, node,
-                                  SXML_BYTE_VIEW_FROM_LITERAL("this construct is not lowered in Phase 1"));
+        return sxml_xpath_lowerer_report_unsupported(
+            state, node,
+            SXML_BYTE_VIEW_FROM_LITERAL(
+                "this construct is not lowered in Phase 1"));
     }
 }
 
-/* Runs one step of frame. */
-static sxml_status continue_frame(lowering_machine *machine,
-                                  lowering_frame *frame) {
-    switch (frame->procedure) {
-    case SXML_LOWERING_PROCEDURE_CHAIN:
-        return continue_chain(machine, frame);
-    case SXML_LOWERING_PROCEDURE_BOOLEAN_LINK:
-        return continue_boolean_link(machine, frame);
-    case SXML_LOWERING_PROCEDURE_OTHERWISE_LINK:
-        return continue_otherwise_link(machine, frame);
-    case SXML_LOWERING_PROCEDURE_BINARY_LINK:
-        return continue_binary_link(machine, frame);
-    case SXML_LOWERING_PROCEDURE_PIPELINE_LINK:
-        return continue_pipeline_link(machine, frame);
-    case SXML_LOWERING_PROCEDURE_SIMPLE_MAP_LINK:
-        return continue_simple_map_link(machine, frame);
-    case SXML_LOWERING_PROCEDURE_ARROW_MAP:
-        return continue_arrow_map(machine, frame);
-    case SXML_LOWERING_PROCEDURE_PATH_MAP:
-        return continue_path_map(machine, frame);
-    case SXML_LOWERING_PROCEDURE_FILTER:
-        return continue_filter(machine, frame);
-    case SXML_LOWERING_PROCEDURE_AXIS_STEP:
-        return continue_axis_step(machine, frame);
-    case SXML_LOWERING_PROCEDURE_ABSOLUTE_PATH:
-        return continue_absolute_path(machine, frame);
-    case SXML_LOWERING_PROCEDURE_LOOKUP:
-        return continue_lookup(machine, frame);
-    case SXML_LOWERING_PROCEDURE_FOCUSED_BODY:
-        return continue_focused_body(machine, frame);
-    case SXML_LOWERING_PROCEDURE_FUNCTION_CALL:
-        return continue_function_call(machine, frame);
-    case SXML_LOWERING_PROCEDURE_DYNAMIC_CALL:
-        return continue_dynamic_call(machine, frame);
-    case SXML_LOWERING_PROCEDURE_INLINE_FUNCTION:
-        return continue_inline_function(machine, frame);
-    case SXML_LOWERING_PROCEDURE_BINDING:
-        return continue_binding(machine, frame);
-    case SXML_LOWERING_PROCEDURE_ATOM_LIST:
-        return continue_atom_list(machine, frame);
-    case SXML_LOWERING_PROCEDURE_MAP_CONSTRUCTOR:
-        return continue_map_constructor(machine, frame);
-    case SXML_LOWERING_PROCEDURE_STRING_TEMPLATE:
-        return continue_string_template(machine, frame);
-    case SXML_LOWERING_PROCEDURE_TYPED_EXPRESSION:
-        return continue_typed_expression(machine, frame);
-    case SXML_LOWERING_PROCEDURE_IF:
-        return continue_if(machine, frame);
-    case SXML_LOWERING_PROCEDURE_UNARY:
-        return continue_unary(machine, frame);
-    }
-    return SXML_STATUS_INVALID_ARGUMENT;
+/* The core procedures, one per lowering_procedure. */
+static const sxml_xpath_lowering_procedure core_procedures[] = {
+    [SXML_LOWERING_PROCEDURE_CHAIN] = {
+        .procedure_name = SXML_BYTE_VIEW_INITIALIZER("chain"),
+        .step = continue_chain,
+        .locals_size = sizeof(chain_locals)},
+    [SXML_LOWERING_PROCEDURE_BOOLEAN_LINK] = {
+        .procedure_name = SXML_BYTE_VIEW_INITIALIZER("boolean link"),
+        .step = continue_boolean_link,
+        .locals_size = sizeof(boolean_link_locals)},
+    [SXML_LOWERING_PROCEDURE_OTHERWISE_LINK] = {
+        .procedure_name = SXML_BYTE_VIEW_INITIALIZER("otherwise link"),
+        .step = continue_otherwise_link,
+        .locals_size = sizeof(otherwise_link_locals)},
+    [SXML_LOWERING_PROCEDURE_BINARY_LINK] = {
+        .procedure_name = SXML_BYTE_VIEW_INITIALIZER("binary link"),
+        .step = continue_binary_link,
+        .locals_size = sizeof(binary_link_locals)},
+    [SXML_LOWERING_PROCEDURE_PIPELINE_LINK] = {
+        .procedure_name = SXML_BYTE_VIEW_INITIALIZER("pipeline link"),
+        .step = continue_pipeline_link,
+        .locals_size = sizeof(pipeline_link_locals)},
+    [SXML_LOWERING_PROCEDURE_SIMPLE_MAP_LINK] = {
+        .procedure_name = SXML_BYTE_VIEW_INITIALIZER("simple map link"),
+        .step = continue_simple_map_link,
+        .locals_size = sizeof(simple_map_link_locals)},
+    [SXML_LOWERING_PROCEDURE_ARROW_MAP] = {
+        .procedure_name = SXML_BYTE_VIEW_INITIALIZER("arrow map"),
+        .step = continue_arrow_map,
+        .locals_size = sizeof(arrow_map_locals)},
+    [SXML_LOWERING_PROCEDURE_PATH_MAP] = {
+        .procedure_name = SXML_BYTE_VIEW_INITIALIZER("path map"),
+        .step = continue_path_map,
+        .locals_size = sizeof(path_map_locals)},
+    [SXML_LOWERING_PROCEDURE_FILTER] = {
+        .procedure_name = SXML_BYTE_VIEW_INITIALIZER("filter"),
+        .step = continue_filter,
+        .locals_size = sizeof(filter_locals)},
+    [SXML_LOWERING_PROCEDURE_AXIS_STEP] = {
+        .procedure_name = SXML_BYTE_VIEW_INITIALIZER("axis step"),
+        .step = continue_axis_step,
+        .locals_size = sizeof(axis_step_locals)},
+    [SXML_LOWERING_PROCEDURE_ABSOLUTE_PATH] = {
+        .procedure_name = SXML_BYTE_VIEW_INITIALIZER("absolute path"),
+        .step = continue_absolute_path,
+        .locals_size = sizeof(absolute_path_locals)},
+    [SXML_LOWERING_PROCEDURE_LOOKUP] = {
+        .procedure_name = SXML_BYTE_VIEW_INITIALIZER("lookup"),
+        .step = continue_lookup,
+        .locals_size = sizeof(lookup_locals)},
+    [SXML_LOWERING_PROCEDURE_FOCUSED_BODY] = {
+        .procedure_name = SXML_BYTE_VIEW_INITIALIZER("focused body"),
+        .step = continue_focused_body,
+        .locals_size = sizeof(focused_body_locals)},
+    [SXML_LOWERING_PROCEDURE_FUNCTION_CALL] = {
+        .procedure_name = SXML_BYTE_VIEW_INITIALIZER("function call"),
+        .step = continue_function_call,
+        .locals_size = sizeof(function_call_locals)},
+    [SXML_LOWERING_PROCEDURE_DYNAMIC_CALL] = {
+        .procedure_name = SXML_BYTE_VIEW_INITIALIZER("dynamic call"),
+        .step = continue_dynamic_call,
+        .locals_size = sizeof(dynamic_call_locals)},
+    [SXML_LOWERING_PROCEDURE_INLINE_FUNCTION] = {
+        .procedure_name = SXML_BYTE_VIEW_INITIALIZER("inline function"),
+        .step = continue_inline_function,
+        .locals_size = sizeof(inline_function_locals)},
+    [SXML_LOWERING_PROCEDURE_BINDING] = {
+        .procedure_name = SXML_BYTE_VIEW_INITIALIZER("binding"),
+        .step = continue_binding,
+        .locals_size = sizeof(binding_locals)},
+    [SXML_LOWERING_PROCEDURE_ATOM_LIST] = {
+        .procedure_name = SXML_BYTE_VIEW_INITIALIZER("atom list"),
+        .step = continue_atom_list,
+        .locals_size = sizeof(atom_list_locals)},
+    [SXML_LOWERING_PROCEDURE_MAP_CONSTRUCTOR] = {
+        .procedure_name = SXML_BYTE_VIEW_INITIALIZER("map constructor"),
+        .step = continue_map_constructor,
+        .locals_size = sizeof(map_constructor_locals)},
+    [SXML_LOWERING_PROCEDURE_STRING_TEMPLATE] = {
+        .procedure_name = SXML_BYTE_VIEW_INITIALIZER("string template"),
+        .step = continue_string_template,
+        .locals_size = sizeof(string_template_locals)},
+    [SXML_LOWERING_PROCEDURE_TYPED_EXPRESSION] = {
+        .procedure_name = SXML_BYTE_VIEW_INITIALIZER("typed expression"),
+        .step = continue_typed_expression,
+        .locals_size = sizeof(typed_expression_locals)},
+    [SXML_LOWERING_PROCEDURE_IF] = {
+        .procedure_name = SXML_BYTE_VIEW_INITIALIZER("if"),
+        .step = continue_if,
+        .locals_size = sizeof(if_locals)},
+    [SXML_LOWERING_PROCEDURE_UNARY] = {
+        .procedure_name = SXML_BYTE_VIEW_INITIALIZER("unary"),
+        .step = continue_unary,
+        .locals_size = sizeof(unary_locals)},
+    [SXML_LOWERING_PROCEDURE_EMBEDDED] = {
+        .procedure_name = SXML_BYTE_VIEW_INITIALIZER("embedded"),
+        .step = continue_embedded,
+        .locals_size = sizeof(embedded_locals)},
+};
+
+static const sxml_xpath_lowering_procedure *core_procedure(
+    lowering_procedure procedure) {
+    return &core_procedures[procedure];
+}
+
+/* Runs one step of frame: the procedure's step function, which returns
+   to the machine's loop (D71: no step runs the machine again). */
+static sxml_status continue_frame(sxml_xpath_lowering_machine *machine,
+                                  sxml_xpath_lowering_frame *frame) {
+    return frame->procedure->step(machine, frame);
 }
 
 /* Runs the machine, after a first call whose status is status, until no
    frame is left or a step fails; then pops every frame. */
-static sxml_status run_machine(lowering_machine *machine, sxml_status status) {
+static sxml_status run_machine(sxml_xpath_lowering_machine *machine, sxml_status status) {
     while (status == SXML_STATUS_OK && machine->top != NULL) {
-        lowering_frame *frame = machine->top;
+        sxml_xpath_lowering_frame *frame = machine->top;
         if (frame->is_finished) {
             pop_frame(machine);
             continue;
@@ -5966,11 +6110,25 @@ static sxml_status run_machine(lowering_machine *machine, sxml_status status) {
     return status;
 }
 
-/* Lowers node as a body of the current function. */
-static sxml_status lower_body(lowerer *state, sxml_ast_node_index node,
-                              sxml_ir_expression_index *expression) {
-    lowering_machine machine = {.state = state, .top = NULL};
-    return run_machine(&machine, call_body(&machine, node, expression));
+sxml_status sxml_xpath_lowerer_run_procedure(
+    sxml_xpath_lowerer *lowerer, const sxml_xpath_lowering_procedure_call *call) {
+    sxml_xpath_lowering_machine machine = {.state = lowerer, .top = NULL};
+    sxml_xpath_lowering_frame *frame = NULL;
+    return run_machine(&machine,
+                       sxml_xpath_lowering_push_procedure(&machine, call, &frame));
+}
+
+sxml_status sxml_xpath_lowerer_lower_embedded(
+    sxml_xpath_lowerer *lowerer, const sxml_xpath_lowering_embedding *embedding,
+    sxml_ir_expression_index *expression) {
+    sxml_xpath_lowering_machine machine = {.state = lowerer, .top = NULL};
+    return run_machine(
+        &machine, sxml_xpath_lowering_call_embedded(
+                      &machine, &(sxml_xpath_lowering_embedded_call){
+                                    .embedding = *embedding,
+                                    .block = NULL,
+                                    .is_body = true,
+                                    .destination = {.expression = expression}}));
 }
 
 /* --------------------------------------------------------- Entry points */
@@ -6022,7 +6180,12 @@ static sxml_status check_static_context(const sxml_xpath_static_context *context
     return SXML_STATUS_OK;
 }
 
-static sxml_status lower_main_function(lowerer *state) {
+/* Lowers embedding's AST as the main function of the unit, after the
+   global variables of the static context (D63). */
+static sxml_status lower_main_function(sxml_xpath_lowerer *state,
+                                       sxml_xpath_lowering_embedding embedding) {
+    /* The main function's span is the whole expression's. */
+    state->ast = embedding.ast;
     const sxml_variable_declaration_view declarations =
         state->static_context->variable_declarations;
     sxml_status status = SXML_STATUS_OK;
@@ -6043,9 +6206,9 @@ static sxml_status lower_main_function(lowerer *state) {
     /* The main function: no parameters, any result. */
     sxml_type_identifier signature = {0};
     if (status == SXML_STATUS_OK) {
-        status = register_signature(
+        status = sxml_xpath_lowerer_register_signature(
             state,
-            (signature_request){
+            (sxml_xpath_lowering_signature_request){
                 .parameter_types = {.sequence_types = NULL,
                                     .sequence_type_count = 0},
                 .result_type = {.item_type =
@@ -6064,18 +6227,18 @@ static sxml_status lower_main_function(lowerer *state) {
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    function_frame frame = {
+    sxml_xpath_lowering_function_frame frame = {
         .function = {.function_index = main_function,
                      .function_level = 0,
                      .slot_count = 0,
                      .captures = NULL,
                      .capture_count = 0},
-        .focus = {.kind = SXML_LOWERING_FOCUS_KIND_SLOTS},
+        .focus = {.kind = SXML_XPATH_LOWERING_FOCUS_KIND_SLOTS},
     };
-    enter_function(state, &frame);
+    sxml_xpath_lowerer_enter_function(state, &frame);
     sxml_ir_expression_index body = {0};
-    status = lower_body(state, state->ast->root, &body);
-    leave_function(state, &frame);
+    status = sxml_xpath_lowerer_lower_embedded(state, &embedding, &body);
+    sxml_xpath_lowerer_leave_function(state, &frame);
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -6087,6 +6250,132 @@ static sxml_status lower_main_function(lowerer *state) {
     replacement.function.focus = frame.focus.slots;
     return sxml_ir_unit_replace_function(state->unit, &replacement);
 }
+
+/* ---------------------------------------------------------- The lowerer */
+
+sxml_status sxml_xpath_lowerer_memory_requirements(
+    const sxml_xpath_lowerer_configuration *configuration,
+    sxml_memory_requirements *requirements) {
+    if (configuration == NULL || configuration->static_context == NULL ||
+        configuration->unit == NULL) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    switch ((uint32_t)configuration->language) {
+    case 0:
+    case SXML_LANGUAGE_XPATH:
+    case SXML_LANGUAGE_XQUERY:
+    case SXML_LANGUAGE_XSLT:
+        break;
+    default:
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    *requirements = (sxml_memory_requirements){
+        .byte_count = sizeof(sxml_xpath_lowerer),
+        .alignment = alignof(sxml_xpath_lowerer)};
+    return SXML_STATUS_OK;
+}
+
+sxml_status sxml_xpath_lowerer_initialize(
+    sxml_memory_view memory, const sxml_xpath_lowerer_configuration *configuration,
+    sxml_xpath_lowerer **lowerer) {
+    sxml_memory_requirements requirements = {.byte_count = 0, .alignment = 1};
+    sxml_status status =
+        sxml_xpath_lowerer_memory_requirements(configuration, &requirements);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_memory_view_check_requirements(memory, requirements);
+    }
+    const sxml_xpath_static_context *context =
+        status == SXML_STATUS_OK ? configuration->static_context : NULL;
+    if (status == SXML_STATUS_OK) {
+        status = check_static_context(context);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    /* sxml_memory_view_check_requirements has checked size and
+       alignment. */
+    void *placement = memory.bytes;
+    sxml_xpath_lowerer *new_lowerer = placement;
+    *new_lowerer = (sxml_xpath_lowerer){
+        .ast = NULL,
+        .static_context = context,
+        .error_record = configuration->error_record,
+        .unit = configuration->unit,
+        .allocator = context->allocator,
+        .owning_allocator = {.state = NULL, .operations = NULL},
+        .name_pool = sxml_item_heap_get_name_pool(context->item_heap),
+        .type_registry = sxml_item_heap_get_type_registry(context->item_heap),
+        .item_heap = context->item_heap,
+        .language = configuration->language == 0 ? SXML_LANGUAGE_XPATH
+                                                 : configuration->language,
+        .parts = configuration->parts.part_count == 0
+                     ? sxml_xpath_lowering_registered_parts()
+                     : configuration->parts,
+        .function = NULL,
+        .depth = 0,
+        .maximum_depth = configuration->maximum_expression_depth == 0
+                             ? SXML_XPATH_DEFAULT_MAXIMUM_EXPRESSION_DEPTH
+                             : configuration->maximum_expression_depth,
+    };
+    *lowerer = new_lowerer;
+    return SXML_STATUS_OK;
+}
+
+void sxml_xpath_lowerer_finalize(sxml_xpath_lowerer *lowerer) {
+    if (lowerer == NULL) {
+        return;
+    }
+    sxml_xpath_lowerer_release_scratch(lowerer, lowerer->scope_entries);
+    sxml_xpath_lowerer_release_scratch(lowerer, lowerer->has_variable_reference);
+    lowerer->scope_entries = NULL;
+    lowerer->scope_entry_count = 0;
+    lowerer->scope_entry_capacity = 0;
+    lowerer->has_variable_reference = NULL;
+}
+
+sxml_status sxml_xpath_lowerer_create(
+    sxml_allocator allocator, const sxml_xpath_lowerer_configuration *configuration,
+    sxml_xpath_lowerer **lowerer) {
+    sxml_memory_requirements requirements = {.byte_count = 0, .alignment = 1};
+    sxml_status status =
+        sxml_xpath_lowerer_memory_requirements(configuration, &requirements);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    void *memory = NULL;
+    status = sxml_allocator_allocate(
+        allocator,
+        (sxml_allocation_request){.byte_count = requirements.byte_count,
+                                  .alignment = requirements.alignment},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_xpath_lowerer *new_lowerer = NULL;
+    status = sxml_xpath_lowerer_initialize(
+        (sxml_memory_view){.bytes = memory, .byte_count = requirements.byte_count},
+        configuration, &new_lowerer);
+    if (status != SXML_STATUS_OK) {
+        sxml_allocator_release(allocator, memory);
+        return status;
+    }
+    new_lowerer->owning_allocator = allocator;
+    *lowerer = new_lowerer;
+    return SXML_STATUS_OK;
+}
+
+void sxml_xpath_lowerer_destroy(sxml_xpath_lowerer *lowerer) {
+    if (lowerer == NULL) {
+        return;
+    }
+    /* Finalizing may not touch the lowerer afterwards, so keep the
+       allocator. */
+    const sxml_allocator owning_allocator = lowerer->owning_allocator;
+    sxml_xpath_lowerer_finalize(lowerer);
+    sxml_allocator_release(owning_allocator, lowerer);
+}
+
+/* ------------------------------------------------------- XPath entries */
 
 sxml_status sxml_xpath_lower(const sxml_xpath_lowering_request *request,
                              sxml_ir_unit **unit) {
@@ -6113,26 +6402,33 @@ sxml_status sxml_xpath_lower(const sxml_xpath_lowering_request *request,
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    lowerer state = {
-        .ast = request->ast,
-        .static_context = context,
-        .error_record = request->error_record,
-        .unit = new_unit,
-        .allocator = context->allocator,
-        .name_pool = sxml_item_heap_get_name_pool(context->item_heap),
-        .type_registry = sxml_item_heap_get_type_registry(context->item_heap),
-        .item_heap = context->item_heap,
-        .depth = 0,
-        .maximum_depth = request->maximum_expression_depth == 0
-                             ? SXML_XPATH_DEFAULT_MAXIMUM_EXPRESSION_DEPTH
-                             : request->maximum_expression_depth,
-    };
-    status = lower_main_function(&state);
-    release_scratch(&state, state.scope_entries);
-    release_scratch(&state, state.has_variable_reference);
+    /* A plain struct on the stack is memory of the lowerer's size and
+       alignment. */
+    sxml_xpath_lowerer storage;
+    sxml_xpath_lowerer *lowerer = NULL;
+    status = sxml_xpath_lowerer_initialize(
+        (sxml_memory_view){.bytes = (uint8_t *)&storage,
+                           .byte_count = sizeof(storage)},
+        &(sxml_xpath_lowerer_configuration){
+            .static_context = context,
+            .unit = new_unit,
+            .language = SXML_LANGUAGE_XPATH,
+            .parts = {.parts = NULL, .part_count = 0},
+            .maximum_expression_depth = request->maximum_expression_depth,
+            .error_record = request->error_record},
+        &lowerer);
+    if (status == SXML_STATUS_OK) {
+        status = lower_main_function(
+            lowerer, (sxml_xpath_lowering_embedding){.ast = request->ast,
+                                                     .node = {.value = 0},
+                                                     .static_context = NULL,
+                                                     .focus = NULL});
+        sxml_xpath_lowerer_finalize(lowerer);
+    }
     if (status == SXML_STATUS_OK) {
         /* For casts to xs:QName at run time (D84). */
-        sxml_xpath_namespace_collection namespaces = {.bindings = NULL, .binding_count = 0};
+        sxml_xpath_namespace_collection namespaces = {.bindings = NULL,
+                                                      .binding_count = 0};
         status = sxml_xpath_collect_namespaces(request->ast, context, &namespaces);
         if (status == SXML_STATUS_OK) {
             status = sxml_ir_unit_set_static_namespaces(
