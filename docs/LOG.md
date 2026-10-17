@@ -4,6 +4,15 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 2.7 done (D125): fn:divide-decimals over a new decimal operation
+  (divisor exponent shifted, libmpdec divint/rem, precision fitted to the
+  digit limit). Release XP40 23,146 (docs/CONFORMANCE.md) to 26,975 with
+  the others' work since; fn-divide-decimals 4 to 19 of 21; math-*,
+  fn-round, fn-round-half-to-even, fn-parse-integer, op-numeric-* already
+  at 100% of run cases. Slice 198/198; `debug`, `debug-gcc`, `wasm`
+  142/142; lint clean. Open (Proposed): F&O named record types
+  (divide-decimals-019 to -021, random-number-generator-35a to -37a);
+  take(-1) as XPTY0004 needs a unit-test change.
 - 3.6b done (D124): IR extensions accepted from D109/D110.
   `sxml_ir_unit_add_name_tests`, `_add_catch_clauses`,
   `_add_namespace_bindings` and accessors; `construction_flags`

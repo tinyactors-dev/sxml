@@ -194,6 +194,15 @@ parse-integer radix forms, number formatting of xs:double/xs:float in the
 canonical forms. Done when math-* ≥ 98% and fn-round, fn-divide-decimals,
 op-numeric-* ≥ 95%. Spec: F&O 4.0 "Functions on numeric values",
 "Trigonometric and exponential functions".
+**Done** 2026-10-17 (D125): fn:divide-decimals
+(`sxml_decimal_divide_to_precision`, precision fitted to the digit
+limit); fn-divide-decimals 4 to 19 of 21 (90%: -019 to -021 need
+fn:division-record in the static context, Proposed with D122's item).
+math-* 181/181, fn-round 380/380, fn-round-half-to-even 145/145,
+op-numeric-* all run cases pass (2 wrong errors in integer-divide,
+`src/operator.c`), fn-parse-integer 47/47 at HEAD; canonical double and
+float text already passed. take(-1) of the random generator waits for
+`tests/function_library_test.c` (Proposed).
 
 ### 2.8 Date and time functions (implementation)
 After 2.0. Owns `src/operator_temporal.c`, new
