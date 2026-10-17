@@ -440,6 +440,12 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `backtrack_stack` | The stack of choices and undo entries of a backtracking matcher; it grows through an allocator within a limit |
 | `step_count` | Instructions a regex matcher has run in one search; `maximum_step_count` bounds it for untrusted regexes |
 | `group_frame` | The regex compiler's record of a group whose ")" has not been read (and of the whole regex), kept on an explicit stack instead of recursing (D71) |
+| `group_name` | The name of a named capturing subexpression, `(?<name>...)`; `\k<name>` refers back to it and result maps key its group by it (F&O 4.0, section 6.1.5) |
+| `lookahead_group` | A captured group of a capturing subexpression within a lookahead assertion; it may lie outside the matching segment (F&O 4.0, `fn:analyze-string`) |
+| `assertion_entry` | A backtrack-stack entry marking where a lookahead or lookbehind assertion started; the assertion's end and backtracking find it (D105) |
+| `general_category` | The Unicode general category of a codepoint (Lu, Nd, ...), what a category escape `\p{..}` tests (XSD 1.1 Part 2, appendix G) |
+| `block_escape` | `\p{IsX}`: the codepoints of Unicode block X, named as in Blocks.txt without spaces |
+| `name_table` | The regex compiler's list of the group names read so far, for duplicates and `\k<name>` (D105) |
 | `library_part` | The native functions of one `src/function_library_<part>.c` file: one `sxml_native_function_view`, named in a function library's configuration |
 | `part_registry` | The list of library parts or evaluator parts that CMake generates from the glob of their files, so a new part needs no edit elsewhere (D101) |
 | `language_set` | The languages (XPath, XQuery, XSLT) a library part serves; a part without one serves all three (D101) |
