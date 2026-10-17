@@ -3780,6 +3780,44 @@ phase gates still close each phase: a phase is done only when its gate review
 passes, and gate reviews re-check the work of later-phase packets that
 started early. First applied to 3.8, 3.10 and 3.13.
 
+### D133. The built-in record types of F&O 4.0 (packet 2.6b)
+Recorded 2026-10-17. Accepts the Proposed items of D122 and D125.
+- **One table, declared once per registry**: `src/function_library_records.c`
+  lists the 16 nominative record types of F&O 4.0, appendix C (glossary
+  `builtin_record_type`), each as its fn local name and the text of a
+  structural record type in the specification's field order and types
+  (a field whose type allows the empty sequence is optional, D7;
+  "xs:positive-integer" of fn:location-record read as
+  xs:positiveInteger). `sxml_function_library_initialize` declares them
+  in the type registry of its item heap before any row is resolved: all
+  names first, so fields may name table types, recursion included, then
+  each type's fields from its resolved text. A name the registry knows
+  already is skipped, so libraries sharing a heap declare once. No
+  globals; static analysis resolves `fn:dateTime-record` through the
+  registry like any named type, and rows may name them.
+- **Records are annotated**: `sxml_function_library_make_record` makes a
+  record of a built-in type by name (`sxml_record_make`). fn:parts-of-dateTime,
+  fn:divide-decimals, fn:random-number-generator (and ?next), fn:regex,
+  fn:matching-segments and its captured groups return annotated records;
+  their rows name the types. The function items of a generator and of a
+  compiled regex take their signatures from the record's field types, so
+  ?take is `fn(xs:nonNegativeInteger) as xs:double*` (take(-1) and
+  take(()) are XPTY0004) and ?next is `fn() as
+  fn:random-number-generator-record`; fn:regex no longer looks its
+  functions up in the function table.
+- **Coercion to a nominative record type** (XPath 4.0, section 3.4.2):
+  the rule of a structural record type, the new record annotated with the
+  nominative type (`src/evaluator_function.c`), so a map coerces to
+  fn:division-record. Matching stays nominative: an unannotated map is no
+  instance. fn:build-dateTime keeps `map(*)?` and its own coercion (D122).
+- **idiv**: a zero divisor is FOAR0001 before NaN or an infinite dividend
+  (FOAR0002), so `INF idiv 0` is FOAR0001 (F&O 4.0,
+  op:numeric-integer-divide).
+- Measured (release driver, XP40, passed of cases): fn-parts-of-dateTime
+  8 to 20 of 20, fn-divide-decimals 19 to 21 of 21, fn-random-number-generator
+  50 to 54 of 61, fn-regex 27 to 29 of 30, fn-matching-segments 37 to 38
+  of 39, op-numeric-integer-divide 132 to 132 of 143 (wrong errors 2 to 0).
+
 ## Proposed
 
 - **The item axis in the evaluator** (packet 2.5, D113; for the owner of
