@@ -160,6 +160,14 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `string_constructor` | XQuery ```` ``[text `{expression}`]`` ```` |
 | `pragma` | XQuery `(# name contents #)` before an extension expression |
 | `pattern` | An XSLT 4.0 match pattern (XSLT 4.0, section 6.3) |
+| `xnode_pattern` | A pattern made of paths, steps, unions, intersect and except, matching XNodes (XSLT 4.0, 6.3.2) |
+| `simple_pattern` | A pattern of an item pattern (`.`, `atomic(...)`, a map, record, array or JNode pattern) and predicates, matching any item (XSLT 4.0, 6.3.3) |
+| `sequence_pattern` | A pattern with an occurrence indicator, or `empty-sequence()`, matching a value inside a map, array or JNode pattern (XSLT 4.0, 6.3.5) |
+| `leading_step` | A step of an XNode pattern that is not on the right of `/` or `//`; it is matched on the axes child-or-top, attribute-or-top or namespace-or-top (XSLT 4.0, 6.3.2.2) |
+| `equivalent_expression` | The XPath expression of the same form as an XNode pattern, with its leading steps' axes adjusted, that defines what it matches (XSLT 4.0, 6.3.2.2) |
+| `match_expression` | The XPath AST of xs:boolean, over the item as context value, that is true exactly when the item matches a pattern (D118) |
+| `match_function` | The IR function of one parameter, returning xs:boolean, that a template rule's pattern is lowered to |
+| `default_priority` | The priority of a template rule without a priority attribute, computed from the form of its pattern (XSLT 4.0, 6.4) |
 | `stylesheet` | An XSLT 4.0 stylesheet: a principal module with every module it includes and imports, compiled together |
 | `stylesheet_module` | One XML document of a stylesheet as reached by one `xsl:include` or `xsl:import`, or the principal module; `module` in `sxml_xslt_ast_module` |
 | `principal_module` | The stylesheet module the processor was asked to compile (module 1) |
