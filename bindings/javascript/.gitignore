@@ -1,0 +1,4 @@
+# Installed by `npm ci` (TypeScript for the typecheck test and the build).
+/node_modules/
+# Made by `npm run build`; what the package publishes.
+/dist/

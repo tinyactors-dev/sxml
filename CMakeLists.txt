@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 
 project(sxml
-    VERSION 0.0.0
+    VERSION 0.2.0
     DESCRIPTION "Small XML implementation: XDM 4.0, XPath 4.0, XQuery 4.0"
     LANGUAGES C)
 
@@ -120,6 +120,11 @@ endif()
 if(SXML_BUILD_APPS)
     add_subdirectory(apps)
 endif()
+
+# The JavaScript package (D10, D138): the shim in every build, sxml.wasm and
+# its Node.js tests under WASI. After apps/: its size test also measures the
+# CLI module.
+add_subdirectory(bindings/javascript)
 
 # The QT4 test-suite driver (D44, D45): a developer tool built on the CLI
 # framework, so it comes after apps/. Joins the build once its
