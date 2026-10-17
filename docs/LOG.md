@@ -4,6 +4,19 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 4.0 done (D112): the XSLT API, header-only. `xslt.h`:
+  `sxml_xslt_stylesheet` (quintet) from the principal module's bytes or
+  through the resolver (XSLT_MODULE, XSLT_PACKAGE), static parameters at
+  compile time; `sxml_xslt_output_definition` (D106 parameters plus
+  build-tree and "no method given"); `sxml_xslt_stylesheet_transform`
+  with the shared dynamic context (global context item, stylesheet
+  parameters, xsl:message through the trace sink), apply-templates,
+  call-template and function call invocations, raw/tree/serialized
+  delivery, a result document handler (open/close) and its default, the
+  `sxml_xslt_result_document_collector`. `debug`, `debug-gcc`, `wasm`
+  119/119 (slice included), lint clean; no source changed, so XP40
+  counts cannot move.
+
 - 3.6 done (D109), Early packet of Phase 3: TRY_CATCH in
   `src/evaluator_try.c` as one catching task: name tests and wildcards,
   first matching clause, `$err:map` bound to the clause's slot (keys
