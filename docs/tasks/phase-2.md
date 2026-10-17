@@ -271,6 +271,13 @@ resolver (FOCH0002 only for unknown URIs). deep-equal 4.0 options
 (fn-deep-equal, 120 failing), compare (204), duplicate-values (106). Done
 when fn-compare, fn-deep-equal, fn-duplicate-values ≥ 95% and the 100
 FOCH0002 failures are gone. Spec: F&O 4.0 "Collations", "fn:deep-equal".
+**Done** 2026-10-17 (D116): `src/collation.c` (codepoint, Unicode and
+HTML ASCII case-insensitive, UCA fallback), one resolver, fn:collation,
+-available, -key, deep-equal 4.0 options. fn-compare 221 of 225 (98%),
+fn-duplicate-values 111 of 113 (98%), fn-deep-equal 327 to 395 of 449
+(88%: 33 cases need function-item equivalence, Proposed for `src/ir.c`;
+18 need functions of other packets). FOCH0002 failures 280 to 12, all in
+bodies of other parts (Proposed). XP40 26,170 to 26,510 passed.
 
 ### 2.14 Date formatting (implementation)
 After 2.8, 2.9. Owns new `src/format_date.c`,
