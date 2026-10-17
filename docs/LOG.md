@@ -4,6 +4,19 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 3.1 done (D111): query AST and parser part seam. 66 XQuery kinds and
+  24 fields in `src/xpath_ast_internal.h` (keyword detail, XQuery flags,
+  boundary whitespace and namespace declaration attribute marks, PI
+  payload), AST and IR of five XQuery examples written out;
+  `sxml_ast_build_with_parser_part` runs the XPath walker with a part's
+  grammar, tables and hooks (apply_token, describe_payload, finish_node,
+  `sxml_ast_front_end_raise` for any err: code); `sxml_xquery_build_ast`
+  declared for 3.2, which adds `sxml_grammar_xquery` to the link line.
+  All 32,928 XP40 queries build byte-identical ASTs; a scratch part with
+  only the tables builds all 43,663 valid XQ40 queries and 145 library
+  modules. XP40 23,698 passed (CONFORMANCE.md 23,146; no AST changed),
+  slice 198/198. `debug`, `debug-gcc`, `wasm` 119/119, lint clean.
+
 - 2.4 done (D107): Unicode 16.0 tables and functions. `src/unicode.c`
   (UAX #15 NFC/NFD/NFKC/NFKD and FULLY-NORMALIZED; UAX #29 extended
   grapheme clusters with GB9c; HTML character reference names) over
