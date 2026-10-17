@@ -2759,6 +2759,53 @@ constructor kinds and SHALLOW_COPY (D55, D101).
   node: the arena tree drops empty text (D40). Inside a constructor the
   two are the same (the empty text node is deleted).
 
+### D111. The query AST for XQuery and the parser part seam (packet 3.1)
+Recorded 2026-10-17, extending D52 and D59. `src/xpath_ast_internal.h`.
+- **Kinds**: 66 XQuery kinds appended to `sxml_ast_kind`, one per new
+  visible node type of `grammars/xquery` (`SXML_AST_KIND_<NODE TYPE>`);
+  `allowing_empty` is absorbed as flag ALLOWING_EMPTY. 24 fields appended
+  (the grammar's, plus MODULE, which the front end gives the child of
+  `module`, the one named child without a grammar field). Tokens in
+  fields `mode`/`kind` become the new detail `keyword` (PRESERVE, STRIP,
+  ORDERED, ..., LAX, STRICT); the decimal-format property name the detail
+  `decimal_format_property` (`sxml/xpath.h`'s kind); the other XQuery
+  tokens flags (FIXED, EXTERNAL, STABLE, DESCENDING, EMPTY_GREATEST,
+  EMPTY_LEAST, ONLY, STATIC, PRESERVE_NAMESPACES, INHERIT_NAMESPACES).
+  Front-end marks: BOUNDARY_WHITESPACE on direct element text,
+  NAMESPACE_DECLARATION_ATTRIBUTE on `xmlns` attributes. Leaves: QNAME has
+  a name payload, the direct text kinds, CDATA, comments, pragma contents
+  and string constructor characters a decoded text, a direct PI the new
+  payload `processing_instruction` (target, content). The header writes
+  out AST and IR of five XQuery examples (group by, a tumbling window, a
+  direct constructor with namespaces, try/catch/finally, a prolog
+  function).
+- **Parser part seam**: `sxml_ast_build_with_parser_part(request, part,
+  &ast)` runs the one XPath walker (D59: iterative, A.3.2 and lookup key
+  checks, depth bound) with a part's language and root node type, its
+  sorted node type and field tables (consulted after XPath's), unnamed
+  child fields, and three stateless hooks: `apply_token` (claims a token
+  before the XPath rules), `describe_payload` (fills a payload before the
+  XPath decoders, e.g. XQuery string literals with references) and
+  `finish_node` (called once per node when it is complete, leaves at
+  once; for XQST0118, XQST0040, boundary whitespace). Hooks reach the AST
+  and source text through the opaque `sxml_ast_front_end`, add flags with
+  `sxml_ast_add_flags`, and raise any err: code with
+  `sxml_ast_front_end_raise` (the error record gets that code). Without a
+  part the walk is unchanged: all 32,928 applicable XP40 queries build
+  byte-identical ASTs. With a scratch part of only the tables, all 43,663
+  valid XQ40 queries and the 145 parsable library modules build.
+- **Who writes what**: 3.2 defines `sxml_xquery_build_ast` (declared now)
+  and its part in `src/xquery_parse.c`; it needs `sxml_grammar_xquery`
+  added to the `sxml` link line of the root `CMakeLists.txt` (one word,
+  3.2 adds it). Parts are passed by each entry point, not registered by
+  glob: the entry point chooses the grammar.
+- `tests/xpath_parse_test.c`'s kind and field name tables grow with the
+  enumerations (static asserts); 3.1 appended the XQuery names.
+- Rejected: a parser registry by glob (one grammar per entry point, so
+  nothing to discover); the XQuery tables in `xpath_parse.c` (the part
+  owns its grammar's names, as lowering parts own their kinds); hook
+  state pointers (everything a hook needs is in the AST).
+
 ## Proposed
 
 - **IR adders for catch clauses and name tests** (packet 3.6, D109; for
