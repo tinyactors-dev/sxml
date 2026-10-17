@@ -134,6 +134,32 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `string_constructor` | XQuery ```` ``[text `{expression}`]`` ```` |
 | `pragma` | XQuery `(# name contents #)` before an extension expression |
 | `pattern` | An XSLT 4.0 match pattern (XSLT 4.0, section 6.3) |
+| `stylesheet` | An XSLT 4.0 stylesheet: a principal module with every module it includes and imports, compiled together |
+| `stylesheet_module` | One XML document of a stylesheet as reached by one `xsl:include` or `xsl:import`, or the principal module; `module` in `sxml_xslt_ast_module` |
+| `principal_module` | The stylesheet module the processor was asked to compile (module 1) |
+| `stylesheet_ast` | What the stylesheet reader builds (`sxml_xslt_ast`): one node per stylesheet element and text node, attributes read into typed values, each expression, pattern, value template and type its own `abstract_syntax_tree`; `xslt_ast` allowed as a module name only |
+| `stylesheet_level` | Stylesheet modules connected by `xsl:include`; they share one import precedence (XSLT 4.0, 3.10.2) |
+| `import_precedence` | The rank of a stylesheet level: an importing level above what it imports, a later import above an earlier one (post-order of the import tree, XSLT 4.0, 3.10.3) |
+| `declaration` | A top-level element of a stylesheet module (`xsl:template`, `xsl:function`, ...) |
+| `declaration_order` | The order of the declarations of a stylesheet level, with included modules in place of their `xsl:include` |
+| `instruction` | An XSLT element that may appear in a sequence constructor (`xsl:if`, `xsl:copy`, ...) |
+| `sequence_constructor` | The children of a stylesheet element that are evaluated to make a sequence (XSLT 4.0, 5.7) |
+| `literal_result_element` | An element of a sequence constructor outside the XSLT namespace, copied to the result (XSLT 4.0, 11.1) |
+| `value_template` | An attribute value template or text value template: fixed text with enclosed XPath expressions in `{ }` (XSLT 4.0, 5.6) |
+| `standard_attribute` | One of the attributes allowed on every XSLT element (`version`, `expand-text`, `use-when`, ...; XSLT 4.0, 3.3) |
+| `shadow_attribute` | An attribute `_name` whose value, a value template evaluated at compile time, replaces the attribute `name` (XSLT 4.0, 3.11.4) |
+| `simplified_stylesheet` | A stylesheet module whose outermost element is not `xsl:stylesheet`, `xsl:transform` or `xsl:package`; read as one template rule matching `.` (XSLT 4.0, 3.7) |
+| `synthesized` | Made by the stylesheet reader rather than read from an element (the root and template of a simplified stylesheet) |
+| `source_node` | The node of a stylesheet module's tree that a stylesheet AST node was read from |
+| `name_token` | One token of a name-list attribute of an XSLT element: a name, a wildcard, or `#default`, `#unnamed`, `#current`, `#all` |
+| `keyword` | A fixed word of a language: an XPath keyword (see `keyword_name`), or one of the words an XSLT attribute takes from a fixed list (`shallow-copy`, `strict`) |
+| `excluded_namespace` | A namespace whose namespace nodes literal result elements do not copy (XSLT 4.0, 11.1.3) |
+| `extension_namespace` | A namespace whose elements are extension instructions (XSLT 4.0, 24.3) |
+| `extension_instruction` | An element in an extension namespace inside a sequence constructor; sxml knows none and runs its fallback |
+| `data_element` | A top-level element outside the XSLT namespace, ignored by the processor (XSLT 4.0, 3.6.4) |
+| `fixed_namespace_bindings` | The namespace bindings that the `fixed-namespaces` attribute sets for every expression of a stylesheet module (XSLT 4.0, 3.6.1) |
+| `module_uri` | The absolute URI a stylesheet module was read from; the source name of its expressions |
+| `nesting_depth` | How many modules lie between a stylesheet module and the principal module in the module tree |
 | `front_end` | The code that turns the text of one language (XPath, XQuery, an XSLT pattern) into an abstract syntax tree |
 | `abstract_syntax_tree` | What a front end builds from a concrete syntax tree: one node per visible grammar production, children by grammar field, names as written, literals decoded; `ast` allowed as a module name only (`sxml_ast_node`) |
 | `ast_field` | The role of a child in its AST parent: a field name of the grammar (`left`, `predicate`, `argument`) |
