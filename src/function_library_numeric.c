@@ -1191,7 +1191,7 @@ static sxml_status make_division_record(const sxml_function_call *call,
 
 /* fn:divide-decimals($value, $divisor, $precision := 0) (F&O 4.0, section
    4.3.1). The result is a map with the fields of fn:division-record; no
-   static context knows that named record type yet (D121). */
+   static context knows that named record type yet (D125). */
 static sxml_status call_divide_decimals(const sxml_function_call *call,
                                         sxml_sequence *result) {
     int64_t precision = 0;
