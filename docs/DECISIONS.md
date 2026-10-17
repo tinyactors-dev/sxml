@@ -3831,6 +3831,65 @@ Recorded 2026-10-17. Extends D92, D94 and D108 in `tests/qt4/driver/`.
   Params, context items and collection queries stay XPath expressions.
 - Details follow with the packet's commits.
 
+### D135. Prologs: the static context, declared functions and variables (packet 3.10)
+Recorded 2026-10-17, completing D55 and D101 for XQuery main modules.
+`src/xquery_static.c` (`src/xquery_static_internal.h`) reads the prolog
+into one `sxml_xpath_static_context`; `src/xquery_prolog.c` lowers the
+module and now holds `sxml_xquery_lower` / `sxml_xquery_compile` (moved
+from `src/xquery_lower.c`); `src/evaluator_global.c` computes globals.
+No new IR kind, no header change, no machinery beside the core's.
+- **Static context**: namespace declarations and the default element
+  namespace (prefix 0) first, then the host's bindings, then `local` and
+  `output` (XQuery predeclares them); variables: the host's, then the
+  prolog's (global n); a function table finds declared functions, then
+  the host's table. Duplicates are found by sorting (XQST0033, XQST0049
+  also against host declarations, XQST0034 for overlapping arity ranges);
+  setters and the context value declaration at most once (XQST0068,
+  0038, 0032, 0067, 0065, 0069, 0055, 0099); XQST0070, XQST0066,
+  XQST0039, XQST0148, XQST0045 (function names and annotations in
+  reserved namespaces, the XQuery namespace for unprefixed annotations;
+  so `%updating` is rejected, D97), XQST0106/XQST0116, XQST0009 (schema
+  import, D97), XQST0038 (unsupported default collation). External
+  functions are XPST0017. Module imports and item type/record
+  declarations are UNSUPPORTED_FEATURE for now.
+- **Unprefixed function names** (5.14.2): the core resolves them to fn
+  and looks names up without interning, so the prolog interns fn:L for
+  every unprefixed call/reference name when it declares a no-namespace
+  function or a default function namespace; the table then tries the
+  declared no-namespace L (or L in the default function namespace, also
+  among library functions: `pi()` under the math namespace) before fn:L.
+  A written `fn:L` finds the same (Proposed: a default function namespace
+  in the XPath static context).
+- **Declared functions**: one IR function per arity of the arity range,
+  added to the unit before any body is lowered (recursion and mutual
+  recursion are STATIC_CALLs on the evaluator's stack, D75); the full
+  arity holds the body with its result COERCEd; a shorter arity binds the
+  missing defaults (coerced, no focus) and calls the full one; `:= .` is
+  SXML_PARAMETER_DEFAULT_CONTEXT_VALUE, which the core supplies at the
+  call. Bodies are level-0 functions with an absent focus.
+- **Variables and the context value**: each value or default is an
+  initializer IR function of arity 0, coerced to the declared type. When
+  the prolog has initializers or a context value declaration, the unit
+  gets the **context global** (name 0, the last global; glossary) and the
+  query body and every variable initializer read the focus as the fixed
+  focus of it (5.17); the main function's focus slot receives the host's
+  context value, which the global part copies (coerced) into the context
+  global unless a non-external declaration gives the value.
+- **Computation order**: after lowering, the expression, atom and map
+  entry runs each body and initializer added are scanned for globals read
+  and declared functions called or referenced; an iterative walk from the
+  query body orders the reached variables dependencies first; a cycle
+  through a variable is XQDY0054, raised at compile time (5.16 allows
+  static detection). Reached variables get, in that order, an initializer
+  that calls their lowered one; the global part sorts the variables to
+  compute by initializer index and runs each as a CALL on the machine (a
+  pushed task turned into a CALL, as the machine's static calls are), so
+  unreached variables are never computed (`declare variable $x := 1 div
+  0; 2` is 2); BEING_COMPUTED still gives XQDY0054 for dynamic cycles.
+- Rejected: computing on first read (needs every atom read in the
+  machine to suspend: a change across `src/evaluator.c`); relowering in
+  dependency order (two lowerings; the extra initializers cost one call).
+
 ## Proposed
 
 - **The item axis in the evaluator** (packet 2.5, D113; for the owner of
