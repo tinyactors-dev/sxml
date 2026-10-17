@@ -3253,6 +3253,10 @@ static sxml_status sxml_sort_finish(sxml_dynamic_context *context,
             return status;
         }
     }
+    if (item_count == 0) {
+        /* Nothing to sort, and a zero-byte allocation is invalid (D22). */
+        return sxml_machine_finish(context, sxml_sequence_empty());
+    }
     void *memory = NULL;
     sxml_status status = sxml_allocator_allocate(
         context->allocator,

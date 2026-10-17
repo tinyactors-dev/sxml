@@ -297,6 +297,9 @@ static const value_case value_cases[] = {
      "\"a1+A1\" \"b2\" \"a2\""},
     {"for $x in 1 to 3 group by $x return $x", "1 2 3"},
     {"for $x in () group by $x return $x", ""},
+    /* order by over an empty tuple stream sorts nothing. */
+    {"for $x in () order by $x return $x", ""},
+    {"for $x in (1, 2) where $x > 2 order by $x descending return $x", ""},
     /* A grouping key of two items is XPTY0004. */
     {"for $x in 1 to 2 group by $k := (1, 2) return $k", "error:XPTY0004"},
     {"for $x in 1 to 2 group by $k as xs:string := $x return $k", "error:XPTY0004"},
