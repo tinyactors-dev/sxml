@@ -307,12 +307,12 @@ static void pattern_context_make(const fixture *test_fixture, pattern_context *c
 }
 
 /* A pattern's text and where its errors go (may be NULL). */
-typedef struct pattern_text {
+typedef struct pattern_source {
     sxml_byte_view text;
     sxml_error_record *error_record;
-} pattern_text;
+} pattern_source;
 
-static sxml_status build_pattern(const fixture *test_fixture, pattern_text source,
+static sxml_status build_pattern(const fixture *test_fixture, pattern_source source,
                                  sxml_ast **ast) {
     const sxml_byte_view text = source.text;
     sxml_error_record *error_record = source.error_record;
@@ -340,7 +340,7 @@ static sxml_status compile_pattern(const fixture *test_fixture, sxml_byte_view t
     pattern_context_make(test_fixture, &context);
     sxml_ast *pattern = NULL;
     sxml_ast *match_expression = NULL;
-    sxml_status status = build_pattern(test_fixture, (pattern_text){.text = text, .error_record = &compiled->error_record}, &pattern);
+    sxml_status status = build_pattern(test_fixture, (pattern_source){.text = text, .error_record = &compiled->error_record}, &pattern);
     if (status == SXML_STATUS_OK) {
         status = sxml_xslt_pattern_build_match_expression(
             &(sxml_xslt_pattern_match_expression_request){
@@ -770,7 +770,7 @@ static void test_default_priorities_follow_the_tables(sxml_test_state *state) {
         sxml_error_record error_record;
         memset(&error_record, 0, sizeof(error_record));
         sxml_status status =
-            build_pattern(&test_fixture, (pattern_text){.text = (sxml_byte_view){.bytes = (const uint8_t *)test->pattern_text,
+            build_pattern(&test_fixture, (pattern_source){.text = (sxml_byte_view){.bytes = (const uint8_t *)test->pattern_text,
                                            .byte_count = strlen(test->pattern_text)}, .error_record = &error_record}, &pattern);
         if (status == SXML_STATUS_OK) {
             status = sxml_xslt_pattern_compute_default_priority(
@@ -791,7 +791,7 @@ static void test_default_priorities_follow_the_tables(sxml_test_state *state) {
     /* 6.4.1: with ##any, para counts as *:para. */
     sxml_ast *pattern = NULL;
     double priority = 2.0;
-    SXML_TEST_EXPECT(state, build_pattern(&test_fixture, (pattern_text){.text = TEXT("para"), .error_record = NULL}, &pattern) ==
+    SXML_TEST_EXPECT(state, build_pattern(&test_fixture, (pattern_source){.text = TEXT("para"), .error_record = NULL}, &pattern) ==
                                 SXML_STATUS_OK);
     SXML_TEST_EXPECT(state, sxml_xslt_pattern_compute_default_priority(
                                 &(sxml_xslt_pattern_priority_request){
@@ -818,7 +818,7 @@ static void test_front_end_builds_the_pattern_ast(sxml_test_state *state) {
     fixture test_fixture;
     SXML_TEST_REQUIRE(state, fixture_create(0, &test_fixture) == SXML_STATUS_OK);
     sxml_ast *ast = NULL;
-    SXML_TEST_REQUIRE(state, build_pattern(&test_fixture, (pattern_text){.text = TEXT("chapter/section[1] | @id"), .error_record = NULL}, &ast) == SXML_STATUS_OK);
+    SXML_TEST_REQUIRE(state, build_pattern(&test_fixture, (pattern_source){.text = TEXT("chapter/section[1] | @id"), .error_record = NULL}, &ast) == SXML_STATUS_OK);
     sxml_ast_node_index node = ast->root;
     SXML_TEST_EXPECT(state, sxml_ast_get_node(ast, node)->kind == SXML_AST_KIND_PATTERN);
     sxml_ast_node_index union_node = {0};
@@ -849,7 +849,7 @@ static void test_front_end_builds_the_pattern_ast(sxml_test_state *state) {
     sxml_ast_destroy(ast);
     /* A map pattern's "*" is the flag OPEN; an occurrence indicator the
        sequence pattern's detail. */
-    SXML_TEST_REQUIRE(state, build_pattern(&test_fixture, (pattern_text){.text = TEXT("{'a': .+, *}"), .error_record = NULL}, &ast) ==
+    SXML_TEST_REQUIRE(state, build_pattern(&test_fixture, (pattern_source){.text = TEXT("{'a': .+, *}"), .error_record = NULL}, &ast) ==
                                  SXML_STATUS_OK);
     sxml_ast_node_index simple_node = {0};
     child_of(ast, (sxml_ast_child_query){.parent = ast->root, .field = SXML_AST_FIELD_PATTERN}, &simple_node);
@@ -935,7 +935,7 @@ static void test_match_function_is_added_to_the_unit(sxml_test_state *state) {
                                                   .ast = main_ast,
                                                   .static_context = &context.static_context},
                                               &unit) == SXML_STATUS_OK);
-    SXML_TEST_REQUIRE(state, build_pattern(&test_fixture, (pattern_text){.text = TEXT("b[@x]"), .error_record = NULL}, &pattern) ==
+    SXML_TEST_REQUIRE(state, build_pattern(&test_fixture, (pattern_source){.text = TEXT("b[@x]"), .error_record = NULL}, &pattern) ==
                                  SXML_STATUS_OK);
     SXML_TEST_REQUIRE(state, sxml_xpath_lowerer_create(
                                  fixture_allocator(&test_fixture),
