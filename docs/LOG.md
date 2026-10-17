@@ -4,6 +4,18 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 2.15 done (D141): fn:parse-csv, fn:csv-to-xml, fn:csv-doc. `src/csv.c`
+  is a hand-written scanner (D97): one token per call, a plain cursor, no
+  allocation; `src/function_library_csv.c` builds the record (get as a
+  function item over captured rows and column index, D133), csv-to-xml
+  walks that result, csv-doc goes through the fn:unparsed-text row (D131).
+  fn:csv-to-arrays was dropped from F&O 4.0 (issue 2961) and is left out.
+  XP40 (release) before to after: fn-parse-csv 35 (wrong errors) to
+  107/124, fn-csv-to-xml 9 to 68/68 run, fn-csv-doc 4 to 20/20. Full run:
+  XP40 30,389 passed, slice 198/198. The other 17 parse-csv cases need the
+  driver to bind the result as the context value of assertions (Proposed;
+  124/124 with it, +20 over XP40). HEAD's QT4 driver still does not build
+  (xquery_adapter.c of 3.13); measured with a local patch.
 - 2.11 done (D140): fn:hash (MD5, SHA-1, SHA-256, BLAKE3, CRC-32 in
   `src/hash.c`, a new hash part), fn:decode-from-uri, fn:parse-uri and
   fn:build-uri (uri part; one percent decoder, one escaping table),
