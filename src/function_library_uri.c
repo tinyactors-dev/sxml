@@ -487,9 +487,7 @@ typedef struct uri_options {
 } uri_options;
 
 #define SXML_URI_BOOLEAN_OPTION(name_text)                                    \
-    {.option_name = SXML_BYTE_VIEW_INITIALIZER(name_text),                    \
-     .option_type = {.item_type = {.index = SXML_TYPE_XS_BOOLEAN},             \
-                     .occurrence = SXML_OCCURRENCE_EXACTLY_ONE}}
+    SXML_FUNCTION_OPTION(name_text, SXML_TYPE_XS_BOOLEAN, SXML_OCCURRENCE_EXACTLY_ONE)
 
 static const sxml_option_definition uri_option_definitions[] = {
     SXML_URI_BOOLEAN_OPTION("allow-deprecated-features"),

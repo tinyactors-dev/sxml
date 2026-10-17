@@ -1212,17 +1212,12 @@ static const sxml_static_error origin_error = {
         "The origin option of fn:path is not an ancestor of the node (F&O 4.0, fn:path)"),
 };
 
-#define SXML_PATH_OPTION(name_text, type_index, occurrence_value)             \
-    {.option_name = SXML_BYTE_VIEW_INITIALIZER(name_text),                    \
-     .option_type = {.item_type = {.index = (type_index)},                    \
-                     .occurrence = (occurrence_value)}}
-
 /* F&O 4.0, fn:path: the options and their positions. */
 static const sxml_option_definition path_option_definitions[] = {
-    SXML_PATH_OPTION("origin", SXML_TYPE_GENERIC_NODE, SXML_OCCURRENCE_ZERO_OR_ONE),
-    SXML_PATH_OPTION("lexical", SXML_TYPE_XS_BOOLEAN, SXML_OCCURRENCE_EXACTLY_ONE),
-    SXML_PATH_OPTION("namespaces", SXML_TYPE_MAP, SXML_OCCURRENCE_ZERO_OR_ONE),
-    SXML_PATH_OPTION("indexes", SXML_TYPE_XS_BOOLEAN, SXML_OCCURRENCE_EXACTLY_ONE),
+    SXML_FUNCTION_OPTION("origin", SXML_TYPE_GENERIC_NODE, SXML_OCCURRENCE_ZERO_OR_ONE),
+    SXML_FUNCTION_OPTION("lexical", SXML_TYPE_XS_BOOLEAN, SXML_OCCURRENCE_EXACTLY_ONE),
+    SXML_FUNCTION_OPTION("namespaces", SXML_TYPE_MAP, SXML_OCCURRENCE_ZERO_OR_ONE),
+    SXML_FUNCTION_OPTION("indexes", SXML_TYPE_XS_BOOLEAN, SXML_OCCURRENCE_EXACTLY_ONE),
 };
 
 enum {

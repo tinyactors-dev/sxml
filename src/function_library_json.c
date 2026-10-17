@@ -119,20 +119,16 @@ static sxml_status json_read_text(sxml_sequence argument, sxml_byte_view *text) 
 
 /* Option definitions (F&O 4.0, section 1.7), read by the library's one
    options reader (src/function_library_options.c). */
-#define SXML_JSON_OPTION(name_text, type_index, occurrence_value)             \
-    {.option_name = SXML_BYTE_VIEW_INITIALIZER(name_text),                    \
-     .option_type = {.item_type = {.index = (type_index)},                    \
-                     .occurrence = (occurrence_value)}}
 #define SXML_JSON_BOOLEAN_OPTION(name_text)                                   \
-    SXML_JSON_OPTION(name_text, SXML_TYPE_XS_BOOLEAN, SXML_OCCURRENCE_EXACTLY_ONE)
+    SXML_FUNCTION_OPTION(name_text, SXML_TYPE_XS_BOOLEAN, SXML_OCCURRENCE_EXACTLY_ONE)
 #define SXML_JSON_STRING_OPTION(name_text)                                    \
-    SXML_JSON_OPTION(name_text, SXML_TYPE_XS_STRING, SXML_OCCURRENCE_EXACTLY_ONE)
+    SXML_FUNCTION_OPTION(name_text, SXML_TYPE_XS_STRING, SXML_OCCURRENCE_EXACTLY_ONE)
 /* item()? (the null option). */
 #define SXML_JSON_ITEM_OPTION(name_text)                                      \
-    SXML_JSON_OPTION(name_text, SXML_TYPE_ITEM, SXML_OCCURRENCE_ZERO_OR_ONE)
+    SXML_FUNCTION_OPTION(name_text, SXML_TYPE_ITEM, SXML_OCCURRENCE_ZERO_OR_ONE)
 /* A function item or the empty sequence (the fallback option). */
 #define SXML_JSON_FUNCTION_OPTION(name_text)                                  \
-    SXML_JSON_OPTION(name_text, SXML_TYPE_FUNCTION, SXML_OCCURRENCE_ZERO_OR_ONE)
+    SXML_FUNCTION_OPTION(name_text, SXML_TYPE_FUNCTION, SXML_OCCURRENCE_ZERO_OR_ONE)
 
 /* True when a boolean option is present and true. */
 static bool json_option_is_true(const sxml_option_values *values, size_t option_index) {

@@ -57,14 +57,6 @@ static const sxml_static_error text_undecodable_error = {
         "fn:unparsed-text)"),
 };
 
-static const sxml_static_error option_type_error = {
-    .error_status = SXML_STATUS_TYPE_ERROR,
-    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XPTY0004"),
-    .description = SXML_BYTE_VIEW_INITIALIZER(
-        "An option has a value of the wrong type (F&O 4.0, section 1.7, option "
-        "parameter conventions)"),
-};
-
 /* Raises a dynamic error with code_local_name and the resolver's
    description, or the static error's own when there is none. */
 typedef struct described_error {
@@ -104,104 +96,10 @@ typedef struct text_options {
     /* fn:json-doc: any codepoint JSON allows passes (F&O 4.0, section
        17.4.5), not only XML characters. */
     bool permits_any_character;
-    /* The coerced encoding value the name borrows, owned. */
-    sxml_sequence encoding_value;
+    /* The options read (by text_option_definitions), owned; the
+       encoding name borrows from them. */
+    sxml_option_values option_values;
 } text_options;
-
-/* Makes an xs:string key item, owned. */
-static sxml_status make_key(sxml_item_heap *item_heap, sxml_byte_view key_text,
-                            sxml_item *key) {
-    return sxml_atomic_item_make(
-        item_heap,
-        &(sxml_atomic_item_request){
-            .type = sxml_builtin_type_identifier(SXML_TYPE_XS_STRING),
-            .datum = {.datum_kind = SXML_DATUM_KIND_STRING,
-                      .datum_details = {.string = {.utf8 = key_text}}}},
-        key);
-}
-
-/* One option to read from a map: its key and the type of its value. */
-typedef struct option_query {
-    sxml_item options_map;
-    sxml_byte_view key_text;
-    sxml_sequence_type value_type;
-} option_query;
-
-/* Writes the coerced value of the option, owned, to *value, and whether
-   the map has it to *is_present (the empty sequence when it has not). A
-   value of the wrong type is XPTY0004. */
-static sxml_status read_option(const sxml_function_call *call, const option_query *query,
-                               sxml_sequence *value) {
-    *value = sxml_sequence_empty();
-    sxml_item key = {.representation = 0};
-    sxml_status status = make_key(call->item_heap, query->key_text, &key);
-    sxml_map_lookup lookup = {.is_found = false};
-    if (status == SXML_STATUS_OK) {
-        status = sxml_map_find(query->options_map, key, &lookup);
-        sxml_item_release(key);
-    }
-    if (status != SXML_STATUS_OK || !lookup.is_found) {
-        return status;
-    }
-    status = sxml_evaluator_coerce(
-        call->dynamic_context,
-        &(sxml_coercion_request){.value = lookup.entry.value,
-                                 .sequence_type = query->value_type,
-                                 .role = SXML_IR_COERCION_ROLE_FUNCTION_ARGUMENT,
-                                 .error_record = NULL},
-        value);
-    if (status == SXML_STATUS_TYPE_ERROR) {
-        return sxml_function_library_report(call, &option_type_error);
-    }
-    return status;
-}
-
-/* The value of an xs:boolean option already coerced; false when absent. */
-static bool option_is_true(sxml_sequence value) {
-    sxml_atomic_datum datum;
-    return sxml_sequence_get_representation(value) == SXML_SEQUENCE_REPRESENTATION_SINGLE_ITEM &&
-           sxml_atomic_item_get_datum(value.content, &datum) == SXML_STATUS_OK &&
-           datum.datum_kind == SXML_DATUM_KIND_BOOLEAN && datum.datum_details.boolean;
-}
-
-/* The text of a coerced xs:string? value; empty for the empty sequence. */
-static sxml_byte_view option_text(sxml_sequence value) {
-    sxml_atomic_datum datum;
-    if (sxml_sequence_get_representation(value) == SXML_SEQUENCE_REPRESENTATION_SINGLE_ITEM &&
-        sxml_atomic_item_get_datum(value.content, &datum) == SXML_STATUS_OK &&
-        datum.datum_kind == SXML_DATUM_KIND_STRING) {
-        return datum.datum_details.string.utf8;
-    }
-    return (sxml_byte_view){.bytes = NULL, .byte_count = 0};
-}
-
-/* An option key of an options map. */
-typedef struct option_key {
-    sxml_item options_map;
-    sxml_byte_view key_text;
-} option_key;
-
-/* A boolean option's value: false when absent. */
-typedef struct boolean_option {
-    bool is_true;
-} boolean_option;
-
-/* Reads a boolean option (normalize-newlines, fallback) into *option. */
-static sxml_status read_boolean_option(const sxml_function_call *call, option_key key,
-                                       boolean_option *option) {
-    sxml_sequence value = sxml_sequence_empty();
-    const sxml_status status = read_option(
-        call,
-        &(option_query){.options_map = key.options_map,
-                        .key_text = key.key_text,
-                        .value_type = {.item_type =
-                                           sxml_builtin_type_identifier(SXML_TYPE_XS_BOOLEAN),
-                                       .occurrence = SXML_OCCURRENCE_EXACTLY_ONE}},
-        &value);
-    option->is_true = option_is_true(value);
-    sxml_sequence_release(value);
-    return status;
-}
 
 /* Which function reads a text resource: its options and checks differ. */
 typedef enum text_function {
@@ -210,35 +108,38 @@ typedef enum text_function {
     SXML_TEXT_FUNCTION_JSON_DOC,
 } text_function;
 
-/* Whether the options map has the key, in option->is_true. */
-static sxml_status find_option_key(const sxml_function_call *call, option_key key,
-                                   boolean_option *option) {
-    sxml_item key_item = {.representation = 0};
-    sxml_status status = make_key(call->item_heap, key.key_text, &key_item);
-    sxml_map_lookup lookup = {.is_found = false};
-    if (status == SXML_STATUS_OK) {
-        status = sxml_map_find(key.options_map, key_item, &lookup);
-        sxml_item_release(key_item);
-    }
-    option->is_true = lookup.is_found;
-    return status;
-}
+/* The options of fn:unparsed-text and fn:unparsed-text-lines (F&O 4.0,
+   sections 17.1.5 and 17.1.6), by position; -lines reads only the first
+   two, so normalize-newlines is an unknown option there. */
+enum {
+    SXML_TEXT_OPTION_ENCODING,
+    SXML_TEXT_OPTION_FALLBACK,
+    SXML_TEXT_OPTION_NORMALIZE_NEWLINES,
+};
+
+static const sxml_option_definition text_option_definitions[] = {
+    SXML_FUNCTION_OPTION("encoding", SXML_TYPE_XS_STRING, SXML_OCCURRENCE_ZERO_OR_ONE),
+    SXML_FUNCTION_OPTION("fallback", SXML_TYPE_XS_BOOLEAN, SXML_OCCURRENCE_EXACTLY_ONE),
+    SXML_FUNCTION_OPTION("normalize-newlines", SXML_TYPE_XS_BOOLEAN,
+                         SXML_OCCURRENCE_EXACTLY_ONE),
+};
 
 /*
  * Reads $options (argument 1) of fn:unparsed-text and fn:unparsed-text-
- * lines: a string $S is the map {"encoding": $S}; a map has the keys
- * encoding, normalize-newlines (not for -lines, which always normalizes:
- * XPTY0004, as QT4 fn-unparsed-text-lines-40-014 expects) and fallback
+ * lines: a string $S is the map {"encoding": $S}; a map is read by the
+ * option parameter conventions (F&O 4.0, section 1.7) with the keys
+ * encoding, fallback and normalize-newlines (not for -lines, which always
+ * normalizes: XPTY0004, as QT4 fn-unparsed-text-lines-40-014 expects)
  * (F&O 4.0, sections 17.1.5 and 17.1.6). fn:json-doc's options are
- * fn:parse-json's. Release options->encoding_value on every path.
+ * fn:parse-json's. Release options->option_values on every path.
  */
 static sxml_status read_text_options(const sxml_function_call *call, text_function function,
                                      text_options *options) {
+    const bool is_lines = function == SXML_TEXT_FUNCTION_UNPARSED_TEXT_LINES;
     *options = (text_options){.encoding_name = {.bytes = NULL, .byte_count = 0},
-                              .normalizes_newlines = function == SXML_TEXT_FUNCTION_UNPARSED_TEXT_LINES,
+                              .normalizes_newlines = is_lines,
                               .has_fallback = false,
-                              .permits_any_character = function == SXML_TEXT_FUNCTION_JSON_DOC,
-                              .encoding_value = sxml_sequence_empty()};
+                              .permits_any_character = function == SXML_TEXT_FUNCTION_JSON_DOC};
     if (function == SXML_TEXT_FUNCTION_JSON_DOC) {
         return SXML_STATUS_OK;
     }
@@ -255,37 +156,34 @@ static sxml_status read_text_options(const sxml_function_call *call, text_functi
         }
         return status;
     }
-    status = read_option(
+    sxml_option_values *values = &options->option_values;
+    status = sxml_function_library_read_options(
         call,
-        &(option_query){.options_map = argument.item,
-                        .key_text = SXML_BYTE_VIEW_FROM_LITERAL("encoding"),
-                        .value_type = {.item_type =
-                                           sxml_builtin_type_identifier(SXML_TYPE_XS_STRING),
-                                       .occurrence = SXML_OCCURRENCE_ZERO_OR_ONE}},
-        &options->encoding_value);
-    options->encoding_name = option_text(options->encoding_value);
-    const sxml_byte_view newlines_key = SXML_BYTE_VIEW_FROM_LITERAL("normalize-newlines");
-    boolean_option option = {.is_true = false};
-    if (status == SXML_STATUS_OK && function == SXML_TEXT_FUNCTION_UNPARSED_TEXT_LINES) {
-        status = find_option_key(
-            call, (option_key){.options_map = argument.item, .key_text = newlines_key}, &option);
-        if (status == SXML_STATUS_OK && option.is_true) {
-            status = sxml_function_library_report(call, &option_type_error);
-        }
-    } else if (status == SXML_STATUS_OK) {
-        status = read_boolean_option(
-            call, (option_key){.options_map = argument.item, .key_text = newlines_key}, &option);
-        options->normalizes_newlines = option.is_true;
+        &(sxml_option_request){
+            .argument_index = 1,
+            .definitions = {text_option_definitions,
+                            is_lines ? SXML_TEXT_OPTION_NORMALIZE_NEWLINES
+                                     : sizeof(text_option_definitions) /
+                                           sizeof(text_option_definitions[0])}},
+        values);
+    if (status != SXML_STATUS_OK) {
+        return status;
     }
-    if (status == SXML_STATUS_OK) {
-        status = read_boolean_option(
-            call,
-            (option_key){.options_map = argument.item,
-                         .key_text = SXML_BYTE_VIEW_FROM_LITERAL("fallback")},
-            &option);
-        options->has_fallback = option.is_true;
+    const sxml_sequence encoding = values->values[SXML_TEXT_OPTION_ENCODING];
+    sxml_atomic_datum datum;
+    if (sxml_sequence_get_representation(encoding) == SXML_SEQUENCE_REPRESENTATION_SINGLE_ITEM &&
+        sxml_atomic_item_get_datum(encoding.content, &datum) == SXML_STATUS_OK &&
+        datum.datum_kind == SXML_DATUM_KIND_STRING) {
+        options->encoding_name = datum.datum_details.string.utf8;
     }
-    return status;
+    options->has_fallback = sxml_function_library_option_is_true(
+        (sxml_option_lookup){.values = values, .option_index = SXML_TEXT_OPTION_FALLBACK});
+    if (!is_lines) {
+        options->normalizes_newlines = sxml_function_library_option_is_true(
+            (sxml_option_lookup){.values = values,
+                                 .option_index = SXML_TEXT_OPTION_NORMALIZE_NEWLINES});
+    }
+    return SXML_STATUS_OK;
 }
 
 /* -------------------------------------------------------------- Decoding */
@@ -693,7 +591,7 @@ typedef struct text_reading {
 } text_reading;
 
 static void text_reading_release(text_reading *reading) {
-    sxml_sequence_release(reading->options.encoding_value);
+    sxml_function_library_release_options(&reading->options.option_values);
     sxml_function_library_text_release(&reading->outcome.text);
 }
 
@@ -706,7 +604,6 @@ static void text_reading_release(text_reading *reading) {
 static sxml_status start_text_reading(const sxml_function_call *call, text_function function,
                                       text_reading *reading) {
     memset(reading, 0, sizeof(*reading));
-    reading->options.encoding_value = sxml_sequence_empty();
     reading->outcome.text.item_heap = call->item_heap;
     if (call->dynamic_context == NULL) {
         return SXML_STATUS_INVALID_ARGUMENT;

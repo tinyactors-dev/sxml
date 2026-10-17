@@ -741,14 +741,6 @@ static const sxml_static_error unresolved_collation_error = {
         "against (F&O 4.0, section 5.2.7)"),
 };
 
-static const sxml_static_error codepoint_only_collation_error = {
-    .error_status = SXML_STATUS_DYNAMIC_ERROR,
-    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("FOCH0002"),
-    .description = SXML_BYTE_VIEW_INITIALIZER(
-        "The collation is not supported by this function: only the Unicode codepoint "
-        "collation is (F&O 4.0, section 5.2.7)"),
-};
-
 /* The collation an absolute URI names: a collation binding of the
    running unit's static context first (XPath 4.0, section 2.2.1, the
    mapping from URI to collation), then the collations sxml knows. */
@@ -824,17 +816,6 @@ sxml_status sxml_function_library_resolve_collation(const sxml_function_call *ca
         return status;
     }
     return sxml_function_library_find_collation(call, collation_uri.utf8, collation);
-}
-
-sxml_status sxml_function_library_check_collation(const sxml_function_call *call,
-                                                  size_t argument_index) {
-    sxml_collation collation;
-    sxml_status status =
-        sxml_function_library_resolve_collation(call, argument_index, &collation);
-    if (status == SXML_STATUS_OK && !sxml_collation_is_codepoint_order(&collation)) {
-        status = sxml_function_library_report(call, &codepoint_only_collation_error);
-    }
-    return status;
 }
 
 /* The string of a string-family item (xs:string, xs:anyURI,

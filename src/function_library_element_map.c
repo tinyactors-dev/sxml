@@ -168,33 +168,20 @@ enum {
 };
 
 /* The options of fn:element-to-map and fn:map-to-element (F&O 4.0,
-   section 14.6.14), with the type each value is coerced to. */
-static const char *const element_map_option_names[] = {
-    "plan", "attribute-marker", "content-key", "name-format", "escape-names", "liberal",
-};
-
-static const sxml_builtin_type element_map_option_types[] = {
-    SXML_TYPE_MAP,        SXML_TYPE_XS_STRING,  SXML_TYPE_XS_STRING,
-    SXML_TYPE_XS_STRING,  SXML_TYPE_XS_BOOLEAN, SXML_TYPE_XS_BOOLEAN,
+   section 14.6.14), in the order of the enumeration above, read by the
+   option parameter conventions (src/function_library_options.c). */
+static const sxml_option_definition element_map_option_definitions[] = {
+    SXML_FUNCTION_OPTION("plan", SXML_TYPE_MAP, SXML_OCCURRENCE_EXACTLY_ONE),
+    SXML_FUNCTION_OPTION("attribute-marker", SXML_TYPE_XS_STRING, SXML_OCCURRENCE_EXACTLY_ONE),
+    SXML_FUNCTION_OPTION("content-key", SXML_TYPE_XS_STRING, SXML_OCCURRENCE_EXACTLY_ONE),
+    SXML_FUNCTION_OPTION("name-format", SXML_TYPE_XS_STRING, SXML_OCCURRENCE_EXACTLY_ONE),
+    SXML_FUNCTION_OPTION("escape-names", SXML_TYPE_XS_BOOLEAN, SXML_OCCURRENCE_EXACTLY_ONE),
+    SXML_FUNCTION_OPTION("liberal", SXML_TYPE_XS_BOOLEAN, SXML_OCCURRENCE_EXACTLY_ONE),
 };
 
 static const char *const element_map_name_format_names[] = {
     "default", "eqname", "local", "lexical",
 };
-
-/* The option values, coerced and owned. */
-typedef struct element_map_option_values {
-    sxml_sequence values[SXML_ELEMENT_MAP_OPTION_COUNT];
-    bool is_present[SXML_ELEMENT_MAP_OPTION_COUNT];
-} element_map_option_values;
-
-static void element_map_option_values_release(element_map_option_values *values) {
-    for (size_t option_index = 0; option_index < SXML_ELEMENT_MAP_OPTION_COUNT;
-         option_index += 1) {
-        sxml_sequence_release(values->values[option_index]);
-        values->values[option_index] = sxml_sequence_empty();
-    }
-}
 
 /* What one call works with: the call, its options and its plan. */
 typedef struct element_map_context {
@@ -217,13 +204,13 @@ typedef struct element_map_context {
     bool has_plan_index;
     /* The coerced option values, owned; the marker and the content key
        are borrowed from them. */
-    element_map_option_values option_values;
+    sxml_option_values option_values;
     bool has_fallback;
     element_map_plan_entry fallback;
 } element_map_context;
 
 static void element_map_context_release(element_map_context *context) {
-    element_map_option_values_release(&context->option_values);
+    sxml_function_library_release_options(&context->option_values);
     sxml_allocator_release(context->allocator, context->plan_entries);
     context->plan_entries = NULL;
     context->plan_entry_count = 0;
@@ -414,67 +401,6 @@ static size_t element_map_find_name(element_map_name_list list, sxml_byte_view t
         }
     }
     return list.name_count;
-}
-
-/* Reads the options map by the option parameter conventions (F&O 4.0,
-   section 1.7): unknown string keys XPTY0004, QName keys ignored, values
-   coerced to their types. */
-static sxml_status element_map_read_option_values(const element_map_context *context,
-                                                  sxml_sequence options,
-                                                  element_map_option_values *values) {
-    if (element_map_is_empty(options)) {
-        return SXML_STATUS_OK;
-    }
-    const sxml_function_call *call = context->call;
-    if (call->dynamic_context == NULL) {
-        return SXML_STATUS_INVALID_ARGUMENT;
-    }
-    size_t entry_count = 0;
-    sxml_status status = sxml_map_get_size(options.content, &entry_count);
-    for (size_t entry_index = 0; status == SXML_STATUS_OK && entry_index < entry_count;
-         entry_index += 1) {
-        sxml_map_entry entry;
-        status = sxml_map_get_entry(options.content, entry_index, &entry);
-        if (status != SXML_STATUS_OK) {
-            break;
-        }
-        sxml_byte_view key_text;
-        if (!element_map_item_text(entry.key, &key_text)) {
-            continue;
-        }
-        const size_t option_index = element_map_find_name(
-            (element_map_name_list){element_map_option_names, SXML_ELEMENT_MAP_OPTION_COUNT},
-            key_text);
-        if (option_index == SXML_ELEMENT_MAP_OPTION_COUNT) {
-            return element_map_report(context, &element_map_type_error);
-        }
-        sxml_sequence coerced = sxml_sequence_empty();
-        status = sxml_evaluator_coerce(
-            call->dynamic_context,
-            &(sxml_coercion_request){
-                .value = entry.value,
-                .sequence_type = {.item_type = sxml_builtin_type_identifier(
-                                      element_map_option_types[option_index]),
-                                  .occurrence = SXML_OCCURRENCE_EXACTLY_ONE},
-                .role = SXML_IR_COERCION_ROLE_FUNCTION_ARGUMENT,
-                .error_record = call->error_record},
-            &coerced);
-        if (status == SXML_STATUS_OK) {
-            sxml_sequence_release(values->values[option_index]);
-            values->values[option_index] = coerced;
-            values->is_present[option_index] = true;
-        }
-    }
-    return status;
-}
-
-static bool element_map_option_is_true(const element_map_option_values *values,
-                                       size_t option_index) {
-    sxml_atomic_datum datum;
-    return values->is_present[option_index] &&
-           sxml_atomic_item_get_datum(values->values[option_index].content, &datum) ==
-               SXML_STATUS_OK &&
-           datum.datum_details.boolean;
 }
 
 /* -------------------------------------------------------- Plan reading */
@@ -709,9 +635,15 @@ static sxml_status element_map_read_plan(element_map_context *context, sxml_sequ
 
 /* Reads the options argument (argument 1) into context. */
 static sxml_status element_map_read_options(element_map_context *context) {
-    element_map_option_values *values = &context->option_values;
-    sxml_status status = element_map_read_option_values(
-        context, sxml_function_library_get_argument(context->call, 1), values);
+    sxml_option_values *values = &context->option_values;
+    sxml_status status = sxml_function_library_read_options(
+        context->call,
+        &(sxml_option_request){
+            .argument_index = 1,
+            .definitions = {element_map_option_definitions,
+                            sizeof(element_map_option_definitions) /
+                                sizeof(element_map_option_definitions[0])}},
+        values);
     context->attribute_marker = SXML_BYTE_VIEW_FROM_LITERAL("@");
     context->content_key = SXML_BYTE_VIEW_FROM_LITERAL("#content");
     context->name_format = SXML_ELEMENT_MAP_NAME_FORMAT_DEFAULT;
@@ -727,9 +659,10 @@ static sxml_status element_map_read_options(element_map_context *context) {
             context->name_format = (element_map_name_format)format_index;
         }
     }
-    context->escapes_names = element_map_option_is_true(values,
-                                                        SXML_ELEMENT_MAP_OPTION_ESCAPE_NAMES);
-    context->is_liberal = element_map_option_is_true(values, SXML_ELEMENT_MAP_OPTION_LIBERAL);
+    context->escapes_names = sxml_function_library_option_is_true(
+        (sxml_option_lookup){.values = values, .option_index = SXML_ELEMENT_MAP_OPTION_ESCAPE_NAMES});
+    context->is_liberal = sxml_function_library_option_is_true(
+        (sxml_option_lookup){.values = values, .option_index = SXML_ELEMENT_MAP_OPTION_LIBERAL});
     if (status == SXML_STATUS_OK) {
         status = element_map_read_plan(context, values->values[SXML_ELEMENT_MAP_OPTION_PLAN]);
     }

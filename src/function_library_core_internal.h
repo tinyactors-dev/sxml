@@ -136,16 +136,6 @@ SXML_NODISCARD sxml_status sxml_function_library_find_collation(
 SXML_NODISCARD sxml_status sxml_function_library_resolve_collation(
     const sxml_function_call *call, size_t argument_index, sxml_collation *collation);
 
-/*
- * Resolves a collation argument for a body that compares by codepoints
- * only: FOCH0002 as sxml_function_library_resolve_collation, and also
- * for a supported collation that is not the codepoint collation. Bodies
- * outside the string, sequence and deep-equal parts use it until they
- * compare through sxml_function_library_compare_collated (D116).
- */
-SXML_NODISCARD sxml_status sxml_function_library_check_collation(
-    const sxml_function_call *call, size_t argument_index);
-
 /* The URI of the Unicode codepoint collation (F&O 4.0, section 5.2.3). */
 sxml_byte_view sxml_function_library_codepoint_collation_uri(void);
 
@@ -349,6 +339,13 @@ typedef struct sxml_option_definition_view {
     const sxml_option_definition *definitions;
     size_t definition_count;
 } sxml_option_definition_view;
+
+/* A definition in a static table: name_text a string literal, type_index
+   an sxml_builtin_type, occurrence_value an sxml_occurrence. */
+#define SXML_FUNCTION_OPTION(name_text, type_index, occurrence_value)         \
+    {.option_name = SXML_BYTE_VIEW_INITIALIZER(name_text),                    \
+     .option_type = {.item_type = {.index = (type_index)},                    \
+                     .occurrence = (occurrence_value)}}
 
 /* The most options one function defines. */
 #define SXML_FUNCTION_OPTION_LIMIT ((size_t)10)

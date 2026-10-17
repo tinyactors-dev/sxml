@@ -212,11 +212,6 @@ static sxml_status csv_list_make_sequence(const sxml_function_call *call, const 
 
 /* --------------------------------------------------------------- Options */
 
-#define SXML_CSV_OPTION(name_text, type_index, occurrence_value)              \
-    {.option_name = SXML_BYTE_VIEW_INITIALIZER(name_text),                    \
-     .option_type = {.item_type = {.index = (type_index)},                    \
-                     .occurrence = (occurrence_value)}}
-
 /* The options of fn:parse-csv, fn:csv-to-xml and fn:csv-doc, by position
    (F&O 4.0, fn:parse-csv). header's type, (xs:boolean | xs:string)*, is
    checked by csv_read_header. */
@@ -231,14 +226,14 @@ enum {
 };
 
 static const sxml_option_definition csv_options[] = {
-    SXML_CSV_OPTION("separator", SXML_TYPE_XS_STRING, SXML_OCCURRENCE_EXACTLY_ONE),
-    SXML_CSV_OPTION("quote-character", SXML_TYPE_XS_STRING, SXML_OCCURRENCE_EXACTLY_ONE),
-    SXML_CSV_OPTION("comment-marker", SXML_TYPE_XS_STRING, SXML_OCCURRENCE_ZERO_OR_ONE),
-    SXML_CSV_OPTION("trim-whitespace", SXML_TYPE_XS_BOOLEAN, SXML_OCCURRENCE_EXACTLY_ONE),
-    SXML_CSV_OPTION("header", SXML_TYPE_XS_ANY_ATOMIC_TYPE, SXML_OCCURRENCE_ZERO_OR_MORE),
-    SXML_CSV_OPTION("select-columns", SXML_TYPE_XS_POSITIVE_INTEGER,
-                    SXML_OCCURRENCE_ZERO_OR_MORE),
-    SXML_CSV_OPTION("trim-rows", SXML_TYPE_XS_BOOLEAN, SXML_OCCURRENCE_EXACTLY_ONE),
+    SXML_FUNCTION_OPTION("separator", SXML_TYPE_XS_STRING, SXML_OCCURRENCE_EXACTLY_ONE),
+    SXML_FUNCTION_OPTION("quote-character", SXML_TYPE_XS_STRING, SXML_OCCURRENCE_EXACTLY_ONE),
+    SXML_FUNCTION_OPTION("comment-marker", SXML_TYPE_XS_STRING, SXML_OCCURRENCE_ZERO_OR_ONE),
+    SXML_FUNCTION_OPTION("trim-whitespace", SXML_TYPE_XS_BOOLEAN, SXML_OCCURRENCE_EXACTLY_ONE),
+    SXML_FUNCTION_OPTION("header", SXML_TYPE_XS_ANY_ATOMIC_TYPE, SXML_OCCURRENCE_ZERO_OR_MORE),
+    SXML_FUNCTION_OPTION("select-columns", SXML_TYPE_XS_POSITIVE_INTEGER,
+                         SXML_OCCURRENCE_ZERO_OR_MORE),
+    SXML_FUNCTION_OPTION("trim-rows", SXML_TYPE_XS_BOOLEAN, SXML_OCCURRENCE_EXACTLY_ONE),
 };
 
 /* How column names are found (option header). */

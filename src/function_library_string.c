@@ -561,9 +561,7 @@ static sxml_status call_lower_case(const sxml_function_call *call,
 
 /* A string option (F&O 4.0, section 1.7): the value coerced to xs:string. */
 #define SXML_STRING_OPTION(name_text)                                         \
-    {.option_name = SXML_BYTE_VIEW_INITIALIZER(name_text),                    \
-     .option_type = {.item_type = {.index = SXML_TYPE_XS_STRING},              \
-                     .occurrence = SXML_OCCURRENCE_EXACTLY_ONE}}
+    SXML_FUNCTION_OPTION(name_text, SXML_TYPE_XS_STRING, SXML_OCCURRENCE_EXACTLY_ONE)
 
 /* Which sides fn:trim-space strips or fn:pad-string pads. */
 typedef struct string_sides {
