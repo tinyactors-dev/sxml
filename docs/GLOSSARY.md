@@ -290,6 +290,12 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `date_time` | The seven components of a date/time datum (XDM 4.0, section 5.4) |
 | `duration` | A duration datum: months plus seconds and nanoseconds (XDM 4.0, section 5.5) |
 | `timezone_offset_minutes` | A timezone as minutes east of UTC, from -840 to 840 |
+| `gregorian_value` | A value of one of the eight Gregorian types: xs:dateTime, xs:date, xs:time, xs:gYear, xs:gYearMonth, xs:gMonth, xs:gMonthDay, xs:gDay (F&O 4.0, section 9.3) |
+| `local_value` | A date/time value as written, without adjusting it by its timezone (F&O 4.0, section 9.6) |
+| `relabel` | Coercion that changes an atomic item's type annotation to a derived type whose value space holds the datum, keeping the datum (XPath 4.0, section 3.4.3) |
+| `civil_timezone` | The timezone offset in conventional use at a place and time (F&O 4.0, fn:civil-timezone) |
+| `ietf_date` | A date and time in the formats of RFC 822, RFC 850 and asctime that fn:parse-ietf-date reads |
+| `unix_time` | Milliseconds since 1970-01-01T00:00:00Z, leap seconds not counted (fn:unix-dateTime) |
 | `atomic_equal` | The context-free equality of map keys (F&O 4.0, section 2.2.1 `fn:atomic-equal`) |
 | `atomic_hash` | A hash consistent with `atomic_equal` |
 | `sequence_representation` | How a sequence is stored: empty, single item, vector, integer range, concatenation, lazy |
