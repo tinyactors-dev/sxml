@@ -1287,6 +1287,33 @@ SXML_NODISCARD sxml_status sxml_ir_unit_write_text(const sxml_ir_unit *unit,
                                                    sxml_memory_view output,
                                                    size_t *byte_count);
 
+/* Two functions to compare. */
+typedef struct sxml_ir_function_pair {
+    const sxml_ir_function *first_function;
+    const sxml_ir_function *second_function;
+} sxml_ir_function_pair;
+
+typedef struct sxml_ir_static_form_comparison {
+    bool is_same;
+} sxml_ir_static_form_comparison;
+
+/*
+ * Writes to comparison->is_same whether two functions have the same
+ * static form (F&O 4.0, section 1.9.5, "equivalent" function items, used
+ * by fn:deep-equal; D143): the same parameter count, slots, focus slots and
+ * body, the functions they define compared alike, up to the renaming of
+ * bound variables (slots are numbered by position), ignoring their own
+ * names (the caller compares those), annotations, source spans and which
+ * atoms of the defining function their own captured variables are (the
+ * caller compares the captured values); a defined function keeps its
+ * name, as the closure of fn:last#0 has one. It compares the text forms
+ * (see "Text form"), written with each FUNCTION_DEFINITION as the
+ * function it defines, in memory of the unit's allocator. Functions of two units are never the same. Returns
+ * the allocator's and the item heap's failures.
+ */
+SXML_NODISCARD sxml_status sxml_ir_function_has_same_static_form(
+    sxml_ir_function_pair pair, sxml_ir_static_form_comparison *comparison);
+
 /* ------------------------------------------------------------- Accessors */
 
 /* The expression at index, borrowed; a zero expression (kind NONE) for 0

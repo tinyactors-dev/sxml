@@ -1017,6 +1017,10 @@ typedef struct text_writer {
     /* The first failure that is not a full output (a heap failure while
        reading a decimal's text); the text goes on without it. */
     sxml_status status;
+    /* Static form (sxml_ir_function_has_same_static_form): a
+       FUNCTION_DEFINITION prints the defined function in place of its
+       index. */
+    bool inlines_function_definitions;
 } text_writer;
 
 static void write_bytes(text_writer *writer, sxml_byte_view bytes) {
@@ -1986,6 +1990,9 @@ typedef enum print_task_kind {
     SXML_PRINT_TASK_KIND_CATCH_CLAUSE,
     /* "(finally". */
     SXML_PRINT_TASK_KIND_FINALLY,
+    /* The static form of function value: header and body (static form
+       only). */
+    SXML_PRINT_TASK_KIND_FUNCTION_FORM,
 } print_task_kind;
 
 typedef struct print_task {
@@ -2252,6 +2259,11 @@ static sxml_status print_expression(text_writer *writer, print_stack *stack,
         return SXML_STATUS_OK;
     case SXML_IR_EXPRESSION_KIND_FUNCTION_DEFINITION:
         write_text(writer, " ");
+        if (writer->inlines_function_definitions) {
+            return push_print_task(
+                stack, (print_task){.task_kind = SXML_PRINT_TASK_KIND_FUNCTION_FORM,
+                                    .value = expression->function_definition.function.value});
+        }
         write_unsigned(writer, expression->function_definition.function.value);
         return SXML_STATUS_OK;
     case SXML_IR_EXPRESSION_KIND_FUNCTION_REFERENCE:
@@ -2501,24 +2513,24 @@ static void print_catch_clause(text_writer *writer, uint32_t clause_index) {
     write_slot(writer, clause.catch_clauses[0].error_details);
 }
 
-static sxml_status print_function(text_writer *writer, print_stack *stack,
-                                  uint32_t function_number) {
-    const sxml_ir_function *function = sxml_ir_unit_get_function(
-        writer->unit, (sxml_ir_function_index){.value = function_number});
-    write_text(writer, "(function ");
-    write_unsigned(writer, function_number);
-    write_text(writer, " ");
-    if (function_number == 1) {
-        write_text(writer, "main");
-    } else if (function->function_name.index != 0) {
-        write_name(writer, function->function_name);
-    } else {
-        write_text(writer, "anonymous");
-    }
+/* " (parameters N) (captures ATOM...) (slots N) [(focus ...)]" of a
+   function; without prints_capture_atoms, only the number of captures. */
+typedef struct function_header_text {
+    const sxml_ir_function *function;
+    bool prints_capture_atoms;
+} function_header_text;
+
+static void write_function_header(text_writer *writer, function_header_text text) {
+    const sxml_ir_function *function = text.function;
     write_text(writer, " (parameters ");
     write_unsigned(writer, function->parameter_count);
     write_text(writer, ") (captures");
-    write_atom_list(writer, function->captured_variables);
+    if (text.prints_capture_atoms) {
+        write_atom_list(writer, function->captured_variables);
+    } else {
+        write_text(writer, " ");
+        write_unsigned(writer, function->captured_variables.atom_count);
+    }
     write_text(writer, ") (slots ");
     write_unsigned(writer, function->slot_count);
     write_text(writer, ")");
@@ -2528,14 +2540,23 @@ static sxml_status print_function(text_writer *writer, print_stack *stack,
         write_text(writer, " ");
         write_focus(writer, function->focus);
     }
-    stack->task_count = 0;
+}
+
+/* Pushes the ")" of a function and its body at indent. */
+static sxml_status push_function_body(print_stack *stack, const sxml_ir_function *function,
+                                      uint32_t indent) {
     sxml_status status = push_print_task(
         stack, (print_task){.task_kind = SXML_PRINT_TASK_KIND_CLOSE, .value = 0});
     if (status == SXML_STATUS_OK) {
         status = push_nested_operand(
-            stack,
-            (nested_operand){.expression = function->body, .indent = 2});
+            stack, (nested_operand){.expression = function->body, .indent = indent});
     }
+    return status;
+}
+
+/* Runs the stack's tasks until it is empty. */
+static sxml_status run_print_tasks(text_writer *writer, print_stack *stack) {
+    sxml_status status = SXML_STATUS_OK;
     while (status == SXML_STATUS_OK && stack->task_count > 0) {
         stack->task_count -= 1;
         const print_task task = stack->tasks[stack->task_count];
@@ -2559,7 +2580,45 @@ static sxml_status print_function(text_writer *writer, print_stack *stack,
         case SXML_PRINT_TASK_KIND_FINALLY:
             write_text(writer, "(finally");
             break;
+        case SXML_PRINT_TASK_KIND_FUNCTION_FORM: {
+            const sxml_ir_function *function = sxml_ir_unit_get_function(
+                writer->unit, (sxml_ir_function_index){.value = task.value});
+            const uint32_t indent = indent_after(writer->column);
+            write_text(writer, "(function");
+            if (function->function_name.index != 0) {
+                write_text(writer, " ");
+                write_name(writer, function->function_name);
+            }
+            write_function_header(
+                writer, (function_header_text){.function = function, .prints_capture_atoms = true});
+            status = push_function_body(stack, function, indent);
+            break;
         }
+        }
+    }
+    return status;
+}
+
+static sxml_status print_function(text_writer *writer, print_stack *stack,
+                                  uint32_t function_number) {
+    const sxml_ir_function *function = sxml_ir_unit_get_function(
+        writer->unit, (sxml_ir_function_index){.value = function_number});
+    write_text(writer, "(function ");
+    write_unsigned(writer, function_number);
+    write_text(writer, " ");
+    if (function_number == 1) {
+        write_text(writer, "main");
+    } else if (function->function_name.index != 0) {
+        write_name(writer, function->function_name);
+    } else {
+        write_text(writer, "anonymous");
+    }
+    write_function_header(
+        writer, (function_header_text){.function = function, .prints_capture_atoms = true});
+    stack->task_count = 0;
+    sxml_status status = push_function_body(stack, function, 2);
+    if (status == SXML_STATUS_OK) {
+        status = run_print_tasks(writer, stack);
     }
     write_text(writer, "\n");
     return status;
@@ -2600,6 +2659,88 @@ sxml_status sxml_ir_unit_write_text(const sxml_ir_unit *unit,
         return SXML_STATUS_CAPACITY_EXCEEDED;
     }
     return SXML_STATUS_OK;
+}
+
+/* ---------------------------------------------------------- Static form */
+
+/* Writes the static form of function (see sxml_ir_function_has_same_
+   static_form) as write_text does: *byte_count is the bytes it needs. */
+static sxml_status write_static_form(const sxml_ir_function *function,
+                                     sxml_memory_view output, size_t *byte_count) {
+    const sxml_ir_unit *unit = function->unit;
+    text_writer writer = {
+        .output = output,
+        .byte_count = 0,
+        .column = 0,
+        .unit = unit,
+        .name_pool = sxml_item_heap_get_name_pool(unit->item_heap),
+        .type_registry = sxml_item_heap_get_type_registry(unit->item_heap),
+        .status = SXML_STATUS_OK,
+        .inlines_function_definitions = true,
+    };
+    print_stack stack = {.tasks = NULL,
+                         .task_count = 0,
+                         .task_capacity = 0,
+                         .allocator = unit->allocator,
+                         .unit = unit};
+    write_text(&writer, "(function");
+    write_function_header(
+        &writer, (function_header_text){.function = function, .prints_capture_atoms = false});
+    sxml_status status = push_function_body(&stack, function, 2);
+    if (status == SXML_STATUS_OK) {
+        status = run_print_tasks(&writer, &stack);
+    }
+    sxml_allocator_release(unit->allocator, stack.tasks);
+    if (status == SXML_STATUS_OK) {
+        status = writer.status;
+    }
+    *byte_count = writer.byte_count;
+    return status;
+}
+
+/* The static form of function, in the unit allocator's memory. */
+static sxml_status make_static_form(const sxml_ir_function *function, sxml_memory_view *text) {
+    *text = (sxml_memory_view){.bytes = NULL, .byte_count = 0};
+    size_t byte_count = 0;
+    sxml_status status = write_static_form(function, *text, &byte_count);
+    void *memory = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_allocator_allocate(
+            function->unit->allocator,
+            (sxml_allocation_request){.byte_count = byte_count, .alignment = 1}, &memory);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    *text = (sxml_memory_view){.bytes = memory, .byte_count = byte_count};
+    status = write_static_form(function, *text, &byte_count);
+    if (status != SXML_STATUS_OK) {
+        sxml_allocator_release(function->unit->allocator, memory);
+        *text = (sxml_memory_view){.bytes = NULL, .byte_count = 0};
+    }
+    return status;
+}
+
+sxml_status sxml_ir_function_has_same_static_form(sxml_ir_function_pair pair,
+                                                  sxml_ir_static_form_comparison *comparison) {
+    comparison->is_same = pair.first_function == pair.second_function;
+    if (comparison->is_same || pair.first_function->unit != pair.second_function->unit) {
+        return SXML_STATUS_OK;
+    }
+    sxml_memory_view first_text = {.bytes = NULL, .byte_count = 0};
+    sxml_memory_view second_text = {.bytes = NULL, .byte_count = 0};
+    sxml_status status = make_static_form(pair.first_function, &first_text);
+    if (status == SXML_STATUS_OK) {
+        status = make_static_form(pair.second_function, &second_text);
+    }
+    if (status == SXML_STATUS_OK) {
+        comparison->is_same = first_text.byte_count == second_text.byte_count &&
+                   memcmp(first_text.bytes, second_text.bytes, first_text.byte_count) == 0;
+    }
+    const sxml_allocator allocator = pair.first_function->unit->allocator;
+    sxml_allocator_release(allocator, first_text.bytes);
+    sxml_allocator_release(allocator, second_text.bytes);
+    return status;
 }
 
 /* --------------------------------------------------------------- Passes */

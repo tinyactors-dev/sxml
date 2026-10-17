@@ -53,16 +53,18 @@
  *   the same order with map-order;
  * - arrays: same size, members deep equal in order;
  * - other function items: the same item, or the same body, arity, name
- *   and signature with deep-equal captured values (so two references to a
- *   function, or two partial applications of it to equal arguments, are
- *   equal; two inline functions written separately are not compared for
- *   equivalence and differ).
+ *   and signature with deep-equal captured values, where two IR functions
+ *   with the same static form are the same body (so two references to a
+ *   function, two partial applications of it to equal arguments and two
+ *   inline functions written alike up to their variable names are equal;
+ *   packet 2.19, D143).
  *
  * Without schemas, typed-values and type-variety make no difference, and
  * debug writes nothing.
  */
 #include "evaluator_internal.h"
 #include "function_library_core_internal.h"
+#include "ir_internal.h"
 #include "unicode_internal.h"
 
 #include <stdalign.h>
@@ -1520,8 +1522,9 @@ static sxml_status compare_nodes(deep_comparison *comparison, node_pair pair) {
 }
 
 /* Two function items that are neither maps nor arrays: equal when they are
-   the same item, or have the same body, arity, name and signature and
-   deep-equal captured values (pushed as a cursor). */
+   the same item, or have the same body (or IR functions of the same
+   static form), arity, name and signature and deep-equal captured values
+   (pushed as a cursor). */
 static sxml_status compare_functions(deep_comparison *comparison, sxml_item first,
                                      sxml_item second) {
     if (first.representation == second.representation &&
@@ -1532,8 +1535,27 @@ static sxml_status compare_functions(deep_comparison *comparison, sxml_item firs
     sxml_function_item_description first_description;
     sxml_function_item_description second_description;
     if (sxml_function_item_describe(first, &first_description) != SXML_STATUS_OK ||
-        sxml_function_item_describe(second, &second_description) != SXML_STATUS_OK ||
-        first_description.body.state != second_description.body.state ||
+        sxml_function_item_describe(second, &second_description) != SXML_STATUS_OK) {
+        comparison->is_equal = false;
+        return SXML_STATUS_OK;
+    }
+    bool has_same_body = first_description.body.state == second_description.body.state;
+    if (!has_same_body &&
+        first_description.body.operations == &sxml_evaluator_function_body_operations &&
+        second_description.body.operations == &sxml_evaluator_function_body_operations) {
+        /* Two IR functions, such as two inline functions written alike: the
+           same static form (F&O 4.0, section 1.9.5, "equivalent"). */
+        sxml_ir_static_form_comparison form = {.is_same = false};
+        const sxml_status status = sxml_ir_function_has_same_static_form(
+            (sxml_ir_function_pair){.first_function = first_description.body.state,
+                                    .second_function = second_description.body.state},
+            &form);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        has_same_body = form.is_same;
+    }
+    if (!has_same_body ||
         first_description.body.operations != second_description.body.operations ||
         first_description.arity != second_description.arity ||
         first_description.function_name.index != second_description.function_name.index ||

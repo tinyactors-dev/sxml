@@ -373,6 +373,22 @@ static const slice_case library_cases[] = {
                 "(generate-id($d//b) = generate-id($d/a/b), generate-id($d//b) = generate-id($d/a))",
                 "1 2 xs:dateTime(\"1999-12-31T00:00:00Z\") \"a b\" \"a \" -1000 4294967295 "
                 "13367494538843734067838845976575 true() false()"),
+    /* Packet 2.19: JNode ids (F&O 4.0, 14.1.11), decimal and double zero,
+       a computed constructor in XPath 4.0 (section 4.13). */
+    SLICE_VALUE("sweep-2.19",
+                "let $j := jtree({'a': 1, 'b': [1, 2]}) return "
+                "(generate-id($j/a) = generate-id($j/a), generate-id($j/a) = generate-id($j/b), "
+                "matches(generate-id($j/b/*[2]), '^[A-Za-z][A-Za-z0-9]*$')), "
+                "0.0 eq 0e0, count(distinct-values((0.0, -0e0))), string(element #e {'t'}), "
+                "count(reverse(1 to 100000000000)), 1 = reverse(1 to 100000000000), "
+                "reverse(reverse(1 to 3)), reverse(1 to 3)[2], "
+                "parse-json('\"a\\u0000\"', {'fallback': fn($s) { 'F' }}), "
+                "deep-equal(fn($x) { fn($y) { $x + $y } }, fn($a) { fn($b) { $a + $b } }), "
+                "deep-equal(fn($x) { $x }, fn($x) { $x + 1 }), "
+                "deep-equal(concat('a', ?), concat('a', ?)), "
+                "deep-equal(fn($x) { fn($y) { $x + $y } }(1), fn($x) { fn($y) { $x + $y } }(2))",
+                "true() false() true() true() 1 \"t\" 100000000000 true() 1 2 3 2 \"aF\" "
+                "true() false() true() false()"),
     SLICE_ERROR("dateTime-timezones",
                 "dateTime(xs:date('1999-12-31Z'), xs:time('12:00:00+01:00'))", "FORG0008"),
     SLICE_ERROR("parse-integer-radix", "parse-integer('12', 37)", "FORG0011"),
