@@ -4,6 +4,18 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 2.1 done (D103): lowering seam. `src/xpath_lower_internal.h` exports
+  the lowerer (lifecycle quintet), its building blocks and the frame
+  machine; frames point at procedure descriptors, so core and part
+  procedures run alike. Lowering parts (`src/<name>_lower[_<part>].c`
+  defining `sxml_xpath_lowering_part_<part>`) are registered by
+  `cmake/SxmlParts.cmake` (none yet); a part's rule comes before the core
+  for its language. Embedding entry (from a step or from outside) lowers
+  an XPath AST in the caller's scope, focus and the AST's static context;
+  `sxml_xpath_lower` uses it. Probe parts and kinds in `tests/ir_test.c`
+  (7 new cases with an allocation-failure loop). Slice dumps unchanged;
+  `debug`, `debug-gcc`, `wasm` 119/119, lint clean; slice 198/198; XP40
+  23,146 passed before and after (release run of the snapshot).
 - 2.0 done (D101): part registries by glob. CMake generates the library
   part list (per language: XPath, XQuery, XSLT) and the evaluator part
   list; processor and fuzz fixture take the XPath list. Machine API in
