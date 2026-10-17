@@ -4652,8 +4652,74 @@ IR kind added.
   fn-load-xquery-module (141) and misc-Subtyping (159) stay "not run".
 
 ### D149. Keys and XSLT functions (packet 4.10)
-Recorded 2026-10-17, after D101, D118, D139, D142, D144.
-Reserved here; the record is completed when the packet is ticked.
+Recorded 2026-10-17, after D101, D103, D118, D139, D142, D144.
+`src/xslt_key.c` with `src/xslt_key_internal.h`, `src/function_library_xslt.c`,
+`tests/xslt_key_test.c`; no IR kind, no public header.
+- **XSLT function table** (glossary): `sxml_xslt_declare_functions` puts one
+  table in front of every static context of the stylesheet (before 4.12's
+  components table): stylesheet functions lowered into the unit, then the
+  rows of the XSLT-only library parts (D101: parts whose language set has
+  XSLT and not XPath), then the processor's table. A stylesheet function
+  becomes an IR function when an expression first names it;
+  `sxml_xslt_lower_functions` lowers the bodies asked for (twice: before the
+  templates are released, again after the global variables).
+- **Library part `xslt`** (`sxml_function_library_xslt_languages =
+  SXML_LANGUAGE_XSLT`): system-property, available-system-properties,
+  function-available, element-available, type-available (moved from
+  `src/xslt_static.c`, which now serves its expressions the first five rows,
+  `sxml_xslt_static_functions`), current, document (4.0 options map or base
+  node), unparsed-entity-uri and -public-id (the zero-length value: trees
+  keep no unparsed entities). Names given as strings resolve against the
+  running unit's static namespaces (D84): a static expression's own, a
+  stylesheet's those of the invocation's template (D142), not each
+  expression's (Proposed below).
+- **fn:current**: a parameter default `SXML_PARAMETER_DEFAULT_CURRENT_ITEM`
+  (`function_library_internal.h`); lowering reads focus part
+  `CURRENT_ITEM`, the focus the innermost embedding started with
+  (`sxml_xpath_lowerer.embedding_focus`, set in the embedding frame), so in a
+  pattern it is the item matched (D118). Inside an inline function it is
+  UNSUPPORTED_FEATURE (it would need a capture).
+- **Entries taking the caller's context value themselves**: an entry whose
+  `parameter_types` already cover the parameters the caller supplies is
+  called as it is instead of the entry of the longer arity
+  (`src/xpath_lower.c`, static calls and references). fn:key#2 is an IR
+  function (key-name, key-value, context) distinct from fn:key#3.
+- **Keys** (20.2): the declarations of one name are one key (XTSE1222 when
+  collation or composite differ; XTSE1205 for use and content, or neither).
+  Its build function is `map:build` over the tree's nodes and attributes
+  with the use values of each matching declaration (match-N: the D118 match
+  function in a TRY_CATCH giving false, 6.5; use-N: the attribute or
+  sequence constructor with the node as fixed focus) as keys; fn:key
+  dispatches on the resolved name and looks values up in the index that the
+  internal row key-index returns. Key values: string-like as xs:string, or
+  their collation key under a non-codepoint collation; numbers as
+  xs:double (eq promotes, so 3.7 matches number('3.7')); a composite key is
+  one string of tagged canonical texts. Result: `/.` (document order, no
+  duplicates); fn:key#3 keeps descendants-or-self of $top; fn:key#2 raises
+  XTDE1270 when the root is not a document node.
+- **Evaluation memo** (glossary; `src/evaluator.c`, additive to
+  `evaluator_internal.h`): entries (computation address and number, subject
+  node by identity) to a value, released when the evaluation ends. key-index
+  calls the build function on a miss (a resumable body, D75) and stores the
+  map: each index is built once per evaluation and tree, lazily. 4.12
+  (xsl:function cache) and 4.14 (accumulators) can use the same memo.
+- **fn:copy-of** is xsl:copy-of's copy (`sxml_xslt_lowering_bind_copy_of`,
+  exported from `src/xslt_lower_construct.c`); **fn:snapshot** an XPath text
+  over fn:copy-of, fold-right and computed constructors (ancestors with
+  their attributes and namespaces).
+- **Patterns** (D118 amended): a step whose predicates are all
+  non-positional (each a comparison, logical, instance-of, castable or
+  quantified expression, a string or boolean literal, nodes, or a call of a
+  listed boolean or string function, and none names position or last) is
+  tested on the item with a singleton focus instead of being selected again
+  from its origin (6.3.2.3 gives the same result). attr/match runs in 12 s
+  in a debug build (match-242 was 60 s alone).
+- Left to other packets: current-group, current-grouping-key, current-merge-*
+  (4.9), regex-group (4.11), accumulator-before/-after (4.14),
+  current-output-uri (4.13), xsl:evaluate (4.7: XTDE3175, D145),
+  fn:apply-templates (needs the mode at run time; 5 cases), fn:transform
+  (out of scope), function-available at run time (the dynamic context's
+  table is the host's: Proposed).
 
 ### D150. Functions and declarations (packet 4.12)
 Recorded 2026-10-17, after D101, D135, D139, D142, D144, D145.
@@ -4738,6 +4804,18 @@ Recorded 2026-10-17, after D79, D116, D118, D136, D137, D142, D144, D145.
 Reserved here; the record is completed when the packet is ticked.
 
 ## Proposed
+
+- **The XSLT functions at run time** (packet 4.10, D149; for 4.15, the
+  owner of `src/xslt.c`): function-available, fn:function-lookup and
+  type-available read the dynamic context's function table, which the
+  lowering's XSLT function table no longer is. Proposed: 4.15 evaluates a
+  transformation with a table over the XSLT parts
+  (`sxml_function_library_parts_for_language(SXML_LANGUAGE_XSLT)`) and the
+  unit's stylesheet functions. Also: EQNames given as strings (fn:key,
+  system-property, function-available) resolve against the unit's static
+  namespaces (the initial template's); per-expression namespaces would need
+  the call's static namespaces in the IR (an additive STATIC_CALL field or
+  resolving literal arguments while lowering).
 
 - **fn:load-xquery-module** (packet 3.11, D148; for the owner of the
   evaluator, `src/evaluator*.c`): the function needs a library module
