@@ -204,6 +204,13 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `namespace_alias` | An `xsl:namespace-alias` pair: literal result elements and attributes in its stylesheet URI are output in its result URI (XSLT 4.0, 11.1.4) |
 | `stylesheet_lowering` | One lowering of a sealed stylesheet AST into an IR unit (`sxml_xslt_lowering`): the XPath static context of each AST static context, the namespace aliases and the instruction rules, around one `lowerer` |
 | `instruction_rule` | Which lowering procedure lowers one kind of XSLT instruction (`sxml_xslt_instruction_rule`); each XSLT lowering file lists its own |
+| `variable_binding` | An `xsl:variable`, `xsl:param` or `xsl:with-param` element, whose value comes from its select, its content or neither (XSLT 4.0, 9.3); its `binding_role` says which type error its declared type raises (XTTE0570 or XTTE0590) |
+| `conditional_content` | A sequence constructor with `xsl:on-empty` or `xsl:on-non-empty` children, whose value depends on whether the other children's value is vacuous (XSLT 4.0, 8.5) |
+| `vacuous` | Of an item: a zero-length text node, a document node without children, a zero-length atomic item, or an array whose flattened members all are (XSLT 4.0, 8.5.2) |
+| `deemed_empty` | Of an item, for `xsl:where-populated`: a document or element node without children, another node or atomic item of zero-length string value, an empty map, or an array whose flattened members all are (XSLT 4.0, 8.5.1) |
+| `tail_position` | Where `xsl:next-iteration` and `xsl:break` may stand: last in the body of `xsl:iterate`, or in the tail position of an `xsl:if`, `xsl:when`, `xsl:otherwise`, `xsl:try` or `xsl:catch` that is (XSLT 4.0, 7.2) |
+| `iteration_state` | The array `xsl:iterate` lowering passes from one item to the next: control (0 go on, 1 broken), the item's output, the parameter values (D145) |
+| `iteration_marker` | The map `{Q{XSLT}iterate: state}` that `xsl:next-iteration` or `xsl:break` gives as the last item of the body's value (D145) |
 | `record_field` | An attribute of `xsl:record`: the field name is its local name, the value its expression |
 | `excluded_namespace` | A namespace whose namespace nodes literal result elements do not copy (XSLT 4.0, 11.1.3) |
 | `extension_namespace` | A namespace whose elements are extension instructions (XSLT 4.0, 24.3) |
