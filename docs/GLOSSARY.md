@@ -457,6 +457,16 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `general_category` | The Unicode general category of a codepoint (Lu, Nd, ...), what a category escape `\p{..}` tests (XSD 1.1 Part 2, appendix G) |
 | `block_escape` | `\p{IsX}`: the codepoints of Unicode block X, named as in Blocks.txt without spaces |
 | `name_table` | The regex compiler's list of the group names read so far, for duplicates and `\k<name>` (D105) |
+| `normalization_form` | One of NFC, NFD, NFKC, NFKD (UAX #15) or FULLY-NORMALIZED (F&O 4.0, `fn:normalize-unicode`) |
+| `combining_class` | The Canonical_Combining_Class of a codepoint, 0 to 254; 0 is a starter (UAX #15) |
+| `starter` | A codepoint of combining class 0 (UAX #15, D107) |
+| `decomposition` | The full canonical or full compatibility decomposition of a codepoint: its UnicodeData.txt mapping applied until nothing changes (UAX #15) |
+| `primary_composite` | A codepoint with a canonical decomposition of two codepoints that is not Full_Composition_Exclusion; canonical composition joins such pairs (UAX #15) |
+| `composing_character` | A codepoint of combining class above 0, or the second codepoint of the canonical decomposition of a character not in CompositionExclusions.txt (F&O 4.0, `fn:normalize-unicode`) |
+| `grapheme_cluster` | An extended grapheme cluster of UAX #29: one user-perceived character, one item of `fn:graphemes` |
+| `grapheme_break` | The Grapheme_Cluster_Break property value of a codepoint (CR, LF, Extend, ZWJ, L, V, ...; UAX #29, section 3.1) |
+| `conjunct_break` | The Indic_Conjunct_Break property value of a codepoint (None, Linker, Consonant, Extend), for rule GB9c of UAX #29 |
+| `character_reference_name` | An HTML named character reference without "&" and ";" (`nbsp`, `NotEqualTilde`), an argument of `fn:char` (HTML, section 13.5) |
 | `library_part` | The native functions of one `src/function_library_<part>.c` file: one `sxml_native_function_view`, named in a function library's configuration |
 | `part_registry` | The list of library parts or evaluator parts that CMake generates from the glob of their files, so a new part needs no edit elsewhere (D101) |
 | `language_set` | The languages (XPath, XQuery, XSLT) a library part serves; a part without one serves all three (D101) |
