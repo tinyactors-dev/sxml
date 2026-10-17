@@ -529,11 +529,8 @@ static sxml_status read_namespace_declaration(const static_reader *reader,
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    if (uri.index == SXML_NAMESPACE_NONE) {
-        /* 5.13: "" removes the binding; the prefix is then simply not bound
-           by the prolog (it keeps no predeclared binding but these). */
-        return SXML_STATUS_OK;
-    }
+    /* 5.13: "" removes the binding: a binding to no namespace, which the
+       core reads as an undeclared prefix (D135). */
     list->bindings[list->binding_count] =
         (sxml_namespace_binding){.namespace_prefix = prefix, .namespace_uri = uri};
     list->binding_count += 1;
@@ -598,10 +595,10 @@ static sxml_status read_namespaces(const static_reader *reader, const prolog_sur
     const sxml_ast *ast = reader->ast;
     const sxml_namespace_binding_view host =
         reader->request->host_static_context->namespace_bindings;
-    /* Prolog declarations, the default element namespace, the host's, local
-       and output. */
+    /* Prolog declarations, the default element namespace, the host's,
+       local, output and xq. */
     const size_t capacity = survey->namespace_declaration_count + 1 +
-                            host.namespace_binding_count + 2;
+                            host.namespace_binding_count + 3;
     void *memory = NULL;
     sxml_status status = allocate_array(
         reader,
@@ -664,13 +661,16 @@ static sxml_status read_namespaces(const static_reader *reader, const prolog_sur
             list.binding_count += 1;
         }
     }
-    /* 2.1.4: XQuery also predeclares local and output. */
+    /* 2.1.4: XQuery also predeclares local, output and xq. */
     static const struct {
         sxml_byte_view prefix;
-        sxml_well_known_namespace namespace_uri;
+        sxml_byte_view namespace_uri;
     } predeclared[] = {
-        {SXML_BYTE_VIEW_INITIALIZER("local"), SXML_NAMESPACE_LOCAL_FUNCTIONS},
-        {SXML_BYTE_VIEW_INITIALIZER("output"), SXML_NAMESPACE_SERIALIZATION},
+        {SXML_BYTE_VIEW_INITIALIZER("local"),
+         SXML_BYTE_VIEW_INITIALIZER("http://www.w3.org/2005/xquery-local-functions")},
+        {SXML_BYTE_VIEW_INITIALIZER("output"),
+         SXML_BYTE_VIEW_INITIALIZER("http://www.w3.org/2010/xslt-xquery-serialization")},
+        {SXML_BYTE_VIEW_INITIALIZER("xq"), SXML_BYTE_VIEW_INITIALIZER("http://www.w3.org/2012/xquery")},
     };
     for (size_t predeclared_index = 0;
          status == SXML_STATUS_OK && predeclared_index < sizeof(predeclared) / sizeof(predeclared[0]);
@@ -678,11 +678,14 @@ static sxml_status read_namespaces(const static_reader *reader, const prolog_sur
         sxml_namespace_prefix_identifier prefix = {0};
         status = sxml_name_pool_intern_namespace_prefix(
             reader->name_pool, predeclared[predeclared_index].prefix, &prefix);
+        sxml_namespace_uri_identifier uri = {0};
+        if (status == SXML_STATUS_OK) {
+            status = sxml_name_pool_intern_namespace_uri(
+                reader->name_pool, predeclared[predeclared_index].namespace_uri, &uri);
+        }
         if (status == SXML_STATUS_OK && !binds_prefix(list.bindings, list.binding_count, prefix)) {
-            list.bindings[list.binding_count] = (sxml_namespace_binding){
-                .namespace_prefix = prefix,
-                .namespace_uri =
-                    sxml_well_known_namespace_identifier(predeclared[predeclared_index].namespace_uri)};
+            list.bindings[list.binding_count] =
+                (sxml_namespace_binding){.namespace_prefix = prefix, .namespace_uri = uri};
             list.binding_count += 1;
         }
     }
@@ -695,12 +698,15 @@ static sxml_status read_namespaces(const static_reader *reader, const prolog_sur
     context->namespace_binding_count = list.binding_count;
     context->xpath.namespace_bindings = (sxml_namespace_binding_view){
         .namespace_bindings = list.bindings, .namespace_binding_count = list.binding_count};
+    context->xpath.function_namespace_rule = SXML_XPATH_FUNCTION_NAMESPACE_RULE_NO_NAMESPACE_FIRST;
     if (survey->default_function_namespace.value != 0) {
         context->has_default_function_namespace = true;
+        context->xpath.function_namespace_rule = SXML_XPATH_FUNCTION_NAMESPACE_RULE_DECLARED;
         status = intern_uri(
             reader,
             text_of(ast, child_of(ast, survey->default_function_namespace, SXML_AST_FIELD_URI)),
             &context->default_function_namespace);
+        context->xpath.default_function_namespace = context->default_function_namespace;
         if (status == SXML_STATUS_OK && is_xml_namespace(context->default_function_namespace)) {
             status = report(reader, survey->default_function_namespace,
                             SXML_BYTE_VIEW_FROM_LITERAL(
@@ -1482,6 +1488,49 @@ static sxml_status read_types(const static_reader *reader, const prolog_survey *
     return status;
 }
 
+/* Annotations outside the prolog's declarations: on inline functions and
+   function types (5.15): none in a reserved namespace (XQST0045), and
+   %public or %private only on declarations (XQST0125). One pass over the
+   AST's nodes. */
+static sxml_status check_expression_annotations(const static_reader *reader) {
+    const sxml_ast *ast = reader->ast;
+    sxml_namespace_uri_identifier xquery_namespace = {0};
+    sxml_status status = sxml_name_pool_intern_namespace_uri(
+        reader->name_pool, xquery_namespace_text, &xquery_namespace);
+    for (uint32_t node_number = 1; status == SXML_STATUS_OK && node_number < ast->node_count;
+         node_number += 1) {
+        const sxml_ast_node_index annotation = {.value = node_number};
+        const sxml_ast_node *node = node_of(ast, annotation);
+        if (node->kind != SXML_AST_KIND_ANNOTATION ||
+            node_of(ast, node->parent)->field == SXML_AST_FIELD_DECLARATION) {
+            continue;
+        }
+        expanded_name name = {0};
+        status = resolve_xquery_name(reader, child_of(ast, annotation, SXML_AST_FIELD_NAME),
+                                     &name);
+        if (status != SXML_STATUS_OK) {
+            break;
+        }
+        if (node_of(ast, node->parent)->kind == SXML_AST_KIND_INLINE_FUNCTION_EXPRESSION &&
+            name.namespace_uri.index == xquery_namespace.index &&
+            (sxml_byte_view_equals(name.local_name, SXML_BYTE_VIEW_FROM_LITERAL("public")) ||
+             sxml_byte_view_equals(name.local_name, SXML_BYTE_VIEW_FROM_LITERAL("private")))) {
+            status = report(reader, annotation,
+                            SXML_BYTE_VIEW_FROM_LITERAL(
+                                "XQST0125 an inline function is annotated %public or %private"));
+        } else if (is_reserved_namespace(name.namespace_uri) ||
+                   (name.namespace_uri.index == xquery_namespace.index &&
+                    !sxml_byte_view_equals(name.local_name, SXML_BYTE_VIEW_FROM_LITERAL("public")) &&
+                    !sxml_byte_view_equals(name.local_name,
+                                           SXML_BYTE_VIEW_FROM_LITERAL("private")))) {
+            status = report(reader, annotation,
+                            SXML_BYTE_VIEW_FROM_LITERAL(
+                                "XQST0045 an annotation is in a reserved namespace"));
+        }
+    }
+    return status;
+}
+
 /* ------------------------------------------------------------ Variables */
 
 /* The sequence type of an optional TYPE_DECLARATION; item()* without. */
@@ -2086,35 +2135,17 @@ static sxml_status find_alias_constructor(const sxml_xquery_static_context *cont
 }
 
 /*
- * The core resolves an unprefixed function name to the fn namespace, so a
- * query for fn:L may stand for an unprefixed L (5.14.2): with a default
- * function namespace declared, L in that namespace is searched first;
- * without one, a declared no-namespace L first. A name written fn:L finds
- * the same (a declared function of that local name hides fn:L).
+ * Declared functions, then the constructors of named atomic types, then
+ * the host's table. Without a default function namespace declaration the
+ * core expands unprefixed names to no namespace
+ * (SXML_XPATH_FUNCTION_NAMESPACE_RULE_NO_NAMESPACE_FIRST), so a
+ * no-namespace name no declared function has is looked up in fn
+ * (5.14.2).
  */
 static sxml_status find_function(void *state, const sxml_function_query *query,
                                  sxml_function_entry *entry) {
     const sxml_xquery_static_context *context = state;
-    sxml_function_query searched = *query;
-    sxml_name_pool *name_pool = sxml_item_heap_get_name_pool(context->xpath.item_heap);
-    sxml_name_parts parts = {0};
-    const bool is_fn_name =
-        sxml_name_pool_get_name_parts(name_pool, query->function_name, &parts) ==
-            SXML_STATUS_OK &&
-        is_well_known(parts.namespace_uri, SXML_NAMESPACE_FUNCTIONS);
     const sxml_xquery_declared_function *function = find_declared(context, query);
-    if (function == NULL && is_fn_name) {
-        searched.function_name = rename_function(
-            context, (renamed_query){.function_name = query->function_name,
-                                     .namespace_uri =
-                                         context->has_default_function_namespace
-                                             ? context->default_function_namespace
-                                             : sxml_well_known_namespace_identifier(
-                                                   SXML_NAMESPACE_NONE)});
-        if (searched.function_name.index != 0) {
-            function = find_declared(context, &searched);
-        }
-    }
     if (function != NULL) {
         const size_t arity_offset = query->arity - function->required_count;
         *entry = (sxml_function_entry){
@@ -2132,18 +2163,30 @@ static sxml_status find_function(void *state, const sxml_function_query *query,
         return SXML_STATUS_OK;
     }
     *entry = (sxml_function_entry){.entry_kind = SXML_FUNCTION_ENTRY_KIND_NONE};
-    sxml_status alias_status = find_alias_constructor(context, query, entry);
-    if (alias_status != SXML_STATUS_OK || entry->entry_kind != SXML_FUNCTION_ENTRY_KIND_NONE) {
-        return alias_status;
+    sxml_status status = find_alias_constructor(context, query, entry);
+    if (status != SXML_STATUS_OK || entry->entry_kind != SXML_FUNCTION_ENTRY_KIND_NONE) {
+        return status;
     }
-    if (is_fn_name && context->has_default_function_namespace && searched.function_name.index != 0) {
-        /* A library function in the default function namespace (math:pi
-           as "pi"). */
-        sxml_status status =
-            sxml_xpath_find_function(context->host_function_table, &searched, entry);
-        if (status != SXML_STATUS_OK || entry->entry_kind != SXML_FUNCTION_ENTRY_KIND_NONE) {
-            return status;
+    sxml_name_parts parts = {0};
+    sxml_name_pool *name_pool = sxml_item_heap_get_name_pool(context->xpath.item_heap);
+    if (context->xpath.function_namespace_rule ==
+            SXML_XPATH_FUNCTION_NAMESPACE_RULE_NO_NAMESPACE_FIRST &&
+        sxml_name_pool_get_name_parts(name_pool, query->function_name, &parts) ==
+            SXML_STATUS_OK &&
+        parts.namespace_uri.index == SXML_NAMESPACE_NONE) {
+        /* 5.14.2: no declared no-namespace function, so the standard
+           function namespace. */
+        const sxml_function_query standard = {
+            .function_name = rename_function(
+                context,
+                (renamed_query){.function_name = query->function_name,
+                                .namespace_uri = sxml_well_known_namespace_identifier(
+                                    SXML_NAMESPACE_FUNCTIONS)}),
+            .arity = query->arity};
+        if (standard.function_name.index == 0) {
+            return SXML_STATUS_OK;
         }
+        return sxml_xpath_find_function(context->host_function_table, &standard, entry);
     }
     return sxml_xpath_find_function(context->host_function_table, query, entry);
 }
@@ -2163,29 +2206,14 @@ const sxml_xquery_declared_function *sxml_xquery_find_declared_function(
 }
 
 /*
- * The core resolves an unprefixed function name to the fn namespace and
- * looks it up without interning it (a name never interned names no
- * function), so the function table would never be asked for fn:L. When
- * fn:L may stand for a declared or default-namespace function (see
- * find_function), every unprefixed name of a call, reference or arrow is
- * interned in the fn namespace first: one pass over the AST's nodes.
+ * The core looks function names up without interning them (a name never
+ * interned names no function), so the names unprefixed calls, references
+ * and arrows expand to (no namespace, or the default function namespace)
+ * are interned first, letting the function table see them: one pass over
+ * the AST's nodes.
  */
 static sxml_status intern_unprefixed_calls(const static_reader *reader,
                                            const sxml_xquery_static_context *context) {
-    bool has_no_namespace_function = false;
-    for (size_t function_index = 0; function_index < context->declared_function_count;
-         function_index += 1) {
-        sxml_name_parts parts = {0};
-        if (sxml_name_pool_get_name_parts(
-                reader->name_pool, context->declared_functions[function_index].function_name,
-                &parts) == SXML_STATUS_OK &&
-            parts.namespace_uri.index == SXML_NAMESPACE_NONE) {
-            has_no_namespace_function = true;
-        }
-    }
-    if (!has_no_namespace_function && !context->has_default_function_namespace) {
-        return SXML_STATUS_OK;
-    }
     const sxml_ast *ast = reader->ast;
     sxml_status status = SXML_STATUS_OK;
     for (uint32_t node_number = 1; status == SXML_STATUS_OK && node_number < ast->node_count;
@@ -2205,7 +2233,9 @@ static sxml_status intern_unprefixed_calls(const static_reader *reader,
         status = sxml_name_pool_intern_name(
             reader->name_pool,
             &(sxml_name_request){
-                .namespace_uri = sxml_well_known_namespace_identifier(SXML_NAMESPACE_FUNCTIONS),
+                .namespace_uri = context->has_default_function_namespace
+                                     ? context->default_function_namespace
+                                     : sxml_well_known_namespace_identifier(SXML_NAMESPACE_NONE),
                 .local_name = sxml_ast_get_text(ast, node->payload.name.local_name)},
             &name);
     }
@@ -2301,6 +2331,9 @@ sxml_status sxml_xquery_read_static_context(const sxml_xquery_static_request *re
     }
     if (status == SXML_STATUS_OK) {
         status = read_options(&reader);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = check_expression_annotations(&reader);
     }
     if (status == SXML_STATUS_OK) {
         status = read_variables(&reader, &survey, &built);

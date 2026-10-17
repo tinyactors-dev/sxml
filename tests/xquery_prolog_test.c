@@ -368,6 +368,10 @@ typedef struct error_case {
 static const error_case error_cases[] = {
     {"declare namespace p = 'urn:a'; declare namespace p = 'urn:b'; 1", "XQST0033"},
     {"declare namespace xml = 'urn:a'; 1", "XQST0070"},
+    {"declare namespace p = 'urn:a'; declare namespace p = ''; 1", "XQST0033"},
+    {"declare namespace xs = ''; xs:integer(1)", "XPST0081"},
+    {"%fn:x function() { 1 }", "XQST0045"},
+    {"%private function() { 1 }", "XQST0125"},
     {"declare namespace p = 'http://www.w3.org/XML/1998/namespace'; 1", "XQST0070"},
     {"declare default element namespace 'urn:a'; declare default element namespace 'urn:b'; 1",
      "XQST0066"},

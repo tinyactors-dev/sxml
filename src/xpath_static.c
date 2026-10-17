@@ -340,7 +340,17 @@ sxml_status sxml_xpath_resolve_name(const sxml_xpath_name_request *request,
                 &uri);
             break;
         case SXML_XPATH_NAME_ROLE_FUNCTION:
-            uri = sxml_well_known_namespace_identifier(SXML_NAMESPACE_FUNCTIONS);
+            switch (request->static_context->function_namespace_rule) {
+            case SXML_XPATH_FUNCTION_NAMESPACE_RULE_STANDARD:
+                uri = sxml_well_known_namespace_identifier(SXML_NAMESPACE_FUNCTIONS);
+                break;
+            case SXML_XPATH_FUNCTION_NAMESPACE_RULE_DECLARED:
+                uri = request->static_context->default_function_namespace;
+                break;
+            case SXML_XPATH_FUNCTION_NAMESPACE_RULE_NO_NAMESPACE_FIRST:
+                uri = sxml_well_known_namespace_identifier(SXML_NAMESPACE_NONE);
+                break;
+            }
             break;
         case SXML_XPATH_NAME_ROLE_NO_NAMESPACE:
             uri = sxml_well_known_namespace_identifier(SXML_NAMESPACE_NONE);
@@ -438,6 +448,11 @@ sxml_status sxml_xpath_collect_namespaces(
          status == SXML_STATUS_OK && binding_index < configured.namespace_binding_count;
          binding_index += 1) {
         const sxml_namespace_binding binding = configured.namespace_bindings[binding_index];
+        /* An undeclared prefix (D135) is not statically known. */
+        if (binding.namespace_uri.index == SXML_NAMESPACE_NONE &&
+            binding.namespace_prefix.index != 0) {
+            continue;
+        }
         if (!collection_binds(&collected, binding.namespace_prefix)) {
             collected.bindings[collected.binding_count] = binding;
             collected.binding_count += 1;

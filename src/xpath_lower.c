@@ -1495,6 +1495,10 @@ void sxml_xpath_lowerer_leave_function(
    its parameters and captures. */
 typedef struct closure_request {
     sxml_ast_node_index node;
+    /* The name of a named function reference's closure (XPath 4.0,
+       section 4.5.4: the function item has the function's name, so
+       fn:last#0 and fn:position#0 differ; D143); 0 otherwise. */
+    sxml_name_identifier function_name;
     sxml_type_identifier signature;
     uint32_t parameter_count;
     sxml_ir_atom_view captured_atoms;
@@ -1518,7 +1522,7 @@ static sxml_status add_closure_function(sxml_xpath_lowerer *state,
     return sxml_ir_unit_add_function(
         state->unit,
         &(sxml_ir_function){
-            .function_name = {.index = 0},
+            .function_name = request.function_name,
             .signature = request.signature,
             .parameter_count = request.parameter_count,
             .captured_variables = captures,
@@ -2171,6 +2175,7 @@ lower_named_function_reference(sxml_xpath_lowerer *state,
     status = add_closure_function(
         state,
         (closure_request){.node = node,
+                          .function_name = name,
                           .signature = entry.signature,
                           .parameter_count = (uint32_t)arity,
                           .captured_atoms = {.atoms = &captured,
@@ -7502,11 +7507,11 @@ static sxml_status check_static_context(const sxml_xpath_static_context *context
         const sxml_namespace_binding *binding =
             &bindings.namespace_bindings[binding_index];
         sxml_byte_view prefix = {0};
+        /* A prefix bound to no namespace is undeclared (an XQuery namespace
+           declaration with an empty URI, D135). */
         if (sxml_name_pool_get_namespace_prefix(name_pool,
                                                 binding->namespace_prefix,
                                                 &prefix) != SXML_STATUS_OK ||
-            (binding->namespace_uri.index == 0 &&
-             binding->namespace_prefix.index != 0) ||
             sxml_byte_view_equals(prefix, SXML_BYTE_VIEW_FROM_LITERAL("xml"))) {
             return SXML_STATUS_INVALID_ARGUMENT;
         }

@@ -58,6 +58,19 @@ typedef struct sxml_xpath_named_item_type_view {
     size_t named_item_type_count;
 } sxml_xpath_named_item_type_view;
 
+/* What an unprefixed function name expands to (XPath 4.0, section 2.2.1
+   "default function namespace"; XQuery 4.0, 5.14.2). */
+typedef enum sxml_xpath_function_namespace_rule {
+    /* The fn namespace (XPath). */
+    SXML_XPATH_FUNCTION_NAMESPACE_RULE_STANDARD = 0,
+    /* default_function_namespace (no namespace for SXML_NAMESPACE_NONE):
+       an XQuery default function namespace declaration. */
+    SXML_XPATH_FUNCTION_NAMESPACE_RULE_DECLARED,
+    /* No namespace: XQuery without a declaration, whose function table
+       then searches no-namespace functions before fn (D135). */
+    SXML_XPATH_FUNCTION_NAMESPACE_RULE_NO_NAMESPACE_FIRST,
+} sxml_xpath_function_namespace_rule;
+
 /*
  * The static context of one compilation. A plain value; every pointer and
  * view is borrowed for the calls that receive it.
@@ -87,6 +100,10 @@ typedef struct sxml_xpath_static_context {
     /* Named item types, found by name before the type registry's named
        types (XPath 4.0, section 3.2.3); empty for none. */
     sxml_xpath_named_item_type_view named_item_types;
+    /* How unprefixed function names expand; 0 is the fn namespace. */
+    sxml_xpath_function_namespace_rule function_namespace_rule;
+    /* For SXML_XPATH_FUNCTION_NAMESPACE_RULE_DECLARED. */
+    sxml_namespace_uri_identifier default_function_namespace;
 } sxml_xpath_static_context;
 
 /* Writes a static error: the error code is err:code_local_name. */
@@ -112,7 +129,7 @@ typedef enum sxml_xpath_name_role {
     /* Element names in name tests and types: the default namespace for
        elements and types. */
     SXML_XPATH_NAME_ROLE_ELEMENT_OR_TYPE,
-    /* Function names: the default function namespace, fn in Phase 1. */
+    /* Function names: by the static context's function namespace rule. */
     SXML_XPATH_NAME_ROLE_FUNCTION,
     /* Variables, attributes, QName literals, processing-instruction
        targets: no namespace. */
