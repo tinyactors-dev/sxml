@@ -957,7 +957,11 @@ static sxml_status sxml_qt4_evaluate_text(sxml_qt4_test_context *context,
    serialization parameters the serialization assertions use. */
 typedef struct sxml_qt4_query_answer {
     sxml_sequence value;
+    /* Its views belong to query: valid until it is destroyed. */
     sxml_serialization_parameters serialization_parameters;
+    /* The compiled XQuery query, destroyed after the assertions; NULL for
+       XPath. */
+    sxml_xquery_query *query;
 } sxml_qt4_query_answer;
 
 static sxml_status sxml_qt4_evaluate_main_query(sxml_qt4_test_context *context,
@@ -990,7 +994,7 @@ static sxml_status sxml_qt4_evaluate_main_query(sxml_qt4_test_context *context,
                 .error_record = &context->error_record},
             &answer->value);
     }
-    sxml_xquery_query_destroy(query);
+    answer->query = query;
     return status;
 }
 
@@ -1243,7 +1247,7 @@ static void sxml_qt4_evaluate_query(sxml_qt4_test_context *context,
     sxml_qt4_set_stage(context,
                        (sxml_qt4_stage){.description = SXML_TEXT("query"),
                                         .subject = sxml_qt4_empty_text});
-    sxml_qt4_query_answer query_answer = {.value = sxml_sequence_empty()};
+    sxml_qt4_query_answer query_answer = {.value = sxml_sequence_empty(), .query = NULL};
     if (status == SXML_STATUS_OK) {
         memset(&context->error_record, 0, sizeof context->error_record);
         status = sxml_qt4_evaluate_main_query(context, query_text, &query_answer);
@@ -1251,6 +1255,7 @@ static void sxml_qt4_evaluate_query(sxml_qt4_test_context *context,
     const sxml_sequence value = query_answer.value;
     sxml_allocator_release(context->allocator, query_contents);
     if (status != SXML_STATUS_OK && !sxml_status_has_error_record(status)) {
+        sxml_xquery_query_destroy(query_answer.query);
         sxml_qt4_describe_failure(context, status, answer);
         return;
     }
@@ -1285,6 +1290,7 @@ static void sxml_qt4_evaluate_query(sxml_qt4_test_context *context,
                            query_answer.serialization_parameters},
                    answer);
     sxml_sequence_release(value);
+    sxml_xquery_query_destroy(query_answer.query);
 }
 
 /* Releases everything the test holds; the budget then has nothing
