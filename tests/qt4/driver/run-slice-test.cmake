@@ -1,5 +1,6 @@
-# Runs sxml-qt4 run over the torture slice and fails when fewer test cases
-# pass than tests/qt4/slice-baseline.txt records (glossary: slice_baseline).
+# Runs sxml-qt4 run over a slice (the torture slice, or the XQuery slice of
+# packet 3.13) and fails when fewer test cases pass than its baseline file
+# records (glossary: slice_baseline).
 # The baseline only goes up: when more pass, the test says so, and the
 # change that made them pass raises the number in the file. Set by the
 # script tests/qt4/driver/CMakeLists.txt generates:
@@ -7,13 +8,15 @@
 #   PROGRAM            path of sxml-qt4
 #   EMULATOR           command that runs it (Node.js for WASI), may be empty
 #   WORKING_DIRECTORY  the repository root, where the default catalog is
-#   BASELINE_FILE      tests/qt4/slice-baseline.txt
+#   SLICE_FILE         the test list, such as tests/qt4/torture-slice.txt
+#   SPEC               the target, XP40 or XQ40
+#   BASELINE_FILE      such as tests/qt4/slice-baseline.txt
 #
 # Exit codes 0 and 1 (some test case failed) are a finished run; any other
 # (a crash, a sanitizer report, an unreadable file) fails the test.
 
 execute_process(
-    COMMAND ${EMULATOR} "${PROGRAM}" run tests/qt4/torture-slice.txt
+    COMMAND ${EMULATOR} "${PROGRAM}" run "--spec=${SPEC}" "${SLICE_FILE}"
     WORKING_DIRECTORY "${WORKING_DIRECTORY}"
     OUTPUT_VARIABLE actual_stdout
     ERROR_VARIABLE actual_stderr

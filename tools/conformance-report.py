@@ -3,11 +3,13 @@
 
 Input is the directory tools/run-qt4.sh writes: one JSON report per test
 set (the layout of tests/qt4/driver/report.h, version 1) under a directory
-per specification (XP40, and XQ40 once XQuery runs), the torture slice's
-report and the commit of the code under test. Output:
+per specification (XP40, XQ40), the torture slice's report and the commit
+of the code under test. Output:
 
 - the Markdown dashboard (--output, default docs/CONFORMANCE.md): the
-  slice, totals, a breakdown by area (the test-set name prefix: fn, op,
+  slice, totals, the gate rates (D95: the in-scope test cases; for XQ40
+  also the XQ-only ones, those whose spec does not admit XP40 in the XP40
+  run of the same directory), a breakdown by area (the test-set name prefix: fn, op,
   prod, map, array, ...), the most frequent failure causes and not-run
   reasons, the test sets with the most failures, and every test set;
 - with --json-output, one merged JSON report of the whole run;
@@ -32,6 +34,8 @@ import re
 import sys
 
 OUTCOMES = ("pass", "wrong_error", "fail", "error", "not_run")
+# Members of report.h added by packet 2.16 (D108): the D95 denominator.
+SCOPE_COUNTS = ("in_scope", "in_scope_passed")
 SPECS = ("XP40", "XQ40")
 # Areas in the order of the table; a test set belongs to the area of its
 # name's prefix up to the first hyphen, and to "other" when none matches.
@@ -74,6 +78,10 @@ def empty_counts():
     return {"total": 0, **{outcome: 0 for outcome in OUTCOMES}}
 
 
+def empty_scope_counts():
+    return {key: 0 for key in SCOPE_COUNTS}
+
+
 def add_counts(into, counts):
     for key in into:
         into[key] += counts.get(key, 0)
@@ -108,14 +116,40 @@ def read_spec(spec_directory):
             unfinished.append({"name": name, "exit_code": exit_code or "?"})
             continue
         for entry in report["test_sets"]:
-            test_sets.append({key: entry[key]
-                              for key in ("name", "total", *OUTCOMES)})
+            test_sets.append({key: entry.get(key, 0)
+                              for key in ("name", "total", *OUTCOMES,
+                                          *SCOPE_COUNTS)})
         tests.extend(report["tests"])
     totals = empty_counts()
+    scope = empty_scope_counts()
     for entry in test_sets:
         add_counts(totals, entry)
+        add_counts(scope, entry)
     return {"spec": spec_directory.name, "test_sets": test_sets,
-            "tests": tests, "totals": totals, "unfinished": unfinished}
+            "tests": tests, "totals": totals, "scope": scope,
+            "unfinished": unfinished}
+
+
+def xquery_only_counts(xquery_result, xpath_result):
+    """The XQ40 test cases that the XP40 run skipped for their spec (D95,
+    "XQ-only"): their number and how many passed. None without an XP40
+    run."""
+    if xpath_result is None:
+        return None
+    skipped_for_spec = {
+        (test["test_set"], test["test_case"]) for test in xpath_result["tests"]
+        if test["outcome"] == "not-run"
+        and test["reason"].startswith("skip: spec")}
+    counts = {"total": 0, "passed": 0}
+    for test in xquery_result["tests"]:
+        if (test["test_set"], test["test_case"]) not in skipped_for_spec:
+            continue
+        if test["outcome"] == "not-run":
+            continue
+        counts["total"] += 1
+        if test["outcome"] in ("pass", "wrong-error"):
+            counts["passed"] += 1
+    return counts
 
 
 def read_slice(run_directory):
@@ -224,6 +258,19 @@ def render_spec(lines, result):
                  if result["unfinished"] else ", all finished") + ".", "",
               COUNTS_HEADER.format("Specification"),
               counts_row(spec, totals), ""]
+    scope = result["scope"]
+    if scope["in_scope"]:
+        lines += [f"Gate rate (D95): {scope['in_scope_passed']:,} of "
+                  f"{scope['in_scope']:,} in-scope test cases passed, "
+                  f"**{percent(scope['in_scope_passed'], scope['in_scope'])}**"
+                  " (in scope: the spec matches and no non-goal is needed; "
+                  "not-run cases count as not passed).", ""]
+    xquery_only = result.get("xquery_only")
+    if xquery_only:
+        lines += [f"XQ-only (run, the spec does not admit XP40): "
+                  f"{xquery_only['passed']:,} of {xquery_only['total']:,} "
+                  f"passed, **{percent(xquery_only['passed'], xquery_only['total'])}**.",
+                  ""]
 
     lines += [f"### {spec} by area", "",
               COUNTS_HEADER.format("Area (test-set prefix)")]
@@ -314,8 +361,10 @@ def render(information, slice_result, baseline, spec_results):
         f"- Code under test: commit `{commit[:12]}` of {information['date']}",
         "- Regenerate: `cmake --preset release && cmake --build --preset "
         "release && tools/run-qt4.sh --program "
-        "build/release/tests/qt4/driver/sxml-qt4 && "
-        "tools/conformance-report.py build/qt4-run`",
+        "build/release/tests/qt4/driver/sxml-qt4 && tools/run-qt4.sh "
+        "--program build/release/tests/qt4/driver/sxml-qt4 --spec XQ40 && "
+        "tools/conformance-report.py build/qt4-run` (XQ40 is reported "
+        "when its run is in the directory)",
         "",
         "## Torture slice",
         "",
@@ -366,6 +415,10 @@ def main():
     slice_result = read_slice(run_directory)
     spec_results = [read_spec(run_directory / spec) for spec in SPECS
                     if (run_directory / spec).is_dir()]
+    by_spec = {result["spec"]: result for result in spec_results}
+    if "XQ40" in by_spec:
+        by_spec["XQ40"]["xquery_only"] = xquery_only_counts(
+            by_spec["XQ40"], by_spec.get("XP40"))
     if not spec_results:
         print(f"{run_directory}: no XP40 or XQ40 reports", file=sys.stderr)
         return 2
@@ -389,7 +442,9 @@ def main():
               f"{passed(totals)} passed ({totals['wrong_error']} wrong error), "
               f"{totals['fail']} failed, {totals['error']} errors, "
               f"{totals['not_run']} not run; "
-              f"{len(result['unfinished'])} test sets did not finish")
+              f"{len(result['unfinished'])} test sets did not finish; "
+              f"in scope {result['scope']['in_scope_passed']}/"
+              f"{result['scope']['in_scope']}")
     print(f"slice: {slice_passed}/{slice_result['totals']['total']} passed")
     if not slice_result["finished"]:
         print("the slice run did not finish", file=sys.stderr)

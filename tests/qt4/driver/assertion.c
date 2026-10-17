@@ -904,10 +904,18 @@ static bool sxml_qt4_error_code_matches(sxml_byte_view code,
            sxml_byte_view_equals(local_name, raised->local_name);
 }
 
+/* An error assertion and what it judges: the evaluation, or what
+   serializing its value gave. */
+typedef struct sxml_qt4_error_check {
+    const sxml_qt4_leaf *leaf;
+    const sxml_qt4_evaluation_outcome *outcome;
+} sxml_qt4_error_check;
+
 static sxml_status sxml_qt4_check_error(sxml_qt4_assertion_state *state,
-                                        const sxml_qt4_leaf *leaf,
+                                        const sxml_qt4_error_check *check,
                                         sxml_qt4_assertion_verdict *verdict) {
-    const sxml_qt4_evaluation_outcome *evaluation = &state->request->evaluation;
+    const sxml_qt4_leaf *leaf = check->leaf;
+    const sxml_qt4_evaluation_outcome *evaluation = check->outcome;
     sxml_qt4_attribute_value code = {.is_present = false,
                                      .value = sxml_qt4_empty_text};
     sxml_status status = sxml_qt4_leaf_attribute(
@@ -922,7 +930,7 @@ static sxml_status sxml_qt4_check_error(sxml_qt4_assertion_state *state,
     status = sxml_qt4_start_reason(
         state,
         (sxml_qt4_verdict_text){.verdict_kind = SXML_QT4_VERDICT_FAIL,
-                                .assertion_name = SXML_TEXT("error"),
+                                .assertion_name = leaf->name,
                                 .description = SXML_TEXT("expected ")},
         &reason);
     if (status != SXML_STATUS_OK) {
@@ -955,13 +963,242 @@ static sxml_status sxml_qt4_check_error(sxml_qt4_assertion_state *state,
     return SXML_STATUS_OK;
 }
 
+/* ---------------------------------------------------------- Serialization */
+
+/* Serializes the evaluation's value with its serialization parameters
+   into a new buffer (Serialization 4.0). Returns a status with an error
+   record, filled in state->error_record, for a serialization error, and
+   the buffer's failures; *output_buffer is to be destroyed either way. */
+static sxml_status sxml_qt4_serialize_value(sxml_qt4_assertion_state *state,
+                                            sxml_output_buffer **output_buffer) {
+    const sxml_qt4_assertion_request *request = state->request;
+    sxml_status status = sxml_output_buffer_create(
+        request->allocator,
+        &(sxml_output_buffer_configuration){.allocator = request->allocator,
+                                            .maximum_byte_count = 0},
+        output_buffer);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    memset(&state->error_record, 0, sizeof state->error_record);
+    return sxml_serialize_sequence(
+        state->item_heap,
+        &(sxml_serialization_request){
+            .value = request->evaluation.value,
+            .serialization_parameters =
+                request->evaluation.serialization_parameters,
+            .error_record = &state->error_record},
+        sxml_output_buffer_as_output_stream(*output_buffer));
+}
+
+/* True for flags fn:matches accepts the letters of (F&O 4.0, section
+   5.6.2): the check text quotes them. */
+static bool sxml_qt4_flags_are_letters(sxml_byte_view flags) {
+    for (size_t byte_index = 0; byte_index < flags.byte_count;
+         byte_index += 1) {
+        const uint8_t byte = flags.bytes[byte_index];
+        if (!((byte >= 'a' && byte <= 'z') || (byte >= 'A' && byte <= 'Z'))) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/* What serialization-matches holds while it compares. */
+typedef struct sxml_qt4_serialization_match {
+    sxml_output_buffer *output_buffer;
+    sxml_sequence actual;
+    sxml_sequence expected;
+    sxml_sequence check_value;
+    sxml_byte_view check_text;
+    sxml_qt4_assertion_verdict verdict;
+} sxml_qt4_serialization_match;
+
+/* $expected and the check text: the pattern (text or file) and
+   fn:matches with the flags. Returns SXML_STATUS_INVALID_UTF8 for a
+   pattern that is not UTF-8 and SXML_STATUS_MALFORMED_INPUT for flags that
+   are not letters. */
+static sxml_status
+sxml_qt4_read_pattern(sxml_qt4_assertion_state *state, const sxml_qt4_leaf *leaf,
+                      sxml_qt4_serialization_match *match) {
+    sxml_qt4_attribute_value flags = {.is_present = false,
+                                      .value = sxml_qt4_empty_text};
+    sxml_status status = sxml_qt4_leaf_attribute(
+        state,
+        (sxml_qt4_attribute_lookup){.element = leaf->element,
+                                    .local_name = SXML_TEXT("flags")},
+        &flags);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (!sxml_qt4_flags_are_letters(flags.value)) {
+        return SXML_STATUS_MALFORMED_INPUT;
+    }
+    sxml_byte_view with_flags = sxml_qt4_empty_text;
+    status = sxml_qt4_concatenate(
+        state->request->arena,
+        (sxml_qt4_concatenation){.first =
+                                     SXML_TEXT("matches($result, $expected, '"),
+                                 .second = flags.value},
+        &with_flags);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_qt4_concatenate(
+            state->request->arena,
+            (sxml_qt4_concatenation){.first = with_flags,
+                                     .second = SXML_TEXT("')")},
+            &match->check_text);
+    }
+    sxml_qt4_expected_xml pattern = {.text = sxml_qt4_empty_text,
+                                     .file_contents = NULL};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_qt4_read_expected_xml(state, leaf, &pattern);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_qt4_make_string(state, pattern.text, &match->expected);
+    }
+    sxml_allocator_release(state->request->allocator, pattern.file_contents);
+    return status;
+}
+
+static sxml_status
+sxml_qt4_compare_serialization(sxml_qt4_assertion_state *state,
+                               const sxml_qt4_leaf *leaf,
+                               sxml_qt4_serialization_match *match) {
+    sxml_status status = sxml_qt4_serialize_value(state, &match->output_buffer);
+    if (status != SXML_STATUS_OK) {
+        return sxml_qt4_fail_unless_failure(
+            state,
+            &(sxml_qt4_error_verdict){
+                .assertion_name = leaf->name,
+                .description = SXML_TEXT("serializing raised "),
+                .raised_error = {.status = status,
+                                 .error_record = &state->error_record}},
+            &match->verdict);
+    }
+    status = sxml_qt4_make_string(
+        state, sxml_output_buffer_get_bytes(match->output_buffer),
+        &match->actual);
+    if (status == SXML_STATUS_INVALID_UTF8) {
+        return sxml_qt4_simple_verdict(
+            state,
+            (sxml_qt4_verdict_text){
+                .verdict_kind = SXML_QT4_VERDICT_FAIL,
+                .assertion_name = leaf->name,
+                .description = SXML_TEXT("the serialized result is not UTF-8")},
+            &match->verdict);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_qt4_read_pattern(state, leaf, match);
+    }
+    if (status == SXML_STATUS_INVALID_UTF8 ||
+        status == SXML_STATUS_MALFORMED_INPUT) {
+        return sxml_qt4_simple_verdict(
+            state,
+            (sxml_qt4_verdict_text){
+                .verdict_kind = SXML_QT4_VERDICT_FAIL,
+                .assertion_name = leaf->name,
+                .description = SXML_TEXT(
+                    "the pattern is not UTF-8 or the flags are not letters")},
+            &match->verdict);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_qt4_assertion_evaluate(
+            state,
+            &(sxml_qt4_bound_expression){.expression_text = match->check_text,
+                                         .result = match->actual,
+                                         .expected = match->expected},
+            &match->check_value);
+        if (status != SXML_STATUS_OK) {
+            return sxml_qt4_fail_unless_failure(
+                state,
+                &(sxml_qt4_error_verdict){
+                    .assertion_name = leaf->name,
+                    .description = SXML_TEXT("matching raised "),
+                    .raised_error = {.status = status,
+                                     .error_record = &state->error_record}},
+                &match->verdict);
+        }
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (sxml_qt4_is_true(match->check_value)) {
+        match->verdict = (sxml_qt4_assertion_verdict){
+            .verdict_kind = SXML_QT4_VERDICT_PASS,
+            .reason = sxml_qt4_empty_text};
+        return SXML_STATUS_OK;
+    }
+    sxml_qt4_reason reason;
+    status = sxml_qt4_start_reason(
+        state,
+        (sxml_qt4_verdict_text){.verdict_kind = SXML_QT4_VERDICT_FAIL,
+                                .assertion_name = leaf->name,
+                                .description = SXML_TEXT("got ")},
+        &reason);
+    if (status == SXML_STATUS_OK) {
+        sxml_qt4_reason_append(&reason,
+                               sxml_output_buffer_get_bytes(match->output_buffer));
+        sxml_qt4_finish_reason(SXML_QT4_VERDICT_FAIL, &reason, &match->verdict);
+    }
+    return status;
+}
+
+/* serialization-matches (catalog-schema.xsd): "the output of the
+   serializer (as a string) matches the regular expression". */
+static sxml_status
+sxml_qt4_check_serialization_match(sxml_qt4_assertion_state *state,
+                                   const sxml_qt4_leaf *leaf,
+                                   sxml_qt4_assertion_verdict *verdict) {
+    sxml_qt4_serialization_match match = {
+        .output_buffer = NULL,
+        .actual = sxml_sequence_empty(),
+        .expected = sxml_sequence_empty(),
+        .check_value = sxml_sequence_empty(),
+        .check_text = sxml_qt4_empty_text,
+        .verdict = {.verdict_kind = SXML_QT4_VERDICT_FAIL,
+                    .reason = sxml_qt4_empty_text}};
+    const sxml_status status =
+        sxml_qt4_compare_serialization(state, leaf, &match);
+    if (status == SXML_STATUS_OK) {
+        *verdict = match.verdict;
+    }
+    sxml_sequence_release(match.check_value);
+    sxml_sequence_release(match.expected);
+    sxml_sequence_release(match.actual);
+    sxml_output_buffer_destroy(match.output_buffer);
+    return status;
+}
+
+/* assert-serialization-error on a value (catalog-schema.xsd): "serializing
+   the result produces a serialization error" with the code. */
+static sxml_status
+sxml_qt4_check_serialization_error(sxml_qt4_assertion_state *state,
+                                   const sxml_qt4_leaf *leaf,
+                                   sxml_qt4_assertion_verdict *verdict) {
+    sxml_output_buffer *output_buffer = NULL;
+    const sxml_status serialization_status =
+        sxml_qt4_serialize_value(state, &output_buffer);
+    sxml_output_buffer_destroy(output_buffer);
+    if (serialization_status != SXML_STATUS_OK &&
+        !sxml_status_has_error_record(serialization_status)) {
+        return serialization_status;
+    }
+    const sxml_qt4_evaluation_outcome serialized = {
+        .status = serialization_status,
+        .value = state->request->evaluation.value,
+        .error_record = &state->error_record,
+        .serialization_parameters =
+            state->request->evaluation.serialization_parameters};
+    return sxml_qt4_check_error(
+        state, &(sxml_qt4_error_check){.leaf = leaf, .outcome = &serialized},
+        verdict);
+}
+
 /* ------------------------------------------------------------ Dispatching */
 
-/* Assertions the driver cannot check yet: they need serialization with the
-   query's own parameters, or XSLT. */
+/* Assertions the driver cannot check: assert-serialization appears only in
+   comments of the suite; the others need XSLT. */
 static const sxml_byte_view sxml_qt4_unsupported_assertions[] = {
-    SXML_BYTE_VIEW_INITIALIZER("serialization-matches"),
-    SXML_BYTE_VIEW_INITIALIZER("assert-serialization-error"),
     SXML_BYTE_VIEW_INITIALIZER("assert-serialization"),
     SXML_BYTE_VIEW_INITIALIZER("assert-message"),
     SXML_BYTE_VIEW_INITIALIZER("assert-warning"),
@@ -977,6 +1214,13 @@ static sxml_status sxml_qt4_check_on_value(sxml_qt4_assertion_state *state,
     }
     if (sxml_byte_view_equals(leaf->name, SXML_TEXT("assert-xml"))) {
         return sxml_qt4_check_xml(state, leaf, verdict);
+    }
+    if (sxml_byte_view_equals(leaf->name, SXML_TEXT("serialization-matches"))) {
+        return sxml_qt4_check_serialization_match(state, leaf, verdict);
+    }
+    if (sxml_byte_view_equals(leaf->name,
+                              SXML_TEXT("assert-serialization-error"))) {
+        return sxml_qt4_check_serialization_error(state, leaf, verdict);
     }
     for (size_t assertion_index = 0;
          assertion_index <
@@ -1036,14 +1280,20 @@ static sxml_status sxml_qt4_check_leaf(sxml_qt4_assertion_state *state,
                     .verdict_kind = SXML_QT4_VERDICT_UNSUPPORTED,
                     .assertion_name = leaf->name,
                     .description = SXML_TEXT(
-                        "needs serialization the driver does not have")},
+                        "not checked by the driver")},
                 verdict);
         }
     }
-    if (sxml_byte_view_equals(leaf->name, SXML_TEXT("error"))) {
-        return sxml_qt4_check_error(state, leaf, verdict);
-    }
     const sxml_qt4_evaluation_outcome *evaluation = &state->request->evaluation;
+    if (sxml_byte_view_equals(leaf->name, SXML_TEXT("error")) ||
+        (sxml_byte_view_equals(leaf->name,
+                               SXML_TEXT("assert-serialization-error")) &&
+         evaluation->status != SXML_STATUS_OK)) {
+        return sxml_qt4_check_error(
+            state,
+            &(sxml_qt4_error_check){.leaf = leaf, .outcome = evaluation},
+            verdict);
+    }
     if (evaluation->status != SXML_STATUS_OK) {
         return sxml_qt4_fail_with_error(
             state,

@@ -23,6 +23,11 @@
  * - COLLECTION and URI_COLLECTION with the items or the document URIs of
  *   the collection whose URI equals the request's, or of the default
  *   collection (<collection uri="">) when the request asks for it;
+ * - XQUERY_MODULE with the file of a <module> of the test case whose uri
+ *   is the request's target namespace (packet 3.13): the one whose
+ *   location is the request's location hint, else the one whose file
+ *   name is the hint's last segment, else the first; its URI
+ *   file:///SUITE-PATH is the module's base URI;
  * and everything else, other kinds included, as not available. Sources
  * with a URI are not served here: they are available documents of the
  * dynamic context (test_run.c). The request's absolute URI is compared
@@ -67,6 +72,22 @@ typedef struct sxml_qt4_served_collection_view {
     size_t served_collection_count;
 } sxml_qt4_served_collection_view;
 
+/* A <module> as served (XQuery 4.0, "Module Import"). */
+typedef struct sxml_qt4_served_module {
+    /* The target namespace. */
+    sxml_byte_view namespace_uri;
+    /* The location attribute as written; empty for none. */
+    sxml_byte_view location;
+    sxml_byte_view file_path;
+    /* file:///SUITE-PATH of the file. */
+    sxml_byte_view file_uri;
+} sxml_qt4_served_module;
+
+typedef struct sxml_qt4_served_module_view {
+    const sxml_qt4_served_module *served_modules;
+    size_t served_module_count;
+} sxml_qt4_served_module_view;
+
 typedef struct sxml_qt4_resource_table {
     /* Reads the suite files. */
     sxml_qt4_catalog *catalog;
@@ -74,6 +95,7 @@ typedef struct sxml_qt4_resource_table {
     sxml_allocator allocator;
     sxml_qt4_served_resource_view served_resources;
     sxml_qt4_served_collection_view served_collections;
+    sxml_qt4_served_module_view served_modules;
 } sxml_qt4_resource_table;
 
 /* The resolver over *table, as described above. */

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- A small QT4 catalog for sxml-qt4 run (tests/qt4/driver): every kind of
-     assertion, once passing and once failing, the outcomes, and every
-     environment kind. -->
+     assertion, once passing and once failing, the outcomes, every
+     environment kind, and XQuery main modules. -->
 <catalog xmlns="http://www.w3.org/2010/09/qt-fots-catalog"
          test-suite="FOTS" version="4.0">
    <environment name="shared">
@@ -11,4 +11,5 @@
    <test-set name="run-pass" file="sets/run-pass.xml"/>
    <test-set name="run-fail" file="sets/run-fail.xml"/>
    <test-set name="run-environments" file="sets/run-environments.xml"/>
+   <test-set name="run-xquery" file="sets/run-xquery.xml"/>
 </catalog>

@@ -18,9 +18,9 @@ typedef struct sxml_qt4_supported_dependency {
 } sxml_qt4_supported_dependency;
 
 /*
- * What sxml supports (D83, D108). Everything else, schema awareness, XSLT,
- * XQuery modules, serialization parameters, advanced UCA collations, other
- * languages and older Unicode versions included, is not satisfied.
+ * What sxml supports (D83, D108, D134). Everything else, schema
+ * awareness, XSLT, advanced UCA collations, other languages and older
+ * Unicode versions included, is not satisfied.
  * - higherOrderFunctions: XPath 4.0 function items (D38, packet 1.21).
  * - namespace-axis: the namespace axis (D77).
  * - xml-version 1.0, 1.0:5+: XML 1.0 Fifth Edition (D28, D81); 1.1 and
@@ -35,6 +35,8 @@ typedef struct sxml_qt4_supported_dependency {
  *   mpdecimal (D36); unicode-normalization-form NFC, NFD, NFKC, NFKD
  *   and FULLY-NORMALIZED (packet 2.4, D107). Phase 2 packets make them work; until then their test
  *   cases run and fail, which the D95 denominator counts anyway.
+ * - serialization: the serializers of packets 3.3 and 3.4, which the
+ *   serialization assertions use (packet 3.13).
  */
 static const sxml_qt4_supported_dependency sxml_qt4_supported_dependencies[] = {
     {SXML_BYTE_VIEW_INITIALIZER("feature"),
@@ -70,6 +72,8 @@ static const sxml_qt4_supported_dependency sxml_qt4_supported_dependencies[] = {
      SXML_BYTE_VIEW_INITIALIZER("NFKD")},
     {SXML_BYTE_VIEW_INITIALIZER("unicode-normalization-form"),
      SXML_BYTE_VIEW_INITIALIZER("FULLY-NORMALIZED")},
+    {SXML_BYTE_VIEW_INITIALIZER("feature"),
+     SXML_BYTE_VIEW_INITIALIZER("serialization")},
 };
 
 /* The non-goals of D95 that a feature dependency names; an entry ending in
@@ -353,8 +357,7 @@ static bool sxml_qt4_collation_is_provided(sxml_byte_view uri) {
 }
 
 /* Rule 3: what the environment asks for. Returns the element sxml cannot
-   provide, or an empty view. Collections with a query wait for XQuery
-   (packet 3.13). */
+   provide, or an empty view. */
 static sxml_byte_view
 sxml_qt4_unsupported_environment_part(const sxml_qt4_environment *environment) {
     for (size_t source_index = 0;
@@ -372,9 +375,6 @@ sxml_qt4_unsupported_environment_part(const sxml_qt4_environment *environment) {
          collection_index += 1) {
         const sxml_qt4_collection *collection =
             &environment->collections.collections[collection_index];
-        if (collection->queries.text_count != 0) {
-            return SXML_TEXT("collection query");
-        }
         for (size_t source_index = 0;
              source_index < collection->sources.source_count;
              source_index += 1) {
@@ -463,13 +463,6 @@ void sxml_qt4_decide_applicability(
                                          .reason = SXML_TEXT("environment"),
                                          .detail = environment_part,
                                          .is_inverted = false});
-        return;
-    }
-    if (request->module_count != 0) {
-        sxml_qt4_skip(applicability,
-                      (sxml_qt4_skip_reason){.reason = SXML_TEXT("module"),
-                                             .detail = sxml_qt4_empty_text,
-                                             .is_inverted = false});
         return;
     }
     applicability->is_applicable = true;

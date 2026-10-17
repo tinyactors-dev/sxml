@@ -5,11 +5,11 @@
 {"test_set": "run-environments", "test_case": "uca-collation", "outcome": "pass", "reason": ""},
 {"test_set": "run-environments", "test_case": "resources-are-not-documents", "outcome": "pass", "reason": ""},
 {"test_set": "run-environments", "test_case": "collection-sources-are-available", "outcome": "pass", "reason": ""},
-{"test_set": "run-environments", "test_case": "collection-query", "outcome": "not-run", "reason": "skip: environment collection query"},
+{"test_set": "run-environments", "test_case": "collection-query", "outcome": "pass", "reason": ""},
 {"test_set": "run-environments", "test_case": "other-collation", "outcome": "not-run", "reason": "skip: environment collation"},
 {"test_set": "run-environments", "test_case": "without-schema-import", "outcome": "pass", "reason": ""}],
 "test_sets": [
-{"name": "run-environments", "total": 8, "pass": 6, "wrong_error": 0, "fail": 0, "error": 0, "not_run": 2, "in_scope": 8, "in_scope_passed": 6}],
+{"name": "run-environments", "total": 8, "pass": 7, "wrong_error": 0, "fail": 0, "error": 0, "not_run": 1, "in_scope": 8, "in_scope_passed": 7}],
 "areas": [
-{"area": "other", "total": 8, "pass": 6, "wrong_error": 0, "fail": 0, "error": 0, "not_run": 2, "in_scope": 8, "in_scope_passed": 6}],
-"totals": {"total": 8, "pass": 6, "wrong_error": 0, "fail": 0, "error": 0, "not_run": 2, "in_scope": 8, "in_scope_passed": 6}}
+{"area": "other", "total": 8, "pass": 7, "wrong_error": 0, "fail": 0, "error": 0, "not_run": 1, "in_scope": 8, "in_scope_passed": 7}],
+"totals": {"total": 8, "pass": 7, "wrong_error": 0, "fail": 0, "error": 0, "not_run": 1, "in_scope": 8, "in_scope_passed": 7}}

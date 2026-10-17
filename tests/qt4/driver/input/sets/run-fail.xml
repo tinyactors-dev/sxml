@@ -65,6 +65,29 @@
       <test>1</test>
       <result><all-of><assert-eq>1</assert-eq><assert-count>2</assert-count></all-of></result>
    </test-case>
+   <test-case name="serialization-matches">
+      <test>'abc'</test>
+      <result><serialization-matches>^b</serialization-matches></result>
+   </test-case>
+   <test-case name="serialization-matches-error">
+      <test>true#0</test>
+      <result><serialization-matches>true</serialization-matches></result>
+   </test-case>
+   <test-case name="serialization-error-none">
+      <test>1</test>
+      <result><assert-serialization-error code="SENR0001"/></result>
+   </test-case>
+   <test-case name="collection-query-error">
+      <environment>
+         <collection uri="">
+            <source file="../docs/a.xml"/>
+            <query>1 to 2</query>
+            <query>error(QName('urn:e', 'e:from-query'))</query>
+         </collection>
+      </environment>
+      <test>true()</test>
+      <result><assert-true/></result>
+   </test-case>
    <test-case name="missing-source">
       <environment>
          <source role="." file="../docs/missing.xml"/>

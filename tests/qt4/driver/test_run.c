@@ -9,6 +9,7 @@
 #include "reason.h"
 #include "resource_table.h"
 #include "suite_path.h"
+#include "xquery_adapter.h"
 #include "sxml/name.h"
 #include "sxml/processor.h"
 #include "sxml/string.h"
@@ -140,7 +141,9 @@ typedef struct sxml_qt4_test_context {
     sxml_namespace_binding *namespace_bindings;
     size_t namespace_binding_count;
     sxml_byte_view static_base_uri;
+    /* The host's declarations: the variables without declared="true". */
     sxml_variable_declaration *declarations;
+    size_t declaration_count;
     sxml_variable_binding *bindings;
     size_t variable_count;
     sxml_available_document *available_documents;
@@ -154,7 +157,8 @@ typedef struct sxml_qt4_test_context {
     bool has_context_value;
     sxml_sequence context_value;
     /* Owned values: one per source (of the environment and of its
-       collections) and parameter, two per collection and the context
+       collections) and parameter, two per collection, one per collection
+       query and one more for a collection with queries, and the context
        item's; released at the end. */
     sxml_sequence *owned_values;
     size_t owned_value_count;
@@ -256,6 +260,12 @@ static void sxml_qt4_set_stage(sxml_qt4_test_context *context,
     context->stage_subject = stage.subject;
 }
 
+/* True when the run targets XQuery: the query is a main module, which
+   can declare variables itself. */
+static bool sxml_qt4_runs_xquery(const sxml_qt4_test_context *context) {
+    return context->request->target.language == SXML_QT4_LANGUAGE_XQUERY;
+}
+
 /* Keeps value until the end of the test. */
 static void sxml_qt4_own_value(sxml_qt4_test_context *context,
                                sxml_sequence value) {
@@ -327,7 +337,7 @@ sxml_qt4_static_context(const sxml_qt4_test_context *context) {
         .static_base_uri = context->static_base_uri,
         .variable_declarations = {.variable_declarations = context->declarations,
                                   .variable_declaration_count =
-                                      context->variable_count},
+                                      context->declaration_count},
         .decimal_formats = {.decimal_formats = context->decimal_formats,
                             .decimal_format_count =
                                 context->decimal_format_count},
@@ -406,14 +416,21 @@ typedef struct sxml_qt4_variable {
     sxml_sequence_type declared_type;
     bool is_bound;
     sxml_sequence value;
+    /* declared="true": the query's prolog declares it, so the host only
+       binds it (XQuery 4.0, "Variable Declaration"; a host declaration of
+       the same name would be XQST0049, D106). */
+    bool is_declared_by_query;
 } sxml_qt4_variable;
 
 static void sxml_qt4_add_variable(sxml_qt4_test_context *context,
                                   sxml_qt4_variable variable) {
     const size_t variable_index = context->variable_count;
-    context->declarations[variable_index] = (sxml_variable_declaration){
-        .variable_name = variable.variable_name,
-        .declared_type = variable.declared_type};
+    if (!variable.is_declared_by_query) {
+        context->declarations[context->declaration_count] =
+            (sxml_variable_declaration){.variable_name = variable.variable_name,
+                                        .declared_type = variable.declared_type};
+        context->declaration_count += 1;
+    }
     /* An unbound variable is bound to () so the arrays stay parallel; the
        XPath API raises XPDY0002 only for a missing binding, and QT4 never
        uses a param without a value in XPath. */
@@ -515,7 +532,10 @@ static sxml_status sxml_qt4_load_source(sxml_qt4_test_context *context,
                                          .declared_type =
                                              sxml_qt4_any_sequence_type,
                                          .is_bound = true,
-                                         .value = value});
+                                         .value = value,
+                                         .is_declared_by_query =
+                                             source->is_declared &&
+                                             sxml_qt4_runs_xquery(context)});
     }
     return SXML_STATUS_OK;
 }
@@ -614,6 +634,65 @@ static sxml_status sxml_qt4_make_uri_item(sxml_qt4_test_context *context,
         item);
 }
 
+static sxml_status sxml_qt4_evaluate_text(sxml_qt4_test_context *context,
+                                          sxml_byte_view text,
+                                          sxml_sequence *value);
+
+/* Evaluates the <query> elements of a collection and writes, owned by the
+   test, the concatenation of *items and their values to *items
+   (catalog-schema.xsd, element "collection": "the collection contains the
+   result of evaluating the query"). The queries are XPath expressions in
+   the test's contexts as they are so far. */
+static sxml_status
+sxml_qt4_add_query_items(sxml_qt4_test_context *context,
+                         const sxml_qt4_collection *collection,
+                         sxml_sequence *items) {
+    const size_t query_count = collection->queries.text_count;
+    void *memory = NULL;
+    sxml_status status = sxml_qt4_allocate_array(
+        context,
+        (sxml_qt4_array_request){.element_count = query_count + 1,
+                                 .element_byte_count = sizeof(sxml_sequence),
+                                 .alignment = alignof(sxml_sequence)},
+        &memory);
+    sxml_sequence *parts = memory;
+    /* query_count + 1 elements, so parts is NULL only after a failure. */
+    if (status == SXML_STATUS_OK && parts == NULL) {
+        status = SXML_STATUS_OUT_OF_MEMORY;
+    }
+    if (status == SXML_STATUS_OK) {
+        parts[0] = *items;
+    }
+    sxml_qt4_set_stage(context,
+                       (sxml_qt4_stage){.description =
+                                            SXML_TEXT("collection query"),
+                                        .subject = collection->uri});
+    for (size_t query_index = 0;
+         status == SXML_STATUS_OK && query_index < query_count;
+         query_index += 1) {
+        parts[query_index + 1] = sxml_sequence_empty();
+        status = sxml_qt4_evaluate_text(
+            context, collection->queries.texts[query_index],
+            &parts[query_index + 1]);
+        if (status == SXML_STATUS_OK) {
+            sxml_qt4_own_value(context, parts[query_index + 1]);
+        }
+    }
+    sxml_sequence concatenation = sxml_sequence_empty();
+    if (status == SXML_STATUS_OK) {
+        status = sxml_sequence_concatenate(
+            sxml_processor_get_item_heap(context->processor),
+            (sxml_sequence_view){.sequences = parts,
+                                 .sequence_count = query_count + 1},
+            &concatenation);
+    }
+    if (status == SXML_STATUS_OK) {
+        sxml_qt4_own_value(context, concatenation);
+        *items = concatenation;
+    }
+    return status;
+}
+
 /* Parses the sources of one collection and makes its two sequences:
    the document nodes, and the URIs of the documents and then of the
    collection's resources (which the resource table serves by URI). */
@@ -693,6 +772,9 @@ sxml_qt4_serve_collection(sxml_qt4_test_context *context,
     if (status == SXML_STATUS_OK) {
         sxml_qt4_own_value(context, uri_items);
     }
+    if (status == SXML_STATUS_OK && collection->queries.text_count != 0) {
+        status = sxml_qt4_add_query_items(context, collection, &items);
+    }
     /* The vector retains its items; the URI items made here are released
        so that the vector holds the only reference. */
     for (size_t uri_index = 0; uri_index < made_uri_count; uri_index += 1) {
@@ -706,6 +788,40 @@ sxml_qt4_serve_collection(sxml_qt4_test_context *context,
     if (status == SXML_STATUS_OK && !served->is_default) {
         status = sxml_qt4_absolute_uri(context, collection->uri, &served->uri);
     }
+    return status;
+}
+
+/* Makes the served modules: each <module> of the test case with the URI
+   of its file (resource_table.h). */
+static sxml_status sxml_qt4_serve_modules(sxml_qt4_test_context *context) {
+    const sxml_qt4_module_view modules = context->request->test_case->modules;
+    void *memory = NULL;
+    sxml_status status = sxml_qt4_allocate_array(
+        context,
+        (sxml_qt4_array_request){
+            .element_count = modules.module_count,
+            .element_byte_count = sizeof(sxml_qt4_served_module),
+            .alignment = alignof(sxml_qt4_served_module)},
+        &memory);
+    sxml_qt4_served_module *served = memory;
+    size_t served_count = 0;
+    for (size_t module_index = 0;
+         status == SXML_STATUS_OK && module_index < modules.module_count;
+         module_index += 1) {
+        const sxml_qt4_module *module = &modules.modules[module_index];
+        served[module_index] =
+            (sxml_qt4_served_module){.namespace_uri = module->uri,
+                                     .location = module->location,
+                                     .file_path = module->file_path,
+                                     .file_uri = sxml_qt4_empty_text};
+        status = sxml_qt4_suite_uri(context, module->file_path,
+                                    &served[module_index].file_uri);
+        if (status == SXML_STATUS_OK) {
+            served_count += 1;
+        }
+    }
+    context->resource_table->served_modules = (sxml_qt4_served_module_view){
+        .served_modules = served, .served_module_count = served_count};
     return status;
 }
 
@@ -829,6 +945,48 @@ static sxml_status sxml_qt4_evaluate_text(sxml_qt4_test_context *context,
     return status;
 }
 
+/* The test's query compiled and evaluated: as sxml_qt4_evaluate_text for
+   XPath; for XQuery, a main module through the XQuery adapter, whose
+   serialization parameters the serialization assertions use. */
+typedef struct sxml_qt4_query_answer {
+    sxml_sequence value;
+    sxml_serialization_parameters serialization_parameters;
+} sxml_qt4_query_answer;
+
+static sxml_status sxml_qt4_evaluate_main_query(sxml_qt4_test_context *context,
+                                                sxml_byte_view text,
+                                                sxml_qt4_query_answer *answer) {
+    memset(&answer->serialization_parameters, 0,
+           sizeof answer->serialization_parameters);
+    answer->serialization_parameters.serialization_method =
+        SXML_SERIALIZATION_METHOD_XML;
+    if (!sxml_qt4_runs_xquery(context)) {
+        return sxml_qt4_evaluate_text(context, text, &answer->value);
+    }
+    sxml_qt4_xquery_query *query = NULL;
+    sxml_status status = sxml_qt4_xquery_query_create(
+        context->allocator,
+        &(sxml_xquery_query_configuration){
+            .processor = context->processor,
+            .expression_text = text,
+            .source_name = context->stage,
+            .static_context = sxml_qt4_static_context(context),
+            .error_record = &context->error_record},
+        &query);
+    if (status == SXML_STATUS_OK) {
+        answer->serialization_parameters =
+            sxml_qt4_xquery_query_get_serialization_parameters(query);
+        status = sxml_qt4_xquery_query_evaluate(
+            query,
+            &(sxml_xquery_evaluation_request){
+                .dynamic_context = sxml_qt4_dynamic_context(context),
+                .error_record = &context->error_record},
+            &answer->value);
+    }
+    sxml_qt4_xquery_query_destroy(query);
+    return status;
+}
+
 static sxml_status sxml_qt4_bind_parameter(sxml_qt4_test_context *context,
                                            const sxml_qt4_parameter *parameter) {
     sxml_qt4_set_stage(context,
@@ -840,7 +998,10 @@ static sxml_status sxml_qt4_bind_parameter(sxml_qt4_test_context *context,
     sxml_qt4_variable variable = {.variable_name = {.index = 0},
                                   .declared_type = sxml_qt4_any_sequence_type,
                                   .is_bound = false,
-                                  .value = sxml_sequence_empty()};
+                                  .value = sxml_sequence_empty(),
+                                  .is_declared_by_query =
+                                      parameter->is_declared &&
+                                      sxml_qt4_runs_xquery(context)};
     sxml_status status =
         sxml_qt4_variable_name(context, parameter->name, &variable.variable_name);
     if (status == SXML_STATUS_OK && parameter->declared_type.byte_count != 0) {
@@ -874,17 +1035,23 @@ static sxml_status sxml_qt4_apply_environment(sxml_qt4_test_context *context) {
     const size_t parameter_count = environment->parameters.parameter_count;
     const size_t variable_capacity = source_count + parameter_count;
     size_t collection_source_count = 0;
+    /* A collection with queries owns their values and the concatenation. */
+    size_t collection_query_value_count = 0;
     for (size_t collection_index = 0;
          collection_index < environment->collections.collection_count;
          collection_index += 1) {
-        collection_source_count += environment->collections
-                                       .collections[collection_index]
-                                       .sources.source_count;
+        const sxml_qt4_collection *collection =
+            &environment->collections.collections[collection_index];
+        collection_source_count += collection->sources.source_count;
+        if (collection->queries.text_count != 0) {
+            collection_query_value_count += collection->queries.text_count + 1;
+        }
     }
     const size_t document_capacity = source_count + collection_source_count;
     const size_t owned_capacity =
         variable_capacity + 1 + collection_source_count +
-        2 * environment->collections.collection_count;
+        2 * environment->collections.collection_count +
+        collection_query_value_count;
     sxml_qt4_set_stage(context,
                        (sxml_qt4_stage){.description = SXML_TEXT("environment"),
                                         .subject = environment->name});
@@ -938,6 +1105,9 @@ static sxml_status sxml_qt4_apply_environment(sxml_qt4_test_context *context) {
     sxml_qt4_set_default_collation(context);
     if (status == SXML_STATUS_OK) {
         status = sxml_qt4_serve_resources(context);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_qt4_serve_modules(context);
     }
     if (status == SXML_STATUS_OK) {
         status = sxml_qt4_serve_collections(context);
@@ -1066,11 +1236,12 @@ static void sxml_qt4_evaluate_query(sxml_qt4_test_context *context,
     sxml_qt4_set_stage(context,
                        (sxml_qt4_stage){.description = SXML_TEXT("query"),
                                         .subject = sxml_qt4_empty_text});
-    sxml_sequence value = sxml_sequence_empty();
+    sxml_qt4_query_answer query_answer = {.value = sxml_sequence_empty()};
     if (status == SXML_STATUS_OK) {
         memset(&context->error_record, 0, sizeof context->error_record);
-        status = sxml_qt4_evaluate_text(context, query_text, &value);
+        status = sxml_qt4_evaluate_main_query(context, query_text, &query_answer);
     }
+    const sxml_sequence value = query_answer.value;
     sxml_allocator_release(context->allocator, query_contents);
     if (status != SXML_STATUS_OK && !sxml_status_has_error_record(status)) {
         sxml_qt4_describe_failure(context, status, answer);
@@ -1099,9 +1270,12 @@ static void sxml_qt4_evaluate_query(sxml_qt4_test_context *context,
         raised.value = NULL;
     }
     sxml_qt4_judge(context,
-                   (sxml_qt4_evaluation_outcome){.status = status,
-                                                 .value = value,
-                                                 .error_record = &raised},
+                   (sxml_qt4_evaluation_outcome){
+                       .status = status,
+                       .value = value,
+                       .error_record = &raised,
+                       .serialization_parameters =
+                           query_answer.serialization_parameters},
                    answer);
     sxml_sequence_release(value);
 }
@@ -1137,7 +1311,8 @@ static void sxml_qt4_run_isolated(const sxml_qt4_test_run_request *request,
         .served_resources = {.served_resources = NULL,
                              .served_resource_count = 0},
         .served_collections = {.served_collections = NULL,
-                               .served_collection_count = 0}};
+                               .served_collection_count = 0},
+        .served_modules = {.served_modules = NULL, .served_module_count = 0}};
     sxml_qt4_test_context context;
     memset(&context, 0, sizeof context);
     context.request = request;

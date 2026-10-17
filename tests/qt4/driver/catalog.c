@@ -1163,7 +1163,6 @@ void sxml_qt4_test_case_decide_applicability(
             .test_set_dependencies = request.test_case->test_set_dependencies,
             .test_case_dependencies = request.test_case->dependencies,
             .environment = &request.test_case->environment,
-            .module_count = request.test_case->modules.module_count,
             .test_set_name = request.test_case->test_set_name},
         applicability);
 }

@@ -137,6 +137,75 @@ sxml_qt4_serve_collection(const sxml_qt4_table_request *table_request,
         SXML_TEXT("The environment has no such collection");
 }
 
+/* The last segment of a URI reference: what follows its last "/". */
+static sxml_byte_view sxml_qt4_last_segment(sxml_byte_view reference) {
+    if (reference.byte_count == 0) {
+        return reference;
+    }
+    size_t start = 0;
+    for (size_t byte_index = 0; byte_index < reference.byte_count;
+         byte_index += 1) {
+        if (reference.bytes[byte_index] == '/') {
+            start = byte_index + 1;
+        }
+    }
+    return (sxml_byte_view){.bytes = reference.bytes + start,
+                            .byte_count = reference.byte_count - start};
+}
+
+/* XQUERY_MODULE: the module of the target namespace that the location
+   hint picks out best. */
+static sxml_status
+sxml_qt4_serve_module(const sxml_qt4_table_request *table_request,
+                      sxml_resource *resource) {
+    const sxml_resource_request *request = table_request->request;
+    const sxml_qt4_served_module_view modules =
+        table_request->table->served_modules;
+    const sxml_byte_view hint = request->uri_reference;
+    const sxml_byte_view hint_name = sxml_qt4_last_segment(hint);
+    const sxml_qt4_served_module *chosen = NULL;
+    /* 0: the first of the namespace, 1: by file name, 2: by location. */
+    int chosen_rank = -1;
+    for (size_t module_index = 0; module_index < modules.served_module_count;
+         module_index += 1) {
+        const sxml_qt4_served_module *module =
+            &modules.served_modules[module_index];
+        if (!sxml_byte_view_equals(module->namespace_uri,
+                                   request->target_namespace_uri)) {
+            continue;
+        }
+        int rank = 0;
+        if (hint.byte_count != 0 && module->location.byte_count != 0 &&
+            (sxml_byte_view_equals(module->location, hint) ||
+             sxml_byte_view_equals(module->location, request->absolute_uri))) {
+            rank = 2;
+        } else if (hint_name.byte_count != 0 &&
+                   sxml_byte_view_equals(
+                       sxml_qt4_last_segment(module->file_path), hint_name)) {
+            rank = 1;
+        }
+        if (rank > chosen_rank) {
+            chosen = module;
+            chosen_rank = rank;
+        }
+    }
+    if (chosen == NULL) {
+        resource->description =
+            SXML_TEXT("The test case has no module of that namespace");
+        return SXML_STATUS_OK;
+    }
+    const sxml_status status = sxml_qt4_serve_file(
+        table_request->table,
+        (sxml_qt4_served_file){.file_path = chosen->file_path,
+                               .encoding = sxml_qt4_empty_text},
+        resource);
+    if (status == SXML_STATUS_OK &&
+        resource->resource_form == SXML_RESOURCE_FORM_BYTES) {
+        resource->resource_uri = chosen->file_uri;
+    }
+    return status;
+}
+
 static sxml_status
 sxml_qt4_resolve_from_table(void *state, const sxml_resource_request *request,
                             sxml_resource *resource) {
@@ -159,12 +228,13 @@ sxml_qt4_resolve_from_table(void *state, const sxml_resource_request *request,
         sxml_qt4_serve_collection(&table_request, resource);
         return SXML_STATUS_OK;
     case SXML_RESOURCE_KIND_XQUERY_MODULE:
+        return sxml_qt4_serve_module(&table_request, resource);
     case SXML_RESOURCE_KIND_XSLT_MODULE:
     case SXML_RESOURCE_KIND_XSLT_PACKAGE:
         break;
     }
     resource->description =
-        SXML_TEXT("The QT4 driver serves no modules or packages");
+        SXML_TEXT("The QT4 driver serves no XSLT modules or packages");
     return SXML_STATUS_OK;
 }
 

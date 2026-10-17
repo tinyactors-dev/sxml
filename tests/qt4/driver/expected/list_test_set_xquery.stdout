@@ -43,6 +43,7 @@ set-basic schema-feature
 set-basic not-serialization
   dependency feature higherOrderFunctions
   dependency feature serialization unsatisfied
+  skip: feature serialization (satisfied)
 set-basic not-higher-order
   dependency feature higherOrderFunctions
   dependency feature higherOrderFunctions unsatisfied
@@ -61,7 +62,6 @@ set-basic collection
     resource http://example.com/t.txt docs/t.txt
     query <x/>
   dependency feature higherOrderFunctions
-  skip: environment collection query
 set-basic other-collation
   environment (inline)
   collation http://www.w3.org/2013/collation/UCA
@@ -85,7 +85,6 @@ set-basic validated-source
 set-basic library-module
   module urn:m queries/m.xqm location m.xqm
   dependency feature higherOrderFunctions
-  skip: module
 set-basic split-text
   dependency feature higherOrderFunctions
-21 test cases: 15 applicable, 6 skipped; 20 in scope
+21 test cases: 16 applicable, 5 skipped; 20 in scope

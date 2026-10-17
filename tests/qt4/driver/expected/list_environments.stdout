@@ -25,11 +25,10 @@ run-environments collection-query
   environment (inline)
   collection http://example.com/integers
     query 1 to 10
-  skip: environment collection query
 run-environments other-collation
   environment (inline)
   collation http://example.com/collation
   skip: environment collation
 run-environments without-schema-import
   dependency feature schemaImport unsatisfied
-8 test cases: 6 applicable, 2 skipped; 8 in scope
+8 test cases: 7 applicable, 1 skipped; 8 in scope

@@ -14,6 +14,10 @@ fail run-fail error-expected: error: expected FOAR0001, got 1
 fail run-fail value-expected: assert-eq: got error err:FOAR0001: division by zero (F&O 4.0, op:numeric-divide, op:numeric-integer-divide, op:numeric-mod)
 fail run-fail not: not: the assertion holds
 fail run-fail all-of: assert-count: got 1
+fail run-fail serialization-matches: serialization-matches: got abc
+fail run-fail serialization-matches-error: serialization-matches: serializing raised err:SENR0001: an attribute node, a namespace node or a function item cannot be serialized by this method
+fail run-fail serialization-error-none: assert-serialization-error: expected SENR0001, got 1
+error run-fail collection-query-error: collection query: e:from-query: fn:error was called
 error run-fail missing-source: source docs/missing.xml: SXML_STATUS_INPUT_OUTPUT_FAILED
-test set run-fail: 17 test cases: 0 passed (0 wrong error), 16 failed, 1 errors, 0 not run
-total: 17 test cases: 0 passed (0 wrong error), 16 failed, 1 errors, 0 not run
+test set run-fail: 21 test cases: 0 passed (0 wrong error), 19 failed, 2 errors, 0 not run
+total: 21 test cases: 0 passed (0 wrong error), 19 failed, 2 errors, 0 not run

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<test-set xmlns="http://www.w3.org/2010/09/qt-fots-catalog" name="run-xquery">
+   <description>XQuery main modules (sxml-qt4 run --spec=XQ40, packet 3.13).</description>
+   <dependency type="spec" value="XQ40+"/>
+   <test-case name="constructor">
+      <test>for $n in 1 to 2 return &lt;i n="{$n}"&gt;{$n * 10}&lt;/i&gt;</test>
+      <result><assert-xml><![CDATA[<i n="1">10</i><i n="2">20</i>]]></assert-xml></result>
+   </test-case>
+   <test-case name="serialized-with-the-xml-method">
+      <test>&lt;a&gt;{1 + 1}&lt;/a&gt;</test>
+      <result><serialization-matches><![CDATA[^<a>2</a>$]]></serialization-matches></result>
+   </test-case>
+   <test-case name="attribute-cannot-be-serialized">
+      <test>attribute a {1}</test>
+      <result><assert-serialization-error code="SENR0001"/></result>
+   </test-case>
+   <test-case name="declared-parameter-is-not-declared-by-the-host">
+      <environment>
+         <param name="x" select="1" declared="true"/>
+      </environment>
+      <test>$x</test>
+      <result><error code="XPST0008"/></result>
+   </test-case>
+   <test-case name="undeclared-parameter-is-declared-by-the-host">
+      <environment>
+         <param name="x" select="1"/>
+      </environment>
+      <test>$x</test>
+      <result><assert-eq>1</assert-eq></result>
+   </test-case>
+</test-set>

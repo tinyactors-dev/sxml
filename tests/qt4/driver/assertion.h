@@ -7,6 +7,7 @@
 #include "document.h"
 #include "sxml/memory.h"
 #include "sxml/processor.h"
+#include "sxml/serialize.h"
 #include "sxml/status.h"
 #include "sxml/view.h"
 #include "sxml/xdm.h"
@@ -44,8 +45,15 @@
  *   element "error");
  * - all-of, any-of, not: combinations, to any depth, walked with an
  *   explicit stack (D71);
- * - serialization-matches, assert-serialization-error and the XSLT
- *   assertions: "unsupported" until sxml has the XML output method.
+ * - serialization-matches: the value serialized with the evaluation's
+ *   serialization parameters (sxml_serialize_sequence), as a string,
+ *   matches the regular expression (the element's text or file) under
+ *   fn:matches with the flags attribute; output that is not UTF-8 (an
+ *   encoding parameter) fails;
+ * - assert-serialization-error: an error with the code raised by the
+ *   evaluation or by serializing its value, as "error" judges it;
+ * - assert-serialization (only in comments of the suite) and the XSLT
+ *   assertions: "unsupported".
  *
  * Verdicts combine from worst to best as fail, unsupported, wrong error,
  * pass: all-of takes the worst of its children, any-of the best, not
@@ -78,6 +86,10 @@ typedef struct sxml_qt4_evaluation_outcome {
     sxml_sequence value;
     /* The raised error, for the other statuses. */
     const sxml_error_record *error_record;
+    /* What the serialization assertions serialize the value with: the
+       query's own parameters (XQuery's output declarations), else the XML
+       method's defaults. */
+    sxml_serialization_parameters serialization_parameters;
 } sxml_qt4_evaluation_outcome;
 
 /* The assertions to check and what they need. Borrowed for the call. */

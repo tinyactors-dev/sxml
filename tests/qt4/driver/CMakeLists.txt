@@ -14,6 +14,7 @@
 #   qt4/<name>               end-to-end golden tests of sxml-qt4.
 #   qt4/slice                the torture slice, against a baseline that
 #                            only goes up (run-slice-test.cmake).
+#   qt4/xquery-slice         the XQuery slice (packet 3.13), the same way.
 
 file(GLOB SXML_QT4_DRIVER_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/*.c")
 list(FILTER SXML_QT4_DRIVER_SOURCES EXCLUDE REGEX "/(main|[a-z_]*_test)\\.c$")
@@ -22,6 +23,10 @@ list(SORT SXML_QT4_DRIVER_SOURCES)
 add_library(sxml_qt4_driver_library STATIC ${SXML_QT4_DRIVER_SOURCES})
 target_include_directories(sxml_qt4_driver_library PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(sxml_qt4_driver_library PUBLIC sxml_cli_framework)
+# TEMPORARY (packet 3.13, D134): xquery_adapter.c compiles XQuery through
+# src/ internals until include/sxml/xquery.h is implemented (packet 3.12),
+# which removes this line with the adapter.
+target_include_directories(sxml_qt4_driver_library PRIVATE "${PROJECT_SOURCE_DIR}/src")
 sxml_apply_project_flags(sxml_qt4_driver_library)
 
 # The platform layer is the sxml program's: the one file allowed to touch
@@ -84,21 +89,29 @@ include([==[${PROJECT_SOURCE_DIR}/tests/cli/run-cli-test.cmake]==])
     add_test(NAME qt4/${name} COMMAND "${CMAKE_COMMAND}" -P "${script}")
 endfunction()
 
-# qt4/slice: the torture slice run and checked; fails when fewer test cases
-# pass than tests/qt4/slice-baseline.txt records (packet 1.25).
-set(slice_script "${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/slice.cmake")
+# qt4/slice and qt4/xquery-slice: a slice run and checked; each fails when
+# fewer test cases pass than its baseline file records (packets 1.25, 3.13).
 set(slice_emulator_text "")
 foreach(emulator_part IN LISTS CMAKE_CROSSCOMPILING_EMULATOR)
     string(APPEND slice_emulator_text " [==[${emulator_part}]==]")
 endforeach()
-file(GENERATE OUTPUT "${slice_script}" CONTENT
+function(sxml_add_qt4_slice_test name spec slice_file baseline_file)
+    set(slice_script "${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/${name}.cmake")
+    file(GENERATE OUTPUT "${slice_script}" CONTENT
 "set(PROGRAM [==[$<TARGET_FILE:sxml_qt4_driver>]==])
 set(EMULATOR${slice_emulator_text})
 set(WORKING_DIRECTORY [==[${PROJECT_SOURCE_DIR}]==])
-set(BASELINE_FILE [==[${PROJECT_SOURCE_DIR}/tests/qt4/slice-baseline.txt]==])
+set(SLICE_FILE [==[${slice_file}]==])
+set(SPEC [==[${spec}]==])
+set(BASELINE_FILE [==[${PROJECT_SOURCE_DIR}/${baseline_file}]==])
 include([==[${CMAKE_CURRENT_SOURCE_DIR}/run-slice-test.cmake]==])
 ")
-add_test(NAME qt4/slice COMMAND "${CMAKE_COMMAND}" -P "${slice_script}")
+    add_test(NAME qt4/${name} COMMAND "${CMAKE_COMMAND}" -P "${slice_script}")
+endfunction()
+sxml_add_qt4_slice_test(slice XP40 tests/qt4/torture-slice.txt
+    tests/qt4/slice-baseline.txt)
+sxml_add_qt4_slice_test(xquery-slice XQ40 tests/qt4/xquery-slice.txt
+    tests/qt4/xquery-slice-baseline.txt)
 
 # sxml-qt4 run over the small suite of input/run-catalog.xml: every
 # assertion kind passing and failing, and every outcome.
@@ -111,6 +124,11 @@ sxml_add_qt4_test(run_json EXIT_CODE 0
 sxml_add_qt4_test(run_unknown_test_set EXIT_CODE 1
     ARGUMENTS run --catalog=run-catalog.xml --test-set=no-such-set)
 sxml_add_qt4_test(run_help EXIT_CODE 0 ARGUMENTS run --help)
+
+# XQuery main modules, declared parameters and the serialization
+# assertions under --spec=XQ40 (packet 3.13).
+sxml_add_qt4_test(run_xquery EXIT_CODE 0
+    ARGUMENTS run --catalog=run-catalog.xml --spec=XQ40 --test-set=run-xquery)
 
 # The environment kinds of packet 2.16 (decimal formats, collations,
 # resources, collections) applied, listed and reported per area.

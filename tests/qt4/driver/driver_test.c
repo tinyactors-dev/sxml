@@ -302,8 +302,7 @@ test_applicability_follows_the_rules_in_order(sxml_test_state *state) {
         .test_set_dependencies = {.dependencies = set_dependencies,
                                   .dependency_count = 2},
         .test_case_dependencies = {.dependencies = NULL, .dependency_count = 0},
-        .environment = &environment,
-        .module_count = 0};
+        .environment = &environment};
     sxml_qt4_applicability applicability = {.is_applicable = true};
     sxml_qt4_decide_applicability(&request, &applicability);
     SXML_TEST_EXPECT(state, !applicability.is_applicable);
@@ -347,11 +346,9 @@ test_applicability_follows_the_rules_in_order(sxml_test_state *state) {
         .queries = {.texts = &query, .text_count = 1}};
     environment.collections = (sxml_qt4_collection_view){
         .collections = &collection, .collection_count = 1};
+    /* Collections with a query run since packet 3.13. */
     sxml_qt4_decide_applicability(&request, &applicability);
-    SXML_TEST_EXPECT(state, sxml_byte_view_equals(applicability.reason,
-                                                  TEXT("environment")));
-    SXML_TEST_EXPECT(state, sxml_byte_view_equals(applicability.detail,
-                                                  TEXT("collection query")));
+    SXML_TEST_EXPECT(state, applicability.is_applicable);
     SXML_TEST_EXPECT(state, applicability.is_in_scope);
     environment.collections.collection_count = 0;
 
@@ -381,11 +378,7 @@ test_applicability_follows_the_rules_in_order(sxml_test_state *state) {
         .is_default = true};
     environment.collations = (sxml_qt4_collation_view){.collations = &codepoint,
                                                        .collation_count = 1};
-    request.module_count = 1;
-    sxml_qt4_decide_applicability(&request, &applicability);
-    SXML_TEST_EXPECT(
-        state, sxml_byte_view_equals(applicability.reason, TEXT("module")));
-    request.module_count = 0;
+    /* Modules run since packet 3.13: the resource table serves them. */
     sxml_qt4_decide_applicability(&request, &applicability);
     SXML_TEST_EXPECT(state, applicability.is_applicable);
 }
@@ -432,7 +425,6 @@ static void test_scope_follows_the_non_goals_of_d95(sxml_test_state *state) {
                                   .dependency_count = 1},
         .test_case_dependencies = {.dependencies = NULL, .dependency_count = 0},
         .environment = &environment,
-        .module_count = 0,
         .test_set_name = TEXT("fn-abs")};
     sxml_qt4_applicability applicability = {.is_applicable = true};
     /* A spec that does not match is outside every denominator. */
@@ -638,6 +630,124 @@ test_resource_table_serves_resources_and_collections(sxml_test_state *state) {
         SXML_TEST_EXPECT(state, answer.first_integer ==
                                     collection_cases[case_index].first_integer);
     }
+    sxml_qt4_catalog_destroy(catalog);
+    const sxml_allocation_counts counts =
+        sxml_counting_allocator_read_counts(counting_allocator);
+    SXML_TEST_EXPECT(state, counts.live_allocation_count == 0);
+    sxml_counting_allocator_destroy(counting_allocator);
+}
+
+/* The file URI of the module the table serves for an import of
+   namespace_uri with one location hint (empty for none); empty when it
+   serves none. */
+typedef struct module_import {
+    sxml_byte_view namespace_uri;
+    sxml_byte_view hint;
+    sxml_byte_view absolute_hint;
+} module_import;
+
+static sxml_byte_view import_through(sxml_resource_resolver resolver,
+                                     module_import import) {
+    sxml_resource_request request;
+    memset(&request, 0, sizeof request);
+    request.resource_kind = SXML_RESOURCE_KIND_XQUERY_MODULE;
+    request.uri_reference = import.hint;
+    request.absolute_uri = import.absolute_hint;
+    request.target_namespace_uri = import.namespace_uri;
+    sxml_resource resource;
+    memset(&resource, 0, sizeof resource);
+    sxml_byte_view served = {.bytes = NULL, .byte_count = 0};
+    if (resolver.operations->resolve(resolver.state, &request, &resource) ==
+            SXML_STATUS_OK &&
+        resource.resource_form == SXML_RESOURCE_FORM_BYTES &&
+        sxml_byte_view_equals(resource.content, TEXT("<works/>"))) {
+        served = resource.resource_uri;
+    }
+    resolver.operations->release(resolver.state, &resource);
+    return served;
+}
+
+/* Packet 3.13: <module> files by target namespace, picked by location
+   hint, then by file name, then the first. */
+static void test_resource_table_serves_modules(sxml_test_state *state) {
+    sxml_counting_allocator *counting_allocator = NULL;
+    SXML_TEST_REQUIRE(
+        state, sxml_counting_allocator_create(
+                   sxml_default_allocator(),
+                   &(sxml_counting_allocator_configuration){
+                       .backing_allocator = sxml_default_allocator(),
+                       .failing_allocation_number = 0},
+                   &counting_allocator) == SXML_STATUS_OK);
+    const sxml_allocator allocator =
+        sxml_counting_allocator_as_allocator(counting_allocator);
+    sxml_qt4_catalog *catalog = NULL;
+    const sxml_qt4_catalog_configuration configuration =
+        suite_configuration(allocator);
+    SXML_TEST_REQUIRE(state, sxml_qt4_catalog_create(allocator, &configuration,
+                                                     &catalog) ==
+                                 SXML_STATUS_OK);
+    /* Every module file is docs/works.xml; the URIs tell them apart. */
+    const sxml_qt4_served_module modules[] = {
+        {.namespace_uri = TEXT("urn:m"),
+         .location = {.bytes = NULL, .byte_count = 0},
+         .file_path = TEXT("docs/works.xml"),
+         .file_uri = TEXT("file:///first")},
+        {.namespace_uri = TEXT("urn:m"),
+         .location = {.bytes = NULL, .byte_count = 0},
+         .file_path = TEXT("lib/other.xml"),
+         .file_uri = TEXT("file:///by-name")},
+        {.namespace_uri = TEXT("urn:m"),
+         .location = TEXT("http://e/m.xq"),
+         .file_path = TEXT("docs/works.xml"),
+         .file_uri = TEXT("file:///by-location")},
+    };
+    const sxml_qt4_resource_table table = {
+        .catalog = catalog,
+        .allocator = allocator,
+        .served_resources = {.served_resources = NULL,
+                             .served_resource_count = 0},
+        .served_collections = {.served_collections = NULL,
+                               .served_collection_count = 0},
+        .served_modules = {.served_modules = modules,
+                           .served_module_count = 3}};
+    const sxml_resource_resolver resolver =
+        sxml_qt4_resource_table_resolver(&table);
+    const sxml_byte_view none = {.bytes = NULL, .byte_count = 0};
+    SXML_TEST_EXPECT(
+        state,
+        sxml_byte_view_equals(
+            import_through(resolver, (module_import){.namespace_uri = TEXT("urn:m"),
+                                                     .hint = TEXT("http://e/m.xq"),
+                                                     .absolute_hint = none}),
+            TEXT("file:///by-location")));
+    SXML_TEST_EXPECT(
+        state, sxml_byte_view_equals(
+                   import_through(resolver,
+                                  (module_import){
+                                      .namespace_uri = TEXT("urn:m"),
+                                      .hint = TEXT("m.xq"),
+                                      .absolute_hint = TEXT("http://e/m.xq")}),
+                   TEXT("file:///by-location")));
+    /* lib/other.xml cannot be read: the chosen module is not available. */
+    SXML_TEST_EXPECT(
+        state,
+        import_through(resolver, (module_import){.namespace_uri = TEXT("urn:m"),
+                                                 .hint = TEXT("x/other.xml"),
+                                                 .absolute_hint = none})
+                .byte_count == 0);
+    SXML_TEST_EXPECT(
+        state,
+        sxml_byte_view_equals(
+            import_through(resolver, (module_import){.namespace_uri = TEXT("urn:m"),
+                                                     .hint = none,
+                                                     .absolute_hint = none}),
+            TEXT("file:///first")));
+    SXML_TEST_EXPECT(
+        state,
+        import_through(resolver, (module_import){.namespace_uri = TEXT("urn:other"),
+                                                 .hint = none,
+                                                 .absolute_hint = none})
+                .byte_count == 0);
     sxml_qt4_catalog_destroy(catalog);
     const sxml_allocation_counts counts =
         sxml_counting_allocator_read_counts(counting_allocator);
@@ -1115,6 +1225,7 @@ static const sxml_test_case driver_test_cases[] = {
      test_scope_follows_the_non_goals_of_d95},
     {"resource_table_serves_resources_and_collections",
      test_resource_table_serves_resources_and_collections},
+    {"resource_table_serves_modules", test_resource_table_serves_modules},
     {"test_lists_are_read_like_the_check_script",
      test_test_lists_are_read_like_the_check_script},
     {"catalog_resolves_test_cases_and_environments",

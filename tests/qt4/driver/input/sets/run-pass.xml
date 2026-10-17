@@ -113,8 +113,25 @@
       <test>1</test>
       <result><assert-eq>1</assert-eq></result>
    </test-case>
+   <test-case name="serialization-matches">
+      <environment ref="doc"/>
+      <test>(//p:item[1], 'x')</test>
+      <result><serialization-matches><![CDATA[^<p:item [^>]*>one</p:item>x$]]></serialization-matches></result>
+   </test-case>
+   <test-case name="serialization-matches-flags">
+      <test>'ABC'</test>
+      <result><serialization-matches flags="i">^abc$</serialization-matches></result>
+   </test-case>
+   <test-case name="serialization-error">
+      <test>true#0</test>
+      <result><assert-serialization-error code="SENR0001"/></result>
+   </test-case>
+   <test-case name="serialization-error-raised-by-evaluation">
+      <test>1 div 0</test>
+      <result><assert-serialization-error code="FOAR0001"/></result>
+   </test-case>
    <test-case name="not-run-serialization">
       <test>1</test>
-      <result><serialization-matches>1</serialization-matches></result>
+      <result><assert-serialization>1</assert-serialization></result>
    </test-case>
 </test-set>

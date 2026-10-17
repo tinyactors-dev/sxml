@@ -21,7 +21,8 @@
  *    the satisfaction it asks for: a dependency is satisfied when one of
  *    its space-separated values is in the driver's table of what sxml
  *    supports; satisfied="false" asks for the opposite;
- * 3. its environment and modules ask only for what sxml can provide.
+ * 3. its environment asks only for what sxml can provide (library
+ *    modules are served by the resource table, packet 3.13).
  * The first rule that fails is the reason the test is skipped.
  *
  * Separately, a test case is in scope when it counts in the denominator
@@ -90,8 +91,6 @@ typedef struct sxml_qt4_applicability_request {
     sxml_qt4_dependency_view test_set_dependencies;
     sxml_qt4_dependency_view test_case_dependencies;
     const sxml_qt4_environment *environment;
-    /* <module> elements of the test case (XQuery library modules). */
-    size_t module_count;
     /* The name of the test set, for the non-goal test sets of D95. */
     sxml_byte_view test_set_name;
 } sxml_qt4_applicability_request;
@@ -100,7 +99,7 @@ typedef struct sxml_qt4_applicability_request {
 typedef struct sxml_qt4_applicability {
     bool is_applicable;
     /* Why not: "spec", "feature" or another dependency type, or
-       "environment" or "module". Empty when applicable. */
+       "environment". Empty when applicable. */
     sxml_byte_view reason;
     /* The spec values, dependency value or environment element concerned;
        for "spec", the first failing value. Empty when applicable. */
