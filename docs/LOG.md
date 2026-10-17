@@ -4,6 +4,23 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 2.3 done (D105, D114): the regex engine covers the F&O 4.0 dialect
+  (\p/\P categories and blocks, \i \c, \b \B, lookahead/lookbehind in
+  both spellings, named groups and \k<name>, XSD 1.1 hyphens, case-blind
+  matching through the fn:lower-case/upper-case tables plus 94 extra
+  pairs), no recursion; tables regenerated from Unicode 16.0 (about 25
+  KB). New part `src/function_library_regex.c` with fn:matches,
+  fn:replace ($<name>), fn:tokenize (moved from the string part),
+  fn:analyze-string, fn:matching-segments, fn:regex. Before/after
+  (release): fn-matches.re 580/1082 -> 1082, fn-matches 155/200 -> 198,
+  fn-replace 166/187 -> 185, fn-tokenize 67/71 -> 68, fn-analyze-string
+  0/30 -> 29, fn-matching-segments 0/38 -> 36, fn-regex 0/30 -> 25;
+  XP40 23,146 -> 23,793 (dashboard run 09e1fed vs private run on
+  HEAD plus these files); FORX0002 561 -> 0; slice 198/198. `debug`,
+  `debug-gcc`, `wasm`, `release` all pass, lint clean. Open:
+  `a{2147483647}` is LIMIT_EXCEEDED (counted repetition is expanded);
+  named record types for fn:regex/fn:matching-segments.
+
 - 2.5 done (D113): lowering completions. for member and for key/value
   (array:split / map:entries collections, positions across all arrays
   or maps, XQST0089), destructuring let in its three forms, dynamic node

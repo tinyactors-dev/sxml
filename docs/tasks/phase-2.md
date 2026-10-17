@@ -119,6 +119,12 @@ recursion. New part: analyze-string, matching-segments, regex. Done when
 fn-matches.re, fn-matches, fn-replace, fn-tokenize, fn-analyze-string
 ≥ 95% and the 480 FORX0002 failures of 1.25 are gone. Spec:
 F&O 4.0 "Regular expression syntax"; XSD 1.1 Part 2 appendix G.
+**Done** 2026-10-17 (D105, D114): fn-matches.re 1082/1082, fn-matches
+198/200, fn-replace 185/187, fn-tokenize 68/71, fn-analyze-string
+29/30 (all ≥ 95%); no FORX0002 failure left in XP40 (561 before).
+fn-matching-segments 36/38 and fn-regex 25/30 wait for named record
+types and fn:format-integer. Also moved fn:matches, fn:replace and
+fn:tokenize to the new part.
 
 ### 2.4 Unicode tables and functions (implementation)
 After 2.0. Owns `src/unicode.c`, `src/unicode_internal.h`,
