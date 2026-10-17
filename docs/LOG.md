@@ -4,6 +4,13 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 3.14 sweep 1 claimed (D154): XQ40. Files: `tests/qt4/driver/test_run.c`,
+  `environment.c`/`.h`, `applicability.c`; `src/arena_tree.c`;
+  `src/evaluator.c`, `src/evaluator_global.c`, `src/evaluator_internal.h`,
+  `src/evaluator_machine_internal.h`, `src/function_library_internal.h`
+  (a unit evaluation step); new `src/xquery_load_module.c`;
+  `src/xquery_static.c`; `docs/CONFORMANCE.md`.
+
 - 4.10 done (D149): keys and XSLT functions. `src/function_library_xslt.c`,
   the XSLT-only library part (system-property and the other static-expression
   functions moved from `src/xslt_static.c`, current, document with the 4.0
