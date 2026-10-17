@@ -337,7 +337,7 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `unix_time` | Milliseconds since 1970-01-01T00:00:00Z, leap seconds not counted (fn:unix-dateTime) |
 | `atomic_equal` | The context-free equality of map keys (F&O 4.0, section 2.2.1 `fn:atomic-equal`) |
 | `atomic_hash` | A hash consistent with `atomic_equal` |
-| `sequence_representation` | How a sequence is stored: empty, single item, vector, integer range, concatenation, lazy |
+| `sequence_representation` | How a sequence is stored: empty, single item, vector, integer range, concatenation, lazy, descending integer range |
 | `item_count` | Number of items: `uint64_t` for a sequence (a range may hold more than fits in memory), `size_t` in an `item_view` |
 | `item_index` | Position of an item in a sequence, from 0 |
 | `item_view` | A read-only pointer to items plus `item_count` |
