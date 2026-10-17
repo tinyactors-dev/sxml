@@ -384,6 +384,8 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `evaluator_part` | One `src/evaluator_<part>.c` file defining `sxml_evaluator_part_<part>`: the IR expression kinds it evaluates and their step functions (D101) |
 | `part_task` | An evaluator task whose step function an evaluator part supplies, with state the part owns (D101) |
 | `catching_task` | An evaluator task marked to receive the dynamic or type errors raised above it: the machine unwinds to it instead of ending the evaluation (`try`/`catch`, D101) |
+| `error_details` | What a caught error binds in a catch clause, copied out of the error record: code, description, value, module, line and column number; bound as the map `$err:map` (XQuery 4.0, "Try/Catch Expressions"; D109) |
+| `pending_error` | An error of a try or catch clause that a finally clause raises again once it has run without error (D109) |
 | `tail_call` | A call whose value is the value of the function making it; the evaluator reuses that function's frame |
 | `native_step` | One run of a resumable native body: it finishes with a value, or asks the evaluator to call a function item and to run the next step with the result |
 | `resumable_native_body` | A native function body written as native steps, so a higher-order function never re-enters the evaluator on the C stack |
