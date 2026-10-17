@@ -144,6 +144,17 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `template_rule` | An XSLT rule: a match function, a template function, priority and import precedence |
 | `mode` | An XSLT mode: its template rules and its built-in rule |
 | `parameter_binding` | A parameter name with the value passed for it (`xsl:with-param`) |
+| `template_function` | The IR function an `xsl:template` (or a built-in template) lowers to: the focus (item, position, size) and the two parameter maps are its five parameters (D144) |
+| `parameter_map` | A map(xs:QName, item()*) of the parameters supplied to a template: one for the non-tunnel and one for the tunnel parameters (D144) |
+| `with_parameter` | The value one `xsl:with-param` supplies, with its name and whether it is a tunnel parameter |
+| `built_in_template` | The template function a mode calls for an item no template rule matches: the built-in template rule of its on-no-match (XSLT 4.0, 6.10) |
+| `rule_search` | Which template rules of a mode an apply-templates tries: all of them, those after the current template rule (`xsl:next-match`), or those of the levels the current rule's level imports (`xsl:apply-imports`) |
+| `current_template_rule` | The template rule whose template is running, absent in a changed focus, functions and globals (XSLT 4.0, 6.11) |
+| `current_mode` | The mode the running template was chosen in; `mode="#current"` (XSLT 4.0, 6.9.2) |
+| `enclosing_mode` | An `xsl:mode` with `xsl:template` children, the only rules of that mode (XSLT 4.0, 6.9.6) |
+| `stylesheet_level` | A stylesheet module with the modules it includes, directly or not: one import precedence (XSLT 4.0, 3.10.2) |
+| `invocation` | How the main function starts a transformation: a template to call, or templates applied to the global context item in an initial mode (XSLT 4.0, 2.4) |
+| `snippet` | A fixed XPath text that lowering parses and lowers itself: the parts of built-in templates, the default select of `xsl:apply-templates` |
 | `grammar` | A tree-sitter grammar under `grammars/<language>/`, and the parser generated from it |
 | `concrete_syntax_tree` | The tree-sitter parse tree of a query or document, before sxml builds its own structures |
 | `node_type` | The name a grammar gives one kind of concrete syntax tree node (`additive_expression`), as listed in `src/node-types.json` |
