@@ -213,6 +213,10 @@ format-integer (all primary tokens, ordinals in English, grouping,
 (2.2), exponent separator, `%:pc` forms. Pictures are scanned by hand
 (D97). Done when fn-format-integer and fn-format-number ≥ 95%. Spec:
 F&O 4.0 "Formatting integers", "Formatting numbers".
+**Done** 2026-10-17 (D119): `src/format.c` engine, part `format`;
+fn-format-integer 87/87 run, fn-format-number 252/286 run (88%): 33 of
+the 34 failures need the static context's decimal formats in the
+evaluator (Proposed), the other expects Java's digits of 4.9e-324.
 
 ### 2.10 Elements to maps and back (implementation)
 After 2.0. Owns `src/function_library_element_map.c`,
