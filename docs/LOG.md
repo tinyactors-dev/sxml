@@ -4,6 +4,21 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 4.8 done (D144): templates and modes. APPLY_TEMPLATES, XSLT's one IR
+  extension point, completed (parameter maps, rule search, separator;
+  modes with ordered rules and a built-in template) and evaluated by
+  `src/evaluator_template.c` as one part task whose match and template
+  calls run on the machine (errors while matching are no match; 100,000
+  levels of apply-templates tested). `src/xslt_lower_template.c`:
+  template functions with xsl:param and context-item, call-template
+  (STATIC_CALL; absent-focus variants), apply-templates, next-match,
+  apply-imports, tunnel parameters, modes, conflict resolution, built-in
+  templates from XPath snippets, the invocation. Scratch harness over the
+  packet's sets: 316 of 615 applicable cases pass (before: none ran);
+  most of the rest wait for 4.7 (globals, parameters), 4.9-4.12, packages.
+  XP40 30,628 and slice 198/198 unchanged; debug, debug-gcc, wasm, lint
+  clean.
+
 - 3.12 done (D146): "working XQuery". `include/sxml/xquery.h` in
   `src/xquery.c`, compiled with the XPath API's static context and
   evaluated by its unit evaluation (`src/xpath_api_internal.h`); output

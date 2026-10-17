@@ -4374,7 +4374,83 @@ Proposed items "QT4 assertions see the result as the context value",
 
 ### D144. Templates and modes (packet 4.8)
 Recorded 2026-10-17, after D55, D101, D118, D124, D139, D142.
-Reserved here; the record is completed when the packet is ticked.
+`src/xslt_lower_template.c`, `src/evaluator_template.c`,
+`tests/evaluator_template_test.c`; APPLY_TEMPLATES, the one reserved IR
+extension point of XSLT, is accepted by the verifier. No other IR kind, no
+public header.
+- **IR** (`src/ir_internal.h`, the reserved part, completed):
+  `sxml_ir_apply_templates` = select (NONE: the function's focus, for
+  next-match and apply-imports), mode (0: the current mode), rule search
+  (FROM_START, AFTER_CURRENT_RULE, IMPORTED_ONLY), and three atoms:
+  `parameters` and `tunnel_parameters`, two maps from xs:QName to values,
+  and `separator` (6.7). The by-name parameter binding list is gone (maps
+  replace it). A template rule gains `lowest_imported_precedence` (the
+  import subtree of its stylesheet level, for apply-imports, 6.11); a mode
+  gains `built_in_template` and `fails_on_multiple_match`. Adders
+  `sxml_ir_unit_add_template_rules`, `_add_modes`; accessors `_get_mode`,
+  `_get_template_rules`; the text form prints search and maps. Verifier:
+  modes in range, match functions of arity 1, template functions of
+  arity 5.
+- **Template function**: one IR function per xsl:template with five
+  parameters: item()?, position, size (its focus slots) and the two
+  parameter maps. Its body binds each xsl:param from map:contains/map:get
+  (coerced, XTTE0590) or its default (select, content as a temporary tree
+  without as, "" or () implicitly, XTDE0700 when mandatory), checks
+  xsl:context-item (XTTE3090, XTTE0590), and coerces the result to `as`
+  (TRY_CATCH mapping XPTY0004 to XTTE0505). A named template has a second
+  function lowered with an absent focus, called where the caller's focus
+  is absent (xsl:function, the initial template without a global context
+  item: the main function tests the focus with a TRY_CATCH of XPDY0002),
+  so reading `.` there raises XPDY0002 (10.1.2).
+- **Instructions**: xsl:call-template is a STATIC_CALL (XTSE0650,
+  XTSE0680 unless version < 2.0, XTSE0690); xsl:apply-templates,
+  next-match, apply-imports are APPLY_TEMPLATES. Tunnel parameters
+  (10.1.6): inside a template's function its received tunnel map (slot 5)
+  with the tunnel xsl:with-param values put in (map:put), else the empty
+  map. next-match and apply-imports pass the received non-tunnel map too
+  when their effective version is 4.0 or more (6.11). Lexically outside a
+  template body (another focus or function): XTDE0560 when evaluated.
+  apply-templates without select: XNode child::node(), JNode child::*,
+  map/array jtree(.)/child::*, else XTTE0510.
+- **Modes** (6.9): the unnamed mode is mode 1; then every mode xsl:mode
+  declares (XTSE0545 over all its attributes, XTSE0020 for a non-private
+  unnamed mode, XTSE4005, XTSE4010 for enclosing modes) and every mode a
+  template, apply-templates or default-mode names (XTSE3085 under
+  declared-modes). Rules per mode (#all: every mode but enclosing ones)
+  sorted by precedence, priority (explicit or D118's default) and
+  declaration order (6.8), heapsort. XTSE0660, XTSE0080.
+- **Built-in templates** (6.10) are template functions lowered from short
+  XPath snippets and the existing kinds (APPLY_TEMPLATES in the current
+  mode with the received maps, TEXT_CONSTRUCTOR, SHALLOW_COPY with
+  copy-namespaces, RAISE XTDE0555), one per on-no-match used;
+  shallow-copy-all reads as shallow-copy.
+- **Evaluator** (`src/evaluator_template.c`): a part task per
+  APPLY_TEMPLATES; each match function and template function is a CALL on
+  the machine (no C recursion, D71: 100,000 levels tested); the task
+  catches errors while a match function runs (6.5: no match); the
+  dynamic context's current_mode and current_template_rule_index are set
+  around each template call and restored on return and on unwinding;
+  on-multiple-match="fail" checks the tied rules (XTDE0540).
+- **Entry**: `sxml_xslt_lower_initial_template` lowers templates and modes,
+  then the invocation (`sxml_xslt_invocation`): a call of the initial
+  template (xsl:initial-template or a named one) with the global context
+  item, or apply-templates to it in the initial mode (default mode of the
+  principal module; XTDE0045 for an unknown one; XTDE0040 for an unknown
+  initial template). A simplified module is applied in the unnamed mode.
+- Left out: xsl:sort in apply-templates (4.9), current() and
+  fn:apply-templates (4.10), mode `as`/`typed`, warnings, packages
+  (xsl:override, visibility beyond XTSE0020), the 4.0 JNode shallow copy.
+- Measured with a scratch harness (lower, evaluate, serialize; assertions
+  through the XPath API) over the applicable in-scope cases of the sets of
+  the packet: 316 of 615 pass (match 93/193, mode 70/162, tunnel 53/58,
+  declared-modes 14/14, apply-templates 27/39, next-match 28/51,
+  call-template 21/42, built-in-templates 4/5, template 5/6, apply-imports
+  1/5, priority 0/40). Of the rest, 99 need global variables (4.7), 73
+  other instructions, 59 stylesheet parameters (4.7, 4.15), 21 packages,
+  18 XSLT functions (current, document, xsl:function: 4.10, 4.12), 11
+  `~T` patterns (D139). Patterns with predicates select the step again
+  from its parent (D118), so many sibling rules cost quadratic time
+  (match-242: 60 s in a debug build).
 
 ### D145. Control flow and variables (packet 4.7)
 Recorded 2026-10-17, after D71, D103, D109, D124, D126, D142.

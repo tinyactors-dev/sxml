@@ -188,6 +188,14 @@ next-match, apply-imports, current(), `as` on templates. Done when
 attr-match, mode, priority, tunnel, declared-modes, insn-apply-templates,
 next-match, apply-imports, call-template, misc-built-in-templates ≥ 85%.
 Spec: XSLT 4.0 "Template Rules", "Modes".
+**Done** 2026-10-17 (D144): `src/evaluator_template.c`,
+`src/xslt_lower_template.c`, `tests/evaluator_template_test.c`; the
+reserved APPLY_TEMPLATES payload, mode and rule of `src/ir_internal.h`
+completed and verified; `sxml_xslt_lower_initial_template` takes an
+invocation. Scratch run of the ten sets plus template: 316 of 615
+applicable cases pass; 99 need globals and 59 stylesheet parameters (4.7),
+73 other instructions, 18 XSLT functions (current() is 4.10's, D118), 21
+packages. xsl:sort under apply-templates waits for 4.9.
 
 ### 4.9 Sorting and grouping (implementation)
 After 4.7. Owns `src/xslt_lower_group.c`, `src/xslt_group.c`,
