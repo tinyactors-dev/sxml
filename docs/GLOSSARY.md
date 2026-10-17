@@ -288,6 +288,7 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `record_field` | One field of a record type: a name and a sequence type |
 | `structural_record_type` | A record type matched by its fields (`record(a as xs:int)`) |
 | `nominative_record_type` | A named record type matched only by records annotated with it |
+| `builtin_record_type` | A nominative record type of F&O 4.0 (appendix C, `fn:dateTime-record`) that the function library declares in its processor's type registry, so every static context knows it |
 | `enumeration_type` | An item type matching a fixed set of strings (`enum("a", "b")`) |
 | `choice_item_type` | An item type matching items of any of its alternatives (`(A \| B)`) |
 | `function_type` | The item type of function items with given parameter and result types; a function's signature |
