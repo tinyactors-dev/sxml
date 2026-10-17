@@ -84,7 +84,7 @@ target_include_directories(sxml
 # third_party/mpdecimal/ is vendored (D42, D49).
 target_link_libraries(sxml PRIVATE
     sxml_tree_sitter sxml_grammar_xml sxml_grammar_xpath sxml_grammar_json
-    sxml_grammar_xquery)
+    sxml_grammar_xquery sxml_grammar_xslt_pattern)
 if(TARGET sxml_mpdecimal)
     target_link_libraries(sxml PRIVATE sxml_mpdecimal)
 endif()
