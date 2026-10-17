@@ -16,10 +16,14 @@
  * evaluations nest: a host function body may evaluate another expression,
  * of the same processor, while one runs (D51). The clock is read at most
  * once per evaluation, by the dynamic context.
+ *
+ * The checks of the contexts and the evaluation of a sealed unit are
+ * shared with the XQuery API (src/xpath_api_internal.h, src/xquery.c).
  */
 #include "sxml/xpath.h"
 
 #include "evaluator_internal.h"
+#include "xpath_api_internal.h"
 #include "format_internal.h"
 #include "name_internal.h"
 #include "processor_internal.h"
@@ -165,8 +169,8 @@ static bool sxml_collations_are_valid(const sxml_static_context_configuration *c
    index past their tables (include/sxml/xpath.h, "Returns"). The rules
    lowering checks itself (distinct names, the xml prefix) are left to
    it. */
-static bool sxml_static_context_is_valid(const sxml_processor *processor,
-                                         const sxml_static_context_configuration *context) {
+bool sxml_static_context_configuration_is_valid(
+    const sxml_processor *processor, const sxml_static_context_configuration *context) {
     const uint32_t uri_limit = sxml_name_pool_namespace_uri_limit(processor->name_pool);
     const uint32_t prefix_limit = sxml_name_pool_namespace_prefix_limit(processor->name_pool);
     const uint32_t name_limit = sxml_name_pool_name_limit(processor->name_pool);
@@ -208,7 +212,7 @@ static bool sxml_static_context_is_valid(const sxml_processor *processor,
            sxml_collations_are_valid(context);
 }
 
-static sxml_xpath_static_context sxml_processor_static_context(
+sxml_xpath_static_context sxml_processor_static_context(
     sxml_processor *processor, const sxml_static_context_configuration *context) {
     return (sxml_xpath_static_context){
         .item_heap = processor->item_heap,
@@ -242,7 +246,7 @@ sxml_status sxml_xpath_expression_initialize(
     sxml_status status =
         sxml_xpath_expression_memory_requirements(configuration, &requirements);
     if (status == SXML_STATUS_OK &&
-        !sxml_static_context_is_valid(configuration->processor,
+        !sxml_static_context_configuration_is_valid(configuration->processor,
                                       &configuration->static_context)) {
         status = SXML_STATUS_INVALID_ARGUMENT;
     }
@@ -404,7 +408,7 @@ static bool sxml_environment_variables_are_valid(sxml_environment_variable_view 
    document names, an available document that is not a document node, a
    default language that is not an xs:language, environment variables
    that break the rules above. */
-static bool sxml_dynamic_context_configuration_is_valid(
+bool sxml_dynamic_context_configuration_is_valid(
     const sxml_dynamic_context_configuration *context) {
     if ((context->default_language.byte_count > 0 &&
          (context->default_language.bytes == NULL ||
@@ -466,8 +470,10 @@ static void sxml_global_binding_fill(const sxml_global_binding *binding) {
             binding->unit, (sxml_ir_global_index){.value = global_number});
         sxml_evaluator_slot slot = {.value = sxml_sequence_empty(),
                                     .slot_state = SXML_EVALUATOR_SLOT_STATE_ABSENT};
-        for (size_t binding_index = 0;
-             binding_index < binding->bindings->variable_binding_count; binding_index += 1) {
+        /* The context global (name 0, D135) is no binding's. */
+        for (size_t binding_index = 0; global->variable_name.index != 0 &&
+                                       binding_index < binding->bindings->variable_binding_count;
+             binding_index += 1) {
             const sxml_variable_binding *variable =
                 &binding->bindings->variable_bindings[binding_index];
             if (variable->variable_name.index == global->variable_name.index) {
@@ -497,12 +503,11 @@ static void sxml_evaluation_resources_release(const sxml_processor *processor,
 }
 
 /* Sets up the global slots, the loader and the dynamic context. */
-static sxml_status sxml_evaluation_resources_acquire(
-    const sxml_xpath_expression *expression, const sxml_xpath_evaluation_request *request,
-    sxml_evaluation_resources *resources) {
-    sxml_processor *processor = expression->processor;
-    const sxml_dynamic_context_configuration *context = &request->dynamic_context;
-    const sxml_ir_unit *unit = expression->unit;
+static sxml_status sxml_evaluation_resources_acquire(const sxml_unit_evaluation *evaluation,
+                                                     sxml_evaluation_resources *resources) {
+    sxml_processor *processor = evaluation->processor;
+    const sxml_dynamic_context_configuration *context = evaluation->dynamic_context;
+    const sxml_ir_unit *unit = evaluation->unit;
     sxml_status status = SXML_STATUS_OK;
     if (unit->global_variable_count > 1) {
         resources->global_slot_count = unit->global_variable_count - 1U;
@@ -564,34 +569,27 @@ static sxml_status sxml_evaluation_resources_acquire(
     return status;
 }
 
-sxml_status sxml_xpath_expression_evaluate(const sxml_xpath_expression *expression,
-                                           const sxml_xpath_evaluation_request *request,
-                                           sxml_sequence *result) {
-    if (expression == NULL || expression->unit == NULL || request == NULL ||
-        !sxml_dynamic_context_configuration_is_valid(&request->dynamic_context)) {
-        return SXML_STATUS_INVALID_ARGUMENT;
-    }
+sxml_status sxml_evaluate_unit(const sxml_unit_evaluation *evaluation, sxml_sequence *result) {
     sxml_evaluation_resources resources;
     memset(&resources, 0, sizeof(resources));
-    sxml_status status = sxml_evaluation_resources_acquire(expression, request, &resources);
+    sxml_status status = sxml_evaluation_resources_acquire(evaluation, &resources);
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    const sxml_dynamic_context_configuration *context = &request->dynamic_context;
+    const sxml_dynamic_context_configuration *context = evaluation->dynamic_context;
     sxml_sequence value = sxml_sequence_empty();
     status = sxml_evaluator_evaluate(
         resources.dynamic_context,
         &(sxml_evaluation_request){
-            .unit = expression->unit,
+            .unit = evaluation->unit,
             .has_context_value = context->has_context_value,
             .context_value = context->context_value,
             .global_values = {.slots = resources.global_slots,
                               .slot_count = resources.global_slot_count},
-            .static_base_uri = {.bytes = expression->static_base_uri_bytes,
-                                .byte_count = expression->static_base_uri_byte_count},
-            .error_record = request->error_record},
+            .static_base_uri = evaluation->static_base_uri,
+            .error_record = evaluation->error_record},
         &value);
-    sxml_evaluation_resources_release(expression->processor, &resources);
+    sxml_evaluation_resources_release(evaluation->processor, &resources);
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -599,12 +597,30 @@ sxml_status sxml_xpath_expression_evaluate(const sxml_xpath_expression *expressi
     return SXML_STATUS_OK;
 }
 
+sxml_status sxml_xpath_expression_evaluate(const sxml_xpath_expression *expression,
+                                           const sxml_xpath_evaluation_request *request,
+                                           sxml_sequence *result) {
+    if (expression == NULL || expression->unit == NULL || request == NULL ||
+        !sxml_dynamic_context_configuration_is_valid(&request->dynamic_context)) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    return sxml_evaluate_unit(
+        &(sxml_unit_evaluation){
+            .processor = expression->processor,
+            .unit = expression->unit,
+            .static_base_uri = {.bytes = expression->static_base_uri_bytes,
+                                .byte_count = expression->static_base_uri_byte_count},
+            .dynamic_context = &request->dynamic_context,
+            .error_record = request->error_record},
+        result);
+}
+
 /* ---------------------------------------------------------- Sequence types */
 
 sxml_status sxml_xpath_parse_sequence_type(const sxml_sequence_type_parse_request *request,
                                            sxml_sequence_type *sequence_type) {
     if (request == NULL || request->processor == NULL ||
-        !sxml_static_context_is_valid(request->processor, &request->static_context)) {
+        !sxml_static_context_configuration_is_valid(request->processor, &request->static_context)) {
         return SXML_STATUS_INVALID_ARGUMENT;
     }
     sxml_processor *processor = request->processor;

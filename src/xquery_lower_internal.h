@@ -88,10 +88,18 @@ SXML_NODISCARD sxml_status sxml_xquery_lower(
     const sxml_xquery_lowering_request *request, sxml_ir_unit **unit);
 
 /*
- * Parses request->expression_text with sxml_xquery_build_ast, lowers it
- * with sxml_xquery_lower, runs sxml_ir_standard_passes and seals, as
- * sxml_xpath_compile does: the internal entry tests and drivers use until
- * the XQuery API (packet 3.12). Defined in src/xquery_prolog.c.
+ * Lowers request->ast with sxml_xquery_lower, runs sxml_ir_standard_passes
+ * and seals, writing the unit, owned, to *unit; the AST stays the
+ * caller's (the XQuery API, src/xquery.c, reads output declarations from
+ * it). Defined in src/xquery_prolog.c.
+ */
+SXML_NODISCARD sxml_status sxml_xquery_compile_module(
+    const sxml_xquery_lowering_request *request, sxml_ir_unit **unit);
+
+/*
+ * Parses request->expression_text with sxml_xquery_build_ast and compiles
+ * it with sxml_xquery_compile_module, as sxml_xpath_compile does for
+ * XPath: the internal entry of unit tests. Defined in src/xquery_prolog.c.
  */
 SXML_NODISCARD sxml_status sxml_xquery_compile(
     const sxml_xpath_compile_request *request, sxml_ir_unit **unit);

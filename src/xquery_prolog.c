@@ -1291,32 +1291,13 @@ sxml_status sxml_xquery_lower(const sxml_xquery_lowering_request *request, sxml_
     return SXML_STATUS_OK;
 }
 
-sxml_status sxml_xquery_compile(const sxml_xpath_compile_request *request, sxml_ir_unit **unit) {
+sxml_status sxml_xquery_compile_module(const sxml_xquery_lowering_request *request,
+                                       sxml_ir_unit **unit) {
     if (request == NULL || request->static_context == NULL) {
         return SXML_STATUS_INVALID_ARGUMENT;
     }
-    sxml_ast *ast = NULL;
-    sxml_status status = sxml_xquery_build_ast(
-        &(sxml_ast_build_request){.expression_text = request->expression_text,
-                                  .source_name = request->source_name,
-                                  .allocator = request->static_context->allocator,
-                                  .maximum_expression_depth = request->maximum_expression_depth,
-                                  .error_record = request->error_record},
-        &ast);
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
     sxml_ir_unit *new_unit = NULL;
-    status = sxml_xquery_lower(
-        &(sxml_xquery_lowering_request){.ast = ast,
-                                        .static_context = request->static_context,
-                                        .maximum_expression_count =
-                                            request->maximum_expression_count,
-                                        .maximum_expression_depth =
-                                            request->maximum_expression_depth,
-                                        .error_record = request->error_record},
-        &new_unit);
-    sxml_ast_destroy(ast);
+    sxml_status status = sxml_xquery_lower(request, &new_unit);
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -1339,4 +1320,32 @@ sxml_status sxml_xquery_compile(const sxml_xpath_compile_request *request, sxml_
     sxml_ir_unit_seal(new_unit);
     *unit = new_unit;
     return SXML_STATUS_OK;
+}
+
+sxml_status sxml_xquery_compile(const sxml_xpath_compile_request *request, sxml_ir_unit **unit) {
+    if (request == NULL || request->static_context == NULL) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    sxml_ast *ast = NULL;
+    sxml_status status = sxml_xquery_build_ast(
+        &(sxml_ast_build_request){.expression_text = request->expression_text,
+                                  .source_name = request->source_name,
+                                  .allocator = request->static_context->allocator,
+                                  .maximum_expression_depth = request->maximum_expression_depth,
+                                  .error_record = request->error_record},
+        &ast);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    status = sxml_xquery_compile_module(
+        &(sxml_xquery_lowering_request){.ast = ast,
+                                        .static_context = request->static_context,
+                                        .maximum_expression_count =
+                                            request->maximum_expression_count,
+                                        .maximum_expression_depth =
+                                            request->maximum_expression_depth,
+                                        .error_record = request->error_record},
+        unit);
+    sxml_ast_destroy(ast);
+    return status;
 }

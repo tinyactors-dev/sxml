@@ -398,3 +398,58 @@ SXML_NODISCARD sxml_status sxml_serialize_json_method(sxml_serializer *serialize
  */
 SXML_NODISCARD sxml_status sxml_serializer_write_node_as_string(sxml_serializer *serializer,
                                                                 sxml_node_reference node);
+
+/* ------------------------------------- Parameters given as text (D146) */
+
+/*
+ * One serialization parameter given as text: an XQuery output declaration
+ * (XQuery 4.0, section 5.22) or, later, an attribute of xsl:output. The
+ * name is the parameter's local name in the serialization namespace; the
+ * value has the lexical form of a parameter document (Serialization 4.0,
+ * section 3.1 and appendix B: yes/no/true/false/1/0, QName lists,
+ * decimals). Views are borrowed for the call.
+ */
+typedef struct sxml_serialization_parameter_text {
+    sxml_byte_view parameter_name;
+    sxml_byte_view parameter_value;
+} sxml_serialization_parameter_text;
+
+typedef struct sxml_serialization_parameter_text_view {
+    const sxml_serialization_parameter_text *parameter_texts;
+    size_t parameter_text_count;
+} sxml_serialization_parameter_text_view;
+
+/* Parameters to read from text, over an optional parameter document. */
+typedef struct sxml_serialization_parameter_text_request {
+    /* An output:serialization-parameters element read first, as the
+       element form of sxml_serialization_parameter_reader_read reads it
+       (SEPM0017 to SEPM0019, SEPM0017 also for another element). */
+    bool has_parameter_document;
+    sxml_node_reference parameter_document;
+    /* Read after the document, each replacing its value; distinct names
+       (the caller checks, XQST0110). */
+    sxml_serialization_parameter_text_view parameter_texts;
+    /* What QNames of the texts resolve with; prefix 0 is the default
+       element namespace, which unprefixed element names take. */
+    sxml_namespace_binding_view namespace_bindings;
+    sxml_error_record *error_record;
+    /* When not NULL, receives the index of the text that failed, or
+       SIZE_MAX when the document did or nothing failed. */
+    size_t *failed_text_index;
+} sxml_serialization_parameter_text_request;
+
+/*
+ * Reads request's document and texts into *parameters as
+ * sxml_serialization_parameter_reader_read reads its options: method xml
+ * when none is given, the views owned by the reader until its next read.
+ * A text with a value its parameter does not permit, or an unknown name,
+ * raises SEPM0016 (an unsupported encoding SESU0007, normalization form
+ * SESU0011). Returns SXML_STATUS_DYNAMIC_ERROR with the error record
+ * filled, SXML_STATUS_INVALID_ARGUMENT for an invalid request, and the
+ * allocator's and name pool's failures; on failure *parameters is
+ * untouched.
+ */
+SXML_NODISCARD sxml_status sxml_serialization_parameter_reader_read_texts(
+    sxml_serialization_parameter_reader *parameter_reader,
+    const sxml_serialization_parameter_text_request *request,
+    sxml_serialization_parameters *parameters);

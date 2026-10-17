@@ -18,6 +18,7 @@
  */
 #include "sxml/serialize.h"
 
+#include "serialize_internal.h"
 #include "sxml/name.h"
 #include "sxml/string.h"
 #include "sxml/tree.h"
@@ -1162,6 +1163,18 @@ static sxml_status sxml_parameter_raise_document(sxml_parameter_reading *reading
                                         .status = SXML_STATUS_DYNAMIC_ERROR});
 }
 
+/* A value whose lexical form is not the parameter's: SEPM0017 in a
+   parameter document, SEPM0016 in an output declaration (XQuery 4.0,
+   5.22). */
+static sxml_status sxml_parameter_raise_form(sxml_parameter_reading *reading) {
+    return reading->is_document
+               ? sxml_parameter_raise_document(reading, SXML_DOCUMENT_ERROR_SEPM0017)
+               : sxml_parameter_raise_invalid(
+                     reading, (sxml_invalid_value){.description = "a serialization parameter "
+                                                                  "has a value it does not permit",
+                                                   .is_schema_invalid = false});
+}
+
 /* The attributes of an element of a parameter document: only those
    allowed, in no namespace (attributes in other namespaces are ignored,
    lax validation). */
@@ -1217,10 +1230,12 @@ static sxml_status sxml_parameter_read_attributes(sxml_parameter_reading *readin
 }
 
 /* Resolves a lexical QName (prefix:local, local, or Q{uri}local) against
-   the in-scope namespaces of element; an unprefixed name takes the
-   default namespace when uses_default_namespace. */
+   namespace bindings (an element's in-scope namespaces, or the statically
+   known namespaces of a query; the first binding of a prefix holds); an
+   unprefixed name takes the default namespace (prefix 0) when
+   uses_default_namespace. */
 typedef struct sxml_lexical_qname {
-    sxml_node_reference element;
+    sxml_namespace_binding_view namespace_bindings;
     sxml_byte_view text;
     bool uses_default_namespace;
 } sxml_lexical_qname;
@@ -1239,7 +1254,7 @@ static sxml_status sxml_parameter_resolve_qname(sxml_parameter_reading *reading,
             close += 1;
         }
         if (close == text.byte_count) {
-            return sxml_parameter_raise_document(reading, SXML_DOCUMENT_ERROR_SEPM0017);
+            return sxml_parameter_raise_form(reading);
         }
         status = sxml_name_pool_intern_namespace_uri(
             name_pool, (sxml_byte_view){.bytes = text.bytes + 2, .byte_count = close - 2},
@@ -1258,12 +1273,10 @@ static sxml_status sxml_parameter_resolve_qname(sxml_parameter_reading *reading,
                                           .byte_count = text.byte_count - colon - 1};
         }
         if (has_prefix || qname->uses_default_namespace) {
-            sxml_namespace_binding_view bindings = {.namespace_bindings = NULL,
-                                                    .namespace_binding_count = 0};
-            status = sxml_node_get_in_scope_namespaces(qname->element, &bindings);
-            bool is_found = !has_prefix;
-            for (size_t binding_index = 0;
-                 status == SXML_STATUS_OK && binding_index < bindings.namespace_binding_count;
+            const sxml_namespace_binding_view bindings = qname->namespace_bindings;
+            bool is_found = false;
+            for (size_t binding_index = 0; status == SXML_STATUS_OK && !is_found &&
+                                           binding_index < bindings.namespace_binding_count;
                  binding_index += 1) {
                 const sxml_namespace_binding binding = bindings.namespace_bindings[binding_index];
                 sxml_byte_view bound_prefix = {.bytes = NULL, .byte_count = 0};
@@ -1276,13 +1289,13 @@ static sxml_status sxml_parameter_resolve_qname(sxml_parameter_reading *reading,
                     is_found = true;
                 }
             }
-            if (status == SXML_STATUS_OK && !is_found) {
-                return sxml_parameter_raise_document(reading, SXML_DOCUMENT_ERROR_SEPM0017);
+            if (status == SXML_STATUS_OK && !is_found && has_prefix) {
+                return sxml_parameter_raise_form(reading);
             }
         }
     }
     if (status == SXML_STATUS_OK && local_name.byte_count == 0) {
-        return sxml_parameter_raise_document(reading, SXML_DOCUMENT_ERROR_SEPM0017);
+        return sxml_parameter_raise_form(reading);
     }
     return status == SXML_STATUS_OK
                ? sxml_name_pool_intern_name(
@@ -1335,7 +1348,7 @@ static sxml_status sxml_parameter_read_name_list(sxml_parameter_reading *reading
             status = sxml_parameter_resolve_qname(
                 reading,
                 &(sxml_lexical_qname){
-                    .element = list->element,
+                    .namespace_bindings = list->namespace_bindings,
                     .text = {.bytes = text.bytes + start, .byte_count = offset - start},
                     .uses_default_namespace = list->uses_default_namespace},
                 &identifiers[filled]);
@@ -1437,54 +1450,26 @@ static sxml_status sxml_parameter_read_character_map_element(
     return status;
 }
 
-/* Decodes the value attribute of a parameter element (Serialization 4.0,
-   appendix B: yes-no types, QName lists, decimals). */
-typedef struct sxml_parameter_element {
+/* Decodes a parameter's value given as text, the lexical form of a
+   parameter document (Serialization 4.0, appendix B: yes-no types, QName
+   lists, decimals): the value attribute of a parameter element, or an
+   XQuery output declaration (XQuery 4.0, 5.22). QNames resolve with
+   namespace_bindings. */
+typedef struct sxml_parameter_text_decoding {
     sxml_parameter_name name;
-    sxml_node_reference element;
-} sxml_parameter_element;
+    sxml_byte_view text;
+    sxml_namespace_binding_view namespace_bindings;
+} sxml_parameter_text_decoding;
 
-static sxml_status sxml_parameter_decode_element(sxml_parameter_reading *reading,
-                                                 const sxml_parameter_element *parameter,
-                                                 sxml_parameter_value *value) {
-    const sxml_parameter_kind kind = sxml_parameter_definitions[parameter->name].kind;
-    if (kind == SXML_PARAMETER_KIND_CHARACTER_MAP) {
-        static const char *const no_names[] = {"value"};
-        sxml_byte_view unused_value = {.bytes = NULL, .byte_count = 0};
-        bool has_value = false;
-        sxml_status status = sxml_parameter_read_attributes(
-            reading, &(sxml_attribute_lookup){.element = parameter->element,
-                                              .names = no_names,
-                                              .values = &unused_value,
-                                              .presences = &has_value,
-                                              .name_count = 1});
-        if (status == SXML_STATUS_OK && has_value) {
-            return sxml_parameter_raise_document(reading, SXML_DOCUMENT_ERROR_SEPM0017);
-        }
-        return status == SXML_STATUS_OK
-                   ? sxml_parameter_read_character_map_element(reading, parameter->element,
-                                                               &value->character_map)
-                   : status;
-    }
-    static const char *const names[] = {"value"};
-    sxml_byte_view text = {.bytes = NULL, .byte_count = 0};
-    bool has_value = false;
-    sxml_status status = sxml_parameter_read_attributes(
-        reading, &(sxml_attribute_lookup){.element = parameter->element,
-                                          .names = names,
-                                          .values = &text,
-                                          .presences = &has_value,
-                                          .name_count = 1});
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    if (!has_value) {
-        return sxml_parameter_raise_document(reading, SXML_DOCUMENT_ERROR_SEPM0017);
-    }
+static sxml_status sxml_parameter_decode_text(sxml_parameter_reading *reading,
+                                              const sxml_parameter_text_decoding *decoding,
+                                              sxml_parameter_value *value) {
+    const sxml_parameter_kind kind = sxml_parameter_definitions[decoding->name].kind;
+    const sxml_byte_view text = decoding->text;
     const sxml_byte_view trimmed = sxml_parameter_trim(text);
     switch (kind) {
     case SXML_PARAMETER_KIND_FLAG:
-    case SXML_PARAMETER_KIND_STANDALONE:
+    case SXML_PARAMETER_KIND_STANDALONE: {
         if (sxml_byte_view_equals(trimmed, SXML_BYTE_VIEW_FROM_LITERAL("yes"))) {
             value->flag = true;
             return SXML_STATUS_OK;
@@ -1498,18 +1483,16 @@ static sxml_status sxml_parameter_decode_element(sxml_parameter_reading *reading
             value->is_absent = true;
             return SXML_STATUS_OK;
         }
-        {
-            const sxml_boolean_reading reading_result = sxml_parameter_read_boolean(trimmed);
-            value->flag = reading_result.flag;
-            return reading_result.is_valid ? SXML_STATUS_OK
-                                           : sxml_parameter_raise_document(reading, SXML_DOCUMENT_ERROR_SEPM0017);
-        }
+        const sxml_boolean_reading reading_result = sxml_parameter_read_boolean(trimmed);
+        value->flag = reading_result.flag;
+        return reading_result.is_valid ? SXML_STATUS_OK : sxml_parameter_raise_form(reading);
+    }
     case SXML_PARAMETER_KIND_TEXT:
         value->text = text;
         return SXML_STATUS_OK;
     case SXML_PARAMETER_KIND_DECIMAL:
         if (!sxml_parameter_is_decimal(trimmed)) {
-            return sxml_parameter_raise_document(reading, SXML_DOCUMENT_ERROR_SEPM0017);
+            return sxml_parameter_raise_form(reading);
         }
         value->text = trimmed;
         return SXML_STATUS_OK;
@@ -1526,12 +1509,12 @@ static sxml_status sxml_parameter_decode_element(sxml_parameter_reading *reading
             has_colon = has_colon || trimmed.bytes[offset] == ':';
         }
         if (!has_colon) {
-            return sxml_parameter_raise_document(reading, SXML_DOCUMENT_ERROR_SEPM0017);
+            return sxml_parameter_raise_form(reading);
         }
         sxml_name_identifier unused_name;
-        status = sxml_parameter_resolve_qname(
+        const sxml_status status = sxml_parameter_resolve_qname(
             reading,
-            &(sxml_lexical_qname){.element = parameter->element,
+            &(sxml_lexical_qname){.namespace_bindings = decoding->namespace_bindings,
                                   .text = trimmed,
                                   .uses_default_namespace = false},
             &unused_name);
@@ -1541,14 +1524,57 @@ static sxml_status sxml_parameter_decode_element(sxml_parameter_reading *reading
     case SXML_PARAMETER_KIND_NAMES:
         return sxml_parameter_read_name_list(
             reading,
-            &(sxml_lexical_qname){.element = parameter->element,
+            &(sxml_lexical_qname){.namespace_bindings = decoding->namespace_bindings,
                                   .text = text,
                                   .uses_default_namespace = true},
             &value->names);
     case SXML_PARAMETER_KIND_CHARACTER_MAP:
-        break;
+        /* Only as an element (use-character-maps has no lexical form). */
+        return sxml_parameter_raise_form(reading);
     }
     return SXML_STATUS_INVALID_ARGUMENT;
+}
+
+/* Decodes a parameter element: its value attribute, or for
+   use-character-maps its output:character-map children. */
+typedef struct sxml_parameter_element {
+    sxml_parameter_name name;
+    sxml_node_reference element;
+} sxml_parameter_element;
+
+static sxml_status sxml_parameter_decode_element(sxml_parameter_reading *reading,
+                                                 const sxml_parameter_element *parameter,
+                                                 sxml_parameter_value *value) {
+    static const char *const names[] = {"value"};
+    sxml_byte_view text = {.bytes = NULL, .byte_count = 0};
+    bool has_value = false;
+    sxml_status status = sxml_parameter_read_attributes(
+        reading, &(sxml_attribute_lookup){.element = parameter->element,
+                                          .names = names,
+                                          .values = &text,
+                                          .presences = &has_value,
+                                          .name_count = 1});
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (sxml_parameter_definitions[parameter->name].kind == SXML_PARAMETER_KIND_CHARACTER_MAP) {
+        return has_value ? sxml_parameter_raise_document(reading, SXML_DOCUMENT_ERROR_SEPM0017)
+                         : sxml_parameter_read_character_map_element(reading, parameter->element,
+                                                                     &value->character_map);
+    }
+    if (!has_value) {
+        return sxml_parameter_raise_document(reading, SXML_DOCUMENT_ERROR_SEPM0017);
+    }
+    sxml_namespace_binding_view bindings = {.namespace_bindings = NULL,
+                                            .namespace_binding_count = 0};
+    status = sxml_node_get_in_scope_namespaces(parameter->element, &bindings);
+    return status == SXML_STATUS_OK
+               ? sxml_parameter_decode_text(
+                     reading,
+                     &(sxml_parameter_text_decoding){
+                         .name = parameter->name, .text = text, .namespace_bindings = bindings},
+                     value)
+               : status;
 }
 
 /* Reads a parameter document (Serialization 4.0, 3.1). */
@@ -1659,6 +1685,15 @@ static sxml_status sxml_parameter_reader_prepare(sxml_serialization_parameter_re
     return status;
 }
 
+/* Makes the arena a successful read filled current, so the last read's
+   parameters stay valid until the next success. */
+static void sxml_parameter_reader_commit(sxml_serialization_parameter_reader *reader) {
+    sxml_arena *const previous = reader->current_arena;
+    reader->current_arena = reader->spare_arena;
+    reader->spare_arena = previous;
+    sxml_arena_reset(previous);
+}
+
 sxml_status sxml_serialization_parameter_reader_read(
     sxml_serialization_parameter_reader *parameter_reader,
     const sxml_serialization_parameter_read_request *request,
@@ -1725,10 +1760,97 @@ sxml_status sxml_serialization_parameter_reader_read(
         sxml_arena_reset(parameter_reader->spare_arena);
         return status;
     }
-    sxml_arena *const previous = parameter_reader->current_arena;
-    parameter_reader->current_arena = parameter_reader->spare_arena;
-    parameter_reader->spare_arena = previous;
-    sxml_arena_reset(previous);
+    sxml_parameter_reader_commit(parameter_reader);
+    *parameters = reading.parameters;
+    return SXML_STATUS_OK;
+}
+
+/* Reads the parameter document, then the texts over it. */
+static sxml_status sxml_parameter_read_texts(sxml_parameter_reading *reading,
+                                             const sxml_serialization_parameter_text_request *request) {
+    sxml_status status = SXML_STATUS_OK;
+    if (request->has_parameter_document) {
+        const sxml_name_pool *name_pool =
+            sxml_item_heap_get_name_pool(reading->reader->item_heap);
+        sxml_node_description description;
+        sxml_name_parts parts = {.namespace_uri = {.index = SXML_NAMESPACE_NONE},
+                                 .local_name = {.bytes = NULL, .byte_count = 0}};
+        status = sxml_node_describe(request->parameter_document, &description);
+        if (status == SXML_STATUS_OK && description.node_kind == SXML_NODE_KIND_ELEMENT) {
+            status = sxml_name_pool_get_name_parts(name_pool, description.node_name, &parts);
+        }
+        reading->is_document = true;
+        if (status == SXML_STATUS_OK) {
+            /* Serialization 4.0, 3.1: the document element is
+               output:serialization-parameters. */
+            status = description.node_kind == SXML_NODE_KIND_ELEMENT &&
+                             parts.namespace_uri.index == SXML_NAMESPACE_SERIALIZATION &&
+                             sxml_byte_view_equals(
+                                 parts.local_name,
+                                 SXML_BYTE_VIEW_FROM_LITERAL("serialization-parameters"))
+                         ? sxml_parameter_read_document(reading, request->parameter_document)
+                         : sxml_parameter_raise_document(reading, SXML_DOCUMENT_ERROR_SEPM0017);
+        }
+        reading->is_document = false;
+    }
+    const sxml_serialization_parameter_text_view texts = request->parameter_texts;
+    for (size_t text_index = 0; status == SXML_STATUS_OK && text_index < texts.parameter_text_count;
+         text_index += 1) {
+        const sxml_serialization_parameter_text *text = &texts.parameter_texts[text_index];
+        const sxml_parameter_name name = sxml_parameter_find(text->parameter_name);
+        sxml_parameter_value value;
+        memset(&value, 0, sizeof(value));
+        status = name == SXML_PARAMETER_COUNT
+                     ? sxml_parameter_raise_form(reading)
+                     : sxml_parameter_decode_text(
+                           reading,
+                           &(sxml_parameter_text_decoding){
+                               .name = name,
+                               .text = text->parameter_value,
+                               .namespace_bindings = request->namespace_bindings},
+                           &value);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_parameter_assign(reading, name, &value);
+        }
+        if (status != SXML_STATUS_OK && request->failed_text_index != NULL) {
+            *request->failed_text_index = text_index;
+        }
+    }
+    return status;
+}
+
+sxml_status sxml_serialization_parameter_reader_read_texts(
+    sxml_serialization_parameter_reader *parameter_reader,
+    const sxml_serialization_parameter_text_request *request,
+    sxml_serialization_parameters *parameters) {
+    if (parameter_reader == NULL || request == NULL || parameters == NULL ||
+        (request->parameter_texts.parameter_text_count > 0 &&
+         request->parameter_texts.parameter_texts == NULL)) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    if (request->failed_text_index != NULL) {
+        *request->failed_text_index = SIZE_MAX;
+    }
+    sxml_status status = sxml_parameter_reader_prepare(parameter_reader);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_arena_reset(parameter_reader->spare_arena);
+    /* XQuery 4.0, 5.22.1, and XSLT's xsl:output: method xml when nothing
+       gives one. */
+    sxml_parameter_reading reading = {
+        .reader = parameter_reader,
+        .arena = parameter_reader->spare_arena,
+        .error_record = request->error_record,
+        .parameters = {.serialization_method = SXML_SERIALIZATION_METHOD_XML},
+        .is_document = false,
+    };
+    status = sxml_parameter_read_texts(&reading, request);
+    if (status != SXML_STATUS_OK) {
+        sxml_arena_reset(parameter_reader->spare_arena);
+        return status;
+    }
+    sxml_parameter_reader_commit(parameter_reader);
     *parameters = reading.parameters;
     return SXML_STATUS_OK;
 }
