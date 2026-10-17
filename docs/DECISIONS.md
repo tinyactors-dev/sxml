@@ -4316,6 +4316,10 @@ no evaluator change, no public header.
 Recorded 2026-10-17, after D55, D101, D118, D124, D139, D142.
 Reserved here; the record is completed when the packet is ticked.
 
+### D145. Control flow and variables (packet 4.7)
+Recorded 2026-10-17, after D71, D103, D109, D124, D126, D142.
+Reserved here; the record is completed when the packet is ticked.
+
 ## Proposed
 
 - **Prolog follow-ups** (packet 3.10, D135). (a) For the owner of the
