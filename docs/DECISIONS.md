@@ -3597,7 +3597,7 @@ second writer or escaper was added.
   the JSON method beyond the four node methods, records omitting empty
   entries in JSON (no record marker on maps).
 
-### D127. Lowering node constructors (packet 3.9)
+### D128. Lowering node constructors (packet 3.9)
 Recorded 2026-10-17, completing D110 and D124 for XQuery.
 `src/xquery_lower_construct.c` is lowering part `construct`
 (SXML_LANGUAGE_XQUERY, D103) for the DIRECT_* and COMPUTED_* kinds; no IR
