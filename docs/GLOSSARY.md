@@ -132,6 +132,7 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `seal` | End the building of a unit: nothing in it moves afterwards |
 | `evaluator` | Walks the IR of a sealed unit and computes values |
 | `document_loader` | Internal interface through which fn:doc and fn:parse-xml obtain document nodes; the processor implements it |
+| `evaluation_environment` | What the library functions of one evaluation read from the host beyond fn:doc: the resolver for text, binary and collection resources, the trace sink, the default language, environment variables, and the static context's decimal formats and collations; carried by the processor's document loader |
 | `sort_key` | An expression whose value orders the items of a sort, with direction and empty order |
 | `template_rule` | An XSLT rule: a match function, a template function, priority and import precedence |
 | `mode` | An XSLT mode: its template rules and its built-in rule |
