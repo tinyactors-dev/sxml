@@ -4,6 +4,22 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 1.29 done, Phase 1 gate review (D98-D100). Rubric pass over all public
+  headers and the core modules; no writable globals, no allocation or
+  printing outside their places, no recursion through function pointers
+  (call-cycle check now also links the QT4 driver: 85 files, no cycle).
+  Substrate fixed before the freeze: base URI of parentless roots
+  (`sxml_arena_tree_configuration.base_uri`), parentless namespace nodes
+  stored as a tree's root; then frozen (D99). Local gate on `09e1fed`:
+  `debug`, `debug-gcc`, `release`, `wasm` 117/117 ctest, `fuzz` 5/5,
+  `tools/lint.sh` clean, slice 198/198 (sanitizers and `wasm`); five fuzz
+  targets 300 s each, clean; dashboard regenerated: XP40 23,146 passed
+  (800 wrong error), 5,209 failed, 510 errors, 18,448 not run (up from
+  21,443 by 1.23b). `wasm` CLI 1,268,420 stripped / 385,760 gzip, inside
+  the D93 budget; 1.23b added 55 KB stripped without logging it.
+  **Blocked**: CI refuses every job for billing since 2026-10-16; the CI
+  gate boxes stay open and macOS, Windows, MSVC are unverified.
+
 - 1.28 done (D93): WebAssembly slice. `tools/run-wasi.mjs` preopens the
   source tree as well as ".", so `xml_conformance` runs under WASI
   (601/175/948) instead of skipping; `qt4/slice` 198/198 under `wasm`
@@ -499,3 +515,24 @@ Phase 1.
    to register them yet; it will be a new function, with a record.
 9. **Document and collection resolution (D30).** Designed with the dynamic
    context in Phase 1, outside the substrate headers.
+
+## Open questions at the Phase 1 gate (packet 1.29)
+
+For the owner. Only the first blocks a gate box.
+
+1. **CI billing.** GitHub Actions refuses every job ("recent account
+   payments have failed or your spending limit needs to be increased").
+   Restore billing (or move CI elsewhere) so the two CI gate boxes can be
+   ticked and macOS, Windows and MSVC are built again; until then those
+   platforms are unverified since the Phase 0 gate.
+2. **Phase 2 may start with the CI boxes open?** The review ran every check
+   locally (D100); CLAUDE.md is the orchestrator's to move to Phase 2.
+3. **Substrate freeze (D99).** Accept the rule: additive changes with a
+   record, no changes to existing declarations without reopening D99.
+4. **The 510 "error" outcomes of XP40** are mostly unlowered constructs
+   (UNSUPPORTED_FEATURE, 493); 8 hit LIMIT_EXCEEDED and 7 the 512 MiB
+   budget of the driver. D95 asks for zero at the Phase 2 gate; the 15
+   resource cases need a look in Phase 2 (2.19 sweeps).
+5. **Size budget in CI.** D93's budget is not enforced by a test; 1.23b
+   grew the `wasm` CLI by 55 KB unnoticed. Add the size check to CMake or
+   `ci.yml` in Phase 2 (2.0 owns the root CMakeLists.txt).
