@@ -57,7 +57,7 @@ One short entry per week, newest first: what passed, what's next, what is blocke
   48/48. Lost: fn-function-lookup-350/354/358 (function-lookup of the
   focus-dependent id#1, element-with-id#1, idref#1 is XPDY0002, D115's open
   lowering item; they passed only while the functions were missing).
-  Survey: missing functions are 2.11's and 2.15's, load-xquery-module,
+  Survey: missing functions are 2.15's (CSV), load-xquery-module,
   transform and D97's non-goals. Slice 198/198; debug, debug-gcc, wasm
   pass; lint clean. Proposed: the decimal-zero comparison fix in
   `src/xdm_atomic.c` (`0.0 eq 0e0` is false), a descending range.

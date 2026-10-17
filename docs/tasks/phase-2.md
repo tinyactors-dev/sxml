@@ -336,6 +336,14 @@ pad-string, system-properties, location. Done when 1.23b's list of
 missing functions holds only D97's non-goals, fn:serialize (3.4) and
 fn:load-xquery-module (3.11).
 
+**Done** 2026-10-17 (D136): every function of the list, plus fn:doc's
+options, strip-space="all" and collations in min/max, highest/lowest,
+sort-by and array:sort; new part `type` and `src/function_library_options.c`.
+The missing list (every fn/map/array/math name of the XP40 sets, looked
+up at arities 0 to 6) now holds D97's non-goals (html-doc, parse-html,
+invisible-xml, xsd-validator), load-xquery-module (3.11), transform, and
+2.15's CSV functions.
+
 **2.6b Done** 2026-10-17 (D133, orchestrator-assigned): the 16 built-in
 record types of F&O 4.0, appendix C, declared per type registry by the
 function library (`src/function_library_records.c`); parts-of-dateTime,
