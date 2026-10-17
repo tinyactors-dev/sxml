@@ -4,6 +4,20 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 2.6b done (D133): the 16 built-in record types of F&O 4.0, appendix C
+  (`src/function_library_records.c`), declared once per type registry
+  when the function library initializes; bodies return annotated records
+  (`sxml_function_library_make_record`), generator and compiled-regex
+  function items take their field types as signatures; coercion to a
+  nominative record type; ?take is xs:nonNegativeInteger; INF idiv 0 is
+  FOAR0001. fn-parts-of-dateTime 8 to 20/20, fn-divide-decimals 19 to
+  21/21, fn-random-number-generator 50 to 54/54 run, fn-regex 27 to
+  29/30 (-007 needs XPTY0004 for a dynamic call on ()),
+  fn-matching-segments 37 to 38/38 run, op-numeric-integer-divide wrong
+  errors 2 to 0. XP40 29,029 passed, slice 198/198; debug and debug-gcc
+  pass (HEAD's tests/xslt_pattern_test.c fails -Wshadow under GCC, not
+  this packet).
+
 - 3.7 done (D126): XQuery lowering part `xquery` (`src/xquery_lower.c`,
   `src/xquery_lower_internal.h`): FLWOR as clause segments (MAP, LET,
   CONDITIONAL) with order by, count and while over tuple arrays (SORT,
