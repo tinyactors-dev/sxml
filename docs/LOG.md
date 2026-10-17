@@ -4,6 +4,23 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 2.13 done (D116): collations and comparison options. `src/collation.c`:
+  codepoint, Unicode and HTML ASCII case-insensitive, UCA with fallback
+  (UTS #10 levels over weights from Unicode properties: strength,
+  alternate, maxVariable, caseFirst, caseLevel, backwards), keys and
+  substring matching by collation units; `sxml_collation_is_supported`
+  (the QT4 driver uses it; FULLY-NORMALIZED accepted). One resolver for
+  every collation argument; fn:collation, -available, -key; collation-
+  aware compare, index-of, distinct/duplicate-values, all-equal/-different,
+  sort, contains-token, substring functions. fn:deep-equal: every 4.0
+  option, items-equal as a resumable body, unordered comparisons by
+  backtracking trials. XP40 passed 26,170 to 26,510, none lost; FOCH0002
+  failures 280 to 12; fn-compare 188 to 221/225, fn-duplicate-values
+  111/113, fn-deep-equal 327 to 395/449 (function-item equivalence and
+  default collation Proposed), fn-collation 0 to 89/89, fn-collation-key
+  0 to 35/35, misc-UCACollation 70 to 87/87. Slice 198/198; debug,
+  debug-gcc, wasm 143/143, lint clean.
+
 - 2.7 done (D125): fn:divide-decimals over a new decimal operation
   (divisor exponent shifted, libmpdec divint/rem, precision fitted to the
   digit limit). Release XP40 23,146 (docs/CONFORMANCE.md) to 26,975 with
