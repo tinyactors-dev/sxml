@@ -99,6 +99,28 @@
  * written in XPath 4.0; an ATOM expression prints as its atom. Packet
  * 1.12 compares dumps with golden text.
  *
+ * Constructors print their name and value atoms, then on the same line
+ * the binding lists that are not empty and the flags (no-preserve-
+ * namespaces, no-inherit-namespaces, preserves-types, xslt-rules), then
+ * the content nested. TRY_CATCH prints its body, each clause as (catch
+ * (NAME-TEST...) SLOT HANDLER) and (finally BODY). tests/ir_test.c's
+ * golden text for an XQuery unit:
+ *
+ *     (function 1 main (parameters 0) (captures) (slots 2)
+ *       (let $2 (try-catch
+ *                 (binary divide 1 0)
+ *                 (catch (err:FOAR0001 *:local) $1
+ *                   (lookup $1 "code"))
+ *                 (catch (*) $1
+ *                   (sequence))
+ *                 (finally
+ *                   (sequence)))
+ *         (element-constructor "p:a" _ (namespaces p="urn:p" ""="urn:d")
+ *            (name-namespaces p="urn:p") no-preserve-namespaces xslt-rules
+ *           (sequence $2))))
+ *
+ * (the element constructor's line is wrapped here).
+ *
  * Example 1: XPath `let $f := function($x){$x + .} return $f(4)`
  * (QT4 inline-fn-005: the body has no focus, XPDY0002)
  *
@@ -200,9 +222,12 @@
  *   function of arity 0, evaluated on first read (a cycle raises
  *   XQDY0054); external variables are globals without an initializer.
  *   Imported library modules are lowered into the same unit.
- * - Constructors: the reserved constructor kinds below build trees through
- *   an sxml_tree_builder; direct and computed constructors lower alike.
- * - try/catch: the reserved TRY_CATCH kind.
+ * - Constructors: the constructor kinds below build trees through an
+ *   sxml_tree_builder; direct and computed constructors lower alike. The
+ *   prolog's construction and copy-namespaces modes become
+ *   construction_flags on each constructor (D110).
+ * - try/catch: the TRY_CATCH kind, its catch clauses and name tests added
+ *   with sxml_ir_unit_add_catch_clauses and sxml_ir_unit_add_name_tests.
  * - typeswitch and switch: CONDITIONAL chains over INSTANCE_OF and
  *   comparisons; ordered/unordered: their content.
  *
@@ -733,7 +758,13 @@ typedef struct sxml_ir_raise {
     sxml_byte_view description;
 } sxml_ir_raise;
 
-/* --- Reserved payloads (Phases 3 and 4) --- */
+/* --- XQuery payloads (Phase 3) --- */
+
+/* Name tests to add to a unit (sxml_ir_unit_add_name_tests). */
+typedef struct sxml_ir_name_test_view {
+    const sxml_name_test *name_tests;
+    size_t name_test_count;
+} sxml_ir_name_test_view;
 
 /* A run of name tests in the unit (the error tests of catch clauses). */
 typedef struct sxml_ir_name_test_list {
@@ -741,22 +772,30 @@ typedef struct sxml_ir_name_test_list {
     uint32_t name_test_count;
 } sxml_ir_name_test_list;
 
-/* One catch clause: the errors it catches and its handler, evaluated with
-   error_details bound to the map of $err:code, $err:description,
-   $err:value, $err:module, $err:line-number, $err:column-number and
-   $err:additional, from which lowering reads those variables. */
+/* One catch clause: the errors it catches (one or more name tests, any
+   kind) and its handler, evaluated with error_details (a slot of the
+   function, bound in the handler only) bound to the map of the error
+   details whose keys D109 lists, from which lowering reads the $err:
+   variables. */
 typedef struct sxml_ir_catch_clause {
     sxml_ir_name_test_list error_tests;
     sxml_ir_slot error_details;
     sxml_ir_expression_index handler;
 } sxml_ir_catch_clause;
 
+typedef struct sxml_ir_catch_clause_view {
+    const sxml_ir_catch_clause *catch_clauses;
+    size_t catch_clause_count;
+} sxml_ir_catch_clause_view;
+
 typedef struct sxml_ir_catch_clause_list {
     uint32_t first_catch_clause_index;
     uint32_t catch_clause_count;
 } sxml_ir_catch_clause_list;
 
-/* TRY_CATCH; finally_body may be 0. */
+/* TRY_CATCH (XQuery 4.0, section 4.20): body is required; the clauses
+   are tried in order; finally_body may be 0, but not when there are no
+   clauses. */
 typedef struct sxml_ir_try_catch {
     sxml_ir_expression_index body;
     sxml_ir_catch_clause_list catch_clauses;
@@ -764,26 +803,68 @@ typedef struct sxml_ir_try_catch {
 } sxml_ir_try_catch;
 
 /* A run of namespace bindings in the unit (in-scope namespaces written on
-   a direct element constructor). */
+   a direct element constructor, or the namespaces a computed name is
+   resolved with), added with sxml_ir_unit_add_namespace_bindings. */
 typedef struct sxml_ir_namespace_binding_list {
     uint32_t first_namespace_binding_index;
     uint32_t namespace_binding_count;
 } sxml_ir_namespace_binding_list;
 
 /*
+ * Bits of construction_flags (D110). 0, the default, is XQuery's
+ * construction strip and copy-namespaces preserve, inherit (XQuery 4.0,
+ * "Construction Declaration", "Copy-Namespaces Declaration") with
+ * XQuery's content rules.
+ */
+typedef enum sxml_ir_construction_flag {
+    /* copy-namespaces no-preserve: copied elements keep only the
+       namespaces their names and attributes use. */
+    SXML_IR_CONSTRUCTION_NO_PRESERVE_NAMESPACES = 1U << 0U,
+    /* copy-namespaces no-inherit: copied elements do not inherit the
+       in-scope namespaces of the constructed element. */
+    SXML_IR_CONSTRUCTION_NO_INHERIT_NAMESPACES = 1U << 1U,
+    /* construction preserve: a constructed element is xs:anyType and
+       copied nodes keep their type annotations (XQuery 4.0, 4.12.1.3). */
+    SXML_IR_CONSTRUCTION_PRESERVES_TYPES = 1U << 2U,
+    /* XSLT 4.0, section 5.7.1 for the content (literal result elements,
+       xsl:element, xsl:document): later duplicate attributes replace
+       earlier ones, XTDE and XTTE codes. SHALLOW_COPY always has them. */
+    SXML_IR_CONSTRUCTION_XSLT_RULES = 1U << 3U,
+} sxml_ir_construction_flag;
+
+/* Every bit of sxml_ir_construction_flag. */
+#define SXML_IR_CONSTRUCTION_KNOWN_FLAGS                                      \
+    ((uint32_t)SXML_IR_CONSTRUCTION_NO_PRESERVE_NAMESPACES |                  \
+     (uint32_t)SXML_IR_CONSTRUCTION_NO_INHERIT_NAMESPACES |                   \
+     (uint32_t)SXML_IR_CONSTRUCTION_PRESERVES_TYPES |                         \
+     (uint32_t)SXML_IR_CONSTRUCTION_XSLT_RULES)
+
+/*
  * The node constructor kinds and SHALLOW_COPY. Which fields apply:
- * DOCUMENT content; ELEMENT name (an xs:QName), namespace_bindings,
- * content; ATTRIBUTE name, value; NAMESPACE name (the prefix), value (the
- * URI); TEXT, COMMENT value; PROCESSING_INSTRUCTION name (the target),
- * value; SHALLOW_COPY value (the node), content. content is a nested
- * expression whose items are added to the new node as XQuery 4.0
- * "Content" and XSLT 4.0 section 5.7.1 describe.
+ * DOCUMENT content, construction_flags; ELEMENT name, namespace_bindings,
+ * name_namespaces, content, construction_flags; ATTRIBUTE name,
+ * name_namespaces, value; NAMESPACE name (the prefix), value (the URI);
+ * TEXT, COMMENT value; PROCESSING_INSTRUCTION name (the target), value;
+ * SHALLOW_COPY value (the item), content, construction_flags.
+ * The others are empty (the verifier checks). A NONE name or value is the
+ * empty sequence. content is a nested expression whose items are
+ * added to the new node as XQuery 4.0 "Content" and XSLT 4.0 section
+ * 5.7.1 describe (D110: a SEQUENCE lists the enclosed expressions).
  */
 typedef struct sxml_ir_node_construction {
     sxml_ir_atom name;
     sxml_ir_atom value;
     sxml_ir_expression_index content;
+    /* Sent as the element's own namespace bindings. */
     sxml_ir_namespace_binding_list namespace_bindings;
+    /* The namespaces a name given as a string is resolved with: the
+       statically known namespaces extended by the declarations of
+       enclosing direct constructors (prefix 0 is the default element
+       namespace), as in QT4 Constr-compelem-compname. Empty means the
+       unit's static namespaces. */
+    sxml_ir_namespace_binding_list name_namespaces;
+    /* Bits of sxml_ir_construction_flag. */
+    uint32_t construction_flags;
 } sxml_ir_node_construction;
 
 /* Which template rules APPLY_TEMPLATES considers (XSLT 4.0, section 6.8). */
@@ -1010,7 +1091,8 @@ struct sxml_ir_unit {
     uint32_t global_variable_count;
     uint32_t global_variable_capacity;
 
-    /* Reserved for Phases 3 and 4; empty until then. */
+    /* Name tests whose LOCAL_NAME_WILDCARD local names are interned in
+       the item heap's name pool, so they live as long as it. */
     sxml_name_test *name_tests;
     uint32_t name_test_count;
     uint32_t name_test_capacity;
@@ -1025,6 +1107,7 @@ struct sxml_ir_unit {
        (XPath 4.0, section 2.2.1), for casts to xs:QName at run time (F&O
        4.0, section 19.1.9); a run of namespace_bindings. */
     sxml_ir_namespace_binding_list static_namespaces;
+    /* Reserved for Phase 4; empty until then. */
     sxml_ir_parameter_binding *parameter_bindings;
     uint32_t parameter_binding_count;
     uint32_t parameter_binding_capacity;
@@ -1107,6 +1190,27 @@ SXML_NODISCARD sxml_status sxml_ir_unit_add_map_entries(
 SXML_NODISCARD sxml_status sxml_ir_unit_add_sort_keys(
     sxml_ir_unit *unit, sxml_ir_sort_key_view sort_keys,
     sxml_ir_sort_key_list *list);
+
+/* Copies name_tests into the unit; the local name of a
+   LOCAL_NAME_WILDCARD test is interned in the item heap's name pool
+   (empty: SXML_STATUS_INVALID_ARGUMENT; NCName syntax is the caller's
+   to check), so the
+   view may be released after the call. An empty view gives an empty
+   list. */
+SXML_NODISCARD sxml_status sxml_ir_unit_add_name_tests(
+    sxml_ir_unit *unit, sxml_ir_name_test_view name_tests,
+    sxml_ir_name_test_list *list);
+
+/* Copies catch_clauses into the unit (their name tests added before). */
+SXML_NODISCARD sxml_status sxml_ir_unit_add_catch_clauses(
+    sxml_ir_unit *unit, sxml_ir_catch_clause_view catch_clauses,
+    sxml_ir_catch_clause_list *list);
+
+/* Copies bindings into the unit as a run for namespace_bindings or
+   name_namespaces of a constructor. */
+SXML_NODISCARD sxml_status sxml_ir_unit_add_namespace_bindings(
+    sxml_ir_unit *unit, sxml_namespace_binding_view bindings,
+    sxml_ir_namespace_binding_list *list);
 
 /* Retains value; the unit releases it when finalized. */
 SXML_NODISCARD sxml_status sxml_ir_unit_add_constant(
@@ -1215,6 +1319,49 @@ static inline sxml_ir_sort_key_view sxml_ir_unit_get_sort_keys(
         .sort_key_count = list.sort_key_count};
 }
 
+/* The name tests of list, borrowed; empty when out of range. */
+static inline sxml_ir_name_test_view sxml_ir_unit_get_name_tests(
+    const sxml_ir_unit *unit, sxml_ir_name_test_list list) {
+    if (list.name_test_count == 0 ||
+        list.first_name_test_index > unit->name_test_count ||
+        list.name_test_count > unit->name_test_count - list.first_name_test_index) {
+        return (sxml_ir_name_test_view){.name_tests = NULL, .name_test_count = 0};
+    }
+    return (sxml_ir_name_test_view){
+        .name_tests = unit->name_tests + list.first_name_test_index,
+        .name_test_count = list.name_test_count};
+}
+
+/* The catch clauses of list, borrowed; empty when out of range. */
+static inline sxml_ir_catch_clause_view sxml_ir_unit_get_catch_clauses(
+    const sxml_ir_unit *unit, sxml_ir_catch_clause_list list) {
+    if (list.catch_clause_count == 0 ||
+        list.first_catch_clause_index > unit->catch_clause_count ||
+        list.catch_clause_count >
+            unit->catch_clause_count - list.first_catch_clause_index) {
+        return (sxml_ir_catch_clause_view){.catch_clauses = NULL,
+                                           .catch_clause_count = 0};
+    }
+    return (sxml_ir_catch_clause_view){
+        .catch_clauses = unit->catch_clauses + list.first_catch_clause_index,
+        .catch_clause_count = list.catch_clause_count};
+}
+
+/* The namespace bindings of list, borrowed; empty when out of range. */
+static inline sxml_namespace_binding_view sxml_ir_unit_get_namespace_bindings(
+    const sxml_ir_unit *unit, sxml_ir_namespace_binding_list list) {
+    if (list.namespace_binding_count == 0 ||
+        list.first_namespace_binding_index > unit->namespace_binding_count ||
+        list.namespace_binding_count >
+            unit->namespace_binding_count - list.first_namespace_binding_index) {
+        return (sxml_namespace_binding_view){.namespace_bindings = NULL,
+                                             .namespace_binding_count = 0};
+    }
+    return (sxml_namespace_binding_view){
+        .namespace_bindings = unit->namespace_bindings + list.first_namespace_binding_index,
+        .namespace_binding_count = list.namespace_binding_count};
+}
+
 /* The constant at index, borrowed from the unit; the empty sequence for 0
    or an index out of range. */
 static inline sxml_sequence sxml_ir_unit_get_constant(
@@ -1228,17 +1375,7 @@ static inline sxml_sequence sxml_ir_unit_get_constant(
 /* The static namespaces of the unit, borrowed; empty when none were set. */
 static inline sxml_namespace_binding_view sxml_ir_unit_get_static_namespaces(
     const sxml_ir_unit *unit) {
-    const sxml_ir_namespace_binding_list list = unit->static_namespaces;
-    if (list.namespace_binding_count == 0 ||
-        list.first_namespace_binding_index > unit->namespace_binding_count ||
-        list.namespace_binding_count >
-            unit->namespace_binding_count - list.first_namespace_binding_index) {
-        return (sxml_namespace_binding_view){.namespace_bindings = NULL,
-                                             .namespace_binding_count = 0};
-    }
-    return (sxml_namespace_binding_view){
-        .namespace_bindings = unit->namespace_bindings + list.first_namespace_binding_index,
-        .namespace_binding_count = list.namespace_binding_count};
+    return sxml_ir_unit_get_namespace_bindings(unit, unit->static_namespaces);
 }
 
 /* The global variable at index, borrowed; a zero one for 0 or out of

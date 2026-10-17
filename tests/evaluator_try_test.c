@@ -8,9 +8,8 @@
  *
  * Specification: XQuery 4.0, section 4.20 "Try/Catch Expressions".
  *
- * The unit has no adder for catch clauses and name tests yet (proposed in
- * docs/DECISIONS.md, D109): finish_unit fills the two reserved arrays of
- * the unit directly, in the unit's allocator, entry 0 left zero.
+ * Catch clauses and their name tests go into the unit through its adders
+ * (sxml_ir_unit_add_name_tests, sxml_ir_unit_add_catch_clauses; D109).
  */
 #include "evaluator_machine_internal.h"
 #include "function_library_internal.h"
@@ -249,8 +248,6 @@ static const sxml_native_function *find_error_row(void) {
 
 /* ------------------------------------------------------- Unit builder */
 
-#define NAME_TEST_LIMIT 16
-#define CATCH_CLAUSE_LIMIT 16
 #define CLAUSE_TEST_LIMIT 3
 #define TRY_CLAUSE_LIMIT 3
 #define MAIN_SLOT_COUNT 4
@@ -261,10 +258,6 @@ typedef struct unit_builder {
     const fixture *test_fixture;
     sxml_ir_unit *unit;
     sxml_status status;
-    sxml_name_test name_tests[NAME_TEST_LIMIT];
-    uint32_t name_test_count;
-    sxml_ir_catch_clause catch_clauses[CATCH_CLAUSE_LIMIT];
-    uint32_t catch_clause_count;
 } unit_builder;
 
 static sxml_ir_expression_index add_expression(unit_builder *builder,
@@ -585,26 +578,34 @@ typedef struct try_description {
 
 static sxml_ir_expression_index add_try(unit_builder *builder,
                                         const try_description *description) {
-    const uint32_t first_clause_index = builder->catch_clause_count;
+    sxml_ir_catch_clause clauses[TRY_CLAUSE_LIMIT];
+    if (description->clause_count > TRY_CLAUSE_LIMIT) {
+        builder->status = SXML_STATUS_CAPACITY_EXCEEDED;
+        return (sxml_ir_expression_index){0};
+    }
     for (uint32_t clause_index = 0; clause_index < description->clause_count;
          clause_index += 1) {
         const clause_description *clause = &description->clauses[clause_index];
-        if (builder->catch_clause_count >= CATCH_CLAUSE_LIMIT ||
-            clause->error_test_count > NAME_TEST_LIMIT - builder->name_test_count) {
-            builder->status = SXML_STATUS_CAPACITY_EXCEEDED;
-            return (sxml_ir_expression_index){0};
+        sxml_ir_name_test_list tests = {0};
+        if (builder->status == SXML_STATUS_OK) {
+            builder->status = sxml_ir_unit_add_name_tests(
+                builder->unit,
+                (sxml_ir_name_test_view){.name_tests = clause->error_tests,
+                                         .name_test_count = clause->error_test_count},
+                &tests);
         }
-        const uint32_t first_test_index = builder->name_test_count;
-        for (uint32_t test_index = 0; test_index < clause->error_test_count; test_index += 1) {
-            builder->name_tests[builder->name_test_count] = clause->error_tests[test_index];
-            builder->name_test_count += 1;
-        }
-        builder->catch_clauses[builder->catch_clause_count] = (sxml_ir_catch_clause){
-            .error_tests = {.first_name_test_index = first_test_index,
-                            .name_test_count = clause->error_test_count},
+        clauses[clause_index] = (sxml_ir_catch_clause){
+            .error_tests = tests,
             .error_details = {.value = clause->error_details_slot},
             .handler = clause->handler};
-        builder->catch_clause_count += 1;
+    }
+    sxml_ir_catch_clause_list clause_list = {0};
+    if (builder->status == SXML_STATUS_OK) {
+        builder->status = sxml_ir_unit_add_catch_clauses(
+            builder->unit,
+            (sxml_ir_catch_clause_view){.catch_clauses = clauses,
+                                        .catch_clause_count = description->clause_count},
+            &clause_list);
     }
     sxml_ir_expression expression;
     memset(&expression, 0, sizeof(expression));
@@ -613,8 +614,7 @@ static sxml_ir_expression_index add_try(unit_builder *builder,
         .byte_offset = 0, .byte_count = 60, .line_number = 1, .column_number = 1};
     expression.try_catch = (sxml_ir_try_catch){
         .body = description->body,
-        .catch_clauses = {.first_catch_clause_index = first_clause_index,
-                          .catch_clause_count = description->clause_count},
+        .catch_clauses = clause_list,
         .finally_body = description->finally_body};
     return add_expression(builder, &expression);
 }
@@ -635,36 +635,10 @@ static sxml_ir_expression_index add_try_returning_details(unit_builder *builder,
                                 .finally_body = {0}});
 }
 
-/* Copies items into allocator memory as a reserved unit array with entry 0
-   zero. */
-typedef struct reserved_array {
-    const void *items;
-    size_t item_count;
-    size_t item_size;
-} reserved_array;
-
-static void *copy_reserved_array(unit_builder *builder, const reserved_array *array) {
-    void *memory = NULL;
-    if (builder->status == SXML_STATUS_OK) {
-        builder->status = sxml_allocator_allocate(
-            fixture_allocator(builder->test_fixture),
-            (sxml_allocation_request){.byte_count = array->item_count * array->item_size,
-                                      .alignment = 16},
-            &memory);
-    }
-    if (memory != NULL) {
-        memcpy(memory, array->items, array->item_count * array->item_size);
-        memset(memory, 0, array->item_size);
-    }
-    return memory;
-}
-
 static sxml_status start_unit(const fixture *test_fixture, unit_builder *builder) {
     *builder = (unit_builder){.test_fixture = test_fixture,
                               .unit = NULL,
-                              .status = SXML_STATUS_OK,
-                              .name_test_count = 1,
-                              .catch_clause_count = 1};
+                              .status = SXML_STATUS_OK};
     builder->status = sxml_ir_unit_create(
         fixture_allocator(test_fixture),
         &(sxml_ir_unit_configuration){.allocator = fixture_allocator(test_fixture),
@@ -680,31 +654,9 @@ static sxml_status start_unit(const fixture *test_fixture, unit_builder *builder
     return builder->status;
 }
 
-/* Installs the catch clauses and name tests, sets the main function's body
-   and seals; on failure releases the unit. */
+/* Sets the main function's body and seals; on failure releases the
+   unit. */
 static sxml_status finish_unit(unit_builder *builder, sxml_ir_expression_index body) {
-    if (builder->catch_clause_count > 1) {
-        sxml_ir_catch_clause *clauses = copy_reserved_array(
-            builder, &(reserved_array){.items = builder->catch_clauses,
-                                       .item_count = builder->catch_clause_count,
-                                       .item_size = sizeof(sxml_ir_catch_clause)});
-        if (clauses != NULL) {
-            builder->unit->catch_clauses = clauses;
-            builder->unit->catch_clause_count = builder->catch_clause_count;
-            builder->unit->catch_clause_capacity = builder->catch_clause_count;
-        }
-    }
-    if (builder->name_test_count > 1) {
-        sxml_name_test *name_tests = copy_reserved_array(
-            builder, &(reserved_array){.items = builder->name_tests,
-                                       .item_count = builder->name_test_count,
-                                       .item_size = sizeof(sxml_name_test)});
-        if (name_tests != NULL) {
-            builder->unit->name_tests = name_tests;
-            builder->unit->name_test_count = builder->name_test_count;
-            builder->unit->name_test_capacity = builder->name_test_count;
-        }
-    }
     if (builder->status == SXML_STATUS_OK) {
         builder->status = sxml_ir_unit_replace_function(
             builder->unit,

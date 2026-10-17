@@ -494,12 +494,134 @@ sxml_status sxml_ir_unit_add_sort_keys(sxml_ir_unit *unit,
     return SXML_STATUS_OK;
 }
 
-sxml_status sxml_ir_unit_set_static_namespaces(sxml_ir_unit *unit,
-                                               sxml_namespace_binding_view bindings) {
-    if (unit->static_namespaces.namespace_binding_count != 0) {
+/* Interns the local name of a LOCAL_NAME_WILDCARD test as a name in no
+   namespace and points the test at the pool's copy, which lives as long
+   as the pool (sxml/name.h: interned text never moves). */
+static sxml_status intern_wildcard_local_name(sxml_name_pool *name_pool,
+                                              sxml_name_test *name_test) {
+    if (name_test->name_test_kind != SXML_NAME_TEST_KIND_LOCAL_NAME_WILDCARD) {
+        name_test->local_name = (sxml_byte_view){.bytes = NULL, .byte_count = 0};
+        return SXML_STATUS_OK;
+    }
+    if (name_test->local_name.byte_count == 0) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    sxml_name_identifier name = {0};
+    sxml_status status = sxml_name_pool_intern_name(
+        name_pool,
+        &(sxml_name_request){.namespace_uri = sxml_well_known_namespace_identifier(
+                                 SXML_NAMESPACE_NONE),
+                             .local_name = name_test->local_name},
+        &name);
+    sxml_name_parts parts = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_name_pool_get_name_parts(name_pool, name, &parts);
+    }
+    if (status == SXML_STATUS_OK) {
+        name_test->local_name = parts.local_name;
+    }
+    return status;
+}
+
+sxml_status sxml_ir_unit_add_name_tests(sxml_ir_unit *unit,
+                                        sxml_ir_name_test_view name_tests,
+                                        sxml_ir_name_test_list *list) {
+    if (unit->is_sealed) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    if (name_tests.name_test_count == 0) {
+        *list = (sxml_ir_name_test_list){.first_name_test_index = 0,
+                                         .name_test_count = 0};
+        return SXML_STATUS_OK;
+    }
+    if (name_tests.name_test_count > UNIT_ARRAY_MAXIMUM_COUNT) {
+        return SXML_STATUS_LIMIT_EXCEEDED;
+    }
+    array_room room = {0};
+    sxml_status status = make_array_room(
+        unit,
+        &(array_room_request){.elements = unit->name_tests,
+                              .element_count = unit->name_test_count,
+                              .element_capacity = unit->name_test_capacity,
+                              .element_size = sizeof(sxml_name_test),
+                              .element_alignment = alignof(sxml_name_test),
+                              .added_count = (uint32_t)name_tests.name_test_count},
+        &room);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    unit->name_tests = room.elements;
+    unit->name_test_capacity = room.element_capacity;
+    /* The count grows only once every local name is interned, so a
+       failure leaves the unit as it was (D20). */
+    sxml_name_pool *name_pool = sxml_item_heap_get_name_pool(unit->item_heap);
+    for (size_t test_index = 0;
+         status == SXML_STATUS_OK && test_index < name_tests.name_test_count;
+         test_index += 1) {
+        sxml_name_test *name_test = &unit->name_tests[room.element_count + test_index];
+        *name_test = name_tests.name_tests[test_index];
+        status = intern_wildcard_local_name(name_pool, name_test);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    unit->name_test_count =
+        room.element_count + (uint32_t)name_tests.name_test_count;
+    *list = (sxml_ir_name_test_list){
+        .first_name_test_index = room.element_count,
+        .name_test_count = (uint32_t)name_tests.name_test_count};
+    return SXML_STATUS_OK;
+}
+
+sxml_status sxml_ir_unit_add_catch_clauses(sxml_ir_unit *unit,
+                                           sxml_ir_catch_clause_view catch_clauses,
+                                           sxml_ir_catch_clause_list *list) {
+    if (unit->is_sealed) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    if (catch_clauses.catch_clause_count == 0) {
+        *list = (sxml_ir_catch_clause_list){.first_catch_clause_index = 0,
+                                            .catch_clause_count = 0};
+        return SXML_STATUS_OK;
+    }
+    if (catch_clauses.catch_clause_count > UNIT_ARRAY_MAXIMUM_COUNT) {
+        return SXML_STATUS_LIMIT_EXCEEDED;
+    }
+    array_room room = {0};
+    sxml_status status = make_array_room(
+        unit,
+        &(array_room_request){.elements = unit->catch_clauses,
+                              .element_count = unit->catch_clause_count,
+                              .element_capacity = unit->catch_clause_capacity,
+                              .element_size = sizeof(sxml_ir_catch_clause),
+                              .element_alignment = alignof(sxml_ir_catch_clause),
+                              .added_count =
+                                  (uint32_t)catch_clauses.catch_clause_count},
+        &room);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    unit->catch_clauses = room.elements;
+    unit->catch_clause_capacity = room.element_capacity;
+    memcpy(unit->catch_clauses + room.element_count, catch_clauses.catch_clauses,
+           catch_clauses.catch_clause_count * sizeof(sxml_ir_catch_clause));
+    unit->catch_clause_count =
+        room.element_count + (uint32_t)catch_clauses.catch_clause_count;
+    *list = (sxml_ir_catch_clause_list){
+        .first_catch_clause_index = room.element_count,
+        .catch_clause_count = (uint32_t)catch_clauses.catch_clause_count};
+    return SXML_STATUS_OK;
+}
+
+sxml_status sxml_ir_unit_add_namespace_bindings(sxml_ir_unit *unit,
+                                                sxml_namespace_binding_view bindings,
+                                                sxml_ir_namespace_binding_list *list) {
+    if (unit->is_sealed) {
         return SXML_STATUS_INVALID_ARGUMENT;
     }
     if (bindings.namespace_binding_count == 0) {
+        *list = (sxml_ir_namespace_binding_list){.first_namespace_binding_index = 0,
+                                                 .namespace_binding_count = 0};
         return SXML_STATUS_OK;
     }
     if (bindings.namespace_binding_count > UNIT_ARRAY_MAXIMUM_COUNT) {
@@ -524,10 +646,21 @@ sxml_status sxml_ir_unit_set_static_namespaces(sxml_ir_unit *unit,
            bindings.namespace_binding_count * sizeof(sxml_namespace_binding));
     unit->namespace_binding_count =
         room.element_count + (uint32_t)bindings.namespace_binding_count;
-    unit->static_namespaces = (sxml_ir_namespace_binding_list){
+    *list = (sxml_ir_namespace_binding_list){
         .first_namespace_binding_index = room.element_count,
         .namespace_binding_count = (uint32_t)bindings.namespace_binding_count};
     return SXML_STATUS_OK;
+}
+
+sxml_status sxml_ir_unit_set_static_namespaces(sxml_ir_unit *unit,
+                                               sxml_namespace_binding_view bindings) {
+    if (unit->static_namespaces.namespace_binding_count != 0) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    if (bindings.namespace_binding_count == 0) {
+        return SXML_STATUS_OK;
+    }
+    return sxml_ir_unit_add_namespace_bindings(unit, bindings, &unit->static_namespaces);
 }
 
 sxml_status sxml_ir_unit_set_static_base_uri(sxml_ir_unit *unit,
@@ -1636,11 +1769,15 @@ typedef enum print_task_kind {
     SXML_PRINT_TASK_KIND_CLOSE,
     /* "(key DIRECTION EMPTY-ORDER [COLLATION]" of sort key value. */
     SXML_PRINT_TASK_KIND_SORT_KEY,
+    /* "(catch (NAME-TEST...) SLOT" of catch clause value. */
+    SXML_PRINT_TASK_KIND_CATCH_CLAUSE,
+    /* "(finally". */
+    SXML_PRINT_TASK_KIND_FINALLY,
 } print_task_kind;
 
 typedef struct print_task {
     print_task_kind task_kind;
-    /* An expression index, an indent or a sort key index. */
+    /* An expression index, an indent, a sort key or catch clause index. */
     uint32_t value;
 } print_task;
 
@@ -1649,6 +1786,7 @@ typedef struct print_stack {
     size_t task_count;
     size_t task_capacity;
     sxml_allocator allocator;
+    const sxml_ir_unit *unit;
 } print_stack;
 
 static sxml_status push_print_task(print_stack *stack, print_task task) {
@@ -1706,6 +1844,125 @@ static sxml_status push_nested_operand(print_stack *stack,
     return push_print_task(stack,
                            (print_task){.task_kind = SXML_PRINT_TASK_KIND_NEWLINE,
                                         .value = operand.indent});
+}
+
+/* A namespace binding list, " (LABEL prefix="uri" ...)", or nothing when
+   it is empty; the empty prefix prints as "". */
+typedef struct binding_list_text {
+    const char *label;
+    sxml_ir_namespace_binding_list list;
+} binding_list_text;
+
+static void write_binding_list(text_writer *writer, binding_list_text text) {
+    const sxml_namespace_binding_view bindings =
+        sxml_ir_unit_get_namespace_bindings(writer->unit, text.list);
+    if (bindings.namespace_binding_count == 0) {
+        return;
+    }
+    write_text(writer, " (");
+    write_text(writer, text.label);
+    for (size_t binding_index = 0;
+         binding_index < bindings.namespace_binding_count; binding_index += 1) {
+        const sxml_namespace_binding binding =
+            bindings.namespace_bindings[binding_index];
+        sxml_byte_view prefix = {0};
+        if (sxml_name_pool_get_namespace_prefix(
+                writer->name_pool, binding.namespace_prefix, &prefix) !=
+            SXML_STATUS_OK) {
+            prefix = SXML_BYTE_VIEW_FROM_LITERAL("?");
+        }
+        sxml_byte_view uri = {0};
+        if (sxml_name_pool_get_namespace_uri(writer->name_pool,
+                                             binding.namespace_uri, &uri) !=
+            SXML_STATUS_OK) {
+            uri = (sxml_byte_view){0};
+        }
+        write_text(writer, " ");
+        if (prefix.byte_count == 0) {
+            write_text(writer, "\"\"");
+        } else {
+            write_bytes(writer, prefix);
+        }
+        write_text(writer, "=");
+        write_string_literal(writer, uri);
+    }
+    write_text(writer, ")");
+}
+
+static void write_construction_flags(text_writer *writer, uint32_t flags) {
+    static const struct {
+        uint32_t flag;
+        const char *flag_name;
+    } flag_names[] = {
+        {(uint32_t)SXML_IR_CONSTRUCTION_NO_PRESERVE_NAMESPACES,
+         " no-preserve-namespaces"},
+        {(uint32_t)SXML_IR_CONSTRUCTION_NO_INHERIT_NAMESPACES,
+         " no-inherit-namespaces"},
+        {(uint32_t)SXML_IR_CONSTRUCTION_PRESERVES_TYPES, " preserves-types"},
+        {(uint32_t)SXML_IR_CONSTRUCTION_XSLT_RULES, " xslt-rules"},
+    };
+    for (size_t flag_index = 0;
+         flag_index < sizeof(flag_names) / sizeof(flag_names[0]);
+         flag_index += 1) {
+        if ((flags & flag_names[flag_index].flag) != 0) {
+            write_text(writer, flag_names[flag_index].flag_name);
+        }
+    }
+}
+
+/* Pushes the clauses and finally clause of a TRY_CATCH after its body:
+   tasks run in reverse order of pushing. */
+static sxml_status push_try_catch(print_stack *stack,
+                                  const sxml_ir_expression *expression,
+                                  uint32_t indent) {
+    const sxml_ir_try_catch *try_catch = &expression->try_catch;
+    sxml_status status = SXML_STATUS_OK;
+    if (try_catch->finally_body.value != 0) {
+        const print_task tasks[] = {
+            {.task_kind = SXML_PRINT_TASK_KIND_CLOSE},
+            {.task_kind = SXML_PRINT_TASK_KIND_EXPRESSION,
+             .value = try_catch->finally_body.value},
+            {.task_kind = SXML_PRINT_TASK_KIND_NEWLINE, .value = indent + 2},
+            {.task_kind = SXML_PRINT_TASK_KIND_FINALLY},
+            {.task_kind = SXML_PRINT_TASK_KIND_NEWLINE, .value = indent},
+        };
+        for (size_t task_index = 0;
+             status == SXML_STATUS_OK && task_index < sizeof(tasks) / sizeof(tasks[0]);
+             task_index += 1) {
+            status = push_print_task(stack, tasks[task_index]);
+        }
+    }
+    const sxml_ir_catch_clause_list clauses = try_catch->catch_clauses;
+    for (uint32_t clause_number = clauses.catch_clause_count;
+         status == SXML_STATUS_OK && clause_number > 0; clause_number -= 1) {
+        const uint32_t clause_index =
+            clauses.first_catch_clause_index + clause_number - 1;
+        const sxml_ir_catch_clause_view clause = sxml_ir_unit_get_catch_clauses(
+            stack->unit, (sxml_ir_catch_clause_list){
+                             .first_catch_clause_index = clause_index,
+                             .catch_clause_count = 1});
+        if (clause.catch_clause_count != 1) {
+            continue;
+        }
+        const print_task tasks[] = {
+            {.task_kind = SXML_PRINT_TASK_KIND_CLOSE},
+            {.task_kind = SXML_PRINT_TASK_KIND_EXPRESSION,
+             .value = clause.catch_clauses[0].handler.value},
+            {.task_kind = SXML_PRINT_TASK_KIND_NEWLINE, .value = indent + 2},
+            {.task_kind = SXML_PRINT_TASK_KIND_CATCH_CLAUSE, .value = clause_index},
+            {.task_kind = SXML_PRINT_TASK_KIND_NEWLINE, .value = indent},
+        };
+        for (size_t task_index = 0;
+             status == SXML_STATUS_OK && task_index < sizeof(tasks) / sizeof(tasks[0]);
+             task_index += 1) {
+            status = push_print_task(stack, tasks[task_index]);
+        }
+    }
+    if (status == SXML_STATUS_OK) {
+        status = push_nested_operand(
+            stack, (nested_operand){.expression = try_catch->body, .indent = indent});
+    }
+    return status;
 }
 
 /* Writes the opening and inline operands of one expression and pushes its
@@ -1947,9 +2204,7 @@ static sxml_status print_expression(text_writer *writer, print_stack *stack,
         write_raise(writer, &expression->raise);
         return SXML_STATUS_OK;
     case SXML_IR_EXPRESSION_KIND_TRY_CATCH:
-        return push_nested_operand(
-            stack, (nested_operand){.expression = expression->try_catch.body,
-                                    .indent = indent});
+        return push_try_catch(stack, expression, indent);
     case SXML_IR_EXPRESSION_KIND_DOCUMENT_CONSTRUCTOR:
     case SXML_IR_EXPRESSION_KIND_ELEMENT_CONSTRUCTOR:
     case SXML_IR_EXPRESSION_KIND_ATTRIBUTE_CONSTRUCTOR:
@@ -1962,6 +2217,16 @@ static sxml_status print_expression(text_writer *writer, print_stack *stack,
         write_atom(writer, expression->node_construction.name);
         write_text(writer, " ");
         write_atom(writer, expression->node_construction.value);
+        write_binding_list(
+            writer,
+            (binding_list_text){.label = "namespaces",
+                                .list = expression->node_construction.namespace_bindings});
+        write_binding_list(
+            writer,
+            (binding_list_text){.label = "name-namespaces",
+                                .list = expression->node_construction.name_namespaces});
+        write_construction_flags(writer,
+                                 expression->node_construction.construction_flags);
         if (expression->node_construction.content.value == 0) {
             return SXML_STATUS_OK;
         }
@@ -1999,6 +2264,28 @@ static void print_sort_key(text_writer *writer, uint32_t sort_key_index) {
         write_text(writer, " collation ");
         write_atom(writer, key->collation);
     }
+}
+
+static void print_catch_clause(text_writer *writer, uint32_t clause_index) {
+    const sxml_ir_catch_clause_view clause = sxml_ir_unit_get_catch_clauses(
+        writer->unit, (sxml_ir_catch_clause_list){
+                          .first_catch_clause_index = clause_index,
+                          .catch_clause_count = 1});
+    if (clause.catch_clause_count != 1) {
+        return;
+    }
+    write_text(writer, "(catch (");
+    const sxml_ir_name_test_view tests = sxml_ir_unit_get_name_tests(
+        writer->unit, clause.catch_clauses[0].error_tests);
+    for (size_t test_index = 0; test_index < tests.name_test_count;
+         test_index += 1) {
+        if (test_index > 0) {
+            write_text(writer, " ");
+        }
+        write_name_test(writer, tests.name_tests[test_index]);
+    }
+    write_text(writer, ") ");
+    write_slot(writer, clause.catch_clauses[0].error_details);
 }
 
 static sxml_status print_function(text_writer *writer, print_stack *stack,
@@ -2053,6 +2340,12 @@ static sxml_status print_function(text_writer *writer, print_stack *stack,
         case SXML_PRINT_TASK_KIND_SORT_KEY:
             print_sort_key(writer, task.value);
             break;
+        case SXML_PRINT_TASK_KIND_CATCH_CLAUSE:
+            print_catch_clause(writer, task.value);
+            break;
+        case SXML_PRINT_TASK_KIND_FINALLY:
+            write_text(writer, "(finally");
+            break;
         }
     }
     write_text(writer, "\n");
@@ -2074,7 +2367,8 @@ sxml_status sxml_ir_unit_write_text(const sxml_ir_unit *unit,
     print_stack stack = {.tasks = NULL,
                          .task_count = 0,
                          .task_capacity = 0,
-                         .allocator = unit->allocator};
+                         .allocator = unit->allocator,
+                         .unit = unit};
     sxml_status status = SXML_STATUS_OK;
     for (uint32_t function_number = 1;
          status == SXML_STATUS_OK && function_number < unit->function_count;

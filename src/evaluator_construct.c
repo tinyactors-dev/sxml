@@ -21,13 +21,16 @@
  * - ATTRIBUTE, TEXT, COMMENT, PROCESSING_INSTRUCTION and NAMESPACE read
  *   their value atom, atomize it and join the strings with spaces.
  * - Names: an xs:QName is used as it is; an xs:string, xs:untypedAtomic or
- *   xs:anyURI is a lexical QName or an EQName, resolved with the unit's
- *   static namespaces (prefix 0 there is the default element namespace,
- *   used for elements only); XQDY0074 when it is neither, XPTY0004 for
- *   another type or not one item.
- * - The construction mode is strip and the copy-namespaces mode preserve,
- *   inherit (XQuery 4.0's default copy-namespaces mode; D110 says why the
- *   other modes wait for the IR to carry them).
+ *   xs:anyURI is a lexical QName or an EQName, resolved with the
+ *   constructor's name namespaces, or the unit's static namespaces when it
+ *   has none (prefix 0 there is the default element namespace, used for
+ *   elements only); XQDY0074 when it is neither, XPTY0004 for another type
+ *   or not one item.
+ * - Modes come from the constructor's construction_flags (D110): 0 is
+ *   construction strip and copy-namespaces preserve, inherit; the flags
+ *   select no-preserve, no-inherit (for the copies of content nodes),
+ *   construction preserve (xs:anyType for a constructed element, copies
+ *   keep their annotations) and XSLT's content rules.
  * - SHALLOW_COPY is xsl:copy (XSLT 4.0, section 11.9.1): an element or a
  *   document gets the content with the rules of section 5.7.1 (later
  *   duplicate attributes replace earlier ones, XTDE0410, XTDE0420,
@@ -610,7 +613,22 @@ static sxml_status sxml_construct_name_from_eqname(sxml_dynamic_context *context
     return status;
 }
 
-/* A lexical QName resolved with the unit's static namespaces, or an
+/* The namespaces a lexical name of the constructor on top of the task
+   stack is resolved with: its name namespaces (the static namespaces
+   extended by enclosing direct constructors, D110), or the unit's static
+   namespaces when it has none. */
+static sxml_namespace_binding_view sxml_construct_name_namespaces(sxml_dynamic_context *context) {
+    const sxml_evaluator_task *top = sxml_evaluator_machine_top(context);
+    const sxml_ir_unit *unit = top->function->unit;
+    const sxml_ir_namespace_binding_list list =
+        sxml_ir_unit_get_expression(unit, top->expression)->node_construction.name_namespaces;
+    if (list.namespace_binding_count == 0) {
+        return sxml_ir_unit_get_static_namespaces(unit);
+    }
+    return sxml_ir_unit_get_namespace_bindings(unit, list);
+}
+
+/* A lexical QName resolved with the constructor's name namespaces, or an
    unprefixed attribute name in no namespace. */
 static sxml_status sxml_construct_name_from_lexical(sxml_dynamic_context *context,
                                                     const sxml_construct_name_text *name_text,
@@ -641,8 +659,7 @@ static sxml_status sxml_construct_name_from_lexical(sxml_dynamic_context *contex
         &(sxml_text_cast_request){
             .text = name_text->text,
             .target_type = sxml_builtin_type_identifier(SXML_TYPE_XS_QNAME),
-            .namespace_bindings = sxml_ir_unit_get_static_namespaces(
-                sxml_evaluator_machine_top(context)->function->unit),
+            .namespace_bindings = sxml_construct_name_namespaces(context),
             .error_record = NULL},
         &qname);
     if (status == SXML_STATUS_DYNAMIC_ERROR || status == SXML_STATUS_TYPE_ERROR) {
@@ -862,6 +879,8 @@ typedef struct sxml_construction {
     sxml_arena_tree *arena_tree;
     sxml_tree_builder builder;
     sxml_construct_rules rules;
+    /* The constructor's construction_flags (sxml_ir_construction_flag). */
+    uint32_t construction_flags;
     /* True for the content of a document node. */
     bool is_document;
     /* True once a child node or non-empty text was sent: no attribute or
@@ -875,6 +894,14 @@ typedef struct sxml_construction {
     size_t frame_capacity;
 } sxml_construction;
 
+/* The construction_flags of the constructor on top of the task stack
+   (0 for the kinds that have none). */
+static uint32_t sxml_construct_top_flags(sxml_dynamic_context *context) {
+    const sxml_evaluator_task *top = sxml_evaluator_machine_top(context);
+    return sxml_ir_unit_get_expression(top->function->unit, top->expression)
+        ->node_construction.construction_flags;
+}
+
 /* How a construction starts. */
 typedef struct sxml_construction_request {
     sxml_construct_rules rules;
@@ -885,13 +912,20 @@ typedef struct sxml_construction_request {
     sxml_byte_view base_uri;
 } sxml_construction_request;
 
+/* Starts a construction for the constructor on top of the task stack;
+   its XSLT_RULES flag selects XSLT's rules too. */
 static sxml_status sxml_construction_start(sxml_dynamic_context *context,
                                            const sxml_construction_request *request,
                                            sxml_construction *construction) {
+    const uint32_t flags = sxml_construct_top_flags(context);
+    const sxml_construct_rules rules =
+        (flags & (uint32_t)SXML_IR_CONSTRUCTION_XSLT_RULES) != 0 ? SXML_CONSTRUCT_RULES_XSLT
+                                                                 : request->rules;
     *construction = (sxml_construction){.dynamic_context = context,
                                         .arena_tree = NULL,
                                         .builder = {.state = NULL, .operations = NULL},
-                                        .rules = request->rules,
+                                        .rules = rules,
+                                        .construction_flags = flags,
                                         .is_document = false,
                                         .has_children = false,
                                         .follows_atomic_item = false,
@@ -911,7 +945,7 @@ static sxml_status sxml_construction_start(sxml_dynamic_context *context,
             .maximum_depth = 0,
             .maximum_text_byte_count = 0,
             .keeps_locations = false,
-            .duplicate_attribute_policy = request->rules == SXML_CONSTRUCT_RULES_XSLT
+            .duplicate_attribute_policy = rules == SXML_CONSTRUCT_RULES_XSLT
                                               ? SXML_DUPLICATE_ATTRIBUTE_POLICY_REPLACE
                                               : SXML_DUPLICATE_ATTRIBUTE_POLICY_REJECT,
             .is_destroyed_when_unreferenced = true,
@@ -1006,8 +1040,10 @@ static sxml_status sxml_construction_add_atomic(sxml_construction *construction,
     return status;
 }
 
-/* Copies node (and its subtree) into the tree being built, untyped
-   (construction mode strip) with copy-namespaces preserve, inherit. */
+/* Copies node (and its subtree) into the tree being built with the
+   construction's copy-namespaces and construction modes (XQuery 4.0,
+   4.12.1.3, step 1d: copied as by the copy-namespaces mode; untyped
+   unless construction is preserve). */
 static sxml_status sxml_construction_copy(sxml_construction *construction,
                                           sxml_node_reference node,
                                           const sxml_node_description *description) {
@@ -1018,11 +1054,17 @@ static sxml_status sxml_construction_copy(sxml_construction *construction,
     sxml_status status =
         sxml_dynamic_context_charge_steps(construction->dynamic_context, node_count);
     if (status == SXML_STATUS_OK) {
+        const uint32_t flags = construction->construction_flags;
         status = sxml_tree_builder_copy_node(
-            construction->builder, &(sxml_copy_request){.node = node,
-                                                        .preserves_namespaces = true,
-                                                        .inherits_namespaces = true,
-                                                        .preserves_type_annotations = false});
+            construction->builder,
+            &(sxml_copy_request){
+                .node = node,
+                .preserves_namespaces =
+                    (flags & (uint32_t)SXML_IR_CONSTRUCTION_NO_PRESERVE_NAMESPACES) == 0,
+                .inherits_namespaces =
+                    (flags & (uint32_t)SXML_IR_CONSTRUCTION_NO_INHERIT_NAMESPACES) == 0,
+                .preserves_type_annotations =
+                    (flags & (uint32_t)SXML_IR_CONSTRUCTION_PRESERVES_TYPES) != 0});
     }
     return status;
 }
@@ -1331,21 +1373,6 @@ static sxml_status sxml_construct_start_content(sxml_dynamic_context *context,
     return sxml_evaluator_machine_push_expression(context, content);
 }
 
-/* The namespace bindings written on a direct element constructor. */
-static sxml_namespace_binding_view sxml_construct_written_bindings(
-    const sxml_ir_unit *unit, sxml_ir_namespace_binding_list list) {
-    if (list.namespace_binding_count == 0 ||
-        list.first_namespace_binding_index > unit->namespace_binding_count ||
-        list.namespace_binding_count >
-            unit->namespace_binding_count - list.first_namespace_binding_index) {
-        return (sxml_namespace_binding_view){.namespace_bindings = NULL,
-                                             .namespace_binding_count = 0};
-    }
-    return (sxml_namespace_binding_view){
-        .namespace_bindings = unit->namespace_bindings + list.first_namespace_binding_index,
-        .namespace_binding_count = list.namespace_binding_count};
-}
-
 static sxml_status sxml_construction_send_bindings(sxml_construction *construction,
                                                    sxml_namespace_binding_view bindings) {
     for (size_t binding_index = 0; binding_index < bindings.namespace_binding_count;
@@ -1425,7 +1452,20 @@ typedef struct sxml_construct_element_start {
     sxml_construct_name name;
     /* Sent after the start, before the content. */
     sxml_namespace_binding_view bindings;
+    /* SXML_TYPE_NONE for xs:untyped. */
+    sxml_type_identifier type_annotation;
 } sxml_construct_element_start;
+
+/* A constructed element's type annotation: xs:untyped under construction
+   strip, xs:anyType under preserve (XQuery 4.0, section 4.12.1.3). */
+static sxml_type_identifier sxml_construct_element_type(
+    const sxml_ir_node_construction *construction) {
+    if ((construction->construction_flags & (uint32_t)SXML_IR_CONSTRUCTION_PRESERVES_TYPES) !=
+        0) {
+        return sxml_builtin_type_identifier(SXML_TYPE_XS_ANY_TYPE);
+    }
+    return (sxml_type_identifier){.index = SXML_TYPE_NONE};
+}
 
 static sxml_status sxml_construction_start_element(sxml_construction *construction,
                                                    const sxml_construct_element_start *start) {
@@ -1434,9 +1474,7 @@ static sxml_status sxml_construction_start_element(sxml_construction *constructi
         &(sxml_element_start_event){
             .element_name = start->name.expanded_name,
             .namespace_prefix = start->name.namespace_prefix,
-            /* Construction mode strip: xs:untyped (XQuery 4.0, section
-               4.12.1.3). */
-            .type_annotation = {.index = SXML_TYPE_NONE},
+            .type_annotation = start->type_annotation,
             .is_id = false,
             .is_idrefs = false,
             .is_nilled = false,
@@ -1496,8 +1534,9 @@ static sxml_status sxml_construct_step_element(sxml_dynamic_context *dynamic_con
         &sxml_construct_expression(top)->node_construction;
     sxml_construct_element_request request = {
         .start = {.name = {.expanded_name = {.index = 0}, .namespace_prefix = {.index = 0}},
-                  .bindings = sxml_construct_written_bindings(
-                      top->function->unit, construction->namespace_bindings)},
+                  .bindings = sxml_ir_unit_get_namespace_bindings(
+                      top->function->unit, construction->namespace_bindings),
+                  .type_annotation = sxml_construct_element_type(construction)},
         .content = &content,
         .rules = SXML_CONSTRUCT_RULES_XQUERY};
     status = sxml_construct_read_name(
@@ -1943,8 +1982,9 @@ static sxml_status sxml_construct_copy_whole(sxml_dynamic_context *context,
 }
 
 /* An element or document node with new content (XSLT 4.0, section
-   11.9.1: the element's namespace nodes are copied, copy-namespaces
-   "yes"). */
+   11.9.1: the element's namespace nodes are copied unless the
+   NO_PRESERVE_NAMESPACES flag says copy-namespaces "no"; its type
+   annotation is kept only with PRESERVES_TYPES, validation "preserve"). */
 typedef struct sxml_construct_copy_request {
     const sxml_construct_copied_item *copied;
     const sxml_construct_content *content;
@@ -1955,18 +1995,26 @@ static sxml_status sxml_construct_copy_with_content(sxml_dynamic_context *contex
                                                     sxml_sequence *result) {
     const sxml_construct_copied_item *copied = request->copied;
     if (copied->description.node_kind == SXML_NODE_KIND_ELEMENT) {
+        const uint32_t flags = sxml_construct_top_flags(context);
         sxml_namespace_binding_view bindings = {.namespace_bindings = NULL,
                                                 .namespace_binding_count = 0};
-        const sxml_status status = sxml_node_get_in_scope_namespaces(copied->node, &bindings);
-        if (status != SXML_STATUS_OK) {
-            return status;
+        if ((flags & (uint32_t)SXML_IR_CONSTRUCTION_NO_PRESERVE_NAMESPACES) == 0) {
+            const sxml_status status =
+                sxml_node_get_in_scope_namespaces(copied->node, &bindings);
+            if (status != SXML_STATUS_OK) {
+                return status;
+            }
         }
         return sxml_construct_build_element(
             context,
             &(sxml_construct_element_request){
                 .start = {.name = {.expanded_name = copied->description.node_name,
                                    .namespace_prefix = copied->description.namespace_prefix},
-                          .bindings = bindings},
+                          .bindings = bindings,
+                          .type_annotation =
+                              (flags & (uint32_t)SXML_IR_CONSTRUCTION_PRESERVES_TYPES) != 0
+                                  ? copied->description.type_annotation
+                                  : (sxml_type_identifier){.index = SXML_TYPE_NONE}},
                 .content = request->content,
                 .rules = SXML_CONSTRUCT_RULES_XSLT},
             result);

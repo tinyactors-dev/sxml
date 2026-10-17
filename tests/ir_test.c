@@ -7,12 +7,15 @@
  * allocation-failure loops (D23). Units are built by hand here; lowering
  * builds them in tests/xpath_static_test.c. The last section checks the
  * lowering seam (src/xpath_lower_internal.h, D103): probe lowering parts,
- * the embedding entry and procedures run from outside a machine.
+ * the embedding entry and procedures run from outside a machine. The
+ * XQuery payloads (try/catch clauses, name tests, constructor namespaces
+ * and flags; D109, D110) have a hand-built unit of their own.
  */
 #include "ir_internal.h"
 #include "ir_pass_internal.h"
 #include "xpath_lower_internal.h"
 #include "sxml/name.h"
+#include "sxml/string.h"
 #include "sxml/types.h"
 #include "sxml/xdm.h"
 #include "test_runner.h"
@@ -635,9 +638,9 @@ static sxml_status break_unit(example_unit *example, breakage kind) {
         break;
     case SXML_TEST_BREAKAGE_RESERVED_KIND:
         replacement.expression.expression_kind =
-            SXML_IR_EXPRESSION_KIND_TEXT_CONSTRUCTOR;
-        replacement.expression.node_construction =
-            (sxml_ir_node_construction){.value = slot(1)};
+            SXML_IR_EXPRESSION_KIND_APPLY_TEMPLATES;
+        replacement.expression.apply_templates =
+            (sxml_ir_apply_templates){.select = slot(1)};
         break;
     case SXML_TEST_BREAKAGE_BOUND_TWICE:
         replacement.index = example->body_let;
@@ -771,6 +774,545 @@ static void test_pass_list_verifies_after_each_pass(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, diagnostic.description.byte_count > 0);
     sxml_ir_unit_release(example.unit);
     fixture_destroy(&test_fixture);
+}
+
+/* ------------------------------------------------------ XQuery payloads */
+
+/* The indices of the XQuery example unit, for tests that break it. */
+typedef struct xquery_unit {
+    sxml_ir_unit *unit;
+    sxml_ir_expression_index try_catch;
+    sxml_ir_expression_index element;
+    sxml_ir_expression_index content;
+    sxml_ir_expression_index finally_body;
+} xquery_unit;
+
+/* Each step of building the XQuery example unit does nothing once status
+   is not OK. */
+typedef struct xquery_writer {
+    const fixture *test_fixture;
+    sxml_ir_unit *unit;
+    sxml_status status;
+} xquery_writer;
+
+static sxml_ir_expression_index xquery_add(xquery_writer *writer,
+                                           sxml_ir_expression expression) {
+    sxml_ir_expression_index index = {0};
+    if (writer->status == SXML_STATUS_OK) {
+        writer->status = add(writer->unit, expression, &index);
+    }
+    return index;
+}
+
+static sxml_ir_atom xquery_constant(xquery_writer *writer, sxml_sequence value) {
+    sxml_ir_constant_index index = {0};
+    if (writer->status == SXML_STATUS_OK) {
+        writer->status = sxml_ir_unit_add_constant(writer->unit, value, &index);
+    }
+    sxml_sequence_release(value);
+    return constant(index);
+}
+
+static sxml_ir_atom xquery_string(xquery_writer *writer, const char *text) {
+    sxml_string string = {0};
+    sxml_item item = {0};
+    if (writer->status == SXML_STATUS_OK) {
+        writer->status = sxml_string_from_utf8(sxml_byte_view_from_c_string(text), &string);
+    }
+    if (writer->status == SXML_STATUS_OK) {
+        writer->status = sxml_atomic_item_make(
+            writer->test_fixture->item_heap,
+            &(sxml_atomic_item_request){
+                .type = sxml_builtin_type_identifier(SXML_TYPE_XS_STRING),
+                .datum = {.datum_kind = SXML_DATUM_KIND_STRING,
+                          .datum_details = {.string = string}}},
+            &item);
+    }
+    if (writer->status != SXML_STATUS_OK) {
+        return (sxml_ir_atom){.atom_kind = SXML_IR_ATOM_KIND_NONE};
+    }
+    return xquery_constant(writer, sxml_sequence_from_item(item));
+}
+
+/* The binding prefix="uri", interned. */
+static sxml_namespace_binding xquery_binding(xquery_writer *writer,
+                                             const char *prefix,
+                                             const char *uri) {
+    sxml_namespace_binding binding = {0};
+    if (writer->status == SXML_STATUS_OK) {
+        writer->status = sxml_name_pool_intern_namespace_prefix(
+            writer->test_fixture->name_pool, sxml_byte_view_from_c_string(prefix),
+            &binding.namespace_prefix);
+    }
+    if (writer->status == SXML_STATUS_OK) {
+        writer->status = sxml_name_pool_intern_namespace_uri(
+            writer->test_fixture->name_pool, sxml_byte_view_from_c_string(uri),
+            &binding.namespace_uri);
+    }
+    return binding;
+}
+
+static sxml_ir_namespace_binding_list xquery_bindings(
+    xquery_writer *writer, sxml_namespace_binding_view bindings) {
+    sxml_ir_namespace_binding_list list = {0};
+    if (writer->status == SXML_STATUS_OK) {
+        writer->status =
+            sxml_ir_unit_add_namespace_bindings(writer->unit, bindings, &list);
+    }
+    return list;
+}
+
+/* The clauses of the example: `catch err:FOAR0001 | *:local` reading
+   $err:code, and `catch *`. The local name comes from a buffer that is
+   overwritten after the add, which the unit must not notice. */
+static sxml_ir_catch_clause_list xquery_clauses(xquery_writer *writer) {
+    char local_name[] = "local";
+    sxml_name_identifier code = {0};
+    if (writer->status == SXML_STATUS_OK) {
+        writer->status = sxml_name_pool_intern_name(
+            writer->test_fixture->name_pool,
+            &(sxml_name_request){
+                .namespace_uri = sxml_well_known_namespace_identifier(SXML_NAMESPACE_ERRORS),
+                .local_name = SXML_BYTE_VIEW_FROM_LITERAL("FOAR0001")},
+            &code);
+    }
+    const sxml_name_test tests[] = {
+        {.name_test_kind = SXML_NAME_TEST_KIND_EXPANDED_NAME, .expanded_name = code},
+        {.name_test_kind = SXML_NAME_TEST_KIND_LOCAL_NAME_WILDCARD,
+         .local_name = {.bytes = (const uint8_t *)local_name,
+                        .byte_count = sizeof(local_name) - 1}},
+        {.name_test_kind = SXML_NAME_TEST_KIND_ANY_NAME},
+    };
+    sxml_ir_name_test_list first_tests = {0};
+    sxml_ir_name_test_list second_tests = {0};
+    if (writer->status == SXML_STATUS_OK) {
+        writer->status = sxml_ir_unit_add_name_tests(
+            writer->unit, (sxml_ir_name_test_view){.name_tests = tests, .name_test_count = 2},
+            &first_tests);
+    }
+    if (writer->status == SXML_STATUS_OK) {
+        writer->status = sxml_ir_unit_add_name_tests(
+            writer->unit,
+            (sxml_ir_name_test_view){.name_tests = tests + 2, .name_test_count = 1},
+            &second_tests);
+    }
+    memset(local_name, 'x', sizeof(local_name) - 1);
+    const sxml_ir_expression_index lookup = xquery_add(
+        writer, (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_LOOKUP,
+                                     .lookup = {.value = slot(1),
+                                                .key = xquery_string(writer, "code")}});
+    const sxml_ir_expression_index empty = xquery_add(
+        writer, (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_SEQUENCE});
+    const sxml_ir_catch_clause clauses[] = {
+        {.error_tests = first_tests, .error_details = {.value = 1}, .handler = lookup},
+        {.error_tests = second_tests, .error_details = {.value = 1}, .handler = empty},
+    };
+    sxml_ir_catch_clause_list list = {0};
+    if (writer->status == SXML_STATUS_OK) {
+        writer->status = sxml_ir_unit_add_catch_clauses(
+            writer->unit,
+            (sxml_ir_catch_clause_view){.catch_clauses = clauses, .catch_clause_count = 2},
+            &list);
+    }
+    return list;
+}
+
+/*
+ * Builds the unit of
+ *
+ *     let $v := try { 1 div 0 } catch err:FOAR0001 | *:local { $err:code }
+ *               catch * { () } finally { () }
+ *     return <p:a xmlns:p="urn:p" xmlns="urn:d">{$v}</p:a>
+ *
+ * with the element's name as the string "p:a" resolved with name
+ * namespaces, and the flags no-preserve-namespaces and xslt-rules.
+ */
+static sxml_status build_xquery_unit(const fixture *test_fixture, xquery_unit *example) {
+    const sxml_ir_unit_configuration configuration = unit_configuration(test_fixture);
+    xquery_writer writer = {.test_fixture = test_fixture, .unit = NULL};
+    writer.status =
+        sxml_ir_unit_create(fixture_allocator(test_fixture), &configuration, &writer.unit);
+    if (writer.status != SXML_STATUS_OK) {
+        return writer.status;
+    }
+    sxml_type_identifier signature = {0};
+    sxml_ir_function_index main_function = {0};
+    writer.status = register_signature(test_fixture, 0, &signature);
+    if (writer.status == SXML_STATUS_OK) {
+        writer.status = sxml_ir_unit_add_function(
+            writer.unit, &(sxml_ir_function){.signature = signature, .slot_count = 2},
+            &main_function);
+    }
+    xquery_unit built = {.unit = writer.unit};
+    const sxml_ir_expression_index division = xquery_add(
+        &writer,
+        (sxml_ir_expression){
+            .expression_kind = SXML_IR_EXPRESSION_KIND_BINARY,
+            .binary = {.operator = SXML_IR_BINARY_OPERATOR_DIVIDE,
+                       .left_operand = xquery_constant(
+                           &writer, sxml_sequence_from_item(sxml_atomic_item_from_integer(1))),
+                       .right_operand = xquery_constant(
+                           &writer, sxml_sequence_from_item(sxml_atomic_item_from_integer(0)))}});
+    const sxml_ir_catch_clause_list clauses = xquery_clauses(&writer);
+    built.finally_body = xquery_add(
+        &writer, (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_SEQUENCE});
+    built.try_catch = xquery_add(
+        &writer, (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_TRY_CATCH,
+                                      .try_catch = {.body = division,
+                                                    .catch_clauses = clauses,
+                                                    .finally_body = built.finally_body}});
+    const sxml_namespace_binding written[] = {
+        xquery_binding(&writer, "p", "urn:p"), xquery_binding(&writer, "", "urn:d")};
+    const sxml_ir_namespace_binding_list written_list = xquery_bindings(
+        &writer, (sxml_namespace_binding_view){.namespace_bindings = written,
+                                               .namespace_binding_count = 2});
+    const sxml_ir_namespace_binding_list name_list = xquery_bindings(
+        &writer, (sxml_namespace_binding_view){.namespace_bindings = written,
+                                               .namespace_binding_count = 1});
+    sxml_ir_atom_list content_atoms = {0};
+    if (writer.status == SXML_STATUS_OK) {
+        const sxml_ir_atom atoms[] = {slot(2)};
+        writer.status = sxml_ir_unit_add_atoms(
+            writer.unit, (sxml_ir_atom_view){.atoms = atoms, .atom_count = 1}, &content_atoms);
+    }
+    built.content = xquery_add(
+        &writer, (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_SEQUENCE,
+                                      .sequence = content_atoms});
+    built.element = xquery_add(
+        &writer,
+        (sxml_ir_expression){
+            .expression_kind = SXML_IR_EXPRESSION_KIND_ELEMENT_CONSTRUCTOR,
+            .node_construction = {.name = xquery_string(&writer, "p:a"),
+                                  .content = built.content,
+                                  .namespace_bindings = written_list,
+                                  .name_namespaces = name_list,
+                                  .construction_flags =
+                                      (uint32_t)SXML_IR_CONSTRUCTION_NO_PRESERVE_NAMESPACES |
+                                      (uint32_t)SXML_IR_CONSTRUCTION_XSLT_RULES}});
+    const sxml_ir_expression_index body = xquery_add(
+        &writer, (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_LET,
+                                      .let = {.variable = {.value = 2},
+                                              .bound_expression = built.try_catch,
+                                              .body = built.element}});
+    if (writer.status == SXML_STATUS_OK) {
+        sxml_ir_function_replacement replacement = {
+            .index = main_function,
+            .function = *sxml_ir_unit_get_function(writer.unit, main_function)};
+        replacement.function.body = body;
+        writer.status = sxml_ir_unit_replace_function(writer.unit, &replacement);
+    }
+    if (writer.status != SXML_STATUS_OK) {
+        sxml_ir_unit_release(writer.unit);
+        return writer.status;
+    }
+    *example = built;
+    return SXML_STATUS_OK;
+}
+
+static const char xquery_text[] =
+    "(function 1 main (parameters 0) (captures) (slots 2)\n"
+    "  (let $2 (try-catch\n"
+    "            (binary divide 1 0)\n"
+    "            (catch (err:FOAR0001 *:local) $1\n"
+    "              (lookup $1 \"code\"))\n"
+    "            (catch (*) $1\n"
+    "              (sequence))\n"
+    "            (finally\n"
+    "              (sequence)))\n"
+    "    (element-constructor \"p:a\" _ (namespaces p=\"urn:p\" \"\"=\"urn:d\") "
+    "(name-namespaces p=\"urn:p\") no-preserve-namespaces xslt-rules\n"
+    "      (sequence $2))))\n";
+
+static void test_adders_copy_name_tests_clauses_and_bindings(sxml_test_state *state) {
+    fixture test_fixture;
+    SXML_TEST_REQUIRE(state, fixture_create(0, &test_fixture) == SXML_STATUS_OK);
+    const sxml_ir_unit_configuration configuration = unit_configuration(&test_fixture);
+    sxml_ir_unit *unit = NULL;
+    SXML_TEST_REQUIRE(state, sxml_ir_unit_create(fixture_allocator(&test_fixture),
+                                                 &configuration, &unit) == SXML_STATUS_OK);
+    /* Empty views give empty lists. */
+    sxml_ir_name_test_list tests = {.first_name_test_index = 7, .name_test_count = 7};
+    sxml_ir_catch_clause_list clauses = {.first_catch_clause_index = 7};
+    sxml_ir_namespace_binding_list bindings = {.first_namespace_binding_index = 7};
+    SXML_TEST_EXPECT(state, sxml_ir_unit_add_name_tests(unit, (sxml_ir_name_test_view){0},
+                                                        &tests) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, tests.first_name_test_index == 0 && tests.name_test_count == 0);
+    SXML_TEST_EXPECT(state, sxml_ir_unit_add_catch_clauses(
+                                unit, (sxml_ir_catch_clause_view){0}, &clauses) ==
+                                SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, clauses.first_catch_clause_index == 0);
+    SXML_TEST_EXPECT(state, sxml_ir_unit_add_namespace_bindings(
+                                unit, (sxml_namespace_binding_view){0}, &bindings) ==
+                                SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, bindings.first_namespace_binding_index == 0);
+    /* A wildcard's local name is the pool's copy; an empty one is
+       refused and leaves the unit as it was. */
+    char local_name[] = "name";
+    const sxml_name_test wildcard[] = {
+        {.name_test_kind = SXML_NAME_TEST_KIND_ANY_NAME,
+         .local_name = SXML_BYTE_VIEW_FROM_LITERAL("ignored")},
+        {.name_test_kind = SXML_NAME_TEST_KIND_LOCAL_NAME_WILDCARD,
+         .local_name = {.bytes = (const uint8_t *)local_name, .byte_count = 4}}};
+    SXML_TEST_REQUIRE(state, sxml_ir_unit_add_name_tests(
+                                 unit, (sxml_ir_name_test_view){.name_tests = wildcard,
+                                                                .name_test_count = 2},
+                                 &tests) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, tests.first_name_test_index == 1 && tests.name_test_count == 2);
+    memset(local_name, 'x', 4);
+    const sxml_ir_name_test_view stored = sxml_ir_unit_get_name_tests(unit, tests);
+    SXML_TEST_REQUIRE(state, stored.name_test_count == 2);
+    SXML_TEST_EXPECT(state, stored.name_tests[0].local_name.byte_count == 0);
+    SXML_TEST_EXPECT(state, sxml_byte_view_equals(stored.name_tests[1].local_name,
+                                                  SXML_BYTE_VIEW_FROM_LITERAL("name")));
+    const sxml_name_test empty_wildcard = {
+        .name_test_kind = SXML_NAME_TEST_KIND_LOCAL_NAME_WILDCARD};
+    sxml_ir_name_test_list refused = tests;
+    SXML_TEST_EXPECT(state, sxml_ir_unit_add_name_tests(
+                                unit, (sxml_ir_name_test_view){.name_tests = &empty_wildcard,
+                                                               .name_test_count = 1},
+                                &refused) == SXML_STATUS_INVALID_ARGUMENT);
+    SXML_TEST_EXPECT(state, refused.first_name_test_index == 1 && unit->name_test_count == 3);
+    const sxml_ir_catch_clause clause = {.error_tests = tests,
+                                         .error_details = {.value = 4},
+                                         .handler = {.value = 5}};
+    SXML_TEST_REQUIRE(state, sxml_ir_unit_add_catch_clauses(
+                                 unit, (sxml_ir_catch_clause_view){.catch_clauses = &clause,
+                                                                   .catch_clause_count = 1},
+                                 &clauses) == SXML_STATUS_OK);
+    const sxml_ir_catch_clause_view stored_clauses =
+        sxml_ir_unit_get_catch_clauses(unit, clauses);
+    SXML_TEST_EXPECT(state, stored_clauses.catch_clause_count == 1 &&
+                                stored_clauses.catch_clauses[0].error_details.value == 4 &&
+                                stored_clauses.catch_clauses[0].handler.value == 5);
+    /* Static namespaces and constructor runs share one array. */
+    const sxml_namespace_binding pairs[2] = {
+        {.namespace_prefix = {.index = 0}, .namespace_uri = {.index = SXML_NAMESPACE_XML}},
+        {.namespace_prefix = {.index = 1}, .namespace_uri = {.index = SXML_NAMESPACE_NONE}}};
+    SXML_TEST_REQUIRE(state, sxml_ir_unit_set_static_namespaces(
+                                 unit, (sxml_namespace_binding_view){
+                                           .namespace_bindings = pairs,
+                                           .namespace_binding_count = 1}) == SXML_STATUS_OK);
+    SXML_TEST_REQUIRE(state, sxml_ir_unit_add_namespace_bindings(
+                                 unit, (sxml_namespace_binding_view){
+                                           .namespace_bindings = pairs,
+                                           .namespace_binding_count = 2},
+                                 &bindings) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, bindings.first_namespace_binding_index == 2 &&
+                                bindings.namespace_binding_count == 2);
+    SXML_TEST_EXPECT(state, sxml_ir_unit_get_static_namespaces(unit).namespace_binding_count ==
+                                1);
+    const sxml_namespace_binding_view run = sxml_ir_unit_get_namespace_bindings(unit, bindings);
+    SXML_TEST_REQUIRE(state, run.namespace_binding_count == 2 && run.namespace_bindings != NULL);
+    SXML_TEST_EXPECT(state, run.namespace_bindings[1].namespace_prefix.index == 1);
+    /* Out of range: empty. */
+    SXML_TEST_EXPECT(state, sxml_ir_unit_get_name_tests(
+                                unit, (sxml_ir_name_test_list){.first_name_test_index = 2,
+                                                               .name_test_count = 5})
+                                    .name_test_count == 0);
+    SXML_TEST_EXPECT(state,
+                     sxml_ir_unit_get_catch_clauses(
+                         unit, (sxml_ir_catch_clause_list){.first_catch_clause_index = 9,
+                                                           .catch_clause_count = 1})
+                             .catch_clause_count == 0);
+    SXML_TEST_EXPECT(state, sxml_ir_unit_get_namespace_bindings(
+                                unit, (sxml_ir_namespace_binding_list){
+                                          .first_namespace_binding_index = 3,
+                                          .namespace_binding_count = 2})
+                                    .namespace_binding_count == 0);
+    sxml_ir_unit_seal(unit);
+    SXML_TEST_EXPECT(state, sxml_ir_unit_add_name_tests(unit, (sxml_ir_name_test_view){0},
+                                                        &tests) ==
+                                SXML_STATUS_INVALID_ARGUMENT);
+    SXML_TEST_EXPECT(state, sxml_ir_unit_add_catch_clauses(
+                                unit, (sxml_ir_catch_clause_view){.catch_clauses = &clause,
+                                                                  .catch_clause_count = 1},
+                                &clauses) == SXML_STATUS_INVALID_ARGUMENT);
+    SXML_TEST_EXPECT(state, sxml_ir_unit_add_namespace_bindings(
+                                unit, (sxml_namespace_binding_view){0}, &bindings) ==
+                                SXML_STATUS_INVALID_ARGUMENT);
+    sxml_ir_unit_release(unit);
+    SXML_TEST_EXPECT(state, live_allocations(&test_fixture) == 0);
+    fixture_destroy(&test_fixture);
+}
+
+static void test_xquery_unit_writes_its_text_and_verifies(sxml_test_state *state) {
+    fixture test_fixture;
+    SXML_TEST_REQUIRE(state, fixture_create(0, &test_fixture) == SXML_STATUS_OK);
+    xquery_unit example = {0};
+    SXML_TEST_REQUIRE(state, build_xquery_unit(&test_fixture, &example) == SXML_STATUS_OK);
+    char text[1024];
+    size_t byte_count = 0;
+    SXML_TEST_EXPECT(state, sxml_ir_unit_write_text(
+                                example.unit,
+                                (sxml_memory_view){.bytes = (uint8_t *)text,
+                                                   .byte_count = sizeof(text)},
+                                &byte_count) == SXML_STATUS_OK);
+    const bool is_expected = byte_count == sizeof(xquery_text) - 1 &&
+                             memcmp(text, xquery_text, sizeof(xquery_text) - 1) == 0;
+    SXML_TEST_EXPECT(state, is_expected);
+    if (!is_expected && byte_count < sizeof(text)) {
+        (void)fprintf(stderr, "%.*s", (int)byte_count, text);
+    }
+    sxml_diagnostic diagnostic = {0};
+    SXML_TEST_EXPECT(state, verify(&test_fixture, example.unit, &diagnostic) ==
+                                SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, diagnostic.description.byte_count == 0);
+    sxml_ir_unit_release(example.unit);
+    SXML_TEST_EXPECT(state, live_allocations(&test_fixture) == 0);
+    fixture_destroy(&test_fixture);
+}
+
+/* One way to break the XQuery example unit. */
+typedef enum xquery_breakage {
+    SXML_TEST_XQUERY_BREAKAGE_CLAUSE_WITHOUT_SLOT,
+    SXML_TEST_XQUERY_BREAKAGE_CLAUSE_WITHOUT_TESTS,
+    SXML_TEST_XQUERY_BREAKAGE_NOTHING_TO_CATCH_OR_FINISH,
+    SXML_TEST_XQUERY_BREAKAGE_DETAILS_READ_OUTSIDE_HANDLER,
+    SXML_TEST_XQUERY_BREAKAGE_UNKNOWN_FLAG,
+    SXML_TEST_XQUERY_BREAKAGE_BINDINGS_OUT_OF_RANGE,
+    SXML_TEST_XQUERY_BREAKAGE_FIELD_OF_ANOTHER_KIND,
+    SXML_TEST_XQUERY_BREAKAGE_DOCUMENT_WITH_NAME,
+} xquery_breakage;
+
+static sxml_status break_xquery_unit(const xquery_unit *example, xquery_breakage kind) {
+    sxml_ir_unit *unit = example->unit;
+    sxml_ir_expression_replacement replacement = {
+        .index = example->try_catch,
+        .expression = *sxml_ir_unit_get_expression(unit, example->try_catch)};
+    sxml_ir_node_construction *construction = &replacement.expression.node_construction;
+    const sxml_ir_catch_clause_view clauses =
+        sxml_ir_unit_get_catch_clauses(unit, replacement.expression.try_catch.catch_clauses);
+    if (clauses.catch_clause_count == 0 || clauses.catch_clauses == NULL) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    const sxml_ir_catch_clause first_clause = clauses.catch_clauses[0];
+    sxml_status status = SXML_STATUS_OK;
+    switch (kind) {
+    case SXML_TEST_XQUERY_BREAKAGE_CLAUSE_WITHOUT_SLOT:
+    case SXML_TEST_XQUERY_BREAKAGE_CLAUSE_WITHOUT_TESTS: {
+        sxml_ir_catch_clause clause = first_clause;
+        if (kind == SXML_TEST_XQUERY_BREAKAGE_CLAUSE_WITHOUT_SLOT) {
+            clause.error_details = (sxml_ir_slot){.value = 0};
+        } else {
+            clause.error_tests = (sxml_ir_name_test_list){0};
+        }
+        status = sxml_ir_unit_add_catch_clauses(
+            unit, (sxml_ir_catch_clause_view){.catch_clauses = &clause, .catch_clause_count = 1},
+            &replacement.expression.try_catch.catch_clauses);
+        break;
+    }
+    case SXML_TEST_XQUERY_BREAKAGE_NOTHING_TO_CATCH_OR_FINISH:
+        /* The handlers and finally body become unreachable, which is
+           allowed; a try with neither clauses nor finally is not. */
+        replacement.expression.try_catch.catch_clauses = (sxml_ir_catch_clause_list){0};
+        replacement.expression.try_catch.finally_body = (sxml_ir_expression_index){0};
+        break;
+    case SXML_TEST_XQUERY_BREAKAGE_DETAILS_READ_OUTSIDE_HANDLER:
+        /* The finally clause reads the first clause's details slot. */
+        replacement.index = example->finally_body;
+        replacement.expression = (sxml_ir_expression){
+            .expression_kind = SXML_IR_EXPRESSION_KIND_ATOM, .atom = slot(1)};
+        break;
+    case SXML_TEST_XQUERY_BREAKAGE_UNKNOWN_FLAG:
+    case SXML_TEST_XQUERY_BREAKAGE_BINDINGS_OUT_OF_RANGE:
+    case SXML_TEST_XQUERY_BREAKAGE_FIELD_OF_ANOTHER_KIND:
+    case SXML_TEST_XQUERY_BREAKAGE_DOCUMENT_WITH_NAME:
+        replacement.index = example->element;
+        replacement.expression = *sxml_ir_unit_get_expression(unit, example->element);
+        if (kind == SXML_TEST_XQUERY_BREAKAGE_UNKNOWN_FLAG) {
+            construction->construction_flags |= 1U << 9U;
+        } else if (kind == SXML_TEST_XQUERY_BREAKAGE_BINDINGS_OUT_OF_RANGE) {
+            construction->name_namespaces.first_namespace_binding_index = 40;
+        } else if (kind == SXML_TEST_XQUERY_BREAKAGE_FIELD_OF_ANOTHER_KIND) {
+            /* A text constructor has no namespace bindings or content. */
+            replacement.expression.expression_kind = SXML_IR_EXPRESSION_KIND_TEXT_CONSTRUCTOR;
+            construction->name = (sxml_ir_atom){.atom_kind = SXML_IR_ATOM_KIND_NONE};
+            construction->content = (sxml_ir_expression_index){0};
+            construction->construction_flags = 0;
+            construction->name_namespaces = (sxml_ir_namespace_binding_list){0};
+        } else {
+            /* A document constructor has no name. */
+            replacement.expression.expression_kind =
+                SXML_IR_EXPRESSION_KIND_DOCUMENT_CONSTRUCTOR;
+            construction->namespace_bindings = (sxml_ir_namespace_binding_list){0};
+            construction->name_namespaces = (sxml_ir_namespace_binding_list){0};
+        }
+        break;
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ir_unit_replace_expression(unit, &replacement);
+    }
+    return status;
+}
+
+static void test_verifier_checks_try_catch_and_constructors(sxml_test_state *state) {
+    static const xquery_breakage breakages[] = {
+        SXML_TEST_XQUERY_BREAKAGE_CLAUSE_WITHOUT_SLOT,
+        SXML_TEST_XQUERY_BREAKAGE_CLAUSE_WITHOUT_TESTS,
+        SXML_TEST_XQUERY_BREAKAGE_NOTHING_TO_CATCH_OR_FINISH,
+        SXML_TEST_XQUERY_BREAKAGE_DETAILS_READ_OUTSIDE_HANDLER,
+        SXML_TEST_XQUERY_BREAKAGE_UNKNOWN_FLAG,
+        SXML_TEST_XQUERY_BREAKAGE_BINDINGS_OUT_OF_RANGE,
+        SXML_TEST_XQUERY_BREAKAGE_FIELD_OF_ANOTHER_KIND,
+        SXML_TEST_XQUERY_BREAKAGE_DOCUMENT_WITH_NAME,
+    };
+    for (size_t breakage_index = 0; breakage_index < SXML_TEST_COUNT(breakages);
+         breakage_index += 1) {
+        fixture test_fixture;
+        SXML_TEST_REQUIRE(state, fixture_create(0, &test_fixture) == SXML_STATUS_OK);
+        xquery_unit example = {0};
+        SXML_TEST_REQUIRE(state, build_xquery_unit(&test_fixture, &example) == SXML_STATUS_OK);
+        SXML_TEST_REQUIRE(state, break_xquery_unit(&example, breakages[breakage_index]) ==
+                                     SXML_STATUS_OK);
+        sxml_diagnostic diagnostic = {0};
+        const sxml_status status = verify(&test_fixture, example.unit, &diagnostic);
+        SXML_TEST_EXPECT(state, status == SXML_STATUS_INVALID_ARGUMENT);
+        SXML_TEST_EXPECT(state, diagnostic.description.byte_count > 0);
+        if (status != SXML_STATUS_INVALID_ARGUMENT) {
+            (void)fprintf(stderr, "XQuery breakage %zu not found\n", breakage_index);
+        }
+        sxml_ir_unit_release(example.unit);
+        SXML_TEST_EXPECT(state, live_allocations(&test_fixture) == 0);
+        fixture_destroy(&test_fixture);
+    }
+}
+
+static void test_xquery_unit_survives_every_allocation_failure(sxml_test_state *state) {
+    uint64_t failing_allocation_number = 1;
+    for (;;) {
+        fixture test_fixture;
+        SXML_TEST_REQUIRE(state, fixture_create(failing_allocation_number, &test_fixture) ==
+                                     SXML_STATUS_OK);
+        xquery_unit example = {0};
+        sxml_status status = build_xquery_unit(&test_fixture, &example);
+        if (status == SXML_STATUS_OK) {
+            status = verify(&test_fixture, example.unit, NULL);
+        }
+        if (status == SXML_STATUS_OK) {
+            char text[1024];
+            size_t byte_count = 0;
+            status = sxml_ir_unit_write_text(
+                example.unit,
+                (sxml_memory_view){.bytes = (uint8_t *)text, .byte_count = sizeof(text)},
+                &byte_count);
+        }
+        sxml_ir_unit_release(example.unit);
+        const sxml_allocation_counts counts =
+            sxml_counting_allocator_read_counts(test_fixture.counting_allocator);
+        SXML_TEST_EXPECT(state, counts.live_allocation_count == 0);
+        SXML_TEST_EXPECT(state, live_cells(&test_fixture) == 0);
+        fixture_destroy(&test_fixture);
+        if (status == SXML_STATUS_OK) {
+            SXML_TEST_EXPECT(state, counts.failed_allocation_count == 0);
+            break;
+        }
+        SXML_TEST_EXPECT(state, status == SXML_STATUS_OUT_OF_MEMORY);
+        failing_allocation_number += 1;
+        SXML_TEST_REQUIRE(state, failing_allocation_number < 100);
+    }
+    /* The unit and its eight arrays, the verifier's tables and stack, the
+       printer's stack. */
+    SXML_TEST_EXPECT(state, failing_allocation_number > 10);
 }
 
 /* -------------------------------------------------- Allocation failures */
@@ -1481,6 +2023,14 @@ static const sxml_test_case ir_test_cases[] = {
      .function = test_pass_list_verifies_after_each_pass},
     {.name = "building_and_verifying_survive_every_allocation_failure",
      .function = test_building_and_verifying_survive_every_allocation_failure},
+    {.name = "adders_copy_name_tests_clauses_and_bindings",
+     .function = test_adders_copy_name_tests_clauses_and_bindings},
+    {.name = "xquery_unit_writes_its_text_and_verifies",
+     .function = test_xquery_unit_writes_its_text_and_verifies},
+    {.name = "verifier_checks_try_catch_and_constructors",
+     .function = test_verifier_checks_try_catch_and_constructors},
+    {.name = "xquery_unit_survives_every_allocation_failure",
+     .function = test_xquery_unit_survives_every_allocation_failure},
     {.name = "lowering_part_lowers_its_kinds",
      .function = test_lowering_part_lowers_its_kinds},
     {.name = "kinds_no_part_lowers_are_the_cores",

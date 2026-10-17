@@ -1,6 +1,7 @@
 /*
  * Tests for the node constructors of the evaluator
- * (src/evaluator_construct.c; D40, D67, D98, D101, D110).
+ * (src/evaluator_construct.c; D40, D67, D98, D101, D110), including the
+ * modes of construction_flags and name namespaces.
  *
  * Golden file: tests/evaluator_machine_test.c (fixture, hand-built IR,
  * allocation-failure loops), with the value rendering of
@@ -305,34 +306,72 @@ static sxml_ir_node_construction with_content(sxml_ir_atom name,
     return construction;
 }
 
-/* The static namespaces of the unit, also usable as the namespace
-   bindings written on an element. */
-static sxml_ir_namespace_binding_list program_set_static_namespaces(
-    program *writer, const qname_text *bindings, size_t binding_count) {
-    sxml_namespace_binding namespace_bindings[8];
+/* Namespace bindings as text: the prefix and URI of each qname_text. */
+typedef struct binding_texts {
+    const qname_text *bindings;
+    size_t binding_count;
+} binding_texts;
+
+/* Interned namespace bindings, at most 8. */
+typedef struct interned_bindings {
+    sxml_namespace_binding bindings[8];
+    size_t binding_count;
+} interned_bindings;
+
+static void program_intern_bindings(program *writer, binding_texts texts,
+                                    interned_bindings *interned) {
+    interned->binding_count = 0;
+    if (writer->status == SXML_STATUS_OK && texts.binding_count > 8) {
+        writer->status = SXML_STATUS_CAPACITY_EXCEEDED;
+    }
     for (size_t binding_index = 0;
-         writer->status == SXML_STATUS_OK && binding_index < binding_count;
+         writer->status == SXML_STATUS_OK && binding_index < texts.binding_count;
          binding_index += 1) {
         writer->status = sxml_name_pool_intern_namespace_prefix(
             writer->test_fixture->name_pool,
-            text_view(bindings[binding_index].namespace_prefix),
-            &namespace_bindings[binding_index].namespace_prefix);
+            text_view(texts.bindings[binding_index].namespace_prefix),
+            &interned->bindings[binding_index].namespace_prefix);
         if (writer->status == SXML_STATUS_OK) {
             writer->status = sxml_name_pool_intern_namespace_uri(
                 writer->test_fixture->name_pool,
-                text_view(bindings[binding_index].namespace_uri),
-                &namespace_bindings[binding_index].namespace_uri);
+                text_view(texts.bindings[binding_index].namespace_uri),
+                &interned->bindings[binding_index].namespace_uri);
         }
+        interned->binding_count = binding_index + 1;
     }
+}
+
+static sxml_namespace_binding_view interned_view(const interned_bindings *interned) {
+    return (sxml_namespace_binding_view){.namespace_bindings = interned->bindings,
+                                         .namespace_binding_count = interned->binding_count};
+}
+
+/* Sets the static namespaces of the unit. */
+static void program_set_static_namespaces(program *writer, const qname_text *bindings,
+                                          size_t binding_count) {
+    interned_bindings interned;
+    program_intern_bindings(
+        writer, (binding_texts){.bindings = bindings, .binding_count = binding_count}, &interned);
     if (writer->status == SXML_STATUS_OK) {
-        writer->status = sxml_ir_unit_set_static_namespaces(
-            writer->unit, (sxml_namespace_binding_view){.namespace_bindings = namespace_bindings,
-                                                        .namespace_binding_count = binding_count});
+        writer->status =
+            sxml_ir_unit_set_static_namespaces(writer->unit, interned_view(&interned));
     }
-    return writer->status == SXML_STATUS_OK
-               ? writer->unit->static_namespaces
-               : (sxml_ir_namespace_binding_list){.first_namespace_binding_index = 0,
-                                                  .namespace_binding_count = 0};
+}
+
+/* A run of namespace bindings for a constructor (D110). */
+static sxml_ir_namespace_binding_list program_add_bindings(program *writer,
+                                                           const qname_text *bindings,
+                                                           size_t binding_count) {
+    interned_bindings interned;
+    program_intern_bindings(
+        writer, (binding_texts){.bindings = bindings, .binding_count = binding_count}, &interned);
+    sxml_ir_namespace_binding_list list = {.first_namespace_binding_index = 0,
+                                           .namespace_binding_count = 0};
+    if (writer->status == SXML_STATUS_OK) {
+        writer->status = sxml_ir_unit_add_namespace_bindings(writer->unit,
+                                                             interned_view(&interned), &list);
+    }
+    return list;
 }
 
 static void program_set_base_uri(program *writer, const char *base_uri) {
@@ -1149,8 +1188,8 @@ static const qname_text static_namespaces[] = {
    namespaces of the unit (p and a default element namespace). */
 static sxml_ir_expression_index write_named(program *writer, typed_text element_name,
                                             typed_text attribute_name) {
-    (void)program_set_static_namespaces(writer, static_namespaces,
-                                        SXML_TEST_COUNT(static_namespaces));
+    program_set_static_namespaces(writer, static_namespaces,
+                                  SXML_TEST_COUNT(static_namespaces));
     const sxml_ir_atom attribute =
         bind_construct(writer, SXML_IR_EXPRESSION_KIND_ATTRIBUTE_CONSTRUCTOR,
                        named(program_typed_string(writer, attribute_name), no_atom()));
@@ -1290,10 +1329,10 @@ static void test_names(sxml_test_state *state) {
 
 /* ----------------------------------------------------- Namespaces */
 
-/* The bindings written on a direct element constructor, here the unit's
-   static namespaces: <p:e xmlns:p="..." xmlns="...">. */
+/* The bindings written on a direct element constructor:
+   <p:e xmlns:p="..." xmlns="...">. */
 static sxml_ir_expression_index write_written_bindings(program *writer) {
-    const sxml_ir_namespace_binding_list bindings = program_set_static_namespaces(
+    const sxml_ir_namespace_binding_list bindings = program_add_bindings(
         writer, static_namespaces, SXML_TEST_COUNT(static_namespaces));
     sxml_ir_node_construction construction =
         with_content(program_qname(writer, (qname_text){"http://p.example/", "p", "e"}),
@@ -1413,7 +1452,7 @@ static sxml_ir_expression_index write_copy_namespaces(program *writer) {
         {.namespace_uri = "http://p.example/", .namespace_prefix = "p", .local_name = ""},
     };
     const sxml_ir_namespace_binding_list written =
-        program_set_static_namespaces(writer, bindings, SXML_TEST_COUNT(bindings));
+        program_add_bindings(writer, bindings, SXML_TEST_COUNT(bindings));
     const sxml_ir_atom unused = bind_construct(
         writer, SXML_IR_EXPRESSION_KIND_NAMESPACE_CONSTRUCTOR,
         named(program_string(writer, "s"), program_string(writer, "http://s.example/")));
@@ -1450,6 +1489,163 @@ static const construct_case copy_cases[] = {
 
 static void test_copies(sxml_test_state *state) {
     expect_cases(state, copy_cases, SXML_TEST_COUNT(copy_cases));
+}
+
+/* --------------------------------------------- Construction flags */
+
+/* write_copy_namespaces with flags on the outer element (copy-namespaces
+   no-preserve and/or no-inherit, XQuery 4.0, 4.12.1.3, step 1d). */
+static sxml_ir_expression_index write_copy_namespaces_with(program *writer, uint32_t flags) {
+    static const qname_text bindings[] = {
+        {.namespace_uri = "http://p.example/", .namespace_prefix = "p", .local_name = ""},
+    };
+    const sxml_ir_namespace_binding_list written =
+        program_add_bindings(writer, bindings, SXML_TEST_COUNT(bindings));
+    const sxml_ir_atom unused = bind_construct(
+        writer, SXML_IR_EXPRESSION_KIND_NAMESPACE_CONSTRUCTOR,
+        named(program_string(writer, "s"), program_string(writer, "http://s.example/")));
+    const sxml_ir_atom inner = bind_construct(
+        writer, SXML_IR_EXPRESSION_KIND_ELEMENT_CONSTRUCTOR,
+        with_content(program_qname(writer, (qname_text){"http://q.example/", "q", "b"}),
+                     PROGRAM_SEQUENCE(writer, unused)));
+    sxml_ir_node_construction outer =
+        with_content(program_name(writer, "a"), PROGRAM_SEQUENCE(writer, inner));
+    outer.namespace_bindings = written;
+    outer.construction_flags = flags;
+    return program_construct(writer, SXML_IR_EXPRESSION_KIND_ELEMENT_CONSTRUCTOR, outer);
+}
+
+static sxml_ir_expression_index write_no_preserve(program *writer) {
+    return write_copy_namespaces_with(writer,
+                                      (uint32_t)SXML_IR_CONSTRUCTION_NO_PRESERVE_NAMESPACES);
+}
+
+static sxml_ir_expression_index write_no_inherit(program *writer) {
+    return write_copy_namespaces_with(writer,
+                                      (uint32_t)SXML_IR_CONSTRUCTION_NO_INHERIT_NAMESPACES);
+}
+
+static sxml_ir_expression_index write_no_preserve_no_inherit(program *writer) {
+    return write_copy_namespaces_with(
+        writer, (uint32_t)SXML_IR_CONSTRUCTION_NO_PRESERVE_NAMESPACES |
+                    (uint32_t)SXML_IR_CONSTRUCTION_NO_INHERIT_NAMESPACES);
+}
+
+/* element a { element b {} } where b is built under construction preserve
+   (xs:anyType) and a with outer_flags: a copy keeps b's annotation only
+   when a preserves types too. */
+static sxml_ir_expression_index write_typed_copy(program *writer, uint32_t outer_flags) {
+    sxml_ir_node_construction inner_construction =
+        with_content(program_name(writer, "b"), (sxml_ir_expression_index){.value = 0});
+    inner_construction.construction_flags = (uint32_t)SXML_IR_CONSTRUCTION_PRESERVES_TYPES;
+    const sxml_ir_atom inner =
+        bind_construct(writer, SXML_IR_EXPRESSION_KIND_ELEMENT_CONSTRUCTOR, inner_construction);
+    sxml_ir_node_construction outer =
+        with_content(program_name(writer, "a"), PROGRAM_SEQUENCE(writer, inner));
+    outer.construction_flags = outer_flags;
+    return program_construct(writer, SXML_IR_EXPRESSION_KIND_ELEMENT_CONSTRUCTOR, outer);
+}
+
+static sxml_ir_expression_index write_preserved_types(program *writer) {
+    return write_typed_copy(writer, (uint32_t)SXML_IR_CONSTRUCTION_PRESERVES_TYPES);
+}
+
+static sxml_ir_expression_index write_stripped_copy(program *writer) {
+    return write_typed_copy(writer, 0);
+}
+
+/* write_duplicate_attributes under XSLT's rules: the later attribute
+   replaces the earlier (XSLT 4.0, section 5.7.1). */
+static sxml_ir_expression_index write_xslt_duplicate_attributes(program *writer) {
+    const sxml_ir_atom first =
+        bind_construct(writer, SXML_IR_EXPRESSION_KIND_ATTRIBUTE_CONSTRUCTOR,
+                       named(program_name(writer, "x"), program_integer(writer, 1)));
+    const sxml_ir_atom second =
+        bind_construct(writer, SXML_IR_EXPRESSION_KIND_ATTRIBUTE_CONSTRUCTOR,
+                       named(program_name(writer, "x"), program_integer(writer, 2)));
+    sxml_ir_node_construction element =
+        with_content(program_name(writer, "a"), PROGRAM_SEQUENCE(writer, first, second));
+    element.construction_flags = (uint32_t)SXML_IR_CONSTRUCTION_XSLT_RULES;
+    return program_construct(writer, SXML_IR_EXPRESSION_KIND_ELEMENT_CONSTRUCTOR, element);
+}
+
+/* An attribute after a child under XSLT's rules: XTDE0410. */
+static sxml_ir_expression_index write_xslt_late_attribute(program *writer) {
+    const sxml_ir_atom attribute =
+        bind_construct(writer, SXML_IR_EXPRESSION_KIND_ATTRIBUTE_CONSTRUCTOR,
+                       named(program_name(writer, "x"), program_integer(writer, 1)));
+    sxml_ir_node_construction element = with_content(
+        program_name(writer, "a"), PROGRAM_SEQUENCE(writer, program_string(writer, "t"), attribute));
+    element.construction_flags = (uint32_t)SXML_IR_CONSTRUCTION_XSLT_RULES;
+    return program_construct(writer, SXML_IR_EXPRESSION_KIND_ELEMENT_CONSTRUCTOR, element);
+}
+
+/* <e xmlns:r="...">{element {'r:e'} {attribute {'r:x'} {}}}</e>, the
+   computed names resolved with name namespaces that the unit's static
+   namespaces lack (QT4 Constr-compelem-compname). */
+static sxml_ir_expression_index write_name_namespaces(program *writer) {
+    static const qname_text enclosing[] = {
+        {.namespace_uri = "http://r.example/", .namespace_prefix = "r", .local_name = ""},
+    };
+    const sxml_ir_namespace_binding_list names =
+        program_add_bindings(writer, enclosing, SXML_TEST_COUNT(enclosing));
+    sxml_ir_node_construction attribute = named(program_string(writer, "r:x"), no_atom());
+    attribute.name_namespaces = names;
+    const sxml_ir_atom attribute_node =
+        bind_construct(writer, SXML_IR_EXPRESSION_KIND_ATTRIBUTE_CONSTRUCTOR, attribute);
+    sxml_ir_node_construction element =
+        with_content(program_string(writer, "r:e"), PROGRAM_SEQUENCE(writer, attribute_node));
+    element.name_namespaces = names;
+    return program_construct(writer, SXML_IR_EXPRESSION_KIND_ELEMENT_CONSTRUCTOR, element);
+}
+
+/* The same name without name namespaces: r is not bound, XQDY0074. */
+static sxml_ir_expression_index write_unbound_name_prefix(program *writer) {
+    return program_construct(
+        writer, SXML_IR_EXPRESSION_KIND_ELEMENT_CONSTRUCTOR,
+        with_content(program_string(writer, "r:e"), (sxml_ir_expression_index){.value = 0}));
+}
+
+/* xsl:copy of <p:e xmlns:p="..." xmlns:s="..."/> with copy-namespaces
+   "no": only the namespace the name needs. */
+static sxml_ir_expression_index write_shallow_no_preserve(program *writer) {
+    static const qname_text bindings[] = {
+        {.namespace_uri = "http://p.example/", .namespace_prefix = "p", .local_name = ""},
+        {.namespace_uri = "http://s.example/", .namespace_prefix = "s", .local_name = ""},
+    };
+    sxml_ir_node_construction original =
+        with_content(program_qname(writer, (qname_text){"http://p.example/", "p", "e"}),
+                     (sxml_ir_expression_index){.value = 0});
+    original.namespace_bindings = program_add_bindings(writer, bindings, SXML_TEST_COUNT(bindings));
+    const sxml_ir_atom node =
+        bind_construct(writer, SXML_IR_EXPRESSION_KIND_ELEMENT_CONSTRUCTOR, original);
+    sxml_ir_node_construction copy = named(no_atom(), node);
+    copy.construction_flags = (uint32_t)SXML_IR_CONSTRUCTION_NO_PRESERVE_NAMESPACES;
+    return program_construct(writer, SXML_IR_EXPRESSION_KIND_SHALLOW_COPY, copy);
+}
+
+static const construct_case mode_cases[] = {
+    {"no_preserve", write_no_preserve, SXML_TEST_RENDER_NAMESPACES,
+     "<a[p=http://p.example/]><q:b[p=http://p.example/ q=http://q.example/]></q:b></a>"},
+    {"no_inherit", write_no_inherit, SXML_TEST_RENDER_NAMESPACES,
+     "<a[p=http://p.example/]><q:b[q=http://q.example/ s=http://s.example/]></q:b></a>"},
+    {"no_preserve_no_inherit", write_no_preserve_no_inherit, SXML_TEST_RENDER_NAMESPACES,
+     "<a[p=http://p.example/]><q:b[q=http://q.example/]></q:b></a>"},
+    {"preserved_types", write_preserved_types, SXML_TEST_RENDER_TYPES, "<a#other><b#other></b></a>"},
+    {"stripped_copy", write_stripped_copy, SXML_TEST_RENDER_TYPES,
+     "<a#untyped><b#untyped></b></a>"},
+    {"xslt_duplicate_attributes", write_xslt_duplicate_attributes, SXML_TEST_RENDER_NONE,
+     "<a x=\"2\"></a>"},
+    {"xslt_late_attribute", write_xslt_late_attribute, SXML_TEST_RENDER_NONE, "error:XTDE0410"},
+    {"name_namespaces", write_name_namespaces, SXML_TEST_RENDER_NAMESPACES,
+     "<r:e[r=http://r.example/] r:x=\"\"></r:e>"},
+    {"unbound_name_prefix", write_unbound_name_prefix, SXML_TEST_RENDER_NONE, "error:XQDY0074"},
+    {"shallow_no_preserve", write_shallow_no_preserve, SXML_TEST_RENDER_NAMESPACES,
+     "<p:e[p=http://p.example/]></p:e>"},
+};
+
+static void test_construction_flags(sxml_test_state *state) {
+    expect_cases(state, mode_cases, SXML_TEST_COUNT(mode_cases));
 }
 
 /* ------------------------------------------------------ Base URIs */
@@ -1635,11 +1831,13 @@ static sxml_ir_expression_index write_shallow_others(program *writer) {
     const sxml_ir_atom attribute =
         bind_construct(writer, SXML_IR_EXPRESSION_KIND_ATTRIBUTE_CONSTRUCTOR,
                        named(program_name(writer, "x"), program_integer(writer, 1)));
-    const sxml_ir_expression_index new_content =
-        PROGRAM_SEQUENCE(writer, program_string(writer, "new"));
     const sxml_ir_atom inputs[] = {document, attribute, program_integer(writer, 7), no_atom()};
     sxml_ir_atom copies[4];
     for (size_t input_index = 0; input_index < SXML_TEST_COUNT(inputs); input_index += 1) {
+        /* Each copy has a content expression of its own: the IR is a
+           tree. */
+        const sxml_ir_expression_index new_content =
+            PROGRAM_SEQUENCE(writer, program_string(writer, "new"));
         copies[input_index] = bind_construct(
             writer, SXML_IR_EXPRESSION_KIND_SHALLOW_COPY,
             (sxml_ir_node_construction){.name = no_atom(),
@@ -1789,6 +1987,7 @@ static void test_cases_survive_allocation_failures(sxml_test_state *state) {
     expect_cases_survive_allocation_failures(state, namespace_cases,
                                              SXML_TEST_COUNT(namespace_cases));
     expect_cases_survive_allocation_failures(state, copy_cases, SXML_TEST_COUNT(copy_cases));
+    expect_cases_survive_allocation_failures(state, mode_cases, SXML_TEST_COUNT(mode_cases));
     expect_cases_survive_allocation_failures(state, base_uri_cases,
                                              SXML_TEST_COUNT(base_uri_cases));
     expect_cases_survive_allocation_failures(state, leaf_cases, SXML_TEST_COUNT(leaf_cases));
@@ -1802,6 +2001,7 @@ static const sxml_test_case evaluator_construct_test_cases[] = {
     {.name = "names", .function = test_names},
     {.name = "namespaces", .function = test_namespaces},
     {.name = "copies", .function = test_copies},
+    {.name = "construction_flags", .function = test_construction_flags},
     {.name = "base_uris", .function = test_base_uris},
     {.name = "leaf_kinds", .function = test_leaf_kinds},
     {.name = "shallow_copies", .function = test_shallow_copies},

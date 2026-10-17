@@ -354,6 +354,156 @@ static sxml_status check_definition(verifier *checker,
     return check_atom_list(checker, defined->captured_variables);
 }
 
+/* A TRY_CATCH (XQuery 4.0, section 4.20): the body, each clause's name
+   tests, error details slot (bound in its handler only) and handler, and
+   the finally clause. Pushed so that they are visited in that order. */
+static sxml_status check_try_catch(verifier *checker,
+                                   const sxml_ir_try_catch *try_catch) {
+    const sxml_ir_catch_clause_list list = try_catch->catch_clauses;
+    const sxml_ir_catch_clause_view clauses =
+        sxml_ir_unit_get_catch_clauses(checker->unit, list);
+    if (clauses.catch_clause_count != list.catch_clause_count ||
+        (list.catch_clause_count > 0 && list.first_catch_clause_index == 0)) {
+        return report(checker, "a catch clause list is out of range");
+    }
+    if (try_catch->body.value == 0 ||
+        (list.catch_clause_count == 0 && try_catch->finally_body.value == 0)) {
+        return report(checker,
+                      "a try-catch has no body or neither clauses nor finally");
+    }
+    sxml_status status = SXML_STATUS_OK;
+    if (try_catch->finally_body.value != 0) {
+        status = push_visit(checker, try_catch->finally_body);
+    }
+    const uint32_t slot_count = current_function(checker)->slot_count;
+    for (size_t clause_number = clauses.catch_clause_count;
+         status == SXML_STATUS_OK && clause_number > 0; clause_number -= 1) {
+        const sxml_ir_catch_clause *clause =
+            &clauses.catch_clauses[clause_number - 1];
+        const sxml_ir_name_test_view tests =
+            sxml_ir_unit_get_name_tests(checker->unit, clause->error_tests);
+        if (tests.name_test_count == 0 ||
+            tests.name_test_count != clause->error_tests.name_test_count ||
+            clause->error_tests.first_name_test_index == 0) {
+            return report(checker, "a catch clause has no name tests in range");
+        }
+        for (size_t test_index = 0; test_index < tests.name_test_count;
+             test_index += 1) {
+            if ((uint32_t)tests.name_tests[test_index].name_test_kind >
+                (uint32_t)SXML_NAME_TEST_KIND_LOCAL_NAME_WILDCARD) {
+                return report(checker, "a catch clause has an unknown name test");
+            }
+        }
+        if (clause->error_details.value == 0 ||
+            clause->error_details.value > slot_count) {
+            return report(checker,
+                          "a catch clause binds no slot of the function");
+        }
+        if (clause->handler.value == 0) {
+            return report(checker, "a catch clause has no handler");
+        }
+        status = push_slot_task(checker, SXML_VERIFY_TASK_KIND_UNBIND,
+                                clause->error_details);
+        if (status == SXML_STATUS_OK) {
+            status = push_visit(checker, clause->handler);
+        }
+        if (status == SXML_STATUS_OK) {
+            status = push_slot_task(checker, SXML_VERIFY_TASK_KIND_BIND,
+                                    clause->error_details);
+        }
+    }
+    if (status == SXML_STATUS_OK) {
+        status = push_visit(checker, try_catch->body);
+    }
+    return status;
+}
+
+static bool binding_list_is_in_range(const verifier *checker,
+                                     sxml_ir_namespace_binding_list list) {
+    return list.namespace_binding_count == 0 ||
+           (list.first_namespace_binding_index != 0 &&
+            sxml_ir_unit_get_namespace_bindings(checker->unit, list)
+                    .namespace_binding_count == list.namespace_binding_count);
+}
+
+/* The fields one constructor kind uses (src/ir_internal.h,
+   sxml_ir_node_construction). */
+typedef struct construction_fields {
+    bool has_name;
+    bool has_value;
+    bool has_content;
+    bool has_namespace_bindings;
+    bool has_name_namespaces;
+    bool has_flags;
+} construction_fields;
+
+static construction_fields fields_of_kind(sxml_ir_expression_kind kind) {
+    if (kind == SXML_IR_EXPRESSION_KIND_DOCUMENT_CONSTRUCTOR) {
+        return (construction_fields){.has_content = true, .has_flags = true};
+    }
+    if (kind == SXML_IR_EXPRESSION_KIND_ELEMENT_CONSTRUCTOR) {
+        return (construction_fields){.has_name = true,
+                                     .has_content = true,
+                                     .has_namespace_bindings = true,
+                                     .has_name_namespaces = true,
+                                     .has_flags = true};
+    }
+    if (kind == SXML_IR_EXPRESSION_KIND_ATTRIBUTE_CONSTRUCTOR) {
+        return (construction_fields){
+            .has_name = true, .has_value = true, .has_name_namespaces = true};
+    }
+    if (kind == SXML_IR_EXPRESSION_KIND_NAMESPACE_CONSTRUCTOR ||
+        kind == SXML_IR_EXPRESSION_KIND_PROCESSING_INSTRUCTION_CONSTRUCTOR) {
+        return (construction_fields){.has_name = true, .has_value = true};
+    }
+    if (kind == SXML_IR_EXPRESSION_KIND_SHALLOW_COPY) {
+        return (construction_fields){
+            .has_value = true, .has_content = true, .has_flags = true};
+    }
+    /* TEXT and COMMENT. */
+    return (construction_fields){.has_value = true};
+}
+
+/* A constructor kind or SHALLOW_COPY: fields the kind does not use empty,
+   atoms valid, lists in range, known
+   flags; the content is visited. */
+static sxml_status check_node_construction(verifier *checker,
+                                           const sxml_ir_expression *expression) {
+    const sxml_ir_node_construction *construction = &expression->node_construction;
+    const construction_fields fields = fields_of_kind(expression->expression_kind);
+    if ((!fields.has_name && construction->name.atom_kind != SXML_IR_ATOM_KIND_NONE) ||
+        (!fields.has_value &&
+         construction->value.atom_kind != SXML_IR_ATOM_KIND_NONE) ||
+        (!fields.has_content && construction->content.value != 0) ||
+        (!fields.has_namespace_bindings &&
+         construction->namespace_bindings.namespace_binding_count != 0) ||
+        (!fields.has_name_namespaces &&
+         construction->name_namespaces.namespace_binding_count != 0) ||
+        (!fields.has_flags && construction->construction_flags != 0)) {
+        return report(checker, "a constructor has a field its kind does not use");
+    }
+    if ((construction->construction_flags & ~SXML_IR_CONSTRUCTION_KNOWN_FLAGS) != 0) {
+        return report(checker, "a constructor has unknown flags");
+    }
+    if (!binding_list_is_in_range(checker, construction->namespace_bindings) ||
+        !binding_list_is_in_range(checker, construction->name_namespaces)) {
+        return report(checker, "a namespace binding list is out of range");
+    }
+    /* A NONE name or value is the empty sequence, which the evaluator
+       turns into the kind's error or meaning (a namespace node's empty
+       prefix, nothing to copy). */
+    sxml_status status =
+        check_atom(checker, (atom_check){.atom = construction->name, .is_optional = true});
+    if (status == SXML_STATUS_OK) {
+        status =
+            check_atom(checker, (atom_check){.atom = construction->value, .is_optional = true});
+    }
+    if (status == SXML_STATUS_OK && construction->content.value != 0) {
+        status = push_visit(checker, construction->content);
+    }
+    return status;
+}
+
 /* Checks the payload of one expression and pushes its nested parts. */
 static sxml_status visit_expression(verifier *checker,
                                     sxml_ir_expression_index index) {
@@ -608,6 +758,7 @@ static sxml_status visit_expression(verifier *checker,
         }
         return SXML_STATUS_OK;
     case SXML_IR_EXPRESSION_KIND_TRY_CATCH:
+        return check_try_catch(checker, &expression->try_catch);
     case SXML_IR_EXPRESSION_KIND_DOCUMENT_CONSTRUCTOR:
     case SXML_IR_EXPRESSION_KIND_ELEMENT_CONSTRUCTOR:
     case SXML_IR_EXPRESSION_KIND_ATTRIBUTE_CONSTRUCTOR:
@@ -616,8 +767,9 @@ static sxml_status visit_expression(verifier *checker,
     case SXML_IR_EXPRESSION_KIND_COMMENT_CONSTRUCTOR:
     case SXML_IR_EXPRESSION_KIND_PROCESSING_INSTRUCTION_CONSTRUCTOR:
     case SXML_IR_EXPRESSION_KIND_SHALLOW_COPY:
+        return check_node_construction(checker, expression);
     case SXML_IR_EXPRESSION_KIND_APPLY_TEMPLATES:
-        /* Reserved until the evaluator implements them (Phases 3, 4). */
+        /* Reserved until the evaluator implements it (Phase 4). */
         return report(checker, "an expression kind is reserved");
     }
     return report(checker, "an expression kind is unknown");

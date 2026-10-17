@@ -430,27 +430,15 @@ typedef struct sxml_try_clause_search {
 static const sxml_ir_catch_clause *sxml_try_find_clause(
     const sxml_try_clause_search *search, const sxml_name_pool *name_pool,
     const sxml_error_code *code) {
-    const sxml_ir_unit *unit = search->unit;
-    const sxml_ir_catch_clause_list clauses = search->try_catch->catch_clauses;
-    if (clauses.first_catch_clause_index > unit->catch_clause_count ||
-        clauses.catch_clause_count >
-            unit->catch_clause_count - clauses.first_catch_clause_index) {
-        return NULL;
-    }
-    for (uint32_t clause_offset = 0; clause_offset < clauses.catch_clause_count;
-         clause_offset += 1) {
-        const sxml_ir_catch_clause *clause =
-            &unit->catch_clauses[clauses.first_catch_clause_index + clause_offset];
-        const sxml_ir_name_test_list tests = clause->error_tests;
-        if (tests.first_name_test_index > unit->name_test_count ||
-            tests.name_test_count > unit->name_test_count - tests.first_name_test_index) {
-            continue;
-        }
-        for (uint32_t test_offset = 0; test_offset < tests.name_test_count;
-             test_offset += 1) {
-            if (sxml_try_name_test_matches(
-                    name_pool, &unit->name_tests[tests.first_name_test_index + test_offset],
-                    code)) {
+    const sxml_ir_catch_clause_view clauses =
+        sxml_ir_unit_get_catch_clauses(search->unit, search->try_catch->catch_clauses);
+    for (size_t clause_index = 0; clause_index < clauses.catch_clause_count;
+         clause_index += 1) {
+        const sxml_ir_catch_clause *clause = &clauses.catch_clauses[clause_index];
+        const sxml_ir_name_test_view tests =
+            sxml_ir_unit_get_name_tests(search->unit, clause->error_tests);
+        for (size_t test_index = 0; test_index < tests.name_test_count; test_index += 1) {
+            if (sxml_try_name_test_matches(name_pool, &tests.name_tests[test_index], code)) {
                 return clause;
             }
         }
