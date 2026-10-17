@@ -81,6 +81,22 @@ static sxml_status bind_new_expression(sxml_xpath_lowerer *state,
         atom);
 }
 
+/* An expression that is just atom. */
+typedef struct atom_at {
+    sxml_ast_node_index node;
+    sxml_ir_atom atom;
+} atom_at;
+
+static sxml_status add_atom_expression(sxml_xpath_lowerer *state, atom_at request,
+                                       sxml_ir_expression_index *index) {
+    return sxml_xpath_lowerer_add_expression(
+        state,
+        (sxml_xpath_lowering_expression_to_add){
+            .node = request.node,
+            .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_ATOM, .atom = request.atom}},
+        index);
+}
+
 /* A STATIC_CALL of an internal native row, bound in block. The arguments
    already have the row's types, so none is coerced. */
 typedef struct native_call {
@@ -196,6 +212,26 @@ sxml_status sxml_xquery_bind_grouping_keys(sxml_xpath_lowerer *lowerer,
                                                           .sequence_type = key_type,
                                                           .role = SXML_IR_COERCION_ROLE_VARIABLE},
             &key);
+        /* "If a type declaration is present and the resulting atomized
+           value is not an instance of the specified type, a type error is
+           raised [err:XPTY0004]": the key coerced to the type again. */
+        const sxml_ast_node_index declaration =
+            child_of(state, specification, SXML_AST_FIELD_TYPE);
+        if (status == SXML_STATUS_OK && declaration.value != 0) {
+            sxml_sequence_type declared_type = {0};
+            status = sxml_xpath_lowerer_resolve_sequence_type(
+                state, child_of(state, declaration, SXML_AST_FIELD_TYPE), &declared_type);
+            if (status == SXML_STATUS_OK) {
+                status = sxml_xpath_lowerer_coerce_atom(
+                    state,
+                    (sxml_xpath_lowering_coercion_request){.block = request.block,
+                                                           .node = specification,
+                                                           .value = key,
+                                                           .sequence_type = declared_type,
+                                                           .role = SXML_IR_COERCION_ROLE_VARIABLE},
+                    &key);
+            }
+        }
         if (status == SXML_STATUS_OK) {
             status = sxml_xpath_lowerer_push_variable(
                 state,
@@ -325,28 +361,26 @@ sxml_status sxml_xquery_lower_group_by(sxml_xpath_lowerer *lowerer,
 
 /* =================================================== condition closures */
 
-/* Parameters a condition closure has at most: the end condition's. */
-#define CLOSURE_PARAMETER_COUNT SXML_XQUERY_WINDOW_END_PARAMETER_COUNT
 /* Focus parts a condition may read from the clause's focus. */
 #define FOCUS_PART_COUNT 3U
 
 /*
- * A condition closure (glossary `condition_closure`): fn(p1, ..., pn)
- * whose body is the condition, each parameter bound to the variable its
- * name node declares (none for 0). The caller computes the effective
- * boolean value of the result. The closure captures every variable the
- * condition references that is visible and not a parameter (more than it
- * needs when an inner binding hides an outer name, which costs a slot)
- * and, when lowering read it, the clause's focus parts, in three slots
- * after the captures bound by LETs at the closure's start (as the while
- * clause's closure, D126).
+ * A condition closure (src/xquery_flwor_internal.h). The closure captures
+ * every variable the condition references that is visible and is neither
+ * a parameter nor a member of the tuple layout (more than it needs when an
+ * inner binding hides an outer name, which costs a slot) and, when
+ * lowering read it, the clause's focus parts, in three slots after the
+ * captures bound by LETs at the closure's start (D126).
  */
 typedef struct closure_locals {
     sxml_ast_node_index clause;
     sxml_ast_node_index condition;
     uint32_t parameter_count;
-    sxml_ast_node_index parameter_names[CLOSURE_PARAMETER_COUNT];
-    sxml_sequence_type parameter_types[CLOSURE_PARAMETER_COUNT];
+    sxml_ast_node_index parameter_names[SXML_XQUERY_CLOSURE_MAXIMUM_PARAMETER_COUNT];
+    sxml_sequence_type parameter_types[SXML_XQUERY_CLOSURE_MAXIMUM_PARAMETER_COUNT];
+    sxml_sequence_type result_type;
+    sxml_xquery_tuple_layout tuple_layout;
+    bool is_boolean;
     sxml_ir_function_index closure;
     sxml_xpath_lowering_function_frame function_frame;
     /* The captures' atoms in the clause's function (owned_memory[0]) and
@@ -354,7 +388,7 @@ typedef struct closure_locals {
     sxml_ir_atom *outer_atoms;
     size_t captured_count;
     sxml_xpath_lowering_block closure_block;
-    sxml_ir_expression_index body;
+    sxml_ir_atom condition_value;
 } closure_locals;
 
 enum {
@@ -502,6 +536,11 @@ static sxml_status find_captures(sxml_xpath_lowering_machine *machine,
         if (status == SXML_STATUS_OK) {
             status = is_parameter_name(state, (parameter_query){.locals = locals, .name = name}, &is_known);
         }
+        for (size_t member_index = 0; member_index < locals->tuple_layout.member_count;
+             member_index += 1) {
+            is_known = is_known ||
+                       locals->tuple_layout.members[member_index].variable_name.index == name.index;
+        }
         for (size_t capture_index = 0; capture_index < capture_count; capture_index += 1) {
             is_known = is_known || captures[capture_index].variable_name.index == name.index;
         }
@@ -538,12 +577,6 @@ static sxml_status begin_closure(sxml_xpath_lowering_machine *machine,
     closure_locals *locals = frame->locals;
     locals->function_frame = (sxml_xpath_lowering_function_frame){0};
     sxml_status status = find_captures(machine, frame);
-    for (uint32_t parameter_index = 0; parameter_index < locals->parameter_count;
-         parameter_index += 1) {
-        locals->parameter_types[parameter_index] = (sxml_sequence_type){
-            .item_type = sxml_builtin_type_identifier(SXML_TYPE_ITEM),
-            .occurrence = SXML_OCCURRENCE_ZERO_OR_MORE};
-    }
     sxml_type_identifier signature = {0};
     if (status == SXML_STATUS_OK) {
         status = sxml_xpath_lowerer_register_signature(
@@ -551,8 +584,7 @@ static sxml_status begin_closure(sxml_xpath_lowering_machine *machine,
             (sxml_xpath_lowering_signature_request){
                 .parameter_types = {.sequence_types = locals->parameter_types,
                                     .sequence_type_count = locals->parameter_count},
-                .result_type = {.item_type = sxml_builtin_type_identifier(SXML_TYPE_ITEM),
-                                .occurrence = SXML_OCCURRENCE_ZERO_OR_MORE}},
+                .result_type = locals->result_type},
             &signature);
     }
     const uint32_t slot_count =
@@ -599,24 +631,61 @@ static sxml_status begin_closure(sxml_xpath_lowering_machine *machine,
         return status;
     }
     locals->closure_block = (sxml_xpath_lowering_block){{0}, {0}};
+    status = sxml_xquery_unpack_tuple(
+        state, &(sxml_xquery_tuple_unpacking){.block = &locals->closure_block,
+                                              .node = locals->clause,
+                                              .tuple = slot_atom((sxml_ir_slot){.value = 1}),
+                                              .layout = locals->tuple_layout});
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
     frame->step = SXML_XQUERY_CLOSURE_STEP_FINISH;
-    return sxml_xpath_lowering_call_expression(
-        machine, (sxml_xpath_lowering_expression_call){.node = locals->condition,
-                                                       .block = &locals->closure_block,
-                                                       .is_body = false,
-                                                       .destination = {.expression =
-                                                                           &locals->body}});
+    return sxml_xpath_lowering_call_atom(
+        machine, (sxml_xpath_lowering_atom_call){.node = locals->condition,
+                                                 .block = &locals->closure_block,
+                                                 .atom = &locals->condition_value});
 }
 
 /* The closure's body: the condition, after a LET for each focus part it
    read from the captured slot that holds it. */
 static sxml_status finish_closure_body(sxml_xpath_lowerer *state, closure_locals *locals,
                                        sxml_ir_expression_index *body) {
-    sxml_status status = sxml_xpath_lowerer_finish_block(
-        state,
-        (sxml_xpath_lowering_block_result){.block = locals->closure_block,
-                                           .result = locals->body},
-        body);
+    sxml_ir_expression_index result = {0};
+    sxml_status status = add_atom_expression(
+        state, (atom_at){.node = locals->clause, .atom = locals->condition_value}, &result);
+    if (status == SXML_STATUS_OK && locals->is_boolean) {
+        /* The effective boolean value, as fn:boolean (XPath 4.0, 2.5.4). */
+        sxml_ir_atom truth[2] = {{0}, {0}};
+        sxml_ir_expression_index branches[2] = {{0}, {0}};
+        status = sxml_xpath_lowerer_add_item_constant(state, sxml_atomic_item_true(), &truth[0]);
+        if (status == SXML_STATUS_OK) {
+            status =
+                sxml_xpath_lowerer_add_item_constant(state, sxml_atomic_item_false(), &truth[1]);
+        }
+        for (size_t branch_index = 0; status == SXML_STATUS_OK && branch_index < 2;
+             branch_index += 1) {
+            status = add_atom_expression(
+                state, (atom_at){.node = locals->clause, .atom = truth[branch_index]},
+                &branches[branch_index]);
+        }
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xpath_lowerer_add_expression(
+                state,
+                (sxml_xpath_lowering_expression_to_add){
+                    .node = locals->clause,
+                    .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_CONDITIONAL,
+                                   .conditional = {.condition = locals->condition_value,
+                                                   .then_branch = branches[0],
+                                                   .else_branch = branches[1]}}},
+                &result);
+        }
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_finish_block(
+            state,
+            (sxml_xpath_lowering_block_result){.block = locals->closure_block, .result = result},
+            body);
+    }
     const sxml_ir_focus read = locals->function_frame.focus.slots;
     const sxml_ir_slot parts[FOCUS_PART_COUNT] = {read.context_value, read.context_position,
                                                   read.context_size};
@@ -721,6 +790,37 @@ static const sxml_xpath_lowering_procedure closure_procedure = {
     .procedure_name = SXML_BYTE_VIEW_INITIALIZER("xquery condition closure"),
     .step = continue_closure,
     .locals_size = sizeof(closure_locals)};
+
+sxml_status sxml_xquery_push_condition_closure(sxml_xpath_lowering_machine *machine,
+                                               const sxml_xquery_condition_closure *request) {
+    if (request->parameter_count > SXML_XQUERY_CLOSURE_MAXIMUM_PARAMETER_COUNT) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    closure_locals initial = {.clause = request->clause,
+                              .condition = request->condition,
+                              .parameter_count = request->parameter_count,
+                              .result_type = request->result_type,
+                              .tuple_layout = request->tuple_layout,
+                              .is_boolean = request->is_boolean};
+    for (uint32_t parameter_index = 0; parameter_index < request->parameter_count;
+         parameter_index += 1) {
+        initial.parameter_names[parameter_index] =
+            request->parameter_names == NULL ? (sxml_ast_node_index){.value = 0}
+                                             : request->parameter_names[parameter_index];
+        initial.parameter_types[parameter_index] = request->parameter_types[parameter_index];
+    }
+    sxml_xpath_lowering_frame *frame = NULL;
+    return sxml_xpath_lowering_push_procedure(
+        machine,
+        &(sxml_xpath_lowering_procedure_call){
+            .procedure = &closure_procedure,
+            .node = request->condition,
+            .block = request->block,
+            .is_body = false,
+            .destination = {.atom = request->closure, .atom_block = request->block},
+            .initial_locals = {.bytes = (const uint8_t *)&initial, .byte_count = sizeof(initial)}},
+        &frame);
+}
 
 /* ============================================================= windows */
 
@@ -831,27 +931,31 @@ static sxml_status push_closure(sxml_xpath_lowering_machine *machine, closure_re
             (sxml_xpath_lowering_expression_in_block){.block = frame->block, .expression = empty},
             request.closure);
     }
-    closure_locals initial = {
-        .clause = clause,
-        .condition = condition,
-        .parameter_count = request.condition_index == 0 ? SXML_XQUERY_WINDOW_START_PARAMETER_COUNT
-                                                        : SXML_XQUERY_WINDOW_END_PARAMETER_COUNT};
-    for (uint32_t parameter_index = 0; parameter_index < initial.parameter_count;
-         parameter_index += 1) {
-        initial.parameter_names[parameter_index] = locals->names.name_nodes[parameter_index + 1];
+    sxml_ast_node_index parameter_names[SXML_XQUERY_WINDOW_END_PARAMETER_COUNT] = {{0}};
+    sxml_sequence_type parameter_types[SXML_XQUERY_WINDOW_END_PARAMETER_COUNT];
+    const uint32_t parameter_count = request.condition_index == 0
+                                         ? SXML_XQUERY_WINDOW_START_PARAMETER_COUNT
+                                         : SXML_XQUERY_WINDOW_END_PARAMETER_COUNT;
+    for (uint32_t parameter_index = 0; parameter_index < parameter_count; parameter_index += 1) {
+        parameter_names[parameter_index] = locals->names.name_nodes[parameter_index + 1];
+        parameter_types[parameter_index] = (sxml_sequence_type){
+            .item_type = sxml_builtin_type_identifier(SXML_TYPE_ITEM),
+            .occurrence = SXML_OCCURRENCE_ZERO_OR_MORE};
     }
-    sxml_xpath_lowering_frame *closure_frame = NULL;
-    return sxml_xpath_lowering_push_procedure(
+    return sxml_xquery_push_condition_closure(
         machine,
-        &(sxml_xpath_lowering_procedure_call){
-            .procedure = &closure_procedure,
-            .node = condition,
+        &(sxml_xquery_condition_closure){
+            .clause = clause,
+            .condition = condition,
+            .parameter_count = parameter_count,
+            .parameter_names = parameter_names,
+            .parameter_types = parameter_types,
+            .result_type = {.item_type = sxml_builtin_type_identifier(SXML_TYPE_ITEM),
+                            .occurrence = SXML_OCCURRENCE_ZERO_OR_MORE},
+            .tuple_layout = {.members = NULL, .member_count = 0},
+            .is_boolean = false,
             .block = frame->block,
-            .is_body = false,
-            .destination = {.atom = request.closure, .atom_block = frame->block},
-            .initial_locals = {.bytes = (const uint8_t *)&initial,
-                               .byte_count = sizeof(initial)}},
-        &closure_frame);
+            .closure = request.closure});
 }
 
 /* The window call, the MAP's item slot and the window variables in its

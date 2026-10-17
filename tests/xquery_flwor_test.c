@@ -215,13 +215,15 @@ static const golden_case golden_cases[] = {
      "                    (let $11 (lookup $8 3)\n"
      "                      (let $12 (lookup $8 6)\n"
      "                        (static-call fn:count#1 $9)))))))))))))\n"
-     "(function 2 anonymous (parameters 4) (captures $2) (slots 9)\n"
+     "(function 2 anonymous (parameters 4) (captures $2) (slots 10)\n"
      "  (let $9 (binary modulo $1 $5)\n"
-     "    (binary general-equal $9 1)))\n"
-     "(function 3 anonymous (parameters 8) (captures $5) (slots 13)\n"
+     "    (let $10 (binary general-equal $9 1)\n"
+     "      $10)))\n"
+     "(function 3 anonymous (parameters 8) (captures $5) (slots 14)\n"
      "  (let $13 $9\n"
      "    (let $12 (binary subtract $5 $1)\n"
-     "      (binary value-equal $12 $13))))\n"},
+     "      (let $14 (binary value-equal $12 $13)\n"
+     "        $14))))\n"},
     {"for sliding window $w in (1, 2) start when true() end next $x when empty($x) return $w",
      "(function 1 main (parameters 0) (captures) (slots 7)\n"
      "  (let $1 (sequence 1 2)\n"
@@ -232,10 +234,12 @@ static const golden_case golden_cases[] = {
      "            (let $6 (lookup $5 1)\n"
      "              (let $7 (lookup $5 9)\n"
      "                $6))))))))\n"
-     "(function 2 anonymous (parameters 4) (captures) (slots 7)\n"
-     "  (static-call fn:true#0))\n"
-     "(function 3 anonymous (parameters 8) (captures) (slots 11)\n"
-     "  (static-call fn:empty#1 $8))\n"},
+     "(function 2 anonymous (parameters 4) (captures) (slots 8)\n"
+     "  (let $8 (static-call fn:true#0)\n"
+     "    $8))\n"
+     "(function 3 anonymous (parameters 8) (captures) (slots 12)\n"
+     "  (let $12 (static-call fn:empty#1 $8)\n"
+     "    $12))\n"},
 };
 
 static void test_queries_match_golden_text(sxml_test_state *state) {

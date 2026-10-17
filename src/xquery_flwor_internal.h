@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -59,6 +60,60 @@ typedef struct sxml_xquery_tuple_layout {
     const sxml_xquery_tuple_member *members;
     size_t member_count;
 } sxml_xquery_tuple_layout;
+
+/* The variables of a tuple array in tuple, unpacked into slots of block
+   (LOOKUPs) and put in scope in layout order. */
+typedef struct sxml_xquery_tuple_unpacking {
+    sxml_xpath_lowering_block *block;
+    sxml_ast_node_index node;
+    sxml_ir_atom tuple;
+    sxml_xquery_tuple_layout layout;
+} sxml_xquery_tuple_unpacking;
+
+/* Defined in src/xquery_lower.c. Fails as lowering does. */
+SXML_NODISCARD sxml_status sxml_xquery_unpack_tuple(sxml_xpath_lowerer *lowerer,
+                                                    const sxml_xquery_tuple_unpacking *request);
+
+/* ------------------------------------------------------ Condition closures */
+
+/* Parameters a condition closure has at most: the end condition's. */
+#define SXML_XQUERY_CLOSURE_MAXIMUM_PARAMETER_COUNT 8U
+
+/*
+ * A condition closure to lower (glossary `condition_closure`): an inline
+ * function of parameter_count parameters whose body is the condition, or
+ * with is_boolean its effective boolean value (as fn:boolean). Parameter
+ * k is in scope as the variable parameter_names[k] declares (none for a
+ * name node 0, or when parameter_names is NULL); the variables of
+ * tuple_layout are unpacked from parameter 1 at the body's start (the
+ * while clause, 4.13.6). The closure captures the condition's free
+ * variables and, when it reads it, the clause's focus.
+ */
+typedef struct sxml_xquery_condition_closure {
+    /* For source spans. */
+    sxml_ast_node_index clause;
+    sxml_ast_node_index condition;
+    uint32_t parameter_count;
+    const sxml_ast_node_index *parameter_names;
+    /* parameter_count types. */
+    const sxml_sequence_type *parameter_types;
+    sxml_sequence_type result_type;
+    /* Borrowed until the closure's frame finishes; may be empty. */
+    sxml_xquery_tuple_layout tuple_layout;
+    bool is_boolean;
+    /* Where the FUNCTION_DEFINITION is bound, and its atom. */
+    sxml_xpath_lowering_block *block;
+    sxml_ir_atom *closure;
+} sxml_xquery_condition_closure;
+
+/*
+ * Pushes the frame lowering request's closure (defined in
+ * src/xquery_lower_window.c). SXML_STATUS_INVALID_ARGUMENT for more than
+ * SXML_XQUERY_CLOSURE_MAXIMUM_PARAMETER_COUNT parameters; otherwise fails
+ * as lowering does.
+ */
+SXML_NODISCARD sxml_status sxml_xquery_push_condition_closure(
+    sxml_xpath_lowering_machine *machine, const sxml_xquery_condition_closure *request);
 
 /* ---------------------------------------------------------------- group by */
 

@@ -427,10 +427,9 @@ static bool is_tuple_stream_clause(sxml_ast_kind kind) {
     }
 }
 
-/* Parameter types of the while clause's closure. */
+/* Parameters of the while clause's closure: the tuple and its
+   position. */
 #define WHILE_PARAMETER_COUNT 2U
-/* Focus parts a while condition may read from the FLWOR's focus. */
-#define FOCUS_PART_COUNT 3U
 
 /* The locals of a FLWOR frame. */
 typedef struct flwor_locals {
@@ -460,15 +459,8 @@ typedef struct flwor_locals {
     sxml_ir_slot sort_item;
     sxml_xpath_lowering_block key_block;
     sxml_ir_expression_index key;
-    /* while: the closure of the condition; captures in owned_memory[3],
-       their atoms in this frame in owned_memory[2]. */
-    sxml_sequence_type parameter_types[WHILE_PARAMETER_COUNT];
-    sxml_ir_function_index closure;
-    sxml_xpath_lowering_function_frame function_frame;
-    sxml_ir_atom *outer_atoms;
-    size_t captured_count;
-    sxml_xpath_lowering_block closure_block;
-    sxml_ir_atom condition;
+    /* while: the condition closure. */
+    sxml_ir_atom closure;
 } flwor_locals;
 
 enum {
@@ -658,23 +650,14 @@ static sxml_status finish_with_tuple_array(sxml_xpath_lowering_machine *machine,
     return sxml_xpath_lowering_finish_frame(machine, frame, array);
 }
 
-/* The variables of a tuple array in tuple, unpacked into slots in block
-   and put in scope in layout order. */
-typedef struct tuple_unpacking {
-    sxml_xpath_lowering_block *block;
-    sxml_ast_node_index node;
-    sxml_ir_atom tuple;
-    const tuple_member *members;
-    size_t member_count;
-} tuple_unpacking;
-
-static sxml_status unpack_tuple(sxml_xpath_lowerer *state,
-                                tuple_unpacking request) {
+sxml_status sxml_xquery_unpack_tuple(sxml_xpath_lowerer *lowerer,
+                                     const sxml_xquery_tuple_unpacking *request) {
+    sxml_xpath_lowerer *state = lowerer;
     sxml_status status = SXML_STATUS_OK;
     for (size_t member_index = 0;
-         status == SXML_STATUS_OK && member_index < request.member_count;
+         status == SXML_STATUS_OK && member_index < request->layout.member_count;
          member_index += 1) {
-        const tuple_member *member = &request.members[member_index];
+        const tuple_member *member = &request->layout.members[member_index];
         sxml_ir_atom value = member->atom;
         if (member->member_number != 0) {
             sxml_ir_atom key = {0};
@@ -684,11 +667,11 @@ static sxml_status unpack_tuple(sxml_xpath_lowerer *state,
                 status = bind_new_expression(
                     state,
                     (expression_in_block){
-                        .block = request.block,
-                        .node = request.node,
+                        .block = request->block,
+                        .node = request->node,
                         .expression = {.expression_kind =
                                            SXML_IR_EXPRESSION_KIND_LOOKUP,
-                                       .lookup = {.value = request.tuple,
+                                       .lookup = {.value = request->tuple,
                                                   .key = key}}},
                     &value);
             }
@@ -1399,12 +1382,13 @@ static sxml_status open_unpacking(sxml_xpath_lowering_machine *machine,
         status = sxml_xpath_lowerer_add_slot(state, &locals->unpacking_position);
     }
     if (status == SXML_STATUS_OK) {
-        status = unpack_tuple(state, (tuple_unpacking){
-                                         .block = &locals->unpacking_block,
-                                         .node = locals->stream_clause,
-                                         .tuple = slot_atom(locals->unpacking_item),
-                                         .members = locals->members,
-                                         .member_count = locals->member_count});
+        status = sxml_xquery_unpack_tuple(
+            state, &(sxml_xquery_tuple_unpacking){
+                       .block = &locals->unpacking_block,
+                       .node = locals->stream_clause,
+                       .tuple = slot_atom(locals->unpacking_item),
+                       .layout = {.members = locals->members,
+                                  .member_count = locals->member_count}});
     }
     if (status == SXML_STATUS_OK && count_name.value != 0) {
         /* 4.13.7: the position of the tuple in the stream, from 1. */
@@ -1504,12 +1488,12 @@ static sxml_status lower_next_sort_key(sxml_xpath_lowering_machine *machine,
         return open_unpacking(machine, frame, (sxml_ast_node_index){.value = 0});
     }
     locals->key_block = (sxml_xpath_lowering_block){{0}, {0}};
-    sxml_status status = unpack_tuple(
-        state, (tuple_unpacking){.block = &locals->key_block,
-                                 .node = locals->specification,
-                                 .tuple = slot_atom(locals->sort_item),
-                                 .members = locals->members,
-                                 .member_count = locals->member_count});
+    sxml_status status = sxml_xquery_unpack_tuple(
+        state, &(sxml_xquery_tuple_unpacking){
+                   .block = &locals->key_block,
+                   .node = locals->specification,
+                   .tuple = slot_atom(locals->sort_item),
+                   .layout = {.members = locals->members, .member_count = locals->member_count}});
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -1594,338 +1578,51 @@ static sxml_status finish_sort_key(sxml_xpath_lowering_machine *machine,
 
 /* ------------------------------------------------------------ while */
 
-/* The atom variable_name has in the current function, or NONE when it is
-   not in scope (then lowering the reference reports XPST0008). */
-static sxml_ir_atom find_visible_variable(const sxml_xpath_lowerer *state,
-                                          sxml_name_identifier variable_name) {
-    const sxml_xpath_lowering_function *function = state->function;
-    bool is_found = false;
-    bool is_outer = false;
-    sxml_ir_atom atom = {.atom_kind = SXML_IR_ATOM_KIND_NONE};
-    for (size_t entry_number = state->scope_entry_count; entry_number > 0;
-         entry_number -= 1) {
-        const sxml_xpath_lowering_scope_entry *entry =
-            &state->scope_entries[entry_number - 1];
-        if (entry->variable_name.index == variable_name.index) {
-            is_found = true;
-            is_outer = entry->function_level != function->function_level;
-            atom = entry->atom;
-            break;
-        }
-    }
-    if (!is_found) {
-        const sxml_variable_declaration_view declarations =
-            state->static_context->variable_declarations;
-        for (size_t declaration_index = 0;
-             declaration_index < declarations.variable_declaration_count;
-             declaration_index += 1) {
-            if (declarations.variable_declarations[declaration_index]
-                    .variable_name.index == variable_name.index) {
-                is_found = true;
-                is_outer = function->function_level != 0;
-                atom = (sxml_ir_atom){
-                    .atom_kind = SXML_IR_ATOM_KIND_GLOBAL_VARIABLE,
-                    .global_variable = {.value = (uint32_t)declaration_index + 1U}};
-                break;
-            }
-        }
-    }
-    if (is_found && is_outer) {
-        for (size_t capture_index = 0; capture_index < function->capture_count;
-             capture_index += 1) {
-            if (function->captures[capture_index].variable_name.index ==
-                variable_name.index) {
-                return function->captures[capture_index].atom;
-            }
-        }
-        return (sxml_ir_atom){.atom_kind = SXML_IR_ATOM_KIND_NONE};
-    }
-    return atom;
-}
-
 /*
- * The free variables of the while condition: every variable it
- * references that is visible here and is not one of the tuple's members
- * (more than it needs when an inner binding hides an outer name, which
- * costs a slot), as captures of the closure from slot 3 on and their
- * atoms in this frame.
- */
-static sxml_status find_while_captures(sxml_xpath_lowering_machine *machine,
-                                       sxml_xpath_lowering_frame *frame,
-                                       sxml_ast_node_index condition) {
-    sxml_xpath_lowerer *state = machine->state;
-    flwor_locals *locals = frame->locals;
-    size_t reference_count = 0;
-    for (sxml_ast_node_index walked = condition; walked.value != 0;
-         walked = next_in_subtree(state, condition, walked)) {
-        if (node_of(state, walked)->kind == SXML_AST_KIND_VARIABLE_REFERENCE) {
-            reference_count += 1;
-        }
-    }
-    const size_t capacity = reference_count + FOCUS_PART_COUNT;
-    sxml_status status = sxml_xpath_lowering_allocate_owned(
-        machine, frame,
-        (sxml_xpath_lowering_owned_request){
-            .memory_index = 2,
-            .scratch = {.element_count = capacity,
-                        .element_size = sizeof(sxml_ir_atom),
-                        .element_alignment = alignof(sxml_ir_atom)}});
-    if (status == SXML_STATUS_OK) {
-        status = sxml_xpath_lowering_allocate_owned(
-            machine, frame,
-            (sxml_xpath_lowering_owned_request){
-                .memory_index = 3,
-                .scratch = {.element_count = capacity,
-                            .element_size = sizeof(sxml_xpath_lowering_capture_entry),
-                            .element_alignment =
-                                alignof(sxml_xpath_lowering_capture_entry)}});
-    }
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    locals->outer_atoms = frame->owned_memory[2];
-    sxml_xpath_lowering_capture_entry *captures = frame->owned_memory[3];
-    size_t capture_count = 0;
-    size_t captured_count = 0;
-    for (sxml_ast_node_index walked = condition;
-         status == SXML_STATUS_OK && walked.value != 0;
-         walked = next_in_subtree(state, condition, walked)) {
-        if (node_of(state, walked)->kind != SXML_AST_KIND_VARIABLE_REFERENCE) {
-            continue;
-        }
-        sxml_name_identifier name = {0};
-        status = sxml_xpath_lowerer_resolve_variable_name(
-            state, child_of(state, walked, SXML_AST_FIELD_NAME), &name);
-        bool is_known = false;
-        for (size_t member_index = 0;
-             status == SXML_STATUS_OK && member_index < locals->member_count;
-             member_index += 1) {
-            is_known = is_known ||
-                       locals->members[member_index].variable_name.index == name.index;
-        }
-        for (size_t capture_index = 0; capture_index < capture_count;
-             capture_index += 1) {
-            is_known = is_known || captures[capture_index].variable_name.index == name.index;
-        }
-        if (status != SXML_STATUS_OK || is_known) {
-            continue;
-        }
-        const sxml_ir_atom outer = find_visible_variable(state, name);
-        if (outer.atom_kind == SXML_IR_ATOM_KIND_NONE) {
-            continue;
-        }
-        if (outer.atom_kind == SXML_IR_ATOM_KIND_CONSTANT) {
-            /* A constant needs no capture: the closure reads it directly. */
-            captures[capture_count] = (sxml_xpath_lowering_capture_entry){
-                .variable_name = name, .atom = outer};
-        } else {
-            captures[capture_count] = (sxml_xpath_lowering_capture_entry){
-                .variable_name = name,
-                .atom = slot_atom((sxml_ir_slot){
-                    .value = WHILE_PARAMETER_COUNT + (uint32_t)captured_count + 1U})};
-            locals->outer_atoms[captured_count] = outer;
-            captured_count += 1;
-        }
-        capture_count += 1;
-    }
-    locals->captured_count = captured_count;
-    locals->function_frame.function.captures = captures;
-    locals->function_frame.function.capture_count = capture_count;
-    return status;
-}
-
-/*
- * while (4.13.6): fn:take-while over the tuple arrays with a closure
- * fn($tuple, $position) { boolean(C) } whose body unpacks the tuple, so
- * that no condition after the first false one is evaluated. The closure
- * captures the condition's free variables and, when the condition reads
- * it, the FLWOR's focus; three slots after the captures are kept for the
- * focus parts.
+ * while (4.13.6): fn:take-while over the tuple arrays with a condition
+ * closure fn($tuple, $position) { boolean(C) } whose body unpacks the
+ * tuple (src/xquery_flwor_internal.h), so that no condition after the
+ * first false one is evaluated.
  */
 static sxml_status begin_while(sxml_xpath_lowering_machine *machine,
                                sxml_xpath_lowering_frame *frame) {
     sxml_xpath_lowerer *state = machine->state;
     flwor_locals *locals = frame->locals;
-    const sxml_ast_node_index condition =
-        child_of(state, locals->stream_clause, SXML_AST_FIELD_CONDITION);
-    locals->function_frame = (sxml_xpath_lowering_function_frame){0};
-    sxml_status status = find_while_captures(machine, frame, condition);
-    locals->parameter_types[0] = (sxml_sequence_type){
-        .item_type = sxml_builtin_type_identifier(SXML_TYPE_ITEM),
-        .occurrence = SXML_OCCURRENCE_EXACTLY_ONE};
-    locals->parameter_types[1] = (sxml_sequence_type){
-        .item_type = sxml_builtin_type_identifier(SXML_TYPE_XS_INTEGER),
-        .occurrence = SXML_OCCURRENCE_EXACTLY_ONE};
-    sxml_type_identifier signature = {0};
-    if (status == SXML_STATUS_OK) {
-        status = sxml_xpath_lowerer_register_signature(
-            state,
-            (sxml_xpath_lowering_signature_request){
-                .parameter_types = {.sequence_types = locals->parameter_types,
-                                    .sequence_type_count = WHILE_PARAMETER_COUNT},
-                .result_type = {.item_type =
-                                    sxml_builtin_type_identifier(SXML_TYPE_XS_BOOLEAN),
-                                .occurrence = SXML_OCCURRENCE_EXACTLY_ONE}},
-            &signature);
-    }
-    const uint32_t slot_count = WHILE_PARAMETER_COUNT +
-                                (uint32_t)locals->captured_count + FOCUS_PART_COUNT;
-    if (status == SXML_STATUS_OK) {
-        status = sxml_ir_unit_add_function(
-            state->unit,
-            &(sxml_ir_function){.function_name = {.index = 0},
-                                .signature = signature,
-                                .parameter_count = WHILE_PARAMETER_COUNT,
-                                .captured_variables = {0},
-                                .defining_function = state->function->function_index,
-                                .slot_count = slot_count,
-                                .body = {.value = 0},
-                                .source_span = span_of(state, locals->stream_clause)},
-            &locals->closure);
-    }
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    locals->function_frame.function.function_index = locals->closure;
-    locals->function_frame.function.function_level =
-        state->function->function_level + 1U;
-    locals->function_frame.function.slot_count = slot_count;
-    locals->function_frame.focus =
-        (sxml_xpath_lowering_focus){.kind = SXML_XPATH_LOWERING_FOCUS_KIND_SLOTS};
-    sxml_xpath_lowerer_enter_function(state, &locals->function_frame);
-    locals->closure_block = (sxml_xpath_lowering_block){{0}, {0}};
-    status = unpack_tuple(state,
-                          (tuple_unpacking){.block = &locals->closure_block,
-                                            .node = locals->stream_clause,
-                                            .tuple = slot_atom((sxml_ir_slot){.value = 1}),
-                                            .members = locals->members,
-                                            .member_count = locals->member_count});
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
+    const sxml_sequence_type parameter_types[WHILE_PARAMETER_COUNT] = {
+        {.item_type = sxml_builtin_type_identifier(SXML_TYPE_ITEM),
+         .occurrence = SXML_OCCURRENCE_EXACTLY_ONE},
+        {.item_type = sxml_builtin_type_identifier(SXML_TYPE_XS_INTEGER),
+         .occurrence = SXML_OCCURRENCE_EXACTLY_ONE}};
     frame->step = SXML_XQUERY_FLWOR_STEP_WHILE_CONDITION;
-    return sxml_xpath_lowering_call_atom(
-        machine, (sxml_xpath_lowering_atom_call){.node = condition,
-                                                 .block = &locals->closure_block,
-                                                 .atom = &locals->condition});
-}
-
-/* The closure's body: fn:boolean of the condition, after a LET for each
-   focus part it read from the captured slot that holds it. */
-static sxml_status finish_while_body(sxml_xpath_lowerer *state,
-                                     flwor_locals *locals,
-                                     sxml_ir_expression_index *body) {
-    sxml_ir_atom boolean = {0};
-    sxml_status status = bind_unary_library_call(
-        state,
-        (unary_library_call){.node = locals->stream_clause,
-                             .function_namespace = SXML_NAMESPACE_FUNCTIONS,
-                             .local_name = SXML_BYTE_VIEW_FROM_LITERAL("boolean"),
-                             .block = &locals->closure_block,
-                             .argument = locals->condition},
-        &boolean);
-    if (status == SXML_STATUS_OK) {
-        status = finish_atom_block(state,
-                                   (atom_block_result){.block = &locals->closure_block,
-                                                       .node = locals->stream_clause,
-                                                       .atom = boolean},
-                                   body);
-    }
-    const sxml_ir_focus read = locals->function_frame.focus.slots;
-    const sxml_ir_slot parts[FOCUS_PART_COUNT] = {
-        read.context_value, read.context_position, read.context_size};
-    uint32_t captured_part_count = 0;
-    for (size_t part_index = 0; status == SXML_STATUS_OK && part_index < FOCUS_PART_COUNT;
-         part_index += 1) {
-        if (parts[part_index].value == 0) {
-            continue;
-        }
-        captured_part_count += 1;
-        sxml_ir_expression_index captured = {0};
-        status = add_atom_expression(state, (atom_at){.node = locals->stream_clause, .atom = slot_atom((sxml_ir_slot){.value = WHILE_PARAMETER_COUNT +
-                                              (uint32_t)locals->captured_count +
-                                              captured_part_count})}, &captured);
-        if (status == SXML_STATUS_OK) {
-            status = add_new_expression(state, (expression_at){.node = locals->stream_clause, .expression = (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_LET,
-                                     .let = {.variable = parts[part_index],
-                                             .bound_expression = captured,
-                                             .body = *body}}}, body);
-        }
-    }
-    return status;
+    return sxml_xquery_push_condition_closure(
+        machine,
+        &(sxml_xquery_condition_closure){
+            .clause = locals->stream_clause,
+            .condition = child_of(state, locals->stream_clause, SXML_AST_FIELD_CONDITION),
+            .parameter_count = WHILE_PARAMETER_COUNT,
+            .parameter_names = NULL,
+            .parameter_types = parameter_types,
+            .result_type = {.item_type = sxml_builtin_type_identifier(SXML_TYPE_XS_BOOLEAN),
+                            .occurrence = SXML_OCCURRENCE_EXACTLY_ONE},
+            .tuple_layout = {.members = locals->members, .member_count = locals->member_count},
+            .is_boolean = true,
+            .block = frame->block,
+            .closure = &locals->closure});
 }
 
 static sxml_status finish_while(sxml_xpath_lowering_machine *machine,
                                 sxml_xpath_lowering_frame *frame) {
     sxml_xpath_lowerer *state = machine->state;
     flwor_locals *locals = frame->locals;
-    sxml_ir_expression_index body = {0};
-    sxml_status status = finish_while_body(state, locals, &body);
-    sxml_xpath_lowerer_leave_function(state, &locals->function_frame);
-    const sxml_ir_focus read = locals->function_frame.focus.slots;
-    const sxml_xpath_lowering_focus_part part_names[FOCUS_PART_COUNT] = {
-        SXML_XPATH_LOWERING_FOCUS_PART_VALUE, SXML_XPATH_LOWERING_FOCUS_PART_POSITION,
-        SXML_XPATH_LOWERING_FOCUS_PART_SIZE};
-    const sxml_ir_slot parts[FOCUS_PART_COUNT] = {
-        read.context_value, read.context_position, read.context_size};
-    size_t outer_count = locals->captured_count;
-    for (size_t part_index = 0; status == SXML_STATUS_OK && part_index < FOCUS_PART_COUNT;
-         part_index += 1) {
-        if (parts[part_index].value == 0) {
-            continue;
-        }
-        status = sxml_xpath_lowerer_read_focus(
-            state,
-            (sxml_xpath_lowering_focus_read){.block = frame->block,
-                                             .node = locals->stream_clause,
-                                             .part = part_names[part_index]},
-            &locals->outer_atoms[outer_count]);
-        outer_count += 1;
-    }
-    sxml_ir_atom_list captured = {0};
-    if (status == SXML_STATUS_OK) {
-        status = sxml_ir_unit_add_atoms(
-            state->unit,
-            (sxml_ir_atom_view){.atoms = locals->outer_atoms, .atom_count = outer_count},
-            &captured);
-    }
-    if (status == SXML_STATUS_OK) {
-        sxml_ir_function_replacement replacement = {
-            .index = locals->closure,
-            .function = *sxml_ir_unit_get_function(state->unit, locals->closure)};
-        replacement.function.body = body;
-        replacement.function.captured_variables = captured;
-        replacement.function.slot_count = locals->function_frame.function.slot_count;
-        status = sxml_ir_unit_replace_function(state->unit, &replacement);
-    }
-    sxml_ir_atom closure = {0};
-    if (status == SXML_STATUS_OK) {
-        status = bind_new_expression(
-            state,
-            (expression_in_block){
-                .block = frame->block,
-                .node = locals->stream_clause,
-                .expression = {.expression_kind =
-                                   SXML_IR_EXPRESSION_KIND_FUNCTION_DEFINITION,
-                               .function_definition = {.function = locals->closure}}},
-            &closure);
-    }
-    if (status == SXML_STATUS_OK) {
-        const sxml_ir_atom arguments[2] = {locals->tuples, closure};
-        status = bind_library_call(
-            state,
-            &(library_call){.node = locals->stream_clause,
-                            .function_namespace = SXML_NAMESPACE_FUNCTIONS,
-                            .local_name = SXML_BYTE_VIEW_FROM_LITERAL("take-while"),
-                            .block = frame->block,
-                            .arguments = {.atoms = arguments, .atom_count = 2}},
-            &locals->tuples);
-    }
-    sxml_xpath_lowerer_release_scratch(state, frame->owned_memory[2]);
-    sxml_xpath_lowerer_release_scratch(state, frame->owned_memory[3]);
-    frame->owned_memory[2] = NULL;
-    frame->owned_memory[3] = NULL;
-    locals->outer_atoms = NULL;
+    const sxml_ir_atom arguments[2] = {locals->tuples, locals->closure};
+    const sxml_status status = bind_library_call(
+        state,
+        &(library_call){.node = locals->stream_clause,
+                        .function_namespace = SXML_NAMESPACE_FUNCTIONS,
+                        .local_name = SXML_BYTE_VIEW_FROM_LITERAL("take-while"),
+                        .block = frame->block,
+                        .arguments = {.atoms = arguments, .atom_count = 2}},
+        &locals->tuples);
     if (status != SXML_STATUS_OK) {
         return status;
     }

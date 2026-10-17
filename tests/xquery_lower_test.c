@@ -150,11 +150,12 @@ static const golden_case golden_cases[] = {
      "            (map $6 (focus $7 _ _)\n"
      "              (let $8 (lookup $7 1)\n"
      "                $8))))))))\n"
-     "(function 2 anonymous (parameters 2) (captures) (slots 8)\n"
+     "(function 2 anonymous (parameters 2) (captures) (slots 7)\n"
      "  (let $6 (lookup $1 1)\n"
      "    (let $7 (binary value-less $6 3)\n"
-     "      (let $8 (static-call fn:boolean#1 $7)\n"
-     "        $8))))\n"},
+     "      (conditional $7\n"
+     "        true()\n"
+     "        false()))))\n"},
     {"for $x in (3, 1) order by $x empty greatest collation 'http://www.w3.org/2005/xpath-functions/collation/codepoint' count $n return $n",
      "(function 1 main (parameters 0) (captures) (slots 12)\n"
      "  (let $1 (sequence 3 1)\n"
