@@ -58,10 +58,10 @@ typedef struct sxml_xquery_module {
     sxml_ast *owned_ast;
     /* A library module's target namespace; 0 for the main module. */
     sxml_namespace_uri_identifier target_namespace;
-    /* A library module's module URI, owned by the set (module_uri_memory):
-       its source name and static base URI; empty for the main module. */
+    /* A library module's module URI, interned in the name pool (so it
+       outlives the set as an error record's source name): its source name
+       and static base URI; empty for the main module. */
     sxml_byte_view module_uri;
-    void *module_uri_memory;
     /* The namespaces it imports: the set's imported_namespaces from
        first_import on. */
     size_t first_import;

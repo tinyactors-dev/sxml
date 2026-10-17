@@ -229,22 +229,20 @@ static sxml_status add_module(const module_loader *loader, const import_request 
                                                  .element_size = sizeof(sxml_xquery_module),
                                                  .element_alignment = alignof(sxml_xquery_module)},
                                   set->module_count);
-    void *uri_memory = NULL;
+    /* The module URI is interned (as a namespace URI), so the name pool
+       keeps it as long as error records may name it as their source. */
+    sxml_namespace_uri_identifier interned = {0};
+    sxml_byte_view module_uri = {.bytes = NULL, .byte_count = 0};
     if (status == SXML_STATUS_OK) {
-        status = sxml_allocator_allocate(
-            set->allocator,
-            (sxml_allocation_request){.byte_count = delivered.module_uri.byte_count + 1,
-                                      .alignment = 1},
-            &uri_memory);
+        status = sxml_name_pool_intern_namespace_uri(loader->name_pool, delivered.module_uri,
+                                                     &interned);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_name_pool_get_namespace_uri(loader->name_pool, interned, &module_uri);
     }
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    if (delivered.module_uri.byte_count > 0) {
-        memcpy(uri_memory, delivered.module_uri.bytes, delivered.module_uri.byte_count);
-    }
-    const sxml_byte_view module_uri = {.bytes = uri_memory,
-                                       .byte_count = delivered.module_uri.byte_count};
     sxml_ast *ast = NULL;
     status = sxml_xquery_build_ast(
         &(sxml_ast_build_request){.expression_text = without_byte_order_mark(delivered.content),
@@ -283,14 +281,12 @@ static sxml_status add_module(const module_loader *loader, const import_request 
     }
     if (status != SXML_STATUS_OK) {
         sxml_ast_destroy(ast);
-        sxml_allocator_release(set->allocator, uri_memory);
         return status;
     }
     set->modules[set->module_count] = (sxml_xquery_module){.ast = ast,
                                                            .owned_ast = ast,
                                                            .target_namespace = namespace_uri,
-                                                           .module_uri = module_uri,
-                                                           .module_uri_memory = uri_memory};
+                                                           .module_uri = module_uri};
     set->module_count += 1;
     return SXML_STATUS_OK;
 }
@@ -667,7 +663,6 @@ void sxml_xquery_release_modules(sxml_xquery_module_set *set) {
     }
     for (size_t module_index = 0; module_index < set->module_count; module_index += 1) {
         sxml_ast_destroy(set->modules[module_index].owned_ast);
-        sxml_allocator_release(set->allocator, set->modules[module_index].module_uri_memory);
     }
     sxml_allocator_release(set->allocator, set->modules);
     sxml_allocator_release(set->allocator, set->imported_namespaces);
