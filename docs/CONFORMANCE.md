@@ -4,7 +4,7 @@
 
 Results of the W3C QT4 test suite (`third_party/qt4tests`, D13) under `sxml-qt4 run` (D92), a release build, one process per test set. *Passed* counts passes and wrong errors (a wrong error code counts as a pass, catalog-schema.xsd); *not run* means not applicable to sxml or using an unsupported feature; *run* is test cases minus not run.
 
-- Code under test: commit `185fab9c7a39` of 2026-10-17
+- Code under test: commit `ed225c21ac00` of 2026-10-17
 - Regenerate: `cmake --preset release && cmake --build --preset release && tools/run-qt4.sh --program build/release/tests/qt4/driver/sxml-qt4 && tools/run-qt4.sh --program build/release/tests/qt4/driver/sxml-qt4 --spec XQ40 && tools/conformance-report.py build/qt4-run` (XQ40 is reported when its run is in the directory)
 
 ## Torture slice
@@ -17,15 +17,15 @@ Results of the W3C QT4 test suite (`third_party/qt4tests`, D13) under `sxml-qt4 
 
 | Specification | Test cases | Run | Passed | of which wrong error | Failed | Errors | Not run | Passed of run |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|
-| XP40 | 47,313 | 30,992 | 30,628 | 87 | 362 | 2 | 16,321 | 98.8 % |
+| XP40 | 47,313 | 30,992 | 30,630 | 87 | 362 | 0 | 16,321 | 98.8 % |
 
-Gate rate (D95): 30,610 of 31,543 in-scope test cases passed, **97.0 %** (in scope: the spec matches and no non-goal is needed; not-run cases count as not passed).
+Gate rate (D95): 30,612 of 31,543 in-scope test cases passed, **97.0 %** (in scope: the spec matches and no non-goal is needed; not-run cases count as not passed).
 
 ### XP40 by area
 
 | Area (test-set prefix) | Test cases | Run | Passed | of which wrong error | Failed | Errors | Not run | Passed of run |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|
-| Functions (F&O 4.0, fn:): `fn-*` | 17,250 | 14,583 | 14,423 | 32 | 158 | 2 | 2,667 | 98.9 % |
+| Functions (F&O 4.0, fn:): `fn-*` | 17,250 | 14,583 | 14,425 | 32 | 158 | 0 | 2,667 | 98.9 % |
 | Operators (F&O 4.0, op:): `op-*` | 4,789 | 3,788 | 3,782 | 0 | 6 | 0 | 1,001 | 99.8 % |
 | Grammar productions (XPath/XQuery 4.0): `prod-*` | 14,932 | 8,842 | 8,671 | 52 | 171 | 0 | 6,090 | 98.1 % |
 | Map functions (map:): `map-*` | 361 | 353 | 352 | 0 | 1 | 0 | 8 | 99.7 % |
@@ -55,7 +55,6 @@ Failed and error test cases by the error code the query raised (or the status th
 | FODC0013 | 6 |
 | FODT0004 | 6 |
 | FORG0001 | 3 |
-| SXML_STATUS_LIMIT_EXCEEDED | 2 |
 | XPST0051 | 2 |
 | XPST0080 | 2 |
 | FOTY0014 | 1 |
@@ -86,10 +85,10 @@ The 25 most frequent reasons:
 | error: expected XQST0033, got 1 | 3 |
 | error: expected XQST0070, got "a" | 3 |
 | error: expected XQST0070, got 1 | 3 |
-| SXML_STATUS_LIMIT_EXCEEDED | 2 |
 | XPST0051: the cast target is not a simple type | 2 |
 | XPST0080: the target type of a cast must be a generalized atomic type other than xs:NOTATION, xs:an… | 2 |
 | error: expected FODC0016, got <a>foo</a> | 2 |
+| error: expected FOQM0006, got () | 2 |
 
 Wrong errors (counted as passed) by the error raised:
 
@@ -292,7 +291,7 @@ Not run, by the first dependency that is not met:
 | fn-lowest | 36 | 31 | 0 | 0 | 0 | 5 |
 | fn-map-to-element | 233 | 226 | 0 | 2 | 0 | 5 |
 | fn-max | 232 | 197 | 0 | 0 | 0 | 35 |
-| fn-matches | 207 | 198 | 0 | 0 | 2 | 7 |
+| fn-matches | 207 | 200 | 0 | 0 | 0 | 7 |
 | fn-matches.re | 1,116 | 1,082 | 0 | 0 | 0 | 34 |
 | fn-matching-segments | 39 | 38 | 0 | 0 | 0 | 1 |
 | fn-message | 15 | 14 | 0 | 0 | 0 | 1 |
@@ -742,6 +741,907 @@ Not run, by the first dependency that is not met:
 | app-Walmsley | 223 | 1 | 0 | 0 | 0 | 222 |
 | app-XMark | 21 | 0 | 0 | 0 | 0 | 21 |
 | app-spec-examples | 1,498 | 1,346 | 1 | 10 | 0 | 142 |
+| bin-and | 11 | 0 | 0 | 0 | 0 | 11 |
+| bin-bin | 19 | 0 | 0 | 0 | 0 | 19 |
+| bin-count-bits-set | 11 | 0 | 0 | 0 | 0 | 11 |
+| bin-decode-string | 79 | 0 | 0 | 0 | 0 | 79 |
+| bin-encode-string | 15 | 0 | 0 | 0 | 0 | 15 |
+| bin-find | 13 | 0 | 0 | 0 | 0 | 13 |
+| bin-from-base64url | 16 | 0 | 0 | 0 | 0 | 16 |
+| bin-from-octets | 9 | 0 | 0 | 0 | 0 | 9 |
+| bin-hex | 21 | 0 | 0 | 0 | 0 | 21 |
+| bin-infer-encoding | 37 | 0 | 0 | 0 | 0 | 37 |
+| bin-insert-before | 17 | 0 | 0 | 0 | 0 | 17 |
+| bin-is-bit-set | 17 | 0 | 0 | 0 | 0 | 17 |
+| bin-join | 8 | 0 | 0 | 0 | 0 | 8 |
+| bin-length | 5 | 0 | 0 | 0 | 0 | 5 |
+| bin-not | 5 | 0 | 0 | 0 | 0 | 5 |
+| bin-octal | 18 | 0 | 0 | 0 | 0 | 18 |
+| bin-or | 11 | 0 | 0 | 0 | 0 | 11 |
+| bin-pack-double | 26 | 0 | 0 | 0 | 0 | 26 |
+| bin-pack-float | 24 | 0 | 0 | 0 | 0 | 24 |
+| bin-pack-integer | 56 | 0 | 0 | 0 | 0 | 56 |
+| bin-pad-left | 13 | 0 | 0 | 0 | 0 | 13 |
+| bin-pad-right | 13 | 0 | 0 | 0 | 0 | 13 |
+| bin-part | 15 | 0 | 0 | 0 | 0 | 15 |
+| bin-rotate | 22 | 0 | 0 | 0 | 0 | 22 |
+| bin-set-bits | 17 | 0 | 0 | 0 | 0 | 17 |
+| bin-shift | 21 | 0 | 0 | 0 | 0 | 21 |
+| bin-to-base64url | 10 | 0 | 0 | 0 | 0 | 10 |
+| bin-to-octets | 6 | 0 | 0 | 0 | 0 | 6 |
+| bin-unpack-double | 27 | 0 | 0 | 0 | 0 | 27 |
+| bin-unpack-float | 27 | 0 | 0 | 0 | 0 | 27 |
+| bin-unpack-integer | 36 | 0 | 0 | 0 | 0 | 36 |
+| bin-unpack-unsigned-integer | 35 | 0 | 0 | 0 | 0 | 35 |
+| bin-xor | 12 | 0 | 0 | 0 | 0 | 12 |
+| expath-file | 270 | 0 | 0 | 0 | 0 | 270 |
+| upd-VariableDeclaration | 2 | 0 | 0 | 0 | 0 | 2 |
+| upd-FunctionDeclaration | 21 | 0 | 0 | 0 | 0 | 21 |
+| upd-InsertExpressions | 100 | 0 | 0 | 0 | 0 | 100 |
+| upd-DeleteExpressions | 30 | 0 | 0 | 0 | 0 | 30 |
+| upd-ReplaceNode | 22 | 0 | 0 | 0 | 0 | 22 |
+| upd-ReplaceValue | 34 | 0 | 0 | 0 | 0 | 34 |
+| upd-RenameExpressions | 45 | 0 | 0 | 0 | 0 | 45 |
+| upd-TransformExpressions | 71 | 0 | 0 | 0 | 0 | 71 |
+| upd-Compatibility | 30 | 0 | 0 | 0 | 0 | 30 |
+| upd-FLWORExpression | 25 | 0 | 0 | 0 | 0 | 25 |
+| upd-TypeswitchExpression | 38 | 0 | 0 | 0 | 0 | 38 |
+| upd-ConditionalExpression | 38 | 0 | 0 | 0 | 0 | 38 |
+| upd-CommaExpression | 38 | 0 | 0 | 0 | 0 | 38 |
+| upd-ParenthesizedExpressions | 3 | 0 | 0 | 0 | 0 | 3 |
+| upd-FunctionCall | 6 | 0 | 0 | 0 | 0 | 6 |
+| upd-OtherExpressions | 32 | 0 | 0 | 0 | 0 | 32 |
+| upd-fn-put | 13 | 0 | 0 | 0 | 0 | 13 |
+| upd-AttrDataModelErrs | 17 | 0 | 0 | 0 | 0 | 17 |
+| upd-NSBindingConflictErrs | 19 | 0 | 0 | 0 | 0 | 19 |
+| upd-mergeUpdates | 2 | 0 | 0 | 0 | 0 | 2 |
+| upd-applyUpdates | 21 | 0 | 0 | 0 | 0 | 21 |
+| upd-setToUntyped | 10 | 0 | 0 | 0 | 0 | 10 |
+| upd-propagateNamespace | 6 | 0 | 0 | 0 | 0 | 6 |
+| upd-AdditionalTyping | 60 | 0 | 0 | 0 | 0 | 60 |
+| upd-MinOther | 1 | 0 | 0 | 0 | 0 | 1 |
+| upd-RevalidationDeclarationStrict | 21 | 0 | 0 | 0 | 0 | 21 |
+| upd-RevalidationDeclarationStrictUnsupported | 1 | 0 | 0 | 0 | 0 | 1 |
+| upd-RevalidationDeclarationLax | 19 | 0 | 0 | 0 | 0 | 19 |
+| upd-RevalidationDeclarationLaxUnsupported | 1 | 0 | 0 | 0 | 0 | 1 |
+| upd-RevalidationDeclarationSkip | 34 | 0 | 0 | 0 | 0 | 34 |
+| upd-RevalidationDeclarationSkipUnsupported | 1 | 0 | 0 | 0 | 0 | 1 |
+| upd-RevalidationDeclarationStrictandSkip | 1 | 0 | 0 | 0 | 0 | 1 |
+| upd-StaticTyping | 27 | 0 | 0 | 0 | 0 | 27 |
+| upd-FullAxis | 14 | 0 | 0 | 0 | 0 | 14 |
+| upd-RelationalDataUpdates | 11 | 0 | 0 | 0 | 0 | 11 |
+| upd-AddressBookUpdates | 1 | 0 | 0 | 0 | 0 | 1 |
+| upd-SoapUpdates | 1 | 0 | 0 | 0 | 0 | 1 |
+| upd-NamespacesUpdates | 1 | 0 | 0 | 0 | 0 | 1 |
+| upd-PartsUpdates | 7 | 0 | 0 | 0 | 0 | 7 |
+| upd-NilUpdates | 1 | 0 | 0 | 0 | 0 | 1 |
+| ft-Examples2.2.2 | 4 | 0 | 0 | 0 | 0 | 4 |
+| ft-Examples2.3 | 5 | 0 | 0 | 0 | 0 | 5 |
+| ft-Examples2.3.1 | 1 | 0 | 0 | 0 | 0 | 1 |
+| ft-Examples3.2 | 5 | 0 | 0 | 0 | 0 | 5 |
+| ft-Examples3.3 | 2 | 0 | 0 | 0 | 0 | 2 |
+| ft-Examples3.4 | 2 | 0 | 0 | 0 | 0 | 2 |
+| ft-Examples3.4.1 | 1 | 0 | 0 | 0 | 0 | 1 |
+| ft-Examples3.4.2 | 4 | 0 | 0 | 0 | 0 | 4 |
+| ft-Examples3.4.3 | 3 | 0 | 0 | 0 | 0 | 3 |
+| ft-Examples3.4.4 | 2 | 0 | 0 | 0 | 0 | 2 |
+| ft-Examples3.4.5 | 2 | 0 | 0 | 0 | 0 | 2 |
+| ft-Examples3.4.6 | 2 | 0 | 0 | 0 | 0 | 2 |
+| ft-Examples3.4.7 | 5 | 0 | 0 | 0 | 0 | 5 |
+| ft-Examples3.4.8 | 2 | 0 | 0 | 0 | 0 | 2 |
+| ft-Examples3.5.1 | 1 | 0 | 0 | 0 | 0 | 1 |
+| ft-Examples3.5.2 | 2 | 0 | 0 | 0 | 0 | 2 |
+| ft-Examples3.5.3 | 1 | 0 | 0 | 0 | 0 | 1 |
+| ft-Examples3.5.4 | 3 | 0 | 0 | 0 | 0 | 3 |
+| ft-Examples3.6.1 | 2 | 0 | 0 | 0 | 0 | 2 |
+| ft-Examples3.6.2 | 6 | 0 | 0 | 0 | 0 | 6 |
+| ft-Examples3.6.3 | 5 | 0 | 0 | 0 | 0 | 5 |
+| ft-Examples3.6.4 | 6 | 0 | 0 | 0 | 0 | 6 |
+| ft-Examples3.6.5 | 4 | 0 | 0 | 0 | 0 | 4 |
+| ft-Examples3.7 | 1 | 0 | 0 | 0 | 0 | 1 |
+| ft-ForScoreExpr | 11 | 0 | 0 | 0 | 0 | 11 |
+| ft-LetScoreExpr | 4 | 0 | 0 | 0 | 0 | 4 |
+| ft-FTContains | 17 | 0 | 0 | 0 | 0 | 17 |
+| ft-FTSelection | 4 | 0 | 0 | 0 | 0 | 4 |
+| ft-FTWords | 68 | 0 | 0 | 0 | 0 | 68 |
+| ft-FTTimes | 20 | 0 | 0 | 0 | 0 | 20 |
+| ft-FTOr | 15 | 0 | 0 | 0 | 0 | 15 |
+| ft-FTAnd | 11 | 0 | 0 | 0 | 0 | 11 |
+| ft-FTUnaryNot | 7 | 0 | 0 | 0 | 0 | 7 |
+| ft-FTMildNot | 11 | 0 | 0 | 0 | 0 | 11 |
+| ft-MatchOptions | 4 | 0 | 0 | 0 | 0 | 4 |
+| ft-FTLanguage | 4 | 0 | 0 | 0 | 0 | 4 |
+| ft-FTWildcard | 21 | 0 | 0 | 0 | 0 | 21 |
+| ft-FTThesaurus | 6 | 0 | 0 | 0 | 0 | 6 |
+| ft-FTStemming | 5 | 0 | 0 | 0 | 0 | 5 |
+| ft-FTCase | 6 | 0 | 0 | 0 | 0 | 6 |
+| ft-FTDiacritics | 4 | 0 | 0 | 0 | 0 | 4 |
+| ft-FTStopWord | 9 | 0 | 0 | 0 | 0 | 9 |
+| ft-ExtensionOption | 3 | 0 | 0 | 0 | 0 | 3 |
+| ft-PositionalFilters | 7 | 0 | 0 | 0 | 0 | 7 |
+| ft-FTOrder | 6 | 0 | 0 | 0 | 0 | 6 |
+| ft-FTWindow | 21 | 0 | 0 | 0 | 0 | 21 |
+| ft-FTDistance | 33 | 0 | 0 | 0 | 0 | 33 |
+| ft-FTScope | 19 | 0 | 0 | 0 | 0 | 19 |
+| ft-FTContent | 10 | 0 | 0 | 0 | 0 | 10 |
+| ft-Weight | 14 | 0 | 0 | 0 | 0 | 14 |
+| ft-FTIgnoreOption | 5 | 0 | 0 | 0 | 0 | 5 |
+| ft-FTExtensionSelections | 6 | 0 | 0 | 0 | 0 | 6 |
+| ft-FTMildNotUnconstrained | 9 | 0 | 0 | 0 | 0 | 9 |
+| ft-FTUnaryNotUnconstrained | 5 | 0 | 0 | 0 | 0 | 5 |
+| ft-FTUnitandFTBigUnit | 18 | 0 | 0 | 0 | 0 | 18 |
+| ft-FTOrderUnconstrained | 5 | 0 | 0 | 0 | 0 | 5 |
+| ft-FTScopeUnconstrained | 10 | 0 | 0 | 0 | 0 | 10 |
+| ft-FTWindowUnconstrained | 5 | 0 | 0 | 0 | 0 | 5 |
+| ft-FTDistanceUnconstrained | 5 | 0 | 0 | 0 | 0 | 5 |
+| ft-FTTimesUnconstrained | 20 | 0 | 0 | 0 | 0 | 20 |
+| ft-FTContentUnconstrained | 5 | 0 | 0 | 0 | 0 | 5 |
+| ft-FTCaseUnconstrained | 4 | 0 | 0 | 0 | 0 | 4 |
+| ft-FTStopWordUnconstrained | 14 | 0 | 0 | 0 | 0 | 14 |
+| ft-FTLanguageUnconstrained | 2 | 0 | 0 | 0 | 0 | 2 |
+| ft-IgnoreUnconstrained | 5 | 0 | 0 | 0 | 0 | 5 |
+| ft-ScoringUnconstrained | 12 | 0 | 0 | 0 | 0 | 12 |
+| ft-NegativeWeights | 5 | 0 | 0 | 0 | 0 | 5 |
+| ft-UseCase-ELEMENT | 11 | 0 | 0 | 0 | 0 | 11 |
+| ft-UseCase-ACROSS | 11 | 0 | 0 | 0 | 0 | 11 |
+| ft-UseCase-OTHER | 3 | 0 | 0 | 0 | 0 | 3 |
+| ft-UseCase-WILDCARD | 10 | 0 | 0 | 0 | 0 | 10 |
+| ft-UseCase-STEMMING | 4 | 0 | 0 | 0 | 0 | 4 |
+| ft-UseCase-THESAURUS | 12 | 0 | 0 | 0 | 0 | 12 |
+| ft-UseCase-STOP-WORD | 6 | 0 | 0 | 0 | 0 | 6 |
+| ft-UseCase-CHARACTER | 8 | 0 | 0 | 0 | 0 | 8 |
+| ft-UseCase-LOGICAL | 14 | 0 | 0 | 0 | 0 | 14 |
+| ft-UseCase-CARDINALITY | 8 | 0 | 0 | 0 | 0 | 8 |
+| ft-UseCase-PROXIMITY | 10 | 0 | 0 | 0 | 0 | 10 |
+| ft-UseCase-AXES | 7 | 0 | 0 | 0 | 0 | 7 |
+| ft-UseCase-IGNORE | 8 | 0 | 0 | 0 | 0 | 8 |
+| ft-UseCase-FULL-TEXT-COMPOSABILITY | 7 | 0 | 0 | 0 | 0 | 7 |
+| ft-UseCase-XQUERY-XPATH-COMPOSABILITY | 10 | 0 | 0 | 0 | 0 | 10 |
+| ft-UseCase-SCORE | 7 | 0 | 0 | 0 | 0 | 7 |
+| ft-Catalog | 3 | 0 | 0 | 0 | 0 | 3 |
+
+</details>
+
+## XQ40
+
+737 test sets with test cases, all finished.
+
+| Specification | Test cases | Run | Passed | of which wrong error | Failed | Errors | Not run | Passed of run |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|
+| XQ40 | 47,313 | 41,619 | 39,541 | 112 | 510 | 1,568 | 5,694 | 95.0 % |
+
+Gate rate (D95): 39,523 of 41,174 in-scope test cases passed, **96.0 %** (in scope: the spec matches and no non-goal is needed; not-run cases count as not passed).
+
+XQ-only (run, the spec does not admit XP40): 8,992 of 10,723 passed, **83.9 %**.
+
+### XQ40 by area
+
+| Area (test-set prefix) | Test cases | Run | Passed | of which wrong error | Failed | Errors | Not run | Passed of run |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|
+| Functions (F&O 4.0, fn:): `fn-*` | 17,250 | 15,800 | 15,583 | 32 | 204 | 13 | 1,450 | 98.6 % |
+| Operators (F&O 4.0, op:): `op-*` | 4,789 | 4,628 | 4,613 | 0 | 15 | 0 | 161 | 99.7 % |
+| Grammar productions (XPath/XQuery 4.0): `prod-*` | 14,932 | 13,661 | 13,260 | 72 | 242 | 159 | 1,271 | 97.1 % |
+| Map functions (map:): `map-*` | 361 | 358 | 357 | 0 | 1 | 0 | 3 | 99.7 % |
+| Array functions (array:): `array-*` | 537 | 532 | 530 | 0 | 2 | 0 | 5 | 99.6 % |
+| Math functions (math:): `math-*` | 181 | 181 | 181 | 0 | 0 | 0 | 0 | 100.0 % |
+| Constructor functions and types (xs:): `xs-*` | 227 | 213 | 212 | 0 | 1 | 0 | 14 | 99.5 % |
+| Miscellaneous: `misc-*` | 3,042 | 2,801 | 1,399 | 7 | 15 | 1,387 | 241 | 49.9 % |
+| Applications: `app-*` | 3,034 | 3,001 | 2,973 | 1 | 19 | 9 | 33 | 99.1 % |
+| Serialization methods: `method-*` | 508 | 444 | 433 | 0 | 11 | 0 | 64 | 97.5 % |
+| XQuery Update: `upd-*` | 825 | 0 | 0 | 0 | 0 | 0 | 825 | – |
+| XQuery Full Text: `ft-*` | 685 | 0 | 0 | 0 | 0 | 0 | 685 | – |
+| EXPath Binary: `bin-*` | 672 | 0 | 0 | 0 | 0 | 0 | 672 | – |
+| EXPath (other): `expath-*` | 270 | 0 | 0 | 0 | 0 | 0 | 270 | – |
+
+### XQ40 failure causes
+
+Failed and error test cases by the error code the query raised (or the status the driver got):
+
+| Error code | Test cases |
+|---|--:|
+| SXML_STATUS_UNSUPPORTED_FEATURE | 1,564 |
+| (no error: wrong result) | 226 |
+| XPDY0002 | 87 |
+| XPST0017 | 67 |
+| FOTY0013 | 45 |
+| XPTY0004 | 45 |
+| XPDY0050 | 7 |
+| FODC0013 | 6 |
+| FODT0004 | 6 |
+| XQDY0054 | 5 |
+| FORG0001 | 3 |
+| XPST0051 | 3 |
+| FOJS0006 | 2 |
+| FONS0004 | 2 |
+| SEPM0009 | 2 |
+| SXML_STATUS_OUT_OF_MEMORY | 2 |
+| XPST0080 | 2 |
+| FODF1280 | 1 |
+| FOTY0014 | 1 |
+| SERE0025 | 1 |
+| XPST0081 | 1 |
+
+The 25 most frequent reasons:
+
+| Cause | Test cases |
+|---|--:|
+| SXML_STATUS_UNSUPPORTED_FEATURE: module import is not supported yet (packet 3.11) | 1,564 |
+| XPST0017: no function with this name and arity is known | 67 |
+| XPDY0002: A function found by fn:function-lookup needs the focus, which a dynamic lookup does not c… | 46 |
+| FOTY0013: A function item or map cannot be atomized (XPath 4.0, section 2.5.3) | 45 |
+| wrong result (assert-eq) | 44 |
+| wrong result (assert-true) | 38 |
+| XPDY0002: A step that selects from a JNode is evaluated with an absent focus, and this one depends… | 26 |
+| wrong result (assert-xml) | 26 |
+| wrong result (assert) | 22 |
+| wrong result (assert-deep-eq) | 20 |
+| XPTY0004: a cast needs one atomic item, or the empty sequence when the target type allows it (XPath… | 17 |
+| XPDY0002: the focus is absent in a function body | 15 |
+| wrong result (assert-false) | 14 |
+| XPTY0004: An array lookup key is not an xs:integer (XPath 4.0, section 4.7.3) | 10 |
+| wrong result (assert-string-value) | 9 |
+| wrong result (serialization-matches) | 8 |
+| XPDY0050: The value of a treat expression does not match its type (XPath 4.0, section 4.16.6) | 7 |
+| error: expected XPTY0004, got () | 7 |
+| FODC0013: The XML parser does not support the requested option (DTD validation, XInclude, strip-spa… | 6 |
+| FODT0004: No timezone information is available for the place (F&O 4.0, fn:civil-timezone; sxml has… | 6 |
+| XPTY0004: A map constructor entry without a value is not a map (XPath 4.0, section 4.7.1) | 6 |
+| XQDY0054: the value of a variable depends on itself | 5 |
+| XPTY0004: An operand of "\|\|" has more than one item (XPath 4.0, section 4.10) | 4 |
+| XPTY0004: The value does not match the required type (XPath 4.0, section 3.4, coercion rules) | 4 |
+| FORG0001: the value is not in the lexical space or value space of the target type | 3 |
+
+Wrong errors (counted as passed) by the error raised:
+
+| Raised instead | Test cases |
+|---|--:|
+| XPST0017: no function with this name and arity is known | 22 |
+| XPTY0019: An operand on the left of "/" is not a node (XPath 4.0, section 4.6.3) | 19 |
+| FOTY0013: A function item or map cannot be atomized (XPath 4.0, section 2.5.3) | 14 |
+| XPTY0020: The context item of an axis step is not a node (XPath 4.0, section 4.6.4) | 10 |
+| FODC0013: The XML parser does not support the requested option (DTD validation, XInclude, strip-spa… | 7 |
+| XPST0008: no schema declaration of this name is in scope | 5 |
+| XPTY0004: a cast needs one atomic item, or the empty sequence when the target type allows it (XPath… | 5 |
+| XPST0039: two parameters of a function have the same name | 4 |
+| XQST0038: the default collation is not supported | 4 |
+| XPST0051: the cast target is not a simple type | 3 |
+
+Not run, by the first dependency that is not met:
+
+| Reason | Test cases |
+|---|--:|
+| feature schemaImport | 947 |
+| spec: not applicable to this language | 869 |
+| feature XQUpdate | 825 |
+| feature fullText | 685 |
+| feature binary | 673 |
+| feature fn-load-xquery-module | 313 |
+| xml-version 1.1 | 313 |
+| feature expath-file | 271 |
+| environment source validation | 258 |
+| feature fn-transform-XSLT | 133 |
+| feature schemaValidation | 99 |
+| feature staticTyping | 77 |
+| feature advanced-uca-fallback | 49 |
+| environment schema | 45 |
+| feature infoset-dtd | 32 |
+
+### XQ40 test sets with the most failures
+
+| Test set | Test cases | Passed | Failed | Errors | Not run |
+|---|--:|--:|--:|--:|--:|
+| misc-HtmlTestSuite | 1,379 | 0 | 0 | 1,379 | 0 |
+| prod-ModuleImport | 141 | 23 | 0 | 94 | 24 |
+| fn-function-lookup | 684 | 617 | 58 | 0 | 9 |
+| prod-AxisStep.J | 155 | 107 | 22 | 26 | 0 |
+| prod-CastableExpr.composite | 67 | 19 | 48 | 0 | 0 |
+| prod-CastExpr.composite | 67 | 33 | 34 | 0 | 0 |
+| fn-serialize | 292 | 197 | 25 | 0 | 70 |
+| prod-FunctionDecl | 254 | 210 | 17 | 0 | 27 |
+| app-spec-examples | 1,498 | 1,474 | 16 | 0 | 8 |
+| prod-NamedRecordTypeDecl | 94 | 77 | 6 | 9 | 2 |
+| fn-parse-html | 22 | 8 | 14 | 0 | 0 |
+| prod-ItemTypeDecl | 80 | 65 | 4 | 9 | 2 |
+| misc-BuiltInKeywords | 304 | 292 | 12 | 0 | 0 |
+| prod-PathExpr.J | 186 | 171 | 12 | 0 | 3 |
+| fn-deep-equal | 587 | 547 | 11 | 0 | 29 |
+| fn-invisible-xml | 16 | 6 | 10 | 0 | 0 |
+| op-same-key | 30 | 19 | 10 | 0 | 1 |
+| app-Demos | 13 | 3 | 0 | 9 | 1 |
+| fn-function-annotations | 25 | 14 | 9 | 0 | 2 |
+| misc-HigherOrderFunctions | 148 | 130 | 2 | 7 | 9 |
+| prod-ContextItemDecl | 53 | 34 | 1 | 8 | 10 |
+| prod-DefaultNamespaceDecl | 82 | 71 | 9 | 0 | 2 |
+| fn-html-doc | 10 | 2 | 8 | 0 | 0 |
+| prod-Lookup | 134 | 119 | 8 | 0 | 7 |
+| fn-doc-available | 47 | 29 | 7 | 0 | 11 |
+
+### Every XQ40 test set
+
+<details>
+<summary>737 test sets</summary>
+
+| Test set | Test cases | Passed | of which wrong error | Failed | Errors | Not run |
+|---|--:|--:|--:|--:|--:|--:|
+| fn-abs | 192 | 192 | 0 | 0 | 0 | 0 |
+| fn-adjust-date-to-timezone | 41 | 41 | 0 | 0 | 0 | 0 |
+| fn-adjust-dateTime-to-timezone | 50 | 50 | 0 | 0 | 0 | 0 |
+| fn-adjust-time-to-timezone | 42 | 42 | 0 | 0 | 0 | 0 |
+| fn-all-different | 35 | 35 | 0 | 0 | 0 | 0 |
+| fn-all-equal | 35 | 35 | 0 | 0 | 0 | 0 |
+| fn-analyze-string | 49 | 36 | 0 | 6 | 0 | 7 |
+| fn-apply | 22 | 21 | 0 | 0 | 0 | 1 |
+| fn-atomic-equal | 30 | 30 | 0 | 0 | 0 | 0 |
+| fn-atomic-type-annotation | 6 | 2 | 0 | 0 | 0 | 4 |
+| fn-available-environment-variables | 11 | 11 | 0 | 0 | 0 | 0 |
+| fn-avg | 242 | 242 | 0 | 0 | 0 | 0 |
+| fn-base-uri | 83 | 82 | 0 | 0 | 0 | 1 |
+| fn-boolean | 147 | 147 | 0 | 0 | 0 | 0 |
+| fn-build-dateTime | 91 | 90 | 0 | 1 | 0 | 0 |
+| fn-build-uri | 48 | 48 | 0 | 0 | 0 | 0 |
+| fn-ceiling | 94 | 94 | 0 | 0 | 0 | 0 |
+| fn-char | 48 | 48 | 0 | 0 | 0 | 0 |
+| fn-characters | 12 | 12 | 0 | 0 | 0 | 0 |
+| fn-civil-timezone | 9 | 4 | 0 | 5 | 0 | 0 |
+| fn-codepoint-equal | 36 | 36 | 0 | 0 | 0 | 0 |
+| fn-codepoints-to-string | 110 | 97 | 0 | 0 | 0 | 13 |
+| fn-collation | 89 | 89 | 0 | 0 | 0 | 0 |
+| fn-collation-available | 8 | 8 | 0 | 0 | 0 | 0 |
+| fn-collation-key | 37 | 35 | 0 | 0 | 0 | 2 |
+| fn-collection | 33 | 31 | 0 | 1 | 0 | 1 |
+| fn-compare | 235 | 225 | 0 | 0 | 0 | 10 |
+| fn-concat | 111 | 106 | 0 | 0 | 0 | 5 |
+| fn-contains | 82 | 74 | 0 | 1 | 0 | 7 |
+| fn-contains-subsequence | 32 | 32 | 0 | 0 | 0 | 0 |
+| fn-contains-token | 48 | 46 | 0 | 0 | 0 | 2 |
+| fn-count | 316 | 316 | 0 | 0 | 0 | 0 |
+| fn-csv-doc | 20 | 20 | 0 | 0 | 0 | 0 |
+| fn-csv-to-xml | 70 | 68 | 0 | 0 | 0 | 2 |
+| fn-current-date | 26 | 26 | 0 | 0 | 0 | 0 |
+| fn-current-dateTime | 27 | 27 | 0 | 0 | 0 | 0 |
+| fn-current-time | 24 | 24 | 0 | 0 | 0 | 0 |
+| fn-data | 73 | 62 | 0 | 0 | 0 | 11 |
+| fn-dateTime | 52 | 52 | 0 | 0 | 0 | 0 |
+| fn-day-from-date | 27 | 27 | 0 | 0 | 0 | 0 |
+| fn-day-from-dateTime | 34 | 34 | 0 | 0 | 0 | 0 |
+| fn-days-from-duration | 33 | 33 | 0 | 0 | 0 | 0 |
+| fn-days-in-month | 18 | 18 | 0 | 0 | 0 | 0 |
+| fn-decode-from-uri | 29 | 29 | 0 | 0 | 0 | 0 |
+| fn-deep-equal | 587 | 547 | 0 | 11 | 0 | 29 |
+| fn-default-collation | 7 | 7 | 0 | 0 | 0 | 0 |
+| fn-default-language | 6 | 5 | 0 | 0 | 0 | 1 |
+| fn-distinct-ordered-nodes | 10 | 10 | 0 | 0 | 0 | 0 |
+| fn-distinct-values | 125 | 118 | 0 | 2 | 0 | 5 |
+| fn-divide-decimals | 21 | 21 | 0 | 0 | 0 | 0 |
+| fn-doc | 75 | 62 | 5 | 4 | 0 | 9 |
+| fn-doc-available | 47 | 29 | 0 | 7 | 0 | 11 |
+| fn-document-uri | 55 | 54 | 0 | 0 | 0 | 1 |
+| fn-do-until | 25 | 25 | 0 | 0 | 0 | 0 |
+| fn-drop-while | 18 | 18 | 0 | 0 | 0 | 0 |
+| fn-duplicate-values | 128 | 126 | 0 | 2 | 0 | 0 |
+| fn-duration-to-seconds | 18 | 18 | 0 | 0 | 0 | 0 |
+| fn-element-with-id | 5 | 0 | 0 | 0 | 0 | 5 |
+| fn-element-to-map | 220 | 183 | 0 | 0 | 0 | 37 |
+| fn-element-to-map-plan | 21 | 21 | 0 | 0 | 0 | 0 |
+| fn-empty | 54 | 54 | 0 | 0 | 0 | 0 |
+| fn-encode-for-uri | 29 | 29 | 0 | 0 | 0 | 0 |
+| fn-ends-with | 70 | 65 | 0 | 0 | 0 | 5 |
+| fn-ends-with-subsequence | 33 | 33 | 0 | 0 | 0 | 0 |
+| fn-environment-variable | 12 | 12 | 0 | 0 | 0 | 0 |
+| fn-error | 104 | 103 | 0 | 0 | 0 | 1 |
+| fn-escape-html-uri | 34 | 34 | 0 | 0 | 0 | 0 |
+| fn-every | 33 | 33 | 0 | 0 | 0 | 0 |
+| fn-exactly-one | 54 | 54 | 0 | 0 | 0 | 0 |
+| fn-exists | 59 | 59 | 0 | 0 | 0 | 0 |
+| fn-expanded-QName | 9 | 8 | 0 | 0 | 0 | 1 |
+| fn-false | 25 | 25 | 0 | 0 | 0 | 0 |
+| fn-filter | 48 | 37 | 0 | 0 | 0 | 11 |
+| fn-floor | 88 | 88 | 0 | 0 | 0 | 0 |
+| fn-fold-left | 31 | 30 | 0 | 0 | 1 | 0 |
+| fn-fold-right | 29 | 29 | 0 | 0 | 0 | 0 |
+| fn-foot | 8 | 8 | 0 | 0 | 0 | 0 |
+| fn-for-each | 22 | 21 | 0 | 0 | 0 | 1 |
+| fn-for-each-pair | 55 | 48 | 0 | 0 | 0 | 7 |
+| fn-format-date | 138 | 125 | 0 | 0 | 0 | 13 |
+| fn-format-dateTime | 94 | 82 | 0 | 3 | 0 | 9 |
+| fn-format-integer | 102 | 87 | 0 | 0 | 0 | 15 |
+| fn-format-number | 308 | 301 | 0 | 1 | 0 | 6 |
+| fn-format-time | 98 | 95 | 0 | 2 | 0 | 1 |
+| fn-function-annotations | 25 | 14 | 0 | 9 | 0 | 2 |
+| fn-function-arity | 23 | 21 | 1 | 0 | 0 | 2 |
+| fn-function-lookup | 684 | 617 | 0 | 58 | 0 | 9 |
+| fn-function-name | 30 | 26 | 1 | 3 | 0 | 1 |
+| fn-generate-id | 41 | 34 | 0 | 0 | 4 | 3 |
+| fn-graphemes | 1,189 | 918 | 0 | 0 | 0 | 271 |
+| fn-has-children | 48 | 44 | 0 | 0 | 0 | 4 |
+| fn-hash | 54 | 54 | 0 | 0 | 0 | 0 |
+| fn-head | 8 | 8 | 0 | 0 | 0 | 0 |
+| fn-highest | 36 | 36 | 0 | 0 | 0 | 0 |
+| fn-hours-from-dateTime | 34 | 34 | 0 | 0 | 0 | 0 |
+| fn-hours-from-duration | 33 | 33 | 0 | 0 | 0 | 0 |
+| fn-hours-from-time | 27 | 27 | 0 | 0 | 0 | 0 |
+| fn-html-doc | 10 | 2 | 2 | 8 | 0 | 0 |
+| fn-id | 61 | 24 | 0 | 0 | 5 | 32 |
+| fn-identity | 5 | 5 | 0 | 0 | 0 | 0 |
+| fn-idref | 54 | 13 | 0 | 0 | 1 | 40 |
+| fn-implicit-timezone | 27 | 27 | 0 | 0 | 0 | 0 |
+| fn-index-of | 68 | 61 | 0 | 0 | 0 | 7 |
+| fn-index-of-substring | 22 | 22 | 0 | 0 | 0 | 0 |
+| fn-index-where | 22 | 22 | 0 | 0 | 0 | 0 |
+| fn-innermost | 64 | 54 | 0 | 1 | 0 | 9 |
+| fn-insert-before | 51 | 51 | 0 | 0 | 0 | 0 |
+| fn-insert-separator | 13 | 13 | 0 | 0 | 0 | 0 |
+| fn-in-scope-namespaces | 13 | 13 | 0 | 0 | 0 | 0 |
+| fn-in-scope-prefixes | 62 | 56 | 0 | 1 | 0 | 5 |
+| fn-invisible-xml | 16 | 6 | 6 | 10 | 0 | 0 |
+| fn-iri-to-uri | 47 | 46 | 0 | 0 | 0 | 1 |
+| fn-is-NaN | 16 | 16 | 0 | 0 | 0 | 0 |
+| fn-items-at | 30 | 30 | 0 | 0 | 0 | 0 |
+| fn-jkey | 17 | 15 | 0 | 2 | 0 | 0 |
+| fn-json-doc | 81 | 77 | 0 | 0 | 0 | 4 |
+| fn-json-to-xml | 104 | 41 | 0 | 2 | 0 | 61 |
+| fn-jtree | 30 | 29 | 0 | 1 | 0 | 0 |
+| fn-jvalue | 16 | 15 | 0 | 1 | 0 | 0 |
+| fn-lang | 46 | 46 | 0 | 0 | 0 | 0 |
+| fn-last | 69 | 69 | 0 | 0 | 0 | 0 |
+| fn-load-xquery-module | 141 | 0 | 0 | 0 | 0 | 141 |
+| fn-local-name | 61 | 54 | 0 | 0 | 0 | 7 |
+| fn-local-name-from-QName | 28 | 12 | 0 | 0 | 0 | 16 |
+| fn-location | 5 | 5 | 0 | 0 | 0 | 0 |
+| fn-lower-case | 28 | 27 | 0 | 0 | 0 | 1 |
+| fn-lowest | 36 | 36 | 0 | 0 | 0 | 0 |
+| fn-map-to-element | 233 | 233 | 0 | 0 | 0 | 0 |
+| fn-max | 232 | 216 | 0 | 0 | 0 | 16 |
+| fn-matches | 207 | 200 | 0 | 0 | 0 | 7 |
+| fn-matches.re | 1,116 | 1,083 | 0 | 0 | 0 | 33 |
+| fn-matching-segments | 39 | 39 | 0 | 0 | 0 | 0 |
+| fn-message | 15 | 15 | 0 | 0 | 0 | 0 |
+| fn-min | 232 | 213 | 0 | 0 | 0 | 19 |
+| fn-minutes-from-dateTime | 34 | 34 | 0 | 0 | 0 | 0 |
+| fn-minutes-from-duration | 33 | 33 | 0 | 0 | 0 | 0 |
+| fn-minutes-from-time | 27 | 27 | 0 | 0 | 0 | 0 |
+| fn-month-from-date | 27 | 27 | 0 | 0 | 0 | 0 |
+| fn-months-from-duration | 33 | 33 | 0 | 0 | 0 | 0 |
+| fn-month-from-dateTime | 34 | 34 | 0 | 0 | 0 | 0 |
+| fn-name | 35 | 34 | 0 | 0 | 0 | 1 |
+| fn-namespace-uri | 34 | 34 | 0 | 0 | 0 | 0 |
+| fn-namespace-uri-for-prefix | 31 | 29 | 0 | 1 | 0 | 1 |
+| fn-namespace-uri-from-QName | 30 | 13 | 0 | 3 | 0 | 14 |
+| fn-nilled | 65 | 35 | 0 | 0 | 0 | 30 |
+| fn-node-name | 48 | 47 | 0 | 0 | 0 | 1 |
+| fn-node-type-annotation | 7 | 2 | 0 | 0 | 0 | 5 |
+| fn-normalize-space | 47 | 42 | 0 | 0 | 0 | 5 |
+| fn-normalize-unicode | 50 | 44 | 0 | 0 | 0 | 6 |
+| fn-not | 83 | 79 | 0 | 0 | 0 | 4 |
+| fn-number | 80 | 74 | 0 | 0 | 0 | 6 |
+| fn-one-or-more | 56 | 56 | 0 | 0 | 0 | 0 |
+| fn-op | 35 | 34 | 0 | 1 | 0 | 0 |
+| fn-outermost | 62 | 54 | 0 | 0 | 0 | 8 |
+| fn-pad-string | 22 | 22 | 0 | 0 | 0 | 0 |
+| fn-parse-csv | 124 | 124 | 0 | 0 | 0 | 0 |
+| fn-parse-html | 22 | 8 | 8 | 14 | 0 | 0 |
+| fn-parse-ietf-date | 105 | 105 | 0 | 0 | 0 | 0 |
+| fn-parse-integer | 47 | 47 | 0 | 0 | 0 | 0 |
+| fn-parse-json | 203 | 191 | 1 | 0 | 0 | 12 |
+| fn-parse-QName | 19 | 19 | 0 | 0 | 0 | 0 |
+| fn-parse-xml | 57 | 36 | 3 | 7 | 0 | 14 |
+| fn-parse-xml-fragment | 41 | 40 | 0 | 0 | 0 | 1 |
+| fn-parse-uri | 74 | 74 | 0 | 0 | 0 | 0 |
+| fn-partial-apply | 17 | 17 | 0 | 0 | 0 | 0 |
+| fn-partition | 25 | 25 | 0 | 0 | 0 | 0 |
+| fn-parts-of-dateTime | 20 | 20 | 0 | 0 | 0 | 0 |
+| fn-path | 67 | 63 | 0 | 0 | 1 | 3 |
+| fn-position | 67 | 67 | 0 | 0 | 0 | 0 |
+| fn-prefix-from-QName | 27 | 25 | 0 | 0 | 0 | 2 |
+| fn-QName | 34 | 34 | 0 | 0 | 0 | 0 |
+| fn-random-number-generator | 61 | 56 | 0 | 1 | 0 | 4 |
+| fn-regex | 30 | 29 | 0 | 1 | 0 | 0 |
+| fn-remove | 63 | 62 | 0 | 0 | 0 | 1 |
+| fn-replace | 198 | 188 | 0 | 0 | 0 | 10 |
+| fn-replicate | 21 | 21 | 0 | 0 | 0 | 0 |
+| fn-resolve-QName | 31 | 27 | 0 | 0 | 0 | 4 |
+| fn-resolve-uri | 50 | 47 | 0 | 2 | 0 | 1 |
+| fn-reverse | 70 | 70 | 0 | 0 | 0 | 0 |
+| fn-root | 43 | 43 | 0 | 0 | 0 | 0 |
+| fn-round | 381 | 380 | 0 | 0 | 0 | 1 |
+| fn-round-half-to-even | 145 | 145 | 0 | 0 | 0 | 0 |
+| fn-scan | 11 | 11 | 0 | 0 | 0 | 0 |
+| fn-schema-type | 14 | 9 | 0 | 0 | 0 | 5 |
+| fn-seconds | 24 | 24 | 0 | 0 | 0 | 0 |
+| fn-seconds-from-dateTime | 35 | 35 | 0 | 0 | 0 | 0 |
+| fn-seconds-from-duration | 33 | 33 | 0 | 0 | 0 | 0 |
+| fn-seconds-from-time | 28 | 28 | 0 | 0 | 0 | 0 |
+| fn-serialize | 292 | 197 | 3 | 25 | 0 | 70 |
+| fn-siblings | 19 | 17 | 0 | 1 | 0 | 1 |
+| fn-slice | 104 | 102 | 0 | 1 | 1 | 0 |
+| fn-some | 33 | 33 | 0 | 0 | 0 | 0 |
+| fn-sort | 50 | 50 | 0 | 0 | 0 | 0 |
+| fn-sort-by | 66 | 66 | 0 | 0 | 0 | 0 |
+| fn-sort-with | 24 | 24 | 0 | 0 | 0 | 0 |
+| fn-starts-with | 69 | 63 | 0 | 0 | 0 | 6 |
+| fn-starts-with-subsequence | 33 | 33 | 0 | 0 | 0 | 0 |
+| fn-static-base-uri | 18 | 18 | 0 | 0 | 0 | 0 |
+| fn-string | 82 | 79 | 1 | 1 | 0 | 2 |
+| fn-string-join | 48 | 45 | 0 | 0 | 0 | 3 |
+| fn-string-length | 44 | 38 | 1 | 0 | 0 | 6 |
+| fn-string-to-codepoints | 44 | 44 | 0 | 0 | 0 | 0 |
+| fn-subsequence | 122 | 122 | 0 | 0 | 0 | 0 |
+| fn-substring | 74 | 74 | 0 | 0 | 0 | 0 |
+| fn-substring-after | 60 | 53 | 0 | 0 | 0 | 7 |
+| fn-substring-after-last | 27 | 22 | 0 | 0 | 0 | 5 |
+| fn-substring-before | 59 | 53 | 0 | 0 | 0 | 6 |
+| fn-substring-before-last | 27 | 22 | 0 | 0 | 0 | 5 |
+| fn-sum | 229 | 229 | 0 | 0 | 0 | 0 |
+| fn-system-properties | 35 | 23 | 0 | 0 | 0 | 12 |
+| fn-tail | 6 | 6 | 0 | 0 | 0 | 0 |
+| fn-take-while | 18 | 18 | 0 | 0 | 0 | 0 |
+| fn-timezone-from-date | 34 | 34 | 0 | 0 | 0 | 0 |
+| fn-timezone-from-dateTime | 41 | 41 | 0 | 0 | 0 | 0 |
+| fn-timezone-from-time | 27 | 27 | 0 | 0 | 0 | 0 |
+| fn-tokenize | 79 | 72 | 0 | 0 | 0 | 7 |
+| fn-trace | 32 | 31 | 0 | 0 | 0 | 1 |
+| fn-transform | 137 | 2 | 0 | 0 | 0 | 135 |
+| fn-transitive-closure | 11 | 11 | 0 | 0 | 0 | 0 |
+| fn-translate | 44 | 44 | 0 | 0 | 0 | 0 |
+| fn-trim-space | 37 | 36 | 0 | 1 | 0 | 0 |
+| fn-true | 25 | 25 | 0 | 0 | 0 | 0 |
+| fn-trunk | 8 | 8 | 0 | 0 | 0 | 0 |
+| fn-type-of | 36 | 31 | 0 | 0 | 0 | 5 |
+| fn-unix-dateTime | 22 | 22 | 0 | 0 | 0 | 0 |
+| fn-unordered | 43 | 43 | 0 | 0 | 0 | 0 |
+| fn-unparsed-binary | 21 | 21 | 0 | 0 | 0 | 0 |
+| fn-unparsed-text | 107 | 94 | 0 | 0 | 0 | 13 |
+| fn-unparsed-text-available | 63 | 57 | 0 | 0 | 0 | 6 |
+| fn-unparsed-text-lines | 64 | 58 | 0 | 0 | 0 | 6 |
+| fn-upper-case | 29 | 28 | 0 | 0 | 0 | 1 |
+| fn-uri-collection | 7 | 7 | 0 | 0 | 0 | 0 |
+| fn-void | 5 | 5 | 0 | 0 | 0 | 0 |
+| fn-while-do | 30 | 30 | 0 | 0 | 0 | 0 |
+| fn-xml-to-json | 170 | 154 | 0 | 3 | 0 | 13 |
+| fn-xsd-validator | 76 | 0 | 0 | 0 | 0 | 76 |
+| fn-year-from-date | 29 | 29 | 0 | 0 | 0 | 0 |
+| fn-years-from-duration | 33 | 33 | 0 | 0 | 0 | 0 |
+| fn-year-from-dateTime | 35 | 35 | 0 | 0 | 0 | 0 |
+| fn-zero-or-one | 51 | 51 | 0 | 0 | 0 | 0 |
+| math-acos | 9 | 9 | 0 | 0 | 0 | 0 |
+| math-asin | 9 | 9 | 0 | 0 | 0 | 0 |
+| math-atan | 9 | 9 | 0 | 0 | 0 | 0 |
+| math-atan2 | 10 | 10 | 0 | 0 | 0 | 0 |
+| math-cos | 9 | 9 | 0 | 0 | 0 | 0 |
+| math-cosh | 9 | 9 | 0 | 0 | 0 | 0 |
+| math-e | 5 | 5 | 0 | 0 | 0 | 0 |
+| math-exp | 9 | 9 | 0 | 0 | 0 | 0 |
+| math-exp10 | 8 | 8 | 0 | 0 | 0 | 0 |
+| math-log | 9 | 9 | 0 | 0 | 0 | 0 |
+| math-log10 | 9 | 9 | 0 | 0 | 0 | 0 |
+| math-pi | 5 | 5 | 0 | 0 | 0 | 0 |
+| math-pow | 34 | 34 | 0 | 0 | 0 | 0 |
+| math-sin | 9 | 9 | 0 | 0 | 0 | 0 |
+| math-sinh | 9 | 9 | 0 | 0 | 0 | 0 |
+| math-sqrt | 9 | 9 | 0 | 0 | 0 | 0 |
+| math-tan | 11 | 11 | 0 | 0 | 0 | 0 |
+| math-tanh | 9 | 9 | 0 | 0 | 0 | 0 |
+| map-build | 60 | 59 | 0 | 1 | 0 | 0 |
+| map-contains | 28 | 28 | 0 | 0 | 0 | 0 |
+| map-empty | 6 | 6 | 0 | 0 | 0 | 0 |
+| map-entries | 17 | 17 | 0 | 0 | 0 | 0 |
+| map-entry | 9 | 9 | 0 | 0 | 0 | 0 |
+| map-filter | 18 | 18 | 0 | 0 | 0 | 0 |
+| map-find | 12 | 12 | 0 | 0 | 0 | 0 |
+| map-for-each | 27 | 27 | 0 | 0 | 0 | 0 |
+| map-get | 43 | 42 | 0 | 0 | 0 | 1 |
+| map-items | 15 | 15 | 0 | 0 | 0 | 0 |
+| map-merge | 47 | 46 | 0 | 0 | 0 | 1 |
+| map-keys | 16 | 16 | 0 | 0 | 0 | 0 |
+| map-put | 25 | 24 | 0 | 0 | 0 | 1 |
+| map-remove | 20 | 20 | 0 | 0 | 0 | 0 |
+| map-size | 18 | 18 | 0 | 0 | 0 | 0 |
+| array-append | 8 | 8 | 0 | 0 | 0 | 0 |
+| array-build | 6 | 6 | 0 | 0 | 0 | 0 |
+| array-empty | 6 | 6 | 0 | 0 | 0 | 0 |
+| array-filter | 19 | 18 | 0 | 0 | 0 | 1 |
+| array-flatten | 10 | 10 | 0 | 0 | 0 | 0 |
+| array-fold-left | 11 | 11 | 0 | 0 | 0 | 0 |
+| array-fold-right | 12 | 12 | 0 | 0 | 0 | 0 |
+| array-foot | 9 | 9 | 0 | 0 | 0 | 0 |
+| array-for-each | 13 | 12 | 0 | 0 | 0 | 1 |
+| array-for-each-pair | 15 | 13 | 0 | 1 | 0 | 1 |
+| array-get | 25 | 25 | 0 | 0 | 0 | 0 |
+| array-head | 9 | 9 | 0 | 0 | 0 | 0 |
+| array-of-members | 6 | 6 | 0 | 0 | 0 | 0 |
+| array-index-of | 13 | 13 | 0 | 0 | 0 | 0 |
+| array-index-where | 22 | 22 | 0 | 0 | 0 | 0 |
+| array-insert-before | 13 | 13 | 0 | 0 | 0 | 0 |
+| array-items | 8 | 8 | 0 | 0 | 0 | 0 |
+| array-join | 11 | 11 | 0 | 0 | 0 | 0 |
+| array-members | 7 | 7 | 0 | 0 | 0 | 0 |
+| array-put | 15 | 15 | 0 | 0 | 0 | 0 |
+| array-remove | 17 | 17 | 0 | 0 | 0 | 0 |
+| array-reverse | 19 | 19 | 0 | 0 | 0 | 0 |
+| array-size | 7 | 7 | 0 | 0 | 0 | 0 |
+| array-slice | 91 | 91 | 0 | 0 | 0 | 0 |
+| array-sort | 37 | 36 | 0 | 0 | 0 | 1 |
+| array-sort-by | 56 | 55 | 0 | 0 | 0 | 1 |
+| array-sort-with | 25 | 24 | 0 | 1 | 0 | 0 |
+| array-split | 11 | 11 | 0 | 0 | 0 | 0 |
+| array-subarray | 24 | 24 | 0 | 0 | 0 | 0 |
+| array-tail | 6 | 6 | 0 | 0 | 0 | 0 |
+| array-trunk | 6 | 6 | 0 | 0 | 0 | 0 |
+| xs-anyAtomicType | 2 | 2 | 0 | 0 | 0 | 0 |
+| xs-anySimpleType | 6 | 6 | 0 | 0 | 0 | 0 |
+| xs-anyURI | 20 | 16 | 0 | 0 | 0 | 4 |
+| xs-base64Binary | 40 | 40 | 0 | 0 | 0 | 0 |
+| xs-dateTimeStamp | 13 | 13 | 0 | 0 | 0 | 0 |
+| xs-double | 16 | 15 | 0 | 0 | 0 | 1 |
+| xs-duration | 11 | 11 | 0 | 0 | 0 | 0 |
+| xs-error | 63 | 61 | 0 | 0 | 0 | 2 |
+| xs-float | 12 | 11 | 0 | 0 | 0 | 1 |
+| xs-hexBinary | 6 | 3 | 0 | 1 | 0 | 2 |
+| xs-normalizedString | 7 | 6 | 0 | 0 | 0 | 1 |
+| xs-notation | 2 | 2 | 0 | 0 | 0 | 0 |
+| xs-numeric | 22 | 20 | 0 | 0 | 0 | 2 |
+| xs-token | 7 | 6 | 0 | 0 | 0 | 1 |
+| op-add-dayTimeDurations | 64 | 64 | 0 | 0 | 0 | 0 |
+| op-add-dayTimeDuration-to-date | 29 | 27 | 0 | 0 | 0 | 2 |
+| op-add-dayTimeDuration-to-dateTime | 32 | 32 | 0 | 0 | 0 | 0 |
+| op-add-dayTimeDuration-to-time | 27 | 27 | 0 | 0 | 0 | 0 |
+| op-add-yearMonthDurations | 27 | 27 | 0 | 0 | 0 | 0 |
+| op-add-yearMonthDuration-to-date | 28 | 28 | 0 | 0 | 0 | 0 |
+| op-add-yearMonthDuration-to-dateTime | 29 | 29 | 0 | 0 | 0 | 0 |
+| op-anyURI-equal | 22 | 22 | 0 | 0 | 0 | 0 |
+| op-anyURI-greater-than | 10 | 10 | 0 | 0 | 0 | 0 |
+| op-anyURI-less-than | 8 | 8 | 0 | 0 | 0 | 0 |
+| op-bang | 19 | 19 | 0 | 0 | 0 | 0 |
+| op-base64Binary-equal | 53 | 39 | 0 | 0 | 0 | 14 |
+| op-base64Binary-less-than | 42 | 36 | 0 | 0 | 0 | 6 |
+| op-base64Binary-greater-than | 36 | 35 | 0 | 0 | 0 | 1 |
+| op-boolean-equal | 57 | 57 | 0 | 0 | 0 | 0 |
+| op-boolean-greater-than | 49 | 49 | 0 | 0 | 0 | 0 |
+| op-boolean-less-than | 49 | 49 | 0 | 0 | 0 | 0 |
+| op-concat | 98 | 92 | 0 | 3 | 0 | 3 |
+| op-concatenate | 54 | 54 | 0 | 0 | 0 | 0 |
+| op-date-equal | 47 | 47 | 0 | 0 | 0 | 0 |
+| op-date-greater-than | 49 | 49 | 0 | 0 | 0 | 0 |
+| op-date-less-than | 48 | 48 | 0 | 0 | 0 | 0 |
+| op-dateTime-equal | 74 | 72 | 0 | 0 | 0 | 2 |
+| op-dateTime-greater-than | 44 | 44 | 0 | 0 | 0 | 0 |
+| op-dateTime-less-than | 44 | 44 | 0 | 0 | 0 | 0 |
+| op-dayTimeDuration-greater-than | 71 | 59 | 0 | 0 | 0 | 12 |
+| op-dayTimeDuration-less-than | 52 | 46 | 0 | 0 | 0 | 6 |
+| op-divide-dayTimeDuration | 65 | 60 | 0 | 0 | 0 | 5 |
+| op-divide-dayTimeDuration-by-dayTimeDuration | 28 | 28 | 0 | 0 | 0 | 0 |
+| op-divide-yearMonthDuration | 33 | 31 | 0 | 0 | 0 | 2 |
+| op-divide-yearMonthDuration-by-yearMonthDuration | 25 | 25 | 0 | 0 | 0 | 0 |
+| op-duration-equal | 190 | 158 | 0 | 0 | 0 | 32 |
+| op-except | 83 | 76 | 0 | 0 | 0 | 7 |
+| op-gDay-equal | 51 | 51 | 0 | 0 | 0 | 0 |
+| op-gMonth-equal | 45 | 45 | 0 | 0 | 0 | 0 |
+| op-gMonthDay-equal | 51 | 51 | 0 | 0 | 0 | 0 |
+| op-gYear-equal | 46 | 46 | 0 | 0 | 0 | 0 |
+| op-gYearMonth-equal | 46 | 46 | 0 | 0 | 0 | 0 |
+| op-hexBinary-equal | 37 | 36 | 0 | 0 | 0 | 1 |
+| op-hexBinary-greater-than | 32 | 31 | 0 | 0 | 0 | 1 |
+| op-hexBinary-less-than | 32 | 31 | 0 | 0 | 0 | 1 |
+| op-intersect | 86 | 78 | 0 | 0 | 0 | 8 |
+| op-is-not-same-node | 38 | 38 | 0 | 0 | 0 | 0 |
+| op-is-same-node | 49 | 49 | 0 | 0 | 0 | 0 |
+| op-multiply-dayTimeDuration | 57 | 53 | 0 | 0 | 0 | 4 |
+| op-multiply-yearMonthDuration | 46 | 44 | 0 | 0 | 0 | 2 |
+| op-node-after | 40 | 38 | 0 | 1 | 0 | 1 |
+| op-node-before | 43 | 41 | 0 | 1 | 0 | 1 |
+| op-node-follows-or-is | 34 | 34 | 0 | 0 | 0 | 0 |
+| op-node-precedes-or-is | 34 | 34 | 0 | 0 | 0 | 0 |
+| op-NOTATION-equal | 22 | 0 | 0 | 0 | 0 | 22 |
+| op-numeric-add | 163 | 148 | 0 | 0 | 0 | 15 |
+| op-numeric-equal | 209 | 209 | 0 | 0 | 0 | 0 |
+| op-numeric-divide | 142 | 142 | 0 | 0 | 0 | 0 |
+| op-numeric-greater-than | 122 | 122 | 0 | 0 | 0 | 0 |
+| op-numeric-integer-divide | 143 | 143 | 0 | 0 | 0 | 0 |
+| op-numeric-less-than | 187 | 187 | 0 | 0 | 0 | 0 |
+| op-numeric-mod | 131 | 131 | 0 | 0 | 0 | 0 |
+| op-numeric-multiply | 119 | 119 | 0 | 0 | 0 | 0 |
+| op-numeric-subtract | 125 | 125 | 0 | 0 | 0 | 0 |
+| op-numeric-unary-minus | 70 | 70 | 0 | 0 | 0 | 0 |
+| op-numeric-unary-plus | 55 | 55 | 0 | 0 | 0 | 0 |
+| op-pipeline | 25 | 25 | 0 | 0 | 0 | 0 |
+| op-QName-equal | 42 | 38 | 0 | 0 | 0 | 4 |
+| op-string-equal | 15 | 15 | 0 | 0 | 0 | 0 |
+| op-string-greater-than | 9 | 9 | 0 | 0 | 0 | 0 |
+| op-string-less-than | 10 | 10 | 0 | 0 | 0 | 0 |
+| op-subtract-dates | 31 | 31 | 0 | 0 | 0 | 0 |
+| op-subtract-dateTimes | 33 | 33 | 0 | 0 | 0 | 0 |
+| op-subtract-dayTimeDuration-from-date | 24 | 24 | 0 | 0 | 0 | 0 |
+| op-subtract-dayTimeDuration-from-dateTime | 24 | 24 | 0 | 0 | 0 | 0 |
+| op-subtract-dayTimeDuration-from-time | 28 | 28 | 0 | 0 | 0 | 0 |
+| op-subtract-dayTimeDurations | 69 | 69 | 0 | 0 | 0 | 0 |
+| op-subtract-times | 33 | 33 | 0 | 0 | 0 | 0 |
+| op-subtract-yearMonthDuration-from-date | 26 | 26 | 0 | 0 | 0 | 0 |
+| op-subtract-yearMonthDuration-from-dateTime | 23 | 23 | 0 | 0 | 0 | 0 |
+| op-subtract-yearMonthDurations | 33 | 33 | 0 | 0 | 0 | 0 |
+| op-time-equal | 58 | 58 | 0 | 0 | 0 | 0 |
+| op-time-greater-than | 45 | 45 | 0 | 0 | 0 | 0 |
+| op-time-less-than | 44 | 44 | 0 | 0 | 0 | 0 |
+| op-to | 185 | 185 | 0 | 0 | 0 | 0 |
+| op-union | 93 | 85 | 0 | 0 | 0 | 8 |
+| op-yearMonthDuration-greater-than | 34 | 34 | 0 | 0 | 0 | 0 |
+| op-yearMonthDuration-less-than | 34 | 34 | 0 | 0 | 0 | 0 |
+| op-same-key | 30 | 19 | 0 | 10 | 0 | 1 |
+| prod-AllowingEmpty | 19 | 19 | 0 | 0 | 0 | 0 |
+| prod-Annotation | 90 | 87 | 0 | 1 | 0 | 2 |
+| prod-ArrayType | 75 | 75 | 0 | 0 | 0 | 0 |
+| prod-ArrowExpr | 70 | 69 | 0 | 0 | 0 | 1 |
+| prod-AxisStep | 362 | 337 | 9 | 2 | 0 | 23 |
+| prod-AxisStep.abbr | 23 | 23 | 0 | 0 | 0 | 0 |
+| prod-AxisStep.ancestor | 44 | 43 | 1 | 0 | 0 | 1 |
+| prod-AxisStep.ancestor-or-self | 32 | 30 | 1 | 1 | 0 | 1 |
+| prod-AxisStep.following | 27 | 26 | 1 | 0 | 0 | 1 |
+| prod-AxisStep.following-or-self | 27 | 27 | 1 | 0 | 0 | 0 |
+| prod-AxisStep.following-sibling | 34 | 33 | 1 | 0 | 0 | 1 |
+| prod-AxisStep.following-sibling-or-self | 37 | 37 | 1 | 0 | 0 | 0 |
+| prod-AxisStep.preceding | 33 | 32 | 1 | 0 | 0 | 1 |
+| prod-AxisStep.preceding-or-self | 32 | 32 | 1 | 0 | 0 | 0 |
+| prod-AxisStep.preceding-sibling | 29 | 28 | 1 | 0 | 0 | 1 |
+| prod-AxisStep.preceding-sibling-or-self | 32 | 32 | 1 | 0 | 0 | 0 |
+| prod-AxisStep.static-typing | 15 | 0 | 0 | 0 | 0 | 15 |
+| prod-AxisStep.unabbr | 26 | 26 | 0 | 0 | 0 | 0 |
+| prod-AxisStep.J | 155 | 107 | 0 | 22 | 26 | 0 |
+| prod-BaseURIDecl | 38 | 37 | 0 | 0 | 1 | 0 |
+| prod-BoundarySpaceDecl | 28 | 28 | 0 | 0 | 0 | 0 |
+| prod-BracedActions | 34 | 34 | 0 | 0 | 0 | 0 |
+| prod-ButWithExpr | 26 | 22 | 0 | 4 | 0 | 0 |
+| prod-CastableExpr | 975 | 793 | 1 | 4 | 0 | 178 |
+| prod-CastableExpr.composite | 67 | 19 | 1 | 48 | 0 | 0 |
+| prod-CastExpr | 2,837 | 2,781 | 2 | 1 | 0 | 55 |
+| prod-CastExpr.composite | 67 | 33 | 20 | 34 | 0 | 0 |
+| prod-CastExpr.derived | 170 | 160 | 2 | 3 | 0 | 7 |
+| prod-CastExpr.schema | 130 | 0 | 0 | 0 | 0 | 130 |
+| prod-ChoiceItemType | 50 | 41 | 0 | 2 | 0 | 7 |
+| prod-Comment | 45 | 45 | 0 | 0 | 0 | 0 |
+| prod-CompAttrConstructor | 148 | 142 | 0 | 1 | 0 | 5 |
+| prod-CompDocConstructor | 59 | 55 | 0 | 0 | 0 | 4 |
+| prod-CompCommentConstructor | 29 | 28 | 0 | 0 | 0 | 1 |
+| prod-CompElemConstructor | 114 | 107 | 0 | 1 | 0 | 6 |
+| prod-CompNamespaceConstructor | 52 | 42 | 0 | 0 | 6 | 4 |
+| prod-CompPIConstructor | 66 | 59 | 0 | 0 | 0 | 7 |
+| prod-CompTextConstructor | 39 | 37 | 0 | 1 | 0 | 1 |
+| prod-ConstructionDecl | 26 | 26 | 0 | 0 | 0 | 0 |
+| prod-ConstructionDecl.schema | 4 | 0 | 0 | 0 | 0 | 4 |
+| prod-ContextItemDecl | 53 | 34 | 0 | 1 | 8 | 10 |
+| prod-ContextValueDecl | 13 | 13 | 0 | 0 | 0 | 0 |
+| prod-ContextItemExpr | 45 | 45 | 0 | 0 | 0 | 0 |
+| prod-CopyNamespacesDecl | 38 | 38 | 0 | 0 | 0 | 0 |
+| prod-CountClause | 13 | 13 | 0 | 0 | 0 | 0 |
+| prod-CurlyArrayConstructor | 5 | 5 | 0 | 0 | 0 | 0 |
+| prod-DecimalFormatDecl | 47 | 45 | 0 | 0 | 1 | 1 |
+| prod-DefaultCollationDecl | 12 | 12 | 4 | 0 | 0 | 0 |
+| prod-DefaultNamespaceDecl | 82 | 71 | 0 | 9 | 0 | 2 |
+| prod-DirAttributeList | 136 | 132 | 0 | 1 | 0 | 3 |
+| prod-DirectConstructor | 93 | 93 | 0 | 0 | 0 | 0 |
+| prod-DirElemConstructor | 73 | 70 | 0 | 1 | 0 | 2 |
+| prod-DirElemContent | 135 | 115 | 0 | 0 | 0 | 20 |
+| prod-DirElemContent.namespace | 138 | 137 | 0 | 1 | 0 | 0 |
+| prod-DirElemContent.whitespace | 83 | 83 | 0 | 0 | 0 | 0 |
+| prod-DynamicFunctionCall | 93 | 84 | 0 | 0 | 0 | 9 |
+| prod-EmptyOrderDecl | 38 | 28 | 0 | 4 | 0 | 6 |
+| prod-EQName | 54 | 47 | 1 | 3 | 0 | 4 |
+| prod-EnumerationType | 35 | 35 | 0 | 0 | 0 | 0 |
+| prod-ExtensionExpr | 81 | 58 | 0 | 0 | 0 | 23 |
+| prod-FLWORExpr | 26 | 0 | 0 | 0 | 0 | 26 |
+| prod-FLWORExpr.static-typing | 28 | 0 | 0 | 0 | 0 | 28 |
+| prod-ForClause | 212 | 194 | 0 | 0 | 0 | 18 |
+| prod-ForClause.map | 65 | 65 | 0 | 0 | 0 | 0 |
+| prod-ForClause.member | 48 | 48 | 0 | 0 | 0 | 0 |
+| prod-FunctionCall | 226 | 157 | 0 | 3 | 0 | 66 |
+| prod-FunctionDecl | 254 | 210 | 0 | 17 | 0 | 27 |
+| prod-GeneralComp.eq | 205 | 202 | 0 | 1 | 0 | 2 |
+| prod-GeneralComp.ge | 112 | 112 | 0 | 0 | 0 | 0 |
+| prod-GeneralComp.gt | 150 | 150 | 0 | 0 | 0 | 0 |
+| prod-GeneralComp.le | 108 | 108 | 0 | 0 | 0 | 0 |
+| prod-GeneralComp.lt | 133 | 133 | 0 | 0 | 0 | 0 |
+| prod-GeneralComp.ne | 140 | 140 | 0 | 0 | 0 | 0 |
+| prod-GroupByClause | 40 | 37 | 0 | 1 | 0 | 2 |
+| prod-IfExpr | 43 | 43 | 0 | 0 | 0 | 0 |
+| prod-InlineFunctionExpr | 48 | 42 | 0 | 0 | 1 | 5 |
+| prod-InlineFunctionExpr.focus | 30 | 29 | 0 | 0 | 0 | 1 |
+| prod-InstanceofExpr | 328 | 305 | 0 | 1 | 0 | 22 |
+| prod-ItemTypeDecl | 80 | 65 | 3 | 4 | 9 | 2 |
+| prod-KeywordArguments | 1 | 1 | 0 | 0 | 0 | 0 |
+| prod-LambdaExpr | 8 | 8 | 0 | 0 | 0 | 0 |
+| prod-LetClause | 189 | 172 | 0 | 2 | 0 | 15 |
+| prod-Literal | 242 | 230 | 0 | 0 | 0 | 12 |
+| prod-Lookup | 134 | 119 | 0 | 8 | 0 | 7 |
+| prod-MapConstructor | 86 | 75 | 2 | 6 | 0 | 5 |
+| prod-MappingArrow | 67 | 67 | 0 | 0 | 0 | 0 |
+| prod-MapType | 82 | 78 | 0 | 0 | 0 | 4 |
+| prod-MethodCall | 12 | 12 | 0 | 0 | 0 | 0 |
+| prod-ModuleImport | 141 | 23 | 0 | 0 | 94 | 24 |
+| prod-NamedFunctionRef | 565 | 563 | 0 | 1 | 0 | 1 |
+| prod-NamedRecordTypeDecl | 94 | 77 | 1 | 6 | 9 | 2 |
+| prod-NamespaceDecl | 55 | 52 | 0 | 2 | 0 | 1 |
+| prod-NameTest | 127 | 123 | 2 | 4 | 0 | 0 |
+| prod-NameTestUnion | 37 | 8 | 0 | 0 | 0 | 29 |
+| prod-NodeTest | 84 | 76 | 3 | 3 | 0 | 5 |
+| prod-OptionDecl | 9 | 8 | 0 | 0 | 0 | 1 |
+| prod-OptionDecl.serialization | 40 | 37 | 2 | 0 | 1 | 2 |
+| prod-OrExpr | 376 | 376 | 0 | 0 | 0 | 0 |
+| prod-OrderByClause | 210 | 139 | 0 | 1 | 0 | 70 |
+| prod-OrderingModeDecl | 29 | 29 | 0 | 0 | 0 | 0 |
+| prod-OtherwiseExpr | 10 | 4 | 0 | 6 | 0 | 0 |
+| prod-PathExpr | 34 | 30 | 3 | 0 | 0 | 4 |
+| prod-PathExpr.J | 186 | 171 | 4 | 12 | 0 | 3 |
+| prod-ParenthesizedExpr | 20 | 20 | 0 | 0 | 0 | 0 |
+| prod-PositionalVar | 34 | 34 | 0 | 0 | 0 | 0 |
+| prod-PipelineExpr | 14 | 14 | 0 | 0 | 0 | 0 |
+| prod-Predicate | 244 | 239 | 0 | 0 | 0 | 5 |
+| prod-QuantifiedExpr | 223 | 221 | 0 | 0 | 0 | 2 |
+| prod-RecordType | 23 | 21 | 0 | 2 | 0 | 0 |
+| prod-ReturnClause | 21 | 21 | 0 | 0 | 0 | 0 |
+| prod-SchemaImport | 145 | 0 | 0 | 0 | 0 | 145 |
+| prod-SequenceType | 66 | 64 | 0 | 1 | 0 | 1 |
+| prod-SquareArrayConstructor | 7 | 7 | 0 | 0 | 0 | 0 |
+| prod-StepExpr | 70 | 65 | 0 | 1 | 0 | 4 |
+| prod-StringConstructor | 55 | 53 | 0 | 2 | 0 | 0 |
+| prod-StringTemplate | 53 | 51 | 0 | 2 | 0 | 0 |
+| prod-SwitchExpr | 58 | 55 | 0 | 2 | 0 | 1 |
+| prod-TraceClause | 6 | 6 | 0 | 0 | 0 | 0 |
+| prod-TreatExpr | 74 | 73 | 0 | 0 | 0 | 1 |
+| prod-TryCatchExpr | 212 | 209 | 0 | 1 | 1 | 1 |
+| prod-TypeswitchExpr | 88 | 82 | 0 | 0 | 0 | 6 |
+| prod-UnorderedExpr | 31 | 29 | 0 | 0 | 0 | 2 |
+| prod-UnaryLookup | 37 | 30 | 0 | 3 | 0 | 4 |
+| prod-UnionNodeTest | 12 | 12 | 0 | 0 | 0 | 0 |
+| prod-ValidateExpr | 92 | 0 | 0 | 0 | 0 | 92 |
+| prod-ValueComp | 125 | 120 | 0 | 0 | 0 | 5 |
+| prod-VarDecl | 167 | 138 | 2 | 4 | 0 | 25 |
+| prod-VarDecl.external | 107 | 95 | 0 | 0 | 2 | 10 |
+| prod-VarDefaultValue | 43 | 34 | 0 | 1 | 0 | 8 |
+| prod-VersionDecl | 52 | 35 | 0 | 0 | 0 | 17 |
+| prod-WhereClause | 85 | 82 | 0 | 0 | 0 | 3 |
+| prod-WhileClause | 83 | 83 | 0 | 0 | 0 | 0 |
+| prod-WindowClause | 158 | 139 | 0 | 0 | 0 | 19 |
+| misc-BuiltInKeywords | 304 | 292 | 0 | 12 | 0 | 0 |
+| misc-CombinedErrorCodes | 264 | 213 | 4 | 1 | 1 | 49 |
+| misc-AnnexE | 8 | 8 | 0 | 0 | 0 | 0 |
+| misc-AppendixA4 | 9 | 9 | 0 | 0 | 0 | 0 |
+| misc-ConstructorKeywords | 153 | 153 | 0 | 0 | 0 | 0 |
+| misc-ErrorsAndOptimization | 7 | 7 | 0 | 0 | 0 | 0 |
+| misc-FocusConstructors | 153 | 153 | 0 | 0 | 0 | 0 |
+| misc-HigherOrderFunctions | 148 | 130 | 3 | 2 | 7 | 9 |
+| misc-HtmlTestSuite | 1,379 | 0 | 0 | 0 | 1,379 | 0 |
+| misc-JsonTestSuite | 319 | 318 | 0 | 0 | 0 | 1 |
+| misc-StaticContext | 1 | 1 | 0 | 0 | 0 | 0 |
+| misc-Subtyping | 159 | 0 | 0 | 0 | 0 | 159 |
+| misc-Surrogates | 32 | 17 | 0 | 0 | 0 | 15 |
+| misc-UCACollation | 87 | 87 | 0 | 0 | 0 | 0 |
+| misc-XMLEdition | 19 | 11 | 0 | 0 | 0 | 8 |
+| method-adaptive | 140 | 94 | 0 | 6 | 0 | 40 |
+| method-csv | 48 | 47 | 0 | 1 | 0 | 0 |
+| method-html | 73 | 70 | 0 | 0 | 0 | 3 |
+| method-json | 89 | 84 | 0 | 0 | 0 | 5 |
+| method-text | 23 | 19 | 0 | 0 | 0 | 4 |
+| method-xhtml | 61 | 57 | 0 | 0 | 0 | 4 |
+| method-xml | 74 | 62 | 0 | 4 | 0 | 8 |
+| app-CatalogCheck | 18 | 0 | 0 | 0 | 0 | 18 |
+| app-Demos | 13 | 3 | 0 | 0 | 9 | 1 |
+| app-Duplicates | 14 | 14 | 0 | 0 | 0 | 0 |
+| app-FunctxFn | 502 | 502 | 0 | 0 | 0 | 0 |
+| app-FunctxFunctx | 627 | 626 | 0 | 0 | 0 | 1 |
+| app-UseCaseCompoundValues | 1 | 1 | 0 | 0 | 0 | 0 |
+| app-UseCaseJSON | 13 | 13 | 0 | 0 | 0 | 0 |
+| app-UseCaseJSONiq | 7 | 7 | 0 | 0 | 0 | 0 |
+| app-UseCaseNLP | 7 | 7 | 0 | 0 | 0 | 0 |
+| app-UseCaseNS | 8 | 8 | 0 | 0 | 0 | 0 |
+| app-UseCasePARTS | 1 | 1 | 0 | 0 | 0 | 0 |
+| app-UseCaseR | 18 | 18 | 0 | 0 | 0 | 0 |
+| app-UseCaseR31 | 25 | 25 | 0 | 0 | 0 | 0 |
+| app-UseCaseSEQ | 5 | 5 | 0 | 0 | 0 | 0 |
+| app-UseCaseSGML | 11 | 11 | 0 | 0 | 0 | 0 |
+| app-UseCaseSTRING | 4 | 4 | 0 | 0 | 0 | 0 |
+| app-UseCaseTREE | 6 | 6 | 0 | 0 | 0 | 0 |
+| app-UseCaseXMP | 12 | 12 | 0 | 0 | 0 | 0 |
+| app-Walmsley | 223 | 215 | 0 | 3 | 0 | 5 |
+| app-XMark | 21 | 21 | 0 | 0 | 0 | 0 |
+| app-spec-examples | 1,498 | 1,474 | 1 | 16 | 0 | 8 |
 | bin-and | 11 | 0 | 0 | 0 | 0 | 11 |
 | bin-bin | 19 | 0 | 0 | 0 | 0 | 19 |
 | bin-count-bits-set | 11 | 0 | 0 | 0 | 0 | 11 |

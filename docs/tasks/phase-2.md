@@ -159,11 +159,6 @@ computed constructors (Phase 3); ForClause.map/.member, LetClause,
 MethodCall, ConstructorKeywords, FocusConstructors at 100% of run cases;
 dynamic node tests and the item axis need fn:jkey/fn:jvalue (2.17);
 NamedFunctionRef's failures are missing functions. XP40 23,698 to 24,206.
-**Done** 2026-10-17 (D113): no XP40 case is "not lowered" except the
-computed constructors (Phase 3); ForClause.map/.member, LetClause,
-MethodCall, ConstructorKeywords, FocusConstructors at 100% of run cases;
-dynamic node tests and the item axis need fn:jkey/fn:jvalue (2.17);
-NamedFunctionRef's failures are missing functions. XP40 23,698 to 24,206.
 
 ### 2.6 Evaluator, paths and function references (implementation)
 After 2.0. Owns `src/evaluator.c`, `src/evaluator_function.c`,
@@ -389,12 +384,22 @@ to 0; fn-matches 198 to 200, the other regex sets unchanged.
 ### 2.20 Phase 2 review (review)
 After everything. Owns the gate boxes. A separate agent (D11) runs the
 rubric and re-checks each "done when"; open items go under "Proposed".
+**Done** 2026-10-17 (D151): clean-HEAD check of every preset and lint
+(D123); XP40 in scope 97.0 %, every area ≥ 95.5 %, 0 errors; fuzzing
+clean; one options reader, one calendar rule; `xquery.h` and `xslt.h`
+provisional; follow-ups and owner questions in D151 and `docs/LOG.md`.
 
 ## Gate
 
-- [ ] XP40 (D95 denominator) ≥ 90% pass, each of the areas fn, op, prod,
+- [x] XP40 (D95 denominator) ≥ 90% pass, each of the areas fn, op, prod,
   map, array, math, xs ≥ 80%, under `release`; slice 198/198 in CI.
-- [ ] No XP40 case crashes, leaks or ends in an "error" outcome.
-- [ ] Every F&O 4.0 function is in the library but D97's non-goals.
+  (agent review, D151: 97.0 %, the lowest area fn 95.5 %; slice 198/198,
+  run locally as D123 says)
+- [x] No XP40 case crashes, leaks or ends in an "error" outcome.
+  (agent review, D151)
+- [x] Every F&O 4.0 function is in the library but D97's non-goals.
+  (agent review, D151; fn:load-xquery-module is 3.11's, as D97 says)
 - [ ] Release 0.2.0 tagged; the JavaScript package passes under Node.js.
-- [ ] Review agent pass (D11), findings fixed.
+  (the package passes, D151; the tag is the owner's)
+- [x] Review agent pass (D11), findings fixed. (agent review, D151; the
+  larger follow-ups are listed there)

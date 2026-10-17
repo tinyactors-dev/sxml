@@ -4,6 +4,23 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 2.20 done (D151): Phase 2 gate review (D11), checked locally (D123).
+  Clean HEAD c7c0c35: `release`, `debug`, `debug-gcc`, `wasm` (Node.js
+  package, size budget) and lint pass, no call cycle. QT4 (release, code
+  ed225c2): XP40 30,630 passed, 0 errors, in scope 97.0 %, every area
+  above 95 % (fn 95.5, op 99.2, prod 97.8, map 99.7, array 99.8, math
+  100, xs 99.5); slice 198/198; XQ40 39,541, in scope 96.0 %, XQ-only
+  83.9 %, 1,568 errors (module import). Fuzzing, 300 s per target and
+  300 s more for the XPath ones: no finding. Merged: one options reader
+  for element maps and text resources, one option-table macro, one
+  leap-year and days-in-month rule (four copies), the unused
+  codepoint-only collation check removed; outcomes identical case by
+  case. `xquery.h` and `xslt.h` provisional until their gates; the second
+  D120 is D120b; Proposed keeps the owner's items and Phase 3 design
+  work. Gate boxes ticked but the tag. Follow-ups in D151 (lowering
+  re-entry guard, deep-equal's options, calendar arithmetic); open
+  questions at the end of this file.
+
 - 3.11 done (D148): library modules and module import. `src/xquery_module.c`
   loads the module set through the resolver (one request per location
   hint, an empty one for none; module URIs end cycles, a module loads
@@ -403,7 +420,7 @@ One short entry per week, newest first: what passed, what's next, what is blocke
   snapshot, no set lost; slice 198/198; `debug`, `debug-gcc`, `wasm`
   126/126 (the `evaluator` failure under `debug` is HEAD's), lint clean.
 
-- 3.3 done (D120): XML and XHTML output methods. Serializer split into
+- 3.3 done (D120b): XML and XHTML output methods. Serializer split into
   `src/serialize.c` (pipeline: character maps, normalization through
   `sxml_unicode_normalize`, escaping, line endings, UTF-8/UTF-16/US-ASCII/
   ISO-8859-1 with references; sequence normalizer; adaptive; dispatch,
@@ -1206,3 +1223,24 @@ For the owner. Only the first blocks a gate box.
 5. **Size budget in CI.** D93's budget is not enforced by a test; 1.23b
    grew the `wasm` CLI by 55 KB unnoticed. Add the size check to CMake or
    `ci.yml` in Phase 2 (2.0 owns the root CMakeLists.txt).
+
+## Open questions at the Phase 2 gate (packet 2.20)
+
+For the owner. Only the first is a gate box.
+
+1. **Tag 0.2.0.** Every other box is ticked (D151). `CHANGELOG.md` says
+   "unreleased"; `docs/RELEASE.md` lists the steps (tag, npm name
+   `sxml-js` while `sxml` is taken on npm).
+2. **WebAssembly budgets** (Proposed): `sxml.wasm` is 1,865,152 bytes
+   stripped and 647,721 gzipped against 2,000,000 / 700,000 (7 % left);
+   the CLI with XQuery 3,480,962 / 780,893 against 3,700,000 / 820,000.
+   Phases 3 and 4 are likely to pass them: confirm higher budgets, or ask for
+   optional modules (XQuery and XSLT grammars, Unicode and collation
+   tables).
+3. **XQuery's omit-xml-declaration default** (Proposed, D146): no
+   (write the declaration, as QT4 expects) or keep yes.
+4. **Provisional headers** (D151): `xquery.h` and `xslt.h` may change in
+   a minor release until the Phase 3 and 4 gates. Accept, or declare them
+   stable now.
+5. **CI** (D123): still local only; macOS, Windows and MSVC have not been
+   built since the Phase 0 gate.
