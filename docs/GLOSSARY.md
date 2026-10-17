@@ -398,6 +398,16 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `decimal_format_property` | One property of a decimal format (decimal-separator, percent, NaN, ...), given as text |
 | `marker` | The single character that stands for a decimal format property in a picture string |
 | `rendition` | The string a decimal format property becomes in the formatted result; `%:pc` is marker `%`, rendition `pc` |
+| `decimal_format_settings` | A decimal format with every property decoded: markers as codepoints, renditions as UTF-8, the zero digit and the three plain renditions |
+| `picture_string` | The second argument of `fn:format-integer` and `fn:format-number`: the pattern a number is written by |
+| `sub_picture` | One of the two halves of a `fn:format-number` picture string, for positive or for negative numbers (F&O 4.0, "Syntax of the picture string") |
+| `primary_format_token` | The part of a `fn:format-integer` picture before its last semicolon: a digit pattern or a numbering token such as `a`, `I`, `Ww` |
+| `format_modifier` | The part of a `fn:format-integer` picture after its last semicolon: `c` or `o` with an optional variant in parentheses, then `a` or `t` |
+| `digit_pattern` | A primary format token of mandatory digit signs, optional digit signs (`#`) and grouping separators |
+| `digit_family` | Ten consecutive Unicode characters of category Nd with digit values 0 to 9; named by its zero digit |
+| `grouping_position` | The number of digit signs between a grouping separator and the end of the integer part (or the decimal separator) |
+| `numbering_kind` | How a primary format token numbers: digits, letters, Roman numerals or words, or an unsupported token formatted as `1` |
+| `ordinal` | Ordinal numbering (`1st`, `second`), asked for by the `o` format modifier |
 | `default_collation` | The collation used when a function or operator is given none (XPath 4.0, section 2.2.2) |
 | `collation_binding` | A host's collation URI standing for a collation sxml implements, added to the statically known collations |
 | `default_language` | The language of the dynamic context, for `fn:default-language` and the formatting functions |
