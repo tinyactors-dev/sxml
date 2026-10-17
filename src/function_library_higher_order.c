@@ -15,6 +15,7 @@
 #include "function_library_higher_order_internal.h"
 
 #include "evaluator_internal.h"
+#include "function_library_core_internal.h"
 #include "operator_internal.h"
 #include "xdm_internal.h"
 #include "sxml/name.h"
@@ -36,12 +37,6 @@ static const sxml_static_error higher_order_errors[] = {
         {.error_status = SXML_STATUS_DYNAMIC_ERROR,
          .code_local_name = SXML_BYTE_VIEW_INITIALIZER("FOAY0002"),
          .description = SXML_BYTE_VIEW_INITIALIZER("The array length is negative")},
-    [SXML_HIGHER_ORDER_ERROR_UNSUPPORTED_COLLATION] =
-        {.error_status = SXML_STATUS_DYNAMIC_ERROR,
-         .code_local_name = SXML_BYTE_VIEW_INITIALIZER("FOCH0002"),
-         .description = SXML_BYTE_VIEW_INITIALIZER(
-             "The collation is not supported: only the Unicode codepoint "
-             "collation is")},
     [SXML_HIGHER_ORDER_ERROR_DUPLICATE_KEY] =
         {.error_status = SXML_STATUS_DYNAMIC_ERROR,
          .code_local_name = SXML_BYTE_VIEW_INITIALIZER("FOJS0003"),
@@ -83,30 +78,6 @@ static const sxml_static_error lookup_focus_error = {
 sxml_status sxml_higher_order_report_error(sxml_error_record *error_record,
                                            sxml_higher_order_error error) {
     return sxml_error_record_report(error_record, &higher_order_errors[error]);
-}
-
-/* The URI of the Unicode codepoint collation (F&O 4.0, section 5.3.2). */
-static const sxml_byte_view codepoint_collation_uri = SXML_BYTE_VIEW_INITIALIZER(
-    "http://www.w3.org/2005/xpath-functions/collation/codepoint");
-
-sxml_status sxml_higher_order_check_collation(sxml_sequence collation,
-                                              sxml_error_record *error_record) {
-    if (sxml_sequence_get_representation(collation) ==
-        SXML_SEQUENCE_REPRESENTATION_EMPTY) {
-        return SXML_STATUS_OK;
-    }
-    sxml_atomic_datum datum;
-    sxml_status status = sxml_atomic_item_get_datum(collation.content, &datum);
-    if (status != SXML_STATUS_OK || datum.datum_kind != SXML_DATUM_KIND_STRING) {
-        return sxml_higher_order_report_error(error_record,
-                                              SXML_HIGHER_ORDER_ERROR_WRONG_TYPE);
-    }
-    if (!sxml_byte_view_equals(datum.datum_details.string.utf8,
-                               codepoint_collation_uri)) {
-        return sxml_higher_order_report_error(
-            error_record, SXML_HIGHER_ORDER_ERROR_UNSUPPORTED_COLLATION);
-    }
-    return SXML_STATUS_OK;
 }
 
 /* ------------------------------------------------------------- Helpers */
@@ -1968,8 +1939,17 @@ static sxml_status read_sort_key_record(const sxml_function_call *call,
                                   .field_name = SXML_BYTE_VIEW_FROM_LITERAL("collation")},
             &found);
     }
-    if (status == SXML_STATUS_OK && found.is_found) {
-        status = sxml_higher_order_check_collation(found.entry.value, call->error_record);
+    if (status == SXML_STATUS_OK && found.is_found && !sequence_is_empty(found.entry.value)) {
+        sxml_atomic_datum collation_uri;
+        status = sxml_atomic_item_get_datum(found.entry.value.content, &collation_uri);
+        if (status == SXML_STATUS_OK && collation_uri.datum_kind != SXML_DATUM_KIND_STRING) {
+            status = sxml_higher_order_report_error(call->error_record,
+                                                    SXML_HIGHER_ORDER_ERROR_WRONG_TYPE);
+        }
+        if (status == SXML_STATUS_OK) {
+            status = sxml_function_library_find_collation(
+                call, collation_uri.datum_details.string.utf8, &definition->collation);
+        }
     }
     if (status == SXML_STATUS_OK) {
         status = find_record_field(
@@ -2004,14 +1984,20 @@ static sxml_status sort_read_definitions(sxml_sort_state *state,
     const sxml_sequence records = call_argument(call, 1);
     uint64_t definition_count = 1;
     sxml_status status = SXML_STATUS_OK;
+    /* The default collation for definitions that name none, or the
+       collation argument (F&O 4.0, 5.2.7). */
+    sxml_collation collation;
     if (sort_uses_key_records(state->operation)) {
         status = sxml_sequence_count(records, call->error_record, &definition_count);
         if (definition_count == 0) {
             definition_count = 1;
         }
+        if (status == SXML_STATUS_OK) {
+            status = sxml_function_library_find_collation(
+                call, (sxml_byte_view){.bytes = NULL, .byte_count = 0}, &collation);
+        }
     } else {
-        status = sxml_higher_order_check_collation(call_argument(call, 1),
-                                                   call->error_record);
+        status = sxml_function_library_resolve_collation(call, 1, &collation);
     }
     if (status == SXML_STATUS_OK &&
         definition_count > SIZE_MAX / sizeof(sxml_sort_key_definition)) {
@@ -2031,6 +2017,10 @@ static sxml_status sort_read_definitions(sxml_sort_state *state,
     }
     state->key_definitions = memory;
     state->key_definition_count = (size_t)definition_count;
+    for (size_t definition_index = 0; definition_index < state->key_definition_count;
+         definition_index += 1) {
+        state->key_definitions[definition_index].collation = collation;
+    }
     if (!sort_uses_key_records(state->operation)) {
         const optional_function key = read_optional_function(call, 2);
         state->key_definitions[0].has_key_function = key.has_function;
@@ -2177,27 +2167,35 @@ static sxml_status sort_store_key(sxml_sort_state *state, const sxml_function_ca
     return status;
 }
 
-/* op:simple-compare of two atomic items (F&O 4.0, 2.5.18): fn:compare
-   with the codepoint collation, XPTY0004 across type families. */
-static sxml_status compare_key_items(const sxml_sort_state *state, sxml_item_pair pair,
-                                     sxml_ordering *ordering) {
-    return sxml_atomic_item_compare_in_heap(
-        state->item_heap,
-        &(sxml_atomic_comparison){
-            .first = pair.first,
-            .second = pair.second,
-            .implicit_timezone_offset_minutes = state->implicit_timezone_offset_minutes,
-            .error_record = state->error_record,
-            .name_pool = sxml_item_heap_get_name_pool(state->item_heap)},
-        ordering);
-}
-
 /* op:lexicographic-compare of two sort key values (F&O 4.0, 2.5.18): the
    empty sequence first, then item by item. */
 typedef struct key_value_pair {
     sxml_sequence first;
     sxml_sequence second;
+    const sxml_collation *collation;
 } key_value_pair;
+
+/* op:simple-compare of two atomic items (F&O 4.0, 2.5.18): fn:compare
+   with the key's collation, XPTY0004 across type families. */
+typedef struct key_item_pair {
+    sxml_item_pair items;
+    const sxml_collation *collation;
+} key_item_pair;
+
+static sxml_status compare_key_items(const sxml_sort_state *state, key_item_pair pair,
+                                     sxml_ordering *ordering) {
+    return sxml_function_library_compare_collated(
+        state->item_heap,
+        &(sxml_collated_comparison){
+            .collation = pair.collation,
+            .comparison = {.first = pair.items.first,
+                           .second = pair.items.second,
+                           .implicit_timezone_offset_minutes =
+                               state->implicit_timezone_offset_minutes,
+                           .error_record = state->error_record,
+                           .name_pool = sxml_item_heap_get_name_pool(state->item_heap)}},
+        ordering);
+}
 
 static sxml_status compare_key_values(const sxml_sort_state *state, key_value_pair pair,
                                       sxml_ordering *ordering) {
@@ -2222,7 +2220,10 @@ static sxml_status compare_key_values(const sxml_sort_state *state, key_value_pa
             return SXML_STATUS_OK;
         }
         status = compare_key_items(
-            state, (sxml_item_pair){.first = first_step.item, .second = second_step.item},
+            state,
+            (key_item_pair){
+                .items = {.first = first_step.item, .second = second_step.item},
+                .collation = pair.collation},
             ordering);
         if (status != SXML_STATUS_OK || *ordering != SXML_ORDERING_EQUAL) {
             return status;
@@ -2245,7 +2246,8 @@ static sxml_status compare_key_rows(void *state, sxml_index_pair pair,
                 .first =
                     sort->key_values[pair.first_index * definition_count + definition_index],
                 .second =
-                    sort->key_values[pair.second_index * definition_count + definition_index]},
+                    sort->key_values[pair.second_index * definition_count + definition_index],
+                .collation = &sort->key_definitions[definition_index].collation},
             ordering);
         if (status != SXML_STATUS_OK) {
             return status;

@@ -5,6 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "collation_internal.h"
 #include "function_library_internal.h"
 #include "sxml/memory.h"
 #include "sxml/status.h"
@@ -181,6 +182,8 @@ typedef struct sxml_sort_key_definition {
     bool has_key_function;
     sxml_item key_function;
     bool is_descending;
+    /* The collation key strings compare under (D116). */
+    sxml_collation collation;
 } sxml_sort_key_definition;
 
 typedef struct sxml_sort_state {
@@ -231,8 +234,6 @@ typedef enum sxml_higher_order_error {
     SXML_HIGHER_ORDER_ERROR_ARRAY_INDEX_OUT_OF_BOUNDS,
     /* FOAY0002: a negative array length. */
     SXML_HIGHER_ORDER_ERROR_NEGATIVE_ARRAY_LENGTH,
-    /* FOCH0002: a collation other than the codepoint collation. */
-    SXML_HIGHER_ORDER_ERROR_UNSUPPORTED_COLLATION,
     /* FOJS0003: a duplicate key under "reject". */
     SXML_HIGHER_ORDER_ERROR_DUPLICATE_KEY,
     /* FOJS0005: an option with an invalid value. */
@@ -244,14 +245,6 @@ typedef enum sxml_higher_order_error {
 /* Fills error_record (may be NULL) with error and returns its status. */
 SXML_NODISCARD sxml_status sxml_higher_order_report_error(
     sxml_error_record *error_record, sxml_higher_order_error error);
-
-/*
- * Checks a collation argument (F&O 4.0, 5.2.7): the empty sequence and the
- * Unicode codepoint collation URI are accepted (Phase 1 knows no other,
- * glossary `collation`); anything else is FOCH0002.
- */
-SXML_NODISCARD sxml_status sxml_higher_order_check_collation(
-    sxml_sequence collation, sxml_error_record *error_record);
 
 /* Appends sequence (owned: taken over, also on failure) to list, growing
    it through allocator. */

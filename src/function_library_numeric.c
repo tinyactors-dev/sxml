@@ -625,6 +625,8 @@ typedef struct extreme_search {
     sxml_item first_nan;
     bool has_nan;
     bool has_incompatible_items;
+    /* The collation strings compare under (D116). */
+    sxml_collation collation;
 } extreme_search;
 
 /* Takes candidate (owned) into the search. */
@@ -652,13 +654,15 @@ static sxml_status consider(const sxml_function_call *call, extreme_search *sear
                                                              &implicit_timezone);
     }
     if (status == SXML_STATUS_OK) {
-        status = sxml_atomic_item_compare_in_heap(
+        status = sxml_function_library_compare_collated(
             call->item_heap,
-            &(sxml_atomic_comparison){.first = candidate,
-                                      .second = search->best,
-                                      .implicit_timezone_offset_minutes = implicit_timezone,
-                                      .error_record = NULL,
-                                      .name_pool = sxml_item_heap_get_name_pool(call->item_heap)},
+            &(sxml_collated_comparison){
+                .collation = &search->collation,
+                .comparison = {.first = candidate,
+                               .second = search->best,
+                               .implicit_timezone_offset_minutes = implicit_timezone,
+                               .error_record = NULL,
+                               .name_pool = sxml_item_heap_get_name_pool(call->item_heap)}},
             &ordering);
     }
     if (status == SXML_STATUS_TYPE_ERROR) {
@@ -679,13 +683,15 @@ static sxml_status consider(const sxml_function_call *call, extreme_search *sear
 
 /* fn:max and fn:min (F&O 4.0, sections 14.4.3 and 14.4.4): the item
    itself, without numeric promotion, ordered by fn:compare (so durations
-   and QNames order too, PR2256). Items are taken in order: xs:untypedAtomic
+   and QNames order too, PR2256), strings under the collation (D116,
+   through the one resolver). Items are taken in order: xs:untypedAtomic
    is cast to xs:double (FORG0001), a NaN ends the search and is the result,
    and two items fn:compare does not order are FORG0006 (QT4
    K-SeqMAXFunc-21a, -22, -23a, -24). */
 static sxml_status call_extreme(const sxml_function_call *call, extreme_kind kind,
                                 sxml_sequence *result) {
-    sxml_status status = sxml_function_library_check_collation(call, 1);
+    sxml_collation collation;
+    sxml_status status = sxml_function_library_resolve_collation(call, 1, &collation);
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -694,7 +700,8 @@ static sxml_status call_extreme(const sxml_function_call *call, extreme_kind kin
                              .has_best = false,
                              .first_nan = {.representation = 0},
                              .has_nan = false,
-                             .has_incompatible_items = false};
+                             .has_incompatible_items = false,
+                             .collation = collation};
     sxml_sequence_iterator iterator =
         sxml_sequence_iterator_start(sxml_function_library_get_argument(call, 0));
     for (;;) {
