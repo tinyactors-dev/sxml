@@ -325,6 +325,9 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `loaded_document` | A document fn:doc loaded during one evaluation, kept so the same URI gives the same node |
 | `evaluator_task` | One entry of the evaluator's task stack: an expression, call or native step being evaluated, with the state that resumes it when a nested value arrives (D71, D75) |
 | `task_stack` | The evaluator's explicit stack of evaluator tasks, in allocator memory, which replaces recursion on the C stack |
+| `evaluator_part` | One `src/evaluator_<part>.c` file defining `sxml_evaluator_part_<part>`: the IR expression kinds it evaluates and their step functions (D101) |
+| `part_task` | An evaluator task whose step function an evaluator part supplies, with state the part owns (D101) |
+| `catching_task` | An evaluator task marked to receive the dynamic or type errors raised above it: the machine unwinds to it instead of ending the evaluation (`try`/`catch`, D101) |
 | `tail_call` | A call whose value is the value of the function making it; the evaluator reuses that function's frame |
 | `native_step` | One run of a resumable native body: it finishes with a value, or asks the evaluator to call a function item and to run the next step with the result |
 | `resumable_native_body` | A native function body written as native steps, so a higher-order function never re-enters the evaluator on the C stack |
@@ -388,6 +391,8 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `step_count` | Instructions a regex matcher has run in one search; `maximum_step_count` bounds it for untrusted regexes |
 | `group_frame` | The regex compiler's record of a group whose ")" has not been read (and of the whole regex), kept on an explicit stack instead of recursing (D71) |
 | `library_part` | The native functions of one `src/function_library_<part>.c` file: one `sxml_native_function_view`, named in a function library's configuration |
+| `part_registry` | The list of library parts or evaluator parts that CMake generates from the glob of their files, so a new part needs no edit elsewhere (D101) |
+| `language_set` | The languages (XPath, XQuery, XSLT) a library part serves; a part without one serves all three (D101) |
 | `collation` | Rules for comparing strings, named by a URI; Phase 1 knows only the Unicode codepoint collation (F&O 4.0, section 5.3) |
 | `case_mapping` | The Unicode full case mapping of `fn:upper-case` and `fn:lower-case`: one codepoint to one or more (F&O 4.0, section 5.4) |
 | `deep_equality` | `fn:deep-equal` of two sequences: items compared pairwise, into nodes, maps and arrays (F&O 4.0, section 14.2.4) |
