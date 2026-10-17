@@ -61,6 +61,11 @@ json-node-output-method, allow-duplicate-names, escape-solidus, canonical,
 use-character-maps); parameters from an `output:serialization-parameters`
 element or a map (SEPM0017, SEPM0019). Done when the header check, lints
 and rubric pass and 3.3, 3.12 and the driver can be written against them.
+**Done** 2026-10-17 (D106): `xquery.h` (`sxml_xquery_query`, evaluation
+request, `sxml_xquery_query_get_serialization_parameters`); `serialize.h`
+with every parameter, `sxml_serialization_flag`, encodings, character
+maps and `sxml_serialization_parameter_reader`. Follow-up for 3.3:
+non-adaptive methods should return UNSUPPORTED_FEATURE until implemented.
 
 ### 3.1 Query AST and parser seam (design) — Early
 After 2.1. Owns `src/xpath_ast_internal.h`, `src/xpath_ast.c`,
