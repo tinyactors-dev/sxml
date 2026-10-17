@@ -518,6 +518,12 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `xquery_query` | An XQuery main module compiled for one processor, with the library modules it imports, evaluated any number of times |
 | `main_module` | An XQuery module with a query body, the one a host compiles (XQuery 4.0, section 5) |
 | `library_module` | An XQuery module that starts with a module declaration and is reached by `import module` |
+| `prolog` | The declarations of an XQuery module before its query body: setters, namespace declarations, imports, variables, functions, types, options (XQuery 4.0, section 5) |
+| `declared_function` | A function declared in a prolog; one IR function of the unit per arity of its arity range |
+| `arity_range` | The arities a function definition accepts: from its required parameters up to all its parameters (XQuery 4.0, 5.18) |
+| `initial_context_value` | The context value of the query body and of every variable initializer: a context value declaration's value, else the host's (XQuery 4.0, 5.17) |
+| `context_global` | The global variable of a unit with name 0 that holds the initial context value |
+| `computation_order` | The order in which the global part computes declared variables: by the index of their initializer functions, which lowering adds dependencies first |
 | `output_stream` | Interface that receives bytes, written in order |
 | `output_buffer` | The built-in output stream: collects bytes in memory |
 | `well_known_namespace` | A namespace with a fixed `namespace_uri_identifier` in every name pool (`SXML_NAMESPACE_XML_SCHEMA`) |
