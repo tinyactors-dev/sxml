@@ -4096,6 +4096,60 @@ Recorded 2026-10-17, completing D10 and D47. Node 22.22, WASI SDK 34.
   without a major (before 1.0.0, minor) version and a record. Tagging
   and publishing to npm are the owner's.
 
+### D139. The stylesheet reader and static expressions (packet 4.5)
+Recorded 2026-10-17, after D81, D102, D118, D120. `src/xslt_ast.c` (the
+builder of D102), `src/xslt_read.c` with `src/xslt_read_internal.h`
+(`sxml_xslt_read_stylesheet`), `src/xslt_static.c` with
+`src/xslt_static_internal.h` (the static scope); the packet named no
+headers, so each module has its own.
+- **Walk**: each module is parsed by the XML parser into an arena tree
+  with locations; one explicit stack of open elements (D71) holds the
+  elements of every module being read, so an include or import pushes the
+  new module's document frame and is read in place (D102's pre-order).
+  Text runs are collected between elements (comments, PIs, xsl:note
+  dropped, 3.11.1) and stripped by 3.11.1's rules.
+- **Tables**: one row per XSLT element, generated from the 4.0 schema
+  (attributes and their types, D102) and the element syntax summaries of
+  the spec (required attributes, category, content model); one row per
+  attribute (value syntax, keyword mask). Where the two disagree the
+  schema wins (record-type has no constructor, field has default).
+- **Static expressions** (9.7) run through the one front end, lowering
+  and evaluator (sxml_xpath_lower, sxml_evaluator_evaluate) with a static
+  scope: the static variables so far (later hides earlier) and a function
+  table that puts system-property, available-system-properties,
+  function-available, element-available and type-available (native rows
+  of a small function library) in front of the processor's. 4.10 may
+  move these rows to a library part for non-static XSLT expressions.
+  Shadow attributes are value templates evaluated to a string (the AST is
+  that of a string template, D120); the shadow's static context is the
+  element's native or fixed namespaces with the parent's default element
+  namespace and base URI. Values of static variables are coerced by
+  binding them to a declared variable (XTTE0570, XTTE0590 for supplied
+  parameters); a required static parameter without value is XTDE0050.
+- **Modules** (3.10): hrefs are resolved against the element's static base
+  URI and asked from the resolver as XSLT_MODULE; unavailable or not
+  well-formed is XTSE0165. A reference to a module whose URI is on the path
+  being read is ignored when every step of that path and the reference is
+  an include (an include cycle, 4.0), else XTSE0210; an include of a URI
+  already in the stylesheet level is ignored (included_module 0).
+- **Node contents** (TEXT_NODE value templates, xsl:select) name their
+  expression before it exists: the AST numbers expressions in order, so
+  the reader gives the next index and hands the AST over after the node.
+  `sxml_xslt_ast_add_node` marks a module simplified when its first node is
+  a synthesized STYLESHEET (the header has no other writer for the flag).
+- **Checks while reading**: XTSE0010 (placement, order, required
+  attributes and children), XTSE0090, XTSE0805, XTSE0020 (values), XTSE0110,
+  XTSE0120, XTSE0125, XTSE0130, XTSE0260, XTSE0280, XTSE0340/0350/0370 and
+  XPST0003 from the front ends, XTSE0500, XTSE0530, XTSE0740, XTSE0808,
+  XTSE0812, XTSE1430, XTSE0122 (fixed-namespaces by URI is not read),
+  XTSE1660 (import-schema, strict/lax validation, schema types; D97).
+  Errors keep their code and point at the attribute or element (module
+  URI, line, column; an expression's own offset added on its first line).
+- Left to lowering: duplicate declarations, XTSE3450 between static
+  variables, the arity and ordering rules beyond leading children, the
+  values static variables give non-static expressions (the AST does not
+  keep them: lowering re-evaluates their select with the same scope).
+
 ## Proposed
 
 - **The item axis in the evaluator** (packet 2.5, D113; for the owner of
