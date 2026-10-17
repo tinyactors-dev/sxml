@@ -3056,6 +3056,66 @@ Recorded 2026-10-17. Completes D97's collations in `src/collation.c`
   nothing; debug writes nothing; options are coerced (a node or
   xs:untypedAtomic for a boolean).
 
+### D117. The XSLT 4.0 test driver (packet 4.1)
+Recorded 2026-10-17. `tests/xslt/driver/`, the developer tool
+`sxml-xslt-test`, public API only.
+- **A sibling, not a mode of sxml-qt4**: the XSLT catalog has its own
+  namespace, schema and semantics (dependencies as elements in
+  `<dependencies>`, stylesheets, invocations, `assert` over the result
+  document), so its catalog, applicability and commands are new modules;
+  it links `sxml_qt4_driver_library` for documents (a document loaded by
+  `sxml_qt4_document_load` with its catalog namespace switched to
+  `http://www.w3.org/2012/10/xslt-test-catalog`), the QT4 environment
+  reader (sources, params, resources, collections, collations, schemas),
+  suite paths, test lists, reasons and the run report (spec "XSLT40").
+- **Reading**: a ref looks in the test set, then catalog.xml; every
+  `<dependencies>` child is a dependency whose type is its local name.
+  Names (params, initial template, mode, function) are xs:QNames: a
+  prefix bound by the element, Q{uri}local as an EQName, an unprefixed
+  name in no namespace, `#default`/`#unnamed` kept as keywords.
+  initial-function gives CALL_FUNCTION, else initial-template
+  CALL_TEMPLATE (one case also names a mode: ignored, listed), else
+  APPLY_TEMPLATES. `<output>` of `<test>`, else of the environment.
+- **Applicability**: spec tokens `XSLTnn` / `XSLTnn+` (case replaces set;
+  no spec = every version, as D83); other dependencies match their whole
+  value against a table (`xslt_applicability.c`): features
+  higher_order_functions, namespace_axis, serialization,
+  built_in_derived_types, HTML5, XPath_3.1 (XSLT 3.0's optional 3.1
+  support), streaming-fallback; English numbering, AD/ISO calendars,
+  every year_component_values phrase, the normalization forms, UTF-8,
+  HTML 5, on-multiple-match recover, package_version_resolution
+  highest_version (until 4.16 decides), enable_assertions, codepoint
+  collation, any maximum_number_of_decimal_digits. Not: dynamic_evaluation,
+  disabling_output_escaping, numbering combinations, the non-goals. Then
+  the environment (source validation, XInclude, XML 1.1 sources, schemas,
+  unknown collations) and posture-and-sweep tests. Scope (D95): spec
+  matches, group (directory under tests/) not strm or sandp, no required
+  non-goal feature. Measured: 13,867 cases resolve, 8,387 applicable,
+  8,728 in scope (D95: about 8,700).
+- **Plan** (`xslt_test_run.h`): principal module = first non-secondary
+  module of `<test>`, else of the environment, else the
+  defines-stylesheet source (16 cases); a package is RESOLVED_PACKAGE,
+  a stylesheet TEXT with base URI file:///SUITE-PATH; other modules are
+  served by the resolver; static params go to the stylesheet
+  configuration, others are stylesheet parameters; role "." is the
+  global context item; delivery SERIALIZED (serialize="yes"), RAW
+  (tree="no"), TREE (tree="yes"), else DEFAULT; base output URI from
+  output file=, else file:///TEST-SET-DIRECTORY/output/TEST-CASE/;
+  result documents to `sxml_xslt_result_document_collector`, messages to
+  the trace sink. Assertion semantics for the checks are in
+  `xslt_assertion.h` (`assert` with the result document as context item,
+  $RESULT-VAR bound for raw results).
+- **Run**: not applicable is not-run "skip: ..."; assert-warning or
+  assert-posture-and-sweep anywhere is not-run "unsupported: KIND"; an
+  unknown or malformed assertion or no principal module is an error; all
+  else is not-run "XSLT not implemented" until 4.15 implements xslt.h.
+  4.15 (or a follow-up) adds the execution: a processor per case with the
+  QT4 limits, the plan applied, the assertions checked.
+- **Slice**: `tests/xslt/slice.txt`, 154 in-scope applicable cases spread
+  over the twelve core sets of the Phase 4 gate; ctest `xslt/slice`
+  against `tests/xslt/slice-baseline.txt` (0 until XSLT runs);
+  `xslt/list_slice` keeps them resolving.
+
 ## Proposed
 
 - **IR adders for catch clauses and name tests** (packet 3.6, D109; for
@@ -3138,3 +3198,12 @@ Recorded 2026-10-17. Completes D97's collations in `src/collation.c`
   const sxml_ir_function *)`, walking both bodies on an explicit stack
   (kinds, atoms, constants, slots, types); deep-equal calls it when both
   bodies are IR functions and then compares the captured values as now.
+
+- **Report name and areas for the XSLT driver** (packet 4.1, D117; for
+  the owner of `tests/qt4/driver/report.c`): the JSON report says
+  `"report": "sxml-qt4 run"` and sums QT4 areas (fn, op, ...), so
+  `sxml-xslt-test run --format=json` reports area "other" for most sets.
+  Proposed (additive): `program_name` in `sxml_qt4_report_configuration`
+  (empty = "sxml-qt4") and an optional area function there, so the XSLT
+  driver can report its test-set groups (attr, decl, expr, fn, insn,
+  misc, type) for the 4.17 dashboard.
