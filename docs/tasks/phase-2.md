@@ -374,6 +374,11 @@ After 2.17. Each sweep takes the five worst XP40 sets of
 `docs/CONFORMANCE.md`, claims their files in `docs/LOG.md` before starting
 (never a file a running packet owns) and stops after one session. Run as
 many as the files allow until the gate numbers hold.
+**Sweep 1 done** 2026-10-17 (D143): XP40 30,389 to 30,628 passed, errors
+187 to 2, in scope 96.3 % to 97.0 %, every area above 98 %. Open for the
+next sweep: the two LIMIT_EXCEEDED regex cases (counted repetition),
+fn:function-lookup of focus-dependent functions, casts to array, map and
+record types (D143, "Not done").
 
 ### 2.20 Phase 2 review (review)
 After everything. Owns the gate boxes. A separate agent (D11) runs the

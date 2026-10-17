@@ -4,6 +4,19 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 2.19 sweep 1 done (D143): computed constructors lowered in XPath 4.0
+  (the construct part serves every language, 136 "error" outcomes gone);
+  the JSON fallback option (parse-json, json-to-xml, json-doc as resumable
+  bodies; json-doc's row moved to the json part); generate-id of JNodes;
+  0.0 eq 0e0; a descending integer range (additive to xdm.h, D99) so
+  reverse(1 to 10^11) is O(1); deep-equal of IR functions by static form
+  (the text printer with nested definitions inlined); named focus
+  closures (fn:last#0 has a name); math:sin/cos/tan $radians; QT4 driver:
+  result as the assertions' context value, malformed uri-only sources
+  unavailable. XP40 (release) 30,389 to 30,628 passed (+239, none lost),
+  errors 187 to 2 (cbcl-matches-004/-038, regex expansion limit), in
+  scope 96.3 % to 97.0 %; prod 96.6 to 98.1 %, fn 98.3 to 98.9 %; slice
+  198/198. docs/CONFORMANCE.md regenerated.
 - 3.10 done (D135): prologs. `src/xquery_static.c` reads the prolog into
   one XPath static context (namespaces, `local`/`output`/`xq`, default
   namespaces with a function namespace rule, setters, base URI, default
