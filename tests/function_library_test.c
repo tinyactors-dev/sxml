@@ -947,8 +947,23 @@ static void test_random_number_generator(sxml_test_state *state) {
         {"let $r := random-number-generator(1) return deep-equal($r?take(3), ($r?number, "
          "$r?next()?number, $r?next()?next()?number))",
          "true"},
-        {"count(random-number-generator()?take(100)), count(random-number-generator()?take(-1))",
+        {"count(random-number-generator()?take(100)), count(random-number-generator()?take(0))",
          "100 0"},
+        /* F&O 4.0, section 4.11.1: take's $count is xs:nonNegativeInteger
+           (QT4 fn-random-number-generator-56, -57). */
+        {"random-number-generator()?take(-1)", "!XPTY0004"},
+        {"random-number-generator()?take(())", "!XPTY0004"},
+        /* The built-in record types (D126). */
+        {"random-number-generator(1) instance of fn:random-number-generator-record, "
+         "random-number-generator(1)?next instance of fn() as fn:random-number-generator-record",
+         "true true"},
+        {"divide-decimals(10, 3) instance of fn:division-record, "
+         "{'quotient': 3.0, 'remainder': 1.0} instance of fn:division-record",
+         "true false"},
+        {"let $r as fn:division-record := {'remainder': 1, 'quotient': 3} return "
+         "($r instance of fn:division-record, $r?quotient)",
+         "true 3"},
+        {"let $r as fn:division-record := {'quotient': 3} return $r", "!XPTY0004"},
     };
     expect_all(state, cases, SXML_TEST_COUNT(cases));
 }

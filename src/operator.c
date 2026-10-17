@@ -673,15 +673,18 @@ sxml_doubles_compute(sxml_item_heap *item_heap,
         outcome->double_number = left / right;
         return SXML_STATUS_OK;
     case SXML_ARITHMETIC_OPERATOR_INTEGER_DIVIDE:
-        /* F&O 4.0, op:numeric-integer-divide. */
-        if (isnan(left) || isnan(right) || isinf(left)) {
-            return sxml_error_record_report(
-                computation->error_record, &sxml_operator_integer_divide_error);
-        }
+        /* F&O 4.0, op:numeric-integer-divide: FOAR0001 for a zero
+           divisor, which the rules name first, so INF idiv 0 is FOAR0001
+           (QT4 op-numeric-integer-dividedouble2args-4); then FOAR0002 for
+           NaN or an infinite dividend. */
         if (right == 0.0) {
             return sxml_error_record_report(
                 computation->error_record,
                 &sxml_operator_division_by_zero_error);
+        }
+        if (isnan(left) || isnan(right) || isinf(left)) {
+            return sxml_error_record_report(
+                computation->error_record, &sxml_operator_integer_divide_error);
         }
         outcome->is_item = true;
         if (isinf(right)) {

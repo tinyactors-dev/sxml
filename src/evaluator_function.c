@@ -2098,8 +2098,10 @@ static sxml_status sxml_coercion_step_item(sxml_coercion_engine *engine,
     }
     case SXML_TYPE_VARIETY_RECORD: {
         const sxml_record_type *record_type = &description.variety_details.record_type;
+        /* A nominative record type takes the same rule, the new record
+           annotated with it (section 3.4.2; F&O 4.0, appendix C: a map
+           is coerced to a built-in record type). */
         if (kind != SXML_ITEM_KIND_MAP || record_type->is_any_record ||
-            record_type->is_nominative ||
             sxml_item_get_type_annotation(item).index == type.index) {
             break;
         }

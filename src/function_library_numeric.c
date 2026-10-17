@@ -741,11 +741,12 @@ static sxml_status call_min(const sxml_function_call *call, sxml_sequence *resul
 /* ------------------------------------------------- Random numbers */
 
 /*
- * fn:random-number-generator (F&O 4.0, section 4.7.4): a map with
+ * fn:random-number-generator (F&O 4.0, section 4.11.2): a record with
  * "number" (an xs:double in [0, 1)), "next" (a function giving the next
  * generator), "permute" (a function giving a random permutation of a
- * sequence) and "take" (a function giving the next $count numbers). The
- * map is not annotated with the named record type of F&O 4.0. The generator is SplitMix64 (Steele, Lea and Flood, 2014):
+ * sequence) and "take" (a function giving the next $count numbers), in
+ * an fn:random-number-generator-record (D126). The generator is
+ * SplitMix64 (Steele, Lea and Flood, 2014):
  * its 64-bit state is kept as the captured xs:integer of the two function
  * items, so equal seeds give equal results within one heap.
  */
@@ -894,7 +895,7 @@ static sxml_status call_random_take(const sxml_function_call *call,
 }
 
 static const sxml_function_parameter take_parameters[] = {
-    SXML_REQUIRED_PARAMETER("count", "xs:integer")};
+    SXML_REQUIRED_PARAMETER("count", "xs:nonNegativeInteger")};
 
 static const sxml_native_function random_take_row = {
     .function_namespace = SXML_NAMESPACE_FUNCTIONS,
@@ -910,7 +911,7 @@ static const sxml_native_function random_next_row = {
     .properties = 0,
     .local_name = SXML_BYTE_VIEW_INITIALIZER("random-number-generator-next"),
     .parameters = {NULL, 0},
-    .result_type = SXML_BYTE_VIEW_INITIALIZER("map(xs:string, item())"),
+    .result_type = SXML_BYTE_VIEW_INITIALIZER("fn:random-number-generator-record"),
     .call = call_random_next,
     .resumable_body = NULL};
 
@@ -930,32 +931,19 @@ static const sxml_native_function random_permute_row = {
 typedef struct generator_function_request {
     const sxml_native_function *row;
     uint64_t state;
-    sxml_sequence_type_view parameter_types;
-    sxml_sequence_type result_type;
+    sxml_type_identifier signature;
 } generator_function_request;
 
 static sxml_status make_generator_function(const sxml_function_call *call,
                                            const generator_function_request *request,
                                            sxml_item *item) {
-    sxml_type_identifier signature = {.index = SXML_TYPE_NONE};
-    sxml_status status = sxml_type_registry_register_item_type(
-        sxml_item_heap_get_type_registry(call->item_heap),
-        &(sxml_type_description){
-            .variety = SXML_TYPE_VARIETY_FUNCTION,
-            .variety_details = {.function_type = {.is_any_function = false,
-                                                  .parameter_types = request->parameter_types,
-                                                  .result_type = request->result_type}}},
-        &signature);
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
     const sxml_sequence captured =
         sxml_sequence_from_item(sxml_atomic_item_from_integer((int64_t)request->state));
     return sxml_function_item_make(
         call->item_heap,
         &(sxml_function_item_request){
             .function_name = {.index = 0},
-            .signature = signature,
+            .signature = request->signature,
             .function_annotations = {.function_annotations = NULL,
                                      .function_annotation_count = 0},
             .captured_values = {.sequences = &captured, .sequence_count = 1},
@@ -964,108 +952,67 @@ static sxml_status make_generator_function(const sxml_function_call *call,
         item);
 }
 
-static sxml_status make_key(const sxml_function_call *call, sxml_byte_view text,
-                            sxml_item *key) {
-    sxml_sequence string = sxml_sequence_empty();
-    sxml_status status = sxml_function_library_make_string(call->item_heap, text, &string);
-    if (status == SXML_STATUS_OK) {
-        *key = string.content;
-    }
-    return status;
-}
+/* The fields of fn:random-number-generator-record after "number", in
+   record order, and the rows of their function items. */
+static const sxml_native_function *const generator_function_rows[] = {
+    &random_next_row, &random_permute_row, &random_take_row};
 
+#define SXML_GENERATOR_FIELD_COUNT ((size_t)4)
+
+/* The fn:random-number-generator-record of state (F&O 4.0, section
+   4.11.1, D126): each function item's signature is the item type of its
+   field, so ?next gives fn() as fn:random-number-generator-record and
+   ?take checks xs:nonNegativeInteger. */
 static sxml_status make_generator(const sxml_function_call *call, uint64_t state,
                                   sxml_sequence *result) {
-    const sxml_sequence_type any_items = {
-        .item_type = sxml_builtin_type_identifier(SXML_TYPE_ITEM),
-        .occurrence = SXML_OCCURRENCE_ZERO_OR_MORE};
-    /* map(xs:string, item()): what "next" gives (QT4
-       fn-random-number-generator-35). */
-    sxml_type_identifier map_type = {.index = SXML_TYPE_NONE};
-    sxml_status type_status = sxml_type_registry_register_item_type(
-        sxml_item_heap_get_type_registry(call->item_heap),
-        &(sxml_type_description){
-            .variety = SXML_TYPE_VARIETY_MAP,
-            .variety_details = {.map_type = {.is_any_map = false,
-                                             .key_type = sxml_builtin_type_identifier(
-                                                 SXML_TYPE_XS_STRING),
-                                             .value_type = {.item_type = sxml_builtin_type_identifier(
-                                                                SXML_TYPE_ITEM),
-                                                            .occurrence =
-                                                                SXML_OCCURRENCE_EXACTLY_ONE}}}},
-        &map_type);
-    if (type_status != SXML_STATUS_OK) {
-        return type_status;
-    }
-    sxml_map_entry entries[4];
-    memset(entries, 0, sizeof(entries));
-    entries[0].value = sxml_sequence_from_item(sxml_atomic_item_from_double(random_number(state)));
-    sxml_status status = make_key(call, SXML_BYTE_VIEW_FROM_LITERAL("number"), &entries[0].key);
+    sxml_type_identifier record_type = {.index = SXML_TYPE_NONE};
+    sxml_status status = sxml_function_library_find_record_type(
+        call->item_heap, SXML_BYTE_VIEW_FROM_LITERAL("random-number-generator-record"),
+        &record_type);
+    sxml_type_description description = {.variety = SXML_TYPE_VARIETY_ANY_ITEM};
     if (status == SXML_STATUS_OK) {
-        status = make_key(call, SXML_BYTE_VIEW_FROM_LITERAL("next"), &entries[1].key);
+        status = sxml_type_registry_describe_type(
+            sxml_item_heap_get_type_registry(call->item_heap), record_type, &description);
     }
-    if (status == SXML_STATUS_OK) {
-        status = make_key(call, SXML_BYTE_VIEW_FROM_LITERAL("permute"), &entries[2].key);
+    const sxml_record_field_view fields = description.variety_details.record_type.record_fields;
+    if (status == SXML_STATUS_OK && (description.variety != SXML_TYPE_VARIETY_RECORD ||
+                                     fields.record_field_count != SXML_GENERATOR_FIELD_COUNT)) {
+        status = SXML_STATUS_INVALID_ARGUMENT;
     }
-    if (status == SXML_STATUS_OK) {
-        status = make_key(call, SXML_BYTE_VIEW_FROM_LITERAL("take"), &entries[3].key);
+    if (status != SXML_STATUS_OK) {
+        return status;
     }
-    sxml_item next_item = {.representation = 0};
-    if (status == SXML_STATUS_OK) {
+    sxml_sequence field_values[SXML_GENERATOR_FIELD_COUNT];
+    field_values[0] = sxml_sequence_from_item(sxml_atomic_item_from_double(random_number(state)));
+    size_t field_count = 1;
+    while (status == SXML_STATUS_OK && field_count < SXML_GENERATOR_FIELD_COUNT) {
+        sxml_item function_item = {.representation = 0};
         status = make_generator_function(
             call,
             &(generator_function_request){
-                .row = &random_next_row,
+                .row = generator_function_rows[field_count - 1],
                 .state = state,
-                .parameter_types = {.sequence_types = NULL, .sequence_type_count = 0},
-                .result_type = {.item_type = map_type, .occurrence = SXML_OCCURRENCE_EXACTLY_ONE}},
-            &next_item);
-        entries[1].value = sxml_sequence_from_item(next_item);
+                .signature = fields.record_fields[field_count].field_type.item_type},
+            &function_item);
+        if (status == SXML_STATUS_OK) {
+            field_values[field_count] = sxml_sequence_from_item(function_item);
+            field_count += 1;
+        }
     }
-    sxml_item permute_item = {.representation = 0};
+    sxml_item record = {.representation = 0};
     if (status == SXML_STATUS_OK) {
-        status = make_generator_function(
-            call,
-            &(generator_function_request){
-                .row = &random_permute_row,
-                .state = state,
-                .parameter_types = {.sequence_types = &any_items, .sequence_type_count = 1},
-                .result_type = any_items},
-            &permute_item);
-        entries[2].value = sxml_sequence_from_item(permute_item);
-    }
-    const sxml_sequence_type integer_type = {
-        .item_type = sxml_builtin_type_identifier(SXML_TYPE_XS_INTEGER),
-        .occurrence = SXML_OCCURRENCE_EXACTLY_ONE};
-    sxml_item take_item = {.representation = 0};
-    if (status == SXML_STATUS_OK) {
-        status = make_generator_function(
-            call,
-            &(generator_function_request){
-                .row = &random_take_row,
-                .state = state,
-                .parameter_types = {.sequence_types = &integer_type, .sequence_type_count = 1},
-                .result_type = {.item_type = sxml_builtin_type_identifier(SXML_TYPE_XS_DOUBLE),
-                                .occurrence = SXML_OCCURRENCE_ZERO_OR_MORE}},
-            &take_item);
-        entries[3].value = sxml_sequence_from_item(take_item);
-    }
-    sxml_item map = {.representation = 0};
-    if (status == SXML_STATUS_OK) {
-        status = sxml_map_make(
+        status = sxml_record_make(
             call->item_heap,
-            &(sxml_map_request){
-                .map_entries = {.map_entries = entries, .map_entry_count = 4},
-                .duplicate_key_policy = SXML_DUPLICATE_KEY_POLICY_REJECT,
-                .error_record = call->error_record},
-            &map);
+            &(sxml_record_request){.record_type = record_type,
+                                   .field_values = {.sequences = field_values,
+                                                    .sequence_count = field_count}},
+            &record);
     }
-    for (size_t entry_index = 0; entry_index < 4; entry_index += 1) {
-        sxml_item_release(entries[entry_index].key);
-        sxml_sequence_release(entries[entry_index].value);
+    for (size_t field_index = 0; field_index < field_count; field_index += 1) {
+        sxml_sequence_release(field_values[field_index]);
     }
     if (status == SXML_STATUS_OK) {
-        *result = sxml_sequence_from_item(map);
+        *result = sxml_sequence_from_item(record);
     }
     return status;
 }
@@ -1131,13 +1078,12 @@ static sxml_status read_decimal_argument(const sxml_function_call *call,
                         argument.item, decimal);
 }
 
-/* Makes the record { "quotient": ..., "remainder": ... }, taking both
-   decimals of division in every case. */
+/* Makes the fn:division-record { "quotient": ..., "remainder": ... }
+   (F&O 4.0, section 4.3.2), taking both decimals of division in every
+   case. */
 static sxml_status make_division_record(const sxml_function_call *call,
                                         sxml_decimal_division *division,
                                         sxml_sequence *result) {
-    sxml_map_entry entries[2];
-    memset(entries, 0, sizeof(entries));
     sxml_item quotient = {.representation = 0};
     sxml_status status = sxml_atomic_item_make_taking_decimal(
         call->item_heap,
@@ -1161,37 +1107,23 @@ static sxml_status make_division_record(const sxml_function_call *call,
             status = remainder_status;
         }
     }
-    entries[0].value = sxml_sequence_from_item(quotient);
-    entries[1].value = sxml_sequence_from_item(remainder);
+    const sxml_sequence field_values[2] = {sxml_sequence_from_item(quotient),
+                                           sxml_sequence_from_item(remainder)};
     if (status == SXML_STATUS_OK) {
-        status = make_key(call, SXML_BYTE_VIEW_FROM_LITERAL("quotient"), &entries[0].key);
+        status = sxml_function_library_make_record(
+            call,
+            &(sxml_builtin_record_request){
+                .local_name = SXML_BYTE_VIEW_FROM_LITERAL("division-record"),
+                .field_values = {.sequences = field_values, .sequence_count = 2}},
+            result);
     }
-    if (status == SXML_STATUS_OK) {
-        status = make_key(call, SXML_BYTE_VIEW_FROM_LITERAL("remainder"), &entries[1].key);
-    }
-    sxml_item map = {.representation = 0};
-    if (status == SXML_STATUS_OK) {
-        status = sxml_map_make(
-            call->item_heap,
-            &(sxml_map_request){
-                .map_entries = {.map_entries = entries, .map_entry_count = 2},
-                .duplicate_key_policy = SXML_DUPLICATE_KEY_POLICY_REJECT,
-                .error_record = call->error_record},
-            &map);
-    }
-    for (size_t entry_index = 0; entry_index < 2; entry_index += 1) {
-        sxml_item_release(entries[entry_index].key);
-        sxml_sequence_release(entries[entry_index].value);
-    }
-    if (status == SXML_STATUS_OK) {
-        *result = sxml_sequence_from_item(map);
-    }
+    sxml_sequence_release(field_values[0]);
+    sxml_sequence_release(field_values[1]);
     return status;
 }
 
 /* fn:divide-decimals($value, $divisor, $precision := 0) (F&O 4.0, section
-   4.3.1). The result is a map with the fields of fn:division-record; no
-   static context knows that named record type yet (D125). */
+   4.3.1). The result is an fn:division-record (D126). */
 static sxml_status call_divide_decimals(const sxml_function_call *call,
                                         sxml_sequence *result) {
     int64_t precision = 0;
@@ -1272,14 +1204,15 @@ static const sxml_native_function numeric_functions[] = {
                       0, call_round_half_to_even),
     SXML_FUNCTION_ROW("number", number_parameters, "xs:double", 0, call_number),
     SXML_FUNCTION_ROW("divide-decimals", divide_decimals_parameters,
-                      "record(quotient as xs:decimal, remainder as xs:decimal)", 0,
+                      "fn:division-record", 0,
                       call_divide_decimals),
     SXML_FUNCTION_ROW("is-NaN", is_nan_parameters, "xs:boolean", 0, call_is_nan),
     SXML_FUNCTION_ROW("sum", sum_parameters, "xs:anyAtomicType?", 0, call_sum),
     SXML_FUNCTION_ROW("avg", avg_parameters, "xs:anyAtomicType?", 0, call_avg),
     SXML_FUNCTION_ROW("max", extreme_parameters, "xs:anyAtomicType?", 0, call_max),
     SXML_FUNCTION_ROW("min", extreme_parameters, "xs:anyAtomicType?", 0, call_min),
-    SXML_FUNCTION_ROW("random-number-generator", random_parameters, "map(xs:string, item())",
+    SXML_FUNCTION_ROW("random-number-generator", random_parameters,
+                      "fn:random-number-generator-record",
                       SXML_NATIVE_FUNCTION_IS_NONDETERMINISTIC |
                           SXML_NATIVE_FUNCTION_USES_DYNAMIC_CONTEXT,
                       call_random_number_generator),

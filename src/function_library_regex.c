@@ -823,25 +823,6 @@ static sxml_status entry_list_finish(const sxml_function_call *call, entry_list 
     return status;
 }
 
-/* Adds the entry key: value, with key a string made of key_text. */
-typedef struct named_entry {
-    const char *key_text;
-    sxml_sequence value;
-} named_entry;
-
-static sxml_status add_named_entry(const sxml_function_call *call, entry_list *list,
-                                   named_entry entry) {
-    sxml_sequence key = sxml_sequence_empty();
-    const sxml_status status = sxml_function_library_make_string(
-        call->item_heap, sxml_byte_view_from_c_string(entry.key_text), &key);
-    if (status != SXML_STATUS_OK) {
-        sxml_sequence_release(entry.value);
-        return status;
-    }
-    entry_list_add(list, (sxml_map_entry){.key = key.content, .value = entry.value});
-    return SXML_STATUS_OK;
-}
-
 /* ------------------------------------------------- fn:replace, the body */
 
 /*
@@ -1183,48 +1164,55 @@ typedef struct match_group {
     sxml_regex_captured_group group;
 } match_group;
 
-/* The record of a captured group (F&O 4.0, section 6.3.7,
-   fn:captured-group-record): value, position, nr and name. */
+/* Makes the built-in record local_name of field_values (D126) when
+   making the values succeeded (making_status), and releases the values. */
+typedef struct record_values {
+    const char *local_name;
+    sxml_sequence *field_values;
+    size_t field_count;
+    sxml_status making_status;
+} record_values;
+
+static sxml_status finish_record(const sxml_function_call *call, record_values values,
+                                 sxml_sequence *record) {
+    sxml_status status = values.making_status;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_function_library_make_record(
+            call,
+            &(sxml_builtin_record_request){
+                .local_name = sxml_byte_view_from_c_string(values.local_name),
+                .field_values = {.sequences = values.field_values,
+                                 .sequence_count = values.field_count}},
+            record);
+    }
+    for (size_t field_index = 0; field_index < values.field_count; field_index += 1) {
+        sxml_sequence_release(values.field_values[field_index]);
+    }
+    return status;
+}
+
+/* The fn:captured-group-record of a captured group (F&O 4.0, section
+   6.3.7): value, position, nr and name. */
 static sxml_status make_group_record(const sxml_function_call *call, match_group request,
                                      sxml_sequence *record) {
     const current_match *match = request.match;
-    const uint32_t group_number = request.group_number;
     const sxml_regex_captured_group group = request.group;
-    entry_list entries;
-    sxml_status status = entry_list_reserve(call, 4, &entries);
-    sxml_sequence value = sxml_sequence_empty();
-    if (status == SXML_STATUS_OK) {
-        status = string_sequence(call, slice_of(match->value.utf8, group.byte_range), &value);
-    }
-    if (status == SXML_STATUS_OK) {
-        status = add_named_entry(call, &entries, (named_entry){.key_text = "value", .value = value});
-    }
-    if (status == SXML_STATUS_OK) {
-        status = add_named_entry(
-            call, &entries,
-            (named_entry){.key_text = "position",
-                          .value = integer_sequence(position_at(match->value, match->cursor,
-                                                                group.byte_range.byte_offset))});
-    }
-    if (status == SXML_STATUS_OK) {
-        status = add_named_entry(call, &entries,
-                                 (named_entry){.key_text = "nr",
-                                               .value = integer_sequence(group_number)});
-    }
-    const sxml_byte_view name = sxml_regex_group_name(match->pattern->regex, group_number);
-    sxml_sequence name_value = sxml_sequence_empty();
+    sxml_sequence field_values[4] = {
+        sxml_sequence_empty(),
+        integer_sequence(position_at(match->value, match->cursor, group.byte_range.byte_offset)),
+        integer_sequence(request.group_number), sxml_sequence_empty()};
+    sxml_status status =
+        string_sequence(call, slice_of(match->value.utf8, group.byte_range), &field_values[0]);
+    const sxml_byte_view name = sxml_regex_group_name(match->pattern->regex, request.group_number);
     if (status == SXML_STATUS_OK && name.byte_count != 0) {
-        status = string_sequence(call, name, &name_value);
+        status = string_sequence(call, name, &field_values[3]);
     }
-    if (status == SXML_STATUS_OK) {
-        status =
-            add_named_entry(call, &entries, (named_entry){.key_text = "name", .value = name_value});
-    }
-    if (status != SXML_STATUS_OK) {
-        entry_list_release(&entries);
-        return status;
-    }
-    return entry_list_finish(call, &entries, record);
+    return finish_record(call,
+                         (record_values){.local_name = "captured-group-record",
+                                         .field_values = field_values,
+                                         .field_count = 4,
+                                         .making_status = status},
+                         record);
 }
 
 /* The groups map of the current match (F&O 4.0, section 6.3.6): every
@@ -1267,39 +1255,24 @@ static sxml_status make_groups_map(const sxml_function_call *call, const current
     return entry_list_finish(call, &entries, groups);
 }
 
-/* The record of the current match (F&O 4.0, section 6.3.6,
-   fn:matching-segment-record): substring, position and groups. */
+/* The fn:matching-segment-record of the current match (F&O 4.0, section
+   6.3.6): substring, position and groups. */
 static sxml_status make_segment_record(const sxml_function_call *call, const current_match *match,
                                        sxml_sequence *record) {
-    const sxml_byte_range segment = match->segment;
-    entry_list entries;
-    sxml_status status = entry_list_reserve(call, 3, &entries);
-    sxml_sequence substring = sxml_sequence_empty();
+    sxml_sequence field_values[3] = {sxml_sequence_empty(),
+                                     integer_sequence(match->cursor.position),
+                                     sxml_sequence_empty()};
+    sxml_status status =
+        string_sequence(call, slice_of(match->value.utf8, match->segment), &field_values[0]);
     if (status == SXML_STATUS_OK) {
-        status = string_sequence(call, slice_of(match->value.utf8, segment), &substring);
+        status = make_groups_map(call, match, &field_values[2]);
     }
-    if (status == SXML_STATUS_OK) {
-        status = add_named_entry(call, &entries,
-                                 (named_entry){.key_text = "substring", .value = substring});
-    }
-    if (status == SXML_STATUS_OK) {
-        status = add_named_entry(call, &entries,
-                                 (named_entry){.key_text = "position",
-                                               .value = integer_sequence(match->cursor.position)});
-    }
-    sxml_sequence groups = sxml_sequence_empty();
-    if (status == SXML_STATUS_OK) {
-        status = make_groups_map(call, match, &groups);
-    }
-    if (status == SXML_STATUS_OK) {
-        status =
-            add_named_entry(call, &entries, (named_entry){.key_text = "groups", .value = groups});
-    }
-    if (status != SXML_STATUS_OK) {
-        entry_list_release(&entries);
-        return status;
-    }
-    return entry_list_finish(call, &entries, record);
+    return finish_record(call,
+                         (record_values){.local_name = "matching-segment-record",
+                                         .field_values = field_values,
+                                         .field_count = 3,
+                                         .making_status = status},
+                         record);
 }
 
 /* fn:matching-segments($value, $pattern, $flags := "") (F&O 4.0, section
@@ -1910,121 +1883,73 @@ static const sxml_native_function record_function_rows[] = {
      .properties = 0,
      .local_name = SXML_BYTE_VIEW_INITIALIZER("matching-segments"),
      .parameters = {NULL, 0},
-     .result_type = SXML_BYTE_VIEW_INITIALIZER("map(*)*"),
+     .result_type = SXML_BYTE_VIEW_INITIALIZER("fn:matching-segment-record*"),
      .call = call_record_matching_segments,
      .resumable_body = NULL},
 };
 
-/* What makes one function of the record: its row, the library function
-   whose signature it takes over (pattern and flags left out), and
-   whether it takes $replacement too. */
-typedef struct record_function {
-    const char *key_text;
-    const sxml_native_function *row;
-    size_t library_arity;
-    bool has_replacement;
-} record_function;
+/* The fields of fn:compiled-regex-record after pattern and flags are the
+   function items of record_function_rows, in that order. */
+#define SXML_REGEX_RECORD_FIELD_COUNT ((size_t)7)
+#define SXML_REGEX_RECORD_FUNCTION_COUNT                                    \
+    (sizeof(record_function_rows) / sizeof(record_function_rows[0]))
 
-static const record_function record_functions[] = {
-    {"matches", &record_function_rows[0], 3, false},
-    {"tokenize", &record_function_rows[1], 3, false},
-    {"replace", &record_function_rows[2], 4, true},
-    {"analyze-string", &record_function_rows[3], 3, false},
-    {"matching-segments", &record_function_rows[4], 3, false},
-};
-
-/* Finds fn:local_name#arity in the function table of the evaluation, the
-   one static analysis used, for its resolved types. */
-typedef struct library_query {
-    const char *local_name;
-    size_t arity;
-} library_query;
-
-static sxml_status find_library_function(const sxml_function_call *call, library_query query,
-                                         sxml_function_entry *entry) {
-    if (call->dynamic_context == NULL ||
-        call->dynamic_context->function_table.operations == NULL) {
-        return SXML_STATUS_INVALID_ARGUMENT;
-    }
-    sxml_name_identifier name = {.index = 0};
-    sxml_status status = sxml_name_pool_intern_name(
-        sxml_item_heap_get_name_pool(call->item_heap),
-        &(sxml_name_request){
-            .namespace_uri = sxml_well_known_namespace_identifier(SXML_NAMESPACE_FUNCTIONS),
-            .local_name = sxml_byte_view_from_c_string(query.local_name)},
-        &name);
-    if (status == SXML_STATUS_OK) {
-        status = sxml_function_table_find(
-            call->dynamic_context->function_table,
-            &(sxml_function_query){.function_name = name, .arity = query.arity}, entry);
-    }
-    if (status == SXML_STATUS_OK && (entry->entry_kind != SXML_FUNCTION_ENTRY_KIND_NATIVE ||
-                                     entry->parameter_types.sequence_type_count < 3)) {
-        status = SXML_STATUS_INVALID_ARGUMENT;
-    }
-    return status;
-}
-
-/* Makes the function item of one record field, capturing pattern and
-   flags (both owned by the caller). */
+/* Makes the function item over row, with signature, capturing pattern
+   and flags (both owned by the caller). */
 typedef struct record_function_request {
-    const record_function *function;
-    /* $s as xs:string: the $pattern parameter type of fn:matches. */
-    sxml_sequence_type string_type;
-    sxml_sequence captured[2];
+    const sxml_native_function *row;
+    sxml_type_identifier signature;
+    const sxml_sequence *captured;
 } record_function_request;
 
 static sxml_status make_record_function(const sxml_function_call *call,
                                         const record_function_request *request,
                                         sxml_sequence *function_item) {
-    const record_function *function = request->function;
-    sxml_function_entry entry = {.entry_kind = SXML_FUNCTION_ENTRY_KIND_NONE};
-    sxml_status status = find_library_function(
-        call,
-        (library_query){.local_name = function->key_text, .arity = function->library_arity},
-        &entry);
-    sxml_sequence_type parameter_types[2] = {request->string_type, request->string_type};
-    if (status == SXML_STATUS_OK && function->has_replacement) {
-        parameter_types[1] = entry.parameter_types.sequence_types[2];
-    }
-    sxml_type_identifier signature = {.index = 0};
-    if (status == SXML_STATUS_OK) {
-        status = sxml_type_registry_register_item_type(
-            sxml_item_heap_get_type_registry(call->item_heap),
-            &(sxml_type_description){
-                .variety = SXML_TYPE_VARIETY_FUNCTION,
-                .variety_details = {.function_type = {
-                                        .is_any_function = false,
-                                        .parameter_types = {.sequence_types = parameter_types,
-                                                            .sequence_type_count =
-                                                                function->has_replacement ? 2U
-                                                                                          : 1U},
-                                        .result_type = entry.result_type}}},
-            &signature);
-    }
     sxml_item item = {.representation = 0};
-    if (status == SXML_STATUS_OK) {
-        status = sxml_function_item_make(
-            call->item_heap,
-            &(sxml_function_item_request){
-                .function_name = {.index = 0},
-                .signature = signature,
-                .function_annotations = {.function_annotations = NULL,
-                                         .function_annotation_count = 0},
-                .captured_values = {.sequences = request->captured, .sequence_count = 2},
-                .body = {.state = (void *)function->row,
-                         .operations = &sxml_native_function_body_operations}},
-            &item);
-    }
+    const sxml_status status = sxml_function_item_make(
+        call->item_heap,
+        &(sxml_function_item_request){
+            .function_name = {.index = 0},
+            .signature = request->signature,
+            .function_annotations = {.function_annotations = NULL,
+                                     .function_annotation_count = 0},
+            .captured_values = {.sequences = request->captured, .sequence_count = 2},
+            .body = {.state = (void *)request->row,
+                     .operations = &sxml_native_function_body_operations}},
+        &item);
     if (status == SXML_STATUS_OK) {
         *function_item = sxml_sequence_from_item(item);
     }
     return status;
 }
 
+/* The fields of fn:compiled-regex-record (F&O 4.0, section 6.3.9). */
+static sxml_status describe_regex_record(const sxml_function_call *call,
+                                         sxml_record_field_view *fields) {
+    sxml_type_identifier record_type = {.index = SXML_TYPE_NONE};
+    sxml_status status = sxml_function_library_find_record_type(
+        call->item_heap, SXML_BYTE_VIEW_FROM_LITERAL("compiled-regex-record"), &record_type);
+    sxml_type_description description = {.variety = SXML_TYPE_VARIETY_ANY_ITEM};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_type_registry_describe_type(
+            sxml_item_heap_get_type_registry(call->item_heap), record_type, &description);
+    }
+    if (status == SXML_STATUS_OK &&
+        (description.variety != SXML_TYPE_VARIETY_RECORD ||
+         description.variety_details.record_type.record_fields.record_field_count !=
+             SXML_REGEX_RECORD_FIELD_COUNT)) {
+        status = SXML_STATUS_INVALID_ARGUMENT;
+    }
+    if (status == SXML_STATUS_OK) {
+        *fields = description.variety_details.record_type.record_fields;
+    }
+    return status;
+}
+
 /* fn:regex($pattern, $flags := "") (F&O 4.0, section 6.3.8): the
    fn:compiled-regex-record of the pattern and flags, after compiling them
-   once for their errors. */
+   once for their errors. Each function item's signature is the item type
+   of its field (D126). */
 static sxml_status call_regex(const sxml_function_call *call, sxml_sequence *result) {
     regex_source source;
     sxml_status status = sxml_function_library_read_string_argument(call, 0, &source.pattern_text);
@@ -2036,57 +1961,37 @@ static sxml_status call_regex(const sxml_function_call *call, sxml_sequence *res
         status = compile_pattern(call, source, &pattern);
     }
     release_pattern(&pattern);
-    sxml_function_entry matches_entry = {.entry_kind = SXML_FUNCTION_ENTRY_KIND_NONE};
+    sxml_record_field_view fields = {.record_fields = NULL, .record_field_count = 0};
     if (status == SXML_STATUS_OK) {
-        status = find_library_function(call, (library_query){.local_name = "matches", .arity = 3},
-                                       &matches_entry);
+        status = describe_regex_record(call, &fields);
     }
-    record_function_request request = {
-        .function = NULL,
-        .string_type = {.item_type = {.index = 0}},
-        .captured = {sxml_sequence_empty(), sxml_sequence_empty()}};
-    if (status == SXML_STATUS_OK) {
-        request.string_type = matches_entry.parameter_types.sequence_types[1];
-        status = string_sequence(call, source.pattern_text.utf8, &request.captured[0]);
+    sxml_sequence field_values[SXML_REGEX_RECORD_FIELD_COUNT];
+    for (size_t field_index = 0; field_index < SXML_REGEX_RECORD_FIELD_COUNT; field_index += 1) {
+        field_values[field_index] = sxml_sequence_empty();
     }
     if (status == SXML_STATUS_OK) {
-        status = string_sequence(call, source.flags_text.utf8, &request.captured[1]);
-    }
-    entry_list entries = {.map_entries = NULL};
-    if (status == SXML_STATUS_OK) {
-        status = entry_list_reserve(call, 7, &entries);
+        status = string_sequence(call, source.pattern_text.utf8, &field_values[0]);
     }
     if (status == SXML_STATUS_OK) {
-        sxml_sequence_retain(request.captured[0]);
-        status = add_named_entry(call, &entries,
-                                 (named_entry){.key_text = "pattern", .value = request.captured[0]});
-    }
-    if (status == SXML_STATUS_OK) {
-        sxml_sequence_retain(request.captured[1]);
-        status = add_named_entry(call, &entries,
-                                 (named_entry){.key_text = "flags", .value = request.captured[1]});
+        status = string_sequence(call, source.flags_text.utf8, &field_values[1]);
     }
     for (size_t function_index = 0;
-         status == SXML_STATUS_OK &&
-         function_index < sizeof(record_functions) / sizeof(record_functions[0]);
+         status == SXML_STATUS_OK && function_index < SXML_REGEX_RECORD_FUNCTION_COUNT;
          function_index += 1) {
-        request.function = &record_functions[function_index];
-        sxml_sequence function_item = sxml_sequence_empty();
-        status = make_record_function(call, &request, &function_item);
-        if (status == SXML_STATUS_OK) {
-            status = add_named_entry(
-                call, &entries,
-                (named_entry){.key_text = record_functions[function_index].key_text,
-                              .value = function_item});
-        }
+        status = make_record_function(
+            call,
+            &(record_function_request){
+                .row = &record_function_rows[function_index],
+                .signature = fields.record_fields[function_index + 2].field_type.item_type,
+                .captured = field_values},
+            &field_values[function_index + 2]);
     }
-    sxml_sequence_release(request.captured[0]);
-    sxml_sequence_release(request.captured[1]);
-    if (status != SXML_STATUS_OK) {
-        entry_list_release(&entries);
-        return status;
-    }
-    return entry_list_finish(call, &entries, result);
+    return finish_record(call,
+                         (record_values){.local_name = "compiled-regex-record",
+                                         .field_values = field_values,
+                                         .field_count = SXML_REGEX_RECORD_FIELD_COUNT,
+                                         .making_status = status},
+                         result);
 }
 
 /* ------------------------------------------------------------------ Rows */
@@ -2124,13 +2029,9 @@ static const sxml_native_function regex_functions[] = {
     SXML_FUNCTION_ROW("tokenize", tokenize_parameters, "xs:string*", 0, call_tokenize),
     SXML_FUNCTION_ROW("analyze-string", matches_parameters,
                       "element(fn:analyze-string-result)", 0, call_analyze_string),
-    /* fn:matching-segment-record* and fn:compiled-regex-record (sections
-       6.3.6 and 6.3.9) are named record types no static context holds
-       yet: map(*). */
-    SXML_FUNCTION_ROW("matching-segments", matches_parameters, "map(*)*", 0,
-                      call_matching_segments),
-    SXML_FUNCTION_ROW("regex", regex_parameters, "map(*)", SXML_NATIVE_FUNCTION_USES_DYNAMIC_CONTEXT,
-                      call_regex),
+    SXML_FUNCTION_ROW("matching-segments", matches_parameters, "fn:matching-segment-record*",
+                      0, call_matching_segments),
+    SXML_FUNCTION_ROW("regex", regex_parameters, "fn:compiled-regex-record", 0, call_regex),
 };
 
 const sxml_native_function_view sxml_function_library_regex = SXML_LIBRARY_PART(regex_functions);

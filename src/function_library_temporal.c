@@ -574,8 +574,8 @@ static sxml_status make_field_value(const sxml_function_call *call, field_reques
 }
 
 /* fn:parts-of-dateTime($value) as fn:dateTime-record? (F&O 4.0, section
-   9.6.17): every field, the empty sequence for an absent component. The
-   result is a map with the record's keys in record order. */
+   9.6.17): every field, the empty sequence for an absent component, in a
+   record annotated with fn:dateTime-record (D126). */
 static sxml_status call_parts_of_date_time(const sxml_function_call *call,
                                            sxml_sequence *result) {
     date_time_argument value;
@@ -584,43 +584,26 @@ static sxml_status call_parts_of_date_time(const sxml_function_call *call,
         *result = sxml_sequence_empty();
         return status;
     }
-    sxml_map_entry entries[SXML_RECORD_FIELD_COUNT];
-    size_t entry_count = 0;
-    while (status == SXML_STATUS_OK && entry_count < SXML_RECORD_FIELD_COUNT) {
-        sxml_sequence key = sxml_sequence_empty();
-        status = sxml_function_library_make_string(
-            call->item_heap, sxml_byte_view_from_c_string(record_field_names[entry_count]),
-            &key);
-        if (status != SXML_STATUS_OK) {
-            break;
-        }
-        sxml_sequence field_value = sxml_sequence_empty();
+    sxml_sequence field_values[SXML_RECORD_FIELD_COUNT];
+    size_t field_count = 0;
+    while (status == SXML_STATUS_OK && field_count < SXML_RECORD_FIELD_COUNT) {
         status = make_field_value(
-            call, (field_request){.value = &value, .field = (record_field)entry_count},
-            &field_value);
-        if (status != SXML_STATUS_OK) {
-            sxml_sequence_release(key);
-            break;
+            call, (field_request){.value = &value, .field = (record_field)field_count},
+            &field_values[field_count]);
+        if (status == SXML_STATUS_OK) {
+            field_count += 1;
         }
-        entries[entry_count] = (sxml_map_entry){.key = key.content, .value = field_value};
-        entry_count += 1;
-    }
-    sxml_item map = {.representation = 0};
-    if (status == SXML_STATUS_OK) {
-        status = sxml_map_make(
-            call->item_heap,
-            &(sxml_map_request){
-                .map_entries = {.map_entries = entries, .map_entry_count = entry_count},
-                .duplicate_key_policy = SXML_DUPLICATE_KEY_POLICY_REJECT,
-                .error_record = call->error_record},
-            &map);
-    }
-    for (size_t entry_index = 0; entry_index < entry_count; entry_index += 1) {
-        sxml_item_release(entries[entry_index].key);
-        sxml_sequence_release(entries[entry_index].value);
     }
     if (status == SXML_STATUS_OK) {
-        *result = sxml_sequence_from_item(map);
+        status = sxml_function_library_make_record(
+            call,
+            &(sxml_builtin_record_request){
+                .local_name = SXML_BYTE_VIEW_FROM_LITERAL("dateTime-record"),
+                .field_values = {.sequences = field_values, .sequence_count = field_count}},
+            result);
+    }
+    for (size_t field_index = 0; field_index < field_count; field_index += 1) {
+        sxml_sequence_release(field_values[field_index]);
     }
     return status;
 }
@@ -1613,7 +1596,7 @@ static const sxml_native_function temporal_functions[] = {
                       SXML_NATIVE_FUNCTION_USES_DYNAMIC_CONTEXT, call_civil_timezone),
     SXML_FUNCTION_ROW("days-in-month", days_in_month_parameters, "xs:integer?", 0,
                       call_days_in_month),
-    SXML_FUNCTION_ROW("parts-of-dateTime", gregorian_parameters, "map(*)?", 0,
+    SXML_FUNCTION_ROW("parts-of-dateTime", gregorian_parameters, "fn:dateTime-record?", 0,
                       call_parts_of_date_time),
     SXML_FUNCTION_ROW("build-dateTime", record_parameters,
                       "(xs:dateTime | xs:date | xs:time | xs:gYear | xs:gYearMonth | xs:gMonth "
