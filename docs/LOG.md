@@ -16,6 +16,20 @@ One short entry per week, newest first: what passed, what's next, what is blocke
   driver to bind the result as the context value of assertions (Proposed;
   124/124 with it, +20 over XP40). HEAD's QT4 driver still does not build
   (xquery_adapter.c of 3.13); measured with a local patch.
+- 2.18 done (D138): JavaScript package `bindings/javascript/` (npm name
+  `sxml-js` for now; `sxml` is taken): C shim over the public API, linked
+  into the reactor module `sxml.wasm`; hand-written TypeScript (parse,
+  compile/evaluate XPath with variables, namespaces and context,
+  serialize with fn:serialize options, resolver callback, SxmlError,
+  dispose + FinalizationRegistry), own minimal WASI imports for Node.js
+  and browsers (checked in headless Chromium). ctest javascript/package
+  (21 tests: leak checks, allocation-failure loop), javascript/typecheck
+  (after npm ci), javascript/size_budget. Version 0.2.0, CHANGELOG.md,
+  docs/RELEASE.md; not tagged or published (owner). Size: CLI module
+  1.82 MB stripped / 630 KB gzip, past D93's budget; budget set to 2.0 MB
+  / 700 KB, see "Proposed". No library change: XP40 and slice 198/198
+  unchanged; debug, debug-gcc, wasm, lint pass.
+
 - 2.11 done (D140): fn:hash (MD5, SHA-1, SHA-256, BLAKE3, CRC-32 in
   `src/hash.c`, a new hash part), fn:decode-from-uri, fn:parse-uri and
   fn:build-uri (uri part; one percent decoder, one escaping table),
