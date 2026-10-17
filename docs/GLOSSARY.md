@@ -144,6 +144,9 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `current_item` | XSLT's current item (fn:current, XSLT 4.0, 20.3.1): the context value the outermost expression started with, the focus of its embedding; in a pattern, the item being matched (D149) |
 | `xslt_function_table` | The function table put in front of every static context of a stylesheet: stylesheet functions lowered into the unit (fn:key, fn:copy-of), then the XSLT-only library parts (D149) |
 | `context_function` | An XSLT function whose value an enclosing instruction sets lexically: fn:current-group, fn:current-grouping-key, fn:current-merge-group, fn:current-merge-key; lowering reads a variable of the same local name in the XSLT namespace, absent when none is in scope (D152) |
+| `context_variable` | The variable Q{XSLT}N an XSLT instruction puts in scope for a context function, read by a parameter default (`SXML_PARAMETER_DEFAULT_CONTEXT_VARIABLE`) named N; the empty sequence where none is in scope (D153) |
+| `captured_groups` | XSLT's current captured groups (XSLT 4.0, 17.2): the map from group numbers and names to fn:captured-group-record values, group 0 the match, set in xsl:matching-substring as the context variable regex-groups (D153) |
+| `place_marker` | The sequence of integers xsl:number formats: its value attribute's, or computed from the selected node's position by level, count and from (XSLT 4.0, 12) |
 | `population` | The sequence xsl:for-each-group groups, its select value, in population order (XSLT 4.0, 14.1) |
 | `grouping_pair` | The array [item, value] lowering makes for each item of a population: its grouping keys, or whether it matches the pattern (D152) |
 | `group_array` | One group of xsl:for-each-group as the array [current group, current grouping key] (D152) |
