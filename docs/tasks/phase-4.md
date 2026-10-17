@@ -126,6 +126,11 @@ element-with-id), JNode patterns; default priorities; XTSE0340. Done when
 the 19,168 parsable patterns of the suite lower and 40 hand-picked
 patterns match a fixed document as a table says. Spec: XSLT 4.0
 "Patterns", "Default Priority for Template Rules".
+**Done** 2026-10-17 (D118): `src/xslt_pattern.c`,
+`src/xslt_pattern_internal.h`, `tests/xslt_pattern_test.c`; pattern kinds
+appended to `src/xpath_ast_internal.h`. 19,288 suite patterns parse and
+build match expressions, 18,916 lower without stylesheet context; 51
+patterns match the fixed document as the table says.
 
 ### 4.5 Stylesheet reader (implementation) — Early
 After 4.2, 4.3, 4.4, 3.2. Owns `src/xslt_read.c`, `src/xslt_static.c`,

@@ -29,6 +29,24 @@ One short entry per week, newest first: what passed, what's next, what is blocke
   0 to 35/35, misc-UCACollation 70 to 87/87. Slice 198/198; debug,
   debug-gcc, wasm 143/143, lint clean.
 
+- 4.4 done (D118), Early packet of Phase 4: XSLT 4.0 patterns in
+  `src/xslt_pattern.c` with the module header
+  `src/xslt_pattern_internal.h`. Front end `sxml_xslt_pattern_build_ast`
+  on the D111 parser part seam (19 pattern kinds, field PATTERN, flag
+  OPEN appended to the AST; XTSE0340 for syntax and forbidden outermost
+  calls). Patterns become match expressions (XPath ASTs of xs:boolean,
+  read right to left as 6.3.2.3 describes, the formal definition for
+  intersect/except and filtered parenthesized patterns) lowered through
+  the embedding entry; match functions for template rules; default
+  priorities (6.4, all 4.0 forms). Tests: 51 patterns against a fixed
+  document by table, 43 item cases (atomic, map, array, sequence
+  patterns), 60 priorities, 14 static errors, match function, allocation
+  failures, 3,000 nested parentheses. Suite: 19,441 pattern attributes,
+  19,288 parse, all build a match expression, 18,916 lower with the
+  stylesheet's namespaces alone (the rest need XSLT functions or schema
+  types). `debug`, `debug-gcc`, `wasm` all pass, lint clean; slice
+  198/198; XPath behaviour untouched (kinds only appended).
+
 - 2.7 done (D125): fn:divide-decimals over a new decimal operation
   (divisor exponent shifted, libmpdec divint/rem, precision fitted to the
   digit limit). Release XP40 23,146 (docs/CONFORMANCE.md) to 26,975 with
