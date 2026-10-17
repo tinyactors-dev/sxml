@@ -10,7 +10,7 @@
  *
  * Golden file: src/function_library_map.c.
  */
-#include "function_library_internal.h"
+#include "function_library_core_internal.h"
 
 #include "evaluator_internal.h"
 #include "json_internal.h"
@@ -104,192 +104,35 @@ static sxml_status json_read_text(sxml_sequence argument, sxml_byte_view *text) 
 
 /* ------------------------------------------------------------- Options */
 
-/* The type an option's value is coerced to (F&O 4.0, section 1.7). */
-typedef enum json_option_type {
-    SXML_JSON_OPTION_TYPE_BOOLEAN,
-    SXML_JSON_OPTION_TYPE_STRING,
-    /* item()? (the null option). */
-    SXML_JSON_OPTION_TYPE_OPTIONAL_ITEM,
-    /* A function item or the empty sequence (the fallback option). */
-    SXML_JSON_OPTION_TYPE_OPTIONAL_FUNCTION,
-} json_option_type;
-
-/* One option a function knows. */
-typedef struct json_option_definition {
-    const char *option_name;
-    json_option_type option_type;
-} json_option_definition;
-
-typedef struct json_option_definition_view {
-    const json_option_definition *definitions;
-    size_t definition_count;
-} json_option_definition_view;
-
-/* The most options one function knows. */
-enum { SXML_JSON_OPTION_LIMIT = 9 };
-
-/* The options found in a map, by definition position: values owned and
-   coerced. */
-typedef struct json_option_values {
-    bool is_present[SXML_JSON_OPTION_LIMIT];
-    sxml_sequence values[SXML_JSON_OPTION_LIMIT];
-} json_option_values;
-
-static void json_option_values_release(json_option_values *values) {
-    for (size_t option_index = 0; option_index < SXML_JSON_OPTION_LIMIT; option_index += 1) {
-        sxml_sequence_release(values->values[option_index]);
-        values->values[option_index] = sxml_sequence_empty();
-        values->is_present[option_index] = false;
-    }
-}
-
-/* A key that names an option: an xs:string, xs:untypedAtomic or xs:anyURI
-   (F&O 4.0, section 1.7: "the same key as the required string"). */
-static bool json_key_text(sxml_item key, sxml_byte_view *text) {
-    sxml_atomic_datum datum;
-    if (sxml_atomic_item_get_datum(key, &datum) != SXML_STATUS_OK ||
-        datum.datum_kind != SXML_DATUM_KIND_STRING) {
-        return false;
-    }
-    *text = datum.datum_details.string.utf8;
-    return true;
-}
-
-/* True for an xs:QName key with a namespace: an implementation-defined
-   option, which is ignored (F&O 4.0, section 1.7). */
-static bool json_key_is_extension(sxml_item key, const sxml_name_pool *name_pool) {
-    sxml_atomic_datum datum;
-    sxml_name_parts parts;
-    return sxml_atomic_item_get_datum(key, &datum) == SXML_STATUS_OK &&
-           datum.datum_kind == SXML_DATUM_KIND_QNAME &&
-           sxml_name_pool_get_name_parts(name_pool, datum.datum_details.qname.expanded_name,
-                                         &parts) == SXML_STATUS_OK &&
-           parts.namespace_uri.index != SXML_NAMESPACE_NONE;
-}
-
-/* An option value and the type it must have. */
-typedef struct json_option_value {
-    json_option_type option_type;
-    sxml_sequence value;
-} json_option_value;
-
-/* Coerces one option value to its type (XPTY0004 when it cannot be). */
-static sxml_status json_coerce_option(const sxml_function_call *call,
-                                      json_option_value option_value, sxml_sequence *coerced) {
-    const json_option_type option_type = option_value.option_type;
-    const sxml_sequence value = option_value.value;
-    if (option_type == SXML_JSON_OPTION_TYPE_OPTIONAL_FUNCTION) {
-        uint64_t item_count = 0;
-        sxml_status status = sxml_sequence_count(value, call->error_record, &item_count);
-        if (status == SXML_STATUS_OK &&
-            (item_count > 1 || (item_count == 1 && !sxml_item_is_function_item(value.content)))) {
-            return sxml_error_record_report(call->error_record, &json_unknown_option_error);
-        }
-        if (status == SXML_STATUS_OK) {
-            sxml_sequence_retain(value);
-            *coerced = value;
-        }
-        return status;
-    }
-    if (call->dynamic_context == NULL) {
-        return SXML_STATUS_INVALID_ARGUMENT;
-    }
-    const sxml_sequence_type sequence_type =
-        option_type == SXML_JSON_OPTION_TYPE_BOOLEAN
-            ? (sxml_sequence_type){.item_type = sxml_builtin_type_identifier(SXML_TYPE_XS_BOOLEAN),
-                                   .occurrence = SXML_OCCURRENCE_EXACTLY_ONE}
-        : option_type == SXML_JSON_OPTION_TYPE_STRING
-            ? (sxml_sequence_type){.item_type = sxml_builtin_type_identifier(SXML_TYPE_XS_STRING),
-                                   .occurrence = SXML_OCCURRENCE_EXACTLY_ONE}
-            : (sxml_sequence_type){.item_type = sxml_builtin_type_identifier(SXML_TYPE_ITEM),
-                                   .occurrence = SXML_OCCURRENCE_ZERO_OR_ONE};
-    return sxml_evaluator_coerce(call->dynamic_context,
-                                 &(sxml_coercion_request){
-                                     .value = value,
-                                     .sequence_type = sequence_type,
-                                     .role = SXML_IR_COERCION_ROLE_FUNCTION_ARGUMENT,
-                                     .error_record = call->error_record},
-                                 coerced);
-}
-
-/* A function's options map to read. */
-typedef struct json_option_request {
-    /* map(*)? as coerced; empty means no options. */
-    sxml_sequence options;
-    json_option_definition_view definitions;
-} json_option_request;
-
-/* Reads the options map: every key a known option (or an extension
-   QName), every value coerced to its type. *values must be zeroed. */
-static sxml_status json_read_options(const sxml_function_call *call,
-                                     const json_option_request *request,
-                                     json_option_values *values) {
-    if (json_sequence_is_empty(request->options)) {
-        return SXML_STATUS_OK;
-    }
-    const sxml_item map = request->options.content;
-    size_t entry_count = 0;
-    sxml_status status = sxml_map_get_size(map, &entry_count);
-    const sxml_name_pool *name_pool = sxml_item_heap_get_name_pool(call->item_heap);
-    for (size_t entry_index = 0; status == SXML_STATUS_OK && entry_index < entry_count;
-         entry_index += 1) {
-        sxml_map_entry entry;
-        status = sxml_map_get_entry(map, entry_index, &entry);
-        if (status != SXML_STATUS_OK) {
-            break;
-        }
-        sxml_byte_view key_text = {.bytes = NULL, .byte_count = 0};
-        size_t found = request->definitions.definition_count;
-        if (json_key_text(entry.key, &key_text)) {
-            for (size_t definition_index = 0;
-                 definition_index < request->definitions.definition_count;
-                 definition_index += 1) {
-                if (sxml_byte_view_equals(
-                        key_text, sxml_byte_view_from_c_string(
-                                      request->definitions.definitions[definition_index]
-                                          .option_name))) {
-                    found = definition_index;
-                }
-            }
-        }
-        if (found == request->definitions.definition_count) {
-            if (json_key_is_extension(entry.key, name_pool)) {
-                continue;
-            }
-            return sxml_error_record_report(call->error_record, &json_unknown_option_error);
-        }
-        sxml_sequence coerced = sxml_sequence_empty();
-        status = json_coerce_option(
-            call,
-            (json_option_value){.option_type = request->definitions.definitions[found].option_type,
-                                .value = entry.value},
-            &coerced);
-        if (status == SXML_STATUS_OK) {
-            sxml_sequence_release(values->values[found]);
-            values->values[found] = coerced;
-            values->is_present[found] = true;
-        }
-    }
-    return status;
-}
+/* Option definitions (F&O 4.0, section 1.7), read by the library's one
+   options reader (src/function_library_options.c). */
+#define SXML_JSON_OPTION(name_text, type_index, occurrence_value)             \
+    {.option_name = SXML_BYTE_VIEW_INITIALIZER(name_text),                    \
+     .option_type = {.item_type = {.index = (type_index)},                    \
+                     .occurrence = (occurrence_value)}}
+#define SXML_JSON_BOOLEAN_OPTION(name_text)                                   \
+    SXML_JSON_OPTION(name_text, SXML_TYPE_XS_BOOLEAN, SXML_OCCURRENCE_EXACTLY_ONE)
+#define SXML_JSON_STRING_OPTION(name_text)                                    \
+    SXML_JSON_OPTION(name_text, SXML_TYPE_XS_STRING, SXML_OCCURRENCE_EXACTLY_ONE)
+/* item()? (the null option). */
+#define SXML_JSON_ITEM_OPTION(name_text)                                      \
+    SXML_JSON_OPTION(name_text, SXML_TYPE_ITEM, SXML_OCCURRENCE_ZERO_OR_ONE)
+/* A function item or the empty sequence (the fallback option). */
+#define SXML_JSON_FUNCTION_OPTION(name_text)                                  \
+    SXML_JSON_OPTION(name_text, SXML_TYPE_FUNCTION, SXML_OCCURRENCE_ZERO_OR_ONE)
 
 /* True when a boolean option is present and true. */
-static bool json_option_is_true(const json_option_values *values, size_t option_index) {
-    sxml_atomic_datum datum;
-    return values->is_present[option_index] &&
-           sxml_atomic_item_get_datum(values->values[option_index].content, &datum) ==
-               SXML_STATUS_OK &&
-           datum.datum_details.boolean;
+static bool json_option_is_true(const sxml_option_values *values, size_t option_index) {
+    return sxml_function_library_option_is_true(
+        (sxml_option_lookup){.values = values, .option_index = option_index});
 }
 
 /* The string value of a present string option; empty otherwise. */
-static sxml_byte_view json_option_text(const json_option_values *values,
+static sxml_byte_view json_option_text(const sxml_option_values *values,
                                        size_t option_index) {
-    sxml_byte_view text = {.bytes = NULL, .byte_count = 0};
-    if (values->is_present[option_index]) {
-        (void)json_read_text(values->values[option_index], &text);
-    }
-    return text;
+    return sxml_function_library_option_string(
+               (sxml_option_lookup){.values = values, .option_index = option_index})
+        .utf8;
 }
 
 static bool json_text_is(sxml_byte_view text, sxml_byte_view expected) {
@@ -307,31 +150,31 @@ enum {
     SXML_JSON_OPTION_VALIDATE,
 };
 
-static const json_option_definition parse_json_options[] = {
-    {"liberal", SXML_JSON_OPTION_TYPE_BOOLEAN},
-    {"duplicates", SXML_JSON_OPTION_TYPE_STRING},
-    {"escape", SXML_JSON_OPTION_TYPE_BOOLEAN},
-    {"fallback", SXML_JSON_OPTION_TYPE_OPTIONAL_FUNCTION},
-    {"null", SXML_JSON_OPTION_TYPE_OPTIONAL_ITEM},
-    {"number-format", SXML_JSON_OPTION_TYPE_STRING},
+static const sxml_option_definition parse_json_options[] = {
+    SXML_JSON_BOOLEAN_OPTION("liberal"),
+    SXML_JSON_STRING_OPTION("duplicates"),
+    SXML_JSON_BOOLEAN_OPTION("escape"),
+    SXML_JSON_FUNCTION_OPTION("fallback"),
+    SXML_JSON_ITEM_OPTION("null"),
+    SXML_JSON_STRING_OPTION("number-format"),
 };
 
-static const json_option_definition json_to_xml_options[] = {
-    {"liberal", SXML_JSON_OPTION_TYPE_BOOLEAN},
-    {"duplicates", SXML_JSON_OPTION_TYPE_STRING},
-    {"escape", SXML_JSON_OPTION_TYPE_BOOLEAN},
-    {"fallback", SXML_JSON_OPTION_TYPE_OPTIONAL_FUNCTION},
+static const sxml_option_definition json_to_xml_options[] = {
+    SXML_JSON_BOOLEAN_OPTION("liberal"),
+    SXML_JSON_STRING_OPTION("duplicates"),
+    SXML_JSON_BOOLEAN_OPTION("escape"),
+    SXML_JSON_FUNCTION_OPTION("fallback"),
     /* Positions SXML_JSON_OPTION_NULL and SXML_JSON_OPTION_NUMBER_FORMAT are
        fn:parse-json's; these names never match a key. */
-    {"", SXML_JSON_OPTION_TYPE_STRING},
-    {"", SXML_JSON_OPTION_TYPE_STRING},
-    {"validate", SXML_JSON_OPTION_TYPE_BOOLEAN},
+    SXML_JSON_STRING_OPTION(""),
+    SXML_JSON_STRING_OPTION(""),
+    SXML_JSON_BOOLEAN_OPTION("validate"),
 };
 
 /* What the shared JSON options become; is_xml says which function. */
 typedef struct json_option_reading {
     bool is_xml;
-    const json_option_values *values;
+    const sxml_option_values *values;
 } json_option_reading;
 
 /*
@@ -344,7 +187,7 @@ typedef struct json_option_reading {
 static sxml_status json_interpret_options(const sxml_function_call *call,
                                           json_option_reading reading,
                                           sxml_json_parse_options *options) {
-    const json_option_values *values = reading.values;
+    const sxml_option_values *values = reading.values;
     *options = (sxml_json_parse_options){
         .duplicates_policy = reading.is_xml ? SXML_JSON_DUPLICATES_POLICY_RETAIN
                                             : SXML_JSON_DUPLICATES_POLICY_USE_FIRST,
@@ -396,7 +239,7 @@ static sxml_status json_interpret_options(const sxml_function_call *call,
    (owned; the options borrow them). */
 typedef struct json_parse_option_target {
     bool is_xml;
-    json_option_values *values;
+    sxml_option_values *values;
 } json_parse_option_target;
 
 /* Reads and interprets the options of fn:parse-json or fn:json-to-xml. */
@@ -404,16 +247,16 @@ static sxml_status json_read_parse_options(const sxml_function_call *call,
                                            json_parse_option_target target,
                                            sxml_json_parse_options *options) {
     const bool is_xml = target.is_xml;
-    json_option_values *values = target.values;
-    const json_option_request request = {
-        .options = json_argument(call, 1),
-        .definitions = is_xml ? (json_option_definition_view){json_to_xml_options,
+    sxml_option_values *values = target.values;
+    const sxml_option_request request = {
+        .argument_index = 1,
+        .definitions = is_xml ? (sxml_option_definition_view){json_to_xml_options,
                                                               sizeof(json_to_xml_options) /
                                                                   sizeof(json_to_xml_options[0])}
-                              : (json_option_definition_view){parse_json_options,
+                              : (sxml_option_definition_view){parse_json_options,
                                                               sizeof(parse_json_options) /
                                                                   sizeof(parse_json_options[0])}};
-    sxml_status status = json_read_options(call, &request, values);
+    sxml_status status = sxml_function_library_read_options(call, &request, values);
     if (status == SXML_STATUS_OK) {
         status = json_interpret_options(
             call, (json_option_reading){.is_xml = is_xml, .values = values}, options);
@@ -431,7 +274,7 @@ static sxml_status call_parse_json(const sxml_function_call *call, sxml_sequence
         *result = sxml_sequence_empty();
         return SXML_STATUS_OK;
     }
-    json_option_values values;
+    sxml_option_values values;
     memset(&values, 0, sizeof(values));
     sxml_json_parse_options options;
     sxml_byte_view text = {.bytes = NULL, .byte_count = 0};
@@ -450,7 +293,7 @@ static sxml_status call_parse_json(const sxml_function_call *call, sxml_sequence
                                           .error_record = call->error_record},
                                       result);
     }
-    json_option_values_release(&values);
+    sxml_function_library_release_options(&values);
     return status;
 }
 
@@ -493,7 +336,7 @@ static sxml_status call_json_to_xml(const sxml_function_call *call, sxml_sequenc
         *result = sxml_sequence_empty();
         return SXML_STATUS_OK;
     }
-    json_option_values values;
+    sxml_option_values values;
     memset(&values, 0, sizeof(values));
     sxml_json_parse_options options;
     sxml_byte_view text = {.bytes = NULL, .byte_count = 0};
@@ -530,7 +373,7 @@ static sxml_status call_json_to_xml(const sxml_function_call *call, sxml_sequenc
     if (status == SXML_STATUS_OK) {
         status = sxml_arena_tree_finish(arena_tree, &tree);
     }
-    json_option_values_release(&values);
+    sxml_function_library_release_options(&values);
     if (status != SXML_STATUS_OK) {
         sxml_arena_tree_destroy(arena_tree);
         return status;
@@ -541,9 +384,9 @@ static sxml_status call_json_to_xml(const sxml_function_call *call, sxml_sequenc
     return SXML_STATUS_OK;
 }
 
-static const json_option_definition xml_to_json_options[] = {
-    {"escape-solidus", SXML_JSON_OPTION_TYPE_BOOLEAN},
-    {"indent", SXML_JSON_OPTION_TYPE_BOOLEAN},
+static const sxml_option_definition xml_to_json_options[] = {
+    SXML_JSON_BOOLEAN_OPTION("escape-solidus"),
+    SXML_JSON_BOOLEAN_OPTION("indent"),
 };
 
 /* fn:xml-to-json($node as node()?, $options as map(*)? := {}) as
@@ -555,12 +398,12 @@ static sxml_status call_xml_to_json(const sxml_function_call *call, sxml_sequenc
         *result = sxml_sequence_empty();
         return SXML_STATUS_OK;
     }
-    json_option_values values;
+    sxml_option_values values;
     memset(&values, 0, sizeof(values));
-    sxml_status status = json_read_options(
+    sxml_status status = sxml_function_library_read_options(
         call,
-        &(json_option_request){
-            .options = json_argument(call, 1),
+        &(sxml_option_request){
+            .argument_index = 1,
             .definitions = {xml_to_json_options,
                             sizeof(xml_to_json_options) / sizeof(xml_to_json_options[0])}},
         &values);
@@ -603,7 +446,7 @@ static sxml_status call_xml_to_json(const sxml_function_call *call, sxml_sequenc
             &item);
     }
     sxml_output_buffer_destroy(output);
-    json_option_values_release(&values);
+    sxml_function_library_release_options(&values);
     if (status == SXML_STATUS_OK) {
         *result = sxml_sequence_from_item(item);
     }
@@ -633,15 +476,15 @@ enum {
     SXML_XML_OPTION_RETAIN_LOCATION,
 };
 
-static const json_option_definition parse_xml_options[] = {
-    {"base-uri", SXML_JSON_OPTION_TYPE_STRING},
-    {"dtd-validation", SXML_JSON_OPTION_TYPE_BOOLEAN},
-    {"strip-space", SXML_JSON_OPTION_TYPE_STRING},
-    {"trust-external", SXML_JSON_OPTION_TYPE_BOOLEAN},
-    {"xinclude", SXML_JSON_OPTION_TYPE_BOOLEAN},
-    {"xsd-validation", SXML_JSON_OPTION_TYPE_STRING},
-    {"use-xsi-schema-location", SXML_JSON_OPTION_TYPE_BOOLEAN},
-    {"retain-location", SXML_JSON_OPTION_TYPE_BOOLEAN},
+static const sxml_option_definition parse_xml_options[] = {
+    SXML_JSON_STRING_OPTION("base-uri"),
+    SXML_JSON_BOOLEAN_OPTION("dtd-validation"),
+    SXML_JSON_STRING_OPTION("strip-space"),
+    SXML_JSON_BOOLEAN_OPTION("trust-external"),
+    SXML_JSON_BOOLEAN_OPTION("xinclude"),
+    SXML_JSON_STRING_OPTION("xsd-validation"),
+    SXML_JSON_BOOLEAN_OPTION("use-xsi-schema-location"),
+    SXML_JSON_BOOLEAN_OPTION("retain-location"),
 };
 
 /* Checks the parse-xml options sxml cannot honour: DTD validation and
@@ -649,7 +492,7 @@ static const json_option_definition parse_xml_options[] = {
    XSD validation (FODC0009). An unknown strip-space value is XPTY0004,
    since the option's type is an enumeration. */
 static sxml_status xml_check_options(const sxml_function_call *call,
-                                     const json_option_values *values) {
+                                     const sxml_option_values *values) {
     if (json_option_is_true(values, SXML_XML_OPTION_DTD_VALIDATION) ||
         json_option_is_true(values, SXML_XML_OPTION_XINCLUDE)) {
         return sxml_error_record_report(call->error_record, &xml_unsupported_option_error);
@@ -697,11 +540,11 @@ static sxml_status call_parse_xml(const sxml_function_call *call, sxml_sequence 
     if (datum.datum_kind != SXML_DATUM_KIND_STRING && datum.datum_kind != SXML_DATUM_KIND_BINARY) {
         return sxml_error_record_report(call->error_record, &xml_wrong_input_error);
     }
-    json_option_values values;
+    sxml_option_values values;
     memset(&values, 0, sizeof(values));
-    status = json_read_options(
+    status = sxml_function_library_read_options(
         call,
-        &(json_option_request){.options = json_argument(call, 1),
+        &(sxml_option_request){.argument_index = 1,
                                .definitions = {parse_xml_options,
                                                sizeof(parse_xml_options) /
                                                    sizeof(parse_xml_options[0])}},
@@ -726,7 +569,7 @@ static sxml_status call_parse_xml(const sxml_function_call *call, sxml_sequence 
                 .error_record = call->error_record},
             &document_node);
     }
-    json_option_values_release(&values);
+    sxml_function_library_release_options(&values);
     if (status == SXML_STATUS_OK) {
         *result = sxml_sequence_from_item(document_node);
     }

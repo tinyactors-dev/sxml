@@ -322,6 +322,78 @@ typedef struct sxml_case_mapping_request {
 void sxml_function_library_map_case(sxml_case_mapping_request request,
                                     sxml_case_mapping *mapping);
 
+/* --------------------------------------------------------------- Options */
+
+/*
+ * The option parameter conventions (F&O 4.0, section 1.7), read once for
+ * every function that adopts them; defined in
+ * src/function_library_options.c. A function names its options and the
+ * type each value is coerced to; its body then checks enumerations and
+ * other permitted values itself.
+ */
+typedef struct sxml_option_definition {
+    /* The option name: a key that is the same key as this xs:string. */
+    sxml_byte_view option_name;
+    /* The required type of the value. */
+    sxml_sequence_type option_type;
+} sxml_option_definition;
+
+typedef struct sxml_option_definition_view {
+    const sxml_option_definition *definitions;
+    size_t definition_count;
+} sxml_option_definition_view;
+
+/* The most options one function defines. */
+#define SXML_FUNCTION_OPTION_LIMIT ((size_t)10)
+
+/* Which options of argument argument_index (map(*)? after coercion) to
+   read. */
+typedef struct sxml_option_request {
+    size_t argument_index;
+    sxml_option_definition_view definitions;
+} sxml_option_request;
+
+/* The values found, by position among the definitions; each owned,
+   coerced to its type. Zero-initialize; release with
+   sxml_function_library_release_options on every path. */
+typedef struct sxml_option_values {
+    bool is_present[SXML_FUNCTION_OPTION_LIMIT];
+    sxml_sequence values[SXML_FUNCTION_OPTION_LIMIT];
+} sxml_option_values;
+
+/*
+ * Reads the options map of request->argument_index into *values: a key
+ * that names no definition is XPTY0004 unless it is an xs:QName in a
+ * namespace (an implementation-defined option, ignored); each value is
+ * coerced to its definition's type by the coercion rules (XPTY0004,
+ * FORG0001, ... when it cannot be). Without a dynamic context values are
+ * taken as they are. More than SXML_FUNCTION_OPTION_LIMIT definitions is
+ * SXML_STATUS_INVALID_ARGUMENT. Returns the map's, the coercion's and the
+ * heap's failures.
+ */
+SXML_NODISCARD sxml_status sxml_function_library_read_options(
+    const sxml_function_call *call, const sxml_option_request *request,
+    sxml_option_values *values);
+
+/* Releases the values and leaves *values empty. */
+void sxml_function_library_release_options(sxml_option_values *values);
+
+/* The single atomic item of a present option, as read (types of exactly
+   one atomic item only). */
+typedef struct sxml_option_lookup {
+    const sxml_option_values *values;
+    size_t option_index;
+} sxml_option_lookup;
+
+/* True when the option is present with the xs:boolean value true. */
+bool sxml_function_library_option_is_true(sxml_option_lookup lookup);
+
+/* True when the option is present with the xs:boolean value false. */
+bool sxml_function_library_option_is_false(sxml_option_lookup lookup);
+
+/* The string of a present option of a string type; NULL text otherwise. */
+sxml_string sxml_function_library_option_string(sxml_option_lookup lookup);
+
 /* ------------------------------------------------------------ Deep equality */
 
 /*
