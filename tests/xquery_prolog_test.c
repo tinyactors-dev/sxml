@@ -410,7 +410,7 @@ static const error_case error_cases[] = {
     {"declare default decimal-format digit = 'x' digit = 'y'; 1", "XQST0114"},
     {"declare decimal-format f digit = 'x'; declare decimal-format f digit = 'y'; 1",
      "XQST0111"},
-    {"declare type local:a as xs:integer; declare type local:a as xs:string; 1", "XQST0048"},
+    {"declare type local:a as xs:integer; declare type local:a as xs:string; 1", "XQST0146"},
     {"declare record local:r(a, a); 1", "XPST0021"},
 };
 

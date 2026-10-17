@@ -1577,7 +1577,7 @@ static sxml_status read_item_types(const static_reader *reader, const prolog_sur
     return status;
 }
 
-/* XQST0048: two named item or record types of one name (5.19, 5.20). */
+/* XQST0146: two named item or record types of one name (5.19, 5.20). */
 static sxml_status check_type_names(const static_reader *reader,
                                     const sxml_xquery_static_context *context) {
     const size_t alias_count = context->named_item_type_count;
@@ -1613,7 +1613,7 @@ static sxml_status check_type_names(const static_reader *reader,
                                 ? first_declaration(reader->ast)
                                 : context->declared_records[position - alias_count].declaration,
                             SXML_BYTE_VIEW_FROM_LITERAL(
-                                "XQST0048 two named types have the same name"));
+                                "XQST0146 two named types have the same name"));
         }
     }
     sxml_allocator_release(reader->allocator, memory);
