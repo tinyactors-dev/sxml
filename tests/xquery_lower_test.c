@@ -295,7 +295,7 @@ static const error_case error_cases[] = {
     {"typeswitch (1) case $a as xs:string return $a default return $a + $b",
      SXML_STATUS_STATIC_ERROR, "XPST0008"},
     {"try { 1 } catch u:e { 2 }", SXML_STATUS_STATIC_ERROR, "XPST0081"},
-    {"declare variable $x := 1; $x", SXML_STATUS_UNSUPPORTED_FEATURE, NULL},
+    {"module namespace m = 'urn:m';", SXML_STATUS_INVALID_ARGUMENT, NULL},
 };
 
 static void test_static_errors_have_codes(sxml_test_state *state) {

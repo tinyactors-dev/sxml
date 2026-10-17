@@ -75,10 +75,14 @@ typedef struct sxml_xquery_lowering_request {
  * lowering parts of SXML_LANGUAGE_XQUERY, as sxml_xpath_lower does for
  * XPath, and writes it, owned, unsealed and with no pass run, to *unit.
  *
- * The prolog is packet 3.10's: a main module whose prolog declares
- * anything gives SXML_STATUS_UNSUPPORTED_FEATURE, a library module
- * SXML_STATUS_INVALID_ARGUMENT. Otherwise returns the failures of
- * sxml_xpath_lower.
+ * The prolog (packet 3.10, src/xquery_prolog.c, D135) applies to the
+ * static context: declared functions and variables become IR functions
+ * and global variables of the unit, after the static context's own
+ * external variables (src/xquery_static_internal.h). Defined in
+ * src/xquery_prolog.c. A library module gives
+ * SXML_STATUS_INVALID_ARGUMENT (packet 3.11), a module import
+ * SXML_STATUS_UNSUPPORTED_FEATURE. Otherwise returns the static errors of
+ * the prolog and the failures of sxml_xpath_lower.
  */
 SXML_NODISCARD sxml_status sxml_xquery_lower(
     const sxml_xquery_lowering_request *request, sxml_ir_unit **unit);
@@ -87,7 +91,7 @@ SXML_NODISCARD sxml_status sxml_xquery_lower(
  * Parses request->expression_text with sxml_xquery_build_ast, lowers it
  * with sxml_xquery_lower, runs sxml_ir_standard_passes and seals, as
  * sxml_xpath_compile does: the internal entry tests and drivers use until
- * the XQuery API (packet 3.12).
+ * the XQuery API (packet 3.12). Defined in src/xquery_prolog.c.
  */
 SXML_NODISCARD sxml_status sxml_xquery_compile(
     const sxml_xpath_compile_request *request, sxml_ir_unit **unit);

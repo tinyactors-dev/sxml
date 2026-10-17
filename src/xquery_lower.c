@@ -1,6 +1,7 @@
 /*
  * The XQuery 4.0 lowering part (src/xquery_lower_internal.h; D55, D103,
- * D111, packet 3.7) and the internal XQuery compile entry.
+ * D111, packet 3.7). The module's entry points, sxml_xquery_lower and
+ * sxml_xquery_compile, are in src/xquery_prolog.c (packet 3.10).
  *
  * Golden file: src/xpath_lower.c. Every construct that lowers parts of
  * itself is a lowering procedure whose step functions ask the machine for
@@ -12,7 +13,6 @@
  */
 #include "xquery_lower_internal.h"
 
-#include "ir_pass_internal.h"
 #include "sxml/name.h"
 #include "sxml/types.h"
 #include "sxml/xdm.h"
@@ -77,15 +77,6 @@ static size_t count_children(const sxml_xpath_lowerer *state,
         child_count += 1;
     }
     return child_count;
-}
-
-static sxml_ir_source_span span_of(const sxml_xpath_lowerer *state,
-                                   sxml_ast_node_index node) {
-    const sxml_ast_source_span span = node_of(state, node)->source_span;
-    return (sxml_ir_source_span){.byte_offset = span.byte_offset,
-                                 .byte_count = span.byte_count,
-                                 .line_number = span.line_number,
-                                 .column_number = span.column_number};
 }
 
 /* ----------------------------------------------------------- IR helpers */
@@ -1541,6 +1532,29 @@ static sxml_status begin_order_by(sxml_xpath_lowering_machine *machine,
     return lower_next_sort_key(machine, frame);
 }
 
+/* The empty order of an order spec: as written, else the prolog's
+   default order declaration (5.8), else empty least. */
+static sxml_ir_empty_order empty_order_of(const sxml_xpath_lowerer *state, uint32_t flags) {
+    if ((flags & SXML_AST_FLAG_EMPTY_GREATEST) != 0) {
+        return SXML_IR_EMPTY_ORDER_GREATEST;
+    }
+    if ((flags & SXML_AST_FLAG_EMPTY_LEAST) != 0) {
+        return SXML_IR_EMPTY_ORDER_LEAST;
+    }
+    const sxml_ast_node_index root = state->ast->root;
+    const sxml_ast_node_index module = child_of(state, root, SXML_AST_FIELD_MODULE);
+    const sxml_ast_node_index prolog = child_of(state, module, SXML_AST_FIELD_PROLOG);
+    for (sxml_ast_node_index declaration = child_of(state, prolog, SXML_AST_FIELD_DECLARATION);
+         prolog.value != 0 && declaration.value != 0; declaration = next_of(state, declaration)) {
+        if (node_of(state, declaration)->kind == SXML_AST_KIND_EMPTY_ORDER_DECLARATION) {
+            return node_of(state, declaration)->detail.keyword == SXML_AST_KEYWORD_GREATEST
+                       ? SXML_IR_EMPTY_ORDER_GREATEST
+                       : SXML_IR_EMPTY_ORDER_LEAST;
+        }
+    }
+    return SXML_IR_EMPTY_ORDER_LEAST;
+}
+
 static sxml_status finish_sort_key(sxml_xpath_lowering_machine *machine,
                                    sxml_xpath_lowering_frame *frame) {
     sxml_xpath_lowerer *state = machine->state;
@@ -1565,11 +1579,7 @@ static sxml_status finish_sort_key(sxml_xpath_lowering_machine *machine,
         .direction = (flags & SXML_AST_FLAG_DESCENDING) != 0
                          ? SXML_IR_SORT_DIRECTION_DESCENDING
                          : SXML_IR_SORT_DIRECTION_ASCENDING,
-        /* Neither flag: the default order for empty sequences, empty least
-           until the prolog (3.10) can declare it. */
-        .empty_order = (flags & SXML_AST_FLAG_EMPTY_GREATEST) != 0
-                           ? SXML_IR_EMPTY_ORDER_GREATEST
-                           : SXML_IR_EMPTY_ORDER_LEAST,
+        .empty_order = empty_order_of(state, flags),
         .collation = collation};
     locals->sort_key_count += 1;
     locals->specification = next_of(state, locals->specification);
@@ -2809,223 +2819,3 @@ const sxml_xpath_lowering_part sxml_xpath_lowering_part_xquery = {
     .languages = SXML_LANGUAGE_XQUERY,
     .rules = xquery_rules,
     .rule_count = sizeof(xquery_rules) / sizeof(xquery_rules[0])};
-
-/* ===================================================== Entry points */
-
-/* Lowers the module's body as the main function of the unit, after the
-   global variables of the static context (as the core's
-   lower_main_function, D63). */
-static sxml_status lower_main_function(sxml_xpath_lowerer *state,
-                                       sxml_ast_node_index body) {
-    const sxml_variable_declaration_view declarations =
-        state->static_context->variable_declarations;
-    sxml_status status = SXML_STATUS_OK;
-    for (size_t declaration_index = 0;
-         status == SXML_STATUS_OK &&
-         declaration_index < declarations.variable_declaration_count;
-         declaration_index += 1) {
-        const sxml_variable_declaration *declaration =
-            &declarations.variable_declarations[declaration_index];
-        sxml_ir_global_index global = {0};
-        status = sxml_ir_unit_add_global_variable(
-            state->unit,
-            &(sxml_ir_global_variable){.variable_name = declaration->variable_name,
-                                       .declared_type = declaration->declared_type,
-                                       .initializer = {.value = 0}},
-            &global);
-    }
-    sxml_type_identifier signature = {0};
-    if (status == SXML_STATUS_OK) {
-        status = sxml_xpath_lowerer_register_signature(
-            state,
-            (sxml_xpath_lowering_signature_request){
-                .parameter_types = {.sequence_types = NULL, .sequence_type_count = 0},
-                .result_type = {.item_type = sxml_builtin_type_identifier(SXML_TYPE_ITEM),
-                                .occurrence = SXML_OCCURRENCE_ZERO_OR_MORE}},
-            &signature);
-    }
-    sxml_ir_function_index main_function = {0};
-    if (status == SXML_STATUS_OK) {
-        status = sxml_ir_unit_add_function(
-            state->unit,
-            &(sxml_ir_function){.signature = signature,
-                                .source_span = span_of(state, state->ast->root)},
-            &main_function);
-    }
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    sxml_xpath_lowering_function_frame frame = {
-        .function = {.function_index = main_function,
-                     .function_level = 0,
-                     .slot_count = 0,
-                     .captures = NULL,
-                     .capture_count = 0},
-        .focus = {.kind = SXML_XPATH_LOWERING_FOCUS_KIND_SLOTS},
-    };
-    sxml_xpath_lowerer_enter_function(state, &frame);
-    sxml_ir_expression_index lowered = {0};
-    status = sxml_xpath_lowerer_lower_embedded(
-        state,
-        &(sxml_xpath_lowering_embedding){.ast = state->ast,
-                                         .node = body,
-                                         .static_context = NULL,
-                                         .focus = NULL},
-        &lowered);
-    sxml_xpath_lowerer_leave_function(state, &frame);
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    sxml_ir_function_replacement replacement = {
-        .index = main_function,
-        .function = *sxml_ir_unit_get_function(state->unit, main_function)};
-    replacement.function.body = lowered;
-    replacement.function.slot_count = frame.function.slot_count;
-    replacement.function.focus = frame.focus.slots;
-    return sxml_ir_unit_replace_function(state->unit, &replacement);
-}
-
-/* The body of the module's main module; UNSUPPORTED_FEATURE for a prolog
-   with declarations (3.10), INVALID_ARGUMENT for a library module. */
-static sxml_status find_main_body(const sxml_ast *ast, sxml_error_record *error_record,
-                                  sxml_ast_node_index *body) {
-    const sxml_ast_node_index module = sxml_ast_find_child(
-        ast, (sxml_ast_child_query){.parent = ast->root, .field = SXML_AST_FIELD_MODULE});
-    if (sxml_ast_get_node(ast, module)->kind != SXML_AST_KIND_MAIN_MODULE) {
-        return SXML_STATUS_INVALID_ARGUMENT;
-    }
-    const sxml_ast_node_index prolog = sxml_ast_find_child(
-        ast, (sxml_ast_child_query){.parent = module, .field = SXML_AST_FIELD_PROLOG});
-    if (sxml_ast_get_node(ast, prolog)->first_child.value != 0) {
-        if (error_record != NULL) {
-            error_record->diagnostic = (sxml_diagnostic){
-                .location = sxml_ast_get_source_location(ast, prolog),
-                .description = SXML_BYTE_VIEW_FROM_LITERAL(
-                    "prolog declarations are not lowered yet (packet 3.10)")};
-        }
-        return SXML_STATUS_UNSUPPORTED_FEATURE;
-    }
-    *body = sxml_ast_find_child(
-        ast, (sxml_ast_child_query){.parent = module, .field = SXML_AST_FIELD_BODY});
-    return SXML_STATUS_OK;
-}
-
-sxml_status sxml_xquery_lower(const sxml_xquery_lowering_request *request,
-                              sxml_ir_unit **unit) {
-    if (request == NULL || request->ast == NULL || request->static_context == NULL ||
-        sxml_ast_get_node(request->ast, request->ast->root)->kind !=
-            SXML_AST_KIND_MODULE) {
-        return SXML_STATUS_INVALID_ARGUMENT;
-    }
-    sxml_ast_node_index body = {0};
-    sxml_status status = find_main_body(request->ast, request->error_record, &body);
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    const sxml_xpath_static_context *context = request->static_context;
-    sxml_ir_unit *new_unit = NULL;
-    status = sxml_ir_unit_create(
-        context->allocator,
-        &(sxml_ir_unit_configuration){
-            .allocator = context->allocator,
-            .item_heap = context->item_heap,
-            .source_name = request->ast->source_name,
-            .maximum_expression_count = request->maximum_expression_count},
-        &new_unit);
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    /* A plain struct on the stack is memory of the lowerer's size and
-       alignment. */
-    sxml_xpath_lowerer storage;
-    sxml_xpath_lowerer *lowerer = NULL;
-    status = sxml_xpath_lowerer_initialize(
-        (sxml_memory_view){.bytes = (uint8_t *)&storage, .byte_count = sizeof(storage)},
-        &(sxml_xpath_lowerer_configuration){
-            .static_context = context,
-            .unit = new_unit,
-            .language = SXML_LANGUAGE_XQUERY,
-            .parts = {.parts = NULL, .part_count = 0},
-            .maximum_expression_depth = request->maximum_expression_depth,
-            .error_record = request->error_record},
-        &lowerer);
-    if (status == SXML_STATUS_OK) {
-        lowerer->ast = request->ast;
-        status = lower_main_function(lowerer, body);
-        sxml_xpath_lowerer_finalize(lowerer);
-    }
-    if (status == SXML_STATUS_OK) {
-        /* For casts to xs:QName at run time (D84). */
-        sxml_xpath_namespace_collection namespaces = {.bindings = NULL,
-                                                      .binding_count = 0};
-        status = sxml_xpath_collect_namespaces(request->ast, context, &namespaces);
-        if (status == SXML_STATUS_OK) {
-            status = sxml_ir_unit_set_static_namespaces(
-                new_unit,
-                (sxml_namespace_binding_view){.namespace_bindings = namespaces.bindings,
-                                              .namespace_binding_count =
-                                                  namespaces.binding_count});
-            sxml_allocator_release(context->allocator, namespaces.bindings);
-        }
-    }
-    if (status == SXML_STATUS_OK) {
-        status = sxml_ir_unit_set_static_base_uri(new_unit, context->static_base_uri);
-    }
-    if (status != SXML_STATUS_OK) {
-        sxml_ir_unit_release(new_unit);
-        return status;
-    }
-    *unit = new_unit;
-    return SXML_STATUS_OK;
-}
-
-sxml_status sxml_xquery_compile(const sxml_xpath_compile_request *request,
-                                sxml_ir_unit **unit) {
-    if (request == NULL || request->static_context == NULL) {
-        return SXML_STATUS_INVALID_ARGUMENT;
-    }
-    sxml_ast *ast = NULL;
-    sxml_status status = sxml_xquery_build_ast(
-        &(sxml_ast_build_request){
-            .expression_text = request->expression_text,
-            .source_name = request->source_name,
-            .allocator = request->static_context->allocator,
-            .maximum_expression_depth = request->maximum_expression_depth,
-            .error_record = request->error_record},
-        &ast);
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    sxml_ir_unit *new_unit = NULL;
-    status = sxml_xquery_lower(
-        &(sxml_xquery_lowering_request){
-            .ast = ast,
-            .static_context = request->static_context,
-            .maximum_expression_count = request->maximum_expression_count,
-            .maximum_expression_depth = request->maximum_expression_depth,
-            .error_record = request->error_record},
-        &new_unit);
-    sxml_ast_destroy(ast);
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    sxml_diagnostic diagnostic = {0};
-    status = sxml_ir_run_passes(&(sxml_ir_pass_list_request){
-        .pass_request = {.unit = new_unit,
-                         .type_registry = sxml_item_heap_get_type_registry(
-                             request->static_context->item_heap),
-                         .error_record = request->error_record,
-                         .diagnostic = &diagnostic},
-        .passes = sxml_ir_standard_passes,
-        .verifies_after_each_pass = false});
-    if (status != SXML_STATUS_OK) {
-        if (status == SXML_STATUS_INVALID_ARGUMENT && request->error_record != NULL) {
-            request->error_record->diagnostic = diagnostic;
-        }
-        sxml_ir_unit_release(new_unit);
-        return status;
-    }
-    sxml_ir_unit_seal(new_unit);
-    *unit = new_unit;
-    return SXML_STATUS_OK;
-}

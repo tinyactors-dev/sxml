@@ -1,0 +1,1548 @@
+/*
+ * The static context of an XQuery main module (src/xquery_static_internal.h;
+ * D135, packet 3.10): the prolog's namespaces, setters, variable and
+ * function declarations applied to the host's static context.
+ *
+ * Golden file: src/xpath_static.c. The prolog is a flat list of
+ * declarations, so every check is a loop over it; duplicates are found by
+ * sorting (a heapsort over an array, no recursion, D71), so a prolog of n
+ * declarations costs O(n log n).
+ *
+ * Section numbers are of XQuery 4.0 (W3C QT4 CG draft, 13 October 2026)
+ * unless another specification is named.
+ */
+#include "xquery_static_internal.h"
+
+#include "sxml/memory.h"
+#include "sxml/xdm.h"
+#include "xdm_internal.h"
+
+#include <stdalign.h>
+#include <string.h>
+
+/* The namespace of unprefixed annotations and options (5.15, 5.21). */
+static const sxml_byte_view xquery_namespace_text =
+    SXML_BYTE_VIEW_INITIALIZER("http://www.w3.org/2012/xquery");
+
+/* ----------------------------------------------------------- AST access */
+
+static const sxml_ast_node *node_of(const sxml_ast *ast, sxml_ast_node_index node) {
+    return sxml_ast_get_node(ast, node);
+}
+
+static sxml_ast_node_index child_of(const sxml_ast *ast, sxml_ast_node_index parent,
+                                    sxml_ast_field field) {
+    return sxml_ast_find_child(ast, (sxml_ast_child_query){.parent = parent, .field = field});
+}
+
+static sxml_ast_node_index next_of(const sxml_ast *ast, sxml_ast_node_index node) {
+    return sxml_ast_find_next_with_same_field(ast, node);
+}
+
+static sxml_byte_view text_of(const sxml_ast *ast, sxml_ast_node_index node) {
+    return sxml_ast_get_text(ast, node_of(ast, node)->payload.text);
+}
+
+/* The PROLOG of the module's MAIN_MODULE; 0 for none. */
+static sxml_ast_node_index prolog_of(const sxml_ast *ast) {
+    const sxml_ast_node_index module = child_of(ast, ast->root, SXML_AST_FIELD_MODULE);
+    return child_of(ast, module, SXML_AST_FIELD_PROLOG);
+}
+
+static sxml_ast_node_index first_declaration(const sxml_ast *ast) {
+    const sxml_ast_node_index prolog = prolog_of(ast);
+    if (prolog.value == 0) {
+        return prolog;
+    }
+    return child_of(ast, prolog, SXML_AST_FIELD_DECLARATION);
+}
+
+/* ------------------------------------------------------------ Reading */
+
+/* Everything reading one prolog needs. */
+typedef struct static_reader {
+    const sxml_xquery_static_request *request;
+    const sxml_ast *ast;
+    sxml_name_pool *name_pool;
+    sxml_type_registry *type_registry;
+    sxml_allocator allocator;
+    /* The context being read; names and types resolve with its XPath
+       static context as far as it is built. */
+    const sxml_xquery_static_context *context;
+} static_reader;
+
+/* code_and_description is "CODE description" (an eight-character code, a
+   space, static text). */
+static sxml_status report(const static_reader *reader, sxml_ast_node_index node,
+                          sxml_byte_view code_and_description) {
+    return sxml_xpath_report_static_error(
+        &(sxml_xpath_static_error){
+            .ast = reader->ast,
+            .node = node,
+            .code_local_name = {.bytes = code_and_description.bytes, .byte_count = 8},
+            .description = {.bytes = code_and_description.bytes + 9,
+                            .byte_count = code_and_description.byte_count - 9}},
+        reader->request->error_record);
+}
+
+/* An array of element_count zeroed elements (at least one). */
+typedef struct array_request {
+    size_t element_count;
+    size_t element_size;
+    size_t element_alignment;
+} array_request;
+
+static sxml_status allocate_array(const static_reader *reader, array_request request,
+                                  void **memory) {
+    size_t byte_count = 0;
+    sxml_status status = sxml_size_multiply(
+        request.element_count == 0 ? 1 : request.element_count, request.element_size,
+        &byte_count);
+    void *allocated = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_allocator_allocate(
+            reader->allocator,
+            (sxml_allocation_request){.byte_count = byte_count,
+                                      .alignment = request.element_alignment},
+            &allocated);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    memset(allocated, 0, byte_count);
+    *memory = allocated;
+    return SXML_STATUS_OK;
+}
+
+static bool is_xml_whitespace(uint8_t byte) {
+    return byte == ' ' || byte == '\t' || byte == '\n' || byte == '\r';
+}
+
+/* Interns a URILiteral, its whitespace normalized as for xs:anyURI
+   (A.3.1). */
+static sxml_status intern_uri(const static_reader *reader, sxml_byte_view text,
+                              sxml_namespace_uri_identifier *uri) {
+    size_t first = 0;
+    size_t end = text.byte_count;
+    while (first < end && is_xml_whitespace(text.bytes[first])) {
+        first += 1;
+    }
+    while (end > first && is_xml_whitespace(text.bytes[end - 1])) {
+        end -= 1;
+    }
+    bool needs_collapsing = false;
+    for (size_t byte_index = first; byte_index < end; byte_index += 1) {
+        if (is_xml_whitespace(text.bytes[byte_index])) {
+            needs_collapsing = true;
+        }
+    }
+    const sxml_byte_view trimmed = {.bytes = text.bytes + first, .byte_count = end - first};
+    if (!needs_collapsing) {
+        return sxml_name_pool_intern_namespace_uri(reader->name_pool, trimmed, uri);
+    }
+    void *memory = NULL;
+    sxml_status status = allocate_array(
+        reader,
+        (array_request){
+            .element_count = trimmed.byte_count, .element_size = 1, .element_alignment = 1},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    uint8_t *collapsed = memory;
+    size_t collapsed_count = 0;
+    for (size_t byte_index = 0; byte_index < trimmed.byte_count; byte_index += 1) {
+        const uint8_t byte = trimmed.bytes[byte_index];
+        if (is_xml_whitespace(byte)) {
+            if (collapsed[collapsed_count - 1] != ' ') {
+                collapsed[collapsed_count] = ' ';
+                collapsed_count += 1;
+            }
+            continue;
+        }
+        collapsed[collapsed_count] = byte;
+        collapsed_count += 1;
+    }
+    status = sxml_name_pool_intern_namespace_uri(
+        reader->name_pool, (sxml_byte_view){.bytes = collapsed, .byte_count = collapsed_count},
+        uri);
+    sxml_allocator_release(reader->allocator, memory);
+    return status;
+}
+
+static bool is_well_known(sxml_namespace_uri_identifier uri,
+                          sxml_well_known_namespace namespace_uri) {
+    return uri.index == sxml_well_known_namespace_identifier(namespace_uri).index;
+}
+
+/* XQST0070 for the XML and XMLNS namespace URIs (5.13, 5.14). */
+static bool is_xml_namespace(sxml_namespace_uri_identifier uri) {
+    return is_well_known(uri, SXML_NAMESPACE_XML) || is_well_known(uri, SXML_NAMESPACE_XMLNS);
+}
+
+/* The namespaces no declared function or annotation may be in (5.15,
+   5.18); also the XQuery namespace for annotations. */
+static bool is_reserved_namespace(sxml_namespace_uri_identifier uri) {
+    static const sxml_well_known_namespace reserved[] = {
+        SXML_NAMESPACE_XML,           SXML_NAMESPACE_XML_SCHEMA,
+        SXML_NAMESPACE_XML_SCHEMA_INSTANCE, SXML_NAMESPACE_FUNCTIONS,
+        SXML_NAMESPACE_ARRAY_FUNCTIONS, SXML_NAMESPACE_MAP_FUNCTIONS,
+        SXML_NAMESPACE_MATH_FUNCTIONS,
+    };
+    for (size_t reserved_index = 0; reserved_index < sizeof(reserved) / sizeof(reserved[0]);
+         reserved_index += 1) {
+        if (is_well_known(uri, reserved[reserved_index])) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* ------------------------------------------------------------- Sorting */
+
+/* A key and where it came from (a declaration's position), sorted by key,
+   then position. */
+typedef struct sort_entry {
+    uint64_t key;
+    size_t position;
+} sort_entry;
+
+static bool sorts_before(sort_entry left, sort_entry right) {
+    return left.key < right.key || (left.key == right.key && left.position < right.position);
+}
+
+/* Moves entries[root] down the heap of entry_count entries. */
+typedef struct heap_span {
+    sort_entry *entries;
+    size_t entry_count;
+} heap_span;
+
+static void sift_down(heap_span heap, size_t root) {
+    size_t parent = root;
+    for (;;) {
+        size_t largest = parent;
+        const size_t left = 2 * parent + 1;
+        const size_t right = left + 1;
+        if (left < heap.entry_count && sorts_before(heap.entries[largest], heap.entries[left])) {
+            largest = left;
+        }
+        if (right < heap.entry_count &&
+            sorts_before(heap.entries[largest], heap.entries[right])) {
+            largest = right;
+        }
+        if (largest == parent) {
+            return;
+        }
+        const sort_entry moved = heap.entries[parent];
+        heap.entries[parent] = heap.entries[largest];
+        heap.entries[largest] = moved;
+        parent = largest;
+    }
+}
+
+static void sort_entries(sort_entry *entries, size_t entry_count) {
+    for (size_t heap_root = entry_count / 2; heap_root > 0; heap_root -= 1) {
+        sift_down((heap_span){.entries = entries, .entry_count = entry_count}, heap_root - 1);
+    }
+    for (size_t heap_end = entry_count; heap_end > 1; heap_end -= 1) {
+        const sort_entry largest = entries[0];
+        entries[0] = entries[heap_end - 1];
+        entries[heap_end - 1] = largest;
+        sift_down((heap_span){.entries = entries, .entry_count = heap_end - 1}, 0);
+    }
+}
+
+/* ------------------------------------------------------- Setters */
+
+/* A declaration a prolog may make at most once, and the error of a second
+   one. */
+typedef struct single_declaration_rule {
+    sxml_ast_kind kind;
+    sxml_byte_view code_and_description;
+} single_declaration_rule;
+
+static const single_declaration_rule single_declaration_rules[] = {
+    {SXML_AST_KIND_BOUNDARY_SPACE_DECLARATION,
+     SXML_BYTE_VIEW_INITIALIZER("XQST0068 the prolog declares boundary-space twice")},
+    {SXML_AST_KIND_DEFAULT_COLLATION_DECLARATION,
+     SXML_BYTE_VIEW_INITIALIZER("XQST0038 the prolog declares the default collation twice")},
+    {SXML_AST_KIND_BASE_URI_DECLARATION,
+     SXML_BYTE_VIEW_INITIALIZER("XQST0032 the prolog declares the base URI twice")},
+    {SXML_AST_KIND_CONSTRUCTION_DECLARATION,
+     SXML_BYTE_VIEW_INITIALIZER("XQST0067 the prolog declares construction twice")},
+    {SXML_AST_KIND_ORDERING_MODE_DECLARATION,
+     SXML_BYTE_VIEW_INITIALIZER("XQST0065 the prolog declares the ordering mode twice")},
+    {SXML_AST_KIND_EMPTY_ORDER_DECLARATION,
+     SXML_BYTE_VIEW_INITIALIZER("XQST0069 the prolog declares the empty order twice")},
+    {SXML_AST_KIND_COPY_NAMESPACES_DECLARATION,
+     SXML_BYTE_VIEW_INITIALIZER("XQST0055 the prolog declares copy-namespaces twice")},
+    {SXML_AST_KIND_CONTEXT_VALUE_DECLARATION,
+     SXML_BYTE_VIEW_INITIALIZER("XQST0099 the prolog declares the context value twice")},
+};
+
+#define SINGLE_DECLARATION_RULE_COUNT                                          \
+    (sizeof(single_declaration_rules) / sizeof(single_declaration_rules[0]))
+
+/* What the first pass over the prolog counts and finds. */
+typedef struct prolog_survey {
+    size_t namespace_declaration_count;
+    size_t variable_declaration_count;
+    size_t function_declaration_count;
+    size_t parameter_count;
+    size_t signature_count;
+    sxml_ast_node_index default_element_namespace;
+    sxml_ast_node_index default_function_namespace;
+    sxml_ast_node_index base_uri_declaration;
+    sxml_ast_node_index default_collation_declaration;
+    sxml_ast_node_index context_value_declaration;
+} prolog_survey;
+
+static sxml_status survey_declaration(const static_reader *reader,
+                                      sxml_ast_node_index declaration,
+                                      prolog_survey *survey) {
+    const sxml_ast *ast = reader->ast;
+    const sxml_ast_node *node = node_of(ast, declaration);
+    switch ((uint32_t)node->kind) {
+    case SXML_AST_KIND_NAMESPACE_DECLARATION:
+        survey->namespace_declaration_count += 1;
+        return SXML_STATUS_OK;
+    case SXML_AST_KIND_DEFAULT_NAMESPACE_DECLARATION: {
+        sxml_ast_node_index *seen = node->detail.keyword == SXML_AST_KEYWORD_FUNCTION
+                                        ? &survey->default_function_namespace
+                                        : &survey->default_element_namespace;
+        if (seen->value != 0) {
+            return report(reader, declaration,
+                          SXML_BYTE_VIEW_FROM_LITERAL(
+                              "XQST0066 the prolog declares a default namespace twice"));
+        }
+        *seen = declaration;
+        return SXML_STATUS_OK;
+    }
+    case SXML_AST_KIND_BASE_URI_DECLARATION:
+        survey->base_uri_declaration = declaration;
+        return SXML_STATUS_OK;
+    case SXML_AST_KIND_DEFAULT_COLLATION_DECLARATION:
+        survey->default_collation_declaration = declaration;
+        return SXML_STATUS_OK;
+    case SXML_AST_KIND_CONTEXT_VALUE_DECLARATION:
+        survey->context_value_declaration = declaration;
+        return SXML_STATUS_OK;
+    case SXML_AST_KIND_VARIABLE_DECLARATION:
+        survey->variable_declaration_count += 1;
+        return SXML_STATUS_OK;
+    case SXML_AST_KIND_FUNCTION_DECLARATION: {
+        size_t parameter_count = 0;
+        size_t required_count = 0;
+        for (sxml_ast_node_index parameter =
+                 child_of(ast, declaration, SXML_AST_FIELD_PARAMETER);
+             parameter.value != 0; parameter = next_of(ast, parameter)) {
+            const bool has_default =
+                child_of(ast, parameter, SXML_AST_FIELD_DEFAULT).value != 0;
+            if (!has_default && required_count != parameter_count) {
+                /* 5.18.3: required parameters come first. */
+                return report(reader, parameter,
+                              SXML_BYTE_VIEW_FROM_LITERAL(
+                                  "XQST0148 a required parameter follows an optional one"));
+            }
+            parameter_count += 1;
+            if (!has_default) {
+                required_count += 1;
+            }
+        }
+        if (parameter_count >= UINT32_MAX / 4) {
+            return SXML_STATUS_LIMIT_EXCEEDED;
+        }
+        survey->function_declaration_count += 1;
+        survey->parameter_count += parameter_count;
+        survey->signature_count += parameter_count - required_count + 1;
+        return SXML_STATUS_OK;
+    }
+    case SXML_AST_KIND_SCHEMA_IMPORT:
+        /* D97: no schema awareness; 5.11. */
+        return report(reader, declaration,
+                      SXML_BYTE_VIEW_FROM_LITERAL(
+                          "XQST0009 schema import is not supported (no schema awareness)"));
+    case SXML_AST_KIND_MODULE_IMPORT:
+        if (reader->request->error_record != NULL) {
+            reader->request->error_record->diagnostic = (sxml_diagnostic){
+                .location = sxml_ast_get_source_location(ast, declaration),
+                .description = SXML_BYTE_VIEW_FROM_LITERAL(
+                    "module import is not supported yet (packet 3.11)")};
+        }
+        return SXML_STATUS_UNSUPPORTED_FEATURE;
+    case SXML_AST_KIND_ITEM_TYPE_DECLARATION:
+    case SXML_AST_KIND_NOMINATIVE_RECORD_TYPE_DECLARATION:
+        if (reader->request->error_record != NULL) {
+            reader->request->error_record->diagnostic = (sxml_diagnostic){
+                .location = sxml_ast_get_source_location(ast, declaration),
+                .description = SXML_BYTE_VIEW_FROM_LITERAL(
+                    "item type and record declarations are not supported yet")};
+        }
+        return SXML_STATUS_UNSUPPORTED_FEATURE;
+    default:
+        return SXML_STATUS_OK;
+    }
+}
+
+/* Counts the declarations and checks the setters (5.3 to 5.9) and the
+   context value declaration (5.17) for repetition. */
+static sxml_status survey_prolog(const static_reader *reader, prolog_survey *survey) {
+    bool is_seen[SINGLE_DECLARATION_RULE_COUNT] = {false};
+    sxml_status status = SXML_STATUS_OK;
+    for (sxml_ast_node_index declaration = first_declaration(reader->ast);
+         status == SXML_STATUS_OK && declaration.value != 0;
+         declaration = next_of(reader->ast, declaration)) {
+        const sxml_ast_kind kind = node_of(reader->ast, declaration)->kind;
+        for (size_t rule_index = 0; rule_index < SINGLE_DECLARATION_RULE_COUNT;
+             rule_index += 1) {
+            if (single_declaration_rules[rule_index].kind != kind) {
+                continue;
+            }
+            if (is_seen[rule_index]) {
+                return report(reader, declaration,
+                              single_declaration_rules[rule_index].code_and_description);
+            }
+            is_seen[rule_index] = true;
+        }
+        status = survey_declaration(reader, declaration, survey);
+    }
+    return status;
+}
+
+/* ------------------------------------------------------- Namespaces */
+
+/* Interns the text of a declaration's prefix (an NCNAME node). */
+static sxml_status intern_prefix(const static_reader *reader, sxml_ast_node_index prefix_node,
+                                 sxml_namespace_prefix_identifier *prefix) {
+    return sxml_name_pool_intern_namespace_prefix(
+        reader->name_pool,
+        sxml_ast_get_text(reader->ast, node_of(reader->ast, prefix_node)->payload.name.local_name),
+        prefix);
+}
+
+/* The bindings of the namespace declarations (5.13) and the default
+   element namespace (5.14.1, prefix 0), in prolog order, in
+   bindings[0 .. *binding_count). */
+typedef struct binding_list {
+    sxml_namespace_binding *bindings;
+    size_t binding_count;
+} binding_list;
+
+static sxml_status read_namespace_declaration(const static_reader *reader,
+                                              sxml_ast_node_index declaration,
+                                              binding_list *list) {
+    const sxml_ast *ast = reader->ast;
+    const sxml_ast_node_index prefix_node = child_of(ast, declaration, SXML_AST_FIELD_PREFIX);
+    const sxml_byte_view prefix_text =
+        sxml_ast_get_text(ast, node_of(ast, prefix_node)->payload.name.local_name);
+    if (sxml_byte_view_equals(prefix_text, SXML_BYTE_VIEW_FROM_LITERAL("xml")) ||
+        sxml_byte_view_equals(prefix_text, SXML_BYTE_VIEW_FROM_LITERAL("xmlns"))) {
+        return report(reader, prefix_node,
+                      SXML_BYTE_VIEW_FROM_LITERAL(
+                          "XQST0070 the prefixes xml and xmlns cannot be declared"));
+    }
+    sxml_namespace_uri_identifier uri = {0};
+    sxml_status status = intern_uri(
+        reader, text_of(ast, child_of(ast, declaration, SXML_AST_FIELD_URI)), &uri);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (is_xml_namespace(uri)) {
+        return report(reader, declaration,
+                      SXML_BYTE_VIEW_FROM_LITERAL(
+                          "XQST0070 the XML namespaces cannot be bound to a prefix"));
+    }
+    sxml_namespace_prefix_identifier prefix = {0};
+    status = intern_prefix(reader, prefix_node, &prefix);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (uri.index == SXML_NAMESPACE_NONE) {
+        /* 5.13: "" removes the binding; the prefix is then simply not bound
+           by the prolog (it keeps no predeclared binding but these). */
+        return SXML_STATUS_OK;
+    }
+    list->bindings[list->binding_count] =
+        (sxml_namespace_binding){.namespace_prefix = prefix, .namespace_uri = uri};
+    list->binding_count += 1;
+    return SXML_STATUS_OK;
+}
+
+/* XQST0033: a prefix declared twice (5.13). positions[n] is the
+   declaration of binding n. */
+typedef struct prefix_check {
+    const sxml_namespace_binding *bindings;
+    const sxml_ast_node_index *declarations;
+    size_t binding_count;
+} prefix_check;
+
+static sxml_status check_prefixes(const static_reader *reader, prefix_check check) {
+    if (check.binding_count < 2) {
+        return SXML_STATUS_OK;
+    }
+    void *memory = NULL;
+    sxml_status status = allocate_array(
+        reader,
+        (array_request){.element_count = check.binding_count,
+                        .element_size = sizeof(sort_entry),
+                        .element_alignment = alignof(sort_entry)},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sort_entry *entries = memory;
+    for (size_t binding_index = 0; binding_index < check.binding_count; binding_index += 1) {
+        entries[binding_index] = (sort_entry){
+            .key = check.bindings[binding_index].namespace_prefix.index,
+            .position = binding_index};
+    }
+    sort_entries(entries, check.binding_count);
+    for (size_t entry_index = 1; status == SXML_STATUS_OK && entry_index < check.binding_count;
+         entry_index += 1) {
+        if (entries[entry_index].key == entries[entry_index - 1].key) {
+            status = report(reader, check.declarations[entries[entry_index].position],
+                            SXML_BYTE_VIEW_FROM_LITERAL(
+                                "XQST0033 the prolog declares a namespace prefix twice"));
+        }
+    }
+    sxml_allocator_release(reader->allocator, memory);
+    return status;
+}
+
+/* True when bindings[0 .. binding_count) binds prefix. */
+static bool binds_prefix(const sxml_namespace_binding *bindings, size_t binding_count,
+                         sxml_namespace_prefix_identifier prefix) {
+    for (size_t binding_index = 0; binding_index < binding_count; binding_index += 1) {
+        if (bindings[binding_index].namespace_prefix.index == prefix.index) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* Makes context->namespace_bindings (see the header). */
+static sxml_status read_namespaces(const static_reader *reader, const prolog_survey *survey,
+                                   sxml_xquery_static_context *context) {
+    const sxml_ast *ast = reader->ast;
+    const sxml_namespace_binding_view host =
+        reader->request->host_static_context->namespace_bindings;
+    /* Prolog declarations, the default element namespace, the host's, local
+       and output. */
+    const size_t capacity = survey->namespace_declaration_count + 1 +
+                            host.namespace_binding_count + 2;
+    void *memory = NULL;
+    sxml_status status = allocate_array(
+        reader,
+        (array_request){.element_count = capacity,
+                        .element_size = sizeof(sxml_namespace_binding),
+                        .element_alignment = alignof(sxml_namespace_binding)},
+        &memory);
+    void *declaration_memory = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = allocate_array(
+            reader,
+            (array_request){.element_count = capacity,
+                            .element_size = sizeof(sxml_ast_node_index),
+                            .element_alignment = alignof(sxml_ast_node_index)},
+            &declaration_memory);
+    }
+    if (status != SXML_STATUS_OK) {
+        sxml_allocator_release(reader->allocator, memory);
+        return status;
+    }
+    binding_list list = {.bindings = memory, .binding_count = 0};
+    sxml_ast_node_index *declarations = declaration_memory;
+    for (sxml_ast_node_index declaration = first_declaration(ast);
+         status == SXML_STATUS_OK && declaration.value != 0;
+         declaration = next_of(ast, declaration)) {
+        if (node_of(ast, declaration)->kind == SXML_AST_KIND_NAMESPACE_DECLARATION) {
+            declarations[list.binding_count] = declaration;
+            status = read_namespace_declaration(reader, declaration, &list);
+        }
+    }
+    if (status == SXML_STATUS_OK) {
+        status = check_prefixes(reader, (prefix_check){.bindings = list.bindings,
+                                                       .declarations = declarations,
+                                                       .binding_count = list.binding_count});
+    }
+    if (status == SXML_STATUS_OK && survey->default_element_namespace.value != 0) {
+        sxml_namespace_uri_identifier uri = {0};
+        status = intern_uri(
+            reader,
+            text_of(ast, child_of(ast, survey->default_element_namespace, SXML_AST_FIELD_URI)),
+            &uri);
+        if (status == SXML_STATUS_OK && is_xml_namespace(uri)) {
+            status = report(reader, survey->default_element_namespace,
+                            SXML_BYTE_VIEW_FROM_LITERAL(
+                                "XQST0070 the XML namespaces cannot be the default namespace"));
+        }
+        if (status == SXML_STATUS_OK) {
+            list.bindings[list.binding_count] = (sxml_namespace_binding){
+                .namespace_prefix = {.index = 0}, .namespace_uri = uri};
+            list.binding_count += 1;
+        }
+    }
+    const size_t prolog_binding_count = list.binding_count;
+    for (size_t host_index = 0;
+         status == SXML_STATUS_OK && host_index < host.namespace_binding_count;
+         host_index += 1) {
+        const sxml_namespace_binding binding = host.namespace_bindings[host_index];
+        if (!binds_prefix(list.bindings, prolog_binding_count, binding.namespace_prefix)) {
+            list.bindings[list.binding_count] = binding;
+            list.binding_count += 1;
+        }
+    }
+    /* 2.1.4: XQuery also predeclares local and output. */
+    static const struct {
+        sxml_byte_view prefix;
+        sxml_well_known_namespace namespace_uri;
+    } predeclared[] = {
+        {SXML_BYTE_VIEW_INITIALIZER("local"), SXML_NAMESPACE_LOCAL_FUNCTIONS},
+        {SXML_BYTE_VIEW_INITIALIZER("output"), SXML_NAMESPACE_SERIALIZATION},
+    };
+    for (size_t predeclared_index = 0;
+         status == SXML_STATUS_OK && predeclared_index < sizeof(predeclared) / sizeof(predeclared[0]);
+         predeclared_index += 1) {
+        sxml_namespace_prefix_identifier prefix = {0};
+        status = sxml_name_pool_intern_namespace_prefix(
+            reader->name_pool, predeclared[predeclared_index].prefix, &prefix);
+        if (status == SXML_STATUS_OK && !binds_prefix(list.bindings, list.binding_count, prefix)) {
+            list.bindings[list.binding_count] = (sxml_namespace_binding){
+                .namespace_prefix = prefix,
+                .namespace_uri =
+                    sxml_well_known_namespace_identifier(predeclared[predeclared_index].namespace_uri)};
+            list.binding_count += 1;
+        }
+    }
+    sxml_allocator_release(reader->allocator, declaration_memory);
+    if (status != SXML_STATUS_OK) {
+        sxml_allocator_release(reader->allocator, memory);
+        return status;
+    }
+    context->namespace_bindings = list.bindings;
+    context->namespace_binding_count = list.binding_count;
+    context->xpath.namespace_bindings = (sxml_namespace_binding_view){
+        .namespace_bindings = list.bindings, .namespace_binding_count = list.binding_count};
+    if (survey->default_function_namespace.value != 0) {
+        context->has_default_function_namespace = true;
+        status = intern_uri(
+            reader,
+            text_of(ast, child_of(ast, survey->default_function_namespace, SXML_AST_FIELD_URI)),
+            &context->default_function_namespace);
+        if (status == SXML_STATUS_OK && is_xml_namespace(context->default_function_namespace)) {
+            status = report(reader, survey->default_function_namespace,
+                            SXML_BYTE_VIEW_FROM_LITERAL(
+                                "XQST0070 the XML namespaces cannot be the default namespace"));
+        }
+    }
+    return status;
+}
+
+/* ----------------------------------------------------- Base URI, collation */
+
+/* The base URI declaration (5.5), resolved against the host's static base
+   URI, and the default collation declaration (5.4), which must name a
+   collation sxml supports (XQST0038). */
+static sxml_status read_base_uri_and_collation(const static_reader *reader,
+                                               const prolog_survey *survey,
+                                               sxml_xquery_static_context *context) {
+    const sxml_ast *ast = reader->ast;
+    sxml_status status = SXML_STATUS_OK;
+    if (survey->base_uri_declaration.value != 0) {
+        sxml_uri_resolution resolution = {0};
+        status = sxml_uri_resolve(
+            &(sxml_uri_resolution_request){
+                .reference = text_of(ast, child_of(ast, survey->base_uri_declaration,
+                                                   SXML_AST_FIELD_URI)),
+                .base_uri = reader->request->host_static_context->static_base_uri,
+                .allocator = reader->allocator},
+            &resolution);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        context->static_base_uri_memory = resolution.memory;
+        context->xpath.static_base_uri = resolution.uri;
+    }
+    if (survey->default_collation_declaration.value != 0) {
+        sxml_uri_resolution resolution = {0};
+        status = sxml_uri_resolve(
+            &(sxml_uri_resolution_request){
+                .reference = text_of(ast, child_of(ast, survey->default_collation_declaration,
+                                                   SXML_AST_FIELD_URI)),
+                .base_uri = context->xpath.static_base_uri,
+                .allocator = reader->allocator},
+            &resolution);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        const bool is_supported = sxml_collation_is_supported(resolution.uri);
+        sxml_allocator_release(reader->allocator, resolution.memory);
+        if (!is_supported) {
+            return report(reader, survey->default_collation_declaration,
+                          SXML_BYTE_VIEW_FROM_LITERAL(
+                              "XQST0038 the default collation is not supported"));
+        }
+    }
+    return status;
+}
+
+/* --------------------------------------------------------- Annotations */
+
+/* The expanded name of an annotation (5.15: an unprefixed name is in the
+   XQuery namespace) or an option. */
+typedef struct expanded_name {
+    sxml_namespace_uri_identifier namespace_uri;
+    sxml_byte_view local_name;
+} expanded_name;
+
+static sxml_status resolve_xquery_name(const static_reader *reader,
+                                       sxml_ast_node_index name_node, expanded_name *name) {
+    const sxml_xquery_static_context *context = reader->context;
+    sxml_xpath_resolved_name resolved = {0};
+    sxml_status status = sxml_xpath_resolve_name(
+        &(sxml_xpath_name_request){.ast = reader->ast,
+                                   .name_node = name_node,
+                                   .name_role = SXML_XPATH_NAME_ROLE_NO_NAMESPACE,
+                                   .static_context = &context->xpath,
+                                   .error_record = reader->request->error_record},
+        &resolved);
+    if (status == SXML_STATUS_OK && node_of(reader->ast, name_node)->kind == SXML_AST_KIND_NCNAME) {
+        status = sxml_name_pool_intern_namespace_uri(reader->name_pool, xquery_namespace_text,
+                                                     &resolved.namespace_uri);
+    }
+    if (status == SXML_STATUS_OK) {
+        *name = (expanded_name){.namespace_uri = resolved.namespace_uri,
+                                .local_name = resolved.local_name};
+    }
+    return status;
+}
+
+/* Checks the annotations of a variable or function declaration: none in a
+   reserved namespace but %public and %private (XQST0045), and at most one
+   of those (duplicate_error: XQST0116 for variables, XQST0106 for
+   functions). */
+typedef struct annotation_check {
+    sxml_ast_node_index declaration;
+    sxml_byte_view duplicate_error;
+} annotation_check;
+
+static sxml_status check_annotations(const static_reader *reader, annotation_check check) {
+    sxml_namespace_uri_identifier xquery_namespace = {0};
+    sxml_status status = sxml_name_pool_intern_namespace_uri(
+        reader->name_pool, xquery_namespace_text, &xquery_namespace);
+    size_t visibility_count = 0;
+    for (sxml_ast_node_index annotation =
+             child_of(reader->ast, check.declaration, SXML_AST_FIELD_ANNOTATION);
+         status == SXML_STATUS_OK && annotation.value != 0;
+         annotation = next_of(reader->ast, annotation)) {
+        expanded_name name = {0};
+        status = resolve_xquery_name(
+            reader, child_of(reader->ast, annotation, SXML_AST_FIELD_NAME), &name);
+        if (status != SXML_STATUS_OK) {
+            break;
+        }
+        const bool is_visibility =
+            name.namespace_uri.index == xquery_namespace.index &&
+            (sxml_byte_view_equals(name.local_name, SXML_BYTE_VIEW_FROM_LITERAL("public")) ||
+             sxml_byte_view_equals(name.local_name, SXML_BYTE_VIEW_FROM_LITERAL("private")));
+        if (is_visibility) {
+            visibility_count += 1;
+            if (visibility_count > 1) {
+                status = report(reader, annotation, check.duplicate_error);
+            }
+        } else if (name.namespace_uri.index == xquery_namespace.index ||
+                   is_reserved_namespace(name.namespace_uri)) {
+            /* %updating among them: no Update Facility (D97). */
+            status = report(reader, annotation,
+                            SXML_BYTE_VIEW_FROM_LITERAL(
+                                "XQST0045 an annotation is in a reserved namespace"));
+        }
+    }
+    return status;
+}
+
+/* ------------------------------------------------------------ Options */
+
+/* The serialization parameters an output declaration may set (5.22;
+   Serialization 4.0, section 3): all but use-character-maps, and
+   parameter-document. */
+static const sxml_byte_view output_parameter_names[] = {
+    SXML_BYTE_VIEW_INITIALIZER("allow-duplicate-names"),
+    SXML_BYTE_VIEW_INITIALIZER("byte-order-mark"),
+    SXML_BYTE_VIEW_INITIALIZER("canonical"),
+    SXML_BYTE_VIEW_INITIALIZER("cdata-section-elements"),
+    SXML_BYTE_VIEW_INITIALIZER("csv-header"),
+    SXML_BYTE_VIEW_INITIALIZER("csv-quote-character"),
+    SXML_BYTE_VIEW_INITIALIZER("csv-separator"),
+    SXML_BYTE_VIEW_INITIALIZER("doctype-public"),
+    SXML_BYTE_VIEW_INITIALIZER("doctype-system"),
+    SXML_BYTE_VIEW_INITIALIZER("encoding"),
+    SXML_BYTE_VIEW_INITIALIZER("escape-solidus"),
+    SXML_BYTE_VIEW_INITIALIZER("escape-uri-attributes"),
+    SXML_BYTE_VIEW_INITIALIZER("html-version"),
+    SXML_BYTE_VIEW_INITIALIZER("include-content-type"),
+    SXML_BYTE_VIEW_INITIALIZER("indent"),
+    SXML_BYTE_VIEW_INITIALIZER("indent-attributes"),
+    SXML_BYTE_VIEW_INITIALIZER("indent-unit"),
+    SXML_BYTE_VIEW_INITIALIZER("item-separator"),
+    SXML_BYTE_VIEW_INITIALIZER("json-lines"),
+    SXML_BYTE_VIEW_INITIALIZER("json-node-output-method"),
+    SXML_BYTE_VIEW_INITIALIZER("line-ending"),
+    SXML_BYTE_VIEW_INITIALIZER("media-type"),
+    SXML_BYTE_VIEW_INITIALIZER("method"),
+    SXML_BYTE_VIEW_INITIALIZER("normalization-form"),
+    SXML_BYTE_VIEW_INITIALIZER("omit-xml-declaration"),
+    SXML_BYTE_VIEW_INITIALIZER("parameter-document"),
+    SXML_BYTE_VIEW_INITIALIZER("standalone"),
+    SXML_BYTE_VIEW_INITIALIZER("suppress-indentation"),
+    SXML_BYTE_VIEW_INITIALIZER("undeclare-prefixes"),
+    SXML_BYTE_VIEW_INITIALIZER("version"),
+};
+
+/* The index of an output parameter name; SIZE_MAX for none. */
+static size_t find_output_parameter(sxml_byte_view local_name) {
+    for (size_t name_index = 0;
+         name_index < sizeof(output_parameter_names) / sizeof(output_parameter_names[0]);
+         name_index += 1) {
+        if (sxml_byte_view_equals(output_parameter_names[name_index], local_name)) {
+            return name_index;
+        }
+    }
+    return SIZE_MAX;
+}
+
+/* Option declarations (5.21): names must resolve (an unprefixed name is
+   in the XQuery namespace); options sxml does not know are ignored. An
+   output declaration (5.22) names a serialization parameter (XQST0109)
+   at most once (XQST0110); its value is the serializer's to read. */
+static sxml_status read_options(const static_reader *reader) {
+    const sxml_ast *ast = reader->ast;
+    bool is_declared[sizeof(output_parameter_names) / sizeof(output_parameter_names[0])] = {
+        false};
+    sxml_status status = SXML_STATUS_OK;
+    for (sxml_ast_node_index declaration = first_declaration(ast);
+         status == SXML_STATUS_OK && declaration.value != 0;
+         declaration = next_of(ast, declaration)) {
+        if (node_of(ast, declaration)->kind != SXML_AST_KIND_OPTION_DECLARATION) {
+            continue;
+        }
+        expanded_name name = {0};
+        status = resolve_xquery_name(reader, child_of(ast, declaration, SXML_AST_FIELD_NAME), &name);
+        if (status != SXML_STATUS_OK ||
+            !is_well_known(name.namespace_uri, SXML_NAMESPACE_SERIALIZATION)) {
+            continue;
+        }
+        const size_t parameter = find_output_parameter(name.local_name);
+        if (parameter == SIZE_MAX) {
+            status = report(reader, declaration,
+                            SXML_BYTE_VIEW_FROM_LITERAL(
+                                "XQST0109 an output declaration names no serialization "
+                                "parameter"));
+        } else if (is_declared[parameter]) {
+            status = report(reader, declaration,
+                            SXML_BYTE_VIEW_FROM_LITERAL(
+                                "XQST0110 an output declaration sets a parameter twice"));
+        } else {
+            is_declared[parameter] = true;
+        }
+    }
+    return status;
+}
+
+/* ------------------------------------------------------------ Variables */
+
+/* The sequence type of an optional TYPE_DECLARATION; item()* without. */
+static sxml_status resolve_declared_type(const static_reader *reader,
+                                         sxml_ast_node_index type_declaration,
+                                         sxml_sequence_type *sequence_type) {
+    const sxml_xquery_static_context *context = reader->context;
+    if (type_declaration.value == 0) {
+        *sequence_type = (sxml_sequence_type){
+            .item_type = sxml_builtin_type_identifier(SXML_TYPE_ITEM),
+            .occurrence = SXML_OCCURRENCE_ZERO_OR_MORE};
+        return SXML_STATUS_OK;
+    }
+    return sxml_xpath_resolve_sequence_type(
+        &(sxml_xpath_type_request){
+            .ast = reader->ast,
+            .type_node = child_of(reader->ast, type_declaration, SXML_AST_FIELD_TYPE),
+            .static_context = &context->xpath,
+            .error_record = reader->request->error_record},
+        sequence_type);
+}
+
+/* The expanded name of a variable or parameter (no-namespace rule). */
+static sxml_status resolve_variable_name(const static_reader *reader,
+                                         sxml_ast_node_index name_node,
+                                         sxml_name_identifier *name) {
+    const sxml_xquery_static_context *context = reader->context;
+    sxml_xpath_resolved_name resolved = {0};
+    sxml_status status = sxml_xpath_resolve_name(
+        &(sxml_xpath_name_request){.ast = reader->ast,
+                                   .name_node = name_node,
+                                   .name_role = SXML_XPATH_NAME_ROLE_NO_NAMESPACE,
+                                   .static_context = &context->xpath,
+                                   .error_record = reader->request->error_record},
+        &resolved);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_name_pool_intern_name(
+        reader->name_pool,
+        &(sxml_name_request){.namespace_uri = resolved.namespace_uri,
+                             .local_name = resolved.local_name},
+        name);
+}
+
+/* XQST0049: a variable name declared twice, by the prolog or by the
+   prolog and the host (5.16, D106). */
+static sxml_status check_variable_names(const static_reader *reader,
+                                        const sxml_xquery_static_context *context) {
+    const size_t declaration_count = context->variable_declaration_count;
+    if (declaration_count < 2) {
+        return SXML_STATUS_OK;
+    }
+    void *memory = NULL;
+    sxml_status status = allocate_array(
+        reader,
+        (array_request){.element_count = declaration_count,
+                        .element_size = sizeof(sort_entry),
+                        .element_alignment = alignof(sort_entry)},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sort_entry *entries = memory;
+    for (size_t declaration_index = 0; declaration_index < declaration_count;
+         declaration_index += 1) {
+        entries[declaration_index] = (sort_entry){
+            .key = context->variable_declarations[declaration_index].variable_name.index,
+            .position = declaration_index};
+    }
+    sort_entries(entries, declaration_count);
+    for (size_t entry_index = 1; status == SXML_STATUS_OK && entry_index < declaration_count;
+         entry_index += 1) {
+        if (entries[entry_index].key == entries[entry_index - 1].key) {
+            /* The later of the two is a prolog variable (the host checked
+               its own). */
+            status = report(
+                reader,
+                context->variable_nodes[entries[entry_index].position -
+                                        context->host_variable_count],
+                SXML_BYTE_VIEW_FROM_LITERAL("XQST0049 a variable is declared twice"));
+        }
+    }
+    sxml_allocator_release(reader->allocator, memory);
+    return status;
+}
+
+/* The variable declarations: the host's, then the prolog's (5.16). */
+static sxml_status read_variables(const static_reader *reader, const prolog_survey *survey,
+                                  sxml_xquery_static_context *context) {
+    const sxml_ast *ast = reader->ast;
+    const sxml_variable_declaration_view host =
+        reader->request->host_static_context->variable_declarations;
+    const size_t declaration_count =
+        host.variable_declaration_count + survey->variable_declaration_count;
+    void *memory = NULL;
+    sxml_status status = allocate_array(
+        reader,
+        (array_request){.element_count = declaration_count,
+                        .element_size = sizeof(sxml_variable_declaration),
+                        .element_alignment = alignof(sxml_variable_declaration)},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    context->variable_declarations = memory;
+    status = allocate_array(
+        reader,
+        (array_request){.element_count = survey->variable_declaration_count,
+                        .element_size = sizeof(sxml_ast_node_index),
+                        .element_alignment = alignof(sxml_ast_node_index)},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    context->variable_nodes = memory;
+    for (size_t host_index = 0; host_index < host.variable_declaration_count; host_index += 1) {
+        context->variable_declarations[host_index] = host.variable_declarations[host_index];
+    }
+    context->host_variable_count = host.variable_declaration_count;
+    context->variable_declaration_count = host.variable_declaration_count;
+    for (sxml_ast_node_index declaration = first_declaration(ast);
+         status == SXML_STATUS_OK && declaration.value != 0;
+         declaration = next_of(ast, declaration)) {
+        if (node_of(ast, declaration)->kind != SXML_AST_KIND_VARIABLE_DECLARATION) {
+            continue;
+        }
+        status = check_annotations(
+            reader, (annotation_check){.declaration = declaration,
+                               .duplicate_error = SXML_BYTE_VIEW_FROM_LITERAL(
+                                   "XQST0116 a variable has two visibility annotations")});
+        const sxml_ast_node_index variable = child_of(ast, declaration, SXML_AST_FIELD_VARIABLE);
+        sxml_variable_declaration *entry =
+            &context->variable_declarations[context->variable_declaration_count];
+        if (status == SXML_STATUS_OK) {
+            status = resolve_variable_name(reader, child_of(ast, variable, SXML_AST_FIELD_NAME),
+                                           &entry->variable_name);
+        }
+        if (status == SXML_STATUS_OK) {
+            status = resolve_declared_type(reader, child_of(ast, variable, SXML_AST_FIELD_TYPE),
+                                           &entry->declared_type);
+        }
+        if (status == SXML_STATUS_OK) {
+            context->variable_nodes[context->variable_declaration_count -
+                                    context->host_variable_count] = declaration;
+            context->variable_declaration_count += 1;
+        }
+    }
+    if (status == SXML_STATUS_OK) {
+        status = check_variable_names(reader, context);
+    }
+    if (status == SXML_STATUS_OK) {
+        context->xpath.variable_declarations = (sxml_variable_declaration_view){
+            .variable_declarations = context->variable_declarations,
+            .variable_declaration_count = context->variable_declaration_count};
+    }
+    return status;
+}
+
+/* ------------------------------------------------------------ Functions */
+
+/* The expanded name of a declared function (5.18): an unprefixed name is
+   in the default function namespace when one is declared, else in no
+   namespace (5.14.2). */
+static sxml_status resolve_function_name(const static_reader *reader,
+                                         sxml_ast_node_index name_node,
+                                         sxml_name_identifier *name) {
+    const sxml_xquery_static_context *context = reader->context;
+    sxml_xpath_resolved_name resolved = {0};
+    sxml_status status = sxml_xpath_resolve_name(
+        &(sxml_xpath_name_request){.ast = reader->ast,
+                                   .name_node = name_node,
+                                   .name_role = SXML_XPATH_NAME_ROLE_NO_NAMESPACE,
+                                   .static_context = &context->xpath,
+                                   .error_record = reader->request->error_record},
+        &resolved);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (node_of(reader->ast, name_node)->kind == SXML_AST_KIND_NCNAME &&
+        context->has_default_function_namespace) {
+        resolved.namespace_uri = context->default_function_namespace;
+    }
+    if (is_reserved_namespace(resolved.namespace_uri)) {
+        return report(reader, name_node,
+                      SXML_BYTE_VIEW_FROM_LITERAL(
+                          "XQST0045 a declared function is in a reserved namespace"));
+    }
+    return sxml_name_pool_intern_name(
+        reader->name_pool,
+        &(sxml_name_request){.namespace_uri = resolved.namespace_uri,
+                             .local_name = resolved.local_name},
+        name);
+}
+
+/* The parameters, signatures and IR functions of one declared function. */
+static sxml_status read_function(const static_reader *reader, sxml_ast_node_index declaration,
+                                 sxml_xquery_static_context *context) {
+    const sxml_ast *ast = reader->ast;
+    sxml_xquery_declared_function *function =
+        &context->declared_functions[context->declared_function_count];
+    size_t first_parameter = 0;
+    size_t first_signature = 0;
+    if (context->declared_function_count > 0) {
+        const sxml_xquery_declared_function *previous = function - 1;
+        first_parameter = previous->first_parameter + previous->parameter_count;
+        first_signature = previous->first_signature +
+                          (previous->parameter_count - previous->required_count) + 1;
+    }
+    *function = (sxml_xquery_declared_function){.declaration = declaration,
+                                                .first_parameter = first_parameter,
+                                                .first_signature = first_signature};
+    sxml_status status = check_annotations(
+            reader, (annotation_check){.declaration = declaration,
+                           .duplicate_error = SXML_BYTE_VIEW_FROM_LITERAL(
+                               "XQST0106 a function has two visibility annotations")});
+    if (status == SXML_STATUS_OK) {
+        status = resolve_function_name(reader, child_of(ast, declaration, SXML_AST_FIELD_NAME),
+                                       &function->function_name);
+    }
+    sxml_name_identifier *parameter_names = NULL;
+    void *names_memory = NULL;
+    size_t parameter_count = 0;
+    for (sxml_ast_node_index parameter = child_of(ast, declaration, SXML_AST_FIELD_PARAMETER);
+         parameter.value != 0; parameter = next_of(ast, parameter)) {
+        parameter_count += 1;
+    }
+    if (status == SXML_STATUS_OK) {
+        status = allocate_array(
+            reader,
+            (array_request){.element_count = parameter_count,
+                            .element_size = sizeof(sxml_name_identifier),
+                            .element_alignment = alignof(sxml_name_identifier)},
+            &names_memory);
+        parameter_names = names_memory;
+    }
+    size_t parameter_index = 0;
+    for (sxml_ast_node_index parameter = child_of(ast, declaration, SXML_AST_FIELD_PARAMETER);
+         status == SXML_STATUS_OK && parameter.value != 0;
+         parameter = next_of(ast, parameter)) {
+        const sxml_ast_node_index variable = child_of(ast, parameter, SXML_AST_FIELD_VARIABLE);
+        const sxml_ast_node_index name_node = child_of(ast, variable, SXML_AST_FIELD_NAME);
+        status = resolve_variable_name(reader, name_node,
+                                       &parameter_names[parameter_index]);
+        for (size_t earlier_index = 0; status == SXML_STATUS_OK && earlier_index < parameter_index;
+             earlier_index += 1) {
+            if (parameter_names[earlier_index].index == parameter_names[parameter_index].index) {
+                status = report(reader, parameter,
+                                SXML_BYTE_VIEW_FROM_LITERAL(
+                                    "XQST0039 two parameters of a function have the same name"));
+            }
+        }
+        if (status == SXML_STATUS_OK) {
+            status = resolve_declared_type(reader, child_of(ast, variable, SXML_AST_FIELD_TYPE),
+                                           &context->parameter_types[first_parameter +
+                                                                     parameter_index]);
+        }
+        const sxml_ast_node_index default_value = child_of(ast, parameter, SXML_AST_FIELD_DEFAULT);
+        sxml_parameter_default parameter_default = SXML_PARAMETER_DEFAULT_REQUIRED;
+        if (default_value.value != 0) {
+            /* 5.18.3: ":= ." is the caller's context value, which the core
+               supplies as for library functions; other defaults are
+               computed by the IR function of the shorter arity. */
+            parameter_default =
+                node_of(ast, default_value)->kind == SXML_AST_KIND_CONTEXT_VALUE_REFERENCE
+                    ? SXML_PARAMETER_DEFAULT_CONTEXT_VALUE
+                    : SXML_PARAMETER_DEFAULT_SUPPLIED_BY_BODY;
+        } else {
+            function->required_count += 1;
+        }
+        context->function_parameters[first_parameter + parameter_index] = (sxml_function_parameter){
+            .parameter_name = sxml_ast_get_text(ast, node_of(ast, name_node)->payload.name.local_name),
+            .parameter_type = {.bytes = NULL, .byte_count = 0},
+            .parameter_default = parameter_default};
+        parameter_index += 1;
+    }
+    sxml_allocator_release(reader->allocator, names_memory);
+    function->parameter_count = (uint32_t)parameter_count;
+    if (status == SXML_STATUS_OK) {
+        status = resolve_declared_type(reader, child_of(ast, declaration, SXML_AST_FIELD_RETURN_TYPE),
+                                       &function->result_type);
+    }
+    if (status == SXML_STATUS_OK && (node_of(ast, declaration)->flags & SXML_AST_FLAG_EXTERNAL) != 0) {
+        /* 5.18.4: sxml has no external functions. */
+        return report(reader, declaration,
+                      SXML_BYTE_VIEW_FROM_LITERAL(
+                          "XPST0017 external functions are not supported"));
+    }
+    const sxml_ast_source_span span = node_of(ast, declaration)->source_span;
+    for (uint32_t arity = function->required_count;
+         status == SXML_STATUS_OK && arity <= function->parameter_count; arity += 1) {
+        sxml_type_identifier *signature =
+            &context->signatures[first_signature + (arity - function->required_count)];
+        status = sxml_type_registry_register_item_type(
+            reader->type_registry,
+            &(sxml_type_description){
+                .variety = SXML_TYPE_VARIETY_FUNCTION,
+                .variety_details = {.function_type = {
+                                        .is_any_function = false,
+                                        .parameter_types = {.sequence_types =
+                                                                &context->parameter_types
+                                                                     [first_parameter],
+                                                            .sequence_type_count = arity},
+                                        .result_type = function->result_type}}},
+            signature);
+        sxml_ir_function_index index = {0};
+        if (status == SXML_STATUS_OK) {
+            status = sxml_ir_unit_add_function(
+                reader->request->unit,
+                &(sxml_ir_function){.function_name = function->function_name,
+                                    .signature = *signature,
+                                    .parameter_count = arity,
+                                    .source_span = {.byte_offset = span.byte_offset,
+                                                    .byte_count = span.byte_count,
+                                                    .line_number = span.line_number,
+                                                    .column_number = span.column_number}},
+                &index);
+        }
+        if (status == SXML_STATUS_OK && arity == function->required_count) {
+            function->first_function = index;
+        }
+    }
+    if (status == SXML_STATUS_OK) {
+        context->declared_function_count += 1;
+    }
+    return status;
+}
+
+/* XQST0034: two declared functions of one name whose arity ranges overlap
+   (5.18). */
+static sxml_status check_function_names(const static_reader *reader,
+                                        const sxml_xquery_static_context *context) {
+    const size_t function_count = context->declared_function_count;
+    if (function_count < 2) {
+        return SXML_STATUS_OK;
+    }
+    void *memory = NULL;
+    sxml_status status = allocate_array(
+        reader,
+        (array_request){.element_count = function_count,
+                        .element_size = sizeof(sort_entry),
+                        .element_alignment = alignof(sort_entry)},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sort_entry *entries = memory;
+    for (size_t function_index = 0; function_index < function_count; function_index += 1) {
+        entries[function_index] = (sort_entry){
+            .key = context->declared_functions[function_index].function_name.index,
+            .position = function_index};
+    }
+    sort_entries(entries, function_count);
+    size_t run_start = 0;
+    for (size_t entry_index = 1; status == SXML_STATUS_OK && entry_index < function_count;
+         entry_index += 1) {
+        if (entries[entry_index].key != entries[entry_index - 1].key) {
+            run_start = entry_index;
+            continue;
+        }
+        const sxml_xquery_declared_function *later =
+            &context->declared_functions[entries[entry_index].position];
+        for (size_t earlier_index = run_start;
+             status == SXML_STATUS_OK && earlier_index < entry_index; earlier_index += 1) {
+            const sxml_xquery_declared_function *earlier =
+                &context->declared_functions[entries[earlier_index].position];
+            if (earlier->required_count <= later->parameter_count &&
+                later->required_count <= earlier->parameter_count) {
+                status = report(reader, later->declaration,
+                                SXML_BYTE_VIEW_FROM_LITERAL(
+                                    "XQST0034 two declared functions have the same name and "
+                                    "overlapping arities"));
+            }
+        }
+    }
+    sxml_allocator_release(reader->allocator, memory);
+    return status;
+}
+
+static sxml_status read_functions(const static_reader *reader, const prolog_survey *survey,
+                                  sxml_xquery_static_context *context) {
+    void *memory = NULL;
+    sxml_status status = allocate_array(
+        reader,
+        (array_request){.element_count = survey->function_declaration_count,
+                        .element_size = sizeof(sxml_xquery_declared_function),
+                        .element_alignment = alignof(sxml_xquery_declared_function)},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    context->declared_functions = memory;
+    status = allocate_array(
+        reader,
+        (array_request){.element_count = survey->parameter_count,
+                        .element_size = sizeof(sxml_sequence_type),
+                        .element_alignment = alignof(sxml_sequence_type)},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    context->parameter_types = memory;
+    status = allocate_array(
+        reader,
+        (array_request){.element_count = survey->parameter_count,
+                        .element_size = sizeof(sxml_function_parameter),
+                        .element_alignment = alignof(sxml_function_parameter)},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    context->function_parameters = memory;
+    status = allocate_array(
+        reader,
+        (array_request){.element_count = survey->signature_count,
+                        .element_size = sizeof(sxml_type_identifier),
+                        .element_alignment = alignof(sxml_type_identifier)},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    context->signatures = memory;
+    for (sxml_ast_node_index declaration = first_declaration(reader->ast);
+         status == SXML_STATUS_OK && declaration.value != 0;
+         declaration = next_of(reader->ast, declaration)) {
+        if (node_of(reader->ast, declaration)->kind == SXML_AST_KIND_FUNCTION_DECLARATION) {
+            status = read_function(reader, declaration, context);
+        }
+    }
+    if (status == SXML_STATUS_OK) {
+        status = check_function_names(reader, context);
+    }
+    return status;
+}
+
+/* -------------------------------------------------------- Function table */
+
+/* The declared function named name whose arity range holds arity; NULL
+   for none. */
+static const sxml_xquery_declared_function *find_declared(
+    const sxml_xquery_static_context *context, const sxml_function_query *query) {
+    for (size_t function_index = 0; function_index < context->declared_function_count;
+         function_index += 1) {
+        const sxml_xquery_declared_function *function = &context->declared_functions[function_index];
+        if (function->function_name.index == query->function_name.index &&
+            query->arity >= function->required_count && query->arity <= function->parameter_count) {
+            return function;
+        }
+    }
+    return NULL;
+}
+
+/* The same local name in another namespace (interned); 0 when that
+   fails. */
+typedef struct renamed_query {
+    sxml_name_identifier function_name;
+    sxml_namespace_uri_identifier namespace_uri;
+} renamed_query;
+
+static sxml_name_identifier rename_function(const sxml_xquery_static_context *context,
+                                            renamed_query request) {
+    sxml_name_pool *name_pool = sxml_item_heap_get_name_pool(context->xpath.item_heap);
+    sxml_name_parts parts = {0};
+    sxml_name_identifier renamed = {.index = 0};
+    if (sxml_name_pool_get_name_parts(name_pool, request.function_name, &parts) ==
+        SXML_STATUS_OK &&
+        sxml_name_pool_intern_name(name_pool,
+                                   &(sxml_name_request){.namespace_uri = request.namespace_uri,
+                                                        .local_name = parts.local_name},
+                                   &renamed) != SXML_STATUS_OK) {
+        renamed = (sxml_name_identifier){.index = 0};
+    }
+    return renamed;
+}
+
+/*
+ * The core resolves an unprefixed function name to the fn namespace, so a
+ * query for fn:L may stand for an unprefixed L (5.14.2): with a default
+ * function namespace declared, L in that namespace is searched first;
+ * without one, a declared no-namespace L first. A name written fn:L finds
+ * the same (a declared function of that local name hides fn:L).
+ */
+static sxml_status find_function(void *state, const sxml_function_query *query,
+                                 sxml_function_entry *entry) {
+    const sxml_xquery_static_context *context = state;
+    sxml_function_query searched = *query;
+    sxml_name_pool *name_pool = sxml_item_heap_get_name_pool(context->xpath.item_heap);
+    sxml_name_parts parts = {0};
+    const bool is_fn_name =
+        sxml_name_pool_get_name_parts(name_pool, query->function_name, &parts) ==
+            SXML_STATUS_OK &&
+        is_well_known(parts.namespace_uri, SXML_NAMESPACE_FUNCTIONS);
+    const sxml_xquery_declared_function *function = find_declared(context, query);
+    if (function == NULL && is_fn_name) {
+        searched.function_name = rename_function(
+            context, (renamed_query){.function_name = query->function_name,
+                                     .namespace_uri =
+                                         context->has_default_function_namespace
+                                             ? context->default_function_namespace
+                                             : sxml_well_known_namespace_identifier(
+                                                   SXML_NAMESPACE_NONE)});
+        if (searched.function_name.index != 0) {
+            function = find_declared(context, &searched);
+        }
+    }
+    if (function != NULL) {
+        const size_t arity_offset = query->arity - function->required_count;
+        *entry = (sxml_function_entry){
+            .entry_kind = SXML_FUNCTION_ENTRY_KIND_IR_FUNCTION,
+            .native_function = NULL,
+            .ir_function_number = function->first_function.value + (uint32_t)arity_offset,
+            .parameters = {.function_parameters =
+                               &context->function_parameters[function->first_parameter],
+                           .function_parameter_count = function->parameter_count},
+            .signature = context->signatures[function->first_signature + arity_offset],
+            .parameter_types = {.sequence_types =
+                                    &context->parameter_types[function->first_parameter],
+                                .sequence_type_count = query->arity},
+            .result_type = function->result_type};
+        return SXML_STATUS_OK;
+    }
+    if (is_fn_name && context->has_default_function_namespace && searched.function_name.index != 0) {
+        /* A library function in the default function namespace (math:pi
+           as "pi"). */
+        sxml_status status =
+            sxml_xpath_find_function(context->host_function_table, &searched, entry);
+        if (status != SXML_STATUS_OK || entry->entry_kind != SXML_FUNCTION_ENTRY_KIND_NONE) {
+            return status;
+        }
+    }
+    return sxml_xpath_find_function(context->host_function_table, query, entry);
+}
+
+static const sxml_function_table_operations declared_function_table_operations = {
+    .find_function = find_function};
+
+const sxml_xquery_declared_function *sxml_xquery_find_declared_function(
+    const sxml_xquery_static_context *context, sxml_ast_node_index declaration) {
+    for (size_t function_index = 0; function_index < context->declared_function_count;
+         function_index += 1) {
+        if (context->declared_functions[function_index].declaration.value == declaration.value) {
+            return &context->declared_functions[function_index];
+        }
+    }
+    return NULL;
+}
+
+/*
+ * The core resolves an unprefixed function name to the fn namespace and
+ * looks it up without interning it (a name never interned names no
+ * function), so the function table would never be asked for fn:L. When
+ * fn:L may stand for a declared or default-namespace function (see
+ * find_function), every unprefixed name of a call, reference or arrow is
+ * interned in the fn namespace first: one pass over the AST's nodes.
+ */
+static sxml_status intern_unprefixed_calls(const static_reader *reader,
+                                           const sxml_xquery_static_context *context) {
+    bool has_no_namespace_function = false;
+    for (size_t function_index = 0; function_index < context->declared_function_count;
+         function_index += 1) {
+        sxml_name_parts parts = {0};
+        if (sxml_name_pool_get_name_parts(
+                reader->name_pool, context->declared_functions[function_index].function_name,
+                &parts) == SXML_STATUS_OK &&
+            parts.namespace_uri.index == SXML_NAMESPACE_NONE) {
+            has_no_namespace_function = true;
+        }
+    }
+    if (!has_no_namespace_function && !context->has_default_function_namespace) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_ast *ast = reader->ast;
+    sxml_status status = SXML_STATUS_OK;
+    for (uint32_t node_number = 1; status == SXML_STATUS_OK && node_number < ast->node_count;
+         node_number += 1) {
+        const sxml_ast_node *node = node_of(ast, (sxml_ast_node_index){.value = node_number});
+        if (node->kind != SXML_AST_KIND_NCNAME ||
+            (node->field != SXML_AST_FIELD_NAME && node->field != SXML_AST_FIELD_FUNCTION)) {
+            continue;
+        }
+        const sxml_ast_kind parent_kind = node_of(ast, node->parent)->kind;
+        if (parent_kind != SXML_AST_KIND_FUNCTION_CALL &&
+            parent_kind != SXML_AST_KIND_NAMED_FUNCTION_REFERENCE &&
+            parent_kind != SXML_AST_KIND_ARROW_EXPRESSION) {
+            continue;
+        }
+        sxml_name_identifier name = {0};
+        status = sxml_name_pool_intern_name(
+            reader->name_pool,
+            &(sxml_name_request){
+                .namespace_uri = sxml_well_known_namespace_identifier(SXML_NAMESPACE_FUNCTIONS),
+                .local_name = sxml_ast_get_text(ast, node->payload.name.local_name)},
+            &name);
+    }
+    return status;
+}
+
+/* ---------------------------------------------------- Context value */
+
+/* The required type of the initial context value (5.17): "context value
+   as T" (item()* without), "context item as I" (item() without). */
+static sxml_status read_context_value_type(const static_reader *reader,
+                                           const prolog_survey *survey,
+                                           sxml_xquery_static_context *context) {
+    const sxml_ast_node_index declaration = survey->context_value_declaration;
+    context->context_value_declaration = declaration;
+    context->context_value_type = (sxml_sequence_type){
+        .item_type = sxml_builtin_type_identifier(SXML_TYPE_ITEM),
+        .occurrence = SXML_OCCURRENCE_ZERO_OR_MORE};
+    if (declaration.value == 0) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_ast_node_index type = child_of(reader->ast, declaration, SXML_AST_FIELD_TYPE);
+    const bool is_item = node_of(reader->ast, declaration)->detail.keyword == SXML_AST_KEYWORD_ITEM;
+    if (is_item) {
+        context->context_value_type.occurrence = SXML_OCCURRENCE_EXACTLY_ONE;
+    }
+    if (type.value == 0) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_xpath_type_request request = {.ast = reader->ast,
+                                             .type_node = type,
+                                             .static_context = &context->xpath,
+                                             .error_record = reader->request->error_record};
+    if (is_item) {
+        return sxml_xpath_resolve_item_type(&request, &context->context_value_type.item_type);
+    }
+    return sxml_xpath_resolve_sequence_type(&request, &context->context_value_type);
+}
+
+/* ------------------------------------------------------------- Entry */
+
+void sxml_xquery_release_static_context(sxml_xquery_static_context *context) {
+    if (context == NULL) {
+        return;
+    }
+    const sxml_allocator allocator = context->xpath.allocator;
+    sxml_allocator_release(allocator, context->namespace_bindings);
+    sxml_allocator_release(allocator, context->variable_declarations);
+    sxml_allocator_release(allocator, context->variable_nodes);
+    sxml_allocator_release(allocator, context->declared_functions);
+    sxml_allocator_release(allocator, context->parameter_types);
+    sxml_allocator_release(allocator, context->function_parameters);
+    sxml_allocator_release(allocator, context->signatures);
+    sxml_allocator_release(allocator, context->static_base_uri_memory);
+    *context = (sxml_xquery_static_context){.xpath = {.allocator = allocator}};
+}
+
+sxml_status sxml_xquery_read_static_context(const sxml_xquery_static_request *request,
+                                            sxml_xquery_static_context *context) {
+    if (request == NULL || request->ast == NULL || request->host_static_context == NULL ||
+        request->unit == NULL || context == NULL) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    const sxml_xpath_static_context *host = request->host_static_context;
+    sxml_xquery_static_context built = {.xpath = *host,
+                                        .ast = request->ast,
+                                        .host_function_table = host->function_table};
+    const static_reader reader = {
+        .request = request,
+        .ast = request->ast,
+        .name_pool = sxml_item_heap_get_name_pool(host->item_heap),
+        .type_registry = sxml_item_heap_get_type_registry(host->item_heap),
+        .allocator = host->allocator,
+        .context = &built};
+    prolog_survey survey = {0};
+    sxml_status status = survey_prolog(&reader, &survey);
+    if (status == SXML_STATUS_OK) {
+        status = read_namespaces(&reader, &survey, &built);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = read_base_uri_and_collation(&reader, &survey, &built);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = read_options(&reader);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = read_variables(&reader, &survey, &built);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = read_functions(&reader, &survey, &built);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = intern_unprefixed_calls(&reader, &built);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = read_context_value_type(&reader, &survey, &built);
+    }
+    if (status != SXML_STATUS_OK) {
+        sxml_xquery_release_static_context(&built);
+        return status;
+    }
+    *context = built;
+    context->xpath.function_table = (sxml_function_table){
+        .state = context, .operations = &declared_function_table_operations};
+    return SXML_STATUS_OK;
+}

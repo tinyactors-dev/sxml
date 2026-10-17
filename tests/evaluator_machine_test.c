@@ -292,7 +292,9 @@ static void test_reserved_kinds_are_unsupported(sxml_test_state *state) {
     }
 }
 
-static void test_initialized_global_is_unsupported(sxml_test_state *state) {
+/* A global with an initializer is computed by the global part (D135);
+   one with name 0 is the context global. */
+static void test_initialized_global_is_computed(sxml_test_state *state) {
     fixture test_fixture;
     SXML_TEST_REQUIRE(state, fixture_create(0, &test_fixture) == SXML_STATUS_OK);
     sxml_status evaluation_status = SXML_STATUS_OK;
@@ -308,7 +310,7 @@ static void test_initialized_global_is_unsupported(sxml_test_state *state) {
                                                               SXML_IR_EXPRESSION_KIND_ATOM,
                                                           .has_initialized_global = true},
                                           &evaluation_status) == SXML_STATUS_OK);
-    SXML_TEST_EXPECT(state, evaluation_status == SXML_STATUS_UNSUPPORTED_FEATURE);
+    SXML_TEST_EXPECT(state, evaluation_status == SXML_STATUS_OK);
     SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
 }
 
@@ -340,8 +342,8 @@ static const sxml_test_case evaluator_machine_test_cases[] = {
     {.name = "each_reserved_kind_has_one_part",
      .function = test_each_reserved_kind_has_one_part},
     {.name = "reserved_kinds_are_unsupported", .function = test_reserved_kinds_are_unsupported},
-    {.name = "initialized_global_is_unsupported",
-     .function = test_initialized_global_is_unsupported},
+    {.name = "initialized_global_is_computed",
+     .function = test_initialized_global_is_computed},
     {.name = "dispatch_survives_every_allocation_failure",
      .function = test_dispatch_survives_every_allocation_failure},
 };

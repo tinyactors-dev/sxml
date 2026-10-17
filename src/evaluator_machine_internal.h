@@ -32,7 +32,7 @@
  *     src/evaluator_construct.c  the seven constructors, SHALLOW_COPY (3.5)
  *     src/evaluator_try.c        TRY_CATCH (3.6)
  *     src/evaluator_template.c   APPLY_TEMPLATES (4.x)
- *     src/evaluator_global.c     global initializers (3.10)
+ *     src/evaluator_global.c     global initializers (3.10, D135)
  *
  * A kind that no part claims, or that two parts claim, evaluates to
  * SXML_STATUS_UNSUPPORTED_FEATURE.
@@ -285,8 +285,9 @@ SXML_NODISCARD sxml_status sxml_evaluator_machine_raise(
  * RETURN task and body task are pushed, so tasks it pushes run before the
  * body (the top task is the body's): starts computing the global variables
  * with an initializer that the request left ABSENT (XQuery 4.0,
- * "Variable Declaration"). Defined in src/evaluator_global.c;
- * SXML_STATUS_UNSUPPORTED_FEATURE while any such variable exists (Phase 2).
+ * "Variable Declaration") in the order of their initializers' indices,
+ * and binds the context global (name 0) to the host's context value
+ * (D135). Defined in src/evaluator_global.c.
  */
 SXML_NODISCARD sxml_status sxml_evaluator_start_global_initializers(
     sxml_dynamic_context *dynamic_context);

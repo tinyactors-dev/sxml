@@ -221,7 +221,8 @@ static const golden_case golden_cases[] = {
      "(function 1 main (parameters 0) (captures) (slots 2)\n"
      "  (let $1 (sequence)\n"
      "    (let $2 (element-constructor \"p:b\" _ (namespaces p=\"urn:p\") (name-namespaces "
-     "p=\"urn:p\")\n"
+     "p=\"urn:p\" local=\"http://www.w3.org/2005/xquery-local-functions\" "
+     "output=\"http://www.w3.org/2010/xslt-xquery-serialization\")\n"
      "              $1)\n"
      "      (element-constructor #a _ (namespaces p=\"urn:p\")\n"
      "        (sequence $2)))))\n"},
