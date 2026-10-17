@@ -2970,6 +2970,13 @@ vendored with QT4 (PR 2734 for selectors).
   tell `a` from `Q{}a` (both match strings; JAxes-292 waits for lowering).
   The attribute and namespace axes from a JNode raise XPTY0004 (4.7.5.1).
 - **Lookups** on a JNode use the items of its jvalue (each a map or array).
+- **QName key tests** (D113's proposal, accepted by the orchestrator):
+  a jnode() key test of type xs:QName given as `Q{uri}local` compares the
+  key's expanded name (names the pool never saw match nothing); other
+  texts are cast as before. Untested end to end: lowering still refuses
+  prefixed QName literals in jnode() (QT4 sequence-type-61). The other
+  D113 proposal, SXML_AXIS_ITEM, needs a tree.h addition and lowering
+  together; not taken here.
 - **Numeric predicates** (4.4.1): a value whose first item is numeric
   selects by "= position()" (any item), an integer range by its bounds;
   a later non-number is FORG0006 (was FORG0006 for every second item).
