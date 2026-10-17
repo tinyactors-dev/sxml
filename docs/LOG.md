@@ -4,6 +4,19 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 1.23 done (D88, D89): processor and XPath API. `src/processor.c`
+  (clocks, table resolver, processor in one block with pool, registry,
+  heap and the whole function library, document parsing, the
+  per-evaluation document loader: fn:doc stable per URI, FODC0002/0006),
+  `src/xpath.c` (compile, evaluate with its own dynamic context so
+  evaluations nest, sequence types from text). Static base URI passed to
+  fn:doc, parse-xml, json-to-xml and the new fn:static-base-uri and
+  fn:resolve-uri (`src/function_library_uri.c`, RFC 3986 resolution
+  shared from `src/xdm_node.c`). Limit comments fixed (heap, not C
+  stack); P9 accepted as D89: an evaluation step bound (default 10^9).
+  `sxml xpath` (`--context-item`, `--param`, `--method=adaptive`) with 19
+  golden tests. Tests `processor` (7) and `xpath` (15, 30 slice queries
+  through public headers). `debug`, `debug-gcc`, `wasm` pass (111 tests).
 - 1.26 follow-up (D90): map:merge merges into its largest map, so folds
   that merge one entry into an accumulator, on either side, are O(n log n)
   (were O(n^2): 6 s and 18 s under ASan on two QT4 seeds). New internal
