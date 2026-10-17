@@ -1,0 +1,3 @@
+sxml-xslt-test run: tests/misc/problems/_problems-test-set.xml: unknown environment 'nowhere'
+sxml-xslt-test run: tests/misc/problems/_problems-test-set.xml: unbound namespace prefix 'u:main'
+sxml-xslt-test run: tests/misc/problems/_problems-test-set.xml: no <result> in 'no-result'

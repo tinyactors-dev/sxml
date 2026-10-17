@@ -1,0 +1,15 @@
+sxml-xslt-test - the W3C XSLT 4.0 test-suite driver of sxml (a developer tool)
+
+Usage: sxml-xslt-test [--version] COMMAND [ARGUMENT...]
+
+Commands:
+  help  Show help for the program or for one command
+  list  List test cases with their stylesheets, plans and applicability
+  run   Run test cases and report them
+
+Options:
+  -h, --help     Show this help and exit
+      --version  Print the version and exit
+
+Run 'sxml-xslt-test help COMMAND' for help on one command.
+Report bugs at https://github.com/dhamidi/sxml/issues

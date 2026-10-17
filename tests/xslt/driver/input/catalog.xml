@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- A small XSLT 4.0 suite for the golden tests of sxml-xslt-test
+     (tests/xslt/driver/CMakeLists.txt): every kind of module, parameter,
+     invocation, output, dependency, assertion and problem. Its stylesheets
+     are never read before XSLT runs. -->
+<catalog xmlns="http://www.w3.org/2012/10/xslt-test-catalog">
+   <test-set name="set-basic" file="tests/insn/basic/_basic-test-set.xml"/>
+   <test-set name="set-dependencies" file="tests/misc/dependencies/_dependencies-test-set.xml"/>
+   <test-set name="set-streaming" file="tests/strm/streaming/_streaming-test-set.xml"/>
+   <test-set name="set-problems" file="tests/misc/problems/_problems-test-set.xml"/>
+   <!--<test-set name="set-hidden" file="tests/misc/hidden.xml"/>-->
+</catalog>

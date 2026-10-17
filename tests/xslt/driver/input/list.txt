@@ -1,0 +1,7 @@
+# A test list over the small suite: two known test cases, then names the
+# catalog does not have.
+set-basic basic-template
+set-streaming streaming-fallback  # out of scope
+set-dependencies spec-40
+no-such-set some-case
+set-basic no-such-case

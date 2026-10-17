@@ -1,0 +1,6 @@
+sxml-xslt-test list: tests/misc/problems/_problems-test-set.xml: unknown environment 'nowhere'
+sxml-xslt-test list: tests/misc/problems/_problems-test-set.xml: unbound namespace prefix 'u:main'
+sxml-xslt-test list: tests/misc/problems/_problems-test-set.xml: no principal stylesheet in 'no-stylesheet'
+sxml-xslt-test list: tests/misc/problems/_problems-test-set.xml: unknown assertion 'assert-everything'
+sxml-xslt-test list: tests/misc/problems/_problems-test-set.xml: wrong number of assertions in 'not'
+sxml-xslt-test list: tests/misc/problems/_problems-test-set.xml: no <result> in 'no-result'

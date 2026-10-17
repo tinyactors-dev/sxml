@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<test-set xmlns="http://www.w3.org/2012/10/xslt-test-catalog" name="set-streaming">
+   <description>The strm group is outside the D95 scope.</description>
+   <dependencies>
+      <spec value="XSLT30+"/>
+   </dependencies>
+   <test-case name="streaming-fallback">
+      <description>Runs unstreamed, but out of scope.</description>
+      <created by="sxml" on="2026-10-17"/>
+      <environment>
+         <source role="." file="big.xml" streaming="true"/>
+      </environment>
+      <dependencies>
+         <feature value="streaming-fallback"/>
+      </dependencies>
+      <test><stylesheet file="s.xsl"/></test>
+      <result><assert>/out</assert></result>
+   </test-case>
+</test-set>

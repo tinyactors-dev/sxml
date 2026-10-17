@@ -1,0 +1,163 @@
+# The XSLT 4.0 slice (packet 4.1, D117): 154 test cases of the twelve core
+# test sets of the Phase 4 gate (docs/tasks/phase-4.md), 13 of each and 12
+# of result-document and function, spread evenly over the cases of each set
+# that apply to XSLT 4.0 and are in the D95 scope. Read by
+# sxml-xslt-test list and run (tests/xslt/driver/); ctest xslt/slice
+# checks that at least tests/xslt/slice-baseline.txt of them pass.
+# Format of tests/qt4/torture-slice.txt: <test-set> <test-case>  # note,
+# the note giving the invocation and the assertion kinds.
+
+apply-templates apply-templates-001  # call-template; error
+apply-templates conflict-resolution-0101  # apply-templates; assert-xml
+apply-templates conflict-resolution-0106  # apply-templates; assert-xml
+apply-templates conflict-resolution-0110c  # apply-templates; assert-xml
+apply-templates conflict-resolution-0401c  # apply-templates; assert-xml
+apply-templates conflict-resolution-0503  # apply-templates; assert-xml
+apply-templates conflict-resolution-0702  # apply-templates; assert-xml
+apply-templates conflict-resolution-0802  # apply-templates; assert-xml
+apply-templates conflict-resolution-1101  # apply-templates; assert-xml
+apply-templates conflict-resolution-1202c  # apply-templates; assert-xml
+apply-templates conflict-resolution-1301  # apply-templates; assert-xml
+apply-templates conflict-resolution-1601  # apply-templates; assert-xml
+apply-templates conflict-resolution-1701  # apply-templates; assert-xml
+mode mode-0001  # call-template; assert-xml
+mode mode-0104  # apply-templates; assert-xml
+mode mode-0803  # apply-templates; assert-xml
+mode mode-1106c  # apply-templates; assert
+mode mode-1401  # apply-templates; assert-xml
+mode mode-1421  # apply-templates; assert-xml
+mode mode-1444  # apply-templates; error
+mode mode-1509  # call-template; error
+mode mode-1604  # apply-templates; assert-xml
+mode mode-1616  # apply-templates; assert-xml
+mode mode-1705b  # apply-templates; error
+mode mode-1803  # apply-templates; assert
+mode mode-4012  # apply-templates; assert
+match match-001  # apply-templates; assert-xml
+match match-017  # apply-templates; assert-xml
+match match-032  # apply-templates; assert-xml
+match match-048  # apply-templates; assert
+match match-067  # apply-templates; assert-xml
+match match-082a  # apply-templates; assert
+match match-100  # apply-templates; assert-xml
+match match-115  # apply-templates; assert-xml
+match match-130  # call-template; assert-xml
+match match-238  # apply-templates; assert-xml
+match match-252  # call-template; assert
+match match-269  # apply-templates; assert-xml
+match match-285  # apply-templates; assert-xml
+for-each-group for-each-group-001  # apply-templates; assert-xml
+for-each-group for-each-group-011  # apply-templates; assert-xml
+for-each-group for-each-group-018  # apply-templates; assert-xml
+for-each-group for-each-group-029  # apply-templates; assert-xml
+for-each-group for-each-group-035  # apply-templates; assert-xml
+for-each-group for-each-group-042  # apply-templates; assert-xml
+for-each-group for-each-group-048  # apply-templates; error
+for-each-group for-each-group-055  # apply-templates; error
+for-each-group for-each-group-063  # apply-templates; all-of assert
+for-each-group for-each-group-070  # apply-templates; assert-xml
+for-each-group for-each-group-076  # apply-templates; error
+for-each-group for-each-group-082  # call-template; assert-xml
+for-each-group for-each-group-090a  # apply-templates; all-of assert
+sort sort-001  # apply-templates; assert-xml
+sort sort-007  # apply-templates; assert-xml
+sort sort-013  # apply-templates; assert-xml
+sort sort-019  # apply-templates; assert-xml
+sort sort-026  # apply-templates; assert
+sort sort-032  # apply-templates; assert-xml
+sort sort-038  # apply-templates; assert
+sort sort-045  # apply-templates; assert-xml
+sort sort-051  # apply-templates; assert-xml
+sort sort-057  # apply-templates; assert-xml
+sort sort-064  # apply-templates; assert-xml
+sort sort-070  # apply-templates; assert-xml
+sort sort-076  # apply-templates; assert-xml
+key key-001  # apply-templates; assert-xml
+key key-008  # apply-templates; assert-xml
+key key-016  # apply-templates; assert-xml
+key key-024  # apply-templates; assert-xml
+key key-032  # apply-templates; all-of assert
+key key-040  # apply-templates; assert-xml
+key key-048  # apply-templates; assert-xml
+key key-056  # apply-templates; assert-xml
+key key-065  # apply-templates; assert-xml
+key key-073  # apply-templates; all-of assert
+key key-081  # apply-templates; assert-xml
+key key-088  # apply-templates; all-of assert
+key key-096  # apply-templates; assert
+number number-0101  # apply-templates; assert-xml
+number number-0201  # apply-templates; assert-xml
+number number-0602  # apply-templates; assert-xml
+number number-0810  # apply-templates; assert-xml
+number number-1002  # apply-templates; error
+number number-1701  # apply-templates; assert-xml
+number number-2301  # apply-templates; assert-xml
+number number-2802  # apply-templates; assert-xml
+number number-2814  # apply-templates; assert-xml
+number number-3206  # apply-templates; assert-xml
+number number-3218  # apply-templates; assert-xml
+number number-3230  # apply-templates; assert-xml
+number number-3801  # apply-templates; assert-xml
+choose choose-0101  # apply-templates; assert-xml
+choose choose-0106  # call-template; assert
+choose choose-0401  # apply-templates; assert-xml
+choose choose-0502  # apply-templates; assert-xml
+choose choose-0605  # apply-templates; assert-xml
+choose choose-0701  # apply-templates; assert-xml
+choose choose-1101  # apply-templates; assert-xml
+choose choose-1301  # apply-templates; assert-xml
+choose choose-1701  # apply-templates; assert-xml
+choose choose-1706  # apply-templates; assert-xml
+choose choose-1901  # apply-templates; assert-xml
+choose choose-4001  # apply-templates; assert
+choose choose-4102  # apply-templates; assert
+copy copy-0101  # apply-templates; assert-xml
+copy copy-0602  # apply-templates; assert-xml
+copy copy-0613  # call-template; all-of assert
+copy copy-0624  # call-template; all-of assert
+copy copy-1202  # apply-templates; assert-xml
+copy copy-1214  # apply-templates; all-of assert
+copy copy-1701  # apply-templates; assert-xml
+copy copy-2502  # apply-templates; assert-xml
+copy copy-3302  # apply-templates; assert-xml
+copy copy-3901  # apply-templates; assert-xml
+copy copy-4307  # apply-templates; error
+copy copy-4803  # apply-templates; assert-xml
+copy copy-5306  # apply-templates; assert
+value-of value-of-001  # apply-templates; all-of assert
+value-of value-of-002  # apply-templates; all-of assert
+value-of value-of-003  # apply-templates; all-of assert
+value-of value-of-004  # apply-templates; all-of assert
+value-of value-of-005  # apply-templates; all-of assert
+value-of value-of-006  # apply-templates; all-of assert
+value-of value-of-009  # apply-templates; all-of assert
+value-of value-of-011  # apply-templates; serialization-matches
+value-of value-of-012  # apply-templates; serialization-matches
+value-of value-of-013  # apply-templates; serialization-matches
+value-of value-of-014  # apply-templates; serialization-matches
+value-of value-of-015  # apply-templates; serialization-matches
+value-of value-of-016  # apply-templates; serialization-matches
+result-document result-document-0101  # apply-templates; all-of assert-xml assert-result-document
+result-document result-document-0211  # apply-templates; assert-xml assert-result-document
+result-document result-document-0224  # apply-templates; all-of any-of serialization-matches
+result-document result-document-0237  # apply-templates; assert-serialization
+result-document result-document-0250  # apply-templates; any-of error assert-serialization-error
+result-document result-document-0262  # apply-templates; any-of error assert-serialization-error
+result-document result-document-0275  # apply-templates; any-of not error serialization-matches
+result-document result-document-0287  # apply-templates; all-of assert-serialization serialization-matches assert-result-document
+result-document result-document-0901  # apply-templates; all-of serialization-matches
+result-document result-document-1136  # call-template; assert
+result-document result-document-1205  # apply-templates; all-of any-of serialization-matches
+result-document result-document-1410  # apply-templates; all-of serialization-matches
+function function-0001  # call-template; assert-xml
+function function-0107  # apply-templates; assert-xml
+function function-0117  # apply-templates; error
+function function-0303  # apply-templates; assert
+function function-1003  # apply-templates; assert-xml
+function function-1016  # apply-templates; error
+function function-1028  # apply-templates; assert
+function function-1301  # apply-templates; assert-xml
+function function-2104  # apply-templates; error
+function function-40-006  # apply-templates; all-of assert
+function function-40-016  # apply-templates; assert
+function function-40-903  # apply-templates; error

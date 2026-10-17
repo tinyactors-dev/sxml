@@ -1,0 +1,62 @@
+set-dependencies spec-replaced
+  stylesheet - tests/misc/dependencies/a.xsl
+  invoke apply-templates
+  plan stylesheet tests/misc/dependencies/a.xsl, 0 secondary, 0 static, 0 parameters, delivery default
+  assertions assert 1
+  skip: spec XSLT20 XSLT30
+set-dependencies spec-40
+  stylesheet - tests/misc/dependencies/a.xsl
+  invoke apply-templates
+  dependency feature higher_order_functions
+  dependency year_component_values support year zero
+  dependency maximum_number_of_decimal_digits 60
+  plan stylesheet tests/misc/dependencies/a.xsl, 0 secondary, 0 static, 0 parameters, delivery default
+  assertions assert-true 1
+set-dependencies schema-aware
+  stylesheet - tests/misc/dependencies/a.xsl
+  invoke apply-templates
+  dependency feature schema_aware
+  plan stylesheet tests/misc/dependencies/a.xsl, 0 secondary, 0 static, 0 parameters, delivery default
+  assertions assert-true 1
+  skip: feature schema_aware
+  out of scope: feature schema_aware
+set-dependencies basic-processor
+  stylesheet - tests/misc/dependencies/a.xsl
+  invoke apply-templates
+  dependency feature schema_aware unsatisfied
+  plan stylesheet tests/misc/dependencies/a.xsl, 0 secondary, 0 static, 0 parameters, delivery default
+  assertions error 1
+set-dependencies inverted
+  stylesheet - tests/misc/dependencies/a.xsl
+  invoke apply-templates
+  dependency feature higher_order_functions unsatisfied
+  plan stylesheet tests/misc/dependencies/a.xsl, 0 secondary, 0 static, 0 parameters, delivery default
+  assertions error 1
+  skip: feature higher_order_functions (satisfied)
+set-dependencies numbering
+  stylesheet - tests/misc/dependencies/a.xsl
+  invoke apply-templates
+  dependency combinations_for_numbering CIRCLED DIGIT ONE
+  plan stylesheet tests/misc/dependencies/a.xsl, 0 secondary, 0 static, 0 parameters, delivery default
+  assertions assert-true 1
+  skip: combinations_for_numbering CIRCLED DIGIT ONE
+set-dependencies validation
+  environment (inline)
+  source . tests/misc/dependencies/doc.xml validation strict
+  stylesheet - tests/misc/dependencies/a.xsl
+  invoke apply-templates
+  plan stylesheet tests/misc/dependencies/a.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  assertions assert-true 1
+  skip: environment source validation
+set-dependencies posture
+  stylesheet - tests/misc/dependencies/a.xsl
+  invoke apply-templates
+  plan stylesheet tests/misc/dependencies/a.xsl, 0 secondary, 0 static, 0 parameters, delivery default
+  assertions assert-posture-and-sweep 1
+  skip: posture-and-sweep
+set-dependencies warning
+  stylesheet - tests/misc/dependencies/a.xsl
+  invoke apply-templates
+  plan stylesheet tests/misc/dependencies/a.xsl, 0 secondary, 0 static, 0 parameters, delivery default
+  assertions all-of 1 assert 1 assert-warning 1
+9 test cases: 3 applicable, 6 skipped; 7 in scope

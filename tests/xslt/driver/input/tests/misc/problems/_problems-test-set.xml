@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<test-set xmlns="http://www.w3.org/2012/10/xslt-test-catalog" name="set-problems">
+   <description>Test cases the driver cannot read or plan.</description>
+   <test-case name="unknown-environment">
+      <description>A ref to nothing.</description>
+      <created by="sxml" on="2026-10-17"/>
+      <environment ref="nowhere"/>
+      <test><stylesheet file="a.xsl"/></test>
+      <result><assert/></result>
+   </test-case>
+   <test-case name="unbound-prefix">
+      <description>A template name whose prefix is not bound.</description>
+      <created by="sxml" on="2026-10-17"/>
+      <test><stylesheet file="a.xsl"/><initial-template name="u:main"/></test>
+      <result><assert/></result>
+   </test-case>
+   <test-case name="no-stylesheet">
+      <description>Nothing to compile.</description>
+      <created by="sxml" on="2026-10-17"/>
+      <test/>
+      <result><assert/></result>
+   </test-case>
+   <test-case name="unknown-assertion">
+      <description>An element that is no assertion.</description>
+      <created by="sxml" on="2026-10-17"/>
+      <test><stylesheet file="a.xsl"/></test>
+      <result><assert-everything/></result>
+   </test-case>
+   <test-case name="empty-not">
+      <description>not without an assertion.</description>
+      <created by="sxml" on="2026-10-17"/>
+      <test><stylesheet file="a.xsl"/></test>
+      <result><not/></result>
+   </test-case>
+   <test-case name="no-result">
+      <description>No result element.</description>
+      <created by="sxml" on="2026-10-17"/>
+      <test><stylesheet file="a.xsl"/></test>
+   </test-case>
+   <test-case name="fine">
+      <description>The listing goes on after problems.</description>
+      <created by="sxml" on="2026-10-17"/>
+      <test><stylesheet file="a.xsl"/></test>
+      <result><assert>true()</assert></result>
+   </test-case>
+</test-set>

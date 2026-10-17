@@ -128,4 +128,11 @@ if(SXML_BUILD_TESTS AND SXML_BUILD_APPS
     add_subdirectory(tests/qt4/driver)
 endif()
 
+# The XSLT 4.0 test-suite driver (D117): a sibling of the QT4 driver that
+# links its library, so it comes after it.
+if(SXML_BUILD_TESTS AND SXML_BUILD_APPS
+   AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/xslt/driver/CMakeLists.txt")
+    add_subdirectory(tests/xslt/driver)
+endif()
+
 include(SxmlLint)

@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<test-set xmlns="http://www.w3.org/2012/10/xslt-test-catalog" name="set-dependencies">
+   <description>Specs, features and other dependencies; scope.</description>
+   <dependencies>
+      <spec value="XSLT30+"/>
+   </dependencies>
+   <test-case name="spec-replaced">
+      <description>The case's spec replaces the set's.</description>
+      <created by="sxml" on="2026-10-17"/>
+      <dependencies>
+         <spec value="XSLT20 XSLT30"/>
+      </dependencies>
+      <test><stylesheet file="a.xsl"/></test>
+      <result><assert>true()</assert></result>
+   </test-case>
+   <test-case name="spec-40">
+      <description>Only XSLT 4.0.</description>
+      <created by="sxml" on="2026-10-17"/>
+      <dependencies>
+         <spec value="XSLT40"/>
+         <feature value="higher_order_functions"/>
+         <year_component_values value="support year zero"/>
+         <maximum_number_of_decimal_digits value="60"/>
+      </dependencies>
+      <test><stylesheet file="a.xsl"/></test>
+      <result><assert-true/></result>
+   </test-case>
+   <test-case name="schema-aware">
+      <description>Needs a non-goal: skipped and out of scope.</description>
+      <created by="sxml" on="2026-10-17"/>
+      <dependencies>
+         <feature value="schema_aware"/>
+      </dependencies>
+      <test><stylesheet file="a.xsl"/></test>
+      <result><assert-true/></result>
+   </test-case>
+   <test-case name="basic-processor">
+      <description>Asks for schema awareness to be absent: in scope.</description>
+      <created by="sxml" on="2026-10-17"/>
+      <dependencies>
+         <feature value="schema_aware" satisfied="false"/>
+      </dependencies>
+      <test><stylesheet file="a.xsl"/></test>
+      <result><error code="XTSE1650"/></result>
+   </test-case>
+   <test-case name="inverted">
+      <description>Asks for a supported feature to be absent.</description>
+      <created by="sxml" on="2026-10-17"/>
+      <dependencies>
+         <feature value="higher_order_functions" satisfied="false"/>
+      </dependencies>
+      <test><stylesheet file="a.xsl"/></test>
+      <result><error code="XTSE0010"/></result>
+   </test-case>
+   <test-case name="numbering">
+      <description>An implementation-defined dependency sxml lacks.</description>
+      <created by="sxml" on="2026-10-17"/>
+      <dependencies>
+         <combinations_for_numbering value="CIRCLED DIGIT ONE" range="1 to 20"/>
+      </dependencies>
+      <test><stylesheet file="a.xsl"/></test>
+      <result><assert-true/></result>
+   </test-case>
+   <test-case name="validation">
+      <description>A validated source.</description>
+      <created by="sxml" on="2026-10-17"/>
+      <environment>
+         <source role="." file="doc.xml" validation="strict"/>
+      </environment>
+      <test><stylesheet file="a.xsl"/></test>
+      <result><assert-true/></result>
+   </test-case>
+   <test-case name="posture">
+      <description>A streamability assessment.</description>
+      <created by="sxml" on="2026-10-17"/>
+      <test>
+         <stylesheet file="a.xsl"/>
+         <posture-and-sweep context-posture="striding"><xpath>.</xpath></posture-and-sweep>
+      </test>
+      <result><assert-posture-and-sweep posture="striding" sweep="motionless"/></result>
+   </test-case>
+   <test-case name="warning">
+      <description>An assertion the driver does not check.</description>
+      <created by="sxml" on="2026-10-17"/>
+      <test><stylesheet file="a.xsl"/></test>
+      <result><all-of><assert-warning/><assert>true()</assert></all-of></result>
+   </test-case>
+</test-set>

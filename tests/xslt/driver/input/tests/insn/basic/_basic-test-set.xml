@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<test-set xmlns="http://www.w3.org/2012/10/xslt-test-catalog"
+          xmlns:f="http://example.com/f" name="set-basic">
+   <description>Modules, parameters, invocations and outputs.</description>
+   <environment name="inline-doc">
+      <source role=".">
+         <content><![CDATA[<doc><a/></doc>]]></content>
+      </source>
+   </environment>
+   <environment name="packages">
+      <package file="lib/p1.xsl" uri="http://example.com/p1" package-version="1.0" role="secondary"/>
+      <package file="lib/p2.xsl" uri="http://example.com/p2" role="secondary"/>
+   </environment>
+   <environment name="shared-stylesheet">
+      <source role="." file="doc.xml" uri="http://example.com/doc.xml"/>
+      <source file="other.xml" uri="other.xml"/>
+      <stylesheet file="shared.xsl"/>
+      <param name="global" select="'g'" static="yes"/>
+      <collation uri="http://www.w3.org/2005/xpath-functions/collation/codepoint"/>
+      <resource file="data.txt" uri="http://example.com/data.txt" media-type="text/plain"/>
+      <collection uri="http://example.com/c">
+         <source file="c1.xml" uri="http://example.com/c1.xml"/>
+      </collection>
+   </environment>
+   <dependencies>
+      <spec value="XSLT20+"/>
+   </dependencies>
+   <test-case name="basic-template">
+      <description>A named template over an inline document.</description>
+      <created by="sxml" on="2026-10-17"/>
+      <environment ref="inline-doc"/>
+      <test>
+         <stylesheet file="basic-template.xsl"/>
+         <initial-template name="main">
+            <param name="p" select="1"/>
+            <param name="t" select="2" tunnel="yes"/>
+         </initial-template>
+      </test>
+      <result>
+         <assert>/out = 'a'</assert>
+      </result>
+   </test-case>
+   <test-case name="basic-function">
+      <description>An initial function, static parameters, a serialized result.</description>
+      <created by="sxml" on="2026-10-17"/>
+      <test>
+         <stylesheet file="basic-function.xsl" role="principal"/>
+         <stylesheet file="inc/included.xsl" role="secondary"/>
+         <param name="s" select="'yes'" as="xs:string" static="yes"/>
+         <param name="f:p" select="42"/>
+         <initial-function name="f:go">
+            <param select="1" as="xs:integer"/>
+            <param select="'two'"/>
+         </initial-function>
+         <output serialize="yes" file="out/basic-function.xml"/>
+      </test>
+      <result>
+         <all-of>
+            <assert-result-document uri="part.xml">
+               <assert-xml><![CDATA[<part/>]]></assert-xml>
+            </assert-result-document>
+            <serialization-matches>^&lt;out</serialization-matches>
+            <assert-message><assert-string-value>hello</assert-string-value></assert-message>
+         </all-of>
+      </result>
+   </test-case>
+   <test-case name="basic-mode">
+      <description>An initial mode with a selection; a raw result.</description>
+      <created by="sxml" on="2026-10-17"/>
+      <environment ref="shared-stylesheet"/>
+      <test>
+         <initial-mode name="#unnamed" select="//a"/>
+         <output tree="no" result-var="result"/>
+      </test>
+      <result>
+         <any-of>
+            <error code="XTDE0044"/>
+            <assert-deep-eq>1</assert-deep-eq>
+            <not><assert-empty/></not>
+         </any-of>
+      </result>
+   </test-case>
+   <test-case name="basic-package">
+      <description>A principal package using two others.</description>
+      <created by="sxml" on="2026-10-17"/>
+      <environment ref="packages"/>
+      <test>
+         <package file="main.xsl" uri="http://example.com/main" package-version="2.0" role="principal"/>
+         <initial-template name="Q{http://example.com/t}start"/>
+         <initial-mode name="ignored"/>
+      </test>
+      <result>
+         <assert-serialization method="xml"><![CDATA[<out/>]]></assert-serialization>
+      </result>
+   </test-case>
+   <test-case name="basic-embedded">
+      <description>A stylesheet named by the source document.</description>
+      <created by="sxml" on="2026-10-17"/>
+      <environment>
+         <source role="." file="embedded.xml" defines-stylesheet="true" select="/doc"/>
+      </environment>
+      <test/>
+      <result>
+         <assert-serialization-error code="SERE0014"/>
+      </result>
+   </test-case>
+</test-set>
