@@ -430,6 +430,16 @@ SXML_NODISCARD sxml_status sxml_function_library_read_document_options(
 SXML_NODISCARD sxml_status sxml_function_library_strip_document(
     const sxml_function_call *call, sxml_item document_node, sxml_sequence *result);
 
+/*
+ * Reads the text of fn:json-doc's source (F&O 4.0, section 17.4.5:
+ * fn:unparsed-text($source), argument 0) and writes it, an owned
+ * xs:string, to *text; the empty sequence for an empty $source. Defined in
+ * src/function_library_resource.c for the json-doc row of
+ * src/function_library_json.c (D143). Returns fn:unparsed-text's errors.
+ */
+SXML_NODISCARD sxml_status sxml_function_library_read_json_document(
+    const sxml_function_call *call, sxml_sequence *text);
+
 /* ------------------------------------------------------------ Deep equality */
 
 /*

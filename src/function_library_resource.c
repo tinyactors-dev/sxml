@@ -5,8 +5,9 @@
  * access to external information": fn:collection, fn:uri-collection,
  * fn:unparsed-text, fn:unparsed-text-lines, fn:unparsed-text-available,
  * fn:unparsed-binary, fn:environment-variable,
- * fn:available-environment-variables; section 17.4.5 fn:json-doc; section
- * 20.1.3 fn:default-language. fn:trace and fn:message, which hand their
+ * fn:available-environment-variables; the text of section 17.4.5
+ * fn:json-doc, whose row is the json part's (D143); section 20.1.3
+ * fn:default-language. fn:trace and fn:message, which hand their
  * input to the environment's trace sink, are in src/function_library_error.c.
  *
  * Golden file: src/function_library_math.c (rows, comments); rows as in
@@ -20,7 +21,6 @@
  */
 #include "evaluator_internal.h"
 #include "function_library_core_internal.h"
-#include "function_library_parts_internal.h"
 #include "processor_internal.h"
 #include "sxml/processor.h"
 #include "sxml/string.h"
@@ -913,56 +913,20 @@ static sxml_status call_unparsed_binary(const sxml_function_call *call, sxml_seq
 
 /* -------------------------------------------------------------- JSON doc */
 
-/* The fn:parse-json row of the json part, found by name among the parts
-   that serve XPath; NULL when there is none. */
-static const sxml_native_function *find_parse_json(void) {
-    const sxml_native_function_view_list parts =
-        sxml_function_library_parts_for_language(SXML_LANGUAGE_XPATH);
-    for (size_t part_index = 0; part_index < parts.native_function_view_count;
-         part_index += 1) {
-        const sxml_native_function_view *part = parts.native_function_views[part_index];
-        for (size_t row_index = 0; row_index < part->native_function_count; row_index += 1) {
-            const sxml_native_function *row = &part->native_functions[row_index];
-            if (row->function_namespace == SXML_NAMESPACE_FUNCTIONS && row->call != NULL &&
-                sxml_byte_view_equals(row->local_name,
-                                      SXML_BYTE_VIEW_FROM_LITERAL("parse-json"))) {
-                return row;
-            }
-        }
-    }
-    return NULL;
-}
-
-/* fn:json-doc($source as xs:string?, $options as map(*)? := {}) as
-   item()? (F&O 4.0, section 17.4.5): fn:unparsed-text($source) =>
-   fn:parse-json($options); the errors of both. */
-static sxml_status call_json_doc(const sxml_function_call *call, sxml_sequence *result) {
-    const sxml_native_function *parse_json = find_parse_json();
-    if (parse_json == NULL) {
-        return SXML_STATUS_UNSUPPORTED_FEATURE;
-    }
+/* The text of fn:json-doc's source (F&O 4.0, section 17.4.5:
+   fn:unparsed-text($source)), declared in
+   src/function_library_core_internal.h. */
+sxml_status sxml_function_library_read_json_document(const sxml_function_call *call,
+                                                     sxml_sequence *text) {
+    *text = sxml_sequence_empty();
     text_reading reading;
     sxml_status status = start_text_reading(call, SXML_TEXT_FUNCTION_JSON_DOC, &reading);
-    if (status == SXML_STATUS_OK && !reading.has_source) {
-        *result = sxml_sequence_empty();
-    } else if (status == SXML_STATUS_OK && reading.outcome.failure != SXML_TEXT_FAILURE_NONE) {
+    if (status == SXML_STATUS_OK && reading.has_source &&
+        reading.outcome.failure != SXML_TEXT_FAILURE_NONE) {
         status = report_text_failure(call, &reading.outcome);
-    } else if (status == SXML_STATUS_OK) {
-        sxml_sequence text = sxml_sequence_empty();
+    } else if (status == SXML_STATUS_OK && reading.has_source) {
         status = sxml_function_library_make_string(
-            call->item_heap, sxml_function_library_text_view(&reading.outcome.text), &text);
-        if (status == SXML_STATUS_OK) {
-            const sxml_sequence arguments[2] = {text, sxml_function_library_get_argument(call, 1)};
-            status = parse_json->call(
-                &(sxml_function_call){.function_item = call->function_item,
-                                      .arguments = {.sequences = arguments,
-                                                    .sequence_count = 2},
-                                      .dynamic_context = call->dynamic_context,
-                                      .item_heap = call->item_heap,
-                                      .error_record = call->error_record},
-                result);
-            sxml_sequence_release(text);
-        }
+            call->item_heap, sxml_function_library_text_view(&reading.outcome.text), text);
     }
     text_reading_release(&reading);
     return status;
@@ -1144,9 +1108,6 @@ static const sxml_function_parameter text_parameters[] = {
     SXML_OPTIONAL_PARAMETER("options", "(xs:string | map(*))?")};
 static const sxml_function_parameter binary_parameters[] = {
     SXML_REQUIRED_PARAMETER("source", "xs:string?")};
-static const sxml_function_parameter json_doc_parameters[] = {
-    SXML_REQUIRED_PARAMETER("source", "xs:string?"),
-    SXML_OPTIONAL_PARAMETER("options", "map(*)?")};
 static const sxml_function_parameter collection_parameters[] = {
     SXML_OPTIONAL_PARAMETER("source", "xs:string?")};
 static const sxml_function_parameter environment_variable_parameters[] = {
@@ -1167,8 +1128,6 @@ static const sxml_native_function resource_functions[] = {
                       SXML_NONDETERMINISTIC_RESOURCE_PROPERTIES, call_unparsed_text_available),
     SXML_FUNCTION_ROW("unparsed-binary", binary_parameters, "xs:base64Binary?",
                       SXML_NONDETERMINISTIC_RESOURCE_PROPERTIES, call_unparsed_binary),
-    SXML_FUNCTION_ROW("json-doc", json_doc_parameters, "item()?", SXML_RESOURCE_PROPERTIES,
-                      call_json_doc),
     SXML_FUNCTION_ROW("collection", collection_parameters, "item()*", SXML_RESOURCE_PROPERTIES,
                       call_collection),
     SXML_FUNCTION_ROW("uri-collection", collection_parameters, "xs:anyURI*",

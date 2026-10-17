@@ -276,6 +276,35 @@ static void test_parse_strings(sxml_test_state *state) {
                                "[\"\\\\" ESCAPE_U "0001A\\n/" ESCAPE_U "D800" ESCAPE_U "0080\"]"));
 }
 
+/* The escapes a fallback is called for: not permitted, surrogates paired
+   as parsing pairs them, escaped backslashes skipped. */
+static void test_find_unpermitted_escapes(sxml_test_state *state) {
+    const sxml_byte_view text = text_view("[\"\\\\u0000 " ESCAPE_U "D834" ESCAPE_U
+                                          "DD1E\\n" ESCAPE_U "dd1e" ESCAPE_U "FFFE" ESCAPE_U
+                                          "0041\"]");
+    sxml_json_unpermitted_escape escape = sxml_json_find_unpermitted_escape(
+        (sxml_json_escape_search){.json_text = text, .start_offset = 0});
+    SXML_TEST_EXPECT(state, escape.is_found && escape.codepoint == 0xDD1EU &&
+                                escape.escape_sequence.byte_count == 6 &&
+                                memcmp(escape.escape_sequence.bytes, ESCAPE_U "dd1e", 6) == 0);
+    escape = sxml_json_find_unpermitted_escape(
+        (sxml_json_escape_search){.json_text = text, .start_offset = escape.next_offset});
+    SXML_TEST_EXPECT(state, escape.is_found && escape.codepoint == 0xFFFEU);
+    escape = sxml_json_find_unpermitted_escape(
+        (sxml_json_escape_search){.json_text = text, .start_offset = escape.next_offset});
+    SXML_TEST_EXPECT(state, !escape.is_found && escape.next_offset == text.byte_count);
+    /* A replacement for a codepoint is inserted for each of its escapes. */
+    const sxml_json_replacement replacement = {
+        .codepoint = 0xFFFEU, .replacement_text = SXML_BYTE_VIEW_FROM_LITERAL("<>")};
+    sxml_json_parse_options replacing = default_options;
+    replacing.replacements =
+        (sxml_json_replacement_view){.replacements = &replacement, .replacement_count = 1};
+    SXML_TEST_EXPECT(state, parses_to(&(parse_case){.json_text = "[\"" ESCAPE_U "FFFEa" ESCAPE_U
+                                                                 "fffe" ESCAPE_U "FFFF\"]",
+                                                    .options = replacing},
+                                      "[\"<>a<>\xEF\xBF\xBD\"]"));
+}
+
 static void test_parse_numbers(sxml_test_state *state) {
     sxml_json_parse_options decimal = default_options;
     decimal.number_format = SXML_JSON_NUMBER_FORMAT_DECIMAL;
@@ -951,6 +980,17 @@ static const expression_case function_cases[] = {
     {"parse-json('[]', {xs:QName('fn:x'): 1})", "[]"},
     {"parse-json('[]', {'escape': true(), 'fallback': fn($s) { $s }})", "!FOJS0005"},
     {"parse-json('[\"a\\\\b\"]', {'escape': true()})", "[\"a\\\\b\"]"},
+    /* Option fallback (F&O 4.0, 17.4.4): called once per character that is
+       not permitted, with its escape sequence; a surrogate pair is no such
+       character, and two-character escapes never are. */
+    {"parse-json('[\"" ESCAPE_U "0000\", \"" ESCAPE_U "D800" ESCAPE_U "DC00" ESCAPE_U
+     "DEAD\\b\", \"" ESCAPE_U "dead\"]', {'fallback': fn($s) { '[' || $s || ']' }})",
+     "[\"[" ESCAPE_U "0000]\",\"\xF0\x90\x80\x80[" ESCAPE_U "DEAD]\b\",\"[" ESCAPE_U
+     "DEAD]\"]"},
+    {"json-to-xml('\"" ESCAPE_U "FFFF\"', {'fallback': fn($s) { 'x' }})/*/string()", "\"x\""},
+    {"parse-json('\"" ESCAPE_U "FFFF\"', {'fallback': substring#2})", "!XPTY0004"},
+    {"parse-json('\"" ESCAPE_U "FFFF\"', {'fallback': fn($s) { () }})", "!XPTY0004"},
+    {"parse-json('\"" ESCAPE_U "FFFF\"', {'fallback': fn($s) { error() }})", "!FOER0000"},
     {"parse-json('{\"x\": null}', {'null': #fn:null})", "{\"x\":#fn:null}"},
     {"json-to-xml(())", ""},
     {"json-to-xml('{\"a\":1, \"a\":2}', {'duplicates': 'use-last'})", "!FOJS0005"},
@@ -989,7 +1029,8 @@ static void test_functions(sxml_test_state *state) {
 static void test_functions_survive_every_allocation_failure(sxml_test_state *state) {
     static const char expression_text[] =
         "(parse-json('{\"a\": [1, {\"b\": null}]}')?a?2, xml-to-json(json-to-xml('[\"x\", 1]')), "
-        "count(jtree([1, 2])/*), parse-xml('<a/>'))";
+        "count(jtree([1, 2])/*), parse-xml('<a/>'), "
+        "parse-json('\"" ESCAPE_U "0000" ESCAPE_U "FFFF" ESCAPE_U "0000\"', {'fallback': fn($s) { 'f' }}))";
     bool has_succeeded = false;
     for (uint64_t failing_number = 1; !has_succeeded && failing_number < 20000;
          failing_number += 1) {
@@ -1004,7 +1045,7 @@ static void test_functions_survive_every_allocation_failure(sxml_test_state *sta
         SXML_TEST_EXPECT(state, status == SXML_STATUS_OK || status == SXML_STATUS_OUT_OF_MEMORY);
         if (has_succeeded) {
             SXML_TEST_EXPECT(state, buffer_holds(&test_fixture,
-                                                 "{\"b\":()} \"[\"\"x\"\",1]\" 2 <a/>"));
+                                                 "{\"b\":()} \"[\"\"x\"\",1]\" 2 <a/> \"fff\""));
         }
         SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
     }
@@ -1014,6 +1055,7 @@ static void test_functions_survive_every_allocation_failure(sxml_test_state *sta
 static const sxml_test_case json_test_cases[] = {
     {.name = "parse_values", .function = test_parse_values},
     {.name = "parse_strings", .function = test_parse_strings},
+    {.name = "find_unpermitted_escapes", .function = test_find_unpermitted_escapes},
     {.name = "parse_numbers", .function = test_parse_numbers},
     {.name = "parse_duplicates_and_null", .function = test_parse_duplicates_and_null},
     {.name = "parse_errors", .function = test_parse_errors},

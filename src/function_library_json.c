@@ -9,7 +9,9 @@
  * makes a root JNode (D70). From packet 2.17: fn:parse-xml-fragment
  * (17.2.2), strip-space="all" for both parse functions, and
  * fn:system-properties (17.1.9), the other function on the processor's
- * environment that the resource part (2.12) does not hold.
+ * environment that the resource part (2.12) does not hold. From packet
+ * 2.19: the fallback option, which makes fn:parse-json, fn:json-to-xml and
+ * fn:json-doc (17.4.5, its text read by the resource part) resumable.
  *
  * Golden file: src/function_library_map.c.
  */
@@ -42,6 +44,13 @@ static const sxml_static_error json_invalid_option_error = {
     .code_local_name = SXML_BYTE_VIEW_INITIALIZER("FOJS0005"),
     .description = SXML_BYTE_VIEW_INITIALIZER(
         "An option has a value that is not allowed for it"),
+};
+
+static const sxml_static_error json_fallback_type_error = {
+    .error_status = SXML_STATUS_TYPE_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XPTY0004"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "The fallback option is not a function of one argument (F&O 4.0, section 17.4.4)"),
 };
 
 static const sxml_static_error json_validation_error = {
@@ -185,8 +194,7 @@ typedef struct json_option_reading {
  * Turns the coerced options into sxml_json_parse_options (F&O 4.0,
  * sections 17.4.4 and 17.4.6): FOJS0005 for a value not allowed, or for
  * fallback with escape=true; FOJS0004 for validate=true (sxml is not
- * schema-aware). A fallback function is not supported yet: the default
- * fallback, U+FFFD, is the only one.
+ * schema-aware); XPTY0004 for a fallback function whose arity is not 1.
  */
 static sxml_status json_interpret_options(const sxml_function_call *call,
                                           json_option_reading reading,
@@ -234,7 +242,15 @@ static sxml_status json_interpret_options(const sxml_function_call *call,
         if (options->keeps_escaped_form) {
             return sxml_error_record_report(call->error_record, &json_invalid_option_error);
         }
-        return SXML_STATUS_UNSUPPORTED_FEATURE;
+        /* Its type is fn($escape as xs:string) as xs:anyAtomicType: the
+           arity is checked here, the argument when it is called, the
+           result when it returns (take_fallback_result). */
+        sxml_function_item_description description;
+        const sxml_status status = sxml_function_item_describe(
+            values->values[SXML_JSON_OPTION_FALLBACK].content, &description);
+        if (status != SXML_STATUS_OK || description.arity != 1) {
+            return sxml_error_record_report(call->error_record, &json_fallback_type_error);
+        }
     }
     return SXML_STATUS_OK;
 }
@@ -270,37 +286,6 @@ static sxml_status json_read_parse_options(const sxml_function_call *call,
 
 /* --------------------------------------------------------------- Bodies */
 
-/* fn:parse-json($value as xs:string?, $options as map(*)? := {}) as
-   item()? (F&O 4.0, section 17.4.4). */
-static sxml_status call_parse_json(const sxml_function_call *call, sxml_sequence *result) {
-    const sxml_sequence value = json_argument(call, 0);
-    if (json_sequence_is_empty(value)) {
-        *result = sxml_sequence_empty();
-        return SXML_STATUS_OK;
-    }
-    sxml_option_values values;
-    memset(&values, 0, sizeof(values));
-    sxml_json_parse_options options;
-    sxml_byte_view text = {.bytes = NULL, .byte_count = 0};
-    sxml_status status = json_read_text(value, &text);
-    if (status == SXML_STATUS_OK) {
-        status = json_read_parse_options(
-            call, (json_parse_option_target){.is_xml = false, .values = &values}, &options);
-    }
-    if (status == SXML_STATUS_OK) {
-        status = sxml_json_make_value(call->item_heap,
-                                      &(sxml_json_text_request){
-                                          .json_text = text,
-                                          .options = options,
-                                          .allocator = json_call_allocator(call),
-                                          .maximum_depth = 0,
-                                          .error_record = call->error_record},
-                                      result);
-    }
-    sxml_function_library_release_options(&values);
-    return status;
-}
-
 /* Sends a document of the XML representation of the JSON text to
    arena_tree. */
 static sxml_status json_build_document(const sxml_function_call *call,
@@ -331,53 +316,31 @@ static sxml_status json_build_document(const sxml_function_call *call,
     return status;
 }
 
-/* fn:json-to-xml($value as xs:string?, $options as map(*)? := {}) as
-   document-node(fn:*)? (F&O 4.0, section 17.4.6): a new untyped tree that
-   destroys itself when unreferenced, its memory from the heap. */
-static sxml_status call_json_to_xml(const sxml_function_call *call, sxml_sequence *result) {
-    const sxml_sequence value = json_argument(call, 0);
-    if (json_sequence_is_empty(value)) {
-        *result = sxml_sequence_empty();
-        return SXML_STATUS_OK;
-    }
-    sxml_option_values values;
-    memset(&values, 0, sizeof(values));
-    sxml_json_parse_options options;
-    sxml_byte_view text = {.bytes = NULL, .byte_count = 0};
-    sxml_status status = json_read_text(value, &text);
-    if (status == SXML_STATUS_OK) {
-        status = json_read_parse_options(
-            call, (json_parse_option_target){.is_xml = true, .values = &values}, &options);
-    }
+/* The value of fn:json-to-xml for text (F&O 4.0, section 17.4.6): a new
+   untyped tree that destroys itself when unreferenced, its memory from
+   the heap. */
+static sxml_status json_make_document(const sxml_function_call *call,
+                                      const sxml_json_text_request *request,
+                                      sxml_sequence *result) {
     const sxml_allocator tree_allocator = sxml_item_heap_as_allocator(call->item_heap);
     sxml_arena_tree *arena_tree = NULL;
-    if (status == SXML_STATUS_OK) {
-        status = sxml_arena_tree_create(
-            tree_allocator,
-            &(sxml_arena_tree_configuration){
-                .allocator = tree_allocator,
-                .initial_memory = {.bytes = NULL, .byte_count = 0},
-                .item_heap = call->item_heap,
-                .duplicate_attribute_policy = SXML_DUPLICATE_ATTRIBUTE_POLICY_REJECT,
-                .is_destroyed_when_unreferenced = true,
-                .error_record = NULL},
-            &arena_tree);
-    }
+    sxml_status status = sxml_arena_tree_create(
+        tree_allocator,
+        &(sxml_arena_tree_configuration){
+            .allocator = tree_allocator,
+            .initial_memory = {.bytes = NULL, .byte_count = 0},
+            .item_heap = call->item_heap,
+            .duplicate_attribute_policy = SXML_DUPLICATE_ATTRIBUTE_POLICY_REJECT,
+            .is_destroyed_when_unreferenced = true,
+            .error_record = NULL},
+        &arena_tree);
     sxml_tree *tree = NULL;
     if (status == SXML_STATUS_OK) {
-        status = json_build_document(call,
-                                     &(sxml_json_text_request){
-                                         .json_text = text,
-                                         .options = options,
-                                         .allocator = json_call_allocator(call),
-                                         .maximum_depth = 0,
-                                         .error_record = call->error_record},
-                                     arena_tree);
+        status = json_build_document(call, request, arena_tree);
     }
     if (status == SXML_STATUS_OK) {
         status = sxml_arena_tree_finish(arena_tree, &tree);
     }
-    sxml_function_library_release_options(&values);
     if (status != SXML_STATUS_OK) {
         sxml_arena_tree_destroy(arena_tree);
         return status;
@@ -387,6 +350,326 @@ static sxml_status call_json_to_xml(const sxml_function_call *call, sxml_sequenc
     sxml_tree_release(tree);
     return SXML_STATUS_OK;
 }
+
+/*
+ * fn:parse-json, fn:json-to-xml and fn:json-doc are resumable bodies (D75,
+ * D143) for option "fallback" (F&O 4.0, sections 17.4.4 to 17.4.6): before
+ * the parse, the fallback function is called once for each character that
+ * is not permitted (sxml_json_find_unpermitted_escape), with its escape
+ * sequence as written; the string value of the result is what the parse
+ * inserts for that character. Without a fallback the first step parses
+ * and finishes.
+ */
+typedef enum json_function {
+    SXML_JSON_FUNCTION_PARSE_JSON,
+    SXML_JSON_FUNCTION_JSON_TO_XML,
+    SXML_JSON_FUNCTION_JSON_DOC,
+} json_function;
+
+typedef struct json_parse_state {
+    /* Which function's call this is. */
+    json_function function;
+    /* False when the value is the empty sequence (no text). */
+    bool has_text;
+    /* Of the arrays below. */
+    sxml_allocator allocator;
+    /* The JSON text, an xs:string, owned. */
+    sxml_sequence text;
+    sxml_option_values values;
+    sxml_json_parse_options options;
+    /* The fallback function, borrowed from values; none without one. */
+    bool has_fallback;
+    sxml_item fallback;
+    /* Where the search for the next escape goes on. */
+    size_t search_offset;
+    /* While a fallback call runs: its argument (owned) and the codepoint
+       of the escape sequence. */
+    sxml_sequence call_argument;
+    uint32_t call_codepoint;
+    /* The replacements so far, and their xs:string items (owned), whose
+       text the replacements borrow. */
+    sxml_json_replacement *replacements;
+    sxml_sequence *replacement_strings;
+    size_t replacement_count;
+    size_t replacement_capacity;
+} json_parse_state;
+
+static void release_json_parse_state(void *state) {
+    json_parse_state *parse = state;
+    sxml_sequence_release(parse->text);
+    parse->text = sxml_sequence_empty();
+    sxml_function_library_release_options(&parse->values);
+    sxml_sequence_release(parse->call_argument);
+    parse->call_argument = sxml_sequence_empty();
+    for (size_t replacement_index = 0; replacement_index < parse->replacement_count;
+         replacement_index += 1) {
+        sxml_sequence_release(parse->replacement_strings[replacement_index]);
+    }
+    if (parse->replacement_capacity != 0) {
+        sxml_allocator_release(parse->allocator, parse->replacements);
+        sxml_allocator_release(parse->allocator, parse->replacement_strings);
+    }
+    parse->replacements = NULL;
+    parse->replacement_strings = NULL;
+    parse->replacement_count = 0;
+    parse->replacement_capacity = 0;
+}
+
+/* Reads the text and the options of parse->function in the first step;
+   parse->has_text is false when the function's value is the empty
+   sequence. */
+static sxml_status start_json_parse(const sxml_function_call *call, json_parse_state *parse) {
+    const json_function function = parse->function;
+    parse->allocator = json_call_allocator(call);
+    parse->text = sxml_sequence_empty();
+    parse->call_argument = sxml_sequence_empty();
+    sxml_status status = SXML_STATUS_OK;
+    if (function == SXML_JSON_FUNCTION_JSON_DOC) {
+        /* fn:unparsed-text($source) => fn:parse-json($options) (17.4.5). */
+        status = sxml_function_library_read_json_document(call, &parse->text);
+    } else {
+        parse->text = json_argument(call, 0);
+        sxml_sequence_retain(parse->text);
+    }
+    parse->has_text = status == SXML_STATUS_OK && !json_sequence_is_empty(parse->text);
+    if (!parse->has_text) {
+        return status;
+    }
+    status = json_read_parse_options(
+        call,
+        (json_parse_option_target){.is_xml = function == SXML_JSON_FUNCTION_JSON_TO_XML,
+                                   .values = &parse->values},
+        &parse->options);
+    const sxml_sequence fallback = parse->values.values[SXML_JSON_OPTION_FALLBACK];
+    if (status == SXML_STATUS_OK && parse->values.is_present[SXML_JSON_OPTION_FALLBACK] &&
+        !json_sequence_is_empty(fallback)) {
+        parse->has_fallback = true;
+        parse->fallback = fallback.content;
+    }
+    return status;
+}
+
+/* Adds the replacement for codepoint: string, an xs:string item (owned:
+   taken over, also on failure). */
+static sxml_status add_replacement(json_parse_state *parse, uint32_t codepoint,
+                                   sxml_sequence string) {
+    if (parse->replacement_count == parse->replacement_capacity) {
+        const size_t capacity = parse->replacement_capacity == 0 ? 4 : parse->replacement_capacity * 2;
+        void *replacements = NULL;
+        void *strings = NULL;
+        sxml_status status = sxml_allocator_allocate(
+            parse->allocator,
+            (sxml_allocation_request){.byte_count = capacity * sizeof(sxml_json_replacement),
+                                      .alignment = alignof(sxml_json_replacement)},
+            &replacements);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_allocator_allocate(
+                parse->allocator,
+                (sxml_allocation_request){.byte_count = capacity * sizeof(sxml_sequence),
+                                          .alignment = alignof(sxml_sequence)},
+                &strings);
+            if (status != SXML_STATUS_OK) {
+                sxml_allocator_release(parse->allocator, replacements);
+            }
+        }
+        if (status != SXML_STATUS_OK) {
+            sxml_sequence_release(string);
+            return status;
+        }
+        if (parse->replacement_count != 0) {
+            memcpy(replacements, parse->replacements,
+                   parse->replacement_count * sizeof(sxml_json_replacement));
+            memcpy(strings, parse->replacement_strings,
+                   parse->replacement_count * sizeof(sxml_sequence));
+        }
+        if (parse->replacement_capacity != 0) {
+            sxml_allocator_release(parse->allocator, parse->replacements);
+            sxml_allocator_release(parse->allocator, parse->replacement_strings);
+        }
+        parse->replacements = replacements;
+        parse->replacement_strings = strings;
+        parse->replacement_capacity = capacity;
+    }
+    sxml_atomic_datum datum;
+    sxml_status status = sxml_atomic_item_get_datum(string.content, &datum);
+    if (status != SXML_STATUS_OK) {
+        sxml_sequence_release(string);
+        return status;
+    }
+    parse->replacements[parse->replacement_count] = (sxml_json_replacement){
+        .codepoint = codepoint, .replacement_text = datum.datum_details.string.utf8};
+    parse->replacement_strings[parse->replacement_count] = string;
+    parse->replacement_count += 1;
+    return SXML_STATUS_OK;
+}
+
+static bool has_replacement(const json_parse_state *parse, uint32_t codepoint) {
+    for (size_t replacement_index = 0; replacement_index < parse->replacement_count;
+         replacement_index += 1) {
+        if (parse->replacements[replacement_index].codepoint == codepoint) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static const sxml_sequence_type json_fallback_result_type = {
+    .item_type = {.index = SXML_TYPE_XS_ANY_ATOMIC_TYPE},
+    .occurrence = SXML_OCCURRENCE_EXACTLY_ONE};
+
+/* Takes the result of a fallback call (owned): coerced to its result type
+   xs:anyAtomicType, its string value replaces the character. */
+static sxml_status take_fallback_result(const sxml_native_step_request *request,
+                                        json_parse_state *parse) {
+    const sxml_function_call *call = request->call;
+    sxml_sequence_release(parse->call_argument);
+    parse->call_argument = sxml_sequence_empty();
+    sxml_sequence value = request->call_result;
+    sxml_status status = SXML_STATUS_OK;
+    if (call->dynamic_context != NULL) {
+        status = sxml_evaluator_coerce(
+            call->dynamic_context,
+            &(sxml_coercion_request){.value = request->call_result,
+                                     .sequence_type = json_fallback_result_type,
+                                     .role = SXML_IR_COERCION_ROLE_FUNCTION_RESULT,
+                                     .error_record = call->error_record},
+            &value);
+        sxml_sequence_release(request->call_result);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_library_text text = {.item_heap = call->item_heap};
+    if (sxml_sequence_get_representation(value) != SXML_SEQUENCE_REPRESENTATION_SINGLE_ITEM ||
+        !sxml_item_is_atomic(value.content)) {
+        status = sxml_error_record_report(call->error_record, &json_fallback_type_error);
+    } else {
+        status = sxml_function_library_text_append_atomic(&text, value.content);
+    }
+    sxml_sequence_release(value);
+    sxml_sequence string = sxml_sequence_empty();
+    if (status == SXML_STATUS_OK) {
+        status = sxml_function_library_make_string(
+            call->item_heap, sxml_function_library_text_view(&text), &string);
+    }
+    sxml_function_library_text_release(&text);
+    if (status == SXML_STATUS_OK) {
+        status = add_replacement(parse, parse->call_codepoint, string);
+    }
+    return status;
+}
+
+/* Parses the text with the replacements found and finishes. */
+static sxml_status finish_json_parse(const sxml_function_call *call, json_parse_state *parse,
+                                     sxml_native_step *step) {
+    sxml_byte_view text = {.bytes = NULL, .byte_count = 0};
+    sxml_status status = json_read_text(parse->text, &text);
+    parse->options.replacements = (sxml_json_replacement_view){
+        .replacements = parse->replacements, .replacement_count = parse->replacement_count};
+    const sxml_json_text_request request = {.json_text = text,
+                                            .options = parse->options,
+                                            .allocator = json_call_allocator(call),
+                                            .maximum_depth = 0,
+                                            .error_record = call->error_record};
+    sxml_sequence result = sxml_sequence_empty();
+    if (status == SXML_STATUS_OK) {
+        status = parse->function == SXML_JSON_FUNCTION_JSON_TO_XML
+                     ? json_make_document(call, &request, &result)
+                     : sxml_json_make_value(call->item_heap, &request, &result);
+    }
+    if (status == SXML_STATUS_OK) {
+        *step = (sxml_native_step){.step_kind = SXML_NATIVE_STEP_KIND_FINISH,
+                                   .result = result,
+                                   .function_item = {.representation = 0},
+                                   .arguments = {.sequences = NULL, .sequence_count = 0}};
+    }
+    return status;
+}
+
+/* One step: start or take a fallback result, then ask for the next
+   fallback call or finish. */
+static sxml_status step_json_parse(const sxml_native_step_request *request,
+                                   json_function function, sxml_native_step *step) {
+    json_parse_state *parse = request->state;
+    const sxml_function_call *call = request->call;
+    sxml_status status = SXML_STATUS_OK;
+    if (request->step_number == 0) {
+        parse->function = function;
+        status = start_json_parse(call, parse);
+        if (status == SXML_STATUS_OK && !parse->has_text) {
+            *step = (sxml_native_step){.step_kind = SXML_NATIVE_STEP_KIND_FINISH,
+                                       .result = sxml_sequence_empty(),
+                                       .function_item = {.representation = 0},
+                                       .arguments = {.sequences = NULL, .sequence_count = 0}};
+            return SXML_STATUS_OK;
+        }
+    } else {
+        status = take_fallback_result(request, parse);
+    }
+    sxml_byte_view text = {.bytes = NULL, .byte_count = 0};
+    if (status == SXML_STATUS_OK && parse->has_fallback) {
+        status = json_read_text(parse->text, &text);
+    }
+    while (status == SXML_STATUS_OK && parse->has_fallback) {
+        const sxml_json_unpermitted_escape escape = sxml_json_find_unpermitted_escape(
+            (sxml_json_escape_search){.json_text = text, .start_offset = parse->search_offset});
+        if (!escape.is_found) {
+            break;
+        }
+        parse->search_offset = escape.next_offset;
+        if (has_replacement(parse, escape.codepoint)) {
+            continue;
+        }
+        status = sxml_function_library_make_string(call->item_heap, escape.escape_sequence,
+                                                   &parse->call_argument);
+        if (status == SXML_STATUS_OK) {
+            parse->call_codepoint = escape.codepoint;
+            *step = (sxml_native_step){
+                .step_kind = SXML_NATIVE_STEP_KIND_CALL,
+                .result = sxml_sequence_empty(),
+                .function_item = parse->fallback,
+                .arguments = {.sequences = &parse->call_argument, .sequence_count = 1}};
+        }
+        return status;
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return finish_json_parse(call, parse, step);
+}
+
+/* fn:parse-json($value as xs:string?, $options as map(*)? := {}) as
+   item()? (F&O 4.0, section 17.4.4). */
+static sxml_status step_parse_json(const sxml_native_step_request *request,
+                                   sxml_native_step *step) {
+    return step_json_parse(request, SXML_JSON_FUNCTION_PARSE_JSON, step);
+}
+
+/* fn:json-to-xml($value as xs:string?, $options as map(*)? := {}) as
+   document-node(fn:*)? (F&O 4.0, section 17.4.6). */
+static sxml_status step_json_to_xml(const sxml_native_step_request *request,
+                                    sxml_native_step *step) {
+    return step_json_parse(request, SXML_JSON_FUNCTION_JSON_TO_XML, step);
+}
+
+/* fn:json-doc($source as xs:string?, $options as map(*)? := {}) as
+   item()? (F&O 4.0, section 17.4.5). */
+static sxml_status step_json_doc(const sxml_native_step_request *request,
+                                 sxml_native_step *step) {
+    return step_json_parse(request, SXML_JSON_FUNCTION_JSON_DOC, step);
+}
+
+#define JSON_PARSE_BODY(body_name, step_function)                              \
+    static const sxml_resumable_native_body body_name = {                      \
+        .step = (step_function),                                               \
+        .release_state = release_json_parse_state,                             \
+        .state_byte_count = sizeof(json_parse_state),                          \
+        .state_alignment = alignof(json_parse_state),                          \
+    }
+
+JSON_PARSE_BODY(parse_json_body, step_parse_json);
+JSON_PARSE_BODY(json_to_xml_body, step_json_to_xml);
+JSON_PARSE_BODY(json_doc_body, step_json_doc);
 
 static const sxml_option_definition xml_to_json_options[] = {
     SXML_JSON_BOOLEAN_OPTION("escape-solidus"),
@@ -1175,8 +1458,24 @@ static sxml_status call_system_properties(const sxml_function_call *call,
      .call = (body),                                                           \
      .resumable_body = NULL}
 
+/* A row that may call a function item (the fallback option). */
+#define JSON_RESUMABLE_ROW(name_text, parameter_array, result_text, property_bits, body) \
+    {.function_namespace = SXML_NAMESPACE_FUNCTIONS,                           \
+     .properties = (property_bits) | SXML_NATIVE_FUNCTION_CALLS_FUNCTION_ITEMS, \
+     .local_name = SXML_BYTE_VIEW_INITIALIZER(name_text),                      \
+     .parameters = {(parameter_array),                                         \
+                    sizeof(parameter_array) / sizeof((parameter_array)[0])},   \
+     .result_type = SXML_BYTE_VIEW_INITIALIZER(result_text),                   \
+     .call = NULL,                                                             \
+     .resumable_body = &(body)}
+
 static const sxml_function_parameter parse_json_parameters[] = {
     JSON_PARAMETER("value", "xs:string?"),
+    JSON_OPTIONAL_PARAMETER("options", "map(*)?"),
+};
+
+static const sxml_function_parameter json_doc_parameters[] = {
+    JSON_PARAMETER("source", "xs:string?"),
     JSON_OPTIONAL_PARAMETER("options", "map(*)?"),
 };
 
@@ -1198,9 +1497,12 @@ static const sxml_function_parameter parse_xml_parameters[] = {
 };
 
 static const sxml_native_function json_functions[] = {
-    JSON_ROW("parse-json", parse_json_parameters, "item()?", 0, call_parse_json),
-    JSON_ROW("json-to-xml", parse_json_parameters, "document-node()?",
-             SXML_NATIVE_FUNCTION_IS_NONDETERMINISTIC, call_json_to_xml),
+    JSON_RESUMABLE_ROW("parse-json", parse_json_parameters, "item()?", 0, parse_json_body),
+    JSON_RESUMABLE_ROW("json-to-xml", parse_json_parameters, "document-node()?",
+                       SXML_NATIVE_FUNCTION_IS_NONDETERMINISTIC, json_to_xml_body),
+    /* Reads the evaluation environment (src/function_library_resource.c). */
+    JSON_RESUMABLE_ROW("json-doc", json_doc_parameters, "item()?",
+                       SXML_NATIVE_FUNCTION_USES_DYNAMIC_CONTEXT, json_doc_body),
     JSON_ROW("xml-to-json", xml_to_json_parameters, "xs:string?", 0, call_xml_to_json),
     JSON_ROW("jtree", jtree_parameters, "jnode()", SXML_NATIVE_FUNCTION_IS_NONDETERMINISTIC,
              call_jtree),

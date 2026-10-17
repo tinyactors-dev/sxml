@@ -644,14 +644,31 @@ static sxml_byte_view sxml_json_node_text(const sxml_json_walk *walk, TSNode nod
                             .byte_count = end - start};
 }
 
+/* Appends the fallback for a codepoint that is not permitted: the
+   replacement given for it, or U+FFFD (F&O 4.0, section 17.4.4, option
+   fallback). */
+static sxml_status sxml_json_append_fallback(sxml_json_walk *walk, uint32_t codepoint) {
+    const sxml_json_replacement_view replacements = walk->request->options.replacements;
+    for (size_t replacement_index = 0; replacement_index < replacements.replacement_count;
+         replacement_index += 1) {
+        const sxml_json_replacement *replacement =
+            &replacements.replacements[replacement_index];
+        if (replacement->codepoint == codepoint) {
+            return sxml_json_bytes_append(&walk->decoded, replacement->replacement_text);
+        }
+    }
+    return sxml_json_append_codepoint(&walk->decoded, 0xFFFDU);
+}
+
 /* Appends one decoded codepoint of an escape sequence (F&O 4.0, section
-   17.4.4, options escape and fallback; the fallback is U+FFFD). */
+   17.4.4, options escape and fallback). */
 static sxml_status sxml_json_append_escaped_codepoint(sxml_json_walk *walk,
                                                       uint32_t codepoint) {
     if (!walk->request->options.keeps_escaped_form) {
-        return sxml_json_append_codepoint(
-            &walk->decoded,
-            sxml_json_is_permitted_codepoint(codepoint) ? codepoint : 0xFFFDU);
+        if (!sxml_json_is_permitted_codepoint(codepoint)) {
+            return sxml_json_append_fallback(walk, codepoint);
+        }
+        return sxml_json_append_codepoint(&walk->decoded, codepoint);
     }
     if (!sxml_json_is_special_codepoint(codepoint)) {
         return sxml_json_append_codepoint(&walk->decoded, codepoint);
@@ -727,6 +744,55 @@ static bool sxml_json_is_high_surrogate(uint32_t codepoint) {
 
 static bool sxml_json_is_low_surrogate(uint32_t codepoint) {
     return codepoint >= 0xDC00U && codepoint <= 0xDFFFU;
+}
+
+/* The codepoint of the escape "\\uXXXX" at offset of text, or -1 when
+   there is none there. */
+static int32_t sxml_json_unicode_escape_at(sxml_byte_view text, size_t offset) {
+    if (offset + 6 > text.byte_count || text.bytes[offset] != '\\' ||
+        text.bytes[offset + 1] != 'u') {
+        return -1;
+    }
+    return sxml_json_read_hex4(
+        (sxml_byte_view){.bytes = text.bytes + offset + 2, .byte_count = 4});
+}
+
+sxml_json_unpermitted_escape sxml_json_find_unpermitted_escape(sxml_json_escape_search search) {
+    const sxml_byte_view text = search.json_text;
+    size_t offset = search.start_offset;
+    while (offset < text.byte_count) {
+        if (text.bytes[offset] != '\\') {
+            offset += 1;
+            continue;
+        }
+        const int32_t escaped = sxml_json_unicode_escape_at(text, offset);
+        if (escaped < 0) {
+            /* A two-character escape (all permitted), or invalid JSON. */
+            offset += 2;
+            continue;
+        }
+        const uint32_t codepoint = (uint32_t)escaped;
+        const size_t end_offset = offset + 6;
+        if (sxml_json_is_high_surrogate(codepoint)) {
+            const int32_t next = sxml_json_unicode_escape_at(text, end_offset);
+            if (next >= 0 && sxml_json_is_low_surrogate((uint32_t)next)) {
+                offset = end_offset + 6;
+                continue;
+            }
+        }
+        if (!sxml_json_is_permitted_codepoint(codepoint)) {
+            return (sxml_json_unpermitted_escape){
+                .is_found = true,
+                .codepoint = codepoint,
+                .escape_sequence = {.bytes = text.bytes + offset, .byte_count = 6},
+                .next_offset = end_offset};
+        }
+        offset = end_offset;
+    }
+    return (sxml_json_unpermitted_escape){.is_found = false,
+                                          .codepoint = 0,
+                                          .escape_sequence = {.bytes = NULL, .byte_count = 0},
+                                          .next_offset = text.byte_count};
 }
 
 /* Decodes a string node into walk->decoded and describes it in *event:

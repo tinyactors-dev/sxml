@@ -29,7 +29,7 @@
  * codepoint of U+0001 to U+D7FF, U+E000 to U+FFFD or U+10000 to U+10FFFF
  * (the XML 1.1 characters, which xs:string holds). An escape sequence for
  * anything else (U+0000, an unpaired surrogate, U+FFFE, U+FFFF) becomes
- * U+FFFD, unless the escaped form is asked for, which keeps such
+ * the fallback's replacement for it, or U+FFFD, unless the escaped form is asked for, which keeps such
  * characters, the controls U+0000 to U+001F and U+007F to U+009F, and the
  * backslash as JSON escape sequences.
  *
@@ -63,6 +63,20 @@ typedef enum sxml_json_number_format {
     SXML_JSON_NUMBER_FORMAT_ADAPTIVE,
 } sxml_json_number_format;
 
+/* What a fallback function gave for a character that is not permitted
+   (option "fallback", F&O 4.0, sections 17.4.4 and 17.4.6): the codepoint
+   an escape sequence stands for, and the string value of the function's
+   result for its escape sequence, borrowed for the parse. */
+typedef struct sxml_json_replacement {
+    uint32_t codepoint;
+    sxml_byte_view replacement_text;
+} sxml_json_replacement;
+
+typedef struct sxml_json_replacement_view {
+    const sxml_json_replacement *replacements;
+    size_t replacement_count;
+} sxml_json_replacement_view;
+
 /* The options of fn:parse-json and fn:json-to-xml after the function has
    checked them (the option parameter conventions, F&O 4.0, section 1.7). */
 typedef struct sxml_json_parse_options {
@@ -74,7 +88,40 @@ typedef struct sxml_json_parse_options {
     /* fn:parse-json only: the value of JSON null (option "null"),
        borrowed for the call. */
     sxml_sequence null_value;
+    /* The fallback's text for characters that are not permitted; one
+       that has none becomes U+FFFD (the default fallback). */
+    sxml_json_replacement_view replacements;
 } sxml_json_parse_options;
+
+/* An escape sequence for a character that is not permitted, found by
+   sxml_json_find_unpermitted_escape. */
+typedef struct sxml_json_unpermitted_escape {
+    bool is_found;
+    /* The codepoint it stands for: U+0000, an unpaired surrogate, U+FFFE
+       or U+FFFF. */
+    uint32_t codepoint;
+    /* The six-character escape sequence as written, borrowed from the
+       text. */
+    sxml_byte_view escape_sequence;
+    /* Where the next search starts. */
+    size_t next_offset;
+} sxml_json_unpermitted_escape;
+
+/* Where to search. */
+typedef struct sxml_json_escape_search {
+    sxml_byte_view json_text;
+    size_t start_offset;
+} sxml_json_escape_search;
+
+/*
+ * Finds the first escape sequence at or after search.start_offset that
+ * stands for a character that is not permitted, pairing surrogate escapes
+ * as parsing does (RFC 8259, section 7), so that a function can call its
+ * fallback for it before parsing. Lexical only: in a text that is not
+ * valid JSON it may find escapes the parse then rejects (FOJS0001). Needs
+ * no memory.
+ */
+sxml_json_unpermitted_escape sxml_json_find_unpermitted_escape(sxml_json_escape_search search);
 
 /* A JSON text to parse. */
 typedef struct sxml_json_text_request {
