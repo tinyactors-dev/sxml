@@ -911,6 +911,12 @@ typedef struct sxml_function_call {
  * library, host extension functions) and functions compiled to the IR use
  * the same interface: the IR's evaluator supplies the operations of its
  * bodies, and their state is opaque here.
+ *
+ * sxml never recurses in C (D71): inside an evaluation it runs the bodies
+ * it knows as steps of its own machine. A host body, like a host sequence
+ * generator, resolver or tree builder, is called directly; if it starts
+ * another evaluation itself, that evaluation nests on the C stack, and
+ * bounding such nesting is the host's (D98).
  */
 typedef struct sxml_function_body_operations {
     /* Runs the function and writes its result, owned, to *result. */

@@ -56,9 +56,10 @@ typedef struct sxml_utf8_validation {
 } sxml_utf8_validation;
 
 /*
- * Checks that utf8 is well-formed UTF-8 (Unicode 16.0, section 3.9, D92 and
- * table 3-7; RFC 3629): it rejects overlong forms, surrogates (U+D800 to
- * U+DFFF), codepoints above U+10FFFF and truncated sequences.
+ * Checks that utf8 is well-formed UTF-8 (Unicode 16.0, section 3.9,
+ * definition D92 and table 3-7; RFC 3629): it rejects overlong forms,
+ * surrogates (U+D800 to U+DFFF), codepoints above U+10FFFF and truncated
+ * sequences.
  *
  * Returns SXML_STATUS_OK or SXML_STATUS_INVALID_UTF8, and fills *validation
  * in both cases (an exception to D20, stated in sxml_utf8_validation).

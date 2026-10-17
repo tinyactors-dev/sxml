@@ -1571,9 +1571,79 @@ static sxml_status sxml_arena_tree_check_binding(
     return SXML_STATUS_OK;
 }
 
+/*
+ * A namespace binding sent before anything else is a parentless namespace
+ * node (XQuery 4.0, section 5.7.3.7 "Computed Namespace Constructors"): the
+ * one stored namespace node a tree may have, its root (D98). Its name is
+ * the prefix as a name in no namespace, 0 for the default namespace; its
+ * content is the namespace URI, which must not be empty.
+ */
+static sxml_status sxml_arena_tree_add_parentless_namespace(
+    sxml_arena_tree *arena_tree, const sxml_namespace_binding *namespace_binding) {
+    sxml_reserved_prefix reserved = {.is_xml = false, .is_xmlns = false};
+    sxml_status status = sxml_arena_tree_check_binding(
+        arena_tree, *namespace_binding, &reserved);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (namespace_binding->namespace_uri.index == SXML_NAMESPACE_NONE) {
+        return sxml_arena_tree_report(arena_tree,
+                                      &sxml_arena_tree_reserved_binding_error);
+    }
+    sxml_byte_view prefix_text = {.bytes = NULL, .byte_count = 0};
+    sxml_byte_view uri_text = {.bytes = NULL, .byte_count = 0};
+    status = sxml_name_pool_get_namespace_prefix(
+        arena_tree->name_pool, namespace_binding->namespace_prefix, &prefix_text);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_name_pool_get_namespace_uri(
+            arena_tree->name_pool, namespace_binding->namespace_uri, &uri_text);
+    }
+    if (status != SXML_STATUS_OK) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    sxml_name_identifier node_name = {.index = 0};
+    if (prefix_text.byte_count > 0) {
+        status = sxml_name_pool_intern_name(
+            arena_tree->name_pool,
+            &(sxml_name_request){.namespace_uri = sxml_well_known_namespace_identifier(
+                                     SXML_NAMESPACE_NONE),
+                                 .local_name = prefix_text},
+            &node_name);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+    }
+    sxml_new_node namespace_node = {
+        .node_kind = SXML_NODE_KIND_NAMESPACE,
+        .node_name = node_name,
+        .namespace_prefix = {.index = 0},
+        .type_annotation = {.index = SXML_TYPE_NONE},
+        .flags = 0,
+        .content = {.bytes = NULL, .byte_count = 0},
+        .location = {.source_name = {.bytes = NULL, .byte_count = 0},
+                     .line_number = 0,
+                     .column_number = 0,
+                     .byte_offset = 0},
+    };
+    status = sxml_arena_tree_copy_text(arena_tree, uri_text,
+                                       &namespace_node.content);
+    uint32_t node_number = 0;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_arena_tree_add_node(arena_tree, &namespace_node, &node_number);
+    }
+    if (status == SXML_STATUS_OK) {
+        arena_tree->phase = SXML_ARENA_TREE_PHASE_COMPLETE;
+    }
+    return status;
+}
+
 static sxml_status sxml_arena_tree_add_namespace_binding(
     void *state, const sxml_namespace_binding *namespace_binding) {
     sxml_arena_tree *arena_tree = sxml_arena_tree_from_state(state);
+    if (arena_tree->phase == SXML_ARENA_TREE_PHASE_EMPTY) {
+        return sxml_arena_tree_add_parentless_namespace(arena_tree,
+                                                        namespace_binding);
+    }
     if (arena_tree->phase != SXML_ARENA_TREE_PHASE_BUILDING ||
         !arena_tree->is_in_header) {
         return SXML_STATUS_INVALID_ARGUMENT;
@@ -2026,6 +2096,21 @@ sxml_status sxml_arena_tree_finish(sxml_arena_tree *arena_tree,
     }
     if (arena_tree->phase != SXML_ARENA_TREE_PHASE_COMPLETE) {
         return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    /* A parentless element, attribute, text, comment or processing
+       instruction takes the configured base URI; a document took its own
+       from start_document (D98). */
+    if (sxml_arena_tree_get_node(arena_tree, 0)->node_kind !=
+            SXML_NODE_KIND_DOCUMENT &&
+        arena_tree->base_uri.byte_count == 0 &&
+        arena_tree->configuration.base_uri.byte_count > 0) {
+        sxml_byte_view base_uri = {.bytes = NULL, .byte_count = 0};
+        sxml_status status = sxml_arena_tree_copy_text(
+            arena_tree, arena_tree->configuration.base_uri, &base_uri);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        arena_tree->base_uri = base_uri;
     }
     bool is_self_destroying =
         arena_tree->configuration.is_destroyed_when_unreferenced;

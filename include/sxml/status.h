@@ -76,7 +76,8 @@ typedef enum sxml_status {
     SXML_STATUS_UNEXPECTED_END_OF_INPUT,
     /* Input does not have the required syntax. */
     SXML_STATUS_MALFORMED_INPUT,
-    /* Bytes are not well-formed UTF-8 (Unicode 16.0, section 3.9, D92). */
+    /* Bytes are not well-formed UTF-8 (Unicode 16.0, section 3.9,
+       definition D92). */
     SXML_STATUS_INVALID_UTF8,
     /* The input uses a feature this build of sxml does not implement. */
     SXML_STATUS_UNSUPPORTED_FEATURE,

@@ -81,6 +81,12 @@ typedef struct sxml_tree sxml_tree;
  * document order: an element, then its namespace nodes, then its
  * attributes and children (XDM 4.0, section 6.2).
  *
+ * The one stored namespace node is a parentless one (an XQuery computed
+ * namespace constructor, xsl:namespace outside an element): it is the root
+ * of a tree of its own, node_index 0 with namespace_number 0, and describes
+ * itself as SXML_NODE_KIND_NAMESPACE with its prefix as node name and its
+ * namespace URI as content (D98).
+ *
  * A plain value. It does not retain tree: it is valid while the tree is.
  */
 typedef struct sxml_node_reference {
@@ -92,7 +98,8 @@ typedef struct sxml_node_reference {
 /* ------------------------------------------------------- Node descriptions */
 
 /*
- * What a tree reports about one node (not a namespace node). The accessors
+ * What a tree reports about one node (not the namespace node of an
+ * element, which sxml_node_describe makes). The accessors
  * of XDM 4.0, section 7.6, that need no XDM values.
  */
 typedef struct sxml_node_description {
@@ -156,7 +163,8 @@ typedef struct sxml_unparsed_entity {
 
 /* What a tree reports about itself. Views are owned by the tree. */
 typedef struct sxml_tree_description {
-    /* Number of stored nodes (namespace nodes are not stored). */
+    /* Number of stored nodes (the namespace nodes of elements are not
+       stored). */
     uint32_t node_count;
     /* dm:document-uri of the root, if it is a document node; empty when
        absent. */
@@ -206,7 +214,8 @@ typedef struct sxml_tree_operations {
     sxml_status (*describe_node)(void *state, sxml_node_index node_index,
                                  sxml_node_description *description);
     /* The content of a text, comment, processing-instruction or attribute
-       node: its string value, as well-formed UTF-8. */
+       node, or of a stored namespace node: its string value (the namespace
+       URI), as well-formed UTF-8. */
     sxml_status (*get_node_content)(void *state, sxml_node_index node_index,
                                     sxml_byte_view *content);
     /* The in-scope namespaces of an element, without duplicates and
@@ -519,8 +528,9 @@ typedef struct sxml_processing_instruction_event {
  *
  * Event grammar: either one document (start_document, its content,
  * end_document) or one parentless node: an element (start_element ...
- * end_element), an attribute, a text, a comment or a processing
- * instruction. An unparsed entity may follow start_document. Inside an
+ * end_element), an attribute, a namespace binding (a parentless namespace
+ * node, D98; its namespace URI must not be 0), a text, a comment or a
+ * processing instruction. An unparsed entity may follow start_document. Inside an
  * element, namespace bindings and attributes come after start_element and
  * before any content.
  *
@@ -654,6 +664,15 @@ typedef struct sxml_arena_tree_configuration {
     /* Receives specification errors raised by building; may be NULL.
        Borrowed: must outlive the arena tree. */
     sxml_error_record *error_record;
+    /* The base URI of a root that is not a document node, before any
+       xml:base attribute applies (sxml_tree_description.base_uri): the
+       static base URI for an XQuery constructor, the base URI of the
+       instruction for XSLT (XQuery 4.0, section 5.7.1 "Direct Element
+       Constructors"; XSLT 4.0, section 11.1 "Literal Result Elements").
+       Empty when absent. A document node takes its base URI from its
+       start event instead. Copied by sxml_arena_tree_finish; must stay
+       valid until then (D98). */
+    sxml_byte_view base_uri;
 } sxml_arena_tree_configuration;
 
 /*

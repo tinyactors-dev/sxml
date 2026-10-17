@@ -526,9 +526,12 @@ SXML_NODISCARD SXML_EXPORT sxml_status sxml_type_registry_describe_type(
     sxml_type_description *description);
 
 /*
- * Finds the named schema type, named item type or nominative record type
- * type_name and writes its identifier to *type. Returns false, leaving
- * *type untouched, when there is none. O(1) average.
+ * Finds the named schema type or nominative record type type_name and
+ * writes its identifier to *type. Returns false, leaving *type untouched,
+ * when there is none. O(1) average. Named item types (XQuery 4.0 "declare
+ * type", XSLT 4.0 xsl:item-type) are not registered under their names:
+ * they are aliases in the static context of their module, which maps the
+ * name to the identifier of the aliased item type (D98).
  */
 SXML_EXPORT bool sxml_type_registry_find_type(
     const sxml_type_registry *registry, sxml_name_identifier type_name,

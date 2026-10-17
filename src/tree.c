@@ -819,6 +819,42 @@ static sxml_status sxml_node_copy_send_namespace(const sxml_node_copy *copy) {
         copy->builder.state, &binding);
 }
 
+/*
+ * Copies a stored namespace node, the root of a tree of its own (D98), as a
+ * binding of the element being built: its name is the prefix, its content
+ * the namespace URI.
+ */
+static sxml_status sxml_node_copy_send_stored_namespace(
+    const sxml_node_copy *copy, const sxml_node_description *description) {
+    sxml_name_pool *name_pool = copy->tree->name_pool;
+    sxml_byte_view uri_text = {.bytes = NULL, .byte_count = 0};
+    sxml_status status = copy->tree->operations->get_node_content(
+        copy->tree->state, copy->request->node.node_index, &uri_text);
+    sxml_byte_view prefix_text = {.bytes = NULL, .byte_count = 0};
+    if (status == SXML_STATUS_OK && description->node_name.index != 0) {
+        sxml_name_parts parts = {.namespace_uri = {.index = 0},
+                                 .local_name = {.bytes = NULL, .byte_count = 0}};
+        status = sxml_name_pool_get_name_parts(name_pool, description->node_name,
+                                               &parts);
+        prefix_text = parts.local_name;
+    }
+    sxml_namespace_binding binding = {.namespace_prefix = {.index = 0},
+                                      .namespace_uri = {.index = 0}};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_name_pool_intern_namespace_prefix(
+            name_pool, prefix_text, &binding.namespace_prefix);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_name_pool_intern_namespace_uri(
+            name_pool, uri_text, &binding.namespace_uri);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return copy->builder.operations->add_namespace_binding(copy->builder.state,
+                                                           &binding);
+}
+
 sxml_status sxml_tree_builder_copy_node(sxml_tree_builder builder,
                                         const sxml_copy_request *request) {
     if (builder.operations == NULL || request->node.tree == NULL) {
@@ -866,6 +902,7 @@ sxml_status sxml_tree_builder_copy_node(sxml_tree_builder builder,
     case SXML_NODE_KIND_PROCESSING_INSTRUCTION:
         return sxml_node_copy_send_leaf(&copy, root_number, &root);
     case SXML_NODE_KIND_NAMESPACE:
+        return sxml_node_copy_send_stored_namespace(&copy, &root);
     case SXML_NODE_KIND_ANY:
         break;
     }

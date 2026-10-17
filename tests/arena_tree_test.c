@@ -590,6 +590,124 @@ static void test_parentless_nodes_are_roots(sxml_test_state *state) {
     tree_fixture_destroy(&fixture);
 }
 
+/* A parentless root takes the configured base URI (D98); a document keeps
+   the one of its start event. */
+static void test_roots_take_the_configured_base_uri(sxml_test_state *state) {
+    tree_fixture fixture;
+    SXML_TEST_REQUIRE(state, tree_fixture_create(&fixture) == SXML_STATUS_OK);
+    sxml_arena_tree_configuration configuration = arena_configuration(&fixture);
+    configuration.base_uri = text_view("http://example.com/static/");
+    for (size_t root_index = 0; root_index < 2; root_index += 1) {
+        built_tree built;
+        SXML_TEST_REQUIRE(state, built_tree_create(&configuration, &built) ==
+                                     SXML_STATUS_OK);
+        event_writer writer = writer_for(&fixture, &built);
+        if (root_index == 0) {
+            write_element(&writer, "constructed");
+            write_end_element(&writer);
+        } else {
+            write_start_document(&writer);
+            write_element(&writer, "parsed");
+            write_end_element(&writer);
+            write_end_document(&writer);
+        }
+        SXML_TEST_EXPECT(state, writer.status == SXML_STATUS_OK);
+        SXML_TEST_REQUIRE(state, sxml_arena_tree_finish(built.arena_tree,
+                                                        &built.tree) ==
+                                     SXML_STATUS_OK);
+        sxml_tree_description description;
+        SXML_TEST_REQUIRE(state, sxml_tree_describe(built.tree, &description) ==
+                                     SXML_STATUS_OK);
+        SXML_TEST_EXPECT(
+            state, sxml_byte_view_equals(
+                       description.base_uri,
+                       text_view(root_index == 0 ? "http://example.com/static/"
+                                                 : "http://example.com/")));
+        built_tree_destroy(&built);
+    }
+    tree_fixture_destroy(&fixture);
+}
+
+/* A namespace binding sent first makes a parentless namespace node, the
+   tree's root (D98); copying it gives the element being built a binding. */
+static void test_parentless_namespace_nodes_are_stored(sxml_test_state *state) {
+    tree_fixture fixture;
+    SXML_TEST_REQUIRE(state, tree_fixture_create(&fixture) == SXML_STATUS_OK);
+    sxml_error_record error_record = {.value = NULL};
+    sxml_arena_tree_configuration configuration = arena_configuration(&fixture);
+    configuration.error_record = &error_record;
+    built_tree namespace_tree;
+    SXML_TEST_REQUIRE(state, built_tree_create(&configuration, &namespace_tree) ==
+                                 SXML_STATUS_OK);
+    event_writer writer = writer_for(&fixture, &namespace_tree);
+    write_namespace(&writer, "p", "urn:p");
+    SXML_TEST_EXPECT(state, writer.status == SXML_STATUS_OK);
+    write_comment(&writer, "second root");
+    SXML_TEST_EXPECT(state, writer.status == SXML_STATUS_INVALID_ARGUMENT);
+    SXML_TEST_REQUIRE(state, sxml_arena_tree_finish(namespace_tree.arena_tree,
+                                                    &namespace_tree.tree) ==
+                                 SXML_STATUS_OK);
+    sxml_node_description root = describe(&namespace_tree, 0);
+    SXML_TEST_EXPECT(state, root.node_kind == SXML_NODE_KIND_NAMESPACE);
+    SXML_TEST_EXPECT(state, !root.has_parent);
+    SXML_TEST_EXPECT(state, content_is(&namespace_tree, 0, "urn:p"));
+    sxml_name_parts parts = {.namespace_uri = {.index = 0},
+                             .local_name = {.bytes = NULL, .byte_count = 0}};
+    SXML_TEST_EXPECT(state, sxml_name_pool_get_name_parts(fixture.name_pool,
+                                                          root.node_name,
+                                                          &parts) ==
+                                SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, sxml_byte_view_equals(parts.local_name, text_view("p")));
+
+    built_tree element_tree;
+    SXML_TEST_REQUIRE(state, built_tree_create(&configuration, &element_tree) ==
+                                 SXML_STATUS_OK);
+    writer = writer_for(&fixture, &element_tree);
+    write_element(&writer, "holder");
+    SXML_TEST_REQUIRE(state, writer.status == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, sxml_tree_builder_copy_node(
+                                writer.builder,
+                                &(sxml_copy_request){
+                                    .node = node_of(&namespace_tree, 0),
+                                    .preserves_namespaces = true,
+                                    .inherits_namespaces = true,
+                                    .preserves_type_annotations = true}) ==
+                                SXML_STATUS_OK);
+    write_end_element(&writer);
+    SXML_TEST_REQUIRE(state, writer.status == SXML_STATUS_OK);
+    SXML_TEST_REQUIRE(state, sxml_arena_tree_finish(element_tree.arena_tree,
+                                                    &element_tree.tree) ==
+                                 SXML_STATUS_OK);
+    sxml_namespace_binding_view bindings = {.namespace_bindings = NULL,
+                                            .namespace_binding_count = 0};
+    SXML_TEST_REQUIRE(state, sxml_node_get_in_scope_namespaces(
+                                 node_of(&element_tree, 0), &bindings) ==
+                                 SXML_STATUS_OK);
+    bool has_p = false;
+    for (size_t binding_index = 0; binding_index < bindings.namespace_binding_count;
+         binding_index += 1) {
+        has_p = has_p || prefix_is(&fixture,
+                                   bindings.namespace_bindings[binding_index]
+                                       .namespace_prefix,
+                                   "p");
+    }
+    SXML_TEST_EXPECT(state, has_p);
+    built_tree_destroy(&element_tree);
+    built_tree_destroy(&namespace_tree);
+
+    /* An empty namespace URI cannot make a namespace node (XQDY0101). */
+    built_tree empty_tree;
+    SXML_TEST_REQUIRE(state, built_tree_create(&configuration, &empty_tree) ==
+                                 SXML_STATUS_OK);
+    writer = writer_for(&fixture, &empty_tree);
+    write_namespace(&writer, "p", "");
+    SXML_TEST_EXPECT(state, writer.status == SXML_STATUS_DYNAMIC_ERROR);
+    SXML_TEST_EXPECT(state, sxml_byte_view_equals(error_record.code.local_name,
+                                                  text_view("XQDY0101")));
+    built_tree_destroy(&empty_tree);
+    tree_fixture_destroy(&fixture);
+}
+
 static void test_events_out_of_order_are_rejected(sxml_test_state *state) {
     tree_fixture fixture;
     SXML_TEST_REQUIRE(state, tree_fixture_create(&fixture) == SXML_STATUS_OK);
@@ -1181,6 +1299,10 @@ static const sxml_test_case arena_tree_test_cases[] = {
      .function = test_adjacent_text_merges_and_empty_text_vanishes},
     {.name = "parentless_nodes_are_roots",
      .function = test_parentless_nodes_are_roots},
+    {.name = "roots_take_the_configured_base_uri",
+     .function = test_roots_take_the_configured_base_uri},
+    {.name = "parentless_namespace_nodes_are_stored",
+     .function = test_parentless_namespace_nodes_are_stored},
     {.name = "events_out_of_order_are_rejected",
      .function = test_events_out_of_order_are_rejected},
     {.name = "duplicate_attributes_follow_the_policy",
