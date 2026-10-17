@@ -4,6 +4,15 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 1.27 done (D94): `tools/run-qt4.sh` (one `sxml-qt4` process per test
+  set, parallel, timeout, crash recorded per set) and
+  `tools/conformance-report.py` (dashboard, merged JSON, slice-baseline
+  check) generate `docs/CONFORMANCE.md`. XP40, release: 47,313 cases,
+  21,443 passed (1,007 wrong error), 6,933 failed, 489 errors, 18,448 not
+  run (74.3 % of run cases pass); slice 198/198; 737 sets, none crashed;
+  24 s on 4 cores. CI: jobs `conformance` (blocking on the slice,
+  artifacts) and `fuzz` (60 s per target, D86); runs on main are no
+  longer cancelled in progress.
 - 1.25 done (D92): `sxml-qt4 run` (`test_run.c`, `assertion.c`,
   `report.c`, `reason.c`, `command_run.c`). Each test in its own processor
   and 512 MiB budget allocator, 10^8 steps, leak check per test; every
