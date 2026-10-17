@@ -3485,6 +3485,60 @@ part `numeric` row `divide-decimals`.
   divide-decimals-019 to -021 and fn-random-number-generator-35a to -37a
   wait for it).
 
+### D126. Lowering XQuery expressions: FLWOR, typeswitch, switch, try/catch (packet 3.7)
+Recorded 2026-10-17, completing D55 for these kinds. `src/xquery_lower.c`
+is lowering part `xquery` (SXML_LANGUAGE_XQUERY only, D103); no IR kind
+added. Contract in `src/xquery_lower_internal.h`.
+- **FLWOR** replaces the core's FLWOR for XQuery. Clauses between two
+  tuple stream clauses are a clause segment: for = MAP (position slot,
+  ALLOWING_EMPTY), let = LET (destructuring as D113), where =
+  CONDITIONAL, one frame per binding or clause. A segment ending at a
+  tuple stream clause returns tuple arrays (one member per live slot
+  variable, innermost of each name; constants and globals are not
+  packed); then order by = SORT with each key lowered over the members
+  unpacked from the SORT's focus, count = the position slot of the
+  unpacking MAP, while = fn:take-while with a closure
+  fn($tuple, $position) { boolean(C) } (no condition evaluated after the
+  first false). The closure captures every visible variable the condition
+  references (overcapture is harmless) and, only when lowering it read
+  the focus, the FLWOR's focus parts (three slots kept after the
+  captures, bound by LETs at the closure's start). A MAP over the result
+  unpacks the members with LOOKUP before the next segment.
+- **order by**: empty least unless written (the prolog default is
+  3.10's); collation literals resolved against the static base URI;
+  codepoint is NONE, html-ascii-case-insensitive and UCA URIs are kept
+  (the evaluator's SORT still raises FOCH0002 for them, D116 Proposed),
+  anything else is XQST0076. "stable" changes nothing (SORT is stable).
+- **trace** clause: lowered (static errors stand) as the never-taken
+  branch of a CONDITIONAL; trace output is implementation-defined and
+  its errors must not fail the FLWOR (4.13.10).
+- **typeswitch**: operand once; CONDITIONAL chain over INSTANCE_OF (a
+  union case is a CONDITIONAL of the type tests); case variables bound to
+  the operand. **switch**: switch value = coerce(fn:data(comparand),
+  xs:anyAtomicType?) or true(); a case operand matches when its atomized
+  value is empty and the switch value is, or some item is fn:deep-equal
+  to it; each case's tests sit in the previous case's else branch (2.6.5).
+- **try/catch**: TRY_CATCH (D109, D124); unprefixed error names use the
+  default element namespace; `$err:` variables the handler references
+  are LOOKUPs of the details slot, `$err:map` the slot, stack-trace and
+  additional `()`.
+- ordered/unordered: their content. Extension expressions: pragma names
+  must resolve (XPST0081); every pragma is ignored; none and no
+  expression is XQST0079. validate: XQST0075 (D97). String constructors:
+  fn:string-join of the parts, interpolations string-join(E, " ").
+- **Entry points** `sxml_xquery_lower` / `sxml_xquery_compile` (internal,
+  for tests and drivers until 3.12): a main module without prolog
+  declarations (UNSUPPORTED_FEATURE otherwise, 3.10). Group by and the
+  windows are UNSUPPORTED_FEATURE; 3.8 adds them as tuple stream clauses
+  in `finish_segment` (the tuple layout is in the FLWOR frame's locals).
+- Measured with a scratch harness (the QT4 driver with the XPath API
+  compiling through `sxml_xquery_compile`), XQ40: every failure left in
+  prod-ForClause, LetClause, WhereClause, OrderByClause, CountClause,
+  WhileClause, TypeswitchExpr, SwitchExpr, ExtensionExpr,
+  StringConstructor is a node constructor (3.9) or a prolog (3.10), but
+  for three (fn:message missing, `local:` undeclared, one driver
+  assertion).
+
 ## Proposed
 
 - **The item axis in the evaluator** (packet 2.5, D113; for the owner of
