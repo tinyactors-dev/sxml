@@ -21,6 +21,7 @@
 
 #define SXML_FUZZ_MAXIMUM_EVALUATION_DEPTH 1000U
 #define SXML_FUZZ_MAXIMUM_FRAME_SLOT_COUNT 100000U
+#define SXML_FUZZ_MAXIMUM_EVALUATION_STEP_COUNT 10000000U
 /* Items of the result whose canonical text is written. */
 #define SXML_FUZZ_MAXIMUM_WRITTEN_ITEM_COUNT 1000U
 
@@ -129,7 +130,10 @@ static void evaluate(const sxml_fuzz_fixture *fixture, sxml_byte_view text,
             .document_loader = {.state = NULL, .operations = NULL},
             .function_table = fixture->function_table,
             .maximum_evaluation_depth = SXML_FUZZ_MAXIMUM_EVALUATION_DEPTH,
-            .maximum_frame_slot_count = SXML_FUZZ_MAXIMUM_FRAME_SLOT_COUNT},
+            .maximum_frame_slot_count = SXML_FUZZ_MAXIMUM_FRAME_SLOT_COUNT,
+            /* The step bound of D89 (P9): long evaluations stop instead of
+               timing out. */
+            .maximum_evaluation_step_count = SXML_FUZZ_MAXIMUM_EVALUATION_STEP_COUNT},
         &dynamic_context);
     sxml_fuzz_check_status(status, "sxml_dynamic_context_create");
     if (status == SXML_STATUS_OK) {

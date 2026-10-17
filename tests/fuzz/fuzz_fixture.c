@@ -9,13 +9,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-/* The parts of the library; the JSON part joins with packet 1.22. */
+/* Every part of the library, as the processor names them (D88). */
 static const sxml_native_function_view *const library_parts[] = {
     &sxml_function_library_numeric,      &sxml_function_library_string,
     &sxml_function_library_sequence,     &sxml_function_library_node,
     &sxml_function_library_context,      &sxml_function_library_error,
     &sxml_function_library_higher_order, &sxml_function_library_map,
-    &sxml_function_library_array,
+    &sxml_function_library_array,        &sxml_function_library_json,
+    &sxml_function_library_uri,
 };
 
 sxml_status
