@@ -287,6 +287,9 @@ component and modifier, English names, `[Calendar: AD]`-style fallback
 markers for other languages and calendars (D97). Done when fn-format-date,
 fn-format-time, fn-format-dateTime ≥ 90%. Spec: F&O 4.0 "Formatting
 dates and times".
+**Done** 2026-10-17 (D129): module header `src/format_date_internal.h`;
+all run cases pass (fn-format-date 124/124, fn-format-time 94/94,
+fn-format-dateTime 80/80, from 20, 19 and 5).
 
 ### 2.15 CSV (implementation)
 After 2.12. Owns new `src/csv.c`, `src/csv_internal.h`,

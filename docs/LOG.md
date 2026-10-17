@@ -4,6 +4,19 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 2.14 done (D129): date formatting. `src/format_date.c` (module
+  header `src/format_date_internal.h`) scans date pictures by hand and
+  numbers components through the D119 fn:format-integer engine;
+  `src/function_library_format_date.c` adds fn:format-dateTime,
+  fn:format-date and fn:format-time. Every component and modifier,
+  width modifiers, fractional seconds, timezones (numeric, military,
+  GMT), English names, calendars AD and ISO, fallback markers
+  `[Calendar: AD]` and `[Language: en]` (D97). XP40 (debug driver):
+  fn-format-date 20 to 124/124, fn-format-time 19 to 94/94,
+  fn-format-dateTime 5 to 80/80 (all run cases pass); XP40 (release)
+  28,534 passed, slice 198/198; debug, debug-gcc, wasm, lint clean. Test
+  `format_date`: engine and API cases, allocation-failure loops.
+
 - 2.6b done (D133): the 16 built-in record types of F&O 4.0, appendix C
   (`src/function_library_records.c`), declared once per type registry
   when the function library initializes; bodies return annotated records
