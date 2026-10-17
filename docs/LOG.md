@@ -4,6 +4,18 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 3.4 done (D128): HTML, text, JSON and CSV methods and fn:serialize on
+  the 3.3 pipeline (escape styles, a raw-text context; HTML a mode of the
+  XML node writer, `src/serialize_html.c` for void elements, boolean
+  attributes, raw text, PIs; JSON frames on a heap stack, nodes by
+  sub-serialization, RFC 8785 canonical form; CSV from maps or arrays);
+  `sxml_serialization_parameter_reader` for maps and parameter documents
+  (two arenas); SERE0006 and SERE0003 added. fn-serialize 48 to 165/194
+  (32 left need expath binary, parse-csv, unparsed-text); method-* are
+  XQ-only (unit cases until 3.10/3.13). XP40 otherwise unchanged (the
+  driver's adaptive path is untouched); slice 198/198; debug, debug-gcc,
+  wasm serialize tests pass, lint clean on the packet's files.
+
 - 3.9 done (D127): constructor lowering, part `construct` in
   `src/xquery_lower_construct.c`. Direct elements: SEQUENCE content of one
   atom per attribute and piece of content; namespace declaration
