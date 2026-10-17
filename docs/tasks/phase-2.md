@@ -321,6 +321,16 @@ pad-string, system-properties, location. Done when 1.23b's list of
 missing functions holds only D97's non-goals, fn:serialize (3.4) and
 fn:load-xquery-module (3.11).
 
+**2.6b Done** 2026-10-17 (D133, orchestrator-assigned): the 16 built-in
+record types of F&O 4.0, appendix C, declared per type registry by the
+function library (`src/function_library_records.c`); parts-of-dateTime,
+divide-decimals, random-number-generator, regex and matching-segments
+return annotated records; maps coerce to nominative record types;
+?take takes xs:nonNegativeInteger; `INF idiv 0` is FOAR0001.
+fn-parts-of-dateTime 20/20, fn-divide-decimals 21/21,
+fn-random-number-generator 54/54 run, fn-regex 29/30, fn-matching-segments
+38/38 run, op-numeric-integer-divide 132/132 run (no wrong errors).
+
 ### 2.18 JavaScript package and first public release (implementation)
 After 2.12, 2.16. Owns new `bindings/javascript/`, `tools/run-wasi.mjs`,
 `docs/RELEASE.md`. The hand-written TypeScript package of D10 over the
