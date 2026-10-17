@@ -291,6 +291,9 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `json_key` | The ·jkey· of a JNode: the map key or 1-based array or sequence position under its parent |
 | `json_value` | The ·jvalue· of a JNode: the value it wraps |
 | `json_tree` | A JTree: the JNodes reachable from one root JNode |
+| `navigational` | Of a step E2 in E1/E2 (XPath 4.0, section 4.7.3): ".", an axis step, a path, or a union, sequence, filter, conditional or let made only of navigational expressions |
+| `selector` | A non-navigational step from a JNode, or a dynamic node test: its atomized value selects the children whose ·jkey· is atomic-equal to one of its items (XPath 4.0, section 4.7.5.4) |
+| `fixpoint` | Of a fold: an accumulator that its function is certain to return unchanged for every further item, which ends the fold early |
 | `child_index` | Position of a child among the children of its parent, from 0 |
 | `node_kind` | One of the seven XNode kinds: document, element, attribute, text, comment, processing instruction, namespace |
 | `node_reference` | A tree plus a node index (plus a namespace number for namespace nodes); identifies a node |
