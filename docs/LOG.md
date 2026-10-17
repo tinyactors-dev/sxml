@@ -4,6 +4,17 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 2.11 done (D140): fn:hash (MD5, SHA-1, SHA-256, BLAKE3, CRC-32 in
+  `src/hash.c`, a new hash part), fn:decode-from-uri, fn:parse-uri and
+  fn:build-uri (uri part; one percent decoder, one escaping table),
+  fn:parse-QName and fn:resolve-QName (qname part). XP40 (release) per set
+  before to after: fn-parse-uri 0 to 74/74, fn-build-uri 0 to 48/48,
+  fn-decode-from-uri 0 to 29/29, fn-parse-QName 6 (wrong errors) to 19/19,
+  fn-resolve-QName 4 to 8/8 run (23 XQuery-only), fn-hash 1 to 54/54. Full
+  run with these: XP40 29,766 passed, slice 198/198, no set below the
+  committed dashboard. Seen at HEAD 9f5168d, not 2.11's: the QT4 driver
+  does not build (xquery_adapter.c of 3.13 against 2.12's processor
+  changes: mpdecimal.h include path, document loader configuration).
 - 4.5 done (D139): the stylesheet reader. `src/xslt_ast.c` (builder,
   import precedence, text form), `src/xslt_read.c`
   (`sxml_xslt_read_stylesheet`: modules through the XML parser, one
