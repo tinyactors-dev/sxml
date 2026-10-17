@@ -106,6 +106,13 @@ typedef struct sxml_xslt_lowering {
     sxml_xslt_namespace_alias *namespace_aliases;
     size_t namespace_alias_count;
     sxml_error_record *error_record;
+    /* The global variables and parameters (9.5, packet 4.7): global
+       number n is global_declarations[n - 1], declared by
+       global_nodes[n - 1]; global_count + 1 is the context global. Set by
+       sxml_xslt_lowering_declare_global_variables; NULL and 0 without. */
+    sxml_variable_declaration *global_declarations;
+    sxml_xslt_ast_node_index *global_nodes;
+    size_t global_count;
     /* Made by sxml_xslt_lower_templates; NULL before. Its state for the
        template being lowered changes while templates are lowered. */
     sxml_xslt_template_lowering *templates;
@@ -192,6 +199,45 @@ SXML_NODISCARD sxml_status sxml_xslt_lowering_call_sequence_constructor(
    instruction reads itself) skipped. */
 sxml_xslt_ast_node_index sxml_xslt_lowering_first_constructor_child(const sxml_xslt_ast *ast,
                                                                     sxml_xslt_ast_node_index node);
+
+/* The children of a sequence constructor with xsl:on-empty or
+   xsl:on-non-empty children (8.5.2, 8.5.3), and the atoms of its other
+   children, in order (borrowed until the frame finishes). */
+typedef struct sxml_xslt_conditional_content_call {
+    const sxml_xslt_lowering *lowering;
+    sxml_xslt_ast_node_index first;
+    sxml_xpath_lowering_block *block;
+    sxml_ir_atom_view atoms;
+    /* Where the sequence constructor's value is written. */
+    sxml_ir_atom *atom;
+    /* The scope entries before the sequence constructor's: one more for
+       each xsl:variable child after this. */
+    size_t scope_mark;
+} sxml_xslt_conditional_content_call;
+
+/* From a step: pushes the frame that binds the value of such a sequence
+   constructor in call->block (src/xslt_lower_control.c, packet 4.7). */
+SXML_NODISCARD sxml_status sxml_xslt_lowering_call_conditional_content(
+    sxml_xpath_lowering_machine *machine, const sxml_xslt_conditional_content_call *call);
+
+/* ------------------------------------------------------ Global variables */
+
+/* Before the main function is lowered: the global variables and
+   parameters in force (one per name by import precedence, XTSE0630),
+   declared in every static context of static_contexts (the lowering's,
+   writable). src/xslt_lower_control.c, packet 4.7. */
+SXML_NODISCARD sxml_status sxml_xslt_lowering_declare_global_variables(
+    sxml_xslt_lowering *lowering, sxml_xpath_static_context *static_contexts);
+
+/* After the main function: their initializers in dependency order
+   (XTDE0640 for a cycle, XTDE0050 for a required parameter) and the
+   unit's globals, then the context global (D135), whose value the main
+   function's context value slot gives. */
+SXML_NODISCARD sxml_status sxml_xslt_lowering_add_global_variables(
+    const sxml_xslt_lowering *lowering);
+
+/* Releases what declare allocated. */
+void sxml_xslt_lowering_release_global_variables(sxml_xslt_lowering *lowering);
 
 /* ------------------------------------------------------- Simple content */
 

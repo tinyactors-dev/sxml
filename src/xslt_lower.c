@@ -1078,6 +1078,10 @@ typedef struct sequence_constructor_locals {
     size_t atom_count;
     /* The scope to go back to: variables of the children end here. */
     size_t scope_entry_count;
+    /* With xsl:on-empty or xsl:on-non-empty children (8.5): the value
+       src/xslt_lower_control.c makes of the atoms. */
+    bool has_conditional_content;
+    sxml_ir_atom conditional_content;
 } sequence_constructor_locals;
 
 sxml_xslt_ast_node_index sxml_xslt_lowering_first_constructor_child(const sxml_xslt_ast *ast,
@@ -1150,7 +1154,13 @@ static sxml_status lower_child(sxml_xpath_lowering_machine *machine, child_lower
         procedure = &fallback_procedure;
         break;
     case SXML_XSLT_AST_KIND_FALLBACK:
-        /* 24.3.3: ignored under an instruction the processor knows. */
+    case SXML_XSLT_AST_KIND_ON_EMPTY:
+    case SXML_XSLT_AST_KIND_ON_NON_EMPTY:
+        /* 24.3.3: xsl:fallback is ignored under an instruction the
+           processor knows. 8.5.2, 8.5.3: xsl:on-empty and
+           xsl:on-non-empty are lowered with the other atoms when the
+           sequence constructor ends
+           (sxml_xslt_lowering_call_conditional_content). */
         *outcome = (child_outcome){.has_atom = false, .has_pushed_frame = false};
         return SXML_STATUS_OK;
     default:
@@ -1191,7 +1201,9 @@ static sxml_status finish_sequence_constructor(sxml_xpath_lowering_machine *mach
     }
     sxml_ir_expression expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_ATOM};
     sxml_status status = SXML_STATUS_OK;
-    if (locals->atom_count == 1) {
+    if (locals->has_conditional_content) {
+        expression.atom = locals->conditional_content;
+    } else if (locals->atom_count == 1) {
         expression.atom = locals->atoms[0];
     } else {
         sxml_ir_atom_list atoms = {0};
@@ -1261,6 +1273,21 @@ static sxml_status continue_sequence_constructor(sxml_xpath_lowering_machine *ma
         if (status != SXML_STATUS_OK || outcome.has_pushed_frame) {
             return status;
         }
+        const sxml_xslt_ast_kind kind = kind_of(lowering, child);
+        locals->has_conditional_content = locals->has_conditional_content ||
+                                          kind == SXML_XSLT_AST_KIND_ON_EMPTY ||
+                                          kind == SXML_XSLT_AST_KIND_ON_NON_EMPTY;
+    }
+    if (frame->step == 1 && locals->has_conditional_content) {
+        frame->step = 2;
+        return sxml_xslt_lowering_call_conditional_content(
+            machine, &(sxml_xslt_conditional_content_call){
+                         .lowering = lowering,
+                         .first = locals->first,
+                         .block = frame->block,
+                         .atoms = {.atoms = locals->atoms, .atom_count = locals->atom_count},
+                         .atom = &locals->conditional_content,
+                         .scope_mark = locals->scope_entry_count});
     }
     return finish_sequence_constructor(machine, frame);
 }
@@ -1597,13 +1624,20 @@ static sxml_status lower_main_function(sxml_xpath_lowerer *lowerer, const main_r
         .focus = {.kind = SXML_XPATH_LOWERING_FOCUS_KIND_SLOTS},
     };
     sxml_xpath_lowerer_enter_function(lowerer, &function_frame);
+    if (request->lowering->global_count > 0) {
+        /* The context global takes the context value from this slot
+           (D135; global variables, packet 4.7). */
+        status = sxml_xpath_lowerer_add_slot(lowerer, &function_frame.focus.slots.context_value);
+    }
     sxml_xpath_lowering_block block = {.first = {0}, .open_let = {0}};
     sxml_ir_atom value = {0};
-    status = sxml_xslt_lowering_bind_invocation(
-        lowerer,
-        &(sxml_xslt_invocation_request){
-            .lowering = request->lowering, .invocation = request->invocation, .block = &block},
-        &value);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xslt_lowering_bind_invocation(
+            lowerer,
+            &(sxml_xslt_invocation_request){
+                .lowering = request->lowering, .invocation = request->invocation, .block = &block},
+            &value);
+    }
     sxml_ir_expression_index result = {0};
     if (status == SXML_STATUS_OK) {
         sxml_ir_expression expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_ATOM,
@@ -1698,6 +1732,9 @@ static sxml_status lower_into_unit(const unit_lowering *work) {
                                            &main_function);
     }
     if (status == SXML_STATUS_OK) {
+        status = sxml_xslt_lowering_declare_global_variables(&lowering, memory.static_contexts);
+    }
+    if (status == SXML_STATUS_OK) {
         status = sxml_xslt_lower_templates(&lowering);
     }
     if (status == SXML_STATUS_OK) {
@@ -1707,6 +1744,9 @@ static sxml_status lower_into_unit(const unit_lowering *work) {
                                      .builds_result_document = request->builds_result_document});
     }
     sxml_xslt_release_templates(&lowering);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xslt_lowering_add_global_variables(&lowering);
+    }
     const sxml_xslt_ast_node_index context_node =
         work->invocation.template_node.value != 0
             ? work->invocation.template_node
@@ -1724,6 +1764,7 @@ static sxml_status lower_into_unit(const unit_lowering *work) {
             status = sxml_ir_unit_set_static_base_uri(work->unit, context->static_base_uri);
         }
     }
+    sxml_xslt_lowering_release_global_variables(&lowering);
     release_storage(work->base_context->allocator, &memory);
     sxml_xpath_lowerer_finalize(lowerer);
     return status;
