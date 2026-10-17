@@ -4,6 +4,24 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 2.6 done (D115): evaluator, paths, references. fn:jkey/fn:jvalue in
+  new part `src/function_library_jnode.c` (moved from 2.17); selector
+  interpretation of non-navigational steps from JNodes (XPDY0002 when
+  focus-dependent), QName keys for prefixed names and wildcards (and
+  EQName jnode() key tests, D113's proposal), attribute/namespace axes
+  from JNodes XPTY0004, lookups through jvalue; numeric predicates of
+  several numbers; maps/arrays as typed functions; fold fixpoint early
+  exit; drop-while over a range stays a range. Release XP40, same
+  driver: 23,698 to 23,910 passed before drop-while (1 former wrong error
+  lost: PathExpr-J-461, fn:name on JNodes); prod-PathExpr.J 71 to 160 of
+  175, prod-AxisStep.J 30 to 64 of 127, fn-fold-left 19 to 21/21,
+  fold-right 22 to 24/24, fn-drop-while 17 to 18/18, prod-Predicate 188
+  to 199/199, fn-jkey 4 to 14, fn-jvalue 4 to 15, fn-jtree 11 to 29,
+  fn-function-lookup 499 to 500 of 587 (rest: missing functions; focus
+  functions need lowering). Slice 198/198; `debug`, `debug-gcc`, `wasm`
+  125/125; lint clean. Open: O(1) range comparison (RangeExpr-408h/410h)
+  waits for `tests/xpath_test.c` (Proposed); reverse of a range (2.17);
+  "/" on JNodes (lowering treat type); driver assert-eq on JNodes.
 - 4.3 done (D120): value templates. `grammars/value_template`
   (inherits xpath; own scanner adds the fixed part and a zero-width
   start token), `sxml_xslt_build_value_template_ast` to an XPATH root
