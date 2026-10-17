@@ -2633,4 +2633,42 @@ serializer's normalization-form (3.3) and to collations (2.13).
   beyond 0x10FFFF); a name is looked up case-sensitively by binary search;
   the escapes are \n \r \t \b \f.
 
+### D108. The QT4 driver for Phase 2: environments, scope, areas (packet 2.16)
+Recorded 2026-10-17. Extends D83 and D92 in `tests/qt4/driver/`.
+- **Environments now applied**: `decimal-format` (every attribute one
+  D104 property, value as written; the name's prefix bound by the
+  element's in-scope namespaces, unprefixed names in no namespace);
+  `collation` (any D97 URI runs: codepoint, HTML ASCII, UCA unless
+  `fallback=no`; `default="true"` sets `default_collation_uri`; other URIs
+  stay "environment collation"; the driver's own check until 2.12's
+  `sxml_collation_is_supported` exists); `resource` and `collection`
+  through a resource table (`resource_table.c`, glossary
+  `qt4_resource_table`): TEXT and BINARY by the resource's absolute URI
+  (relative ones against the test-set file; TEXT gets the `encoding`
+  attribute as the external encoding), else `file:///SUITE-PATH`;
+  COLLECTION and URI_COLLECTION as SEQUENCE (document nodes, or their
+  document URIs as xs:anyURI), `uri=""` is the default collection;
+  collection sources with a `uri` are also available documents. Still
+  skipped: collections with a `query` or a `resource` (3.13). Resources are
+  not served to fn:doc.
+- **Dependencies** now satisfied: feature simple-uca-fallback,
+  non_empty_sequence_collection, arbitraryPrecisionDecimal;
+  unicode-normalization-form NFC NFD NFKC NFKD (Phase 2 makes them work;
+  the D95 denominator counts their cases anyway). Not collection-stability:
+  its two cases ask for it to be absent.
+- **Scope**: applicability also says whether a case is in the D95
+  denominator (spec matches, no non-goal test set, no required non-goal
+  feature; tables in `applicability.c`). Out-of-scope cases that apply
+  still run, so pass counts stay comparable. `sxml-qt4 list` ends with
+  "N test cases: A applicable, S skipped; D in scope" and marks
+  "out of scope: ..."; `list --spec=XP40` gives 31,543 in scope,
+  `--spec=XQ40` 41,174 (D95: about 31,500 and 41,200).
+- **JSON report** (still version 1, members only added): test sets,
+  totals and a new `areas` array (D94's prefixes) carry `in_scope` and
+  `in_scope_passed`; `in_scope_passed / in_scope` is the gate rate.
+  `tools/conformance-report.py` (1.27) may read them; it ignores them now.
+- Measured (release): XP40 passed 23,146 to 24,451, no pass lost; not run
+  18,448 to 16,321. The ten new "error" outcomes are UNSUPPORTED_FEATURE
+  in newly run cases, not the driver.
+
 ## Proposed
