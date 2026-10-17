@@ -257,11 +257,40 @@ static sxml_status call_subsequence(const sxml_function_call *call,
                      result);
 }
 
-/* fn:reverse($input) (F&O 4.0, section 14.1.12). */
+/* fn:reverse($input) (F&O 4.0, section 14.1.12): a range in either order
+   reverses in O(1) (D143), anything else into a new sequence. */
 static sxml_status call_reverse(const sxml_function_call *call, sxml_sequence *result) {
     const sxml_sequence input = sxml_function_library_get_argument(call, 0);
     uint64_t item_count = 0;
     sxml_status status = sxml_sequence_count(input, call->error_record, &item_count);
+    const sxml_sequence_representation representation = sxml_sequence_get_representation(input);
+    if (status == SXML_STATUS_OK &&
+        (representation == SXML_SEQUENCE_REPRESENTATION_INTEGER_RANGE ||
+         representation == SXML_SEQUENCE_REPRESENTATION_DESCENDING_INTEGER_RANGE)) {
+        sxml_item head = {.representation = 0};
+        sxml_item foot = {.representation = 0};
+        status = sxml_sequence_get_item(
+            input, (sxml_item_request){.item_index = 0, .error_record = call->error_record},
+            &head);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_sequence_get_item(
+                input,
+                (sxml_item_request){.item_index = item_count - 1,
+                                    .error_record = call->error_record},
+                &foot);
+        }
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        /* A range's items are inline xs:integer items. */
+        const bool is_ascending = representation == SXML_SEQUENCE_REPRESENTATION_INTEGER_RANGE;
+        const sxml_integer_range bounds = {
+            .first_integer = is_ascending ? head.payload.integer : foot.payload.integer,
+            .last_integer = is_ascending ? foot.payload.integer : head.payload.integer};
+        return is_ascending
+                   ? sxml_sequence_make_descending_integer_range(call->item_heap, bounds, result)
+                   : sxml_sequence_make_integer_range(call->item_heap, bounds, result);
+    }
     sxml_sequence_builder *builder = NULL;
     if (status == SXML_STATUS_OK) {
         status = sxml_sequence_builder_create(

@@ -205,6 +205,59 @@ static void test_range_reads_its_integers(sxml_test_state *state) {
     heap_fixture_destroy(&fixture);
 }
 
+/* A descending range yields last down to first in O(1) memory (D143). */
+static void test_descending_range_reads_its_integers(sxml_test_state *state) {
+    heap_fixture fixture;
+    SXML_TEST_REQUIRE(state, default_heap_fixture_create(&fixture) ==
+                                 SXML_STATUS_OK);
+    sxml_sequence sequence = sxml_sequence_empty();
+    SXML_TEST_REQUIRE(state, sxml_sequence_make_descending_integer_range(
+                                 fixture.item_heap,
+                                 (sxml_integer_range){.first_integer = -2,
+                                                      .last_integer = 3},
+                                 &sequence) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state,
+                     sxml_sequence_get_representation(sequence) ==
+                         SXML_SEQUENCE_REPRESENTATION_DESCENDING_INTEGER_RANGE);
+    SXML_TEST_EXPECT(state, count_of(sequence) == 6);
+    SXML_TEST_EXPECT(state, integer_at(sequence, 0) == 3);
+    SXML_TEST_EXPECT(state, integer_at(sequence, 5) == -2);
+    sxml_sequence_iterator iterator = sxml_sequence_iterator_start(sequence);
+    int64_t expected = 3;
+    for (;;) {
+        sxml_iteration_step step = {.has_item = false,
+                                    .item = {.representation = 0}};
+        SXML_TEST_REQUIRE(state, sxml_sequence_iterator_next(
+                                     &iterator, NULL, &step) ==
+                                     SXML_STATUS_OK);
+        if (!step.has_item) {
+            break;
+        }
+        SXML_TEST_EXPECT(state, integer_of(step.item) == expected);
+        expected -= 1;
+    }
+    SXML_TEST_EXPECT(state, expected == -3);
+    sxml_sequence_release(sequence);
+    SXML_TEST_REQUIRE(state, sxml_sequence_make_descending_integer_range(
+                                 fixture.item_heap,
+                                 (sxml_integer_range){
+                                     .first_integer = 1,
+                                     .last_integer = INT64_C(100000000000)},
+                                 &sequence) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, count_of(sequence) == UINT64_C(100000000000));
+    SXML_TEST_EXPECT(state, integer_at(sequence, UINT64_C(99999999999)) == 1);
+    sxml_sequence_release(sequence);
+    SXML_TEST_REQUIRE(state, sxml_sequence_make_descending_integer_range(
+                                 fixture.item_heap,
+                                 (sxml_integer_range){.first_integer = 7,
+                                                      .last_integer = 7},
+                                 &sequence) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, sxml_sequence_get_representation(sequence) ==
+                                SXML_SEQUENCE_REPRESENTATION_SINGLE_ITEM);
+    SXML_TEST_EXPECT(state, live_cell_count(&fixture) == 0);
+    heap_fixture_destroy(&fixture);
+}
+
 /* The packet's done criterion: uint64_t counts, right on 32-bit wasm. */
 static void test_range_beyond_32_bits_counts_right(sxml_test_state *state) {
     heap_fixture fixture;
@@ -957,6 +1010,8 @@ static const sxml_test_case xdm_sequence_test_cases[] = {
      .function = test_ranges_of_zero_and_one_need_no_cell},
     {.name = "range_reads_its_integers",
      .function = test_range_reads_its_integers},
+    {.name = "descending_range_reads_its_integers",
+     .function = test_descending_range_reads_its_integers},
     {.name = "range_beyond_32_bits_counts_right",
      .function = test_range_beyond_32_bits_counts_right},
     {.name = "range_at_int64_limits", .function = test_range_at_int64_limits},

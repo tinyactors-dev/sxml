@@ -39,7 +39,8 @@ static sxml_iteration_step sxml_iteration_step_end(void) {
 /*
  * The integers first_integer to last_integer, first_integer below
  * last_integer (an empty range is the empty sequence, a range of one
- * integer a single item; neither has a cell).
+ * integer a single item; neither has a cell). A descending range's cell
+ * class yields them from last_integer down (D143).
  */
 typedef struct sxml_integer_range_cell {
     sxml_cell cell;
@@ -83,6 +84,24 @@ static sxml_status sxml_integer_range_cell_count(
     return SXML_STATUS_OK;
 }
 
+/* A descending range's cell class has its own operations (D143). */
+static bool sxml_integer_range_cell_is_descending(const sxml_cell *cell) {
+    return cell->cell_class->sequence_operations->sequence_representation ==
+           SXML_SEQUENCE_REPRESENTATION_DESCENDING_INTEGER_RANGE;
+}
+
+/* The integer at item_index of a range cell, which item_index must not
+   pass. */
+static int64_t sxml_integer_range_cell_member_at(sxml_cell *cell,
+                                                 uint64_t item_index) {
+    const sxml_integer_range range =
+        sxml_integer_range_cell_from_cell(cell)->range;
+    return sxml_integer_range_get_member(
+        range, sxml_integer_range_cell_is_descending(cell)
+                   ? sxml_integer_range_get_last_offset(range) - item_index
+                   : item_index);
+}
+
 static sxml_status sxml_integer_range_cell_get_item(sxml_cell *cell,
                                                     sxml_item_request request,
                                                     sxml_item *item) {
@@ -91,7 +110,7 @@ static sxml_status sxml_integer_range_cell_get_item(sxml_cell *cell,
         return SXML_STATUS_INDEX_OUT_OF_RANGE;
     }
     *item = sxml_atomic_item_from_integer(
-        sxml_integer_range_get_member(range, request.item_index));
+        sxml_integer_range_cell_member_at(cell, request.item_index));
     return SXML_STATUS_OK;
 }
 
@@ -103,23 +122,21 @@ static sxml_status sxml_integer_range_cell_next(
     sxml_sequence_iterator *iterator, sxml_error_record *error_record,
     sxml_iteration_step *step) {
     (void)error_record;
-    sxml_integer_range range =
-        sxml_integer_range_cell_from_cell(
-            sxml_item_get_cell(iterator->sequence.content))
-            ->range;
+    sxml_cell *cell = sxml_item_get_cell(iterator->sequence.content);
+    sxml_integer_range range = sxml_integer_range_cell_from_cell(cell)->range;
     if (iterator->part_index != 0) {
         *step = sxml_iteration_step_end();
         return SXML_STATUS_OK;
     }
-    uint64_t offset = iterator->next_item_index;
+    uint64_t item_index = iterator->next_item_index;
     *step = (sxml_iteration_step){
         .has_item = true,
         .item = sxml_atomic_item_from_integer(
-            sxml_integer_range_get_member(range, offset))};
-    if (offset == sxml_integer_range_get_last_offset(range)) {
+            sxml_integer_range_cell_member_at(cell, item_index))};
+    if (item_index == sxml_integer_range_get_last_offset(range)) {
         iterator->part_index = 1;
     } else {
-        iterator->next_item_index = offset + 1;
+        iterator->next_item_index = item_index + 1;
     }
     return SXML_STATUS_OK;
 }
@@ -132,15 +149,37 @@ static const sxml_sequence_cell_operations
         .next = sxml_integer_range_cell_next,
 };
 
+static const sxml_sequence_cell_operations
+    sxml_descending_integer_range_sequence_operations = {
+        .sequence_representation =
+            SXML_SEQUENCE_REPRESENTATION_DESCENDING_INTEGER_RANGE,
+        .count = sxml_integer_range_cell_count,
+        .get_item = sxml_integer_range_cell_get_item,
+        .next = sxml_integer_range_cell_next,
+};
+
 static const sxml_cell_class sxml_integer_range_cell_class = {
     .class_name = SXML_BYTE_VIEW_INITIALIZER("integer range"),
     .release_contents = NULL,
     .sequence_operations = &sxml_integer_range_sequence_operations,
 };
 
-sxml_status sxml_sequence_make_integer_range(sxml_item_heap *item_heap,
-                                             sxml_integer_range range,
-                                             sxml_sequence *sequence) {
+static const sxml_cell_class sxml_descending_integer_range_cell_class = {
+    .class_name = SXML_BYTE_VIEW_INITIALIZER("descending integer range"),
+    .release_contents = NULL,
+    .sequence_operations = &sxml_descending_integer_range_sequence_operations,
+};
+
+/* Makes a range sequence of cell_class (ascending or descending). */
+typedef struct sxml_integer_range_request {
+    sxml_integer_range range;
+    const sxml_cell_class *cell_class;
+} sxml_integer_range_request;
+
+static sxml_status sxml_sequence_make_range_of_class(
+    sxml_item_heap *item_heap, sxml_integer_range_request request,
+    sxml_sequence *sequence) {
+    const sxml_integer_range range = request.range;
     /* XPath 4.0, section 4.8.2: empty when the first integer is greater
        than the last; one integer when they are equal. */
     if (range.first_integer > range.last_integer) {
@@ -155,7 +194,7 @@ sxml_status sxml_sequence_make_integer_range(sxml_item_heap *item_heap,
     sxml_cell *cell = NULL;
     sxml_status status = sxml_item_heap_allocate_cell(
         item_heap,
-        &(sxml_cell_request){.cell_class = &sxml_integer_range_cell_class,
+        &(sxml_cell_request){.cell_class = request.cell_class,
                              .byte_count = sizeof(sxml_integer_range_cell),
                              .alignment = alignof(sxml_integer_range_cell)},
         &cell);
@@ -166,6 +205,27 @@ sxml_status sxml_sequence_make_integer_range(sxml_item_heap *item_heap,
     *sequence = sxml_sequence_from_cell(
         SXML_ITEM_REPRESENTATION_INTEGER_RANGE_CELL, cell);
     return SXML_STATUS_OK;
+}
+
+sxml_status sxml_sequence_make_integer_range(sxml_item_heap *item_heap,
+                                             sxml_integer_range range,
+                                             sxml_sequence *sequence) {
+    return sxml_sequence_make_range_of_class(
+        item_heap,
+        (sxml_integer_range_request){
+            .range = range, .cell_class = &sxml_integer_range_cell_class},
+        sequence);
+}
+
+sxml_status sxml_sequence_make_descending_integer_range(
+    sxml_item_heap *item_heap, sxml_integer_range range,
+    sxml_sequence *sequence) {
+    return sxml_sequence_make_range_of_class(
+        item_heap,
+        (sxml_integer_range_request){
+            .range = range,
+            .cell_class = &sxml_descending_integer_range_cell_class},
+        sequence);
 }
 
 /* ------------------------------------------------------- Concatenations */

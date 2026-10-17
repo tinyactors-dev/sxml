@@ -477,6 +477,9 @@ typedef enum sxml_sequence_representation {
     /* Items produced on demand by a sequence generator and kept once
        produced. */
     SXML_SEQUENCE_REPRESENTATION_LAZY,
+    /* The xs:integer items last to first of a range, stored as its two
+       bounds (fn:reverse of a range, D143). */
+    SXML_SEQUENCE_REPRESENTATION_DESCENDING_INTEGER_RANGE,
 } sxml_sequence_representation;
 
 /* The empty sequence. */
@@ -525,6 +528,20 @@ typedef struct sxml_integer_range {
 SXML_NODISCARD SXML_EXPORT sxml_status sxml_sequence_make_integer_range(
     sxml_item_heap *item_heap, sxml_integer_range range,
     sxml_sequence *sequence);
+
+/*
+ * Makes the sequence last_integer down to first_integer of xs:integer
+ * items, the reverse of sxml_sequence_make_integer_range's (fn:reverse,
+ * F&O 4.0, section 14.1.12; D143): empty when first_integer is greater
+ * than last_integer, one item when they are equal. O(1) in time and
+ * memory.
+ *
+ * Returns the heap's failures.
+ */
+SXML_NODISCARD SXML_EXPORT sxml_status
+sxml_sequence_make_descending_integer_range(sxml_item_heap *item_heap,
+                                            sxml_integer_range range,
+                                            sxml_sequence *sequence);
 
 /*
  * Makes the concatenation of sequences, in order (dm:sequence-concat, the

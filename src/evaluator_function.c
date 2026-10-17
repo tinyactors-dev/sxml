@@ -152,6 +152,7 @@ static sxml_status sxml_sequence_is_atomic(sxml_sequence sequence,
     switch (sxml_sequence_get_representation(sequence)) {
     case SXML_SEQUENCE_REPRESENTATION_EMPTY:
     case SXML_SEQUENCE_REPRESENTATION_INTEGER_RANGE:
+    case SXML_SEQUENCE_REPRESENTATION_DESCENDING_INTEGER_RANGE:
         *is_atomic = true;
         return SXML_STATUS_OK;
     case SXML_SEQUENCE_REPRESENTATION_SINGLE_ITEM:

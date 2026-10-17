@@ -1212,13 +1212,20 @@ typedef struct sxml_temporal_check {
     bool has_temporal_item;
 } sxml_temporal_check;
 
+/* True for an integer range in either order (D143). */
+static bool sxml_is_integer_range(sxml_sequence value) {
+    const sxml_sequence_representation representation =
+        sxml_sequence_get_representation(value);
+    return representation == SXML_SEQUENCE_REPRESENTATION_INTEGER_RANGE ||
+           representation == SXML_SEQUENCE_REPRESENTATION_DESCENDING_INTEGER_RANGE;
+}
+
 static sxml_status sxml_value_has_temporal_item(sxml_sequence value,
                                                 sxml_temporal_check *check) {
     check->has_temporal_item = false;
     /* A range holds integers only, and may be far too long to walk:
        "1 = 1 to 100000000000" (found by tests/fuzz/xpath_evaluate_fuzz.c). */
-    if (sxml_sequence_get_representation(value) ==
-        SXML_SEQUENCE_REPRESENTATION_INTEGER_RANGE) {
+    if (sxml_is_integer_range(value)) {
         return SXML_STATUS_OK;
     }
     sxml_sequence_iterator iterator = sxml_sequence_iterator_start(value);
@@ -1645,7 +1652,8 @@ typedef struct sxml_range_comparison {
 
 /*
  * XPath 4.0, section 4.11.2: a general comparison is true when some pair
- * of items compares true. For the items first to last of a range R and an
+ * of items compares true. For the items first to last of a range R (in
+ * either order: first is its smallest, last its largest) and an
  * integer V, R = V is first <= V <= last, R != V needs an item other than
  * V, R < V is first < V, R > V is last > V, and so on; with the range on
  * the right the order comparisons look at the other bound.
@@ -1655,28 +1663,37 @@ static sxml_status sxml_compare_with_range(sxml_dynamic_context *context,
                                            sxml_range_comparison *comparison) {
     comparison->is_decided = false;
     const sxml_sequence *operands = request.operands;
-    const bool range_is_left = sxml_sequence_get_representation(operands[0]) ==
-                               SXML_SEQUENCE_REPRESENTATION_INTEGER_RANGE;
+    const bool range_is_left = sxml_is_integer_range(operands[0]);
     const sxml_sequence range = operands[range_is_left ? 0 : 1];
     const sxml_sequence other = operands[range_is_left ? 1 : 0];
-    if (sxml_sequence_get_representation(range) != SXML_SEQUENCE_REPRESENTATION_INTEGER_RANGE ||
+    if (!sxml_is_integer_range(range) ||
         sxml_sequence_get_representation(other) != SXML_SEQUENCE_REPRESENTATION_SINGLE_ITEM ||
         sxml_item_get_representation(other.content) != SXML_ITEM_REPRESENTATION_INTEGER) {
         return SXML_STATUS_OK;
     }
-    sxml_item first_item = {.representation = 0};
+    sxml_item head_item = {.representation = 0};
+    sxml_item foot_item = {.representation = 0};
     uint64_t item_count = 0;
-    sxml_status status = sxml_sequence_get_item(
-        range, (sxml_item_request){.item_index = 0, .error_record = context->error_record},
-        &first_item);
-    if (status == SXML_STATUS_OK) {
-        status = sxml_sequence_count(range, context->error_record, &item_count);
-    }
+    sxml_status status = sxml_sequence_count(range, context->error_record, &item_count);
     if (status != SXML_STATUS_OK || item_count == 0) {
         return status;
     }
-    const int64_t first = first_item.payload.integer;
-    const int64_t last = (int64_t)((uint64_t)first + (item_count - 1));
+    status = sxml_sequence_get_item(
+        range, (sxml_item_request){.item_index = 0, .error_record = context->error_record},
+        &head_item);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_sequence_get_item(
+            range,
+            (sxml_item_request){.item_index = item_count - 1,
+                                .error_record = context->error_record},
+            &foot_item);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    const bool is_ascending = head_item.payload.integer <= foot_item.payload.integer;
+    const int64_t first = is_ascending ? head_item.payload.integer : foot_item.payload.integer;
+    const int64_t last = is_ascending ? foot_item.payload.integer : head_item.payload.integer;
     const int64_t value = other.content.payload.integer;
     /* The bound that decides an order comparison: with the range on the
        left, "R < V" asks for its smallest item, "R > V" for its largest. */
@@ -2726,8 +2743,7 @@ static sxml_status sxml_loop_advance_focus(sxml_dynamic_context *context,
  */
 static sxml_status sxml_loop_convert_to_json_nodes(sxml_dynamic_context *context,
                                                    sxml_loop_state *loop) {
-    if (sxml_sequence_get_representation(loop->input) ==
-        SXML_SEQUENCE_REPRESENTATION_INTEGER_RANGE) {
+    if (sxml_is_integer_range(loop->input)) {
         /* Integers only (and possibly very many). */
         return SXML_STATUS_OK;
     }
