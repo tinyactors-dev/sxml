@@ -159,6 +159,11 @@ computed constructors (Phase 3); ForClause.map/.member, LetClause,
 MethodCall, ConstructorKeywords, FocusConstructors at 100% of run cases;
 dynamic node tests and the item axis need fn:jkey/fn:jvalue (2.17);
 NamedFunctionRef's failures are missing functions. XP40 23,698 to 24,206.
+**Done** 2026-10-17 (D113): no XP40 case is "not lowered" except the
+computed constructors (Phase 3); ForClause.map/.member, LetClause,
+MethodCall, ConstructorKeywords, FocusConstructors at 100% of run cases;
+dynamic node tests and the item axis need fn:jkey/fn:jvalue (2.17);
+NamedFunctionRef's failures are missing functions. XP40 23,698 to 24,206.
 
 ### 2.6 Evaluator, paths and function references (implementation)
 After 2.0. Owns `src/evaluator.c`, `src/evaluator_function.c`,
