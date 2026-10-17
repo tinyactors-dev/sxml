@@ -4586,8 +4586,69 @@ Recorded 2026-10-17, after D53, D71, D105.
 Reserved here; the record is completed when the packet is ticked.
 
 ### D148. Library modules and module import (packet 3.11)
-Recorded 2026-10-17, after D106, D134, D135, D146.
-Reserved here; the record is completed when the packet is ticked.
+Recorded 2026-10-17, after D106, D134, D135, D146. No header changed; no
+IR kind added.
+- **Module set** (`src/xquery_module.c`, `src/xquery_module_internal.h`;
+  glossary `module_set`): a work list over the set from the main module.
+  Each module import asks the processor's resolver (kind XQUERY_MODULE)
+  once per location hint, the hint resolved against the importing
+  module's static base URI (its base URI declaration over the host's base
+  or its module URI), or once with an empty uri_reference when it has
+  none and no module of the namespace is loaded. A module is identified by
+  its module URI (glossary): the resource URI, else the absolute hint,
+  else the hint, else the namespace; one met again is the module loaded
+  before, which ends cycles and loads a module once per compilation. The
+  module URI is interned in the name pool, so error records may name it
+  as their source after compilation. Errors: XQST0088, XQST0047 (one
+  namespace imported twice by a prolog), XQST0070 (prefix xml/xmlns,
+  before loading), XQST0059 (no module for a hint or a hintless import, a
+  main module, another namespace); a library module's XPST0003 is located
+  in it.
+- **Imports name namespaces** (5.12.2): a module imports every module of
+  the set whose target namespace it imports, itself excepted, and sees
+  their public declarations only (not what they import, not %private).
+- **Static contexts**: one per module, read in the reading order (a
+  depth-first walk, imported modules first; a cycle is broken where the
+  walk meets it), so every declared function is an IR function from 2 on
+  and every module's prolog variables are globals numbered after the
+  host's in that order. `sxml_xpath_static_context.global_numbers`
+  (internal, NULL = position + 1) maps a module's variables in scope (its
+  own, then the imported public ones) to those globals. A library module
+  starts from XQuery's default static context (no host namespaces or
+  variables, its module URI as static base URI, the host's functions and
+  collations); its module declaration and imports bind prefixes
+  (XQST0033); public functions, variables, item types and records outside
+  its target namespace are XQST0048; output declarations XQST0108; a
+  context value with a value XQST0113. Imported public item types are
+  aliases of the importer (read before it). Linking adds the imported
+  public variables and makes the function table find imported public
+  functions and constructors (after the module's own, before the
+  host's); XQST0049 and XQST0034 are checked against them. Duplicate
+  named types are now XQST0146 (5.19), as QT4 expects.
+- **Lowering**: the whole set lowers into the main module's unit; each
+  library module's functions and initializers with a lowerer of its own
+  (its static context and AST). The dependency graph of D135 spans every
+  module, so one walk orders all variables and finds XQDY0054 through
+  imports; unreached library variables are never computed.
+- **CLI**: `sxml xquery` imports modules from the local files the hints
+  name (its resolver already served them); a static error in a library
+  module names that module's file.
+- **Not done** (each in Proposed below or a later packet):
+  fn:load-xquery-module (needs the evaluator); the static base URI and
+  source name of a library module at run time (cbcl-module-002,
+  base-URI-modules-001, xqhof16, xqhof18, try-catch-map3: the unit has
+  one of each); named item types across an import cycle (modules-43);
+  every module of a namespace for a hintless import
+  (modules-collide-var-001, -fn-001: one request gets one module, as the
+  QT4 driver serves the first); a library module's context value type
+  (contextDecl-050, -051, -054: not checked).
+- Measured (release, all 737 XQ40 test sets): 39,541 to 39,698 passed,
+  no case lost; prod-ModuleImport 23 to 112 of 141 (94 errors to 1;
+  the rest XQ10-only, schema import or above), prod-AxisStep.J +24,
+  prod-ItemTypeDecl +9, prod-CompNamespaceConstructor +6, fn-id +5,
+  prod-NamedRecordTypeDecl +5, prod-ContextItemDecl +5. misc-HtmlTestSuite
+  (1,379) now gets past its import and stops at fn:parse-html;
+  fn-load-xquery-module (141) and misc-Subtyping (159) stay "not run".
 
 ### D149. Keys and XSLT functions (packet 4.10)
 Recorded 2026-10-17, after D101, D118, D139, D142, D144.
@@ -4606,6 +4667,44 @@ Recorded 2026-10-17, after D79, D116, D118, D136, D137, D142, D144, D145.
 Reserved here; the record is completed when the packet is ticked.
 
 ## Proposed
+
+- **fn:load-xquery-module** (packet 3.11, D148; for the owner of the
+  evaluator, `src/evaluator*.c`): the function needs a library module
+  compiled at run time into a unit of its own, its globals computed with
+  the options' bindings and context value, and its functions returned as
+  function items that later read that unit's globals. Today a task reads
+  globals only of the evaluation's own unit (`src/evaluator.c`, "Only the
+  evaluation's own unit reads globals"), and a native body that compiles
+  and evaluates a query would nest the machine in C, which D71 forbids.
+  Proposed: per-unit global tables in the dynamic context (the
+  evaluation's unit first, others added by a resumable native body that
+  asks the machine to compute a unit's initializers as tasks, as the
+  global part does), found by a task's function's unit; then
+  `src/function_library_module.c` compiles the module (through a module
+  loader the XQuery lowering puts into the unit's static context, so
+  XPath-only builds do not link the XQuery grammar), asks for the table
+  and builds the record from the unit's IR functions. Also unlocks D135
+  Proposed (c). 141 fn-load-xquery-module and 159 misc-Subtyping cases
+  wait for it.
+
+- **A library module's static context at run time** (packet 3.11, D148;
+  for the owners of `src/ir_internal.h` and the evaluator): the unit has
+  one static base URI and one source name, the main module's, so nodes a
+  library module constructs, fn:static-base-uri in it, and the module and
+  line of an error it raises name the main module (cbcl-module-002,
+  base-URI-modules-001, xqhof16, xqhof18, try-catch-map3). Proposed: an
+  IR function's optional module index into a unit table of (source name,
+  static base URI), set by lowering for library functions and read by
+  the evaluator where it reads the unit's.
+
+- **Hintless imports of a namespace with several modules** (packet 3.11,
+  D148; for the owner of `include/sxml/xquery.h` and the QT4 driver): one
+  request with an empty uri_reference gets one module, so a namespace
+  split over several hintless modules loads only the first
+  (modules-collide-var-001, modules-collide-fn-001 expect both).
+  Proposed: keep the contract (implementation-defined set, 5.12); or let
+  a resolver answer such a request again with the next module until it
+  answers NONE.
 
 - **XQuery's default for omit-xml-declaration** (packet 3.12, D146; for
   the owner of `include/sxml/xquery.h`): the header gives every

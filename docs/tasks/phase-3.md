@@ -244,6 +244,14 @@ modules per namespace, cycles), XQST0048, XQST0059, private names;
 fn:load-xquery-module. Done when prod-ModuleImport and
 fn-load-xquery-module ≥ 90%. Spec: XQuery 4.0 "Library Module", "Module
 Import"; F&O 4.0 "fn:load-xquery-module".
+**Done** 2026-10-17 (D148): `src/xquery_module.c` (module set through the
+resolver, location hints, cycles, module URIs), per-module static contexts
+read imports first and linked (`src/xquery_static.c`), one unit for the set
+(`src/xquery_prolog.c`), `tests/xquery_module_test.c`, `sxml xquery` imports
+local files. prod-ModuleImport 23 to 112 of 141 (79 %; the rest XQ10-only,
+schema import, or Proposed). fn:load-xquery-module not done: it needs
+cross-unit globals in the evaluator (Proposed, D148); fn-load-xquery-module
+stays 0.
 
 ### 3.12 XQuery API and CLI (implementation)
 After 3.3, 3.10. Owns `src/xquery.c`, `tests/xquery_test.c`,

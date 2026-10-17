@@ -4,6 +4,19 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 3.11 done (D148): library modules and module import. `src/xquery_module.c`
+  loads the module set through the resolver (one request per location
+  hint, an empty one for none; module URIs end cycles, a module loads
+  once); every module gets its own static context, read imports first,
+  with its variables as globals of the one unit
+  (`sxml_xpath_static_context.global_numbers`); imports name namespaces
+  (5.12.2), %private hides; XQST0033, 0034, 0047, 0048, 0049, 0059, 0070,
+  0088, 0108, 0113, XQDY0054 across modules. `sxml xquery` imports local
+  files. XQ40 (release, all sets) 39,541 to 39,698 passed, none lost;
+  prod-ModuleImport 23 to 112 of 141. Not done: fn:load-xquery-module
+  (needs cross-unit globals in the evaluator, Proposed), a library
+  module's base URI and source name at run time (Proposed).
+
 - 4.7 done (D145): control flow and variables lowered into kinds XQuery
   already uses: xsl:if (then/else), choose, switch (CONDITIONAL chains),
   for-each (MAP, separator), iterate as fn:scan over a closure (no
