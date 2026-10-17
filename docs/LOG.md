@@ -4,6 +4,16 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 2.0 done (D101): part registries by glob. CMake generates the library
+  part list (per language: XPath, XQuery, XSLT) and the evaluator part
+  list; processor and fuzz fixture take the XPath list. Machine API in
+  `src/evaluator_machine_internal.h` (part tasks, catching tasks, global
+  initializer hook); stubs construct, try, template, global return
+  UNSUPPORTED_FEATURE. Probes verified a new part, an XSLT-only part and a
+  catching part need no other edit. `debug`, `debug-gcc`, `wasm` 119/119,
+  lint clean (89 files, no cycle); slice 198/198; XP40 unchanged: 23,146
+  passed, 5,209 failed, 510 errors (before and after).
+
 - 2.2 done (D104): the public API for Phase 2, header-only. Static
   context: decimal formats (name, properties as text with 4.0's
   marker:rendition form), default collation URI, collation bindings,
