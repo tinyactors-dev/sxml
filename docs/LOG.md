@@ -4,6 +4,21 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 4.1 done (D117): the XSLT 4.0 test driver `sxml-xslt-test`
+  (`tests/xslt/driver/`), a sibling of sxml-qt4 that links its library.
+  `list` resolves every case of `third_party/xslt40-test` (13,867, no
+  problem; 8,387 applicable, 8,728 in the D95 scope) and shows its plan:
+  principal stylesheet, package or embedded stylesheet, secondary
+  modules, static and stylesheet parameters, global context item,
+  invocation, delivery, assertion kinds. `run` reports through the QT4
+  report: skip, "unsupported: assert-warning", errors for malformed
+  cases, else "XSLT not implemented" until 4.15. Slice
+  `tests/xslt/slice.txt` (154 cases over the twelve core sets), baseline
+  0. Proposed: report name and XSLT areas in the QT4 report. `debug`,
+  `debug-gcc`, `wasm` (xslt and qt4 tests), lint clean on the new files;
+  debug ctest 141/141; no library or QT4-driver change, so XP40 and the
+  qt4 slice (198) are untouched.
+
 - 3.5 done (D110): node constructors in the evaluator. Seven
   constructor kinds and SHALLOW_COPY, one self-destroying arena tree per
   node, nested nodes copied; content convention for lowering (a SEQUENCE
