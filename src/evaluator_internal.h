@@ -326,6 +326,17 @@ sxml_byte_view sxml_dynamic_context_get_static_base_uri(
     const sxml_dynamic_context *dynamic_context);
 
 /*
+ * The unit whose code is running, for the parts of its static context
+ * that functions read lexically, as the static base URI (XPath 4.0,
+ * section 2.2.1): the decimal formats and collations
+ * (unit->static_context) and the static namespaces. The unit of the
+ * innermost task that runs IR, else the unit being evaluated; NULL
+ * outside an evaluation. Borrowed.
+ */
+const sxml_ir_unit *sxml_dynamic_context_get_running_unit(
+    const sxml_dynamic_context *dynamic_context);
+
+/*
  * Charges step_count evaluation steps to the evaluation running (D89):
  * leaf work that reads many items without running a task (a general
  * comparison of two long sequences) calls it before the work. Returns

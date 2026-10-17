@@ -56,6 +56,20 @@ static const sxml_resource_entry fixture_resources[] = {
      .content = {.bytes = (const uint8_t *)staff_text, .byte_count = sizeof(staff_text) - 1}},
     {.uri = SXML_BYTE_VIEW_INITIALIZER("http://example.com/docs/broken.xml"),
      .content = SXML_BYTE_VIEW_INITIALIZER("<a><b></a>")},
+    /* Text resources (packet 2.12): lines ending in CR LF, CR and LF. */
+    {.uri = SXML_BYTE_VIEW_INITIALIZER("http://example.com/docs/lines.txt"),
+     .content = SXML_BYTE_VIEW_INITIALIZER("one\r\ntwo\rthree\n")},
+    /* "hi" in UTF-16LE with a byte order mark. */
+    {.uri = SXML_BYTE_VIEW_INITIALIZER("http://example.com/docs/utf16.txt"),
+     .content = {.bytes = (const uint8_t *)"\xFF\xFEh\0i\0", .byte_count = 6}},
+    /* Not UTF-8: a lone continuation byte. */
+    {.uri = SXML_BYTE_VIEW_INITIALIZER("http://example.com/docs/latin1.txt"),
+     .content = SXML_BYTE_VIEW_INITIALIZER("caf\xE9")},
+    /* U+0001 is not an XML character. */
+    {.uri = SXML_BYTE_VIEW_INITIALIZER("http://example.com/docs/control.txt"),
+     .content = SXML_BYTE_VIEW_INITIALIZER("a\x01")},
+    {.uri = SXML_BYTE_VIEW_INITIALIZER("http://example.com/docs/data.json"),
+     .content = SXML_BYTE_VIEW_INITIALIZER("{\"a\": [1, 2]}")},
 };
 
 static const sxml_resource_entry_view fixture_resource_view = {
@@ -831,8 +845,13 @@ static void test_step_bound_stops_long_evaluations(sxml_test_state *state) {
     query_run run = {.expression_text = TEXT("some $x in 1 to 100000000000 satisfies $x = 0")};
     SXML_TEST_EXPECT(state, run_query(&test_fixture, &run) == SXML_STATUS_LIMIT_EXCEEDED);
     SXML_TEST_EXPECT(state, run.error_record.diagnostic.description.byte_count > 0);
-    run.expression_text = TEXT("-1 = -100000000000 to -1");
+    /* A range compared with one integer is decided from its bounds
+       (D115), so it returns at once; a quantifier still steps. */
+    run.expression_text = TEXT("some $x in 1 to 100000000000 satisfies $x = -1");
     SXML_TEST_EXPECT(state, run_query(&test_fixture, &run) == SXML_STATUS_LIMIT_EXCEEDED);
+    run.expression_text = TEXT("-1 = -100000000000 to -1");
+    SXML_TEST_EXPECT(state, run_query(&test_fixture, &run) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, output_is(&test_fixture, TEXT("true()")));
     /* Library functions that loop without tasks charge what they read
        (D91): joining, sorting, distinct values, deep equality, counting a
        lazy sequence, regular expressions. */
@@ -988,11 +1007,320 @@ static sxml_status run_with_failure(sxml_test_state *state, uint64_t failing_num
                                                 TEXT("http://example.com/docs/index.xml")}};
         status = run_query(&test_fixture, &run);
         if (status == SXML_STATUS_OK) {
-            SXML_TEST_EXPECT(state, output_is(&test_fixture, TEXT("true() 3 \"b\" 2")));
+            SXML_TEST_EXPECT(state, output_is(&test_fixture, TEXT("true() 3 \"b\" 2 \"one\" \"two\" \"three\" 1.0e0")));
         }
     }
     SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
     return status;
+}
+
+/* ------------------------------------------------- Packet 2.12 resources */
+
+/* Runs text with the static base URI of the fixture's resources and
+   checks its adaptive output, or the error code it raises ("!CODE"). */
+static void expect_resource_query(sxml_test_state *state, fixture *test_fixture,
+                                  const char *const pair[2]) {
+    query_run run = {.expression_text = {.bytes = (const uint8_t *)pair[0],
+                                         .byte_count = strlen(pair[0])},
+                     .static_context = {.static_base_uri = TEXT("http://example.com/docs/")}};
+    const sxml_status status = run_query(test_fixture, &run);
+    const char *expected = pair[1];
+    if (expected[0] == '!') {
+        SXML_TEST_EXPECT(state, status != SXML_STATUS_OK);
+        SXML_TEST_EXPECT(state, error_code_is(&run, (sxml_byte_view){
+                                                        .bytes = (const uint8_t *)expected + 1,
+                                                        .byte_count = strlen(expected) - 1}));
+    } else {
+        SXML_TEST_EXPECT(state, status == SXML_STATUS_OK);
+        SXML_TEST_EXPECT(state, output_is(test_fixture, (sxml_byte_view){
+                                                            .bytes = (const uint8_t *)expected,
+                                                            .byte_count = strlen(expected)}));
+    }
+}
+
+/* fn:unparsed-text and its relatives decode what the resolver serves
+   (F&O 4.0, section 17.1). */
+static void test_text_resources_decode(sxml_test_state *state) {
+    fixture test_fixture;
+    SXML_TEST_REQUIRE(state, fixture_create(&(fixture_options){.failing_allocation_number = 0},
+                                            &test_fixture) == SXML_STATUS_OK);
+    static const char *const cases[][2] = {
+        {"string-to-codepoints(unparsed-text('lines.txt'))",
+         "111 110 101 13 10 116 119 111 13 116 104 114 101 101 10"},
+        {"string-to-codepoints(unparsed-text('lines.txt', {'normalize-newlines': true()}))",
+         "111 110 101 10 116 119 111 10 116 104 114 101 101 10"},
+        {"unparsed-text-lines('lines.txt')", "\"one\" \"two\" \"three\""},
+        {"unparsed-text('utf16.txt'), unparsed-text('utf16.txt', 'UTF-16')", "\"hi\" \"hi\""},
+        {"unparsed-text('utf16.txt', 'utf-8')", "!FOUT1190"},
+        {"unparsed-text('latin1.txt')", "!FOUT1200"},
+        {"unparsed-text('latin1.txt', 'iso-8859-1')", "\"caf\xC3\xA9\""},
+        {"unparsed-text('latin1.txt', {'fallback': true()})", "\"caf\xEF\xBF\xBD\""},
+        {"unparsed-text('control.txt')", "!FOUT1190"},
+        {"unparsed-text('lines.txt', 'no-such-encoding')", "!FOUT1190"},
+        {"unparsed-text('missing.txt')", "!FOUT1170"},
+        {"unparsed-text('lines.txt', {'fallback': 'yes'})", "!XPTY0004"},
+        {"unparsed-text(())", ""},
+        {"unparsed-text-available('lines.txt'), unparsed-text-available('missing.txt'), "
+         "unparsed-text-available('latin1.txt'), unparsed-text-available(())",
+         "true() false() false() false()"},
+        {"string(unparsed-binary('utf16.txt'))", "\"//5oAGkA\""},
+        {"unparsed-binary('missing.txt')", "!FOUT1170"},
+        {"json-doc('data.json')?a?2 eq 2", "true()"},
+        {"json-doc('missing.json')", "!FOUT1170"},
+        {"json-doc('lines.txt')", "!FOJS0001"},
+    };
+    for (size_t case_index = 0; case_index < SXML_TEST_COUNT(cases); case_index += 1) {
+        expect_resource_query(state, &test_fixture, cases[case_index]);
+    }
+    /* Without a static base URI a relative URI cannot be made absolute. */
+    query_run run = {.expression_text = TEXT("unparsed-text('lines.txt')")};
+    SXML_TEST_EXPECT(state, run_query(&test_fixture, &run) == SXML_STATUS_DYNAMIC_ERROR);
+    SXML_TEST_EXPECT(state, error_code_is(&run, TEXT("FOUT1170")));
+    SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
+}
+
+/* A resolver of two collections for collection_resolve. */
+typedef struct collection_resolver_state {
+    size_t resolve_count;
+} collection_resolver_state;
+
+/* Serves "http://example.com/c" (two integers), the default collection
+   (one string) and the URI collection of "http://example.com/c". */
+static sxml_status collection_resolve(void *state, const sxml_resource_request *request,
+                                      sxml_resource *resource) {
+    collection_resolver_state *resolver_state = state;
+    resolver_state->resolve_count += 1;
+    sxml_item_heap *item_heap = sxml_processor_get_item_heap(request->processor);
+    if (request->resource_kind == SXML_RESOURCE_KIND_COLLECTION &&
+        request->is_default_collection) {
+        resource->resource_form = SXML_RESOURCE_FORM_SEQUENCE;
+        sxml_item item = {.representation = 0};
+        const sxml_status status = sxml_atomic_item_make(
+            item_heap,
+            &(sxml_atomic_item_request){
+                .type = {.index = SXML_TYPE_XS_STRING},
+                .datum = {.datum_kind = SXML_DATUM_KIND_STRING,
+                          .datum_details = {.string = {.utf8 = TEXT("default")}}}},
+            &item);
+        resource->items = sxml_sequence_from_item(item);
+        return status;
+    }
+    if (!sxml_byte_view_equals(request->absolute_uri, TEXT("http://example.com/c"))) {
+        resource->resource_form = SXML_RESOURCE_FORM_NONE;
+        return SXML_STATUS_OK;
+    }
+    resource->resource_form = SXML_RESOURCE_FORM_SEQUENCE;
+    if (request->resource_kind == SXML_RESOURCE_KIND_URI_COLLECTION) {
+        sxml_item item = {.representation = 0};
+        const sxml_status status = sxml_atomic_item_make(
+            item_heap,
+            &(sxml_atomic_item_request){
+                .type = {.index = SXML_TYPE_XS_ANY_URI},
+                .datum = {.datum_kind = SXML_DATUM_KIND_STRING,
+                          .datum_details = {.string = {.utf8 = TEXT("http://example.com/a")}}}},
+            &item);
+        resource->items = sxml_sequence_from_item(item);
+        return status;
+    }
+    return sxml_sequence_make_integer_range(
+        item_heap, (sxml_integer_range){.first_integer = 1, .last_integer = 2},
+        &resource->items);
+}
+
+static const sxml_resource_resolver_operations collection_resolver_operations = {
+    .resolve = collection_resolve,
+    .release = NULL,
+};
+
+/* fn:collection and fn:uri-collection read the resolver once per URI in
+   an evaluation (F&O 4.0, sections 17.1.3 and 17.1.4). */
+static void test_collections_come_from_the_resolver(sxml_test_state *state) {
+    fixture test_fixture;
+    SXML_TEST_REQUIRE(state, fixture_create(&(fixture_options){.failing_allocation_number = 0},
+                                            &test_fixture) == SXML_STATUS_OK);
+    collection_resolver_state resolver_state = {.resolve_count = 0};
+    query_run run = {
+        .expression_text = TEXT("collection('c'), collection('http://example.com/c'), "
+                                "collection(), uri-collection('c') instance of xs:anyURI"),
+        .static_context = {.static_base_uri = TEXT("http://example.com/")},
+        .dynamic_context = {.resource_resolver = {.state = &resolver_state,
+                                                  .operations =
+                                                      &collection_resolver_operations}}};
+    SXML_TEST_EXPECT(state, run_query(&test_fixture, &run) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, output_is(&test_fixture, TEXT("1 2 1 2 \"default\" true()")));
+    SXML_TEST_EXPECT(state, resolver_state.resolve_count == 3);
+    run.expression_text = TEXT("collection('other')");
+    SXML_TEST_EXPECT(state, run_query(&test_fixture, &run) == SXML_STATUS_DYNAMIC_ERROR);
+    SXML_TEST_EXPECT(state, error_code_is(&run, TEXT("FODC0002")));
+    /* The table resolver has no collections. */
+    run.dynamic_context = (sxml_dynamic_context_configuration){.has_context_value = false};
+    run.expression_text = TEXT("uri-collection()");
+    SXML_TEST_EXPECT(state, run_query(&test_fixture, &run) == SXML_STATUS_DYNAMIC_ERROR);
+    SXML_TEST_EXPECT(state, error_code_is(&run, TEXT("FODC0002")));
+    SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
+}
+
+/* The environment variables and default language of the dynamic context
+   (XPath 4.0, section 2.2.2). */
+static void test_environment_variables_and_default_language(sxml_test_state *state) {
+    fixture test_fixture;
+    SXML_TEST_REQUIRE(state, fixture_create(&(fixture_options){.failing_allocation_number = 0},
+                                            &test_fixture) == SXML_STATUS_OK);
+    query_run run = {.expression_text = TEXT(
+                         "available-environment-variables(), environment-variable('HOME'), "
+                         "empty(environment-variable('PATH')), default-language()")};
+    SXML_TEST_EXPECT(state, run_query(&test_fixture, &run) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, output_is(&test_fixture, TEXT("true() \"en\"")));
+    const sxml_environment_variable variables[] = {
+        {.variable_name = TEXT("HOME"), .variable_value = TEXT("/home/x")},
+        {.variable_name = TEXT("SHELL"), .variable_value = TEXT("sh")},
+    };
+    run.dynamic_context = (sxml_dynamic_context_configuration){
+        .default_language = TEXT("fr-CA"),
+        .environment_variables = {.environment_variables = variables,
+                                  .environment_variable_count = 2}};
+    SXML_TEST_EXPECT(state, run_query(&test_fixture, &run) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, output_is(&test_fixture,
+                                      TEXT("\"HOME\" \"SHELL\" \"/home/x\" true() \"fr-CA\"")));
+    run.expression_text = TEXT("default-language() instance of xs:language");
+    SXML_TEST_EXPECT(state, run_query(&test_fixture, &run) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, output_is(&test_fixture, TEXT("true()")));
+    /* Breaches of the dynamic context's rules. */
+    run.dynamic_context.default_language = TEXT("not a language");
+    SXML_TEST_EXPECT(state, run_query(&test_fixture, &run) == SXML_STATUS_INVALID_ARGUMENT);
+    run.dynamic_context.default_language = TEXT("en");
+    const sxml_environment_variable duplicates[] = {
+        {.variable_name = TEXT("A"), .variable_value = TEXT("1")},
+        {.variable_name = TEXT("A"), .variable_value = TEXT("2")},
+    };
+    run.dynamic_context.environment_variables = (sxml_environment_variable_view){
+        .environment_variables = duplicates, .environment_variable_count = 2};
+    SXML_TEST_EXPECT(state, run_query(&test_fixture, &run) == SXML_STATUS_INVALID_ARGUMENT);
+    SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
+}
+
+/* fn:trace and fn:message reach the trace sink: the dynamic context's,
+   else the processor's (null: discarded); sxml_stream_trace_sink writes
+   one line per event (include/sxml/processor.h). */
+static void test_trace_sink_receives_trace_and_message(sxml_test_state *state) {
+    fixture test_fixture;
+    SXML_TEST_REQUIRE(state, fixture_create(&(fixture_options){.failing_allocation_number = 0},
+                                            &test_fixture) == SXML_STATUS_OK);
+    sxml_output_buffer *trace_buffer = NULL;
+    SXML_TEST_REQUIRE(state,
+                      sxml_output_buffer_create(
+                          sxml_default_allocator(),
+                          &(sxml_output_buffer_configuration){
+                              .allocator = sxml_default_allocator(), .maximum_byte_count = 0},
+                          &trace_buffer) == SXML_STATUS_OK);
+    const sxml_output_stream trace_stream = sxml_output_buffer_as_output_stream(trace_buffer);
+    query_run run = {.expression_text = TEXT("trace((1, 'a'), 'label'), message(('x', 2))")};
+    SXML_TEST_EXPECT(state, run_query(&test_fixture, &run) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, output_is(&test_fixture, TEXT("1 \"a\"")));
+    run.dynamic_context.trace_sink = sxml_stream_trace_sink(&trace_stream);
+    SXML_TEST_EXPECT(state, run_query(&test_fixture, &run) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, output_is(&test_fixture, TEXT("1 \"a\"")));
+    SXML_TEST_EXPECT(state, sxml_byte_view_equals(sxml_output_buffer_get_bytes(trace_buffer),
+                                                  TEXT("label: 1 \"a\"\n\"x\" 2\n")));
+    /* A failing sink stops the evaluation with its status. */
+    sxml_output_buffer_destroy(trace_buffer);
+    SXML_TEST_REQUIRE(state,
+                      sxml_output_buffer_create(
+                          sxml_default_allocator(),
+                          &(sxml_output_buffer_configuration){
+                              .allocator = sxml_default_allocator(), .maximum_byte_count = 2},
+                          &trace_buffer) == SXML_STATUS_OK);
+    const sxml_output_stream small_stream = sxml_output_buffer_as_output_stream(trace_buffer);
+    run.dynamic_context.trace_sink = sxml_stream_trace_sink(&small_stream);
+    SXML_TEST_EXPECT(state, run_query(&test_fixture, &run) == SXML_STATUS_LIMIT_EXCEEDED);
+    sxml_output_buffer_destroy(trace_buffer);
+    SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
+}
+
+/* Decimal formats and collations of the static context are checked by
+   compilation (include/sxml/xpath.h, D104). */
+static void test_static_context_checks_decimal_formats_and_collations(
+    sxml_test_state *state) {
+    fixture test_fixture;
+    SXML_TEST_REQUIRE(state, fixture_create(&(fixture_options){.failing_allocation_number = 0},
+                                            &test_fixture) == SXML_STATUS_OK);
+    const sxml_decimal_format_property good_properties[] = {
+        {.property_kind = SXML_DECIMAL_FORMAT_PROPERTY_DECIMAL_SEPARATOR,
+         .property_value = TEXT(",")},
+        {.property_kind = SXML_DECIMAL_FORMAT_PROPERTY_GROUPING_SEPARATOR,
+         .property_value = TEXT(".")},
+        {.property_kind = SXML_DECIMAL_FORMAT_PROPERTY_PERCENT, .property_value = TEXT("%:pc")},
+    };
+    const sxml_decimal_format formats[] = {
+        {.format_name = {.index = 0},
+         .decimal_format_properties = {.decimal_format_properties = good_properties,
+                                       .decimal_format_property_count = 3}},
+        {.format_name = fixture_name(&test_fixture, TEXT("other")),
+         .decimal_format_properties = {.decimal_format_properties = good_properties + 2,
+                                       .decimal_format_property_count = 1}},
+    };
+    const sxml_collation_binding bindings[] = {
+        {.collation_uri = TEXT("http://example.com/my-collation"),
+         .target_collation_uri =
+             TEXT("http://www.w3.org/2005/xpath-functions/collation/codepoint")},
+    };
+    query_run run = {
+        .expression_text = TEXT("format-number(1234.5, '#.##0,0'), format-number(0.5, '0%', "
+                                "'other'), default-collation(), compare('a', 'b')"),
+        .static_context = {.decimal_formats = {.decimal_formats = formats,
+                                               .decimal_format_count = 2},
+                           .default_collation_uri = TEXT("http://example.com/my-collation"),
+                           .collation_bindings = {.collation_bindings = bindings,
+                                                  .collation_binding_count = 1}}};
+    SXML_TEST_EXPECT(state, run_query(&test_fixture, &run) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, output_is(&test_fixture,
+                                      TEXT("\"1.234,5\" \"50pc\" "
+                                           "\"http://example.com/my-collation\" -1")));
+    run.expression_text = TEXT("format-number(1, '0', 'unknown')");
+    SXML_TEST_EXPECT(state, run_query(&test_fixture, &run) == SXML_STATUS_DYNAMIC_ERROR);
+    SXML_TEST_EXPECT(state, error_code_is(&run, TEXT("FODF1280")));
+    run.expression_text = TEXT("1");
+    /* Markers that are not distinct. */
+    const sxml_decimal_format_property clashing_properties[] = {
+        {.property_kind = SXML_DECIMAL_FORMAT_PROPERTY_DECIMAL_SEPARATOR,
+         .property_value = TEXT(",")},
+    };
+    const sxml_decimal_format clashing[] = {
+        {.format_name = {.index = 0},
+         .decimal_format_properties = {.decimal_format_properties = clashing_properties,
+                                       .decimal_format_property_count = 1}},
+    };
+    run.static_context.decimal_formats =
+        (sxml_decimal_format_view){.decimal_formats = clashing, .decimal_format_count = 1};
+    SXML_TEST_EXPECT(state, run_query(&test_fixture, &run) == SXML_STATUS_INVALID_ARGUMENT);
+    /* A kind twice; two formats of one name. */
+    const sxml_decimal_format_property twice[] = {good_properties[2], good_properties[2]};
+    const sxml_decimal_format repeated[] = {
+        {.format_name = {.index = 0},
+         .decimal_format_properties = {.decimal_format_properties = twice,
+                                       .decimal_format_property_count = 2}},
+    };
+    run.static_context.decimal_formats =
+        (sxml_decimal_format_view){.decimal_formats = repeated, .decimal_format_count = 1};
+    SXML_TEST_EXPECT(state, run_query(&test_fixture, &run) == SXML_STATUS_INVALID_ARGUMENT);
+    const sxml_decimal_format same_names[] = {formats[1], formats[1]};
+    run.static_context.decimal_formats =
+        (sxml_decimal_format_view){.decimal_formats = same_names, .decimal_format_count = 2};
+    SXML_TEST_EXPECT(state, run_query(&test_fixture, &run) == SXML_STATUS_INVALID_ARGUMENT);
+    run.static_context.decimal_formats =
+        (sxml_decimal_format_view){.decimal_formats = NULL, .decimal_format_count = 0};
+    /* Unknown collations. */
+    run.static_context.default_collation_uri = TEXT("http://example.com/unknown");
+    SXML_TEST_EXPECT(state, run_query(&test_fixture, &run) == SXML_STATUS_INVALID_ARGUMENT);
+    run.static_context.default_collation_uri = (sxml_byte_view){.bytes = NULL, .byte_count = 0};
+    const sxml_collation_binding bad_bindings[] = {
+        {.collation_uri = TEXT("http://example.com/x"),
+         .target_collation_uri = TEXT("http://example.com/unknown")},
+    };
+    run.static_context.collation_bindings = (sxml_collation_binding_view){
+        .collation_bindings = bad_bindings, .collation_binding_count = 1};
+    SXML_TEST_EXPECT(state, run_query(&test_fixture, &run) == SXML_STATUS_INVALID_ARGUMENT);
+    SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
 }
 
 static void test_compile_and_evaluate_survive_every_allocation_failure(
@@ -1000,7 +1328,8 @@ static void test_compile_and_evaluate_survive_every_allocation_failure(
     const sxml_byte_view text = TEXT(
         "let $f := function($x) { $x + 1 } return ($f(1) eq 2, "
         "fold-left(1 to 2, 0, op('+')), parse-json('[\"a\",\"b\"]')?2, "
-        "count(doc('works.xml')//employee))");
+        "count(doc('works.xml')//employee), unparsed-text-lines('lines.txt'), "
+        "json-doc('data.json')?a?1)");
     sxml_status status = SXML_STATUS_OUT_OF_MEMORY;
     uint64_t failing_number = 1;
     for (; status != SXML_STATUS_OK && failing_number < 100000; failing_number += 1) {
@@ -1042,6 +1371,15 @@ static const sxml_test_case xpath_test_cases[] = {
      .function = test_sequence_types_parse_from_text},
     {.name = "expression_lifecycle_checks_its_arguments",
      .function = test_expression_lifecycle_checks_its_arguments},
+    {.name = "text_resources_decode", .function = test_text_resources_decode},
+    {.name = "collections_come_from_the_resolver",
+     .function = test_collections_come_from_the_resolver},
+    {.name = "environment_variables_and_default_language",
+     .function = test_environment_variables_and_default_language},
+    {.name = "trace_sink_receives_trace_and_message",
+     .function = test_trace_sink_receives_trace_and_message},
+    {.name = "static_context_checks_decimal_formats_and_collations",
+     .function = test_static_context_checks_decimal_formats_and_collations},
     {.name = "compile_and_evaluate_survive_every_allocation_failure",
      .function = test_compile_and_evaluate_survive_every_allocation_failure},
 };

@@ -20,13 +20,16 @@
 #include "sxml/xpath.h"
 
 #include "evaluator_internal.h"
+#include "format_internal.h"
 #include "name_internal.h"
 #include "processor_internal.h"
 #include "xdm_internal.h"
 #include "xpath_ast_internal.h"
 #include "xpath_static_internal.h"
+#include "sxml/string.h"
 
 #include <stdalign.h>
+#include <stddef.h>
 #include <string.h>
 
 struct sxml_xpath_expression {
@@ -43,6 +46,119 @@ struct sxml_xpath_expression {
 };
 
 /* ------------------------------------------------------- Static context */
+
+/* True when the text is well-formed UTF-8 (views of the configuration
+   become xs:string items and copies). */
+static bool sxml_text_is_valid(sxml_byte_view text) {
+    if (text.byte_count == 0) {
+        return true;
+    }
+    sxml_utf8_validation validation;
+    return text.bytes != NULL && sxml_utf8_validate(text, &validation) == SXML_STATUS_OK;
+}
+
+/*
+ * Checks one decimal format (F&O 4.0, section 4.9.1, "Defining a decimal
+ * format"): each property kind at most once, then every form and the
+ * distinct markers through sxml_decimal_format_apply (D119).
+ */
+static bool sxml_decimal_format_is_valid(const sxml_decimal_format *format) {
+    const sxml_decimal_format_property_view properties = format->decimal_format_properties;
+    if (properties.decimal_format_property_count > 0 &&
+        properties.decimal_format_properties == NULL) {
+        return false;
+    }
+    for (size_t property_index = 0;
+         property_index < properties.decimal_format_property_count; property_index += 1) {
+        const sxml_decimal_format_property *property =
+            &properties.decimal_format_properties[property_index];
+        if (!sxml_text_is_valid(property->property_value)) {
+            return false;
+        }
+        for (size_t earlier_index = 0; earlier_index < property_index; earlier_index += 1) {
+            if (properties.decimal_format_properties[earlier_index].property_kind ==
+                property->property_kind) {
+                return false;
+            }
+        }
+    }
+    const sxml_decimal_format_settings defaults = sxml_decimal_format_default_settings();
+    sxml_decimal_format_settings settings;
+    return sxml_decimal_format_apply(
+               &(sxml_decimal_format_change){.base_settings = &defaults,
+                                             .decimal_format_properties = properties},
+               &settings) == SXML_STATUS_OK;
+}
+
+/* Checks the decimal formats of a static context: valid formats, names
+   the pool issued and distinct (XPath 4.0, section 2.2.1, "statically
+   known decimal formats"). */
+static bool sxml_decimal_formats_are_valid(const sxml_processor *processor,
+                                           sxml_decimal_format_view formats) {
+    if (formats.decimal_format_count > 0 && formats.decimal_formats == NULL) {
+        return false;
+    }
+    const uint32_t name_limit = sxml_name_pool_name_limit(processor->name_pool);
+    for (size_t format_index = 0; format_index < formats.decimal_format_count;
+         format_index += 1) {
+        const sxml_decimal_format *format = &formats.decimal_formats[format_index];
+        if (format->format_name.index >= name_limit || !sxml_decimal_format_is_valid(format)) {
+            return false;
+        }
+        for (size_t earlier_index = 0; earlier_index < format_index; earlier_index += 1) {
+            if (formats.decimal_formats[earlier_index].format_name.index ==
+                format->format_name.index) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+/* True when uri is a collation sxml implements or one of bindings. */
+static bool sxml_collation_is_known(sxml_byte_view uri, sxml_collation_binding_view bindings) {
+    for (size_t binding_index = 0; binding_index < bindings.collation_binding_count;
+         binding_index += 1) {
+        if (sxml_byte_view_equals(bindings.collation_bindings[binding_index].collation_uri,
+                                  uri)) {
+            return true;
+        }
+    }
+    return sxml_collation_is_supported(uri);
+}
+
+/*
+ * Checks the collations of a static context (XPath 4.0, section 2.2.1,
+ * "statically known collations", "default collation"): bindings with
+ * distinct absolute URIs sxml does not know already, each standing for a
+ * supported collation; a default collation among the known ones.
+ */
+static bool sxml_collations_are_valid(const sxml_static_context_configuration *context) {
+    const sxml_collation_binding_view bindings = context->collation_bindings;
+    if (bindings.collation_binding_count > 0 && bindings.collation_bindings == NULL) {
+        return false;
+    }
+    for (size_t binding_index = 0; binding_index < bindings.collation_binding_count;
+         binding_index += 1) {
+        const sxml_collation_binding *binding = &bindings.collation_bindings[binding_index];
+        if (!sxml_text_is_valid(binding->collation_uri) ||
+            !sxml_uri_has_scheme(binding->collation_uri) ||
+            sxml_collation_is_supported(binding->collation_uri) ||
+            !sxml_text_is_valid(binding->target_collation_uri) ||
+            !sxml_collation_is_supported(binding->target_collation_uri)) {
+            return false;
+        }
+        for (size_t earlier_index = 0; earlier_index < binding_index; earlier_index += 1) {
+            if (sxml_byte_view_equals(bindings.collation_bindings[earlier_index].collation_uri,
+                                      binding->collation_uri)) {
+                return false;
+            }
+        }
+    }
+    return context->default_collation_uri.byte_count == 0 ||
+           (sxml_text_is_valid(context->default_collation_uri) &&
+            sxml_collation_is_known(context->default_collation_uri, bindings));
+}
 
 /* Checks the identifiers of the static context against the processor's
    name pool and type registry: values another processor issued would
@@ -86,8 +202,10 @@ static bool sxml_static_context_is_valid(const sxml_processor *processor,
         }
     }
     /* XPath 4.0, section 2.2.1: the static base URI is an absolute URI. */
-    return context->static_base_uri.byte_count == 0 ||
-           sxml_uri_has_scheme(context->static_base_uri);
+    return (context->static_base_uri.byte_count == 0 ||
+            sxml_uri_has_scheme(context->static_base_uri)) &&
+           sxml_decimal_formats_are_valid(processor, context->decimal_formats) &&
+           sxml_collations_are_valid(context);
 }
 
 static sxml_xpath_static_context sxml_processor_static_context(
@@ -98,7 +216,10 @@ static sxml_xpath_static_context sxml_processor_static_context(
         .namespace_bindings = context->namespace_bindings,
         .variable_declarations = context->variable_declarations,
         .function_table = sxml_processor_get_function_table(processor),
-        .static_base_uri = context->static_base_uri};
+        .static_base_uri = context->static_base_uri,
+        .unit_static_context = {.decimal_formats = context->decimal_formats,
+                                .default_collation_uri = context->default_collation_uri,
+                                .collation_bindings = context->collation_bindings}};
 }
 
 /* ------------------------------------------------------------ Expressions */
@@ -225,10 +346,72 @@ void sxml_xpath_expression_destroy(sxml_xpath_expression *expression) {
 
 /* ------------------------------------------------------------ Evaluation */
 
+/* True for an ASCII letter. */
+static bool sxml_byte_is_ascii_letter(uint8_t byte) {
+    return (byte >= 'a' && byte <= 'z') || (byte >= 'A' && byte <= 'Z');
+}
+
+/* True when text is an xs:language: [a-zA-Z]{1,8}(-[a-zA-Z0-9]{1,8})*
+   (XSD 1.1 Part 2, section 3.4.3). */
+static bool sxml_text_is_language(sxml_byte_view text) {
+    size_t part_byte_count = 0;
+    bool is_first_part = true;
+    for (size_t byte_index = 0; byte_index < text.byte_count; byte_index += 1) {
+        const uint8_t byte = text.bytes[byte_index];
+        if (byte == '-') {
+            if (part_byte_count == 0) {
+                return false;
+            }
+            part_byte_count = 0;
+            is_first_part = false;
+            continue;
+        }
+        part_byte_count += 1;
+        const bool is_allowed = sxml_byte_is_ascii_letter(byte) ||
+                                (!is_first_part && byte >= '0' && byte <= '9');
+        if (part_byte_count > 8 || !is_allowed) {
+            return false;
+        }
+    }
+    return part_byte_count > 0;
+}
+
+/* Checks the environment variables: UTF-8 names and values, names
+   distinct (XPath 4.0, section 2.2.2: "the name is unique"). */
+static bool sxml_environment_variables_are_valid(sxml_environment_variable_view variables) {
+    if (variables.environment_variable_count > 0 && variables.environment_variables == NULL) {
+        return false;
+    }
+    for (size_t variable_index = 0; variable_index < variables.environment_variable_count;
+         variable_index += 1) {
+        const sxml_environment_variable *variable =
+            &variables.environment_variables[variable_index];
+        if (!sxml_text_is_valid(variable->variable_name) ||
+            !sxml_text_is_valid(variable->variable_value)) {
+            return false;
+        }
+        for (size_t earlier_index = 0; earlier_index < variable_index; earlier_index += 1) {
+            if (sxml_byte_view_equals(variables.environment_variables[earlier_index].variable_name,
+                                      variable->variable_name)) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
 /* Checks what the dynamic context's rules forbid: duplicate variable and
-   document names, an available document that is not a document node. */
+   document names, an available document that is not a document node, a
+   default language that is not an xs:language, environment variables
+   that break the rules above. */
 static bool sxml_dynamic_context_configuration_is_valid(
     const sxml_dynamic_context_configuration *context) {
+    if ((context->default_language.byte_count > 0 &&
+         (context->default_language.bytes == NULL ||
+          !sxml_text_is_language(context->default_language))) ||
+        !sxml_environment_variables_are_valid(context->environment_variables)) {
+        return false;
+    }
     const sxml_variable_binding_view bindings = context->variable_bindings;
     if (bindings.variable_binding_count > 0 && bindings.variable_bindings == NULL) {
         return false;
@@ -345,10 +528,17 @@ static sxml_status sxml_evaluation_resources_acquire(
         (sxml_memory_view){.bytes = (uint8_t *)&resources->loader_memory,
                            .byte_count = sizeof(resources->loader_memory)},
         &(sxml_processor_document_loader_configuration){
-            .processor = processor,
-            .resource_resolver = context->resource_resolver.operations == NULL
-                                     ? processor->resource_resolver
-                                     : context->resource_resolver,
+            .evaluation_environment =
+                {.processor = processor,
+                 .resource_resolver = context->resource_resolver.operations == NULL
+                                          ? processor->resource_resolver
+                                          : context->resource_resolver,
+                 .trace_sink = context->trace_sink.operations == NULL ? processor->trace_sink
+                                                                      : context->trace_sink,
+                 .default_language = context->default_language.byte_count == 0
+                                         ? SXML_BYTE_VIEW_FROM_LITERAL("en")
+                                         : context->default_language,
+                 .environment_variables = context->environment_variables},
             .available_documents = context->available_documents},
         &resources->loader);
     if (status == SXML_STATUS_OK) {

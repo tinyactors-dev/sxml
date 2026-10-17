@@ -215,6 +215,8 @@ typedef struct number_option_values {
     sxml_decimal_format_property properties[SXML_FORMAT_OPTION_COUNT];
     sxml_sequence values[SXML_FORMAT_OPTION_COUNT];
     size_t property_count;
+    /* The format-name option, borrowed from the map; empty when absent. */
+    sxml_sequence format_name;
 } number_option_values;
 
 static void release_options(number_option_values *options) {
@@ -238,13 +240,166 @@ static bool read_item_text(sxml_item item, sxml_byte_view *text) {
     return true;
 }
 
+/* True for an XML whitespace byte ([3] S). */
+static bool byte_is_space(uint8_t byte) {
+    return byte == ' ' || byte == '\t' || byte == '\n' || byte == '\r';
+}
+
+/* A decimal format name as text: a namespace URI and a local name. */
+typedef struct format_name_text {
+    sxml_byte_view namespace_uri;
+    sxml_byte_view local_name;
+} format_name_text;
+
+/* Resolves prefix with the static namespaces of the running unit (XPath
+   4.0, section 2.2.1); false when it is not bound. */
+static bool resolve_prefix(const sxml_function_call *call, sxml_byte_view prefix,
+                           sxml_byte_view *namespace_uri) {
+    const sxml_name_pool *name_pool = sxml_item_heap_get_name_pool(call->item_heap);
+    const sxml_ir_unit *unit = sxml_dynamic_context_get_running_unit(call->dynamic_context);
+    if (unit == NULL) {
+        return false;
+    }
+    const sxml_namespace_binding_view bindings = sxml_ir_unit_get_static_namespaces(unit);
+    for (size_t binding_index = 0; binding_index < bindings.namespace_binding_count;
+         binding_index += 1) {
+        const sxml_namespace_binding *binding = &bindings.namespace_bindings[binding_index];
+        sxml_byte_view bound_prefix = {.bytes = NULL, .byte_count = 0};
+        if (binding->namespace_prefix.index != 0 &&
+            sxml_name_pool_get_namespace_prefix(name_pool, binding->namespace_prefix,
+                                                &bound_prefix) == SXML_STATUS_OK &&
+            sxml_byte_view_equals(bound_prefix, prefix)) {
+            return sxml_name_pool_get_namespace_uri(name_pool, binding->namespace_uri,
+                                                    namespace_uri) == SXML_STATUS_OK;
+        }
+    }
+    return false;
+}
+
 /*
- * The format-name option, type (xs:NCName | xs:QName)?: an xs:QName, or
- * text that is relabelled as xs:NCName (XPath 4.0, section 3.4.3). The
- * static context names no decimal format yet (D119), so a present name
- * is FODF1280; one of another type is XPTY0004.
+ * Reads a decimal format name (F&O 4.0, section 4.9.2: an xs:QName, or a
+ * string holding a lexical QName or URIQualifiedName, an unprefixed name
+ * being in no namespace) into *name. False for a string that is no name
+ * or has an unbound prefix: no format has that name.
  */
-static sxml_status read_format_name(const sxml_function_call *call, sxml_sequence value) {
+static bool read_format_name_text(const sxml_function_call *call, sxml_item item,
+                                  format_name_text *name) {
+    const sxml_name_pool *name_pool = sxml_item_heap_get_name_pool(call->item_heap);
+    *name = (format_name_text){.namespace_uri = {.bytes = NULL, .byte_count = 0},
+                               .local_name = {.bytes = NULL, .byte_count = 0}};
+    sxml_atomic_datum datum;
+    if (sxml_atomic_item_get_datum(item, &datum) != SXML_STATUS_OK) {
+        return false;
+    }
+    if (datum.datum_kind == SXML_DATUM_KIND_QNAME) {
+        sxml_name_parts parts;
+        return sxml_name_pool_get_name_parts(name_pool, datum.datum_details.qname.expanded_name,
+                                             &parts) == SXML_STATUS_OK &&
+               sxml_name_pool_get_namespace_uri(name_pool, parts.namespace_uri,
+                                                &name->namespace_uri) == SXML_STATUS_OK &&
+               (name->local_name = parts.local_name, true);
+    }
+    sxml_byte_view text = {.bytes = NULL, .byte_count = 0};
+    if (!read_item_text(item, &text)) {
+        return false;
+    }
+    /* The name is an xs:QName or xs:NCName after whitespace collapsing
+       (XSD 1.1 Part 2, section 4.3.6): surrounding spaces are dropped. */
+    while (text.byte_count > 0 && byte_is_space(text.bytes[0])) {
+        text = (sxml_byte_view){.bytes = text.bytes + 1, .byte_count = text.byte_count - 1};
+    }
+    while (text.byte_count > 0 && byte_is_space(text.bytes[text.byte_count - 1])) {
+        text.byte_count -= 1;
+    }
+    if (text.byte_count == 0) {
+        return false;
+    }
+    if (text.byte_count > 2 && text.bytes[0] == 'Q' && text.bytes[1] == '{') {
+        for (size_t byte_index = 2; byte_index < text.byte_count; byte_index += 1) {
+            if (text.bytes[byte_index] == '}') {
+                name->namespace_uri =
+                    (sxml_byte_view){.bytes = text.bytes + 2, .byte_count = byte_index - 2};
+                name->local_name = (sxml_byte_view){.bytes = text.bytes + byte_index + 1,
+                                                    .byte_count = text.byte_count - byte_index - 1};
+                return name->local_name.byte_count > 0;
+            }
+        }
+        return false;
+    }
+    for (size_t byte_index = 0; byte_index < text.byte_count; byte_index += 1) {
+        if (text.bytes[byte_index] == ':') {
+            name->local_name = (sxml_byte_view){.bytes = text.bytes + byte_index + 1,
+                                                .byte_count = text.byte_count - byte_index - 1};
+            return resolve_prefix(call,
+                                  (sxml_byte_view){.bytes = text.bytes, .byte_count = byte_index},
+                                  &name->namespace_uri);
+        }
+    }
+    name->local_name = text;
+    return true;
+}
+
+/* True when identifier names name. */
+static bool format_name_is(const sxml_name_pool *name_pool, sxml_name_identifier identifier,
+                           const format_name_text *name) {
+    sxml_name_parts parts;
+    sxml_byte_view namespace_uri = {.bytes = NULL, .byte_count = 0};
+    return identifier.index != 0 &&
+           sxml_name_pool_get_name_parts(name_pool, identifier, &parts) == SXML_STATUS_OK &&
+           sxml_name_pool_get_namespace_uri(name_pool, parts.namespace_uri, &namespace_uri) ==
+               SXML_STATUS_OK &&
+           sxml_byte_view_equals(parts.local_name, name->local_name) &&
+           sxml_byte_view_equals(namespace_uri, name->namespace_uri);
+}
+
+/*
+ * Finds the properties of the decimal format the name item names among
+ * the statically known decimal formats of the running unit (XPath 4.0,
+ * section 2.2.1; read lexically, D131), or of the unnamed one when
+ * has_name is false (none declared: the defaults, no properties).
+ * FODF1280 for a name the static context does not know.
+ */
+typedef struct format_name_request {
+    bool has_name;
+    sxml_item name;
+} format_name_request;
+
+static sxml_status find_decimal_format(const sxml_function_call *call,
+                                       format_name_request request,
+                                       sxml_decimal_format_property_view *properties) {
+    *properties = (sxml_decimal_format_property_view){.decimal_format_properties = NULL,
+                                                      .decimal_format_property_count = 0};
+    const sxml_ir_unit *unit = call->dynamic_context == NULL
+                                   ? NULL
+                                   : sxml_dynamic_context_get_running_unit(call->dynamic_context);
+    const sxml_decimal_format_view formats =
+        unit == NULL ? (sxml_decimal_format_view){.decimal_formats = NULL,
+                                                  .decimal_format_count = 0}
+                     : unit->static_context.decimal_formats;
+    format_name_text name;
+    if (request.has_name && !read_format_name_text(call, request.name, &name)) {
+        return sxml_function_library_report(call, &unknown_decimal_format_error);
+    }
+    const sxml_name_pool *name_pool = sxml_item_heap_get_name_pool(call->item_heap);
+    for (size_t format_index = 0; format_index < formats.decimal_format_count;
+         format_index += 1) {
+        const sxml_decimal_format *format = &formats.decimal_formats[format_index];
+        if (request.has_name ? format_name_is(name_pool, format->format_name, &name)
+                             : format->format_name.index == 0) {
+            *properties = format->decimal_format_properties;
+            return SXML_STATUS_OK;
+        }
+    }
+    if (request.has_name) {
+        return sxml_function_library_report(call, &unknown_decimal_format_error);
+    }
+    return SXML_STATUS_OK;
+}
+
+/* Checks the type of the format-name option, (xs:NCName | xs:QName)?:
+   an xs:QName or text (relabelled as xs:NCName, XPath 4.0, section
+   3.4.3); another type is XPTY0004. */
+static sxml_status check_format_name(const sxml_function_call *call, sxml_sequence value) {
     if (sxml_sequence_get_representation(value) == SXML_SEQUENCE_REPRESENTATION_EMPTY) {
         return SXML_STATUS_OK;
     }
@@ -258,7 +413,7 @@ static sxml_status read_format_name(const sxml_function_call *call, sxml_sequenc
         (datum.datum_kind != SXML_DATUM_KIND_QNAME && !read_item_text(value.content, &text))) {
         return sxml_function_library_report(call, &invalid_format_name_error);
     }
-    return sxml_function_library_report(call, &unknown_decimal_format_error);
+    return SXML_STATUS_OK;
 }
 
 /* Coerces an option value to xs:string (the type of every property
@@ -338,7 +493,8 @@ static sxml_status read_options_map(const sxml_function_call *call, sxml_item ma
             return sxml_function_library_report(call, &unknown_option_error);
         }
         if (option_index == SXML_FORMAT_NAME_OPTION) {
-            status = read_format_name(call, entry.value);
+            status = check_format_name(call, entry.value);
+            options->format_name = entry.value;
             continue;
         }
         sxml_sequence coerced = sxml_sequence_empty();
@@ -537,15 +693,32 @@ static sxml_status read_decimal_format(const sxml_function_call *call,
     if (status != SXML_STATUS_OK) {
         return status;
     }
+    format_name_request name_request = {.has_name = false, .name = {.representation = 0}};
     if (argument.has_item && sxml_item_get_kind(argument.item) == SXML_ITEM_KIND_ATOMIC) {
-        /* A lexical QName or URIQualifiedName (section 4.9.2): the static
-           context declares no named decimal format yet (D119). */
-        return sxml_function_library_report(call, &unknown_decimal_format_error);
-    }
-    if (argument.has_item) {
+        /* A lexical QName or URIQualifiedName (section 4.9.2). */
+        name_request = (format_name_request){.has_name = true, .name = argument.item};
+    } else if (argument.has_item) {
         status = read_options_map(call, argument.item, options);
+        if (status == SXML_STATUS_OK && sxml_sequence_get_representation(options->format_name) ==
+                                            SXML_SEQUENCE_REPRESENTATION_SINGLE_ITEM) {
+            name_request = (format_name_request){.has_name = true,
+                                                 .name = options->format_name.content};
+        }
     }
-    const sxml_decimal_format_settings base_settings = sxml_decimal_format_default_settings();
+    sxml_decimal_format_property_view format_properties;
+    if (status == SXML_STATUS_OK) {
+        status = find_decimal_format(call, name_request, &format_properties);
+    }
+    /* The named (or unnamed) format, then the map's properties over it. */
+    const sxml_decimal_format_settings default_settings = sxml_decimal_format_default_settings();
+    sxml_decimal_format_settings base_settings = default_settings;
+    if (status == SXML_STATUS_OK &&
+        sxml_decimal_format_apply(
+            &(sxml_decimal_format_change){.base_settings = &default_settings,
+                                          .decimal_format_properties = format_properties},
+            &base_settings) != SXML_STATUS_OK) {
+        status = sxml_function_library_report(call, &invalid_decimal_format_error);
+    }
     if (status == SXML_STATUS_OK &&
         sxml_decimal_format_apply(
             &(sxml_decimal_format_change){
@@ -571,7 +744,8 @@ static sxml_status call_format_number(const sxml_function_call *call, sxml_seque
     if (status == SXML_STATUS_OK) {
         status = sxml_function_library_read_string_argument(call, 1, &picture_string);
     }
-    number_option_values options = {.property_count = 0};
+    number_option_values options = {.property_count = 0,
+                                    .format_name = {.content = {.representation = 0}}};
     sxml_decimal_format_settings settings;
     if (status == SXML_STATUS_OK) {
         status = read_decimal_format(call, &options, &settings);

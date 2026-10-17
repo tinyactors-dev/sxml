@@ -1,11 +1,15 @@
 /*
- * The error part of the function library (packet 1.20, D78): fn:error and
- * fn:trace (F&O 4.0, section 3).
+ * The error part of the function library (packet 1.20, D78): fn:error,
+ * fn:trace and fn:message (F&O 4.0, sections 3 and 21.2). The trace
+ * functions hand their input to the trace sink of the evaluation
+ * environment (src/processor_internal.h; packet 2.12, D131).
  *
  * Golden file: src/memory.c (layout and comments); rows as in
  * src/function_library_internal.h.
  */
 #include "function_library_core_internal.h"
+#include "processor_internal.h"
+#include "sxml/processor.h"
 
 /* fn:error($code := (), $description := (), $value := ()) (F&O 4.0,
    section 3.1.1): raises the error; without a code it is err:FOER0000.
@@ -70,14 +74,60 @@ static sxml_status call_error(const sxml_function_call *call, sxml_sequence *res
         call->error_record);
 }
 
-/* fn:trace($input, $label := ()) (F&O 4.0, section 3.2.1): returns
-   $input. The library never prints (docs/C_GUIDELINES.md), and Phase 1
-   has no trace destination, so the label goes nowhere. */
+/* Hands $input and $label to the trace sink of the evaluation, as an
+   event of kind; the null sink, and a call outside the processor's
+   evaluations, discard it. */
+static sxml_status send_trace_event(const sxml_function_call *call,
+                                    sxml_trace_event_kind kind) {
+    const sxml_processor_document_loader *loader =
+        sxml_processor_document_loader_from_dynamic_context(call->dynamic_context);
+    if (loader == NULL) {
+        return SXML_STATUS_OK;
+    }
+    sxml_string label = {.utf8 = {.bytes = NULL, .byte_count = 0}};
+    const sxml_status status = sxml_function_library_read_string_argument(call, 1, &label);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_processor_document_loader_trace(
+        loader, &(sxml_trace_event){
+                    .trace_event_kind = kind,
+                    .label = label.utf8,
+                    .value = sxml_function_library_get_argument(call, 0),
+                    .is_terminating = false,
+                    .error_code = {.namespace_uri = {.bytes = NULL, .byte_count = 0},
+                                   .local_name = {.bytes = NULL, .byte_count = 0},
+                                   .namespace_prefix = {.bytes = NULL, .byte_count = 0}},
+                    .location = {.source_name = {.bytes = NULL, .byte_count = 0},
+                                 .line_number = 0,
+                                 .column_number = 0,
+                                 .byte_offset = 0},
+                    .processor = NULL});
+}
+
+/* fn:trace($input as item()*, $label as xs:string? := ()) as item()*
+   (F&O 4.0, section 21.2.1): returns $input; the trace sink receives it
+   with the label. */
 static sxml_status call_trace(const sxml_function_call *call, sxml_sequence *result) {
+    const sxml_status status = send_trace_event(call, SXML_TRACE_EVENT_KIND_TRACE);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
     const sxml_sequence input = sxml_function_library_get_argument(call, 0);
     sxml_sequence_retain(input);
     *result = input;
     return SXML_STATUS_OK;
+}
+
+/* fn:message($input as item()*, $label as xs:string? := ()) as
+   empty-sequence() (F&O 4.0, section 21.2.2): the trace sink receives
+   $input with the label; the result is empty. */
+static sxml_status call_message(const sxml_function_call *call, sxml_sequence *result) {
+    const sxml_status status = send_trace_event(call, SXML_TRACE_EVENT_KIND_MESSAGE);
+    if (status == SXML_STATUS_OK) {
+        *result = sxml_sequence_empty();
+    }
+    return status;
 }
 
 static const sxml_function_parameter error_parameters[] = {
@@ -88,9 +138,16 @@ static const sxml_function_parameter trace_parameters[] = {
     SXML_REQUIRED_PARAMETER("input", "item()*"),
     SXML_OPTIONAL_PARAMETER("label", "xs:string?")};
 
+#define SXML_TRACE_PROPERTIES                                                                      \
+    (SXML_NATIVE_FUNCTION_USES_DYNAMIC_CONTEXT | SXML_NATIVE_FUNCTION_IS_NONDETERMINISTIC)
+
 static const sxml_native_function error_functions[] = {
     SXML_FUNCTION_ROW("error", error_parameters, "xs:error", 0, call_error),
-    SXML_FUNCTION_ROW("trace", trace_parameters, "item()*", 0, call_trace),
+    /* F&O 4.0, section 21.2: nondeterministic; the output is a side
+       effect, so a call is never evaluated at compile time. */
+    SXML_FUNCTION_ROW("trace", trace_parameters, "item()*", SXML_TRACE_PROPERTIES, call_trace),
+    SXML_FUNCTION_ROW("message", trace_parameters, "empty-sequence()", SXML_TRACE_PROPERTIES,
+                      call_message),
 };
 
 const sxml_native_function_view sxml_function_library_error =

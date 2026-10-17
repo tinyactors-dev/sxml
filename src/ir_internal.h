@@ -12,6 +12,7 @@
 #include "sxml/types.h"
 #include "sxml/view.h"
 #include "sxml/xdm.h"
+#include "sxml/xpath.h"
 
 /*
  * The shared intermediate representation (docs/DECISIONS.md, D46, D55).
@@ -1049,6 +1050,19 @@ typedef struct sxml_ir_unit_configuration {
  * the first add, with entry 0 reserved (all zero), so a count is 0 or at
  * least 2.
  */
+/*
+ * The parts of a static context that functions read while they run
+ * (XPath 4.0, section 2.2.1): the statically known decimal formats
+ * (fn:format-number) and collations (every collation argument). Views are
+ * borrowed where a caller hands it in; a unit holds its own copy.
+ */
+typedef struct sxml_ir_static_context {
+    sxml_decimal_format_view decimal_formats;
+    /* Empty for the Unicode codepoint collation. */
+    sxml_byte_view default_collation_uri;
+    sxml_collation_binding_view collation_bindings;
+} sxml_ir_static_context;
+
 struct sxml_ir_unit {
     uint32_t reference_count;
     bool is_sealed;
@@ -1067,6 +1081,13 @@ struct sxml_ir_unit {
     sxml_byte_view static_base_uri;
     /* The memory static_base_uri views, released when finalized. */
     void *static_base_uri_memory;
+    /* The decimal formats and collations of the unit's static context
+       (XPath 4.0, section 2.2.1), copied into one block of allocator
+       memory (static_context_memory, NULL when all are empty) by
+       sxml_ir_unit_set_static_context; read lexically, as the static base
+       URI is (sxml_dynamic_context_get_decimal_formats). */
+    sxml_ir_static_context static_context;
+    void *static_context_memory;
 
     sxml_ir_expression *expressions;
     uint32_t expression_count;
@@ -1220,6 +1241,14 @@ SXML_NODISCARD sxml_status sxml_ir_unit_add_constant(
    none: call once, before sealing). */
 SXML_NODISCARD sxml_status sxml_ir_unit_set_static_namespaces(
     sxml_ir_unit *unit, sxml_namespace_binding_view bindings);
+
+/* Copies context's views (names, property texts and URIs) into the unit
+   as the decimal formats and collations of its static context. Call at
+   most once, before sealing. Returns SXML_STATUS_INVALID_ARGUMENT on a
+   sealed unit or a second call, the allocator's failures and
+   SXML_STATUS_ARITHMETIC_OVERFLOW. */
+SXML_NODISCARD sxml_status sxml_ir_unit_set_static_context(
+    sxml_ir_unit *unit, const sxml_ir_static_context *context);
 
 /* Copies static_base_uri (empty: absent) into the unit as the static base
    URI of its static context, which every function of the unit sees, even

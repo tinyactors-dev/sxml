@@ -362,7 +362,8 @@ static sxml_status sxml_processor_place_members(sxml_processor *processor,
         .allocator = processor->allocator,
         .limits = processor->limits,
         .resource_resolver = processor->resource_resolver,
-        .clock = processor->clock};
+        .clock = processor->clock,
+        .trace_sink = processor->trace_sink};
     const sxml_name_pool_configuration name_pool_configuration =
         sxml_processor_name_pool_configuration(&configuration);
     sxml_status status = sxml_name_pool_initialize(
@@ -440,6 +441,7 @@ sxml_status sxml_processor_initialize(sxml_memory_view memory,
         .resource_resolver = configuration->resource_resolver,
         .clock = configuration->clock.operations == NULL ? sxml_system_clock()
                                                          : configuration->clock,
+        .trace_sink = configuration->trace_sink,
         .name_pool = NULL,
         .type_registry = NULL,
         .item_heap = NULL,
@@ -623,7 +625,7 @@ static const sxml_static_error sxml_parse_xml_not_well_formed_error = {
 sxml_status sxml_processor_document_loader_memory_requirements(
     const sxml_processor_document_loader_configuration *configuration,
     sxml_memory_requirements *requirements) {
-    if (configuration == NULL || configuration->processor == NULL) {
+    if (configuration == NULL || configuration->evaluation_environment.processor == NULL) {
         return SXML_STATUS_INVALID_ARGUMENT;
     }
     *requirements =
@@ -650,7 +652,10 @@ sxml_status sxml_processor_document_loader_initialize(
     *new_loader = (sxml_processor_document_loader){.configuration = *configuration,
                                                    .loaded_documents = NULL,
                                                    .loaded_document_count = 0,
-                                                   .loaded_document_capacity = 0};
+                                                   .loaded_document_capacity = 0,
+                                                   .loaded_collections = NULL,
+                                                   .loaded_collection_count = 0,
+                                                   .loaded_collection_capacity = 0};
     *loader = new_loader;
     return SXML_STATUS_OK;
 }
@@ -659,7 +664,7 @@ void sxml_processor_document_loader_finalize(sxml_processor_document_loader *loa
     if (loader == NULL) {
         return;
     }
-    const sxml_allocator allocator = loader->configuration.processor->allocator;
+    const sxml_allocator allocator = loader->configuration.evaluation_environment.processor->allocator;
     for (size_t document_index = 0; document_index < loader->loaded_document_count;
          document_index += 1) {
         sxml_processor_loaded_document *document = &loader->loaded_documents[document_index];
@@ -670,6 +675,17 @@ void sxml_processor_document_loader_finalize(sxml_processor_document_loader *loa
     loader->loaded_documents = NULL;
     loader->loaded_document_count = 0;
     loader->loaded_document_capacity = 0;
+    for (size_t collection_index = 0; collection_index < loader->loaded_collection_count;
+         collection_index += 1) {
+        sxml_processor_loaded_collection *collection =
+            &loader->loaded_collections[collection_index];
+        sxml_allocator_release(allocator, collection->uri_bytes);
+        sxml_sequence_release(collection->items);
+    }
+    sxml_allocator_release(allocator, loader->loaded_collections);
+    loader->loaded_collections = NULL;
+    loader->loaded_collection_count = 0;
+    loader->loaded_collection_capacity = 0;
 }
 
 /* The document loaded or available for uri, borrowed; found is false when
@@ -712,48 +728,84 @@ typedef struct sxml_loaded_document_request {
     sxml_item document_node;
 } sxml_loaded_document_request;
 
+/* An array of the loader that grows by doubling. */
+typedef struct sxml_loader_array {
+    void **elements;
+    size_t *capacity;
+    size_t element_count;
+    size_t element_byte_count;
+    size_t element_alignment;
+} sxml_loader_array;
+
+/* Makes room for one more element; the array is unchanged on failure. */
+static sxml_status sxml_loader_array_reserve(sxml_allocator allocator,
+                                             const sxml_loader_array *array) {
+    if (array->element_count < *array->capacity) {
+        return SXML_STATUS_OK;
+    }
+    const size_t capacity = *array->capacity == 0 ? 2 : *array->capacity;
+    size_t new_capacity = 0;
+    size_t byte_count = 0;
+    sxml_status status = sxml_size_multiply(capacity, 2, &new_capacity);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_size_multiply(new_capacity, array->element_byte_count, &byte_count);
+    }
+    void *memory = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_allocator_allocate(
+            allocator,
+            (sxml_allocation_request){.byte_count = byte_count,
+                                      .alignment = array->element_alignment},
+            &memory);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (array->element_count > 0) {
+        memcpy(memory, *array->elements, array->element_count * array->element_byte_count);
+    }
+    sxml_allocator_release(allocator, *array->elements);
+    *array->elements = memory;
+    *array->capacity = new_capacity;
+    return SXML_STATUS_OK;
+}
+
+/* Copies uri into memory of the allocator; NULL for an empty one. */
+static sxml_status sxml_loader_copy_uri(sxml_allocator allocator, sxml_byte_view uri,
+                                        uint8_t **uri_bytes) {
+    *uri_bytes = NULL;
+    if (uri.byte_count == 0) {
+        return SXML_STATUS_OK;
+    }
+    void *memory = NULL;
+    const sxml_status status = sxml_allocator_allocate(
+        allocator, (sxml_allocation_request){.byte_count = uri.byte_count, .alignment = 1},
+        &memory);
+    if (status == SXML_STATUS_OK) {
+        memcpy(memory, uri.bytes, uri.byte_count);
+        *uri_bytes = memory;
+    }
+    return status;
+}
+
 static sxml_status sxml_loader_keep_document(sxml_processor_document_loader *loader,
                                              const sxml_loaded_document_request *request) {
-    const sxml_allocator allocator = loader->configuration.processor->allocator;
-    if (loader->loaded_document_count == loader->loaded_document_capacity) {
-        const size_t capacity =
-            loader->loaded_document_capacity == 0 ? 4 : loader->loaded_document_capacity;
-        size_t new_capacity = 0;
-        size_t byte_count = 0;
-        sxml_status status = sxml_size_multiply(capacity, 2, &new_capacity);
-        if (status == SXML_STATUS_OK) {
-            status = sxml_size_multiply(new_capacity, sizeof(sxml_processor_loaded_document),
-                                        &byte_count);
-        }
-        void *memory = NULL;
-        if (status == SXML_STATUS_OK) {
-            status = sxml_allocator_allocate(
-                allocator,
-                (sxml_allocation_request){.byte_count = byte_count,
-                                          .alignment = alignof(sxml_processor_loaded_document)},
-                &memory);
-        }
-        if (status != SXML_STATUS_OK) {
-            return status;
-        }
-        if (loader->loaded_document_count > 0) {
-            memcpy(memory, loader->loaded_documents,
-                   loader->loaded_document_count * sizeof(sxml_processor_loaded_document));
-        }
-        sxml_allocator_release(allocator, loader->loaded_documents);
-        loader->loaded_documents = memory;
-        loader->loaded_document_capacity = new_capacity;
+    const sxml_allocator allocator = loader->configuration.evaluation_environment.processor->allocator;
+    void *elements = loader->loaded_documents;
+    sxml_status status = sxml_loader_array_reserve(
+        allocator, &(sxml_loader_array){.elements = &elements,
+                                        .capacity = &loader->loaded_document_capacity,
+                                        .element_count = loader->loaded_document_count,
+                                        .element_byte_count = sizeof(sxml_processor_loaded_document),
+                                        .element_alignment = alignof(sxml_processor_loaded_document)});
+    loader->loaded_documents = elements;
+    if (status != SXML_STATUS_OK) {
+        return status;
     }
-    void *uri_memory = NULL;
-    if (request->uri.byte_count > 0) {
-        const sxml_status status = sxml_allocator_allocate(
-            allocator,
-            (sxml_allocation_request){.byte_count = request->uri.byte_count, .alignment = 1},
-            &uri_memory);
-        if (status != SXML_STATUS_OK) {
-            return status;
-        }
-        memcpy(uri_memory, request->uri.bytes, request->uri.byte_count);
+    uint8_t *uri_memory = NULL;
+    status = sxml_loader_copy_uri(allocator, request->uri, &uri_memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
     }
     sxml_item_retain(request->document_node);
     loader->loaded_documents[loader->loaded_document_count] =
@@ -784,7 +836,7 @@ static sxml_status sxml_loader_report_not_available(const sxml_processor_documen
                                         &sxml_document_not_available_error);
     }
     return sxml_item_heap_raise_error(
-        loader->configuration.processor->item_heap,
+        loader->configuration.evaluation_environment.processor->item_heap,
         &(sxml_error_raise_request){
             .error_status = SXML_STATUS_DYNAMIC_ERROR,
             .code = {.namespace_uri = SXML_BYTE_VIEW_FROM_LITERAL(SXML_ERROR_NAMESPACE_URI),
@@ -820,7 +872,7 @@ static sxml_status sxml_loader_parse_resource(sxml_processor_document_loader *lo
                                                              : request->uri_reference;
     }
     const sxml_status status = sxml_processor_parse_document(
-        loader->configuration.processor,
+        loader->configuration.evaluation_environment.processor,
         &(sxml_xml_parse_request){.input = resource->content,
                                   .source_name = document_uri,
                                   .document_uri = document_uri,
@@ -868,7 +920,7 @@ static sxml_status sxml_loader_take_resource(sxml_processor_document_loader *loa
 static sxml_status sxml_loader_resolve(sxml_processor_document_loader *loader,
                                        const sxml_resolution_exchange *exchange,
                                        sxml_item *document_node) {
-    const sxml_resource_resolver resolver = loader->configuration.resource_resolver;
+    const sxml_resource_resolver resolver = loader->configuration.evaluation_environment.resource_resolver;
     if (resolver.operations == NULL || resolver.operations->resolve == NULL) {
         return sxml_error_record_report(exchange->request->error_record,
                                         &sxml_document_not_available_error);
@@ -880,7 +932,7 @@ static sxml_status sxml_loader_resolve(sxml_processor_document_loader *loader,
         &(sxml_resource_request){.resource_kind = SXML_RESOURCE_KIND_XML_DOCUMENT,
                                  .uri_reference = exchange->request->uri_reference,
                                  .absolute_uri = exchange->absolute_uri,
-                                 .processor = loader->configuration.processor},
+                                 .processor = loader->configuration.evaluation_environment.processor},
         &resource);
     if (status != SXML_STATUS_OK) {
         return status;
@@ -906,7 +958,7 @@ static sxml_status sxml_loader_load_document(void *state,
                                              const sxml_document_request *request,
                                              sxml_item *document_node) {
     sxml_processor_document_loader *loader = state;
-    const sxml_allocator allocator = loader->configuration.processor->allocator;
+    const sxml_allocator allocator = loader->configuration.evaluation_environment.processor->allocator;
     /* The caller passes the static base URI of the expression that calls
        the function (lexical, D91), or the base-uri option. */
     const sxml_byte_view base_uri = request->base_uri;
@@ -963,7 +1015,7 @@ static sxml_status sxml_loader_parse_document(void *state,
        the function (lexical, D91), or the base-uri option. */
     const sxml_byte_view base_uri = request->base_uri;
     const sxml_status status = sxml_processor_parse_document(
-        loader->configuration.processor,
+        loader->configuration.evaluation_environment.processor,
         &(sxml_xml_parse_request){.input = request->xml_bytes,
                                   .source_name = {.bytes = NULL, .byte_count = 0},
                                   .document_uri = {.bytes = NULL, .byte_count = 0},
@@ -988,4 +1040,353 @@ sxml_document_loader sxml_processor_document_loader_as_document_loader(
     sxml_processor_document_loader *loader) {
     return (sxml_document_loader){.state = loader,
                                   .operations = &sxml_processor_document_loader_operations};
+}
+
+sxml_processor_document_loader *sxml_processor_document_loader_from_dynamic_context(
+    const sxml_dynamic_context *dynamic_context) {
+    if (dynamic_context == NULL ||
+        dynamic_context->document_loader.operations != &sxml_processor_document_loader_operations) {
+        return NULL;
+    }
+    return dynamic_context->document_loader.state;
+}
+
+const sxml_evaluation_environment *sxml_processor_document_loader_get_environment(
+    const sxml_processor_document_loader *loader) {
+    return &loader->configuration.evaluation_environment;
+}
+
+const sxml_evaluation_environment *sxml_processor_get_evaluation_environment(
+    const sxml_dynamic_context *dynamic_context) {
+    const sxml_processor_document_loader *loader =
+        sxml_processor_document_loader_from_dynamic_context(dynamic_context);
+    return loader == NULL ? NULL : sxml_processor_document_loader_get_environment(loader);
+}
+
+/* ------------------------------------------------------------ Resources */
+
+/* Resolves reference against base_uri into *resolution; the URI is
+   absolute when it has a scheme (RFC 3986, section 4.3). */
+typedef struct sxml_loader_uri_request {
+    sxml_byte_view reference;
+    sxml_byte_view base_uri;
+} sxml_loader_uri_request;
+
+static sxml_status sxml_loader_resolve_uri(const sxml_processor_document_loader *loader,
+                                           sxml_loader_uri_request request,
+                                           sxml_uri_resolution *resolution) {
+    return sxml_uri_resolve(
+        &(sxml_uri_resolution_request){
+            .base_uri = request.base_uri,
+            .reference = request.reference,
+            .allocator = loader->configuration.evaluation_environment.processor->allocator},
+        resolution);
+}
+
+/* Calls the resolver's release, when it has one, for a resource it
+   delivered. */
+static void sxml_loader_give_back(const sxml_processor_document_loader *loader,
+                                  const sxml_resource *resource) {
+    const sxml_resource_resolver resolver =
+        loader->configuration.evaluation_environment.resource_resolver;
+    if (resolver.operations->release != NULL) {
+        resolver.operations->release(resolver.state, resource);
+    }
+}
+
+void sxml_processor_document_loader_release(sxml_processor_document_loader *loader,
+                                            sxml_retrieved_resource *retrieved) {
+    if (retrieved->is_delivered) {
+        sxml_loader_give_back(loader, &retrieved->resource);
+    }
+    sxml_allocator_release(loader->configuration.evaluation_environment.processor->allocator,
+                           retrieved->resolution.memory);
+    memset(retrieved, 0, sizeof(*retrieved));
+}
+
+/* Takes the form the resolver delivered for a TEXT or BINARY request
+   (include/sxml/processor.h: BYTES only). */
+static sxml_status sxml_loader_take_bytes(sxml_retrieved_resource *retrieved) {
+    const sxml_resource *resource = &retrieved->resource;
+    switch (resource->resource_form) {
+    case SXML_RESOURCE_FORM_NONE:
+        retrieved->description = resource->description;
+        return SXML_STATUS_OK;
+    case SXML_RESOURCE_FORM_BYTES:
+        retrieved->is_available = true;
+        retrieved->content = resource->content;
+        retrieved->encoding_name = resource->encoding_name;
+        return SXML_STATUS_OK;
+    case SXML_RESOURCE_FORM_DOCUMENT_NODE:
+        sxml_item_release(resource->document_node);
+        return SXML_STATUS_INVALID_ARGUMENT;
+    case SXML_RESOURCE_FORM_SEQUENCE:
+        sxml_sequence_release(resource->items);
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    return SXML_STATUS_INVALID_ARGUMENT;
+}
+
+sxml_status sxml_processor_document_loader_retrieve(
+    sxml_processor_document_loader *loader, const sxml_resource_retrieval_request *request,
+    sxml_retrieved_resource *retrieved) {
+    memset(retrieved, 0, sizeof(*retrieved));
+    const sxml_evaluation_environment *environment =
+        &loader->configuration.evaluation_environment;
+    sxml_status status = sxml_loader_resolve_uri(
+        loader,
+        (sxml_loader_uri_request){.reference = request->uri_reference,
+                                  .base_uri = request->base_uri},
+        &retrieved->resolution);
+    if (status != SXML_STATUS_OK) {
+        memset(retrieved, 0, sizeof(*retrieved));
+        return status;
+    }
+    if (!sxml_uri_has_scheme(retrieved->resolution.uri)) {
+        /* F&O 4.0, fn:unparsed-text: FOUT1170 when $source "cannot be
+           resolved to an absolute URI". */
+        retrieved->description = SXML_BYTE_VIEW_FROM_LITERAL(
+            "The URI reference cannot be resolved to an absolute URI");
+        return SXML_STATUS_OK;
+    }
+    retrieved->has_absolute_uri = true;
+    const sxml_resource_resolver resolver = environment->resource_resolver;
+    if (resolver.operations == NULL || resolver.operations->resolve == NULL) {
+        retrieved->description = SXML_BYTE_VIEW_FROM_LITERAL("No resource resolver is configured");
+        return SXML_STATUS_OK;
+    }
+    status = resolver.operations->resolve(
+        resolver.state,
+        &(sxml_resource_request){.resource_kind = request->resource_kind,
+                                 .uri_reference = request->uri_reference,
+                                 .absolute_uri = retrieved->resolution.uri,
+                                 .processor = environment->processor,
+                                 .encoding_name = request->encoding_name},
+        &retrieved->resource);
+    if (status == SXML_STATUS_OK) {
+        retrieved->is_delivered = true;
+        status = sxml_loader_take_bytes(retrieved);
+    }
+    if (status != SXML_STATUS_OK) {
+        sxml_processor_document_loader_release(loader, retrieved);
+    }
+    return status;
+}
+
+/* The collection of the kind and URI read before in this evaluation, or
+   NULL. */
+static const sxml_processor_loaded_collection *sxml_loader_find_collection(
+    const sxml_processor_document_loader *loader, const sxml_processor_loaded_collection *key) {
+    for (size_t collection_index = 0; collection_index < loader->loaded_collection_count;
+         collection_index += 1) {
+        const sxml_processor_loaded_collection *collection =
+            &loader->loaded_collections[collection_index];
+        if (collection->resource_kind == key->resource_kind &&
+            collection->is_default_collection == key->is_default_collection &&
+            sxml_byte_view_equals(
+                (sxml_byte_view){.bytes = collection->uri_bytes,
+                                 .byte_count = collection->uri_byte_count},
+                (sxml_byte_view){.bytes = key->uri_bytes, .byte_count = key->uri_byte_count})) {
+            return collection;
+        }
+    }
+    return NULL;
+}
+
+/* Keeps a copy of key (its URI copied, its items retained) for the rest
+   of the evaluation. */
+static sxml_status sxml_loader_keep_collection(sxml_processor_document_loader *loader,
+                                               const sxml_processor_loaded_collection *key) {
+    const sxml_allocator allocator =
+        loader->configuration.evaluation_environment.processor->allocator;
+    void *elements = loader->loaded_collections;
+    sxml_status status = sxml_loader_array_reserve(
+        allocator,
+        &(sxml_loader_array){.elements = &elements,
+                             .capacity = &loader->loaded_collection_capacity,
+                             .element_count = loader->loaded_collection_count,
+                             .element_byte_count = sizeof(sxml_processor_loaded_collection),
+                             .element_alignment = alignof(sxml_processor_loaded_collection)});
+    loader->loaded_collections = elements;
+    uint8_t *uri_memory = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_loader_copy_uri(
+            allocator, (sxml_byte_view){.bytes = key->uri_bytes, .byte_count = key->uri_byte_count},
+            &uri_memory);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_sequence_retain(key->items);
+    sxml_processor_loaded_collection *kept =
+        &loader->loaded_collections[loader->loaded_collection_count];
+    *kept = *key;
+    kept->uri_bytes = uri_memory;
+    loader->loaded_collection_count += 1;
+    return SXML_STATUS_OK;
+}
+
+/* Asks the resolver for the collection key names and keeps it; *items
+   gets one reference, owned. */
+static sxml_status sxml_loader_resolve_collection(sxml_processor_document_loader *loader,
+                                                  sxml_processor_loaded_collection *key,
+                                                  sxml_loaded_collection *collection) {
+    const sxml_evaluation_environment *environment =
+        &loader->configuration.evaluation_environment;
+    const sxml_resource_resolver resolver = environment->resource_resolver;
+    if (resolver.operations == NULL || resolver.operations->resolve == NULL) {
+        collection->description = SXML_BYTE_VIEW_FROM_LITERAL("No resource resolver is configured");
+        return SXML_STATUS_OK;
+    }
+    const sxml_byte_view absolute_uri = {.bytes = key->uri_bytes,
+                                         .byte_count = key->uri_byte_count};
+    sxml_resource resource;
+    memset(&resource, 0, sizeof(resource));
+    sxml_status status = resolver.operations->resolve(
+        resolver.state,
+        &(sxml_resource_request){.resource_kind = key->resource_kind,
+                                 .uri_reference = absolute_uri,
+                                 .absolute_uri = absolute_uri,
+                                 .processor = environment->processor,
+                                 .is_default_collection = key->is_default_collection},
+        &resource);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    switch (resource.resource_form) {
+    case SXML_RESOURCE_FORM_NONE:
+        collection->description = SXML_BYTE_VIEW_FROM_LITERAL("No such collection");
+        break;
+    case SXML_RESOURCE_FORM_SEQUENCE:
+        key->items = resource.items;
+        status = sxml_loader_keep_collection(loader, key);
+        if (status == SXML_STATUS_OK) {
+            collection->is_available = true;
+            collection->items = resource.items;
+        } else {
+            sxml_sequence_release(resource.items);
+        }
+        break;
+    case SXML_RESOURCE_FORM_DOCUMENT_NODE:
+        sxml_item_release(resource.document_node);
+        status = SXML_STATUS_INVALID_ARGUMENT;
+        break;
+    case SXML_RESOURCE_FORM_BYTES:
+        status = SXML_STATUS_INVALID_ARGUMENT;
+        break;
+    }
+    sxml_loader_give_back(loader, &resource);
+    return status;
+}
+
+/*
+ * fn:collection and fn:uri-collection (F&O 4.0, sections 17.1.3 and
+ * 17.1.4): a relative URI is resolved against the caller's static base
+ * URI; the result is kept, so a second call with the same URI gives the
+ * same items (the functions are deterministic).
+ */
+sxml_status sxml_processor_document_loader_load_collection(
+    sxml_processor_document_loader *loader, const sxml_collection_request *request,
+    sxml_loaded_collection *collection) {
+    *collection = (sxml_loaded_collection){.is_available = false,
+                                           .items = sxml_sequence_empty(),
+                                           .description = {.bytes = NULL, .byte_count = 0}};
+    sxml_uri_resolution resolution = {.uri = {.bytes = NULL, .byte_count = 0}, .memory = NULL};
+    if (!request->is_default_collection) {
+        const sxml_status status = sxml_loader_resolve_uri(
+            loader,
+            (sxml_loader_uri_request){.reference = request->uri_reference,
+                                      .base_uri = request->base_uri},
+            &resolution);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        if (!sxml_uri_has_scheme(resolution.uri)) {
+            sxml_allocator_release(
+                loader->configuration.evaluation_environment.processor->allocator,
+                resolution.memory);
+            collection->description = SXML_BYTE_VIEW_FROM_LITERAL(
+                "The URI reference cannot be resolved to an absolute URI");
+            return SXML_STATUS_OK;
+        }
+    }
+    sxml_processor_loaded_collection key = {
+        .resource_kind = request->resource_kind,
+        .is_default_collection = request->is_default_collection,
+        /* Only read through the key; the cast drops const for the struct. */
+        .uri_bytes = (uint8_t *)resolution.uri.bytes,
+        .uri_byte_count = resolution.uri.byte_count,
+        .items = sxml_sequence_empty()};
+    sxml_status status = SXML_STATUS_OK;
+    const sxml_processor_loaded_collection *found = sxml_loader_find_collection(loader, &key);
+    if (found != NULL) {
+        sxml_sequence_retain(found->items);
+        collection->is_available = true;
+        collection->items = found->items;
+    } else {
+        status = sxml_loader_resolve_collection(loader, &key, collection);
+    }
+    sxml_allocator_release(loader->configuration.evaluation_environment.processor->allocator,
+                           resolution.memory);
+    return status;
+}
+
+sxml_status sxml_processor_document_loader_trace(const sxml_processor_document_loader *loader,
+                                                 const sxml_trace_event *event) {
+    const sxml_evaluation_environment *environment =
+        &loader->configuration.evaluation_environment;
+    const sxml_trace_sink sink = environment->trace_sink;
+    if (sink.operations == NULL || sink.operations->receive == NULL) {
+        return SXML_STATUS_OK;
+    }
+    sxml_trace_event delivered = *event;
+    delivered.processor = environment->processor;
+    return sink.operations->receive(sink.state, &delivered);
+}
+
+/* ------------------------------------------------------------ Trace sink */
+
+/* Writes "label: value" and a line feed (include/sxml/processor.h,
+   sxml_stream_trace_sink): the value in the adaptive method, which
+   serializes any item (F&O 4.0, fn:trace: "Any serialization of the
+   implementation's trace output must not raise an error"). */
+static sxml_status sxml_stream_trace_sink_receive(void *state, const sxml_trace_event *event) {
+    const sxml_output_stream *output_stream = state;
+    if (event->processor == NULL) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    sxml_status status = SXML_STATUS_OK;
+    if (event->label.byte_count > 0) {
+        status = sxml_output_stream_write(*output_stream, event->label);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_output_stream_write(*output_stream, SXML_BYTE_VIEW_FROM_LITERAL(": "));
+        }
+    }
+    if (status == SXML_STATUS_OK) {
+        sxml_serialization_parameters parameters;
+        memset(&parameters, 0, sizeof(parameters));
+        parameters.serialization_method = SXML_SERIALIZATION_METHOD_ADAPTIVE;
+        parameters.has_item_separator = true;
+        parameters.item_separator = SXML_BYTE_VIEW_FROM_LITERAL(" ");
+        status = sxml_serialize_sequence(
+            sxml_processor_get_item_heap(event->processor),
+            &(sxml_serialization_request){.value = event->value,
+                                          .serialization_parameters = parameters,
+                                          .error_record = NULL},
+            *output_stream);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_output_stream_write(*output_stream, SXML_BYTE_VIEW_FROM_LITERAL("\n"));
+    }
+    return status;
+}
+
+static const sxml_trace_sink_operations sxml_stream_trace_sink_operations = {
+    .receive = sxml_stream_trace_sink_receive,
+};
+
+sxml_trace_sink sxml_stream_trace_sink(const sxml_output_stream *output_stream) {
+    /* The state is only read: the cast drops const for the interface. */
+    return (sxml_trace_sink){.state = (void *)output_stream,
+                             .operations = &sxml_stream_trace_sink_operations};
 }

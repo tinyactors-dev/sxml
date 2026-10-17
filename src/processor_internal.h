@@ -12,6 +12,7 @@
 #include "sxml/view.h"
 #include "sxml/xdm.h"
 #include "sxml/xpath.h"
+#include "xdm_internal.h"
 
 /*
  * The processor's internals (include/sxml/processor.h; docs/DECISIONS.md,
@@ -28,6 +29,10 @@
  * dynamic context configuration, that serves fn:doc from the available
  * documents, then from the resource resolver, and keeps what it loaded
  * until the evaluation ends, so fn:doc is stable (F&O 4.0, "fn:doc").
+ * The loader also carries the evaluation environment (D131), which the
+ * library functions of src/function_library_resource.c and the trace
+ * functions reach from their dynamic context through
+ * sxml_processor_get_evaluation_environment.
  *
  * Thread safety: the thread of the processor (D35).
  */
@@ -44,6 +49,8 @@ struct sxml_processor {
     /* Never the null clock: a null configuration clock becomes
        sxml_system_clock(). */
     sxml_clock clock;
+    /* May be the null sink, which discards. */
+    sxml_trace_sink trace_sink;
     /* In the processor's memory. */
     sxml_name_pool *name_pool;
     sxml_type_registry *type_registry;
@@ -71,6 +78,32 @@ uint64_t sxml_processor_get_maximum_evaluation_step_count(
 uint32_t sxml_processor_get_maximum_expression_depth(
     const sxml_processor *processor);
 
+/* ------------------------------------------------- Evaluation environment */
+
+/*
+ * What the library functions of one evaluation read from the host beyond
+ * fn:doc (glossary `evaluation_environment`; D104, D131): the
+ * resolver for text, binary and collection resources, the trace sink, and
+ * the default language and environment variables of the dynamic context.
+ * (The decimal formats and collations of the static context belong to
+ * the IR unit, sxml_ir_static_context, and are read lexically.) Views are
+ * borrowed from the evaluation request and outlive the evaluation's
+ * loader.
+ */
+typedef struct sxml_evaluation_environment {
+    sxml_processor *processor;
+    /* The dynamic context's resolver, or the processor's when that is the
+       null resolver. */
+    sxml_resource_resolver resource_resolver;
+    /* The dynamic context's sink, or the processor's when that is the null
+       sink; the null sink discards. */
+    sxml_trace_sink trace_sink;
+    /* An xs:language; never empty ("en" when the host gives none). */
+    sxml_byte_view default_language;
+    /* Names distinct, UTF-8. */
+    sxml_environment_variable_view environment_variables;
+} sxml_evaluation_environment;
+
 /* ----------------------------------------------------- Document loader */
 
 /* One document fn:doc loaded in this evaluation, by the URI it was asked
@@ -83,13 +116,25 @@ typedef struct sxml_processor_loaded_document {
     sxml_item document_node;
 } sxml_processor_loaded_document;
 
+/* One collection fn:collection or fn:uri-collection read in this
+   evaluation, kept so the functions are deterministic (F&O 4.0,
+   "fn:collection"). */
+typedef struct sxml_processor_loaded_collection {
+    /* COLLECTION or URI_COLLECTION. */
+    sxml_resource_kind resource_kind;
+    bool is_default_collection;
+    /* The absolute URI; allocated from the processor's allocator, NULL for
+       the default collection. */
+    uint8_t *uri_bytes;
+    size_t uri_byte_count;
+    /* Owned. */
+    sxml_sequence items;
+} sxml_processor_loaded_collection;
+
 /* What one evaluation's document loader serves. Views are borrowed and must
    outlive the loader. */
 typedef struct sxml_processor_document_loader_configuration {
-    sxml_processor *processor;
-    /* The evaluation's resolver: the dynamic context's, or the
-       processor's when that is the null resolver. */
-    sxml_resource_resolver resource_resolver;
+    sxml_evaluation_environment evaluation_environment;
     sxml_available_document_view available_documents;
 } sxml_processor_document_loader_configuration;
 
@@ -100,6 +145,9 @@ typedef struct sxml_processor_document_loader {
     sxml_processor_loaded_document *loaded_documents;
     size_t loaded_document_count;
     size_t loaded_document_capacity;
+    sxml_processor_loaded_collection *loaded_collections;
+    size_t loaded_collection_count;
+    size_t loaded_collection_capacity;
 } sxml_processor_document_loader;
 
 /* Writes sizeof(sxml_processor_document_loader) and its alignment. Returns
@@ -119,10 +167,123 @@ SXML_NODISCARD sxml_status sxml_processor_document_loader_initialize(
     const sxml_processor_document_loader_configuration *configuration,
     sxml_processor_document_loader **loader);
 
-/* Releases the documents it loaded; accepts NULL. */
+/* Releases the documents and collections it loaded; accepts NULL. */
 void sxml_processor_document_loader_finalize(
     sxml_processor_document_loader *loader);
 
 /* The loader as the evaluator's interface; keeps a reference to loader. */
 sxml_document_loader sxml_processor_document_loader_as_document_loader(
     sxml_processor_document_loader *loader);
+
+/*
+ * The processor's loader behind a dynamic context, for the library
+ * functions that read the evaluation environment (fn:unparsed-text,
+ * fn:collection, fn:trace, ...): NULL when dynamic_context is NULL or its
+ * document loader is not one the processor made (a unit test's), in which
+ * case those functions see no resources, no environment variables, the
+ * default language "en" and the null trace sink.
+ */
+sxml_processor_document_loader *sxml_processor_document_loader_from_dynamic_context(
+    const sxml_dynamic_context *dynamic_context);
+
+/* The loader's evaluation environment, borrowed. */
+const sxml_evaluation_environment *sxml_processor_document_loader_get_environment(
+    const sxml_processor_document_loader *loader);
+
+/* The evaluation environment behind a dynamic context, borrowed: NULL
+   when sxml_processor_document_loader_from_dynamic_context is. */
+const sxml_evaluation_environment *sxml_processor_get_evaluation_environment(
+    const sxml_dynamic_context *dynamic_context);
+
+/* ------------------------------------------------------------ Resources */
+
+/* A text or binary resource to retrieve (F&O 4.0, "fn:unparsed-text",
+   "fn:unparsed-binary"). Views are borrowed for the call. */
+typedef struct sxml_resource_retrieval_request {
+    /* TEXT or BINARY. */
+    sxml_resource_kind resource_kind;
+    /* As the query wrote it. */
+    sxml_byte_view uri_reference;
+    /* The static base URI of the caller; may be empty. */
+    sxml_byte_view base_uri;
+    /* TEXT: the encoding option, or empty. */
+    sxml_byte_view encoding_name;
+} sxml_resource_retrieval_request;
+
+/*
+ * A retrieved resource. When is_available, content, encoding_name and
+ * resource_uri are borrowed until sxml_processor_document_loader_release
+ * is called; otherwise description says why (may be empty) and
+ * has_absolute_uri whether the reference could be made absolute.
+ */
+typedef struct sxml_retrieved_resource {
+    bool is_available;
+    bool has_absolute_uri;
+    sxml_byte_view content;
+    /* Named outside the content (an HTTP charset), or empty. */
+    sxml_byte_view encoding_name;
+    sxml_byte_view description;
+    /* Private: what the resolver delivered and the resolved URI. */
+    bool is_delivered;
+    sxml_resource resource;
+    sxml_uri_resolution resolution;
+} sxml_retrieved_resource;
+
+/*
+ * Resolves request->uri_reference against its base URI (RFC 3986,
+ * section 5) and asks the environment's resolver for it. Writes the
+ * outcome to *retrieved, which the caller hands to
+ * sxml_processor_document_loader_release on every path where this returns
+ * SXML_STATUS_OK. A resource that is not available is not a failure.
+ * Returns SXML_STATUS_INVALID_ARGUMENT for a form the kind does not allow
+ * (include/sxml/processor.h), the resolver's and the allocator's
+ * failures.
+ */
+SXML_NODISCARD sxml_status sxml_processor_document_loader_retrieve(
+    sxml_processor_document_loader *loader,
+    const sxml_resource_retrieval_request *request,
+    sxml_retrieved_resource *retrieved);
+
+/* Gives the resource back to the resolver and frees the resolved URI. */
+void sxml_processor_document_loader_release(
+    sxml_processor_document_loader *loader, sxml_retrieved_resource *retrieved);
+
+/* A collection to read (F&O 4.0, "fn:collection", "fn:uri-collection"). */
+typedef struct sxml_collection_request {
+    /* COLLECTION or URI_COLLECTION. */
+    sxml_resource_kind resource_kind;
+    /* True for the default collection: uri_reference is then ignored. */
+    bool is_default_collection;
+    sxml_byte_view uri_reference;
+    sxml_byte_view base_uri;
+} sxml_collection_request;
+
+/* What a collection request gives. */
+typedef struct sxml_loaded_collection {
+    bool is_available;
+    /* Owned when is_available. */
+    sxml_sequence items;
+    /* Why not, for the error description; borrowed from static data. */
+    sxml_byte_view description;
+} sxml_loaded_collection;
+
+/*
+ * Writes the collection request names to *collection: the one this
+ * evaluation read before for the same kind and absolute URI, or what the
+ * resolver delivers, kept for the rest of the evaluation. A relative
+ * reference without a base URI, an unknown collection and the null
+ * resolver give is_available false. Returns SXML_STATUS_INVALID_ARGUMENT
+ * for a form other than SEQUENCE, the resolver's and the allocator's
+ * failures.
+ */
+SXML_NODISCARD sxml_status sxml_processor_document_loader_load_collection(
+    sxml_processor_document_loader *loader, const sxml_collection_request *request,
+    sxml_loaded_collection *collection);
+
+/*
+ * Hands event to the environment's trace sink (fn:trace, fn:message);
+ * the null sink discards it. event->processor is set by the call. Returns
+ * the sink's failures.
+ */
+SXML_NODISCARD sxml_status sxml_processor_document_loader_trace(
+    const sxml_processor_document_loader *loader, const sxml_trace_event *event);

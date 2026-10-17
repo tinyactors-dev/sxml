@@ -1710,14 +1710,19 @@ static sxml_status call_all_different(const sxml_function_call *call, sxml_seque
     return call_distinctness(call, (distinctness_question){.is_all_equal = false}, result);
 }
 
-/* fn:default-collation() (F&O 4.0, section 5.3.4): the Unicode codepoint
-   collation, until the static context's default collation reaches the
-   evaluator (D116). */
+/* fn:default-collation() (F&O 4.0, section 5.3.4): the default collation
+   of the static context, read lexically (D131); the Unicode codepoint
+   collation when it names none. */
 static sxml_status call_default_collation(const sxml_function_call *call,
                                           sxml_sequence *result) {
-    return sxml_function_library_make_string(call->item_heap,
-                                             sxml_function_library_codepoint_collation_uri(),
-                                             result);
+    const sxml_ir_unit *unit = call->dynamic_context == NULL
+                                   ? NULL
+                                   : sxml_dynamic_context_get_running_unit(call->dynamic_context);
+    const sxml_byte_view default_uri =
+        unit == NULL || unit->static_context.default_collation_uri.byte_count == 0
+            ? sxml_function_library_codepoint_collation_uri()
+            : unit->static_context.default_collation_uri;
+    return sxml_function_library_make_string(call->item_heap, default_uri, result);
 }
 
 /* ------------------------------------------------------------------ Rows */
@@ -1853,7 +1858,8 @@ static const sxml_native_function sequence_functions[] = {
                       call_all_different),
     SXML_FUNCTION_ROW("duplicate-values", values_collation_parameters, "xs:anyAtomicType*", 0,
                       call_duplicate_values),
-    SXML_NULLARY_FUNCTION_ROW("default-collation", "xs:string", 0, call_default_collation),
+    SXML_NULLARY_FUNCTION_ROW("default-collation", "xs:string",
+                              SXML_NATIVE_FUNCTION_USES_DYNAMIC_CONTEXT, call_default_collation),
 };
 
 const sxml_native_function_view sxml_function_library_sequence =

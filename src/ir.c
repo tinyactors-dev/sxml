@@ -158,6 +158,7 @@ void sxml_ir_unit_finalize(sxml_ir_unit *unit) {
     sxml_allocator_release(allocator, unit->modes);
     sxml_allocator_release(allocator, unit->template_rules);
     sxml_allocator_release(allocator, unit->static_base_uri_memory);
+    sxml_allocator_release(allocator, unit->static_context_memory);
     memset(unit, 0, sizeof(*unit));
 }
 
@@ -661,6 +662,218 @@ sxml_status sxml_ir_unit_set_static_namespaces(sxml_ir_unit *unit,
         return SXML_STATUS_OK;
     }
     return sxml_ir_unit_add_namespace_bindings(unit, bindings, &unit->static_namespaces);
+}
+
+
+/* Where the arrays and texts of the copy go in its one block. */
+typedef struct sxml_static_context_layout {
+    sxml_memory_requirements requirements;
+    size_t format_offset;
+    size_t property_offset;
+    size_t binding_offset;
+    size_t text_offset;
+    size_t property_count;
+    size_t text_byte_count;
+} sxml_static_context_layout;
+
+/* Appends element_count elements of element_byte_count bytes. */
+typedef struct sxml_layout_member {
+    size_t element_count;
+    size_t element_byte_count;
+    size_t alignment;
+} sxml_layout_member;
+
+static sxml_status sxml_layout_append(sxml_memory_requirements *requirements,
+                                      sxml_layout_member member, size_t *offset) {
+    size_t byte_count = 0;
+    sxml_status status =
+        sxml_size_multiply(member.element_count, member.element_byte_count, &byte_count);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_memory_requirements_append(
+            requirements,
+            (sxml_memory_requirements){.byte_count = byte_count, .alignment = member.alignment},
+            offset);
+    }
+    return status;
+}
+
+/* Counts the properties and text bytes of the parts to copy. */
+static sxml_status sxml_static_context_count(const sxml_ir_static_context *context,
+                                             sxml_static_context_layout *layout) {
+    const sxml_decimal_format_view formats = context->decimal_formats;
+    sxml_status status = sxml_size_add(0, context->default_collation_uri.byte_count,
+                                       &layout->text_byte_count);
+    for (size_t format_index = 0;
+         status == SXML_STATUS_OK && format_index < formats.decimal_format_count;
+         format_index += 1) {
+        const sxml_decimal_format_property_view properties =
+            formats.decimal_formats[format_index].decimal_format_properties;
+        status = sxml_size_add(layout->property_count,
+                               properties.decimal_format_property_count,
+                               &layout->property_count);
+        for (size_t property_index = 0;
+             status == SXML_STATUS_OK &&
+             property_index < properties.decimal_format_property_count;
+             property_index += 1) {
+            status = sxml_size_add(
+                layout->text_byte_count,
+                properties.decimal_format_properties[property_index].property_value.byte_count,
+                &layout->text_byte_count);
+        }
+    }
+    const sxml_collation_binding_view bindings = context->collation_bindings;
+    for (size_t binding_index = 0;
+         status == SXML_STATUS_OK && binding_index < bindings.collation_binding_count;
+         binding_index += 1) {
+        const sxml_collation_binding *binding = &bindings.collation_bindings[binding_index];
+        status = sxml_size_add(layout->text_byte_count, binding->collation_uri.byte_count,
+                               &layout->text_byte_count);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_size_add(layout->text_byte_count,
+                                   binding->target_collation_uri.byte_count,
+                                   &layout->text_byte_count);
+        }
+    }
+    return status;
+}
+
+static sxml_status sxml_static_context_compute_layout(
+    const sxml_ir_static_context *context, sxml_static_context_layout *layout) {
+    *layout = (sxml_static_context_layout){.requirements = {.byte_count = 0, .alignment = 1}};
+    sxml_status status = sxml_static_context_count(context, layout);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_layout_append(
+            &layout->requirements,
+            (sxml_layout_member){.element_count = context->decimal_formats.decimal_format_count,
+                                 .element_byte_count = sizeof(sxml_decimal_format),
+                                 .alignment = alignof(sxml_decimal_format)},
+            &layout->format_offset);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_layout_append(
+            &layout->requirements,
+            (sxml_layout_member){.element_count = layout->property_count,
+                                 .element_byte_count = sizeof(sxml_decimal_format_property),
+                                 .alignment = alignof(sxml_decimal_format_property)},
+            &layout->property_offset);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_layout_append(
+            &layout->requirements,
+            (sxml_layout_member){
+                .element_count = context->collation_bindings.collation_binding_count,
+                .element_byte_count = sizeof(sxml_collation_binding),
+                .alignment = alignof(sxml_collation_binding)},
+            &layout->binding_offset);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_layout_append(
+            &layout->requirements,
+            (sxml_layout_member){.element_count = layout->text_byte_count,
+                                 .element_byte_count = 1,
+                                 .alignment = 1},
+            &layout->text_offset);
+    }
+    return status;
+}
+
+/* Copies texts into the block, one after another. */
+typedef struct sxml_text_cursor {
+    uint8_t *next_byte;
+} sxml_text_cursor;
+
+static sxml_byte_view sxml_text_cursor_copy(sxml_text_cursor *cursor, sxml_byte_view text) {
+    if (text.byte_count == 0) {
+        return (sxml_byte_view){.bytes = NULL, .byte_count = 0};
+    }
+    memcpy(cursor->next_byte, text.bytes, text.byte_count);
+    const sxml_byte_view copy = {.bytes = cursor->next_byte, .byte_count = text.byte_count};
+    cursor->next_byte += text.byte_count;
+    return copy;
+}
+
+/* Fills the block of layout with the parts of context. */
+typedef struct sxml_static_context_fill {
+    const sxml_ir_static_context *context;
+    const sxml_static_context_layout *layout;
+    uint8_t *block;
+} sxml_static_context_fill;
+
+static void sxml_static_context_fill_block(const sxml_static_context_fill *fill,
+                                           sxml_ir_static_context *copy) {
+    const sxml_ir_static_context *context = fill->context;
+    void *format_memory = fill->block + fill->layout->format_offset;
+    void *property_memory = fill->block + fill->layout->property_offset;
+    void *binding_memory = fill->block + fill->layout->binding_offset;
+    sxml_decimal_format *formats = format_memory;
+    sxml_decimal_format_property *properties = property_memory;
+    sxml_collation_binding *bindings = binding_memory;
+    sxml_text_cursor cursor = {.next_byte = fill->block + fill->layout->text_offset};
+    size_t property_count = 0;
+    for (size_t format_index = 0;
+         format_index < context->decimal_formats.decimal_format_count; format_index += 1) {
+        const sxml_decimal_format *format = &context->decimal_formats.decimal_formats[format_index];
+        const sxml_decimal_format_property_view source = format->decimal_format_properties;
+        sxml_decimal_format_property *first_property = properties + property_count;
+        for (size_t property_index = 0;
+             property_index < source.decimal_format_property_count; property_index += 1) {
+            const sxml_decimal_format_property *property =
+                &source.decimal_format_properties[property_index];
+            properties[property_count] = (sxml_decimal_format_property){
+                .property_kind = property->property_kind,
+                .property_value = sxml_text_cursor_copy(&cursor, property->property_value)};
+            property_count += 1;
+        }
+        formats[format_index] = (sxml_decimal_format){
+            .format_name = format->format_name,
+            .decimal_format_properties = {
+                .decimal_format_properties = first_property,
+                .decimal_format_property_count = source.decimal_format_property_count}};
+    }
+    for (size_t binding_index = 0;
+         binding_index < context->collation_bindings.collation_binding_count;
+         binding_index += 1) {
+        const sxml_collation_binding *binding =
+            &context->collation_bindings.collation_bindings[binding_index];
+        bindings[binding_index] = (sxml_collation_binding){
+            .collation_uri = sxml_text_cursor_copy(&cursor, binding->collation_uri),
+            .target_collation_uri = sxml_text_cursor_copy(&cursor, binding->target_collation_uri)};
+    }
+    *copy = (sxml_ir_static_context){
+        .decimal_formats = {.decimal_formats = formats,
+                            .decimal_format_count = context->decimal_formats.decimal_format_count},
+        .default_collation_uri = sxml_text_cursor_copy(&cursor, context->default_collation_uri),
+        .collation_bindings = {
+            .collation_bindings = bindings,
+            .collation_binding_count = context->collation_bindings.collation_binding_count}};
+}
+
+sxml_status sxml_ir_unit_set_static_context(sxml_ir_unit *unit,
+                                            const sxml_ir_static_context *context) {
+    if (unit->is_sealed || unit->static_context_memory != NULL ||
+        unit->static_context.decimal_formats.decimal_format_count > 0 ||
+        unit->static_context.collation_bindings.collation_binding_count > 0 ||
+        unit->static_context.default_collation_uri.byte_count > 0) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    sxml_static_context_layout layout;
+    sxml_status status = sxml_static_context_compute_layout(context, &layout);
+    if (status != SXML_STATUS_OK || layout.requirements.byte_count == 0) {
+        return status;
+    }
+    void *memory = NULL;
+    status = sxml_allocator_allocate(
+        unit->allocator,
+        (sxml_allocation_request){.byte_count = layout.requirements.byte_count,
+                                  .alignment = layout.requirements.alignment},
+        &memory);
+    if (status == SXML_STATUS_OK) {
+        unit->static_context_memory = memory;
+        sxml_static_context_fill_block(
+            &(sxml_static_context_fill){.context = context, .layout = &layout, .block = memory},
+            &unit->static_context);
+    }
+    return status;
 }
 
 sxml_status sxml_ir_unit_set_static_base_uri(sxml_ir_unit *unit,

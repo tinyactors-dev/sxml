@@ -68,6 +68,9 @@ typedef struct sxml_xpath_static_context {
     /* The static base URI (XPath 4.0, section 2.2.1), an absolute URI, or
        empty when absent; copied into the unit by lowering (D91). */
     sxml_byte_view static_base_uri;
+    /* The decimal formats and collations, already checked; copied into
+       the unit by lowering (D131). Zero for none. */
+    sxml_ir_static_context unit_static_context;
 } sxml_xpath_static_context;
 
 /* Writes a static error: the error code is err:code_local_name. */

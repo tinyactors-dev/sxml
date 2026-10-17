@@ -749,18 +749,45 @@ static const sxml_static_error codepoint_only_collation_error = {
         "collation is (F&O 4.0, section 5.2.7)"),
 };
 
+/* The collation an absolute URI names: a collation binding of the
+   running unit's static context first (XPath 4.0, section 2.2.1, the
+   mapping from URI to collation), then the collations sxml knows. */
+static bool find_known_collation(const sxml_ir_unit *unit, sxml_byte_view collation_uri,
+                                 sxml_collation *collation) {
+    if (unit != NULL) {
+        const sxml_collation_binding_view bindings = unit->static_context.collation_bindings;
+        for (size_t binding_index = 0; binding_index < bindings.collation_binding_count;
+             binding_index += 1) {
+            const sxml_collation_binding *binding = &bindings.collation_bindings[binding_index];
+            if (sxml_byte_view_equals(binding->collation_uri, collation_uri)) {
+                return sxml_collation_find(binding->target_collation_uri, collation);
+            }
+        }
+    }
+    return sxml_collation_find(collation_uri, collation);
+}
+
 sxml_status sxml_function_library_find_collation(const sxml_function_call *call,
                                                  sxml_byte_view collation_uri,
                                                  sxml_collation *collation) {
+    const sxml_ir_unit *unit = call->dynamic_context == NULL
+                                   ? NULL
+                                   : sxml_dynamic_context_get_running_unit(call->dynamic_context);
     if (collation_uri.byte_count == 0) {
-        /* The default collation (F&O 4.0, section 5.2.7); the static
-           context's default_collation_uri does not reach the evaluator yet
-           (D116), so it is the Unicode codepoint collation. */
-        *collation = sxml_collation_codepoint();
-        return SXML_STATUS_OK;
+        /* The default collation (F&O 4.0, section 5.2.7) of the static
+           context, read lexically (D131); empty is the Unicode codepoint
+           collation. Compilation checked that it is known. */
+        const sxml_byte_view default_uri =
+            unit == NULL ? (sxml_byte_view){.bytes = NULL, .byte_count = 0}
+                         : unit->static_context.default_collation_uri;
+        if (default_uri.byte_count == 0) {
+            *collation = sxml_collation_codepoint();
+            return SXML_STATUS_OK;
+        }
+        collation_uri = default_uri;
     }
     if (sxml_uri_has_scheme(collation_uri)) {
-        return sxml_collation_find(collation_uri, collation)
+        return find_known_collation(unit, collation_uri, collation)
                    ? SXML_STATUS_OK
                    : sxml_function_library_report(call, &unsupported_collation_error);
     }
@@ -781,7 +808,7 @@ sxml_status sxml_function_library_find_collation(const sxml_function_call *call,
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    const bool is_found = sxml_collation_find(resolution.uri, collation);
+    const bool is_found = find_known_collation(unit, resolution.uri, collation);
     sxml_allocator_release(allocator, resolution.memory);
     return is_found ? SXML_STATUS_OK
                     : sxml_function_library_report(call, &unsupported_collation_error);

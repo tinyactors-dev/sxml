@@ -380,6 +380,20 @@ sxml_byte_view sxml_dynamic_context_get_static_base_uri(
     return dynamic_context->static_base_uri;
 }
 
+const sxml_ir_unit *sxml_dynamic_context_get_running_unit(
+    const sxml_dynamic_context *dynamic_context) {
+    /* As sxml_dynamic_context_get_static_base_uri: the definition's static
+       context (XPath 4.0, section 2.2.1). */
+    const sxml_evaluator_task_stack *stack = &dynamic_context->task_stack;
+    for (size_t task_count = stack->task_count; task_count > 0; task_count -= 1) {
+        const sxml_ir_function *function = stack->tasks[task_count - 1].function;
+        if (function != NULL && function->unit != NULL) {
+            return function->unit;
+        }
+    }
+    return dynamic_context->unit;
+}
+
 sxml_status sxml_dynamic_context_read_implicit_timezone(
     sxml_dynamic_context *dynamic_context, int16_t *offset_minutes) {
     if (!dynamic_context->has_clock_reading &&
@@ -1615,6 +1629,83 @@ static sxml_status sxml_charge_item_pairs(sxml_dynamic_context *context,
     return sxml_dynamic_context_charge_steps(context, pair_count);
 }
 
+/* A general comparison of an integer range with one xs:integer item, in
+   either order: decided from the range's bounds in O(1). */
+typedef struct sxml_range_comparison_request {
+    sxml_comparison_operator comparison_operator;
+    /* The two atomized operands, borrowed. */
+    const sxml_sequence *operands;
+} sxml_range_comparison_request;
+
+typedef struct sxml_range_comparison {
+    /* False when the operands are not a range and one integer. */
+    bool is_decided;
+    bool is_true;
+} sxml_range_comparison;
+
+/*
+ * XPath 4.0, section 4.11.2: a general comparison is true when some pair
+ * of items compares true. For the items first to last of a range R and an
+ * integer V, R = V is first <= V <= last, R != V needs an item other than
+ * V, R < V is first < V, R > V is last > V, and so on; with the range on
+ * the right the order comparisons look at the other bound.
+ */
+static sxml_status sxml_compare_with_range(sxml_dynamic_context *context,
+                                           sxml_range_comparison_request request,
+                                           sxml_range_comparison *comparison) {
+    comparison->is_decided = false;
+    const sxml_sequence *operands = request.operands;
+    const bool range_is_left = sxml_sequence_get_representation(operands[0]) ==
+                               SXML_SEQUENCE_REPRESENTATION_INTEGER_RANGE;
+    const sxml_sequence range = operands[range_is_left ? 0 : 1];
+    const sxml_sequence other = operands[range_is_left ? 1 : 0];
+    if (sxml_sequence_get_representation(range) != SXML_SEQUENCE_REPRESENTATION_INTEGER_RANGE ||
+        sxml_sequence_get_representation(other) != SXML_SEQUENCE_REPRESENTATION_SINGLE_ITEM ||
+        sxml_item_get_representation(other.content) != SXML_ITEM_REPRESENTATION_INTEGER) {
+        return SXML_STATUS_OK;
+    }
+    sxml_item first_item = {.representation = 0};
+    uint64_t item_count = 0;
+    sxml_status status = sxml_sequence_get_item(
+        range, (sxml_item_request){.item_index = 0, .error_record = context->error_record},
+        &first_item);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_sequence_count(range, context->error_record, &item_count);
+    }
+    if (status != SXML_STATUS_OK || item_count == 0) {
+        return status;
+    }
+    const int64_t first = first_item.payload.integer;
+    const int64_t last = (int64_t)((uint64_t)first + (item_count - 1));
+    const int64_t value = other.content.payload.integer;
+    /* The bound that decides an order comparison: with the range on the
+       left, "R < V" asks for its smallest item, "R > V" for its largest. */
+    bool is_true = false;
+    switch (request.comparison_operator) {
+    case SXML_COMPARISON_OPERATOR_EQUAL:
+        is_true = first <= value && value <= last;
+        break;
+    case SXML_COMPARISON_OPERATOR_NOT_EQUAL:
+        is_true = item_count > 1 || first != value;
+        break;
+    case SXML_COMPARISON_OPERATOR_LESS:
+        is_true = range_is_left ? first < value : value < last;
+        break;
+    case SXML_COMPARISON_OPERATOR_LESS_OR_EQUAL:
+        is_true = range_is_left ? first <= value : value <= last;
+        break;
+    case SXML_COMPARISON_OPERATOR_GREATER:
+        is_true = range_is_left ? last > value : value > first;
+        break;
+    case SXML_COMPARISON_OPERATOR_GREATER_OR_EQUAL:
+        is_true = range_is_left ? last >= value : value >= first;
+        break;
+    }
+    comparison->is_decided = true;
+    comparison->is_true = is_true;
+    return SXML_STATUS_OK;
+}
+
 static sxml_status sxml_make_binary_value(sxml_dynamic_context *context,
                                           const sxml_binary_operands *binary,
                                           sxml_sequence *result) {
@@ -1728,6 +1819,22 @@ static sxml_status sxml_make_binary_value(sxml_dynamic_context *context,
         case SXML_IR_BINARY_OPERATOR_GENERAL_GREATER:
         case SXML_IR_BINARY_OPERATOR_GENERAL_GREATER_OR_EQUAL: {
             sxml_item item = {.representation = 0};
+            sxml_range_comparison range_comparison = {.is_decided = false};
+            status = sxml_compare_with_range(
+                context,
+                (sxml_range_comparison_request){
+                    .comparison_operator = sxml_comparison_operator_of(binary_operator),
+                    .operands = operands},
+                &range_comparison);
+            if (status != SXML_STATUS_OK) {
+                break;
+            }
+            if (range_comparison.is_decided) {
+                *result = sxml_sequence_from_item(range_comparison.is_true
+                                                      ? sxml_atomic_item_true()
+                                                      : sxml_atomic_item_false());
+                break;
+            }
             /* A general comparison compares every pair (XPath 4.0, section
                4.11.2): charge them first, so long operands cannot run
                unbounded (D89). Counting is O(1) for ranges. */
