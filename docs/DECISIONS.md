@@ -3678,6 +3678,42 @@ the module header `src/format_date_internal.h`, part
 - Measured (debug driver, XP40): fn-format-date 20 to 124 of 124 run,
   fn-format-time 19 to 94 of 94, fn-format-dateTime 5 to 80 of 80.
 
+### D130. Elements to maps and back (packet 2.10)
+Recorded 2026-10-17. `src/function_library_element_map.c` (part
+`element_map`) implements fn:element-to-map-plan, fn:element-to-map and
+fn:map-to-element (F&O 4.0, section 14.6).
+- **No recursion, no new machinery** (D71). fn:element-to-map keeps one
+  element slot per node of the subtree and walks the node indices twice:
+  in document order it chooses layouts (a child is converted only when its
+  parent's layout converts children, so a plan's `error` below an `xml`
+  element is never reached), in reverse document order it builds values,
+  whose children are then done. fn:element-to-map-plan walks the same
+  ranges once. fn:map-to-element keeps a stack of frames and sends tree
+  builder events to a new arena tree that destroys itself (D40, D110);
+  the `xml` layout parses through the document loader and copies with
+  `sxml_tree_builder_copy_node`. Grouping, duplicate keys and plan lookup
+  use XDM maps (D37) as indices, nothing of its own.
+- **Untyped input only**: sxml is not schema-aware, so the schema-based
+  layouts (14.6.6) and the nilled forms on the element-to-map side never
+  apply; xsi attributes are ignored, and plan analysis skips
+  xsi:nil="true" elements as 14.6.4 says.
+- **Choices the text leaves open**, following QT4: without a plan entry,
+  attributes stay xs:untypedAtomic while simple element content gets the
+  inferred type (14.6.3, `<a x="1">2</a>` gives `{"a":{"@x":"1",
+  "#content":2}}`); a cast failure under a prescribed type is FOJS0010
+  even with a fallback; a leading zero after an optional sign makes a
+  string. In fn:map-to-element, matching a value against a layout looks
+  one level down only (list members against the child name's candidates
+  by form), so it needs no recursion; elements in a namespace from
+  `Q{uri}` keys use the default namespace, attributes made-up prefixes
+  `ns0`, `ns1`, ...; prefixes of `p:local` keys resolve against the static
+  namespaces of the innermost unit (as the static base URI, D91).
+- QT4: fn-element-to-map 179/181 run, fn-element-to-map-plan 20/20,
+  fn-map-to-element 223/228. Open: element-to-map-101 and -507 assert
+  `?a?…` on the context value, which the driver does not set
+  (XPDY0002); map-to-element-014 and -021 expect XQuery's decoding of
+  `&amp;` in string literals under XP40; -120 and -121 need fn:serialize.
+
 ## Proposed
 
 - **The item axis in the evaluator** (packet 2.5, D113; for the owner of
