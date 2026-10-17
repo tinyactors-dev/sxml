@@ -12,7 +12,7 @@
 
 /*
  * Group by and window clauses (XQuery 4.0, sections 4.13.4 and 4.13.8;
- * docs/DECISIONS.md D55, D126; packet 3.8). Internal to sxml.
+ * docs/DECISIONS.md D55, D126, D137; packet 3.8). Internal to sxml.
  *
  * The FLWOR lowering of src/xquery_lower.c (packet 3.7) calls these at
  * three points; src/xquery_lower_window.c lowers, src/xquery_flwor.c holds
