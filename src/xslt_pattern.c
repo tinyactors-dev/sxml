@@ -245,6 +245,111 @@ static bool sxml_xslt_pattern_has_predicate(const sxml_ast *ast,
     return sxml_xslt_pattern_child(ast, node, SXML_AST_FIELD_PREDICATE).value != 0;
 }
 
+/* Functions whose value is never a number, so a predicate calling one at
+   its top selects by its effective boolean value, never by position. */
+static bool sxml_xslt_pattern_is_boolean_function(sxml_byte_view local_name) {
+    static const char *const names[] = {
+        "not",         "exists",      "empty",    "boolean",    "true",
+        "false",       "contains",    "starts-with", "ends-with", "matches",
+        "lang",        "deep-equal",  "has-children", "contains-token",
+        "is-NaN",      "string",      "local-name", "name",      "normalize-space"};
+    for (size_t name_index = 0; name_index < sizeof(names) / sizeof(names[0]);
+         name_index += 1) {
+        if (sxml_byte_view_equals(local_name, sxml_byte_view_from_c_string(names[name_index]))) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* True when a predicate expression's value can never be a number: a
+   comparison, a logical, instance-of or castable expression, a literal
+   string or boolean, nodes (a step, a path ending in a step, a union), or
+   a call of a function above, unprefixed. */
+static bool sxml_xslt_pattern_is_boolean_shaped(const sxml_ast *ast,
+                                                sxml_ast_node_index expression) {
+    static const sxml_ast_kind boolean_kinds[] = {
+        SXML_AST_KIND_COMPARISON_EXPRESSION,    SXML_AST_KIND_AND_EXPRESSION,
+        SXML_AST_KIND_OR_EXPRESSION,            SXML_AST_KIND_INSTANCE_OF_EXPRESSION,
+        SXML_AST_KIND_CASTABLE_EXPRESSION,      SXML_AST_KIND_QUANTIFIED_EXPRESSION,
+        SXML_AST_KIND_BOOLEAN_CONSTANT,         SXML_AST_KIND_STRING_LITERAL,
+        SXML_AST_KIND_AXIS_STEP,                SXML_AST_KIND_UNION_EXPRESSION,
+        SXML_AST_KIND_INTERSECT_EXCEPT_EXPRESSION, SXML_AST_KIND_ABSOLUTE_PATH_EXPRESSION};
+    const sxml_ast_node *node = sxml_xslt_pattern_node(ast, expression);
+    for (size_t kind_index = 0; kind_index < sizeof(boolean_kinds) / sizeof(boolean_kinds[0]);
+         kind_index += 1) {
+        if (node->kind == boolean_kinds[kind_index]) {
+            return true;
+        }
+    }
+    if (node->kind == SXML_AST_KIND_RELATIVE_PATH_EXPRESSION) {
+        return sxml_xslt_pattern_node(
+                   ast, sxml_xslt_pattern_child(ast, expression, SXML_AST_FIELD_RIGHT))
+                   ->kind == SXML_AST_KIND_AXIS_STEP;
+    }
+    if (node->kind == SXML_AST_KIND_FUNCTION_CALL) {
+        const sxml_ast_node *name = sxml_xslt_pattern_node(
+            ast, sxml_xslt_pattern_child(ast, expression, SXML_AST_FIELD_NAME));
+        return name->kind == SXML_AST_KIND_NCNAME &&
+               sxml_xslt_pattern_is_boolean_function(
+                   sxml_ast_get_text(ast, name->payload.name.local_name));
+    }
+    return false;
+}
+
+/* True when the subtree of root calls or names fn:position or fn:last
+   (any prefix, to be safe). A walk along the parent links: no stack. */
+static bool sxml_xslt_pattern_reads_position(const sxml_ast *ast, sxml_ast_node_index root) {
+    sxml_ast_node_index node = root;
+    while (node.value != 0) {
+        const sxml_ast_node *current = sxml_xslt_pattern_node(ast, node);
+        if (current->kind == SXML_AST_KIND_FUNCTION_CALL ||
+            current->kind == SXML_AST_KIND_NAMED_FUNCTION_REFERENCE) {
+            const sxml_ast_node *name = sxml_xslt_pattern_node(
+                ast, sxml_xslt_pattern_child(ast, node, SXML_AST_FIELD_NAME));
+            const sxml_byte_view local_name =
+                sxml_ast_get_text(ast, name->payload.name.local_name);
+            if (sxml_byte_view_equals(local_name, SXML_BYTE_VIEW_FROM_LITERAL("position")) ||
+                sxml_byte_view_equals(local_name, SXML_BYTE_VIEW_FROM_LITERAL("last"))) {
+                return true;
+            }
+        }
+        if (current->first_child.value != 0) {
+            node = current->first_child;
+            continue;
+        }
+        while (node.value != root.value &&
+               sxml_xslt_pattern_node(ast, node)->next_sibling.value == 0) {
+            node = sxml_xslt_pattern_node(ast, node)->parent;
+        }
+        node = node.value == root.value ? (sxml_ast_node_index){.value = 0}
+                                        : sxml_xslt_pattern_node(ast, node)->next_sibling;
+    }
+    return false;
+}
+
+/*
+ * True when every predicate of step selects by its effective boolean value
+ * alone: its value is never a number and it reads neither position() nor
+ * last(). Such a step need not be selected again from its origin (D118):
+ * the predicates give the same value for the item with a singleton focus
+ * as at its position among the nodes selected (XSLT 4.0, 6.3.2.3; D149).
+ */
+static bool sxml_xslt_pattern_has_positional_predicate(const sxml_ast *ast,
+                                                       sxml_ast_node_index step) {
+    for (sxml_ast_node_index predicate =
+             sxml_xslt_pattern_child(ast, step, SXML_AST_FIELD_PREDICATE);
+         predicate.value != 0; predicate = sxml_ast_find_next_with_same_field(ast, predicate)) {
+        const sxml_ast_node_index expression =
+            sxml_xslt_pattern_child(ast, predicate, SXML_AST_FIELD_EXPRESSION);
+        if (!sxml_xslt_pattern_is_boolean_shaped(ast, expression) ||
+            sxml_xslt_pattern_reads_position(ast, expression)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 static bool sxml_xslt_pattern_is_name_kind(sxml_ast_kind kind) {
     return kind == SXML_AST_KIND_NCNAME || kind == SXML_AST_KIND_PREFIXED_NAME ||
            kind == SXML_AST_KIND_URI_QUALIFIED_NAME;
@@ -2038,6 +2143,24 @@ static sxml_ast_axis sxml_xslt_pattern_origin_axis(sxml_ast_axis step_axis) {
     return SXML_AST_AXIS_PARENT;
 }
 
+/* exists(.[p1]...[pn]) at destination: the predicates of step with a
+   singleton focus on the item. */
+static sxml_status
+sxml_xslt_pattern_add_singleton_predicates(sxml_xslt_pattern_builder *builder,
+                                           sxml_ast_node_index step,
+                                           sxml_xslt_pattern_destination destination) {
+    sxml_ast_node_index arguments = {0};
+    sxml_xslt_pattern_destination innermost = {0};
+    sxml_status status = sxml_xslt_pattern_add_call(builder, (sxml_xslt_pattern_call){.destination = destination, .function = SXML_XSLT_PATTERN_FUNCTION_EXISTS}, &arguments);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xslt_pattern_add_predicates(builder, (sxml_xslt_pattern_owner_node){.owner = step, .destination = sxml_xslt_pattern_argument_of(arguments)}, &innermost);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xslt_pattern_add_kind(builder, (sxml_xslt_pattern_kind_node){.destination = innermost, .kind = SXML_AST_KIND_CONTEXT_VALUE_REFERENCE}, NULL);
+    }
+    return status;
+}
+
 /* The condition the origin meets: the prefix after "/", some
    ancestor-or-self meeting it after "//". */
 static sxml_status sxml_xslt_pattern_add_prefix_condition(
@@ -2089,6 +2212,37 @@ static sxml_status sxml_xslt_pattern_process_step(sxml_xslt_pattern_builder *bui
         if (status == SXML_STATUS_OK) {
             status = sxml_xslt_pattern_add_prefix_condition(builder, task->prefix,
                                                             condition);
+        }
+        return status;
+    }
+    if (sxml_xslt_pattern_test_is_simple(ast, test) &&
+        !sxml_xslt_pattern_has_positional_predicate(ast, step)) {
+        /* No predicate counts positions (D149): self-test(T) and
+           (exists(origin::node()[C]) and exists(.[p1]...[pn])). */
+        sxml_xslt_pattern_operands operands = {0};
+        sxml_xslt_pattern_operands rest = {0};
+        sxml_xslt_pattern_destination condition = {0};
+        status = sxml_xslt_pattern_add_and(builder, task->destination, &operands);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xslt_pattern_push_axis_task(
+                builder,
+                (sxml_xslt_pattern_axis_task){.task_kind = SXML_XSLT_PATTERN_TASK_SELF_TEST,
+                                              .source = test,
+                                              .axis = axis},
+                operands.left);
+        }
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xslt_pattern_add_and(builder, operands.right, &rest);
+        }
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xslt_pattern_add_exists_on_axis(builder, (sxml_xslt_pattern_axis_node){.destination = rest.left, .axis = origin_axis}, &condition);
+        }
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xslt_pattern_add_prefix_condition(builder, task->prefix,
+                                                            condition);
+        }
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xslt_pattern_add_singleton_predicates(builder, step, rest.right);
         }
         return status;
     }
@@ -2200,6 +2354,30 @@ sxml_xslt_pattern_process_leading_step(sxml_xslt_pattern_builder *builder,
             return status;
         }
         target = operands.left;
+    }
+    if (has_predicate && is_simple && axis != SXML_AST_AXIS_SELF &&
+        !sxml_xslt_pattern_has_positional_predicate(ast, step)) {
+        /* No predicate counts positions (D149): the test without
+           predicates, and exists(.[p1]...[pn]). */
+        sxml_xslt_pattern_operands operands = {0};
+        status = sxml_xslt_pattern_add_and(builder, target, &operands);
+        sxml_xslt_pattern_destination test_destination = operands.left;
+        if (status == SXML_STATUS_OK && axis == SXML_AST_AXIS_DESCENDANT) {
+            sxml_xslt_pattern_operands parent_operands = {0};
+            status = sxml_xslt_pattern_add_and(builder, operands.left, &parent_operands);
+            if (status == SXML_STATUS_OK) {
+                status = sxml_xslt_pattern_add_has_parent(
+                    builder, parent_operands.right, SXML_XSLT_PATTERN_FUNCTION_EXISTS);
+            }
+            test_destination = parent_operands.left;
+        }
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xslt_pattern_push_axis_task(builder, self_test, test_destination);
+        }
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xslt_pattern_add_singleton_predicates(builder, step, operands.right);
+        }
+        return status;
     }
     if (axis == SXML_AST_AXIS_SELF || axis == SXML_AST_AXIS_DESCENDANT_OR_SELF) {
         if (!has_predicate) {

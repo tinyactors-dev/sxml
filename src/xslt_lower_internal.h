@@ -264,6 +264,21 @@ SXML_NODISCARD sxml_status sxml_xslt_lowering_bind_simple_content(
  */
 extern const sxml_native_function sxml_xslt_merge_text_nodes_function;
 
+/* -------------------------------------------------------------- Copies */
+
+/* The deep copies of value's items (11.9.2), as xsl:copy-of makes them
+   with construction_flags (bits of sxml_ir_construction_flag), bound in
+   block: fn:copy-of's body (packet 4.10). src/xslt_lower_construct.c. */
+typedef struct sxml_xslt_copy_request {
+    sxml_xpath_lowering_block *block;
+    sxml_ir_atom value;
+    uint32_t construction_flags;
+} sxml_xslt_copy_request;
+
+SXML_NODISCARD sxml_status sxml_xslt_lowering_bind_copy_of(sxml_xpath_lowerer *lowerer,
+                                                           sxml_xslt_copy_request request,
+                                                           sxml_ir_atom *atom);
+
 /* ----------------------------------------------------------- Error codes */
 
 /* A dynamic error of the evaluator replaced by XSLT's (both in the err

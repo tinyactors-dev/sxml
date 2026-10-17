@@ -13,6 +13,7 @@
 #include "xslt_lower_internal.h"
 
 #include "ir_pass_internal.h"
+#include "xslt_key_internal.h"
 #include "processor_internal.h"
 #include "sxml/name.h"
 #include "sxml/types.h"
@@ -1731,6 +1732,12 @@ static sxml_status lower_into_unit(const unit_lowering *work) {
         status = sxml_ir_unit_add_function(work->unit, &(sxml_ir_function){.parameter_count = 0},
                                            &main_function);
     }
+    /* The XSLT functions in front of every static context's table
+       (src/xslt_key_internal.h, packet 4.10). */
+    sxml_xslt_function_table *xslt_functions = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xslt_declare_functions(&lowering, memory.static_contexts, &xslt_functions);
+    }
     if (status == SXML_STATUS_OK) {
         status = sxml_xslt_lowering_declare_global_variables(&lowering, memory.static_contexts);
     }
@@ -1743,9 +1750,17 @@ static sxml_status lower_into_unit(const unit_lowering *work) {
                                      .invocation = work->invocation,
                                      .builds_result_document = request->builds_result_document});
     }
+    if (status == SXML_STATUS_OK) {
+        /* While the templates are there (a key's sequence constructor may
+           apply them); again after the global variables. */
+        status = sxml_xslt_lower_functions(xslt_functions);
+    }
     sxml_xslt_release_templates(&lowering);
     if (status == SXML_STATUS_OK) {
         status = sxml_xslt_lowering_add_global_variables(&lowering);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xslt_lower_functions(xslt_functions);
     }
     const sxml_xslt_ast_node_index context_node =
         work->invocation.template_node.value != 0
@@ -1765,6 +1780,7 @@ static sxml_status lower_into_unit(const unit_lowering *work) {
         }
     }
     sxml_xslt_lowering_release_global_variables(&lowering);
+    sxml_xslt_release_functions(xslt_functions);
     release_storage(work->base_context->allocator, &memory);
     sxml_xpath_lowerer_finalize(lowerer);
     return status;

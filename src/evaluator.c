@@ -258,8 +258,90 @@ sxml_status sxml_dynamic_context_initialize(
         .static_base_uri = {.bytes = NULL, .byte_count = 0},
         .current_mode = {.value = 0},
         .current_template_rule_index = 0,
+        .memo_entries = NULL,
+        .memo_entry_count = 0,
+        .memo_entry_capacity = 0,
     };
     *dynamic_context = context;
+    return SXML_STATUS_OK;
+}
+
+/* Releases every entry of the evaluation memo and its array. */
+static void sxml_release_memo(sxml_dynamic_context *context) {
+    for (size_t entry_index = 0; entry_index < context->memo_entry_count; entry_index += 1) {
+        sxml_item_release(context->memo_entries[entry_index].key.subject);
+        sxml_sequence_release(context->memo_entries[entry_index].value);
+    }
+    if (context->memo_entries != NULL) {
+        sxml_allocator_release(context->allocator, context->memo_entries);
+    }
+    context->memo_entries = NULL;
+    context->memo_entry_count = 0;
+    context->memo_entry_capacity = 0;
+}
+
+static bool sxml_memo_keys_are_equal(const sxml_evaluation_memo_key *first,
+                                     const sxml_evaluation_memo_key *second) {
+    return first->computation == second->computation &&
+           first->computation_number == second->computation_number &&
+           sxml_generic_node_is_same_node(
+               (sxml_item_pair){.first = first->subject, .second = second->subject});
+}
+
+bool sxml_dynamic_context_find_memo(const sxml_dynamic_context *dynamic_context,
+                                    const sxml_evaluation_memo_key *key, sxml_sequence *value) {
+    for (size_t entry_index = 0; entry_index < dynamic_context->memo_entry_count;
+         entry_index += 1) {
+        const sxml_evaluation_memo_entry *entry = &dynamic_context->memo_entries[entry_index];
+        if (sxml_memo_keys_are_equal(&entry->key, key)) {
+            *value = entry->value;
+            return true;
+        }
+    }
+    return false;
+}
+
+sxml_status sxml_dynamic_context_store_memo(sxml_dynamic_context *dynamic_context,
+                                            const sxml_evaluation_memo_entry *entry) {
+    for (size_t entry_index = 0; entry_index < dynamic_context->memo_entry_count;
+         entry_index += 1) {
+        sxml_evaluation_memo_entry *stored = &dynamic_context->memo_entries[entry_index];
+        if (sxml_memo_keys_are_equal(&stored->key, &entry->key)) {
+            sxml_sequence_retain(entry->value);
+            sxml_sequence_release(stored->value);
+            stored->value = entry->value;
+            return SXML_STATUS_OK;
+        }
+    }
+    if (dynamic_context->memo_entry_count == dynamic_context->memo_entry_capacity) {
+        const size_t capacity =
+            dynamic_context->memo_entry_capacity == 0 ? 8 : dynamic_context->memo_entry_capacity * 2;
+        size_t byte_count = 0;
+        sxml_status status =
+            sxml_size_multiply(capacity, sizeof(sxml_evaluation_memo_entry), &byte_count);
+        void *memory = NULL;
+        if (status == SXML_STATUS_OK) {
+            status = sxml_allocator_allocate(
+                dynamic_context->allocator,
+                (sxml_allocation_request){.byte_count = byte_count,
+                                          .alignment = alignof(sxml_evaluation_memo_entry)},
+                &memory);
+        }
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        if (dynamic_context->memo_entry_count > 0) {
+            memcpy(memory, dynamic_context->memo_entries,
+                   dynamic_context->memo_entry_count * sizeof(sxml_evaluation_memo_entry));
+            sxml_allocator_release(dynamic_context->allocator, dynamic_context->memo_entries);
+        }
+        dynamic_context->memo_entries = memory;
+        dynamic_context->memo_entry_capacity = capacity;
+    }
+    sxml_item_retain(entry->key.subject);
+    sxml_sequence_retain(entry->value);
+    dynamic_context->memo_entries[dynamic_context->memo_entry_count] = *entry;
+    dynamic_context->memo_entry_count += 1;
     return SXML_STATUS_OK;
 }
 
@@ -267,6 +349,7 @@ void sxml_dynamic_context_finalize(sxml_dynamic_context *dynamic_context) {
     if (dynamic_context == NULL) {
         return;
     }
+    sxml_release_memo(dynamic_context);
     if (dynamic_context->frame_stack.slots != NULL) {
         sxml_allocator_release(dynamic_context->allocator,
                                dynamic_context->frame_stack.slots);
@@ -4473,6 +4556,7 @@ static sxml_status sxml_start_main_function(sxml_dynamic_context *context,
 /* Ends a run: restores the context for the next one. */
 static void sxml_end_run(sxml_dynamic_context *context, size_t base_count) {
     sxml_machine_unwind(context, base_count);
+    sxml_release_memo(context);
     context->is_running = false;
     context->error_record = NULL;
     context->caught_status = SXML_STATUS_OK;

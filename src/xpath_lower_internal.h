@@ -157,6 +157,11 @@ typedef struct sxml_xpath_lowerer {
     /* Per node of ast, whether its subtree has a variable reference; made
        for the first inline function. */
     bool *has_variable_reference;
+    /* The focus and function the innermost embedding started with (what
+       SXML_XPATH_LOWERING_FOCUS_PART_CURRENT_ITEM reads); NULL outside
+       one. */
+    sxml_xpath_lowering_focus *embedding_focus;
+    const sxml_xpath_lowering_function *embedding_function;
     /* Levels of maximum_expression_depth in use. */
     uint32_t depth;
     uint32_t maximum_depth;
@@ -355,6 +360,10 @@ typedef enum sxml_xpath_lowering_focus_part {
     SXML_XPATH_LOWERING_FOCUS_PART_VALUE,
     SXML_XPATH_LOWERING_FOCUS_PART_POSITION,
     SXML_XPATH_LOWERING_FOCUS_PART_SIZE,
+    /* XSLT's current item (glossary `current_item`, D149): the context
+       value of the focus the innermost embedding started with, the
+       current focus outside an embedding. */
+    SXML_XPATH_LOWERING_FOCUS_PART_CURRENT_ITEM,
 } sxml_xpath_lowering_focus_part;
 
 /* One part of the current function's focus, read at node. */

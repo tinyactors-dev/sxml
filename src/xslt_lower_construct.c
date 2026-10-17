@@ -1534,6 +1534,15 @@ static sxml_status bind_copy_of(sxml_xpath_lowerer *lowerer, copy_of_request req
         atom);
 }
 
+sxml_status sxml_xslt_lowering_bind_copy_of(sxml_xpath_lowerer *lowerer,
+                                            sxml_xslt_copy_request request, sxml_ir_atom *atom) {
+    return bind_copy_of(lowerer,
+                        (copy_of_request){.block = request.block,
+                                          .value = request.value,
+                                          .flags = request.construction_flags},
+                        atom);
+}
+
 /* xsl:copy-of (11.9.2). */
 typedef struct copy_of_locals {
     sxml_xslt_instruction_locals head;

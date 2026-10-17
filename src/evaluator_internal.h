@@ -222,6 +222,25 @@ typedef struct sxml_evaluator_task_stack {
 } sxml_evaluator_task_stack;
 
 /*
+ * What an evaluation memo entry was computed for (D148): a computation the
+ * caller names (an address of its static data, so callers cannot collide,
+ * plus a number of its own, such as the key of an xsl:key) and a subject
+ * item, a node compared by identity (sxml_generic_node_is_same_node).
+ */
+typedef struct sxml_evaluation_memo_key {
+    const void *computation;
+    uint64_t computation_number;
+    sxml_item subject;
+} sxml_evaluation_memo_key;
+
+/* One value of the evaluation memo; the evaluator owns the subject and the
+   value it keeps. */
+typedef struct sxml_evaluation_memo_entry {
+    sxml_evaluation_memo_key key;
+    sxml_sequence value;
+} sxml_evaluation_memo_entry;
+
+/*
  * The dynamic context of an evaluation (XPath 4.0, section 2.2.2), as
  * native function bodies receive it through sxml_function_call (the
  * substrate declares it opaque, D38). The focus is not here: it lives in
@@ -272,6 +291,11 @@ struct sxml_dynamic_context {
        xsl:next-match, xsl:apply-imports and current-mode(). */
     sxml_ir_mode_index current_mode;
     uint32_t current_template_rule_index;
+    /* The evaluation memo (glossary `evaluation_memo`, D148): values
+       computed once per evaluation, released when it ends. */
+    sxml_evaluation_memo_entry *memo_entries;
+    size_t memo_entry_count;
+    size_t memo_entry_capacity;
 };
 
 /* Writes sizeof(sxml_dynamic_context) and its alignment. */
@@ -345,6 +369,28 @@ const sxml_ir_unit *sxml_dynamic_context_get_running_unit(
  */
 SXML_NODISCARD sxml_status sxml_dynamic_context_charge_steps(
     sxml_dynamic_context *dynamic_context, uint64_t step_count);
+
+/*
+ * The evaluation memo (glossary `evaluation_memo`, D148): values that a
+ * native body computes once per evaluation and per subject node, such as
+ * the index of an xsl:key for one document (XSLT 4.0, 20.2). Entries live
+ * until the evaluation (sxml_evaluator_evaluate or
+ * sxml_evaluator_call_function_item) ends; one evaluation's memo is never
+ * seen by another, so a value may depend on the evaluation's documents.
+ *
+ * Writes the value stored for key to *value, borrowed until the
+ * evaluation ends, and returns true; false when there is none.
+ */
+bool sxml_dynamic_context_find_memo(const sxml_dynamic_context *dynamic_context,
+                                    const sxml_evaluation_memo_key *key, sxml_sequence *value);
+
+/*
+ * Stores entry (the subject and value retained) for the rest of the
+ * evaluation; an entry with the same key is replaced. Returns the
+ * allocator's failures, with nothing stored.
+ */
+SXML_NODISCARD sxml_status sxml_dynamic_context_store_memo(
+    sxml_dynamic_context *dynamic_context, const sxml_evaluation_memo_entry *entry);
 
 /* Calls the document loader's load_document (fn:doc). */
 SXML_NODISCARD sxml_status sxml_dynamic_context_load_document(

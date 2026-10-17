@@ -85,6 +85,11 @@ typedef enum sxml_parameter_default {
     /* Any other default ("()", "\"\"", the default collation, ...): the
        body receives fewer arguments and supplies the value itself. */
     SXML_PARAMETER_DEFAULT_SUPPLIED_BY_BODY,
+    /* XSLT's current item (glossary `current_item`; XSLT 4.0, 20.3.1
+       fn:current): the caller passes the context value the outermost
+       expression started with, which lowering reads from the embedding's
+       focus (SXML_XPATH_LOWERING_FOCUS_PART_CURRENT_ITEM, D149). */
+    SXML_PARAMETER_DEFAULT_CURRENT_ITEM,
 } sxml_parameter_default;
 
 /*
@@ -366,7 +371,11 @@ typedef struct sxml_function_entry {
     /* The registered function type for this arity: what a function item
        made from the entry carries as its signature. */
     sxml_type_identifier signature;
-    /* arity entries, resolved: what lowering coerces arguments to. */
+    /* arity entries, resolved: what lowering coerces arguments to. An
+       entry may list more: the parameters after the arity whose default
+       the caller supplies (the context value, the current item) are then
+       passed to this entry itself, not to the entry of the longer arity
+       (XSLT's fn:key#2, whose context value is no $top of fn:key#3; D149). */
     sxml_sequence_type_view parameter_types;
     sxml_sequence_type result_type;
 } sxml_function_entry;

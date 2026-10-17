@@ -809,6 +809,20 @@ sxml_xpath_lowerer_read_focus(sxml_xpath_lowerer *state,
                               sxml_xpath_lowering_focus_read request,
                               sxml_ir_atom *atom) {
     sxml_xpath_lowering_focus *focus = state->function->focus;
+    if (request.part == SXML_XPATH_LOWERING_FOCUS_PART_CURRENT_ITEM) {
+        /* XSLT 4.0, 20.3.1: the context item when the outermost
+           expression's evaluation started, the focus the embedding gave. */
+        request.part = SXML_XPATH_LOWERING_FOCUS_PART_VALUE;
+        if (state->embedding_focus != NULL) {
+            if (state->embedding_function != state->function) {
+                return sxml_xpath_lowerer_report_unsupported(
+                    state, request.node,
+                    SXML_BYTE_VIEW_FROM_LITERAL(
+                        "the current item inside an inline function"));
+            }
+            focus = state->embedding_focus;
+        }
+    }
     switch (focus->kind) {
     case SXML_XPATH_LOWERING_FOCUS_KIND_ABSENT: {
         sxml_ir_expression_index raise = {0};
@@ -2103,7 +2117,14 @@ lower_named_function_reference(sxml_xpath_lowerer *state,
     const bool reads_position_or_size =
         (properties & (SXML_NATIVE_FUNCTION_READS_CONTEXT_POSITION |
                        SXML_NATIVE_FUNCTION_READS_CONTEXT_SIZE)) != 0;
+    const bool omits_current_item =
+        arity < entry.parameters.function_parameter_count &&
+        entry.parameters.function_parameters[arity].parameter_default ==
+            SXML_PARAMETER_DEFAULT_CURRENT_ITEM;
+    /* A reference to fn:current#0 captures nothing: called, it has no
+       current item (XTDE1360, raised by the row). */
     const bool omits_context_value =
+        !omits_current_item &&
         arity < entry.parameters.function_parameter_count &&
         entry.parameters.function_parameters[arity].parameter_default ==
             SXML_PARAMETER_DEFAULT_CONTEXT_VALUE;
@@ -2135,12 +2156,15 @@ lower_named_function_reference(sxml_xpath_lowerer *state,
             &captured);
     } else {
         /* The closure calls the next arity with its parameters and the
-           captured context value. */
-        status = find_function(
-            state,
-            (function_lookup){.function_name = name,
-                              .arity = (size_t)arity + 1U},
-            &call_entry);
+           captured context value (or the entry itself when it takes that
+           parameter, D149). */
+        if (entry.parameter_types.sequence_type_count <= (size_t)arity) {
+            status = find_function(
+                state,
+                (function_lookup){.function_name = name,
+                                  .arity = (size_t)arity + 1U},
+                &call_entry);
+        }
         if (status == SXML_STATUS_OK &&
             call_entry.entry_kind == SXML_FUNCTION_ENTRY_KIND_NONE) {
             /* The table lists a context-value default it does not serve. */
@@ -3351,6 +3375,8 @@ typedef struct embedded_locals {
     const sxml_ast *outer_ast;
     const sxml_xpath_static_context *outer_static_context;
     sxml_xpath_lowering_focus *outer_focus;
+    sxml_xpath_lowering_focus *outer_embedding_focus;
+    const sxml_xpath_lowering_function *outer_embedding_function;
     sxml_ir_expression_index result;
 } embedded_locals;
 
@@ -3413,6 +3439,10 @@ static sxml_status continue_embedded(sxml_xpath_lowering_machine *machine,
             locals->outer_focus = state->function->focus;
             state->function->focus = embedding->focus;
         }
+        locals->outer_embedding_focus = state->embedding_focus;
+        locals->outer_embedding_function = state->embedding_function;
+        state->embedding_focus = state->function->focus;
+        state->embedding_function = state->function;
         return sxml_xpath_lowering_call_expression(
             machine,
             (sxml_xpath_lowering_expression_call){
@@ -3430,6 +3460,8 @@ static sxml_status continue_embedded(sxml_xpath_lowering_machine *machine,
     if (embedding->focus != NULL) {
         state->function->focus = locals->outer_focus;
     }
+    state->embedding_focus = locals->outer_embedding_focus;
+    state->embedding_function = locals->outer_embedding_function;
     return sxml_xpath_lowering_finish_frame(machine, frame, locals->result);
 }
 
@@ -5368,11 +5400,17 @@ static sxml_status begin_function_call(sxml_xpath_lowering_machine *machine,
     /* A parameter whose default is the context value, left out, is
        supplied by the caller (F&O 4.0, section 1.5). */
     while (needed_arity < entry.parameters.function_parameter_count &&
-           entry.parameters.function_parameters[needed_arity].parameter_default ==
-               SXML_PARAMETER_DEFAULT_CONTEXT_VALUE) {
+           (entry.parameters.function_parameters[needed_arity].parameter_default ==
+                SXML_PARAMETER_DEFAULT_CONTEXT_VALUE ||
+            entry.parameters.function_parameters[needed_arity].parameter_default ==
+                SXML_PARAMETER_DEFAULT_CURRENT_ITEM)) {
         needed_arity += 1;
     }
-    if (needed_arity != arity) {
+    if (needed_arity != arity &&
+        entry.parameter_types.sequence_type_count >= needed_arity) {
+        /* The entry takes the supplied parameters itself (D149). */
+        arity = needed_arity;
+    } else if (needed_arity != arity) {
         arity = needed_arity;
         status = find_function(
             state, (function_lookup){.function_name = name, .arity = arity},
@@ -5487,13 +5525,16 @@ static sxml_status finish_function_call(sxml_xpath_lowering_machine *machine,
                 ? entry->parameters.function_parameters[argument_index]
                       .parameter_default
                 : SXML_PARAMETER_DEFAULT_REQUIRED;
-        if (parameter_default == SXML_PARAMETER_DEFAULT_CONTEXT_VALUE) {
+        if (parameter_default == SXML_PARAMETER_DEFAULT_CONTEXT_VALUE ||
+            parameter_default == SXML_PARAMETER_DEFAULT_CURRENT_ITEM) {
             status = sxml_xpath_lowerer_read_focus(
                 state,
                 (sxml_xpath_lowering_focus_read){
                     .block = locals->request.preparation_block,
                     .node = call_node,
-                    .part = SXML_XPATH_LOWERING_FOCUS_PART_VALUE},
+                    .part = parameter_default == SXML_PARAMETER_DEFAULT_CURRENT_ITEM
+                                ? SXML_XPATH_LOWERING_FOCUS_PART_CURRENT_ITEM
+                                : SXML_XPATH_LOWERING_FOCUS_PART_VALUE},
                 &locals->arguments[argument_index].atom);
         } else if (parameter_default == SXML_PARAMETER_DEFAULT_REQUIRED) {
             status = sxml_xpath_lowerer_report_static_error(
