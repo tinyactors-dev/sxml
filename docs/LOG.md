@@ -4,6 +4,25 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 4.10 done (D149): keys and XSLT functions. `src/function_library_xslt.c`,
+  the XSLT-only library part (system-property and the other static-expression
+  functions moved from `src/xslt_static.c`, current, document with the 4.0
+  options map, unparsed-entity-uri/-public-id); `src/xslt_key.c`, the XSLT
+  function table in front of every static context: fn:key#2/#3 lowered from
+  XPath texts over the xsl:key declarations (map:build index per key and
+  tree, built lazily once per evaluation through the new evaluation memo of
+  the dynamic context; composite keys, collations, numbers as eq compares
+  them), fn:copy-of, fn:snapshot. current() is a parameter default the
+  lowerer reads from the embedding's focus (patterns: the item matched).
+  Patterns whose predicates never count positions no longer select the step
+  again (attr/match 12 s in debug; match-242 was 60 s alone). Scratch
+  harness (lower, evaluate, serialize; assertions through `sxml xpath`):
+  fn sets key 75/91, document 64/98, system-property 20/23, snapshot 7/19,
+  function-available 4/10, copy-of 3/8, type-available 1/2, current 2/2 of
+  applicable (before: 4 of 290 with the harness's first checker, before
+  4.7). Left: xsl:function (4.12), xsl:sort (4.9), stylesheet parameters,
+  fn:apply-templates, current-output-uri; runtime function table (Proposed).
+
 - 2.20 done (D151): Phase 2 gate review (D11), checked locally (D123).
   Clean HEAD c7c0c35: `release`, `debug`, `debug-gcc`, `wasm` (Node.js
   package, size budget) and lint pass, no call cycle. QT4 (release, code
