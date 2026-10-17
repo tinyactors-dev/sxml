@@ -467,9 +467,14 @@ typedef struct parameter_query {
     sxml_name_identifier name;
 } parameter_query;
 
+/* Written by is_parameter_name. */
+typedef struct parameter_match {
+    bool is_parameter;
+} parameter_match;
+
 static sxml_status is_parameter_name(sxml_xpath_lowerer *state, parameter_query query,
-                                     bool *is_parameter) {
-    *is_parameter = false;
+                                     parameter_match *match) {
+    match->is_parameter = false;
     const closure_locals *locals = query.locals;
     for (uint32_t parameter_index = 0; parameter_index < locals->parameter_count;
          parameter_index += 1) {
@@ -482,7 +487,7 @@ static sxml_status is_parameter_name(sxml_xpath_lowerer *state, parameter_query 
         if (status != SXML_STATUS_OK) {
             return status;
         }
-        *is_parameter = *is_parameter || parameter.index == query.name.index;
+        match->is_parameter = match->is_parameter || parameter.index == query.name.index;
     }
     return SXML_STATUS_OK;
 }
@@ -532,10 +537,12 @@ static sxml_status find_captures(sxml_xpath_lowering_machine *machine,
         }
         sxml_name_identifier name = {0};
         status = resolve_name(state, child_of(state, walked, SXML_AST_FIELD_NAME), &name);
-        bool is_known = false;
+        parameter_match match = {.is_parameter = false};
         if (status == SXML_STATUS_OK) {
-            status = is_parameter_name(state, (parameter_query){.locals = locals, .name = name}, &is_known);
+            status = is_parameter_name(
+                state, (parameter_query){.locals = locals, .name = name}, &match);
         }
+        bool is_known = match.is_parameter;
         for (size_t member_index = 0; member_index < locals->tuple_layout.member_count;
              member_index += 1) {
             is_known = is_known ||
