@@ -79,11 +79,12 @@ target_compile_definitions(sxml PRIVATE SXML_BUILDING_LIBRARY)
 target_include_directories(sxml
     PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
-# The XML, XPath and JSON parsers are generated tree-sitter grammars (D12,
-# D15); decimal arithmetic is libmpdec once third_party/mpdecimal/ is
-# vendored (D42, D49).
+# The XML, XPath, JSON and XQuery parsers are generated tree-sitter
+# grammars (D12, D15, D111); decimal arithmetic is libmpdec once
+# third_party/mpdecimal/ is vendored (D42, D49).
 target_link_libraries(sxml PRIVATE
-    sxml_tree_sitter sxml_grammar_xml sxml_grammar_xpath sxml_grammar_json)
+    sxml_tree_sitter sxml_grammar_xml sxml_grammar_xpath sxml_grammar_json
+    sxml_grammar_xquery)
 if(TARGET sxml_mpdecimal)
     target_link_libraries(sxml PRIVATE sxml_mpdecimal)
 endif()
