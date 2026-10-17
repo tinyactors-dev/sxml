@@ -4,6 +4,34 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 2.9 done (D119): number formatting. One picture engine
+  (`src/format.c`, `src/format_internal.h`) for fn:format-integer (digit
+  patterns in any Nd family, radix 2 to 36, letters, Roman, English
+  words and ordinals, fallback to "1") and fn:format-number (sub-pictures,
+  exponents, percent and per-mille, marker:rendition properties, exact
+  half-even rounding on digit text); decimal formats checked by
+  `sxml_decimal_format_apply` for 2.14, 3.x and 4.10. Part `format` with
+  options maps. fn-format-integer 13 to 87 passed (all run),
+  fn-format-number 20 to 252 of 286 run; 33 failures wait for static
+  decimal formats in the evaluator (Proposed). XP40 27,308 passed in the
+  snapshot, no set lost; slice 198/198; `debug`, `debug-gcc`, `wasm`
+  126/126 (the `evaluator` failure under `debug` is HEAD's), lint clean.
+
+- 3.3 done (D120): XML and XHTML output methods. Serializer split into
+  `src/serialize.c` (pipeline: character maps, normalization through
+  `sxml_unicode_normalize`, escaping, line endings, UTF-8/UTF-16/US-ASCII/
+  ISO-8859-1 with references; sequence normalizer; adaptive; dispatch,
+  other methods UNSUPPORTED_FEATURE) and `src/serialize_xml.c`
+  (declaration, doctype, namespaces against written bindings with
+  undeclarations, indentation with suppress-indentation, indent-unit,
+  indent-attributes, CDATA sections, XHTML void elements, HTML5 doctype,
+  prefix normalization, content-type meta, URI escaping, Canonical XML;
+  adaptive nodes incl. stored namespace nodes, D98). 13 new unit cases
+  modelled on method-xml/method-xhtml, allocation-failure loop, 20,000
+  nested elements. `debug`, `debug-gcc`, `wasm` all pass, lint and
+  call-cycle check clean; slice 198/198; XP40 26,951 passed before and
+  after (release runs of the snapshot at HEAD, no test changed). Open:
+  the parameter reader of D106 (3.4), SERE0005/0006.
 - 3.2 done (D121): XQuery front end. `sxml_xquery_build_ast` in
   `src/xquery_parse.c`, the XQuery parser part on the XPath walker:
   tables, keyword tokens, XQuery decoding (references with XQST0090,
