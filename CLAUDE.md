@@ -15,14 +15,14 @@ Windows, iOS and Android, and a WebAssembly module for browsers and Node.js.
 
 ## Current phase
 
-**Phase 2: XPath 4.0 and F&O 4.0.** Work on the packets in
-`docs/tasks/phase-2.md`, and on the packets marked "Early" in
-`docs/tasks/phase-3.md` and `docs/tasks/phase-4.md` (D96). The Phase 0 and
-Phase 1 gates were closed by agent review, as the owner chose (D11). CI is
-disabled for now by the owner's choice, so gates are checked locally (D123). The substrate headers are
-frozen (D99): changing them needs a decision record. Any later-phase packet
-may start once the packets it depends on are committed (D132); each phase is
-still closed by its gate review.
+**Phase 3: XQuery 4.0**, with Phase 4 (XSLT 4.0) packets running alongside
+as their dependencies allow (D132). Work on the packets in
+`docs/tasks/phase-3.md` and `docs/tasks/phase-4.md`. Phases 0 to 2 were closed
+by agent review, as the owner chose (D11); CI is disabled for now and gates
+are checked locally (D123). The substrate headers are frozen (D99); the
+public XPath API is stable since 0.2.0, while `xquery.h` and `xslt.h` stay
+provisional until their phase gates (D151). Each phase is closed by its gate
+review.
 
 ## Design principle
 
