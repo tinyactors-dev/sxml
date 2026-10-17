@@ -123,6 +123,13 @@ json-node-output-method, SERE0020/0022/0023), CSV; fn:serialize with
 element and map parameters. Done when method-html, method-text,
 method-json, method-csv, fn-serialize ≥ 90%. Spec: Serialization 4.0
 per method.
+**Done** 2026-10-17 (D128): every method on the 3.3 pipeline (escape
+styles HTML, none, JSON, CSV; raw text), HTML as a mode of the XML node
+writer, `src/serialize_parameters.c` (the parameter reader),
+fn:serialize. fn-serialize 48 to 165/194 (wrong errors 48 to 3); the 32
+left need expath binary, fn:parse-csv, fn:unparsed-text, an entity fix in
+the parser, or XQuery character references. method-* are XQuery-only:
+unit cases until 3.10 and 3.13.
 
 ### 3.5 Node constructors in the evaluator (implementation) — Early
 After 2.0. Owns `src/evaluator_construct.c`,
