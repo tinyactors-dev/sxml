@@ -2949,6 +2949,55 @@ Recorded 2026-10-17, after D101 made parts files of their own.
   names the regex part in its fixture so its regex cases keep running;
   new cases and an allocation-failure loop over the new functions.
 
+### D115. Evaluator: JNode selectors, jkey and jvalue, fold fixpoints (packet 2.6)
+Recorded 2026-10-17. Sections are those of the XPath 4.0 editor's draft
+vendored with QT4 (PR 2734 for selectors).
+- **fn:jkey, fn:jvalue** move from 2.17 to 2.6: new part
+  `src/function_library_jnode.c` (F&O 4.0, 16.1.2, 16.1.3; `$input as
+  jnode()? := .`). Nearly every prod-PathExpr.J and prod-AxisStep.J case
+  uses them; 2.17 no longer writes them. fn:jtree stays in
+  `src/function_library_json.c`.
+- **Selector interpretation** (4.7.3, 4.7.5.4; replaces D85's "not
+  done"): in a path's MAP, a JNode N with a non-navigational body (glossary
+  `navigational`, decided once per MAP from the IR: ".", STEP, a path MAP,
+  DOCUMENT_ORDER, fn:root/TREAT of "/", FILTER of such, union, sequence,
+  conditional, let; tables of 48 entries, beyond that navigational as in
+  Phase 1) evaluates the body and selects the children of N whose jkey is
+  atomic-equal to an item of its atomized value; a body that reads the
+  focus is XPDY0002 there. Task phase bits of the MAP keep the analysis.
+- **Name tests on JNodes**: an NCName matches string/anyURI/untypedAtomic
+  keys, a prefixed name or wildcard matches xs:QName keys. The IR does not
+  tell `a` from `Q{}a` (both match strings; JAxes-292 waits for lowering).
+  The attribute and namespace axes from a JNode raise XPTY0004 (4.7.5.1).
+- **Lookups** on a JNode use the items of its jvalue (each a map or array).
+- **Numeric predicates** (4.4.1): a value whose first item is numeric
+  selects by "= position()" (any item), an integer range by its bounds;
+  a later non-number is FORG0006 (was FORG0006 for every second item).
+- **Maps and arrays as typed functions** (3.2.9, 3.2.10): when the type
+  annotation does not decide it, a map matches function(K) as R for K a
+  single atomic type and R allowing () when every value matches R; an
+  array function(I) as R for I a single integer type when every member
+  matches R.
+- **Fold fixpoints** (glossary `fixpoint`): fn:fold-left/-right and
+  array:fold-left/-right stop early when the function is an inline
+  function (through coerced functions whose accumulator parameter and
+  result are item()*) of body `if (C) then $acc else E` (or the mirror),
+  C a value or general comparison of numeric constants, captured values
+  and $acc, and C holds for the next accumulator: every later call would
+  return it (QT4 fold-left/right-022/023). `sxml_evaluator_test_fixpoint`
+  is declared in `src/evaluator_internal.h` (one additive declaration
+  outside the packet's files; 2.0 is done).
+- **Not done here**: `/` and `/x` from a JNode need lowering to treat as
+  `document-node()|jnode()` (4.7.1.1; 6 PathExpr.J cases; lowering);
+  fn:function-lookup of focus functions (position#0, last#0) needs the
+  focus at the call, which a leaf row cannot see (lowering);
+  assert-eq on a JNode result needs the driver to atomize (2.16);
+  `count(reverse(1 to 10^11))` needs a descending range representation
+  (substrate, 2.17); the O(1) comparison of a range with an integer
+  (RangeExpr-408h, -410h) is ready but waits for `tests/xpath_test.c`
+  (see "Proposed"). fn-function-lookup stays at 85%: its other 85
+  failures are functions other packets add.
+
 ## Proposed
 
 - **IR adders for catch clauses and name tests** (packet 3.6, D109; for
@@ -2993,3 +3042,12 @@ Recorded 2026-10-17, after D101 made parts files of their own.
   namespaces, so a QName key in a namespace (given as an EQName,
   `include/sxml/types.h`) never matches; the cast should read the EQName
   form (QT4 sequence-type-61, `jnode(#xml:space)`).
+
+- **The step-bound test and O(1) range comparisons** (packet 2.6, D115;
+  for the owner of `tests/xpath_test.c`, 2.12): 2.6 decides a general
+  comparison of an integer range with one xs:integer from the bounds
+  (QT4 RangeExpr-408h and -410h, `1 = 1 to 100000000000`, are errors for
+  the step limit now). `test_step_bound_stops_long_evaluations` expects
+  LIMIT_EXCEEDED for `-1 = -100000000000 to -1`; proposed: use
+  `0 = (1 to 100000000000, 2)` there (a concatenation is still charged
+  per pair, D89). 2.6 then lands the fast path in `src/evaluator.c`.
