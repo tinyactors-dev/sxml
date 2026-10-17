@@ -4438,6 +4438,15 @@ Reserved here; the record is completed when the packet is ticked.
 
 ## Proposed
 
+- **XQuery's default for omit-xml-declaration** (packet 3.12, D146; for
+  the owner of `include/sxml/xquery.h`): the header gives every
+  undeclared parameter serialize.h's default, so omit-xml-declaration is
+  yes; Serialization 4.0 leaves it implementation-defined for XQuery and
+  QT4 expects a declaration (K2-Serialization-22, -23, Serialization-xml-01:
+  standalone or item-separator declared alone). Proposed: XQuery's default
+  is no (the declaration is written), in the header's comment and in
+  `src/xquery.c`.
+
 - **The CLI's WebAssembly budget after sxml xquery** (packet 3.12, D146;
   for the owner, with the budget item below): linking the XQuery grammar
   makes the stripped `sxml` CLI module 3,450,339 bytes (767,283 gzipped).
