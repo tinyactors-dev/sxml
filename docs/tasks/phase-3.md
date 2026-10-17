@@ -254,6 +254,15 @@ lists them, with golden tests (XML, HTML, JSON, text output; static and
 dynamic errors). Golden: `apps/sxml/command_xpath.c`. Done when 20 XQ40
 queries round-trip through the public headers alone, with allocation-
 failure loops on compile.
+**Done** 2026-10-17 (D146): `src/xquery.c` over the shared unit
+evaluation of `src/xpath.c` (`src/xpath_api_internal.h`) and
+`sxml_xquery_compile_module`; output declarations through the parameter
+reader's text form over the parameter document; the QT4 adapter deleted;
+`sxml xquery`, `sxml serialize`, `sxml xpath --method` (shared
+`apps/sxml/query_command.c`); `tests/xquery_test.c` (22 queries,
+allocation-failure loop). XQ40 gate 96.0 %, XQ-only 83.9 %, method-*
+433/444 run. `--output` and the JavaScript `compileQuery()` wait
+(Proposed: the WebAssembly budget).
 
 ### 3.13 QT4 driver for XQ40 (implementation)
 After 3.0, 2.16. Owns `tests/qt4/driver/`. `--spec=XQ40` runs; `<module>`

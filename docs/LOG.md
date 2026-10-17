@@ -4,6 +4,22 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 3.12 done (D146): "working XQuery". `include/sxml/xquery.h` in
+  `src/xquery.c`, compiled with the XPath API's static context and
+  evaluated by its unit evaluation (`src/xpath_api_internal.h`); output
+  declarations read as text by the serialization parameter reader over
+  the parameter document (SEPM0016, XQST0115, XQST0119 static). The QT4
+  driver uses the public header (adapter deleted). CLI: `sxml xquery
+  (QUERY-FILE | --expression)`, `sxml serialize`, `sxml xpath --method`
+  (adaptive, xml, xhtml, html, text, json). QT4 XQ40 (release, before =
+  a13b17f with the adapter): passed 39,174 to 39,539; gate 95.1 % to
+  96.0 % (39,521/41,174); XQ-only 81.0 % to 83.9 %; method-* passed 147
+  to 433 of 444 run; errors 1,574 to 1,570 (1,379 misc-HtmlTestSuite, 94
+  module imports). XP40 30,628 (unchanged), slice 198/198, xquery-slice
+  186. debug, release, debug-gcc, wasm pass. The wasm CLI is 3.45 MB
+  stripped with the XQuery grammar; budget raised for the CLI only
+  (Proposed). D95's XQ40 numbers are met.
+
 - 2.19 sweep 1 done (D143): computed constructors lowered in XPath 4.0
   (the construct part serves every language, 136 "error" outcomes gone);
   the JSON fallback option (parse-json, json-to-xml, json-doc as resumable
