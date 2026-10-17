@@ -116,6 +116,10 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `binding_collection` | The value a for binding iterates (XPath 4.0, section 4.13.1): its items, the members of its arrays (`for member`) or the entries of its maps (`for key/value`) |
 | `range_variable` | A variable a for, let or quantifier binding binds to an item, member, key, value or part; the position variable is not one |
 | `destructuring_let` | A let binding of several variables to the parts of one value: `$( ... )` items of a sequence, `$[ ... ]` members of an array, `${ ... }` entries of a map by name (XPath 4.0, section 4.13.2) |
+| `tuple_stream_clause` | A FLWOR clause that works on the whole tuple stream as a value: order by, count, while, group by and the windows (XQuery 4.0, section 4.13; D55) |
+| `clause_segment` | The FLWOR clauses between two tuple stream clauses, lowered as nested MAP, LET and CONDITIONAL without the tuple stream as a value |
+| `tuple_array` | One tuple of a FLWOR as an array: one member per live variable bound to a slot (D55) |
+| `tuple_layout` | Which variable each member of the tuple arrays holds, and the variables (constants, globals) that are not packed |
 | `dynamic_node_test` | A node test `{E}`: a node passes when its name, local name or ·jkey· is atomic-equal to an item of E's value (XPath 4.0, section 4.7.5) |
 | `item_axis` | The axis `item::`, defined for JNodes: the items of the origin's ·jvalue· as JNodes (XPath 4.0, section 4.7.4) |
 | `focus_constructor` | A constructor function call or reference that leaves its argument out and takes the context value: `xs:int()`, `xs:int#0` (XPath 4.0, section 4.5.1.3) |
