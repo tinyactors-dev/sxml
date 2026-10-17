@@ -433,6 +433,12 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `grouping_position` | The number of digit signs between a grouping separator and the end of the integer part (or the decimal separator) |
 | `numbering_kind` | How a primary format token numbers: digits, letters, Roman numerals or words, or an unsupported token formatted as `1` |
 | `ordinal` | Ordinal numbering (`1st`, `second`), asked for by the `o` format modifier |
+| `variable_marker` | A part of a date picture string in square brackets, replaced by a date or time component (F&O 4.0, section 9.9.4.1) |
+| `component_specifier` | The letter that starts a variable marker and names the component: `Y`, `M`, `D`, `d`, `F`, `W`, `w`, `H`, `h`, `P`, `m`, `s`, `f`, `Z`, `z`, `C`, `E` |
+| `presentation_modifier` | The first (a primary format token or `n`, `N`, `Nn`) or second (`a`, `t`, `c`, `o`) modifier of a variable marker |
+| `width_modifier` | The `,min-max` part of a variable marker: the minimum and maximum number of characters |
+| `calendar` | The calendar a date is formatted in, named by a designator such as `AD` or `ISO` (F&O 4.0, section 9.9.4.8) |
+| `fallback_marker` | Text such as `[Calendar: AD]` or `[Language: en]` put before a formatted date when sxml uses another calendar or language than the one asked for |
 | `default_collation` | The collation used when a function or operator is given none (XPath 4.0, section 2.2.2) |
 | `collation_binding` | A host's collation URI standing for a collation sxml implements, added to the statically known collations |
 | `default_language` | The language of the dynamic context, for `fn:default-language` and the formatting functions |
