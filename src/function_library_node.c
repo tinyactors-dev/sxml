@@ -15,6 +15,8 @@
 #include "evaluator_internal.h"
 #include "function_library_core_internal.h"
 
+#include <string.h>
+
 /* ----------------------------------------------------------------- Names */
 
 /* The name of a node argument, for the name functions. */
@@ -468,6 +470,357 @@ static sxml_status call_generate_id(const sxml_function_call *call, sxml_sequenc
     return status;
 }
 
+/* -------------------------------------------------------- Generic nodes */
+
+/* The parent of a generic node (dm:parent, ·jparent·): owned in *parent
+   when has_parent. */
+typedef struct generic_parent {
+    bool has_parent;
+    sxml_item parent;
+} generic_parent;
+
+static sxml_status read_parent(sxml_item node, generic_parent *parent) {
+    *parent = (generic_parent){.has_parent = false, .parent = {.representation = 0}};
+    if (sxml_item_get_kind(node) == SXML_ITEM_KIND_JSON_NODE) {
+        sxml_json_node_description description;
+        const sxml_status status = sxml_json_node_describe(node, &description);
+        if (status == SXML_STATUS_OK && description.has_parent) {
+            sxml_item_retain(description.parent);
+            *parent = (generic_parent){.has_parent = true, .parent = description.parent};
+        }
+        return status;
+    }
+    sxml_node_reference reference;
+    sxml_status status = sxml_item_get_node(node, &reference);
+    sxml_node_description description;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_node_describe(reference, &description);
+    }
+    if (status == SXML_STATUS_OK && description.has_parent) {
+        *parent = (generic_parent){
+            .has_parent = true,
+            .parent = sxml_node_item_make((sxml_node_reference){
+                .tree = reference.tree, .node_index = description.parent, .namespace_number = 0})};
+    }
+    return status;
+}
+
+/* Whether pair.first is an ancestor of pair.second (XPath 4.0, the
+   ancestor axis: the parent, its parent, ...; an attribute's or namespace
+   node's element included). */
+typedef struct ancestry {
+    bool is_ancestor;
+} ancestry;
+
+static sxml_status test_ancestor(sxml_item_pair pair, ancestry *answer) {
+    answer->is_ancestor = false;
+    sxml_item current = pair.second;
+    sxml_item_retain(current);
+    sxml_status status = SXML_STATUS_OK;
+    for (;;) {
+        generic_parent parent;
+        status = read_parent(current, &parent);
+        sxml_item_release(current);
+        if (status != SXML_STATUS_OK || !parent.has_parent) {
+            break;
+        }
+        if (sxml_generic_node_is_same_node(
+                (sxml_item_pair){.first = pair.first, .second = parent.parent})) {
+            answer->is_ancestor = true;
+            sxml_item_release(parent.parent);
+            break;
+        }
+        current = parent.parent;
+    }
+    return status;
+}
+
+/* One axis step from origin over every generic node (node()). */
+typedef struct generic_step {
+    sxml_sequence origin;
+    sxml_axis axis;
+} generic_step;
+
+static sxml_status make_step(const sxml_function_call *call, generic_step step,
+                             sxml_sequence *result) {
+    if (call->dynamic_context == NULL) {
+        return sxml_function_library_report(call, &no_dynamic_context_error);
+    }
+    return sxml_evaluator_make_step_value(
+        call->dynamic_context,
+        &(sxml_step_request){.origin = step.origin,
+                             .axis = step.axis,
+                             .node_test = sxml_builtin_type_identifier(SXML_TYPE_GENERIC_NODE),
+                             .error_record = call->error_record},
+        result);
+}
+
+/* fn:siblings($node := .) (F&O 4.0, section 12.2.11): the children of
+   the parent, in document order, $node included; $node alone when it is
+   parentless, an attribute or a namespace node. */
+static sxml_status call_siblings(const sxml_function_call *call, sxml_sequence *result) {
+    sxml_optional_item argument;
+    sxml_status status = sxml_function_library_read_optional_item(call, 0, &argument);
+    if (status != SXML_STATUS_OK || !argument.has_item) {
+        *result = sxml_sequence_empty();
+        return status;
+    }
+    bool is_child = true;
+    if (sxml_item_get_kind(argument.item) == SXML_ITEM_KIND_NODE) {
+        sxml_node_reference node;
+        status = sxml_item_get_node(argument.item, &node);
+        sxml_node_description description;
+        if (status == SXML_STATUS_OK) {
+            status = sxml_node_describe(node, &description);
+        }
+        is_child = status == SXML_STATUS_OK &&
+                   description.node_kind != SXML_NODE_KIND_ATTRIBUTE &&
+                   description.node_kind != SXML_NODE_KIND_NAMESPACE;
+    }
+    generic_parent parent = {.has_parent = false};
+    if (status == SXML_STATUS_OK && is_child) {
+        status = read_parent(argument.item, &parent);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (!parent.has_parent) {
+        sxml_item_retain(argument.item);
+        *result = sxml_sequence_from_item(argument.item);
+        return SXML_STATUS_OK;
+    }
+    status = make_step(call,
+                       (generic_step){.origin = sxml_sequence_from_item(parent.parent),
+                                      .axis = SXML_AXIS_CHILD},
+                       result);
+    sxml_item_release(parent.parent);
+    return status;
+}
+
+/* Which of the two selections over a node sequence. */
+typedef struct nesting_selection {
+    /* fn:innermost when true, fn:outermost otherwise. */
+    bool keeps_innermost;
+} nesting_selection;
+
+/*
+ * fn:innermost($nodes) and fn:outermost($nodes) (F&O 4.0, sections 12.3.2
+ * and 12.3.3), in document order without duplicates. In document order a
+ * node's subtree (attributes and namespace nodes included) directly
+ * follows it, so a node is an ancestor of some member exactly when it is
+ * an ancestor of the next one, and a node has an ancestor among the
+ * members exactly when the last kept outermost node is one.
+ */
+static sxml_status call_nesting(const sxml_function_call *call, nesting_selection selection,
+                                sxml_sequence *result) {
+    if (call->dynamic_context == NULL) {
+        return sxml_function_library_report(call, &no_dynamic_context_error);
+    }
+    sxml_sequence ordered = sxml_sequence_empty();
+    sxml_status status = sxml_evaluator_make_document_order_value(
+        call->dynamic_context,
+        &(sxml_document_order_request){.input = sxml_function_library_get_argument(call, 0),
+                                       .error_record = call->error_record},
+        &ordered);
+    uint64_t node_count = 0;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_sequence_count(ordered, call->error_record, &node_count);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_function_library_charge_steps(call, node_count);
+    }
+    sxml_sequence_builder *builder = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_sequence_builder_create(
+            sxml_item_heap_as_allocator(call->item_heap),
+            &(sxml_sequence_builder_configuration){.item_heap = call->item_heap}, &builder);
+    }
+    bool has_kept = false;
+    sxml_item last_kept = {.representation = 0};
+    for (uint64_t node_index = 0; status == SXML_STATUS_OK && node_index < node_count;
+         node_index += 1) {
+        sxml_item node = {.representation = 0};
+        status = sxml_sequence_get_item(
+            ordered, (sxml_item_request){.item_index = node_index, .error_record = call->error_record},
+            &node);
+        ancestry answer = {.is_ancestor = false};
+        if (status == SXML_STATUS_OK && selection.keeps_innermost && node_index + 1 < node_count) {
+            sxml_item next = {.representation = 0};
+            status = sxml_sequence_get_item(
+                ordered,
+                (sxml_item_request){.item_index = node_index + 1,
+                                    .error_record = call->error_record},
+                &next);
+            if (status == SXML_STATUS_OK) {
+                status = test_ancestor((sxml_item_pair){.first = node, .second = next}, &answer);
+            }
+        } else if (status == SXML_STATUS_OK && !selection.keeps_innermost && has_kept) {
+            status = test_ancestor((sxml_item_pair){.first = last_kept, .second = node}, &answer);
+        }
+        if (status == SXML_STATUS_OK && !answer.is_ancestor) {
+            status = sxml_sequence_builder_append_item(builder, node);
+            has_kept = true;
+            last_kept = node;
+        }
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_sequence_builder_finish(builder, result);
+    }
+    sxml_sequence_builder_destroy(builder);
+    sxml_sequence_release(ordered);
+    return status;
+}
+
+static sxml_status call_innermost(const sxml_function_call *call, sxml_sequence *result) {
+    return call_nesting(call, (nesting_selection){.keeps_innermost = true}, result);
+}
+
+static sxml_status call_outermost(const sxml_function_call *call, sxml_sequence *result) {
+    return call_nesting(call, (nesting_selection){.keeps_innermost = false}, result);
+}
+
+/* fn:nilled($node := .) (F&O 4.0, section 12.1.4): dm:nilled of an
+   element; the empty sequence for other nodes. */
+static sxml_status call_nilled(const sxml_function_call *call, sxml_sequence *result) {
+    optional_node node;
+    sxml_status status = read_optional_node(call, &node);
+    *result = sxml_sequence_empty();
+    sxml_node_description description;
+    if (status == SXML_STATUS_OK && node.has_node) {
+        status = sxml_node_describe(node.node, &description);
+        if (status == SXML_STATUS_OK && description.node_kind == SXML_NODE_KIND_ELEMENT) {
+            *result = sxml_function_library_make_boolean(
+                (sxml_boolean_result){.is_true = description.is_nilled});
+        }
+    }
+    return status;
+}
+
+/* ------------------------------------------------------------ fn:lang */
+
+/* Appends the full lower-case mapping of text: the caseless default match
+   of F&O 4.0, fn:lang, compares these. */
+static sxml_status append_lower_case(sxml_library_text *text, sxml_byte_view utf8) {
+    sxml_utf8_validation validation = {.codepoint_count = 0};
+    sxml_status status = sxml_utf8_validate(utf8, &validation);
+    sxml_codepoint_iterator iterator = {
+        .string = {.utf8 = utf8, .codepoint_count = validation.codepoint_count, .is_ascii = false},
+        .byte_offset = 0};
+    uint32_t codepoint = 0;
+    while (status == SXML_STATUS_OK && sxml_codepoint_iterator_next(&iterator, &codepoint)) {
+        sxml_case_mapping mapping;
+        sxml_function_library_map_case(
+            (sxml_case_mapping_request){.codepoint = codepoint,
+                                        .mapping_kind = SXML_CASE_MAPPING_KIND_LOWER},
+            &mapping);
+        for (size_t mapped_index = 0;
+             status == SXML_STATUS_OK && mapped_index < mapping.codepoint_count;
+             mapped_index += 1) {
+            status = sxml_function_library_text_append_codepoint(text,
+                                                                 mapping.codepoints[mapped_index]);
+        }
+    }
+    return status;
+}
+
+/* The xml:lang attribute of an element, when it has one. */
+typedef struct language_attribute {
+    bool is_found;
+    sxml_byte_view value;
+} language_attribute;
+
+typedef struct language_lookup {
+    sxml_node_reference element;
+    const sxml_node_description *description;
+    sxml_name_identifier language_name;
+} language_lookup;
+
+static sxml_status find_language_attribute(language_lookup lookup,
+                                           language_attribute *attribute) {
+    attribute->is_found = false;
+    sxml_status status = SXML_STATUS_OK;
+    for (uint32_t attribute_index = 1;
+         status == SXML_STATUS_OK && attribute_index <= lookup.description->attribute_count;
+         attribute_index += 1) {
+        const sxml_node_reference candidate = {
+            .tree = lookup.element.tree,
+            .node_index = {.index = lookup.element.node_index.index + attribute_index},
+            .namespace_number = 0};
+        sxml_node_description description;
+        status = sxml_node_describe(candidate, &description);
+        if (status == SXML_STATUS_OK && description.node_name.index == lookup.language_name.index) {
+            attribute->is_found = true;
+            return sxml_node_get_content(candidate, &attribute->value);
+        }
+    }
+    return status;
+}
+
+/* fn:lang($language, $node := .) (F&O 4.0, section 12.2.4): whether the
+   xml:lang of the nearest ancestor-or-self element that has one equals
+   $language, or starts with it followed by "-", under a caseless match. */
+static sxml_status call_lang(const sxml_function_call *call, sxml_sequence *result) {
+    sxml_string language;
+    sxml_status status = sxml_function_library_read_string_argument(call, 0, &language);
+    sxml_optional_item argument = {.has_item = false};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_function_library_read_optional_item(call, 1, &argument);
+    }
+    sxml_node_reference node = {.tree = NULL};
+    if (status == SXML_STATUS_OK && argument.has_item) {
+        status = sxml_item_get_node(argument.item, &node);
+    }
+    if (status != SXML_STATUS_OK || !argument.has_item) {
+        return status;
+    }
+    sxml_name_identifier language_name = {.index = 0};
+    bool is_true = false;
+    language_attribute attribute = {.is_found = false};
+    if (sxml_name_pool_find_name(
+            sxml_item_heap_get_name_pool(call->item_heap),
+            &(sxml_name_request){.namespace_uri = {.index = SXML_NAMESPACE_XML},
+                                 .local_name = SXML_BYTE_VIEW_FROM_LITERAL("lang")},
+            &language_name)) {
+        while (status == SXML_STATUS_OK && !attribute.is_found) {
+            sxml_node_description description;
+            status = sxml_node_describe(node, &description);
+            if (status == SXML_STATUS_OK && description.node_kind == SXML_NODE_KIND_ELEMENT) {
+                status = find_language_attribute(
+                    (language_lookup){.element = node,
+                                      .description = &description,
+                                      .language_name = language_name},
+                    &attribute);
+            }
+            if (status != SXML_STATUS_OK || attribute.is_found || !description.has_parent) {
+                break;
+            }
+            node = (sxml_node_reference){
+                .tree = node.tree, .node_index = description.parent, .namespace_number = 0};
+        }
+    }
+    sxml_library_text wanted = {.item_heap = call->item_heap};
+    sxml_library_text found = {.item_heap = call->item_heap};
+    if (status == SXML_STATUS_OK && attribute.is_found) {
+        status = append_lower_case(&wanted, language.utf8);
+        if (status == SXML_STATUS_OK) {
+            status = append_lower_case(&found, attribute.value);
+        }
+        const sxml_byte_view wanted_text = sxml_function_library_text_view(&wanted);
+        const sxml_byte_view found_text = sxml_function_library_text_view(&found);
+        is_true = status == SXML_STATUS_OK && found_text.byte_count >= wanted_text.byte_count &&
+                  (wanted_text.byte_count == 0 ||
+                   memcmp(found_text.bytes, wanted_text.bytes, wanted_text.byte_count) == 0) &&
+                  (found_text.byte_count == wanted_text.byte_count ||
+                   found_text.bytes[wanted_text.byte_count] == '-');
+    }
+    sxml_function_library_text_release(&wanted);
+    sxml_function_library_text_release(&found);
+    if (status == SXML_STATUS_OK) {
+        *result = sxml_function_library_make_boolean((sxml_boolean_result){.is_true = is_true});
+    }
+    return status;
+}
+
 /* ----------------------------------------------------------------- QName */
 
 static const sxml_static_error invalid_qname_error = {
@@ -573,6 +926,11 @@ static sxml_status call_qname(const sxml_function_call *call, sxml_sequence *res
 
 static const sxml_function_parameter node_parameters[] = {
     SXML_CONTEXT_PARAMETER("node", "node()?")};
+static const sxml_function_parameter xnode_parameters[] = {
+    SXML_CONTEXT_PARAMETER("node", "xnode()?")};
+static const sxml_function_parameter lang_parameters[] = {
+    SXML_REQUIRED_PARAMETER("language", "xs:string?"),
+    SXML_CONTEXT_PARAMETER("node", "xnode()")};
 static const sxml_function_parameter nodes_parameters[] = {
     SXML_REQUIRED_PARAMETER("nodes", "node()*")};
 static const sxml_function_parameter doc_parameters[] = {
@@ -585,11 +943,11 @@ static const sxml_function_parameter qname_parameters[] = {
     SXML_REQUIRED_PARAMETER("qname", "xs:string")};
 
 static const sxml_native_function node_functions[] = {
-    SXML_FUNCTION_ROW("local-name", node_parameters, "xs:string", 0, call_local_name),
-    SXML_FUNCTION_ROW("name", node_parameters, "xs:string", 0, call_name),
-    SXML_FUNCTION_ROW("namespace-uri", node_parameters, "xs:anyURI", 0,
+    SXML_FUNCTION_ROW("local-name", xnode_parameters, "xs:string", 0, call_local_name),
+    SXML_FUNCTION_ROW("name", xnode_parameters, "xs:string", 0, call_name),
+    SXML_FUNCTION_ROW("namespace-uri", xnode_parameters, "xs:anyURI", 0,
                       call_namespace_uri),
-    SXML_FUNCTION_ROW("node-name", node_parameters, "xs:QName?", 0, call_node_name),
+    SXML_FUNCTION_ROW("node-name", xnode_parameters, "xs:QName?", 0, call_node_name),
     SXML_FUNCTION_ROW("root", node_parameters, "node()?", 0, call_root),
     SXML_FUNCTION_ROW("distinct-ordered-nodes", nodes_parameters, "node()*", 0,
                       call_distinct_ordered_nodes),
@@ -598,10 +956,15 @@ static const sxml_native_function node_functions[] = {
     SXML_FUNCTION_ROW("QName", qname_parameters, "xs:QName", 0, call_qname),
     SXML_FUNCTION_ROW("doc-available", doc_available_parameters, "xs:boolean",
                       SXML_NATIVE_FUNCTION_USES_DYNAMIC_CONTEXT, call_doc_available),
-    SXML_FUNCTION_ROW("base-uri", node_parameters, "xs:anyURI?", 0, call_base_uri),
-    SXML_FUNCTION_ROW("document-uri", node_parameters, "xs:anyURI?", 0, call_document_uri),
+    SXML_FUNCTION_ROW("base-uri", xnode_parameters, "xs:anyURI?", 0, call_base_uri),
+    SXML_FUNCTION_ROW("document-uri", xnode_parameters, "xs:anyURI?", 0, call_document_uri),
     SXML_FUNCTION_ROW("has-children", node_parameters, "xs:boolean", 0, call_has_children),
     SXML_FUNCTION_ROW("generate-id", node_parameters, "xs:string", 0, call_generate_id),
+    SXML_FUNCTION_ROW("siblings", node_parameters, "node()*", 0, call_siblings),
+    SXML_FUNCTION_ROW("innermost", nodes_parameters, "node()*", 0, call_innermost),
+    SXML_FUNCTION_ROW("outermost", nodes_parameters, "node()*", 0, call_outermost),
+    SXML_FUNCTION_ROW("nilled", xnode_parameters, "xs:boolean?", 0, call_nilled),
+    SXML_FUNCTION_ROW("lang", lang_parameters, "xs:boolean", 0, call_lang),
 };
 
 const sxml_native_function_view sxml_function_library_node =

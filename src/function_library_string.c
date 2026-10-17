@@ -59,8 +59,8 @@ static const sxml_static_error function_has_no_string_error = {
 };
 
 /* Appends the canonical text of an atomic item (casting to xs:string, F&O
-   4.0, section 19.1.2). */
-static sxml_status append_atomic_text(sxml_library_text *text, sxml_item item) {
+   4.0, section 19.1.2); declared in src/function_library_core_internal.h. */
+sxml_status sxml_function_library_text_append_atomic(sxml_library_text *text, sxml_item item) {
     uint8_t output[SXML_CAST_CANONICAL_TEXT_CAPACITY];
     sxml_canonical_text canonical;
     sxml_status status = sxml_cast_write_canonical_text(
@@ -131,7 +131,7 @@ static sxml_status append_string_value(const sxml_function_call *call,
     }
     switch (sxml_item_get_kind(current)) {
     case SXML_ITEM_KIND_ATOMIC:
-        return append_atomic_text(text, current);
+        return sxml_function_library_text_append_atomic(text, current);
     case SXML_ITEM_KIND_NODE: {
         sxml_node_reference node;
         sxml_status status = sxml_item_get_node(current, &node);
@@ -140,7 +140,7 @@ static sxml_status append_string_value(const sxml_function_call *call,
             status = sxml_node_make_string_value(call->item_heap, node, &string_value);
         }
         if (status == SXML_STATUS_OK) {
-            status = append_atomic_text(text, string_value);
+            status = sxml_function_library_text_append_atomic(text, string_value);
             sxml_item_release(string_value);
         }
         return status;
@@ -210,7 +210,7 @@ static sxml_status append_joined(const sxml_function_call *call, sxml_library_te
         }
         request->has_items_before = true;
         if (status == SXML_STATUS_OK) {
-            status = append_atomic_text(text, step.item);
+            status = sxml_function_library_text_append_atomic(text, step.item);
         }
         if (status != SXML_STATUS_OK) {
             return status;
@@ -724,7 +724,7 @@ static sxml_status pad(const sxml_function_call *call, const pad_request *reques
     }
     sxml_library_text input = {.item_heap = call->item_heap};
     if (status == SXML_STATUS_OK && value.has_item) {
-        status = append_atomic_text(&input, value.item);
+        status = sxml_function_library_text_append_atomic(&input, value.item);
     }
     sxml_utf8_validation validation = {.codepoint_count = 0};
     if (status == SXML_STATUS_OK) {
@@ -1507,7 +1507,7 @@ static sxml_status append_collation_parameter(const sxml_function_call *call,
                                                      : SXML_BYTE_VIEW_FROM_LITERAL("no"));
     }
     if (status == SXML_STATUS_OK) {
-        status = append_atomic_text(text, entry.value.content);
+        status = sxml_function_library_text_append_atomic(text, entry.value.content);
     }
     return status;
 }

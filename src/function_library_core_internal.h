@@ -284,6 +284,13 @@ SXML_NODISCARD sxml_status sxml_function_library_text_append(
 SXML_NODISCARD sxml_status sxml_function_library_text_append_codepoint(
     sxml_library_text *text, uint32_t codepoint);
 
+/* Appends the canonical text of an atomic item, its value cast to
+   xs:string (F&O 4.0, section 23.1.2); defined in
+   src/function_library_string.c. Returns the cast's and the heap's
+   failures. */
+SXML_NODISCARD sxml_status sxml_function_library_text_append_atomic(sxml_library_text *text,
+                                                                    sxml_item item);
+
 /* The text built so far, borrowed from text. */
 sxml_byte_view sxml_function_library_text_view(const sxml_library_text *text);
 
