@@ -162,7 +162,13 @@ sxml_cli_exit_code sxml_query_run_fail(const sxml_query_run *run,
     sxml_cli_writer *error = run->invocation->standard_error;
     const sxml_error_record *error_record = failure->error_record;
     const sxml_diagnostic *diagnostic = &error_record->diagnostic;
-    sxml_cli_writer_write_escaped(error, failure->source_name);
+    /* A static error in an XQuery library module names that module (D148);
+       other locations may borrow from a unit released by now. */
+    const bool names_its_source = status == SXML_STATUS_STATIC_ERROR &&
+                                  diagnostic->location.line_number != 0 &&
+                                  diagnostic->location.source_name.byte_count > 0;
+    sxml_cli_writer_write_escaped(error, names_its_source ? diagnostic->location.source_name
+                                                          : failure->source_name);
     if (diagnostic->location.line_number != 0) {
         sxml_cli_writer_write_byte(error, ':');
         sxml_cli_writer_write_decimal(error, diagnostic->location.line_number);
