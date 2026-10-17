@@ -863,6 +863,10 @@ static sxml_status sxml_loader_take_resource(sxml_processor_document_loader *loa
         }
         *document_node = resource->document_node;
         return SXML_STATUS_OK;
+    case SXML_RESOURCE_FORM_SEQUENCE:
+        /* Not a form of an XML document (include/sxml/processor.h). */
+        sxml_sequence_release(resource->items);
+        return SXML_STATUS_INVALID_ARGUMENT;
     case SXML_RESOURCE_FORM_BYTES:
         break;
     }

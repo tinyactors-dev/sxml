@@ -2500,4 +2500,44 @@ compiles unchanged (zero keeps the old behaviour).
 - From now on these headers change only through a record until 0.2.0
   (D47, D99).
 
+### D105. The regex engine: the whole F&O 4.0 dialect (packet 2.3)
+Recorded 2026-10-17. D9 is met by growing the D53 seed in place, behind
+the same `src/regex_internal.h` (compile, match at, find, find next),
+not by a rewrite: its parser, emitted program and backtracking machine
+already follow Saxon HE's design.
+- **Syntax** (F&O 4.0, section 6.1.3): category escapes `\p{Lu}` (no
+  `Cs`, as the grammar), block escapes `\p{IsX}` by the Blocks.txt name
+  without spaces plus the four renamed XSD 1.0 names (`IsGreek`,
+  `IsCombiningMarksforSymbols`, `IsCyrillicSupplementary`,
+  `IsPrivateUse`); unknown names are FORX0002 (6.1.7). `\i \c` are XML
+  1.0 fifth edition NameStartChar and NameChar. XSD 1.1 hyphens: a "-"
+  that separates no range is a character (`[a-d-b-c]`, QT4 re00056a).
+  `\b \B`, `(?=) (?!) (?<=) (?<!)` and the `(*positive_lookahead:...)`
+  spellings; `(?<name>...)`, `\k<name>`. Assertions take no quantifier.
+- **Lookaround** without recursion: LOOK_START pushes an assertion entry
+  on the backtrack stack; LOOK_END of a positive assertion drops the
+  choices above it but keeps the slot-restoring entries (captures stay,
+  and are undone if matching later backtracks past the assertion; first
+  match wins, 6.1.8.3), of a negative one undoes them and fails;
+  backtracking onto the entry fails a positive assertion and resumes a
+  negative one after it. A lookbehind branch is fixed-length
+  (6.1.8.5), so it starts with STEP_BACK n.
+- **Case-blind** matching (6.2): variants by `fn:lower-case`/`upper-case`
+  through `sxml_function_library_map_case` (the tables of
+  `src/function_library_case.c`, shared), plus 94 pairs those mappings do
+  not reach (KELVIN SIGN, final sigma, ...), generated with the same code
+  as the case tables. A literal becomes a class of its variants at
+  compile time; a range checks the input's variants at match time;
+  back-references compare codepoint by codepoint.
+- **Names**: the compiled regex keeps each group's name and whether it is
+  in a lookahead (new `sxml_regex_group_name`, `_find_named_group`,
+  `_group_is_in_lookahead`); while compiling, names live in a table that
+  grows through the stack allocator like the group stack.
+- **Tables** (`tools/generate-regex-tables.py`, Unicode 16.0:
+  UnicodeData, SpecialCasing, Blocks): 4,099 category runs packed in
+  `uint32_t` (\d and \w now derive from them), 342 blocks, 94 pairs; about
+  25 KB of read-only data.
+- Not done: counted repetition is still expanded, so `a{2147483647}` is
+  LIMIT_EXCEEDED (QT4 cbcl-matches-004, -038).
+
 ## Proposed
