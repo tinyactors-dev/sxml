@@ -189,6 +189,11 @@ prod-DirElemContent.whitespace, prod-DirAttributeList,
 prod-CompElemConstructor, prod-CompAttrConstructor and the other
 prod-Comp*Constructor sets ≥ 90%. Spec: XQuery 4.0 "Direct Element
 Constructors", "Computed Constructors".
+**Done** 2026-10-17 (D127): part `construct`, `tests/xquery_lower_construct_test.c`
+(golden IR, values, static errors, allocation-failure loops). The 13
+sets pass 932 of 1,165 (scratch harness, 59 not run); all but 7 of the
+run queries without a prolog pass (none of the 7 is lowering's), so the
+90% bar waits for 3.10 to let prologs through (167 queries).
 
 ### 3.10 Prolog and static context (implementation)
 After 3.7, 2.9, 2.13. Owns `src/xquery_static.c`, `src/xquery_prolog.c`,
