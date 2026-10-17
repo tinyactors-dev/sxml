@@ -6,6 +6,7 @@ Commands:
   help     Show help for the program or for one command
   check    Check that XML documents are namespace-well-formed
   version  Print the sxml library version
+  xpath    Evaluate an XPath 4.0 expression
 
 Options:
   -h, --help     Show this help and exit

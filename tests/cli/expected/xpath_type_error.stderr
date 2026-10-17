@@ -1,0 +1,1 @@
+expression:1:1: err:XPTY0004: an operand of an arithmetic expression or value comparison must be empty or one item (XPath 4.0, sections 4.9 and 4.11.1)

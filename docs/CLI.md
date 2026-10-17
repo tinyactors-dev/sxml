@@ -81,6 +81,7 @@ Every invocation does exactly what its words say, and nothing else.
 | `sxml version [--format=text\|json]` | Prints the library version (`sxml_version_text`) |
 | `sxml --version` | Same as `sxml version` |
 | `sxml check [--format=text\|json] FILE...` | Checks that every FILE (`-`: standard input) is namespace-well-formed XML 1.0; nothing on stdout in text format, one `FILE:LINE:COLUMN: message` per failure on stderr; `--format=json` prints `{"files":[{"file":...,"status":...}]}` with status `well-formed`, `not-well-formed`, `unreadable` or `failed` (plus `line`, `column`, `byte_offset`, `message`). Exit 1 when a FILE is not well-formed, 3 when one cannot be read, 4 at a limit (entity expansion over 4 MiB) |
+| `sxml xpath [--context-item=FILE] [--param=NAME=VALUE]... [--method=adaptive] EXPRESSION` | Evaluates an XPath 4.0 expression and writes the result to stdout by the adaptive method, one item per line; `--context-item` parses FILE (`-`: standard input) as the context item, `--param` (repeatable) binds `$NAME` to `xs:untypedAtomic(VALUE)`, `fn:doc` reads local files only. An error goes to stderr as `expression:LINE:COLUMN: err:CODE: description`. Exit 1 when the expression raises a static, type or dynamic error or the context document is not well-formed, 2 for a bad `--param`, 3 when a file cannot be read, 4 at a limit. `--method` grows to xml, json and text with Phase 3 |
 
 ## Planned commands
 
@@ -93,7 +94,6 @@ binds external variable `$NAME` to `xs:untypedAtomic(VALUE)`),
 
 | Phase | Synopsis | Exit 1 when |
 | --- | --- | --- |
-| 1 | `sxml xpath [--context-item=FILE] [--param=NAME=VALUE]... [--method=M] EXPRESSION` | the expression raises an error; the error code (`err:XPTY0004`) is in the diagnostic |
 | 3 | `sxml xquery [--context-item=FILE] [--param=NAME=VALUE]... [--method=M] [--output=FILE [--force]] (QUERY-FILE \| --expression=TEXT)` | as for `xpath`; giving both or neither of QUERY-FILE and `--expression` is a usage error |
 | 3 | `sxml serialize [--method=M] [--indent] [--output=FILE [--force]] FILE` | FILE is not well-formed |
 | 4 | `sxml transform [--param=NAME=VALUE]... [--output=FILE [--force]] STYLESHEET [INPUT]` | the stylesheet raises a static or dynamic error; without INPUT the initial template is called without a context item |

@@ -18,3 +18,6 @@ extern const sxml_cli_command sxml_check_command;
 
 /* The "version" command (command_version.c). */
 extern const sxml_cli_command sxml_version_command;
+
+/* The "xpath" command (command_xpath.c). */
+extern const sxml_cli_command sxml_xpath_command;

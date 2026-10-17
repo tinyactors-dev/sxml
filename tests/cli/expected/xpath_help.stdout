@@ -1,0 +1,27 @@
+sxml xpath - Evaluate an XPath 4.0 expression
+
+Usage: sxml xpath [--context-item=FILE] [--param=NAME=VALUE]... [--method=METHOD] EXPRESSION
+
+Compiles EXPRESSION as XPath 4.0 and writes its result to standard
+output by the adaptive serialization method, one item per line.
+--context-item=FILE parses FILE as the context item; without it the
+focus is absent. --param=NAME=VALUE binds $NAME to
+xs:untypedAtomic(VALUE). fn:doc reads local files only. An error of
+the expression is reported on standard error as
+expression:LINE:COLUMN: err:CODE: description and exits 1; an
+unreadable file exits 3. An EXPRESSION that starts with - must
+follow --.
+
+Options:
+  -h, --help               Show this help and exit
+      --context-item=FILE  XML document to use as the context item; - reads standard input
+      --param=NAME=VALUE   Bind $NAME to xs:untypedAtomic(VALUE) (repeatable)
+      --method=METHOD      Serialization method of the result (one of: adaptive; default: adaptive)
+
+Arguments:
+  EXPRESSION  XPath 4.0 expression to evaluate
+
+Examples:
+  sxml xpath '1 to 3'
+  sxml xpath --context-item=book.xml '//title/string()'
+  sxml xpath --param=n=5 'xs:integer($n) * 2'

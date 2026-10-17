@@ -25,6 +25,7 @@ sxml_apply_project_flags(sxml_cli_framework)
 add_library(sxml_program STATIC
     sxml/command_check.c
     sxml/command_version.c
+    sxml/command_xpath.c
     sxml/program.c
 )
 target_include_directories(sxml_program PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/sxml")
