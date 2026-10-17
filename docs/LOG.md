@@ -4,6 +4,15 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 2.19b done (D147): counted repetition whose copies would pass 256
+  instructions runs as a counted loop (the atom once, a counter slot on
+  the backtrack stack's restoring entries), so `a{2147483647}` is six
+  instructions; small counts keep their copies. QT4 XP40 (release)
+  30,628 to 30,630 passed, errors 2 to 0 (cbcl-matches-004, -038, the
+  last "error" outcomes); fn-matches 198 to 200, fn-matches.re 1,082,
+  fn-replace 187, fn-tokenize 71, fn-analyze-string 30,
+  fn-matching-segments 38, fn-regex 29 unchanged; slice 198/198; debug,
+  debug-gcc, wasm pass, lint clean.
 - 4.8 done (D144): templates and modes. APPLY_TEMPLATES, XSLT's one IR
   extension point, completed (parameter maps, rule search, separator;
   modes with ordered rules and a built-in template) and evaluated by

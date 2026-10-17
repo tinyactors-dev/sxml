@@ -383,6 +383,8 @@ record types (D143, "Not done").
 `a{2147483647}` neither expands nor ends in LIMIT_EXCEEDED
 (cbcl-matches-004, -038). Files: `src/regex.c`, `src/regex_internal.h`,
 `tests/regex_test.c`.
+**2.19b done** 2026-10-17 (D147): XP40 30,628 to 30,630 passed, errors 2
+to 0; fn-matches 198 to 200, the other regex sets unchanged.
 
 ### 2.20 Phase 2 review (review)
 After everything. Owns the gate boxes. A separate agent (D11) runs the
