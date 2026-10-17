@@ -10,7 +10,8 @@
  * and 4 fill the parts, evaluating a reserved kind or a global variable
  * with an initializer is SXML_STATUS_UNSUPPORTED_FEATURE and releases
  * everything. Kinds whose part is filled (evaluated_kinds) are tested in
- * their part's own test (TRY_CATCH: tests/evaluator_try_test.c).
+ * their part's own test (TRY_CATCH: tests/evaluator_try_test.c; the
+ * constructors: tests/evaluator_construct_test.c).
  */
 #include "evaluator_machine_internal.h"
 #include "ir_internal.h"
@@ -36,9 +37,18 @@ static const sxml_ir_expression_kind reserved_kinds[] = {
     SXML_IR_EXPRESSION_KIND_APPLY_TEMPLATES,
 };
 
-/* The reserved kinds whose part is filled: TRY_CATCH (packet 3.6). */
+/* The reserved kinds whose part is filled: TRY_CATCH (packet 3.6), the
+   constructors and SHALLOW_COPY (packet 3.5). */
 static const sxml_ir_expression_kind evaluated_kinds[] = {
     SXML_IR_EXPRESSION_KIND_TRY_CATCH,
+    SXML_IR_EXPRESSION_KIND_DOCUMENT_CONSTRUCTOR,
+    SXML_IR_EXPRESSION_KIND_ELEMENT_CONSTRUCTOR,
+    SXML_IR_EXPRESSION_KIND_ATTRIBUTE_CONSTRUCTOR,
+    SXML_IR_EXPRESSION_KIND_NAMESPACE_CONSTRUCTOR,
+    SXML_IR_EXPRESSION_KIND_TEXT_CONSTRUCTOR,
+    SXML_IR_EXPRESSION_KIND_COMMENT_CONSTRUCTOR,
+    SXML_IR_EXPRESSION_KIND_PROCESSING_INSTRUCTION_CONSTRUCTOR,
+    SXML_IR_EXPRESSION_KIND_SHALLOW_COPY,
 };
 
 static bool is_evaluated_kind(sxml_ir_expression_kind kind) {
