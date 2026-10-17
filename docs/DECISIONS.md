@@ -3818,6 +3818,19 @@ Recorded 2026-10-17. Accepts the Proposed items of D122 and D125.
   50 to 54 of 61, fn-regex 27 to 29 of 30, fn-matching-segments 37 to 38
   of 39, op-numeric-integer-divide 132 to 132 of 143 (wrong errors 2 to 0).
 
+### D134. The QT4 driver for XQ40 (packet 3.13)
+Recorded 2026-10-17. Extends D92, D94 and D108 in `tests/qt4/driver/`.
+- **XQuery adapter (temporary)**: `--spec=XQ40` compiles the test's query
+  as an XQuery main module through `xquery_adapter.c` (glossary
+  `qt4_xquery_adapter`): `sxml_xquery_compile` (D126) and the evaluation
+  of `src/xpath.c`, behind functions with the signatures of
+  `include/sxml/xquery.h` named `sxml_qt4_xquery_*`. It is the one driver
+  file with `src/` headers (a PRIVATE include line in the driver's
+  CMakeLists). Packet 3.12 deletes it and drops `qt4_` from the calls.
+  Until 3.10 a prolog gives UNSUPPORTED_FEATURE, an "error" outcome.
+  Params, context items and collection queries stay XPath expressions.
+- Details follow with the packet's commits.
+
 ## Proposed
 
 - **The item axis in the evaluator** (packet 2.5, D113; for the owner of
