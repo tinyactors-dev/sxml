@@ -1015,10 +1015,13 @@ static void test_failures(sxml_test_state *state) {
     sxml_item document = {.representation = 0};
     SXML_TEST_REQUIRE(state, parse_document(&test_fixture, "<a/>", &document) == SXML_STATUS_OK);
     sxml_sequence value = sxml_sequence_from_item(document);
-    /* What C can say and XDM cannot: an invalid argument. */
+    /* What C can say and XDM cannot: an invalid argument. The out-of-range
+       enumeration values are the point of the test. */
     const sxml_name_identifier zero = {.index = 0};
     const sxml_serialization_parameters invalid[] = {
+        // NOLINTNEXTLINE(clang-analyzer-optin.core.EnumCastOutOfRange)
         {XML_METHOD, .indent = (sxml_serialization_flag)7},
+        // NOLINTNEXTLINE(clang-analyzer-optin.core.EnumCastOutOfRange)
         {XML_METHOD, .character_encoding = (sxml_character_encoding)9},
         {XML_METHOD, .cdata_section_elements = {.element_names = &zero, .element_name_count = 1}},
         {XML_METHOD, .has_media_type = true, .media_type = {.bytes = NULL, .byte_count = 2}},
