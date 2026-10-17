@@ -2351,4 +2351,53 @@ Recorded 2026-10-17, completing D45 and D55 for Phases 2 to 4.
   chosen at run time from flags in the view (needs a change of the frozen
   row header and filtering memory).
 
+### D102. The stylesheet AST (packet 4.2)
+Recorded 2026-10-17. `src/xslt_ast_internal.h`, internal, after D52 and
+the IR unit (D55).
+- **One AST per stylesheet** (a used package is another): modules, nodes,
+  attributes, expressions, static contexts, a declaration list, name
+  tokens, namespace bindings and URIs, text; index-addressed arrays with
+  entry 0 "none" that grow through an allocator while the reader builds
+  and are sealed before lowering (as `sxml_ir_unit`). Module URIs get
+  their own allocations, so the per-expression `sxml_ast` borrows them as
+  source name. The AST owns those ASTs and a reference to each module's
+  document node.
+- **Nodes**: one kind per XSLT 4.0 element in the 4.0 schema
+  (schema-for-xslt40.xsd; xsl:transform is STYLESHEET, xsl:note never
+  arrives), plus LITERAL_RESULT_ELEMENT, TEXT_NODE, EXTENSION_INSTRUCTION,
+  UNKNOWN_INSTRUCTION (forwards-compatible) and DATA_ELEMENT. A node's
+  attributes are consecutive; children linked as in D52.
+- **Attributes**: one kind per attribute name of the schema; the value is
+  read into the form the element syntax names: EXPRESSION, PATTERN,
+  VALUE_TEMPLATE, SEQUENCE_TYPE, ITEM_TYPE (each its own `sxml_ast`),
+  TEXT, BOOLEAN, NUMBER, KEYWORD, NAME, NAME_LIST, NAMESPACE_BINDING.
+  QName-valued attributes are resolved while reading (XTSE0280); names
+  inside expressions stay as written for static analysis. An AVT is
+  always a VALUE_TEMPLATE, even without `{`: an XPath AST with a
+  STRING_TEMPLATE body, lowered as string templates are. Standard
+  attributes stay as TEXT; their effect is in the static context.
+- **Static context per element**, resolved and shared until something
+  changes: statically known namespaces (after fixed-namespaces), xpath
+  default namespace (or ##any), default collation, mode and validation,
+  expand-text, version, cumulative excluded and extension namespaces,
+  static base URI. Lowering never walks up the tree.
+- **Reader duties** (4.5): whitespace and commentary stripping, use-when,
+  shadow attributes, simplified stylesheets (synthesized STYLESHEET and
+  TEMPLATE match "."; expand-text from the version, 3.7), include and
+  import read in place depth first (duplicate includes in a level
+  ignored, 4.0), syntax of every value. Import precedence is computed by
+  `sxml_xslt_ast_seal` from the module tree (post-order, includes share
+  their includer's), since modules are added in pre-order.
+- **Who writes what**: the builder and lifecycle functions are defined in
+  a new `src/xslt_ast.c` with `tests/xslt_ast_test.c`, both written by
+  packet 4.5 (the AST's only producer, as 1.16 wrote `xpath_ast.c`);
+  added to 4.5's files in `docs/tasks/phase-4.md`. A text form
+  (`sxml_xslt_ast_write_text`) serves golden tests; the header writes
+  out for-each-group-001, a template rule and an xsl:function in it.
+- Rejected: one shared `sxml_ast` for all expressions (its capacity is
+  fixed from one concrete syntax tree, D52); keeping attribute values as
+  text for lowering to parse (every lowering part would repeat the
+  checks, and XTSE errors belong to reading); a fixed-capacity AST sized
+  from the trees (modules arrive one by one through the resolver).
+
 ## Proposed
