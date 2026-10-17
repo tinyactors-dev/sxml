@@ -252,6 +252,9 @@ new `src/hash.c`, `src/hash_internal.h`, `src/function_library_hash.c`,
 build-uri, decode-from-uri, parse-QName, resolve-QName, hash (MD5, SHA-1,
 SHA-256, BLAKE3 if the draft keeps it, CRC-32). Done when those sets reach
 ≥ 95%. Spec: F&O 4.0 "Parsing and building URIs", RFC 3986.
+**Done** 2026-10-17 (D140): `src/hash.c` and the hash part (BLAKE3 kept);
+uri part: decode-from-uri, parse-uri, build-uri; qname part: parse-QName,
+resolve-QName. All six sets at 100% of what runs.
 
 ### 2.12 Resources, processor and XPath API (implementation)
 After 2.0, 2.2. Owns `src/processor.c`, `src/processor_internal.h`,
