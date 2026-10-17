@@ -4,6 +4,19 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 3.6 done (D109), Early packet of Phase 3: TRY_CATCH in
+  `src/evaluator_try.c` as one catching task: name tests and wildcards,
+  first matching clause, `$err:map` bound to the clause's slot (keys
+  code, description, value, module, line-number, column-number; no
+  entry when empty), finally (XQTY0153; its error replaces the first;
+  unmatched and catch-clause errors raised again after it), lazy values
+  read inside the try, an own error record when the caller passes none.
+  17 unit cases over hand-built IR (resumable native calls, limits,
+  allocation-failure loops). Proposed: IR adders for catch clauses and
+  name tests, verifier support. `debug`, `debug-gcc`, `wasm` 120/120,
+  lint clean; slice 198/198; XP40 23,698 passed in the snapshot (XPath
+  cannot produce TRY_CATCH, so unchanged by this packet).
+
 - 3.0 done (D106): the XQuery and serialization API, header-only.
   `xquery.h`: `sxml_xquery_query` (quintet) compiled with the shared
   static context, library modules through the XQUERY_MODULE resolver
