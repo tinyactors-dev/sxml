@@ -2924,6 +2924,31 @@ namespace); a missing one is UNSUPPORTED_FEATURE naming the gap.
   98 in a private run. prod-NamedFunctionRef's 72 failures are missing
   library functions, not references.
 
+### D114. The regex library part (packet 2.3)
+Recorded 2026-10-17, after D101 made parts files of their own.
+- `src/function_library_regex.c` holds every function of F&O 4.0,
+  section 6.3: fn:matches, fn:replace and fn:tokenize move there from
+  the string part (removal only; no wave-0 packet owned that file),
+  plus fn:analyze-string, fn:matching-segments and fn:regex. Named
+  groups reach results: `$<name>` in replacement strings (FORX0004
+  when no group has the name), name keys in the groups maps of
+  fn:replace and fn:matching-segments, `name` attributes in
+  fn:analyze-string.
+- fn:analyze-string builds a parentless untyped element in an arena
+  tree, as fn:json-to-xml does; fn:group elements nest by range and by
+  the regex's own nesting of parentheses (new `sxml_regex_group_parent`,
+  so `(b)(x?)` and `(b(x?))` differ, QT4 analyzeString-017/-017a);
+  lookahead groups follow as fn:lookahead-group.
+- fn:regex returns a map (no static context knows the named record
+  types yet, so `fn:compiled-regex-record` assert-types fail) whose
+  functions are anonymous function items of hidden rows capturing
+  pattern and flags; their signatures reuse the resolved parameter
+  types of fn:matches#3 and fn:replace#4 from the evaluation's function
+  table. Each call compiles again (no cache).
+- `tests/function_library_test.c` (owned by 2.17 later, by nobody now)
+  names the regex part in its fixture so its regex cases keep running;
+  new cases and an allocation-failure loop over the new functions.
+
 ## Proposed
 
 - **IR adders for catch clauses and name tests** (packet 3.6, D109; for
