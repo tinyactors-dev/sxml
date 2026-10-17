@@ -2861,6 +2861,69 @@ Recorded 2026-10-17. `include/sxml/xslt.h` is new, header only, after
   sink, warnings, host extension functions and instructions, schema
   awareness and streaming (D97).
 
+### D113. Lowering completions (packet 2.5)
+Recorded 2026-10-17, completing D63's "Not lowered in Phase 1" (only the
+computed node constructors are left, for Phase 3). `src/xpath_lower.c`,
+`src/xpath_static.c`; IR kinds, the evaluator and public headers are
+unchanged: each construct lowers to existing IR plus library calls,
+found by name like fn:root (`find_builtin_function`, now with a
+namespace); a missing one is UNSUPPORTED_FEATURE naming the gap.
+- **for member / for key/value** (XPath 4.0, 4.13.1): the binding
+  collection is a MAP over the arrays or maps calling array:split or
+  map:entries (their argument coercion gives the type error and accepts
+  JNodes), then the ordinary MAP with the position slot, so positions
+  count across all arrays or maps. The member is `item?1`; key and
+  value are map:keys and map:items of the single-entry map. XQST0089
+  for equal key and value names and for a position variable named like
+  a range variable.
+- **Destructuring let** (4.13.2): the value coerced to the declared
+  type (default item()*, or one array(*) / map(*); with a declared type
+  also coerced to the single array or map), then fn:items-at(V, i),
+  fn:subsequence(V, n) for the last of n, `V?i`, or `V?name`; a
+  declared record type without the variable's field binds a RAISE of
+  XPTY0004.
+- **Dynamic node tests** (4.7.5.3-4): the selector is lowered with an
+  absent focus (reading it raises XPDY0002) and coerced to
+  xs:anyAtomicType*; the step uses `*` of the axis's principal node
+  kind, then a FILTER keeps a node when some selector item is
+  fn:atomic-equal to one of its keys: fn:jkey of a JNode, fn:node-name
+  and fn:local-name of an XNode.
+- **The item axis** (4.7.4): per origin, a CONDITIONAL on
+  count(fn:jvalue(G)): two or more items, the child step; none, (); one,
+  the child step from the array `[jvalue(G)]` (a map or array origin is
+  a JTree root). Deviation: that JNode's parent is the wrapper array's
+  JNode, not G, and it sorts after G's tree, so parent/ancestor identity
+  and mixed document order differ from the specification (QT4
+  JAxes-370..372, 384, 387, 388). The faithful form needs an axis value
+  in the evaluator (Proposed).
+- **Constructor functions** (4.5.1.3): `find_function` gives constructor
+  entries the parameter `$value as xs:anyAtomicType? := .`, so keyword
+  arguments (`xs:int(value := '1')`) name it and an arity-0 query finds
+  the constructor with a parameterless signature: `xs:int()` casts the
+  context value and `xs:int#0` is a closure capturing it (body CAST).
+- **Method calls** (4.15.5): a link of the chain: MAP over M, the item
+  coerced to map(*), `?N` looked up and dynamically called with the map
+  first; arguments lowered in the body with the outer focus (as "=!>");
+  a placeholder is XPST0003.
+- **but with** (4.15.4): a chain link: A coerced to record(*), B to
+  map(*), map:merge((A, B), {'duplicates': 'use-last'}). Deviation: the
+  merged map is not coerced to A's record type (the IR cannot name a
+  type known only at run time); a later coercion checks the fields.
+- **jnode() selectors** (3.2.12): decimal and double literals, negative
+  numbers ("-" and the digits, built in the type frame's scratch) and
+  QName literals (the EQName; in no namespace the local name, the form
+  the evaluator's cast reads).
+- The free-variable analysis sees every variable of a destructuring let
+  (the former four-candidate limit is gone).
+- Measured (release, XP40): 23,698 to 24,206 passed, none lost; slice
+  198/198. prod-ForClause.map 7 to 56, .member 0 to 33, prod-LetClause
+  67 to 137, prod-MethodCall 0 to 12, misc-ConstructorKeywords 5 to 153,
+  misc-FocusConstructors 5 to 153, prod-ButWithExpr 0 to 10 (the rest
+  need fn:parts-of-dateTime). Dynamic node tests and the item axis wait
+  for fn:jkey and fn:jvalue (2.17): with them prod-AxisStep.J goes 30 to
+  98 in a private run. prod-NamedFunctionRef's 72 failures are missing
+  library functions, not references.
+
 ## Proposed
 
 - **IR adders for catch clauses and name tests** (packet 3.6, D109; for
