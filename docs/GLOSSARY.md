@@ -137,6 +137,10 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `keyword_name` | A keyword used as a name; XPath 4.0 keywords are not reserved |
 | `direct_constructor` | XQuery XML-like node constructor syntax: `<a b="{1}">text</a>`, `<!-- -->`, `<?pi?>` |
 | `computed_constructor` | Node constructor written with a keyword: `element #a { ... }` |
+| `content_sequence` | The nodes an element or document constructor adds to its new node: the value of its content with arrays flattened, adjacent atomic items made into one text node and document nodes replaced by their children (XQuery 4.0, "Content"; XSLT 4.0, 5.7.1) |
+| `content_frame` | An entry of a node constructor's explicit stack of arrays whose members are being added to a content sequence (D71) |
+| `construction_mode` | `strip` or `preserve` (XQuery 4.0 construction declaration): whether constructed and copied nodes become untyped or keep their types |
+| `copy_namespaces_mode` | `preserve` or `no-preserve`, `inherit` or `no-inherit` (XQuery 4.0 copy-namespaces declaration): which in-scope namespaces a copied element keeps and whether it takes those of its new parent |
 | `string_template` | XPath 4.0 `` `text {expression}` `` |
 | `string_constructor` | XQuery ```` ``[text `{expression}`]`` ```` |
 | `pragma` | XQuery `(# name contents #)` before an extension expression |
