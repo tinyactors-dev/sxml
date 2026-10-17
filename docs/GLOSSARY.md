@@ -106,6 +106,13 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `verifier` | The pass that checks the invariants of a unit and changes nothing |
 | `static_analysis` | Resolving the names of an AST against the static context and reporting static errors (XPath 4.0, section 2.3.3.1) |
 | `lowering` | Translating an AST into IR expressions of a unit |
+| `lowerer` | The state of one lowering into one unit: the AST and static context being lowered, the variable scope, the current function and its focus (D103) |
+| `lowering_procedure` | A construct lowered by frames: a step function and the size of its locals, static data (D103) |
+| `lowering_frame` | One running lowering procedure on the lowering machine's stack, in allocator memory, with its step, locals and destination (D71, D103) |
+| `lowering_machine` | The explicit stack of lowering frames that lowers without C recursion (D71) |
+| `lowering_block` | The LETs bound while one expression is lowered, closed by its result (administrative normal form) |
+| `lowering_part` | A file defining `sxml_xpath_lowering_part_<part>`: AST kinds and the procedures or leaf functions lowering them for some languages, found by CMake's glob (D103) |
+| `embedding` | One XPath AST lowered inside a caller's scope: its variables, a focus of the caller's choice and the AST's own static context (D103) |
 | `predeclared_namespace` | A prefix bound in every static context (xml, xs, xsi, fn, map, array, math, err) |
 | `default_element_namespace` | The namespace of unprefixed element and type names in the static context |
 | `variable_scope` | The variables visible at one point of an expression, innermost binding first |
