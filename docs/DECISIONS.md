@@ -1981,4 +1981,53 @@ was O(n^2): map:merge inserted every entry of every map into a new map.
   quadratic version took 6-18 s under ASan for 1,000.
   map:put in a fold was already O(log n) per step.
 
+### D91. Packet 1.23b: more library functions, lexical base URI, charged steps
+Recorded 2026-10-17.
+- **Functions added** (62): the math namespace (`src/function_library_math.c`,
+  part `sxml_function_library_math`: pi, e, exp, exp10, log, log10, pow,
+  sqrt, sin, cos, tan, asin, acos, atan, atan2, sinh, cosh, tanh, as the
+  C17 Annex F functions; pow with an integer exponent is pown, sign by
+  parity beyond 2^53); QNames and namespaces (`src/function_library_qname.c`,
+  part `sxml_function_library_qname`: local-name-, prefix-,
+  namespace-uri-from-QName, expanded-QName, in-scope-prefixes,
+  in-scope-namespaces, namespace-uri-for-prefix); node: doc-available
+  (loads through the document loader, FODC errors mean false), base-uri,
+  document-uri, has-children, generate-id (`t<tree>n<index>[s<ns>]`;
+  JNodes UNSUPPORTED_FEATURE); string: translate, codepoint-equal,
+  contains-token, substring-before-last, substring-after-last,
+  trim-space, parse-integer (int64, then exact decimals); uri:
+  encode-for-uri, iri-to-uri, escape-html-uri; sequence: identity,
+  unordered, void, foot, trunk, slice, items-at, replicate,
+  insert-separator, compare, atomic-equal, all-equal, all-different,
+  duplicate-values, default-collation; context: dateTime and the six
+  *-from-duration functions. The processor and the fuzz fixture name
+  the two new parts. Gaps (77 functions with their own XP40 test sets,
+  4,165 test cases) are listed in the 1.23b line of the task file;
+  fn:normalize-unicode needs the Unicode decomposition tables and is one.
+- **Adaptive output** (`src/serialize.c`): the constructor-function form
+  writes the name of the item's type annotation, not of its primitive
+  type (`xs:dateTimeStamp(...)`, `xs:dayTimeDuration(...)`), as qtspecs PR
+  2981 revises Serialization 4.0 and QT4 Serialization-adaptive-37a
+  expects. The other rules still go by "instance of" (derived strings
+  quoted, derived integers as numbers), which every XQ40 adaptive test
+  accepts; -41 and -42 (XQ31+) still expect `xs:duration` and fail.
+- **The static base URI is lexical** (XPath 4.0, section 2.2.1): IR units
+  carry it (`sxml_ir_unit_set_static_base_uri`, set by lowering from
+  `sxml_xpath_static_context.static_base_uri`), and
+  `sxml_dynamic_context_get_static_base_uri` answers that of the unit of
+  the innermost task that runs IR, falling back to the evaluation
+  request's for units that never set one. A function item called after
+  its evaluation, or by another expression, sees its own (replaces the
+  last bullet of D88's "Static base URI"). The document loader no longer
+  falls back to the evaluation's static base URI: callers pass it.
+- **Charged steps** (completes D89): `sxml_function_library_charge_steps`
+  and `_charge_items` (no-ops without a dynamic context) charge leaf work:
+  one step per item for fn:string-join, fn:distinct-values,
+  fn:duplicate-values, fn:contains-token, fn:items-at, fn:replicate,
+  fn:insert-separator and fn:count of a lazy sequence or concatenation;
+  n log2 n for fn:sort; one per pair for fn:deep-equal; the regex
+  instructions each search ran (new `sxml_regex_matcher_get_step_count`)
+  for fn:matches, fn:replace and fn:tokenize; |value| x |replace| for
+  fn:translate.
+
 ## Proposed
