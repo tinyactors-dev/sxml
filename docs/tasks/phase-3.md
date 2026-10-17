@@ -76,6 +76,10 @@ parser part (3.2) the way lowering parts work. IR for five XQuery
 examples written out in comments (FLWOR with group by, a window clause,
 a direct constructor with namespaces, try/catch with finally, a prolog
 function). Done when every XP40 query still builds the same AST.
+**Done** 2026-10-17 (D111): XQuery kinds, fields, details and flags and
+five examples in `src/xpath_ast_internal.h`; `sxml_ast_build_with_parser_part`
+in `src/xpath_parse.c`, seam tests in `tests/xpath_ast_test.c`. 3.2 adds
+`sxml_grammar_xquery` to the `sxml` link line of `CMakeLists.txt`.
 
 ### 3.2 XQuery front end (implementation) — Early
 After 3.1. Owns `src/xquery_parse.c`, `tests/xquery_parse_test.c`. CST of
