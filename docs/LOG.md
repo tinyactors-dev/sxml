@@ -4,6 +4,21 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 2.8 done (D122): date and time functions in the new part
+  `src/function_library_temporal.c`: adjust-dateTime/date/time-to-timezone,
+  build-dateTime (record fields coerced by the body), parts-of-dateTime,
+  days-in-month, seconds, duration-to-seconds, unix-dateTime,
+  civil-timezone (no tz database: implicit timezone, UTC names, else
+  FODT0004) and parse-ietf-date (hand scanner); the `*-from-dateTime`
+  rows take every Gregorian type. XP40 26,678 to 27,185 passed in a
+  release snapshot, none lost; slice 198/198. fn-adjust-* 21 to 133 of
+  133, build-dateTime 49 to 90/90, parse-ietf-date 37 to 105/105,
+  seconds 6 to 24/24, duration-to-seconds 4 to 18/18, unix-dateTime 4 to
+  22/22, days-in-month 4 to 16/18, the seven `*-from-dateTime` sets now
+  all pass, parts-of-dateTime 4 to 8/20 (needs F&O named record types,
+  Proposed), civil-timezone 1 to 4/9. `debug`, `debug-gcc`, `wasm`
+  pass, lint clean.
+
 - 2.9 done (D119): number formatting. One picture engine
   (`src/format.c`, `src/format_internal.h`) for fn:format-integer (digit
   patterns in any Nd family, radix 2 to 36, letters, Roman, English
