@@ -1125,18 +1125,26 @@ static void test_compile_limits(sxml_test_state *state) {
     /* a{1000}{1000} is invalid: one quantifier per atom. */
     SXML_TEST_EXPECT(state, compilation.status == SXML_STATUS_DYNAMIC_ERROR);
     SXML_TEST_EXPECT(state, test_release(&compilation));
-    compilation = (test_compilation){.regex_text = "(?:a{1000}){1000}",
-                                     .flags_text = ""};
-    test_compile(&compilation);
-    SXML_TEST_EXPECT(state, compilation.status == SXML_STATUS_LIMIT_EXCEEDED);
-    SXML_TEST_EXPECT(state, test_release(&compilation));
-    compilation = (test_compilation){.regex_text = "(?:(?:){1000}){1000}",
-                                     .flags_text = ""};
-    test_compile(&compilation);
-    SXML_TEST_EXPECT(state, compilation.status == SXML_STATUS_LIMIT_EXCEEDED);
-    SXML_TEST_EXPECT(state, test_release(&compilation));
-    compilation = (test_compilation){.regex_text = "a{4294967296}",
-                                     .flags_text = ""};
+    /* Counted loops (D147): large counts compile to a few instructions. */
+    static const char *const counted_texts[] = {
+        "(?:a{1000}){1000}",
+        "(?:(?:){1000}){1000}",
+        "a{4294967296}",
+        "(?:(?:(?:(?:a{9}){9}){9}){9}){9}",
+    };
+    for (size_t text_index = 0;
+         text_index < sizeof(counted_texts) / sizeof(counted_texts[0]);
+         text_index++) {
+        compilation = (test_compilation){.regex_text = counted_texts[text_index],
+                                         .flags_text = "",
+                                         .maximum_instruction_count = 1000};
+        test_compile(&compilation);
+        SXML_TEST_EXPECT(state, compilation.status == SXML_STATUS_OK);
+        SXML_TEST_EXPECT(state, test_release(&compilation));
+    }
+    compilation = (test_compilation){.regex_text = "a{1000}",
+                                     .flags_text = "",
+                                     .maximum_instruction_count = 5};
     test_compile(&compilation);
     SXML_TEST_EXPECT(state, compilation.status == SXML_STATUS_LIMIT_EXCEEDED);
     SXML_TEST_EXPECT(state, test_release(&compilation));
@@ -1230,6 +1238,99 @@ static void test_quantified_copies_match_alike(sxml_test_state *state) {
          case_index++) {
         SXML_TEST_EXPECT(state, test_first_match_is(cases[case_index].search,
                                                     cases[case_index].expected));
+    }
+}
+
+/*
+ * Counted loops (D147): counts whose copies would pass the expansion
+ * limit run as one atom and a counter, and match as the copies would.
+ */
+static void test_counted_loops_match_like_copies(sxml_test_state *state) {
+    static const struct {
+        test_search search;
+        const char *expected;
+    } cases[] = {
+        /* QT4 cbcl-matches-038 and -004. */
+        {{"a{2147483647}", "", "aaa"}, "none"},
+        {{"a{99999999999999999999999999}", "", "aaa"}, "none"},
+        {{"a{100000,}", "", "aaaa"}, "none"},
+        {{"ba{0,100000}", "", "baaac"}, "[baaa]"},
+        {{"ba{0,100000}?", "", "baaac"}, "[b]"},
+        {{"ba{0,100000}?c", "", "baaac"}, "[baaac]"},
+        /* The cases of quantified_copies_match_alike, with counts large
+           enough for a loop and inputs too short to tell. */
+        {{"(a*b){2,3000}", "", "abaabbx"}, "[abaabb]<b>"},
+        {{"(?:x(a|b)*y){2,1000}", "", "xabyxbaay"}, "[xabyxbaay]<a>"},
+        {{"(a|b){0,2000}c", "", "abc"}, "[abc]<b>"},
+        {{"(a|b){0,2000}c", "", "c"}, "[c]<->"},
+        {{"(?:a{2}){2,1000}", "", "aaaaaaa"}, "[aaaaaa]"},
+        {{"a{2,4000}?", "", "aaaa"}, "[aa]"},
+        {{"(?:ab){1,2000}?c", "", "ababc"}, "[ababc]"},
+        {{"(?:a?b){1,1000}", "", "abbab"}, "[abbab]"},
+        {{"(a|){1,1000}b", "", "aab"}, "[aab]<a>"},
+        {{"((a)|b){0,1000}?c", "", "abac"}, "[abac]<a><a>"},
+        {{"(?:(a*)+){2,1000}b", "", "aab"}, "[aab]<>"},
+        {{"x(?:a*|b){0,1000}y", "", "xabay"}, "[xabay]"},
+        {{"([ab])(?:[a-c-[b]]\\1){2,3000}", "", "aaacaba"}, "[aaaca]<a>"},
+        {{"(?:a|b|c){2,1000}d", "", "cbd"}, "[cbd]"},
+        {{"(a)(?:\\1){2,1000}", "", "aaaa"}, "[aaaa]<a>"},
+        {{"(?:(?=(.))a){1,1000}", "", "aab"}, "[aa]<a>"},
+        {{"(?:a|ab){1000}", "", "ab"}, "none"},
+        /* Iterations that match nothing: below the minimum one stands for
+           all those still needed; above it, one ends the loop. */
+        {{"(?:){2147483647}", "", "x"}, "[]"},
+        {{"(a?){2147483647}b", "", "aab"}, "[aab]<>"},
+        {{"(a?){3,2147483647}b", "", "aaaab"}, "[aaaab]<a>"},
+        {{"(?:a|()){500}$", "", "aa"}, "[aa]<>"},
+        /* A dropped x{0} with a loop inside still fits the arrays. */
+        {{"(?:b{1000}){0}c", "", "c"}, "[c]"},
+        {{"a(b{1000}){0}", "", "xa"}, "[a]<->"},
+    };
+    for (size_t case_index = 0; case_index < sizeof(cases) / sizeof(cases[0]);
+         case_index++) {
+        SXML_TEST_EXPECT(state, test_first_match_is(cases[case_index].search,
+                                                    cases[case_index].expected));
+    }
+}
+
+/* A loop of a thousand iterations, nested in another, at its edge. */
+static void test_counted_loops_count_exactly(sxml_test_state *state) {
+    static char input_text[2001];
+    static const struct {
+        const char *regex_text;
+        size_t input_byte_count;
+        bool is_found;
+    } cases[] = {
+        {"a{1000}", 999, false},
+        {"a{1000}", 1000, true},
+        {"(?:a{500}){2}$", 1000, true},
+        {"(?:a{500}){2}$", 1001, false},
+        {"^(?:a{3}){600,700}$", 2000, false},
+        {"^(?:a{4}){500,700}$", 2000, true},
+        {"^(?:a{1000}){2,300}$", 2000, true},
+        {"^(?:a{1000}){2,300}$", 1999, false},
+    };
+    for (size_t case_index = 0; case_index < sizeof(cases) / sizeof(cases[0]);
+         case_index++) {
+        test_compilation compilation = {.regex_text =
+                                            cases[case_index].regex_text,
+                                        .flags_text = ""};
+        test_compile(&compilation);
+        SXML_TEST_REQUIRE(state, compilation.status == SXML_STATUS_OK);
+        memset(input_text, 'a', cases[case_index].input_byte_count);
+        input_text[cases[case_index].input_byte_count] = '\0';
+        sxml_regex_search_result result = {.is_found = false};
+        sxml_status status = sxml_regex_matcher_match_at(
+            compilation.matcher,
+            &(sxml_regex_search_request){.regex_input = test_string(input_text),
+                                         .start_byte_offset = 0},
+            &result);
+        SXML_TEST_EXPECT(state, status == SXML_STATUS_OK);
+        SXML_TEST_EXPECT(state, result.is_found == cases[case_index].is_found);
+        SXML_TEST_EXPECT(state, !result.is_found ||
+                                    result.matching_segment.byte_count ==
+                                        cases[case_index].input_byte_count);
+        SXML_TEST_EXPECT(state, test_release(&compilation));
     }
 }
 
@@ -1571,6 +1672,10 @@ static const sxml_test_case regex_test_cases[] = {
      .function = test_fixed_backtrack_stack_reports_capacity},
     {.name = "quantified_copies_match_alike",
      .function = test_quantified_copies_match_alike},
+    {.name = "counted_loops_match_like_copies",
+     .function = test_counted_loops_match_like_copies},
+    {.name = "counted_loops_count_exactly",
+     .function = test_counted_loops_count_exactly},
     {.name = "groups_nested_ten_thousand_deep",
      .function = test_groups_nested_ten_thousand_deep},
     {.name = "class_subtraction_nested_ten_thousand_deep",

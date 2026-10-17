@@ -69,8 +69,10 @@
  * backtrack stack would pass maximum_backtrack_byte_count, is
  * SXML_STATUS_LIMIT_EXCEEDED: these bound the work and memory of untrusted
  * regexes (catastrophic backtracking) and are not specification errors.
- * Compiling bounds the instructions (counted repetition is expanded) and
- * the nesting of groups, also with SXML_STATUS_LIMIT_EXCEEDED. Nothing
+ * Compiling bounds the instructions (a small counted repetition is
+ * expanded into copies, a large one runs as a loop with a counter, D147)
+ * and the nesting of groups, also with SXML_STATUS_LIMIT_EXCEEDED. A
+ * quantity above 4294967295 counts as 4294967295. Nothing
  * recurses (docs/DECISIONS.md D71): the parser keeps the open groups on a
  * stack of its own, which needs memory from an allocator beyond
  * SXML_REGEX_INLINE_GROUP_DEPTH nested groups (D53).
@@ -142,7 +144,8 @@ typedef struct sxml_regex_configuration {
     sxml_string regex_text;
     sxml_regex_flags flags;
     /* Most instructions the compiled regex may have; counted repetition
-       ({n,m}) is expanded, so this bounds x{1000}{1000}. 0 means
+       ({n,m}) is expanded while its copies add at most 256 instructions
+       (D147), so this bounds (?:x{16}){16} in sequence. 0 means
        SXML_REGEX_DEFAULT_MAXIMUM_INSTRUCTION_COUNT; at most
        SXML_REGEX_MAXIMUM_INSTRUCTION_COUNT_LIMIT. */
     uint32_t maximum_instruction_count;

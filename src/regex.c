@@ -18,8 +18,11 @@
  * class items, and an emitting pass that writes them into memory laid out
  * from those counts. Every atom is parsed and emitted once; a quantifier
  * then inserts what goes before the atom and appends copies of the
- * atom's instructions, so counted repetition costs one copy per
- * repetition, not a parse.
+ * atom's instructions, so a small counted repetition costs one copy per
+ * repetition, not a parse. A counted repetition whose copies would pass
+ * SXML_REGEX_LARGEST_EXPANSION instructions becomes a counted loop
+ * instead (D147): the atom once, run while a counter slot counts the
+ * iterations, so a{2147483647} takes six instructions.
  */
 #include "regex_internal.h"
 
@@ -145,6 +148,33 @@ typedef enum sxml_regex_operation {
        lookbehind assertion, whose branches are fixed-length (section
        6.1.8.5). */
     SXML_REGEX_OPERATION_STEP_BACK,
+    /*
+     * A counted loop (D147), x{n,m} with x run once per iteration;
+     * operand is the loop's index in counted_loops, except for
+     * COUNTED_LOOP_END. The code is
+     *     COUNTED_LOOP_START   counter := 0
+     *  L: COUNTED_LOOP_CHOOSE  go on at L+1 (out) or L+2 (another x)
+     *     JUMP out
+     *     COUNTED_LOOP_BODY    progress := position
+     *     x
+     *     COUNTED_LOOP_END L   counter := counter + 1, back to L
+     *  out:
+     * CHOOSE takes another iteration while the counter is below the
+     * minimum, offers one (greedy: first; reluctant: second, section
+     * 6.1.4) while it is below the maximum, and leaves at the maximum.
+     * END treats an iteration that consumed nothing like the unbounded
+     * loops do (CHECK_PROGRESS): above the minimum it fails; below it, it
+     * stands for all the iterations still needed, which would match
+     * nothing again, so the counter jumps to the minimum. Counter and
+     * progress are slots, changed with restoring entries like SAVE, so
+     * backtracking into an earlier iteration finds its counter.
+     */
+    SXML_REGEX_OPERATION_COUNTED_LOOP_START,
+    SXML_REGEX_OPERATION_COUNTED_LOOP_CHOOSE,
+    SXML_REGEX_OPERATION_COUNTED_LOOP_BODY,
+    /* operand: the loop's COUNTED_LOOP_CHOOSE, whose operand names the
+       loop. */
+    SXML_REGEX_OPERATION_COUNTED_LOOP_END,
     /* The whole regex has matched. */
     SXML_REGEX_OPERATION_MATCH,
 } sxml_regex_operation;
@@ -197,6 +227,25 @@ typedef struct sxml_regex_class {
     uint32_t subtracted_class_number;
 } sxml_regex_class;
 
+/*
+ * A counted loop (D147): the quantity of x{n,m} and the two slots it
+ * uses. Copies of an atom that contains the loop (the expansion of an
+ * outer quantifier) share the entry and its slots: copies run one after
+ * the other, and every change to the slots is undone in order when
+ * matching backtracks.
+ */
+typedef struct sxml_regex_counted_loop {
+    uint32_t minimum_count;
+    /* Unused when is_unbounded. */
+    uint32_t maximum_count;
+    bool is_unbounded;
+    bool is_reluctant;
+    /* The iterations finished. */
+    uint32_t counter_slot;
+    /* Where the iteration under way started. */
+    uint32_t progress_slot;
+} sxml_regex_counted_loop;
+
 /* What the compiled regex knows of a capturing group. */
 typedef struct sxml_regex_group {
     /* The name of a named capturing subexpression, in group_names; 0 and
@@ -213,15 +262,17 @@ struct sxml_regex {
     sxml_regex_flags flags;
     uint32_t group_count;
     /* Two slots per group, group 0 included, then one per progress
-       register of an unbounded loop. */
+       register of an unbounded loop and two per counted loop. */
     uint32_t slot_count;
     uint32_t instruction_count;
     uint32_t class_count;
     uint32_t class_item_count;
+    uint32_t counted_loop_count;
     uint32_t group_name_byte_count;
     sxml_regex_instruction *instructions;
     sxml_regex_class *classes;
     sxml_regex_class_item *class_items;
+    sxml_regex_counted_loop *counted_loops;
     /* group_count + 1 entries; entry 0 (the whole match) is unnamed. */
     sxml_regex_group *groups;
     /* The names of the named groups, one after the other. */
@@ -232,7 +283,8 @@ struct sxml_regex {
 
 /*
  * What a compiling pass produced. In the result of a pass, the
- * instruction, class and class item counts are the sizes of the arrays:
+ * instruction, class, class item and counted loop counts are the sizes of
+ * the arrays:
  * the most the pass wrote, since an atom quantified with {0} is written
  * and then dropped.
  */
@@ -240,6 +292,7 @@ typedef struct sxml_regex_counts {
     uint32_t instruction_count;
     uint32_t class_count;
     uint32_t class_item_count;
+    uint32_t counted_loop_count;
     uint32_t group_count;
     uint32_t register_count;
     uint32_t group_name_byte_count;
@@ -527,6 +580,7 @@ static bool sxml_regex_operation_has_target(sxml_regex_operation operation) {
     return operation == SXML_REGEX_OPERATION_SPLIT_NEXT_FIRST ||
            operation == SXML_REGEX_OPERATION_SPLIT_TARGET_FIRST ||
            operation == SXML_REGEX_OPERATION_JUMP ||
+           operation == SXML_REGEX_OPERATION_COUNTED_LOOP_END ||
            operation == SXML_REGEX_OPERATION_POSITIVE_LOOK_START ||
            operation == SXML_REGEX_OPERATION_NEGATIVE_LOOK_START;
 }
@@ -543,6 +597,10 @@ static void sxml_regex_compiler_note_array_counts(
     }
     if (compiler->counts.class_item_count > array_counts->class_item_count) {
         array_counts->class_item_count = compiler->counts.class_item_count;
+    }
+    if (compiler->counts.counted_loop_count >
+        array_counts->counted_loop_count) {
+        array_counts->counted_loop_count = compiler->counts.counted_loop_count;
     }
 }
 
@@ -1967,8 +2025,9 @@ typedef struct sxml_regex_quantifier {
     bool is_reluctant;
 } sxml_regex_quantifier;
 
-/* Reads the digits of a quantity; values above UINT32_MAX saturate, and
-   the instruction limit rejects them. */
+/* Reads the digits of a quantity; values above UINT32_MAX saturate (a
+   counted loop then needs more than 2^32 characters to tell them apart,
+   D147). */
 static bool sxml_regex_compiler_read_quantity(sxml_regex_compiler *compiler,
                                               uint32_t *quantity) {
     uint64_t value = 0;
@@ -2144,6 +2203,108 @@ static sxml_status sxml_regex_compiler_emit_loop(
 }
 
 /*
+ * The most instructions the copies of one quantified atom may add; a
+ * counted repetition that needs more becomes a counted loop (D147). Copies
+ * run faster than a loop, which pays four instructions and three backtrack
+ * entries per iteration, but their number grows with the count.
+ */
+#define SXML_REGEX_LARGEST_EXPANSION 256U
+
+/*
+ * True when quantifier on an atom of instruction_count instructions is
+ * compiled as a counted loop: the instructions its copies would add (each
+ * at least one, so that an atom that emits nothing still counts) pass
+ * SXML_REGEX_LARGEST_EXPANSION. x* and x*? never are: they need no copy.
+ */
+static bool sxml_regex_quantifier_needs_counted_loop(
+    sxml_regex_quantifier quantifier, uint32_t instruction_count) {
+    uint64_t copy_size = instruction_count == 0 ? 1U : instruction_count;
+    uint64_t added_count = 0;
+    if (quantifier.is_unbounded) {
+        /* minimum copies, the first of them the atom, plus the loop's
+           copy. */
+        added_count = (uint64_t)quantifier.minimum_count * copy_size;
+    } else {
+        /* maximum copies, plus a split before each optional one. */
+        added_count =
+            ((uint64_t)quantifier.maximum_count - 1U) * copy_size +
+            (quantifier.maximum_count - quantifier.minimum_count);
+    }
+    return added_count > SXML_REGEX_LARGEST_EXPANSION;
+}
+
+/* Takes the next entry of counted_loops. */
+static sxml_status sxml_regex_compiler_add_counted_loop(
+    sxml_regex_compiler *compiler, uint32_t *loop_index) {
+    if (compiler->counts.counted_loop_count >=
+        compiler->maximum_instruction_count) {
+        return SXML_STATUS_LIMIT_EXCEEDED;
+    }
+    *loop_index = compiler->counts.counted_loop_count;
+    compiler->counts.counted_loop_count += 1;
+    return SXML_STATUS_OK;
+}
+
+/*
+ * Turns the atom just emitted into a counted loop (D147; the code is
+ * described at SXML_REGEX_OPERATION_COUNTED_LOOP_START): four
+ * instructions inserted before it, COUNTED_LOOP_END after it.
+ */
+static sxml_status sxml_regex_compiler_emit_counted_loop(
+    sxml_regex_compiler *compiler, const sxml_regex_atom_copy_source *atom,
+    sxml_regex_quantifier quantifier) {
+    uint32_t loop_start = atom->instructions.first_instruction_index;
+    uint32_t loop_index = 0;
+    sxml_status status = sxml_regex_compiler_insert(
+        compiler, (sxml_regex_instruction_range){
+                      .first_instruction_index = loop_start,
+                      .instruction_count = 4,
+                  });
+    if (status == SXML_STATUS_OK) {
+        status = sxml_regex_compiler_add_counted_loop(compiler, &loop_index);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    uint32_t counter_slot = sxml_regex_compiler_add_register(compiler);
+    uint32_t progress_slot = sxml_regex_compiler_add_register(compiler);
+    if (compiler->regex != NULL) {
+        compiler->regex->counted_loops[loop_index] = (sxml_regex_counted_loop){
+            .minimum_count = quantifier.minimum_count,
+            .maximum_count = quantifier.maximum_count,
+            .is_unbounded = quantifier.is_unbounded,
+            .is_reluctant = quantifier.is_reluctant,
+            .counter_slot = counter_slot,
+            .progress_slot = progress_slot,
+        };
+    }
+    static const sxml_regex_operation head_operations[] = {
+        SXML_REGEX_OPERATION_COUNTED_LOOP_START,
+        SXML_REGEX_OPERATION_COUNTED_LOOP_CHOOSE,
+        SXML_REGEX_OPERATION_JUMP,
+        SXML_REGEX_OPERATION_COUNTED_LOOP_BODY,
+    };
+    for (uint32_t head_index = 0; head_index < 4; head_index++) {
+        sxml_regex_compiler_write(
+            compiler, loop_start + head_index,
+            (sxml_regex_instruction){
+                .operation = head_operations[head_index],
+                .operand = head_operations[head_index] ==
+                                   SXML_REGEX_OPERATION_JUMP
+                               ? 0
+                               : loop_index});
+    }
+    status = sxml_regex_compiler_emit_operation(
+        compiler, SXML_REGEX_OPERATION_COUNTED_LOOP_END, loop_start + 1);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_regex_compiler_patch(compiler, loop_start + 2,
+                              compiler->counts.instruction_count);
+    return SXML_STATUS_OK;
+}
+
+/*
  * Applies a quantifier to the atom just emitted, which started at
  * atom_start: the minimum number of copies, then a loop or the optional
  * copies, each optional copy after a split to the end (section 6.1.4 for
@@ -2182,6 +2343,11 @@ static sxml_status sxml_regex_compiler_apply_quantifier(
         .atom_parse_count =
             compiler->atom_parse_count - atom_start->atom_parse_count,
     };
+    if (sxml_regex_quantifier_needs_counted_loop(
+            quantifier, atom.instructions.instruction_count)) {
+        return sxml_regex_compiler_emit_counted_loop(compiler, &atom,
+                                                     quantifier);
+    }
     sxml_regex_pending_targets exits = {.last_instruction_number = 0};
     sxml_status status = SXML_STATUS_OK;
     if (quantifier.minimum_count == 0) {
@@ -2482,6 +2648,7 @@ static sxml_status sxml_regex_compile(
     counts->instruction_count = compiler.array_counts.instruction_count;
     counts->class_count = compiler.array_counts.class_count;
     counts->class_item_count = compiler.array_counts.class_item_count;
+    counts->counted_loop_count = compiler.array_counts.counted_loop_count;
     return SXML_STATUS_OK;
 }
 
@@ -2493,11 +2660,12 @@ typedef struct sxml_regex_layout {
     size_t instructions_offset;
     size_t classes_offset;
     size_t class_items_offset;
+    size_t counted_loops_offset;
     size_t groups_offset;
     size_t group_names_offset;
 } sxml_regex_layout;
 
-/* Lays out the header and the five arrays for counts. */
+/* Lays out the header and the six arrays for counts. */
 static sxml_status sxml_regex_compute_layout(sxml_regex_counts counts,
                                              sxml_regex_layout *layout) {
     sxml_regex_layout new_layout = {
@@ -2547,6 +2715,19 @@ static sxml_status sxml_regex_compute_layout(sxml_regex_counts counts,
                 .byte_count = array_byte_count,
                 .alignment = alignof(sxml_regex_class_item)},
             &new_layout.class_items_offset);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_size_multiply(counts.counted_loop_count,
+                                    sizeof(sxml_regex_counted_loop),
+                                    &array_byte_count);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_memory_requirements_append(
+            &new_layout.requirements,
+            (sxml_memory_requirements){
+                .byte_count = array_byte_count,
+                .alignment = alignof(sxml_regex_counted_loop)},
+            &new_layout.counted_loops_offset);
     }
     if (status == SXML_STATUS_OK) {
         status = sxml_size_multiply((size_t)counts.group_count + 1,
@@ -2647,6 +2828,9 @@ sxml_status sxml_regex_initialize(sxml_memory_view memory,
                                        counts.class_count),
         .class_items = sxml_regex_array_at(memory, layout.class_items_offset,
                                            counts.class_item_count),
+        .counted_loop_count = counts.counted_loop_count,
+        .counted_loops = sxml_regex_array_at(
+            memory, layout.counted_loops_offset, counts.counted_loop_count),
         .group_name_byte_count = counts.group_name_byte_count,
         .groups = sxml_regex_array_at(memory, layout.groups_offset,
                                       (size_t)counts.group_count + 1),
@@ -3417,6 +3601,74 @@ typedef struct sxml_regex_thread {
     bool has_failed;
 } sxml_regex_thread;
 
+/* Sets a slot, pushing the entry that restores it when backtracking. */
+static sxml_status sxml_regex_matcher_set_slot(sxml_regex_matcher *matcher,
+                                               uint32_t slot_index,
+                                               size_t value) {
+    sxml_status status = sxml_regex_matcher_push(
+        matcher, (sxml_regex_backtrack_entry){
+                     .kind = SXML_REGEX_BACKTRACK_KIND_RESTORE_SLOT,
+                     .index = slot_index,
+                     .byte_offset = matcher->slots[slot_index]});
+    if (status == SXML_STATUS_OK) {
+        matcher->slots[slot_index] = value;
+    }
+    return status;
+}
+
+/*
+ * COUNTED_LOOP_CHOOSE of loop (D147): whether thread, at the
+ * instruction after it, goes out of the loop (that instruction, the
+ * jump out) or into another iteration (the one after), and the other way
+ * as a choice while both are allowed (section 6.1.4).
+ */
+static sxml_status sxml_regex_matcher_choose_iteration(
+    sxml_regex_matcher *matcher, const sxml_regex_counted_loop *loop,
+    sxml_regex_thread *thread) {
+    size_t counter = matcher->slots[loop->counter_slot];
+    uint32_t out_index = thread->instruction_index;
+    uint32_t iteration_index = out_index + 1;
+    if (counter < loop->minimum_count) {
+        thread->instruction_index = iteration_index;
+        return SXML_STATUS_OK;
+    }
+    if (!loop->is_unbounded && counter >= loop->maximum_count) {
+        return SXML_STATUS_OK;
+    }
+    thread->instruction_index =
+        loop->is_reluctant ? out_index : iteration_index;
+    return sxml_regex_matcher_push(
+        matcher, (sxml_regex_backtrack_entry){
+                     .kind = SXML_REGEX_BACKTRACK_KIND_RESUME,
+                     .index = loop->is_reluctant ? iteration_index : out_index,
+                     .byte_offset = thread->byte_offset});
+}
+
+/*
+ * COUNTED_LOOP_END of loop (D147): counts the iteration that ended. One
+ * that consumed nothing fails at or above the minimum, as CHECK_PROGRESS
+ * does in an unbounded loop; below it, it counts as all the iterations
+ * the minimum still needs, since each would again match nothing where it
+ * starts (F&O 4.0, section 6.1.1 picks a segment, not a way of matching
+ * it, and section 6.1.5 leaves the captured groups of a repetition that
+ * matched a zero-length string implementation-dependent).
+ */
+static sxml_status sxml_regex_matcher_end_iteration(
+    sxml_regex_matcher *matcher, const sxml_regex_counted_loop *loop,
+    sxml_regex_thread *thread) {
+    size_t counter = matcher->slots[loop->counter_slot];
+    size_t new_counter = counter + 1;
+    if (matcher->slots[loop->progress_slot] == thread->byte_offset) {
+        if (counter >= loop->minimum_count) {
+            thread->has_failed = true;
+            return SXML_STATUS_OK;
+        }
+        new_counter = loop->minimum_count;
+    }
+    return sxml_regex_matcher_set_slot(matcher, loop->counter_slot,
+                                       new_counter);
+}
+
 /*
  * Runs one instruction of thread (in/out). Returns a failure status only
  * for limits and allocation.
@@ -3470,12 +3722,8 @@ static sxml_status sxml_regex_matcher_step(sxml_regex_matcher *matcher,
         next_index = instruction.operand;
         break;
     case SXML_REGEX_OPERATION_SAVE:
-        status = sxml_regex_matcher_push(
-            matcher, (sxml_regex_backtrack_entry){
-                         .kind = SXML_REGEX_BACKTRACK_KIND_RESTORE_SLOT,
-                         .index = instruction.operand,
-                         .byte_offset = matcher->slots[instruction.operand]});
-        matcher->slots[instruction.operand] = thread->byte_offset;
+        status = sxml_regex_matcher_set_slot(matcher, instruction.operand,
+                                             thread->byte_offset);
         break;
     case SXML_REGEX_OPERATION_CHECK_PROGRESS:
         is_successful =
@@ -3527,6 +3775,35 @@ static sxml_status sxml_regex_matcher_step(sxml_regex_matcher *matcher,
     case SXML_REGEX_OPERATION_STEP_BACK:
         is_successful = sxml_regex_matcher_step_back(
             matcher, instruction.operand, &thread->byte_offset);
+        break;
+    case SXML_REGEX_OPERATION_COUNTED_LOOP_START:
+        status = sxml_regex_matcher_set_slot(
+            matcher,
+            matcher->regex->counted_loops[instruction.operand].counter_slot,
+            0);
+        break;
+    case SXML_REGEX_OPERATION_COUNTED_LOOP_CHOOSE:
+        thread->instruction_index = next_index;
+        status = sxml_regex_matcher_choose_iteration(
+            matcher, &matcher->regex->counted_loops[instruction.operand],
+            thread);
+        next_index = thread->instruction_index;
+        break;
+    case SXML_REGEX_OPERATION_COUNTED_LOOP_BODY:
+        status = sxml_regex_matcher_set_slot(
+            matcher,
+            matcher->regex->counted_loops[instruction.operand].progress_slot,
+            thread->byte_offset);
+        break;
+    case SXML_REGEX_OPERATION_COUNTED_LOOP_END:
+        thread->has_failed = false;
+        status = sxml_regex_matcher_end_iteration(
+            matcher,
+            &matcher->regex->counted_loops
+                 [matcher->regex->instructions[instruction.operand].operand],
+            thread);
+        is_successful = !thread->has_failed;
+        next_index = instruction.operand;
         break;
     case SXML_REGEX_OPERATION_MATCH:
         /* The caller stops before running MATCH. */
