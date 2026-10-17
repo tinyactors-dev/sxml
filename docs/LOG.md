@@ -4,6 +4,20 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 2.2 done (D104): the public API for Phase 2, header-only. Static
+  context: decimal formats (name, properties as text with 4.0's
+  marker:rendition form), default collation URI, collation bindings,
+  `sxml_collation_is_supported`. Dynamic context: default language,
+  environment variables, trace sink. Resources: kinds TEXT, BINARY,
+  COLLECTION, URI_COLLECTION, XQUERY_MODULE, XSLT_MODULE, XSLT_PACKAGE,
+  form SEQUENCE, request fields for encoding, default collection, module
+  namespace and package version. `sxml_trace_sink` for fn:trace,
+  fn:message, xsl:message, with `sxml_stream_trace_sink`. version.h:
+  `SXML_VERSION_ENCODE`, `SXML_VERSION_NUMBER`, `SXML_API_VERSION`
+  (0.2.0). 2.12 defines the two new functions. `debug`, `debug-gcc`,
+  `wasm` 117/117, lint clean; XP40 23,146 passed before and after, slice
+  198/198.
+
 - 1.29 done, Phase 1 gate review (D98-D100). Rubric pass over all public
   headers and the core modules; no writable globals, no allocation or
   printing outside their places, no recursion through function pointers
