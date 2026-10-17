@@ -10,7 +10,8 @@ release are in `docs/RELEASE.md`.
 ## [0.2.0] - unreleased
 
 The first public release (D47, D104, D138). From this version, the public
-headers in `include/sxml/` are stable. `SXML_API_VERSION` is 0.2.0.
+headers in `include/sxml/` are stable, except the provisional `xquery.h`
+and `xslt.h` (D151). `SXML_API_VERSION` is 0.2.0.
 
 ### Added
 
@@ -37,8 +38,9 @@ headers in `include/sxml/` are stable. `SXML_API_VERSION` is 0.2.0.
 - **Processor API** (`processor.h`, `xpath.h`, `serialize.h`, `xml.h`) for
   hosts: compile once, evaluate many times, serialize. Resources are read
   only through the host's resolver.
-- **`sxml` command-line program**: `sxml check`, `sxml xpath` and
-  `sxml version` (`docs/CLI.md`).
+- **`sxml` command-line program**: `sxml check`, `sxml xpath`,
+  `sxml xquery`, `sxml serialize` (with `--method`) and `sxml version`
+  (`docs/CLI.md`).
 - **WebAssembly**: a `wasm` build preset (WASI SDK) that runs the tests
   under Node.js. The JavaScript package `sxml-js` (`bindings/javascript/`)
   parses, evaluates XPath with variables and a context, serializes and
@@ -49,8 +51,12 @@ headers in `include/sxml/` are stable. `SXML_API_VERSION` is 0.2.0.
 
 ### Not yet
 
-- XQuery 4.0: `xquery.h` is declared, and its implementation is in
-  progress (Phase 3).
-- XSLT 4.0 (Phase 4) and schema validation (Phase 5).
+- XQuery 4.0 (Phase 3): `xquery.h` compiles and runs main modules, and
+  `sxml xquery` uses it; library modules, module import and
+  fn:load-xquery-module are in progress. `xquery.h` is provisional until
+  the Phase 3 gate (D151).
+- XSLT 4.0 (Phase 4): `xslt.h` is declared and partly implemented; it is
+  provisional until the Phase 4 gate (D151). Schema validation is
+  Phase 5.
 
 [0.2.0]: https://github.com/dhamidi/sxml/releases/tag/v0.2.0

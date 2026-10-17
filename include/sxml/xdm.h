@@ -492,6 +492,7 @@ SXML_EXPORT sxml_sequence sxml_sequence_empty(void);
  */
 SXML_EXPORT sxml_sequence sxml_sequence_from_item(sxml_item item);
 
+/* How sequence is stored (see sxml_sequence_representation). */
 SXML_EXPORT sxml_sequence_representation sxml_sequence_get_representation(
     sxml_sequence sequence);
 
