@@ -1037,6 +1037,7 @@ static const char *const kind_names[] = {
     [SXML_XSLT_AST_KIND_SORT] = "SORT",
     [SXML_XSLT_AST_KIND_WHEN] = "WHEN",
     [SXML_XSLT_AST_KIND_WITH_PARAM] = "WITH_PARAM",
+    [SXML_XSLT_AST_KIND_RECORD] = "RECORD",
 };
 _Static_assert(sizeof(kind_names) / sizeof(kind_names[0]) == SXML_XSLT_AST_KIND_COUNT,
                "one name per node kind");
@@ -1199,6 +1200,8 @@ static const char *const attribute_kind_names[] = {
     [SXML_XSLT_AST_ATTRIBUTE_WITH_PARAMS] = "WITH_PARAMS",
     [SXML_XSLT_AST_ATTRIBUTE_XPATH] = "XPATH",
     [SXML_XSLT_AST_ATTRIBUTE_ZERO_DIGIT] = "ZERO_DIGIT",
+    [SXML_XSLT_AST_ATTRIBUTE_CONSTRUCTOR] = "CONSTRUCTOR",
+    [SXML_XSLT_AST_ATTRIBUTE_RECORD_FIELD] = "RECORD_FIELD",
 };
 _Static_assert(sizeof(attribute_kind_names) / sizeof(attribute_kind_names[0]) ==
                    SXML_XSLT_AST_ATTRIBUTE_KIND_COUNT,

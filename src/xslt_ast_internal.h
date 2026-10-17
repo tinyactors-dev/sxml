@@ -549,6 +549,15 @@ typedef enum sxml_xslt_ast_kind {
     SXML_XSLT_AST_KIND_WHEN,            /* 8.2, 8.3 */
     SXML_XSLT_AST_KIND_WITH_PARAM,      /* 9.10 */
 
+    /* --- Appended (D142) --- */
+    /* xsl:record (4.0, an instruction like xsl:map): each attribute in no
+       namespace is a field, RECORD_FIELD, named by its local name as
+       written (shadow attributes and standard attributes do not apply:
+       "_a" and "version" are fields); XSLT-namespaced attributes are the
+       standard ones and xsl:duplicates (DUPLICATES, flag XSLT_NAMESPACE).
+       Children: a sequence constructor of maps merged in. */
+    SXML_XSLT_AST_KIND_RECORD,
+
     /* One more than the largest kind. */
     SXML_XSLT_AST_KIND_COUNT,
 } sxml_xslt_ast_kind;
@@ -924,6 +933,12 @@ typedef enum sxml_xslt_ast_attribute_kind {
     SXML_XSLT_AST_ATTRIBUTE_XPATH,
     /* zero-digit: TEXT. */
     SXML_XSLT_AST_ATTRIBUTE_ZERO_DIGIT,
+
+    /* --- Appended (D142) --- */
+    /* constructor (record-type, 5.4.2): BOOLEAN. */
+    SXML_XSLT_AST_ATTRIBUTE_CONSTRUCTOR,
+    /* A field of xsl:record: EXPRESSION; attribute_name is the field. */
+    SXML_XSLT_AST_ATTRIBUTE_RECORD_FIELD,
 
     /* One more than the largest attribute kind (not ATTRIBUTE_COUNT,
        which is the attribute count). */

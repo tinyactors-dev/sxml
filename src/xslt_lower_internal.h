@@ -1,0 +1,322 @@
+#pragma once
+
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+
+#include "function_library_internal.h"
+#include "ir_internal.h"
+#include "sxml/memory.h"
+#include "sxml/name.h"
+#include "sxml/processor.h"
+#include "sxml/status.h"
+#include "sxml/tree.h"
+#include "sxml/view.h"
+#include "xpath_lower_internal.h"
+#include "xpath_static_internal.h"
+#include "xslt_ast_internal.h"
+
+/*
+ * Lowering XSLT 4.0 (docs/DECISIONS.md D46, D55, D102, D103, D110, D124,
+ * D142; packet 4.6). Internal to sxml.
+ *
+ * A sealed stylesheet AST (src/xslt_ast_internal.h) is lowered into an IR
+ * unit by the one lowering machine of src/xpath_lower_internal.h, with a
+ * lowerer of language SXML_LANGUAGE_XSLT: no machinery of its own. XSLT
+ * instructions are not AST kinds, so each is a lowering procedure pushed
+ * with sxml_xpath_lowering_push_procedure (D103); every XPath expression,
+ * pattern and value template of the stylesheet is lowered through the
+ * embedding entry, with the XPath static context made once for each
+ * static context of the AST, into the function being lowered. Nothing is
+ * evaluated while lowering, and no step recurses (D71).
+ *
+ * Sequence constructors (XSLT 4.0, 5.7). The children of a node, from a
+ * first child to the last, are lowered one after another in the caller's
+ * block, each to one atom (instructions, literal result elements, text
+ * nodes); the sequence constructor's value is the SEQUENCE of those atoms,
+ * which the instructions that use it as content give as one atom: one
+ * enclosed expression in the sense of D110, so adjacent atomic values are
+ * joined with single spaces across instructions (5.7.1). Variables an
+ * instruction brings into scope (xsl:variable, packet 4.7, by
+ * sxml_xpath_lowerer_push_variable) stay in scope until the sequence
+ * constructor that holds it ends.
+ *
+ * Node construction (11):
+ * - A literal result element (11.1) is an ELEMENT_CONSTRUCTOR with
+ *   construction flag XSLT_RULES (D124), an xs:QName constant name, the
+ *   namespace bindings of its element in the stylesheet tree without
+ *   the excluded namespaces and the literal namespace URIs of namespace
+ *   aliases (11.1.3, 11.1.4), and as content one atom per attribute (an
+ *   ATTRIBUTE_CONSTRUCTOR of the attribute value template) and one for the
+ *   sequence constructor.
+ * - Value templates (5.6) are their string templates lowered here: fixed
+ *   parts are constants, each enclosed expression's value becomes simple
+ *   content (5.7.2, sxml_xslt_simple_content_function: adjacent text
+ *   nodes merged, then atomized and joined with spaces), and the parts are
+ *   joined by "||". A template of fixed parts only is one constant.
+ * - xsl:element, xsl:attribute, xsl:text, xsl:value-of, xsl:comment,
+ *   xsl:processing-instruction, xsl:namespace, xsl:document are the
+ *   constructor kinds of the same name (src/xslt_lower_construct.c);
+ *   xsl:copy is SHALLOW_COPY; xsl:copy-of a MAP over the selected items
+ *   that copies each node by SHALLOW_COPY with its attributes and
+ *   children as content; xsl:map, xsl:map-entry and xsl:record are
+ *   MAP_CONSTRUCTOR, xsl:array a call of array:of-members, xsl:array-member
+ *   a call of fn:jtree; xsl:sequence its value.
+ *
+ * Errors: static errors (XTSE) are reported at the instruction (module
+ * URI, line, column); XSLT's dynamic error codes are raised where the
+ * evaluator's XQuery codes would be wrong, by a TRY_CATCH that maps one
+ * code to the other around the constructor alone. Instructions of later
+ * packets give SXML_STATUS_UNSUPPORTED_FEATURE with the diagnostic filled.
+ *
+ * Thread safety: the thread of the item heap (D35).
+ */
+
+/* ----------------------------------------------------------- Aliases */
+
+/* One xsl:namespace-alias in force (11.1.4): literal namespace URI
+   stylesheet_uri is output as result_binding. */
+typedef struct sxml_xslt_namespace_alias {
+    sxml_namespace_uri_identifier stylesheet_uri;
+    sxml_namespace_binding result_binding;
+    /* The import precedence of the declaration that won. */
+    uint32_t import_precedence;
+} sxml_xslt_namespace_alias;
+
+/* ---------------------------------------------------- The lowering */
+
+/*
+ * One stylesheet lowering (glossary `stylesheet_lowering`). Made by
+ * sxml_xslt_lower_initial_template; procedures read it through the
+ * pointer at the start of their locals and never change it. Every pointer
+ * is borrowed for the lowering.
+ */
+typedef struct sxml_xslt_lowering {
+    const sxml_xslt_ast *ast;
+    sxml_xpath_lowerer *lowerer;
+    /* static_contexts[n] is the XPath static context of the AST's static
+       context n (entry 0 unused): its namespaces with the
+       xpath-default-namespace as prefix 0, base URI, the function table. */
+    const sxml_xpath_static_context *static_contexts;
+    uint32_t static_context_count;
+    sxml_xslt_namespace_alias *namespace_aliases;
+    size_t namespace_alias_count;
+    sxml_error_record *error_record;
+} sxml_xslt_lowering;
+
+/* What every XSLT lowering procedure's locals start with; it is pushed
+   with these as its initial locals. */
+typedef struct sxml_xslt_instruction_locals {
+    const sxml_xslt_lowering *lowering;
+    /* The instruction, literal result element or text node lowered. */
+    sxml_xslt_ast_node_index node;
+} sxml_xslt_instruction_locals;
+
+/* ------------------------------------------------------ Instruction rules */
+
+/*
+ * Which procedure lowers an instruction kind (glossary `instruction_rule`).
+ * The procedure's frame is pushed in the sequence constructor's block with
+ * an atom destination; its locals start with sxml_xslt_instruction_locals.
+ */
+typedef struct sxml_xslt_instruction_rule {
+    sxml_xslt_ast_kind kind;
+    const sxml_xpath_lowering_procedure *procedure;
+} sxml_xslt_instruction_rule;
+
+typedef struct sxml_xslt_instruction_rule_view {
+    const sxml_xslt_instruction_rule *rules;
+    size_t rule_count;
+} sxml_xslt_instruction_rule_view;
+
+/* The instructions of src/xslt_lower_construct.c (packet 4.6). Later
+   packets define their own views and add them to the list in
+   src/xslt_lower.c. */
+extern const sxml_xslt_instruction_rule_view sxml_xslt_instruction_rules_construct;
+
+/* --------------------------------------------------------- Parts to call */
+
+/* An expression of the stylesheet AST (EXPRESSION or VALUE_TEMPLATE) to
+   lower to an atom in block. */
+typedef struct sxml_xslt_expression_call {
+    const sxml_xslt_lowering *lowering;
+    sxml_xslt_ast_expression_index expression;
+    sxml_xpath_lowering_block *block;
+    sxml_ir_atom *atom;
+    /* The focus while it is lowered (sxml_xpath_lowering_embedding.focus);
+       NULL keeps the current one. Ignored for value templates. */
+    sxml_xpath_lowering_focus *focus;
+} sxml_xslt_expression_call;
+
+/* From a step: an EXPRESSION through the embedding entry, in the
+   expression's static context and the current focus. */
+SXML_NODISCARD sxml_status sxml_xslt_lowering_call_expression(
+    sxml_xpath_lowering_machine *machine, const sxml_xslt_expression_call *call);
+
+/* From a step: a VALUE_TEMPLATE as one xs:string (5.6; see above). */
+SXML_NODISCARD sxml_status sxml_xslt_lowering_call_value_template(
+    sxml_xpath_lowering_machine *machine, const sxml_xslt_expression_call *call);
+
+/* A sequence constructor to lower: first and its following siblings. */
+typedef struct sxml_xslt_sequence_constructor_call {
+    const sxml_xslt_lowering *lowering;
+    /* 0 for an empty sequence constructor. */
+    sxml_xslt_ast_node_index first;
+    /* The block its atoms are bound in, or NULL with is_body. */
+    sxml_xpath_lowering_block *block;
+    bool is_body;
+    sxml_xpath_lowering_destination destination;
+    /* The focus while it is lowered, restored afterwards (the selected
+       item of xsl:copy select); NULL keeps the current one. Must stay
+       where it is until the frame finishes. */
+    sxml_xpath_lowering_focus *focus;
+} sxml_xslt_sequence_constructor_call;
+
+/* From a step: pushes the frame that lowers the sequence constructor. */
+SXML_NODISCARD sxml_status sxml_xslt_lowering_call_sequence_constructor(
+    sxml_xpath_lowering_machine *machine, const sxml_xslt_sequence_constructor_call *call);
+
+/* The first child of node that is part of its sequence constructor: the
+   children before it (xsl:param, xsl:sort, xsl:context-item and others an
+   instruction reads itself) skipped. */
+sxml_xslt_ast_node_index sxml_xslt_lowering_first_constructor_child(const sxml_xslt_ast *ast,
+                                                                    sxml_xslt_ast_node_index node);
+
+/* ------------------------------------------------------- Simple content */
+
+/* A value to turn into simple content (5.7.2), bound in block. */
+typedef struct sxml_xslt_simple_content_request {
+    sxml_xpath_lowering_block *block;
+    sxml_ir_atom value;
+    /* An xs:string atom. */
+    sxml_ir_atom separator;
+} sxml_xslt_simple_content_request;
+
+/* Binds the xs:string the simple content of request.value gives. */
+SXML_NODISCARD sxml_status sxml_xslt_lowering_bind_simple_content(
+    sxml_xpath_lowerer *lowerer, sxml_xslt_simple_content_request request, sxml_ir_atom *atom);
+
+/*
+ * The internal native row behind simple content (in no function table,
+ * called by STATIC_CALL with arguments of its types, as group by's rows
+ * are): merge-text-nodes($value as item()*) as item()* returns $value with
+ * each run of two or more adjacent text nodes replaced by one
+ * xs:untypedAtomic of their concatenated string values (5.7.2, steps 1
+ * and 2; sxml has no zero-length text nodes, D40). Defined in
+ * src/xslt_simple_content.c.
+ */
+extern const sxml_native_function sxml_xslt_merge_text_nodes_function;
+
+/* ----------------------------------------------------------- Error codes */
+
+/* A dynamic error of the evaluator replaced by XSLT's (both in the err
+   namespace, static ASCII such as "XQDY0137"). */
+typedef struct sxml_xslt_error_mapping {
+    sxml_byte_view caught_code;
+    sxml_status raised_status;
+    sxml_byte_view raised_code;
+    sxml_byte_view description;
+} sxml_xslt_error_mapping;
+
+typedef struct sxml_xslt_error_mapping_view {
+    const sxml_xslt_error_mapping *mappings;
+    size_t mapping_count;
+} sxml_xslt_error_mapping_view;
+
+/* An expression to bind in block inside a TRY_CATCH whose clauses raise
+   mappings' codes instead of the caught ones. */
+typedef struct sxml_xslt_mapped_expression {
+    sxml_xpath_lowering_block *block;
+    sxml_ir_expression expression;
+    sxml_xslt_error_mapping_view mappings;
+} sxml_xslt_mapped_expression;
+
+SXML_NODISCARD sxml_status sxml_xslt_lowering_bind_mapped_expression(
+    sxml_xpath_lowerer *lowerer, const sxml_xslt_mapped_expression *request, sxml_ir_atom *atom);
+
+/* ------------------------------------------------------------- Helpers */
+
+/* Adds expression and binds it in block. */
+typedef struct sxml_xslt_expression_to_bind {
+    sxml_xpath_lowering_block *block;
+    sxml_ir_expression expression;
+} sxml_xslt_expression_to_bind;
+
+SXML_NODISCARD sxml_status sxml_xslt_lowering_bind_expression(
+    sxml_xpath_lowerer *lowerer, const sxml_xslt_expression_to_bind *request, sxml_ir_atom *atom);
+
+/* A call of a function of the static context's table, its arguments
+   coerced to the parameter types (as a static call in XPath), bound in
+   block. UNSUPPORTED_FEATURE when the table lacks it. */
+typedef struct sxml_xslt_library_call {
+    sxml_xpath_lowering_block *block;
+    sxml_well_known_namespace function_namespace;
+    sxml_byte_view local_name;
+    sxml_ir_atom_view arguments;
+} sxml_xslt_library_call;
+
+SXML_NODISCARD sxml_status sxml_xslt_lowering_bind_library_call(
+    sxml_xpath_lowerer *lowerer, const sxml_xslt_library_call *request, sxml_ir_atom *atom);
+
+/* Fills the error record with code_and_description ("XTSE0010 text",
+   static) at node and returns SXML_STATUS_STATIC_ERROR. */
+typedef struct sxml_xslt_static_error {
+    sxml_xslt_ast_node_index node;
+    sxml_byte_view code_and_description;
+} sxml_xslt_static_error;
+
+SXML_NODISCARD sxml_status sxml_xslt_lowering_report_static_error(
+    const sxml_xslt_lowering *lowering, sxml_xslt_static_error error);
+
+/* Fills the diagnostic (static text) at node and returns
+   SXML_STATUS_UNSUPPORTED_FEATURE. */
+SXML_NODISCARD sxml_status sxml_xslt_lowering_report_unsupported(const sxml_xslt_lowering *lowering,
+                                                                 sxml_xslt_static_error error);
+
+/* The in-scope namespaces of node's element in its stylesheet module
+   (with the default namespace as prefix 0), borrowed from the module's
+   tree; empty for a text node. */
+SXML_NODISCARD sxml_status sxml_xslt_lowering_get_element_namespaces(
+    const sxml_xslt_lowering *lowering, sxml_xslt_ast_node_index node,
+    sxml_namespace_binding_view *namespace_bindings);
+
+/* The alias whose stylesheet URI is uri; NULL when none. */
+const sxml_xslt_namespace_alias *sxml_xslt_lowering_find_alias(const sxml_xslt_lowering *lowering,
+                                                               sxml_namespace_uri_identifier uri);
+
+/* ----------------------------------------------------------- The entry */
+
+/* A stylesheet to lower around one template (until packet 4.8 lowers
+   template rules and modes, and 4.15 the transformation). */
+typedef struct sxml_xslt_lowering_request {
+    /* Sealed; borrowed for the call. */
+    const sxml_xslt_ast *ast;
+    /* Its function table, heap, allocator and limits; borrowed. */
+    sxml_processor *processor;
+    /* The TEMPLATE whose sequence constructor is the main function; 0
+       means the template named xsl:initial-template, else the template of
+       a simplified stylesheet module (3.7). */
+    sxml_xslt_ast_node_index template_node;
+    /* The main function returns a document node holding the result, as
+       the principal result is built (2.4, build-tree): a DOCUMENT
+       constructor with XSLT's rules around the value. Otherwise it returns
+       the raw result. */
+    bool builds_result_document;
+    /* sxml_ir_unit_configuration.maximum_expression_count. */
+    uint32_t maximum_expression_count;
+    sxml_error_record *error_record;
+} sxml_xslt_lowering_request;
+
+/*
+ * Lowers the template's sequence constructor (its xsl:context-item
+ * skipped; xsl:param is packet 4.8's) as the main function of a new unit,
+ * whose focus is the global context item, runs sxml_ir_standard_passes,
+ * seals the unit and writes it, owned, to *unit. Returns
+ * SXML_STATUS_INVALID_ARGUMENT for an unsealed AST or no template,
+ * SXML_STATUS_STATIC_ERROR (XTSE, XPST) and SXML_STATUS_TYPE_ERROR with
+ * the error record filled, SXML_STATUS_UNSUPPORTED_FEATURE for an
+ * instruction not lowered yet (the diagnostic filled), and the failures of
+ * lowering and the allocator. *unit is untouched on failure.
+ */
+SXML_NODISCARD sxml_status
+sxml_xslt_lower_initial_template(const sxml_xslt_lowering_request *request, sxml_ir_unit **unit);

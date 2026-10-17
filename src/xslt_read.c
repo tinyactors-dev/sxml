@@ -976,6 +976,9 @@ static const attribute_rule attribute_rules[] = {
     {.attribute_name = SXML_BYTE_VIEW_INITIALIZER("select"), .attribute_kind = SXML_XSLT_AST_ATTRIBUTE_SELECT,
      .value_syntax = SXML_VALUE_SYNTAX_EXPRESSION, .is_required = false,
      .keyword_mask = 0},
+    {.attribute_name = SXML_BYTE_VIEW_INITIALIZER("constructor"), .attribute_kind = SXML_XSLT_AST_ATTRIBUTE_CONSTRUCTOR,
+     .value_syntax = SXML_VALUE_SYNTAX_BOOLEAN, .is_required = false,
+     .keyword_mask = 0},
     {.attribute_name = SXML_BYTE_VIEW_INITIALIZER("name"), .attribute_kind = SXML_XSLT_AST_ATTRIBUTE_NAME,
      .value_syntax = SXML_VALUE_SYNTAX_EQNAME, .is_required = true,
      .keyword_mask = 0},
@@ -1745,139 +1748,148 @@ static const element_rule element_rules[] = {
      .child_kind_count = 0, .required_child_kind = SXML_XSLT_AST_KIND_NONE,
      .is_ordered = false, .single_child_mask = 0U,
      .first_attribute_rule = 235, .attribute_rule_count = 2},
+    /* xsl:record (4.0; D142): its attributes are fields, read by
+       add_node_attributes, so it has no attribute rules. */
+    {.local_name = SXML_BYTE_VIEW_INITIALIZER("record"), .kind = SXML_XSLT_AST_KIND_RECORD,
+     .element_flags = SXML_ELEMENT_FLAG_INSTRUCTION,
+     .content_model = SXML_CONTENT_MODEL_SEQUENCE_CONSTRUCTOR,
+     .child_kinds = {SXML_XSLT_AST_KIND_NONE},
+     .child_kind_count = 0, .required_child_kind = SXML_XSLT_AST_KIND_NONE,
+     .is_ordered = false, .single_child_mask = 0U,
+     .first_attribute_rule = 237, .attribute_rule_count = 0},
     {.local_name = SXML_BYTE_VIEW_INITIALIZER("record-type"), .kind = SXML_XSLT_AST_KIND_RECORD_TYPE,
      .element_flags = SXML_ELEMENT_FLAG_DECLARATION,
      .content_model = SXML_CONTENT_MODEL_CHILDREN,
      .child_kinds = {SXML_XSLT_AST_KIND_FIELD},
      .child_kind_count = 1, .required_child_kind = SXML_XSLT_AST_KIND_NONE,
      .is_ordered = false, .single_child_mask = 0U,
-     .first_attribute_rule = 237, .attribute_rule_count = 2},
+     .first_attribute_rule = 237, .attribute_rule_count = 3},
     {.local_name = SXML_BYTE_VIEW_INITIALIZER("result-document"), .kind = SXML_XSLT_AST_KIND_RESULT_DOCUMENT,
      .element_flags = SXML_ELEMENT_FLAG_INSTRUCTION,
      .content_model = SXML_CONTENT_MODEL_SEQUENCE_CONSTRUCTOR,
      .child_kinds = {SXML_XSLT_AST_KIND_NONE},
      .child_kind_count = 0, .required_child_kind = SXML_XSLT_AST_KIND_NONE,
      .is_ordered = false, .single_child_mask = 0U,
-     .first_attribute_rule = 239, .attribute_rule_count = 37},
+     .first_attribute_rule = 240, .attribute_rule_count = 37},
     {.local_name = SXML_BYTE_VIEW_INITIALIZER("select"), .kind = SXML_XSLT_AST_KIND_SELECT,
      .element_flags = SXML_ELEMENT_FLAG_INSTRUCTION,
      .content_model = SXML_CONTENT_MODEL_TEXT,
      .child_kinds = {SXML_XSLT_AST_KIND_FALLBACK},
      .child_kind_count = 1, .required_child_kind = SXML_XSLT_AST_KIND_NONE,
      .is_ordered = false, .single_child_mask = 0U,
-     .first_attribute_rule = 276, .attribute_rule_count = 1},
+     .first_attribute_rule = 277, .attribute_rule_count = 1},
     {.local_name = SXML_BYTE_VIEW_INITIALIZER("sequence"), .kind = SXML_XSLT_AST_KIND_SEQUENCE,
      .element_flags = SXML_ELEMENT_FLAG_INSTRUCTION,
      .content_model = SXML_CONTENT_MODEL_SEQUENCE_CONSTRUCTOR,
      .child_kinds = {SXML_XSLT_AST_KIND_NONE},
      .child_kind_count = 0, .required_child_kind = SXML_XSLT_AST_KIND_NONE,
      .is_ordered = false, .single_child_mask = 0U,
-     .first_attribute_rule = 277, .attribute_rule_count = 2},
+     .first_attribute_rule = 278, .attribute_rule_count = 2},
     {.local_name = SXML_BYTE_VIEW_INITIALIZER("sort"), .kind = SXML_XSLT_AST_KIND_SORT,
      .element_flags = 0,
      .content_model = SXML_CONTENT_MODEL_SEQUENCE_CONSTRUCTOR,
      .child_kinds = {SXML_XSLT_AST_KIND_NONE},
      .child_kind_count = 0, .required_child_kind = SXML_XSLT_AST_KIND_NONE,
      .is_ordered = false, .single_child_mask = 0U,
-     .first_attribute_rule = 279, .attribute_rule_count = 7},
+     .first_attribute_rule = 280, .attribute_rule_count = 7},
     {.local_name = SXML_BYTE_VIEW_INITIALIZER("source-document"), .kind = SXML_XSLT_AST_KIND_SOURCE_DOCUMENT,
      .element_flags = SXML_ELEMENT_FLAG_INSTRUCTION,
      .content_model = SXML_CONTENT_MODEL_SEQUENCE_CONSTRUCTOR,
      .child_kinds = {SXML_XSLT_AST_KIND_NONE},
      .child_kind_count = 0, .required_child_kind = SXML_XSLT_AST_KIND_NONE,
      .is_ordered = false, .single_child_mask = 0U,
-     .first_attribute_rule = 286, .attribute_rule_count = 5},
+     .first_attribute_rule = 287, .attribute_rule_count = 5},
     {.local_name = SXML_BYTE_VIEW_INITIALIZER("strip-space"), .kind = SXML_XSLT_AST_KIND_STRIP_SPACE,
      .element_flags = SXML_ELEMENT_FLAG_DECLARATION,
      .content_model = SXML_CONTENT_MODEL_EMPTY,
      .child_kinds = {SXML_XSLT_AST_KIND_NONE},
      .child_kind_count = 0, .required_child_kind = SXML_XSLT_AST_KIND_NONE,
      .is_ordered = false, .single_child_mask = 0U,
-     .first_attribute_rule = 291, .attribute_rule_count = 1},
+     .first_attribute_rule = 292, .attribute_rule_count = 1},
     {.local_name = SXML_BYTE_VIEW_INITIALIZER("stylesheet"), .kind = SXML_XSLT_AST_KIND_STYLESHEET,
      .element_flags = SXML_ELEMENT_FLAG_MODULE_ROOT | SXML_ELEMENT_FLAG_STRIPS_WHITESPACE,
      .content_model = SXML_CONTENT_MODEL_DECLARATIONS,
      .child_kinds = {SXML_XSLT_AST_KIND_NONE},
      .child_kind_count = 0, .required_child_kind = SXML_XSLT_AST_KIND_NONE,
      .is_ordered = false, .single_child_mask = 0U,
-     .first_attribute_rule = 292, .attribute_rule_count = 3},
+     .first_attribute_rule = 293, .attribute_rule_count = 3},
     {.local_name = SXML_BYTE_VIEW_INITIALIZER("switch"), .kind = SXML_XSLT_AST_KIND_SWITCH,
      .element_flags = SXML_ELEMENT_FLAG_INSTRUCTION | SXML_ELEMENT_FLAG_STRIPS_WHITESPACE,
      .content_model = SXML_CONTENT_MODEL_CHILDREN,
      .child_kinds = {SXML_XSLT_AST_KIND_WHEN, SXML_XSLT_AST_KIND_OTHERWISE, SXML_XSLT_AST_KIND_FALLBACK},
      .child_kind_count = 3, .required_child_kind = SXML_XSLT_AST_KIND_WHEN,
      .is_ordered = true, .single_child_mask = 2U,
-     .first_attribute_rule = 295, .attribute_rule_count = 1},
+     .first_attribute_rule = 296, .attribute_rule_count = 1},
     {.local_name = SXML_BYTE_VIEW_INITIALIZER("template"), .kind = SXML_XSLT_AST_KIND_TEMPLATE,
      .element_flags = SXML_ELEMENT_FLAG_DECLARATION,
      .content_model = SXML_CONTENT_MODEL_CHILDREN_THEN_SEQUENCE_CONSTRUCTOR,
      .child_kinds = {SXML_XSLT_AST_KIND_CONTEXT_ITEM, SXML_XSLT_AST_KIND_PARAM},
      .child_kind_count = 2, .required_child_kind = SXML_XSLT_AST_KIND_NONE,
      .is_ordered = true, .single_child_mask = 1U,
-     .first_attribute_rule = 296, .attribute_rule_count = 6},
+     .first_attribute_rule = 297, .attribute_rule_count = 6},
     {.local_name = SXML_BYTE_VIEW_INITIALIZER("text"), .kind = SXML_XSLT_AST_KIND_TEXT,
      .element_flags = SXML_ELEMENT_FLAG_INSTRUCTION,
      .content_model = SXML_CONTENT_MODEL_SEQUENCE_CONSTRUCTOR,
      .child_kinds = {SXML_XSLT_AST_KIND_NONE},
      .child_kind_count = 0, .required_child_kind = SXML_XSLT_AST_KIND_NONE,
      .is_ordered = false, .single_child_mask = 0U,
-     .first_attribute_rule = 302, .attribute_rule_count = 4},
+     .first_attribute_rule = 303, .attribute_rule_count = 4},
     {.local_name = SXML_BYTE_VIEW_INITIALIZER("transform"), .kind = SXML_XSLT_AST_KIND_STYLESHEET,
      .element_flags = SXML_ELEMENT_FLAG_MODULE_ROOT | SXML_ELEMENT_FLAG_STRIPS_WHITESPACE,
      .content_model = SXML_CONTENT_MODEL_DECLARATIONS,
      .child_kinds = {SXML_XSLT_AST_KIND_NONE},
      .child_kind_count = 0, .required_child_kind = SXML_XSLT_AST_KIND_NONE,
      .is_ordered = false, .single_child_mask = 0U,
-     .first_attribute_rule = 306, .attribute_rule_count = 3},
+     .first_attribute_rule = 307, .attribute_rule_count = 3},
     {.local_name = SXML_BYTE_VIEW_INITIALIZER("try"), .kind = SXML_XSLT_AST_KIND_TRY,
      .element_flags = SXML_ELEMENT_FLAG_INSTRUCTION,
      .content_model = SXML_CONTENT_MODEL_SEQUENCE_CONSTRUCTOR_THEN_CHILDREN,
      .child_kinds = {SXML_XSLT_AST_KIND_CATCH, SXML_XSLT_AST_KIND_FALLBACK},
      .child_kind_count = 2, .required_child_kind = SXML_XSLT_AST_KIND_CATCH,
      .is_ordered = false, .single_child_mask = 0U,
-     .first_attribute_rule = 309, .attribute_rule_count = 2},
+     .first_attribute_rule = 310, .attribute_rule_count = 2},
     {.local_name = SXML_BYTE_VIEW_INITIALIZER("use-package"), .kind = SXML_XSLT_AST_KIND_USE_PACKAGE,
      .element_flags = SXML_ELEMENT_FLAG_DECLARATION | SXML_ELEMENT_FLAG_STRIPS_WHITESPACE,
      .content_model = SXML_CONTENT_MODEL_CHILDREN,
      .child_kinds = {SXML_XSLT_AST_KIND_PACKAGE_LOCATION, SXML_XSLT_AST_KIND_ACCEPT, SXML_XSLT_AST_KIND_OVERRIDE, SXML_XSLT_AST_KIND_WITH_PARAM},
      .child_kind_count = 4, .required_child_kind = SXML_XSLT_AST_KIND_NONE,
      .is_ordered = false, .single_child_mask = 0U,
-     .first_attribute_rule = 311, .attribute_rule_count = 2},
+     .first_attribute_rule = 312, .attribute_rule_count = 2},
     {.local_name = SXML_BYTE_VIEW_INITIALIZER("value-of"), .kind = SXML_XSLT_AST_KIND_VALUE_OF,
      .element_flags = SXML_ELEMENT_FLAG_INSTRUCTION,
      .content_model = SXML_CONTENT_MODEL_SEQUENCE_CONSTRUCTOR,
      .child_kinds = {SXML_XSLT_AST_KIND_NONE},
      .child_kind_count = 0, .required_child_kind = SXML_XSLT_AST_KIND_NONE,
      .is_ordered = false, .single_child_mask = 0U,
-     .first_attribute_rule = 313, .attribute_rule_count = 4},
+     .first_attribute_rule = 314, .attribute_rule_count = 4},
     {.local_name = SXML_BYTE_VIEW_INITIALIZER("variable"), .kind = SXML_XSLT_AST_KIND_VARIABLE,
      .element_flags = SXML_ELEMENT_FLAG_DECLARATION | SXML_ELEMENT_FLAG_INSTRUCTION,
      .content_model = SXML_CONTENT_MODEL_SEQUENCE_CONSTRUCTOR,
      .child_kinds = {SXML_XSLT_AST_KIND_NONE},
      .child_kind_count = 0, .required_child_kind = SXML_XSLT_AST_KIND_NONE,
      .is_ordered = false, .single_child_mask = 0U,
-     .first_attribute_rule = 317, .attribute_rule_count = 5},
+     .first_attribute_rule = 318, .attribute_rule_count = 5},
     {.local_name = SXML_BYTE_VIEW_INITIALIZER("when"), .kind = SXML_XSLT_AST_KIND_WHEN,
      .element_flags = 0,
      .content_model = SXML_CONTENT_MODEL_SEQUENCE_CONSTRUCTOR,
      .child_kinds = {SXML_XSLT_AST_KIND_NONE},
      .child_kind_count = 0, .required_child_kind = SXML_XSLT_AST_KIND_NONE,
      .is_ordered = false, .single_child_mask = 0U,
-     .first_attribute_rule = 322, .attribute_rule_count = 2},
+     .first_attribute_rule = 323, .attribute_rule_count = 2},
     {.local_name = SXML_BYTE_VIEW_INITIALIZER("where-populated"), .kind = SXML_XSLT_AST_KIND_WHERE_POPULATED,
      .element_flags = SXML_ELEMENT_FLAG_INSTRUCTION,
      .content_model = SXML_CONTENT_MODEL_SEQUENCE_CONSTRUCTOR,
      .child_kinds = {SXML_XSLT_AST_KIND_NONE},
      .child_kind_count = 0, .required_child_kind = SXML_XSLT_AST_KIND_NONE,
      .is_ordered = false, .single_child_mask = 0U,
-     .first_attribute_rule = 324, .attribute_rule_count = 0},
+     .first_attribute_rule = 325, .attribute_rule_count = 0},
     {.local_name = SXML_BYTE_VIEW_INITIALIZER("with-param"), .kind = SXML_XSLT_AST_KIND_WITH_PARAM,
      .element_flags = 0,
      .content_model = SXML_CONTENT_MODEL_SEQUENCE_CONSTRUCTOR,
      .child_kinds = {SXML_XSLT_AST_KIND_NONE},
      .child_kind_count = 0, .required_child_kind = SXML_XSLT_AST_KIND_NONE,
      .is_ordered = false, .single_child_mask = 0U,
-     .first_attribute_rule = 324, .attribute_rule_count = 4},
+     .first_attribute_rule = 325, .attribute_rule_count = 4},
 };
 
 static const keyword_spelling keyword_spellings[] = {
@@ -4564,6 +4576,72 @@ typedef struct node_attributes_request {
     bool is_forwards_compatible;
 } node_attributes_request;
 
+/* One attribute of xsl:record (D142). */
+typedef struct record_attribute_request {
+    const element_attribute *attribute;
+    sxml_xslt_ast_module_index module;
+    bool is_forwards_compatible;
+} record_attribute_request;
+
+/* What reading it gives: the attribute's kind (NONE to drop it) and
+   value in *partial, and the rule its value is read by. */
+typedef struct record_attribute_reading {
+    sxml_xslt_ast_attribute_request *partial;
+    const attribute_rule **rule;
+} record_attribute_reading;
+
+/* An attribute of xsl:record: in no namespace a field (an expression);
+   xsl:duplicates; the XSLT-namespaced standard attributes (TEXT, their
+   effect in the static context); in other namespaces foreign text. */
+static sxml_status classify_record_attribute(stylesheet_reader *reader,
+                                             const record_attribute_request *request,
+                                             record_attribute_reading reading) {
+    static const attribute_rule field_rule = {
+        .attribute_name = SXML_BYTE_VIEW_INITIALIZER(""),
+        .attribute_kind = SXML_XSLT_AST_ATTRIBUTE_RECORD_FIELD,
+        .value_syntax = SXML_VALUE_SYNTAX_EXPRESSION,
+        .is_required = false,
+        .keyword_mask = 0};
+    static const attribute_rule duplicates_rule = {
+        .attribute_name = SXML_BYTE_VIEW_INITIALIZER("duplicates"),
+        .attribute_kind = SXML_XSLT_AST_ATTRIBUTE_DUPLICATES,
+        .value_syntax = SXML_VALUE_SYNTAX_EXPRESSION,
+        .is_required = false,
+        .keyword_mask = 0};
+    const element_attribute *attribute = request->attribute;
+    sxml_xslt_ast_attribute_request *partial = reading.partial;
+    if (attribute->namespace_uri.index == SXML_NAMESPACE_NONE) {
+        partial->kind = SXML_XSLT_AST_ATTRIBUTE_RECORD_FIELD;
+        *reading.rule = &field_rule;
+        return SXML_STATUS_OK;
+    }
+    if (attribute->namespace_uri.index != SXML_NAMESPACE_XSLT) {
+        partial->kind = SXML_XSLT_AST_ATTRIBUTE_FOREIGN;
+        return read_text_value(reader, attribute->value, &partial->value);
+    }
+    partial->flags |= SXML_XSLT_AST_ATTRIBUTE_FLAG_XSLT_NAMESPACE;
+    if (sxml_byte_view_equals(attribute->local_name, duplicates_rule.attribute_name)) {
+        partial->kind = SXML_XSLT_AST_ATTRIBUTE_DUPLICATES;
+        *reading.rule = &duplicates_rule;
+        return SXML_STATUS_OK;
+    }
+    const standard_attribute *standard = find_standard_attribute(attribute->local_name);
+    if (standard != NULL && standard->attribute_kind != SXML_XSLT_AST_ATTRIBUTE_FIXED_NAMESPACES) {
+        partial->kind = standard->attribute_kind;
+        return read_text_value(reader, attribute->value, &partial->value);
+    }
+    if (request->is_forwards_compatible) {
+        partial->kind = SXML_XSLT_AST_ATTRIBUTE_NONE;
+        return SXML_STATUS_OK;
+    }
+    return raise_error(reader, (reader_error){.error_code = "XTSE0090",
+                                              .description = "An attribute in the XSLT "
+                                                             "namespace is not allowed on "
+                                                             "xsl:record (XSLT 4.0, 3.3)",
+                                              .module = request->module,
+                                              .source_span = attribute->source_span});
+}
+
 static sxml_status add_node_attributes(stylesheet_reader *reader, const node_attributes_request *request) {
     const element_facts *facts = request->facts;
     const bool is_rule_element = request->role == SXML_ELEMENT_ROLE_XSLT ||
@@ -4583,7 +4661,17 @@ static sxml_status add_node_attributes(stylesheet_reader *reader, const node_att
             .source_span = attribute.source_span};
         const attribute_rule *rule = NULL;
         sxml_status status = SXML_STATUS_OK;
-        if (is_rule_element) {
+        if (is_rule_element && facts->rule->kind == SXML_XSLT_AST_KIND_RECORD) {
+            status = classify_record_attribute(
+                reader, &(record_attribute_request){.attribute = &attribute,
+                                                    .module = request->parent->module,
+                                                    .is_forwards_compatible =
+                                                        request->is_forwards_compatible},
+                (record_attribute_reading){.partial = &partial, .rule = &rule});
+            if (status == SXML_STATUS_OK && partial.kind == SXML_XSLT_AST_ATTRIBUTE_NONE) {
+                continue;
+            }
+        } else if (is_rule_element) {
             const bool is_unprefixed = attribute.namespace_uri.index == SXML_NAMESPACE_NONE;
             const standard_attribute *standard =
                 is_unprefixed ? find_standard_attribute(attribute.local_name) : NULL;
@@ -5482,7 +5570,12 @@ static sxml_status read_element(stylesheet_reader *reader, element_input input) 
                    .attribute_count = description->attribute_count},
         .source_span = location_of(parent.tree, input.element)};
     status = collect_attributes(reader, facts.source);
-    if (status == SXML_STATUS_OK && is_xslt) {
+    /* xsl:record's attributes in no namespace are fields, not standard
+       or shadow attributes; its standard attributes are written xsl:...,
+       as on a literal result element (D142). */
+    const bool is_record = facts.rule != NULL && facts.rule->kind == SXML_XSLT_AST_KIND_RECORD;
+    const bool has_unprefixed_standard_attributes = is_xslt && !is_record;
+    if (status == SXML_STATUS_OK && has_unprefixed_standard_attributes) {
         status = apply_shadow_attributes(
             reader, &(shadow_request){.source = facts.source,
                                       .module = parent.module,
@@ -5500,7 +5593,7 @@ static sxml_status read_element(stylesheet_reader *reader, element_input input) 
         &(context_request){.source = facts.source,
                            .module = parent.module,
                            .parent_context = parent.static_context,
-                           .is_xslt_element = is_xslt,
+                           .is_xslt_element = has_unprefixed_standard_attributes,
                            .is_module_root = is_module_root,
                            .is_simplified_root = is_document_child && !is_module_root},
         &context);
@@ -5518,7 +5611,8 @@ static sxml_status read_element(stylesheet_reader *reader, element_input input) 
     /* [xsl:]use-when (3.11.3). */
     bool is_included = true;
     const element_attribute *use_when = find_standard_value(
-        reader, (standard_query){.is_xslt_element = is_xslt, .local_name = "use-when"});
+        reader, (standard_query){.is_xslt_element = has_unprefixed_standard_attributes,
+                                 .local_name = "use-when"});
     if (use_when != NULL) {
         sxml_sequence value = sxml_sequence_empty();
         status = evaluate_in_context(reader,
