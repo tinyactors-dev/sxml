@@ -1048,13 +1048,13 @@ static const feature_case feature_cases[] = {
          "(function 1 main (parameters 0) (captures) (slots 2) (focus $1 _ _)\n"
          "  (let $2 (coerce $1 item()? function-argument)\n"
          "    (function-definition 2)))\n"
-         "(function 2 anonymous (parameters 0) (captures $2) (slots 1)\n"
+         "(function 2 fn:string (parameters 0) (captures $2) (slots 1)\n"
          "  (static-call fn:string#1 $1))\n"},
     {.compile = {.expression_text = "position#0"},
      .expected_text =
          "(function 1 main (parameters 0) (captures) (slots 1) (focus _ $1 _)\n"
          "  (function-definition 2))\n"
-         "(function 2 anonymous (parameters 0) (captures $1) (slots 1)\n"
+         "(function 2 fn:position (parameters 0) (captures $1) (slots 1)\n"
          "  $1)\n"},
     {.compile = {.expression_text = "function() { position() }"},
      .expected_text =
@@ -1430,7 +1430,7 @@ static const feature_case feature_cases[] = {
      "(function 1 main (parameters 0) (captures) (slots 2) (focus $1 _ _)\n"
      "  (let $2 (coerce $1 xs:anyAtomicType? function-argument)\n"
      "    (function-definition 2)))\n"
-     "(function 2 anonymous (parameters 0) (captures $2) (slots 1)\n"
+     "(function 2 xs:integer (parameters 0) (captures $2) (slots 1)\n"
      "  (cast $1 xs:integer?))\n"},
     {.compile = {.expression_text = "map { 'f': 1 } =?> f(2)"},
      .expected_text =
@@ -1586,8 +1586,8 @@ static sxml_status compile_status(const compile_case *test_case,
 }
 
 /* Computed node constructors are lowered by XQuery's packets (Phase 3). */
-static void test_computed_constructors_are_unsupported(
-    sxml_test_state *state) {
+/* Computed constructors are XPath 4.0 (section 4.13): they compile. */
+static void test_computed_constructors_compile(sxml_test_state *state) {
     static const char *const expressions[] = {
         "text { 'a' }",
         "1 + comment { 'c' }",
@@ -1598,14 +1598,11 @@ static void test_computed_constructors_are_unsupported(
         sxml_error_record error_record = {.value = NULL};
         const compile_case test_case = plain(expressions[expression_index]);
         const sxml_status status = compile_status(&test_case, &error_record);
-        if (status != SXML_STATUS_UNSUPPORTED_FEATURE) {
+        if (status != SXML_STATUS_OK) {
             (void)fprintf(stderr, "%s: status %d\n",
                           expressions[expression_index], (int)status);
         }
-        SXML_TEST_EXPECT(state, status == SXML_STATUS_UNSUPPORTED_FEATURE);
-        SXML_TEST_EXPECT(state,
-                         error_record.diagnostic.description.byte_count > 0);
-        SXML_TEST_EXPECT(state, error_record.diagnostic.location.line_number == 1);
+        SXML_TEST_EXPECT(state, status == SXML_STATUS_OK);
     }
 }
 
@@ -1860,8 +1857,8 @@ static const sxml_test_case xpath_static_test_cases[] = {
      .function = test_function_with_wrong_arity_is_unknown},
     {.name = "static_errors_have_code_and_location",
      .function = test_static_errors_have_code_and_location},
-    {.name = "computed_constructors_are_unsupported",
-     .function = test_computed_constructors_are_unsupported},
+    {.name = "computed_constructors_compile",
+     .function = test_computed_constructors_compile},
     {.name = "duplicate_variable_declarations_are_invalid",
      .function = test_duplicate_variable_declarations_are_invalid},
     {.name = "long_operator_chains_cost_no_stack",

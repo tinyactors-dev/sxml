@@ -1,7 +1,10 @@
 /*
  * The XQuery 4.0 lowering part `construct` (src/xpath_lower_internal.h;
  * docs/DECISIONS.md, D55, D103, D110, D124; packet 3.9): direct and
- * computed node constructors.
+ * computed node constructors. Computed constructors are XPath 4.0 too
+ * (XPath 4.0, section 4.13: "Computed node constructors are now available
+ * in XPath as well as XQuery"), so the part serves every language; the
+ * direct constructors only parse in XQuery.
  *
  * Golden file: src/xpath_lower.c (procedures as frames whose steps ask the
  * machine for their parts and return, D71; continue_atom_list for a list
@@ -1067,6 +1070,6 @@ static const sxml_xpath_lowering_rule construct_rules[] = {
 };
 
 const sxml_xpath_lowering_part sxml_xpath_lowering_part_construct = {
-    .languages = SXML_LANGUAGE_XQUERY,
+    .languages = SXML_LANGUAGE_SET_ALL,
     .rules = construct_rules,
     .rule_count = sizeof(construct_rules) / sizeof(construct_rules[0])};

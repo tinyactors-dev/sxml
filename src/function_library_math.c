@@ -314,6 +314,10 @@ static sxml_status call_pow(const sxml_function_call *call, sxml_sequence *resul
 
 static const sxml_function_parameter value_parameters[] = {
     SXML_REQUIRED_PARAMETER("value", "xs:double?")};
+/* math:sin, math:cos and math:tan name their argument $radians (F&O 4.0,
+   sections 4.10.4, 4.10.14 and 4.10.17). */
+static const sxml_function_parameter radians_parameters[] = {
+    SXML_REQUIRED_PARAMETER("radians", "xs:double?")};
 static const sxml_function_parameter pow_parameters[] = {
     SXML_REQUIRED_PARAMETER("x", "xs:double?"), SXML_REQUIRED_PARAMETER("y", "xs:numeric")};
 static const sxml_function_parameter atan2_parameters[] = {
@@ -328,9 +332,9 @@ static const sxml_native_function math_functions[] = {
     SXML_MATH_ROW("log10", value_parameters, "xs:double?", call_log10),
     SXML_MATH_ROW("pow", pow_parameters, "xs:double?", call_pow),
     SXML_MATH_ROW("sqrt", value_parameters, "xs:double?", call_sqrt),
-    SXML_MATH_ROW("sin", value_parameters, "xs:double?", call_sin),
-    SXML_MATH_ROW("cos", value_parameters, "xs:double?", call_cos),
-    SXML_MATH_ROW("tan", value_parameters, "xs:double?", call_tan),
+    SXML_MATH_ROW("sin", radians_parameters, "xs:double?", call_sin),
+    SXML_MATH_ROW("cos", radians_parameters, "xs:double?", call_cos),
+    SXML_MATH_ROW("tan", radians_parameters, "xs:double?", call_tan),
     SXML_MATH_ROW("asin", value_parameters, "xs:double?", call_asin),
     SXML_MATH_ROW("acos", value_parameters, "xs:double?", call_acos),
     SXML_MATH_ROW("atan", value_parameters, "xs:double?", call_atan),

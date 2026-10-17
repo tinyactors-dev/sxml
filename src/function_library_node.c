@@ -437,6 +437,42 @@ static sxml_status append_number(sxml_library_text *text, uint64_t number) {
                                .byte_count = digit_count});
 }
 
+/* The generate-id of a JNode (F&O 4.0, section 14.1.11, PR 2083): "j"
+   tree, then "c" child index for the node and each ancestor below the
+   root. A JNode is identified by its JTree and its path of child indices
+   from the root (XDM 4.0, section 8.5), which the indices read upwards
+   determine, so the text is unique per JNode and the same for two cells
+   of one JNode. */
+static sxml_status generate_json_node_id(const sxml_function_call *call, sxml_item json_node,
+                                         sxml_sequence *result) {
+    sxml_json_node_description description;
+    sxml_status status = sxml_json_node_describe(json_node, &description);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_library_text text = {.item_heap = call->item_heap};
+    status = sxml_function_library_text_append(&text, SXML_BYTE_VIEW_FROM_LITERAL("j"));
+    if (status == SXML_STATUS_OK) {
+        status = append_number(&text, description.json_tree.value);
+    }
+    while (status == SXML_STATUS_OK && description.has_parent) {
+        status = sxml_function_library_text_append(&text, SXML_BYTE_VIEW_FROM_LITERAL("c"));
+        if (status == SXML_STATUS_OK) {
+            status = append_number(&text, description.child_index);
+        }
+        if (status == SXML_STATUS_OK) {
+            /* The parent is borrowed from its child, which stays alive. */
+            status = sxml_json_node_describe(description.parent, &description);
+        }
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_function_library_make_string(
+            call->item_heap, sxml_function_library_text_view(&text), result);
+    }
+    sxml_function_library_text_release(&text);
+    return status;
+}
+
 /* fn:generate-id($node := .) (F&O 4.0, section 14.1.11): "" for the empty
    sequence; otherwise "t" tree "n" index "s" namespace number, which is an
    ASCII name that starts with a letter and is unique per XNode, since
@@ -452,8 +488,7 @@ static sxml_status call_generate_id(const sxml_function_call *call, sxml_sequenc
             call->item_heap, (sxml_byte_view){.bytes = NULL, .byte_count = 0}, result);
     }
     if (sxml_item_get_kind(argument.item) == SXML_ITEM_KIND_JSON_NODE) {
-        /* JNodes have no stable identity to write yet. */
-        return SXML_STATUS_UNSUPPORTED_FEATURE;
+        return generate_json_node_id(call, argument.item, result);
     }
     sxml_node_reference node;
     status = sxml_item_get_node(argument.item, &node);

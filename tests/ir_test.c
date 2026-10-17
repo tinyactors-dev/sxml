@@ -1646,10 +1646,15 @@ static void test_kinds_no_part_lowers_are_the_cores(sxml_test_state *state) {
     fixture test_fixture;
     SXML_TEST_REQUIRE(state, fixture_create(0, &test_fixture) == SXML_STATUS_OK);
     main_function seam;
-    /* No registered part lowers computed constructors yet (3.9). */
+    /* With only a part for XQuery, the core lowers XPath's computed text
+       constructor, which it reports as not lowered (the registered part
+       `construct` serves every language since packet 2.19). */
+    const sxml_xpath_lowering_part_view xquery_probe_only = {.parts = probe_parts,
+                                                             .part_count = 1};
     SXML_TEST_EXPECT(state,
                      lower_main(&test_fixture,
                                 (main_request){.expression_text = "text { 1 }",
+                                               .parts = xquery_probe_only,
                                                .language = SXML_LANGUAGE_XPATH},
                                 &seam) == SXML_STATUS_UNSUPPORTED_FEATURE);
     SXML_TEST_EXPECT(state, seam.error_record.diagnostic.location.column_number ==
