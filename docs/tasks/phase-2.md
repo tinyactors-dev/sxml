@@ -364,6 +364,10 @@ After 2.12, 2.16. Owns new `bindings/javascript/`, `tools/run-wasi.mjs`,
 `wasm` module: parse, compile and evaluate XPath, adaptive output, a
 resolver callback; Node.js tests in ctest under `wasm`; size budget kept
 (1.28). Release 0.2.0: version macros, changelog, headers marked stable.
+**Done** 2026-10-17 (D138): shim, `sxml.wasm`, TypeScript package and
+Node.js tests in ctest under `wasm`; budget raised to 2.0 MB / 700 KB
+after Phase 2 growth (Proposed); version 0.2.0, `CHANGELOG.md`,
+`docs/RELEASE.md`. Tag and npm publication left to the owner.
 
 ### 2.19 Conformance sweeps (implementation, repeatable)
 After 2.17. Each sweep takes the five worst XP40 sets of
