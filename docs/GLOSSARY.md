@@ -633,3 +633,7 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `nilled_marker` | The xs:QName `fn:null` that stands for a nilled element in an element map |
 | `name_format` | The `name-format` option of `fn:element-to-map`: `default`, `eqname`, `local` or `lexical` |
 | `element_slot` | The work record `fn:element-to-map` keeps per node of the converted tree: chosen layout and the value built, filled in reverse document order (D71) |
+| `hash_algorithm` | One of the algorithms `fn:hash` names: MD5, SHA-1, SHA-256, BLAKE3, CRC-32 (F&O 4.0, fn:hash) |
+| `digest` | The octets a hash algorithm returns for a message: 16 (MD5), 20 (SHA-1), 32 (SHA-256, BLAKE3) or 4 (CRC-32, big-endian) |
+| `uri_structure` | The parts of a URI as `fn:parse-uri` finds them and `fn:build-uri` joins them: the fields of `fn:uri-structure-record` (F&O 4.0, section 7.6.1) |
+| `percent_decoding` | Replacing `%HH` by its octet and reading the octets as UTF-8, with U+FFFD for what is not (F&O 4.0, fn:decode-from-uri); `form_decoding` turns `+` into a space first |
