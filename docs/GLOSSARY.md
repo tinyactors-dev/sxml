@@ -134,6 +134,11 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `terminal` | A leaf of a concrete syntax tree: one token of the source text (XPath 4.0, A.3) |
 | `non_delimiting_terminal` | A name, keyword or numeric literal terminal; two of them must not touch (XPath 4.0, A.3.2) |
 | `query_scanner` | The external tree-sitter scanner shared by the XPath, XQuery and XSLT pattern grammars |
+| `parser_part` | What a grammar derived from grammars/xpath adds to the XPath front end's walker: its language, node types, fields and the hooks `apply_token`, `describe_payload` and `finish_node` (`sxml_ast_parser_part`, D111) |
+| `parser_token` | A concrete syntax tree child that makes no AST node and is absorbed into its parent's detail or flags as the parent is described |
+| `unnamed_child` | A named concrete syntax tree child that its grammar gives no field (XQuery's module); a parser part names its AST field |
+| `boundary_whitespace` | Whitespace in direct element content delimited only by tags, direct constructors and enclosed expressions (XQuery 4.0, 4.12.1.4) |
+| `namespace_declaration_attribute` | An `xmlns` or `xmlns:p` attribute of a direct element constructor; it makes a namespace binding, not an attribute (XQuery 4.0, 4.12.1.2) |
 | `keyword_name` | A keyword used as a name; XPath 4.0 keywords are not reserved |
 | `direct_constructor` | XQuery XML-like node constructor syntax: `<a b="{1}">text</a>`, `<!-- -->`, `<?pi?>` |
 | `computed_constructor` | Node constructor written with a keyword: `element #a { ... }` |
