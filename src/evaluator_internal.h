@@ -18,7 +18,9 @@
  * Walks the IR of a sealed unit (src/ir_internal.h) and computes its value.
  * No bytecode (PLAN.md non-goal). Defined in src/evaluator.c,
  * src/evaluator_path.c and src/evaluator_function.c (packet 1.18), except
- * where a declaration names another file.
+ * where a declaration names another file. The task types, the machine API
+ * and the evaluator parts that evaluate the XQuery and XSLT kinds are in
+ * src/evaluator_machine_internal.h (D101).
  *
  * No recursion (D71, D75). The evaluator is an explicit-stack machine:
  * evaluating an expression that contains a nested expression (the bound
@@ -208,7 +210,8 @@ typedef struct sxml_evaluator_configuration {
    hundred bytes of allocator memory, not C stack. */
 #define SXML_EVALUATOR_DEFAULT_MAXIMUM_EVALUATION_DEPTH 1000000U
 
-/* One entry of the task stack; defined in src/evaluator.c. */
+/* One entry of the task stack; defined in src/evaluator_machine_internal.h
+   (D101). */
 typedef struct sxml_evaluator_task sxml_evaluator_task;
 
 /* The tasks of the running evaluation, innermost last. */
@@ -250,6 +253,10 @@ struct sxml_dynamic_context {
        task below it. */
     bool has_task_value;
     sxml_sequence task_value;
+    /* The status a catching task was handed and has not taken yet
+       (src/evaluator_machine_internal.h, "Catching"); SXML_STATUS_OK when
+       none. */
+    sxml_status caught_status;
     /* The unit being evaluated and its global variables, slot n - 1 for
        global n. Set by sxml_evaluator_evaluate for its duration. */
     const sxml_ir_unit *unit;
@@ -372,8 +379,9 @@ typedef struct sxml_evaluation_request {
  * error record filled (code, description, value, the source span of the
  * expression that raised it), SXML_STATUS_LIMIT_EXCEEDED at
  * maximum_evaluation_depth or maximum_frame_slot_count,
- * SXML_STATUS_UNSUPPORTED_FEATURE for the IR kinds reserved for XQuery and
- * XSLT and for global variables with an initializer, the document loader's
+ * SXML_STATUS_UNSUPPORTED_FEATURE for the IR kinds no evaluator part
+ * evaluates yet and for global variables with an initializer while the
+ * global part does not compute them (src/evaluator_machine_internal.h), the document loader's
  * and clock's failures, the allocator's, and SXML_STATUS_INVALID_ARGUMENT
  * for an unsealed unit or a dynamic context that is running already. On
  * failure every value the evaluation made is released.

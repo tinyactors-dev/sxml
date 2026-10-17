@@ -4,21 +4,12 @@
  * Golden file: the fixture of tests/evaluator_test.c.
  */
 #include "fuzz_fixture.h"
+#include "function_library_parts_internal.h"
 #include "xpath_static_internal.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 
-/* Every part of the library, as the processor names them (D88). */
-static const sxml_native_function_view *const library_parts[] = {
-    &sxml_function_library_numeric,      &sxml_function_library_string,
-    &sxml_function_library_sequence,     &sxml_function_library_node,
-    &sxml_function_library_context,      &sxml_function_library_error,
-    &sxml_function_library_higher_order, &sxml_function_library_map,
-    &sxml_function_library_array,        &sxml_function_library_json,
-    &sxml_function_library_uri,          &sxml_function_library_math,
-    &sxml_function_library_qname,
-};
 
 sxml_status
 sxml_fuzz_fixture_create(const sxml_fuzz_fixture_configuration *configuration,
@@ -67,9 +58,9 @@ sxml_fuzz_fixture_create(const sxml_fuzz_fixture_configuration *configuration,
             &(sxml_function_library_configuration){
                 .allocator = allocator,
                 .item_heap = fixture->item_heap,
-                .parts = {.native_function_views = library_parts,
-                          .native_function_view_count =
-                              sizeof(library_parts) / sizeof(library_parts[0])}},
+                /* Every part serving XPath, as the processor takes them
+                   (D101). */
+                .parts = sxml_function_library_parts_for_language(SXML_LANGUAGE_XPATH)},
             &fixture->function_library);
     }
     if (status == SXML_STATUS_OK && configuration->has_function_library) {

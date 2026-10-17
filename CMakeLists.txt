@@ -16,6 +16,7 @@ option(SXML_BUILD_FUZZERS "Build the fuzz targets in tests/fuzz/ (needs a compil
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(SxmlCompilerFlags)
 include(SxmlGrammar)
+include(SxmlParts)
 
 # Sanitizers apply to every target, third-party code included, so that the
 # instrumented runtime sees all memory accesses (docs/C_GUIDELINES.md,
@@ -53,6 +54,16 @@ add_subdirectory(grammars)
 # set of files changes.
 file(GLOB SXML_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c")
 list(SORT SXML_SOURCES)
+# The part registries (D101): generated from the library parts
+# (src/function_library_<part>.c) and evaluator parts (src/evaluator_<part>.c)
+# that define a part, so a new part needs no edit here or anywhere else.
+sxml_generate_library_part_registry("${CMAKE_CURRENT_SOURCE_DIR}/src"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/function_library_parts.c")
+sxml_generate_evaluator_part_registry("${CMAKE_CURRENT_SOURCE_DIR}/src"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/evaluator_parts.c")
+list(APPEND SXML_SOURCES
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/function_library_parts.c"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/evaluator_parts.c")
 
 if(SXML_BUILD_SHARED)
     add_library(sxml SHARED ${SXML_SOURCES})

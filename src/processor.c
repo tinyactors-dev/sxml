@@ -12,6 +12,7 @@
  */
 #include "processor_internal.h"
 
+#include "function_library_parts_internal.h"
 #include "sxml/tree.h"
 #include "sxml/xml.h"
 #include "xdm_internal.h"
@@ -220,16 +221,11 @@ typedef struct sxml_processor_layout {
     size_t function_library_offset;
 } sxml_processor_layout;
 
-/* Every part of the function library (D55, D78, D79, D82, D88, D91). */
-static const sxml_native_function_view *const sxml_processor_library_parts[] = {
-    &sxml_function_library_numeric,  &sxml_function_library_string,
-    &sxml_function_library_sequence, &sxml_function_library_node,
-    &sxml_function_library_context,  &sxml_function_library_error,
-    &sxml_function_library_higher_order, &sxml_function_library_map,
-    &sxml_function_library_array,    &sxml_function_library_json,
-    &sxml_function_library_uri,          &sxml_function_library_math,
-    &sxml_function_library_qname,
-};
+/* Every library part serving XPath, as CMake registers them (D45, D101):
+   static data, so the processor's configuration may borrow it. */
+static sxml_native_function_view_list sxml_processor_library_parts(void) {
+    return sxml_function_library_parts_for_language(SXML_LANGUAGE_XPATH);
+}
 
 static bool sxml_processor_configuration_is_valid(
     const sxml_processor_configuration *configuration) {
@@ -285,9 +281,7 @@ static sxml_status sxml_processor_compute_layout(
     const sxml_function_library_configuration function_library_configuration = {
         .allocator = configuration->allocator,
         .item_heap = stand_ins.item_heap,
-        .parts = {.native_function_views = sxml_processor_library_parts,
-                  .native_function_view_count = sizeof(sxml_processor_library_parts) /
-                                                sizeof(sxml_processor_library_parts[0])}};
+        .parts = sxml_processor_library_parts()};
     sxml_memory_requirements member = {.byte_count = 0, .alignment = 1};
     sxml_processor_layout result = {
         .requirements = {.byte_count = sizeof(sxml_processor),
@@ -413,10 +407,7 @@ static sxml_status sxml_processor_place_members(sxml_processor *processor,
             &(sxml_function_library_configuration){
                 .allocator = processor->allocator,
                 .item_heap = processor->item_heap,
-                .parts = {.native_function_views = sxml_processor_library_parts,
-                          .native_function_view_count =
-                              sizeof(sxml_processor_library_parts) /
-                              sizeof(sxml_processor_library_parts[0])}},
+                .parts = sxml_processor_library_parts()},
             &processor->function_library);
         if (status != SXML_STATUS_OK) {
             sxml_item_heap_finalize(processor->item_heap);

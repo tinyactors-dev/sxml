@@ -16,6 +16,7 @@
  */
 #include "cast_internal.h"
 #include "evaluator_internal.h"
+#include "evaluator_machine_internal.h"
 #include "operator_internal.h"
 #include "xdm_internal.h"
 
@@ -156,93 +157,7 @@ static const sxml_byte_view sxml_codepoint_collation_uri =
 
 /* ---------------------------------------------------------------- Tasks */
 
-typedef enum sxml_evaluator_task_kind {
-    /* An IR expression of the task's function, evaluated in its frame. */
-    SXML_EVALUATOR_TASK_KIND_EXPRESSION,
-    /* A call with owned arguments: of function_item, or of callee (a
-       static call of an IR function, arguments coerced by lowering). */
-    SXML_EVALUATOR_TASK_KIND_CALL,
-    /* An IR function call in progress: owns the frame at frame_base and
-       passes its body's value up. */
-    SXML_EVALUATOR_TASK_KIND_RETURN,
-    /* A call of a resumable native body in progress. */
-    SXML_EVALUATOR_TASK_KIND_NATIVE_STEP,
-    /* Coerces the value of the task above to sequence_type (the result of
-       a coerced function). */
-    SXML_EVALUATOR_TASK_KIND_COERCE_RESULT,
-} sxml_evaluator_task_kind;
-
-/* A call of a resumable native body: its call record, arguments and state,
-   in one block of allocator memory, so the record stays put while the task
-   stack grows. */
-typedef struct sxml_native_call_record {
-    sxml_function_call call;
-    const sxml_native_function *row;
-    /* Owned. */
-    sxml_sequence *arguments;
-    size_t argument_count;
-    void *state;
-    uint64_t step_number;
-} sxml_native_call_record;
-
-/* The state of a SORT expression: its items, borrowed from input, and the
-   atomized key values, owned, row by row. */
-typedef struct sxml_sort_state {
-    sxml_item *items;
-    size_t item_count;
-    size_t key_count;
-    sxml_sequence *key_values;
-    size_t next_value_index;
-} sxml_sort_state;
-
-/* Loops: MAP, FILTER, QUANTIFIED, SORT. */
-typedef struct sxml_loop_state {
-    /* Owned. */
-    sxml_sequence input;
-    sxml_sequence_iterator iterator;
-    /* Borrowed from input: the item the body or predicate runs for. */
-    sxml_item current_item;
-    uint64_t position;
-    uint64_t size;
-    /* Owned; made on first need. */
-    sxml_sequence_builder *builder;
-    sxml_sort_state *sort_state;
-} sxml_loop_state;
-
-/* Calls: CALL, NATIVE_STEP. */
-typedef struct sxml_call_state {
-    /* Owned; a zero item for a static call. */
-    sxml_item function_item;
-    const sxml_ir_function *callee;
-    const sxml_native_function *native_function;
-    /* CALL: owned arguments in allocator memory. */
-    sxml_sequence *arguments;
-    size_t argument_count;
-    /* NATIVE_STEP: the call record. */
-    sxml_native_call_record *native_call;
-} sxml_call_state;
-
-struct sxml_evaluator_task {
-    sxml_evaluator_task_kind task_kind;
-    uint32_t phase;
-    /* The function whose frame the task reads (EXPRESSION, CALL) or owns
-       (RETURN); NULL for a call from outside an evaluation. */
-    const sxml_ir_function *function;
-    size_t frame_base;
-    /* EXPRESSION: what it evaluates; others: where they come from, for
-       error locations (0 when unknown). */
-    sxml_ir_expression_index expression;
-    /* True for a task that counts in the evaluation depth. */
-    bool counts_depth;
-    union {
-        sxml_loop_state loop;
-        sxml_call_state call;
-        struct {
-            sxml_sequence_type sequence_type;
-            sxml_ir_coercion_role role;
-        } coercion;
-    } details;
-};
+/* The task types are in src/evaluator_machine_internal.h (D101). */
 
 /* ------------------------------------------------------------- Growth */
 
@@ -335,6 +250,7 @@ sxml_status sxml_dynamic_context_initialize(
         .is_running = false,
         .has_task_value = false,
         .task_value = sxml_sequence_empty(),
+        .caught_status = SXML_STATUS_OK,
         .unit = NULL,
         .global_slots = NULL,
         .global_slot_count = 0,
@@ -647,6 +563,14 @@ static void sxml_machine_release_task(sxml_dynamic_context *context,
         return;
     case SXML_EVALUATOR_TASK_KIND_COERCE_RESULT:
         return;
+    case SXML_EVALUATOR_TASK_KIND_PART: {
+        sxml_evaluator_part_task_state *part = &task->details.part;
+        if (part->release_state != NULL && part->state != NULL) {
+            part->release_state(context, part->state);
+        }
+        part->state = NULL;
+        return;
+    }
     }
 }
 
@@ -3592,6 +3516,24 @@ static sxml_status sxml_make_leaf_value(sxml_dynamic_context *context,
     return SXML_STATUS_INVALID_ARGUMENT;
 }
 
+/* Turns the EXPRESSION task on top into the PART task of the evaluator
+   part that claims kind (D101), which steps from the next turn of the
+   loop; SXML_STATUS_UNSUPPORTED_FEATURE when no part (or more than one)
+   claims it. */
+static sxml_status sxml_machine_start_part_kind(sxml_dynamic_context *context,
+                                                sxml_ir_expression_kind kind) {
+    const sxml_evaluator_part_step_function step = sxml_evaluator_find_kind_handler(kind);
+    if (step == NULL) {
+        return SXML_STATUS_UNSUPPORTED_FEATURE;
+    }
+    sxml_evaluator_task *task = sxml_machine_top(context);
+    task->task_kind = SXML_EVALUATOR_TASK_KIND_PART;
+    task->phase = 0;
+    task->details.part = (sxml_evaluator_part_task_state){
+        .step = step, .release_state = NULL, .state = NULL};
+    return SXML_STATUS_OK;
+}
+
 /* Runs the EXPRESSION task on top for one step. */
 static sxml_status sxml_machine_step_expression(sxml_dynamic_context *context) {
     sxml_evaluator_task *task = sxml_machine_top(context);
@@ -3652,8 +3594,8 @@ static sxml_status sxml_machine_step_expression(sxml_dynamic_context *context) {
     case SXML_IR_EXPRESSION_KIND_PROCESSING_INSTRUCTION_CONSTRUCTOR:
     case SXML_IR_EXPRESSION_KIND_SHALLOW_COPY:
     case SXML_IR_EXPRESSION_KIND_APPLY_TEMPLATES:
-        /* Reserved for XQuery and XSLT (Phases 3 and 4). */
-        return SXML_STATUS_UNSUPPORTED_FEATURE;
+        /* Evaluated by evaluator parts (XQuery and XSLT, D101). */
+        return sxml_machine_start_part_kind(context, expression->expression_kind);
     case SXML_IR_EXPRESSION_KIND_NONE:
     case SXML_IR_EXPRESSION_KIND_ATOM:
     case SXML_IR_EXPRESSION_KIND_SEQUENCE:
@@ -3710,6 +3652,38 @@ static void sxml_machine_locate_error(sxml_dynamic_context *context,
         .byte_offset = span.byte_offset};
 }
 
+/* An error raised by the top task of a machine loop with base base_count. */
+typedef struct sxml_caught_error {
+    size_t base_count;
+    sxml_status status;
+} sxml_caught_error;
+
+/* Hands error to the innermost catching task below the top task and above
+   the loop's base (src/evaluator_machine_internal.h, "Catching"; XQuery
+   4.0, "Try/Catch Expressions"): releases the tasks above it, clears its mark and
+   stores the status. Returns false, changing nothing, when the status is
+   not a dynamic or type error or no task catches it. */
+static bool sxml_machine_catch(sxml_dynamic_context *context, sxml_caught_error error) {
+    if (error.status != SXML_STATUS_DYNAMIC_ERROR &&
+        error.status != SXML_STATUS_TYPE_ERROR) {
+        return false;
+    }
+    const size_t task_count = context->task_stack.task_count;
+    /* The top task's own failure is never handed to itself. */
+    size_t catching_count = task_count > 0 ? task_count - 1 : 0;
+    while (catching_count > error.base_count &&
+           !context->task_stack.tasks[catching_count - 1].catches_errors) {
+        catching_count -= 1;
+    }
+    if (catching_count <= error.base_count) {
+        return false;
+    }
+    sxml_machine_unwind(context, catching_count);
+    sxml_machine_top(context)->catches_errors = false;
+    context->caught_status = error.status;
+    return true;
+}
+
 /* Runs tasks until the stack is back at base_count; the value of the last
    one is left in the context's task value. */
 static sxml_status sxml_machine_run(sxml_dynamic_context *context, size_t base_count) {
@@ -3736,14 +3710,108 @@ static sxml_status sxml_machine_run(sxml_dynamic_context *context, size_t base_c
         case SXML_EVALUATOR_TASK_KIND_COERCE_RESULT:
             status = sxml_machine_step_coerce_result(context);
             break;
+        case SXML_EVALUATOR_TASK_KIND_PART: {
+            sxml_evaluator_task *task = sxml_machine_top(context);
+            status = task->details.part.step(context, task);
+            break;
+        }
         }
         if (status != SXML_STATUS_OK) {
             sxml_machine_locate_error(context, status);
+            if (sxml_machine_catch(context,
+                                   (sxml_caught_error){.base_count = base_count,
+                                                       .status = status})) {
+                continue;
+            }
             sxml_machine_unwind(context, base_count);
             return status;
         }
     }
     return SXML_STATUS_OK;
+}
+
+/* ---------------------------------------------------------- Machine API */
+
+sxml_evaluator_part_step_function sxml_evaluator_find_kind_handler(
+    sxml_ir_expression_kind kind) {
+    const sxml_evaluator_registered_part_view registered = sxml_evaluator_registered_parts();
+    sxml_evaluator_part_step_function found = NULL;
+    for (size_t part_index = 0; part_index < registered.part_count; part_index += 1) {
+        const sxml_evaluator_part *part = registered.parts[part_index].part;
+        for (size_t handler_index = 0; handler_index < part->kind_handler_count;
+             handler_index += 1) {
+            const sxml_evaluator_kind_handler *handler = &part->kind_handlers[handler_index];
+            if (handler->expression_kind != kind) {
+                continue;
+            }
+            if (found != NULL || handler->step == NULL) {
+                /* Claimed twice: no part evaluates it (D101). */
+                return NULL;
+            }
+            found = handler->step;
+        }
+    }
+    return found;
+}
+
+sxml_evaluator_task *sxml_evaluator_machine_top(sxml_dynamic_context *dynamic_context) {
+    return sxml_machine_top(dynamic_context);
+}
+
+sxml_status sxml_evaluator_machine_push_expression(
+    sxml_dynamic_context *dynamic_context, sxml_ir_expression_index expression) {
+    const sxml_evaluator_task *top = sxml_machine_top(dynamic_context);
+    const sxml_evaluator_task task =
+        sxml_expression_task(top->function, top->frame_base, expression);
+    return sxml_machine_push(dynamic_context, &task);
+}
+
+sxml_status sxml_evaluator_machine_push_part_task(
+    sxml_dynamic_context *dynamic_context,
+    const sxml_evaluator_part_task_state *part_state) {
+    const sxml_evaluator_task *top = sxml_machine_top(dynamic_context);
+    sxml_evaluator_task task =
+        sxml_expression_task(top->function, top->frame_base, top->expression);
+    task.task_kind = SXML_EVALUATOR_TASK_KIND_PART;
+    task.details.part = *part_state;
+    const sxml_status status = sxml_machine_push(dynamic_context, &task);
+    if (status != SXML_STATUS_OK) {
+        sxml_machine_release_task(dynamic_context, &task);
+    }
+    return status;
+}
+
+sxml_status sxml_evaluator_machine_finish(sxml_dynamic_context *dynamic_context,
+                                          sxml_sequence value) {
+    return sxml_machine_finish(dynamic_context, value);
+}
+
+sxml_sequence sxml_evaluator_machine_take_value(sxml_dynamic_context *dynamic_context) {
+    return sxml_machine_take_value(dynamic_context);
+}
+
+sxml_status sxml_evaluator_machine_take_caught_status(
+    sxml_dynamic_context *dynamic_context) {
+    const sxml_status status = dynamic_context->caught_status;
+    dynamic_context->caught_status = SXML_STATUS_OK;
+    return status;
+}
+
+sxml_status sxml_evaluator_machine_read_atom(sxml_dynamic_context *dynamic_context,
+                                             sxml_ir_atom atom, sxml_sequence *value) {
+    return sxml_machine_read_atom(dynamic_context, atom, value);
+}
+
+void sxml_evaluator_machine_bind_slot(sxml_dynamic_context *dynamic_context,
+                                      sxml_ir_slot slot, sxml_sequence value) {
+    const size_t frame_base = sxml_machine_top(dynamic_context)->frame_base;
+    sxml_machine_bind(dynamic_context,
+                      (sxml_slot_binding){.frame_base = frame_base, .slot = slot}, value);
+}
+
+sxml_status sxml_evaluator_machine_raise(sxml_dynamic_context *dynamic_context,
+                                         const sxml_static_error *error) {
+    return sxml_error_record_report(dynamic_context->error_record, error);
 }
 
 /* ---------------------------------------------------------- Entry points */
@@ -3802,11 +3870,10 @@ static sxml_status sxml_bind_global_slots(sxml_dynamic_context *context,
         const sxml_ir_global_variable *variable = sxml_ir_unit_get_global_variable(
             unit, (sxml_ir_global_index){.value = (uint32_t)slot_index + 1});
         const sxml_evaluator_slot *given = &request->global_values.slots[slot_index];
-        if (variable->initializer.value != 0) {
-            /* Declared variables with initializers come with XQuery. */
-            status = SXML_STATUS_UNSUPPORTED_FEATURE;
-            break;
-        }
+        /* An ABSENT variable with an initializer is computed by the global
+           part (sxml_evaluator_start_global_initializers); a given value
+           wins over the initializer (XQuery 4.0, "Variable Declaration": an external
+           variable's default). */
         if (given->slot_state != SXML_EVALUATOR_SLOT_STATE_BOUND) {
             continue;
         }
@@ -3862,7 +3929,12 @@ static sxml_status sxml_start_main_function(sxml_dynamic_context *context,
     }
     const sxml_evaluator_task body =
         sxml_expression_task(main_function, frame_base, main_function->body);
-    return sxml_machine_push(context, &body);
+    status = sxml_machine_push(context, &body);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    /* Declared global variables (src/evaluator_global.c, D101). */
+    return sxml_evaluator_start_global_initializers(context);
 }
 
 /* Ends a run: restores the context for the next one. */
@@ -3870,6 +3942,7 @@ static void sxml_end_run(sxml_dynamic_context *context, size_t base_count) {
     sxml_machine_unwind(context, base_count);
     context->is_running = false;
     context->error_record = NULL;
+    context->caught_status = SXML_STATUS_OK;
 }
 
 sxml_status sxml_evaluator_evaluate(sxml_dynamic_context *dynamic_context,
