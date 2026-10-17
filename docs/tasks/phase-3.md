@@ -1,0 +1,227 @@
+# Phase 3: XQuery 4.0 and serialization
+
+Goal (PLAN.md): XQuery 4.0 (FLWOR, constructors, prolog, modules) and
+serialization, lowered into the shared IR (D46) and run by the one
+evaluator; `sxml xquery` and `sxml serialize` (docs/CLI.md). Gate: **85% of
+the applicable XQ40 test cases pass, 75% of the XQ-only ones** (D95). Rules
+for parallel packets are those of `docs/tasks/phase-2.md` (D45, D96).
+
+## Overlap with Phase 2 (D96)
+
+Packets marked **Early** may start as soon as the Phase 1 gate is closed
+(the substrate freeze) and their "After" list is committed, while Phase 2
+is still running; the Phase 2 file shows the waves they join. They own no
+file of a Phase 2 packet. The other packets wait for the Phase 2 gate.
+Early: 3.0, 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9.
+
+## How XQuery lowers (D55, `src/ir_internal.h`)
+
+One AST holds XPath and XQuery kinds (3.1). Lowering parts (2.1) add the
+XQuery kinds in their own files: FLWOR clauses to MAP, LET, CONDITIONAL
+and SORT over tuple arrays; group by and windows to internal native rows;
+constructors to the reserved constructor kinds; try/catch to TRY_CATCH;
+typeswitch and switch to CONDITIONAL chains; prolog functions to IR
+functions, prolog variables to globals with initializers; library modules
+into the same unit. The evaluator runs the reserved kinds in the stub
+files of 2.0. Nothing here adds an IR kind; a packet that needs one stops
+and writes the reason under "Proposed".
+
+## Parallelism plan
+
+| Wave | Packets (run together) |
+| --- | --- |
+| E1 (with Phase 2 wave 1) | 3.0 API, 3.1 query AST, 3.5 constructors, 3.6 try/catch |
+| E2 (with Phase 2 wave 2) | 3.2 front end, 3.3 XML serializer |
+| E3 (with Phase 2 wave 3) | 3.4 other serializers, 3.7 FLWOR and expressions |
+| E4 (with Phase 2 wave 4) | 3.8 group by and windows, 3.9 constructor lowering |
+| 1 | 3.10 prolog, 3.13 driver |
+| 2 | 3.11 modules, 3.12 XQuery API and CLI |
+| 3 | 3.14 conformance sweeps |
+| 4 | 3.15 review (gate) |
+
+Critical path: 3.1 3.2 3.7 3.10 3.12 3.14 3.15. "Working XQuery" for the
+owner is the end of 3.12: `sxml xquery` runs app-Walmsley and
+app-FunctxFunctx queries with XML output.
+
+## Packets
+
+### 3.0 XQuery and serialization API (design) — Early
+After 2.2. Owns `include/sxml/xquery.h`, `include/sxml/serialize.h`.
+`xquery.h`: a compiled main module (lifecycle quintet, D51) from text with
+the shared static context configuration; library modules found through the
+resolver kind XQUERY_MODULE (2.2); evaluation with the shared dynamic
+context; the serialization parameters the prolog declares, readable by the
+caller. `serialize.h`: methods xml, xhtml, html, text, json, csv, adaptive;
+one parameters struct with every Serialization 4.0 parameter (indent,
+omit-xml-declaration, standalone, doctype-system/public, cdata-section-
+elements, suppress-indentation, undeclare-prefixes, encoding (UTF-8,
+UTF-16, US-ASCII, ISO-8859-1), byte-order-mark, normalization-form,
+html-version, include-content-type, escape-uri-attributes, item-separator,
+json-node-output-method, allow-duplicate-names, escape-solidus, canonical,
+use-character-maps); parameters from an `output:serialization-parameters`
+element or a map (SEPM0017, SEPM0019). Done when the header check, lints
+and rubric pass and 3.3, 3.12 and the driver can be written against them.
+
+### 3.1 Query AST and parser seam (design) — Early
+After 2.1. Owns `src/xpath_ast_internal.h`, `src/xpath_ast.c`,
+`src/xpath_parse.c`, `tests/xpath_ast_test.c`. One kind per visible
+production of `grammars/xquery` (D29) added to the AST (D52 conventions);
+the CST walker of `xpath_parse.c` dispatches XQuery node types to a
+parser part (3.2) the way lowering parts work. IR for five XQuery
+examples written out in comments (FLWOR with group by, a window clause,
+a direct constructor with namespaces, try/catch with finally, a prolog
+function). Done when every XP40 query still builds the same AST.
+
+### 3.2 XQuery front end (implementation) — Early
+After 3.1. Owns `src/xquery_parse.c`, `tests/xquery_parse_test.c`. CST of
+`grammars/xquery` to the AST: direct constructors (XQST0118 end tags,
+XQST0040 duplicate attributes, namespace declaration attributes
+XQST0070/0071, boundary whitespace marked, character and entity references
+XQST0090), CDATA, pragmas, string constructors, the three D29 false
+accepts. Done when all 43,663 valid XQ40 queries and the 145 parsable
+library modules build an AST and the 772 XPST0003 cases fail statically
+(`tools/qt4-parse-check.py --spec XQ40`).
+
+### 3.3 Serializer: XML and XHTML methods (implementation) — Early
+After 3.0, 2.4. Owns `src/serialize.c`, new `src/serialize_internal.h`,
+`src/serialize_xml.c`, `tests/serialize_test.c`,
+`tests/serialize_xml_test.c`. Sequence normalization (Serialization 4.0
+"Sequence Normalization"), escaping, namespace fixup and undeclaration,
+indentation with suppress-indentation, CDATA sections, doctype, XML
+declaration and standalone, encodings with character references,
+normalization-form (2.4), character maps; XHTML rules (empty elements,
+`xml:lang`). Writes through `sxml_output_stream` (D50). Done when
+method-xml, method-xhtml ≥ 90% under the 3.13 driver (unit cases until
+then). Spec: Serialization 4.0 "XML Output Method", "XHTML Output Method".
+
+### 3.4 Serializer: HTML, text, JSON, CSV; fn:serialize — Early
+After 3.3. Owns `src/serialize_html.c`, `src/serialize_json.c`,
+`src/serialize_text.c`, `src/function_library_serialize.c`,
+`tests/serialize_html_test.c`, `tests/serialize_json_test.c`. HTML method
+(versions 4 and 5, void elements, raw text elements, boolean attributes,
+include-content-type, escape-uri-attributes), text, JSON (nodes by
+json-node-output-method, SERE0020/0022/0023), CSV; fn:serialize with
+element and map parameters. Done when method-html, method-text,
+method-json, method-csv, fn-serialize ≥ 90%. Spec: Serialization 4.0
+per method.
+
+### 3.5 Node constructors in the evaluator (implementation) — Early
+After 2.0. Owns `src/evaluator_construct.c`,
+`tests/evaluator_construct_test.c`. The seven constructor kinds and
+SHALLOW_COPY over hand-built IR (as `tests/evaluator_test.c` does): a new
+arena tree per constructed node (D40 builder), content sequences (XQuery
+4.0 "Content": adjacent text merged, attributes after children XQTY0024,
+document nodes unwrapped, XQDY0025 duplicate attributes), copy-namespaces
+preserve/inherit, construction strip (untyped annotations), namespace
+nodes (XQDY0101, XQDY0102), base URI and xml:base, the names of computed
+constructors (XQDY0074, XQDY0044, XQDY0064). Done when every constructor
+and copy rule has a unit case with allocation-failure loops. Spec: XQuery
+4.0 "Node Constructors"; XSLT 4.0 "Constructing Complex Content".
+
+### 3.6 try/catch in the evaluator (implementation) — Early
+After 2.0. Owns `src/evaluator_try.c`, `tests/evaluator_try_test.c`.
+TRY_CATCH with name tests and wildcards, `$err:code`, description, value,
+module, line-number, column-number, additional, the 4.0 `$err:map`, and
+`finally` (an error in finally replaces the first). Only dynamic and type
+errors with an error record are caught; LIMIT_EXCEEDED and allocation
+failures are never caught. Unwinding uses the machine API of 2.0. Done
+when every rule has a unit case, also for an error raised inside a
+resumable native call. Spec: XQuery 4.0 "Try/Catch Expressions".
+
+### 3.7 FLWOR and other expressions (implementation) — Early
+After 3.2. Owns `src/xquery_lower.c`, `src/xquery_lower_internal.h`,
+`tests/xquery_lower_test.c`. Lowering part: for (at, allowing empty,
+member, key/value), let, where, order by (stable, empty
+greatest/least, collation), count, while (4.0), trace clause, return;
+quantified expressions with types; typeswitch, switch (4.0 forms);
+ordered, unordered; extension expressions (unknown pragmas ignored);
+validate raises XQST0075 (D97). IR dumps of ten queries match golden
+text. Done when prod-FLWORExpr, prod-ForClause, prod-LetClause,
+prod-WhereClause, prod-OrderByClause, prod-CountClause, prod-WhileClause,
+prod-TypeswitchExpr, prod-SwitchExpr ≥ 90% (through 3.12, unit IR
+dumps before). Spec: XQuery 4.0 "FLWOR Expressions".
+
+### 3.8 group by and window clauses (implementation) — Early
+After 3.7. Owns `src/xquery_lower_window.c`, `src/xquery_flwor.c`,
+`tests/xquery_flwor_test.c`. The internal native rows of D55 over tuple
+arrays: group by (grouping keys, collations, deep-equal-style key
+equality, non-grouping variables become sequences), tumbling and sliding
+windows (start/end conditions as closures, `only end`, previous/next
+variables). Done when prod-GroupByClause and prod-WindowClause ≥ 90%.
+Spec: XQuery 4.0 "Group By Clause", "Window Clause".
+
+### 3.9 Constructor lowering (implementation) — Early
+After 3.2, 3.5. Owns `src/xquery_lower_construct.c`,
+`tests/xquery_lower_construct_test.c`. Direct and computed element,
+attribute, namespace, text, comment, PI and document constructors;
+enclosed expressions; boundary-space; in-scope namespaces of constructed
+elements (XQST0085); name expressions. Done when prod-DirElemConstructor,
+prod-DirElemContent, prod-DirElemContent.namespace,
+prod-DirElemContent.whitespace, prod-DirAttributeList,
+prod-CompElemConstructor, prod-CompAttrConstructor and the other
+prod-Comp*Constructor sets ≥ 90%. Spec: XQuery 4.0 "Direct Element
+Constructors", "Computed Constructors".
+
+### 3.10 Prolog and static context (implementation)
+After 3.7, 2.9, 2.13. Owns `src/xquery_static.c`, `src/xquery_prolog.c`,
+`src/evaluator_global.c`, `tests/xquery_prolog_test.c`. Version,
+namespace, default namespace, boundary-space, default collation, base
+URI, construction, ordering, empty order, copy-namespaces, decimal-format
+and option declarations (output:* into serialization parameters); context
+value declaration; variable declarations (global initializers evaluated on
+first read, XQDY0054 cycles, external with defaults); function
+declarations (%public/%private, recursion, XQST0034); annotations
+(%updating rejected, D97); item type and named record type declarations
+(4.0; records registered in the type registry). Done when prod-VarDecl,
+prod-VarDecl.external, prod-FunctionDecl, prod-Annotation,
+prod-ItemTypeDecl, prod-NamedRecordTypeDecl, prod-DecimalFormatDecl,
+prod-OptionDecl.serialization and the other prod-*Decl sets ≥ 90%. Spec:
+XQuery 4.0 "Modules and Prologs".
+
+### 3.11 Modules (implementation)
+After 3.10, 3.12. Owns `src/xquery_module.c`,
+`src/function_library_module.c`, `tests/xquery_module_test.c`. Library
+modules, `import module` through the resolver (location hints, several
+modules per namespace, cycles), XQST0048, XQST0059, private names;
+fn:load-xquery-module. Done when prod-ModuleImport and
+fn-load-xquery-module ≥ 90%. Spec: XQuery 4.0 "Library Module", "Module
+Import"; F&O 4.0 "fn:load-xquery-module".
+
+### 3.12 XQuery API and CLI (implementation)
+After 3.3, 3.10. Owns `src/xquery.c`, `tests/xquery_test.c`,
+`apps/sxml/command_xquery.c`, `apps/sxml/command_serialize.c`,
+`apps/sxml/program.c`, `docs/CLI.md`, `tests/cli/`. Implements
+`xquery.h`; `sxml xquery` and `sxml serialize` exactly as docs/CLI.md
+lists them, with golden tests (XML, HTML, JSON, text output; static and
+dynamic errors). Golden: `apps/sxml/command_xpath.c`. Done when 20 XQ40
+queries round-trip through the public headers alone, with allocation-
+failure loops on compile.
+
+### 3.13 QT4 driver for XQ40 (implementation)
+After 3.0, 2.16. Owns `tests/qt4/driver/`. `--spec=XQ40` runs; `<module>`
+files through the resolver; `declared="true"` params; collections with a
+`query`; serialization assertions (`serialization-matches`,
+`assert-serialization-error`) and `assert-xml` through the 3.3 serializer;
+a second ctest slice `qt4/xquery-slice` (about 200 XQ-only cases chosen
+like the torture slice, baseline only goes up). Done when the slice runs
+under `debug`, `debug-gcc` and `wasm` and goldens cover each new feature.
+
+### 3.14 Conformance sweeps (implementation, repeatable)
+After 3.11, 3.13. As 2.19, over XQ40 sets (misc-CombinedErrorCodes,
+app-Walmsley, app-FunctxFunctx, app-spec-examples first). Each sweep
+claims its files in `docs/LOG.md` and stops after one session.
+
+### 3.15 Phase 3 review (review)
+After everything. Owns the gate boxes. A separate agent (D11) runs the
+rubric and re-checks each "done when"; open items go under "Proposed".
+
+## Gate
+
+- [ ] XQ40 (D95 denominator) ≥ 85% pass, XQ-only cases ≥ 75%, method-*
+  ≥ 80%, under `release`; XP40 still ≥ 90%.
+- [ ] `qt4/slice` and `qt4/xquery-slice` at their baselines in CI
+  (`debug`, `debug-gcc`, `wasm`).
+- [ ] No XQ40 case crashes, leaks or ends in an "error" outcome.
+- [ ] `sxml xquery` and `sxml serialize` match docs/CLI.md.
+- [ ] Review agent pass (D11), findings fixed; the owner is told XQuery
+  works (D11 goal).

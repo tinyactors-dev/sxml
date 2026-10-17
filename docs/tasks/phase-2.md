@@ -1,0 +1,276 @@
+# Phase 2: XPath 4.0 and F&O 4.0
+
+Goal (PLAN.md): full XPath 4.0 syntax and the whole F&O 4.0 function
+library; the first public release. Gate: **90% of the applicable XP40 test
+cases pass** (D95; Phase 1 ended at 21,443 of about 31,500, 68%). Packets
+are one agent session each and run in parallel in one working tree under
+the Phase 1 rules (D45, repeated below); the overlap with Phases 3 and 4
+follows D96. Scope decisions (collations, HTML parsing, non-goals) are D97.
+
+## Rules for parallel packets (D45, D96)
+
+- **Ownership.** Each packet names the files it **owns**; packets that run
+  at the same time never share one. A file named by two packets belongs to
+  the earlier wave; the later packet starts only after the earlier one is
+  committed. Ledgers (`docs/DECISIONS.md`, `GLOSSARY.md`, `LOG.md`): one
+  small insertion, committed at once and alone.
+- **Registration is by glob.** After 2.0, a library part is a file
+  `src/function_library_<part>.c` defining `sxml_function_library_<part>`;
+  the processor and the fuzz fixture find it without an edit. Evaluator
+  parts and lowering parts (2.0, 2.1) work the same way.
+- **Design** packets may change headers; **implementation** packets must
+  not (they write the need under "Proposed" in `docs/DECISIONS.md`). After
+  2.2 the public headers change only through a decision record until the
+  release (2.18) makes them stable (D47).
+- **Every packet** imitates its named golden files (default: `src/memory.c`,
+  `tests/memory_test.c`; for a library part `src/function_library_math.c`
+  and `tests/function_library_test.c`; for resumable natives
+  `src/function_library_higher_order.c`); has allocation-failure loops and
+  leak checks (`sxml_item_heap_read_counts`); cites the specification by
+  section title; uses no C recursion (D71); is done when `debug`,
+  `debug-gcc` and `wasm` pass, `tools/lint.sh` is clean, the slice holds at
+  198 and the XP40 pass count (`docs/CONFORMANCE.md`) has not dropped.
+- **Acceptance** names QT4 test sets. "fn-x ≥ N%" means the passed share of
+  the applicable cases of that set in `sxml-qt4 run --spec=XP40
+  --test-set=fn-x`, release build; the packet's LOG entry gives before and
+  after counts.
+- The CLI is not a packet: it gains options (`--decimal-format`, text
+  resources) only when a packet makes them real (docs/CLI.md).
+
+## Parallelism plan
+
+"Early" packets of later phases (D96) may run in the same waves; they own
+no file of this phase.
+
+| Wave | Phase 2 packets (run together) | Early packets of Phases 3 and 4 |
+| --- | --- | --- |
+| 0 | 2.0 registration and evaluator seams, 2.1 lowering seam, 2.2 public API, 2.3 regex engine | 4.2 stylesheet AST |
+| 1 | 2.4 Unicode, 2.5 lowering, 2.6 evaluator and references, 2.7 numeric, 2.8 date and time, 2.9 number formatting, 2.10 element maps, 2.11 URIs and hashes, 2.12 resources and processor | 3.0 API, 3.1 query AST, 3.5 constructors, 3.6 try/catch, 4.3 value templates, 4.4 patterns |
+| 2 | 2.13 collations and comparison, 2.14 date formatting, 2.15 CSV, 2.16 driver | 3.2 XQuery front end, 3.3 XML serializer, 4.0 XSLT API |
+| 3 | 2.17 node, sequence and string functions, 2.18 JavaScript package | 3.4 other serializers, 3.7 FLWOR lowering, 4.1 XSLT driver |
+| 4 | 2.19 conformance sweeps (as many as files allow) | the rest of Phase 3 as its "After" lists allow |
+| 5 | 2.20 review (gate) | |
+
+Critical path: 2.0 2.4 2.13 2.17 2.19 2.20. Decimal, date/time and regex
+come first, as PLAN.md's risk table asks (2.3, 2.7, 2.8 in waves 0 and 1).
+
+## Packets
+
+### 2.0 Registration and evaluator seams (design, build)
+After the Phase 1 gate. Owns root `CMakeLists.txt`, `src/processor.c`
+(parts list only), `tests/fuzz/fuzz_fixture.c`, `src/function_library.c`
+(part lookup only), `src/evaluator.c`, `src/evaluator_internal.h`, new
+`src/evaluator_machine_internal.h`, stubs `src/evaluator_construct.c`,
+`src/evaluator_try.c`, `src/evaluator_template.c`, `src/evaluator_global.c`.
+CMake generates the part list from the `src/function_library_*.c` glob
+(D45 style); a part declares the languages it serves (XSLT-only parts,
+4.10). The machine's task API (push a task, hand a value down,
+raise, unwind to a marked task) moves into the machine header so the
+reserved IR kinds (D55: TRY_CATCH, seven constructors, SHALLOW_COPY,
+APPLY_TEMPLATES) and global initializers dispatch to the four stub files,
+each returning UNSUPPORTED_FEATURE until Phases 3 and 4 fill them. Done
+when a probe part and a probe IR kind need no edit outside their own files
+and the slice holds. Golden: `src/evaluator.c`.
+
+### 2.1 Lowering seam (design)
+After the Phase 1 gate. Owns `src/xpath_lower.c`, new
+`src/xpath_lower_internal.h`, `tests/ir_test.c`. Split the lowering machine
+(D71 frames) into a core and **lowering parts**: a part is a table of AST
+kinds and handlers in its own file, found by glob like library parts, so
+XQuery (3.7 to 3.10) and XSLT (4.5 to 4.11) add files, not lines.
+Also an embedding entry: lower one XPath AST inside a caller's scope
+(variables already bound to slots, a focus or none, XSLT's in-scope
+functions), which XSLT instruction lowering needs. Done when the 28 slice
+IR dumps of D63 are unchanged and a probe part lowers a probe kind.
+
+### 2.2 Public API for Phase 2 (design)
+After the Phase 1 gate. Owns `include/sxml/processor.h`,
+`include/sxml/xpath.h`, `include/sxml/version.h`. Adds, as fields that
+designated initializers keep compatible (D51): decimal formats (named and
+default, every property of F&O 4.0 "Defining a decimal format", 4.0
+`c:rendition` forms); known collation URIs and the default collation;
+default language; resource kinds TEXT (encoding), BINARY, COLLECTION,
+URI_COLLECTION, XQUERY_MODULE, XSLT_MODULE and XSLT_PACKAGE (the later
+ones are used by 3.11, 4.3, 4.14); host environment variables;
+a trace and message sink (fn:trace, fn:message, xsl:message); the API
+version macro of the first release. Done when header check, lints and the
+rubric pass and 2.12 and 2.16 can be written against the headers alone.
+
+### 2.3 Regular expression engine (implementation)
+After the Phase 1 gate. Owns `src/regex.c`, `src/regex_internal.h`,
+`src/regex_unicode.c`, `tools/generate-regex-tables.py`, new
+`src/function_library_regex.c`, `tests/regex_test.c`. D9 behind the D48 interface: the whole F&O 4.0
+dialect (category and block escapes `\p{Lu}` `\p{IsGreek}`, subtraction,
+back-references, reluctant quantifiers, non-capturing groups, `^ $` in
+multi-line mode, flags `s m i x q`, the 4.0 additions the suite uses
+including lookaround and name escapes), case-blind matching with Unicode
+case data (`src/function_library_case.c` tables), step limit (D89), no
+recursion. New part: analyze-string, matching-segments, regex. Done when
+fn-matches.re, fn-matches, fn-replace, fn-tokenize, fn-analyze-string
+≥ 95% and the 480 FORX0002 failures of 1.25 are gone. Spec:
+F&O 4.0 "Regular expression syntax"; XSD 1.1 Part 2 appendix G.
+
+### 2.4 Unicode tables and functions (implementation)
+After 2.0. Owns `src/unicode.c`, `src/unicode_internal.h`,
+`src/unicode_tables.c`, `tools/generate-unicode-tables.py`,
+`src/function_library_unicode.c`, `tests/unicode_test.c`. Unicode 16.0:
+canonical and compatibility decomposition and composition (NFC, NFD, NFKC,
+NFKD, FULLY-NORMALIZED as F&O allows), grapheme cluster breaks (UAX #29),
+the HTML5 character reference names for fn:char. Functions:
+normalize-unicode, graphemes, characters, char. The `wasm` size growth is
+logged. Done when fn-graphemes (918 cases), fn-normalize-unicode, fn-char,
+fn-characters ≥ 95%. Spec: F&O 4.0 per function; UAX #15, UAX #29.
+
+### 2.5 Lowering completions (implementation)
+After 2.1. Owns `src/xpath_lower.c`, `src/xpath_lower_internal.h`,
+`src/xpath_static.c`, `src/xpath_static_internal.h`,
+`tests/xpath_static_test.c`, `tests/ir_test.c`. Every construct Phase 1
+left unlowered (171 cases): `for member`, `for key/value`, destructuring
+`let` (157), dynamic node tests (43), the item axis (24); keyword
+arguments of constructor functions (misc-ConstructorKeywords, 148); focus
+functions `fn { }` (misc-FocusConstructors, 148); named function
+references to every kind of function (prod-NamedFunctionRef, 144). Done
+when no XP40 case fails for "not lowered" and those sets reach ≥ 90%.
+Spec: XPath 4.0 "For Expressions", "Let Expressions", "Named Function
+References", "Inline Function Expressions".
+
+### 2.6 Evaluator, paths and function references (implementation)
+After 2.0. Owns `src/evaluator.c`, `src/evaluator_function.c`,
+`src/evaluator_path.c`, `src/function_library_higher_order.c`,
+`tests/evaluator_test.c`, `tests/function_library_higher_order_test.c`.
+fn:function-lookup over every kind of function (fn-function-lookup, 165
+failing), function-annotations, JNode paths (prod-PathExpr.J 104,
+prod-AxisStep.J 97), lazy sequences where step limits now fail
+(fold-left/right-022/023, RangeExpr-408/410). Done when those sets reach
+≥ 90% and no XP40 case is an "error" outcome for a limit.
+
+### 2.7 Numeric, math and decimal functions (implementation)
+After 2.0. Owns `src/function_library_numeric.c`,
+`src/function_library_math.c`, `src/decimal.c`, `src/decimal_internal.h`,
+`tests/decimal_test.c`. Triage of math-* (181 cases, all failing after
+1.23b), round with precision and rounding modes, divide-decimals,
+parse-integer radix forms, number formatting of xs:double/xs:float in the
+canonical forms. Done when math-* ≥ 98% and fn-round, fn-divide-decimals,
+op-numeric-* ≥ 95%. Spec: F&O 4.0 "Functions on numeric values",
+"Trigonometric and exponential functions".
+
+### 2.8 Date and time functions (implementation)
+After 2.0. Owns `src/operator_temporal.c`, new
+`src/function_library_temporal.c`, `tests/function_library_temporal_test.c`.
+adjust-dateTime/date/time-to-timezone, build-dateTime, parts-of-dateTime,
+days-in-month, seconds, duration-to-seconds, unix-dateTime, parse-ietf-date,
+civil-timezone (FODT0004-style failure without tz data, D97). Done when
+those fn- sets reach ≥ 95% (civil-timezone excepted). Spec: F&O 4.0
+"Functions and operators on durations", "... on dates and times".
+
+### 2.9 Number formatting (implementation)
+After 2.0, 2.2. Owns new `src/format.c`, `src/format_internal.h`,
+`src/function_library_format.c`, `tests/format_test.c`. One picture engine
+for numbers that XSLT's xsl:number and xsl:decimal-format reuse (4.10):
+format-integer (all primary tokens, ordinals in English, grouping,
+`^radix`), format-number with decimal formats from the static context
+(2.2), exponent separator, `%:pc` forms. Pictures are scanned by hand
+(D97). Done when fn-format-integer and fn-format-number ≥ 95%. Spec:
+F&O 4.0 "Formatting integers", "Formatting numbers".
+
+### 2.10 Elements to maps and back (implementation)
+After 2.0. Owns `src/function_library_element_map.c`,
+`tests/function_library_element_map_test.c`. element-to-map,
+element-to-map-plan, map-to-element (D40 tree builder for new trees).
+Done when fn-element-to-map, fn-element-to-map-plan, fn-map-to-element
+≥ 95%. Spec: F&O 4.0 "Converting elements to maps".
+
+### 2.11 URIs, QNames and hashes (implementation)
+After 2.0. Owns `src/function_library_uri.c`, `src/function_library_qname.c`,
+new `src/hash.c`, `src/hash_internal.h`, `src/function_library_hash.c`,
+`tests/function_library_uri_test.c`, `tests/hash_test.c`. parse-uri,
+build-uri, decode-from-uri, parse-QName, resolve-QName, hash (MD5, SHA-1,
+SHA-256, BLAKE3 if the draft keeps it, CRC-32). Done when those sets reach
+≥ 95%. Spec: F&O 4.0 "Parsing and building URIs", RFC 3986.
+
+### 2.12 Resources, processor and XPath API (implementation)
+After 2.0, 2.2. Owns `src/processor.c`, `src/processor_internal.h`,
+`src/xpath.c`, `src/function_library_context.c`, new
+`src/function_library_resource.c`, `tests/processor_test.c`,
+`tests/xpath_test.c`. Implements 2.2: decimal formats and collations into
+the static context, the sink, environment variables; unparsed-text,
+-lines, -available (encodings, FOUT1170/1190), unparsed-binary, json-doc,
+collection, uri-collection, environment-variable,
+available-environment-variables, default-language, fn:trace and
+fn:message. Done when those sets reach ≥ 95% under the 2.16 driver.
+
+### 2.13 Collations and comparison options (implementation)
+After 2.4. Owns `src/collation.c`, `src/collation_internal.h`,
+`src/function_library.c`, `src/function_library_string.c`,
+`src/function_library_sequence.c`, `src/function_library_deep_equal.c`,
+`tests/collation_test.c`. D97: codepoint, HTML ASCII case-insensitive,
+UCA URIs with fallback (simple-uca-fallback); collation-key,
+collation-available, collation; every collation argument through one
+resolver (FOCH0002 only for unknown URIs). deep-equal 4.0 options
+(fn-deep-equal, 120 failing), compare (204), duplicate-values (106). Done
+when fn-compare, fn-deep-equal, fn-duplicate-values ≥ 95% and the 100
+FOCH0002 failures are gone. Spec: F&O 4.0 "Collations", "fn:deep-equal".
+
+### 2.14 Date formatting (implementation)
+After 2.8, 2.9. Owns new `src/format_date.c`,
+`src/function_library_format_date.c`, `tests/format_date_test.c`.
+format-date, format-time, format-dateTime on the 2.9 engine: every
+component and modifier, English names, `[Calendar: AD]`-style fallback
+markers for other languages and calendars (D97). Done when fn-format-date,
+fn-format-time, fn-format-dateTime ≥ 90%. Spec: F&O 4.0 "Formatting
+dates and times".
+
+### 2.15 CSV (implementation)
+After 2.12. Owns new `src/csv.c`, `src/csv_internal.h`,
+`src/function_library_csv.c`, `tests/csv_test.c`. parse-csv, csv-to-xml,
+csv-doc with every option (delimiters, quotes, header, trim, select
+columns); scanned by hand because delimiters are run-time options (D97).
+Done when fn-parse-csv, fn-csv-to-xml, fn-csv-doc ≥ 95%. Spec: F&O 4.0
+"Functions on CSV data"; RFC 4180.
+
+### 2.16 QT4 driver for Phase 2 (implementation)
+After 2.2. Owns `tests/qt4/driver/`. Environments: `decimal-format`,
+`collation`, `resource`, `collection` (sources and resources; `query`
+waits for 3.13); `--spec=XQ40` listing; a JSON per-area summary for the
+dashboard (`tools/conformance-report.py` reads it; 1.27 owns that file,
+so coordinate by format only). Done when the fn-unparsed-text*,
+fn-format-number and fn-collection cases resolve, golden tests cover each
+environment kind and `--spec=XP40` lists the D95 denominator.
+
+### 2.17 Node, sequence and string functions (implementation)
+After 2.13. Owns `src/function_library_node.c`,
+`src/function_library_string.c`, `src/function_library_sequence.c`,
+`src/function_library_json.c`, `tests/function_library_test.c`. path,
+innermost, outermost, lang, id, idref, element-with-id (xml:id; DTD IDs
+when the parser marks them), nilled, siblings, type-of, schema-type,
+atomic-type-annotation, node-type-annotation, jkey, jvalue,
+parse-xml-fragment, starts-/ends-/contains-subsequence, index-of-substring,
+pad-string, system-properties, location. Done when 1.23b's list of
+missing functions holds only D97's non-goals, fn:serialize (3.4) and
+fn:load-xquery-module (3.11).
+
+### 2.18 JavaScript package and first public release (implementation)
+After 2.12, 2.16. Owns new `bindings/javascript/`, `tools/run-wasi.mjs`,
+`docs/RELEASE.md`. The hand-written TypeScript package of D10 over the
+`wasm` module: parse, compile and evaluate XPath, adaptive output, a
+resolver callback; Node.js tests in ctest under `wasm`; size budget kept
+(1.28). Release 0.2.0: version macros, changelog, headers marked stable.
+
+### 2.19 Conformance sweeps (implementation, repeatable)
+After 2.17. Each sweep takes the five worst XP40 sets of
+`docs/CONFORMANCE.md`, claims their files in `docs/LOG.md` before starting
+(never a file a running packet owns) and stops after one session. Run as
+many as the files allow until the gate numbers hold.
+
+### 2.20 Phase 2 review (review)
+After everything. Owns the gate boxes. A separate agent (D11) runs the
+rubric and re-checks each "done when"; open items go under "Proposed".
+
+## Gate
+
+- [ ] XP40 (D95 denominator) ≥ 90% pass, each of the areas fn, op, prod,
+  map, array, math, xs ≥ 80%, under `release`; slice 198/198 in CI.
+- [ ] No XP40 case crashes, leaks or ends in an "error" outcome.
+- [ ] Every F&O 4.0 function is in the library but D97's non-goals.
+- [ ] Release 0.2.0 tagged; the JavaScript package passes under Node.js.
+- [ ] Review agent pass (D11), findings fixed.
