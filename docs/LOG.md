@@ -19,6 +19,21 @@ One short entry per week, newest first: what passed, what's next, what is blocke
   252 to 285/286. XP40 28,791 of 30,992 run (CONFORMANCE.md 23,146);
   slice 198/198; debug, debug-gcc, wasm, clang-tidy clean.
 
+- 3.13 done (D134): `sxml-qt4 run --spec=XQ40` runs XQuery main
+  modules through a temporary adapter (`tests/qt4/driver/xquery_adapter.c`,
+  the signatures of xquery.h over the internal `sxml_xquery_compile`;
+  packet 3.12 replaces it). `<module>` files served for XQUERY_MODULE,
+  declared="true" params bound without a host declaration, collection
+  queries evaluated, serialization-matches and assert-serialization-error
+  through the serializer, feature serialization satisfied; the
+  conformance report gives the D95 gate rate and the XQ-only rate. First
+  XQ40 numbers (release, one process per test set): 33,374 of 47,313
+  passed, gate 33,356/41,174 = 81.0 %, XQ-only 4,310/10,723 run =
+  40.2 %; 5,969 errors are prologs (3.10), 179 group by (3.8). XP40
+  29,029 before and after. New ctest `qt4/xquery-slice` (186 XQ-only
+  cases, baseline 186) and golden `qt4/run_xquery`; debug, debug-gcc,
+  wasm pass.
+
 - 2.10 done (D130): elements to maps and back, part `element_map`.
   fn:element-to-map chooses layouts in document order and builds values
   in reverse document order over per-node element slots; plans group by

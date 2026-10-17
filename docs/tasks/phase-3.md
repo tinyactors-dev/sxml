@@ -251,6 +251,14 @@ files through the resolver; `declared="true"` params; collections with a
 a second ctest slice `qt4/xquery-slice` (about 200 XQ-only cases chosen
 like the torture slice, baseline only goes up). Done when the slice runs
 under `debug`, `debug-gcc` and `wasm` and goldens cover each new feature.
+**Done** 2026-10-17 (D134): `--spec=XQ40` through the temporary
+`xquery_adapter.c` (internal `sxml_xquery_compile`, xquery.h signatures;
+3.12 deletes it); modules served by namespace and hint, declared params
+bound only, collection queries, serialization-matches and
+assert-serialization-error on `sxml_serialize_sequence`; assert-xml kept
+on the adaptive method (writes nodes as XML). `qt4/xquery-slice`: 186
+XQ-only cases, baseline 186, passes under debug, debug-gcc, wasm. XQ40
+(release): 33,374/47,313 passed, gate rate 81.0 %, XQ-only 40.2 %.
 
 ### 3.14 Conformance sweeps (implementation, repeatable)
 After 3.11, 3.13. As 2.19, over XQ40 sets (misc-CombinedErrorCodes,
