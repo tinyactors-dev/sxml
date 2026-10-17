@@ -230,6 +230,30 @@ static sxml_status make_seconds(sxml_item_heap *item_heap, sxml_date_time date_t
         item);
 }
 
+/* Whether a value of a Gregorian primitive type has the component (XDM
+   4.0, section 5.4: absent components are zero in the datum). */
+static bool component_is_present(sxml_type_identifier primitive_type,
+                                 date_time_component component) {
+    const uint32_t type = primitive_type.index;
+    const bool has_date = type == SXML_TYPE_XS_DATE_TIME || type == SXML_TYPE_XS_DATE;
+    switch (component) {
+    case SXML_DATE_TIME_COMPONENT_YEAR:
+        return has_date || type == SXML_TYPE_XS_G_YEAR_MONTH || type == SXML_TYPE_XS_G_YEAR;
+    case SXML_DATE_TIME_COMPONENT_MONTH:
+        return has_date || type == SXML_TYPE_XS_G_YEAR_MONTH || type == SXML_TYPE_XS_G_MONTH ||
+               type == SXML_TYPE_XS_G_MONTH_DAY;
+    case SXML_DATE_TIME_COMPONENT_DAY:
+        return has_date || type == SXML_TYPE_XS_G_MONTH_DAY || type == SXML_TYPE_XS_G_DAY;
+    case SXML_DATE_TIME_COMPONENT_HOURS:
+    case SXML_DATE_TIME_COMPONENT_MINUTES:
+    case SXML_DATE_TIME_COMPONENT_SECONDS:
+        return type == SXML_TYPE_XS_DATE_TIME || type == SXML_TYPE_XS_TIME;
+    case SXML_DATE_TIME_COMPONENT_TIMEZONE:
+        return true;
+    }
+    return false;
+}
+
 static sxml_status call_component(const sxml_function_call *call,
                                   date_time_component component, sxml_sequence *result) {
     sxml_optional_item value;
@@ -250,6 +274,12 @@ static sxml_status call_component(const sxml_function_call *call,
         return SXML_STATUS_INVALID_ARGUMENT;
     }
     const sxml_date_time date_time = datum.datum_details.date_time;
+    if (!component_is_present(sxml_atomic_item_get_primitive_type(value.item), component)) {
+        /* F&O 4.0, section 9.6.1: the empty sequence when the component is
+           absent, as the year of an xs:time. */
+        *result = sxml_sequence_empty();
+        return SXML_STATUS_OK;
+    }
     sxml_item item = sxml_atomic_item_from_integer(0);
     switch (component) {
     case SXML_DATE_TIME_COMPONENT_YEAR:
@@ -538,8 +568,11 @@ static sxml_status call_seconds_from_duration(const sxml_function_call *call,
 
 static const sxml_function_parameter date_parameters[] = {
     SXML_REQUIRED_PARAMETER("value", "xs:date?")};
+/* The Gregorian values of F&O 4.0, section 9.6.1 (PR 1481): every
+   component function of a dateTime takes them all. */
 static const sxml_function_parameter date_time_parameters[] = {
-    SXML_REQUIRED_PARAMETER("value", "xs:dateTime?")};
+    SXML_REQUIRED_PARAMETER("value", "(xs:dateTime | xs:date | xs:time | xs:gYear | "
+                                     "xs:gYearMonth | xs:gMonth | xs:gMonthDay | xs:gDay)?")};
 static const sxml_function_parameter time_parameters[] = {
     SXML_REQUIRED_PARAMETER("value", "xs:time?")};
 static const sxml_function_parameter date_and_time_parameters[] = {
