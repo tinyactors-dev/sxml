@@ -3928,6 +3928,70 @@ No new IR kind, no header change, no machinery beside the core's.
   machine to suspend: a change across `src/evaluator.c`); relowering in
   dependency order (two lowerings; the extra initializers cost one call).
 
+### D136. Node, sequence, string and type functions (packet 2.17)
+Recorded 2026-10-17. F&O 4.0 sections are those of the current editor's
+draft.
+- **One options reader** (glossary `option_definition`):
+  `sxml_function_library_read_options` (`src/function_library_options.c`,
+  declared in `src/function_library_core_internal.h`) reads every map that
+  follows the option parameter conventions (1.7): a definition is a name
+  and a sequence type; values are coerced with `sxml_evaluator_coerce`;
+  a string key that names no option is XPTY0004, an xs:QName key in a
+  namespace is ignored. The string and JSON parts use it (their own
+  readers are gone); the element-map, resource and serialization-parameter
+  readers of other packets could move to it.
+- **xnode()?** for fn:name, local-name, namespace-uri, node-name, base-uri,
+  document-uri, nilled (as F&O 4.0 types them): a JNode is XPTY0004 (QT4
+  PathExpr-J-461, -462).
+- **Node functions** (`src/function_library_node.c`): siblings (the
+  parent's child step); innermost/outermost in document order (a node's
+  subtree follows it, so only the next member, or the last kept one, needs
+  an ancestor walk); lang (caseless by full lower-case mapping); id,
+  element-with-id and idref scan the target document for the is-id /
+  is-idrefs nodes the parser marks (xml:id, DTD ID/IDREF/IDREFS),
+  FODC0001 for a root that is not a document; path in every 4.0 form;
+  location from the tree's `get_location` (`tree_internal.h`), as an
+  fn:location-record: the processor's loader does not keep locations, so
+  documents it parses give the empty sequence, which F&O allows; fn:doc
+  accepts and ignores `$options`.
+- **parse-xml-fragment** (`src/function_library_json.c`): the entity, after
+  a UTF-8 byte order mark and a text declaration (which must have an
+  encoding and no standalone, else FODC0006), is parsed by the loader as
+  the content of an element of a document made around it, whose children
+  are copied into a new document node; binary input is taken as UTF-8.
+  **strip-space="all"** (both parse functions) copies through a tree
+  builder that drops whitespace-only text outside xml:space="preserve".
+  **system-properties** (17.1.9) lives in the same part: the 14 built-in
+  properties, sxml not schema-aware and without the optional features.
+- **Type part** `src/function_library_type.c` (19.1): type-of; schema-type,
+  atomic-type-annotation and node-type-annotation make an
+  fn:schema-type-record from the type registry; base-type, primitive-type,
+  members and matches are anonymous function items over native rows that
+  capture the type identifier as xs:integer; constructor is the type's
+  constructor body (as xs:T#1), absent for xs:anyAtomicType,
+  xs:anySimpleType and namespace-sensitive types; variety "mixed" for
+  xs:anyType and xs:untyped; xs names carry the xs prefix.
+- **String part**: pad-string, index-of-substring (codepoint matching).
+- **Sequence part**: starts-/ends-/contains-subsequence as one resumable
+  body (D75): one call of `$compare` per step; without it fn:deep-equal's
+  leaf entry, no calls.
+- **Collations** (D116's proposal for these bodies, accepted): fn:min,
+  fn:max, fn:highest, fn:lowest, fn:sort-by, array:sort and array:sort-by
+  resolve through `sxml_function_library_find_collation` /
+  `_resolve_collation` and compare with `_compare_collated`; each sort key
+  definition carries its collation (the default when a sort key record
+  names none). `sxml_higher_order_check_collation` is gone;
+  `sxml_function_library_check_collation` has no caller left (its
+  definition in `src/function_library.c` may go). Order-by keys in the
+  evaluator's SORT still accept only the codepoint collation.
+- **Not done**: a descending range for `count(reverse(1 to 10^11))` (one
+  QT4 case, RangeExpr-408g; needs a frozen-header addition, see
+  "Proposed"); the zero comparison bug in `src/xdm_atomic.c` (Proposed).
+  Survey (every fn/map/array/math name of the XP40 sets, function-lookup
+  at arities 0 to 6): 26 functions missing, all of packets 2.11, 2.12,
+  2.15, 3.11 or D97's non-goals (html-doc, parse-html, invisible-xml,
+  xsd-validator, transform).
+
 ## Proposed
 
 - **The item axis in the evaluator** (packet 2.5, D113; for the owner of
@@ -3970,3 +4034,20 @@ No new IR kind, no header change, no machinery beside the core's.
   driver can report its test-set groups (attr, decl, expr, fn, insn,
   misc, type) for the 4.17 dashboard.
 
+- **Decimal zero against doubles** (packet 2.17, D136; for the owner of
+  `src/xdm_atomic.c`): `0.0 eq 0e0`, `atomic-equal(0.0, 0e0)` and
+  `distinct-values((0.0, 0e0))` treat the decimal 0 and the double 0 as
+  different (QT4 distinct-values-406). `sxml_double_write_exact_text`
+  writes zero as "0." followed by the zero exponent's 1074 fraction
+  digits, because the loop that drops trailing fraction zeros needs a
+  digit; a decimal 0 then never `equals_double`, and
+  `sxml_decimal_double_compare` orders them unequal. Proposed: when
+  `digit_count` is 0, set `fraction_digit_count` to 0, so zero (either
+  sign) is written "0"; one line.
+- **A descending integer range** (packet 2.17, D136; for the owner of
+  `include/sxml/xdm.h` and `src/xdm_sequence.c`, D62, D99): fn:reverse of
+  an integer range materializes it, so `count(reverse(1 to
+  100000000000))` (QT4 RangeExpr-408g) runs out of memory. Proposed
+  (additive, D99): `sxml_sequence_make_descending_integer_range(heap,
+  range, sequence)` with a range cell flag read by get_item and the
+  iterator; fn:reverse then returns it for a range in O(1).
