@@ -140,6 +140,10 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `evaluator` | Walks the IR of a sealed unit and computes values |
 | `document_loader` | Internal interface through which fn:doc and fn:parse-xml obtain document nodes; the processor implements it |
 | `evaluation_environment` | What the library functions of one evaluation read from the host beyond fn:doc: the resolver for text, binary and collection resources, the trace sink, the default language, environment variables, and the static context's decimal formats and collations; carried by the processor's document loader |
+| `evaluation_memo` | Values a native body computes once per evaluation and subject node (an xsl:key's index for one tree), kept in the dynamic context until the evaluation ends (D149) |
+| `current_item` | XSLT's current item (fn:current, XSLT 4.0, 20.3.1): the context value the outermost expression started with, the focus of its embedding; in a pattern, the item being matched (D149) |
+| `xslt_function_table` | The function table put in front of every static context of a stylesheet: stylesheet functions lowered into the unit (fn:key, fn:copy-of), then the XSLT-only library parts (D149) |
+| `key_index` | The map from key values to nodes of one xsl:key name for one tree, built once per evaluation (XSLT 4.0, 20.2; D149) |
 | `sort_key` | An expression whose value orders the items of a sort, with direction and empty order |
 | `template_rule` | An XSLT rule: a match function, a template function, priority and import precedence |
 | `mode` | An XSLT mode: its template rules and its built-in rule |
