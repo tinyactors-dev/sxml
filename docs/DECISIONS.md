@@ -3369,6 +3369,46 @@ HTML, text, JSON and CSV parts build on the same internal interface.
   SERE0005/SERE0006 (names and characters of the XML version), comments
   with "--" (SERE0003). The CLI's `--method` stays adaptive until 3.12.
 
+### D122. Date and time functions (packet 2.8)
+Recorded 2026-10-17. New part `src/function_library_temporal.c`
+(test `function_library_temporal`): adjust-dateTime/date/time-to-
+timezone, civil-timezone, days-in-month, parts-of-dateTime,
+build-dateTime, seconds, duration-to-seconds, unix-dateTime and
+parse-ietf-date. `src/operator_temporal.c` is unchanged.
+- **Gregorian components** (PR 1481): the seven `*-from-dateTime` rows
+  of `src/function_library_context.c` (2.12's file, edited because no
+  other packet runs on it; two hunks) take the union of the eight
+  Gregorian types and give the empty sequence for a component the type
+  lacks (absent components are zero in the datum).
+- **Shifts**: a dateTime or date moves by whole minutes through
+  `sxml_operator_make_temporal_value` (D72: every int64_t year, FODT0001
+  beyond); a time moves within its day. The implicit timezone and the
+  clock come from the dynamic context, read once per evaluation (D88).
+- **build-dateTime** declares `map(*)?`: the row text cannot spell the
+  record's optional fields, so the body coerces each field by XPath 4.0,
+  3.4.3: xs:untypedAtomic cast, an integral xs:decimal relabeled to
+  xs:integer, xs:double/xs:float cast to xs:decimal (seconds only), an
+  xs:duration without months relabeled to xs:dayTimeDuration; other
+  types, extra keys or two items are XPTY0004. Then FODT0005 (field
+  set), FORG0001 (ranges, gMonthDay against 1972), FODT0003 (timezone).
+  parts-of-dateTime returns a plain map with the record's keys in order.
+- **Seconds** keep nine fraction digits, truncated like casts (D36), so
+  `seconds(3.14159265358979323846) eq xs:dayTimeDuration('PT3.14159265358979323846S')`;
+  fn:seconds builds the duration from the decimal's digits (FODT0002
+  beyond int64_t seconds), not by duration arithmetic, which rounds.
+- **unix-dateTime**: milliseconds beyond uint64_t are FODT0001.
+- **civil-timezone** (D97, no database): no place gives the implicit
+  timezone (the default place is taken to be one whose civil timezone it
+  is); "UTC", "Etc/UTC", "GMT", "Etc/GMT" give PT0S; any other place
+  FODT0004.
+- **parse-ietf-date**: hand-written scanner of the grammar of 9.10.1
+  (D97), ASCII case-insensitive, longest names first; a tzoffset of one
+  to four digits is H, HH, HMM, HHMM, with a colon minutes are 0 or 2
+  digits; hour 24 only as 24:00:00 (next day); FORG0010 otherwise.
+- **Open**: fn-parts-of-dateTime 8/20 (assert-type needs the named
+  record type, Proposed); civil-timezone 4/9 (D97); days-in-month-006/007
+  need fn:format-integer (2.9).
+
 ## Proposed
 
 - **IR adders for catch clauses and name tests** (packet 3.6, D109; for
@@ -3477,3 +3517,14 @@ HTML, text, JSON and CSV parts build on the same internal interface.
   the unit's static namespaces and no default namespace, an xs:QName, an
   NCName in no namespace), uses entry 0 as the unnamed format, and drops
   its two FODF1280 stubs (`read_format_name`, `read_decimal_format`).
+
+- **F&O named record types in the static context** (packet 2.8, D122;
+  for the owner of `src/xpath_static.c` and the type registry): no
+  static context knows `fn:dateTime-record` (nor
+  `fn:matching-segment-record`, `fn:random-number-generator-record`,
+  ...), so `$r instance of fn:dateTime-record` is XPST0051 and 12 of
+  fn-parts-of-dateTime's 20 cases fail on their assert-type alone (the
+  values are right). Proposed: predeclare the record types of F&O 4.0 in
+  the fn namespace (fields whose type allows the empty sequence optional,
+  as D7 says), so rows may also name them (`fn:dateTime-record?` for
+  build-dateTime, which then gets the coercion for free).
