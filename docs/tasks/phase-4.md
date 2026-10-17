@@ -90,6 +90,8 @@ patterns or value templates, the static context of each element
 default-mode, version, exclude-result-prefixes), import precedence,
 source locations. Done when the stylesheet of for-each-group-001, a
 template rule and an xsl:function are written out in comments.
+**Done** 2026-10-17 (D102): `src/xslt_ast_internal.h`, header only; the
+builder and lifecycle functions go to 4.5 in a new `src/xslt_ast.c`.
 
 ### 4.3 Value templates (implementation) — Early
 After 2.1, 4.2. Owns new `grammars/value_template/`,
@@ -114,7 +116,8 @@ patterns match a fixed document as a table says. Spec: XSLT 4.0
 
 ### 4.5 Stylesheet reader (implementation) — Early
 After 4.2, 4.3, 4.4, 3.2. Owns `src/xslt_read.c`, `src/xslt_static.c`,
-`tests/xslt_read_test.c`. Arena tree to stylesheet AST: XSLT element and
+`tests/xslt_read_test.c`, `src/xslt_ast.c` and `tests/xslt_ast_test.c`
+(the functions `src/xslt_ast_internal.h` declares, D102). Arena tree to stylesheet AST: XSLT element and
 attribute rules (XTSE0010, XTSE0090), standard attributes, whitespace
 stripping of the stylesheet, use-when with static parameters and
 variables, shadow attributes, xsl:include and xsl:import with precedence
