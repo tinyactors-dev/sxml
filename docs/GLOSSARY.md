@@ -465,6 +465,19 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `parameter_document` | An `output:serialization-parameters` element giving serialization parameters (Serialization 4.0, section 3.1) |
 | `serialization_parameter_reader` | Reads serialization parameters from a parameter document or an options map and keeps what they refer to |
 | `output_declaration` | An XQuery option declaration in the serialization namespace (`declare option output:indent "yes"`, XQuery 4.0, section 5.22) |
+| `sequence_normalization` | Turning the sequence to serialize into one result tree: JNodes to their values, arrays flattened, atomic items to text, documents replaced by their children, adjacent text merged (Serialization 4.0, section 2) |
+| `result_tree` | The document node that sequence normalization makes; what the XML, XHTML, HTML and text methods write |
+| `sequence_normalizer` | Gives the children of the result tree one at a time (`normalized_event`: text or a node to copy), without building the tree |
+| `character_pipeline` | What text goes through on its way out: character maps, Unicode normalization, escaping, line endings, encoding (Serialization 4.0, section 4) |
+| `character_context` | Where characters are written: markup, text, an attribute value, a URI attribute value or CDATA sections; decides escaping and mapping |
+| `escape_style` | Which characters become references: the XML method's, or Canonical XML's |
+| `staged_bytes` | Encoded bytes the serializer collects before one write to the output stream |
+| `xml_writer` | Writes nodes by the XML or XHTML method: open elements and written bindings on stacks (D71) |
+| `written_bindings` | The namespace bindings already declared for the open elements, against which an element's declarations and undeclarations are computed |
+| `prefix_normalization` | XHTML with HTML5: elements in the XHTML, SVG or MathML namespace written unprefixed with a default namespace, and prefixes for those namespaces dropped (Serialization 4.0, section 6) |
+| `html_element` | An element the XHTML method recognizes as HTML: in the XHTML namespace, or with HTML5 in no namespace with an HTML5 element name |
+| `uri_escaping` | NFC and %-escaping of non-ASCII characters in a URI attribute value of an HTML element (Serialization 4.0, section 4, rule a; appendix D) |
+| `content_type_meta` | The meta element the XHTML and HTML methods add as the first child of head (parameter `include-content-type`) |
 | `xquery_query` | An XQuery main module compiled for one processor, with the library modules it imports, evaluated any number of times |
 | `main_module` | An XQuery module with a query body, the one a host compiles (XQuery 4.0, section 5) |
 | `library_module` | An XQuery module that starts with a module declaration and is reached by `import module` |
