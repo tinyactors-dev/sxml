@@ -77,17 +77,126 @@ typedef struct sxml_variable_declaration_view {
     size_t variable_declaration_count;
 } sxml_variable_declaration_view;
 
+/* ------------------------------------------------------- Decimal formats */
+
+/*
+ * A property of a decimal format (XPath 4.0, section 2.2.1, "statically
+ * known decimal formats"; F&O 4.0, "Defining a decimal format"). The list
+ * only grows.
+ */
+typedef enum sxml_decimal_format_property_kind {
+    /* Marker and rendition ("." or ".:R"); default ".". */
+    SXML_DECIMAL_FORMAT_PROPERTY_DECIMAL_SEPARATOR,
+    /* Marker and rendition; default ",". */
+    SXML_DECIMAL_FORMAT_PROPERTY_GROUPING_SEPARATOR,
+    /* Marker and rendition; default "e". */
+    SXML_DECIMAL_FORMAT_PROPERTY_EXPONENT_SEPARATOR,
+    /* Marker and rendition; default "%". */
+    SXML_DECIMAL_FORMAT_PROPERTY_PERCENT,
+    /* Marker and rendition; default U+2030. */
+    SXML_DECIMAL_FORMAT_PROPERTY_PER_MILLE,
+    /* A marker: a character of Unicode category Nd with digit value 0;
+       default "0". */
+    SXML_DECIMAL_FORMAT_PROPERTY_ZERO_DIGIT,
+    /* A marker; default "#". */
+    SXML_DECIMAL_FORMAT_PROPERTY_DIGIT,
+    /* A marker; default ";". */
+    SXML_DECIMAL_FORMAT_PROPERTY_PATTERN_SEPARATOR,
+    /* A rendition, any string; default "Infinity". */
+    SXML_DECIMAL_FORMAT_PROPERTY_INFINITY,
+    /* A rendition, any string; default "NaN". */
+    SXML_DECIMAL_FORMAT_PROPERTY_NAN,
+    /* A rendition, any string; default "-". */
+    SXML_DECIMAL_FORMAT_PROPERTY_MINUS_SIGN,
+} sxml_decimal_format_property_kind;
+
+/*
+ * One property of a decimal format, as text: the value of an attribute of
+ * xsl:decimal-format or of a QT4 decimal-format environment, or of a
+ * property in an XQuery decimal format declaration. A marker property is
+ * one character; a property with marker and rendition is one character
+ * (marker and rendition alike) or one character, ":" and a rendition of
+ * any length, empty included (F&O 4.0, "fn:format-number", type
+ * xs:string (: matching '.|.:.*' :)), so "%:pc" is the marker "%" with the
+ * rendition "pc".
+ */
+typedef struct sxml_decimal_format_property {
+    sxml_decimal_format_property_kind property_kind;
+    /* UTF-8. Borrowed for the call; compilation copies it. */
+    sxml_byte_view property_value;
+} sxml_decimal_format_property;
+
+typedef struct sxml_decimal_format_property_view {
+    const sxml_decimal_format_property *decimal_format_properties;
+    size_t decimal_format_property_count;
+} sxml_decimal_format_property_view;
+
+/*
+ * A decimal format of the static context: the properties it sets; every
+ * other property has the default listed above.
+ */
+typedef struct sxml_decimal_format {
+    /* The format's name; index 0 for the unnamed decimal format, which
+       fn:format-number uses when it names none. */
+    sxml_name_identifier format_name;
+    /* Each kind at most once. */
+    sxml_decimal_format_property_view decimal_format_properties;
+} sxml_decimal_format;
+
+typedef struct sxml_decimal_format_view {
+    const sxml_decimal_format *decimal_formats;
+    size_t decimal_format_count;
+} sxml_decimal_format_view;
+
+/* ------------------------------------------------------------ Collations */
+
+/*
+ * A collation URI the host adds to the statically known collations,
+ * standing for a collation sxml knows (XPath 4.0, section 2.2.1:
+ * "statically known collations" is a mapping from URI to collation).
+ */
+typedef struct sxml_collation_binding {
+    /* An absolute URI; must not be one sxml knows already. */
+    sxml_byte_view collation_uri;
+    /* An absolute URI for which sxml_collation_is_supported is true. */
+    sxml_byte_view target_collation_uri;
+} sxml_collation_binding;
+
+typedef struct sxml_collation_binding_view {
+    const sxml_collation_binding *collation_bindings;
+    size_t collation_binding_count;
+} sxml_collation_binding_view;
+
+/*
+ * Whether sxml implements the collation collation_uri names, an absolute
+ * URI (D97): the Unicode codepoint collation
+ * (http://www.w3.org/2005/xpath-functions/collation/codepoint), the HTML
+ * ASCII case-insensitive collation
+ * (http://www.w3.org/2005/xpath-functions/collation/html-ascii-case-insensitive)
+ * and UCA collation URIs (http://www.w3.org/2013/collation/UCA with
+ * parameters) that sxml can serve with fallback; false for fallback=no
+ * with parameters it cannot honour, and for any other URI. These and the
+ * collation bindings of a static context are its statically known
+ * collations. Compares bytes; a relative URI is false.
+ *
+ * Thread safety: safe to call from any thread.
+ */
+SXML_EXPORT bool sxml_collation_is_supported(sxml_byte_view collation_uri);
+
+/* -------------------------------------------------------- Static context */
+
 /*
  * What the host puts in the static context (XPath 4.0, section 2.2.1
  * "Static Context"). Every view is borrowed for the call that receives it;
  * what compilation keeps, it copies. A zero-initialized configuration is
  * the default static context: only the predeclared namespaces, no
- * variables, no static base URI.
+ * variables, no static base URI, the Unicode codepoint collation as the
+ * default collation, and only the unnamed decimal format, with the
+ * default properties.
  *
- * The other components have fixed values in Phase 1: the default function
- * namespace is fn, the only collation is the Unicode codepoint collation,
- * the function signatures are those of the built-in library, and XPath 1.0
- * compatibility mode is off.
+ * The other components have fixed values: the default function namespace
+ * is fn, the function signatures are those of the built-in library, and
+ * XPath 1.0 compatibility mode is off.
  */
 typedef struct sxml_static_context_configuration {
     /*
@@ -104,6 +213,23 @@ typedef struct sxml_static_context_configuration {
     sxml_byte_view static_base_uri;
     /* The external variables in scope. Names must be distinct. */
     sxml_variable_declaration_view variable_declarations;
+    /* The statically known decimal formats. Names must be distinct; a
+       property value must have the form its kind takes, and the markers
+       decimal-separator, grouping-separator, exponent-separator, percent,
+       per-mille, digit and pattern-separator of one format must differ
+       from each other and from the ten digits starting at zero-digit
+       (F&O 4.0, "Defining a decimal format"). XQuery and XSLT check their
+       own declarations first and raise their codes (XQST0097, XQST0098,
+       XTSE1300); here a breach is an invalid configuration. */
+    sxml_decimal_format_view decimal_formats;
+    /* The default collation, an absolute URI among the statically known
+       collations; empty means the Unicode codepoint collation. XPath 4.0
+       places it in the dynamic context (section 2.2.2) but every host
+       knows it statically; evaluations take it from here. */
+    sxml_byte_view default_collation_uri;
+    /* Collation URIs added to the statically known collations. URIs must
+       be distinct. */
+    sxml_collation_binding_view collation_bindings;
 } sxml_static_context_configuration;
 
 /* ------------------------------------------------------- Dynamic context */
@@ -140,11 +266,30 @@ typedef struct sxml_available_document_view {
 } sxml_available_document_view;
 
 /*
+ * An environment variable of the dynamic context (XPath 4.0, section
+ * 2.2.2, "environment variables"), for fn:environment-variable and
+ * fn:available-environment-variables. sxml never reads the platform's
+ * environment: a host that wants to expose it lists what it chooses here.
+ */
+typedef struct sxml_environment_variable {
+    /* UTF-8; compared byte for byte. */
+    sxml_byte_view variable_name;
+    /* UTF-8. */
+    sxml_byte_view variable_value;
+} sxml_environment_variable;
+
+typedef struct sxml_environment_variable_view {
+    const sxml_environment_variable *environment_variables;
+    size_t environment_variable_count;
+} sxml_environment_variable_view;
+
+/*
  * What the host puts in the dynamic context of one evaluation (XPath 4.0,
  * section 2.2.2 "Dynamic Context"). Views and values are borrowed for the
  * call. A zero-initialized configuration is the default: no context value
  * (the focus is absent), no variables, no available documents, the
- * processor's resolver and clock.
+ * processor's resolver, clock and trace sink, default language "en" and
+ * no environment variables.
  */
 typedef struct sxml_dynamic_context_configuration {
     /* The context value; when has_context_value is false the focus is
@@ -163,6 +308,14 @@ typedef struct sxml_dynamic_context_configuration {
     sxml_resource_resolver resource_resolver;
     /* The null clock means the processor's. */
     sxml_clock clock;
+    /* The null sink means the processor's. */
+    sxml_trace_sink trace_sink;
+    /* The default language, an xs:language value such as "en" or "fr-CA",
+       for fn:default-language and the formatting functions; empty means
+       "en". */
+    sxml_byte_view default_language;
+    /* Names must be distinct. */
+    sxml_environment_variable_view environment_variables;
 } sxml_dynamic_context_configuration;
 
 /* ------------------------------------------------------------ Expressions */
@@ -216,7 +369,8 @@ SXML_NODISCARD SXML_EXPORT sxml_status sxml_xpath_expression_memory_requirements
  *   limit of the processor, with only the record's diagnostic filled;
  * - SXML_STATUS_INVALID_ARGUMENT for an invalid configuration (a static
  *   context breaking the rules above, identifiers the processor did not
- *   issue);
+ *   issue, a decimal format property without the form its kind takes, a
+ *   default collation or collation binding target that is not supported);
  * - SXML_STATUS_INSUFFICIENT_MEMORY or SXML_STATUS_MISALIGNED_MEMORY when
  *   memory does not meet the memory requirements, and the allocator's
  *   failures.
@@ -282,8 +436,11 @@ typedef struct sxml_xpath_evaluation_request {
  * - SXML_STATUS_LIMIT_EXCEEDED at maximum_evaluation_depth or another
  *   limit of the processor, with only the record's diagnostic filled;
  * - SXML_STATUS_INVALID_ARGUMENT for an invalid dynamic context (values or
- *   identifiers from another processor, duplicate names);
- * - the allocator's, the resolver's and the clock's failures.
+ *   identifiers from another processor, duplicate names, a default
+ *   language that is not an xs:language), and for a resource the resolver
+ *   delivered in a form its kind does not allow;
+ * - the allocator's, the resolver's, the clock's and the trace sink's
+ *   failures.
  * On failure *result is untouched.
  */
 SXML_NODISCARD SXML_EXPORT sxml_status sxml_xpath_expression_evaluate(

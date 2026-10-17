@@ -7,6 +7,7 @@
 #include "sxml/export.h"
 #include "sxml/memory.h"
 #include "sxml/name.h"
+#include "sxml/serialize.h"
 #include "sxml/status.h"
 #include "sxml/tree.h"
 #include "sxml/types.h"
@@ -26,13 +27,16 @@
  * another.
  *
  * It also holds what the host provides to every evaluation:
- * - a resource resolver, through which fn:doc retrieves documents (and, in
- *   later phases, fn:unparsed-text, XQuery modules and XSLT stylesheet
- *   modules); sxml itself never opens a file or a network connection;
+ * - a resource resolver, through which fn:doc, fn:unparsed-text,
+ *   fn:unparsed-binary, fn:collection and fn:uri-collection retrieve
+ *   resources, and XQuery and XSLT compilation their modules and
+ *   packages; sxml itself never opens a file or a network connection;
  * - a clock, which gives fn:current-dateTime and the implicit timezone
  *   (XPath 4.0, section 2.2.2 "Dynamic Context");
+ * - a trace sink, which receives the output of fn:trace, fn:message and
+ *   xsl:message;
  * - limits for untrusted documents and expressions.
- * An evaluation may override the resolver and the clock
+ * An evaluation may override the resolver, the clock and the trace sink
  * (sxml_dynamic_context_configuration, include/sxml/xpath.h).
  *
  * Lifetime: everything made with a processor (items, sequences, trees,
@@ -109,15 +113,46 @@ SXML_NODISCARD SXML_EXPORT sxml_status sxml_clock_read(
 /* ------------------------------------------------------ Resource resolver */
 
 /*
- * What a resource is wanted for. The list only grows: later phases add text
- * resources (fn:unparsed-text, fn:json-doc), XQuery library modules and
- * XSLT stylesheet modules. A resolver answers a kind it does not know with
- * SXML_RESOURCE_FORM_NONE.
+ * What a resource is wanted for, and the forms a resolver may deliver it
+ * in (sxml_resource_form). The list only grows. A resolver answers a kind
+ * it does not know with SXML_RESOURCE_FORM_NONE; a form the kind does not
+ * allow stops the evaluation or compilation with
+ * SXML_STATUS_INVALID_ARGUMENT.
  */
 typedef enum sxml_resource_kind {
     /* An XML document for fn:doc and fn:doc-available (F&O 4.0,
-       "fn:doc"). */
+       "fn:doc"), and in XSLT for fn:document and xsl:source-document.
+       Forms: BYTES, DOCUMENT_NODE. */
     SXML_RESOURCE_KIND_XML_DOCUMENT,
+    /* A text resource for fn:unparsed-text, fn:unparsed-text-lines,
+       fn:unparsed-text-available and fn:json-doc (F&O 4.0,
+       "fn:unparsed-text"). Form: BYTES, which sxml decodes: with the
+       resource's encoding_name when given, else the request's, else from a
+       byte order mark, else as UTF-8 (FOUT1190 when the bytes do not
+       decode or hold a character XML does not allow). */
+    SXML_RESOURCE_KIND_TEXT,
+    /* A binary resource for fn:unparsed-binary (F&O 4.0,
+       "fn:unparsed-binary"). Form: BYTES, taken as they are. */
+    SXML_RESOURCE_KIND_BINARY,
+    /* A collection for fn:collection (F&O 4.0, "fn:collection"). Form:
+       SEQUENCE, any items. */
+    SXML_RESOURCE_KIND_COLLECTION,
+    /* A URI collection for fn:uri-collection (F&O 4.0,
+       "fn:uri-collection"). Form: SEQUENCE of xs:anyURI items. */
+    SXML_RESOURCE_KIND_URI_COLLECTION,
+    /* An XQuery library module for "import module" (XQuery 4.0, "Module
+       Import"): uri_reference is one location hint, or empty when the
+       import has none, and target_namespace_uri the module's namespace.
+       Form: BYTES, the module's text. */
+    SXML_RESOURCE_KIND_XQUERY_MODULE,
+    /* An XSLT stylesheet module for xsl:include and xsl:import (XSLT 4.0,
+       "Stylesheet Inclusion", "Stylesheet Import"). Form: BYTES. */
+    SXML_RESOURCE_KIND_XSLT_MODULE,
+    /* An XSLT package for xsl:use-package (XSLT 4.0, "Dependencies between
+       Packages"): uri_reference and absolute_uri are the package name and
+       package_version the versions accepted. Form: BYTES, the text of
+       the module whose top element is xsl:package. */
+    SXML_RESOURCE_KIND_XSLT_PACKAGE,
 } sxml_resource_kind;
 
 /* What sxml asks a resolver for. Views are borrowed for the call. */
@@ -131,8 +166,24 @@ typedef struct sxml_resource_request {
     sxml_byte_view absolute_uri;
     /* The processor of the evaluation, for a resolver that builds the
        document node itself (sxml_processor_parse_document is the one
-       processor function a resolver may call). */
+       processor function a resolver may call) or the items of a
+       collection (through sxml_processor_get_item_heap). */
     sxml_processor *processor;
+    /* TEXT: the encoding the query names (the $encoding argument of
+       fn:unparsed-text); empty when it names none. Informational: sxml
+       decodes the bytes itself. */
+    sxml_byte_view encoding_name;
+    /* COLLECTION, URI_COLLECTION: true for the default collection
+       (fn:collection and fn:uri-collection without an argument or with the
+       empty sequence; XPath 4.0, section 2.2.2, "default collection");
+       uri_reference and absolute_uri are then empty. */
+    bool is_default_collection;
+    /* XQUERY_MODULE: the target namespace of the imported module, never
+       empty. */
+    sxml_byte_view target_namespace_uri;
+    /* XSLT_PACKAGE: the package-version attribute of xsl:use-package, "*"
+       when it has none (XSLT 4.0, "Versions of a Package"). */
+    sxml_byte_view package_version;
 } sxml_resource_request;
 
 /* How a resolver delivers a resource. */
@@ -146,6 +197,10 @@ typedef enum sxml_resource_form {
     /* A document node made with request->processor, for an XML document
        the host has already parsed or built. */
     SXML_RESOURCE_FORM_DOCUMENT_NODE,
+    /* A sequence made with request->processor: the items of a collection,
+       in the order fn:collection returns them, or the URIs of a URI
+       collection. */
+    SXML_RESOURCE_FORM_SEQUENCE,
 } sxml_resource_form;
 
 /*
@@ -168,6 +223,10 @@ typedef struct sxml_resource {
     /* NONE: why the resource is not available, for the error description
        (for example "No such file"); may be empty. Borrowed until release. */
     sxml_byte_view description;
+    /* SEQUENCE: the items, owned: sxml takes the reference. Nodes keep
+       their document URIs (F&O 4.0, "fn:collection": they need not be
+       distinct or present). */
+    sxml_sequence items;
 } sxml_resource;
 
 /*
@@ -215,13 +274,83 @@ typedef struct sxml_resource_entry_view {
 
 /*
  * A resolver that serves the resources in *resource_entries, as bytes, for
- * every resource kind, and nothing else: for tests and for hosts that hold
- * their documents in memory (a browser). The resolver keeps a reference to
- * resource_entries and the memory it points to, which must outlive it.
- * The first matching entry wins.
+ * every resource kind whose forms include BYTES, and nothing else (no
+ * collections): for tests and for hosts that hold their documents in
+ * memory (a browser). The resolver keeps a reference to resource_entries
+ * and the memory it points to, which must outlive it. The first matching
+ * entry wins.
  */
 SXML_EXPORT sxml_resource_resolver sxml_table_resource_resolver(
     const sxml_resource_entry_view *resource_entries);
+
+/* ------------------------------------------------------------ Trace sink */
+
+/* What produced a trace event. The list only grows. */
+typedef enum sxml_trace_event_kind {
+    /* fn:trace (F&O 4.0, "fn:trace"): value is $input. */
+    SXML_TRACE_EVENT_KIND_TRACE,
+    /* fn:message (F&O 4.0, "fn:message"): value is $input. */
+    SXML_TRACE_EVENT_KIND_MESSAGE,
+    /* xsl:message and a failed xsl:assert (XSLT 4.0, "Messages",
+       "Assertions"): value is the message, a document node unless the
+       instruction's select gives another value. */
+    SXML_TRACE_EVENT_KIND_XSLT_MESSAGE,
+} sxml_trace_event_kind;
+
+/* One piece of trace output. Everything is borrowed for the call. */
+typedef struct sxml_trace_event {
+    sxml_trace_event_kind trace_event_kind;
+    /* The $label argument of fn:trace and fn:message; empty when the call
+       has none, and for xsl:message. */
+    sxml_byte_view label;
+    /* The value to show, in the item heap of processor. A sink that keeps
+       it retains it (sxml_sequence_retain). */
+    sxml_sequence value;
+    /* XSLT_MESSAGE: true when the instruction terminates the
+       transformation (terminate="yes", and every failed xsl:assert): after
+       the sink returns SXML_STATUS_OK, sxml raises error_code (XTMM9000 or XTMM9001 by
+       default). */
+    bool is_terminating;
+    /* XSLT_MESSAGE: the error code of the error-code attribute, or the
+       default of the instruction; empty otherwise. */
+    sxml_error_code error_code;
+    /* Where the call or instruction is, as far as known. */
+    sxml_source_location location;
+    /* The processor of the evaluation, for serializing value. */
+    sxml_processor *processor;
+} sxml_trace_event;
+
+/* The operations of a trace sink. Tables are static const. */
+typedef struct sxml_trace_sink_operations {
+    /* Receives one event, in the order the evaluation produces them (which
+       is not always the order of the expression text: F&O 4.0 leaves the
+       order of evaluation open). A failure, for example D50's
+       SXML_STATUS_INPUT_OUTPUT_FAILED, stops the evaluation with the status
+       returned. A sink that starts an evaluation nests it on the C stack,
+       as a host function body does (include/sxml/xdm.h). */
+    sxml_status (*receive)(void *state, const sxml_trace_event *event);
+} sxml_trace_sink_operations;
+
+/*
+ * The trace sink interface, passed by value. A sink whose operations is
+ * NULL is the null sink, which discards every event; in a configuration it
+ * means "the default" as the field says.
+ */
+typedef struct sxml_trace_sink {
+    void *state;
+    const sxml_trace_sink_operations *operations;
+} sxml_trace_sink;
+
+/*
+ * A trace sink that writes each event to *output_stream as one line, in
+ * UTF-8: the label and ": " when the label is not empty, then the value
+ * serialized with the adaptive method and the item separator " "
+ * (include/sxml/serialize.h, sxml_serialize_sequence), then U+000A. A
+ * terminating XSLT message is written the same way. The sink keeps a reference to output_stream, which
+ * must outlive it; the stream's failures are the sink's.
+ */
+SXML_EXPORT sxml_trace_sink sxml_stream_trace_sink(
+    const sxml_output_stream *output_stream);
 
 /* ------------------------------------------------------------- Processor */
 
@@ -281,6 +410,9 @@ typedef struct sxml_processor_configuration {
     /* The null clock means sxml_system_clock(). Its state must outlive the
        processor. */
     sxml_clock clock;
+    /* Receives fn:trace, fn:message and xsl:message output. The null sink
+       discards it. Its state must outlive the processor. */
+    sxml_trace_sink trace_sink;
 } sxml_processor_configuration;
 
 /*
