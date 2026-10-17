@@ -3873,26 +3873,3 @@ Recorded 2026-10-17. Extends D92, D94 and D108 in `tests/qt4/driver/`.
   driver can report its test-set groups (attr, decl, expr, fn, insn,
   misc, type) for the 4.17 dashboard.
 
-- **F&O named record types in the static context** (packet 2.8, D122;
-  for the owner of `src/xpath_static.c` and the type registry): no
-  static context knows `fn:dateTime-record` (nor
-  `fn:matching-segment-record`, `fn:random-number-generator-record`,
-  ...), so `$r instance of fn:dateTime-record` is XPST0051 and 12 of
-  fn-parts-of-dateTime's 20 cases fail on their assert-type alone (the
-  values are right). Proposed: predeclare the record types of F&O 4.0 in
-  the fn namespace (fields whose type allows the empty sequence optional,
-  as D7 says), so rows may also name them (`fn:dateTime-record?` for
-  build-dateTime, which then gets the coercion for free).
-  Packet 2.7 (D125) adds `fn:division-record` (QT4 divide-decimals-019
-  to -021; fn-divide-decimals stays at 19 of 21 without it) and
-  `fn:random-number-generator-record` (fn-random-number-generator-35a to
-  -37a); the numeric rows would then name them as result types.
-
-- **fn:random-number-generator take(-1)** (packet 2.7, D125; for the
-  owner of `tests/function_library_test.c`): F&O 4.0, section 4.11.1
-  types `take` as `fn($count as xs:nonNegativeInteger) as xs:double*`, so
-  `take(-1)` and `take(())` are XPTY0004 (QT4
-  fn-random-number-generator-56, -57), but `test_random_number_generator`
-  expects `count(...?take(-1))` to be 0. Proposed: expect XPTY0004 there;
-  the numeric part then types the parameter and the function item as
-  xs:nonNegativeInteger (two lines in `src/function_library_numeric.c`).
