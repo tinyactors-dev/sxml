@@ -4803,6 +4803,10 @@ clean, with no call cycle.
 Recorded 2026-10-17, after D79, D116, D118, D136, D137, D142, D144, D145.
 Reserved here; the record is completed when the packet is ticked.
 
+### D153. Numbering and analyze-string (packet 4.11)
+Recorded 2026-10-17, after D105, D114, D118, D119, D142, D145.
+Reserved here; the record is completed when the packet is ticked.
+
 ## Proposed
 
 - **The XSLT functions at run time** (packet 4.10, D149; for 4.15, the
