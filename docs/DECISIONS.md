@@ -4601,6 +4601,10 @@ Reserved here; the record is completed when the packet is ticked.
 Recorded 2026-10-17, after D11, D95, D97, D123, D132.
 Reserved here; the record is completed when the gate is reviewed.
 
+### D152. Sorting and grouping (packet 4.9)
+Recorded 2026-10-17, after D79, D116, D118, D136, D137, D142, D144, D145.
+Reserved here; the record is completed when the packet is ticked.
+
 ## Proposed
 
 - **XQuery's default for omit-xml-declaration** (packet 3.12, D146; for
