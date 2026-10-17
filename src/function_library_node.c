@@ -240,8 +240,10 @@ static sxml_status call_distinct_ordered_nodes(const sxml_function_call *call,
 /* fn:doc($source, $options := {}) (F&O 4.0, section 17.1.1): through the
    document loader, which gives the same node for the same URI within an
    evaluation; a relative URI is resolved against the static base URI
-   (D88). The options are accepted and ignored: the loader parses one way
-   and keeps locations anyway (retain-location). */
+   (D88). The options are fn:parse-xml's (sxml_function_library_read_
+   document_options): strip-space="all" gives a stripped copy, a new tree
+   on every call; the rest the loader's one way of parsing honours or
+   rejects. */
 static sxml_status call_doc(const sxml_function_call *call, sxml_sequence *result) {
     if (call->dynamic_context == NULL) {
         return sxml_function_library_report(call, &no_dynamic_context_error);
@@ -255,8 +257,12 @@ static sxml_status call_doc(const sxml_function_call *call, sxml_sequence *resul
         *result = sxml_sequence_empty();
         return SXML_STATUS_OK;
     }
+    sxml_document_options options = {.strips_space = false};
+    status = sxml_function_library_read_document_options(call, 1, &options);
     sxml_string uri_reference;
-    status = sxml_function_library_read_string_argument(call, 0, &uri_reference);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_function_library_read_string_argument(call, 0, &uri_reference);
+    }
     sxml_item document_node = {.representation = 0};
     if (status == SXML_STATUS_OK) {
         status = sxml_dynamic_context_load_document(
@@ -266,6 +272,11 @@ static sxml_status call_doc(const sxml_function_call *call, sxml_sequence *resul
                                          call->dynamic_context),
                                      .error_record = call->error_record},
             &document_node);
+    }
+    if (status == SXML_STATUS_OK && options.strips_space) {
+        status = sxml_function_library_strip_document(call, document_node, result);
+        sxml_item_release(document_node);
+        return status;
     }
     if (status == SXML_STATUS_OK) {
         *result = sxml_sequence_from_item(document_node);

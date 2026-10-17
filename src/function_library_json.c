@@ -468,7 +468,8 @@ static sxml_status call_jtree(const sxml_function_call *call, sxml_sequence *res
     return status;
 }
 
-/* The options of fn:parse-xml (F&O 4.0, section 17.2.1). */
+/* The options of fn:parse-xml (F&O 4.0, section 17.2.1) and, with
+   "stable", of fn:doc (17.1.1). */
 enum {
     SXML_XML_OPTION_BASE_URI,
     SXML_XML_OPTION_DTD_VALIDATION,
@@ -478,6 +479,7 @@ enum {
     SXML_XML_OPTION_XSD_VALIDATION,
     SXML_XML_OPTION_USE_XSI_SCHEMA_LOCATION,
     SXML_XML_OPTION_RETAIN_LOCATION,
+    SXML_XML_OPTION_STABLE,
 };
 
 static const sxml_option_definition parse_xml_options[] = {
@@ -489,7 +491,12 @@ static const sxml_option_definition parse_xml_options[] = {
     SXML_JSON_STRING_OPTION("xsd-validation"),
     SXML_JSON_BOOLEAN_OPTION("use-xsi-schema-location"),
     SXML_JSON_BOOLEAN_OPTION("retain-location"),
+    /* fn:doc only: parse-xml reads the definitions before it. */
+    SXML_JSON_BOOLEAN_OPTION("stable"),
 };
+
+/* The definitions fn:parse-xml and fn:parse-xml-fragment read. */
+#define SXML_PARSE_XML_OPTION_COUNT ((size_t)SXML_XML_OPTION_STABLE)
 
 /* Checks the parse-xml options sxml cannot honour: DTD validation and
    XInclude (FODC0013), XSD validation (FODC0009). An unknown strip-space
@@ -659,6 +666,7 @@ static const sxml_tree_builder_operations space_stripper_operations = {
    whitespace-only text stripped when strips_space. */
 typedef struct document_copy_request {
     sxml_node_reference parent;
+    sxml_byte_view document_uri;
     sxml_byte_view base_uri;
     bool strips_space;
 } document_copy_request;
@@ -667,7 +675,7 @@ static sxml_status json_send_copy(const document_copy_request *request,
                                   sxml_tree_builder builder) {
     sxml_status status = builder.operations->start_document(
         builder.state,
-        &(sxml_document_start_event){.document_uri = {.bytes = NULL, .byte_count = 0},
+        &(sxml_document_start_event){.document_uri = request->document_uri,
                                      .base_uri = request->base_uri,
                                      .location = {.source_name = {.bytes = NULL,
                                                                   .byte_count = 0},
@@ -753,6 +761,45 @@ static sxml_status json_copy_into_document(const sxml_function_call *call,
     return SXML_STATUS_OK;
 }
 
+sxml_status sxml_function_library_read_document_options(const sxml_function_call *call,
+                                                       size_t argument_index,
+                                                       sxml_document_options *options) {
+    sxml_option_values values = {.is_present = {false}};
+    sxml_status status = sxml_function_library_read_options(
+        call,
+        &(sxml_option_request){.argument_index = argument_index,
+                               .definitions = {parse_xml_options,
+                                               sizeof(parse_xml_options) /
+                                                   sizeof(parse_xml_options[0])}},
+        &values);
+    xml_space_handling handling = {.strips_space = false};
+    if (status == SXML_STATUS_OK) {
+        status = xml_check_options(call, &values, &handling);
+    }
+    sxml_function_library_release_options(&values);
+    options->strips_space = handling.strips_space;
+    return status;
+}
+
+sxml_status sxml_function_library_strip_document(const sxml_function_call *call,
+                                                 sxml_item document_node, sxml_sequence *result) {
+    sxml_node_reference document;
+    sxml_status status = sxml_item_get_node(document_node, &document);
+    sxml_tree_description description;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_tree_describe(document.tree, &description);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return json_copy_into_document(call,
+                                   &(document_copy_request){.parent = document,
+                                                            .document_uri = description.document_uri,
+                                                            .base_uri = description.base_uri,
+                                                            .strips_space = true},
+                                   result);
+}
+
 /* ---------------------------------------------------- Parsing XML */
 
 /* What a parse function reads: the input bytes and its options. */
@@ -779,9 +826,7 @@ static sxml_status xml_read_input(const sxml_function_call *call, sxml_option_va
     status = sxml_function_library_read_options(
         call,
         &(sxml_option_request){.argument_index = 1,
-                               .definitions = {parse_xml_options,
-                                               sizeof(parse_xml_options) /
-                                                   sizeof(parse_xml_options[0])}},
+                               .definitions = {parse_xml_options, SXML_PARSE_XML_OPTION_COUNT}},
         values);
     xml_space_handling handling = {.strips_space = false};
     if (status == SXML_STATUS_OK) {
@@ -823,9 +868,11 @@ static sxml_status xml_parse_document(const sxml_function_call *call, const xml_
     status = sxml_item_get_node(document_node, &document);
     if (status == SXML_STATUS_OK) {
         status = json_copy_into_document(call,
-                                         &(document_copy_request){.parent = document,
-                                                                  .base_uri = input->base_uri,
-                                                                  .strips_space = true},
+                                         &(document_copy_request){
+                                             .parent = document,
+                                             .document_uri = {.bytes = NULL, .byte_count = 0},
+                                             .base_uri = input->base_uri,
+                                             .strips_space = true},
                                          result);
     }
     sxml_item_release(document_node);
@@ -976,6 +1023,7 @@ static sxml_status call_parse_xml_fragment(const sxml_function_call *call,
             &(document_copy_request){.parent = {.tree = document.tree,
                                                 .node_index = description.first_child,
                                                 .namespace_number = 0},
+                                     .document_uri = {.bytes = NULL, .byte_count = 0},
                                      .base_uri = input.base_uri,
                                      .strips_space = input.strips_space},
             result);

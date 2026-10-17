@@ -1351,6 +1351,13 @@ static void test_doc_and_qname(sxml_test_state *state) {
         {"doc('a.xml')/a/b ! local-name()", "\"b\""},
         {"doc(())", ""},
         {"doc('missing.xml')", "!FODC0002"},
+        /* fn:doc's options are fn:parse-xml's, with stable (packet 2.17). */
+        {"doc('a.xml', {'stable': true(), 'trust-external': false()})/a/b ! local-name()",
+         "\"b\""},
+        {"doc('a.xml', {'strip-space': 'all'})/a/b ! local-name()", "\"b\""},
+        {"doc('a.xml', {'dtd-validation': true()})", "!FODC0013"},
+        {"doc('a.xml', {'xsd-validation': 'strict'})", "!FODC0009"},
+        {"doc('a.xml', {'strip-space': 'some'})", "!XPTY0004"},
         {"QName('http://example.com/', 'p:local') eq QName('http://example.com/', 'local')",
          "true"},
         {"string(QName('http://example.com/', 'p:local'))", "\"p:local\""},

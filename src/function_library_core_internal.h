@@ -401,6 +401,35 @@ bool sxml_function_library_option_is_false(sxml_option_lookup lookup);
 /* The string of a present option of a string type; NULL text otherwise. */
 sxml_string sxml_function_library_option_string(sxml_option_lookup lookup);
 
+/* ---------------------------------------------------- Parsing options */
+
+/* What the XML parsing options of fn:doc, fn:parse-xml and
+   fn:parse-xml-fragment ask for that sxml honours (F&O 4.0, sections
+   17.1.1 and 17.2.1). */
+typedef struct sxml_document_options {
+    /* strip-space="all": whitespace-only text nodes are removed. */
+    bool strips_space;
+} sxml_document_options;
+
+/*
+ * Reads fn:doc's options map from argument argument_index into *options,
+ * defined in src/function_library_json.c: dtd-validation and xinclude true
+ * are FODC0013, xsd-validation other than "skip" FODC0009, a strip-space
+ * value outside the enumeration XPTY0004; stable, trust-external and
+ * the location options are accepted.
+ */
+SXML_NODISCARD sxml_status sxml_function_library_read_document_options(
+    const sxml_function_call *call, size_t argument_index, sxml_document_options *options);
+
+/*
+ * Copies a document node into a new document without the whitespace-only
+ * text nodes outside xml:space="preserve" (strip-space="all"), keeping its
+ * document URI and base URI, and writes it, owned, to *result. Defined in
+ * src/function_library_json.c.
+ */
+SXML_NODISCARD sxml_status sxml_function_library_strip_document(
+    const sxml_function_call *call, sxml_item document_node, sxml_sequence *result);
+
 /* ------------------------------------------------------------ Deep equality */
 
 /*
