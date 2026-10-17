@@ -7,6 +7,7 @@
 #include "environment.h"
 
 #include <stdalign.h>
+#include <string.h>
 
 #include "suite_path.h"
 
@@ -236,6 +237,25 @@ sxml_qt4_read_parameter(const sxml_qt4_environment_reader *reader,
         (sxml_qt4_attribute_name){.element = element,
                                   .local_name = SXML_TEXT("name")},
         &parameter->name);
+    parameter->has_name_namespace = false;
+    parameter->name_namespace_uri = sxml_qt4_empty_text;
+    const uint8_t *colon =
+        status != SXML_STATUS_OK || parameter->name.byte_count == 0
+            ? NULL
+            : memchr(parameter->name.bytes, ':', parameter->name.byte_count);
+    if (colon != NULL) {
+        sxml_qt4_attribute_value bound = {.is_present = false,
+                                          .value = sxml_qt4_empty_text};
+        status = sxml_qt4_document_resolve_prefix(
+            reader->document,
+            (sxml_qt4_prefix_lookup){
+                .element = element,
+                .namespace_prefix = {.bytes = parameter->name.bytes,
+                                     .byte_count = (size_t)(colon - parameter->name.bytes)}},
+            &bound);
+        parameter->has_name_namespace = bound.is_present;
+        parameter->name_namespace_uri = bound.value;
+    }
     if (status == SXML_STATUS_OK) {
         status = sxml_qt4_read_attribute(
             reader,

@@ -53,8 +53,11 @@
 #define SXML_ARENA_TREE_FIRST_SEGMENT_SHIFT 4U
 /* Enough segments for every node index below UINT32_MAX. */
 #define SXML_ARENA_TREE_SEGMENT_COUNT 29U
-/* The arena's block size when it can grow. */
-#define SXML_ARENA_TREE_BLOCK_BYTE_COUNT 65536U
+/* The arena's block size when it can grow. Small: evaluation builds
+   many one-element trees (each XQuery element constructor makes one), and
+   the node segments, which double, outgrow it and get blocks of their
+   own. */
+#define SXML_ARENA_TREE_BLOCK_BYTE_COUNT 4096U
 /* Text store blocks start at the minimum and double up to the maximum,
    unless one pending run needs more. */
 #define SXML_ARENA_TREE_MINIMUM_TEXT_BLOCK_BYTE_COUNT 256U

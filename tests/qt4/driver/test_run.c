@@ -1013,8 +1013,28 @@ static sxml_status sxml_qt4_bind_parameter(sxml_qt4_test_context *context,
                                   .is_declared_by_query =
                                       parameter->is_declared &&
                                       sxml_qt4_runs_xquery(context)};
-    sxml_status status =
-        sxml_qt4_variable_name(context, parameter->name, &variable.variable_name);
+    sxml_status status = SXML_STATUS_OK;
+    if (parameter->has_name_namespace) {
+        /* The prefix is the param element's (prod-VarDecl.external,
+           extvardeclwithtype-24). */
+        sxml_name_pool *name_pool = sxml_processor_get_name_pool(context->processor);
+        const uint8_t *colon = memchr(parameter->name.bytes, ':', parameter->name.byte_count);
+        const size_t prefix_byte_count = (size_t)(colon - parameter->name.bytes);
+        sxml_namespace_uri_identifier namespace_uri = {.index = 0};
+        status = sxml_name_pool_intern_namespace_uri(name_pool, parameter->name_namespace_uri,
+                                                     &namespace_uri);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_name_pool_intern_name(
+                name_pool,
+                &(sxml_name_request){
+                    .namespace_uri = namespace_uri,
+                    .local_name = {.bytes = colon + 1,
+                                   .byte_count = parameter->name.byte_count - prefix_byte_count - 1}},
+                &variable.variable_name);
+        }
+    } else {
+        status = sxml_qt4_variable_name(context, parameter->name, &variable.variable_name);
+    }
     if (status == SXML_STATUS_OK && parameter->declared_type.byte_count != 0) {
         status = sxml_xpath_parse_sequence_type(
             &(sxml_sequence_type_parse_request){
@@ -1158,6 +1178,9 @@ static sxml_status sxml_qt4_apply_environment(sxml_qt4_test_context *context) {
 typedef struct sxml_qt4_test_answer {
     sxml_qt4_test_outcome outcome;
     sxml_qt4_reason reason;
+    /* The query failed for something sxml does not have: an unknown
+       function (XPST0017) or SXML_STATUS_UNSUPPORTED_FEATURE. */
+    bool needs_missing_feature;
 } sxml_qt4_test_answer;
 
 /* Ends the reason with "STAGE[ SUBJECT]: ERROR". */
@@ -1254,6 +1277,10 @@ static void sxml_qt4_evaluate_query(sxml_qt4_test_context *context,
     }
     const sxml_sequence value = query_answer.value;
     sxml_allocator_release(context->allocator, query_contents);
+    answer->needs_missing_feature =
+        status == SXML_STATUS_UNSUPPORTED_FEATURE ||
+        (sxml_status_has_error_record(status) &&
+         sxml_byte_view_equals(context->error_record.code.local_name, SXML_TEXT("XPST0017")));
     if (status != SXML_STATUS_OK && !sxml_status_has_error_record(status)) {
         sxml_xquery_query_destroy(query_answer.query);
         sxml_qt4_describe_failure(context, status, answer);
@@ -1370,6 +1397,7 @@ static void sxml_qt4_run_isolated(const sxml_qt4_test_run_request *request,
     }
     if (budget.live_allocation_count != 0) {
         answer->outcome = SXML_QT4_TEST_OUTCOME_ERROR;
+        answer->needs_missing_feature = false;
         sxml_qt4_reason_append(&answer->reason, SXML_TEXT(" [leaked "));
         sxml_qt4_reason_append_decimal(&answer->reason,
                                        budget.live_allocation_count);
@@ -1405,6 +1433,19 @@ sxml_status sxml_qt4_run_test_case(const sxml_qt4_test_run_request *request,
         }
     } else {
         sxml_qt4_run_isolated(request, &answer);
+    }
+    if (!applicability.is_in_scope && answer.needs_missing_feature &&
+        (answer.outcome == SXML_QT4_TEST_OUTCOME_FAIL ||
+         answer.outcome == SXML_QT4_TEST_OUTCOME_ERROR) &&
+        sxml_qt4_reason_start(request->arena, &answer.reason) == SXML_STATUS_OK) {
+        /* A test of a non-goal (D95, D97) that stops at the missing
+           feature is not run, as a dependency would have said; any other
+           outcome of such a test (a leak, a crash, a wrong result) stays. */
+        answer.outcome = SXML_QT4_TEST_OUTCOME_NOT_RUN;
+        sxml_qt4_reason_append(&answer.reason, SXML_TEXT("skip: needs the non-goal "));
+        sxml_qt4_reason_append(&answer.reason, applicability.non_goal_kind);
+        sxml_qt4_reason_append(&answer.reason, SXML_TEXT(" "));
+        sxml_qt4_reason_append(&answer.reason, applicability.non_goal);
     }
     *result = (sxml_qt4_test_result){
         .outcome = answer.outcome,

@@ -60,6 +60,10 @@ typedef struct sxml_qt4_source_view {
 typedef struct sxml_qt4_parameter {
     /* The variable's QName as written, without "$". */
     sxml_byte_view name;
+    /* The namespace its prefix has on the param element, when it has a
+       prefix bound there (catalog-schema.xsd: the name is a QName). */
+    bool has_name_namespace;
+    sxml_byte_view name_namespace_uri;
     /* An XPath expression giving the value; empty for none. */
     sxml_byte_view select;
     /* The declared SequenceType as text (D51,
