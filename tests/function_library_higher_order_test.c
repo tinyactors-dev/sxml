@@ -1291,9 +1291,80 @@ static void test_map_functions(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, fails_with("map:merge(({1: 2}, {1: 3}), "
                                        "{'duplicates': 'reject'})",
                                        "FOJS0003"));
+    /* Earlier maps merged into a later, larger one keep the entry order
+       and the duplicates policy of F&O 4.0, 14.4.12 (D90). */
+    SXML_TEST_EXPECT(state, evaluates_to("let $large := map:merge((2 to 10) ! {.: .}) return "
+                                         "(map:keys(map:merge(({1: 'a', 5: 'x'}, $large))), "
+                                         "map:merge(({1: 'a', 5: 'x'}, $large))?5, "
+                                         "map:merge(({1: 'a', 5: 'x'}, $large), "
+                                         "{'duplicates': 'use-last'})?5, "
+                                         "map:merge(({1: 'a', 5: 'x'}, $large), "
+                                         "{'duplicates': 'combine'})?5)",
+                                         "1 5 2 3 4 6 7 8 9 10 x 5 x 5"));
+    SXML_TEST_EXPECT(state, evaluates_to("let $m := map:merge(({5: 'p'}, {1: 'a', 5: 'x'}, "
+                                         "map:merge((2 to 10) ! {.: .}), {11: 'k', 5: 'z'}), "
+                                         "{'duplicates': 'combine'}) return (map:keys($m), "
+                                         "$m?5)",
+                                         "5 1 2 3 4 6 7 8 9 10 11 p x 5 z"));
+    SXML_TEST_EXPECT(state, evaluates_to("let $m := map:merge(({5: 'p'}, {1: 'a', 5: 'x'}, "
+                                         "map:merge((2 to 10) ! {.: .}), {11: 'k', 5: 'z'}), "
+                                         "{'duplicates': 'use-last'}) return (map:keys($m), "
+                                         "$m?5)",
+                                         "5 1 2 3 4 6 7 8 9 10 11 z"));
+    SXML_TEST_EXPECT(state, evaluates_to("map:merge(({5: 'p'}, map:merge((1 to 10) ! {.: .})), "
+                                         "{'duplicates': fn($a, $b) { $a || $b }})?5",
+                                         "p5"));
+    SXML_TEST_EXPECT(state, fails_with("map:merge(({5: 'p'}, map:merge((1 to 10) ! {.: .})), "
+                                       "{'duplicates': 'reject'})",
+                                       "FOJS0003"));
+    SXML_TEST_EXPECT(state, evaluates_to("map:keys(map:merge(({0: 0, 9: 0}, {1: 1, 2: 2, 3: "
+                                         "3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8, 9: 9})))",
+                                         "0 9 1 2 3 4 5 6 7 8"));
+    SXML_TEST_EXPECT(state, evaluates_to("map:keys(map:merge(({3: 0, 1: 0}, {2: 0}, "
+                                         "{1: 0, 2: 0, 4: 0})))",
+                                         "3 1 2 4"));
     SXML_TEST_EXPECT(state, evaluates_to("map:size(map:merge(for $i in 1 to 1000 return "
                                          "map:entry($i mod 100, $i)))",
                                          "100"));
+}
+
+/*
+ * Repeated merges and puts stay O(n log n) overall (D90): map:merge starts
+ * from its largest map, so a fold step that merges one entry into the
+ * accumulator, on either side, costs O(log n). 10,000 steps take about a
+ * second under ASan; the quadratic merge took 6 to 18 s for 1,000 (the QT4
+ * seed of duplicates-maps-2) and would pass ctest's timeout here.
+ */
+static void test_map_merge_scales(sxml_test_state *state) {
+    SXML_TEST_EXPECT(state, evaluates_to("map:size(fold-left(1 to 10000, map{}, "
+                                         "fn($m, $i) { map:merge(($m, map{$i: $i})) }))",
+                                         "10000"));
+    SXML_TEST_EXPECT(state, evaluates_to("let $m := fold-left(1 to 10000, map{}, fn($m, $i) "
+                                         "{ map:merge((map{$i: $i}, $m)) }), $keys := "
+                                         "map:keys($m) return ($keys[1], $keys[10000], "
+                                         "map:size($m))",
+                                         "10000 1 10000"));
+    SXML_TEST_EXPECT(state, evaluates_to("map:size(fold-left(1 to 2000, map{}, "
+                                         "fn($m, $i) { map:merge(($m, map{$i mod 7: $i}), "
+                                         "{'duplicates': 'use-last'}) }))",
+                                         "7"));
+    SXML_TEST_EXPECT(state, evaluates_to("let $keys := map:keys(fold-left(1 to 2000, map{}, "
+                                         "fn($m, $i) { map:merge(($m, map{$i: $i, -$i: $i})) "
+                                         "})) return ($keys[1], $keys[2], $keys[3999], "
+                                         "$keys[4000])",
+                                         "1 -1 2000 -2000"));
+    /* duplicates-maps-2. */
+    SXML_TEST_EXPECT(state, evaluates_to("let $counts := fold-left((1 to 1000, 1, 1), map{}, "
+                                         "fn($sofar, $this) { let $seen := ($sofar($this), "
+                                         "0)[1] return map:merge((map{$this: $seen + 1}, "
+                                         "$sofar)) }) return map:keys($counts)[$counts(.) gt 1]",
+                                         "1"));
+    SXML_TEST_EXPECT(state, evaluates_to("map:size(map:merge(for $i in 1 to 10000 return "
+                                         "map{$i: $i}))",
+                                         "10000"));
+    SXML_TEST_EXPECT(state, evaluates_to("map:size(fold-left(1 to 10000, map{}, "
+                                         "fn($m, $i) { map:put($m, $i, $i) }))",
+                                         "10000"));
 }
 
 /* ----------------------------------------------------- Arrays (slice) */
@@ -1512,6 +1583,7 @@ static const sxml_test_case higher_order_test_cases[] = {
     {.name = "transitive_closure", .function = test_transitive_closure},
     {.name = "map_slice_lines", .function = test_map_slice_lines},
     {.name = "map_functions", .function = test_map_functions},
+    {.name = "map_merge_scales", .function = test_map_merge_scales},
     {.name = "array_slice_lines", .function = test_array_slice_lines},
     {.name = "array_functions", .function = test_array_functions},
     {.name = "nested_native_steps_use_no_c_stack",

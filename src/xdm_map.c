@@ -22,6 +22,7 @@
  */
 #include "sxml/xdm.h"
 #include "xdm_internal.h"
+#include "xdm_map_internal.h"
 
 #include <stdalign.h>
 #include <stdbool.h>
@@ -39,6 +40,14 @@
 /* The first hash index size: twice the entries of the smallest indexed
    block, rounded up to a power of two. */
 #define SXML_MAP_MINIMUM_HASH_SLOT_COUNT 32
+
+/*
+ * The stamp of the first entry of a persistent map made from an entry
+ * block or record. Entries put last get stamps above it, entries put first
+ * (sxml_map_put_first) stamps below it; every stamp costs a cell, so
+ * neither side runs out.
+ */
+#define SXML_MAP_MIDDLE_ENTRY_STAMP (UINT64_C(1) << 63)
 
 static const sxml_static_error sxml_map_duplicate_key_error = {
     .error_status = SXML_STATUS_DYNAMIC_ERROR,
@@ -91,7 +100,10 @@ typedef struct sxml_persistent_map {
     sxml_map_node *entry_root;
     /* Ordered by key hash, then entry stamp. */
     sxml_map_node *key_root;
+    /* The stamp of the next entry put last. */
     uint64_t next_entry_stamp;
+    /* The stamp of the next entry put first. */
+    uint64_t previous_entry_stamp;
 } sxml_persistent_map;
 
 /* A record: one value per field of its record type, in field order. */
@@ -1147,6 +1159,7 @@ typedef struct sxml_persistent_map_parts {
     sxml_map_node *entry_root;
     sxml_map_node *key_root;
     uint64_t next_entry_stamp;
+    uint64_t previous_entry_stamp;
 } sxml_persistent_map_parts;
 
 /* Makes a persistent map and writes it, owned, to *map. Takes the roots,
@@ -1171,6 +1184,7 @@ sxml_persistent_map_make_taking(sxml_item_heap *item_heap,
     persistent_map->entry_root = parts->entry_root;
     persistent_map->key_root = parts->key_root;
     persistent_map->next_entry_stamp = parts->next_entry_stamp;
+    persistent_map->previous_entry_stamp = parts->previous_entry_stamp;
     *map = sxml_map_item_from_cell(cell,
                                    sxml_builtin_type_identifier(SXML_TYPE_MAP));
     return SXML_STATUS_OK;
@@ -1260,14 +1274,17 @@ static sxml_status sxml_persistent_map_make_from(sxml_item_heap *item_heap,
         if (status == SXML_STATUS_OK) {
             parts[entry_index] = (sxml_map_node_parts){
                 .entry = entry,
-                .entry_stamp = entry_index,
+                .entry_stamp = SXML_MAP_MIDDLE_ENTRY_STAMP + entry_index,
                 .key_hash = sxml_atomic_item_hash(entry.key),
                 .left = NULL,
                 .right = NULL};
         }
     }
     sxml_persistent_map_parts trees = {
-        .entry_root = NULL, .key_root = NULL, .next_entry_stamp = entry_count};
+        .entry_root = NULL,
+        .key_root = NULL,
+        .next_entry_stamp = SXML_MAP_MIDDLE_ENTRY_STAMP + entry_count,
+        .previous_entry_stamp = SXML_MAP_MIDDLE_ENTRY_STAMP - 1};
     if (status == SXML_STATUS_OK) {
         status = sxml_persistent_map_build(
             item_heap,
@@ -1284,39 +1301,30 @@ static sxml_status sxml_persistent_map_make_from(sxml_item_heap *item_heap,
     return sxml_persistent_map_make_taking(item_heap, &trees, persistent_map);
 }
 
-static sxml_status sxml_persistent_map_put(sxml_item_heap *item_heap,
-                                           const sxml_map_update *update,
-                                           sxml_item *map) {
+/* A new key to add to a persistent map, first or last. */
+typedef struct sxml_persistent_map_insertion {
+    /* update->map is a persistent map without update->key. */
+    const sxml_map_update *update;
+    uint64_t key_hash;
+    bool is_first;
+} sxml_persistent_map_insertion;
+
+static sxml_status
+sxml_persistent_map_insert(sxml_item_heap *item_heap,
+                           const sxml_persistent_map_insertion *insertion,
+                           sxml_item *map) {
+    const sxml_map_update *update = insertion->update;
     const sxml_persistent_map *old_map = sxml_persistent_map_of(update->map);
-    sxml_key_search search = {.key = update->key,
-                              .key_hash = sxml_atomic_item_hash(update->key)};
-    const sxml_map_node *key_node =
-        sxml_key_tree_find(old_map->key_root, &search);
-    sxml_persistent_map_parts trees = {.entry_root = NULL,
-                                       .key_root = NULL,
-                                       .next_entry_stamp =
-                                           old_map->next_entry_stamp};
-    if (key_node != NULL) {
-        /* The entry keeps its key and position; which key a replaced entry
-           keeps is implementation-dependent (F&O 4.0, map:put). */
-        sxml_status status = sxml_entry_tree_replace_value(
-            item_heap,
-            &(sxml_entry_tree_replacement){.root = old_map->entry_root,
-                                           .entry_stamp = key_node->entry_stamp,
-                                           .value = update->value},
-            &trees.entry_root);
-        if (status != SXML_STATUS_OK) {
-            return status;
-        }
-        trees.key_root = old_map->key_root;
-        sxml_map_node_retain(trees.key_root);
-        return sxml_persistent_map_make_taking(item_heap, &trees, map);
-    }
-    /* A new key goes last (XDM 4.0, section 8.2.2, dm:map-put). */
+    sxml_persistent_map_parts trees = {
+        .entry_root = NULL,
+        .key_root = NULL,
+        .next_entry_stamp = old_map->next_entry_stamp,
+        .previous_entry_stamp = old_map->previous_entry_stamp};
     sxml_map_node_parts parts = {
         .entry = {.key = update->key, .value = update->value},
-        .entry_stamp = old_map->next_entry_stamp,
-        .key_hash = search.key_hash,
+        .entry_stamp = insertion->is_first ? old_map->previous_entry_stamp
+                                           : old_map->next_entry_stamp,
+        .key_hash = insertion->key_hash,
         .left = NULL,
         .right = NULL};
     sxml_status status = sxml_map_tree_insert(
@@ -1339,8 +1347,49 @@ static sxml_status sxml_persistent_map_put(sxml_item_heap *item_heap,
         sxml_map_node_release(trees.entry_root);
         return status;
     }
-    trees.next_entry_stamp += 1;
+    if (insertion->is_first) {
+        trees.previous_entry_stamp -= 1;
+    } else {
+        trees.next_entry_stamp += 1;
+    }
     return sxml_persistent_map_make_taking(item_heap, &trees, map);
+}
+
+static sxml_status sxml_persistent_map_put(sxml_item_heap *item_heap,
+                                           const sxml_map_update *update,
+                                           sxml_item *map) {
+    const sxml_persistent_map *old_map = sxml_persistent_map_of(update->map);
+    sxml_key_search search = {.key = update->key,
+                              .key_hash = sxml_atomic_item_hash(update->key)};
+    const sxml_map_node *key_node =
+        sxml_key_tree_find(old_map->key_root, &search);
+    sxml_persistent_map_parts trees = {
+        .entry_root = NULL,
+        .key_root = NULL,
+        .next_entry_stamp = old_map->next_entry_stamp,
+        .previous_entry_stamp = old_map->previous_entry_stamp};
+    if (key_node != NULL) {
+        /* The entry keeps its key and position; which key a replaced entry
+           keeps is implementation-dependent (F&O 4.0, map:put). */
+        sxml_status status = sxml_entry_tree_replace_value(
+            item_heap,
+            &(sxml_entry_tree_replacement){.root = old_map->entry_root,
+                                           .entry_stamp = key_node->entry_stamp,
+                                           .value = update->value},
+            &trees.entry_root);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        trees.key_root = old_map->key_root;
+        sxml_map_node_retain(trees.key_root);
+        return sxml_persistent_map_make_taking(item_heap, &trees, map);
+    }
+    /* A new key goes last (XDM 4.0, section 8.2.2, dm:map-put). */
+    return sxml_persistent_map_insert(
+        item_heap,
+        &(sxml_persistent_map_insertion){
+            .update = update, .key_hash = search.key_hash, .is_first = false},
+        map);
 }
 
 /* Removes update->key from the persistent map update->map. */
@@ -1357,10 +1406,11 @@ static sxml_status sxml_persistent_map_remove(sxml_item_heap *item_heap,
         *map = update->map;
         return SXML_STATUS_OK;
     }
-    sxml_persistent_map_parts trees = {.entry_root = NULL,
-                                       .key_root = NULL,
-                                       .next_entry_stamp =
-                                           old_map->next_entry_stamp};
+    sxml_persistent_map_parts trees = {
+        .entry_root = NULL,
+        .key_root = NULL,
+        .next_entry_stamp = old_map->next_entry_stamp,
+        .previous_entry_stamp = old_map->previous_entry_stamp};
     sxml_map_tree_position position = {.tree_kind = SXML_MAP_TREE_KIND_ENTRY,
                                        .entry_stamp = key_node->entry_stamp,
                                        .key_hash = key_node->key_hash};
@@ -1861,4 +1911,104 @@ sxml_status sxml_map_remove(sxml_item_heap *item_heap,
         &(sxml_map_change){.update = update,
                            .change_kind = SXML_MAP_CHANGE_KIND_REMOVE},
         map);
+}
+
+/* Copies the small map update->map with update's entry first and without
+   lookup's entry (the one with update->key, if any) into a new block. */
+static sxml_status
+sxml_small_map_put_first(sxml_item_heap *item_heap,
+                         const sxml_small_map_change *change,
+                         sxml_item *map) {
+    sxml_map_entry entries[SXML_MAP_SMALL_ENTRY_COUNT];
+    entries[0] = (sxml_map_entry){.key = change->update->key,
+                                  .value = change->update->value};
+    size_t entry_count = 1;
+    size_t old_entry_count = 0;
+    sxml_status status =
+        sxml_map_get_size(change->update->map, &old_entry_count);
+    for (size_t entry_index = 0;
+         status == SXML_STATUS_OK && entry_index < old_entry_count;
+         entry_index += 1) {
+        if (change->lookup.is_found &&
+            entry_index == change->lookup.entry_index) {
+            continue;
+        }
+        status = sxml_map_get_entry(change->update->map, entry_index,
+                                    &entries[entry_count]);
+        entry_count += 1;
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_map_make(
+        item_heap,
+        &(sxml_map_request){.map_entries = {.map_entries = entries,
+                                            .map_entry_count = entry_count},
+                            .duplicate_key_policy =
+                                SXML_DUPLICATE_KEY_POLICY_USE_FIRST,
+                            .error_record = NULL},
+        map);
+}
+
+/* sxml_map_put_first on a persistent map. */
+static sxml_status sxml_persistent_map_put_first(sxml_item_heap *item_heap,
+                                                 const sxml_map_update *update,
+                                                 sxml_item *map) {
+    sxml_item without_key = {.representation = 0};
+    sxml_status status =
+        sxml_persistent_map_remove(item_heap, update, &without_key);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_map_update insertion_update = *update;
+    insertion_update.map = without_key;
+    status = sxml_persistent_map_insert(
+        item_heap,
+        &(sxml_persistent_map_insertion){
+            .update = &insertion_update,
+            .key_hash = sxml_atomic_item_hash(update->key),
+            .is_first = true},
+        map);
+    sxml_item_release(without_key);
+    return status;
+}
+
+sxml_status sxml_map_put_first(sxml_item_heap *item_heap,
+                               const sxml_map_update *update,
+                               sxml_item *map) {
+    if (sxml_map_get_variety(update->map) == SXML_MAP_VARIETY_NOT_A_MAP ||
+        !sxml_item_is_atomic(update->key)) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    if (sxml_map_get_variety(update->map) == SXML_MAP_VARIETY_PERSISTENT_MAP) {
+        return sxml_persistent_map_put_first(item_heap, update, map);
+    }
+    sxml_map_lookup lookup;
+    sxml_status status = sxml_map_find(update->map, update->key, &lookup);
+    size_t entry_count = 0;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_map_get_size(update->map, &entry_count);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    const size_t result_count = lookup.is_found ? entry_count : entry_count + 1;
+    if (result_count <= SXML_MAP_SMALL_ENTRY_COUNT) {
+        return sxml_small_map_put_first(
+            item_heap,
+            &(sxml_small_map_change){
+                .update = update, .lookup = lookup, .is_removal = false},
+            map);
+    }
+    sxml_item persistent_map = {.representation = 0};
+    status =
+        sxml_persistent_map_make_from(item_heap, update->map, &persistent_map);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_map_update persistent_update = *update;
+    persistent_update.map = persistent_map;
+    status = sxml_persistent_map_put_first(item_heap, &persistent_update, map);
+    sxml_item_release(persistent_map);
+    return status;
 }

@@ -14,6 +14,7 @@
 
 #include "evaluator_internal.h"
 #include "xdm_internal.h"
+#include "xdm_map_internal.h"
 #include "sxml/name.h"
 #include "sxml/types.h"
 
@@ -538,6 +539,8 @@ static sxml_status read_duplicates_option(const sxml_function_call *call,
                                           SXML_HIGHER_ORDER_ERROR_INVALID_OPTION);
 }
 
+static sxml_status merge_into_largest(assembly_state *state, const sxml_function_call *call);
+
 static sxml_status assembly_start(assembly_state *state, const sxml_function_call *call,
                                   assembly_kind kind) {
     const bool is_merge = kind == SXML_ASSEMBLY_KIND_MERGE;
@@ -556,6 +559,9 @@ static sxml_status assembly_start(assembly_state *state, const sxml_function_cal
                                 .duplicate_key_policy = SXML_DUPLICATE_KEY_POLICY_REJECT,
                                 .error_record = call->error_record},
             &state->map);
+    }
+    if (status == SXML_STATUS_OK && is_merge) {
+        status = merge_into_largest(state, call);
     }
     return status;
 }
@@ -643,6 +649,169 @@ static sxml_status assembly_insert(assembly_state *state, const sxml_function_ca
     }
 }
 
+/*
+ * Merging into the largest map (D90). Without a duplicates function,
+ * combining two values of a key is associative (use-first, use-last,
+ * use-any and combine) and makes no call, so map:merge can start from its
+ * largest map L instead of from the empty map: the entries of the maps
+ * before L are put first, last entry first (an earlier map's entry, met
+ * later, takes the front and keeps its key, as when inserted first), and
+ * the maps after L are inserted as usual. The result is the map of F&O
+ * 4.0, 14.4.12, entry order included, in O(m log n) for the m entries
+ * outside L, so a fold that merges a small map into its accumulator, on
+ * either side, is O(n log n) overall.
+ */
+
+/* An earlier entry's value and a later one's, of the same key. */
+typedef struct duplicate_values {
+    duplicates_policy policy;
+    sxml_sequence earlier;
+    sxml_sequence later;
+} duplicate_values;
+
+/* The value the two give under their policy (F&O 4.0, 14.4.1); *combined
+   is owned. */
+static sxml_status combine_duplicate_values(const sxml_function_call *call,
+                                            const duplicate_values *values,
+                                            sxml_sequence *combined) {
+    switch (values->policy) {
+    case SXML_DUPLICATES_POLICY_USE_FIRST:
+    case SXML_DUPLICATES_POLICY_USE_ANY:
+        sxml_sequence_retain(values->earlier);
+        *combined = values->earlier;
+        return SXML_STATUS_OK;
+    case SXML_DUPLICATES_POLICY_USE_LAST:
+        sxml_sequence_retain(values->later);
+        *combined = values->later;
+        return SXML_STATUS_OK;
+    case SXML_DUPLICATES_POLICY_COMBINE: {
+        const sxml_sequence parts[2] = {values->earlier, values->later};
+        return sxml_sequence_concatenate(
+            call->item_heap, (sxml_sequence_view){.sequences = parts, .sequence_count = 2},
+            combined);
+    }
+    case SXML_DUPLICATES_POLICY_REJECT:
+        return sxml_higher_order_report_error(call->error_record,
+                                              SXML_HIGHER_ORDER_ERROR_DUPLICATE_KEY);
+    case SXML_DUPLICATES_POLICY_FUNCTION:
+        break;
+    }
+    return SXML_STATUS_INVALID_ARGUMENT;
+}
+
+/* Puts entry (borrowed) first into the map so far, combining it with the
+   entry of an equal key from a later map. */
+static sxml_status merge_put_first(assembly_state *state, const sxml_function_call *call,
+                                   sxml_map_entry entry) {
+    sxml_map_lookup lookup;
+    sxml_status status = sxml_map_find(state->map, entry.key, &lookup);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_sequence value = entry.value;
+    sxml_sequence_retain(value);
+    if (lookup.is_found) {
+        sxml_sequence_release(value);
+        status = combine_duplicate_values(call,
+                                          &(duplicate_values){.policy = state->policy,
+                                                              .earlier = entry.value,
+                                                              .later = lookup.entry.value},
+                                          &value);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+    }
+    sxml_item larger = {.representation = 0};
+    status = sxml_map_put_first(
+        call->item_heap,
+        &(sxml_map_update){.map = state->map, .key = entry.key, .value = value}, &larger);
+    sxml_sequence_release(value);
+    if (status == SXML_STATUS_OK) {
+        sxml_item_release(state->map);
+        state->map = larger;
+    }
+    return status;
+}
+
+/* Finds the first largest of map:merge's maps: *largest_index. */
+static sxml_status merge_find_largest(const assembly_state *state,
+                                      const sxml_function_call *call,
+                                      uint64_t *largest_index) {
+    sxml_sequence_iterator iterator = state->iterator;
+    size_t largest_count = 0;
+    *largest_index = 0;
+    for (uint64_t map_index = 0;; map_index += 1) {
+        sxml_iteration_step map_step;
+        sxml_status status = sxml_sequence_iterator_next(&iterator, call->error_record, &map_step);
+        if (status != SXML_STATUS_OK || !map_step.has_item) {
+            return status;
+        }
+        size_t entry_count = 0;
+        status = sxml_map_get_size(map_step.item, &entry_count);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        if (entry_count > largest_count) {
+            largest_count = entry_count;
+            *largest_index = map_index;
+        }
+    }
+}
+
+/* Starts map:merge from its largest map when that is not the first and
+   no call is needed; the iterator then stands after the largest map. */
+static sxml_status merge_into_largest(assembly_state *state, const sxml_function_call *call) {
+    if (state->policy == SXML_DUPLICATES_POLICY_FUNCTION) {
+        return SXML_STATUS_OK;
+    }
+    uint64_t largest_index = 0;
+    sxml_status status = merge_find_largest(state, call, &largest_index);
+    if (status != SXML_STATUS_OK || largest_index == 0) {
+        return status;
+    }
+    const sxml_sequence maps = map_argument(call, 0);
+    sxml_item largest = {.representation = 0};
+    status = sxml_sequence_get_item(
+        maps, (sxml_item_request){.item_index = largest_index, .error_record = call->error_record},
+        &largest);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_item_retain(largest);
+    sxml_item_release(state->map);
+    state->map = largest;
+    for (uint64_t map_number = largest_index; map_number > 0; map_number -= 1) {
+        sxml_item map = {.representation = 0};
+        status = sxml_sequence_get_item(
+            maps,
+            (sxml_item_request){.item_index = map_number - 1, .error_record = call->error_record},
+            &map);
+        size_t entry_count = 0;
+        if (status == SXML_STATUS_OK) {
+            status = sxml_map_get_size(map, &entry_count);
+        }
+        for (size_t entry_number = entry_count; status == SXML_STATUS_OK && entry_number > 0;
+             entry_number -= 1) {
+            sxml_map_entry entry;
+            status = sxml_map_get_entry(map, entry_number - 1, &entry);
+            if (status == SXML_STATUS_OK) {
+                status = merge_put_first(state, call, entry);
+            }
+        }
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+    }
+    for (uint64_t map_index = 0; map_index <= largest_index; map_index += 1) {
+        sxml_iteration_step map_step;
+        status = sxml_sequence_iterator_next(&state->iterator, call->error_record, &map_step);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+    }
+    return SXML_STATUS_OK;
+}
+
 /* Moves to the next entry of map:merge's maps; *has_next false at the
    end. Sets keys and value. */
 static sxml_status merge_next_entry(assembly_state *state, const sxml_function_call *call,
@@ -660,6 +829,22 @@ static sxml_status merge_next_entry(assembly_state *state, const sxml_function_c
         status = sxml_map_get_size(state->current_map, &state->entry_count);
         if (status != SXML_STATUS_OK) {
             return status;
+        }
+        /* While the map so far is empty, inserting the entries of one map
+           in order meets no duplicate key under any policy and gives that
+           map's entries in its order (F&O 4.0, 14.4.12), so the map is
+           taken as it is. Without this, each step of a fold that merges
+           into its accumulator would copy it: O(n^2) overall. */
+        size_t assembled_count = 0;
+        status = sxml_map_get_size(state->map, &assembled_count);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        if (assembled_count == 0 && state->entry_count != 0) {
+            sxml_item_retain(state->current_map);
+            sxml_item_release(state->map);
+            state->map = state->current_map;
+            state->entry_index = state->entry_count;
         }
     }
     sxml_map_entry entry;
