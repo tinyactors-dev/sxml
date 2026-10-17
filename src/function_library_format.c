@@ -24,6 +24,7 @@
 #include "format_internal.h"
 #include "function_library_core_internal.h"
 #include "sxml/types.h"
+#include "xslt_number_internal.h"
 
 #include <math.h>
 #include <string.h>
@@ -782,6 +783,302 @@ static sxml_status call_format_number(const sxml_function_call *call, sxml_seque
     release_options(&options);
     return status;
 }
+
+/* ------------------------------------------------- xsl:number's place marker */
+
+static const sxml_static_error invalid_number_attribute_error = {
+    .error_status = SXML_STATUS_DYNAMIC_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XTDE0030"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "An attribute of xsl:number (grouping-size, lang or letter-value) has a value that is "
+        "not allowed (XSLT 4.0, 12.4)"),
+};
+
+static bool is_number_space(uint8_t byte) {
+    return byte == ' ' || byte == '\t' || byte == '\n' || byte == '\r';
+}
+
+static sxml_byte_view trim_number_spaces(sxml_byte_view text) {
+    while (text.byte_count > 0 && is_number_space(text.bytes[0])) {
+        text = (sxml_byte_view){.bytes = text.bytes + 1, .byte_count = text.byte_count - 1};
+    }
+    while (text.byte_count > 0 && is_number_space(text.bytes[text.byte_count - 1])) {
+        text.byte_count -= 1;
+    }
+    return text;
+}
+
+/* An optional xs:string argument: has_text false for the empty sequence. */
+typedef struct optional_text {
+    bool has_text;
+    sxml_byte_view text;
+} optional_text;
+
+static sxml_status read_optional_text(const sxml_function_call *call, size_t argument_index,
+                                      optional_text *text) {
+    *text = (optional_text){.has_text = false, .text = {.bytes = NULL, .byte_count = 0}};
+    sxml_optional_item item = {.has_item = false};
+    sxml_status status = sxml_function_library_read_optional_item(call, argument_index, &item);
+    if (status != SXML_STATUS_OK || !item.has_item) {
+        return status;
+    }
+    sxml_string string = {.utf8 = {.bytes = NULL, .byte_count = 0}};
+    status = sxml_function_library_read_string_argument(call, argument_index, &string);
+    if (status == SXML_STATUS_OK) {
+        *text = (optional_text){.has_text = true, .text = string.utf8};
+    }
+    return status;
+}
+
+/* grouping-size: the lexical space of xs:integer (12.4); a size of zero
+   or less (and an absurdly large one) inserts no separators. */
+static bool read_grouping_size(sxml_byte_view text, size_t *grouping_size) {
+    sxml_byte_view digits = trim_number_spaces(text);
+    bool is_negative = false;
+    if (digits.byte_count > 0 && (digits.bytes[0] == '-' || digits.bytes[0] == '+')) {
+        is_negative = digits.bytes[0] == '-';
+        digits = (sxml_byte_view){.bytes = digits.bytes + 1, .byte_count = digits.byte_count - 1};
+    }
+    if (digits.byte_count == 0) {
+        return false;
+    }
+    size_t size = 0;
+    for (size_t digit_index = 0; digit_index < digits.byte_count; digit_index += 1) {
+        const uint8_t digit = digits.bytes[digit_index];
+        if (digit < '0' || digit > '9') {
+            return false;
+        }
+        size = size > (SIZE_MAX - 9U) / 10U ? 0 : size * 10U + (size_t)(digit - '0');
+    }
+    *grouping_size = is_negative ? 0 : size;
+    return true;
+}
+
+static bool is_ascii_alphanumeric(uint8_t byte, bool allows_digits) {
+    return (byte >= 'a' && byte <= 'z') || (byte >= 'A' && byte <= 'Z') ||
+           (allows_digits && byte >= '0' && byte <= '9');
+}
+
+/* lang: an xs:language ([a-zA-Z]{1,8}(-[a-zA-Z0-9]{1,8})*) or "" (12.4). */
+static bool is_language_or_empty(sxml_byte_view text) {
+    const sxml_byte_view language = trim_number_spaces(text);
+    size_t part_length = 0;
+    size_t part_count = 0;
+    for (size_t byte_index = 0; byte_index <= language.byte_count; byte_index += 1) {
+        if (byte_index == language.byte_count || language.bytes[byte_index] == '-') {
+            if (part_length == 0 && language.byte_count > 0) {
+                return false;
+            }
+            part_length = 0;
+            part_count += 1;
+            continue;
+        }
+        part_length += 1;
+        if (part_length > 8 ||
+            !is_ascii_alphanumeric(language.bytes[byte_index], part_count > 0)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/* The decimal digits of an xs:integer item and its sign. */
+typedef struct place_marker_number {
+    integer_digits small_digits;
+    sxml_byte_view magnitude_digits;
+    bool is_negative;
+} place_marker_number;
+
+static sxml_status read_place_marker_number(sxml_item item, place_marker_number *number) {
+    sxml_atomic_datum datum;
+    const sxml_status status = sxml_atomic_item_get_datum(item, &datum);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (datum.datum_kind == SXML_DATUM_KIND_INTEGER) {
+        write_integer_digits(datum.datum_details.integer, &number->small_digits);
+        number->magnitude_digits = number->small_digits.view;
+        number->is_negative = datum.datum_details.integer < 0;
+        return SXML_STATUS_OK;
+    }
+    if (datum.datum_kind == SXML_DATUM_KIND_DECIMAL) {
+        number->magnitude_digits = decimal_magnitude(datum.datum_details.decimal_text);
+        number->is_negative =
+            number->magnitude_digits.byte_count != datum.datum_details.decimal_text.byte_count;
+        return SXML_STATUS_OK;
+    }
+    /* Lowering passes xs:integer values only. */
+    return SXML_STATUS_INVALID_ARGUMENT;
+}
+
+/* The settings of 12.4 every number of the place marker is formatted
+   with. */
+typedef struct place_marker_settings {
+    sxml_byte_view format;
+    sxml_byte_view grouping_separator;
+    size_t grouping_size;
+    bool is_ordinal;
+} place_marker_settings;
+
+static sxml_status read_place_marker_settings(const sxml_function_call *call,
+                                              place_marker_settings *settings) {
+    sxml_string format = {.utf8 = {.bytes = NULL, .byte_count = 0}};
+    sxml_status status = sxml_function_library_read_string_argument(call, 1, &format);
+    optional_text texts[5];
+    for (size_t text_index = 0; status == SXML_STATUS_OK && text_index < 5; text_index += 1) {
+        status = read_optional_text(call, text_index + 2, &texts[text_index]);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    const optional_text separator = texts[0];
+    const optional_text size = texts[1];
+    const optional_text ordinal = texts[2];
+    const optional_text language = texts[3];
+    const optional_text letter_value = texts[4];
+    *settings = (place_marker_settings){.format = format.utf8,
+                                        .grouping_separator = separator.text,
+                                        .grouping_size = 0,
+                                        .is_ordinal = false};
+    size_t grouping_size = 0;
+    if (size.has_text && !read_grouping_size(size.text, &grouping_size)) {
+        return sxml_function_library_report(call, &invalid_number_attribute_error);
+    }
+    if ((language.has_text && !is_language_or_empty(language.text)) ||
+        (letter_value.has_text &&
+         !sxml_byte_view_equals(trim_number_spaces(letter_value.text),
+                                SXML_BYTE_VIEW_FROM_LITERAL("alphabetic")) &&
+         !sxml_byte_view_equals(trim_number_spaces(letter_value.text),
+                                SXML_BYTE_VIEW_FROM_LITERAL("traditional")))) {
+        return sxml_function_library_report(call, &invalid_number_attribute_error);
+    }
+    /* "If only one of the grouping-separator and grouping-size attributes
+       is specified, then it is ignored." */
+    if (separator.has_text && size.has_text) {
+        settings->grouping_size = grouping_size;
+    }
+    /* Cardinal for absent, "", "no", "0" and "false"; any other value asks
+       for the English ordinal (the only language, D97). */
+    const sxml_byte_view ordinal_text = trim_number_spaces(ordinal.text);
+    settings->is_ordinal =
+        ordinal.has_text && ordinal_text.byte_count > 0 &&
+        !sxml_byte_view_equals(ordinal_text, SXML_BYTE_VIEW_FROM_LITERAL("no")) &&
+        !sxml_byte_view_equals(ordinal_text, SXML_BYTE_VIEW_FROM_LITERAL("0")) &&
+        !sxml_byte_view_equals(ordinal_text, SXML_BYTE_VIEW_FROM_LITERAL("false"));
+    return SXML_STATUS_OK;
+}
+
+/* Appends the number at number_index of the place marker with the part of
+   the format that formats it (12.4). */
+typedef struct place_marker_item {
+    const place_marker_settings *settings;
+    sxml_item number_item;
+    size_t number_index;
+} place_marker_item;
+
+static sxml_status append_place_marker_number(place_marker_item request,
+                                              sxml_format_text *text) {
+    const sxml_number_format_part part = sxml_number_format_find_part(
+        (sxml_number_format_query){.format = request.settings->format,
+                                   .number_index = request.number_index});
+    place_marker_number number;
+    sxml_status status = read_place_marker_number(request.number_item, &number);
+    if (status == SXML_STATUS_OK && request.number_index > 0) {
+        status = sxml_format_text_append(text, part.separator);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    /* A token the engine cannot parse as a primary format token (a letter
+       followed by digits, say) numbers as "1" does (12.4: an unsupported
+       numbering sequence "must use a format token of 1"). */
+    sxml_integer_picture picture;
+    if (sxml_integer_picture_parse_primary_format_token(part.format_token, &picture) !=
+        SXML_STATUS_OK) {
+        status = sxml_integer_picture_parse_primary_format_token(SXML_BYTE_VIEW_FROM_LITERAL("1"),
+                                                                 &picture);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+    }
+    picture.is_ordinal = request.settings->is_ordinal;
+    return sxml_format_integer(
+        &(sxml_integer_formatting){.picture = &picture,
+                                   .magnitude_digits = number.magnitude_digits,
+                                   .is_negative = number.is_negative,
+                                   .grouping_separator = request.settings->grouping_separator,
+                                   .grouping_size = request.settings->grouping_size},
+        text);
+}
+
+/*
+ * format-place-marker($numbers as xs:integer*, $format as xs:string,
+ * $grouping-separator as xs:string?, $grouping-size as xs:string?,
+ * $ordinal as xs:string?, $lang as xs:string?, $letter-value as
+ * xs:string?) as xs:string: the place marker of xsl:number formatted by
+ * the attributes of XSLT 4.0, 12.4 (src/xslt_number_internal.h). lang
+ * and letter-value are checked and otherwise ignored: English only (D97).
+ * An empty place marker gives the prefix and the suffix (as Saxon does;
+ * QT4 number-0806 and number-3205 expect it).
+ */
+static sxml_status call_format_place_marker(const sxml_function_call *call,
+                                            sxml_sequence *result) {
+    place_marker_settings settings;
+    sxml_status status = read_place_marker_settings(call, &settings);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    const sxml_sequence numbers = sxml_function_library_get_argument(call, 0);
+    sxml_format_text text = {.allocator = sxml_item_heap_as_allocator(call->item_heap),
+                             .bytes = NULL,
+                             .byte_count = 0,
+                             .byte_capacity = 0};
+    const sxml_number_format_affixes affixes = sxml_number_format_find_affixes(settings.format);
+    status = sxml_format_text_append(&text, affixes.prefix);
+    sxml_sequence_iterator iterator = sxml_sequence_iterator_start(numbers);
+    for (size_t number_index = 0; status == SXML_STATUS_OK; number_index += 1) {
+        sxml_iteration_step step = {.has_item = false};
+        status = sxml_sequence_iterator_next(&iterator, call->error_record, &step);
+        if (status != SXML_STATUS_OK || !step.has_item) {
+            break;
+        }
+        status = sxml_function_library_charge_steps(call, 1);
+        if (status == SXML_STATUS_OK) {
+            status = append_place_marker_number(
+                (place_marker_item){
+                    .settings = &settings, .number_item = step.item, .number_index = number_index},
+                &text);
+        }
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_format_text_append(&text, affixes.suffix);
+    }
+    if (status != SXML_STATUS_OK) {
+        sxml_format_text_release(&text);
+        return status;
+    }
+    return finish_text(call, &text, result);
+}
+
+static const sxml_function_parameter place_marker_parameters[] = {
+    SXML_REQUIRED_PARAMETER("numbers", "xs:integer*"),
+    SXML_REQUIRED_PARAMETER("format", "xs:string"),
+    SXML_REQUIRED_PARAMETER("grouping-separator", "xs:string?"),
+    SXML_REQUIRED_PARAMETER("grouping-size", "xs:string?"),
+    SXML_REQUIRED_PARAMETER("ordinal", "xs:string?"),
+    SXML_REQUIRED_PARAMETER("lang", "xs:string?"),
+    SXML_REQUIRED_PARAMETER("letter-value", "xs:string?"),
+};
+
+const sxml_native_function sxml_xslt_format_place_marker_function = {
+    .function_namespace = SXML_NAMESPACE_NONE,
+    .properties = 0,
+    .local_name = SXML_BYTE_VIEW_INITIALIZER("format-place-marker"),
+    .parameters = {place_marker_parameters,
+                   sizeof(place_marker_parameters) / sizeof(place_marker_parameters[0])},
+    .result_type = SXML_BYTE_VIEW_INITIALIZER("xs:string"),
+    .call = call_format_place_marker,
+    .resumable_body = NULL};
 
 /* ------------------------------------------------------------------ Rows */
 

@@ -145,6 +145,14 @@ typedef struct sxml_integer_formatting {
     sxml_byte_view magnitude_digits;
     /* The value is below zero: the minus sign "-" is written first. */
     bool is_negative;
+    /* xsl:number's grouping (XSLT 4.0, 12.4, grouping-separator and
+       grouping-size): when grouping_size is above 0, the digits of a
+       decimal representation (a digit pattern or the fallback "1") are
+       written with grouping_separator between groups of grouping_size
+       digits, counted from the right, instead of the pattern's own
+       grouping. Zero-initialized: no such grouping. */
+    sxml_byte_view grouping_separator;
+    size_t grouping_size;
 } sxml_integer_formatting;
 
 /*
@@ -160,6 +168,46 @@ typedef struct sxml_integer_formatting {
  */
 SXML_NODISCARD sxml_status sxml_format_integer(
     const sxml_integer_formatting *formatting, sxml_format_text *text);
+
+/* ------------------------------------------- xsl:number format strings */
+
+/*
+ * The format attribute of xsl:number (XSLT 4.0, 12.4) splits into
+ * alternating runs of alphanumeric characters (format tokens) and of other
+ * characters: a run before the first format token is the prefix, a run
+ * after the last one the suffix, and the runs between format tokens are
+ * separators. Without format tokens the one other run is both prefix and
+ * suffix and the format token is "1". The functions below rescan the
+ * format string; they need no memory.
+ */
+
+/* What formats the number at a position of the place marker. */
+typedef struct sxml_number_format_part {
+    /* Written before the number when it is not the first: the separator
+       before its format token, or "." when that is the first token. */
+    sxml_byte_view separator;
+    /* The format token: the token at the number's position, or the last
+       token for numbers beyond them, or "1". */
+    sxml_byte_view format_token;
+} sxml_number_format_part;
+
+/* A number of a place marker (0 for the first) whose part to find. */
+typedef struct sxml_number_format_query {
+    sxml_byte_view format;
+    size_t number_index;
+} sxml_number_format_query;
+
+/* The part that formats the number at query.number_index; views borrow
+   the format (or static data). */
+sxml_number_format_part sxml_number_format_find_part(sxml_number_format_query query);
+
+/* The prefix and the suffix of format (borrowed; empty when absent). */
+typedef struct sxml_number_format_affixes {
+    sxml_byte_view prefix;
+    sxml_byte_view suffix;
+} sxml_number_format_affixes;
+
+sxml_number_format_affixes sxml_number_format_find_affixes(sxml_byte_view format);
 
 /* -------------------------------------------------------- Decimal formats */
 

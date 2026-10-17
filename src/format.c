@@ -610,10 +610,14 @@ static grouping_template read_grouping_template(sxml_byte_view digit_pattern, pa
 static const char lower_case_radix_digits[] = "0123456789abcdefghijklmnopqrstuvwxyz";
 static const char upper_case_radix_digits[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
-/* The decimal digits of a number, without leading zeros, and its picture. */
+/* The decimal digits of a number, without leading zeros, and its picture;
+   grouping_size above 0 replaces the pattern's grouping by
+   grouping_separator every grouping_size digits (xsl:number). */
 typedef struct digit_request {
     const sxml_integer_picture *picture;
     sxml_byte_view decimal_digits;
+    sxml_byte_view grouping_separator;
+    size_t grouping_size;
 } digit_request;
 
 /* Writes the number by a digit pattern: S1 to S4 of section 4.8.1. */
@@ -648,7 +652,13 @@ static sxml_status append_by_digit_pattern(digit_request request, sxml_format_te
     for (size_t digit_index = 0; status == SXML_STATUS_OK && digit_index < total_count;
          digit_index += 1) {
         const size_t position = total_count - digit_index;
-        if (digit_index > 0 && grouping.digit_sign_count > 0) {
+        if (digit_index > 0 && request.grouping_size > 0) {
+            /* XSLT 4.0, 12.4: the separator between groups of
+               grouping-size digits. */
+            if (position % request.grouping_size == 0) {
+                status = sxml_format_text_append(text, request.grouping_separator);
+            }
+        } else if (digit_index > 0 && grouping.digit_sign_count > 0) {
             uint32_t separator = 0;
             if (grouping.is_regular) {
                 separator = position % grouping.grouping_size == 0 ? grouping.separator : 0;
@@ -987,13 +997,118 @@ sxml_status sxml_format_integer(const sxml_integer_formatting *formatting,
     const sxml_integer_picture *digit_picture =
         picture->numbering_kind == SXML_NUMBERING_KIND_DIGITS ? picture : &fallback_picture;
     status = append_by_digit_pattern(
-        (digit_request){.picture = digit_picture, .decimal_digits = digits}, text);
+        (digit_request){.picture = digit_picture,
+                        .decimal_digits = digits,
+                        .grouping_separator = formatting->grouping_separator,
+                        .grouping_size = formatting->grouping_size},
+        text);
     /* S5: the ordinal form, by the English suffix of the decimal value
        (QT4 format-integer-40-017: 21 in hexadecimal is "15st"). */
     if (status == SXML_STATUS_OK && picture->is_ordinal) {
         status = sxml_format_text_append(text, sxml_byte_view_from_c_string(ordinal_suffix(digits)));
     }
     return status;
+}
+
+/* ------------------------------------------- xsl:number format strings */
+
+/* One run of a format attribute: alphanumeric or not (XSLT 4.0, 12.4). */
+typedef struct format_run {
+    sxml_byte_view text;
+    bool is_alphanumeric;
+} format_run;
+
+/* The run that starts at byte_offset (below the format's byte count). */
+static format_run read_format_run(sxml_byte_view format, size_t byte_offset) {
+    const bool is_token = is_alphanumeric(decode_codepoint(format, byte_offset).codepoint);
+    size_t end = byte_offset;
+    while (end < format.byte_count) {
+        const decoded_codepoint decoded = decode_codepoint(format, end);
+        if (is_alphanumeric(decoded.codepoint) != is_token) {
+            break;
+        }
+        end += decoded.byte_count;
+    }
+    return (format_run){
+        .text = {.bytes = format.bytes + byte_offset, .byte_count = end - byte_offset},
+        .is_alphanumeric = is_token};
+}
+
+/* The format tokens of a format, and the separator before each (empty
+   before the first). */
+typedef struct format_token_scan {
+    sxml_byte_view format;
+    size_t byte_offset;
+} format_token_scan;
+
+typedef struct format_token {
+    bool is_found;
+    sxml_byte_view separator;
+    sxml_byte_view token;
+} format_token;
+
+/* The next format token after scan->byte_offset, moving it past. */
+static format_token next_format_token(format_token_scan *scan) {
+    format_token found = {.is_found = false,
+                          .separator = {.bytes = NULL, .byte_count = 0},
+                          .token = {.bytes = NULL, .byte_count = 0}};
+    while (scan->byte_offset < scan->format.byte_count) {
+        const format_run run = read_format_run(scan->format, scan->byte_offset);
+        scan->byte_offset += run.text.byte_count;
+        if (run.is_alphanumeric) {
+            found.is_found = true;
+            found.token = run.text;
+            return found;
+        }
+        found.separator = run.text;
+    }
+    return found;
+}
+
+sxml_number_format_part sxml_number_format_find_part(sxml_number_format_query query) {
+    /* 12.4: "If there are no format tokens, then a format token of 1 is
+       used"; numbers after the first formatted by the first token are
+       separated by "." (dot). */
+    sxml_number_format_part part = {.separator = SXML_BYTE_VIEW_FROM_LITERAL("."),
+                                    .format_token = SXML_BYTE_VIEW_FROM_LITERAL("1")};
+    format_token_scan scan = {.format = query.format, .byte_offset = 0};
+    for (size_t token_index = 0; token_index <= query.number_index; token_index += 1) {
+        const format_token token = next_format_token(&scan);
+        if (!token.is_found) {
+            break;
+        }
+        part.format_token = token.token;
+        part.separator = token_index == 0 ? SXML_BYTE_VIEW_FROM_LITERAL(".") : token.separator;
+    }
+    return part;
+}
+
+sxml_number_format_affixes sxml_number_format_find_affixes(sxml_byte_view format) {
+    sxml_number_format_affixes affixes = {.prefix = {.bytes = NULL, .byte_count = 0},
+                                          .suffix = {.bytes = NULL, .byte_count = 0}};
+    if (format.byte_count == 0) {
+        return affixes;
+    }
+    const format_run first = read_format_run(format, 0);
+    if (!first.is_alphanumeric && first.text.byte_count == format.byte_count) {
+        /* A non-alphanumeric token but no format token: it is both the
+           prefix and the suffix (12.4). */
+        affixes.prefix = first.text;
+        affixes.suffix = first.text;
+        return affixes;
+    }
+    if (!first.is_alphanumeric) {
+        affixes.prefix = first.text;
+    }
+    format_run last = first;
+    for (size_t byte_offset = first.text.byte_count; byte_offset < format.byte_count;
+         byte_offset += last.text.byte_count) {
+        last = read_format_run(format, byte_offset);
+    }
+    if (!last.is_alphanumeric && last.text.bytes != first.text.bytes) {
+        affixes.suffix = last.text;
+    }
+    return affixes;
 }
 
 /* -------------------------------------------------------- Decimal formats */
