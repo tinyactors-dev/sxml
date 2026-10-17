@@ -2,7 +2,9 @@
  * The node part of the function library (packet 1.20, D78): names of nodes
  * (fn:name, fn:local-name, fn:namespace-uri, fn:node-name, F&O 4.0,
  * section 2.1 and 14.1), fn:root, fn:distinct-ordered-nodes, fn:doc and
- * fn:QName (F&O 4.0, sections 14.1, 14.5, 15.1 and 10.1).
+ * fn:QName (F&O 4.0, sections 14.1, 14.5, 15.1 and 10.1); fn:doc-available,
+ * fn:base-uri, fn:document-uri, fn:has-children and fn:generate-id (packet
+ * 1.23b, D91).
  *
  * Golden file: src/memory.c (layout and comments); rows as in
  * src/function_library_internal.h.
@@ -265,6 +267,207 @@ static sxml_status call_doc(const sxml_function_call *call, sxml_sequence *resul
     return status;
 }
 
+/* fn:doc-available($source, $options := {}) (F&O 4.0, section 15.1.2):
+   true when fn:doc would give a document. The loader keeps what it loads,
+   so a later fn:doc gives the same node; FODC0002 and FODC0005 mean
+   false. The options are accepted and ignored, as fn:doc ignores them. */
+static sxml_status call_doc_available(const sxml_function_call *call, sxml_sequence *result) {
+    if (call->dynamic_context == NULL) {
+        return sxml_function_library_report(call, &no_dynamic_context_error);
+    }
+    sxml_optional_item source;
+    sxml_status status = sxml_function_library_read_optional_item(call, 0, &source);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    bool is_available = false;
+    if (source.has_item) {
+        sxml_string uri_reference;
+        status = sxml_function_library_read_string_argument(call, 0, &uri_reference);
+        sxml_item document_node = {.representation = 0};
+        if (status == SXML_STATUS_OK) {
+            status = sxml_dynamic_context_load_document(
+                call->dynamic_context,
+                &(sxml_document_request){.uri_reference = uri_reference.utf8,
+                                         .base_uri = sxml_dynamic_context_get_static_base_uri(
+                                             call->dynamic_context),
+                                         .error_record = NULL},
+                &document_node);
+        }
+        if (status == SXML_STATUS_OK) {
+            is_available = true;
+            sxml_item_release(document_node);
+        } else if (status == SXML_STATUS_DYNAMIC_ERROR) {
+            status = SXML_STATUS_OK;
+        }
+    }
+    if (status == SXML_STATUS_OK) {
+        *result = sxml_function_library_make_boolean(
+            (sxml_boolean_result){.is_true = is_available});
+    }
+    return status;
+}
+
+/* ------------------------------------------------------------ Properties */
+
+/* Reads argument 0 as an XNode: has_node is false for the empty sequence
+   and for a JNode. */
+typedef struct optional_node {
+    bool has_node;
+    sxml_node_reference node;
+} optional_node;
+
+static sxml_status read_optional_node(const sxml_function_call *call, optional_node *node) {
+    *node = (optional_node){.has_node = false,
+                            .node = {.tree = NULL, .node_index = {.index = 0}, .namespace_number = 0}};
+    sxml_optional_item argument;
+    sxml_status status = sxml_function_library_read_optional_item(call, 0, &argument);
+    if (status == SXML_STATUS_OK && argument.has_item &&
+        sxml_item_get_kind(argument.item) == SXML_ITEM_KIND_NODE) {
+        status = sxml_item_get_node(argument.item, &node->node);
+        node->has_node = status == SXML_STATUS_OK;
+    }
+    return status;
+}
+
+/* fn:base-uri($node := .) (F&O 4.0, section 2.1.5): dm:base-uri, from
+   xml:base attributes and the tree's base URI (XDM 4.0, section 7.3). */
+static sxml_status call_base_uri(const sxml_function_call *call, sxml_sequence *result) {
+    optional_node node;
+    const sxml_status status = read_optional_node(call, &node);
+    if (status != SXML_STATUS_OK || !node.has_node) {
+        *result = sxml_sequence_empty();
+        return status;
+    }
+    return sxml_node_make_base_uri(
+        call->item_heap,
+        &(sxml_node_value_request){.node = node.node, .error_record = call->error_record},
+        result);
+}
+
+/* fn:document-uri($node := .) (F&O 4.0, section 2.1.6): dm:document-uri of
+   a document node; the empty sequence for other nodes and when absent. */
+static sxml_status call_document_uri(const sxml_function_call *call, sxml_sequence *result) {
+    optional_node node;
+    sxml_status status = read_optional_node(call, &node);
+    *result = sxml_sequence_empty();
+    sxml_node_description description;
+    if (status != SXML_STATUS_OK || !node.has_node) {
+        return status;
+    }
+    status = sxml_node_describe(node.node, &description);
+    sxml_tree_description tree_description;
+    if (status == SXML_STATUS_OK && description.node_kind == SXML_NODE_KIND_DOCUMENT) {
+        status = sxml_tree_describe(node.node.tree, &tree_description);
+        if (status == SXML_STATUS_OK && tree_description.document_uri.byte_count > 0) {
+            sxml_item item = {.representation = 0};
+            status = sxml_atomic_item_make(
+                call->item_heap,
+                &(sxml_atomic_item_request){
+                    .type = sxml_builtin_type_identifier(SXML_TYPE_XS_ANY_URI),
+                    .datum = {.datum_kind = SXML_DATUM_KIND_STRING,
+                              .datum_details = {.string = {.utf8 = tree_description.document_uri,
+                                                           .codepoint_count = 0,
+                                                           .is_ascii = false}}}},
+                &item);
+            if (status == SXML_STATUS_OK) {
+                *result = sxml_sequence_from_item(item);
+            }
+        }
+    }
+    return status;
+}
+
+/* fn:has-children($node := .) (F&O 4.0, section 14.1.10): whether the node
+   has children; for a JNode, whether its value has members or entries. */
+static sxml_status call_has_children(const sxml_function_call *call, sxml_sequence *result) {
+    sxml_optional_item argument;
+    sxml_status status = sxml_function_library_read_optional_item(call, 0, &argument);
+    bool has_children = false;
+    if (status == SXML_STATUS_OK && argument.has_item) {
+        if (sxml_item_get_kind(argument.item) == SXML_ITEM_KIND_JSON_NODE) {
+            sxml_json_node_description description;
+            status = sxml_json_node_describe(argument.item, &description);
+            has_children = status == SXML_STATUS_OK && description.child_count > 0;
+        } else {
+            sxml_node_reference node;
+            status = sxml_item_get_node(argument.item, &node);
+            sxml_node_description description;
+            if (status == SXML_STATUS_OK) {
+                status = sxml_node_describe(node, &description);
+            }
+            has_children = status == SXML_STATUS_OK && description.has_children;
+        }
+    }
+    if (status == SXML_STATUS_OK) {
+        *result = sxml_function_library_make_boolean(
+            (sxml_boolean_result){.is_true = has_children});
+    }
+    return status;
+}
+
+/* Appends the decimal digits of number to text. */
+static sxml_status append_number(sxml_library_text *text, uint64_t number) {
+    uint8_t digits[20];
+    size_t digit_count = 0;
+    do {
+        digits[sizeof(digits) - 1 - digit_count] = (uint8_t)('0' + number % 10U);
+        digit_count += 1;
+        number /= 10U;
+    } while (number != 0);
+    return sxml_function_library_text_append(
+        text, (sxml_byte_view){.bytes = digits + sizeof(digits) - digit_count,
+                               .byte_count = digit_count});
+}
+
+/* fn:generate-id($node := .) (F&O 4.0, section 14.1.11): "" for the empty
+   sequence; otherwise "t" tree "n" index "s" namespace number, which is an
+   ASCII name that starts with a letter and is unique per XNode, since
+   (tree, index, namespace number) identifies a node (D91). */
+static sxml_status call_generate_id(const sxml_function_call *call, sxml_sequence *result) {
+    sxml_optional_item argument;
+    sxml_status status = sxml_function_library_read_optional_item(call, 0, &argument);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (!argument.has_item) {
+        return sxml_function_library_make_string(
+            call->item_heap, (sxml_byte_view){.bytes = NULL, .byte_count = 0}, result);
+    }
+    if (sxml_item_get_kind(argument.item) == SXML_ITEM_KIND_JSON_NODE) {
+        /* JNodes have no stable identity to write yet. */
+        return SXML_STATUS_UNSUPPORTED_FEATURE;
+    }
+    sxml_node_reference node;
+    status = sxml_item_get_node(argument.item, &node);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_library_text text = {.item_heap = call->item_heap};
+    status = sxml_function_library_text_append(&text, SXML_BYTE_VIEW_FROM_LITERAL("t"));
+    if (status == SXML_STATUS_OK) {
+        status = append_number(&text, sxml_tree_get_identifier(node.tree).value);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_function_library_text_append(&text, SXML_BYTE_VIEW_FROM_LITERAL("n"));
+    }
+    if (status == SXML_STATUS_OK) {
+        status = append_number(&text, node.node_index.index);
+    }
+    if (status == SXML_STATUS_OK && node.namespace_number > 0) {
+        status = sxml_function_library_text_append(&text, SXML_BYTE_VIEW_FROM_LITERAL("s"));
+        if (status == SXML_STATUS_OK) {
+            status = append_number(&text, node.namespace_number);
+        }
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_function_library_make_string(
+            call->item_heap, sxml_function_library_text_view(&text), result);
+    }
+    sxml_function_library_text_release(&text);
+    return status;
+}
+
 /* ----------------------------------------------------------------- QName */
 
 static const sxml_static_error invalid_qname_error = {
@@ -374,6 +577,9 @@ static const sxml_function_parameter nodes_parameters[] = {
     SXML_REQUIRED_PARAMETER("nodes", "node()*")};
 static const sxml_function_parameter doc_parameters[] = {
     SXML_REQUIRED_PARAMETER("source", "xs:string?")};
+static const sxml_function_parameter doc_available_parameters[] = {
+    SXML_REQUIRED_PARAMETER("source", "xs:string?"),
+    SXML_OPTIONAL_PARAMETER("options", "map(*)?")};
 static const sxml_function_parameter qname_parameters[] = {
     SXML_REQUIRED_PARAMETER("uri", "xs:string?"),
     SXML_REQUIRED_PARAMETER("qname", "xs:string")};
@@ -390,6 +596,12 @@ static const sxml_native_function node_functions[] = {
     SXML_FUNCTION_ROW("doc", doc_parameters, "document-node()?",
                       SXML_NATIVE_FUNCTION_USES_DYNAMIC_CONTEXT, call_doc),
     SXML_FUNCTION_ROW("QName", qname_parameters, "xs:QName", 0, call_qname),
+    SXML_FUNCTION_ROW("doc-available", doc_available_parameters, "xs:boolean",
+                      SXML_NATIVE_FUNCTION_USES_DYNAMIC_CONTEXT, call_doc_available),
+    SXML_FUNCTION_ROW("base-uri", node_parameters, "xs:anyURI?", 0, call_base_uri),
+    SXML_FUNCTION_ROW("document-uri", node_parameters, "xs:anyURI?", 0, call_document_uri),
+    SXML_FUNCTION_ROW("has-children", node_parameters, "xs:boolean", 0, call_has_children),
+    SXML_FUNCTION_ROW("generate-id", node_parameters, "xs:string", 0, call_generate_id),
 };
 
 const sxml_native_function_view sxml_function_library_node =

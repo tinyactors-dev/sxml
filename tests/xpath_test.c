@@ -158,10 +158,10 @@ typedef struct query_run {
     sxml_error_record error_record;
 } query_run;
 
-/* Compiles and evaluates run->expression_text and writes the result by the
-   adaptive method into the fixture's output buffer (cleared first). */
-static sxml_status run_query(const fixture *test_fixture, query_run *run) {
-    sxml_output_buffer_clear(test_fixture->output_buffer);
+/* Compiles and evaluates run->expression_text; writes the value, owned, to
+   *result. The expression is destroyed before returning. */
+static sxml_status evaluate_query(const fixture *test_fixture, query_run *run,
+                                  sxml_sequence *result) {
     memset(&run->error_record, 0, sizeof(run->error_record));
     sxml_xpath_expression *expression = NULL;
     sxml_status status = sxml_xpath_expression_create(
@@ -175,13 +175,21 @@ static sxml_status run_query(const fixture *test_fixture, query_run *run) {
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    sxml_sequence result = sxml_sequence_empty();
     status = sxml_xpath_expression_evaluate(
         expression,
         &(sxml_xpath_evaluation_request){.dynamic_context = run->dynamic_context,
                                          .error_record = &run->error_record},
-        &result);
+        result);
     sxml_xpath_expression_destroy(expression);
+    return status;
+}
+
+/* Compiles and evaluates run->expression_text and writes the result by the
+   adaptive method into the fixture's output buffer (cleared first). */
+static sxml_status run_query(const fixture *test_fixture, query_run *run) {
+    sxml_output_buffer_clear(test_fixture->output_buffer);
+    sxml_sequence result = sxml_sequence_empty();
+    sxml_status status = evaluate_query(test_fixture, run, &result);
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -292,6 +300,98 @@ static const slice_case slice_cases[] = {
                 "true()"),
     SLICE_ERROR("fn-error-1", "fn:error()", "FOER0000"),
 };
+
+/* The functions packet 1.23b added (D91), through the public API, with
+   examples from F&O 4.0. */
+static const slice_case library_cases[] = {
+    SLICE_VALUE("math", "math:pi(), math:pow(2, 10), math:pow(-2, 3), math:pow(0, 0), "
+                        "math:sqrt(-0e0), math:log(0), math:atan2(1, 0) * 2 eq math:pi(), "
+                        "math:exp10(2), math:pow((), 2)",
+                "3.141592653589793e0 1.024e3 -8.0e0 1.0e0 -0.0e0 xs:double(\"-INF\") true() "
+                "1.0e2"),
+    SLICE_VALUE("math-pow-parity", "math:pow(-1, 9007199254740993)", "-1.0e0"),
+    SLICE_VALUE("qname-parts",
+                "let $q := QName('http://a', 'p:l') return (local-name-from-QName($q), "
+                "prefix-from-QName($q), namespace-uri-from-QName($q), expanded-QName($q), "
+                "prefix-from-QName(QName('', 'l')), expanded-QName(QName('', 'l')))",
+                "\"l\" \"p\" \"http://a\" \"Q{http://a}l\" \"Q{}l\""),
+    SLICE_VALUE("in-scope-namespaces",
+                "let $e := parse-xml('<z:a xmlns=\"http://one\" xmlns:z=\"http://two\"><b "
+                "xmlns=\"\"/></z:a>')/* return (sort(in-scope-prefixes($e)), "
+                "in-scope-namespaces($e)?z, namespace-uri-for-prefix('z', $e), "
+                "namespace-uri-for-prefix((), $e), count(namespace-uri-for-prefix('', $e/b)))",
+                "\"\" \"xml\" \"z\" \"http://two\" \"http://two\" \"http://one\" 0"),
+    SLICE_VALUE("node-properties",
+                "let $d := parse-xml('<a xml:base=\"http://b/c/\"><e/></a>') return "
+                "(base-uri($d//e), has-children($d/a), has-children($d//e), "
+                "count(document-uri($d)))",
+                "\"http://b/c/\" true() false() 0"),
+    SLICE_VALUE("strings",
+                "translate('--aaa--', 'abc-', 'ABC'), substring-before-last('a.b.c', '.'), "
+                "substring-after-last('a.b.c', '.'), codepoint-equal('a', 'a'), "
+                "contains-token('red green blue ', ' green'), contains-token('a', ' ')",
+                "\"AAA\" \"a.b\" \"c\" true() true() false()"),
+    SLICE_VALUE("uri-escaping",
+                "encode-for-uri('a b/~'), iri-to-uri('http://a/b c{}'), "
+                "escape-html-uri('a b<é')",
+                "\"a%20b%2F~\" \"http://a/b%20c%7B%7D\" \"a b<%C3%A9\""),
+    SLICE_VALUE("slice", "slice(1 to 5, 2, 4), slice(1 to 5, -2), slice(1 to 5, step := -2)",
+                "2 3 4 4 5 5 3 1"),
+    SLICE_VALUE("sequences",
+                "items-at(('a', 'b', 'c'), (3, 1, 7)), replicate((1, 2), 2), "
+                "insert-separator(1 to 3, 0), foot(1 to 4), trunk(1 to 3), void(1 to 9), "
+                "identity(7), unordered(8)",
+                "\"c\" \"a\" 1 2 1 2 1 0 2 0 3 4 1 2 7 8"),
+    SLICE_VALUE("comparisons",
+                "compare('a', 'b'), compare(2, 1.0), compare(xs:double('NaN'), 1), "
+                "atomic-equal(1, 1.0), all-equal((1, 1.0, 1e0)), all-different((1, 2, 1)), "
+                "default-collation()",
+                "-1 1 -1 true() true() false() "
+                "\"http://www.w3.org/2005/xpath-functions/collation/codepoint\""),
+    SLICE_ERROR("compare-families", "compare(1, 'a')", "XPTY0004"),
+    SLICE_VALUE("more",
+                "duplicate-values((1, 2, 1, 1.0, 3, 2)), "
+                "dateTime(xs:date('1999-12-31Z'), xs:time('24:00:00')), "
+                "trim-space('  a b  '), trim-space('  a ', {'side': 'start'}), "
+                "parse-integer(' -1_000 '), parse-integer('FFFF FFFF', 16), "
+                "parse-integer('zzzzzzzzzzzzzzzzzzzz', 36), "
+                "let $d := parse-xml('<a><b/></a>') return "
+                "(generate-id($d//b) = generate-id($d/a/b), generate-id($d//b) = generate-id($d/a))",
+                "1 2 xs:dateTime(\"1999-12-31T00:00:00Z\") \"a b\" \"a \" -1000 4294967295 "
+                "13367494538843734067838845976575 true() false()"),
+    SLICE_ERROR("dateTime-timezones",
+                "dateTime(xs:date('1999-12-31Z'), xs:time('12:00:00+01:00'))", "FORG0008"),
+    SLICE_ERROR("parse-integer-radix", "parse-integer('12', 37)", "FORG0011"),
+    SLICE_ERROR("parse-integer-digits", "parse-integer('19', 8)", "FORG0012"),
+    SLICE_VALUE("durations",
+                "years-from-duration(xs:yearMonthDuration('P20Y15M')), "
+                "months-from-duration(xs:yearMonthDuration('-P20Y18M')), "
+                "days-from-duration(xs:dayTimeDuration('P3DT55H')), "
+                "hours-from-duration(xs:dayTimeDuration('-P3DT10H')), "
+                "minutes-from-duration(xs:dayTimeDuration('-P5DT12H30M')), "
+                "seconds-from-duration(xs:dayTimeDuration('P3DT10H12.5S')), "
+                "seconds-from-duration(xs:dayTimeDuration('-PT256S'))",
+                "21 -6 5 -10 -30 12.5 -16"),
+};
+
+static void test_library_functions_of_packet_1_23b(sxml_test_state *state) {
+    for (size_t case_index = 0; case_index < SXML_TEST_COUNT(library_cases); case_index += 1) {
+        const slice_case *test = &library_cases[case_index];
+        fixture test_fixture;
+        SXML_TEST_REQUIRE(state, fixture_create(&(fixture_options){.failing_allocation_number = 0},
+                                                &test_fixture) == SXML_STATUS_OK);
+        query_run run = {.expression_text = test->expression_text};
+        const sxml_status status = run_query(&test_fixture, &run);
+        if (test->expected_error_code.byte_count > 0) {
+            SXML_TEST_EXPECT(state, sxml_status_has_error_record(status));
+            SXML_TEST_EXPECT(state, error_code_is(&run, test->expected_error_code));
+        } else {
+            SXML_TEST_EXPECT(state, status == SXML_STATUS_OK);
+            SXML_TEST_EXPECT(state, output_is(&test_fixture, test->expected_output));
+        }
+        SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
+    }
+}
 
 static void test_slice_queries_round_trip(sxml_test_state *state) {
     for (size_t case_index = 0; case_index < SXML_TEST_COUNT(slice_cases); case_index += 1) {
@@ -412,6 +512,39 @@ static void test_static_base_uri_reaches_functions(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
 }
 
+/* The static base URI is lexical (XPath 4.0, section 2.2.1; D91): a
+   function item keeps that of its definition when another expression with
+   another static base URI calls it after its own evaluation ended. */
+static void test_static_base_uri_is_lexical(sxml_test_state *state) {
+    fixture test_fixture;
+    SXML_TEST_REQUIRE(state, fixture_create(&(fixture_options){.failing_allocation_number = 0},
+                                            &test_fixture) == SXML_STATUS_OK);
+    query_run definition = {
+        .expression_text = TEXT("function() { static-base-uri(), count(doc('works.xml')//employee) }"),
+        .static_context = {.static_base_uri = TEXT("http://example.com/docs/")}};
+    sxml_sequence function_item = sxml_sequence_empty();
+    SXML_TEST_REQUIRE(state, evaluate_query(&test_fixture, &definition, &function_item) ==
+                                 SXML_STATUS_OK);
+    const sxml_variable_declaration declaration = {
+        .variable_name = fixture_name(&test_fixture, TEXT("f")),
+        .declared_type = {.item_type = sxml_builtin_type_identifier(SXML_TYPE_ITEM),
+                          .occurrence = SXML_OCCURRENCE_EXACTLY_ONE}};
+    const sxml_variable_binding binding = {.variable_name = declaration.variable_name,
+                                           .value = function_item};
+    query_run caller = {
+        .expression_text = TEXT("$f(), static-base-uri()"),
+        .static_context = {.static_base_uri = TEXT("http://other.org/"),
+                           .variable_declarations = {.variable_declarations = &declaration,
+                                                     .variable_declaration_count = 1}},
+        .dynamic_context = {.variable_bindings = {.variable_bindings = &binding,
+                                                  .variable_binding_count = 1}}};
+    SXML_TEST_EXPECT(state, run_query(&test_fixture, &caller) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, output_is(&test_fixture, TEXT("\"http://example.com/docs/\" 2 "
+                                                          "\"http://other.org/\"")));
+    sxml_sequence_release(function_item);
+    SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
+}
+
 /* ----------------------------------------------------- Dynamic context */
 
 static void test_context_value_is_a_parsed_document(sxml_test_state *state) {
@@ -451,18 +584,14 @@ static void test_doc_is_stable_and_resolves_through_the_resolver(sxml_test_state
                                 "doc('works.xml') is doc('http://example.com/docs/works.xml'), "
                                 "doc-available('missing.xml')"),
         .static_context = {.static_base_uri = TEXT("http://example.com/docs/")}};
-    const sxml_status status = run_query(&test_fixture, &run);
-    /* fn:doc-available is not in Phase 1's library: then only the first two. */
-    if (status == SXML_STATUS_STATIC_ERROR) {
-        run.expression_text = TEXT("doc('http://example.com/docs/works.xml') is "
-                                   "doc('http://example.com/docs/staff.xml'), "
-                                   "doc('works.xml') is doc('http://example.com/docs/works.xml')");
-        SXML_TEST_EXPECT(state, run_query(&test_fixture, &run) == SXML_STATUS_OK);
-        SXML_TEST_EXPECT(state, output_is(&test_fixture, TEXT("false() true()")));
-    } else {
-        SXML_TEST_EXPECT(state, status == SXML_STATUS_OK);
-        SXML_TEST_EXPECT(state, output_is(&test_fixture, TEXT("false() true() false()")));
-    }
+    SXML_TEST_EXPECT(state, run_query(&test_fixture, &run) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, output_is(&test_fixture, TEXT("false() true() false()")));
+    /* fn:doc-available loads what it finds, so fn:doc gives the same node. */
+    run.expression_text = TEXT("doc-available('staff.xml'), "
+                               "doc('staff.xml') is doc('http://example.com/docs/staff.xml'), "
+                               "doc-available('broken.xml'), doc-available(())");
+    SXML_TEST_EXPECT(state, run_query(&test_fixture, &run) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, output_is(&test_fixture, TEXT("true() true() false() false()")));
     run.expression_text = TEXT("doc('missing.xml')");
     SXML_TEST_EXPECT(state, run_query(&test_fixture, &run) == SXML_STATUS_DYNAMIC_ERROR);
     SXML_TEST_EXPECT(state, error_code_is(&run, TEXT("FODC0002")));
@@ -523,8 +652,8 @@ static void test_clock_is_read_once_per_evaluation(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, run_query(&test_fixture, &run) == SXML_STATUS_OK);
     SXML_TEST_EXPECT(state,
                      output_is(&test_fixture,
-                               TEXT("xs:dateTime(\"2026-10-16T19:30:45.5+02:00\") "
-                                    "xs:duration(\"PT2H\") true()")));
+                               TEXT("xs:dateTimeStamp(\"2026-10-16T19:30:45.5+02:00\") "
+                                    "xs:dayTimeDuration(\"PT2H\") true()")));
     /* The evaluation's clock replaces the processor's. */
     const sxml_clock_reading utc_reading = {
         .current_date_time = {.year = 2000, .month = 1, .day = 1, .has_timezone = true},
@@ -704,6 +833,26 @@ static void test_step_bound_stops_long_evaluations(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, run.error_record.diagnostic.description.byte_count > 0);
     run.expression_text = TEXT("-1 = -100000000000 to -1");
     SXML_TEST_EXPECT(state, run_query(&test_fixture, &run) == SXML_STATUS_LIMIT_EXCEEDED);
+    /* Library functions that loop without tasks charge what they read
+       (D91): joining, sorting, distinct values, deep equality, counting a
+       lazy sequence, regular expressions. */
+    static const sxml_byte_view charged_expressions[] = {
+        SXML_BYTE_VIEW_INITIALIZER("string-length(string-join(1 to 200000))"),
+        SXML_BYTE_VIEW_INITIALIZER("count(sort(1 to 200000))"),
+        SXML_BYTE_VIEW_INITIALIZER("count(distinct-values(1 to 200000))"),
+        SXML_BYTE_VIEW_INITIALIZER("deep-equal(1 to 200000, 1 to 200000)"),
+        SXML_BYTE_VIEW_INITIALIZER("matches(string-join(1 to 30000), 'x')"),
+    };
+    for (size_t expression_index = 0; expression_index < SXML_TEST_COUNT(charged_expressions);
+         expression_index += 1) {
+        run.expression_text = charged_expressions[expression_index];
+        SXML_TEST_EXPECT(state, run_query(&test_fixture, &run) == SXML_STATUS_LIMIT_EXCEEDED);
+    }
+    run.expression_text = TEXT("string-length(string-join(1 to 2000)), count(sort(1 to 2000)), "
+                               "string-length(string-join(1 to 30000)), "
+                               "matches(string-join(1 to 2000), 'x')");
+    SXML_TEST_EXPECT(state, run_query(&test_fixture, &run) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, output_is(&test_fixture, TEXT("6893 2000 138894 false()")));
     /* The count starts again with every evaluation. */
     run.expression_text = TEXT("sum((1 to 100) ! (. * 2))");
     for (int evaluation_number = 0; evaluation_number < 3; evaluation_number += 1) {
@@ -871,6 +1020,9 @@ static const sxml_test_case xpath_test_cases[] = {
      .function = test_static_context_binds_namespaces_and_variables},
     {.name = "static_base_uri_reaches_functions",
      .function = test_static_base_uri_reaches_functions},
+    {.name = "static_base_uri_is_lexical", .function = test_static_base_uri_is_lexical},
+    {.name = "library_functions_of_packet_1_23b",
+     .function = test_library_functions_of_packet_1_23b},
     {.name = "context_value_is_a_parsed_document",
      .function = test_context_value_is_a_parsed_document},
     {.name = "doc_is_stable_and_resolves_through_the_resolver",

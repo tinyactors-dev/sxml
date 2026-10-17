@@ -334,6 +334,13 @@ SXML_NODISCARD sxml_status sxml_regex_matcher_find(
 SXML_NODISCARD sxml_status sxml_regex_matcher_find_next(
     sxml_regex_matcher *matcher, sxml_regex_search_result *result);
 
+/*
+ * The instructions the last match_at, find or find_next ran (what
+ * maximum_step_count bounds), so a caller can charge them to a larger
+ * budget (D89, D91).
+ */
+uint64_t sxml_regex_matcher_get_step_count(const sxml_regex_matcher *matcher);
+
 /* A captured group of the current match. */
 typedef struct sxml_regex_captured_group {
     /* The segment, a range of the regex input; 0 and 0 when not

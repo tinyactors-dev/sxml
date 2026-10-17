@@ -220,14 +220,15 @@ typedef struct sxml_processor_layout {
     size_t function_library_offset;
 } sxml_processor_layout;
 
-/* Every part of the function library (D55, D78, D79, D82, D88). */
+/* Every part of the function library (D55, D78, D79, D82, D88, D91). */
 static const sxml_native_function_view *const sxml_processor_library_parts[] = {
     &sxml_function_library_numeric,  &sxml_function_library_string,
     &sxml_function_library_sequence, &sxml_function_library_node,
     &sxml_function_library_context,  &sxml_function_library_error,
     &sxml_function_library_higher_order, &sxml_function_library_map,
     &sxml_function_library_array,    &sxml_function_library_json,
-    &sxml_function_library_uri,
+    &sxml_function_library_uri,          &sxml_function_library_math,
+    &sxml_function_library_qname,
 };
 
 static bool sxml_processor_configuration_is_valid(
@@ -911,9 +912,9 @@ static sxml_status sxml_loader_load_document(void *state,
                                              sxml_item *document_node) {
     sxml_processor_document_loader *loader = state;
     const sxml_allocator allocator = loader->configuration.processor->allocator;
-    const sxml_byte_view base_uri = request->base_uri.byte_count > 0
-                                        ? request->base_uri
-                                        : loader->configuration.static_base_uri;
+    /* The caller passes the static base URI of the expression that calls
+       the function (lexical, D91), or the base-uri option. */
+    const sxml_byte_view base_uri = request->base_uri;
     sxml_uri_resolution resolution = {.uri = {.bytes = NULL, .byte_count = 0},
                                       .memory = NULL};
     sxml_status status = sxml_uri_resolve(
@@ -963,9 +964,9 @@ static sxml_status sxml_loader_parse_document(void *state,
                                               const sxml_document_parse_request *request,
                                               sxml_item *document_node) {
     const sxml_processor_document_loader *loader = state;
-    const sxml_byte_view base_uri = request->base_uri.byte_count > 0
-                                        ? request->base_uri
-                                        : loader->configuration.static_base_uri;
+    /* The caller passes the static base URI of the expression that calls
+       the function (lexical, D91), or the base-uri option. */
+    const sxml_byte_view base_uri = request->base_uri;
     const sxml_status status = sxml_processor_parse_document(
         loader->configuration.processor,
         &(sxml_xml_parse_request){.input = request->xml_bytes,

@@ -2819,6 +2819,10 @@ sxml_status sxml_regex_matcher_find_next(sxml_regex_matcher *matcher,
                                    result);
 }
 
+uint64_t sxml_regex_matcher_get_step_count(const sxml_regex_matcher *matcher) {
+    return matcher->step_count;
+}
+
 sxml_status sxml_regex_matcher_get_captured_group(
     const sxml_regex_matcher *matcher, uint32_t group_number,
     sxml_regex_captured_group *captured_group) {

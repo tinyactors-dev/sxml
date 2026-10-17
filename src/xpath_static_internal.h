@@ -65,6 +65,9 @@ typedef struct sxml_xpath_static_context {
     /* The statically known function definitions. A table whose operations
        is NULL knows none. */
     sxml_function_table function_table;
+    /* The static base URI (XPath 4.0, section 2.2.1), an absolute URI, or
+       empty when absent; copied into the unit by lowering (D91). */
+    sxml_byte_view static_base_uri;
 } sxml_xpath_static_context;
 
 /* Writes a static error: the error code is err:code_local_name. */

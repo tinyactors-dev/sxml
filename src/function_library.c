@@ -12,6 +12,7 @@
  * "Function signatures"); the resolved types live as long as the library,
  * so the views of a function entry stay valid while it does.
  */
+#include "evaluator_internal.h"
 #include "function_library_core_internal.h"
 #include "function_library_internal.h"
 #include "sxml/memory.h"
@@ -761,6 +762,28 @@ sxml_sequence sxml_function_library_make_boolean(sxml_boolean_result value) {
 sxml_status sxml_function_library_report(const sxml_function_call *call,
                                          const sxml_static_error *error) {
     return sxml_error_record_report(call->error_record, error);
+}
+
+/* ----------------------------------------------------------------- Steps */
+
+sxml_status sxml_function_library_charge_steps(const sxml_function_call *call,
+                                               uint64_t step_count) {
+    if (call->dynamic_context == NULL || step_count == 0) {
+        return SXML_STATUS_OK;
+    }
+    return sxml_dynamic_context_charge_steps(call->dynamic_context, step_count);
+}
+
+sxml_status sxml_function_library_charge_items(const sxml_function_call *call,
+                                               sxml_sequence sequence) {
+    if (call->dynamic_context == NULL) {
+        return SXML_STATUS_OK;
+    }
+    uint64_t item_count = 0;
+    const sxml_status status = sxml_sequence_count(sequence, call->error_record, &item_count);
+    return status == SXML_STATUS_OK
+               ? sxml_dynamic_context_charge_steps(call->dynamic_context, item_count)
+               : status;
 }
 
 /* ------------------------------------------------------------- Positions */

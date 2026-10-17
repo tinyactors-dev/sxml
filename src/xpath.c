@@ -97,7 +97,8 @@ static sxml_xpath_static_context sxml_processor_static_context(
         .allocator = processor->allocator,
         .namespace_bindings = context->namespace_bindings,
         .variable_declarations = context->variable_declarations,
-        .function_table = sxml_processor_get_function_table(processor)};
+        .function_table = sxml_processor_get_function_table(processor),
+        .static_base_uri = context->static_base_uri};
 }
 
 /* ------------------------------------------------------------ Expressions */
@@ -348,9 +349,7 @@ static sxml_status sxml_evaluation_resources_acquire(
             .resource_resolver = context->resource_resolver.operations == NULL
                                      ? processor->resource_resolver
                                      : context->resource_resolver,
-            .available_documents = context->available_documents,
-            .static_base_uri = {.bytes = expression->static_base_uri_bytes,
-                                .byte_count = expression->static_base_uri_byte_count}},
+            .available_documents = context->available_documents},
         &resources->loader);
     if (status == SXML_STATUS_OK) {
         status = sxml_dynamic_context_create(

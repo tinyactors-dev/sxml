@@ -91,8 +91,6 @@ typedef struct sxml_processor_document_loader_configuration {
        processor's when that is the null resolver. */
     sxml_resource_resolver resource_resolver;
     sxml_available_document_view available_documents;
-    /* The static base URI of the expression; empty when absent. */
-    sxml_byte_view static_base_uri;
 } sxml_processor_document_loader_configuration;
 
 /* The loader of one evaluation. Its fields are private to

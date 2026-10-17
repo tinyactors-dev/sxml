@@ -446,6 +446,21 @@ sxml_status sxml_dynamic_context_charge_steps(sxml_dynamic_context *dynamic_cont
 
 sxml_byte_view sxml_dynamic_context_get_static_base_uri(
     const sxml_dynamic_context *dynamic_context) {
+    /* The static context of a function is that of its definition (XPath
+       4.0, section 2.2.1): the unit of the innermost task that runs IR
+       says, so a function item called after its own evaluation ended, or
+       passed to another expression, keeps its own (D91). A call from
+       outside an evaluation has no function; the tasks below it may. */
+    const sxml_evaluator_task_stack *stack = &dynamic_context->task_stack;
+    for (size_t task_count = stack->task_count; task_count > 0; task_count -= 1) {
+        const sxml_ir_function *function = stack->tasks[task_count - 1].function;
+        if (function != NULL && function->unit != NULL) {
+            if (function->unit->has_static_base_uri) {
+                return function->unit->static_base_uri;
+            }
+            break;
+        }
+    }
     return dynamic_context->static_base_uri;
 }
 

@@ -157,6 +157,7 @@ void sxml_ir_unit_finalize(sxml_ir_unit *unit) {
     sxml_allocator_release(allocator, unit->parameter_bindings);
     sxml_allocator_release(allocator, unit->modes);
     sxml_allocator_release(allocator, unit->template_rules);
+    sxml_allocator_release(allocator, unit->static_base_uri_memory);
     memset(unit, 0, sizeof(*unit));
 }
 
@@ -526,6 +527,32 @@ sxml_status sxml_ir_unit_set_static_namespaces(sxml_ir_unit *unit,
     unit->static_namespaces = (sxml_ir_namespace_binding_list){
         .first_namespace_binding_index = room.element_count,
         .namespace_binding_count = (uint32_t)bindings.namespace_binding_count};
+    return SXML_STATUS_OK;
+}
+
+sxml_status sxml_ir_unit_set_static_base_uri(sxml_ir_unit *unit,
+                                             sxml_byte_view static_base_uri) {
+    if (unit->is_sealed || unit->has_static_base_uri ||
+        (static_base_uri.byte_count > 0 && static_base_uri.bytes == NULL)) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    if (static_base_uri.byte_count > 0) {
+        void *memory = NULL;
+        const sxml_status status = sxml_allocator_allocate(
+            unit->allocator,
+            (sxml_allocation_request){.byte_count = static_base_uri.byte_count,
+                                      .alignment = 1},
+            &memory);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        memcpy(memory, static_base_uri.bytes, static_base_uri.byte_count);
+        const uint8_t *copied_bytes = memory;
+        unit->static_base_uri_memory = memory;
+        unit->static_base_uri =
+            (sxml_byte_view){.bytes = copied_bytes, .byte_count = static_base_uri.byte_count};
+    }
+    unit->has_static_base_uri = true;
     return SXML_STATUS_OK;
 }
 

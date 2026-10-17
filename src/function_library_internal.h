@@ -28,6 +28,9 @@
  *     src/function_library_map.c          packet 1.21
  *     src/function_library_array.c        packet 1.21
  *     src/function_library_json.c         packet 1.22
+ *     src/function_library_uri.c          packet 1.23
+ *     src/function_library_math.c         packet 1.23b
+ *     src/function_library_qname.c        packet 1.23b
  *
  * Each file defines one sxml_native_function_view below over its rows, so
  * no file lists another file's functions. src/function_library.c (packet
@@ -299,6 +302,13 @@ extern const sxml_native_function_view sxml_function_library_json;
 /* fn:static-base-uri and fn:resolve-uri (src/function_library_uri.c,
    packet 1.23, D88). */
 extern const sxml_native_function_view sxml_function_library_uri;
+/* The math namespace (src/function_library_math.c, packet 1.23b, D91). */
+extern const sxml_native_function_view sxml_function_library_math;
+/* QNames and in-scope namespaces: fn:namespace-uri-from-QName,
+   fn:local-name-from-QName, fn:prefix-from-QName, fn:expanded-QName,
+   fn:in-scope-prefixes, fn:in-scope-namespaces, fn:namespace-uri-for-prefix
+   (src/function_library_qname.c, packet 1.23b, D91). */
+extern const sxml_native_function_view sxml_function_library_qname;
 
 /*
  * The operations every function item made from a native row uses (a named

@@ -6145,6 +6145,11 @@ sxml_status sxml_xpath_lower(const sxml_xpath_lowering_request *request,
             }
         }
     }
+    if (status == SXML_STATUS_OK) {
+        /* Lexical: functions of the unit see it wherever they are called
+           (XPath 4.0, section 2.2.1; D91). */
+        status = sxml_ir_unit_set_static_base_uri(new_unit, context->static_base_uri);
+    }
     if (status != SXML_STATUS_OK) {
         sxml_ir_unit_release(new_unit);
         return status;

@@ -307,11 +307,13 @@ SXML_NODISCARD sxml_status sxml_dynamic_context_read_implicit_timezone(
     sxml_dynamic_context *dynamic_context, int16_t *offset_minutes);
 
 /*
- * The static base URI of the evaluation running (fn:static-base-uri,
- * fn:resolve-uri, fn:doc, fn:parse-xml, fn:json-to-xml), borrowed for the
- * evaluation; empty when absent (XPath 4.0, section 2.2.1). A function item
- * called after its evaluation ended sees the static base URI of the
- * evaluation that calls it (D88).
+ * The static base URI of the code running (fn:static-base-uri,
+ * fn:resolve-uri, fn:doc, fn:parse-xml, fn:json-to-xml), borrowed; empty
+ * when absent (XPath 4.0, section 2.2.1). Lexical (D91): the static base
+ * URI of the unit of the innermost task that runs IR, when that unit has
+ * one set (sxml_ir_unit_set_static_base_uri); otherwise the request's.
+ * So a function item called after its evaluation ended, or inside another
+ * expression, sees the static base URI of its own definition.
  */
 sxml_byte_view sxml_dynamic_context_get_static_base_uri(
     const sxml_dynamic_context *dynamic_context);
@@ -353,8 +355,9 @@ typedef struct sxml_evaluation_request {
        raises XPDY0002 for an external variable and runs the initializer
        for a declared one. Borrowed; values are retained. */
     sxml_evaluator_slot_view global_values;
-    /* The static base URI of the unit (XPath 4.0, section 2.2.1), an
-       absolute URI, or empty when absent. Borrowed for the call. */
+    /* The static base URI (XPath 4.0, section 2.2.1), an absolute URI, or
+       empty when absent, for units that do not carry their own (D91).
+       Borrowed for the call. */
     sxml_byte_view static_base_uri;
     /* Receives the evaluation's error; may be NULL. */
     sxml_error_record *error_record;

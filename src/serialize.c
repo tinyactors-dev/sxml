@@ -535,10 +535,15 @@ static sxml_status sxml_serializer_write_atomic(sxml_serializer *serializer, sxm
         return sxml_serializer_write_exponent_form(serializer, canonical.text);
     }
     /* Every other type, xs:float and the non-finite doubles: the syntax of
-       a constructor function, xs:TYPE("VALUE"), with the primitive type. */
+       a constructor function, xs:TYPE("VALUE"), where TYPE is the name of
+       the item's type annotation, so xs:dateTimeStamp and
+       xs:dayTimeDuration keep their names (Serialization 4.0, section 11,
+       as revised by qtspecs PR 2981; QT4 Serialization-adaptive-37a). The
+       rules above still go by the primitive type ("an instance of"), so
+       derived strings stay quoted and derived integers stay numbers. */
     sxml_type_description description;
-    status = sxml_type_registry_describe_type(serializer->registry, primitive_type,
-                                              &description);
+    status = sxml_type_registry_describe_type(serializer->registry,
+                                              sxml_item_get_type_annotation(item), &description);
     if (status == SXML_STATUS_OK) {
         status = sxml_serializer_write_name(
             serializer, (sxml_written_name){.name = description.type_name,

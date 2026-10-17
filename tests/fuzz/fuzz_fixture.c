@@ -16,7 +16,8 @@ static const sxml_native_function_view *const library_parts[] = {
     &sxml_function_library_context,      &sxml_function_library_error,
     &sxml_function_library_higher_order, &sxml_function_library_map,
     &sxml_function_library_array,        &sxml_function_library_json,
-    &sxml_function_library_uri,
+    &sxml_function_library_uri,          &sxml_function_library_math,
+    &sxml_function_library_qname,
 };
 
 sxml_status

@@ -998,7 +998,11 @@ sxml_status sxml_function_library_call_deep_equal(const sxml_function_call *call
                                 sxml_function_library_get_argument(call, 1));
     }
     while (status == SXML_STATUS_OK && comparison.is_equal && comparison.pair_count > 0) {
-        status = step_pair(&comparison);
+        /* One step per pair compared (D89, D91). */
+        status = sxml_function_library_charge_steps(call, 1);
+        if (status == SXML_STATUS_OK) {
+            status = step_pair(&comparison);
+        }
     }
     sxml_item_heap_release_bytes(
         call->item_heap,

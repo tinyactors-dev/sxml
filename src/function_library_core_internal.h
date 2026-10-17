@@ -153,6 +153,27 @@ SXML_NODISCARD sxml_status sxml_function_library_read_position_span(
     const sxml_function_call *call, sxml_position_arguments arguments,
     sxml_position_span *span);
 
+/* ---------------------------------------------------------------- Steps */
+
+/*
+ * Charges step_count evaluation steps to the evaluation running (D89,
+ * D91): a body that loops over many items, codepoints or comparisons
+ * without running tasks (fn:string-join, fn:sort, fn:distinct-values,
+ * fn:deep-equal, the regex functions) calls it before the work, so
+ * maximum_evaluation_step_count bounds it too. Does nothing without a
+ * dynamic context. Returns SXML_STATUS_LIMIT_EXCEEDED past the bound.
+ */
+SXML_NODISCARD sxml_status sxml_function_library_charge_steps(
+    const sxml_function_call *call, uint64_t step_count);
+
+/*
+ * Charges one step per item of sequence (counting it, which reads a lazy
+ * sequence), as sxml_function_library_charge_steps. Also returns the
+ * sequence's failures.
+ */
+SXML_NODISCARD sxml_status sxml_function_library_charge_items(
+    const sxml_function_call *call, sxml_sequence sequence);
+
 /* -------------------------------------------------------------- Results */
 
 /*

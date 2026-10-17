@@ -6,7 +6,9 @@
  * fn:contains, fn:starts-with, fn:ends-with, fn:substring-before,
  * fn:substring-after) and section 6 "String functions that use regular
  * expressions" (fn:matches, fn:replace, fn:tokenize) over the regex seed
- * (D48, D53).
+ * (D48, D53). From packet 1.23b (D91): fn:substring-before-last,
+ * fn:substring-after-last, fn:translate, fn:codepoint-equal,
+ * fn:contains-token, fn:trim-space and fn:parse-integer.
  *
  * Golden file: src/memory.c (layout and comments); rows as in
  * src/function_library_internal.h.
@@ -16,6 +18,7 @@
  * comparing strings is comparing bytes of UTF-8.
  */
 #include "cast_internal.h"
+#include "decimal_internal.h"
 #include "evaluator_internal.h"
 #include "function_library_core_internal.h"
 #include "operator_internal.h"
@@ -235,6 +238,11 @@ static sxml_status call_string_join(const sxml_function_call *call,
                                     sxml_sequence *result) {
     sxml_string separator;
     sxml_status status = sxml_function_library_read_string_argument(call, 1, &separator);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    /* One step per item joined (D89, D91). */
+    status = sxml_function_library_charge_items(call, sxml_function_library_get_argument(call, 0));
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -543,6 +551,327 @@ static sxml_status call_lower_case(const sxml_function_call *call,
     return call_case(call, SXML_CASE_MAPPING_KIND_LOWER, result);
 }
 
+/* ------------------------------------------------------- fn:trim-space */
+
+static const sxml_static_error trim_option_error = {
+    .error_status = SXML_STATUS_TYPE_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XPTY0004"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "The options of fn:trim-space take only 'side', one of 'start', 'end' or 'both' "
+        "(F&O 4.0, fn:trim-space; section 1.7, option parameter conventions)"),
+};
+
+/* Which sides fn:trim-space strips. */
+typedef struct trim_sides {
+    bool trims_start;
+    bool trims_end;
+} trim_sides;
+
+/* Reads the 'side' option of argument 1 (F&O 4.0, fn:trim-space): unknown
+   string keys and values outside the enumeration are XPTY0004, as for the
+   other option maps (D82); keys in a namespace are ignored. */
+static sxml_status read_trim_sides(const sxml_function_call *call, trim_sides *sides) {
+    *sides = (trim_sides){.trims_start = true, .trims_end = true};
+    sxml_optional_item options;
+    sxml_status status = sxml_function_library_read_optional_item(call, 1, &options);
+    if (status != SXML_STATUS_OK || !options.has_item) {
+        return status;
+    }
+    size_t entry_count = 0;
+    status = sxml_map_get_size(options.item, &entry_count);
+    for (size_t entry_index = 0; status == SXML_STATUS_OK && entry_index < entry_count;
+         entry_index += 1) {
+        sxml_map_entry entry;
+        status = sxml_map_get_entry(options.item, entry_index, &entry);
+        sxml_atomic_datum key;
+        if (status == SXML_STATUS_OK) {
+            status = sxml_atomic_item_get_datum(entry.key, &key);
+        }
+        if (status != SXML_STATUS_OK || key.datum_kind != SXML_DATUM_KIND_STRING) {
+            continue;
+        }
+        if (!sxml_byte_view_equals(key.datum_details.string.utf8,
+                                   SXML_BYTE_VIEW_FROM_LITERAL("side"))) {
+            return sxml_function_library_report(call, &trim_option_error);
+        }
+        sxml_item value = {.representation = 0};
+        uint64_t value_count = 0;
+        status = sxml_sequence_count(entry.value, call->error_record, &value_count);
+        if (status == SXML_STATUS_OK && value_count != 1) {
+            return sxml_function_library_report(call, &trim_option_error);
+        }
+        if (status == SXML_STATUS_OK) {
+            status = sxml_sequence_get_item(
+                entry.value, (sxml_item_request){.item_index = 0, .error_record = call->error_record},
+                &value);
+        }
+        sxml_atomic_datum side = {
+            .datum_kind = SXML_DATUM_KIND_STRING,
+            .datum_details = {.string = {.utf8 = {.bytes = NULL, .byte_count = 0}}}};
+        if (status == SXML_STATUS_OK) {
+            status = sxml_item_get_kind(value) == SXML_ITEM_KIND_ATOMIC
+                         ? sxml_atomic_item_get_datum(value, &side)
+                         : sxml_function_library_report(call, &trim_option_error);
+        }
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        const sxml_byte_view side_text = side.datum_kind == SXML_DATUM_KIND_STRING
+                                             ? side.datum_details.string.utf8
+                                             : (sxml_byte_view){.bytes = NULL, .byte_count = 0};
+        if (sxml_byte_view_equals(side_text, SXML_BYTE_VIEW_FROM_LITERAL("start"))) {
+            *sides = (trim_sides){.trims_start = true, .trims_end = false};
+        } else if (sxml_byte_view_equals(side_text, SXML_BYTE_VIEW_FROM_LITERAL("end"))) {
+            *sides = (trim_sides){.trims_start = false, .trims_end = true};
+        } else if (!sxml_byte_view_equals(side_text, SXML_BYTE_VIEW_FROM_LITERAL("both"))) {
+            return sxml_function_library_report(call, &trim_option_error);
+        }
+    }
+    return status;
+}
+
+static bool is_trimmed_whitespace(uint8_t byte) {
+    return byte == ' ' || byte == '\t' || byte == '\n' || byte == '\r';
+}
+
+/* fn:trim-space($value := fn:string(.), $options := {}) (F&O 4.0, section
+   5.4.6): the string without leading and trailing whitespace (U+0020,
+   U+0009, U+000D, U+000A), on the sides the 'side' option names. */
+static sxml_status call_trim_space(const sxml_function_call *call, sxml_sequence *result) {
+    trim_sides sides;
+    sxml_status status = read_trim_sides(call, &sides);
+    sxml_library_text text = {.item_heap = call->item_heap};
+    if (status == SXML_STATUS_OK) {
+        status = read_string_value(call, &text);
+    }
+    if (status != SXML_STATUS_OK) {
+        sxml_function_library_text_release(&text);
+        return status;
+    }
+    const sxml_byte_view value = sxml_function_library_text_view(&text);
+    size_t first = 0;
+    size_t end = value.byte_count;
+    while (sides.trims_start && first < end && is_trimmed_whitespace(value.bytes[first])) {
+        first += 1;
+    }
+    while (sides.trims_end && end > first && is_trimmed_whitespace(value.bytes[end - 1])) {
+        end -= 1;
+    }
+    status = sxml_function_library_make_string(
+        call->item_heap, slice_of(value, (byte_part){.byte_offset = first, .byte_count = end - first}),
+        result);
+    sxml_function_library_text_release(&text);
+    return status;
+}
+
+/* ----------------------------------------------------- fn:parse-integer */
+
+static const sxml_static_error radix_error = {
+    .error_status = SXML_STATUS_DYNAMIC_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("FORG0011"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "The radix is not in the range 2 to 36 (F&O 4.0, fn:parse-integer)"),
+};
+
+static const sxml_static_error digits_error = {
+    .error_status = SXML_STATUS_DYNAMIC_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("FORG0012"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "The value has no digits, or a character that is not a digit of the radix (F&O 4.0, "
+        "fn:parse-integer)"),
+};
+
+/* The value of a generalized digit (0-9, a-z, A-Z), or 36 for none. */
+static uint32_t digit_value(uint8_t byte) {
+    if (byte >= '0' && byte <= '9') {
+        return (uint32_t)(byte - '0');
+    }
+    if (byte >= 'a' && byte <= 'z') {
+        return (uint32_t)(byte - 'a') + 10U;
+    }
+    if (byte >= 'A' && byte <= 'Z') {
+        return (uint32_t)(byte - 'A') + 10U;
+    }
+    return 36U;
+}
+
+/* An integer being accumulated: in int64_t while it fits, then as a
+   decimal. */
+typedef struct integer_accumulator {
+    bool is_decimal;
+    int64_t small_value;
+    sxml_decimal large_value;
+} integer_accumulator;
+
+/* accumulator := accumulator * radix + digit, exactly. */
+typedef struct digit_step {
+    uint32_t radix;
+    uint32_t digit;
+} digit_step;
+
+static sxml_status accumulate_digit(const sxml_decimal_configuration *configuration,
+                                    integer_accumulator *accumulator, digit_step step) {
+    const int64_t radix = (int64_t)step.radix;
+    const int64_t digit = (int64_t)step.digit;
+    if (!accumulator->is_decimal) {
+        if (accumulator->small_value <= (INT64_MAX - digit) / radix) {
+            accumulator->small_value = accumulator->small_value * radix + digit;
+            return SXML_STATUS_OK;
+        }
+        sxml_status status = sxml_decimal_from_integer(configuration, accumulator->small_value,
+                                                       &accumulator->large_value);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        accumulator->is_decimal = true;
+    }
+    sxml_decimal radix_decimal;
+    sxml_status status = sxml_decimal_from_integer(configuration, radix, &radix_decimal);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_decimal product;
+    status = sxml_decimal_multiply(
+        configuration,
+        &(sxml_decimal_operands){.left_operand = &accumulator->large_value,
+                                 .right_operand = &radix_decimal},
+        &product);
+    sxml_decimal_finalize(&radix_decimal);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_decimal digit_decimal;
+    status = sxml_decimal_from_integer(configuration, digit, &digit_decimal);
+    sxml_decimal sum;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_decimal_add(configuration,
+                                  &(sxml_decimal_operands){.left_operand = &product,
+                                                           .right_operand = &digit_decimal},
+                                  &sum);
+        sxml_decimal_finalize(&digit_decimal);
+    }
+    sxml_decimal_finalize(&product);
+    if (status == SXML_STATUS_OK) {
+        sxml_decimal_finalize(&accumulator->large_value);
+        accumulator->large_value = sum;
+    }
+    return status;
+}
+
+/* Makes the xs:integer of accumulator (negated when is_negative), taking
+   its decimal. */
+typedef struct signed_accumulator {
+    integer_accumulator *accumulator;
+    bool is_negative;
+} signed_accumulator;
+
+static sxml_status make_accumulated_integer(const sxml_function_call *call,
+                                            signed_accumulator value, sxml_sequence *result) {
+    integer_accumulator *accumulator = value.accumulator;
+    if (!accumulator->is_decimal) {
+        *result = sxml_sequence_from_item(sxml_atomic_item_from_integer(
+            value.is_negative ? -accumulator->small_value : accumulator->small_value));
+        return SXML_STATUS_OK;
+    }
+    const sxml_decimal_configuration *configuration =
+        sxml_item_heap_get_decimal_configuration(call->item_heap);
+    sxml_status status = SXML_STATUS_OK;
+    if (value.is_negative) {
+        sxml_decimal negated;
+        status = sxml_decimal_negate(configuration, &accumulator->large_value, &negated);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        sxml_decimal_finalize(&accumulator->large_value);
+        accumulator->large_value = negated;
+    }
+    sxml_item item = {.representation = 0};
+    status = sxml_atomic_item_make_taking_decimal(
+        call->item_heap,
+        &(sxml_decimal_item_request){.type = sxml_builtin_type_identifier(SXML_TYPE_XS_INTEGER),
+                                     .decimal = &accumulator->large_value},
+        &item);
+    if (status == SXML_STATUS_OK) {
+        accumulator->is_decimal = false;
+        *result = sxml_sequence_from_item(item);
+    }
+    return status;
+}
+
+/* fn:parse-integer($value, $radix := 10) (F&O 4.0, section 4.6.2):
+   whitespace and underscores are stripped anywhere, then an optional sign
+   and one or more digits of the radix (FORG0012); the radix is 2 to 36
+   (FORG0011). */
+static sxml_status call_parse_integer(const sxml_function_call *call, sxml_sequence *result) {
+    sxml_optional_item value_item;
+    sxml_status status = sxml_function_library_read_optional_item(call, 0, &value_item);
+    sxml_optional_item radix_item;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_function_library_read_optional_item(call, 1, &radix_item);
+    }
+    int64_t radix = 10;
+    if (status == SXML_STATUS_OK && radix_item.has_item) {
+        sxml_atomic_datum datum;
+        status = sxml_atomic_item_get_datum(radix_item.item, &datum);
+        radix = status == SXML_STATUS_OK && datum.datum_kind == SXML_DATUM_KIND_INTEGER
+                    ? datum.datum_details.integer
+                    : 0;
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (radix < 2 || radix > 36) {
+        return sxml_function_library_report(call, &radix_error);
+    }
+    if (!value_item.has_item) {
+        *result = sxml_sequence_empty();
+        return SXML_STATUS_OK;
+    }
+    sxml_string value;
+    status = sxml_function_library_read_string_argument(call, 0, &value);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    const sxml_decimal_configuration *configuration =
+        sxml_item_heap_get_decimal_configuration(call->item_heap);
+    integer_accumulator accumulator = {.is_decimal = false, .small_value = 0};
+    bool is_negative = false;
+    bool has_sign = false;
+    bool has_digit = false;
+    for (size_t byte_index = 0; status == SXML_STATUS_OK && byte_index < value.utf8.byte_count;
+         byte_index += 1) {
+        const uint8_t byte = value.utf8.bytes[byte_index];
+        if (is_trimmed_whitespace(byte) || byte == '_') {
+            continue;
+        }
+        if ((byte == '+' || byte == '-') && !has_sign && !has_digit) {
+            has_sign = true;
+            is_negative = byte == '-';
+            continue;
+        }
+        const uint32_t digit = digit_value(byte);
+        if (digit >= (uint32_t)radix) {
+            status = sxml_function_library_report(call, &digits_error);
+            break;
+        }
+        has_digit = true;
+        status = accumulate_digit(configuration, &accumulator,
+                                  (digit_step){.radix = (uint32_t)radix, .digit = digit});
+    }
+    if (status == SXML_STATUS_OK && !has_digit) {
+        status = sxml_function_library_report(call, &digits_error);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = make_accumulated_integer(
+            call, (signed_accumulator){.accumulator = &accumulator, .is_negative = is_negative},
+            result);
+    }
+    if (accumulator.is_decimal) {
+        sxml_decimal_finalize(&accumulator.large_value);
+    }
+    return status;
+}
+
 /* ------------------------------------------------ Substring matching */
 
 /* What a substring function asks about $substring in $value (F&O 4.0,
@@ -553,6 +882,10 @@ typedef enum substring_question {
     SXML_SUBSTRING_QUESTION_ENDS_WITH,
     SXML_SUBSTRING_QUESTION_BEFORE,
     SXML_SUBSTRING_QUESTION_AFTER,
+    /* fn:substring-before-last and fn:substring-after-last (F&O 4.0,
+       sections 5.5.6 and 5.5.7; packet 1.23b). */
+    SXML_SUBSTRING_QUESTION_BEFORE_LAST,
+    SXML_SUBSTRING_QUESTION_AFTER_LAST,
 } substring_question;
 
 /* The byte offset of the first occurrence of needle in haystack, or
@@ -569,6 +902,21 @@ static size_t find_bytes(sxml_byte_view haystack, sxml_byte_view needle) {
          offset += 1) {
         if (memcmp(haystack.bytes + offset, needle.bytes, needle.byte_count) == 0) {
             return offset;
+        }
+    }
+    return SIZE_MAX;
+}
+
+/* The byte offset of the last occurrence of needle in haystack (the end
+   for an empty needle), or SIZE_MAX. */
+static size_t find_last_bytes(sxml_byte_view haystack, sxml_byte_view needle) {
+    if (needle.byte_count > haystack.byte_count) {
+        return SIZE_MAX;
+    }
+    for (size_t offset = haystack.byte_count - needle.byte_count + 1; offset > 0; offset -= 1) {
+        if (needle.byte_count == 0 ||
+            memcmp(haystack.bytes + offset - 1, needle.bytes, needle.byte_count) == 0) {
+            return needle.byte_count == 0 ? haystack.byte_count : offset - 1;
         }
     }
     return SIZE_MAX;
@@ -610,12 +958,17 @@ static sxml_status call_substring_question(const sxml_function_call *call,
         return SXML_STATUS_OK;
     case SXML_SUBSTRING_QUESTION_BEFORE:
     case SXML_SUBSTRING_QUESTION_AFTER:
+    case SXML_SUBSTRING_QUESTION_BEFORE_LAST:
+    case SXML_SUBSTRING_QUESTION_AFTER_LAST:
         break;
     }
-    const size_t offset = find_bytes(haystack, needle);
+    const bool is_last = question == SXML_SUBSTRING_QUESTION_BEFORE_LAST ||
+                         question == SXML_SUBSTRING_QUESTION_AFTER_LAST;
+    const size_t offset = is_last ? find_last_bytes(haystack, needle) : find_bytes(haystack, needle);
     sxml_byte_view part = {.bytes = NULL, .byte_count = 0};
     if (offset != SIZE_MAX) {
-        part = question == SXML_SUBSTRING_QUESTION_BEFORE
+        part = question == SXML_SUBSTRING_QUESTION_BEFORE ||
+                       question == SXML_SUBSTRING_QUESTION_BEFORE_LAST
                    ? (sxml_byte_view){.bytes = haystack.bytes, .byte_count = offset}
                    : slice_of(haystack,
                               (byte_part){.byte_offset = offset + needle.byte_count,
@@ -641,6 +994,195 @@ static sxml_status call_ends_with(const sxml_function_call *call, sxml_sequence 
 static sxml_status call_substring_before(const sxml_function_call *call,
                                          sxml_sequence *result) {
     return call_substring_question(call, SXML_SUBSTRING_QUESTION_BEFORE, result);
+}
+
+static sxml_status call_substring_before_last(const sxml_function_call *call,
+                                              sxml_sequence *result) {
+    return call_substring_question(call, SXML_SUBSTRING_QUESTION_BEFORE_LAST, result);
+}
+
+static sxml_status call_substring_after_last(const sxml_function_call *call,
+                                             sxml_sequence *result) {
+    return call_substring_question(call, SXML_SUBSTRING_QUESTION_AFTER_LAST, result);
+}
+
+/* ------------------------------------------------------ Character maps */
+
+/* The codepoint at codepoint_position (from 0) of text, or false when text
+   is shorter. */
+typedef struct codepoint_lookup {
+    bool is_found;
+    uint32_t codepoint;
+} codepoint_lookup;
+
+static codepoint_lookup find_codepoint_at(sxml_string text, size_t codepoint_position) {
+    sxml_codepoint_iterator iterator = {.string = text, .byte_offset = 0};
+    uint32_t codepoint = 0;
+    size_t position = 0;
+    while (sxml_codepoint_iterator_next(&iterator, &codepoint)) {
+        if (position == codepoint_position) {
+            return (codepoint_lookup){.is_found = true, .codepoint = codepoint};
+        }
+        position += 1;
+    }
+    return (codepoint_lookup){.is_found = false, .codepoint = 0};
+}
+
+/* The position (from 0) of the first occurrence of codepoint in text, or
+   SIZE_MAX. */
+static size_t find_codepoint_position(sxml_string text, uint32_t codepoint) {
+    sxml_codepoint_iterator iterator = {.string = text, .byte_offset = 0};
+    uint32_t candidate = 0;
+    size_t position = 0;
+    while (sxml_codepoint_iterator_next(&iterator, &candidate)) {
+        if (candidate == codepoint) {
+            return position;
+        }
+        position += 1;
+    }
+    return SIZE_MAX;
+}
+
+/* fn:translate($value, $replace, $with) (F&O 4.0, section 5.4.9): each
+   character of $value found first at position M of $replace becomes the
+   character at M of $with, or is dropped when $with is shorter. */
+static sxml_status call_translate(const sxml_function_call *call, sxml_sequence *result) {
+    sxml_string value;
+    sxml_string replace;
+    sxml_string with;
+    sxml_status status = sxml_function_library_read_string_argument(call, 0, &value);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_function_library_read_string_argument(call, 1, &replace);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_function_library_read_string_argument(call, 2, &with);
+    }
+    if (status == SXML_STATUS_OK) {
+        /* One step per pair of characters compared (D89, D91). */
+        status = sxml_function_library_charge_steps(
+            call, (uint64_t)value.utf8.byte_count * ((uint64_t)replace.utf8.byte_count + 1));
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_library_text text = {.item_heap = call->item_heap};
+    sxml_codepoint_iterator iterator = {.string = value, .byte_offset = 0};
+    uint32_t codepoint = 0;
+    while (status == SXML_STATUS_OK && sxml_codepoint_iterator_next(&iterator, &codepoint)) {
+        const size_t position = find_codepoint_position(replace, codepoint);
+        if (position == SIZE_MAX) {
+            status = sxml_function_library_text_append_codepoint(&text, codepoint);
+            continue;
+        }
+        const codepoint_lookup replacement = find_codepoint_at(with, position);
+        if (replacement.is_found) {
+            status = sxml_function_library_text_append_codepoint(&text, replacement.codepoint);
+        }
+    }
+    if (status != SXML_STATUS_OK) {
+        sxml_function_library_text_release(&text);
+        return status;
+    }
+    return finish_text(&text, result);
+}
+
+/* fn:codepoint-equal($value1, $value2) (F&O 4.0, section 5.3.7): the
+   empty sequence when either is empty. */
+static sxml_status call_codepoint_equal(const sxml_function_call *call,
+                                        sxml_sequence *result) {
+    sxml_optional_item first;
+    sxml_optional_item second;
+    sxml_status status = sxml_function_library_read_optional_item(call, 0, &first);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_function_library_read_optional_item(call, 1, &second);
+    }
+    if (status != SXML_STATUS_OK || !first.has_item || !second.has_item) {
+        *result = sxml_sequence_empty();
+        return status;
+    }
+    sxml_string first_text;
+    sxml_string second_text;
+    status = sxml_function_library_read_string_argument(call, 0, &first_text);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_function_library_read_string_argument(call, 1, &second_text);
+    }
+    if (status == SXML_STATUS_OK) {
+        *result = sxml_function_library_make_boolean((sxml_boolean_result){
+            .is_true = sxml_byte_view_equals(first_text.utf8, second_text.utf8)});
+    }
+    return status;
+}
+
+/* text without leading and trailing whitespace. */
+static sxml_byte_view trim_whitespace(sxml_byte_view text) {
+    size_t first = 0;
+    size_t end = text.byte_count;
+    while (first < end && is_xml_whitespace(text.bytes[first])) {
+        first += 1;
+    }
+    while (end > first && is_xml_whitespace(text.bytes[end - 1])) {
+        end -= 1;
+    }
+    return slice_of(text, (byte_part){.byte_offset = first, .byte_count = end - first});
+}
+
+/* Whether a whitespace-separated token of text equals token. */
+static bool has_token(sxml_byte_view text, sxml_byte_view token) {
+    size_t offset = 0;
+    while (offset < text.byte_count) {
+        while (offset < text.byte_count && is_xml_whitespace(text.bytes[offset])) {
+            offset += 1;
+        }
+        size_t end = offset;
+        while (end < text.byte_count && !is_xml_whitespace(text.bytes[end])) {
+            end += 1;
+        }
+        if (end > offset && end - offset == token.byte_count &&
+            memcmp(text.bytes + offset, token.bytes, token.byte_count) == 0) {
+            return true;
+        }
+        offset = end;
+    }
+    return false;
+}
+
+/* fn:contains-token($value, $token, $collation) (F&O 4.0, section 5.5.8):
+   true when some item of $value, split at whitespace, has a token equal
+   to $token with its whitespace trimmed; false for an empty token. */
+static sxml_status call_contains_token(const sxml_function_call *call,
+                                       sxml_sequence *result) {
+    sxml_string token;
+    sxml_status status = sxml_function_library_read_string_argument(call, 1, &token);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_function_library_check_collation(call, 2);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    const sxml_byte_view trimmed = trim_whitespace(token.utf8);
+    bool is_found = false;
+    sxml_sequence_iterator iterator =
+        sxml_sequence_iterator_start(sxml_function_library_get_argument(call, 0));
+    while (trimmed.byte_count > 0 && !is_found) {
+        sxml_iteration_step step;
+        status = sxml_sequence_iterator_next(&iterator, call->error_record, &step);
+        if (status != SXML_STATUS_OK || !step.has_item) {
+            break;
+        }
+        sxml_atomic_datum datum;
+        status = sxml_atomic_item_get_datum(step.item, &datum);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_function_library_charge_steps(call, 1);
+        }
+        if (status != SXML_STATUS_OK) {
+            break;
+        }
+        is_found = has_token(datum.datum_details.string.utf8, trimmed);
+    }
+    if (status == SXML_STATUS_OK) {
+        *result = sxml_function_library_make_boolean((sxml_boolean_result){.is_true = is_found});
+    }
+    return status;
 }
 
 static sxml_status call_substring_after(const sxml_function_call *call,
@@ -717,6 +1259,18 @@ static void release_pattern(pattern_matcher *pattern) {
     *pattern = (pattern_matcher){.regex = NULL, .matcher = NULL};
 }
 
+/* After a search that gave search_status: charges the instructions it ran
+   to the evaluation (D89, D91), so a bound on evaluation steps also bounds
+   regular expressions that run without tasks. */
+static sxml_status charge_search(const sxml_function_call *call,
+                                 const pattern_matcher *pattern, sxml_status search_status) {
+    if (search_status != SXML_STATUS_OK) {
+        return search_status;
+    }
+    return sxml_function_library_charge_steps(
+        call, sxml_regex_matcher_get_step_count(pattern->matcher));
+}
+
 /* fn:matches($value, $pattern, $flags := "") (F&O 4.0, section 6.3.1). */
 static sxml_status call_matches(const sxml_function_call *call, sxml_sequence *result) {
     sxml_string value;
@@ -728,10 +1282,12 @@ static sxml_status call_matches(const sxml_function_call *call, sxml_sequence *r
     }
     sxml_regex_search_result found = {.is_found = false};
     if (status == SXML_STATUS_OK) {
-        status = sxml_regex_matcher_find(
-            pattern.matcher,
-            &(sxml_regex_search_request){.regex_input = value, .start_byte_offset = 0},
-            &found);
+        status = charge_search(
+            call, &pattern,
+            sxml_regex_matcher_find(
+                pattern.matcher,
+                &(sxml_regex_search_request){.regex_input = value, .start_byte_offset = 0},
+                &found));
     }
     release_pattern(&pattern);
     if (status == SXML_STATUS_OK) {
@@ -917,10 +1473,11 @@ static sxml_status append_before_match(replace_state *replace, sxml_string value
 }
 
 /* Moves past the current match to the next one. */
-static sxml_status find_next_match(replace_state *replace) {
+static sxml_status find_next_match(const sxml_function_call *call, replace_state *replace) {
     replace->copied_to = replace->found.matching_segment.byte_offset +
                          replace->found.matching_segment.byte_count;
-    return sxml_regex_matcher_find_next(replace->pattern.matcher, &replace->found);
+    return charge_search(call, &replace->pattern,
+                         sxml_regex_matcher_find_next(replace->pattern.matcher, &replace->found));
 }
 
 /* Appends the rest of the input and finishes with the text. */
@@ -1047,10 +1604,12 @@ static sxml_status start_replace(const sxml_function_call *call, replace_state *
         }
     }
     if (status == SXML_STATUS_OK) {
-        status = sxml_regex_matcher_find(
-            replace->pattern.matcher,
-            &(sxml_regex_search_request){.regex_input = value, .start_byte_offset = 0},
-            &replace->found);
+        status = charge_search(
+            call, &replace->pattern,
+            sxml_regex_matcher_find(
+                replace->pattern.matcher,
+                &(sxml_regex_search_request){.regex_input = value, .start_byte_offset = 0},
+                &replace->found));
     }
     return status;
 }
@@ -1082,7 +1641,7 @@ static sxml_status step_replace(const sxml_native_step_request *request,
         }
         sxml_sequence_release(request->call_result);
         if (status == SXML_STATUS_OK) {
-            status = find_next_match(replace);
+            status = find_next_match(call, replace);
         }
     }
     sxml_string value;
@@ -1097,7 +1656,7 @@ static sxml_status step_replace(const sxml_native_step_request *request,
             status = append_replacement(call, &replace->pattern, &replace->text);
         }
         if (status == SXML_STATUS_OK) {
-            status = find_next_match(replace);
+            status = find_next_match(call, replace);
         }
     }
     if (status != SXML_STATUS_OK) {
@@ -1164,9 +1723,12 @@ static sxml_status tokenize_with_pattern(const sxml_function_call *call,
     const sxml_string value = request.value;
     sxml_sequence_builder *builder = request.builder;
     sxml_regex_search_result found = {.is_found = false};
-    sxml_status status = sxml_regex_matcher_find(
-        pattern->matcher,
-        &(sxml_regex_search_request){.regex_input = value, .start_byte_offset = 0}, &found);
+    sxml_status status = charge_search(
+        call, pattern,
+        sxml_regex_matcher_find(
+            pattern->matcher,
+            &(sxml_regex_search_request){.regex_input = value, .start_byte_offset = 0},
+            &found));
     size_t token_start = 0;
     bool is_first = true;
     bool ends_with_empty_segment = false;
@@ -1185,7 +1747,8 @@ static sxml_status tokenize_with_pattern(const sxml_function_call *call,
         ends_with_empty_segment =
             segment.byte_count == 0 && segment.byte_offset == value.utf8.byte_count;
         if (status == SXML_STATUS_OK) {
-            status = sxml_regex_matcher_find_next(pattern->matcher, &found);
+            status = charge_search(call, pattern,
+                                   sxml_regex_matcher_find_next(pattern->matcher, &found));
         }
     }
     if (status == SXML_STATUS_OK && !ends_with_empty_segment) {
@@ -1281,6 +1844,23 @@ static const sxml_function_parameter substring_question_parameters[] = {
     SXML_REQUIRED_PARAMETER("value", "xs:string?"),
     SXML_REQUIRED_PARAMETER("substring", "xs:string?"),
     SXML_OPTIONAL_PARAMETER("collation", "xs:string?")};
+static const sxml_function_parameter trim_space_parameters[] = {
+    SXML_CONTEXT_PARAMETER("value", "xs:anyAtomicType?"),
+    SXML_OPTIONAL_PARAMETER("options", "map(*)?")};
+static const sxml_function_parameter parse_integer_parameters[] = {
+    SXML_REQUIRED_PARAMETER("value", "xs:string?"),
+    SXML_OPTIONAL_PARAMETER("radix", "xs:integer?")};
+static const sxml_function_parameter translate_parameters[] = {
+    SXML_REQUIRED_PARAMETER("value", "xs:string?"),
+    SXML_REQUIRED_PARAMETER("replace", "xs:string"),
+    SXML_REQUIRED_PARAMETER("with", "xs:string")};
+static const sxml_function_parameter codepoint_equal_parameters[] = {
+    SXML_REQUIRED_PARAMETER("value1", "xs:string?"),
+    SXML_REQUIRED_PARAMETER("value2", "xs:string?")};
+static const sxml_function_parameter contains_token_parameters[] = {
+    SXML_REQUIRED_PARAMETER("value", "xs:string*"),
+    SXML_REQUIRED_PARAMETER("token", "xs:string"),
+    SXML_OPTIONAL_PARAMETER("collation", "xs:string?")};
 static const sxml_function_parameter matches_parameters[] = {
     SXML_REQUIRED_PARAMETER("value", "xs:string?"),
     SXML_REQUIRED_PARAMETER("pattern", "xs:string"),
@@ -1328,6 +1908,18 @@ static const sxml_native_function string_functions[] = {
                       call_substring_before),
     SXML_FUNCTION_ROW("substring-after", substring_question_parameters, "xs:string", 0,
                       call_substring_after),
+    SXML_FUNCTION_ROW("substring-before-last", substring_question_parameters, "xs:string", 0,
+                      call_substring_before_last),
+    SXML_FUNCTION_ROW("substring-after-last", substring_question_parameters, "xs:string", 0,
+                      call_substring_after_last),
+    SXML_FUNCTION_ROW("translate", translate_parameters, "xs:string", 0, call_translate),
+    SXML_FUNCTION_ROW("trim-space", trim_space_parameters, "xs:string", 0, call_trim_space),
+    SXML_FUNCTION_ROW("parse-integer", parse_integer_parameters, "xs:integer?", 0,
+                      call_parse_integer),
+    SXML_FUNCTION_ROW("codepoint-equal", codepoint_equal_parameters, "xs:boolean?", 0,
+                      call_codepoint_equal),
+    SXML_FUNCTION_ROW("contains-token", contains_token_parameters, "xs:boolean", 0,
+                      call_contains_token),
     SXML_FUNCTION_ROW("matches", matches_parameters, "xs:boolean", 0, call_matches),
     {.function_namespace = SXML_NAMESPACE_FUNCTIONS,
      .properties = SXML_NATIVE_FUNCTION_CALLS_FUNCTION_ITEMS,

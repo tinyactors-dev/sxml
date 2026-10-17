@@ -3,7 +3,8 @@
  * and fn:last, which lowering reads from the focus (XPath 4.0, section
  * 2.2.2), the clock functions fn:current-dateTime, fn:current-date,
  * fn:current-time and fn:implicit-timezone (F&O 4.0, section 16), and the
- * component functions of dates and times (F&O 4.0, section 9.5).
+ * component functions of dates and times (F&O 4.0, section 9.5) and, from
+ * packet 1.23b (D91), of durations (F&O 4.0, section 8.2), and fn:dateTime.
  *
  * Golden file: src/memory.c (layout and comments); rows as in
  * src/function_library_internal.h.
@@ -321,6 +322,218 @@ static sxml_status call_timezone(const sxml_function_call *call, sxml_sequence *
     return call_component(call, SXML_DATE_TIME_COMPONENT_TIMEZONE, result);
 }
 
+/* ---------------------------------------------------------- fn:dateTime */
+
+static const sxml_static_error different_timezones_error = {
+    .error_status = SXML_STATUS_DYNAMIC_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("FORG0008"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "The date and the time have different timezones (F&O 4.0, fn:dateTime)"),
+};
+
+/* Reads a date/time argument: has_value false for the empty sequence. */
+typedef struct date_time_argument {
+    bool has_value;
+    sxml_date_time value;
+} date_time_argument;
+
+static sxml_status read_date_time(const sxml_function_call *call, size_t argument_index,
+                                  date_time_argument *argument) {
+    argument->has_value = false;
+    sxml_optional_item item;
+    sxml_status status = sxml_function_library_read_optional_item(call, argument_index, &item);
+    if (status != SXML_STATUS_OK || !item.has_item) {
+        return status;
+    }
+    sxml_atomic_datum datum;
+    status = sxml_atomic_item_get_datum(item.item, &datum);
+    if (status == SXML_STATUS_OK && datum.datum_kind != SXML_DATUM_KIND_DATE_TIME) {
+        status = SXML_STATUS_INVALID_ARGUMENT;
+    }
+    if (status == SXML_STATUS_OK) {
+        *argument = (date_time_argument){.has_value = true,
+                                         .value = datum.datum_details.date_time};
+    }
+    return status;
+}
+
+/* fn:dateTime($date, $time) (F&O 4.0, section 9.3.1): the date's
+   components with the time's; the timezone of whichever has one, FORG0008
+   when both have different ones. */
+static sxml_status call_date_time(const sxml_function_call *call, sxml_sequence *result) {
+    date_time_argument date = {.has_value = false};
+    date_time_argument time = {.has_value = false};
+    sxml_status status = read_date_time(call, 0, &date);
+    if (status == SXML_STATUS_OK) {
+        status = read_date_time(call, 1, &time);
+    }
+    if (status != SXML_STATUS_OK || !date.has_value || !time.has_value) {
+        *result = sxml_sequence_empty();
+        return status;
+    }
+    if (date.value.has_timezone && time.value.has_timezone &&
+        date.value.timezone_offset_minutes != time.value.timezone_offset_minutes) {
+        return sxml_function_library_report(call, &different_timezones_error);
+    }
+    const bool has_timezone = date.value.has_timezone || time.value.has_timezone;
+    int16_t timezone_offset_minutes = time.value.timezone_offset_minutes;
+    if (date.value.has_timezone) {
+        timezone_offset_minutes = date.value.timezone_offset_minutes;
+    }
+    const sxml_date_time combined = {
+        .year = date.value.year,
+        .month = date.value.month,
+        .day = date.value.day,
+        .hour = time.value.hour,
+        .minute = time.value.minute,
+        .second = time.value.second,
+        .nanosecond = time.value.nanosecond,
+        .has_timezone = has_timezone,
+        .timezone_offset_minutes = timezone_offset_minutes};
+    sxml_item item = {.representation = 0};
+    status = sxml_atomic_item_make(
+        call->item_heap,
+        &(sxml_atomic_item_request){
+            .type = sxml_builtin_type_identifier(SXML_TYPE_XS_DATE_TIME),
+            .datum = {.datum_kind = SXML_DATUM_KIND_DATE_TIME,
+                      .datum_details = {.date_time = combined}}},
+        &item);
+    if (status == SXML_STATUS_OK) {
+        *result = sxml_sequence_from_item(item);
+    }
+    return status;
+}
+
+/* ------------------------------------------------- Duration components */
+
+/* Which component of a duration (F&O 4.0, section 8.2; packet 1.23b). */
+typedef enum duration_component {
+    SXML_DURATION_COMPONENT_YEARS,
+    SXML_DURATION_COMPONENT_MONTHS,
+    SXML_DURATION_COMPONENT_DAYS,
+    SXML_DURATION_COMPONENT_HOURS,
+    SXML_DURATION_COMPONENT_MINUTES,
+    SXML_DURATION_COMPONENT_SECONDS,
+} duration_component;
+
+/* ($seconds mod 60) as xs:decimal, with the duration's sign (F&O 4.0,
+   fn:seconds-from-duration). */
+static sxml_status make_duration_seconds(sxml_item_heap *item_heap, sxml_duration duration,
+                                         sxml_item *item) {
+    const bool is_negative = duration.seconds < 0 || duration.nanoseconds < 0;
+    const uint64_t whole = (uint64_t)(duration.seconds < 0 ? -(duration.seconds % 60)
+                                                          : duration.seconds % 60);
+    uint32_t fraction = (uint32_t)(duration.nanoseconds < 0 ? -(int64_t)duration.nanoseconds
+                                                            : (int64_t)duration.nanoseconds);
+    uint8_t text[16];
+    size_t byte_count = 0;
+    if (is_negative && (whole > 0 || fraction > 0)) {
+        text[byte_count++] = '-';
+    }
+    if (whole >= 10) {
+        text[byte_count++] = (uint8_t)('0' + whole / 10U);
+    }
+    text[byte_count++] = (uint8_t)('0' + whole % 10U);
+    if (fraction > 0) {
+        text[byte_count++] = '.';
+    }
+    for (uint32_t divisor = 100000000U; divisor > 0 && fraction > 0; divisor /= 10U) {
+        text[byte_count++] = (uint8_t)('0' + fraction / divisor);
+        fraction %= divisor;
+    }
+    return sxml_atomic_item_make(
+        item_heap,
+        &(sxml_atomic_item_request){
+            .type = sxml_builtin_type_identifier(SXML_TYPE_XS_DECIMAL),
+            .datum = {.datum_kind = SXML_DATUM_KIND_DECIMAL,
+                      .datum_details = {.decimal_text = {.bytes = text,
+                                                         .byte_count = byte_count}}}},
+        item);
+}
+
+/* fn:years-from-duration and its siblings (F&O 4.0, sections 8.2.1 to
+   8.2.6): a duration is a (months, seconds) tuple; years is months idiv
+   12, months is months mod 12, days is seconds idiv 86400, hours (seconds
+   mod 86400) idiv 3600, minutes (seconds mod 3600) idiv 60, seconds
+   seconds mod 60, each with the sign of the duration. */
+static sxml_status call_duration_component(const sxml_function_call *call,
+                                           duration_component component,
+                                           sxml_sequence *result) {
+    sxml_optional_item value;
+    sxml_status status = sxml_function_library_read_optional_item(call, 0, &value);
+    if (status != SXML_STATUS_OK || !value.has_item) {
+        *result = sxml_sequence_empty();
+        return status;
+    }
+    sxml_atomic_datum datum;
+    status = sxml_atomic_item_get_datum(value.item, &datum);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (datum.datum_kind != SXML_DATUM_KIND_DURATION) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    const sxml_duration duration = datum.datum_details.duration;
+    /* C division truncates toward zero, as idiv and mod do. */
+    int64_t component_value = 0;
+    sxml_item item = {.representation = 0};
+    switch (component) {
+    case SXML_DURATION_COMPONENT_YEARS:
+        component_value = duration.months / 12;
+        break;
+    case SXML_DURATION_COMPONENT_MONTHS:
+        component_value = duration.months % 12;
+        break;
+    case SXML_DURATION_COMPONENT_DAYS:
+        component_value = duration.seconds / 86400;
+        break;
+    case SXML_DURATION_COMPONENT_HOURS:
+        component_value = (duration.seconds % 86400) / 3600;
+        break;
+    case SXML_DURATION_COMPONENT_MINUTES:
+        component_value = (duration.seconds % 3600) / 60;
+        break;
+    case SXML_DURATION_COMPONENT_SECONDS:
+        status = make_duration_seconds(call->item_heap, duration, &item);
+        if (status == SXML_STATUS_OK) {
+            *result = sxml_sequence_from_item(item);
+        }
+        return status;
+    }
+    *result = sxml_sequence_from_item(sxml_atomic_item_from_integer(component_value));
+    return SXML_STATUS_OK;
+}
+
+static sxml_status call_years_from_duration(const sxml_function_call *call,
+                                            sxml_sequence *result) {
+    return call_duration_component(call, SXML_DURATION_COMPONENT_YEARS, result);
+}
+
+static sxml_status call_months_from_duration(const sxml_function_call *call,
+                                             sxml_sequence *result) {
+    return call_duration_component(call, SXML_DURATION_COMPONENT_MONTHS, result);
+}
+
+static sxml_status call_days_from_duration(const sxml_function_call *call,
+                                           sxml_sequence *result) {
+    return call_duration_component(call, SXML_DURATION_COMPONENT_DAYS, result);
+}
+
+static sxml_status call_hours_from_duration(const sxml_function_call *call,
+                                            sxml_sequence *result) {
+    return call_duration_component(call, SXML_DURATION_COMPONENT_HOURS, result);
+}
+
+static sxml_status call_minutes_from_duration(const sxml_function_call *call,
+                                              sxml_sequence *result) {
+    return call_duration_component(call, SXML_DURATION_COMPONENT_MINUTES, result);
+}
+
+static sxml_status call_seconds_from_duration(const sxml_function_call *call,
+                                              sxml_sequence *result) {
+    return call_duration_component(call, SXML_DURATION_COMPONENT_SECONDS, result);
+}
+
 /* ------------------------------------------------------------------ Rows */
 
 static const sxml_function_parameter date_parameters[] = {
@@ -329,6 +542,10 @@ static const sxml_function_parameter date_time_parameters[] = {
     SXML_REQUIRED_PARAMETER("value", "xs:dateTime?")};
 static const sxml_function_parameter time_parameters[] = {
     SXML_REQUIRED_PARAMETER("value", "xs:time?")};
+static const sxml_function_parameter date_and_time_parameters[] = {
+    SXML_REQUIRED_PARAMETER("date", "xs:date?"), SXML_REQUIRED_PARAMETER("time", "xs:time?")};
+static const sxml_function_parameter duration_parameters[] = {
+    SXML_REQUIRED_PARAMETER("value", "xs:duration?")};
 
 static const sxml_native_function context_functions[] = {
     {.function_namespace = SXML_NAMESPACE_FUNCTIONS,
@@ -381,6 +598,19 @@ static const sxml_native_function context_functions[] = {
                       call_timezone),
     SXML_FUNCTION_ROW("timezone-from-time", time_parameters, "xs:dayTimeDuration?", 0,
                       call_timezone),
+    SXML_FUNCTION_ROW("dateTime", date_and_time_parameters, "xs:dateTime?", 0, call_date_time),
+    SXML_FUNCTION_ROW("years-from-duration", duration_parameters, "xs:integer?", 0,
+                      call_years_from_duration),
+    SXML_FUNCTION_ROW("months-from-duration", duration_parameters, "xs:integer?", 0,
+                      call_months_from_duration),
+    SXML_FUNCTION_ROW("days-from-duration", duration_parameters, "xs:integer?", 0,
+                      call_days_from_duration),
+    SXML_FUNCTION_ROW("hours-from-duration", duration_parameters, "xs:integer?", 0,
+                      call_hours_from_duration),
+    SXML_FUNCTION_ROW("minutes-from-duration", duration_parameters, "xs:integer?", 0,
+                      call_minutes_from_duration),
+    SXML_FUNCTION_ROW("seconds-from-duration", duration_parameters, "xs:decimal?", 0,
+                      call_seconds_from_duration),
 };
 
 const sxml_native_function_view sxml_function_library_context =

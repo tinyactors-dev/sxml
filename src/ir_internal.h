@@ -978,6 +978,14 @@ struct sxml_ir_unit {
     sxml_item_heap *item_heap;
     sxml_byte_view source_name;
     uint32_t maximum_expression_count;
+    /* The static base URI of the unit's static context (XPath 4.0,
+       section 2.2.1), in allocator memory; empty when absent. Set by
+       sxml_ir_unit_set_static_base_uri; has_static_base_uri tells a unit
+       whose static base URI is absent from one that never said (D91). */
+    bool has_static_base_uri;
+    sxml_byte_view static_base_uri;
+    /* The memory static_base_uri views, released when finalized. */
+    void *static_base_uri_memory;
 
     sxml_ir_expression *expressions;
     uint32_t expression_count;
@@ -1108,6 +1116,13 @@ SXML_NODISCARD sxml_status sxml_ir_unit_add_constant(
    none: call once, before sealing). */
 SXML_NODISCARD sxml_status sxml_ir_unit_set_static_namespaces(
     sxml_ir_unit *unit, sxml_namespace_binding_view bindings);
+
+/* Copies static_base_uri (empty: absent) into the unit as the static base
+   URI of its static context, which every function of the unit sees, even
+   when it is called after the unit's evaluation ended (D91). Call once,
+   before sealing. */
+SXML_NODISCARD sxml_status sxml_ir_unit_set_static_base_uri(
+    sxml_ir_unit *unit, sxml_byte_view static_base_uri);
 
 /* Adds a function (its body may still be 0) and sets its unit field. The
    first function added is the main function. */

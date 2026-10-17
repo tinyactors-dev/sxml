@@ -5,7 +5,11 @@
  * sequences" (fn:count, fn:empty, fn:exists, fn:head, fn:tail,
  * fn:reverse, fn:subsequence, fn:zero-or-one, fn:one-or-more,
  * fn:exactly-one, fn:index-of, fn:insert-before, fn:remove,
- * fn:distinct-values, fn:deep-equal, fn:sort).
+ * fn:distinct-values, fn:deep-equal, fn:sort); from packet 1.23b (D91)
+ * fn:identity, fn:unordered, fn:void, fn:foot, fn:trunk, fn:slice,
+ * fn:items-at, fn:replicate, fn:insert-separator, fn:compare,
+ * fn:atomic-equal, fn:all-equal, fn:all-different, fn:duplicate-values
+ * and fn:default-collation.
  *
  * Golden file: src/memory.c (layout and comments); rows as in
  * src/function_library_internal.h. fn:sort is a resumable body (D75): it
@@ -82,9 +86,16 @@ static sxml_status call_data(const sxml_function_call *call, sxml_sequence *resu
 /* --------------------------------------------------------------- Counting */
 
 static sxml_status call_count(const sxml_function_call *call, sxml_sequence *result) {
+    const sxml_sequence input = sxml_function_library_get_argument(call, 0);
     uint64_t item_count = 0;
-    sxml_status status = sxml_sequence_count(sxml_function_library_get_argument(call, 0),
-                                             call->error_record, &item_count);
+    sxml_status status = sxml_sequence_count(input, call->error_record, &item_count);
+    /* Counting a lazy sequence or a concatenation reads its items: one step
+       each (D89, D91); other representations know their length. */
+    const sxml_sequence_representation representation = sxml_sequence_get_representation(input);
+    if (status == SXML_STATUS_OK && (representation == SXML_SEQUENCE_REPRESENTATION_LAZY ||
+                                     representation == SXML_SEQUENCE_REPRESENTATION_CONCATENATION)) {
+        status = sxml_function_library_charge_steps(call, item_count);
+    }
     if (status == SXML_STATUS_OK) {
         *result = sxml_sequence_from_item(sxml_atomic_item_from_integer((int64_t)item_count));
     }
@@ -632,7 +643,11 @@ static sxml_status call_distinct_values(const sxml_function_call *call,
             break;
         }
         distinct_addition addition = {.is_new = false};
-        status = add_distinct(&set, step.item, &addition);
+        /* One step per item (D89, D91). */
+        status = sxml_function_library_charge_steps(call, 1);
+        if (status == SXML_STATUS_OK) {
+            status = add_distinct(&set, step.item, &addition);
+        }
         if (status != SXML_STATUS_OK) {
             break;
         }
@@ -825,6 +840,14 @@ static sxml_status finish_sort(const sxml_function_call *call, sort_state *sort,
                                  .sort = sort,
                                  .implicit_timezone_offset_minutes = implicit_timezone};
     if (status == SXML_STATUS_OK) {
+        /* About n log2 n comparisons (D89, D91). */
+        uint64_t comparison_count = sort->item_count;
+        for (size_t remaining = sort->item_count; remaining > 1; remaining /= 2) {
+            comparison_count += sort->item_count;
+        }
+        status = sxml_function_library_charge_steps(call, comparison_count);
+    }
+    if (status == SXML_STATUS_OK) {
         status = sxml_evaluator_sort_indices(
             sxml_item_heap_as_allocator(call->item_heap),
             &(sxml_index_sort_request){.indices = sort->positions,
@@ -911,6 +934,465 @@ static const sxml_resumable_native_body sort_body = {
     .state_alignment = alignof(sort_state),
 };
 
+/* ------------------------------------------------- 4.0 sequence functions */
+
+/* fn:identity($input) and fn:unordered($input) (F&O 4.0, sections 14.1.4
+   and 14.1.17): the input itself (the order of fn:unordered's result is
+   implementation-dependent; sxml keeps it). */
+static sxml_status call_identity(const sxml_function_call *call, sxml_sequence *result) {
+    const sxml_sequence input = sxml_function_library_get_argument(call, 0);
+    sxml_sequence_retain(input);
+    *result = input;
+    return SXML_STATUS_OK;
+}
+
+/* fn:void($input := ()) (F&O 4.0, section 14.1.19): the empty sequence;
+   the argument is not read. */
+static sxml_status call_void(const sxml_function_call *call, sxml_sequence *result) {
+    (void)call;
+    *result = sxml_sequence_empty();
+    return SXML_STATUS_OK;
+}
+
+/* fn:foot($input) and fn:trunk($input) (F&O 4.0, sections 14.1.3 and
+   14.1.16): the last item, and every item but the last. */
+typedef struct end_part {
+    bool is_foot;
+} end_part;
+
+static sxml_status call_end_part(const sxml_function_call *call, end_part part,
+                                 sxml_sequence *result) {
+    const sxml_sequence input = sxml_function_library_get_argument(call, 0);
+    uint64_t item_count = 0;
+    const sxml_status status = sxml_sequence_count(input, call->error_record, &item_count);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (item_count == 0) {
+        *result = sxml_sequence_empty();
+        return SXML_STATUS_OK;
+    }
+    return make_span(call,
+                     (item_span){.input = input,
+                                 .first_index = part.is_foot ? item_count - 1 : 0,
+                                 .has_end = true,
+                                 .end_index = part.is_foot ? item_count : item_count - 1},
+                     result);
+}
+
+static sxml_status call_foot(const sxml_function_call *call, sxml_sequence *result) {
+    return call_end_part(call, (end_part){.is_foot = true}, result);
+}
+
+static sxml_status call_trunk(const sxml_function_call *call, sxml_sequence *result) {
+    return call_end_part(call, (end_part){.is_foot = false}, result);
+}
+
+/* An optional xs:integer argument, clamped to +-2^62 (beyond any sequence
+   length, so clamping changes no result) and default_value when absent. */
+typedef struct integer_argument {
+    size_t argument_index;
+    int64_t default_value;
+} integer_argument;
+
+static sxml_status read_clamped_integer(const sxml_function_call *call,
+                                        integer_argument argument, int64_t *value) {
+    const int64_t bound = INT64_C(1) << 62;
+    sxml_optional_item item;
+    sxml_status status = sxml_function_library_read_optional_item(call, argument.argument_index,
+                                                                  &item);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (!item.has_item) {
+        *value = argument.default_value;
+        return SXML_STATUS_OK;
+    }
+    sxml_atomic_datum datum;
+    status = sxml_atomic_item_get_datum(item.item, &datum);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (datum.datum_kind == SXML_DATUM_KIND_INTEGER) {
+        const int64_t integer = datum.datum_details.integer;
+        *value = integer > bound ? bound : (integer < -bound ? -bound : integer);
+        return SXML_STATUS_OK;
+    }
+    /* An integer beyond int64_t, as decimal text. */
+    const sxml_byte_view text = datum.datum_details.decimal_text;
+    *value = text.byte_count > 0 && text.bytes[0] == '-' ? -bound : bound;
+    return SXML_STATUS_OK;
+}
+
+/* Appends the item at item_index of input (from 0) to builder. */
+typedef struct item_copy {
+    sxml_sequence input;
+    uint64_t item_index;
+} item_copy;
+
+static sxml_status append_item_at(const sxml_function_call *call, item_copy copy,
+                                  sxml_sequence_builder *builder) {
+    sxml_item item = {.representation = 0};
+    sxml_status status = sxml_sequence_get_item(
+        copy.input, (sxml_item_request){.item_index = copy.item_index,
+                                        .error_record = call->error_record},
+        &item);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_function_library_charge_steps(call, 1);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_sequence_builder_append_item(builder, item);
+    }
+    return status;
+}
+
+/* The positions fn:slice selects, over a count of items. */
+typedef struct slice_bounds {
+    int64_t start;
+    int64_t end;
+    int64_t step;
+} slice_bounds;
+
+/* $S and $E of fn:slice for a positive or negative $step. */
+static int64_t normalize_bound(int64_t bound, int64_t item_count, int64_t zero_value) {
+    if (bound == 0) {
+        return zero_value;
+    }
+    return bound < 0 ? item_count + bound + 1 : bound;
+}
+
+/*
+ * fn:slice($input, $start := 0, $end := 0, $step := 0) (F&O 4.0, section
+ * 14.1.13). A negative $STEP is fn:slice(fn:reverse($input), -$S, -$E,
+ * -$STEP); the reversed positions are read from the input in place.
+ */
+static sxml_status call_slice(const sxml_function_call *call, sxml_sequence *result) {
+    const sxml_sequence input = sxml_function_library_get_argument(call, 0);
+    uint64_t unsigned_count = 0;
+    slice_bounds requested = {.start = 0, .end = 0, .step = 0};
+    sxml_status status = sxml_sequence_count(input, call->error_record, &unsigned_count);
+    if (status == SXML_STATUS_OK) {
+        status = read_clamped_integer(
+            call, (integer_argument){.argument_index = 1, .default_value = 0}, &requested.start);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = read_clamped_integer(
+            call, (integer_argument){.argument_index = 2, .default_value = 0}, &requested.end);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = read_clamped_integer(
+            call, (integer_argument){.argument_index = 3, .default_value = 0}, &requested.step);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (unsigned_count == 0) {
+        *result = sxml_sequence_empty();
+        return SXML_STATUS_OK;
+    }
+    const int64_t item_count = (int64_t)unsigned_count;
+    const bool is_negative_step = requested.step < 0;
+    int64_t start = normalize_bound(requested.start, item_count, is_negative_step ? item_count : 1);
+    int64_t end = normalize_bound(requested.end, item_count, is_negative_step ? 1 : item_count);
+    int64_t step = requested.step != 0 ? requested.step : (end >= start ? 1 : -1);
+    bool is_reversed = false;
+    if (step < 0) {
+        /* Over the reversed input: -$S and -$E normalized again, $STEP
+           made positive. */
+        is_reversed = true;
+        start = normalize_bound(-start, item_count, 1);
+        end = normalize_bound(-end, item_count, item_count);
+        step = -step;
+    }
+    int64_t first = start;
+    if (first < 1) {
+        /* The first position at or after 1 with (p - S) mod STEP = 0. */
+        const int64_t distance = 1 - start;
+        first = start + ((distance + step - 1) / step) * step;
+    }
+    const int64_t last = end < item_count ? end : item_count;
+    sxml_sequence_builder *builder = NULL;
+    status = sxml_sequence_builder_create(
+        sxml_item_heap_as_allocator(call->item_heap),
+        &(sxml_sequence_builder_configuration){.item_heap = call->item_heap}, &builder);
+    for (int64_t position = first; status == SXML_STATUS_OK && position <= last;
+         position += step) {
+        const uint64_t index = is_reversed ? (uint64_t)(item_count - position)
+                                           : (uint64_t)(position - 1);
+        status = append_item_at(call, (item_copy){.input = input, .item_index = index}, builder);
+        if (step > last - position) {
+            break;
+        }
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_sequence_builder_finish(builder, result);
+    }
+    sxml_sequence_builder_destroy(builder);
+    return status;
+}
+
+/* fn:items-at($input, $at) (F&O 4.0, section 14.1.5): the items at the
+   positions of $at, in the order of $at; positions out of range give
+   nothing. */
+static sxml_status call_items_at(const sxml_function_call *call, sxml_sequence *result) {
+    const sxml_sequence input = sxml_function_library_get_argument(call, 0);
+    uint64_t item_count = 0;
+    sxml_status status = sxml_sequence_count(input, call->error_record, &item_count);
+    sxml_sequence_builder *builder = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_sequence_builder_create(
+            sxml_item_heap_as_allocator(call->item_heap),
+            &(sxml_sequence_builder_configuration){.item_heap = call->item_heap}, &builder);
+    }
+    sxml_sequence_iterator iterator =
+        sxml_sequence_iterator_start(sxml_function_library_get_argument(call, 1));
+    while (status == SXML_STATUS_OK) {
+        sxml_iteration_step step;
+        status = sxml_sequence_iterator_next(&iterator, call->error_record, &step);
+        if (status != SXML_STATUS_OK || !step.has_item) {
+            break;
+        }
+        sxml_atomic_datum datum;
+        status = sxml_atomic_item_get_datum(step.item, &datum);
+        if (status == SXML_STATUS_OK && datum.datum_kind == SXML_DATUM_KIND_INTEGER &&
+            datum.datum_details.integer >= 1 &&
+            (uint64_t)datum.datum_details.integer <= item_count) {
+            status = append_item_at(
+                call,
+                (item_copy){.input = input,
+                            .item_index = (uint64_t)datum.datum_details.integer - 1},
+                builder);
+        }
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_sequence_builder_finish(builder, result);
+    }
+    sxml_sequence_builder_destroy(builder);
+    return status;
+}
+
+/* fn:replicate($input, $count) (F&O 4.0, section 14.1.11): (1 to $count) !
+   $input. One step per item made (D91). */
+static sxml_status call_replicate(const sxml_function_call *call, sxml_sequence *result) {
+    const sxml_sequence input = sxml_function_library_get_argument(call, 0);
+    int64_t count = 0;
+    uint64_t item_count = 0;
+    sxml_status status = read_clamped_integer(
+        call, (integer_argument){.argument_index = 1, .default_value = 0}, &count);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_sequence_count(input, call->error_record, &item_count);
+    }
+    if (status == SXML_STATUS_OK && item_count > 0 && count > 0) {
+        status = (uint64_t)count > UINT64_MAX / item_count
+                     ? SXML_STATUS_LIMIT_EXCEEDED
+                     : sxml_function_library_charge_steps(call, (uint64_t)count * item_count);
+    }
+    sxml_sequence_builder *builder = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_sequence_builder_create(
+            sxml_item_heap_as_allocator(call->item_heap),
+            &(sxml_sequence_builder_configuration){.item_heap = call->item_heap}, &builder);
+    }
+    for (int64_t copy_number = 0; status == SXML_STATUS_OK && item_count > 0 && copy_number < count;
+         copy_number += 1) {
+        status = sxml_sequence_builder_append_sequence(builder, input, call->error_record);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_sequence_builder_finish(builder, result);
+    }
+    sxml_sequence_builder_destroy(builder);
+    return status;
+}
+
+/* fn:insert-separator($input, $separator) (F&O 4.0, section 14.1.7):
+   $separator between adjacent items. */
+static sxml_status call_insert_separator(const sxml_function_call *call,
+                                         sxml_sequence *result) {
+    const sxml_sequence separator = sxml_function_library_get_argument(call, 1);
+    sxml_sequence_builder *builder = NULL;
+    sxml_status status = sxml_sequence_builder_create(
+        sxml_item_heap_as_allocator(call->item_heap),
+        &(sxml_sequence_builder_configuration){.item_heap = call->item_heap}, &builder);
+    sxml_sequence_iterator iterator =
+        sxml_sequence_iterator_start(sxml_function_library_get_argument(call, 0));
+    bool is_first = true;
+    while (status == SXML_STATUS_OK) {
+        sxml_iteration_step step;
+        status = sxml_sequence_iterator_next(&iterator, call->error_record, &step);
+        if (status != SXML_STATUS_OK || !step.has_item) {
+            break;
+        }
+        status = sxml_function_library_charge_steps(call, 1);
+        if (status == SXML_STATUS_OK && !is_first) {
+            status = sxml_sequence_builder_append_sequence(builder, separator, call->error_record);
+        }
+        if (status == SXML_STATUS_OK) {
+            status = sxml_sequence_builder_append_item(builder, step.item);
+        }
+        is_first = false;
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_sequence_builder_finish(builder, result);
+    }
+    sxml_sequence_builder_destroy(builder);
+    return status;
+}
+
+/* ------------------------------------------------------- Comparing values */
+
+/* fn:compare($value1, $value2, $collation) (F&O 4.0, section 5.3.6): -1,
+   0 or 1 by the total order of fn:compare (sxml_atomic_item_compare); the
+   empty sequence when either is empty; XPTY0004 for values of different
+   type families. */
+static sxml_status call_compare(const sxml_function_call *call, sxml_sequence *result) {
+    sxml_optional_item first;
+    sxml_optional_item second;
+    sxml_status status = sxml_function_library_read_optional_item(call, 0, &first);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_function_library_read_optional_item(call, 1, &second);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_function_library_check_collation(call, 2);
+    }
+    if (status != SXML_STATUS_OK || !first.has_item || !second.has_item) {
+        *result = sxml_sequence_empty();
+        return status;
+    }
+    int16_t implicit_timezone = 0;
+    if (call->dynamic_context != NULL) {
+        status = sxml_dynamic_context_read_implicit_timezone(call->dynamic_context,
+                                                             &implicit_timezone);
+    }
+    sxml_ordering ordering = SXML_ORDERING_EQUAL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_atomic_item_compare_in_heap(
+            call->item_heap,
+            &(sxml_atomic_comparison){.first = first.item,
+                                      .second = second.item,
+                                      .implicit_timezone_offset_minutes = implicit_timezone,
+                                      .error_record = call->error_record,
+                                      .name_pool = sxml_item_heap_get_name_pool(call->item_heap)},
+            &ordering);
+    }
+    if (status == SXML_STATUS_OK) {
+        const int64_t value =
+            ordering == SXML_ORDERING_LESS ? -1 : (ordering == SXML_ORDERING_GREATER ? 1 : 0);
+        *result = sxml_sequence_from_item(sxml_atomic_item_from_integer(value));
+    }
+    return status;
+}
+
+/* fn:atomic-equal($value1, $value2) (F&O 4.0, section 2.2.1). */
+static sxml_status call_atomic_equal(const sxml_function_call *call, sxml_sequence *result) {
+    sxml_optional_item first;
+    sxml_optional_item second;
+    sxml_status status = sxml_function_library_read_optional_item(call, 0, &first);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_function_library_read_optional_item(call, 1, &second);
+    }
+    if (status == SXML_STATUS_OK && (!first.has_item || !second.has_item)) {
+        status = SXML_STATUS_INVALID_ARGUMENT;
+    }
+    if (status == SXML_STATUS_OK) {
+        *result = sxml_function_library_make_boolean((sxml_boolean_result){
+            .is_true = sxml_atomic_item_is_atomic_equal(first.item, second.item)});
+    }
+    return status;
+}
+
+/* fn:duplicate-values($values, $collation) (F&O 4.0, section 14.2.4):
+   each value equal to exactly one earlier one, by the rules of
+   fn:distinct-values, in the order of these second appearances. */
+static sxml_status call_duplicate_values(const sxml_function_call *call,
+                                         sxml_sequence *result) {
+    sxml_status status = sxml_function_library_check_collation(call, 1);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    distinct_set seen = {.item_heap = call->item_heap,
+                         .items = NULL,
+                         .item_count = 0,
+                         .slots = NULL,
+                         .slot_count = 0};
+    distinct_set duplicates = seen;
+    sxml_sequence_iterator iterator =
+        sxml_sequence_iterator_start(sxml_function_library_get_argument(call, 0));
+    for (;;) {
+        sxml_iteration_step step;
+        status = sxml_sequence_iterator_next(&iterator, call->error_record, &step);
+        if (status != SXML_STATUS_OK || !step.has_item) {
+            break;
+        }
+        /* One step per item (D89, D91). */
+        status = sxml_function_library_charge_steps(call, 1);
+        distinct_addition addition = {.is_new = false};
+        if (status == SXML_STATUS_OK) {
+            status = add_distinct(&seen, step.item, &addition);
+        }
+        if (status == SXML_STATUS_OK && !addition.is_new) {
+            status = add_distinct(&duplicates, step.item, &addition);
+        }
+        if (status != SXML_STATUS_OK) {
+            break;
+        }
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_sequence_make_vector(
+            call->item_heap,
+            (sxml_item_view){.items = duplicates.items, .item_count = duplicates.item_count},
+            result);
+    }
+    release_distinct_set(&seen);
+    release_distinct_set(&duplicates);
+    return status;
+}
+
+/* What fn:all-equal and fn:all-different ask of the distinct values. */
+typedef struct distinctness_question {
+    bool is_all_equal;
+} distinctness_question;
+
+/* fn:all-equal($values, $collation) and fn:all-different($values,
+   $collation) (F&O 4.0, sections 14.2.1 and 14.2.2): count(distinct-
+   values($values, $collation)) le 1, and eq count($values). */
+static sxml_status call_distinctness(const sxml_function_call *call,
+                                     distinctness_question question, sxml_sequence *result) {
+    sxml_sequence distinct = sxml_sequence_empty();
+    sxml_status status = call_distinct_values(call, &distinct);
+    uint64_t distinct_count = 0;
+    uint64_t item_count = 0;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_sequence_count(distinct, call->error_record, &distinct_count);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_sequence_count(sxml_function_library_get_argument(call, 0),
+                                     call->error_record, &item_count);
+    }
+    sxml_sequence_release(distinct);
+    if (status == SXML_STATUS_OK) {
+        *result = sxml_function_library_make_boolean((sxml_boolean_result){
+            .is_true = question.is_all_equal ? distinct_count <= 1 : distinct_count == item_count});
+    }
+    return status;
+}
+
+static sxml_status call_all_equal(const sxml_function_call *call, sxml_sequence *result) {
+    return call_distinctness(call, (distinctness_question){.is_all_equal = true}, result);
+}
+
+static sxml_status call_all_different(const sxml_function_call *call, sxml_sequence *result) {
+    return call_distinctness(call, (distinctness_question){.is_all_equal = false}, result);
+}
+
+/* fn:default-collation() (F&O 4.0, section 5.3.4): the codepoint
+   collation, the only one sxml has (D78). */
+static sxml_status call_default_collation(const sxml_function_call *call,
+                                          sxml_sequence *result) {
+    return sxml_function_library_make_string(call->item_heap,
+                                             sxml_function_library_codepoint_collation_uri(),
+                                             result);
+}
+
 /* ------------------------------------------------------------------ Rows */
 
 static const sxml_function_parameter input_parameters[] = {
@@ -939,6 +1421,29 @@ static const sxml_function_parameter deep_equal_parameters[] = {
     SXML_REQUIRED_PARAMETER("input1", "item()*"),
     SXML_REQUIRED_PARAMETER("input2", "item()*"),
     SXML_OPTIONAL_PARAMETER("options", "(xs:string | map(*))?")};
+static const sxml_function_parameter void_parameters[] = {
+    SXML_OPTIONAL_PARAMETER("input", "item()*")};
+static const sxml_function_parameter slice_parameters[] = {
+    SXML_REQUIRED_PARAMETER("input", "item()*"), SXML_OPTIONAL_PARAMETER("start", "xs:integer?"),
+    SXML_OPTIONAL_PARAMETER("end", "xs:integer?"), SXML_OPTIONAL_PARAMETER("step", "xs:integer?")};
+static const sxml_function_parameter items_at_parameters[] = {
+    SXML_REQUIRED_PARAMETER("input", "item()*"), SXML_REQUIRED_PARAMETER("at", "xs:integer*")};
+static const sxml_function_parameter replicate_parameters[] = {
+    SXML_REQUIRED_PARAMETER("input", "item()*"),
+    SXML_REQUIRED_PARAMETER("count", "xs:nonNegativeInteger")};
+static const sxml_function_parameter insert_separator_parameters[] = {
+    SXML_REQUIRED_PARAMETER("input", "item()*"),
+    SXML_REQUIRED_PARAMETER("separator", "item()*")};
+static const sxml_function_parameter compare_parameters[] = {
+    SXML_REQUIRED_PARAMETER("value1", "xs:anyAtomicType?"),
+    SXML_REQUIRED_PARAMETER("value2", "xs:anyAtomicType?"),
+    SXML_OPTIONAL_PARAMETER("collation", "xs:string?")};
+static const sxml_function_parameter atomic_equal_parameters[] = {
+    SXML_REQUIRED_PARAMETER("value1", "xs:anyAtomicType"),
+    SXML_REQUIRED_PARAMETER("value2", "xs:anyAtomicType")};
+static const sxml_function_parameter values_collation_parameters[] = {
+    SXML_REQUIRED_PARAMETER("values", "xs:anyAtomicType*"),
+    SXML_OPTIONAL_PARAMETER("collation", "xs:string?")};
 static const sxml_function_parameter sort_parameters[] = {
     SXML_REQUIRED_PARAMETER("input", "item()*"),
     SXML_OPTIONAL_PARAMETER("collation", "xs:string?"),
@@ -976,6 +1481,27 @@ static const sxml_native_function sequence_functions[] = {
      .result_type = SXML_BYTE_VIEW_INITIALIZER("item()*"),
      .call = NULL,
      .resumable_body = &sort_body},
+    SXML_FUNCTION_ROW("identity", input_parameters, "item()*", 0, call_identity),
+    SXML_FUNCTION_ROW("unordered", input_parameters, "item()*", 0, call_identity),
+    SXML_FUNCTION_ROW("void", void_parameters, "empty-sequence()", 0, call_void),
+    SXML_FUNCTION_ROW("foot", input_parameters, "item()?", 0, call_foot),
+    SXML_FUNCTION_ROW("trunk", input_parameters, "item()*", 0, call_trunk),
+    SXML_FUNCTION_ROW("slice", slice_parameters, "item()*", 0, call_slice),
+    SXML_FUNCTION_ROW("items-at", items_at_parameters, "item()*", 0, call_items_at),
+    SXML_FUNCTION_ROW("replicate", replicate_parameters, "item()*", 0, call_replicate),
+    SXML_FUNCTION_ROW("insert-separator", insert_separator_parameters, "item()*", 0,
+                      call_insert_separator),
+    SXML_FUNCTION_ROW("compare", compare_parameters, "xs:integer?",
+                      SXML_NATIVE_FUNCTION_USES_DYNAMIC_CONTEXT, call_compare),
+    SXML_FUNCTION_ROW("atomic-equal", atomic_equal_parameters, "xs:boolean", 0,
+                      call_atomic_equal),
+    SXML_FUNCTION_ROW("all-equal", values_collation_parameters, "xs:boolean", 0,
+                      call_all_equal),
+    SXML_FUNCTION_ROW("all-different", values_collation_parameters, "xs:boolean", 0,
+                      call_all_different),
+    SXML_FUNCTION_ROW("duplicate-values", values_collation_parameters, "xs:anyAtomicType*", 0,
+                      call_duplicate_values),
+    SXML_NULLARY_FUNCTION_ROW("default-collation", "xs:string", 0, call_default_collation),
 };
 
 const sxml_native_function_view sxml_function_library_sequence =
