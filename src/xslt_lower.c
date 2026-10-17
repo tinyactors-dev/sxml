@@ -1555,7 +1555,7 @@ static invocation_choice choose_invocation(const sxml_xslt_lowering_request *req
         }
     }
     if (request->initial_template.index != 0 && choice.invocation.template_node.value == 0) {
-        choice.is_valid = false;
+        choice.invocation.is_unknown_template = true;
     }
     return choice;
 }

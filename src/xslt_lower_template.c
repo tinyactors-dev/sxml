@@ -3246,6 +3246,23 @@ sxml_status sxml_xslt_lowering_bind_invocation(sxml_xpath_lowerer *lowerer,
                                                sxml_ir_atom *atom) {
     const sxml_xslt_lowering *lowering = request->lowering;
     const sxml_xslt_template_lowering *templates = lowering->templates;
+    if (request->invocation.is_unknown_template) {
+        sxml_ir_expression_index raise = {0};
+        const sxml_status status = add_raise(
+            lowerer,
+            (raise_text){.error_status = SXML_STATUS_DYNAMIC_ERROR,
+                         .code = "XTDE0040",
+                         .description = "the stylesheet has no template of the initial template's "
+                                        "name (XSLT 4.0, 2.4.4)"},
+            &raise);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        return sxml_xpath_lowerer_bind_expression(
+            lowerer,
+            (sxml_xpath_lowering_expression_in_block){.block = request->block, .expression = raise},
+            atom);
+    }
     if (request->invocation.template_node.value != 0) {
         /* 2.4.4: the template with the global context item as its focus,
            which may be absent. */

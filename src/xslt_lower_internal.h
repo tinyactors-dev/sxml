@@ -326,6 +326,9 @@ typedef struct sxml_xslt_invocation {
        mode. */
     sxml_name_identifier initial_mode;
     bool selects_unnamed_mode;
+    /* The initial template asked for does not exist: the main function
+       raises XTDE0040 (2.4.4). */
+    bool is_unknown_template;
 } sxml_xslt_invocation;
 
 typedef struct sxml_xslt_invocation_request {

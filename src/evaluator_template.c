@@ -211,8 +211,7 @@ static sxml_status sxml_template_select_focus(sxml_dynamic_context *dynamic_cont
     if (status == SXML_STATUS_OK && focus.context_size.value != 0) {
         status = sxml_template_read_focus_part(dynamic_context, focus.context_size, &size);
     }
-    /* The position the first item of the input gets is position_offset +
-       1, so it keeps its own position. */
+    /* The item keeps its own position: next_item adds one to it. */
     const uint64_t focus_position = sxml_template_count_of(position);
     const uint64_t focus_size = sxml_template_count_of(size);
     state->position = focus_position > 0 ? focus_position - 1 : 0;
