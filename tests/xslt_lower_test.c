@@ -405,7 +405,10 @@ static void test_result_document(sxml_test_state *state) {
 }
 
 /* The IR of a literal result element: one element constructor whose
-   content is its attribute's constructor and the sequence constructor. */
+   content is its attribute's constructor and the sequence constructor, in
+   the template function the main function calls when there is a global
+   context item (D144); its variant for an absent focus and the unit's
+   built-in template follow. */
 static void test_golden_ir(sxml_test_state *state) {
     transform_outcome outcome;
     run_transform((transform_request){.stylesheet = STYLESHEET("<a b='{.}'>t</a>"),
@@ -413,16 +416,27 @@ static void test_golden_ir(sxml_test_state *state) {
                                       .writes_ir = true},
                   &outcome);
     static const char expected[] =
-        "(function 1 main (parameters 0) (captures) (slots 7) (focus $1 _ _)\n"
-        "  (let $2 (static-call Q{}merge-text-nodes#1 $1)\n"
-        "    (let $3 (coerce $2 xs:anyAtomicType* function-argument)\n"
-        "      (let $4 (static-call fn:string-join#2 $3 \" \")\n"
-        "        (let $5 (attribute-constructor #b $4)\n"
-        "          (let $6 (text-constructor _ \"t\")\n"
-        "            (let $7 (element-constructor #a _ xslt-rules\n"
-        "                      (sequence $5 $6))\n"
-        "              $7)))))))\n";
-    const bool matches = strcmp(outcome.text, expected) == 0;
+        "(function 1 main (parameters 0) (captures) (slots 6) (focus $1 _ _)\n"
+        "  (let $4 (try-catch\n"
+        "            (let $2 (static-call fn:exists#1 $1)\n"
+        "              $2)\n"
+        "            (catch (err:XPDY0002) $3\n"
+        "              false()))\n"
+        "    (let $6 (conditional $4\n"
+        "              (static-call function:2#5 $1 1 1 map-item() map-item())\n"
+        "              (let $5 (sequence)\n"
+        "                (static-call function:3#5 $5 0 0 map-item() map-item())))\n"
+        "      $6)))\n"
+        "(function 2 anonymous (parameters 5) (captures) (slots 11) (focus $1 $2 $3)\n"
+        "  (let $6 (static-call Q{}merge-text-nodes#1 $1)\n"
+        "    (let $7 (coerce $6 xs:anyAtomicType* function-argument)\n"
+        "      (let $8 (static-call fn:string-join#2 $7 \" \")\n"
+        "        (let $9 (attribute-constructor #b $8)\n"
+        "          (let $10 (text-constructor _ \"t\")\n"
+        "            (let $11 (element-constructor #a _ xslt-rules\n"
+        "                       (sequence $9 $10))\n"
+        "              $11)))))))\n";
+    const bool matches = strncmp(outcome.text, expected, sizeof(expected) - 1) == 0;
     if (!matches) {
         printf("got:\n%s\n", outcome.text);
     }

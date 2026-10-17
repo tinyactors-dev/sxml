@@ -85,6 +85,10 @@ typedef struct sxml_xslt_namespace_alias {
 
 /* ---------------------------------------------------- The lowering */
 
+/* The templates and modes of a stylesheet (src/xslt_lower_template.c,
+   packet 4.8, D144). */
+typedef struct sxml_xslt_template_lowering sxml_xslt_template_lowering;
+
 /*
  * One stylesheet lowering (glossary `stylesheet_lowering`). Made by
  * sxml_xslt_lower_initial_template; procedures read it through the
@@ -102,6 +106,9 @@ typedef struct sxml_xslt_lowering {
     sxml_xslt_namespace_alias *namespace_aliases;
     size_t namespace_alias_count;
     sxml_error_record *error_record;
+    /* Made by sxml_xslt_lower_templates; NULL before. Its state for the
+       template being lowered changes while templates are lowered. */
+    sxml_xslt_template_lowering *templates;
 } sxml_xslt_lowering;
 
 /* What every XSLT lowering procedure's locals start with; it is pushed
@@ -135,6 +142,8 @@ typedef struct sxml_xslt_instruction_rule_view {
 extern const sxml_xslt_instruction_rule_view sxml_xslt_instruction_rules_construct;
 /* The instructions of src/xslt_lower_control.c (packet 4.7). */
 extern const sxml_xslt_instruction_rule_view sxml_xslt_instruction_rules_control;
+/* The instructions of src/xslt_lower_template.c (packet 4.8). */
+extern const sxml_xslt_instruction_rule_view sxml_xslt_instruction_rules_template;
 
 /* --------------------------------------------------------- Parts to call */
 
@@ -286,19 +295,73 @@ SXML_NODISCARD sxml_status sxml_xslt_lowering_get_element_namespaces(
 const sxml_xslt_namespace_alias *sxml_xslt_lowering_find_alias(const sxml_xslt_lowering *lowering,
                                                                sxml_namespace_uri_identifier uri);
 
+/* ------------------------------------------------- Templates and modes */
+
+/*
+ * Lowers every xsl:template into a template function (src/ir_internal.h:
+ * five parameters, the focus and two parameter maps), its pattern into a
+ * match function (D118), and adds the modes of the stylesheet (6.9) with
+ * their ordered rules (6.8) and built-in templates (6.10) to the unit;
+ * makes lowering->templates, which sxml_xslt_release_templates releases
+ * (also after a failure). Outside a lowering machine, before the main
+ * function, in a unit without modes. Returns SXML_STATUS_STATIC_ERROR
+ * (XTSE0545, XTSE0650, XTSE0660, XTSE0670, XTSE0680, XTSE0690, XTSE3085,
+ * XTSE4005, XTSE4010 and those of patterns and expressions) with the error
+ * record filled, SXML_STATUS_UNSUPPORTED_FEATURE, and the failures of
+ * lowering and the allocator. Defined in src/xslt_lower_template.c.
+ */
+SXML_NODISCARD sxml_status sxml_xslt_lower_templates(sxml_xslt_lowering *lowering);
+
+/* Releases lowering->templates and sets it NULL; NULL is allowed. */
+void sxml_xslt_release_templates(sxml_xslt_lowering *lowering);
+
+/* How the transformation starts (2.4). */
+typedef struct sxml_xslt_invocation {
+    /* A template to call (call-template invocation, 2.4.4) with the global
+       context item, which may be absent, as its focus; 0 applies templates
+       to the global context item (2.4.3). */
+    sxml_xslt_ast_node_index template_node;
+    /* The initial mode of an apply-templates invocation; 0 with
+       selects_unnamed_mode false is the principal module's default
+       mode. */
+    sxml_name_identifier initial_mode;
+    bool selects_unnamed_mode;
+} sxml_xslt_invocation;
+
+typedef struct sxml_xslt_invocation_request {
+    const sxml_xslt_lowering *lowering;
+    sxml_xslt_invocation invocation;
+    /* A block of the main function, which is being lowered (outside a
+       machine). */
+    sxml_xpath_lowering_block *block;
+} sxml_xslt_invocation_request;
+
+/* Binds the invocation in request->block after sxml_xslt_lower_templates
+   and writes its value's atom. */
+SXML_NODISCARD sxml_status sxml_xslt_lowering_bind_invocation(
+    sxml_xpath_lowerer *lowerer, const sxml_xslt_invocation_request *request, sxml_ir_atom *atom);
+
 /* ----------------------------------------------------------- The entry */
 
-/* A stylesheet to lower around one template (until packet 4.8 lowers
-   template rules and modes, and 4.15 the transformation). */
+/* A stylesheet to lower with the invocation that starts it (until packet
+   4.15 lowers the transformation of include/sxml/xslt.h). */
 typedef struct sxml_xslt_lowering_request {
     /* Sealed; borrowed for the call. */
     const sxml_xslt_ast *ast;
     /* Its function table, heap, allocator and limits; borrowed. */
     sxml_processor *processor;
-    /* The TEMPLATE whose sequence constructor is the main function; 0
-       means the template named xsl:initial-template, else the template of
-       a simplified stylesheet module (3.7). */
+    /* The TEMPLATE the main function calls (2.4.4); 0 means the template
+       named initial_template, else (with no such template) templates are
+       applied to the global context item (2.4.3, as for a simplified
+       stylesheet module, 3.7). */
     sxml_xslt_ast_node_index template_node;
+    /* 0 means xsl:initial-template. */
+    sxml_name_identifier initial_template;
+    /* Applies templates in the initial mode whatever the templates. */
+    bool applies_templates;
+    /* As sxml_xslt_invocation. */
+    sxml_name_identifier initial_mode;
+    bool selects_unnamed_mode;
     /* The main function returns a document node holding the result, as
        the principal result is built (2.4, build-tree): a DOCUMENT
        constructor with XSLT's rules around the value. Otherwise it returns
@@ -310,9 +373,9 @@ typedef struct sxml_xslt_lowering_request {
 } sxml_xslt_lowering_request;
 
 /*
- * Lowers the template's sequence constructor (its xsl:context-item
- * skipped; xsl:param is packet 4.8's) as the main function of a new unit,
- * whose focus is the global context item, runs sxml_ir_standard_passes,
+ * Lowers the stylesheet's templates and modes and, as the main function of
+ * a new unit whose focus is the global context item, the invocation; runs
+ * sxml_ir_standard_passes,
  * seals the unit and writes it, owned, to *unit. Returns
  * SXML_STATUS_INVALID_ARGUMENT for an unsealed AST or no template,
  * SXML_STATUS_STATIC_ERROR (XTSE, XPST) and SXML_STATUS_TYPE_ERROR with

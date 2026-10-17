@@ -505,6 +505,39 @@ static sxml_status check_node_construction(verifier *checker,
 }
 
 /* Checks the payload of one expression and pushes its nested parts. */
+/* APPLY_TEMPLATES (D144): a unit with modes, a mode in range (0 is the
+   current mode), the function's focus when select is NONE, optional
+   atoms for the parameters and the separator. */
+static sxml_status check_apply_templates(const verifier *checker,
+                                         const sxml_ir_apply_templates *apply) {
+    if (checker->unit->mode_count < 2) {
+        return report(checker, "an apply-templates is in a unit without modes");
+    }
+    if (apply->mode.value >= checker->unit->mode_count) {
+        return report(checker, "a mode index is out of range");
+    }
+    if ((uint32_t)apply->rule_search > (uint32_t)SXML_IR_RULE_SEARCH_IMPORTED_ONLY) {
+        return report(checker, "an apply-templates has an unknown rule search");
+    }
+    if (apply->select.atom_kind == SXML_IR_ATOM_KIND_NONE &&
+        current_function(checker)->focus.context_value.value == 0) {
+        return report(checker, "an apply-templates of the focus is in a function "
+                               "without one");
+    }
+    const sxml_ir_atom optional_atoms[] = {apply->select, apply->parameters,
+                                           apply->tunnel_parameters, apply->separator};
+    for (size_t atom_index = 0;
+         atom_index < sizeof(optional_atoms) / sizeof(optional_atoms[0]);
+         atom_index += 1) {
+        const sxml_status status = check_atom(
+            checker, (atom_check){.atom = optional_atoms[atom_index], .is_optional = true});
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+    }
+    return SXML_STATUS_OK;
+}
+
 static sxml_status visit_expression(verifier *checker,
                                     sxml_ir_expression_index index) {
     checker->expression = index;
@@ -769,8 +802,7 @@ static sxml_status visit_expression(verifier *checker,
     case SXML_IR_EXPRESSION_KIND_SHALLOW_COPY:
         return check_node_construction(checker, expression);
     case SXML_IR_EXPRESSION_KIND_APPLY_TEMPLATES:
-        /* Reserved until the evaluator implements it (Phase 4). */
-        return report(checker, "an expression kind is reserved");
+        return check_apply_templates(checker, &expression->apply_templates);
     }
     return report(checker, "an expression kind is unknown");
 }
@@ -888,12 +920,56 @@ static sxml_status verify_globals(verifier *checker) {
     return SXML_STATUS_OK;
 }
 
+/* The parameter count of a template function (D144). */
+#define TEMPLATE_FUNCTION_PARAMETER_COUNT 5U
+
+static bool is_function_of_arity(const sxml_ir_unit *unit, sxml_ir_function_index function,
+                                 uint32_t arity) {
+    return function.value != 0 && function.value < unit->function_count &&
+           sxml_ir_unit_get_function(unit, function)->parameter_count == arity;
+}
+
+/* Modes and template rules (D144): rules in range, match functions of
+   arity 1, template functions (and built-in templates) of arity 5. */
+static sxml_status verify_modes(verifier *checker) {
+    const sxml_ir_unit *unit = checker->unit;
+    checker->expression = (sxml_ir_expression_index){.value = 0};
+    for (uint32_t mode_number = 1; mode_number < unit->mode_count; mode_number += 1) {
+        const sxml_ir_mode *mode =
+            sxml_ir_unit_get_mode(unit, (sxml_ir_mode_index){.value = mode_number});
+        const sxml_ir_template_rule_view rules =
+            sxml_ir_unit_get_template_rules(unit, mode->template_rules);
+        if (rules.template_rule_count != mode->template_rules.template_rule_count ||
+            (rules.template_rule_count > 0 &&
+             mode->template_rules.first_template_rule_index == 0)) {
+            return report(checker, "a mode's template rules are out of range");
+        }
+        if (!is_function_of_arity(unit, mode->built_in_template,
+                                  TEMPLATE_FUNCTION_PARAMETER_COUNT)) {
+            return report(checker, "a mode's built-in template is not a template function");
+        }
+        for (size_t rule_index = 0; rule_index < rules.template_rule_count; rule_index += 1) {
+            const sxml_ir_template_rule *rule = &rules.template_rules[rule_index];
+            if (!is_function_of_arity(unit, rule->match_function, 1) ||
+                !is_function_of_arity(unit, rule->template_function,
+                                      TEMPLATE_FUNCTION_PARAMETER_COUNT)) {
+                return report(checker, "a template rule's match or template function "
+                                       "has the wrong arity");
+            }
+        }
+    }
+    return SXML_STATUS_OK;
+}
+
 static sxml_status verify_unit(verifier *checker) {
     const sxml_ir_unit *unit = checker->unit;
     if (unit->function_count < 2) {
         return report(checker, "the unit has no main function");
     }
     sxml_status status = verify_globals(checker);
+    if (status == SXML_STATUS_OK) {
+        status = verify_modes(checker);
+    }
     for (uint32_t function_number = 1;
          status == SXML_STATUS_OK && function_number < unit->function_count;
          function_number += 1) {

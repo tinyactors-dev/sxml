@@ -242,9 +242,11 @@
  * xsl:mode is an sxml_ir_mode with a list of sxml_ir_template_rule, each
  * rule pairs a match function (the pattern lowered to an IR function of
  * one parameter returning xs:boolean) with a template function (an IR
- * function whose parameters 1 to 3 are the focus, followed by the declared
- * parameters), and xsl:apply-templates, xsl:next-match and
- * xsl:apply-imports are the reserved APPLY_TEMPLATES kind. For
+ * function whose parameters 1 to 3 are the focus, followed by the
+ * non-tunnel and the tunnel parameters supplied, two maps from names to
+ * values, D144), and xsl:apply-templates, xsl:next-match and
+ * xsl:apply-imports are the APPLY_TEMPLATES kind; xsl:call-template is a
+ * STATIC_CALL of the template function. For
  *
  *     <xsl:template match="b[@x]" mode="m" priority="1">
  *       <xsl:value-of select="@x"/>
@@ -261,17 +263,18 @@
  *           (let $3 (step $1 attribute attribute(x))
  *             (let $4 (static-call fn:exists#1 $3) $4))
  *           false())))
- *     (function 3 anonymous (parameters 3) (captures) (slots 6) (focus $1 $2 $3)
- *       (let $4 (step $1 attribute attribute(x))
- *         (let $5 (coerce $4 xs:anyAtomicType* function-argument)
- *           (let $6 (static-call fn:string-join#2 $5 " ")
- *             (text-constructor $6)))))
+ *     (function 3 anonymous (parameters 5) (captures) (slots 8) (focus $1 $2 $3)
+ *       (let $6 (step $1 attribute attribute(x))
+ *         (let $7 (coerce $6 xs:anyAtomicType* function-argument)
+ *           (let $8 (static-call fn:string-join#2 $7 " ")
+ *             (text-constructor $8)))))
  *
  * and the instruction is `(apply-templates $global:1 mode 1 from-start)`.
  * The evaluator binds each selected item with its position and size, calls
  * the match functions of the mode in rule order (precedence, priority,
- * declaration order, XSLT 4.0, section 6.6), calls the template function of
- * the first rule that matches, and falls back to the mode's built-in rule.
+ * declaration order, XSLT 4.0, section 6.8), calls the template function of
+ * the first rule that matches, and falls back to the mode's built-in
+ * template (6.10), itself a template function made by lowering.
  *
  * Thread safety: a unit is used by the thread of its item heap (D35).
  */
@@ -878,25 +881,34 @@ typedef enum sxml_ir_rule_search {
     SXML_IR_RULE_SEARCH_IMPORTED_ONLY,
 } sxml_ir_rule_search;
 
-/* One xsl:with-param: by name, matched to the template's parameters. */
-typedef struct sxml_ir_parameter_binding {
-    sxml_name_identifier parameter_name;
-    sxml_ir_atom value;
-    bool is_tunnel;
-} sxml_ir_parameter_binding;
-
-typedef struct sxml_ir_parameter_binding_list {
-    uint32_t first_parameter_binding_index;
-    uint32_t parameter_binding_count;
-} sxml_ir_parameter_binding_list;
-
-/* APPLY_TEMPLATES: select NONE means the current item (next-match,
-   apply-imports). */
+/*
+ * APPLY_TEMPLATES (XSLT 4.0, sections 6.6 to 6.12; D144): for each item of
+ * select, with its position and the size of select as the focus, the
+ * first template rule of the mode (in the mode's order, under
+ * rule_search) whose match function returns true, else the mode's
+ * built-in template; its template function is called with the item,
+ * position, size, parameters and tunnel_parameters, and the results are
+ * concatenated, separator between two. The current mode and template
+ * rule of the dynamic context are the selected ones while it runs.
+ */
 typedef struct sxml_ir_apply_templates {
+    /* The items to process; NONE: the focus of the function the
+       expression is in, as one item with its position and size
+       (xsl:next-match, xsl:apply-imports). */
     sxml_ir_atom select;
+    /* NONE: the current mode (mode="#current", next-match,
+       apply-imports); outside every template, the unnamed mode. */
     sxml_ir_mode_index mode;
     sxml_ir_rule_search rule_search;
-    sxml_ir_parameter_binding_list parameters;
+    /* The non-tunnel parameters supplied, a map(xs:QName, item()*); NONE
+       for none. */
+    sxml_ir_atom parameters;
+    /* The tunnel parameters passed on (10.1.6), a map(xs:QName, item()*);
+       NONE for none. */
+    sxml_ir_atom tunnel_parameters;
+    /* Put between the results of two adjacent items (the separator
+       attribute, 6.7); NONE for none. */
+    sxml_ir_atom separator;
 } sxml_ir_apply_templates;
 
 /* One expression: its kind, where it comes from, and the payload its kind
@@ -991,9 +1003,10 @@ typedef struct sxml_ir_global_variable {
     sxml_ir_function_index initializer;
 } sxml_ir_global_variable;
 
-/* -------------------------------------------- XSLT modes (reserved) */
+/* ------------------------------------------------------- XSLT modes */
 
-/* What a mode does with an item no rule matches (XSLT 4.0, section 6.7). */
+/* What a mode does with an item no rule matches (XSLT 4.0, section 6.10):
+   its on-no-match; the mode's built-in template does it. */
 typedef enum sxml_ir_built_in_rule {
     SXML_IR_BUILT_IN_RULE_TEXT_ONLY_COPY,
     SXML_IR_BUILT_IN_RULE_SHALLOW_COPY,
@@ -1003,29 +1016,55 @@ typedef enum sxml_ir_built_in_rule {
     SXML_IR_BUILT_IN_RULE_FAIL,
 } sxml_ir_built_in_rule;
 
-/* One template rule of a mode. */
+/*
+ * One template rule of a mode. A template function has five parameters:
+ * the focus (item()?, xs:integer, xs:integer: slots 1 to 3, its focus),
+ * the non-tunnel parameters and the tunnel parameters supplied (two
+ * map(xs:QName, item()*)); it binds its declared parameters from them.
+ */
 typedef struct sxml_ir_template_rule {
     /* Arity 1, result xs:boolean: the pattern. */
     sxml_ir_function_index match_function;
-    /* Focus in slots 1 to 3, then the declared parameters. */
     sxml_ir_function_index template_function;
     double priority;
+    /* Of the stylesheet level the rule is declared in. */
     int32_t import_precedence;
+    /* The lowest import precedence of the stylesheet levels that level
+       imports, directly or not (6.11, apply-imports); import_precedence
+       when it imports none. */
+    int32_t lowest_imported_precedence;
     uint32_t declaration_order;
 } sxml_ir_template_rule;
+
+typedef struct sxml_ir_template_rule_view {
+    const sxml_ir_template_rule *template_rules;
+    size_t template_rule_count;
+} sxml_ir_template_rule_view;
 
 typedef struct sxml_ir_template_rule_list {
     uint32_t first_template_rule_index;
     uint32_t template_rule_count;
 } sxml_ir_template_rule_list;
 
-/* One mode: its rules in the order they are tried. */
+/* One mode: its rules in the order they are tried (6.8: import
+   precedence, then priority, then the last in declaration order first). */
 typedef struct sxml_ir_mode {
     /* 0 for the unnamed mode. */
     sxml_name_identifier mode_name;
     sxml_ir_template_rule_list template_rules;
     sxml_ir_built_in_rule built_in_rule;
+    /* A template function (as the rules') that processes an item no rule
+       matches. */
+    sxml_ir_function_index built_in_template;
+    /* on-multiple-match="fail": XTDE0540 when two rules of the best
+       import precedence and priority match. */
+    bool fails_on_multiple_match;
 } sxml_ir_mode;
+
+typedef struct sxml_ir_mode_view {
+    const sxml_ir_mode *modes;
+    size_t mode_count;
+} sxml_ir_mode_view;
 
 /* ------------------------------------------------------------------ Unit */
 
@@ -1128,10 +1167,7 @@ struct sxml_ir_unit {
        (XPath 4.0, section 2.2.1), for casts to xs:QName at run time (F&O
        4.0, section 19.1.9); a run of namespace_bindings. */
     sxml_ir_namespace_binding_list static_namespaces;
-    /* Reserved for Phase 4; empty until then. */
-    sxml_ir_parameter_binding *parameter_bindings;
-    uint32_t parameter_binding_count;
-    uint32_t parameter_binding_capacity;
+    /* XSLT modes and their template rules (sxml_ir_unit_add_modes). */
     sxml_ir_mode *modes;
     uint32_t mode_count;
     uint32_t mode_capacity;
@@ -1232,6 +1268,18 @@ SXML_NODISCARD sxml_status sxml_ir_unit_add_catch_clauses(
 SXML_NODISCARD sxml_status sxml_ir_unit_add_namespace_bindings(
     sxml_ir_unit *unit, sxml_namespace_binding_view bindings,
     sxml_ir_namespace_binding_list *list);
+
+/* Copies template_rules into the unit, for the template_rules of a mode
+   added after them. */
+SXML_NODISCARD sxml_status sxml_ir_unit_add_template_rules(
+    sxml_ir_unit *unit, sxml_ir_template_rule_view template_rules,
+    sxml_ir_template_rule_list *list);
+
+/* Copies modes into the unit as the next modes and writes the index of
+   the first to *first_mode (modes number from 1 in the order added). */
+SXML_NODISCARD sxml_status sxml_ir_unit_add_modes(sxml_ir_unit *unit,
+                                                  sxml_ir_mode_view modes,
+                                                  sxml_ir_mode_index *first_mode);
 
 /* Retains value; the unit releases it when finalized. */
 SXML_NODISCARD sxml_status sxml_ir_unit_add_constant(
@@ -1432,6 +1480,30 @@ static inline sxml_sequence sxml_ir_unit_get_constant(
 static inline sxml_namespace_binding_view sxml_ir_unit_get_static_namespaces(
     const sxml_ir_unit *unit) {
     return sxml_ir_unit_get_namespace_bindings(unit, unit->static_namespaces);
+}
+
+/* The mode at index, borrowed; NULL for 0 or out of range. */
+static inline const sxml_ir_mode *sxml_ir_unit_get_mode(const sxml_ir_unit *unit,
+                                                        sxml_ir_mode_index index) {
+    if (index.value == 0 || index.value >= unit->mode_count) {
+        return NULL;
+    }
+    return &unit->modes[index.value];
+}
+
+/* The template rules of list, borrowed; empty when out of range. */
+static inline sxml_ir_template_rule_view sxml_ir_unit_get_template_rules(
+    const sxml_ir_unit *unit, sxml_ir_template_rule_list list) {
+    if (list.template_rule_count == 0 ||
+        list.first_template_rule_index > unit->template_rule_count ||
+        list.template_rule_count >
+            unit->template_rule_count - list.first_template_rule_index) {
+        return (sxml_ir_template_rule_view){.template_rules = NULL,
+                                            .template_rule_count = 0};
+    }
+    return (sxml_ir_template_rule_view){
+        .template_rules = unit->template_rules + list.first_template_rule_index,
+        .template_rule_count = list.template_rule_count};
 }
 
 /* The global variable at index, borrowed; a zero one for 0 or out of

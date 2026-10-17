@@ -11,7 +11,8 @@
  * with an initializer is SXML_STATUS_UNSUPPORTED_FEATURE and releases
  * everything. Kinds whose part is filled (evaluated_kinds) are tested in
  * their part's own test (TRY_CATCH: tests/evaluator_try_test.c; the
- * constructors: tests/evaluator_construct_test.c).
+ * constructors: tests/evaluator_construct_test.c; APPLY_TEMPLATES:
+ * tests/evaluator_template_test.c).
  */
 #include "evaluator_machine_internal.h"
 #include "ir_internal.h"
@@ -38,7 +39,8 @@ static const sxml_ir_expression_kind reserved_kinds[] = {
 };
 
 /* The reserved kinds whose part is filled: TRY_CATCH (packet 3.6), the
-   constructors and SHALLOW_COPY (packet 3.5). */
+   constructors and SHALLOW_COPY (packet 3.5), APPLY_TEMPLATES (packet 4.8,
+   tests/evaluator_template_test.c). */
 static const sxml_ir_expression_kind evaluated_kinds[] = {
     SXML_IR_EXPRESSION_KIND_TRY_CATCH,
     SXML_IR_EXPRESSION_KIND_DOCUMENT_CONSTRUCTOR,
@@ -49,6 +51,7 @@ static const sxml_ir_expression_kind evaluated_kinds[] = {
     SXML_IR_EXPRESSION_KIND_COMMENT_CONSTRUCTOR,
     SXML_IR_EXPRESSION_KIND_PROCESSING_INSTRUCTION_CONSTRUCTOR,
     SXML_IR_EXPRESSION_KIND_SHALLOW_COPY,
+    SXML_IR_EXPRESSION_KIND_APPLY_TEMPLATES,
 };
 
 static bool is_evaluated_kind(sxml_ir_expression_kind kind) {
@@ -330,7 +333,9 @@ static void test_dispatch_survives_every_allocation_failure(sxml_test_state *sta
         if (status == SXML_STATUS_OK) {
             status = evaluation_status;
         }
-        succeeded = status == SXML_STATUS_UNSUPPORTED_FEATURE;
+        /* An APPLY_TEMPLATES in a unit without modes (unverified IR) is
+           refused by its part once its state is made (D144). */
+        succeeded = status == SXML_STATUS_INVALID_ARGUMENT;
         SXML_TEST_EXPECT(state, succeeded || status == SXML_STATUS_OUT_OF_MEMORY);
         SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
     }

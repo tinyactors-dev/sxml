@@ -28,6 +28,7 @@
 static const sxml_xslt_instruction_rule_view *const instruction_rule_views[] = {
     &sxml_xslt_instruction_rules_construct,
     &sxml_xslt_instruction_rules_control,
+    &sxml_xslt_instruction_rules_template,
 };
 
 /* ------------------------------------------------------------ AST reads */
@@ -1498,24 +1499,44 @@ static sxml_status collect_aliases(const sxml_xslt_lowering *source_lowering,
     return SXML_STATUS_OK;
 }
 
-/* The template to lower (see sxml_xslt_lowering_request.template_node). */
-static sxml_xslt_ast_node_index find_template(const sxml_xslt_lowering_request *request) {
+/* The invocation the request asks for (see sxml_xslt_lowering_request):
+   the template to call, or 0 to apply templates. *is_valid false for a
+   template_node that is no template. */
+typedef struct invocation_choice {
+    sxml_xslt_invocation invocation;
+    bool is_valid;
+} invocation_choice;
+
+static invocation_choice choose_invocation(const sxml_xslt_lowering_request *request) {
     const sxml_xslt_ast *ast = request->ast;
-    if (request->template_node.value != 0) {
-        return sxml_xslt_ast_get_node(ast, request->template_node)->kind ==
-                       SXML_XSLT_AST_KIND_TEMPLATE
-                   ? request->template_node
-                   : (sxml_xslt_ast_node_index){.value = 0};
+    invocation_choice choice = {.invocation = {.template_node = {.value = 0},
+                                               .initial_mode = request->initial_mode,
+                                               .selects_unnamed_mode =
+                                                   request->selects_unnamed_mode},
+                                .is_valid = true};
+    if (request->applies_templates) {
+        return choice;
     }
-    sxml_name_identifier initial_name = {.index = 0};
-    const bool has_initial_name = sxml_name_pool_find_name(
-        sxml_item_heap_get_name_pool(request->processor->item_heap),
-        &(sxml_name_request){.namespace_uri =
-                                 sxml_well_known_namespace_identifier(SXML_NAMESPACE_XSLT),
-                             .local_name = SXML_BYTE_VIEW_FROM_LITERAL("initial-template")},
-        &initial_name);
-    sxml_xslt_ast_node_index simplified = {.value = 0};
-    for (uint32_t order = 1; sxml_xslt_ast_get_declaration(ast, order).value != 0; order += 1) {
+    if (request->template_node.value != 0) {
+        choice.invocation.template_node = request->template_node;
+        choice.is_valid = sxml_xslt_ast_get_node(ast, request->template_node)->kind ==
+                          SXML_XSLT_AST_KIND_TEMPLATE;
+        return choice;
+    }
+    sxml_name_identifier initial_name = request->initial_template;
+    bool has_initial_name = initial_name.index != 0;
+    if (!has_initial_name) {
+        has_initial_name = sxml_name_pool_find_name(
+            sxml_item_heap_get_name_pool(request->processor->item_heap),
+            &(sxml_name_request){.namespace_uri =
+                                     sxml_well_known_namespace_identifier(SXML_NAMESPACE_XSLT),
+                                 .local_name = SXML_BYTE_VIEW_FROM_LITERAL("initial-template")},
+            &initial_name);
+    }
+    /* 10.1.1: the template of that name with the highest precedence. */
+    uint32_t best_precedence = 0;
+    for (uint32_t order = 1;
+         has_initial_name && sxml_xslt_ast_get_declaration(ast, order).value != 0; order += 1) {
         const sxml_xslt_ast_node_index declaration = sxml_xslt_ast_get_declaration(ast, order);
         const sxml_xslt_ast_node *node = sxml_xslt_ast_get_node(ast, declaration);
         if (node->kind != SXML_XSLT_AST_KIND_TEMPLATE) {
@@ -1525,21 +1546,24 @@ static sxml_xslt_ast_node_index find_template(const sxml_xslt_lowering_request *
             ast, sxml_xslt_ast_find_attribute(
                      ast, (sxml_xslt_ast_attribute_query){.node = declaration,
                                                           .kind = SXML_XSLT_AST_ATTRIBUTE_NAME}));
-        if (has_initial_name && name->value.kind == SXML_XSLT_AST_VALUE_KIND_NAME &&
-            name->value.payload.name.index == initial_name.index) {
-            return declaration;
-        }
-        if (simplified.value == 0 && (node->flags & SXML_XSLT_AST_NODE_FLAG_SYNTHESIZED) != 0) {
-            simplified = declaration;
+        const uint32_t precedence = sxml_xslt_ast_get_module(ast, node->module)->import_precedence;
+        if (name->value.kind == SXML_XSLT_AST_VALUE_KIND_NAME &&
+            name->value.payload.name.index == initial_name.index &&
+            (choice.invocation.template_node.value == 0 || precedence > best_precedence)) {
+            choice.invocation.template_node = declaration;
+            best_precedence = precedence;
         }
     }
-    return simplified;
+    if (request->initial_template.index != 0 && choice.invocation.template_node.value == 0) {
+        choice.is_valid = false;
+    }
+    return choice;
 }
 
-/* Lowers the template's sequence constructor as the main function. */
+/* Lowers the invocation as the main function. */
 typedef struct main_request {
     const sxml_xslt_lowering *lowering;
-    sxml_xslt_ast_node_index template_node;
+    sxml_xslt_invocation invocation;
     bool builds_result_document;
 } main_request;
 
@@ -1552,10 +1576,14 @@ static sxml_status lower_main_function(sxml_xpath_lowerer *lowerer, const main_r
             .result_type = {.item_type = sxml_builtin_type_identifier(SXML_TYPE_ITEM),
                             .occurrence = SXML_OCCURRENCE_ZERO_OR_MORE}},
         &signature);
-    sxml_ir_function_index main_function = {0};
+    sxml_ir_function_index main_function = {.value = 1};
     if (status == SXML_STATUS_OK) {
-        status = sxml_ir_unit_add_function(
-            lowerer->unit, &(sxml_ir_function){.signature = signature}, &main_function);
+        /* Function 1 was added before the templates (the main function). */
+        sxml_ir_function_replacement replacement = {
+            .index = main_function,
+            .function = *sxml_ir_unit_get_function(lowerer->unit, main_function)};
+        replacement.function.signature = signature;
+        status = sxml_ir_unit_replace_function(lowerer->unit, &replacement);
     }
     if (status != SXML_STATUS_OK) {
         return status;
@@ -1571,19 +1599,11 @@ static sxml_status lower_main_function(sxml_xpath_lowerer *lowerer, const main_r
     sxml_xpath_lowerer_enter_function(lowerer, &function_frame);
     sxml_xpath_lowering_block block = {.first = {0}, .open_let = {0}};
     sxml_ir_atom value = {0};
-    const sxml_xslt_sequence_constructor_call call = {
-        .lowering = request->lowering,
-        .first = sxml_xslt_lowering_first_constructor_child(request->lowering->ast,
-                                                            request->template_node),
-        .block = &block,
-        .is_body = false,
-        .destination = {.expression = NULL, .atom = &value, .atom_block = &block, .focused = NULL},
-        .focus = NULL};
-    const sequence_constructor_locals initial = {
-        .lowering = call.lowering, .focus = NULL, .first = call.first};
-    const sxml_xpath_lowering_procedure_call procedure_call =
-        sequence_constructor_procedure_call(&call, &initial);
-    status = sxml_xpath_lowerer_run_procedure(lowerer, &procedure_call);
+    status = sxml_xslt_lowering_bind_invocation(
+        lowerer,
+        &(sxml_xslt_invocation_request){
+            .lowering = request->lowering, .invocation = request->invocation, .block = &block},
+        &value);
     sxml_ir_expression_index result = {0};
     if (status == SXML_STATUS_OK) {
         sxml_ir_expression expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_ATOM,
@@ -1631,7 +1651,7 @@ static sxml_status lower_main_function(sxml_xpath_lowerer *lowerer, const main_r
 /* Lowers into new_unit with a lowerer in caller memory. */
 typedef struct unit_lowering {
     const sxml_xslt_lowering_request *request;
-    sxml_xslt_ast_node_index template_node;
+    sxml_xslt_invocation invocation;
     const sxml_xpath_static_context *base_context;
     sxml_ir_unit *unit;
 } unit_lowering;
@@ -1664,20 +1684,36 @@ static sxml_status lower_into_unit(const unit_lowering *work) {
                                    .static_context_count = 0,
                                    .namespace_aliases = NULL,
                                    .namespace_alias_count = 0,
-                                   .error_record = request->error_record};
+                                   .error_record = request->error_record,
+                                   .templates = NULL};
     status = make_static_contexts((context_source){.ast = request->ast, .base = work->base_context},
                                   &memory, &lowering);
     if (status == SXML_STATUS_OK) {
         status = collect_aliases(&lowering, &memory, &lowering);
     }
+    /* Function 1 is the main function, whose body comes last. */
+    sxml_ir_function_index main_function = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ir_unit_add_function(work->unit, &(sxml_ir_function){.parameter_count = 0},
+                                           &main_function);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xslt_lower_templates(&lowering);
+    }
     if (status == SXML_STATUS_OK) {
         status = lower_main_function(
             lowerer, &(main_request){.lowering = &lowering,
-                                     .template_node = work->template_node,
+                                     .invocation = work->invocation,
                                      .builds_result_document = request->builds_result_document});
     }
+    sxml_xslt_release_templates(&lowering);
+    const sxml_xslt_ast_node_index context_node =
+        work->invocation.template_node.value != 0
+            ? work->invocation.template_node
+            : sxml_xslt_ast_get_module(request->ast, (sxml_xslt_ast_module_index){.value = 1})
+                  ->root;
     const sxml_xslt_ast_static_context_index template_context =
-        sxml_xslt_ast_get_node(request->ast, work->template_node)->static_context;
+        sxml_xslt_ast_get_node(request->ast, context_node)->static_context;
     if (status == SXML_STATUS_OK && template_context.value < lowering.static_context_count) {
         /* For casts to xs:QName at run time (D84) and names given as
            strings: the template's namespaces. */
@@ -1699,8 +1735,8 @@ sxml_status sxml_xslt_lower_initial_template(const sxml_xslt_lowering_request *r
         request->processor == NULL || unit == NULL) {
         return SXML_STATUS_INVALID_ARGUMENT;
     }
-    const sxml_xslt_ast_node_index template_node = find_template(request);
-    if (template_node.value == 0) {
+    const invocation_choice choice = choose_invocation(request);
+    if (!choice.is_valid) {
         return SXML_STATUS_INVALID_ARGUMENT;
     }
     sxml_processor *processor = request->processor;
@@ -1726,7 +1762,7 @@ sxml_status sxml_xslt_lower_initial_template(const sxml_xslt_lowering_request *r
         return status;
     }
     status = lower_into_unit(&(unit_lowering){.request = request,
-                                              .template_node = template_node,
+                                              .invocation = choice.invocation,
                                               .base_context = &base_context,
                                               .unit = new_unit});
     sxml_diagnostic diagnostic;

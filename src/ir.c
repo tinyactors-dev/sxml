@@ -154,7 +154,6 @@ void sxml_ir_unit_finalize(sxml_ir_unit *unit) {
     sxml_allocator_release(allocator, unit->name_tests);
     sxml_allocator_release(allocator, unit->catch_clauses);
     sxml_allocator_release(allocator, unit->namespace_bindings);
-    sxml_allocator_release(allocator, unit->parameter_bindings);
     sxml_allocator_release(allocator, unit->modes);
     sxml_allocator_release(allocator, unit->template_rules);
     sxml_allocator_release(allocator, unit->static_base_uri_memory);
@@ -611,6 +610,76 @@ sxml_status sxml_ir_unit_add_catch_clauses(sxml_ir_unit *unit,
     *list = (sxml_ir_catch_clause_list){
         .first_catch_clause_index = room.element_count,
         .catch_clause_count = (uint32_t)catch_clauses.catch_clause_count};
+    return SXML_STATUS_OK;
+}
+
+sxml_status sxml_ir_unit_add_template_rules(sxml_ir_unit *unit,
+                                            sxml_ir_template_rule_view template_rules,
+                                            sxml_ir_template_rule_list *list) {
+    if (unit->is_sealed) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    if (template_rules.template_rule_count == 0) {
+        *list = (sxml_ir_template_rule_list){.first_template_rule_index = 0,
+                                             .template_rule_count = 0};
+        return SXML_STATUS_OK;
+    }
+    if (template_rules.template_rule_count > UNIT_ARRAY_MAXIMUM_COUNT) {
+        return SXML_STATUS_LIMIT_EXCEEDED;
+    }
+    array_room room = {0};
+    sxml_status status = make_array_room(
+        unit,
+        &(array_room_request){.elements = unit->template_rules,
+                              .element_count = unit->template_rule_count,
+                              .element_capacity = unit->template_rule_capacity,
+                              .element_size = sizeof(sxml_ir_template_rule),
+                              .element_alignment = alignof(sxml_ir_template_rule),
+                              .added_count =
+                                  (uint32_t)template_rules.template_rule_count},
+        &room);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    unit->template_rules = room.elements;
+    unit->template_rule_capacity = room.element_capacity;
+    memcpy(unit->template_rules + room.element_count, template_rules.template_rules,
+           template_rules.template_rule_count * sizeof(sxml_ir_template_rule));
+    unit->template_rule_count =
+        room.element_count + (uint32_t)template_rules.template_rule_count;
+    *list = (sxml_ir_template_rule_list){
+        .first_template_rule_index = room.element_count,
+        .template_rule_count = (uint32_t)template_rules.template_rule_count};
+    return SXML_STATUS_OK;
+}
+
+sxml_status sxml_ir_unit_add_modes(sxml_ir_unit *unit, sxml_ir_mode_view modes,
+                                   sxml_ir_mode_index *first_mode) {
+    if (unit->is_sealed || modes.mode_count == 0) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    if (modes.mode_count > UNIT_ARRAY_MAXIMUM_COUNT) {
+        return SXML_STATUS_LIMIT_EXCEEDED;
+    }
+    array_room room = {0};
+    sxml_status status = make_array_room(
+        unit,
+        &(array_room_request){.elements = unit->modes,
+                              .element_count = unit->mode_count,
+                              .element_capacity = unit->mode_capacity,
+                              .element_size = sizeof(sxml_ir_mode),
+                              .element_alignment = alignof(sxml_ir_mode),
+                              .added_count = (uint32_t)modes.mode_count},
+        &room);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    unit->modes = room.elements;
+    unit->mode_capacity = room.element_capacity;
+    memcpy(unit->modes + room.element_count, modes.modes,
+           modes.mode_count * sizeof(sxml_ir_mode));
+    unit->mode_count = room.element_count + (uint32_t)modes.mode_count;
+    *first_mode = (sxml_ir_mode_index){.value = room.element_count};
     return SXML_STATUS_OK;
 }
 
@@ -2459,12 +2528,44 @@ static sxml_status print_expression(text_writer *writer, print_stack *stack,
             stack,
             (nested_operand){.expression = expression->node_construction.content,
                              .indent = indent});
-    case SXML_IR_EXPRESSION_KIND_APPLY_TEMPLATES:
+    case SXML_IR_EXPRESSION_KIND_APPLY_TEMPLATES: {
+        /* "(apply-templates SELECT mode N SEARCH [params P] [tunnel T]
+           [separator S])", "." for the function's focus, mode 0 the
+           current one. */
+        const sxml_ir_apply_templates *apply = &expression->apply_templates;
         write_text(writer, " ");
-        write_atom(writer, expression->apply_templates.select);
+        if (apply->select.atom_kind == SXML_IR_ATOM_KIND_NONE) {
+            write_text(writer, ".");
+        } else {
+            write_atom(writer, apply->select);
+        }
         write_text(writer, " mode ");
-        write_unsigned(writer, expression->apply_templates.mode.value);
+        write_unsigned(writer, apply->mode.value);
+        switch (apply->rule_search) {
+        case SXML_IR_RULE_SEARCH_FROM_START:
+            write_text(writer, " from-start");
+            break;
+        case SXML_IR_RULE_SEARCH_AFTER_CURRENT_RULE:
+            write_text(writer, " after-current-rule");
+            break;
+        case SXML_IR_RULE_SEARCH_IMPORTED_ONLY:
+            write_text(writer, " imported-only");
+            break;
+        }
+        if (apply->parameters.atom_kind != SXML_IR_ATOM_KIND_NONE) {
+            write_text(writer, " params ");
+            write_atom(writer, apply->parameters);
+        }
+        if (apply->tunnel_parameters.atom_kind != SXML_IR_ATOM_KIND_NONE) {
+            write_text(writer, " tunnel ");
+            write_atom(writer, apply->tunnel_parameters);
+        }
+        if (apply->separator.atom_kind != SXML_IR_ATOM_KIND_NONE) {
+            write_text(writer, " separator ");
+            write_atom(writer, apply->separator);
+        }
         return SXML_STATUS_OK;
+    }
     }
     return SXML_STATUS_OK;
 }
