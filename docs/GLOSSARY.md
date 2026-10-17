@@ -200,6 +200,11 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `source_node` | The node of a stylesheet module's tree that a stylesheet AST node was read from |
 | `name_token` | One token of a name-list attribute of an XSLT element: a name, a wildcard, or `#default`, `#unnamed`, `#current`, `#all` |
 | `keyword` | A fixed word of a language: an XPath keyword (see `keyword_name`), or one of the words an XSLT attribute takes from a fixed list (`shallow-copy`, `strict`) |
+| `simple_content` | The string a sequence constructor or value makes for an attribute, comment, PI, namespace or value template: adjacent text nodes merged, zero-length ones dropped, then atomized and joined with a separator (XSLT 4.0, 5.7.2) |
+| `namespace_alias` | An `xsl:namespace-alias` pair: literal result elements and attributes in its stylesheet URI are output in its result URI (XSLT 4.0, 11.1.4) |
+| `stylesheet_lowering` | One lowering of a sealed stylesheet AST into an IR unit (`sxml_xslt_lowering`): the XPath static context of each AST static context, the namespace aliases and the instruction rules, around one `lowerer` |
+| `instruction_rule` | Which lowering procedure lowers one kind of XSLT instruction (`sxml_xslt_instruction_rule`); each XSLT lowering file lists its own |
+| `record_field` | An attribute of `xsl:record`: the field name is its local name, the value its expression |
 | `excluded_namespace` | A namespace whose namespace nodes literal result elements do not copy (XSLT 4.0, 11.1.3) |
 | `extension_namespace` | A namespace whose elements are extension instructions (XSLT 4.0, 24.3) |
 | `extension_instruction` | An element in an extension namespace inside a sequence constructor; sxml knows none and runs its fallback |
