@@ -3714,6 +3714,64 @@ fn:map-to-element (F&O 4.0, section 14.6).
   (XPDY0002); map-to-element-014 and -021 expect XQuery's decoding of
   `&amp;` in string literals under XP40; -120 and -121 need fn:serialize.
 
+### D131. Resources, the evaluation environment, lexical decimal formats and collations (packet 2.12)
+Recorded 2026-10-17. Implements D104 in `src/processor.c`,
+`src/processor_internal.h`, `src/xpath.c`, new part
+`src/function_library_resource.c`; accepts three Proposed items (2.6's
+range fast path, 2.9's decimal formats, 2.13's default collation).
+- **Evaluation environment** (glossary): what library functions read from
+  the host beyond fn:doc, carried by the processor's document loader of
+  each evaluation: resolver (dynamic context's, else processor's), trace
+  sink (same), default language ("en" when empty), environment variables.
+  Natives reach it with `sxml_processor_get_evaluation_environment(dynamic_context)`
+  / `sxml_processor_document_loader_from_dynamic_context`; NULL for a
+  dynamic context the processor did not make (unit tests): nothing
+  available, no variables, "en", trace discarded. The loader also
+  retrieves TEXT/BINARY bytes (`_retrieve`/`_release`, BYTES only, else
+  INVALID_ARGUMENT) and keeps collections per kind and absolute URI for
+  the evaluation (fn:collection is deterministic; SEQUENCE only).
+- **Text decoding** (F&O 4.0, 17.1.5, after bin:infer-encoding): candidate
+  = resource's charset, else the encoding option; no candidate: BOM
+  decides, else UTF-8 (bad bytes FOUT1200); a candidate skips a BOM that
+  agrees ("UTF-16" without BOM is big-endian) and decodes a disagreeing
+  one as characters (so it fails, FOUT1190); UTF-8, UTF-16LE/BE,
+  ISO-8859-1, US-ASCII (the XML parser's names). Non-XML characters are
+  FOUT1190; `fallback` gives U+FFFD; `normalize-newlines` maps CR LF and
+  CR to LF; -lines always normalizes and rejects that key (XPTY0004,
+  QT4 40-014); -available is false for FOUT1170/1190/1200. fn:json-doc is
+  the text (any codepoint) handed to the fn:parse-json row, found by name
+  in the XPath part list, with its options. No media-type handling.
+- **fn:trace and fn:message** stay in the error part (the library tests
+  list parts explicitly); both nondeterministic and context-dependent.
+  `sxml_stream_trace_sink` writes `label: value` lines (adaptive, " ").
+  `sxml_collation_is_supported` is 2.13's (D116).
+- **Static context checks** (xpath.c): decimal formats (kinds once,
+  `sxml_decimal_format_apply`, names distinct), collation bindings
+  (absolute, not already known, target supported), default collation
+  known; dynamic context: xs:language, distinct UTF-8 environment
+  variables. Breaches are INVALID_ARGUMENT.
+- **Lexical decimal formats and collations**: `sxml_ir_static_context`
+  (decimal formats, default collation URI, bindings) is copied into the
+  unit by `sxml_ir_unit_set_static_context`, set by lowering from the new
+  `sxml_xpath_static_context.unit_static_context`;
+  `sxml_dynamic_context_get_running_unit` gives the unit of the innermost
+  IR task (as the static base URI). fn:format-number resolves names
+  (xs:QName; string QName with the unit's static namespaces, EQName,
+  NCName, spaces trimmed; FODF1280 otherwise), the named or unnamed
+  format then the map's properties; the collation resolver tries the
+  unit's bindings first and its default for "", fn:default-collation
+  returns it.
+- **Range fast path** (2.6's patch) in `src/evaluator.c`; the step-bound
+  test uses a quantifier (a concatenation of a long range is not charged
+  up front either: `0 = (1 to 10^11, 2)` runs unbounded; left as found).
+- Measured (release, XP40): fn-unparsed-text 54 to 94/94 run,
+  -lines 39 to 58/58, -available 7 to 57/57, unparsed-binary 16 to 21/21,
+  json-doc 36 to 73/77 (4 need a fallback function), collection 18 to
+  24/25, uri-collection 7/7, environment-variable 6 to 12/12,
+  available-environment-variables 2 to 10/10, default-language 0 to 5/5,
+  message 3 to 14/14, trace 31/31, format-number 252 (2.9) to 285/286.
+  "Before" counts are at the packet's start (24fc6ac).
+
 ## Proposed
 
 - **The item axis in the evaluator** (packet 2.5, D113; for the owner of
@@ -3728,25 +3786,6 @@ fn:map-to-element (F&O 4.0, section 14.6).
   `include/sxml/types.h`) never matches; the cast should read the EQName
   form (QT4 sequence-type-61, `jnode(#xml:space)`).
 
-- **The step-bound test and O(1) range comparisons** (packet 2.6, D115;
-  for the owner of `tests/xpath_test.c`, 2.12): 2.6 decides a general
-  comparison of an integer range with one xs:integer from the bounds
-  (QT4 RangeExpr-408h and -410h, `1 = 1 to 100000000000`, are errors for
-  the step limit now). `test_step_bound_stops_long_evaluations` expects
-  LIMIT_EXCEEDED for `-1 = -100000000000 to -1`; proposed: use
-  `0 = (1 to 100000000000, 2)` there (a concatenation is still charged
-  per pair, D89). 2.6 then lands the fast path in `src/evaluator.c`.
-
-- **The default collation in the evaluator** (packet 2.13, D116; for the
-  owner of `src/processor.c`/`src/xpath.c`, 2.12, and of
-  `src/evaluator_internal.h`): `default_collation_uri` and
-  `collation_bindings` of the static context should reach the dynamic
-  context, e.g. `sxml_dynamic_context_get_default_collation_uri(context)`
-  and `sxml_dynamic_context_find_collation_binding(context, uri, &target)`.
-  `sxml_function_library_find_collation` is the one place to consult them
-  (empty URI, then bindings before `sxml_collation_find`);
-  fn:default-collation then returns the URI. QT4 cases with
-  `<collation default="true"/>` need it.
 - **Collations in the other comparing bodies** (packet 2.13, D116; for
   the owners of `src/function_library_numeric.c`,
   `src/function_library_higher_order.c`, `src/function_library_array.c`
@@ -3774,23 +3813,6 @@ fn:map-to-element (F&O 4.0, section 14.6).
   (empty = "sxml-qt4") and an optional area function there, so the XSLT
   driver can report its test-set groups (attr, decl, expr, fn, insn,
   misc, type) for the 4.17 dashboard.
-
-- **Static-context decimal formats in the evaluator** (packet 2.9, D119;
-  for the owners of `src/ir_internal.h`/`src/ir.c`, `src/xpath.c` (2.12),
-  `src/xpath_lower.c` and `src/evaluator.c`): `sxml_static_context_configuration.decimal_formats`
-  (D104) is accepted but dropped, so 33 QT4 fn-format-number cases with a
-  decimal-format environment fail (the set stays at 88% instead of
-  99.6%). Proposed: the unit keeps a copy, `sxml_ir_unit_set_decimal_formats(unit,
-  sxml_decimal_format_view)` (names and property texts copied, as
-  `sxml_ir_unit_set_static_base_uri` does), set where the static
-  namespaces are; `src/xpath.c` checks each format with
-  `sxml_decimal_format_apply` and distinct names first (INVALID_ARGUMENT);
-  and `sxml_dynamic_context_get_decimal_formats(dynamic_context)` reads
-  them lexically like `sxml_dynamic_context_get_static_base_uri`. The
-  format part then resolves `$options` names (a string as an EQName with
-  the unit's static namespaces and no default namespace, an xs:QName, an
-  NCName in no namespace), uses entry 0 as the unnamed format, and drops
-  its two FODF1280 stubs (`read_format_name`, `read_decimal_format`).
 
 - **F&O named record types in the static context** (packet 2.8, D122;
   for the owner of `src/xpath_static.c` and the type registry): no
