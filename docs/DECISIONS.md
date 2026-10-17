@@ -2072,4 +2072,22 @@ TEST-LIST] [--format=text|json]`; `tests/qt4/driver/test_run.c`,
   the baseline to be raised. Goldens `qt4/run_*` over
   `input/run-catalog.xml` cover every assertion kind passing and failing.
 
+### D94. Conformance dashboard and CI jobs (packet 1.27)
+Recorded 2026-10-17. `tools/run-qt4.sh --program SXML-QT4` runs one
+`sxml-qt4 run --spec=XP40 --test-set=NAME --format=json` process per test
+set of catalog.xml (in parallel, `timeout` 600 s each) plus the slice, into
+`build/qt4-run/`; an exit other than 0 or 1 marks the set "did not finish"
+and the run goes on. `tools/conformance-report.py DIR` writes
+`docs/CONFORMANCE.md` (slice; totals; areas by test-set prefix fn, op,
+prod, map, array, math, xs, misc, app, method, upd, ft, bin, expath; error
+codes, reasons, wrong errors, not-run reasons; worst test sets; every test
+set), optionally a merged JSON and a slice-baseline check (exit 1 below
+it). The commit shown is the last one outside `docs/`, so committing the
+regenerated file does not change it: same run, same file. An XQ40
+directory is reported too once XQuery runs (`--spec XQ40`). CI: job
+`conformance` (release, Clang, XP40 + slice, artifacts `CONFORMANCE.md`
+and `conformance.json`, step summary, blocking only on the slice) and job
+`fuzz` (D86 command); concurrency cancels in-progress runs except on main.
+The committed dashboard is refreshed by hand (or by an agent), not by CI.
+
 ## Proposed
