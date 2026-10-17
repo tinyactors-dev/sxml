@@ -190,6 +190,12 @@ equality, non-grouping variables become sequences), tumbling and sliding
 windows (start/end conditions as closures, `only end`, previous/next
 variables). Done when prod-GroupByClause and prod-WindowClause ≥ 90%.
 Spec: XQuery 4.0 "Group By Clause", "Window Clause".
+**Done** 2026-10-17 (D137): group by as a tuple stream clause over the
+internal group-by row; window clauses as segment clauses over the window
+row; one condition-closure procedure, also for while. XQ40 (release):
+prod-GroupByClause 35/40 (38 run; one prolog, one UCA tailoring, one
+SORT over an empty input in the evaluator), prod-WindowClause 125/158
+(139 run; every error a prolog, 3.10). Tests `xquery_flwor`.
 
 ### 3.9 Constructor lowering (implementation) — Early
 After 3.2, 3.5. Owns `src/xquery_lower_construct.c`,

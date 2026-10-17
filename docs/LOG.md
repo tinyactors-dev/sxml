@@ -4,6 +4,19 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 3.8 done (D137): group by and window clauses. Grouping specifications
+  are segment bindings, keys rebound atomized (XQST0094, XPTY0004), then
+  the internal group-by row over tuple arrays (atomic-equal keys,
+  collation keys, implicit timezone); window clauses are segment clauses
+  like for, a MAP over the window row's window arrays; one
+  condition-closure procedure serves window conditions and while (D126's
+  closure code left `src/xquery_lower.c`). XQ40 (release, 3.13's driver):
+  prod-GroupByClause 0 to 35/40, prod-WindowClause 0 to 125/158 (all
+  errors prologs); For, Let, Where, OrderBy, Count, While unchanged. XP40
+  29,472 passed, slice 198/198. debug, debug-gcc, wasm (new tests),
+  clang-tidy clean. Open: `sxml_sort_finish` (src/evaluator.c) fails with
+  INVALID_ARGUMENT on an empty input (use-case-groupby-Q4).
+
 - 2.12 done (D131): resources and the evaluation environment. New part
   `resource` (unparsed-text, -lines, -available, unparsed-binary,
   json-doc, collection, uri-collection, environment variables,
