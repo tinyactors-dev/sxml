@@ -86,6 +86,10 @@ or not), `output serialize="yes"`; assertions of QT4 plus
 "unsupported" until 4.15. Done when the 8,700 in-scope cases resolve and
 a ctest slice list `tests/xslt/slice.txt` (about 150 cases over the core
 sets) is chosen with a baseline file.
+**Done** 2026-10-17 (D117): `tests/xslt/driver/` (`sxml-xslt-test list`
+and `run`, a sibling of sxml-qt4), `tests/xslt/slice.txt` (154 cases),
+`tests/xslt/slice-baseline.txt` (0); all 13,867 cases resolve, 8,728 in
+scope; `run` says "XSLT not implemented" until 4.15.
 
 ### 4.2 Stylesheet AST (design) — Early
 After the Phase 1 gate. Owns `src/xslt_ast_internal.h`. Declarations and
