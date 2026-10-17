@@ -159,6 +159,13 @@ sequence, xsl:map, map-entry, array, record (4.0), TVTs, whitespace text
 nodes. Done when insn-lre, element, attribute, text, value-of, copy,
 construct-node, sequence ≥ 85% under 4.15. Spec: XSLT 4.0 "Creating Nodes
 and Sequences".
+**Done** 2026-10-19 (D142): `src/xslt_lower.c`, `src/xslt_lower_construct.c`,
+`src/xslt_simple_content.c`, `src/xslt_lower_internal.h`,
+`tests/xslt_lower_test.c`; xsl:record in the AST (`src/xslt_read.c`).
+Internal entry `sxml_xslt_lower_initial_template` until 4.8/4.15. Scratch
+run of the eight sets plus array and xsl-record (436 applicable): 78 pass,
+356 need 4.7/4.8/4.10/4.12 (variables, for-each, templates, functions), 2
+fail (DTD entities).
 
 ### 4.7 Control flow and variables (implementation)
 After 4.6, 3.6. Owns `src/xslt_lower_control.c`,

@@ -4,6 +4,21 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 4.6 done (D142): sequence constructors and node construction lowered
+  into the shared IR by the one lowering machine (procedures pushed per
+  instruction, XPath through the embedding entry): literal result
+  elements (namespace nodes, exclusion, xsl:namespace-alias), value
+  templates with 5.7.2 simple content (fixes D120's deviation: adjacent
+  text nodes merged), xsl:sequence, select, element, attribute, text,
+  value-of, comment, processing-instruction, namespace, document, copy,
+  copy-of, map, map-entry, record (new AST kind, D139's Proposed item),
+  array, array-member, fallback; XSLT error codes by TRY_CATCH mapping.
+  No IR kind, evaluator or public header change. Scratch harness over
+  lre, element, attribute, text, value-of, copy, construct-node,
+  sequence, array, xsl-record (436 applicable): 78 pass, 2 fail (DTD
+  entities), 356 need 4.7/4.8/4.10/4.12. debug, debug-gcc, wasm,
+  clang-tidy, ast-grep and the call-cycle check clean; XP40 untouched.
+
 - 2.15 done (D141): fn:parse-csv, fn:csv-to-xml, fn:csv-doc. `src/csv.c`
   is a hand-written scanner (D97): one token per call, a plain cursor, no
   allocation; `src/function_library_csv.c` builds the record (get as a
