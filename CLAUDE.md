@@ -23,6 +23,17 @@ boxes stay open until GitHub Actions runs again. The substrate headers are
 frozen (D99): changing them needs a decision record. Other Phase 3 and 4
 packets wait for the previous phase's gate.
 
+## Design principle
+
+Optimize sxml for conceptual smallness, not code size. Implement the XML
+ecosystem as a small set of orthogonal, reusable mechanisms: one data model
+(XDM), one shared execution foundation (the IR and its evaluator), and thin
+language-specific layers for XPath, XQuery and XSLT. Every new feature extends
+or composes existing abstractions rather than introducing parallel machinery.
+Follow the standards faithfully, preserve their semantics, and prefer general
+mechanisms over special cases. Complexity should grow sublinearly with
+functionality.
+
 ## Non-negotiable rules
 
 - Every public symbol starts with `sxml_`; macros and enum constants with `SXML_`.
@@ -61,4 +72,7 @@ change, stop and write the reason in `docs/DECISIONS.md` under "Proposed".
 - Before writing code, state which golden file you are imitating.
 - When the specification decides a behaviour, cite it in a comment
   (for example, the XDM 4.0 or F&O 4.0 section).
+- Commit and push to `main` early and often, at every working milestone, so
+  work never sits only in a session's working tree. Commit with an explicit
+  pathspec (`git commit -m "..." -- files`); other agents share the tree.
 - If something in these documents is unclear or contradictory, ask rather than guess.
