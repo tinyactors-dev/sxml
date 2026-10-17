@@ -129,8 +129,7 @@ jobs:
         run: |
           python3 tools/conformance-report.py build/qt4-run \
             --output build/qt4-run/CONFORMANCE.md \
-            --json-output build/qt4-run/conformance.json \
-            --slice-baseline tests/qt4/slice-baseline.txt
+            --json-output build/qt4-run/conformance.json
           cat build/qt4-run/CONFORMANCE.md >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         if: always()

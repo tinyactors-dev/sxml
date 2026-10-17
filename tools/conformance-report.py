@@ -11,8 +11,9 @@ report and the commit of the code under test. Output:
   prod, map, array, ...), the most frequent failure causes and not-run
   reasons, the test sets with the most failures, and every test set;
 - with --json-output, one merged JSON report of the whole run;
-- with --slice-baseline FILE, exit status 1 when fewer slice test cases
-  pass than the baseline records, or the slice run did not finish.
+- exit status 1 when fewer slice test cases pass than the baseline
+  (--slice-baseline, default tests/qt4/slice-baseline.txt) records, or
+  the slice run did not finish.
 
 The output depends only on the input, so regenerating from the same run
 gives the same file. Outcomes and "passed" follow D92: passed = pass +
@@ -321,9 +322,8 @@ def render(information, slice_result, baseline, spec_results):
     ]
     slice_totals = slice_result["totals"]
     if slice_result["finished"]:
-        baseline_text = f" (baseline {baseline})" if baseline is not None else ""
         lines.append(f"**{passed(slice_totals)}/{slice_totals['total']} "
-                     f"passed**{baseline_text}; "
+                     f"passed** (baseline {baseline}); "
                      f"{slice_totals['wrong_error']} wrong error, "
                      f"{slice_totals['fail']} failed, "
                      f"{slice_totals['error']} errors, "
@@ -356,7 +356,9 @@ def main():
                         default=pathlib.Path(__file__).resolve().parent.parent
                         / "docs" / "CONFORMANCE.md")
     parser.add_argument("--json-output", type=pathlib.Path)
-    parser.add_argument("--slice-baseline", type=pathlib.Path)
+    parser.add_argument("--slice-baseline", type=pathlib.Path,
+                        default=pathlib.Path(__file__).resolve().parent.parent
+                        / "tests" / "qt4" / "slice-baseline.txt")
     arguments = parser.parse_args()
 
     run_directory = arguments.run_directory
@@ -367,9 +369,7 @@ def main():
     if not spec_results:
         print(f"{run_directory}: no XP40 or XQ40 reports", file=sys.stderr)
         return 2
-    baseline = None
-    if arguments.slice_baseline:
-        baseline = int(arguments.slice_baseline.read_text().strip())
+    baseline = int(arguments.slice_baseline.read_text().strip())
 
     arguments.output.write_text(
         render(information, slice_result, baseline, spec_results),
@@ -391,17 +391,16 @@ def main():
               f"{totals['not_run']} not run; "
               f"{len(result['unfinished'])} test sets did not finish")
     print(f"slice: {slice_passed}/{slice_result['totals']['total']} passed")
-    if baseline is not None:
-        if not slice_result["finished"]:
-            print("the slice run did not finish", file=sys.stderr)
-            return 1
-        if slice_passed < baseline:
-            print(f"{slice_passed} slice test cases passed, fewer than the "
-                  f"baseline {baseline}", file=sys.stderr)
-            return 1
-        if slice_passed > baseline:
-            print(f"{slice_passed} slice test cases passed: raise the "
-                  f"baseline {baseline}")
+    if not slice_result["finished"]:
+        print("the slice run did not finish", file=sys.stderr)
+        return 1
+    if slice_passed < baseline:
+        print(f"{slice_passed} slice test cases passed, fewer than the "
+              f"baseline {baseline}", file=sys.stderr)
+        return 1
+    if slice_passed > baseline:
+        print(f"{slice_passed} slice test cases passed: raise the "
+              f"baseline {baseline}")
     return 0
 
 
