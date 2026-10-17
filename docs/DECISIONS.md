@@ -2956,3 +2956,15 @@ namespace); a missing one is UNSUPPORTED_FEATURE naming the gap.
   use the static namespaces' run), and `src/ir_verify.c` should accept the
   constructor kinds (checking name, value and content) instead of
   rejecting them as reserved.
+
+- **The item axis in the evaluator** (packet 2.5, D113; for the owner of
+  `src/evaluator_path.c` and `include/sxml/tree.h`): `item::` is lowered
+  over the child axis and a wrapper array, so the singleton case's JNode
+  has the wrong parent and document order. Proposed: append
+  `SXML_AXIS_ITEM` to `sxml_axis` (additive, D99) with the STEP semantics
+  of XPath 4.0, 4.7.4 (a JNode with ·jkey· 1, ·jvalue· jvalue(G) and
+  ·jparent· G, made once per G so `is` holds); lowering then emits one
+  STEP. Also: the JNode key test casts `key_lexical_form` without
+  namespaces, so a QName key in a namespace (given as an EQName,
+  `include/sxml/types.h`) never matches; the cast should read the EQName
+  form (QT4 sequence-type-61, `jnode(#xml:space)`).
