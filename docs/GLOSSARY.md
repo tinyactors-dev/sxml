@@ -147,6 +147,8 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `unnamed_child` | A named concrete syntax tree child that its grammar gives no field (XQuery's module); a parser part names its AST field |
 | `boundary_whitespace` | Whitespace in direct element content delimited only by tags, direct constructors and enclosed expressions (XQuery 4.0, 4.12.1.4) |
 | `namespace_declaration_attribute` | An `xmlns` or `xmlns:p` attribute of a direct element constructor; it makes a namespace binding, not an attribute (XQuery 4.0, 4.12.1.2) |
+| `character_reference` | `&#N;` or `&#xH;` in an XQuery string literal, BracedURILiteral or direct constructor text, replaced by its character, which must be an XML 1.0 character (XQuery 4.0, 4.3.1.2; XQST0090) |
+| `predefined_entity_reference` | `&lt;`, `&gt;`, `&amp;`, `&quot;` or `&apos;` in the same places (XQuery 4.0, 4.3.1.2) |
 | `keyword_name` | A keyword used as a name; XPath 4.0 keywords are not reserved |
 | `direct_constructor` | XQuery XML-like node constructor syntax: `<a b="{1}">text</a>`, `<!-- -->`, `<?pi?>` |
 | `computed_constructor` | Node constructor written with a keyword: `element #a { ... }` |
