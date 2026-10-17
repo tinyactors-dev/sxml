@@ -4152,6 +4152,16 @@ headers, so each module has its own.
 
 ## Proposed
 
+- **xsl:record and record-type/@constructor in the stylesheet AST**
+  (packet 4.5, D139): XSLT 4.0's xsl:record instruction (17 in-scope
+  cases) has no kind in `src/xslt_ast_internal.h` and is read as a
+  misplaced element (XTSE0010); xsl:record-type's constructor attribute
+  has no attribute kind (XTSE0090, 2 cases). Proposal: append
+  SXML_XSLT_AST_KIND_RECORD (attributes: any, as FOREIGN-like
+  value templates of field names, plus xsl:-prefixed standard ones) and
+  SXML_XSLT_AST_ATTRIBUTE_CONSTRUCTOR (BOOLEAN), then add the rows to the
+  reader's table.
+
 - **The item axis in the evaluator** (packet 2.5, D113; for the owner of
   `src/evaluator_path.c` and `include/sxml/tree.h`): `item::` is lowered
   over the child axis and a wrapper array, so the singleton case's JNode

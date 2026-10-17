@@ -4,6 +4,53 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 4.5 done (D139): the stylesheet reader. `src/xslt_ast.c` (builder,
+  import precedence, text form), `src/xslt_read.c`
+  (`sxml_xslt_read_stylesheet`: modules through the XML parser, one
+  explicit stack over all modules, element and attribute tables from the
+  4.0 schema and syntax summaries, static contexts, 3.11.1 stripping,
+  simplified modules, include/import with 4.0's include-cycle rule, XTSE
+  checks), `src/xslt_static.c` (use-when, static variables and shadow
+  attributes through the one evaluator, XSLT's five static functions).
+  Scratch harness over the 8,712 in-scope xslt40-test cases: 6,933 read,
+  348 fail with an expected code, 1,323 read but expect a later
+  (dynamic or lowering) error, 108 wrong: 55 `~T` type patterns the
+  pattern grammar lacks, 17 xsl:record (no AST kind), 36 single causes.
+  Sets: use-when 97/102, static 39/48 (6 later errors), shadow 10/10,
+  include 21/23 (embedded modules), import 41/41, forwards 23/23. No
+  sanitizer report over the whole run; debug, debug-gcc, wasm,
+  clang-tidy and ast-grep clean on the new files. XP40 untouched (no
+  shared file changed).
+
+- 2.17 done (D136): node, sequence, string and type functions. Node part:
+  siblings, innermost, outermost, nilled, lang, id, element-with-id,
+  idref, path (every 4.0 option, JNode keys), location; the name functions
+  take xnode()?; fn:doc takes fn:parse-xml's options. String part:
+  pad-string, index-of-substring. Sequence part: starts-/ends-/contains-
+  subsequence (resumable). JSON part: parse-xml-fragment, strip-space=
+  "all" (a stripping tree builder), system-properties. New type part:
+  type-of, schema-type, atomic-/node-type-annotation (schema-type
+  records over the registry). One options reader for every options map
+  (`src/function_library_options.c`). Collations in min/max, highest/
+  lowest, sort-by, array:sort(-by). XP40 (release, same machine) 28,476
+  to 29,593 with the others' work since; per set before to after:
+  fn-pad-string 2/22 to 22/22, fn-index-of-substring 1 to 21/21,
+  fn-siblings 3 to 18/18, fn-innermost 8 to 57/58, fn-outermost 8 to 55/55,
+  fn-nilled 5 to 14/14, fn-lang 6 to 38/38, fn-id 7 to 17/17, fn-idref 7 to
+  10/10, fn-location 1 to 5/5, fn-path 6 to 60/60, fn-doc 42 to 54/60,
+  fn-parse-xml 27 to 31/42, fn-parse-xml-fragment 9 to 36/39,
+  fn-system-properties 1 to 23/23, fn-type-of 0 to 31/31, fn-schema-type 0
+  to 9/9, fn-*-type-annotation 0 to 4/4, fn-starts-/ends-/contains-
+  subsequence 12 to 95/95, fn-highest 29 to 30/30, fn-lowest 29 to 31/31,
+  fn-sort-by 50 to 56/56, array-sort 27 to 29/29, array-sort-by 43 to
+  48/48. Lost: fn-function-lookup-350/354/358 (function-lookup of the
+  focus-dependent id#1, element-with-id#1, idref#1 is XPDY0002, D115's open
+  lowering item; they passed only while the functions were missing).
+  Survey: missing functions are 2.11's and 2.15's, load-xquery-module,
+  transform and D97's non-goals. Slice 198/198; debug, debug-gcc, wasm
+  pass; lint clean. Proposed: the decimal-zero comparison fix in
+  `src/xdm_atomic.c` (`0.0 eq 0e0` is false), a descending range.
+
 - 3.8 done (D137): group by and window clauses. Grouping specifications
   are segment bindings, keys rebound atomized (XQST0094, XPTY0004), then
   the internal group-by row over tuple arrays (atomic-equal keys,
