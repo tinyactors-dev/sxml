@@ -193,6 +193,8 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `qt4_parameter` | A `<param>` of a QT4 environment: an external variable with a `select` expression and an optional declared type |
 | `qt4_resource` | A text resource of a QT4 environment, reached by URI (`fn:unparsed-text`, `fn:json-doc`) |
 | `qt4_collection` | A collection of a QT4 environment for `fn:collection`: sources, resources and queries under one URI |
+| `qt4_resource_table` | What one QT4 test case's environment serves through the resource resolver: its resources by URI, its collections as sequences, and suite files by `file:///` URI |
+| `qt4_scope` | Whether a QT4 test case counts in the denominator of the pass-rate targets (D95): its spec matches and it needs no non-goal; said `in_scope` in reports |
 | `qt4_dependency` | A `<dependency type value satisfied>` of a QT4 test set or test case |
 | `qt4_target` | The language and version a driver run targets: XP40 or XQ40 |
 | `applicability` | Whether a QT4 test case can run for a target: its spec, its other dependencies and its environment are supported; otherwise the reason it is skipped |
