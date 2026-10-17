@@ -379,6 +379,10 @@ many as the files allow until the gate numbers hold.
 next sweep: the two LIMIT_EXCEEDED regex cases (counted repetition),
 fn:function-lookup of focus-dependent functions, casts to array, map and
 record types (D143, "Not done").
+**2.19b** Counted repetition with counters in the matcher (D147), so
+`a{2147483647}` neither expands nor ends in LIMIT_EXCEEDED
+(cbcl-matches-004, -038). Files: `src/regex.c`, `src/regex_internal.h`,
+`tests/regex_test.c`.
 
 ### 2.20 Phase 2 review (review)
 After everything. Owns the gate boxes. A separate agent (D11) runs the

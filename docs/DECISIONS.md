@@ -4432,6 +4432,10 @@ implemented in `src/xquery.c`; no header changed.
   (1.83 MB) is unchanged; `compileQuery()` in the JavaScript package is
   left out because it would link the same grammar into it.
 
+### D147. Counted repetition with counters (packet 2.19b)
+Recorded 2026-10-17, after D53, D71, D105.
+Reserved here; the record is completed when the packet is ticked.
+
 ## Proposed
 
 - **The CLI's WebAssembly budget after sxml xquery** (packet 3.12, D146;
