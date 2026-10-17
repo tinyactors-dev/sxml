@@ -4293,6 +4293,10 @@ no evaluator change, no public header.
   sets (4.12), xsl:type/validation ignored (D97); a zero-length text node
   is no node (D110).
 
+### D144. Templates and modes (packet 4.8)
+Recorded 2026-10-17, after D55, D101, D118, D124, D139, D142.
+Reserved here; the record is completed when the packet is ticked.
+
 ## Proposed
 
 - **QT4 assertions see the result as the context value** (packet 2.15,
