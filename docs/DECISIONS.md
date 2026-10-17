@@ -2400,4 +2400,51 @@ the IR unit (D55).
   checks, and XTSE errors belong to reading); a fixed-capacity AST sized
   from the trees (modules arrive one by one through the resolver).
 
+### D103. Lowering parts and the embedding entry (packet 2.1)
+Recorded 2026-10-17, completing D63 and D71 for Phases 3 and 4.
+`src/xpath_lower_internal.h` (module `xpath_lower`) opens the lowering
+machine to other files.
+- **The lowerer** (`sxml_xpath_lowerer`, lifecycle quintet): one lowering
+  into one unit, over a static context, for one `sxml_language` (D101),
+  with a part view (empty: the registry). Building blocks are exported
+  under `sxml_xpath_lowerer_*`: scratch memory, add an expression or a
+  slot, bind in a block, finish a block, constants, raise, push and pop
+  variables, read the focus, resolve and coerce types, signatures, enter
+  and leave an IR function.
+- **Procedures are descriptors**: a frame holds a pointer to a static
+  `sxml_xpath_lowering_procedure` (name, step function, locals size);
+  the core's 24 procedures are a table of them, so core and part frames
+  run alike. Steps ask for parts with `sxml_xpath_lowering_call_*` and
+  return; no step runs a machine (D71). `_push_procedure` pushes any
+  procedure with initial locals (copied bytes; one depth level), for
+  constructs that are not AST kinds (XSLT instructions over the D102
+  AST); `sxml_xpath_lowerer_run_procedure` runs one from outside.
+- **Lowering parts by glob**: a file `src/<name>_lower.c` or
+  `src/<name>_lower_<part>.c` defining `const sxml_xpath_lowering_part
+  sxml_xpath_lowering_part_<part> =` (languages, rules of AST kind to a
+  procedure or a leaf function) is registered by
+  `sxml_generate_lowering_part_registry` in `cmake/SxmlParts.cmake`
+  (generated `lowering_parts.c`, `sxml_xpath_lowering_registered_parts()`,
+  sorted by file). `call_expression` takes the first part serving the
+  lowerer's language that lists the kind, then the core; so a part may
+  replace a core kind for its language (XQuery FLWOR). A unit test checks
+  that no two registered parts list one kind for a common language.
+  The CMake function and its two lines in the root `CMakeLists.txt` join
+  packet 2.0's files after 2.0 is committed (2.1 adds them then).
+- **Embedding entry**: `sxml_xpath_lowering_call_embedded` (from a step)
+  and `sxml_xpath_lowerer_lower_embedded` (outside) lower one XPath AST
+  into the current function: variables the caller pushed are in scope as
+  their atoms, the focus is the caller's choice (absent, slots, fixed) or
+  the current one, the static context is the AST's (namespaces, function
+  table with XSLT's in-scope functions; same heap and allocator; its
+  variable declarations are the unit's globals in order). The lowerer's
+  AST, static context and focus are restored afterwards. `sxml_xpath_lower`
+  lowers its main function through it, so the slice dumps cover it.
+- After a failure a lowerer is fit only for finalize. `sxml_xpath_lower`
+  and `_compile` (`xpath_static_internal.h`) are unchanged: XPath, the
+  registered parts; XQuery and XSLT compile with a lowerer of their own.
+- Rejected: parts as a second enum range in the core's switch (every
+  part would edit the core); running a nested machine for embedded
+  expressions (C recursion through a step).
+
 ## Proposed
