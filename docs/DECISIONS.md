@@ -4380,6 +4380,10 @@ Reserved here; the record is completed when the packet is ticked.
 Recorded 2026-10-17, after D71, D103, D109, D124, D126, D142.
 Reserved here; the record is completed when the packet is ticked.
 
+### D146. The XQuery API and the sxml xquery command (packet 3.12)
+Recorded 2026-10-17, after D106, D134, D135.
+Reserved here; the record is completed when the packet is ticked.
+
 ## Proposed
 
 - **Prolog follow-ups** (packet 3.10, D135). (a) For the owner of the
