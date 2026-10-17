@@ -4,6 +4,16 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 3.5 done (D110): node constructors in the evaluator. Seven
+  constructor kinds and SHALLOW_COPY, one self-destroying arena tree per
+  node, nested nodes copied; content convention for lowering (a SEQUENCE
+  content lists enclosed expressions); names, PI, comment and namespace
+  errors; strip, preserve/inherit fixed until the IR carries modes
+  (proposed with a namespace-binding adder and verifier support).
+  Deviation: `text {""}` is the empty sequence. 60 hand-built IR cases
+  with allocation-failure loops, 20,000-deep arrays flattened. `debug`,
+  `debug-gcc`, `wasm` 121/121, lint clean; slice 198/198; XP40 23,698
+  passed before and after (release run of the snapshot at HEAD).
 - 2.5 done (D113): lowering completions. for member and for key/value
   (array:split / map:entries collections, positions across all arrays
   or maps, XQST0089), destructuring let in its three forms, dynamic node

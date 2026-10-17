@@ -126,6 +126,9 @@ nodes (XQDY0101, XQDY0102), base URI and xml:base, the names of computed
 constructors (XQDY0074, XQDY0044, XQDY0064). Done when every constructor
 and copy rule has a unit case with allocation-failure loops. Spec: XQuery
 4.0 "Node Constructors"; XSLT 4.0 "Constructing Complex Content".
+**Done** 2026-10-17 (D110): `src/evaluator_construct.c`, 60 IR cases in
+`tests/evaluator_construct_test.c`, each also under an allocation-failure
+loop; IR modes and adders proposed for 3.9 (D110, "Proposed").
 
 ### 3.6 try/catch in the evaluator (implementation) — Early
 After 2.0. Owns `src/evaluator_try.c`, `tests/evaluator_try_test.c`.
