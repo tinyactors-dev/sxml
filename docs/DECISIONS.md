@@ -4453,8 +4453,81 @@ public header.
   (match-242: 60 s in a debug build).
 
 ### D145. Control flow and variables (packet 4.7)
-Recorded 2026-10-17, after D71, D103, D109, D124, D126, D142.
-Reserved here; the record is completed when the packet is ticked.
+Recorded 2026-10-17, after D71, D103, D109, D124, D126, D135, D142.
+`src/xslt_lower_control.c` (rule view `sxml_xslt_instruction_rules_control`,
+one line in `src/xslt_lower.c`'s list), `tests/xslt_lower_control_test.c`;
+no IR kind, no evaluator change, no public header.
+- **Reused kinds** (D126): xsl:if (with 4.0 then/else), choose and
+  switch are CONDITIONAL chains, each later test lowered in the previous
+  else branch; switch coerces the select value to one xs:anyAtomicType
+  and compares each test value by "=" (8.3); xsl:for-each is a MAP whose
+  body is the sequence constructor with a SLOTS focus, separator a text
+  node guarded by position() lt last() (7.1.1); xsl:try is TRY_CATCH,
+  errors tokens as name tests, the nine $err: variables pushed as LOOKUPs
+  of the details slot (stack-trace and additional are ()), the try body
+  the children before xsl:catch (xsl:catch gives () where it stands).
+- **Variable bindings** (9.3, 9.4): one procedure for xsl:variable,
+  iterate xsl:param and xsl:with-param, and global initializers: select,
+  else content (a document node unless "as" or a disqualifying child),
+  else "" (or () with "as"); "as" coerces with XTTE0570 (a TRY_CATCH
+  mapping XPTY0004) for variables and the TEMPLATE_PARAMETER role
+  (XTTE0590) for parameters. A local xsl:variable is a LET in the
+  sequence constructor's block and a scope entry until it ends (D142).
+- **xsl:iterate** (7.2) is fn:scan(input, state, closure): no recursion
+  (D71), 100,000 items in a unit test. The state is an array [control,
+  output, parameters...]; the closure (every visible variable captured,
+  D126; the size captured only when the body reads last()) unpacks the
+  parameters, runs the body with focus (item, position, size), and reads
+  the last item of its value: an iteration marker {Q{XSLT}iterate:
+  [0, (), values...]} from xsl:next-iteration or {..: [1, value]} from
+  xsl:break gives the next state, anything else keeps the parameters.
+  After a break the remaining items return the state without output. The
+  result is the states' outputs, then xsl:on-completion (focus absent,
+  final parameters) unless a break happened. XTSE3120 (tail position,
+  checked on the AST), XTSE3130, XTSE0670, XTSE0580, XTSE3125.
+- **8.5**: two internal native rows (as merge-text-nodes): `vacuous`
+  and `remove-deemed-empty` (arrays flattened on an explicit stack).
+  where-populated filters its content; a sequence constructor with
+  on-empty/on-non-empty children (skipped by `lower_child`, a hook in
+  `src/xslt_lower.c` pushes `sxml_xslt_lowering_call_conditional_content`
+  at its end) is `if (vacuous(R)) then on-empty-or-R else (children with
+  each on-non-empty's value in place)`, each lowered in its branch with
+  the variables before it in scope; XTSE0010 for an on-empty not last.
+- **xsl:message, xsl:assert** (23): the body is a document node of the
+  select value and the content (TRY_CATCH: a body that cannot be built is
+  an empty document, the transformation does not fail); the internal row
+  `xslt-message` hands it to the trace sink as an XSLT_MESSAGE event with
+  is_terminating and the code; terminate (an AVT, fixed or compared when
+  evaluated) then raises fn:error(code, string(body), body). error-code:
+  EQName or lexical QName, resolved while lowering, or by the row
+  `error-code` with the instruction's namespaces as a map constant; an
+  invalid one is the default (XTMM9000, XTMM9001). Assertions are always
+  enabled.
+- **Globals** (9.5, 9.11): `sxml_xslt_lowering_declare_global_variables`
+  before the main function (one per name by import precedence, XTSE0630;
+  declared in every static context) and `_add_global_variables` after:
+  initializers of arity 0 with the context global (D135) as fixed focus,
+  wrappers in dependency order (references in the declaration's
+  expressions, explicit-stack DFS: XTDE0640 for a cycle, XPST0008 for a
+  self-reference), a required xsl:param raises XTDE0050. The main
+  function reserves its context slot when there are globals; callers pass
+  absent global slots (as the XQuery tests). Static parameters are
+  recomputed from their select (the AST keeps no static value).
+- **Others**: xsl:fork is its content; xsl:evaluate its xsl:fallback
+  children or XTDE3175 (sxml claims no dynamic evaluation, D117; a real
+  one needs a nested evaluation, not done). xsl:for-each with xsl:sort is
+  UNSUPPORTED_FEATURE until 4.9 (which can sort the input atom before the
+  MAP). Deviations: D110's missing zero-length text nodes change
+  on-empty-113/114 and message-0304; dependencies through functions and
+  templates are not seen.
+- Measured with a scratch harness (each case's initial template, or its
+  `match="/"` template, through `sxml_xslt_lower_initial_template`; xml,
+  error and string assertions): of 181 runnable cases of choose,
+  for-each, iterate, try, switch, where-populated, on-empty, on-non-empty,
+  message, evaluate, assert and decl-variable, 105 pass (before: none of
+  these instructions lowered); most of the rest need apply-templates or
+  template parameters (D144's driver path, 4.15), stylesheet functions
+  (4.10, 4.12) or current-date in the harness, 52 have XPath assertions.
 
 ### D146. The XQuery API and the sxml xquery command (packet 3.12)
 Recorded 2026-10-17, after D106, D134, D135. `include/sxml/xquery.h` is
