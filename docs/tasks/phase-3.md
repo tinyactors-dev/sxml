@@ -175,6 +175,12 @@ text. Done when prod-FLWORExpr, prod-ForClause, prod-LetClause,
 prod-WhereClause, prod-OrderByClause, prod-CountClause, prod-WhileClause,
 prod-TypeswitchExpr, prod-SwitchExpr ≥ 90% (through 3.12, unit IR
 dumps before). Spec: XQuery 4.0 "FLWOR Expressions".
+**Done** 2026-10-17 (D126): part `xquery` in `src/xquery_lower.c`,
+internal entry `sxml_xquery_compile`; 12 IR dumps, static errors and
+allocation failures in `tests/xquery_lower_test.c`. Scratch harness
+(XQ40): For 139/212, Let 158/189, Where 68/85, OrderBy 133/210, Count
+13/13, While 69/83, Typeswitch 80/88, Switch 34/58, TryCatch 190/212;
+every other run case needs a prolog (3.10) or group by (3.8) but 8.
 
 ### 3.8 group by and window clauses (implementation) — Early
 After 3.7. Owns `src/xquery_lower_window.c`, `src/xquery_flwor.c`,
