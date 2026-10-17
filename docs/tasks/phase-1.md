@@ -394,11 +394,21 @@ runs under WASI; sizes and the first budget recorded.
 ### 1.29 Phase 1 review (review)
 After everything. Owns the gate boxes. A separate agent (D11) runs the rubric
 and re-checks each "done when"; open items go under "Proposed".
+**Done** 2026-10-17 (D98, D99, D100): rubric pass, substrate fixes (base
+URI of parentless roots, parentless namespace nodes) and freeze; every
+gate check run locally because CI is refused for billing.
 
 ## Gate
 
 - [ ] 198/198 slice tests pass in CI: `debug`, `debug-gcc`, `wasm`.
-- [ ] XML and XPath fuzz targets run clean.
+  **Blocked**: GitHub Actions refuses every job (account billing, D100).
+  Locally 198/198 under `debug`, `debug-gcc`, `release` and `wasm` on
+  `09e1fed`; macOS, Windows and MSVC unverified.
+- [x] XML and XPath fuzz targets run clean (agent review: all five targets
+  300 s each on `09e1fed`, no crash, leak, OOM or timeout, D100).
 - [ ] CI generates `docs/CONFORMANCE.md`; Phase 2 and 3 targets proposed.
-- [ ] "Proposed" substrate changes decided; a record freezes the substrate.
-- [ ] Review agent pass (D11), findings fixed.
+  **Blocked** for the CI part (D100); targets proposed in D95; the
+  dashboard was regenerated locally on `09e1fed` (XP40 23,146 passed).
+- [x] "Proposed" substrate changes decided; a record freezes the substrate
+  (agent review: D98, D99).
+- [x] Review agent pass (D11), findings fixed (agent review: D98, D100).
