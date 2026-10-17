@@ -27,6 +27,7 @@
 /* The instruction rules of every XSLT lowering file. */
 static const sxml_xslt_instruction_rule_view *const instruction_rule_views[] = {
     &sxml_xslt_instruction_rules_construct,
+    &sxml_xslt_instruction_rules_control,
 };
 
 /* ------------------------------------------------------------ AST reads */

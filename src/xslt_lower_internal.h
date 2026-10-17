@@ -133,6 +133,8 @@ typedef struct sxml_xslt_instruction_rule_view {
    packets define their own views and add them to the list in
    src/xslt_lower.c. */
 extern const sxml_xslt_instruction_rule_view sxml_xslt_instruction_rules_construct;
+/* The instructions of src/xslt_lower_control.c (packet 4.7). */
+extern const sxml_xslt_instruction_rule_view sxml_xslt_instruction_rules_control;
 
 /* --------------------------------------------------------- Parts to call */
 
