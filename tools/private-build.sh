@@ -31,26 +31,65 @@ done
 [ -n "$presets" ] || presets="debug debug-gcc wasm"
 
 mkdir -p "$snapshot"
-# Refresh the source copy but keep build/ so rebuilds are incremental.
-find "$snapshot" -mindepth 1 -maxdepth 1 ! -name build -exec rm -rf {} +
+# Assemble HEAD plus the named files in a staging directory, then copy into
+# the snapshot only the files whose content differs. `git archive` stamps
+# every file with the commit time, so copying it over blindly can leave a
+# changed file older than its object file, and the build would not see it.
+# Unchanged files keep their old times, so rebuilds stay incremental.
+staging="$snapshot.staging"
+rm -rf "$staging"
+mkdir -p "$staging"
 git -C "$repository_root" archive HEAD -- . \
     ':(exclude)third_party/qt4tests' ':(exclude)third_party/xslt40-test' \
-    ':(exclude)third_party/xmlconf' | tar -x -C "$snapshot"
-for suite in qt4tests xslt40-test xmlconf; do
-    ln -s "$repository_root/third_party/$suite" "$snapshot/third_party/$suite"
-done
-if [ -d "$repository_root/tools/node_modules" ]; then
-    ln -s "$repository_root/tools/node_modules" "$snapshot/tools/node_modules"
-fi
-
+    ':(exclude)third_party/xmlconf' | tar -x -C "$staging"
 for file in "$@"; do
     if [ -e "$repository_root/$file" ]; then
-        mkdir -p "$snapshot/$(dirname "$file")"
-        cp -p "$repository_root/$file" "$snapshot/$file"
+        mkdir -p "$staging/$(dirname "$file")"
+        cp "$repository_root/$file" "$staging/$file"
     else
-        rm -f "$snapshot/$file"
+        rm -f "$staging/$file"
     fi
 done
+python3 - "$staging" "$snapshot" <<'PYTHON'
+import filecmp, os, shutil, sys
+staging, snapshot = sys.argv[1], sys.argv[2]
+kept = set()
+for directory, _, files in os.walk(staging):
+    for name in files:
+        source = os.path.join(directory, name)
+        relative = os.path.relpath(source, staging)
+        kept.add(relative)
+        target = os.path.join(snapshot, relative)
+        if os.path.isfile(target) and not os.path.islink(target) \
+                and filecmp.cmp(source, target, shallow=False):
+            continue
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        if os.path.lexists(target):
+            os.remove(target)
+        shutil.copyfile(source, target)
+        shutil.copymode(source, target)
+# Remove files that are no longer part of the snapshot (build/ and the
+# linked suites excepted).
+for directory, subdirectories, files in os.walk(snapshot):
+    relative_directory = os.path.relpath(directory, snapshot)
+    if relative_directory == ".":
+        subdirectories[:] = [d for d in subdirectories if d != "build"]
+    subdirectories[:] = [d for d in subdirectories
+                         if not os.path.islink(os.path.join(directory, d))]
+    for name in files:
+        path = os.path.join(directory, name)
+        relative = os.path.normpath(os.path.join(relative_directory, name))
+        if not os.path.islink(path) and relative not in kept:
+            os.remove(path)
+PYTHON
+rm -rf "$staging"
+for suite in qt4tests xslt40-test xmlconf; do
+    [ -e "$snapshot/third_party/$suite" ] || \
+        ln -s "$repository_root/third_party/$suite" "$snapshot/third_party/$suite"
+done
+if [ -d "$repository_root/tools/node_modules" ] && [ ! -e "$snapshot/tools/node_modules" ]; then
+    ln -s "$repository_root/tools/node_modules" "$snapshot/tools/node_modules"
+fi
 
 cd "$snapshot"
 for preset in $presets; do
