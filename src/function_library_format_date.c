@@ -36,10 +36,11 @@ static const sxml_static_error unavailable_component_error = {
 
 /* ------------------------------------------------------------- Bodies */
 
-/* Reads $language into *needs_marker: true unless it is English or the
+/* Reads $language into the formatting's language marker: needed unless it is English or the
    empty sequence (the default language, which sxml formats in English
    whatever the host names: D97). */
-static sxml_status read_language(const sxml_function_call *call, bool *needs_marker) {
+static sxml_status read_language(const sxml_function_call *call,
+                                 sxml_date_formatting *formatting) {
     sxml_optional_item argument;
     const sxml_status status = sxml_function_library_read_optional_item(call, 2, &argument);
     if (status != SXML_STATUS_OK) {
@@ -53,7 +54,8 @@ static sxml_status read_language(const sxml_function_call *call, bool *needs_mar
             language = datum.datum_details.string.utf8;
         }
     }
-    *needs_marker = language.byte_count > 0 && !sxml_date_language_is_english(language);
+    formatting->needs_language_marker =
+        language.byte_count > 0 && !sxml_date_language_is_english(language);
     return SXML_STATUS_OK;
 }
 
@@ -95,7 +97,7 @@ static sxml_status call_format(const sxml_function_call *call, sxml_date_value_k
                                        .value_kind = value_kind,
                                        .needs_language_marker = false};
     if (status == SXML_STATUS_OK) {
-        status = read_language(call, &formatting.needs_language_marker);
+        status = read_language(call, &formatting);
     }
     if (status == SXML_STATUS_OK) {
         status = read_calendar(call, &formatting.calendar);
