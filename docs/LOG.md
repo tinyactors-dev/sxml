@@ -4,6 +4,16 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 2.10 done (D130): elements to maps and back, part `element_map`.
+  fn:element-to-map chooses layouts in document order and builds values
+  in reverse document order over per-node element slots; plans group by
+  name with XDM maps as indices; fn:map-to-element on a frame stack into
+  a self-destroying arena tree, xml layout through the document loader.
+  fn-element-to-map 30 to 179/181 run, fn-element-to-map-plan 0 to
+  20/20, fn-map-to-element 75 (wrong errors) to 224/228. XP40 passed
+  28,856 of 30,992 run in the run of this commit; slice 198/198; debug,
+  debug-gcc, wasm, release 151/151, lint clean.
+
 - 2.14 done (D129): date formatting. `src/format_date.c` (module
   header `src/format_date_internal.h`) scans date pictures by hand and
   numbers components through the D119 fn:format-integer engine;
