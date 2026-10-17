@@ -932,51 +932,53 @@ typedef struct declared_name {
     bool is_declared;
 } declared_name;
 
+/* Whether a VARIABLE_NAME_AND_TYPE or POSITIONAL_VARIABLE node declares
+   name. */
+static sxml_status variable_declares(sxml_xpath_lowerer *state,
+                                     declared_name_query query,
+                                     declared_name *result) {
+    sxml_name_identifier name = {0};
+    sxml_status status = sxml_xpath_lowerer_resolve_variable_name(
+        state, child_of(state, query.binding, SXML_AST_FIELD_NAME), &name);
+    if (status == SXML_STATUS_OK) {
+        result->is_declared = name.index == query.name.index;
+    }
+    return status;
+}
+
 /* Whether a binding node (a for, let or quantifier binding, a variable
-   name and type, a positional variable) declares query.name. */
+   name and type, a positional variable) declares query.name: one of its
+   variables, including every variable of a destructuring let and the key
+   and value variables of "for key/value". */
 static sxml_status binding_declares(sxml_xpath_lowerer *state, declared_name_query query,
                                     declared_name *result) {
-    sxml_ast_node_index candidates[4] = {{0}, {0}, {0}, {0}};
-    size_t candidate_count = 0;
+    result->is_declared = false;
     const sxml_ast_kind kind = node_of(state, query.binding)->kind;
     if (kind == SXML_AST_KIND_VARIABLE_NAME_AND_TYPE ||
         kind == SXML_AST_KIND_POSITIONAL_VARIABLE) {
-        candidates[candidate_count] = query.binding;
-        candidate_count += 1;
-    } else {
-        for (sxml_ast_node_index child = node_of(state, query.binding)->first_child;
-             child.value != 0 && candidate_count < 4;
-             child = node_of(state, child)->next_sibling) {
-            const sxml_ast_kind child_kind = node_of(state, child)->kind;
-            if (child_kind == SXML_AST_KIND_VARIABLE_NAME_AND_TYPE ||
-                child_kind == SXML_AST_KIND_POSITIONAL_VARIABLE) {
-                candidates[candidate_count] = child;
-                candidate_count += 1;
-            } else if (child_kind == SXML_AST_KIND_FOR_ENTRY_KEY_BINDING ||
-                       child_kind == SXML_AST_KIND_FOR_ENTRY_VALUE_BINDING) {
-                candidates[candidate_count] =
-                    child_of(state, child, SXML_AST_FIELD_VARIABLE);
-                candidate_count += 1;
-            }
+        return variable_declares(state, query, result);
+    }
+    sxml_status status = SXML_STATUS_OK;
+    for (sxml_ast_node_index child = node_of(state, query.binding)->first_child;
+         status == SXML_STATUS_OK && !result->is_declared && child.value != 0;
+         child = node_of(state, child)->next_sibling) {
+        const sxml_ast_kind child_kind = node_of(state, child)->kind;
+        sxml_ast_node_index variable = {.value = 0};
+        if (child_kind == SXML_AST_KIND_VARIABLE_NAME_AND_TYPE ||
+            child_kind == SXML_AST_KIND_POSITIONAL_VARIABLE) {
+            variable = child;
+        } else if (child_kind == SXML_AST_KIND_FOR_ENTRY_KEY_BINDING ||
+                   child_kind == SXML_AST_KIND_FOR_ENTRY_VALUE_BINDING) {
+            variable = child_of(state, child, SXML_AST_FIELD_VARIABLE);
+        }
+        if (variable.value != 0) {
+            status = variable_declares(
+                state,
+                (declared_name_query){.binding = variable, .name = query.name},
+                result);
         }
     }
-    for (size_t candidate_index = 0; candidate_index < candidate_count;
-         candidate_index += 1) {
-        sxml_name_identifier name = {0};
-        sxml_status status = sxml_xpath_lowerer_resolve_variable_name(
-            state,
-            child_of(state, candidates[candidate_index], SXML_AST_FIELD_NAME),
-            &name);
-        if (status != SXML_STATUS_OK) {
-            return status;
-        }
-        if (name.index == query.name.index) {
-            result->is_declared = true;
-            return SXML_STATUS_OK;
-        }
-    }
-    result->is_declared = false;
-    return SXML_STATUS_OK;
+    return status;
 }
 
 /* Whether a sibling binding before limit (all of them when limit is 0),
@@ -1627,6 +1629,39 @@ typedef struct function_lookup {
     size_t arity;
 } function_lookup;
 
+/* The one parameter of every constructor function (XPath 4.0, section
+   4.5.1.3, "Constructor Functions"): xs:T($value as xs:anyAtomicType? :=
+   .), so that a keyword argument can name it and a call or reference
+   leaving it out takes the context value. */
+static const sxml_function_parameter constructor_parameters[] = {
+    {.parameter_name = SXML_BYTE_VIEW_INITIALIZER("value"),
+     .parameter_type = SXML_BYTE_VIEW_INITIALIZER("xs:anyAtomicType?"),
+     .parameter_default = SXML_PARAMETER_DEFAULT_CONTEXT_VALUE}};
+
+/* The entry of a constructor function of arity 0: the parameter is left
+   out, so the signature has none; calls and references supply the
+   context value (D113). */
+static sxml_status make_focus_constructor_entry(sxml_xpath_lowerer *state,
+                                                sxml_function_entry *entry) {
+    sxml_function_entry found = *entry;
+    found.parameter_types = (sxml_sequence_type_view){
+        .sequence_types = NULL, .sequence_type_count = 0};
+    sxml_status status = sxml_type_registry_register_item_type(
+        state->type_registry,
+        &(sxml_type_description){
+            .variety = SXML_TYPE_VARIETY_FUNCTION,
+            .variety_details = {.function_type = {.is_any_function = false,
+                                                  .parameter_types =
+                                                      found.parameter_types,
+                                                  .result_type =
+                                                      found.result_type}}},
+        &found.signature);
+    if (status == SXML_STATUS_OK) {
+        *entry = found;
+    }
+    return status;
+}
+
 static sxml_status find_function(sxml_xpath_lowerer *state, function_lookup lookup,
                                  sxml_function_entry *entry) {
     if (lookup.function_name.index == 0) {
@@ -1634,11 +1669,41 @@ static sxml_status find_function(sxml_xpath_lowerer *state, function_lookup look
             .entry_kind = SXML_FUNCTION_ENTRY_KIND_NONE};
         return SXML_STATUS_OK;
     }
-    return sxml_xpath_find_function(
+    sxml_status status = sxml_xpath_find_function(
         state->static_context->function_table,
         &(sxml_function_query){.function_name = lookup.function_name,
                                .arity = lookup.arity},
         entry);
+    if (status == SXML_STATUS_OK &&
+        entry->entry_kind == SXML_FUNCTION_ENTRY_KIND_NONE && lookup.arity == 0) {
+        /* XPath 4.0, section 4.5.1.3: a constructor function's argument
+           defaults to the context value, so xs:T() is a call too. */
+        status = sxml_xpath_find_function(
+            state->static_context->function_table,
+            &(sxml_function_query){.function_name = lookup.function_name,
+                                   .arity = 1},
+            entry);
+        if (status == SXML_STATUS_OK &&
+            entry->entry_kind == SXML_FUNCTION_ENTRY_KIND_CONSTRUCTOR) {
+            entry->parameters = (sxml_function_parameter_view){
+                .function_parameters = constructor_parameters,
+                .function_parameter_count = 1};
+            return make_focus_constructor_entry(state, entry);
+        }
+        if (status == SXML_STATUS_OK) {
+            *entry = (sxml_function_entry){
+                .entry_kind = SXML_FUNCTION_ENTRY_KIND_NONE};
+        }
+        return status;
+    }
+    if (status == SXML_STATUS_OK &&
+        entry->entry_kind == SXML_FUNCTION_ENTRY_KIND_CONSTRUCTOR &&
+        entry->parameters.function_parameter_count == 0) {
+        entry->parameters = (sxml_function_parameter_view){
+            .function_parameters = constructor_parameters,
+            .function_parameter_count = 1};
+    }
+    return status;
 }
 
 /* The name identifier of a function name node, or 0 when the name was
@@ -1668,9 +1733,12 @@ static sxml_status resolve_function_name(sxml_xpath_lowerer *state,
 }
 
 /* A well-known function lowering itself calls (fn:root, fn:partial-apply,
-   fn:string-join), looked up by local name in the fn namespace. */
+   fn:string-join, fn:jvalue, array:members, map:entries, ...), looked up
+   by local name in its namespace. */
 typedef struct builtin_function_request {
     sxml_ast_node_index node;
+    /* SXML_NAMESPACE_NONE means fn. */
+    sxml_well_known_namespace function_namespace;
     sxml_byte_view local_name;
     size_t arity;
 } builtin_function_request;
@@ -1682,8 +1750,10 @@ static sxml_status find_builtin_function(sxml_xpath_lowerer *state,
     (void)sxml_name_pool_find_name(
         state->name_pool,
         &(sxml_name_request){
-            .namespace_uri =
-                sxml_well_known_namespace_identifier(SXML_NAMESPACE_FUNCTIONS),
+            .namespace_uri = sxml_well_known_namespace_identifier(
+                request.function_namespace == SXML_NAMESPACE_NONE
+                    ? SXML_NAMESPACE_FUNCTIONS
+                    : request.function_namespace),
             .local_name = request.local_name},
         &name);
     sxml_status status = find_function(
@@ -1697,7 +1767,8 @@ static sxml_status find_builtin_function(sxml_xpath_lowerer *state,
             state, request.node,
             SXML_BYTE_VIEW_FROM_LITERAL(
                 "the function table lacks a function this construct is lowered "
-                "to (fn:root, fn:partial-apply or fn:string-join)"));
+                "to (such as fn:root, fn:partial-apply, fn:string-join or "
+                "array:members)"));
     }
     return SXML_STATUS_OK;
 }
@@ -1917,6 +1988,59 @@ static sxml_status emit_prepared_call(sxml_xpath_lowerer *state, call_emission r
     return emit_call(state, request, expression);
 }
 
+/* A call of a well-known function on atoms, its arguments coerced, bound
+   in block (lowering's own calls: fn:jvalue for "for member", map:entries
+   for "for key/value", fn:items-at for a destructuring let, ...). */
+#define BUILTIN_CALL_MAXIMUM_ARGUMENT_COUNT 3U
+
+typedef struct builtin_call_request {
+    builtin_function_request function;
+    sxml_xpath_lowering_block *block;
+    sxml_ir_atom_view arguments;
+} builtin_call_request;
+
+static sxml_status bind_builtin_call(sxml_xpath_lowerer *state,
+                                     const builtin_call_request *request,
+                                     sxml_ir_atom *atom) {
+    if (request->arguments.atom_count > BUILTIN_CALL_MAXIMUM_ARGUMENT_COUNT ||
+        request->arguments.atom_count != request->function.arity) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    sxml_function_entry entry = {0};
+    sxml_status status =
+        find_builtin_function(state, request->function, &entry);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    call_argument arguments[BUILTIN_CALL_MAXIMUM_ARGUMENT_COUNT] = {
+        {.is_placeholder = false, .atom = {0}},
+        {.is_placeholder = false, .atom = {0}},
+        {.is_placeholder = false, .atom = {0}}};
+    for (size_t argument_index = 0;
+         argument_index < request->arguments.atom_count; argument_index += 1) {
+        arguments[argument_index].atom =
+            request->arguments.atoms[argument_index];
+    }
+    const prepared_call call = {.node = request->function.node,
+                                .entry = entry,
+                                .arguments = arguments,
+                                .argument_count = request->arguments.atom_count,
+                                .placeholder_count = 0};
+    sxml_ir_expression_index expression = {0};
+    status = emit_call(state,
+                       (call_emission){.block = request->block,
+                                       .call = &call,
+                                       .coerces_arguments = true},
+                       &expression);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return bind_in_block(
+        state,
+        (binding_request){.block = request->block, .expression = expression},
+        atom);
+}
+
 /* The parameter index named by a keyword argument, or SIZE_MAX. */
 static size_t find_parameter(const sxml_function_entry *entry,
                              sxml_byte_view parameter_name) {
@@ -2062,6 +2186,21 @@ lower_named_function_reference(sxml_xpath_lowerer *state,
                 .function = function,
                 .body = {.expression_kind = SXML_IR_EXPRESSION_KIND_ATOM,
                          .atom = slot_atom((sxml_ir_slot){.value = 1})},
+                .node = node},
+            expression);
+    }
+    if (call_entry.entry_kind == SXML_FUNCTION_ENTRY_KIND_CONSTRUCTOR) {
+        /* xs:T#0: a cast of the captured context value (XPath 4.0,
+           section 4.5.1.3). */
+        return finish_closure(
+            state,
+            (closure_body){
+                .function = function,
+                .body = {.expression_kind = SXML_IR_EXPRESSION_KIND_CAST,
+                         .cast = {.value = slot_atom((sxml_ir_slot){
+                                      .value = (uint32_t)arity + 1U}),
+                                  .target_type = call_entry.constructor_type,
+                                  .allows_empty = true}},
                 .node = node},
             expression);
     }
@@ -2212,10 +2351,9 @@ static sxml_status resolve_simple_node_test(sxml_xpath_lowerer *state,
     case SXML_AST_KIND_WILDCARD:
         break;
     case SXML_AST_KIND_DYNAMIC_NODE_TEST:
-        return sxml_xpath_lowerer_report_unsupported(
-            state, request.test,
-            SXML_BYTE_VIEW_FROM_LITERAL("dynamic node tests are not lowered in "
-                                        "Phase 1"));
+        /* Lowered by the axis step (begin_axis_step); never inside a
+           union of node tests (UnionNodeTest has simple ones only). */
+        return SXML_STATUS_INVALID_ARGUMENT;
     default:
         return sxml_xpath_lowerer_resolve_item_type(state, request.test, node_test);
     }
@@ -2460,10 +2598,12 @@ static sxml_ast_field chain_field(sxml_ast_kind kind) {
     case SXML_AST_KIND_PIPELINE_EXPRESSION:
     case SXML_AST_KIND_SIMPLE_MAP_EXPRESSION:
     case SXML_AST_KIND_RELATIVE_PATH_EXPRESSION:
+    case SXML_AST_KIND_BUT_WITH_EXPRESSION:
         return SXML_AST_FIELD_LEFT;
     case SXML_AST_KIND_FILTER_EXPRESSION:
     case SXML_AST_KIND_LOOKUP_EXPRESSION:
     case SXML_AST_KIND_ARROW_EXPRESSION:
+    case SXML_AST_KIND_METHOD_CALL:
         return SXML_AST_FIELD_VALUE;
     case SXML_AST_KIND_DYNAMIC_FUNCTION_CALL:
         return SXML_AST_FIELD_FUNCTION;
@@ -2811,6 +2951,8 @@ typedef enum lowering_procedure {
     SXML_LOWERING_PROCEDURE_PIPELINE_LINK,
     SXML_LOWERING_PROCEDURE_SIMPLE_MAP_LINK,
     SXML_LOWERING_PROCEDURE_ARROW_MAP,
+    SXML_LOWERING_PROCEDURE_BUT_WITH_LINK,
+    SXML_LOWERING_PROCEDURE_METHOD_CALL_LINK,
     /* Paths. */
     SXML_LOWERING_PROCEDURE_PATH_MAP,
     SXML_LOWERING_PROCEDURE_FILTER,
@@ -3478,10 +3620,498 @@ static sxml_status continue_path_map(sxml_xpath_lowering_machine *machine,
 /* An axis step (XPath 4.0, section 4.6.4) with its predicates. */
 typedef struct axis_step_locals {
     sxml_axis axis;
+    /* "item::" (XPath 4.0, section 4.7.4), lowered over the child axis. */
+    bool is_item_axis;
     sxml_ir_expression_index result;
     /* The next predicate. */
     sxml_ast_node_index predicate;
+    /* A dynamic node test's value, lowered with an absent focus. */
+    sxml_ir_atom selector;
+    sxml_xpath_lowering_focus absent_focus;
+    sxml_xpath_lowering_focus *outer_focus;
 } axis_step_locals;
+
+/* Steps of an axis step frame. */
+enum {
+    SXML_LOWERING_AXIS_STEP_STEP_BEGIN = 0,
+    SXML_LOWERING_AXIS_STEP_STEP_SELECTOR = 1,
+    SXML_LOWERING_AXIS_STEP_STEP_PREDICATES = 2,
+};
+
+/* An expression of the unit at node, bound in block. */
+typedef struct expression_in_block {
+    sxml_xpath_lowering_block *block;
+    sxml_ast_node_index node;
+    sxml_ir_expression expression;
+} expression_in_block;
+
+static sxml_status bind_new_expression(sxml_xpath_lowerer *state,
+                                       expression_in_block request,
+                                       sxml_ir_atom *atom) {
+    sxml_ir_expression_index index = {0};
+    sxml_status status = sxml_xpath_lowerer_add_expression(
+        state,
+        (sxml_xpath_lowering_expression_to_add){.node = request.node,
+                                                .expression = request.expression},
+        &index);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_xpath_lowerer_bind_expression(
+        state,
+        (sxml_xpath_lowering_expression_in_block){.block = request.block,
+                                                  .expression = index},
+        atom);
+}
+
+/* Ends block with an expression that is just atom. */
+typedef struct atom_block_result {
+    sxml_xpath_lowering_block *block;
+    sxml_ast_node_index node;
+    sxml_ir_atom atom;
+} atom_block_result;
+
+static sxml_status finish_atom_block(sxml_xpath_lowerer *state,
+                                     atom_block_result request,
+                                     sxml_ir_expression_index *expression) {
+    sxml_ir_expression_index result = {0};
+    sxml_status status = add_atom_expression(
+        state, (atom_at){.node = request.node, .atom = request.atom}, &result);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_xpath_lowerer_finish_block(
+        state,
+        (sxml_xpath_lowering_block_result){.block = *request.block,
+                                           .result = result},
+        expression);
+}
+
+/* An integer constant. */
+static sxml_status add_integer_atom(sxml_xpath_lowerer *state, int64_t value,
+                                    sxml_ir_atom *atom) {
+    return sxml_xpath_lowerer_add_item_constant(
+        state, sxml_atomic_item_from_integer(value), atom);
+}
+
+/*
+ * "item::T" from each origin G (XPath 4.0, section 4.7.4, "Axes"): the
+ * JNodes of the child axis when ·jvalue·(G) has two or more items, none
+ * when it is empty, else one JNode J with ·jkey· 1 and ·jvalue·
+ * ·jvalue·(G). fn:jvalue raises the type error for an XNode origin. J is
+ * made as the child of the array [·jvalue·(G)] (a map or array origin of
+ * a step is a JTree root, section 4.7.5), so its parent is that array's
+ * JNode, not G (D113; the IR has no axis that makes such a JNode).
+ */
+static sxml_status add_item_axis_step(sxml_xpath_lowerer *state, step_request request,
+                                      sxml_ir_expression_index *expression) {
+    sxml_ir_slot origin = {0};
+    sxml_status status = sxml_xpath_lowerer_add_slot(state, &origin);
+    sxml_xpath_lowering_block body_block = {{0}, {0}};
+    const sxml_ir_atom origin_atom = slot_atom(origin);
+    sxml_ir_atom value = {0};
+    if (status == SXML_STATUS_OK) {
+        status = bind_builtin_call(
+            state,
+            &(builtin_call_request){
+                .function = {.node = request.node,
+                             .local_name = SXML_BYTE_VIEW_FROM_LITERAL("jvalue"),
+                             .arity = 1},
+                .block = &body_block,
+                .arguments = {.atoms = &origin_atom, .atom_count = 1}},
+            &value);
+    }
+    sxml_ir_atom count = {0};
+    if (status == SXML_STATUS_OK) {
+        status = bind_builtin_call(
+            state,
+            &(builtin_call_request){
+                .function = {.node = request.node,
+                             .local_name = SXML_BYTE_VIEW_FROM_LITERAL("count"),
+                             .arity = 1},
+                .block = &body_block,
+                .arguments = {.atoms = &value, .atom_count = 1}},
+            &count);
+    }
+    sxml_ir_atom two = {0};
+    sxml_ir_atom zero = {0};
+    if (status == SXML_STATUS_OK) {
+        status = add_integer_atom(state, 2, &two);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = add_integer_atom(state, 0, &zero);
+    }
+    sxml_ir_atom is_sequence = {0};
+    if (status == SXML_STATUS_OK) {
+        status = bind_new_expression(
+            state,
+            (expression_in_block){
+                .block = &body_block,
+                .node = request.node,
+                .expression = {
+                    .expression_kind = SXML_IR_EXPRESSION_KIND_BINARY,
+                    .binary = {.operator =
+                                   SXML_IR_BINARY_OPERATOR_VALUE_GREATER_OR_EQUAL,
+                               .left_operand = count,
+                               .right_operand = two}}},
+            &is_sequence);
+    }
+    sxml_ir_expression_index children = {0};
+    if (status == SXML_STATUS_OK) {
+        status = add_step(state,
+                          (step_request){.block = &body_block,
+                                         .node = request.node,
+                                         .origin = origin_atom,
+                                         .axis = SXML_AXIS_CHILD,
+                                         .node_test = request.node_test},
+                          &children);
+    }
+    /* Not a sequence: empty, or the one item as a JNode. */
+    sxml_xpath_lowering_block other_block = {{0}, {0}};
+    sxml_ir_atom is_empty = {0};
+    if (status == SXML_STATUS_OK) {
+        status = bind_new_expression(
+            state,
+            (expression_in_block){
+                .block = &other_block,
+                .node = request.node,
+                .expression = {
+                    .expression_kind = SXML_IR_EXPRESSION_KIND_BINARY,
+                    .binary = {.operator = SXML_IR_BINARY_OPERATOR_VALUE_EQUAL,
+                               .left_operand = count,
+                               .right_operand = zero}}},
+            &is_empty);
+    }
+    sxml_ir_expression_index empty = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_add_empty_sequence(state, request.node, &empty);
+    }
+    sxml_xpath_lowering_block single_block = {{0}, {0}};
+    sxml_ir_atom_list members = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ir_unit_add_atoms(
+            state->unit, (sxml_ir_atom_view){.atoms = &value, .atom_count = 1},
+            &members);
+    }
+    sxml_ir_atom wrapper = {0};
+    if (status == SXML_STATUS_OK) {
+        status = bind_new_expression(
+            state,
+            (expression_in_block){
+                .block = &single_block,
+                .node = request.node,
+                .expression = {
+                    .expression_kind = SXML_IR_EXPRESSION_KIND_ARRAY_CONSTRUCTOR,
+                    .array_constructor = {.array_form = SXML_IR_ARRAY_FORM_SQUARE,
+                                          .members = members}}},
+            &wrapper);
+    }
+    sxml_ir_expression_index single = {0};
+    if (status == SXML_STATUS_OK) {
+        status = add_step(state,
+                          (step_request){.block = &single_block,
+                                         .node = request.node,
+                                         .origin = wrapper,
+                                         .axis = SXML_AXIS_CHILD,
+                                         .node_test = request.node_test},
+                          &single);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_finish_block(
+            state,
+            (sxml_xpath_lowering_block_result){.block = single_block,
+                                               .result = single},
+            &single);
+    }
+    sxml_ir_expression_index other = {0};
+    if (status == SXML_STATUS_OK) {
+        status = add_conditional(state,
+                                 (conditional_request){.node = request.node,
+                                                       .condition = is_empty,
+                                                       .then_branch = empty,
+                                                       .else_branch = single},
+                                 &other);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_finish_block(
+            state,
+            (sxml_xpath_lowering_block_result){.block = other_block,
+                                               .result = other},
+            &other);
+    }
+    sxml_ir_expression_index body = {0};
+    if (status == SXML_STATUS_OK) {
+        status = add_conditional(state,
+                                 (conditional_request){.node = request.node,
+                                                       .condition = is_sequence,
+                                                       .then_branch = children,
+                                                       .else_branch = other},
+                                 &body);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_finish_block(
+            state,
+            (sxml_xpath_lowering_block_result){.block = body_block, .result = body},
+            &body);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_xpath_lowerer_add_expression(
+        state,
+        (sxml_xpath_lowering_expression_to_add){
+            .node = request.node,
+            .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_MAP,
+                           .map = {.input = request.origin,
+                                   .focus = {.context_value = origin},
+                                   .body = body,
+                                   .flags = 0}}},
+        expression);
+}
+
+/* The keys a dynamic node test compares with a node c (XPath 4.0,
+   section 4.7.5.3 and 4.7.5.4): fn:jkey(c) of a JNode, fn:node-name(c)
+   and fn:local-name(c) of an XNode. */
+static sxml_status bind_node_keys(sxml_xpath_lowerer *state, step_request request,
+                                  sxml_ir_atom *keys) {
+    const sxml_ir_atom node = request.origin;
+    sxml_xpath_lowering_block *block = request.block;
+    sxml_ir_atom is_json_node = {0};
+    sxml_status status = bind_new_expression(
+        state,
+        (expression_in_block){
+            .block = block,
+            .node = request.node,
+            .expression = {
+                .expression_kind = SXML_IR_EXPRESSION_KIND_INSTANCE_OF,
+                .type_test = {.value = node,
+                              .sequence_type = {
+                                  .item_type = sxml_builtin_type_identifier(
+                                      SXML_TYPE_JSON_NODE),
+                                  .occurrence = SXML_OCCURRENCE_EXACTLY_ONE}}}},
+        &is_json_node);
+    sxml_xpath_lowering_block json_block = {{0}, {0}};
+    sxml_ir_atom json_key = {0};
+    if (status == SXML_STATUS_OK) {
+        status = bind_builtin_call(
+            state,
+            &(builtin_call_request){
+                .function = {.node = request.node,
+                             .local_name = SXML_BYTE_VIEW_FROM_LITERAL("jkey"),
+                             .arity = 1},
+                .block = &json_block,
+                .arguments = {.atoms = &node, .atom_count = 1}},
+            &json_key);
+    }
+    sxml_ir_expression_index json_keys = {0};
+    if (status == SXML_STATUS_OK) {
+        status = finish_atom_block(
+            state,
+            (atom_block_result){.block = &json_block,
+                                .node = request.node,
+                                .atom = json_key},
+            &json_keys);
+    }
+    sxml_xpath_lowering_block xml_block = {{0}, {0}};
+    sxml_ir_atom names[2] = {{0}, {0}};
+    if (status == SXML_STATUS_OK) {
+        status = bind_builtin_call(
+            state,
+            &(builtin_call_request){
+                .function = {.node = request.node,
+                             .local_name = SXML_BYTE_VIEW_FROM_LITERAL("node-name"),
+                             .arity = 1},
+                .block = &xml_block,
+                .arguments = {.atoms = &node, .atom_count = 1}},
+            &names[0]);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = bind_builtin_call(
+            state,
+            &(builtin_call_request){
+                .function = {.node = request.node,
+                             .local_name = SXML_BYTE_VIEW_FROM_LITERAL("local-name"),
+                             .arity = 1},
+                .block = &xml_block,
+                .arguments = {.atoms = &node, .atom_count = 1}},
+            &names[1]);
+    }
+    sxml_ir_atom_list name_list = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ir_unit_add_atoms(
+            state->unit, (sxml_ir_atom_view){.atoms = names, .atom_count = 2},
+            &name_list);
+    }
+    sxml_ir_expression_index xml_keys = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_add_expression(
+            state,
+            (sxml_xpath_lowering_expression_to_add){
+                .node = request.node,
+                .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_SEQUENCE,
+                               .sequence = name_list}},
+            &xml_keys);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_finish_block(
+            state,
+            (sxml_xpath_lowering_block_result){.block = xml_block,
+                                               .result = xml_keys},
+            &xml_keys);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return bind_new_expression(
+        state,
+        (expression_in_block){
+            .block = block,
+            .node = request.node,
+            .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_CONDITIONAL,
+                           .conditional = {.condition = is_json_node,
+                                           .then_branch = json_keys,
+                                           .else_branch = xml_keys}}},
+        keys);
+}
+
+/* The FILTER of a dynamic node test over the nodes of a step: a node
+   passes when one of its keys is atomic-equal to an item of the
+   selector's value (XPath 4.0, sections 4.7.5.3 and 4.7.5.4). */
+typedef struct dynamic_test_request {
+    sxml_xpath_lowering_block *block;
+    sxml_ast_node_index node;
+    sxml_ir_atom input;
+    sxml_ir_atom selector;
+} dynamic_test_request;
+
+static sxml_status add_dynamic_test_filter(sxml_xpath_lowerer *state,
+                                           dynamic_test_request request,
+                                           sxml_ir_expression_index *expression) {
+    sxml_ir_atom selector = {0};
+    sxml_status status = sxml_xpath_lowerer_coerce_atom(
+        state,
+        (sxml_xpath_lowering_coercion_request){
+            .block = request.block,
+            .node = request.node,
+            .value = request.selector,
+            .sequence_type = {.item_type = sxml_builtin_type_identifier(
+                                  SXML_TYPE_XS_ANY_ATOMIC_TYPE),
+                              .occurrence = SXML_OCCURRENCE_ZERO_OR_MORE},
+            .role = SXML_IR_COERCION_ROLE_FUNCTION_ARGUMENT},
+        &selector);
+    sxml_ir_slot node = {0};
+    sxml_ir_slot wanted = {0};
+    sxml_ir_slot key = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_add_slot(state, &node);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_add_slot(state, &wanted);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_add_slot(state, &key);
+    }
+    sxml_xpath_lowering_block predicate_block = {{0}, {0}};
+    sxml_ir_atom keys = {0};
+    if (status == SXML_STATUS_OK) {
+        status = bind_node_keys(state,
+                                (step_request){.block = &predicate_block,
+                                               .node = request.node,
+                                               .origin = slot_atom(node)},
+                                &keys);
+    }
+    sxml_xpath_lowering_block condition_block = {{0}, {0}};
+    sxml_ir_atom is_equal = {0};
+    if (status == SXML_STATUS_OK) {
+        const sxml_ir_atom arguments[2] = {slot_atom(wanted), slot_atom(key)};
+        status = bind_builtin_call(
+            state,
+            &(builtin_call_request){
+                .function = {.node = request.node,
+                             .local_name = SXML_BYTE_VIEW_FROM_LITERAL("atomic-equal"),
+                             .arity = 2},
+                .block = &condition_block,
+                .arguments = {.atoms = arguments, .atom_count = 2}},
+            &is_equal);
+    }
+    sxml_ir_expression_index condition = {0};
+    if (status == SXML_STATUS_OK) {
+        status = finish_atom_block(state,
+                                   (atom_block_result){.block = &condition_block,
+                                                       .node = request.node,
+                                                       .atom = is_equal},
+                                   &condition);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_add_expression(
+            state,
+            (sxml_xpath_lowering_expression_to_add){
+                .node = request.node,
+                .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_QUANTIFIED,
+                               .quantified = {.quantifier = SXML_IR_QUANTIFIER_SOME,
+                                              .input = keys,
+                                              .variable = key,
+                                              .condition = condition}}},
+            &condition);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_add_expression(
+            state,
+            (sxml_xpath_lowering_expression_to_add){
+                .node = request.node,
+                .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_QUANTIFIED,
+                               .quantified = {.quantifier = SXML_IR_QUANTIFIER_SOME,
+                                              .input = selector,
+                                              .variable = wanted,
+                                              .condition = condition}}},
+            &condition);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_finish_block(
+            state,
+            (sxml_xpath_lowering_block_result){.block = predicate_block,
+                                               .result = condition},
+            &condition);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_xpath_lowerer_add_expression(
+        state,
+        (sxml_xpath_lowering_expression_to_add){
+            .node = request.node,
+            .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_FILTER,
+                           .filter = {.input = request.input,
+                                      .focus = {.context_value = node},
+                                      .predicate = condition}}},
+        expression);
+}
+
+/* The STEP (or the item axis's MAP) of the frame's step from the focus
+   value, with node_test; the result goes to locals->result. */
+static sxml_status add_axis_step_expression(sxml_xpath_lowerer *state,
+                                            sxml_xpath_lowering_frame *frame,
+                                            sxml_type_identifier node_test) {
+    axis_step_locals *locals = frame->locals;
+    sxml_ir_atom origin = {0};
+    sxml_status status = sxml_xpath_lowerer_read_focus(
+        state,
+        (sxml_xpath_lowering_focus_read){.block = frame->block,
+                                         .node = frame->node,
+                                         .part = SXML_XPATH_LOWERING_FOCUS_PART_VALUE},
+        &origin);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    const step_request request = {.block = frame->block,
+                                  .node = frame->node,
+                                  .origin = origin,
+                                  .axis = locals->axis,
+                                  .node_test = node_test};
+    return locals->is_item_axis
+               ? add_item_axis_step(state, request, &locals->result)
+               : add_step(state, request, &locals->result);
+}
 
 static sxml_status begin_axis_step(sxml_xpath_lowering_machine *machine,
                                    sxml_xpath_lowering_frame *frame) {
@@ -3502,44 +4132,91 @@ static sxml_status begin_axis_step(sxml_xpath_lowering_machine *machine,
         } else if (test_kind == SXML_AST_KIND_NAMESPACE_NODE_TYPE) {
             axis = SXML_AXIS_NAMESPACE;
         }
+    } else if (step->detail.axis == SXML_AST_AXIS_ITEM) {
+        locals->is_item_axis = true;
     } else if (!axis_of(step->detail.axis, &axis)) {
-        return sxml_xpath_lowerer_report_unsupported(
-            state, node,
-            SXML_BYTE_VIEW_FROM_LITERAL(
-                "the item axis is not lowered in Phase 1"));
-    }
-    sxml_type_identifier node_test = {0};
-    sxml_status status = resolve_node_test(
-        state, (node_test_request){.test = test, .axis = axis}, &node_test);
-    sxml_ir_atom origin = {0};
-    if (status == SXML_STATUS_OK) {
-        status = sxml_xpath_lowerer_read_focus(state,
-                            (sxml_xpath_lowering_focus_read){.block = frame->block,
-                                         .node = node,
-                                         .part = SXML_XPATH_LOWERING_FOCUS_PART_VALUE},
-                            &origin);
-    }
-    if (status == SXML_STATUS_OK) {
-        status = add_step(state,
-                          (step_request){.block = frame->block,
-                                         .node = node,
-                                         .origin = origin,
-                                         .axis = axis,
-                                         .node_test = node_test},
-                          &locals->result);
+        return SXML_STATUS_INVALID_ARGUMENT;
     }
     locals->axis = axis;
     locals->predicate = child_of(state, node, SXML_AST_FIELD_PREDICATE);
-    return status;
+    if (test_kind == SXML_AST_KIND_DYNAMIC_NODE_TEST) {
+        /* XPath 4.0, section 4.7.5.3: the selector is evaluated with an
+           absent focus (reading it raises XPDY0002). */
+        frame->step = SXML_LOWERING_AXIS_STEP_STEP_SELECTOR;
+        locals->absent_focus = (sxml_xpath_lowering_focus){
+            .kind = SXML_XPATH_LOWERING_FOCUS_KIND_ABSENT};
+        locals->outer_focus = state->function->focus;
+        state->function->focus = &locals->absent_focus;
+        return sxml_xpath_lowering_call_atom(
+            machine,
+            (sxml_xpath_lowering_atom_call){
+                .node = child_of(state, test, SXML_AST_FIELD_EXPRESSION),
+                .block = frame->block,
+                .atom = &locals->selector});
+    }
+    frame->step = SXML_LOWERING_AXIS_STEP_STEP_PREDICATES;
+    sxml_type_identifier node_test = {0};
+    sxml_status status = resolve_node_test(
+        state, (node_test_request){.test = test, .axis = axis}, &node_test);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return add_axis_step_expression(state, frame, node_test);
+}
+
+/* After a dynamic node test's selector: the step with "*" of the axis's
+   principal node kind (all JNodes match it), then the dynamic test. */
+static sxml_status finish_dynamic_node_test(sxml_xpath_lowering_machine *machine,
+                                            sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *state = machine->state;
+    axis_step_locals *locals = frame->locals;
+    state->function->focus = locals->outer_focus;
+    frame->step = SXML_LOWERING_AXIS_STEP_STEP_PREDICATES;
+    const sxml_node_kind principal_kind =
+        locals->axis == SXML_AXIS_ATTRIBUTE   ? SXML_NODE_KIND_ATTRIBUTE
+        : locals->axis == SXML_AXIS_NAMESPACE ? SXML_NODE_KIND_NAMESPACE
+                                              : SXML_NODE_KIND_ELEMENT;
+    sxml_type_identifier node_test = {0};
+    sxml_status status = sxml_type_registry_register_item_type(
+        state->type_registry,
+        &(sxml_type_description){
+            .variety = SXML_TYPE_VARIETY_NODE_TEST,
+            .variety_details = {
+                .node_test = {.node_kind = principal_kind,
+                              .name_test = {.name_test_kind =
+                                                SXML_NAME_TEST_KIND_ANY_NAME}}}},
+        &node_test);
+    if (status == SXML_STATUS_OK) {
+        status = add_axis_step_expression(state, frame, node_test);
+    }
+    sxml_ir_atom input = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_bind_expression(
+            state,
+            (sxml_xpath_lowering_expression_in_block){.block = frame->block,
+                                                      .expression = locals->result},
+            &input);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return add_dynamic_test_filter(state,
+                                   (dynamic_test_request){.block = frame->block,
+                                                          .node = frame->node,
+                                                          .input = input,
+                                                          .selector = locals->selector},
+                                   &locals->result);
 }
 
 static sxml_status continue_axis_step(sxml_xpath_lowering_machine *machine,
                                       sxml_xpath_lowering_frame *frame) {
     sxml_xpath_lowerer *state = machine->state;
     axis_step_locals *locals = frame->locals;
-    if (frame->step == 0) {
-        frame->step = 1;
+    if (frame->step == SXML_LOWERING_AXIS_STEP_STEP_BEGIN) {
         return begin_axis_step(machine, frame);
+    }
+    if (frame->step == SXML_LOWERING_AXIS_STEP_STEP_SELECTOR) {
+        return finish_dynamic_node_test(machine, frame);
     }
     if (locals->predicate.value != 0) {
         const sxml_ast_node_index predicate = locals->predicate;
@@ -4127,6 +4804,242 @@ static sxml_status continue_arrow_map(sxml_xpath_lowering_machine *machine,
     return sxml_xpath_lowering_finish_frame(machine, frame, result);
 }
 
+/*
+ * "A but with B" (XPath 4.0, section 4.15.4): A coerced to record(*) and B
+ * to map(*), merged by map:merge((A, B), { 'duplicates': 'use-last' }).
+ * The specification then coerces the merged map to A's record type; the
+ * IR cannot name a type known only at run time, so the merged map is the
+ * result and a later coercion (a function argument, "instance of")
+ * checks the fields (D113).
+ */
+typedef struct but_with_link_locals {
+    sxml_ir_atom left;
+    sxml_ir_atom right;
+} but_with_link_locals;
+
+/* The map { 'duplicates': 'use-last' }, bound in block. */
+static sxml_status bind_use_last_options(sxml_xpath_lowerer *state,
+                                         expression_in_block request,
+                                         sxml_ir_atom *atom) {
+    sxml_ir_map_entry entry = {{0}, {0}};
+    sxml_status status = sxml_xpath_lowerer_add_string_constant(
+        state, SXML_BYTE_VIEW_FROM_LITERAL("duplicates"), &entry.key);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_add_string_constant(
+            state, SXML_BYTE_VIEW_FROM_LITERAL("use-last"), &entry.value);
+    }
+    sxml_ir_map_entry_list entries = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ir_unit_add_map_entries(
+            state->unit,
+            (sxml_ir_map_entry_view){.map_entries = &entry, .map_entry_count = 1},
+            &entries);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    request.expression = (sxml_ir_expression){
+        .expression_kind = SXML_IR_EXPRESSION_KIND_MAP_CONSTRUCTOR,
+        .map_constructor = {.entries = entries}};
+    return bind_new_expression(state, request, atom);
+}
+
+static sxml_status continue_but_with_link(sxml_xpath_lowering_machine *machine,
+                                          sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *state = machine->state;
+    but_with_link_locals *locals = frame->locals;
+    if (frame->step == 0) {
+        frame->step = 1;
+        return sxml_xpath_lowering_call_atom(
+            machine,
+            (sxml_xpath_lowering_atom_call){
+                .node = child_of(state, frame->node, SXML_AST_FIELD_RIGHT),
+                .block = frame->block,
+                .atom = &locals->right});
+    }
+    sxml_ir_atom operands[2] = {{0}, {0}};
+    sxml_status status = sxml_xpath_lowerer_coerce_atom(
+        state,
+        (sxml_xpath_lowering_coercion_request){
+            .block = frame->block,
+            .node = frame->node,
+            .value = locals->left,
+            .sequence_type = {.item_type =
+                                  sxml_builtin_type_identifier(SXML_TYPE_RECORD),
+                              .occurrence = SXML_OCCURRENCE_EXACTLY_ONE},
+            .role = SXML_IR_COERCION_ROLE_FUNCTION_ARGUMENT},
+        &operands[0]);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_coerce_atom(
+            state,
+            (sxml_xpath_lowering_coercion_request){
+                .block = frame->block,
+                .node = frame->node,
+                .value = locals->right,
+                .sequence_type = {.item_type =
+                                      sxml_builtin_type_identifier(SXML_TYPE_MAP),
+                                  .occurrence = SXML_OCCURRENCE_EXACTLY_ONE},
+                .role = SXML_IR_COERCION_ROLE_FUNCTION_ARGUMENT},
+            &operands[1]);
+    }
+    sxml_ir_atom_list operand_list = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ir_unit_add_atoms(
+            state->unit, (sxml_ir_atom_view){.atoms = operands, .atom_count = 2},
+            &operand_list);
+    }
+    sxml_ir_atom arguments[2] = {{0}, {0}};
+    if (status == SXML_STATUS_OK) {
+        status = bind_new_expression(
+            state,
+            (expression_in_block){
+                .block = frame->block,
+                .node = frame->node,
+                .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_SEQUENCE,
+                               .sequence = operand_list}},
+            &arguments[0]);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = bind_use_last_options(
+            state,
+            (expression_in_block){.block = frame->block, .node = frame->node},
+            &arguments[1]);
+    }
+    sxml_ir_atom merged = {0};
+    if (status == SXML_STATUS_OK) {
+        status = bind_builtin_call(
+            state,
+            &(builtin_call_request){
+                .function = {.node = frame->node,
+                             .function_namespace = SXML_NAMESPACE_MAP_FUNCTIONS,
+                             .local_name = SXML_BYTE_VIEW_FROM_LITERAL("merge"),
+                             .arity = 2},
+                .block = frame->block,
+                .arguments = {.atoms = arguments, .atom_count = 2}},
+            &merged);
+    }
+    sxml_ir_expression_index result = {0};
+    if (status == SXML_STATUS_OK) {
+        status = add_atom_expression(
+            state, (atom_at){.node = frame->node, .atom = merged}, &result);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_xpath_lowering_finish_frame(machine, frame, result);
+}
+
+/* "M =?> N(X, ...)" (XPath 4.0, section 4.15.5): for $map as map(*) in M
+   return $map?N($map, X, ...), a MAP whose body looks the method up and
+   calls it with the map first; the arguments are lowered in the body with
+   the outer focus, as for "=!>". */
+typedef struct method_call_link_locals {
+    sxml_ir_atom left;
+    sxml_ir_slot item;
+    sxml_xpath_lowering_block body_block;
+    sxml_ir_expression_index result;
+} method_call_link_locals;
+
+static sxml_status begin_method_call(sxml_xpath_lowering_machine *machine,
+                                     sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *state = machine->state;
+    method_call_link_locals *locals = frame->locals;
+    const sxml_ast_node_index list =
+        child_of(state, frame->node, SXML_AST_FIELD_ARGUMENTS);
+    for (sxml_ast_node_index argument =
+             child_of(state, list, SXML_AST_FIELD_ARGUMENT);
+         argument.value != 0; argument = next_of(state, argument)) {
+        if (node_of(state, argument)->kind == SXML_AST_KIND_ARGUMENT_PLACEHOLDER) {
+            return sxml_xpath_lowerer_report_static_error(
+                state, argument,
+                SXML_BYTE_VIEW_FROM_LITERAL(
+                    "XPST0003 a method call cannot have an argument "
+                    "placeholder"));
+        }
+    }
+    sxml_status status = sxml_xpath_lowerer_add_slot(state, &locals->item);
+    sxml_ir_atom map = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_coerce_atom(
+            state,
+            (sxml_xpath_lowering_coercion_request){
+                .block = &locals->body_block,
+                .node = frame->node,
+                .value = slot_atom(locals->item),
+                .sequence_type = {.item_type =
+                                      sxml_builtin_type_identifier(SXML_TYPE_MAP),
+                                  .occurrence = SXML_OCCURRENCE_EXACTLY_ONE},
+                .role = SXML_IR_COERCION_ROLE_VARIABLE},
+            &map);
+    }
+    sxml_ir_atom key = {0};
+    if (status == SXML_STATUS_OK) {
+        const sxml_ast_node *name =
+            node_of(state, child_of(state, frame->node, SXML_AST_FIELD_NAME));
+        status = sxml_xpath_lowerer_add_string_constant(
+            state, sxml_ast_get_text(state->ast, name->payload.name.local_name),
+            &key);
+    }
+    sxml_ir_atom method = {0};
+    if (status == SXML_STATUS_OK) {
+        status = bind_new_expression(
+            state,
+            (expression_in_block){
+                .block = &locals->body_block,
+                .node = frame->node,
+                .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_LOOKUP,
+                               .lookup = {.value = map, .key = key}}},
+            &method);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return push_dynamic_call(machine,
+                             &(dynamic_call_request){
+                                 .node = frame->node,
+                                 .block = &locals->body_block,
+                                 .function_node = {.value = 0},
+                                 .function_block = NULL,
+                                 .function_item = method,
+                                 .list = list,
+                                 .has_leading_argument = true,
+                                 .leading_argument = map},
+                             &locals->result);
+}
+
+static sxml_status continue_method_call_link(sxml_xpath_lowering_machine *machine,
+                                             sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *state = machine->state;
+    method_call_link_locals *locals = frame->locals;
+    if (frame->step == 0) {
+        frame->step = 1;
+        return begin_method_call(machine, frame);
+    }
+    sxml_ir_expression_index body = {0};
+    sxml_status status = sxml_xpath_lowerer_finish_block(
+        state,
+        (sxml_xpath_lowering_block_result){.block = locals->body_block,
+                                           .result = locals->result},
+        &body);
+    sxml_ir_expression_index result = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_add_expression(
+            state,
+            (sxml_xpath_lowering_expression_to_add){
+                .node = frame->node,
+                .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_MAP,
+                               .map = {.input = locals->left,
+                                       .focus = {.context_value = locals->item},
+                                       .body = body,
+                                       .flags = 0}}},
+            &result);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_xpath_lowering_finish_frame(machine, frame, result);
+}
+
 /* A chain, lowered in a loop over its spine: its first operand, then one
    link frame per operator up through the parent links. */
 typedef struct chain_locals {
@@ -4292,6 +5205,14 @@ static sxml_status begin_chain_link(sxml_xpath_lowering_machine *machine,
             &locals->result);
     case SXML_AST_KIND_ARROW_EXPRESSION:
         return begin_arrow(machine, chain);
+    case SXML_AST_KIND_BUT_WITH_EXPRESSION:
+        return push_link_frame(
+            machine, chain,
+            (link_frame_request){.procedure = SXML_LOWERING_PROCEDURE_BUT_WITH_LINK});
+    case SXML_AST_KIND_METHOD_CALL:
+        return push_link_frame(
+            machine, chain,
+            (link_frame_request){.procedure = SXML_LOWERING_PROCEDURE_METHOD_CALL_LINK});
     default:
         return SXML_STATUS_INVALID_ARGUMENT;
     }
@@ -5238,6 +6159,8 @@ static sxml_status begin_binding(sxml_xpath_lowering_machine *machine,
     }
     switch ((uint32_t)node_of(state, binding)->kind) {
     case SXML_AST_KIND_FOR_ITEM_BINDING:
+    case SXML_AST_KIND_FOR_MEMBER_BINDING:
+    case SXML_AST_KIND_FOR_ENTRY_BINDING:
     case SXML_AST_KIND_QUANTIFIER_BINDING:
         frame->step = SXML_LOWERING_BINDING_STEP_ITERATING_VALUE;
         return sxml_xpath_lowering_call_atom(
@@ -5247,6 +6170,9 @@ static sxml_status begin_binding(sxml_xpath_lowering_machine *machine,
                 .block = frame->block,
                 .atom = &locals->value});
     case SXML_AST_KIND_LET_VALUE_BINDING:
+    case SXML_AST_KIND_LET_SEQUENCE_BINDING:
+    case SXML_AST_KIND_LET_ARRAY_BINDING:
+    case SXML_AST_KIND_LET_MAP_BINDING:
         /* "let" (XPath 4.0, section 4.13.2): the value bound once. */
         frame->step = SXML_LOWERING_BINDING_STEP_LET_VALUE;
         return sxml_xpath_lowering_call_atom(
@@ -5257,9 +6183,210 @@ static sxml_status begin_binding(sxml_xpath_lowering_machine *machine,
     default:
         return sxml_xpath_lowerer_report_unsupported(
             state, binding,
-            SXML_BYTE_VIEW_FROM_LITERAL("for member, for key/value and "
-                                        "destructuring let bindings are not "
-                                        "lowered in Phase 1"));
+            SXML_BYTE_VIEW_FROM_LITERAL("this binding is not lowered"));
+    }
+}
+
+/*
+ * The binding collection of "for member" and "for key/value" (XPath 4.0,
+ * section 4.13.1) as a sequence to iterate: the members of each array as
+ * single-member arrays (array:split, whose argument coercion accepts a
+ * JNode wrapping an array and raises a type error for anything else), or
+ * the entries of each map as single-entry maps (map:entries), in order,
+ * so that the position variable counts across all of them. Replaces
+ * locals->value.
+ */
+static sxml_status expand_binding_collection(sxml_xpath_lowerer *state,
+                                             sxml_xpath_lowering_frame *frame) {
+    binding_locals *locals = frame->locals;
+    const sxml_ast_node_index binding = locals->cursor.binding;
+    const bool is_member =
+        node_of(state, binding)->kind == SXML_AST_KIND_FOR_MEMBER_BINDING;
+    sxml_ir_slot container = {0};
+    sxml_status status = sxml_xpath_lowerer_add_slot(state, &container);
+    sxml_xpath_lowering_block body_block = {{0}, {0}};
+    sxml_ir_atom parts = {0};
+    if (status == SXML_STATUS_OK) {
+        const sxml_ir_atom container_atom = slot_atom(container);
+        status = bind_builtin_call(
+            state,
+            &(builtin_call_request){
+                .function = {.node = binding,
+                             .function_namespace =
+                                 is_member ? SXML_NAMESPACE_ARRAY_FUNCTIONS
+                                           : SXML_NAMESPACE_MAP_FUNCTIONS,
+                             .local_name =
+                                 is_member ? SXML_BYTE_VIEW_FROM_LITERAL("split")
+                                           : SXML_BYTE_VIEW_FROM_LITERAL("entries"),
+                             .arity = 1},
+                .block = &body_block,
+                .arguments = {.atoms = &container_atom, .atom_count = 1}},
+            &parts);
+    }
+    sxml_ir_expression_index parts_expression = {0};
+    if (status == SXML_STATUS_OK) {
+        status = add_atom_expression(
+            state, (atom_at){.node = binding, .atom = parts}, &parts_expression);
+    }
+    sxml_ir_expression_index body = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_finish_block(
+            state,
+            (sxml_xpath_lowering_block_result){.block = body_block,
+                                               .result = parts_expression},
+            &body);
+    }
+    sxml_ir_expression_index map = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_add_expression(
+            state,
+            (sxml_xpath_lowering_expression_to_add){
+                .node = binding,
+                .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_MAP,
+                               .map = {.input = locals->value,
+                                       .focus = {.context_value = container},
+                                       .body = body,
+                                       .flags = 0}}},
+            &map);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_xpath_lowerer_bind_expression(
+        state,
+        (sxml_xpath_lowering_expression_in_block){.block = frame->block,
+                                                  .expression = map},
+        &locals->value);
+}
+
+/* One variable of a "for key/value" binding: the variable node and the
+   function of the item (an entry's map) that gives its value. */
+typedef struct part_variable {
+    sxml_ast_node_index variable;
+    sxml_well_known_namespace function_namespace;
+    sxml_byte_view local_name;
+} part_variable;
+
+static sxml_status push_part_variable(sxml_xpath_lowerer *state,
+                                      sxml_xpath_lowering_frame *frame,
+                                      part_variable request) {
+    binding_locals *locals = frame->locals;
+    const sxml_ir_atom item = slot_atom(locals->item);
+    sxml_ir_atom value = {0};
+    sxml_status status = bind_builtin_call(
+        state,
+        &(builtin_call_request){
+            .function = {.node = request.variable,
+                         .function_namespace = request.function_namespace,
+                         .local_name = request.local_name,
+                         .arity = 1},
+            .block = &locals->body_block,
+            .arguments = {.atoms = &item, .atom_count = 1}},
+        &value);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_xpath_lowerer_push_typed_variable(
+        state, (sxml_xpath_lowering_typed_variable){.block = &locals->body_block,
+                                                    .variable = request.variable,
+                                                    .value = value});
+}
+
+/* The member of the single-member array in the item slot, bound in the
+   body: item?1. */
+static sxml_status bind_split_member(sxml_xpath_lowerer *state,
+                                     sxml_xpath_lowering_frame *frame,
+                                     sxml_ir_atom *member) {
+    binding_locals *locals = frame->locals;
+    sxml_ir_atom one = {0};
+    sxml_status status =
+        get_shared_constant(state, SXML_LOWERING_SHARED_CONSTANT_ONE, &one);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return bind_new_expression(
+        state,
+        (expression_in_block){
+            .block = &locals->body_block,
+            .node = locals->cursor.binding,
+            .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_LOOKUP,
+                           .lookup = {.value = slot_atom(locals->item), .key = one}}},
+        member);
+}
+
+/* The range variables of a for or quantifier binding, bound in the body
+   to the item slot: the item itself, a member (the single-member array's
+   member), or an entry's key (map:keys) and value (map:items) (XPath 4.0,
+   section 4.13.1). */
+static sxml_status push_range_variables(sxml_xpath_lowerer *state,
+                                        sxml_xpath_lowering_frame *frame) {
+    binding_locals *locals = frame->locals;
+    const sxml_ast_node_index binding = locals->cursor.binding;
+    switch ((uint32_t)node_of(state, binding)->kind) {
+    case SXML_AST_KIND_FOR_MEMBER_BINDING: {
+        sxml_ir_atom member = {0};
+        const sxml_status status = bind_split_member(state, frame, &member);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        return sxml_xpath_lowerer_push_typed_variable(
+            state,
+            (sxml_xpath_lowering_typed_variable){
+                .block = &locals->body_block,
+                .variable = child_of(state, binding, SXML_AST_FIELD_VARIABLE),
+                .value = member});
+    }
+    case SXML_AST_KIND_FOR_ENTRY_BINDING: {
+        const sxml_ast_node_index key = child_of(
+            state, child_of(state, binding, SXML_AST_FIELD_KEY),
+            SXML_AST_FIELD_VARIABLE);
+        const sxml_ast_node_index value = child_of(
+            state, child_of(state, binding, SXML_AST_FIELD_VALUE),
+            SXML_AST_FIELD_VARIABLE);
+        sxml_status status = SXML_STATUS_OK;
+        if (key.value != 0 && value.value != 0) {
+            declared_name same = {.is_declared = false};
+            sxml_name_identifier key_name = {0};
+            status = sxml_xpath_lowerer_resolve_variable_name(
+                state, child_of(state, key, SXML_AST_FIELD_NAME), &key_name);
+            if (status == SXML_STATUS_OK) {
+                status = variable_declares(
+                    state, (declared_name_query){.binding = value, .name = key_name},
+                    &same);
+            }
+            if (status == SXML_STATUS_OK && same.is_declared) {
+                /* XPath 4.0, section 4.13.1: the key and value variables
+                   have distinct names. */
+                return sxml_xpath_lowerer_report_static_error(
+                    state, value,
+                    SXML_BYTE_VIEW_FROM_LITERAL(
+                        "XQST0089 the key and value variables have the same "
+                        "name"));
+            }
+        }
+        if (status == SXML_STATUS_OK && key.value != 0) {
+            status = push_part_variable(
+                state, frame,
+                (part_variable){.variable = key,
+                                .function_namespace = SXML_NAMESPACE_MAP_FUNCTIONS,
+                                .local_name = SXML_BYTE_VIEW_FROM_LITERAL("keys")});
+        }
+        if (status == SXML_STATUS_OK && value.value != 0) {
+            status = push_part_variable(
+                state, frame,
+                (part_variable){.variable = value,
+                                .function_namespace = SXML_NAMESPACE_MAP_FUNCTIONS,
+                                .local_name = SXML_BYTE_VIEW_FROM_LITERAL("items")});
+        }
+        return status;
+    }
+    default:
+        return sxml_xpath_lowerer_push_typed_variable(
+            state,
+            (sxml_xpath_lowering_typed_variable){
+                .block = &locals->body_block,
+                .variable = child_of(state, binding, SXML_AST_FIELD_VARIABLE),
+                .value = slot_atom(locals->item)});
     }
 }
 
@@ -5274,24 +6401,59 @@ static sxml_status continue_iterating_binding(sxml_xpath_lowering_machine *machi
         child_of(state, binding, SXML_AST_FIELD_POSITION);
     if (frame->step == SXML_LOWERING_BINDING_STEP_ITERATING_VALUE) {
         frame->step = SXML_LOWERING_BINDING_STEP_ITERATING_REST;
-        sxml_status status = sxml_xpath_lowerer_add_slot(state, &locals->item);
+        const sxml_ast_kind kind = node_of(state, binding)->kind;
+        sxml_status status = SXML_STATUS_OK;
+        if (kind == SXML_AST_KIND_FOR_MEMBER_BINDING ||
+            kind == SXML_AST_KIND_FOR_ENTRY_BINDING) {
+            status = expand_binding_collection(state, frame);
+        }
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xpath_lowerer_add_slot(state, &locals->item);
+        }
         if (status == SXML_STATUS_OK && positional.value != 0) {
             status = sxml_xpath_lowerer_add_slot(state, &locals->position);
         }
         locals->scope_mark = state->scope_entry_count;
         if (status == SXML_STATUS_OK) {
-            status = sxml_xpath_lowerer_push_typed_variable(
-                state,
-                (sxml_xpath_lowering_typed_variable){
-                    .block = &locals->body_block,
-                    .variable = child_of(state, binding, SXML_AST_FIELD_VARIABLE),
-                    .value = slot_atom(locals->item)});
+            status = push_range_variables(state, frame);
         }
         if (status == SXML_STATUS_OK && positional.value != 0) {
             sxml_name_identifier position_name = {0};
             status = sxml_xpath_lowerer_resolve_variable_name(
                 state, child_of(state, positional, SXML_AST_FIELD_NAME),
                 &position_name);
+            declared_name same = {.is_declared = false};
+            if (status == SXML_STATUS_OK) {
+                /* The binding's variables other than the position one. */
+                const sxml_ast_node_index range_variables[3] = {
+                    child_of(state, binding, SXML_AST_FIELD_VARIABLE),
+                    child_of(state, child_of(state, binding, SXML_AST_FIELD_KEY),
+                             SXML_AST_FIELD_VARIABLE),
+                    child_of(state, child_of(state, binding, SXML_AST_FIELD_VALUE),
+                             SXML_AST_FIELD_VARIABLE)};
+                for (size_t variable_index = 0;
+                     status == SXML_STATUS_OK && !same.is_declared &&
+                     variable_index < 3;
+                     variable_index += 1) {
+                    if (range_variables[variable_index].value != 0) {
+                        status = variable_declares(
+                            state,
+                            (declared_name_query){
+                                .binding = range_variables[variable_index],
+                                .name = position_name},
+                            &same);
+                    }
+                }
+            }
+            if (status == SXML_STATUS_OK && same.is_declared) {
+                /* XPath 4.0, section 4.13.1: the position variable's name
+                   differs from the range variables'. */
+                status = sxml_xpath_lowerer_report_static_error(
+                    state, positional,
+                    SXML_BYTE_VIEW_FROM_LITERAL(
+                        "XQST0089 the position variable has the name of a "
+                        "range variable"));
+            }
             if (status == SXML_STATUS_OK) {
                 status = sxml_xpath_lowerer_push_variable(
                     state,
@@ -5345,6 +6507,188 @@ static sxml_status continue_iterating_binding(sxml_xpath_lowering_machine *machi
     return sxml_xpath_lowering_finish_frame(machine, frame, result);
 }
 
+/* The value of variable number variable_number (from 1) of a
+   destructuring let over the coerced value (XPath 4.0, section 4.13.2):
+   fn:items-at(V, i), and fn:subsequence(V, n) for the last of n, of a
+   sequence; V?i of an array; V?name, name the variable's local name, of a
+   map. */
+typedef struct destructured_part {
+    /* The binding's frame: its block and the coerced value. */
+    sxml_xpath_lowering_frame *frame;
+    sxml_ast_node_index variable;
+    uint32_t variable_number;
+    bool is_last;
+    /* A map binding's declared record type with named fields; 0 for none. */
+    sxml_type_identifier record_type;
+} destructured_part;
+
+static sxml_status bind_destructured_part(sxml_xpath_lowerer *state,
+                                          destructured_part request,
+                                          sxml_ir_atom *atom) {
+    sxml_xpath_lowering_frame *frame = request.frame;
+    const binding_locals *locals = frame->locals;
+    const sxml_ast_kind kind = node_of(state, locals->cursor.binding)->kind;
+    sxml_ir_atom key = {0};
+    sxml_status status = SXML_STATUS_OK;
+    if (kind == SXML_AST_KIND_LET_MAP_BINDING) {
+        const sxml_ast_node *name = node_of(
+            state, child_of(state, request.variable, SXML_AST_FIELD_NAME));
+        const sxml_byte_view local_name =
+            sxml_ast_get_text(state->ast, name->payload.name.local_name);
+        size_t field_index = 0;
+        if (request.record_type.index != 0 &&
+            !sxml_type_registry_find_record_field(
+                state->type_registry,
+                (sxml_record_field_query){.record_type = request.record_type,
+                                          .field_name = local_name},
+                &field_index)) {
+            /* XPath 4.0, section 4.13.2: a record type without the field
+               is a type error. */
+            sxml_ir_expression_index raise = {0};
+            status = sxml_xpath_lowerer_add_raise(
+                state,
+                (sxml_xpath_lowering_raise_request){
+                    .node = request.variable,
+                    .error_status = SXML_STATUS_TYPE_ERROR,
+                    .code_local_name = SXML_BYTE_VIEW_FROM_LITERAL("XPTY0004"),
+                    .description = SXML_BYTE_VIEW_FROM_LITERAL(
+                        "the record type has no field of the variable's name")},
+                &raise);
+            if (status != SXML_STATUS_OK) {
+                return status;
+            }
+            return bind_in_block(
+                state, (binding_request){.block = frame->block, .expression = raise},
+                atom);
+        }
+        status = sxml_xpath_lowerer_add_string_constant(state, local_name, &key);
+    } else {
+        status = sxml_xpath_lowerer_add_item_constant(
+            state, sxml_atomic_item_from_integer(request.variable_number), &key);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (kind != SXML_AST_KIND_LET_SEQUENCE_BINDING) {
+        sxml_ir_expression_index lookup = {0};
+        status = sxml_xpath_lowerer_add_expression(
+            state,
+            (sxml_xpath_lowering_expression_to_add){
+                .node = request.variable,
+                .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_LOOKUP,
+                               .lookup = {.value = locals->value, .key = key}}},
+            &lookup);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        return bind_in_block(
+            state, (binding_request){.block = frame->block, .expression = lookup},
+            atom);
+    }
+    const sxml_ir_atom arguments[2] = {locals->value, key};
+    return bind_builtin_call(
+        state,
+        &(builtin_call_request){
+            .function = {.node = request.variable,
+                         .function_namespace = SXML_NAMESPACE_FUNCTIONS,
+                         .local_name = request.is_last
+                                           ? SXML_BYTE_VIEW_FROM_LITERAL("subsequence")
+                                           : SXML_BYTE_VIEW_FROM_LITERAL("items-at"),
+                         .arity = 2},
+            .block = frame->block,
+            .arguments = {.atoms = arguments, .atom_count = 2}},
+        atom);
+}
+
+/* "let $(...)", "let $[...]" and "let ${...}" (XPath 4.0, section
+   4.13.2): the value coerced to the declared type (item()*, or a single
+   array(*) or map(*) without one), then each variable bound to its part
+   in order, so that a later variable of the same name occludes an
+   earlier one. */
+static sxml_status push_destructured_variables(sxml_xpath_lowerer *state,
+                                               sxml_xpath_lowering_frame *frame) {
+    binding_locals *locals = frame->locals;
+    const sxml_ast_node_index binding = locals->cursor.binding;
+    const sxml_ast_kind kind = node_of(state, binding)->kind;
+    const sxml_ast_node_index declaration =
+        child_of(state, binding, SXML_AST_FIELD_TYPE);
+    sxml_sequence_type declared_type = {
+        .item_type = sxml_builtin_type_identifier(
+            kind == SXML_AST_KIND_LET_ARRAY_BINDING ? SXML_TYPE_ARRAY
+            : kind == SXML_AST_KIND_LET_MAP_BINDING ? SXML_TYPE_MAP
+                                                    : SXML_TYPE_ITEM),
+        .occurrence = kind == SXML_AST_KIND_LET_SEQUENCE_BINDING
+                          ? SXML_OCCURRENCE_ZERO_OR_MORE
+                          : SXML_OCCURRENCE_EXACTLY_ONE};
+    const sxml_sequence_type single_type = declared_type;
+    sxml_status status = SXML_STATUS_OK;
+    if (declaration.value != 0) {
+        status = resolve_declared_type(state, declaration, &declared_type);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_coerce_atom(
+            state,
+            (sxml_xpath_lowering_coercion_request){
+                .block = frame->block,
+                .node = binding,
+                .value = locals->value,
+                .sequence_type = declared_type,
+                .role = SXML_IR_COERCION_ROLE_VARIABLE},
+            &locals->value);
+    }
+    if (status == SXML_STATUS_OK && declaration.value != 0 &&
+        kind != SXML_AST_KIND_LET_SEQUENCE_BINDING) {
+        /* The coerced value must be a single array or map whatever the
+           declared type allows (XPTY0004). */
+        status = sxml_xpath_lowerer_coerce_atom(
+            state,
+            (sxml_xpath_lowering_coercion_request){
+                .block = frame->block,
+                .node = binding,
+                .value = locals->value,
+                .sequence_type = single_type,
+                .role = SXML_IR_COERCION_ROLE_VARIABLE},
+            &locals->value);
+    }
+    sxml_type_identifier record_type = {.index = 0};
+    sxml_type_description description = {0};
+    if (status == SXML_STATUS_OK && declaration.value != 0 &&
+        kind == SXML_AST_KIND_LET_MAP_BINDING &&
+        sxml_type_registry_describe_type(state->type_registry,
+                                         declared_type.item_type,
+                                         &description) == SXML_STATUS_OK &&
+        description.variety == SXML_TYPE_VARIETY_RECORD &&
+        !description.variety_details.record_type.is_any_record) {
+        record_type = declared_type.item_type;
+    }
+    uint32_t variable_number = 0;
+    for (sxml_ast_node_index variable =
+             child_of(state, binding, SXML_AST_FIELD_VARIABLE);
+         status == SXML_STATUS_OK && variable.value != 0;
+         variable = next_of(state, variable)) {
+        if (variable_number == UINT32_MAX - 1U) {
+            return SXML_STATUS_LIMIT_EXCEEDED;
+        }
+        variable_number += 1;
+        sxml_ir_atom value = {0};
+        status = bind_destructured_part(
+            state,
+            (destructured_part){.frame = frame,
+                                .variable = variable,
+                                .variable_number = variable_number,
+                                .is_last = next_of(state, variable).value == 0,
+                                .record_type = record_type},
+            &value);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xpath_lowerer_push_typed_variable(
+                state, (sxml_xpath_lowering_typed_variable){.block = frame->block,
+                                                            .variable = variable,
+                                                            .value = value});
+        }
+    }
+    return status;
+}
+
 static sxml_status continue_binding(sxml_xpath_lowering_machine *machine,
                                     sxml_xpath_lowering_frame *frame) {
     sxml_xpath_lowerer *state = machine->state;
@@ -5383,13 +6727,17 @@ static sxml_status continue_binding(sxml_xpath_lowering_machine *machine,
     case SXML_LOWERING_BINDING_STEP_LET_VALUE: {
         frame->step = SXML_LOWERING_BINDING_STEP_LET_REST;
         locals->scope_mark = state->scope_entry_count;
-        const sxml_status status = sxml_xpath_lowerer_push_typed_variable(
-            state,
-            (sxml_xpath_lowering_typed_variable){
-                .block = frame->block,
-                .variable = child_of(state, locals->cursor.binding,
-                                     SXML_AST_FIELD_VARIABLE),
-                .value = locals->value});
+        const sxml_status status =
+            node_of(state, locals->cursor.binding)->kind ==
+                    SXML_AST_KIND_LET_VALUE_BINDING
+                ? sxml_xpath_lowerer_push_typed_variable(
+                      state,
+                      (sxml_xpath_lowering_typed_variable){
+                          .block = frame->block,
+                          .variable = child_of(state, locals->cursor.binding,
+                                               SXML_AST_FIELD_VARIABLE),
+                          .value = locals->value})
+                : push_destructured_variables(state, frame);
         if (status != SXML_STATUS_OK) {
             return status;
         }
@@ -5977,7 +7325,7 @@ lower_leaf_expression(sxml_xpath_lowerer *state,
         return sxml_xpath_lowerer_report_unsupported(
             state, node,
             SXML_BYTE_VIEW_FROM_LITERAL(
-                "this construct is not lowered in Phase 1"));
+                "this construct is not lowered yet"));
     }
 }
 
@@ -6011,6 +7359,14 @@ static const sxml_xpath_lowering_procedure core_procedures[] = {
         .procedure_name = SXML_BYTE_VIEW_INITIALIZER("arrow map"),
         .step = continue_arrow_map,
         .locals_size = sizeof(arrow_map_locals)},
+    [SXML_LOWERING_PROCEDURE_BUT_WITH_LINK] = {
+        .procedure_name = SXML_BYTE_VIEW_INITIALIZER("but with link"),
+        .step = continue_but_with_link,
+        .locals_size = sizeof(but_with_link_locals)},
+    [SXML_LOWERING_PROCEDURE_METHOD_CALL_LINK] = {
+        .procedure_name = SXML_BYTE_VIEW_INITIALIZER("method call link"),
+        .step = continue_method_call_link,
+        .locals_size = sizeof(method_call_link_locals)},
     [SXML_LOWERING_PROCEDURE_PATH_MAP] = {
         .procedure_name = SXML_BYTE_VIEW_INITIALIZER("path map"),
         .step = continue_path_map,

@@ -930,15 +930,158 @@ static sxml_status resolve_enumeration_type(type_resolver *resolver,
     return status;
 }
 
-/* jnode(selector, type) (XPath 4.0, 3.2.12): the selector. Phase 1 takes
-   the selectors *, (), an NCName and string, integer and boolean
-   constants. */
+/* The lexical form of a jnode() selector that is not text of the AST:
+   pieces joined in scratch memory, which *text points into until the
+   caller releases *request->memory. */
+typedef struct joined_text {
+    sxml_byte_view pieces[4];
+    size_t piece_count;
+    /* Where the scratch memory goes; the caller releases it. */
+    void **memory;
+} joined_text;
+
+static sxml_status join_text(const type_resolver *resolver,
+                             const joined_text *request, sxml_byte_view *text) {
+    void **memory = request->memory;
+    size_t byte_count = 0;
+    for (size_t piece_index = 0; piece_index < request->piece_count;
+         piece_index += 1) {
+        sxml_status status = sxml_size_add(
+            byte_count, request->pieces[piece_index].byte_count, &byte_count);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+    }
+    sxml_status status = allocate_scratch(
+        resolver,
+        (scratch_request){.element_count = byte_count,
+                          .element_size = 1,
+                          .element_alignment = 1},
+        memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    uint8_t *bytes = *memory;
+    size_t offset = 0;
+    for (size_t piece_index = 0; piece_index < request->piece_count;
+         piece_index += 1) {
+        const sxml_byte_view piece = request->pieces[piece_index];
+        if (piece.byte_count > 0) {
+            memcpy(bytes + offset, piece.bytes, piece.byte_count);
+        }
+        offset += piece.byte_count;
+    }
+    *text = (sxml_byte_view){.bytes = bytes, .byte_count = byte_count};
+    return SXML_STATUS_OK;
+}
+
+/* The type of a numeric literal kind as a jnode() key; false for other
+   kinds. */
+static bool numeric_key_type(sxml_ast_kind kind, sxml_type_identifier *type) {
+    switch ((uint32_t)kind) {
+    case SXML_AST_KIND_INTEGER_LITERAL:
+        *type = sxml_builtin_type_identifier(SXML_TYPE_XS_INTEGER);
+        return true;
+    case SXML_AST_KIND_DECIMAL_LITERAL:
+        *type = sxml_builtin_type_identifier(SXML_TYPE_XS_DECIMAL);
+        return true;
+    case SXML_AST_KIND_DOUBLE_LITERAL:
+        *type = sxml_builtin_type_identifier(SXML_TYPE_XS_DOUBLE);
+        return true;
+    default:
+        return false;
+    }
+}
+
+/* A jnode() selector whose lexical form is made, not read: a negative
+   number ("-" and the digits) or a QName literal (its EQName, as
+   sxml_json_node_test wants). *memory holds the text until the type is
+   registered. */
+typedef struct made_selector {
+    sxml_ast_node_index selector;
+    void **memory;
+} made_selector;
+
+static sxml_status resolve_made_selector(const type_resolver *resolver,
+                                         made_selector request,
+                                         sxml_json_node_test *test) {
+    const sxml_ast_node *selector_node =
+        sxml_ast_get_node(resolver->ast, request.selector);
+    if (selector_node->kind == SXML_AST_KIND_NEGATIVE_NUMERIC_LITERAL) {
+        const sxml_ast_node_index value =
+            find_field(resolver, request.selector, SXML_AST_FIELD_VALUE);
+        const sxml_ast_node *value_node = sxml_ast_get_node(resolver->ast, value);
+        if (!numeric_key_type(value_node->kind, &test->key_type)) {
+            return report_unsupported(site_of(resolver, request.selector),
+                                      SXML_BYTE_VIEW_FROM_LITERAL(
+                                          "this jnode() selector is not supported"));
+        }
+        test->key_constraint = SXML_JSON_KEY_CONSTRAINT_CONSTANT;
+        return join_text(
+            resolver,
+            &(joined_text){
+                .pieces = {SXML_BYTE_VIEW_FROM_LITERAL("-"),
+                           sxml_ast_get_text(resolver->ast, value_node->payload.text)},
+                .piece_count = 2,
+                .memory = request.memory},
+            &test->key_lexical_form);
+    }
+    /* A QName literal (XPath 4.0, section 4.3.1.3): unprefixed, in no
+       namespace. */
+    sxml_xpath_resolved_name resolved = {0};
+    sxml_status status = sxml_xpath_resolve_name(
+        &(sxml_xpath_name_request){
+            .ast = resolver->ast,
+            .name_node = find_field(resolver, request.selector, SXML_AST_FIELD_NAME),
+            .name_role = SXML_XPATH_NAME_ROLE_NO_NAMESPACE,
+            .static_context = resolver->static_context,
+            .error_record = resolver->error_record},
+        &resolved);
+    sxml_byte_view namespace_uri = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_name_pool_get_namespace_uri(
+            resolver->name_pool, resolved.namespace_uri, &namespace_uri);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    test->key_constraint = SXML_JSON_KEY_CONSTRAINT_CONSTANT;
+    test->key_type = sxml_builtin_type_identifier(SXML_TYPE_XS_QNAME);
+    if (namespace_uri.byte_count == 0) {
+        /* In no namespace the local name is the EQName's meaning and the
+           form a cast to xs:QName without namespaces reads (D113). */
+        return join_text(resolver,
+                         &(joined_text){.pieces = {resolved.local_name},
+                                        .piece_count = 1,
+                                        .memory = request.memory},
+                         &test->key_lexical_form);
+    }
+    return join_text(resolver,
+                     &(joined_text){.pieces = {SXML_BYTE_VIEW_FROM_LITERAL("Q{"),
+                                               namespace_uri,
+                                               SXML_BYTE_VIEW_FROM_LITERAL("}"),
+                                               resolved.local_name},
+                                    .piece_count = 4,
+                                    .memory = request.memory},
+                     &test->key_lexical_form);
+}
+
+/* jnode(selector, type) (XPath 4.0, 3.2.12): the selector: *, (), an
+   NCName, or a constant (a string, numeric, boolean or QName literal, or
+   a negative number). A made lexical form is in *memory (released with
+   the frame). */
+typedef struct json_node_test_request {
+    /* The JNODE_TYPE node. */
+    sxml_ast_node_index node;
+    void **memory;
+} json_node_test_request;
+
 static sxml_status resolve_json_node_selector(const type_resolver *resolver,
-                                              sxml_ast_node_index node,
+                                              json_node_test_request request,
                                               sxml_json_node_test *test) {
     *test = (sxml_json_node_test){.key_constraint = SXML_JSON_KEY_CONSTRAINT_ANY};
     const sxml_ast_node_index selector =
-        find_field(resolver, node, SXML_AST_FIELD_SELECTOR);
+        find_field(resolver, request.node, SXML_AST_FIELD_SELECTOR);
     const sxml_ast_node *selector_node =
         sxml_ast_get_node(resolver->ast, selector);
     /* The AST kinds form an open set that grows with XQuery (D52), so
@@ -984,10 +1127,23 @@ static sxml_status resolve_json_node_selector(const type_resolver *resolver,
         test->key_lexical_form = digits;
         break;
     }
+    case SXML_AST_KIND_DECIMAL_LITERAL:
+    case SXML_AST_KIND_DOUBLE_LITERAL:
+        /* The key is compared by value (atomic-equal), so the literal's
+           own lexical form serves. */
+        test->key_constraint = SXML_JSON_KEY_CONSTRAINT_CONSTANT;
+        (void)numeric_key_type(selector_node->kind, &test->key_type);
+        test->key_lexical_form =
+            sxml_ast_get_text(resolver->ast, selector_node->payload.text);
+        break;
+    case SXML_AST_KIND_NEGATIVE_NUMERIC_LITERAL:
+    case SXML_AST_KIND_QNAME_LITERAL:
+        return resolve_made_selector(
+            resolver, (made_selector){.selector = selector, .memory = request.memory},
+            test);
     default:
         return report_unsupported(site_of(resolver, selector),
-                                  SXML_BYTE_VIEW_FROM_LITERAL("this jnode() selector is not supported "
-                                  "in Phase 1"));
+                                  SXML_BYTE_VIEW_FROM_LITERAL("this jnode() selector is not supported"));
     }
     return SXML_STATUS_OK;
 }
@@ -1474,7 +1630,9 @@ static sxml_status continue_json_node_test(type_machine *machine,
     if (frame->step == 0) {
         frame->step = 1;
         sxml_status status = resolve_json_node_selector(
-            resolver, frame->node, &frame->json_node_test);
+            resolver,
+            (json_node_test_request){.node = frame->node, .memory = &frame->scratch},
+            &frame->json_node_test);
         if (status != SXML_STATUS_OK) {
             return status;
         }

@@ -39,8 +39,8 @@
  * error record, with the code, a static description and the location of
  * the AST node in the expression text. A failure of sxml itself or of a
  * host object is an interface status with nothing in the record, except
- * SXML_STATUS_UNSUPPORTED_FEATURE for a construct Phase 1 does not lower,
- * whose record's diagnostic names it.
+ * SXML_STATUS_UNSUPPORTED_FEATURE for a construct not lowered yet, whose
+ * record's diagnostic names it.
  *
  * Thread safety: the thread of the item heap (D35).
  */
@@ -224,9 +224,9 @@ typedef struct sxml_xpath_lowering_request {
  *
  * Returns SXML_STATUS_STATIC_ERROR with the error record filled,
  * SXML_STATUS_LIMIT_EXCEEDED, SXML_STATUS_UNSUPPORTED_FEATURE for a
- * construct Phase 1 does not lower (computed node constructors, method
- * calls, "but with", destructuring let, for member and for key/value,
- * dynamic node tests), SXML_STATUS_INVALID_ARGUMENT for an invalid static
+ * construct not lowered yet (computed node constructors, Phase 3) or one
+ * lowered to a function the function table lacks (D113),
+ * SXML_STATUS_INVALID_ARGUMENT for an invalid static
  * context (duplicate variable names, a prefix bound twice, the xml
  * prefix rebound), and the failures of the function table, type registry,
  * name pool, item heap and allocator. On failure nothing is left

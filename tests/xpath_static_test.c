@@ -172,6 +172,14 @@ static const sxml_function_parameter map_merge_parameters[] = {
     PARAMETER("options", "map(*)?", BODY)};
 static const sxml_function_parameter array_parameters[] = {
     PARAMETER("array", "array(*)", REQUIRED)};
+static const sxml_function_parameter items_at_parameters[] = {
+    PARAMETER("input", "item()*", REQUIRED),
+    PARAMETER("at", "xs:integer*", REQUIRED)};
+static const sxml_function_parameter jnode_parameters[] = {
+    PARAMETER("input", "jnode()?", CONTEXT)};
+static const sxml_function_parameter atomic_equal_parameters[] = {
+    PARAMETER("value1", "xs:anyAtomicType", REQUIRED),
+    PARAMETER("value2", "xs:anyAtomicType", REQUIRED)};
 
 #define ROW(namespace_constant, name_text, parameter_array, result_text,     \
             property_bits)                                                    \
@@ -214,6 +222,11 @@ static const sxml_native_function test_rows[] = {
     ROW(FN, "round", round_parameters, "xs:numeric?", 0),
     ROW(FN, "root", node_parameters, "node()?", 0),
     ROW(FN, "local-name", node_parameters, "xs:string", 0),
+    ROW(FN, "node-name", node_parameters, "xs:QName?", 0),
+    ROW(FN, "jkey", jnode_parameters, "xs:anyAtomicType?", 0),
+    ROW(FN, "jvalue", jnode_parameters, "item()*", 0),
+    ROW(FN, "atomic-equal", atomic_equal_parameters, "xs:boolean", 0),
+    ROW(FN, "items-at", items_at_parameters, "item()*", 0),
     ROW(FN, "string", string_parameters, "xs:string", 0),
     ROW(FN, "number", number_parameters, "xs:double", 0),
     ROW(FN, "data", data_parameters, "xs:anyAtomicType*", 0),
@@ -238,7 +251,10 @@ static const sxml_native_function test_rows[] = {
     ROW(MAP, "get", map_get_parameters, "item()*", 0),
     ROW(MAP, "merge", map_merge_parameters, "map(*)", 0),
     ROW(MAP, "keys", map_parameters, "xs:anyAtomicType*", 0),
+    ROW(MAP, "entries", map_parameters, "map(*)*", 0),
+    ROW(MAP, "items", map_parameters, "item()*", 0),
     ROW(ARRAY, "size", array_parameters, "xs:integer", 0),
+    ROW(ARRAY, "split", array_parameters, "array(*)*", 0),
 };
 
 #define TEST_ROW_COUNT (sizeof(test_rows) / sizeof(test_rows[0]))
@@ -1312,6 +1328,138 @@ static const feature_case feature_cases[] = {
          "  (let $1 (sequence 2 3)\n"
          "    (let $2 (array-constructor square 1 $1)\n"
          "      (lookup $2 *))))\n"},
+    {.compile = {.expression_text = "for member $m at $p in [1, (2, 3)] return ($p, $m)"},
+     .expected_text =
+     "(function 1 main (parameters 0) (captures) (slots 9)\n"
+     "  (let $1 (sequence 2 3)\n"
+     "    (let $2 (array-constructor square 1 $1)\n"
+     "      (let $6 (map $2 (focus $3 _ _)\n"
+     "                (let $4 (coerce $3 array(*) function-argument)\n"
+     "                  (let $5 (static-call array:split#1 $4)\n"
+     "                    $5)))\n"
+     "        (map $6 (focus $7 $8 _)\n"
+     "          (let $9 (lookup $7 1)\n"
+     "            (sequence $8 $9)))))))\n"},
+    {.compile = {.expression_text = "for key $k value $v in map { 'a': 1 } return ($k, $v)"},
+     .expected_text =
+     "(function 1 main (parameters 0) (captures) (slots 10)\n"
+     "  (let $1 (map-constructor (\"a\" 1))\n"
+     "    (let $5 (map $1 (focus $2 _ _)\n"
+     "              (let $3 (coerce $2 map(*) function-argument)\n"
+     "                (let $4 (static-call map:entries#1 $3)\n"
+     "                  $4)))\n"
+     "      (map $5 (focus $6 _ _)\n"
+     "        (let $7 (coerce $6 map(*) function-argument)\n"
+     "          (let $8 (static-call map:keys#1 $7)\n"
+     "            (let $9 (coerce $6 map(*) function-argument)\n"
+     "              (let $10 (static-call map:items#1 $9)\n"
+     "                (sequence $8 $10)))))))))\n"},
+    {.compile = {.expression_text = "let $( $a, $b as xs:integer* ) := (1, 2, 3) return ($a, $b)"},
+     .expected_text =
+     "(function 1 main (parameters 0) (captures) (slots 5)\n"
+     "  (let $1 (sequence 1 2 3)\n"
+     "    (let $2 (static-call fn:items-at#2 $1 1)\n"
+     "      (let $3 (coerce 2 xs:double function-argument)\n"
+     "        (let $4 (static-call fn:subsequence#2 $1 $3)\n"
+     "          (let $5 (coerce $4 xs:integer* variable)\n"
+     "            (sequence $2 $5)))))))\n"},
+    {.compile = {.expression_text = "let $[ $a, $b ] := [1, 2] return $b"},
+     .expected_text =
+     "(function 1 main (parameters 0) (captures) (slots 4)\n"
+     "  (let $1 (array-constructor square 1 2)\n"
+     "    (let $2 (coerce $1 array(*) variable)\n"
+     "      (let $3 (lookup $2 1)\n"
+     "        (let $4 (lookup $2 2)\n"
+     "          $4)))))\n"},
+    {.compile = {.expression_text = "let ${ $a, $b } := map { 'a': 1 } return ($a, $b)"},
+     .expected_text =
+     "(function 1 main (parameters 0) (captures) (slots 4)\n"
+     "  (let $1 (map-constructor (\"a\" 1))\n"
+     "    (let $2 (coerce $1 map(*) variable)\n"
+     "      (let $3 (lookup $2 \"a\")\n"
+     "        (let $4 (lookup $2 \"b\")\n"
+     "          (sequence $3 $4))))))\n"},
+    {.compile = {.expression_text = "child::{ 'a', 2 }"},
+     .expected_text =
+     "(function 1 main (parameters 0) (captures) (slots 18) (focus $2 _ _)\n"
+     "  (let $1 (sequence \"a\" 2)\n"
+     "    (let $3 (step $2 child element())\n"
+     "      (let $4 (coerce $1 xs:anyAtomicType* function-argument)\n"
+     "        (filter $3 (focus $5 _ _)\n"
+     "          (let $8 (instance-of $5 jnode())\n"
+     "            (let $15 (conditional $8\n"
+     "                       (let $9 (coerce $5 jnode()? function-argument)\n"
+     "                         (let $10 (static-call fn:jkey#1 $9)\n"
+     "                           $10))\n"
+     "                       (let $11 (coerce $5 node()? function-argument)\n"
+     "                         (let $12 (static-call fn:node-name#1 $11)\n"
+     "                           (let $13 (coerce $5 node()? function-argument)\n"
+     "                             (let $14 (static-call fn:local-name#1 $13)\n"
+     "                               (sequence $12 $14))))))\n"
+     "              (quantified some $6 $4\n"
+     "                (quantified some $7 $15\n"
+     "                  (let $16 (coerce $6 xs:anyAtomicType function-argument)\n"
+     "                    (let $17 (coerce $7 xs:anyAtomicType function-argument)\n"
+     "                      (let $18 (static-call fn:atomic-equal#2 $16 $17)\n"
+     "                        $18))))))))))))\n"},
+    {.compile = {.expression_text = "item::*"},
+     .expected_text =
+     "(function 1 main (parameters 0) (captures) (slots 8) (focus $1 _ _)\n"
+     "  (map $1 (focus $2 _ _)\n"
+     "    (let $3 (coerce $2 jnode()? function-argument)\n"
+     "      (let $4 (static-call fn:jvalue#1 $3)\n"
+     "        (let $5 (static-call fn:count#1 $4)\n"
+     "          (let $6 (binary value-greater-or-equal $5 2)\n"
+     "            (conditional $6\n"
+     "              (step $2 child element())\n"
+     "              (let $7 (binary value-equal $5 0)\n"
+     "                (conditional $7\n"
+     "                  (sequence)\n"
+     "                  (let $8 (array-constructor square $4)\n"
+     "                    (step $8 child element())))))))))))\n"},
+    {.compile = {.expression_text = "xs:integer(value := '1')"},
+     .expected_text =
+     "(function 1 main (parameters 0) (captures) (slots 0)\n"
+     "  (cast \"1\" xs:integer?))\n"},
+    {.compile = {.expression_text = "xs:integer()"},
+     .expected_text =
+     "(function 1 main (parameters 0) (captures) (slots 1) (focus $1 _ _)\n"
+     "  (cast $1 xs:integer?))\n"},
+    {.compile = {.expression_text = "xs:integer#0"},
+     .expected_text =
+     "(function 1 main (parameters 0) (captures) (slots 2) (focus $1 _ _)\n"
+     "  (let $2 (coerce $1 xs:anyAtomicType? function-argument)\n"
+     "    (function-definition 2)))\n"
+     "(function 2 anonymous (parameters 0) (captures $2) (slots 1)\n"
+     "  (cast $1 xs:integer?))\n"},
+    {.compile = {.expression_text = "map { 'f': 1 } =?> f(2)"},
+     .expected_text =
+     "(function 1 main (parameters 0) (captures) (slots 4)\n"
+     "  (let $1 (map-constructor (\"f\" 1))\n"
+     "    (map $1 (focus $2 _ _)\n"
+     "      (let $3 (coerce $2 map(*) variable)\n"
+     "        (let $4 (lookup $3 \"f\")\n"
+     "          (dynamic-call $4 $3 2))))))\n"},
+    {.compile = {.expression_text = "map { 'a': 1 } but with map { 'a': 2 }"},
+     .expected_text =
+     "(function 1 main (parameters 0) (captures) (slots 9)\n"
+     "  (let $1 (map-constructor (\"a\" 1))\n"
+     "    (let $2 (map-constructor (\"a\" 2))\n"
+     "      (let $3 (coerce $1 record(*) function-argument)\n"
+     "        (let $4 (coerce $2 map(*) function-argument)\n"
+     "          (let $5 (sequence $3 $4)\n"
+     "            (let $6 (map-constructor (\"duplicates\" \"use-last\"))\n"
+     "              (let $7 (coerce $5 map(*)* function-argument)\n"
+     "                (let $8 (coerce $6 map(*)? function-argument)\n"
+     "                  (let $9 (static-call map:merge#2 $7 $8)\n"
+     "                    $9))))))))))\n"},
+    {.compile = {.expression_text = "(1 instance of jnode(-1), 2 instance of jnode(#a), 3 instance of jnode(1.5))"},
+     .expected_text =
+     "(function 1 main (parameters 0) (captures) (slots 3)\n"
+     "  (let $1 (instance-of 1 jnode(\"-1\"))\n"
+     "    (let $2 (instance-of 2 jnode(\"a\"))\n"
+     "      (let $3 (instance-of 3 jnode(\"1.5\"))\n"
+     "        (sequence $1 $2 $3)))))\n"},
 };
 
 static void test_constructs_lower_as_documented(sxml_test_state *state) {
@@ -1381,6 +1529,8 @@ static const error_case error_cases[] = {
     {"substring(start := 1)", {"XPST0017", 1, 1}},
     {"1 +\n  $missing", {"XPST0008", 2, 3}},
     {"1 +", {"XPST0003", 1, 3}},
+    {"for key $k value $k in map { } return 1", {"XQST0089", 1, 18}},
+    {"map { } =?> f(?)", {"XPST0003", 1, 15}},
 };
 
 static void test_static_errors_have_code_and_location(sxml_test_state *state) {
@@ -1435,11 +1585,12 @@ static sxml_status compile_status(const compile_case *test_case,
     return status;
 }
 
-static void test_constructs_beyond_phase_1_are_unsupported(
+/* Computed node constructors are lowered by XQuery's packets (Phase 3). */
+static void test_computed_constructors_are_unsupported(
     sxml_test_state *state) {
     static const char *const expressions[] = {
-        "for member $m in [1] return $m",
-        "let $( $a, $b ) := (1, 2) return $a",
+        "text { 'a' }",
+        "1 + comment { 'c' }",
     };
     for (size_t expression_index = 0;
          expression_index < sizeof(expressions) / sizeof(expressions[0]);
@@ -1632,6 +1783,70 @@ static void test_compile_survives_every_allocation_failure(
     SXML_TEST_EXPECT(state, failing_allocation_number > 20);
 }
 
+/* Compiles test_case with allocation n failing, for n = 1, 2, ... until
+   it compiles: each failure releases everything and reports
+   SXML_STATUS_OUT_OF_MEMORY. */
+static void expect_every_allocation_failure(sxml_test_state *state,
+                                            const compile_case *test_case) {
+    uint64_t failing_allocation_number = 1;
+    for (;;) {
+        static fixture test_fixture;
+        static test_table table;
+        SXML_TEST_REQUIRE(state, fixture_create(failing_allocation_number,
+                                                &test_fixture) == SXML_STATUS_OK);
+        SXML_TEST_REQUIRE(state, test_table_initialize(&test_fixture, &table) ==
+                                     SXML_STATUS_OK);
+        static compile_outcome outcome;
+        compile_with((compile_environment){.test_fixture = &test_fixture,
+                                           .table = &table},
+                     test_case, &outcome);
+        const sxml_allocation_counts counts =
+            sxml_counting_allocator_read_counts(test_fixture.counting_allocator);
+        SXML_TEST_EXPECT(state, fixture_released_everything(&test_fixture));
+        fixture_destroy(&test_fixture);
+        if (outcome.status == SXML_STATUS_OK) {
+            SXML_TEST_EXPECT(state, counts.failed_allocation_count == 0);
+            break;
+        }
+        SXML_TEST_EXPECT(state, outcome.status == SXML_STATUS_OUT_OF_MEMORY);
+        if (outcome.status != SXML_STATUS_OUT_OF_MEMORY) {
+            (void)fprintf(stderr, "allocation %llu: status %d %.*s\n",
+                          (unsigned long long)failing_allocation_number,
+                          (int)outcome.status,
+                          (int)outcome.error_record.diagnostic.description
+                              .byte_count,
+                          (const char *)outcome.error_record.diagnostic
+                              .description.bytes);
+            break;
+        }
+        failing_allocation_number += 1;
+        SXML_TEST_REQUIRE(state, failing_allocation_number < 20000);
+    }
+    SXML_TEST_EXPECT(state, failing_allocation_number > 20);
+}
+
+/* The constructs of packet 2.5 (for member, for key/value, destructuring
+   let, dynamic node tests, the item axis, focus and keyword constructor
+   calls, method calls, but with) under every allocation failure. */
+static void test_binding_and_step_forms_survive_every_allocation_failure(
+    sxml_test_state *state) {
+    static const compile_case test_cases[] = {
+        {.expression_text =
+             "for member $m at $p in [1, (2, 3)], key $k value $v in map { 'a': $m } "
+             "let $( $a, $b ) := ($k, $v), $[ $c ] := [$a], ${ $d } := map { 'd': 1 } "
+             "return ($b, $c, $d, $p)"},
+        {.expression_text =
+             "(child::{ $x }, item::*, xs:integer(), xs:string(value := $x), "
+             "map { 'f': 1 } =?> f($x), map { 'g': 1 } but with map { 'g': $x })",
+         .variable_names = {"x"}},
+    };
+    for (size_t case_index = 0;
+         case_index < sizeof(test_cases) / sizeof(test_cases[0]);
+         case_index += 1) {
+        expect_every_allocation_failure(state, &test_cases[case_index]);
+    }
+}
+
 static const sxml_test_case xpath_static_test_cases[] = {
     {.name = "absolute_path_lowers_to_root_treat_and_maps",
      .function = test_absolute_path_lowers_to_root_treat_and_maps},
@@ -1645,8 +1860,8 @@ static const sxml_test_case xpath_static_test_cases[] = {
      .function = test_function_with_wrong_arity_is_unknown},
     {.name = "static_errors_have_code_and_location",
      .function = test_static_errors_have_code_and_location},
-    {.name = "constructs_beyond_phase_1_are_unsupported",
-     .function = test_constructs_beyond_phase_1_are_unsupported},
+    {.name = "computed_constructors_are_unsupported",
+     .function = test_computed_constructors_are_unsupported},
     {.name = "duplicate_variable_declarations_are_invalid",
      .function = test_duplicate_variable_declarations_are_invalid},
     {.name = "long_operator_chains_cost_no_stack",
@@ -1659,6 +1874,8 @@ static const sxml_test_case xpath_static_test_cases[] = {
      .function = test_nesting_at_the_default_limit_fits_the_stack},
     {.name = "compile_survives_every_allocation_failure",
      .function = test_compile_survives_every_allocation_failure},
+    {.name = "binding_and_step_forms_survive_every_allocation_failure",
+     .function = test_binding_and_step_forms_survive_every_allocation_failure},
 };
 
 int main(int argument_count, char **arguments) {
