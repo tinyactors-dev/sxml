@@ -1,5 +1,9 @@
 # Continuous integration (docs/tasks/phase-0.md, task 0.4; docs/DECISIONS.md, D18).
 # Every job builds and tests; the lint gates run once, on Linux with Clang.
+# Two Linux jobs added by packet 1.27 (D94) run beside the others: the whole
+# XP40 suite in release ("conformance", fails when the torture slice drops
+# below tests/qt4/slice-baseline.txt; the report is an artifact) and 60 s
+# per fuzz target ("fuzz", D86).
 # The sxml program and its CLI framework (apps/, D44) build in every job and
 # their tests (ctest names cli_* and cli/*) run in every job, Windows included.
 name: ci
@@ -13,9 +17,12 @@ on:
 permissions:
   contents: read
 
+# A newer push cancels a run in progress on other refs; on main runs are
+# never cancelled once started, so every commit there that starts finishes
+# (a queued run is still replaced by the newest one).
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
   WASI_SDK_VERSION: "34"
@@ -104,3 +111,56 @@ jobs:
         run: cmake --build --preset wasm
       - name: Test (Node.js WASI)
         run: ctest --preset wasm
+
+  conformance:
+    name: Conformance (QT4 XP40, release)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install -y ninja-build clang
+      - name: Configure
+        run: cmake --preset release -DCMAKE_C_COMPILER=clang
+      - name: Build sxml-qt4
+        run: cmake --build --preset release --target sxml_qt4_driver
+      - name: Run XP40 and the slice, one process per test set
+        run: tools/run-qt4.sh --program build/release/tests/qt4/driver/sxml-qt4 --output build/qt4-run
+      - name: Report and check the slice baseline
+        run: |
+          python3 tools/conformance-report.py build/qt4-run \
+            --output build/qt4-run/CONFORMANCE.md \
+            --json-output build/qt4-run/conformance.json \
+            --slice-baseline tests/qt4/slice-baseline.txt
+          cat build/qt4-run/CONFORMANCE.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: conformance
+          path: |
+            build/qt4-run/CONFORMANCE.md
+            build/qt4-run/conformance.json
+          if-no-files-found: warn
+
+  fuzz:
+    name: Fuzz (60 s per target)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build clang libclang-rt-18-dev llvm
+      - name: Configure
+        run: cmake --preset fuzz
+      - name: Build
+        run: cmake --build --preset fuzz
+      - name: Fuzz
+        run: tools/fuzz.sh --no-build --build-directory build/fuzz --seconds 60
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: fuzz-artifacts
+          path: |
+            build/fuzz/fuzz-work/artifacts
+            build/fuzz/fuzz-work/*.log
+          if-no-files-found: ignore
