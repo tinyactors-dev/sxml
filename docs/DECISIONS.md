@@ -4512,6 +4512,10 @@ implemented in `src/xquery.c`; no header changed.
 Recorded 2026-10-17, after D53, D71, D105.
 Reserved here; the record is completed when the packet is ticked.
 
+### D148. Library modules and module import (packet 3.11)
+Recorded 2026-10-17, after D106, D134, D135, D146.
+Reserved here; the record is completed when the packet is ticked.
+
 ## Proposed
 
 - **XQuery's default for omit-xml-declaration** (packet 3.12, D146; for

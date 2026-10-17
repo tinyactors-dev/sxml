@@ -551,6 +551,13 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `xquery_query` | An XQuery main module compiled for one processor, with the library modules it imports, evaluated any number of times |
 | `main_module` | An XQuery module with a query body, the one a host compiles (XQuery 4.0, section 5) |
 | `library_module` | An XQuery module that starts with a module declaration and is reached by `import module` |
+| `module_import` | An `import module` declaration: a target namespace and its location hints (XQuery 4.0, 5.12) |
+| `location_hint` | A URI after `at` in a module import, resolved against the importing module's static base URI; one resolver request each |
+| `module_uri` | Also the URI an XQuery library module was found at: its source name and static base URI |
+| `module_set` | The main module and every library module one compilation loads, each once; imports name namespaces, so a module sees every loaded module of a namespace it imports (XQuery 4.0, 5.12.2) |
+| `reading_order` | The order the module set's static contexts are read in: imported modules before importers, a cycle broken where the walk meets it |
+| `public_declaration` | A function, variable or item type a library module declares without %private: what an import makes visible (XQuery 4.0, 5.16, 5.18) |
+| `global_number` | The number of a global variable of the unit (from 1); a static context maps each variable declaration it sees to one |
 | `prolog` | The declarations of an XQuery module before its query body: setters, namespace declarations, imports, variables, functions, types, options (XQuery 4.0, section 5) |
 | `declared_function` | A function declared in a prolog; one IR function of the unit per arity of its arity range |
 | `arity_range` | The arities a function definition accepts: from its required parameters up to all its parameters (XQuery 4.0, 5.18) |
