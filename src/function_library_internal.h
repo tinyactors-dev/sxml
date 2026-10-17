@@ -457,3 +457,57 @@ void sxml_function_library_destroy(sxml_function_library *library);
  */
 sxml_function_table sxml_function_library_as_table(
     sxml_function_library *library);
+
+/* The item heap of the configuration. */
+sxml_item_heap *sxml_function_library_get_item_heap(const sxml_function_library *library);
+
+/*
+ * Parses and resolves a type text in the spelling of a row (the
+ * predeclared prefixes bound, D55) and writes the sequence type to
+ * *sequence_type. Text that does not parse or resolve is an error in sxml
+ * itself: SXML_STATUS_INVALID_ARGUMENT.
+ */
+SXML_NODISCARD sxml_status sxml_function_library_resolve_type_text(
+    const sxml_function_library *library, sxml_byte_view type_text,
+    sxml_sequence_type *sequence_type);
+
+/* ------------------------------------------------- Built-in record types */
+
+/*
+ * Declares the built-in record types of F&O 4.0, appendix C (glossary
+ * `builtin_record_type`, D126; src/function_library_records.c) in the type
+ * registry of the library's item heap, under their names in the fn
+ * namespace. A type the registry knows already is left as it is, so
+ * libraries sharing a heap declare each type once. Called by
+ * sxml_function_library_initialize. Returns the failures of the registry,
+ * the name pool and the allocator.
+ */
+SXML_NODISCARD sxml_status sxml_function_library_declare_record_types(
+    sxml_function_library *library);
+
+/*
+ * Writes the identifier of the built-in record type fn:local_name to
+ * *record_type. Returns SXML_STATUS_INVALID_ARGUMENT when the registry of
+ * item_heap does not know it.
+ */
+SXML_NODISCARD sxml_status sxml_function_library_find_record_type(
+    sxml_item_heap *item_heap, sxml_byte_view local_name,
+    sxml_type_identifier *record_type);
+
+/* A built-in record to make: its type's local name and one value per
+   field, in field order, each already of the field's type. */
+typedef struct sxml_builtin_record_request {
+    sxml_byte_view local_name;
+    sxml_sequence_view field_values;
+} sxml_builtin_record_request;
+
+/*
+ * Makes a record annotated with the built-in record type request->local_name
+ * (XDM 4.0, section 8.3.1, dm:make-record) and writes it, owned, to
+ * *record. The field values are retained, not taken. Returns
+ * SXML_STATUS_INVALID_ARGUMENT for an unknown type or a wrong number of
+ * values, and the heap's failures.
+ */
+SXML_NODISCARD sxml_status sxml_function_library_make_record(
+    const sxml_function_call *call, const sxml_builtin_record_request *request,
+    sxml_sequence *record);
