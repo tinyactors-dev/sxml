@@ -1392,6 +1392,25 @@ static void test_string_padding_and_positions(sxml_test_state *state) {
     expect_all(state, cases, SXML_TEST_COUNT(cases));
 }
 
+static void test_subsequence_questions(sxml_test_state *state) {
+    static const expression_case cases[] = {
+        /* F&O 4.0, 2.2.3, 2.2.7, 2.2.9 */
+        {"starts-with-subsequence(1 to 10, 1 to 3), ends-with-subsequence(1 to 10, 9 to 10), "
+         "contains-subsequence(1 to 10, 3 to 6), contains-subsequence(1 to 10, (2, 4, 6)), "
+         "contains-subsequence((), ()), ends-with-subsequence((1, 2), (1, 2, 3))",
+         "true true true false true false"},
+        {"contains-subsequence(10 to 20, (5, 3, 1), op('gt')), "
+         "starts-with-subsequence(('Alpha', 'Beta', 'Gamma'), ('A', 'B'), starts-with#2), "
+         "contains-subsequence(1 to 10, 103 to 105, fn($x, $y) { $x mod 100 = $y mod 100 })",
+         "true true true"},
+        {"contains-subsequence(1 to 5, 2, fn($x, $y) { () }), "
+         "contains-subsequence(([1], [2], [3]), ([2], [3]))",
+         "false true"},
+        {"contains-subsequence(1 to 3, 2, fn($x, $y) { 'yes' })", "!XPTY0004"},
+    };
+    expect_all(state, cases, SXML_TEST_COUNT(cases));
+}
+
 static void test_node_navigation(sxml_test_state *state) {
     static const expression_case cases[] = {
         /* F&O 4.0, 12.2.11 */
@@ -1751,8 +1770,9 @@ static void test_node_and_type_functions_survive_every_allocation_failure(
                 "pad-string('ab', 4, {'side': 'start'}), type-of(($d/*, 1)), "
                 "string(schema-type(#xs:int)?base-type()?name), "
                 "string(count(id('x', $d) | innermost($d//*))), "
-                "string(index-of-substring('abab', 'b')[2])), ',')",
-            .expected = "\"/Q{}a[1]/Q{}b[1],  ab,(element()|xs:integer)+,xs:long,2,4\""});
+                "string(index-of-substring('abab', 'b')[2]), "
+                "string(contains-subsequence(1 to 4, (2, 3), fn($x, $y) { $x eq $y }))), ',')",
+            .expected = "\"/Q{}a[1]/Q{}b[1],  ab,(element()|xs:integer)+,xs:long,2,4,true\""});
 }
 
 static const sxml_test_case function_library_test_cases[] = {
@@ -1781,6 +1801,7 @@ static const sxml_test_case function_library_test_cases[] = {
     {.name = "regex_functions_survive_every_allocation_failure",
      .function = test_regex_functions_survive_every_allocation_failure},
     {.name = "string_padding_and_positions", .function = test_string_padding_and_positions},
+    {.name = "subsequence_questions", .function = test_subsequence_questions},
     {.name = "node_navigation", .function = test_node_navigation},
     {.name = "node_identifiers_and_languages",
      .function = test_node_identifiers_and_languages},
