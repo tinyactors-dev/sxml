@@ -466,14 +466,25 @@ static sxml_status fill_type_record_fields(const sxml_function_call *call,
     }
     const sxml_type_variety variety = description.variety;
     sxml_item item = {.representation = 0};
-    if (description.type_name.index != 0) {
+    /* Built-in type names are shown with the xs prefix (#xs:integer). */
+    sxml_namespace_prefix_identifier prefix = {.index = 0};
+    sxml_name_parts name_parts;
+    sxml_name_pool *name_pool = sxml_item_heap_get_name_pool(call->item_heap);
+    if (description.type_name.index != 0 &&
+        sxml_name_pool_get_name_parts(name_pool, description.type_name, &name_parts) ==
+            SXML_STATUS_OK &&
+        name_parts.namespace_uri.index == SXML_NAMESPACE_XML_SCHEMA) {
+        status = sxml_name_pool_intern_namespace_prefix(name_pool, SXML_BYTE_VIEW_FROM_LITERAL("xs"),
+                                                        &prefix);
+    }
+    if (status == SXML_STATUS_OK && description.type_name.index != 0) {
         status = sxml_atomic_item_make(
             call->item_heap,
             &(sxml_atomic_item_request){
                 .type = sxml_builtin_type_identifier(SXML_TYPE_XS_QNAME),
                 .datum = {.datum_kind = SXML_DATUM_KIND_QNAME,
                           .datum_details = {.qname = {.expanded_name = description.type_name,
-                                                      .namespace_prefix = {.index = 0}}}}},
+                                                      .namespace_prefix = prefix}}}},
             &item);
         if (status == SXML_STATUS_OK) {
             fields->values[SXML_SCHEMA_TYPE_FIELD_NAME] = sxml_sequence_from_item(item);

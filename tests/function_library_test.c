@@ -2,12 +2,15 @@
  * Tests for the function library (src/function_library.c and the core parts
  * src/function_library_{numeric,string,sequence,node,context,error}.c,
  * src/function_library_deep_equal.c, src/function_library_case.c; D55,
- * D78).
+ * D78), and the functions of packet 2.17 in the node, string, JSON and type
+ * parts with src/function_library_options.c. The library also holds the
+ * regex, JNode, higher-order, map and array parts the expressions use; the
+ * test loader parses with the XML parser (fn:parse-xml).
  *
  * Golden file: tests/memory_test.c (fixture, lifecycle, allocation-failure
  * loops), with the compilation and evaluation of tests/evaluator_test.c.
  * Expressions are compiled with sxml_xpath_compile against a function
- * library of the six core parts, evaluated, and their values written as
+ * library of these parts, evaluated, and their values written as
  * text: strings in double quotes, other atomic items in canonical form,
  * nodes by local name, separated by spaces. Errors are checked by code.
  * Every case checks that the item heap's cells and the allocator's blocks
@@ -20,6 +23,7 @@
 #include "sxml/processor.h"
 #include "sxml/types.h"
 #include "sxml/xdm.h"
+#include "sxml/xml.h"
 #include "test_runner.h"
 #include "xpath_static_internal.h"
 
@@ -42,12 +46,19 @@ typedef struct fixture {
    fn:matches, fn:replace and fn:tokenize since they left the string
    part; the generated part registry declares it for the library. */
 extern const sxml_native_function_view sxml_function_library_regex;
+/* The type part (src/function_library_type.c, packet 2.17) and the
+   JNode part (src/function_library_jnode.c, packet 2.6). */
+extern const sxml_native_function_view sxml_function_library_type;
+extern const sxml_native_function_view sxml_function_library_jnode;
 
 static const sxml_native_function_view *const core_parts[] = {
     &sxml_function_library_numeric, &sxml_function_library_string,
     &sxml_function_library_sequence, &sxml_function_library_node,
     &sxml_function_library_context, &sxml_function_library_error,
-    &sxml_function_library_regex,
+    &sxml_function_library_regex, &sxml_function_library_json,
+    &sxml_function_library_type, &sxml_function_library_jnode,
+    &sxml_function_library_higher_order, &sxml_function_library_map,
+    &sxml_function_library_array,
 };
 
 static sxml_allocator fixture_allocator(const fixture *test_fixture) {
@@ -354,13 +365,68 @@ static sxml_status load_test_document(void *state, const sxml_document_request *
     return SXML_STATUS_OK;
 }
 
+static const sxml_static_error test_not_well_formed_error = {
+    .error_status = SXML_STATUS_DYNAMIC_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("FODC0006"),
+    .description = SXML_BYTE_VIEW_INITIALIZER("Not well-formed (the test loader's parser)"),
+};
+
+/* fn:parse-xml and fn:parse-xml-fragment: the XML parser into an arena
+   tree that keeps locations, both in the fixture's allocator, as the
+   processor's loader parses (src/processor.c). */
 static sxml_status parse_test_document(void *state,
                                        const sxml_document_parse_request *request,
                                        sxml_item *document_node) {
-    (void)state;
-    (void)request;
-    (void)document_node;
-    return SXML_STATUS_UNSUPPORTED_FEATURE;
+    const test_loader *loader = state;
+    const sxml_allocator allocator = fixture_allocator(loader->test_fixture);
+    sxml_xml_parser *parser = NULL;
+    sxml_status status = sxml_xml_parser_create(
+        allocator,
+        &(sxml_xml_parser_configuration){.allocator = allocator,
+                                         .name_pool = loader->test_fixture->name_pool,
+                                         .limits = {.maximum_depth = 0,
+                                                    .maximum_entity_expansion_byte_count = 0}},
+        &parser);
+    sxml_arena_tree *arena_tree = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_arena_tree_create(
+            allocator,
+            &(sxml_arena_tree_configuration){
+                .allocator = allocator,
+                .initial_memory = {.bytes = NULL, .byte_count = 0},
+                .item_heap = loader->test_fixture->item_heap,
+                .keeps_locations = true,
+                .duplicate_attribute_policy = SXML_DUPLICATE_ATTRIBUTE_POLICY_REJECT,
+                .is_destroyed_when_unreferenced = true,
+                .error_record = NULL},
+            &arena_tree);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xml_parser_parse(
+            parser,
+            &(sxml_xml_parse_request){.input = request->xml_bytes,
+                                      .source_name = text_view(""),
+                                      .document_uri = text_view(""),
+                                      .base_uri = request->base_uri,
+                                      .encoding_name = text_view(""),
+                                      .diagnostic = NULL},
+            sxml_arena_tree_as_tree_builder(arena_tree));
+    }
+    sxml_xml_parser_destroy(parser);
+    sxml_tree *tree = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_arena_tree_finish(arena_tree, &tree);
+    }
+    if (status != SXML_STATUS_OK) {
+        sxml_arena_tree_destroy(arena_tree);
+        return status == SXML_STATUS_MALFORMED_INPUT
+                   ? sxml_error_record_report(request->error_record, &test_not_well_formed_error)
+                   : status;
+    }
+    *document_node = sxml_node_item_make(
+        (sxml_node_reference){.tree = tree, .node_index = {.index = 0}, .namespace_number = 0});
+    sxml_tree_release(tree);
+    return SXML_STATUS_OK;
 }
 
 static const sxml_document_loader_operations test_loader_operations = {
@@ -1295,6 +1361,206 @@ static void test_doc_and_qname(sxml_test_state *state) {
     expect_all(state, cases, SXML_TEST_COUNT(cases));
 }
 
+/* --------------------------------------------- Packet 2.17 functions */
+
+static void test_string_padding_and_positions(sxml_test_state *state) {
+    static const expression_case cases[] = {
+        /* F&O 4.0, 5.3.8, and QT4 fn-pad-string */
+        {"pad-string('abc', 6)", "\"abc   \""},
+        {"pad-string('abc', 6, {'side': 'start'})", "\"   abc\""},
+        {"pad-string('abc', 8, {'side': 'both', 'padding': '*'})", "\"**abc***\""},
+        {"pad-string('x', 8, {'padding': '0123456789', 'side': 'both'})", "\"012x0123\""},
+        {"pad-string((), 4, {'padding': 'ab'})", "\"abab\""},
+        {"pad-string(42, 6, {'padding': '0', 'side': 'start'})", "\"000042\""},
+        {"pad-string('abcdef', 3), pad-string('abc', -5)", "\"abcdef\" \"abc\""},
+        {"string-to-codepoints(pad-string('ab', 4, {'padding': codepoints-to-string(128512)}))",
+         "97 98 128512 128512"},
+        {"pad-string('abc', 6, {'padding': ''})", "!FORG0001"},
+        {"pad-string('abc', 6, {'side': 'middle'})", "!XPTY0004"},
+        {"pad-string('abc', 6, {'sides': 'end'})", "!XPTY0004"},
+        {"pad-string('abc', 6, {xs:QName('fn:extension'): 1})", "\"abc   \""},
+        {"trim-space('  a  ', {'side': 'end'})", "\"  a\""},
+        /* F&O 4.0, 5.3.10, and QT4 fn-index-of-substring */
+        {"index-of-substring('banana', 'ana')", "2 4"},
+        {"index-of-substring('aaaa', 'aa')", "1 2 3"},
+        {"index-of-substring('abc', '')", "1 2 3 4"},
+        {"index-of-substring((), ())", "1"},
+        {"index-of-substring('banana', 'x'), index-of-substring('', 'a')", ""},
+        {"index-of-substring(codepoints-to-string((128512, 97, 128512, 97)), 'a')", "2 4"},
+        {"index-of-substring('ABC', 'b')", ""},
+    };
+    expect_all(state, cases, SXML_TEST_COUNT(cases));
+}
+
+static void test_node_navigation(sxml_test_state *state) {
+    static const expression_case cases[] = {
+        /* F&O 4.0, 12.2.11 */
+        {"let $e := parse-xml('<doc x=\"X\"><a>A</a>text<?pi 3.14?></doc>')/doc return "
+         "(siblings($e//a) ! string(), siblings($e//@x) ! string(), siblings($e) ! name())",
+         "\"A\" \"text\" \"3.14\" \"X\" \"doc\""},
+        {"siblings(())", ""},
+        {"siblings([1, 2, 3]/*[2]) ! jvalue()", "1 2 3"},
+        /* 12.3.2 and 12.3.3 */
+        {"let $d := parse-xml('<d><a><b><c/></b></a><e f=\"1\"/></d>') return "
+         "(innermost($d//*) ! name(), '|', outermost(($d//c, $d//b, $d//@f, $d//e)) ! name(), "
+         "'|', innermost(($d//e, $d//@f)) ! name())",
+         "\"c\" \"e\" \"|\" \"b\" \"e\" \"|\" \"f\""},
+        {"[[[1, 2], [3]], [[4]]]//jnode(*, array(*)) => innermost() =!> array:size()",
+         "2 1 1"},
+        {"[[[1], [2]], [[3]]]//self::jnode(*, array(*)) => outermost() =!> array:size()", "2"},
+        {"innermost(()), outermost(())", ""},
+        /* 12.1.4 */
+        {"let $d := parse-xml('<a b=\"1\"/>') return (nilled($d/a), nilled($d/a/@b), "
+         "nilled(()))",
+         "false"},
+        /* The name functions take xnode()? (QT4 PathExpr-J-461, -462). */
+        {"name({'a': 1}/a)", "!XPTY0004"},
+        {"local-name([1]/1)", "!XPTY0004"},
+    };
+    expect_all(state, cases, SXML_TEST_COUNT(cases));
+}
+
+static void test_node_identifiers_and_languages(sxml_test_state *state) {
+    static const expression_case cases[] = {
+        /* F&O 4.0, 12.4.1 to 12.4.3: xml:id attributes are IDs. */
+        {"let $d := parse-xml('<r><a xml:id=\"x\"/><b xml:id=\"y\"><c/></b><a xml:id=\"x\"/></r>') "
+         "return (id(('y x', 'x', '1bad'), $d) ! name(), count(id('x', $d)), "
+         "element-with-id('y', $d) ! name(), id('none', $d))",
+         "\"a\" \"b\" 1 \"b\""},
+        {"id('x', parse-xml-fragment('<a/>')/a)", ""},
+        {"let $d := parse-xml('<!DOCTYPE r [<!ATTLIST e ref IDREFS #IMPLIED>]>"
+         "<r><e ref=\"a b\"/><e ref=\"c\"/><e/></r>') "
+         "return (count(idref(('b', ' c '), $d)), idref('z', $d))",
+         "2"},
+        /* 12.2.4 */
+        {"parse-xml('<div xml:lang=\"en-US\"><p/></div>')//p ! (lang('en'), lang('EN-us'), "
+         "lang('en-GB'), lang('fr'), lang(''))",
+         "true true false false false"},
+        {"parse-xml('<p/>')/p ! lang('en')", "false"},
+        /* 12.1.3: the test loader keeps locations. */
+        {"let $r := location(parse-xml('<a>\n  <b/></a>')//b) return "
+         "($r?line-number, $r?column-number, empty($r?system-id), $r instance of "
+         "fn:location-record)",
+         "2 3 true true"},
+        {"location(())", ""},
+    };
+    expect_all(state, cases, SXML_TEST_COUNT(cases));
+}
+
+static void test_node_paths(sxml_test_state *state) {
+    static const expression_case cases[] = {
+        /* F&O 4.0, 12.2.9, and QT4 fn-path */
+        {"let $d := parse-xml('<r xmlns:p=\"u\"><p:a/><b/><b k=\"v\" p:k=\"w\">t<!--c--><?pi?></b></r>') "
+         "return ($d//b[2]/node() ! path(.), path($d//@k), path($d//@*:k[. = 'w']))",
+         "\"/Q{}r[1]/Q{}b[2]/text()[1]\" \"/Q{}r[1]/Q{}b[2]/comment()[1]\" "
+         "\"/Q{}r[1]/Q{}b[2]/processing-instruction(pi)[1]\" \"/Q{}r[1]/Q{}b[2]/@k\" "
+         "\"/Q{}r[1]/Q{}b[2]/@Q{u}k\""},
+        {"let $d := parse-xml('<r xmlns:p=\"u\"><p:a/><b/></r>') return (path($d//*:a, "
+         "{'namespaces': {'q': 'u'}}), path($d//b, {'lexical': true(), 'indexes': false()}), "
+         "path($d//*:a, {'origin': $d/r}), path($d), path(($d//namespace::p)[1]))",
+         "\"/r[1]/q:a[1]\" \"/r/b\" \"Q{u}a[1]\" \"/\" \"/Q{}r[1]/namespace::p\""},
+        {"let $d := parse-xml('<r/>') return path($d/r, {'origin': $d/r})", "!FOPA0001"},
+        {"jtree([1, 2, {'x': [5], '1x': 1, #xml:space: 2, xs:date('1999-12-31'): 3, true(): 4}])"
+         "//jnode(*, xs:integer)[. = (2, 3, 4)] ! path()",
+         "\"/2\" \"/3/#Q{http://www.w3.org/XML/1998/namespace}space\" "
+         "\"/3/child::{xs:date(\"1999-12-31\")}\" \"/3/true()\""},
+        {"(jtree([1]) => path()), jtree({'x': [5]})//x => path(), path(())", "\"/\" \"/x\""},
+        {"jtree({'a\"b': 1})/* => path()", "\"/\"a\"\"b\"\""},
+    };
+    expect_all(state, cases, SXML_TEST_COUNT(cases));
+}
+
+static void test_xml_fragments_and_properties(sxml_test_state *state) {
+    static const expression_case cases[] = {
+        /* F&O 4.0, 17.2.2, and QT4 fn-parse-xml-fragment */
+        {"parse-xml-fragment('<a/><b/>x')/node() ! (name(), string())", "\"a\" \"\" \"b\" \"\" \"\" \"x\""},
+        {"string(parse-xml-fragment('')), string(parse-xml-fragment('&lt;'))", "\"\" \"<\""},
+        {"parse-xml-fragment(\"<?xml version='1.0' encoding='utf-8'?><a/>\")/a ! name()",
+         "\"a\""},
+        {"parse-xml-fragment(\"<?xml version='1.0'?><a/>\")", "!FODC0006"},
+        {"parse-xml-fragment('<a>')", "!FODC0006"},
+        {"parse-xml-fragment('<p:a/>')", "!FODC0006"},
+        {"parse-xml-fragment(())", ""},
+        {"parse-xml-fragment('<a/>') instance of document-node(), "
+         "empty(parse-xml-fragment('<a/>')/..)",
+         "true true"},
+        {"count(parse-xml-fragment('<a> <b/> </a> <c/>', {'strip-space': 'all'})//text())", "0"},
+        {"count(parse-xml-fragment('<a><b> </b><b xml:space=\"preserve\"> </b></a> ', "
+         "{'strip-space': 'all'})//text())",
+         "1"},
+        {"string(parse-xml-fragment(' x <b> </b> ', {'strip-space': 'all'}))", "\" x \""},
+        {"count(parse-xml('<a> <b/> </a>', {'strip-space': 'all'})//text())", "0"},
+        {"parse-xml-fragment('<a/>', {'retain-location': 'yes'})", "!XPTY0004"},
+        {"base-uri(parse-xml-fragment('<a/>', {'base-uri': 'http://example.com/'}))",
+         "http://example.com/"},
+        /* 17.1.9 */
+        {"let $p := system-properties() return ($p?#xpath-version, $p?#product-name, "
+         "$p?#schema-aware, map:size($p), $p?#unknown, "
+         "every $k in map:keys($p) satisfies $k instance of xs:QName)",
+         "4 \"sxml\" false 14 true"},
+    };
+    expect_all(state, cases, SXML_TEST_COUNT(cases));
+}
+
+static void test_type_functions(sxml_test_state *state) {
+    static const expression_case cases[] = {
+        /* F&O 4.0, 19.1.3, and QT4 fn-type-of */
+        {"type-of(()), type-of(1), type-of(1 to 5), type-of((1, 1.2, 2))",
+         "\"empty-sequence()\" \"xs:integer\" \"xs:integer+\" \"(xs:integer|xs:decimal)+\""},
+        {"type-of(([], {}, type-of#1, jtree([]))), type-of(xs:long(1))",
+         "\"(array(*)|map(*)|fn(*)|jnode())+\" \"xs:long\""},
+        {"type-of(parse-xml('<a b=\"1\">t<!--c--></a>')//(. | @* | node()))",
+         "\"(document-node()|element()|attribute()|text()|comment())+\""},
+        /* 19.1.2, 19.1.4, 19.1.5 */
+        {"let $t := schema-type(#xs:positiveInteger) return ($t?name eq #xs:positiveInteger, "
+         "$t?is-simple, $t?variety, $t?base-type()?name eq #xs:nonNegativeInteger, "
+         "$t?primitive-type()?name eq #xs:decimal, $t?matches(xs:positiveInteger(23)), "
+         "$t?matches(23), $t?constructor('7') instance of xs:positiveInteger)",
+         "true true \"atomic\" true true true false true"},
+        {"let $t := schema-type(#xs:numeric) return ($t?variety, "
+         "$t?members()?name = (#xs:double, #xs:float, #xs:decimal), "
+         "empty($t?primitive-type), $t?matches(1e0))",
+         "\"union\" true true true"},
+        {"let $t := schema-type(#xs:anyType) return ($t?is-simple, $t?variety, "
+         "empty($t?base-type()), empty($t?constructor))",
+         "false \"mixed\" true true"},
+        {"schema-type(#xs:QName)?constructor, schema-type(#fn:no-such-type), "
+         "schema-type(#fn:location-record)",
+         ""},
+        {"schema-type(#xs:ENTITIES)?members()?name eq #xs:ENTITY, "
+         "schema-type(#xs:anySimpleType)?variety",
+         "true"},
+        {"atomic-type-annotation(xs:numeric('23.2'))?name eq #xs:double, "
+         "atomic-type-annotation(1) instance of fn:schema-type-record",
+         "true true"},
+        {"let $d := parse-xml('<a b=\"c\"/>') return (node-type-annotation($d/a)?name, "
+         "node-type-annotation($d/a/@b)?name, node-type-annotation($d/a)?base-type()?name) = "
+         "(#xs:untyped, #xs:untypedAtomic, #xs:anyType)",
+         "true"},
+        {"node-type-annotation(parse-xml('<a/>'))", "!XPTY0004"},
+    };
+    expect_all(state, cases, SXML_TEST_COUNT(cases));
+}
+
+static void test_collated_extremes_and_sorts(sxml_test_state *state) {
+    static const expression_case cases[] = {
+        /* D116: one resolver for every collation argument and sort key. */
+        {"let $c := 'http://www.w3.org/2005/xpath-functions/collation/html-ascii-case-insensitive' "
+         "return (max(('a', 'B', 'c'), $c), min(('b', 'A', 'c'), $c), "
+         "highest(('a', 'B'), $c), lowest(('b', 'A'), $c))",
+         "\"c\" \"A\" \"B\" \"A\""},
+        {"let $c := 'http://www.w3.org/2005/xpath-functions/collation/html-ascii-case-insensitive' "
+         "return (sort-by(('b', 'C', 'a'), {'collation': $c}), "
+         "array:sort(['b', 'C', 'a'], $c)?*)",
+         "\"a\" \"b\" \"C\" \"a\" \"b\" \"C\""},
+        {"max(('a', 'B')), sort-by(('b', 'C', 'a'), {})", "\"a\" \"C\" \"a\" \"b\""},
+        {"max(('a', 'b'), 'http://example.com/no-such-collation')", "!FOCH0002"},
+        {"sort-by(('a', 'b'), {'collation': 'http://example.com/no-such-collation'})",
+         "!FOCH0002"},
+    };
+    expect_all(state, cases, SXML_TEST_COUNT(cases));
+}
+
 /* ----------------------------------------------------- Context and errors */
 
 static void test_context_functions(sxml_test_state *state) {
@@ -1404,15 +1670,17 @@ static void test_error_has_description_and_value(sxml_test_state *state) {
 
 /* ---------------------------------------------- Allocation failures */
 
-/* Every allocation of the library's counting allocator fails in turn
-   while an expression that exercises several parts runs; each run fails
-   cleanly or succeeds with the right value. */
-static void test_evaluation_survives_every_allocation_failure(sxml_test_state *state) {
-    const char *expression =
-        "string-join((upper-case('ab'), tokenize('a b', ' '), string(sort((3, 1, 2), (), "
-        "function($x){-$x})[1]), string(deep-equal([1, [2]], [1, [2]])), "
-        "substring('xyz', 2), string(sum((1, 2.5))), string(round(2.45, 1))), ',')";
-    const char *expected = "\"AB,a,b,3,true,yz,3.5,2.5\"";
+/* An expression whose evaluation is run with each allocation of the
+   library's counting allocator failing in turn. */
+typedef struct allocation_failure_case {
+    const char *expression;
+    const char *expected;
+} allocation_failure_case;
+
+/* Each run fails cleanly (out of memory, every cell and block released)
+   or succeeds with the right value. */
+static void expect_every_allocation_failure(sxml_test_state *state,
+                                            allocation_failure_case test_case) {
     bool has_succeeded = false;
     for (uint64_t failing_number = 1; !has_succeeded && failing_number < 20000;
          failing_number += 1) {
@@ -1422,7 +1690,7 @@ static void test_evaluation_survives_every_allocation_failure(sxml_test_state *s
                               .is_library_wanted = true}, &evaluation->test_fixture);
         if (status == SXML_STATUS_OK) {
             evaluate_with(&evaluation->test_fixture,
-                          &(evaluation_case){.expression_text = expression},
+                          &(evaluation_case){.expression_text = test_case.expression},
                           &evaluation->outcome);
             status = evaluation->outcome.status;
             SXML_TEST_EXPECT(state, fixture_released_cells(&evaluation->test_fixture));
@@ -1433,7 +1701,7 @@ static void test_evaluation_survives_every_allocation_failure(sxml_test_state *s
         if (!has_failed_allocation) {
             has_succeeded = true;
             SXML_TEST_EXPECT(state, status == SXML_STATUS_OK &&
-                                        strcmp(evaluation->outcome.text, expected) == 0);
+                                        strcmp(evaluation->outcome.text, test_case.expected) == 0);
         } else if (status != SXML_STATUS_OUT_OF_MEMORY) {
             (void)fprintf(stderr, "allocation %llu: status %d\n",
                           (unsigned long long)failing_number, (int)status);
@@ -1444,43 +1712,47 @@ static void test_evaluation_survives_every_allocation_failure(sxml_test_state *s
     SXML_TEST_EXPECT(state, has_succeeded);
 }
 
+/* An expression that exercises several parts. */
+static void test_evaluation_survives_every_allocation_failure(sxml_test_state *state) {
+    expect_every_allocation_failure(
+        state,
+        (allocation_failure_case){
+            .expression =
+                "string-join((upper-case('ab'), tokenize('a b', ' '), string(sort((3, 1, 2), (), "
+                "function($x){-$x})[1]), string(deep-equal([1, [2]], [1, [2]])), "
+                "substring('xyz', 2), string(sum((1, 2.5))), string(round(2.45, 1))), ',')",
+            .expected = "\"AB,a,b,3,true,yz,3.5,2.5\""});
+}
+
 /* As above for the regex part: compiled regexes, matchers, records and
    the analyze-string tree release everything when an allocation fails. */
 static void test_regex_functions_survive_every_allocation_failure(sxml_test_state *state) {
-    const char *expression =
-        "string-join((replace('ab', '(?<x>a)', '$<x>!'), "
-        "matching-segments('xay', '(a)')?groups?1?value, "
-        "string(analyze-string('a1', '(\\d)')), regex('b')?replace('abc', fn { 'B' })), ',')";
-    const char *expected = "\"a!b,a,a1,aBc\"";
-    bool has_succeeded = false;
-    for (uint64_t failing_number = 1; !has_succeeded && failing_number < 20000;
-         failing_number += 1) {
-        evaluation_fixture *evaluation = &shared_fixture;
-        sxml_status status = fixture_create(
-            (fixture_request){.failing_allocation_number = failing_number,
-                              .is_library_wanted = true}, &evaluation->test_fixture);
-        if (status == SXML_STATUS_OK) {
-            evaluate_with(&evaluation->test_fixture,
-                          &(evaluation_case){.expression_text = expression},
-                          &evaluation->outcome);
-            status = evaluation->outcome.status;
-            SXML_TEST_EXPECT(state, fixture_released_cells(&evaluation->test_fixture));
-        }
-        const bool has_failed_allocation =
-            sxml_counting_allocator_read_counts(evaluation->test_fixture.counting_allocator)
-                .failed_allocation_count > 0;
-        if (!has_failed_allocation) {
-            has_succeeded = true;
-            SXML_TEST_EXPECT(state, status == SXML_STATUS_OK &&
-                                        strcmp(evaluation->outcome.text, expected) == 0);
-        } else if (status != SXML_STATUS_OUT_OF_MEMORY) {
-            (void)fprintf(stderr, "allocation %llu: status %d\n",
-                          (unsigned long long)failing_number, (int)status);
-            SXML_TEST_EXPECT(state, status == SXML_STATUS_OUT_OF_MEMORY);
-        }
-        SXML_TEST_EXPECT(state, fixture_destroy(&evaluation->test_fixture));
-    }
-    SXML_TEST_EXPECT(state, has_succeeded);
+    expect_every_allocation_failure(
+        state,
+        (allocation_failure_case){
+            .expression =
+                "string-join((replace('ab', '(?<x>a)', '$<x>!'), "
+                "matching-segments('xay', '(a)')?groups?1?value, "
+                "string(analyze-string('a1', '(\\d)')), regex('b')?replace('abc', fn { 'B' })), "
+                "',')",
+            .expected = "\"a!b,a,a1,aBc\""});
+}
+
+/* As above for the functions of packet 2.17: options maps, the parsed
+   fragment's new tree and its stripping copy, paths, type records. */
+static void test_node_and_type_functions_survive_every_allocation_failure(
+    sxml_test_state *state) {
+    expect_every_allocation_failure(
+        state,
+        (allocation_failure_case){
+            .expression =
+                "let $d := parse-xml-fragment('<a> <b xml:id=\"x\"/></a><c/>', "
+                "{'strip-space': 'all'}) return string-join((path($d//b), "
+                "pad-string('ab', 4, {'side': 'start'}), type-of(($d/*, 1)), "
+                "string(schema-type(#xs:int)?base-type()?name), "
+                "string(count(id('x', $d) | innermost($d//*))), "
+                "string(index-of-substring('abab', 'b')[2])), ',')",
+            .expected = "\"/Q{}a[1]/Q{}b[1],  ab,(element()|xs:integer)+,xs:long,2,4\""});
 }
 
 static const sxml_test_case function_library_test_cases[] = {
@@ -1508,6 +1780,16 @@ static const sxml_test_case function_library_test_cases[] = {
      .function = test_evaluation_survives_every_allocation_failure},
     {.name = "regex_functions_survive_every_allocation_failure",
      .function = test_regex_functions_survive_every_allocation_failure},
+    {.name = "string_padding_and_positions", .function = test_string_padding_and_positions},
+    {.name = "node_navigation", .function = test_node_navigation},
+    {.name = "node_identifiers_and_languages",
+     .function = test_node_identifiers_and_languages},
+    {.name = "node_paths", .function = test_node_paths},
+    {.name = "xml_fragments_and_properties", .function = test_xml_fragments_and_properties},
+    {.name = "type_functions", .function = test_type_functions},
+    {.name = "collated_extremes_and_sorts", .function = test_collated_extremes_and_sorts},
+    {.name = "node_and_type_functions_survive_every_allocation_failure",
+     .function = test_node_and_type_functions_survive_every_allocation_failure},
 };
 
 int main(int argument_count, char **arguments) {
