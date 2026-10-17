@@ -2030,4 +2030,46 @@ Recorded 2026-10-17.
   for fn:matches, fn:replace and fn:tokenize; |value| x |replace| for
   fn:translate.
 
+### D91. The QT4 driver: running tests, assertions, reports (packet 1.25)
+Recorded 2026-10-17. `sxml-qt4 run [--catalog] [--spec] [--test-set=NAME |
+TEST-LIST] [--format=text|json]`; `tests/qt4/driver/test_run.c`,
+`assertion.c`, `report.c`, `reason.c`, `command_run.c`.
+- **Isolation**: each test case gets its own processor, made through a
+  budget allocator (at most 512 MiB live; header-prefixed blocks) with
+  `maximum_evaluation_step_count` 10^8; afterwards the budget must have no
+  live allocation, else the outcome is error "leaked N allocations". A
+  crash still ends the process: whole-suite runs use one process per test
+  set. No `--output=FILE`: the CLI platform layer has no file writer
+  (redirect standard output).
+- **Environment**: sources parsed with document and base URI = their
+  `uri` (made absolute against the test-set file) or `file:///SUITE-PATH`;
+  "." context value, "$name" variables `item()*`, `uri` available
+  documents; params via `select` with `as` from
+  `sxml_xpath_parse_sequence_type`; QName param names through the
+  environment's namespaces; static base URI `file:///SUITE-PATH` of the
+  test-set file unless given or `#UNDEFINED`. The resolver serves
+  `file:///` URIs as suite files and nothing else.
+- **Assertions** are XPath over `$result` (and `$expected`, the
+  assertion's value) with the environment's namespaces: assert-eq =
+  one atomic item and `$result = $expected or deep-equal(...)` (untyped
+  cast, NaN = NaN); permutation by per-item deep-equal counts; assert-type
+  = `$result instance of TEXT`; assert-xml = result written as XML (nodes
+  by the adaptive serializer, atomics as escaped text joined by spaces),
+  both sides `parse-xml`ed in a wrapper element and deep-equal with
+  comments and PIs (no full canonicalization; prefixes never matter);
+  expected files lose their XML declaration and surrounding space. A wrong
+  error code is the outcome "wrong-error" and counts as passed.
+  Serialization assertions are "unsupported": the outcome is not-run, not
+  fail (deviation from the task text). Verdicts combine worst-to-best
+  fail < unsupported < wrong-error < pass on a fixed 32-frame stack (D71).
+- **Outcomes**: pass, wrong-error, fail, error (a status without an error
+  record, a limit, a leak, an environment that cannot be set up),
+  not-run (not applicable or unsupported). Text lists every non-pass,
+  non-not-run case, a line per test set and a final `total:` line; JSON
+  (schema in `report.h`) lists every case. Exit 1 on a fail or error.
+- **Slice gate**: ctest `qt4/slice` runs the slice and fails when fewer
+  pass than `tests/qt4/slice-baseline.txt` (198); a higher count asks for
+  the baseline to be raised. Goldens `qt4/run_*` over
+  `input/run-catalog.xml` cover every assertion kind passing and failing.
+
 ## Proposed
