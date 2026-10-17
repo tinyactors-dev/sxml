@@ -1576,7 +1576,7 @@ static sxml_status append_scheme(uri_builder *builder) {
 
 /* userinfo@host:port when any of them is present, else the authority. A
    URI without a scheme gets "//" before an authority, so that it reads
-   back as one (F&O 4.0 adds nothing there; D-record of packet 2.11). */
+   back as one (F&O 4.0 adds nothing there; D140). */
 static sxml_status append_authority(const sxml_function_call *call, uri_builder *builder) {
     uri_part userinfo;
     uri_part host;

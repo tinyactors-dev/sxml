@@ -262,7 +262,7 @@ static void test_building(sxml_test_state *state) {
         VALUE_CASE("build-uri({'path-segments': ('', 'a/b', 'c?'), "
                    "'query-parameters': {'k=': ('1+', '2'), '': 'v'}, 'fragment': 'f #'})",
                    "\"/a%2Fb/c%3F?k%3D=1%2B&k%3D=2&v#f%20%23\""),
-        /* Without a scheme an authority still reads back (D-record of 2.11). */
+        /* Without a scheme an authority still reads back (D140). */
         VALUE_CASE("build-uri({'host': 'x', 'path': '/p'})", "\"//x/p\""),
         VALUE_CASE("parse-uri('a+b/c') => build-uri()", "\"a+b/c\""),
     };
