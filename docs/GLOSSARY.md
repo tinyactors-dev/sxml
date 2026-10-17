@@ -552,6 +552,14 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `case_mapping` | The Unicode full case mapping of `fn:upper-case` and `fn:lower-case`: one codepoint to one or more (F&O 4.0, section 5.4) |
 | `deep_equality` | `fn:deep-equal` of two sequences: items compared pairwise, into nodes, maps and arrays (F&O 4.0, section 14.2.4) |
 | `comparison_pair` | Two items, or two runs of children, waiting to be compared on the explicit stack of deep equality |
+| `collation_key` | Bytes whose octet order is the order of strings under a collation (F&O 4.0, `fn:collation-key`) |
+| `collation_element` | The weights one codepoint gives a collation: primary, secondary, tertiary and quaternary, zero where it is ignorable (UTS #10, section 3.2) |
+| `collation_unit` | A collation element that is not ignorable on every compared level; substring matching under a collation compares these (F&O 4.0, section 5.4) |
+| `collation_strength` | How many levels of collation elements a UCA collation compares, primary to identical (UTS #10; the `strength` parameter) |
+| `uca_fallback` | sxml's stand-in for a UCA collation URI: the levels of UTS #10 over weights derived from Unicode properties, without DUCET tables (D97, D116) |
+| `collation_match` | The bytes of a string that equal a search string under a collation, starting and ending at collation unit boundaries |
+| `comparison_unit` | One significant child (a node or a merged text run), or one top-level item, as deep equality compares it |
+| `trial` | In an unordered deep-equal comparison, the comparison of one unit with one candidate; a difference inside it moves on to the next candidate |
 | `sort_key_value` | The atomized key of one item in `fn:sort`: a sequence of atomic items compared item by item |
 | `random_seed` | The value that fixes the numbers of `fn:random-number-generator` |
 | `traversal` | A higher-order function's walk over the items of a sequence, members of an array or entries of a map, asking for one call of a function item per position (`fn:for-each`, `fn:filter`, `map:for-each`, ...) |
