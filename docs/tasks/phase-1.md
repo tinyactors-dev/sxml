@@ -308,6 +308,11 @@ After 1.14, 1.18, 1.20, 1.21, 1.22. Owns `src/processor.c`, `src/xpath.c`,
 `fn:doc` through the resolver with one tree per URI (fn-doc-6), a new tree
 per `parse-xml` call (parse-xml-012). Done when 20 slice queries round-trip
 through the public API alone, with allocation-failure loops on compile.
+**Done** 2026-10-16 (D88, D89): also `src/processor_internal.h` and
+`src/function_library_uri.c` (fn:static-base-uri, fn:resolve-uri); 30
+slice queries round-trip in `tests/xpath_test.c` (public headers only),
+allocation-failure loops on create, compile and evaluate; P9 accepted as
+D89 (`maximum_evaluation_step_count`); `sxml xpath` with 19 golden tests.
 
 ### 1.24 QT4 driver: catalog and environments (implementation)
 After 1.3, 1.14, the CLI framework (D44). Owns `tests/qt4/driver/`. Golden:
