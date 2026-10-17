@@ -3640,60 +3640,43 @@ kind or header change.
   "Q{ _   _ }x" in the evaluator (2), `local:` not predeclared (3.10,
   3.12), `text {''}` (the D110 deviation) and a missing function (3).
 
-### D126. Lowering XQuery expressions: FLWOR, typeswitch, switch, try/catch (packet 3.7)
-Recorded 2026-10-17, completing D55 for these kinds. `src/xquery_lower.c`
-is lowering part `xquery` (SXML_LANGUAGE_XQUERY only, D103); no IR kind
-added. Contract in `src/xquery_lower_internal.h`.
-- **FLWOR** replaces the core's FLWOR for XQuery. Clauses between two
-  tuple stream clauses are a clause segment: for = MAP (position slot,
-  ALLOWING_EMPTY), let = LET (destructuring as D113), where =
-  CONDITIONAL, one frame per binding or clause. A segment ending at a
-  tuple stream clause returns tuple arrays (one member per live slot
-  variable, innermost of each name; constants and globals are not
-  packed); then order by = SORT with each key lowered over the members
-  unpacked from the SORT's focus, count = the position slot of the
-  unpacking MAP, while = fn:take-while with a closure
-  fn($tuple, $position) { boolean(C) } (no condition evaluated after the
-  first false). The closure captures every visible variable the condition
-  references (overcapture is harmless) and, only when lowering it read
-  the focus, the FLWOR's focus parts (three slots kept after the
-  captures, bound by LETs at the closure's start). A MAP over the result
-  unpacks the members with LOOKUP before the next segment.
-- **order by**: empty least unless written (the prolog default is
-  3.10's); collation literals resolved against the static base URI;
-  codepoint is NONE, html-ascii-case-insensitive and UCA URIs are kept
-  (the evaluator's SORT still raises FOCH0002 for them, D116 Proposed),
-  anything else is XQST0076. "stable" changes nothing (SORT is stable).
-- **trace** clause: lowered (static errors stand) as the never-taken
-  branch of a CONDITIONAL; trace output is implementation-defined and
-  its errors must not fail the FLWOR (4.13.10).
-- **typeswitch**: operand once; CONDITIONAL chain over INSTANCE_OF (a
-  union case is a CONDITIONAL of the type tests); case variables bound to
-  the operand. **switch**: switch value = coerce(fn:data(comparand),
-  xs:anyAtomicType?) or true(); a case operand matches when its atomized
-  value is empty and the switch value is, or some item is fn:deep-equal
-  to it; each case's tests sit in the previous case's else branch (2.6.5).
-- **try/catch**: TRY_CATCH (D109, D124); unprefixed error names use the
-  default element namespace; `$err:` variables the handler references
-  are LOOKUPs of the details slot, `$err:map` the slot, stack-trace and
-  additional `()`.
-- ordered/unordered: their content. Extension expressions: pragma names
-  must resolve (XPST0081); every pragma is ignored; none and no
-  expression is XQST0079. validate: XQST0075 (D97). String constructors:
-  fn:string-join of the parts, interpolations string-join(E, " ").
-- **Entry points** `sxml_xquery_lower` / `sxml_xquery_compile` (internal,
-  for tests and drivers until 3.12): a main module without prolog
-  declarations (UNSUPPORTED_FEATURE otherwise, 3.10). Group by and the
-  windows are UNSUPPORTED_FEATURE; 3.8 adds them as tuple stream clauses
-  in `finish_segment` (the tuple layout is in the FLWOR frame's locals).
-- Measured with a scratch harness (the QT4 driver with the XPath API
-  compiling through `sxml_xquery_compile`), XQ40: every failure left in
-  prod-ForClause, LetClause, WhereClause, OrderByClause, CountClause,
-  WhileClause, TypeswitchExpr, SwitchExpr, ExtensionExpr,
-  StringConstructor is a node constructor (3.9) or a prolog (3.10), but
-  for three (fn:message missing, `local:` undeclared, one driver
-  assertion).
-
+### D129. Date formatting: the picture engine over format-integer (packet 2.14)
+Recorded 2026-10-17, after D97, D119 and D122. `src/format_date.c` with
+the module header `src/format_date_internal.h`, part
+`src/function_library_format_date.c` (part `format_date`), test
+`format_date`.
+- **One engine**: a variable marker's first presentation modifier is a
+  primary format token of the D119 engine; a minimum width widens the
+  digit pattern (optional signs from the right, then prepended digits of
+  the family) and parses it again; non-digit tokens are padded with
+  spaces. Fractional seconds parse the reversed token (so `[f#99]` is
+  FOFD1340) and write the fraction's digits directly with the effect of
+  9.9.4.5's reversal (`[f,*-2]` of .006 is "0", as QT4 expects).
+- **Scan**: three passes over the picture (syntax FOFD1340, then
+  components FOFD1350, then writing), so a rejected picture writes
+  nothing. Whitespace in a marker is dropped; the last comma starts the
+  width; a lone "]" is FOFD1340.
+- **Calendar arithmetic** on a year of the same 400-year cycle, so day of
+  week, ISO week (W) and week in month (w, the month of the week's
+  Thursday) hold for every int64_t year; W, w and F's numbers follow
+  ISO 8601 in both calendars.
+- **Calendars and languages** (D97): AD (default; year 0 is 1 BC, eras
+  AD/BC) and ISO (absolute year, era "-"). Other designators and any
+  name in a namespace format as AD after "[Calendar: AD]"; a name in no
+  namespace that is no designator, or no EQName, is FOFD1340. A prefix is
+  not resolved (no statically known namespaces at run time): any prefix
+  counts as a namespace. A non-English $language gives "[Language: en]";
+  the empty sequence or "" gives none (the default language is not read:
+  English whatever the host names). $place is ignored.
+- **Names**: English months and days, conventional day abbreviations
+  (Tues, Weds, Thurs/Thur) before cutting at the maximum width; am/pm;
+  AD, BC, ISO always in capitals. Title-case words capitalize after a
+  hyphen ("Twenty-One", QT4 format-date-en125), unlike format-integer's
+  "Twenty-one" (D119). Timezone names need a database (D97): [ZN] and
+  other tokens use 01:01; ZZ gives military letters, "J" without a
+  timezone.
+- Measured (debug driver, XP40): fn-format-date 20 to 124 of 124 run,
+  fn-format-time 19 to 94 of 94, fn-format-dateTime 5 to 80 of 80.
 
 ## Proposed
 
