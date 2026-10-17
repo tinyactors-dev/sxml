@@ -203,6 +203,13 @@ days-in-month, seconds, duration-to-seconds, unix-dateTime, parse-ietf-date,
 civil-timezone (FODT0004-style failure without tz data, D97). Done when
 those fn- sets reach ≥ 95% (civil-timezone excepted). Spec: F&O 4.0
 "Functions and operators on durations", "... on dates and times".
+**Done** 2026-10-17 (D122): new part `src/function_library_temporal.c`;
+the `*-from-dateTime` rows take every Gregorian type. fn-adjust-*-to-
+timezone 133/133, fn-build-dateTime 90/90 run, fn-parse-ietf-date
+105/105, fn-seconds 24/24, fn-duration-to-seconds 18/18,
+fn-unix-dateTime 22/22, fn-days-in-month 16/18 (two need
+format-integer); fn-parts-of-dateTime 8/20 until F&O named record types
+exist (Proposed); civil-timezone 4/9 (excepted, D97).
 
 ### 2.9 Number formatting (implementation)
 After 2.0, 2.2. Owns new `src/format.c`, `src/format_internal.h`,
