@@ -237,10 +237,18 @@ sxml_qt4_xquery_resources_acquire(const sxml_qt4_xquery_query *query,
         (sxml_memory_view){.bytes = (uint8_t *)&resources->loader_memory,
                            .byte_count = sizeof(resources->loader_memory)},
         &(sxml_processor_document_loader_configuration){
-            .processor = processor,
-            .resource_resolver = context->resource_resolver.operations == NULL
-                                     ? processor->resource_resolver
-                                     : context->resource_resolver,
+            /* As src/xpath.c builds it (D131). */
+            .evaluation_environment =
+                {.processor = processor,
+                 .resource_resolver = context->resource_resolver.operations == NULL
+                                          ? processor->resource_resolver
+                                          : context->resource_resolver,
+                 .trace_sink = context->trace_sink.operations == NULL ? processor->trace_sink
+                                                                      : context->trace_sink,
+                 .default_language = context->default_language.byte_count == 0
+                                         ? SXML_BYTE_VIEW_FROM_LITERAL("en")
+                                         : context->default_language,
+                 .environment_variables = context->environment_variables},
             .available_documents = context->available_documents},
         &resources->loader);
     if (status == SXML_STATUS_OK) {

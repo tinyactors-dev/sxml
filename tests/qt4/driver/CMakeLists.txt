@@ -27,6 +27,11 @@ target_link_libraries(sxml_qt4_driver_library PUBLIC sxml_cli_framework)
 # src/ internals until include/sxml/xquery.h is implemented (packet 3.12),
 # which removes this line with the adapter.
 target_include_directories(sxml_qt4_driver_library PRIVATE "${PROJECT_SOURCE_DIR}/src")
+# src/decimal_internal.h, reached through those internals, includes mpdecimal.h.
+if(TARGET sxml_mpdecimal)
+    target_include_directories(sxml_qt4_driver_library PRIVATE
+        $<TARGET_PROPERTY:sxml_mpdecimal,INTERFACE_INCLUDE_DIRECTORIES>)
+endif()
 sxml_apply_project_flags(sxml_qt4_driver_library)
 
 # The platform layer is the sxml program's: the one file allowed to touch
