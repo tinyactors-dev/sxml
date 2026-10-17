@@ -8,7 +8,9 @@
  * moved to src/function_library_regex.c (packet 2.3, D114). From packet
  * 1.23b (D91): fn:substring-before-last,
  * fn:substring-after-last, fn:translate, fn:codepoint-equal,
- * fn:contains-token, fn:trim-space and fn:parse-integer.
+ * fn:contains-token, fn:trim-space and fn:parse-integer. From packet 2.17:
+ * fn:pad-string and fn:index-of-substring (F&O 4.0, sections 5.3.8 and
+ * 5.3.10).
  *
  * Golden file: src/memory.c (layout and comments); rows as in
  * src/function_library_internal.h.
@@ -555,29 +557,47 @@ static sxml_status call_lower_case(const sxml_function_call *call,
     return call_case(call, SXML_CASE_MAPPING_KIND_LOWER, result);
 }
 
-/* ------------------------------------------------------- fn:trim-space */
+/* -------------------------------------------------------- String options */
 
-static const sxml_static_error trim_option_error = {
-    .error_status = SXML_STATUS_TYPE_ERROR,
-    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XPTY0004"),
-    .description = SXML_BYTE_VIEW_INITIALIZER(
-        "The options of fn:trim-space take only 'side', one of 'start', 'end' or 'both' "
-        "(F&O 4.0, fn:trim-space; section 1.7, option parameter conventions)"),
-};
+/* The most options one string function knows. */
+#define SXML_STRING_OPTION_LIMIT ((size_t)2)
 
-/* Which sides fn:trim-space strips. */
-typedef struct trim_sides {
-    bool trims_start;
-    bool trims_end;
-} trim_sides;
+/* The options a string function takes from argument argument_index, each
+   an xs:string (F&O 4.0, section 1.7, option parameter conventions), and
+   the error for a key or value they do not allow. */
+typedef struct string_options_request {
+    size_t argument_index;
+    const sxml_byte_view *option_names;
+    size_t option_count;
+    const sxml_static_error *option_error;
+} string_options_request;
 
-/* Reads the 'side' option of argument 1 (F&O 4.0, fn:trim-space): unknown
-   string keys and values outside the enumeration are XPTY0004, as for the
-   other option maps (D82); keys in a namespace are ignored. */
-static sxml_status read_trim_sides(const sxml_function_call *call, trim_sides *sides) {
-    *sides = (trim_sides){.trims_start = true, .trims_end = true};
+/* The values found, by position in option_names; borrowed from the map. */
+typedef struct string_option_values {
+    bool is_present[SXML_STRING_OPTION_LIMIT];
+    sxml_string values[SXML_STRING_OPTION_LIMIT];
+} string_option_values;
+
+/* The position of key among the request's option names, or option_count. */
+static size_t find_option(const string_options_request *request, sxml_byte_view key) {
+    size_t option_index = 0;
+    while (option_index < request->option_count &&
+           !sxml_byte_view_equals(request->option_names[option_index], key)) {
+        option_index += 1;
+    }
+    return option_index;
+}
+
+/* Reads the options: string keys the request does not name, and values
+   that are not one string, are option_error (XPTY0004, as for the other
+   option maps, D82); keys of other types are ignored. */
+static sxml_status read_string_options(const sxml_function_call *call,
+                                       const string_options_request *request,
+                                       string_option_values *values) {
+    *values = (string_option_values){.is_present = {false}};
     sxml_optional_item options;
-    sxml_status status = sxml_function_library_read_optional_item(call, 1, &options);
+    sxml_status status =
+        sxml_function_library_read_optional_item(call, request->argument_index, &options);
     if (status != SXML_STATUS_OK || !options.has_item) {
         return status;
     }
@@ -594,42 +614,91 @@ static sxml_status read_trim_sides(const sxml_function_call *call, trim_sides *s
         if (status != SXML_STATUS_OK || key.datum_kind != SXML_DATUM_KIND_STRING) {
             continue;
         }
-        if (!sxml_byte_view_equals(key.datum_details.string.utf8,
-                                   SXML_BYTE_VIEW_FROM_LITERAL("side"))) {
-            return sxml_function_library_report(call, &trim_option_error);
+        const size_t option_index = find_option(request, key.datum_details.string.utf8);
+        uint64_t value_count = 0;
+        if (option_index < request->option_count) {
+            status = sxml_sequence_count(entry.value, call->error_record, &value_count);
+        }
+        if (status == SXML_STATUS_OK &&
+            (option_index == request->option_count || value_count != 1)) {
+            return sxml_function_library_report(call, request->option_error);
         }
         sxml_item value = {.representation = 0};
-        uint64_t value_count = 0;
-        status = sxml_sequence_count(entry.value, call->error_record, &value_count);
-        if (status == SXML_STATUS_OK && value_count != 1) {
-            return sxml_function_library_report(call, &trim_option_error);
-        }
         if (status == SXML_STATUS_OK) {
             status = sxml_sequence_get_item(
                 entry.value, (sxml_item_request){.item_index = 0, .error_record = call->error_record},
                 &value);
         }
-        sxml_atomic_datum side = {
-            .datum_kind = SXML_DATUM_KIND_STRING,
-            .datum_details = {.string = {.utf8 = {.bytes = NULL, .byte_count = 0}}}};
+        sxml_atomic_datum datum = {.datum_kind = SXML_DATUM_KIND_BOOLEAN};
+        if (status == SXML_STATUS_OK && sxml_item_get_kind(value) == SXML_ITEM_KIND_ATOMIC) {
+            status = sxml_atomic_item_get_datum(value, &datum);
+        }
+        if (status == SXML_STATUS_OK && datum.datum_kind != SXML_DATUM_KIND_STRING) {
+            return sxml_function_library_report(call, request->option_error);
+        }
         if (status == SXML_STATUS_OK) {
-            status = sxml_item_get_kind(value) == SXML_ITEM_KIND_ATOMIC
-                         ? sxml_atomic_item_get_datum(value, &side)
-                         : sxml_function_library_report(call, &trim_option_error);
+            values->is_present[option_index] = true;
+            values->values[option_index] = datum.datum_details.string;
         }
-        if (status != SXML_STATUS_OK) {
-            return status;
-        }
-        const sxml_byte_view side_text = side.datum_kind == SXML_DATUM_KIND_STRING
-                                             ? side.datum_details.string.utf8
-                                             : (sxml_byte_view){.bytes = NULL, .byte_count = 0};
-        if (sxml_byte_view_equals(side_text, SXML_BYTE_VIEW_FROM_LITERAL("start"))) {
-            *sides = (trim_sides){.trims_start = true, .trims_end = false};
-        } else if (sxml_byte_view_equals(side_text, SXML_BYTE_VIEW_FROM_LITERAL("end"))) {
-            *sides = (trim_sides){.trims_start = false, .trims_end = true};
-        } else if (!sxml_byte_view_equals(side_text, SXML_BYTE_VIEW_FROM_LITERAL("both"))) {
-            return sxml_function_library_report(call, &trim_option_error);
-        }
+    }
+    return status;
+}
+
+/* Which sides fn:trim-space strips or fn:pad-string pads. */
+typedef struct string_sides {
+    bool has_start;
+    bool has_end;
+} string_sides;
+
+/* Reads a 'side' value, one of 'start', 'end' and 'both'; anything else
+   is option_error. */
+typedef struct side_request {
+    sxml_byte_view side_text;
+    const sxml_static_error *option_error;
+} side_request;
+
+static sxml_status read_side(const sxml_function_call *call, side_request request,
+                             string_sides *sides) {
+    if (sxml_byte_view_equals(request.side_text, SXML_BYTE_VIEW_FROM_LITERAL("start"))) {
+        *sides = (string_sides){.has_start = true, .has_end = false};
+    } else if (sxml_byte_view_equals(request.side_text, SXML_BYTE_VIEW_FROM_LITERAL("end"))) {
+        *sides = (string_sides){.has_start = false, .has_end = true};
+    } else if (sxml_byte_view_equals(request.side_text, SXML_BYTE_VIEW_FROM_LITERAL("both"))) {
+        *sides = (string_sides){.has_start = true, .has_end = true};
+    } else {
+        return sxml_function_library_report(call, request.option_error);
+    }
+    return SXML_STATUS_OK;
+}
+
+/* ------------------------------------------------------- fn:trim-space */
+
+static const sxml_static_error trim_option_error = {
+    .error_status = SXML_STATUS_TYPE_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XPTY0004"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "The options of fn:trim-space take only 'side', one of 'start', 'end' or 'both' "
+        "(F&O 4.0, fn:trim-space; section 1.7, option parameter conventions)"),
+};
+
+static const sxml_byte_view trim_option_names[] = {SXML_BYTE_VIEW_INITIALIZER("side")};
+
+/* Reads the 'side' option of argument 1 (F&O 4.0, fn:trim-space). */
+static sxml_status read_trim_sides(const sxml_function_call *call, string_sides *sides) {
+    *sides = (string_sides){.has_start = true, .has_end = true};
+    string_option_values values;
+    sxml_status status = read_string_options(
+        call,
+        &(string_options_request){.argument_index = 1,
+                                  .option_names = trim_option_names,
+                                  .option_count = 1,
+                                  .option_error = &trim_option_error},
+        &values);
+    if (status == SXML_STATUS_OK && values.is_present[0]) {
+        status = read_side(
+            call,
+            (side_request){.side_text = values.values[0].utf8, .option_error = &trim_option_error},
+            sides);
     }
     return status;
 }
@@ -642,7 +711,7 @@ static bool is_trimmed_whitespace(uint8_t byte) {
    5.4.6): the string without leading and trailing whitespace (U+0020,
    U+0009, U+000D, U+000A), on the sides the 'side' option names. */
 static sxml_status call_trim_space(const sxml_function_call *call, sxml_sequence *result) {
-    trim_sides sides;
+    string_sides sides;
     sxml_status status = read_trim_sides(call, &sides);
     sxml_library_text text = {.item_heap = call->item_heap};
     if (status == SXML_STATUS_OK) {
@@ -655,16 +724,196 @@ static sxml_status call_trim_space(const sxml_function_call *call, sxml_sequence
     const sxml_byte_view value = sxml_function_library_text_view(&text);
     size_t first = 0;
     size_t end = value.byte_count;
-    while (sides.trims_start && first < end && is_trimmed_whitespace(value.bytes[first])) {
+    while (sides.has_start && first < end && is_trimmed_whitespace(value.bytes[first])) {
         first += 1;
     }
-    while (sides.trims_end && end > first && is_trimmed_whitespace(value.bytes[end - 1])) {
+    while (sides.has_end && end > first && is_trimmed_whitespace(value.bytes[end - 1])) {
         end -= 1;
     }
     status = sxml_function_library_make_string(
         call->item_heap, slice_of(value, (byte_part){.byte_offset = first, .byte_count = end - first}),
         result);
     sxml_function_library_text_release(&text);
+    return status;
+}
+
+/* ------------------------------------------------------- fn:pad-string */
+
+static const sxml_static_error pad_option_error = {
+    .error_status = SXML_STATUS_TYPE_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XPTY0004"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "The options of fn:pad-string are 'padding', a string, and 'side', one of 'start', "
+        "'end' or 'both' (F&O 4.0, fn:pad-string; section 1.7, option parameter conventions)"),
+};
+
+static const sxml_static_error empty_padding_error = {
+    .error_status = SXML_STATUS_DYNAMIC_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("FORG0001"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "The padding option of fn:pad-string is a zero-length string (F&O 4.0, "
+        "fn:pad-string)"),
+};
+
+static const sxml_byte_view pad_option_names[] = {SXML_BYTE_VIEW_INITIALIZER("padding"),
+                                                  SXML_BYTE_VIEW_INITIALIZER("side")};
+
+/* A run of padding: codepoint_count characters of the repeated padding,
+   truncated on the right (F&O 4.0, fn:pad-string). */
+typedef struct padding_run {
+    sxml_string padding;
+    uint64_t codepoint_count;
+} padding_run;
+
+static sxml_status append_padding(sxml_library_text *text, padding_run run) {
+    sxml_status status = SXML_STATUS_OK;
+    uint64_t remaining = run.codepoint_count;
+    while (status == SXML_STATUS_OK && remaining >= run.padding.codepoint_count) {
+        status = sxml_function_library_text_append(text, run.padding.utf8);
+        remaining -= run.padding.codepoint_count;
+    }
+    if (status == SXML_STATUS_OK && remaining > 0) {
+        status = sxml_function_library_text_append(
+            text, slice_of(run.padding.utf8,
+                           (byte_part){.byte_offset = 0,
+                                       .byte_count = byte_offset_of(run.padding,
+                                                                    (size_t)remaining)}));
+    }
+    return status;
+}
+
+/* fn:pad-string($value, $length, $options := {}) (F&O 4.0, section
+   5.3.8): $value cast to xs:string, extended to $length characters with
+   the repeated 'padding' (" ") on the 'side' ("end") option names; with
+   "both", each side's run is formed on its own and the end side gets the
+   odd character. Never truncates. */
+static sxml_status call_pad_string(const sxml_function_call *call, sxml_sequence *result) {
+    string_option_values options;
+    sxml_status status = read_string_options(
+        call,
+        &(string_options_request){.argument_index = 2,
+                                  .option_names = pad_option_names,
+                                  .option_count = 2,
+                                  .option_error = &pad_option_error},
+        &options);
+    string_sides sides = {.has_start = false, .has_end = true};
+    if (status == SXML_STATUS_OK && options.is_present[1]) {
+        status = read_side(
+            call,
+            (side_request){.side_text = options.values[1].utf8, .option_error = &pad_option_error},
+            &sides);
+    }
+    const sxml_string padding =
+        options.is_present[0]
+            ? options.values[0]
+            : (sxml_string){.utf8 = SXML_BYTE_VIEW_FROM_LITERAL(" "),
+                            .codepoint_count = 1,
+                            .is_ascii = true};
+    if (status == SXML_STATUS_OK && padding.codepoint_count == 0) {
+        return sxml_function_library_report(call, &empty_padding_error);
+    }
+    sxml_optional_item value = {.has_item = false};
+    sxml_optional_item length = {.has_item = false};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_function_library_read_optional_item(call, 0, &value);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_function_library_read_optional_item(call, 1, &length);
+    }
+    sxml_library_text input = {.item_heap = call->item_heap};
+    if (status == SXML_STATUS_OK && value.has_item) {
+        status = append_atomic_text(&input, value.item);
+    }
+    sxml_utf8_validation validation = {.codepoint_count = 0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_utf8_validate(sxml_function_library_text_view(&input), &validation);
+    }
+    sxml_atomic_datum length_datum = {.datum_kind = SXML_DATUM_KIND_INTEGER,
+                                      .datum_details = {.integer = 0}};
+    if (status == SXML_STATUS_OK && length.has_item) {
+        status = sxml_atomic_item_get_datum(length.item, &length_datum);
+    }
+    /* An integer beyond int64_t asks for more characters than memory
+       holds: the step bound or the heap stops it. */
+    const uint64_t target_count =
+        length_datum.datum_kind == SXML_DATUM_KIND_INTEGER
+            ? (length_datum.datum_details.integer < 0 ? 0
+                                                      : (uint64_t)length_datum.datum_details.integer)
+            : (length_datum.datum_details.decimal_text.bytes[0] == '-' ? 0 : UINT64_MAX);
+    const uint64_t padding_count =
+        target_count > validation.codepoint_count ? target_count - validation.codepoint_count : 0;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_function_library_charge_steps(call, padding_count);
+    }
+    const uint64_t start_count =
+        sides.has_start ? (sides.has_end ? padding_count / 2 : padding_count) : 0;
+    sxml_library_text text = {.item_heap = call->item_heap};
+    if (status == SXML_STATUS_OK) {
+        status = append_padding(&text, (padding_run){.padding = padding,
+                                                     .codepoint_count = start_count});
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_function_library_text_append(&text, sxml_function_library_text_view(&input));
+    }
+    if (status == SXML_STATUS_OK) {
+        status = append_padding(&text, (padding_run){.padding = padding,
+                                                     .codepoint_count = padding_count - start_count});
+    }
+    sxml_function_library_text_release(&input);
+    if (status != SXML_STATUS_OK) {
+        sxml_function_library_text_release(&text);
+        return status;
+    }
+    return finish_text(&text, result);
+}
+
+/* ------------------------------------------------ fn:index-of-substring */
+
+/* fn:index-of-substring($value, $substring) (F&O 4.0, section 5.3.10):
+   the positions, counted in characters from 1, of every occurrence of
+   $substring in $value, overlapping ones included, compared codepoint by
+   codepoint; a zero-length $substring occurs at every position from 1 to
+   string-length($value) + 1. */
+static sxml_status call_index_of_substring(const sxml_function_call *call,
+                                           sxml_sequence *result) {
+    sxml_string value;
+    sxml_string substring;
+    sxml_status status = sxml_function_library_read_string_argument(call, 0, &value);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_function_library_read_string_argument(call, 1, &substring);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_function_library_charge_steps(call, value.utf8.byte_count);
+    }
+    sxml_sequence_builder *builder = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_sequence_builder_create(
+            sxml_item_heap_as_allocator(call->item_heap),
+            &(sxml_sequence_builder_configuration){.item_heap = call->item_heap}, &builder);
+    }
+    sxml_codepoint_iterator iterator = {.string = value, .byte_offset = 0};
+    int64_t position = 1;
+    while (status == SXML_STATUS_OK) {
+        const size_t byte_offset = iterator.byte_offset;
+        if (value.utf8.byte_count - byte_offset < substring.utf8.byte_count) {
+            break;
+        }
+        if (substring.utf8.byte_count == 0 ||
+            memcmp(value.utf8.bytes + byte_offset, substring.utf8.bytes,
+                   substring.utf8.byte_count) == 0) {
+            status = sxml_sequence_builder_append_item(builder,
+                                                       sxml_atomic_item_from_integer(position));
+        }
+        uint32_t codepoint = 0;
+        if (!sxml_codepoint_iterator_next(&iterator, &codepoint)) {
+            break;
+        }
+        position += 1;
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_sequence_builder_finish(builder, result);
+    }
+    sxml_sequence_builder_destroy(builder);
     return status;
 }
 
@@ -1412,6 +1661,13 @@ static const sxml_function_parameter collation_available_parameters[] = {
 static const sxml_function_parameter collation_key_parameters[] = {
     SXML_REQUIRED_PARAMETER("value", "xs:string"),
     SXML_OPTIONAL_PARAMETER("collation", "xs:string?")};
+static const sxml_function_parameter pad_string_parameters[] = {
+    SXML_REQUIRED_PARAMETER("value", "xs:anyAtomicType?"),
+    SXML_REQUIRED_PARAMETER("length", "xs:integer"),
+    SXML_OPTIONAL_PARAMETER("options", "map(*)?")};
+static const sxml_function_parameter index_of_substring_parameters[] = {
+    SXML_REQUIRED_PARAMETER("value", "xs:string?"),
+    SXML_REQUIRED_PARAMETER("substring", "xs:string?")};
 static const sxml_native_function string_functions[] = {
     SXML_FUNCTION_ROW("collation", collation_parameters, "xs:string", 0, call_collation),
     SXML_FUNCTION_ROW("collation-available", collation_available_parameters, "xs:boolean", 0,
@@ -1458,6 +1714,9 @@ static const sxml_native_function string_functions[] = {
                       call_codepoint_equal),
     SXML_FUNCTION_ROW("contains-token", contains_token_parameters, "xs:boolean", 0,
                       call_contains_token),
+    SXML_FUNCTION_ROW("pad-string", pad_string_parameters, "xs:string", 0, call_pad_string),
+    SXML_FUNCTION_ROW("index-of-substring", index_of_substring_parameters, "xs:integer*", 0,
+                      call_index_of_substring),
 };
 
 const sxml_native_function_view sxml_function_library_string =
