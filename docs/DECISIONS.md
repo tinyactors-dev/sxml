@@ -3169,6 +3169,41 @@ Recorded 2026-10-17. `src/xslt_pattern.c`, `src/xslt_pattern_internal.h`
   match); a lowering part over pattern kinds (would need the core's node
   test resolution, which is private to `xpath_lower.c`).
 
+### D119. Number formatting: one picture engine, decimal formats as settings (packet 2.9)
+Recorded 2026-10-17. `src/format.c`, `src/format_internal.h`,
+`src/function_library_format.c` (part `format`).
+- **One engine** for fn:format-integer and fn:format-number pictures,
+  open to fn:format-date (2.14: `sxml_integer_picture_parse_primary_format_token`
+  and `sxml_format_integer`), xsl:number and xsl:decimal-format (4.10)
+  and XQuery's decimal-format declaration (`sxml_decimal_format_apply`
+  checks a format's properties: MALFORMED_INPUT for a wrong form or
+  markers that are not distinct; callers map it to FODF1290,
+  INVALID_ARGUMENT, XQST0097/8 or XTSE1300). Pictures are scanned by hand
+  (D97) and parse into plain values that borrow the picture string; the
+  grouping positions are rescanned while formatting, so parsing needs no
+  memory.
+- **Numbers as decimal text**: integers and decimals exactly, doubles and
+  floats by their shortest decimal form (F&O 4.0, 4.9.5) after the
+  percent or per-mille multiplication in their own type (overflow gives
+  infinity); rounding half to even on the digits, any size. A mantissa
+  that rounds up to 10^N keeps its exponent (QT4 numberformat304).
+  QT4 fn-format-number-limits-007 expects Java's "4.9e-324"; sxml gives
+  the shortest "5.0e-324".
+- **format-integer**: digit patterns in any Nd family and radix 2 to 36,
+  a to z bijective (to 2^64-1), Roman 1 to 3999, English words below
+  10^21 (British "and"), English ordinals for digits and words; every
+  other token, and numbers out of a sequence's range, use the token "1"
+  (D97: no other languages or sequences). Title case keeps "and" and the
+  part after a hyphen lower-case ("Twenty-one").
+- **Decimal formats**: the part starts from the defaults and applies an
+  options map (keys by atomic-equal string, QName keys in a namespace
+  ignored, others XPTY0004; values coerced to xs:string). The static
+  context's formats (D104) do not reach the evaluator yet, so every format
+  name is FODF1280 (Proposed below).
+- Measured (debug driver): fn-format-integer 13 to 87 passed (all 87 run),
+  fn-format-number 20 to 252 of 286 run; 33 of the 34 failures use QT4
+  decimal-format environments.
+
 ## Proposed
 
 - **IR adders for catch clauses and name tests** (packet 3.6, D109; for
@@ -3260,3 +3295,20 @@ Recorded 2026-10-17. `src/xslt_pattern.c`, `src/xslt_pattern_internal.h`
   (empty = "sxml-qt4") and an optional area function there, so the XSLT
   driver can report its test-set groups (attr, decl, expr, fn, insn,
   misc, type) for the 4.17 dashboard.
+
+- **Static-context decimal formats in the evaluator** (packet 2.9, D119;
+  for the owners of `src/ir_internal.h`/`src/ir.c`, `src/xpath.c` (2.12),
+  `src/xpath_lower.c` and `src/evaluator.c`): `sxml_static_context_configuration.decimal_formats`
+  (D104) is accepted but dropped, so 33 QT4 fn-format-number cases with a
+  decimal-format environment fail (the set stays at 88% instead of
+  99.6%). Proposed: the unit keeps a copy, `sxml_ir_unit_set_decimal_formats(unit,
+  sxml_decimal_format_view)` (names and property texts copied, as
+  `sxml_ir_unit_set_static_base_uri` does), set where the static
+  namespaces are; `src/xpath.c` checks each format with
+  `sxml_decimal_format_apply` and distinct names first (INVALID_ARGUMENT);
+  and `sxml_dynamic_context_get_decimal_formats(dynamic_context)` reads
+  them lexically like `sxml_dynamic_context_get_static_base_uri`. The
+  format part then resolves `$options` names (a string as an EQName with
+  the unit's static namespaces and no default namespace, an xs:QName, an
+  NCName in no namespace), uses entry 0 as the unnamed format, and drops
+  its two FODF1280 stubs (`read_format_name`, `read_decimal_format`).
