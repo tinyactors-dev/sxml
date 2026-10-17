@@ -216,6 +216,11 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `global_context_item` | The context item of global variables and parameters, one item or absent (XSLT 4.0, 2.4.2) |
 | `stylesheet_parameter` | A global `xsl:param` that is not static, given its value when a transformation is primed (XSLT 4.0, 9.5) |
 | `static_parameter` | A global `xsl:param` with `static="yes"`, given its value before compilation (XSLT 4.0, 9.6) |
+| `static_variable` | A global `xsl:variable` or `xsl:param` with `static="yes"`, whose value is known while the stylesheet is read (XSLT 4.0, 9.6) |
+| `static_expression` | An XPath expression evaluated while the stylesheet is read: `[xsl:]use-when`, the select of a static variable, the value templates of shadow attributes (XSLT 4.0, 9.7) |
+| `static_scope` | The static variables and function definitions every static expression of one stylesheet sees (`sxml_xslt_static_scope`) |
+| `stylesheet_reader` | What reads stylesheet modules into the stylesheet AST (`sxml_xslt_read_stylesheet`, packet 4.5) |
+| `forwards_compatible_mode` | Reading an element whose effective version is above 4.0: unknown XSLT elements and attributes are ignored or kept for fallback (XSLT 4.0, 3.9) |
 | `template_parameter` | An `xsl:param` of a template; the host passes values to those of the initial template or of the rules of the initial mode |
 | `tunnel_parameter` | A template parameter with `tunnel="yes"`, passed on through every template to the ones that declare it (XSLT 4.0, 10.1.6) |
 | `raw_result` | The value an invoked template or function returns, coerced to its declared type, before any tree is built or serialization (XSLT 4.0, 2.4) |
