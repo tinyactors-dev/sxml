@@ -32,6 +32,7 @@
  * timezone is the implicit timezone), for the names of UTC it gives PT0S,
  * and for every other place FODT0004.
  */
+#include "cast_internal.h"
 #include "evaluator_internal.h"
 #include "function_library_core_internal.h"
 #include "operator_internal.h"
@@ -200,21 +201,6 @@ static sxml_status read_date_time_argument(const sxml_function_call *call,
             .value = datum.datum_details.date_time};
     }
     return status;
-}
-
-/* XSD 1.1 numbering: year 0 is 1 BCE, a leap year (F&O 4.0,
-   fn:days-in-month). */
-static bool year_is_leap(int64_t year) {
-    return year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
-}
-
-static uint8_t days_in_month(int64_t year, uint8_t month) {
-    static const uint8_t days_of_common_year[12] = {31, 28, 31, 30, 31, 30,
-                                                    31, 31, 30, 31, 30, 31};
-    if (month == 2 && year_is_leap(year)) {
-        return 29;
-    }
-    return days_of_common_year[month - 1];
 }
 
 /* ---------------------------------------------------------------- Shifts */
@@ -429,7 +415,7 @@ static sxml_status call_days_in_month(const sxml_function_call *call, sxml_seque
         return SXML_STATUS_INVALID_ARGUMENT;
     }
     *result = sxml_sequence_from_item(
-        sxml_atomic_item_from_integer(days_in_month(value.value.year, value.value.month)));
+        sxml_atomic_item_from_integer(sxml_days_in_month(value.value.year, value.value.month)));
     return SXML_STATUS_OK;
 }
 
@@ -934,7 +920,7 @@ static sxml_status make_record_datum(const sxml_function_call *call,
            year, F&O 4.0, section 9.5); a gDay may be ---31. */
         const int64_t year = present[SXML_RECORD_FIELD_YEAR] ? date_time->year : 1972;
         const uint8_t month = present[SXML_RECORD_FIELD_MONTH] ? date_time->month : 1;
-        if (date_time->day > days_in_month(year, month)) {
+        if (date_time->day > sxml_days_in_month(year, month)) {
             return sxml_function_library_report(call, &component_out_of_range_error);
         }
     }
@@ -1498,7 +1484,7 @@ static bool ietf_read_input(ietf_scanner *scanner, ietf_date *date) {
 /* True when the components make a valid xs:dateTime; hour 24 is allowed
    only as 24:00:00 (the next day's midnight, XSD 1.1 Part 2, D.3.2). */
 static bool ietf_date_is_valid(const ietf_date *date) {
-    if (date->day < 1 || date->day > days_in_month(date->year, date->month) ||
+    if (date->day < 1 || date->day > sxml_days_in_month(date->year, date->month) ||
         date->minute > 59 || date->second > 59) {
         return false;
     }

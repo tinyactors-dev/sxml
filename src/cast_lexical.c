@@ -930,16 +930,17 @@ static sxml_date_time_split sxml_split_date_time(sxml_text_cursor *cursor,
     return SXML_DATE_TIME_SPLIT_OK;
 }
 
-static const uint8_t sxml_cast_days_in_common_month[12] = {
-    31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+bool sxml_year_is_leap(int64_t year) {
+    return year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+}
 
-static uint8_t sxml_cast_days_in_month(int64_t year, uint8_t month) {
-    /* XSD 1.1 numbering: year 0 is 1 BCE, a leap year. */
-    bool is_leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
-    if (month == 2 && is_leap) {
+uint8_t sxml_days_in_month(int64_t year, uint8_t month) {
+    static const uint8_t days_of_common_year[12] = {31, 28, 31, 30, 31, 30,
+                                                    31, 31, 30, 31, 30, 31};
+    if (month == 2 && sxml_year_is_leap(year)) {
         return 29;
     }
-    return sxml_cast_days_in_common_month[month - 1];
+    return days_of_common_year[month - 1];
 }
 
 /*
@@ -959,12 +960,12 @@ sxml_normalize_end_of_day(sxml_date_time_layout layout,
     }
     if (date_time->month < 1 || date_time->month > 12 || date_time->day < 1 ||
         date_time->day >
-            sxml_cast_days_in_month(date_time->year, date_time->month)) {
+            sxml_days_in_month(date_time->year, date_time->month)) {
         return SXML_DATE_TIME_SPLIT_MALFORMED;
     }
     date_time->day = (uint8_t)(date_time->day + 1);
     if (date_time->day >
-        sxml_cast_days_in_month(date_time->year, date_time->month)) {
+        sxml_days_in_month(date_time->year, date_time->month)) {
         date_time->day = 1;
         date_time->month = (uint8_t)(date_time->month + 1);
         if (date_time->month > 12) {

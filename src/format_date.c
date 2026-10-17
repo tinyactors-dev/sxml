@@ -21,6 +21,7 @@
  */
 #include "format_date_internal.h"
 
+#include "cast_internal.h"
 #include "regex_internal.h"
 #include "xml_internal.h"
 
@@ -68,10 +69,6 @@ static int64_t cycle_year(int64_t year) {
     return 2000 + ((year % 400) + 400) % 400;
 }
 
-static bool is_leap_year(int64_t year) {
-    return (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
-}
-
 /* 1 (Monday) to 7 (Sunday), as ISO 8601 numbers days (section 9.9.4.8). */
 static int64_t iso_weekday(int64_t day_number) {
     /* 1970-01-01 was a Thursday. */
@@ -86,7 +83,7 @@ static int64_t day_of_year(civil_date date) {
    Wednesday in a leap year. */
 static int64_t iso_weeks_in_year(int64_t year) {
     const int64_t first_weekday = iso_weekday(days_from_civil((civil_date){year, 1, 1}));
-    return first_weekday == 4 || (first_weekday == 3 && is_leap_year(year)) ? 53 : 52;
+    return first_weekday == 4 || (first_weekday == 3 && sxml_year_is_leap(year)) ? 53 : 52;
 }
 
 /* The ISO 8601 week number: week 1 holds the year's first Thursday; days

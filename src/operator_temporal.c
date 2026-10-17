@@ -18,6 +18,7 @@
  * "Arithmetic operators on durations, dates, and times"; XSD 1.1 Part 2,
  * Appendix E "Adding durations to dateTimes".
  */
+#include "cast_internal.h"
 #include "operator_internal.h"
 
 #include <math.h>
@@ -215,19 +216,6 @@ enum {
     SXML_SECONDS_PER_DAY = 86400,
     SXML_NANOSECONDS_PER_SECOND = 1000000000,
 };
-
-static bool sxml_year_is_leap(int64_t year) {
-    return year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
-}
-
-static uint8_t sxml_days_in_month(int64_t year, uint8_t month) {
-    static const uint8_t days_of_common_year[12] = {31, 28, 31, 30, 31, 30,
-                                                    31, 31, 30, 31, 30, 31};
-    if (month == 2 && sxml_year_is_leap(year)) {
-        return 29;
-    }
-    return days_of_common_year[month - 1];
-}
 
 /*
  * A day: the number of its 400-year cycle and its position in it, from 0

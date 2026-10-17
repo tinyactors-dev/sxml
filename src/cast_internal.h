@@ -200,3 +200,16 @@ typedef struct sxml_lexical_form_request {
 SXML_NODISCARD sxml_status sxml_cast_make_item_from_lexical_form(
     sxml_item_heap *item_heap, const sxml_lexical_form_request *request,
     sxml_item *item);
+
+/* ------------------------------------------------------------ Calendar */
+
+/*
+ * The calendar of the date and time types: proleptic Gregorian, with
+ * year 0 for 1 BCE, a leap year (XSD 1.1 Part 2, section D.2.1; F&O 4.0,
+ * fn:days-in-month). One definition for casting, arithmetic, the
+ * temporal functions and date formatting.
+ */
+bool sxml_year_is_leap(int64_t year);
+
+/* The days of month (1 to 12) in year: 28 to 31. */
+uint8_t sxml_days_in_month(int64_t year, uint8_t month);
