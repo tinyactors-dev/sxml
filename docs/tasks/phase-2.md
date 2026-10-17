@@ -143,6 +143,11 @@ references to every kind of function (prod-NamedFunctionRef, 144). Done
 when no XP40 case fails for "not lowered" and those sets reach ≥ 90%.
 Spec: XPath 4.0 "For Expressions", "Let Expressions", "Named Function
 References", "Inline Function Expressions".
+**Done** 2026-10-17 (D113): no XP40 case is "not lowered" except the
+computed constructors (Phase 3); ForClause.map/.member, LetClause,
+MethodCall, ConstructorKeywords, FocusConstructors at 100% of run cases;
+dynamic node tests and the item axis need fn:jkey/fn:jvalue (2.17);
+NamedFunctionRef's failures are missing functions. XP40 23,698 to 24,206.
 
 ### 2.6 Evaluator, paths and function references (implementation)
 After 2.0. Owns `src/evaluator.c`, `src/evaluator_function.c`,
@@ -246,6 +251,10 @@ dashboard (`tools/conformance-report.py` reads it; 1.27 owns that file,
 so coordinate by format only). Done when the fn-unparsed-text*,
 fn-format-number and fn-collection cases resolve, golden tests cover each
 environment kind and `--spec=XP40` lists the D95 denominator.
+**Done** 2026-10-17 (D108): those sets have no environment skips left
+(only spec and feature dependencies); `list --spec=XP40` 31,543 in scope (XQ40
+41,174); goldens `run_environments`, `run_environments_json`,
+`list_environments`; XP40 23,146 to 24,451 passed, slice 198/198.
 
 ### 2.17 Node, sequence and string functions (implementation)
 After 2.13. Owns `src/function_library_node.c`,
