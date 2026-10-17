@@ -176,6 +176,11 @@ where-populated, on-empty, on-non-empty, message, assert, fallback,
 evaluate (the XPath API inside). Done when insn-choose, for-each,
 iterate, try, switch, where-populated, on-empty, message, evaluate,
 decl-variable ≥ 85%.
+**Done** 2026-10-19 (D145): `src/xslt_lower_control.c`,
+`tests/xslt_lower_control_test.c`, hooks in `src/xslt_lower.c`. Scratch
+harness: 105 of 181 runnable cases of the sets pass; evaluate is not
+applicable (no dynamic evaluation, D117); xsl:sort in for-each waits for
+4.9.
 
 ### 4.8 Templates and modes (implementation)
 After 4.4, 4.6. Owns `src/evaluator_template.c`,

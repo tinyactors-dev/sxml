@@ -4,6 +4,21 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 4.7 done (D145): control flow and variables lowered into kinds XQuery
+  already uses: xsl:if (then/else), choose, switch (CONDITIONAL chains),
+  for-each (MAP, separator), iterate as fn:scan over a closure (no
+  recursion; next-iteration/break as an iteration marker, on-completion,
+  XTSE3120 checked), local xsl:variable, try/catch with the $err:
+  variables, where-populated, on-empty/on-non-empty (internal rows
+  vacuous and remove-deemed-empty), message and assert (XSLT_MESSAGE
+  trace events, error-code resolved), fork, evaluate (fallback or
+  XTDE3175), global variables and parameters (dependency order,
+  XTDE0640, XTSE0630, XTDE0050). Scratch harness over the twelve sets:
+  105 of 181 runnable cases pass (before: none of the instructions
+  lowered); the rest wait for template parameters, functions or XPath
+  assertions. debug, debug-gcc, wasm, lint clean (HEAD's xpath_static
+  failure is 2.19's pending test update).
+
 - 2.19b done (D147): counted repetition whose copies would pass 256
   instructions runs as a counted loop (the atom once, a counter slot on
   the backtrack stack's restoring entries), so `a{2147483647}` is six
