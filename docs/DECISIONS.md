@@ -2998,16 +2998,66 @@ vendored with QT4 (PR 2734 for selectors).
   (see "Proposed"). fn-function-lookup stays at 85%: its other 85
   failures are functions other packets add.
 
+### D116. Collations and comparison options (packet 2.13)
+Recorded 2026-10-17. Completes D97's collations in `src/collation.c`
+(`src/collation_internal.h`), used through one resolver.
+- **Four collations**: codepoint, HTML ASCII case-insensitive, and also
+  the Unicode case-insensitive collation (F&O 4.0, section 5.2.5, which
+  every processor must recognize; D97 predates it), and UCA URIs with
+  fallback. fallback=no, and a fallback value other than yes/no, is not
+  supported (FOCH0002); unknown keywords and values are ignored, the last
+  value of a keyword wins, `maxVariable`, `caseFirst` and `caseLevel`
+  also in their `max-variable` spellings.
+- **UCA fallback** (glossary `uca_fallback`): every codepoint's full
+  compatibility decomposition gives collation elements: a base character
+  primary = its lower-case codepoint + 1 (codepoint order without case),
+  secondary common, tertiary 1/2 for lower/upper (swapped by caseFirst=
+  upper) + 2 for a compatibility variant; a combining mark (combining
+  class > 0) only secondary = 2 + codepoint. Variable characters
+  (whitespace, then P, Sm/Sk/So, Sc up to maxVariable) are shifted to a
+  quaternary weight or blanked. Levels: primary, secondary (backwards
+  reverses it), case (caseLevel), tertiary, quaternary (shifted only),
+  identical (codepoints). lang, version, normalization, numeric and
+  reorder are ignored. QT4 fn-collation, misc-UCACollation and fn-compare
+  pass with it; the tables of advanced-uca-fallback stay out (D97).
+- **Keys and matching**: a key lists each compared level's nonzero
+  weights in three bytes, levels separated by three zero bytes, so keys
+  compare as bytes (`fn:collation-key` returns them as xs:base64Binary)
+  and strings compare by keys. Substring matching (contains, starts-with,
+  ends-with, substring-before/-after/-before-last/-after-last) compares
+  collation units and accepts matches at codepoint boundaries only; the
+  codepoint collation stays a byte search. distinct-values,
+  duplicate-values, all-equal and all-different hash collation keys.
+- **One resolver** (`sxml_function_library_find_collation` /
+  `_resolve_collation`, `src/function_library.c`): empty is the default
+  collation, which is the codepoint collation until the static context's
+  `default_collation_uri` and `collation_bindings` reach the evaluator
+  (Proposed); a relative URI resolves against the static base URI (none:
+  FOCH0002); FOCH0002 only for URIs sxml does not support. Bodies outside
+  the string, sequence and deep-equal parts keep
+  `sxml_function_library_check_collation`, which now also raises
+  FOCH0002 for supported collations other than codepoint (Proposed:
+  `sxml_function_library_compare_collated`).
+- **`sxml_collation_is_supported`** (D104) is defined in
+  `src/collation.c`, not `src/xpath.c`: the lookup lives there and 2.12
+  has not run; 2.12 must not define it again. The QT4 driver's collation
+  check calls it; its dependency table now also lists
+  unicode-normalization-form FULLY-NORMALIZED (accepting 2.4's proposal).
+- **fn:deep-equal 4.0** (`src/function_library_deep_equal.c`): every
+  option. A resumable body (D75) for `items-equal` (asked before each item
+  pair, attributes and single text nodes included; a leaf entry stays for
+  array:index-of). "ordered": false and `unordered-elements` are
+  unordered cursors on the explicit stack: each unit tries the unmatched
+  candidates, a difference inside a trial truncates the stack to the
+  cursor and tries the next (first fit). Function items: same item, or
+  same body, arity, name and signature with deep-equal captured values;
+  separately written inline functions are not compared for equivalence
+  (Proposed). Without schemas typed-values and type-variety change
+  nothing; debug writes nothing; options are coerced (a node or
+  xs:untypedAtomic for a boolean).
+
 ## Proposed
 
-- **FULLY-NORMALIZED in the QT4 driver** (packet 2.4, D107; for the
-  owner of `tests/qt4/driver/applicability.c`, packet 2.16): fn:normalize-
-  unicode supports FULLY-NORMALIZED, so the supported dependencies should
-  list `unicode-normalization-form` `FULLY-NORMALIZED` next to NFC, NFD,
-  NFKC and NFKD. Then the two "not implemented" variants
-  (cbcl-fn-normalize-unicode-001a, -006a) stop running and the five
-  FULLY-NORMALIZED cases run: fn-normalize-unicode 44 of 44 (checked in
-  a private snapshot).
 - **IR adders for catch clauses and name tests** (packet 3.6, D109; for
   the owner of `src/ir_internal.h`/`src/ir.c`, needed by the lowering of
   try/catch in 3.7): the unit has the reserved arrays `name_tests` and
@@ -3059,3 +3109,32 @@ vendored with QT4 (PR 2734 for selectors).
   LIMIT_EXCEEDED for `-1 = -100000000000 to -1`; proposed: use
   `0 = (1 to 100000000000, 2)` there (a concatenation is still charged
   per pair, D89). 2.6 then lands the fast path in `src/evaluator.c`.
+
+- **The default collation in the evaluator** (packet 2.13, D116; for the
+  owner of `src/processor.c`/`src/xpath.c`, 2.12, and of
+  `src/evaluator_internal.h`): `default_collation_uri` and
+  `collation_bindings` of the static context should reach the dynamic
+  context, e.g. `sxml_dynamic_context_get_default_collation_uri(context)`
+  and `sxml_dynamic_context_find_collation_binding(context, uri, &target)`.
+  `sxml_function_library_find_collation` is the one place to consult them
+  (empty URI, then bindings before `sxml_collation_find`);
+  fn:default-collation then returns the URI. QT4 cases with
+  `<collation default="true"/>` need it.
+- **Collations in the other comparing bodies** (packet 2.13, D116; for
+  the owners of `src/function_library_numeric.c`,
+  `src/function_library_higher_order.c`, `src/function_library_array.c`
+  and the evaluator's SORT): fn:min/max, fn:highest/lowest, fn:sort-by,
+  array:sort and order-by keys with a collation still accept only the
+  codepoint collation (FOCH0002 otherwise, through
+  `sxml_function_library_check_collation` or their own checks). They
+  should resolve with `sxml_function_library_resolve_collation` and
+  compare with `sxml_function_library_compare_collated`
+  (`src/function_library_core_internal.h`).
+- **Equivalence of function items** (packet 2.13, D116; for the owner of
+  `src/ir.c`): F&O 4.0 (PR 2805) makes two inline functions deep-equal
+  when they are equivalent (`fn($x) { $x }` and `fn($y) { $y }`); about 30
+  QT4 fn-deep-equal cases need it, without which the set stays below 95%.
+  Proposed: `bool sxml_ir_function_is_equivalent(const sxml_ir_function *,
+  const sxml_ir_function *)`, walking both bodies on an explicit stack
+  (kinds, atoms, constants, slots, types); deep-equal calls it when both
+  bodies are IR functions and then compares the captured values as now.
