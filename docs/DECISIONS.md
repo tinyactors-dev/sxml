@@ -3539,6 +3539,106 @@ added. Contract in `src/xquery_lower_internal.h`.
   for three (fn:message missing, `local:` undeclared, one driver
   assertion).
 
+### D127. The HTML, text, JSON and CSV methods; fn:serialize (packet 3.4)
+Recorded 2026-10-17. Every method runs on the 3.3 pipeline (D120); no
+second writer or escaper was added.
+- **Escape styles**: `sxml_escape_style` grows HTML, NONE (text), JSON and
+  CSV; a method picks one in `sxml_serializer_resolve_pipeline`, so
+  character maps, normalization, line endings and the encoding apply to
+  all of them in one place. A new character context RAW_TEXT (glossary
+  `raw_text`) writes mapped, normalized, unescaped text (HTML script and
+  style; SERE0008 for an unencodable character). Character maps now apply
+  to every method but adaptive and the canonical forms (section 12).
+- **HTML** is a mode of the XML node writer in `src/serialize_xml.c`
+  (`is_html`, with `has_html_rules` for what XHTML and HTML share);
+  `src/serialize_html.c` holds what HTML adds: void and HTML 4 empty
+  elements (one table, also used by XHTML), boolean attributes (the HTML
+  4.01 and HTML5 lists), raw text elements, processing instructions
+  (`<?t d>` before HTML5, SERE0015 for ">"; `<!--?t d?-->` with HTML5).
+  Requested version: html-version, else version, else 5.0. No-namespace
+  elements are HTML elements (unknown names inline, as span); with HTML5
+  also XHTML-namespace ones (unprefixed, prefix normalization of D120);
+  others are XML islands. Doctype `<!DOCTYPE html ...>`. SERE0014 for
+  controls before HTML5.
+- **Text and CSV** (`src/serialize_text.c`): text writes the string value
+  of the result tree with escape style NONE. CSV takes a map (rows,
+  columns) or a sequence of arrays; members atomize (one-member arrays
+  unwrapped, nodes by string value), else SERE0025; a field is quoted when
+  it, or a replacement of one of its mapped characters, holds the
+  separator, the quote or a line end; separator equal to the quote or a
+  line end is SEPM0016.
+- **JSON** (`src/serialize_json.c`): frames on a heap stack (D71); nodes
+  by a sub-serialization (`sxml_serializer_write_node_as_string`, which
+  calls only the XML and text methods, so no cycle); doubles by their
+  xs:double cast text, NaN null, infinities 1e9999 (SERE0020 when
+  canonical); canonical: keys sorted by UTF-16 units (heapsort), numbers
+  as ECMAScript from the shortest digits; SERE0022 checked by sorting
+  only when some key is not string-like; indentation off with json-lines.
+- **SERE0006** (left by D120): XML and XHTML with version 1.0 (the
+  default) raise it for C0 controls in text and attributes; 1.1 writes
+  references. **SERE0003** for comments with "--" or a final "-" and PIs
+  with "?>" (XML, XHTML). A character map may map any XML 1.1 Char
+  (U+0001 included; serialize.h says XML 1.0's production, D120 already
+  writes the 1.1 repertoire).
+- **Parameter reader** (`src/serialize_parameters.c`): both forms decode
+  each parameter into one value and assign it the same way. Two arenas:
+  a read fills the spare one and swaps on success. Map: unknown string
+  keys are XPTY0004 (F&O 4.0 option conventions, QT4 serialize-xml-107-40,
+  deviating from serialize.h's "ignored"), a QName key in no namespace
+  XPTY0004, in a namespace ignored; nodes atomize for character map
+  values. Document: unknown output:* children, attributes other than
+  value (character-map: character, map-string), non-whitespace text and
+  children in no namespace are SEPM0017; two children with one name
+  SEPM0019; element lists use the default namespace (the spec's example),
+  method names do not. fn:serialize (`src/function_library_serialize.c`)
+  skips the encoding phase: UTF-16 is written as UTF-8, ISO-8859-1 bytes
+  decoded, no byte order mark.
+- Not done: SERE0005 (names of the XML version), the text of nodes inside
+  the JSON method beyond the four node methods, records omitting empty
+  entries in JSON (no record marker on maps).
+
+### D127. Lowering node constructors (packet 3.9)
+Recorded 2026-10-17, completing D110 and D124 for XQuery.
+`src/xquery_lower_construct.c` is lowering part `construct`
+(SXML_LANGUAGE_XQUERY, D103) for the DIRECT_* and COMPUTED_* kinds; no IR
+kind or header change.
+- **Direct elements**: ELEMENT_CONSTRUCTOR whose content is a SEQUENCE of
+  one atom per attribute and piece of content in order (D110); literal
+  text and CDATA are xs:string constants; boundary whitespace is dropped
+  unless the prolog says boundary-space preserve. Names are xs:QName
+  constants (prefix kept) resolved while lowering (XPST0081); two
+  attributes with one expanded name are XQST0040.
+- **Namespace declaration attributes** extend the static context through
+  the embedding entry (D103), not new machinery: the element's attributes
+  and content are lowered with a copy of the static context whose
+  bindings are its declarations followed by the current ones, so the core
+  resolves names inside enclosed expressions (and nested constructors)
+  with them. An element, direct or computed, sends as namespace bindings
+  the declarations of its own and every enclosing direct constructor
+  (innermost per prefix, found by walking the frame chain), so they are
+  in scope whatever copy-namespaces says; a computed name inside one gets
+  the extended bindings as name_namespaces. A computed namespace
+  constructor binds no prefix statically.
+- **Attribute values**: "" for none, the constant for text alone, the
+  enclosed expression's atom alone (the evaluator joins with spaces);
+  mixed parts are joined with `||`, each enclosed part as a
+  TEXT_CONSTRUCTOR of its value (atomized and space-joined, empty gives
+  ""), so no library call is needed.
+- **Computed** constructors: a literal name is a constant (xs:QName for
+  element and attribute, xs:string for PI target and namespace prefix),
+  a name expression an atom; content is the atom of the enclosed
+  expression (value, or an ATOM content expression for element and
+  document). Direct comments and PIs are constructors of constants.
+- **Prolog setters** (boundary-space, construction, copy-namespaces) are
+  read from the module's PROLOG node and become construction_flags of
+  element and document constructors; they take effect once 3.10 lets
+  prologs through `sxml_xquery_lower` (D126 rejects them now).
+- Results (scratch harness: xpath.c compiling with sxml_xquery_compile,
+  as 3.7's): Constr sets 0 to 932 of 1,165 passed. Of the rest, all
+  errors but none are prologs (3.10); the 7 others are the evaluator's
+  URI whitespace in "Q{ _ _ }x" (2), `local:` not predeclared (3.10/3.12),
+  `text {''}` (D110 deviation) and a missing function (3).
+
 ## Proposed
 
 - **The item axis in the evaluator** (packet 2.5, D113; for the owner of
