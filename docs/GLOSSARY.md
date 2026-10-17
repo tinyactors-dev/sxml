@@ -278,7 +278,6 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `run_report` | The output of `sxml-qt4 run`: one entry per test case that did not pass, counts per test set and overall, as text or JSON |
 | `slice_baseline` | The number of torture-slice test cases that must pass (`tests/qt4/slice-baseline.txt`); it only goes up |
 | `xquery_slice` | The QT4 test cases of `tests/qt4/xquery-slice.txt`, run with `--spec=XQ40` by ctest `qt4/xquery-slice` against `tests/qt4/xquery-slice-baseline.txt`, which only goes up (packet 3.13) |
-| `qt4_xquery_adapter` | Temporary: the QT4 driver's stand-in for `include/sxml/xquery.h` (`tests/qt4/driver/xquery_adapter.c`), compiling through the internal `sxml_xquery_compile` until packet 3.12 implements the header (D134) |
 | `suite_path` | The path of a QT4 suite file relative to the directory of `catalog.xml`, with `.` and `..` segments removed |
 | `xslt_test_driver` | The XSLT 4.0 test-suite driver: the developer tool `sxml-xslt-test` under `tests/xslt/driver/`, a sibling of the QT4 driver that links its library (D117) |
 | `xslt_test_catalog` | The XSLT 4.0 suite's `catalog.xml` (`third_party/xslt40-test/`) as the driver holds it: its test-set entries and one open test set |
@@ -516,6 +515,9 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `parameter_document` | An `output:serialization-parameters` element giving serialization parameters (Serialization 4.0, section 3.1) |
 | `serialization_parameter_reader` | Reads serialization parameters from a parameter document or an options map and keeps what they refer to |
 | `output_declaration` | An XQuery option declaration in the serialization namespace (`declare option output:indent "yes"`, XQuery 4.0, section 5.22) |
+| `serialization_parameter_text` | A serialization parameter given as text, as an output declaration gives it: the parameter's local name and a value in the lexical form of a parameter document (D146) |
+| `unit_evaluation` | One evaluation of a sealed IR unit with the host's dynamic context: what the XPath and XQuery APIs share (`sxml_evaluate_unit`, D146) |
+| `query_run` | In the `sxml` program: one run of a query command (`xpath`, `xquery`, `serialize`): its processor, `--param` bindings and context item (`apps/sxml/query_command.h`) |
 | `sequence_normalization` | Turning the sequence to serialize into one result tree: JNodes to their values, arrays flattened, atomic items to text, documents replaced by their children, adjacent text merged (Serialization 4.0, section 2) |
 | `result_tree` | The document node that sequence normalization makes; what the XML, XHTML, HTML and text methods write |
 | `sequence_normalizer` | Gives the children of the result tree one at a time (`normalized_event`: text or a node to copy), without building the tree |
