@@ -263,6 +263,11 @@ the static context, the sink, environment variables; unparsed-text,
 collection, uri-collection, environment-variable,
 available-environment-variables, default-language, fn:trace and
 fn:message. Done when those sets reach ≥ 95% under the 2.16 driver.
+**Done** 2026-10-17 (D131): part `resource`; evaluation environment on
+the processor's loader; decimal formats and collations lexical on the IR
+unit (with 2.9's and 2.13's proposals) and 2.6's range fast path. Every
+set ≥ 95% of run cases except fn-json-doc 73/77 (fallback functions in
+fn:parse-json); fn-format-number 285/286.
 
 ### 2.13 Collations and comparison options (implementation)
 After 2.4. Owns `src/collation.c`, `src/collation_internal.h`,
