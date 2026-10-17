@@ -1,0 +1,95 @@
+============================================================
+Zero-length template
+============================================================
+---
+
+(value_template
+  (value_template_body))
+
+============================================================
+Fixed part only
+============================================================
+images/photo.jpg
+---
+
+(value_template
+  (value_template_body
+    (value_template_fixed_part)))
+
+============================================================
+Fixed and variable parts
+============================================================
+{ $image-dir }/{ href }
+---
+
+(value_template
+  (value_template_body
+    (enclosed_expression
+      (variable_reference
+        (ncname)))
+    (value_template_fixed_part)
+    (enclosed_expression
+      (axis_step
+        (ncname)))))
+
+============================================================
+Doubled curly brackets
+============================================================
+{{a}} {{{1}}}
+---
+
+(value_template
+  (value_template_body
+    (value_template_fixed_part)
+    (enclosed_expression
+      (integer_literal))
+    (value_template_fixed_part)))
+
+============================================================
+Empty variable parts and comments
+============================================================
+a{}b{ }c{(: } :)}d
+---
+
+(value_template
+  (value_template_body
+    (value_template_fixed_part)
+    (enclosed_expression)
+    (value_template_fixed_part)
+    (enclosed_expression)
+    (value_template_fixed_part)
+    (enclosed_expression
+      (comment))
+    (value_template_fixed_part)))
+
+============================================================
+Curly brackets in string literals and constructors
+============================================================
+{'}'}{map{1:2}}`(: not a comment :)
+---
+
+(value_template
+  (value_template_body
+    (enclosed_expression
+      (string_literal))
+    (enclosed_expression
+      (map_constructor
+        (map_constructor_entry
+          (integer_literal)
+          (integer_literal))))
+    (value_template_fixed_part)))
+
+============================================================
+A string template in a variable part
+============================================================
+{`x{{{1}}}y`}
+---
+
+(value_template
+  (value_template_body
+    (enclosed_expression
+      (string_template
+        (string_template_fixed_part)
+        (enclosed_expression
+          (integer_literal))
+        (string_template_fixed_part)))))

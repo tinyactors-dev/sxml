@@ -1,0 +1,19 @@
+{
+  "grammars": [
+    {
+      "name": "value_template",
+      "camelcase": "ValueTemplate",
+      "scope": "source.xslt-value-template",
+      "path": ".",
+      "file-types": ["xslv"]
+    }
+  ],
+  "metadata": {
+    "version": "0.1.0",
+    "license": "MIT",
+    "description": "XSLT 4.0 value template grammar for sxml",
+    "links": {
+      "repository": "https://github.com/dhamidi/sxml"
+    }
+  }
+}
