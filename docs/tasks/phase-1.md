@@ -313,6 +313,34 @@ through the public API alone, with allocation-failure loops on compile.
 slice queries round-trip in `tests/xpath_test.c` (public headers only),
 allocation-failure loops on create, compile and evaluate; P9 accepted as
 D89 (`maximum_evaluation_step_count`); `sxml xpath` with 19 golden tests.
+**1.23b follow-ups** 2026-10-17 (D91): 62 more functions (math namespace,
+QName and in-scope-namespace functions, doc-available, base-uri,
+document-uri, has-children, generate-id, translate, compare, slice,
+items-at, duration components, parse-integer, ...); adaptive output names
+the type annotation; the static base URI is lexical (carried by IR
+units); leaf library work charges evaluation steps. Still missing, with
+the XP40 test cases of their own sets (77 functions, 4,165 cases):
+graphemes 918, format-number 236, map-to-element 228, serialize 194,
+element-to-map 181, parse-csv 124, format-date 124, parse-ietf-date 105,
+format-time 94, build-dateTime 90, format-integer 87, format-dateTime 80,
+parse-uri 74, collation 73, csv-to-xml 68, path 60, unparsed-text 58,
+innermost 58, outermost 55, hash 54, adjust-dateTime-to-timezone 50, char
+48, build-uri 48, adjust-time-to-timezone 42, adjust-date-to-timezone 41,
+normalize-unicode 41 (needs Unicode decomposition tables),
+parse-xml-fragment 39, matching-segments 38, lang 38,
+ends-with-subsequence 32, starts-with-subsequence 32, type-of 31,
+contains-subsequence 31, analyze-string 30, regex 30, decode-from-uri 29,
+unparsed-text-available 28, unparsed-text-lines 25, seconds 24,
+collation-key 23, system-properties 23, pad-string 22, parse-html 22,
+unix-dateTime 22, index-of-substring 21, divide-decimals 21,
+element-to-map-plan 20, parts-of-dateTime 20, csv-doc 20, parse-QName 19,
+days-in-month 18, duration-to-seconds 18, siblings 18, jkey 17, id 17,
+jvalue 16, invisible-xml 16, unparsed-binary 16, nilled 14, message 14,
+json-doc 13, environment-variable 12, collection 10, html-doc 10, idref 10,
+available-environment-variables 10, civil-timezone 9, schema-type 9,
+characters 8, collation-available 8, resolve-QName 8, uri-collection 7,
+location 5, default-language 5, atomic-type-annotation 2,
+node-type-annotation 2, transform 2 (all fn:).
 
 ### 1.24 QT4 driver: catalog and environments (implementation)
 After 1.3, 1.14, the CLI framework (D44). Owns `tests/qt4/driver/`. Golden:
@@ -330,6 +358,10 @@ ones (reported "unsupported", failing); `assert` binds `$result`; a wrong
 error code passes and is reported. Counts per test set, text and
 `--format=json`. ctest `qt4_slice` fails on any slice failure. Done when
 198/198 pass under `debug` and `debug-gcc`.
+**Done** 2026-10-17 (D91): `sxml-qt4 run`; 198/198 pass under `debug`,
+`debug-gcc` and `wasm`; ctest `qt4/slice` fails below the baseline in
+`tests/qt4/slice-baseline.txt` (198). Serialization assertions are
+not-run rather than failing; no `--output` (no file writer in the CLI).
 
 ### 1.26 Fuzz targets (implementation)
 After 1.12, 1.14. Owns `tests/fuzz/`, a `fuzz` preset in `CMakePresets.json`.
