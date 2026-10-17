@@ -2843,7 +2843,7 @@ static sxml_status resolve_cast_target(sxml_xpath_lowerer *state,
             &(sxml_name_request){.namespace_uri = resolved.namespace_uri,
                                  .local_name = resolved.local_name},
             &name) ||
-        !sxml_type_registry_find_type(state->type_registry, name, &type) ||
+        !sxml_xpath_find_named_type(state->static_context, name, &type) ||
         sxml_type_registry_describe_type(state->type_registry, type,
                                          &description) != SXML_STATUS_OK) {
         return sxml_xpath_lowerer_report_static_error(

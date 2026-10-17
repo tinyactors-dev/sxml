@@ -38,7 +38,15 @@
  *   the fn namespace, is searched among no-namespace declared functions
  *   first when no default function namespace is declared (5.14.2);
  * - the static base URI of a base URI declaration, resolved against the
- *   host's.
+ *   host's;
+ * - the decimal formats (5.10: the host's, those the prolog declares
+ *   replacing the host's of the same name) and the default collation (5.4)
+ *   in unit_static_context, which lowering copies into the unit (D131);
+ * - named item types (5.19) as aliases of the static context (D135), and
+ *   nominative record types (5.20) declared in the type registry (a
+ *   record of the same name declared before, by an earlier compilation
+ *   for the same item heap, is reused), with a constructor function for
+ *   %constructor records.
  *
  * Checked here (static errors in the error record): XQST0033, XQST0066,
  * XQST0070 (namespaces), XQST0068, XQST0038, XQST0032, XQST0067,
@@ -46,7 +54,8 @@
  * declaration twice), XQST0038 (an unknown default collation), XQST0049
  * (a variable twice, also against the host's), XQST0034 (arity ranges of
  * one name overlap), XQST0039, XQST0045, XQST0106, XQST0116, XQST0148,
- * XQST0009 (schema import, D97), XQST0109 and XQST0110 (output
+ * XQST0009 (schema import, D97), XQST0111, XQST0114, XQST0097 and
+ * XQST0098 (decimal formats), XQST0109 and XQST0110 (output
  * declarations, whose values the serializer reads), XPST0081 and the
  * type errors of sxml_xpath_resolve_sequence_type. Annotations in a reserved namespace
  * other than %public and %private are XQST0045 (5.15), so %updating is
@@ -73,7 +82,23 @@ typedef struct sxml_xquery_declared_function {
        signatures from first_signature on, one per arity. */
     size_t first_signature;
     sxml_sequence_type result_type;
+    /* For the constructor of a record (declaration a
+       NOMINATIVE_RECORD_TYPE_DECLARATION, 5.20.2): the record type; 0
+       for a FUNCTION_DECLARATION. */
+    sxml_type_identifier record_type;
 } sxml_xquery_declared_function;
+
+/* A nominative record type the prolog declares (5.20). */
+typedef struct sxml_xquery_declared_record {
+    sxml_ast_node_index declaration;
+    sxml_name_identifier record_name;
+    sxml_type_identifier record_type;
+    /* With %constructor (5.20.2). */
+    bool has_constructor;
+    /* Declared by this prolog, not by an earlier compilation for the same
+       item heap. */
+    bool is_new;
+} sxml_xquery_declared_record;
 
 /* What sxml_xquery_read_static_context reads. */
 typedef struct sxml_xquery_static_request {
@@ -113,6 +138,11 @@ typedef struct sxml_xquery_static_context {
     sxml_sequence_type *parameter_types;
     sxml_function_parameter *function_parameters;
     sxml_type_identifier *signatures;
+    /* Named item types (5.19) and nominative record types (5.20). */
+    sxml_xpath_named_item_type *named_item_types;
+    size_t named_item_type_count;
+    sxml_xquery_declared_record *declared_records;
+    size_t declared_record_count;
     /* The CONTEXT_VALUE_DECLARATION; 0 for none. */
     sxml_ast_node_index context_value_declaration;
     /* The required type of the initial context value (5.17). */
@@ -122,6 +152,12 @@ typedef struct sxml_xquery_static_context {
     /* What xpath.static_base_uri views when a base URI declaration made it;
        NULL otherwise. */
     void *static_base_uri_memory;
+    /* What xpath.unit_static_context's default collation URI views when a
+       default collation declaration made it, and its decimal formats and
+       their properties when the prolog declares any; NULL otherwise. */
+    void *default_collation_memory;
+    sxml_decimal_format *decimal_formats;
+    sxml_decimal_format_property *decimal_format_properties;
 } sxml_xquery_static_context;
 
 /*
@@ -139,6 +175,30 @@ SXML_NODISCARD sxml_status sxml_xquery_read_static_context(
 /* Releases what sxml_xquery_read_static_context allocated. NULL is
    allowed. */
 void sxml_xquery_release_static_context(sxml_xquery_static_context *context);
+
+/*
+ * The parameters of a declared function: the PARAMETER_WITH_DEFAULT
+ * children of a FUNCTION_DECLARATION, or the fields of a
+ * NOMINATIVE_RECORD_TYPE_DECLARATION but the %static ones (its
+ * constructor's, 5.20.2). Each has a DEFAULT child when it has a default.
+ * 0 after the last.
+ */
+sxml_ast_node_index sxml_xquery_first_parameter(const sxml_ast *ast,
+                                                sxml_ast_node_index declaration);
+sxml_ast_node_index sxml_xquery_next_parameter(const sxml_ast *ast,
+                                               sxml_ast_node_index parameter);
+
+/* A parameter's name node: a Name, or for a field an NCNAME or
+   STRING_LITERAL. */
+sxml_ast_node_index sxml_xquery_parameter_name(const sxml_ast *ast,
+                                               sxml_ast_node_index parameter);
+
+/* A parameter's SEQUENCE_TYPE node; 0 when it has no declared type. */
+sxml_ast_node_index sxml_xquery_parameter_type(const sxml_ast *ast,
+                                               sxml_ast_node_index parameter);
+
+/* The name of an EXTENDED_FIELD_DECLARATION, borrowed from the AST. */
+sxml_byte_view sxml_xquery_field_name(const sxml_ast *ast, sxml_ast_node_index field);
 
 /* The declared function of a FUNCTION_DECLARATION node; NULL for none. */
 const sxml_xquery_declared_function *sxml_xquery_find_declared_function(

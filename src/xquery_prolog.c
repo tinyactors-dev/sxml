@@ -173,16 +173,24 @@ static sxml_status push_parameters(module_lowering *module, parameter_scope scop
     sxml_xpath_lowerer *state = module->lowerer;
     sxml_status status = SXML_STATUS_OK;
     uint32_t parameter_number = 1;
-    for (sxml_ast_node_index parameter =
-             child_of(module->ast, scope.declaration, SXML_AST_FIELD_PARAMETER);
+    for (sxml_ast_node_index parameter = sxml_xquery_first_parameter(module->ast, scope.declaration);
          status == SXML_STATUS_OK && parameter.value != 0 &&
          parameter_number <= scope.parameter_count;
-         parameter = sxml_ast_find_next_with_same_field(module->ast, parameter)) {
-        const sxml_ast_node_index variable =
-            child_of(module->ast, parameter, SXML_AST_FIELD_VARIABLE);
+         parameter = sxml_xquery_next_parameter(module->ast, parameter)) {
         sxml_name_identifier name = {0};
-        status = sxml_xpath_lowerer_resolve_variable_name(
-            state, child_of(module->ast, variable, SXML_AST_FIELD_NAME), &name);
+        if (node_of(module->ast, parameter)->kind == SXML_AST_KIND_EXTENDED_FIELD_DECLARATION) {
+            /* A record constructor's parameter: the field's name, in no
+               namespace (5.20.2). */
+            status = sxml_name_pool_intern_name(
+                state->name_pool,
+                &(sxml_name_request){
+                    .namespace_uri = sxml_well_known_namespace_identifier(SXML_NAMESPACE_NONE),
+                    .local_name = sxml_xquery_field_name(module->ast, parameter)},
+                &name);
+        } else {
+            status = sxml_xpath_lowerer_resolve_variable_name(
+                state, sxml_xquery_parameter_name(module->ast, parameter), &name);
+        }
         if (status == SXML_STATUS_OK) {
             status = sxml_xpath_lowerer_push_variable(
                 state, (sxml_xpath_lowering_scope_entry){.variable_name = name,
@@ -322,9 +330,9 @@ static sxml_status lower_defaults(module_lowering *module, default_request reque
     sxml_xpath_lowering_block block = {0};
     uint32_t parameter_number = 0;
     for (sxml_ast_node_index parameter =
-             child_of(module->ast, function->declaration, SXML_AST_FIELD_PARAMETER);
+             sxml_xquery_first_parameter(module->ast, function->declaration);
          status == SXML_STATUS_OK && parameter.value != 0;
-         parameter = sxml_ast_find_next_with_same_field(module->ast, parameter)) {
+         parameter = sxml_xquery_next_parameter(module->ast, parameter)) {
         parameter_number += 1;
         if (parameter_number <= request.arity) {
             arguments[parameter_number - 1] = slot_atom(parameter_number);
@@ -395,6 +403,128 @@ static sxml_status lower_defaults(module_lowering *module, default_request reque
     return sxml_ir_unit_replace_function(module->unit, &replacement);
 }
 
+/* The full arity of a record's constructor (5.20.2): a map of every
+   field, the parameters' values and the %static fields' defaults, coerced
+   to the record type. */
+static sxml_status lower_constructor(module_lowering *module,
+                                     const sxml_xquery_declared_function *function) {
+    sxml_xpath_lowerer *state = module->lowerer;
+    const sxml_ast *ast = module->ast;
+    const sxml_ir_function_index index = {
+        .value = function->first_function.value +
+                 (function->parameter_count - function->required_count)};
+    size_t field_count = 0;
+    for (sxml_ast_node_index field = child_of(ast, function->declaration, SXML_AST_FIELD_FIELD);
+         field.value != 0; field = sxml_ast_find_next_with_same_field(ast, field)) {
+        field_count += 1;
+    }
+    sxml_ir_map_entry *entries = NULL;
+    sxml_status status = sxml_xpath_lowerer_allocate_scratch(
+        state,
+        (sxml_xpath_lowering_scratch_request){.element_count = field_count,
+                                              .element_size = sizeof(sxml_ir_map_entry),
+                                              .element_alignment = alignof(sxml_ir_map_entry)},
+        (void **)&entries);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_xpath_lowering_function_frame frame = {
+        .function = {.function_index = index,
+                     .function_level = 0,
+                     .slot_count = function->parameter_count,
+                     .captures = NULL,
+                     .capture_count = 0},
+        .focus = {.kind = SXML_XPATH_LOWERING_FOCUS_KIND_ABSENT},
+    };
+    sxml_xpath_lowerer_enter_function(state, &frame);
+    sxml_xpath_lowering_block block = {0};
+    uint32_t parameter_number = 0;
+    size_t entry_index = 0;
+    for (sxml_ast_node_index field = child_of(ast, function->declaration, SXML_AST_FIELD_FIELD);
+         status == SXML_STATUS_OK && field.value != 0;
+         field = sxml_ast_find_next_with_same_field(ast, field)) {
+        status = sxml_xpath_lowerer_add_string_constant(
+            state, sxml_xquery_field_name(ast, field), &entries[entry_index].key);
+        if (status != SXML_STATUS_OK) {
+            break;
+        }
+        if ((node_of(ast, field)->flags & SXML_AST_FLAG_STATIC) == 0) {
+            parameter_number += 1;
+            entries[entry_index].value = slot_atom(parameter_number);
+        } else {
+            const sxml_ast_node_index default_value = child_of(ast, field, SXML_AST_FIELD_DEFAULT);
+            sxml_ir_expression_index lowered = {0};
+            if (default_value.value != 0) {
+                status = sxml_xpath_lowerer_lower_embedded(
+                    state,
+                    &(sxml_xpath_lowering_embedding){
+                        .ast = ast, .node = default_value, .static_context = NULL, .focus = NULL},
+                    &lowered);
+            } else {
+                status = sxml_xpath_lowerer_add_empty_sequence(state, field, &lowered);
+            }
+            if (status == SXML_STATUS_OK) {
+                status = sxml_xpath_lowerer_bind_expression(
+                    state,
+                    (sxml_xpath_lowering_expression_in_block){.block = &block,
+                                                              .expression = lowered},
+                    &entries[entry_index].value);
+            }
+        }
+        entry_index += 1;
+    }
+    sxml_ir_map_entry_list entry_list = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ir_unit_add_map_entries(
+            module->unit,
+            (sxml_ir_map_entry_view){.map_entries = entries, .map_entry_count = field_count},
+            &entry_list);
+    }
+    sxml_ir_expression_index map = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_add_expression(
+            state,
+            (sxml_xpath_lowering_expression_to_add){
+                .node = function->declaration,
+                .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_MAP_CONSTRUCTOR,
+                               .map_constructor = {.entries = entry_list}}},
+            &map);
+    }
+    sxml_ir_atom value = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_bind_expression(
+            state, (sxml_xpath_lowering_expression_in_block){.block = &block, .expression = map},
+            &value);
+    }
+    sxml_ir_expression_index coerced = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_add_expression(
+            state,
+            (sxml_xpath_lowering_expression_to_add){
+                .node = function->declaration,
+                .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_COERCE,
+                               .coercion = {.value = value,
+                                            .sequence_type = function->result_type,
+                                            .role = SXML_IR_COERCION_ROLE_FUNCTION_RESULT}}},
+            &coerced);
+    }
+    sxml_ir_expression_index body = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_finish_block(
+            state, (sxml_xpath_lowering_block_result){.block = block, .result = coerced}, &body);
+    }
+    sxml_xpath_lowerer_leave_function(state, &frame);
+    sxml_xpath_lowerer_release_scratch(state, entries);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_ir_function_replacement replacement = {
+        .index = index, .function = *sxml_ir_unit_get_function(module->unit, index)};
+    replacement.function.body = body;
+    replacement.function.slot_count = frame.function.slot_count;
+    return sxml_ir_unit_replace_function(module->unit, &replacement);
+}
+
 /* Lowers every IR function of every declared function, recording each
    one's region. */
 static sxml_status lower_declared_functions(module_lowering *module) {
@@ -414,6 +544,8 @@ static sxml_status lower_declared_functions(module_lowering *module) {
             if (arity < function->parameter_count) {
                 status = lower_defaults(module,
                                         (default_request){.function = function, .arity = arity});
+            } else if (function->record_type.index != 0) {
+                status = lower_constructor(module, function);
             } else {
                 status = lower_body(
                     module,
@@ -1101,6 +1233,10 @@ static sxml_status run_lowering(const lowering_run *run, sxml_ir_unit *unit) {
     }
     if (status == SXML_STATUS_OK) {
         status = sxml_ir_unit_set_static_base_uri(unit, run->context->xpath.static_base_uri);
+    }
+    if (status == SXML_STATUS_OK) {
+        /* Decimal formats and collations, read lexically (D131). */
+        status = sxml_ir_unit_set_static_context(unit, &run->context->xpath.unit_static_context);
     }
     return status;
 }

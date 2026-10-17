@@ -13,6 +13,7 @@
  */
 #include "xquery_static_internal.h"
 
+#include "format_internal.h"
 #include "sxml/memory.h"
 #include "sxml/xdm.h"
 #include "xdm_internal.h"
@@ -55,6 +56,60 @@ static sxml_ast_node_index first_declaration(const sxml_ast *ast) {
         return prolog;
     }
     return child_of(ast, prolog, SXML_AST_FIELD_DECLARATION);
+}
+
+/* --------------------------------------------------------- Parameters */
+
+static bool is_static_field(const sxml_ast *ast, sxml_ast_node_index node) {
+    return node_of(ast, node)->kind == SXML_AST_KIND_EXTENDED_FIELD_DECLARATION &&
+           (node_of(ast, node)->flags & SXML_AST_FLAG_STATIC) != 0;
+}
+
+static sxml_ast_node_index skip_static_fields(const sxml_ast *ast, sxml_ast_node_index node) {
+    sxml_ast_node_index parameter = node;
+    while (parameter.value != 0 && is_static_field(ast, parameter)) {
+        parameter = next_of(ast, parameter);
+    }
+    return parameter;
+}
+
+sxml_ast_node_index sxml_xquery_first_parameter(const sxml_ast *ast,
+                                                sxml_ast_node_index declaration) {
+    if (node_of(ast, declaration)->kind == SXML_AST_KIND_NOMINATIVE_RECORD_TYPE_DECLARATION) {
+        return skip_static_fields(ast, child_of(ast, declaration, SXML_AST_FIELD_FIELD));
+    }
+    return child_of(ast, declaration, SXML_AST_FIELD_PARAMETER);
+}
+
+sxml_ast_node_index sxml_xquery_next_parameter(const sxml_ast *ast,
+                                               sxml_ast_node_index parameter) {
+    return skip_static_fields(ast, next_of(ast, parameter));
+}
+
+sxml_ast_node_index sxml_xquery_parameter_name(const sxml_ast *ast,
+                                               sxml_ast_node_index parameter) {
+    if (node_of(ast, parameter)->kind == SXML_AST_KIND_EXTENDED_FIELD_DECLARATION) {
+        return child_of(ast, parameter, SXML_AST_FIELD_NAME);
+    }
+    return child_of(ast, child_of(ast, parameter, SXML_AST_FIELD_VARIABLE), SXML_AST_FIELD_NAME);
+}
+
+sxml_ast_node_index sxml_xquery_parameter_type(const sxml_ast *ast,
+                                               sxml_ast_node_index parameter) {
+    if (node_of(ast, parameter)->kind == SXML_AST_KIND_EXTENDED_FIELD_DECLARATION) {
+        return child_of(ast, parameter, SXML_AST_FIELD_TYPE);
+    }
+    const sxml_ast_node_index declaration =
+        child_of(ast, child_of(ast, parameter, SXML_AST_FIELD_VARIABLE), SXML_AST_FIELD_TYPE);
+    return child_of(ast, declaration, SXML_AST_FIELD_TYPE);
+}
+
+sxml_byte_view sxml_xquery_field_name(const sxml_ast *ast, sxml_ast_node_index field) {
+    const sxml_ast_node_index name = child_of(ast, field, SXML_AST_FIELD_NAME);
+    if (node_of(ast, name)->kind == SXML_AST_KIND_STRING_LITERAL) {
+        return text_of(ast, name);
+    }
+    return sxml_ast_get_text(ast, node_of(ast, name)->payload.name.local_name);
 }
 
 /* ------------------------------------------------------------ Reading */
@@ -290,12 +345,48 @@ typedef struct prolog_survey {
     size_t function_declaration_count;
     size_t parameter_count;
     size_t signature_count;
+    size_t item_type_declaration_count;
+    size_t record_declaration_count;
+    size_t decimal_format_declaration_count;
+    size_t decimal_format_property_count;
     sxml_ast_node_index default_element_namespace;
     sxml_ast_node_index default_function_namespace;
     sxml_ast_node_index base_uri_declaration;
     sxml_ast_node_index default_collation_declaration;
     sxml_ast_node_index context_value_declaration;
 } prolog_survey;
+
+/* Counts the parameters of a function declaration or of a record's
+   constructor (5.18.3, 5.20.2): XQST0148 for a required one after an
+   optional one. */
+static sxml_status survey_parameters(const static_reader *reader,
+                                     sxml_ast_node_index declaration, prolog_survey *survey) {
+    const sxml_ast *ast = reader->ast;
+    size_t parameter_count = 0;
+    size_t required_count = 0;
+    for (sxml_ast_node_index parameter = sxml_xquery_first_parameter(ast, declaration);
+         parameter.value != 0; parameter = sxml_xquery_next_parameter(ast, parameter)) {
+        const bool has_default =
+            child_of(ast, parameter, SXML_AST_FIELD_DEFAULT).value != 0;
+        if (!has_default && required_count != parameter_count) {
+            /* 5.18.3: required parameters come first. */
+            return report(reader, parameter,
+                          SXML_BYTE_VIEW_FROM_LITERAL(
+                              "XQST0148 a required parameter follows an optional one"));
+        }
+        parameter_count += 1;
+        if (!has_default) {
+            required_count += 1;
+        }
+    }
+    if (parameter_count >= UINT32_MAX / 4) {
+        return SXML_STATUS_LIMIT_EXCEEDED;
+    }
+    survey->function_declaration_count += 1;
+    survey->parameter_count += parameter_count;
+    survey->signature_count += parameter_count - required_count + 1;
+    return SXML_STATUS_OK;
+}
 
 static sxml_status survey_declaration(const static_reader *reader,
                                       sxml_ast_node_index declaration,
@@ -330,33 +421,13 @@ static sxml_status survey_declaration(const static_reader *reader,
     case SXML_AST_KIND_VARIABLE_DECLARATION:
         survey->variable_declaration_count += 1;
         return SXML_STATUS_OK;
-    case SXML_AST_KIND_FUNCTION_DECLARATION: {
-        size_t parameter_count = 0;
-        size_t required_count = 0;
-        for (sxml_ast_node_index parameter =
-                 child_of(ast, declaration, SXML_AST_FIELD_PARAMETER);
-             parameter.value != 0; parameter = next_of(ast, parameter)) {
-            const bool has_default =
-                child_of(ast, parameter, SXML_AST_FIELD_DEFAULT).value != 0;
-            if (!has_default && required_count != parameter_count) {
-                /* 5.18.3: required parameters come first. */
-                return report(reader, parameter,
-                              SXML_BYTE_VIEW_FROM_LITERAL(
-                                  "XQST0148 a required parameter follows an optional one"));
-            }
-            parameter_count += 1;
-            if (!has_default) {
-                required_count += 1;
-            }
-        }
-        if (parameter_count >= UINT32_MAX / 4) {
-            return SXML_STATUS_LIMIT_EXCEEDED;
-        }
-        survey->function_declaration_count += 1;
-        survey->parameter_count += parameter_count;
-        survey->signature_count += parameter_count - required_count + 1;
-        return SXML_STATUS_OK;
-    }
+    case SXML_AST_KIND_NOMINATIVE_RECORD_TYPE_DECLARATION:
+        /* Also counted as a constructor function (5.20.2); the space is
+           unused without %constructor. */
+        survey->record_declaration_count += 1;
+        return survey_parameters(reader, declaration, survey);
+    case SXML_AST_KIND_FUNCTION_DECLARATION:
+        return survey_parameters(reader, declaration, survey);
     case SXML_AST_KIND_SCHEMA_IMPORT:
         /* D97: no schema awareness; 5.11. */
         return report(reader, declaration,
@@ -371,14 +442,15 @@ static sxml_status survey_declaration(const static_reader *reader,
         }
         return SXML_STATUS_UNSUPPORTED_FEATURE;
     case SXML_AST_KIND_ITEM_TYPE_DECLARATION:
-    case SXML_AST_KIND_NOMINATIVE_RECORD_TYPE_DECLARATION:
-        if (reader->request->error_record != NULL) {
-            reader->request->error_record->diagnostic = (sxml_diagnostic){
-                .location = sxml_ast_get_source_location(ast, declaration),
-                .description = SXML_BYTE_VIEW_FROM_LITERAL(
-                    "item type and record declarations are not supported yet")};
+        survey->item_type_declaration_count += 1;
+        return SXML_STATUS_OK;
+    case SXML_AST_KIND_DECIMAL_FORMAT_DECLARATION:
+        survey->decimal_format_declaration_count += 1;
+        for (sxml_ast_node_index property = child_of(ast, declaration, SXML_AST_FIELD_PROPERTY);
+             property.value != 0; property = next_of(ast, property)) {
+            survey->decimal_format_property_count += 1;
         }
-        return SXML_STATUS_UNSUPPORTED_FEATURE;
+        return SXML_STATUS_OK;
     default:
         return SXML_STATUS_OK;
     }
@@ -643,20 +715,52 @@ static sxml_status read_namespaces(const static_reader *reader, const prolog_sur
 /* The base URI declaration (5.5), resolved against the host's static base
    URI, and the default collation declaration (5.4), which must name a
    collation sxml supports (XQST0038). */
+/* The text of a URILiteral, whitespace normalized (A.3.1): interned as a
+   namespace URI, so the name pool owns it. */
+static sxml_status normalize_uri_text(const static_reader *reader, sxml_byte_view text,
+                                      sxml_byte_view *normalized) {
+    sxml_namespace_uri_identifier uri = {0};
+    sxml_status status = intern_uri(reader, text, &uri);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_name_pool_get_namespace_uri(reader->name_pool, uri, normalized);
+    }
+    return status;
+}
+
+/* True when collation_uri is one sxml supports or the host binds. */
+static bool is_known_collation(const sxml_xquery_static_context *context,
+                               sxml_byte_view collation_uri) {
+    const sxml_collation_binding_view bindings =
+        context->xpath.unit_static_context.collation_bindings;
+    for (size_t binding_index = 0; binding_index < bindings.collation_binding_count;
+         binding_index += 1) {
+        if (sxml_byte_view_equals(bindings.collation_bindings[binding_index].collation_uri,
+                                  collation_uri)) {
+            return true;
+        }
+    }
+    return sxml_collation_is_supported(collation_uri);
+}
+
 static sxml_status read_base_uri_and_collation(const static_reader *reader,
                                                const prolog_survey *survey,
                                                sxml_xquery_static_context *context) {
     const sxml_ast *ast = reader->ast;
     sxml_status status = SXML_STATUS_OK;
     if (survey->base_uri_declaration.value != 0) {
+        sxml_byte_view reference = {0};
+        status = normalize_uri_text(
+            reader, text_of(ast, child_of(ast, survey->base_uri_declaration, SXML_AST_FIELD_URI)),
+            &reference);
         sxml_uri_resolution resolution = {0};
-        status = sxml_uri_resolve(
-            &(sxml_uri_resolution_request){
-                .reference = text_of(ast, child_of(ast, survey->base_uri_declaration,
-                                                   SXML_AST_FIELD_URI)),
-                .base_uri = reader->request->host_static_context->static_base_uri,
-                .allocator = reader->allocator},
-            &resolution);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_uri_resolve(
+                &(sxml_uri_resolution_request){
+                    .reference = reference,
+                    .base_uri = reader->request->host_static_context->static_base_uri,
+                    .allocator = reader->allocator},
+                &resolution);
+        }
         if (status != SXML_STATUS_OK) {
             return status;
         }
@@ -664,25 +768,234 @@ static sxml_status read_base_uri_and_collation(const static_reader *reader,
         context->xpath.static_base_uri = resolution.uri;
     }
     if (survey->default_collation_declaration.value != 0) {
+        sxml_byte_view reference = {0};
+        status = normalize_uri_text(
+            reader,
+            text_of(ast, child_of(ast, survey->default_collation_declaration, SXML_AST_FIELD_URI)),
+            &reference);
         sxml_uri_resolution resolution = {0};
-        status = sxml_uri_resolve(
-            &(sxml_uri_resolution_request){
-                .reference = text_of(ast, child_of(ast, survey->default_collation_declaration,
-                                                   SXML_AST_FIELD_URI)),
-                .base_uri = context->xpath.static_base_uri,
-                .allocator = reader->allocator},
-            &resolution);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_uri_resolve(
+                &(sxml_uri_resolution_request){.reference = reference,
+                                               .base_uri = context->xpath.static_base_uri,
+                                               .allocator = reader->allocator},
+                &resolution);
+        }
         if (status != SXML_STATUS_OK) {
             return status;
         }
-        const bool is_supported = sxml_collation_is_supported(resolution.uri);
-        sxml_allocator_release(reader->allocator, resolution.memory);
-        if (!is_supported) {
+        context->default_collation_memory = resolution.memory;
+        if (!is_known_collation(context, resolution.uri)) {
             return report(reader, survey->default_collation_declaration,
                           SXML_BYTE_VIEW_FROM_LITERAL(
                               "XQST0038 the default collation is not supported"));
         }
+        /* 5.4; the unit's collation resolver reads it (D131). */
+        context->xpath.unit_static_context.default_collation_uri = resolution.uri;
     }
+    return status;
+}
+
+/* ---------------------------------------------------- Decimal formats */
+
+static sxml_status resolve_variable_name(const static_reader *reader,
+                                         sxml_ast_node_index name_node,
+                                         sxml_name_identifier *name);
+
+/* The kinds whose value is one marker character (F&O 4.0, 4.9.1). */
+static bool is_marker_only(sxml_decimal_format_property_kind kind) {
+    return kind == SXML_DECIMAL_FORMAT_PROPERTY_ZERO_DIGIT ||
+           kind == SXML_DECIMAL_FORMAT_PROPERTY_DIGIT ||
+           kind == SXML_DECIMAL_FORMAT_PROPERTY_PATTERN_SEPARATOR;
+}
+
+/* The kinds whose value is a marker and an optional ":" rendition. */
+static bool has_marker(sxml_decimal_format_property_kind kind) {
+    return is_marker_only(kind) || kind == SXML_DECIMAL_FORMAT_PROPERTY_DECIMAL_SEPARATOR ||
+           kind == SXML_DECIMAL_FORMAT_PROPERTY_GROUPING_SEPARATOR ||
+           kind == SXML_DECIMAL_FORMAT_PROPERTY_EXPONENT_SEPARATOR ||
+           kind == SXML_DECIMAL_FORMAT_PROPERTY_PERCENT ||
+           kind == SXML_DECIMAL_FORMAT_PROPERTY_PER_MILLE;
+}
+
+/* The bytes of the first UTF-8 character of text (1 for a stray byte). */
+static size_t first_character_byte_count(sxml_byte_view text) {
+    if (text.byte_count == 0) {
+        return 0;
+    }
+    const uint8_t first = text.bytes[0];
+    const size_t byte_count = first < 0x80U ? 1U : first < 0xE0U ? 2U : first < 0xF0U ? 3U : 4U;
+    return byte_count <= text.byte_count ? byte_count : 1U;
+}
+
+/* XQST0097 (5.10): a property whose value has the wrong form, judged
+   alone: one character for the markers, one character with an optional
+   ":" rendition for the markers that have a rendition, and a zero-digit
+   that F&O 4.0 accepts. */
+static bool has_valid_form(const sxml_decimal_format_property *property) {
+    const sxml_byte_view value = property->property_value;
+    if (!has_marker(property->property_kind)) {
+        return true;
+    }
+    const size_t marker_count = first_character_byte_count(value);
+    if (marker_count == 0 || value.bytes == NULL) {
+        return false;
+    }
+    if (is_marker_only(property->property_kind) && marker_count != value.byte_count) {
+        return false;
+    }
+    if (marker_count != value.byte_count && value.bytes[marker_count] != ':') {
+        return false;
+    }
+    if (property->property_kind == SXML_DECIMAL_FORMAT_PROPERTY_ZERO_DIGIT) {
+        const sxml_decimal_format_settings defaults = sxml_decimal_format_default_settings();
+        sxml_decimal_format_settings settings = defaults;
+        return sxml_decimal_format_apply(
+                   &(sxml_decimal_format_change){
+                       .base_settings = &defaults,
+                       .decimal_format_properties = {.decimal_format_properties = property,
+                                                     .decimal_format_property_count = 1}},
+                   &settings) == SXML_STATUS_OK;
+    }
+    return true;
+}
+
+/* One decimal format declaration's properties into properties[...] from
+   *property_count on: XQST0114 for one twice, XQST0097 or XQST0098 for
+   values the format cannot take. */
+typedef struct property_list {
+    sxml_decimal_format_property *properties;
+    size_t property_count;
+} property_list;
+
+static sxml_status read_decimal_format_properties(const static_reader *reader,
+                                                  sxml_ast_node_index declaration,
+                                                  property_list *list) {
+    const sxml_ast *ast = reader->ast;
+    const size_t first = list->property_count;
+    for (sxml_ast_node_index property = child_of(ast, declaration, SXML_AST_FIELD_PROPERTY);
+         property.value != 0; property = next_of(ast, property)) {
+        const sxml_decimal_format_property read = {
+            .property_kind = node_of(ast, property)->detail.decimal_format_property,
+            .property_value = text_of(ast, child_of(ast, property, SXML_AST_FIELD_VALUE))};
+        for (size_t earlier_index = first; earlier_index < list->property_count;
+             earlier_index += 1) {
+            if (list->properties[earlier_index].property_kind == read.property_kind) {
+                return report(reader, property,
+                              SXML_BYTE_VIEW_FROM_LITERAL(
+                                  "XQST0114 a decimal format declares a property twice"));
+            }
+        }
+        if (!has_valid_form(&read)) {
+            return report(reader, property,
+                          SXML_BYTE_VIEW_FROM_LITERAL(
+                              "XQST0097 a decimal format property has an invalid value"));
+        }
+        list->properties[list->property_count] = read;
+        list->property_count += 1;
+    }
+    const sxml_decimal_format_settings defaults = sxml_decimal_format_default_settings();
+    sxml_decimal_format_settings settings = defaults;
+    const sxml_status status = sxml_decimal_format_apply(
+        &(sxml_decimal_format_change){
+            .base_settings = &defaults,
+            .decimal_format_properties = {.decimal_format_properties = &list->properties[first],
+                                          .decimal_format_property_count =
+                                              list->property_count - first}},
+        &settings);
+    if (status == SXML_STATUS_MALFORMED_INPUT) {
+        /* Each value has the right form, so the markers are not distinct
+           (F&O 4.0, 4.9.1). */
+        return report(reader, declaration,
+                      SXML_BYTE_VIEW_FROM_LITERAL(
+                          "XQST0098 the markers of a decimal format are not distinct"));
+    }
+    return status;
+}
+
+/* The decimal formats (5.10): the prolog's, then the host's of other
+   names; XQST0111 for a name declared twice (the unnamed one included). */
+static sxml_status read_decimal_formats(const static_reader *reader,
+                                        const prolog_survey *survey,
+                                        sxml_xquery_static_context *context) {
+    const sxml_ast *ast = reader->ast;
+    if (survey->decimal_format_declaration_count == 0) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_decimal_format_view host =
+        reader->request->host_static_context->unit_static_context.decimal_formats;
+    void *memory = NULL;
+    sxml_status status = allocate_array(
+        reader,
+        (array_request){.element_count =
+                            survey->decimal_format_declaration_count + host.decimal_format_count,
+                        .element_size = sizeof(sxml_decimal_format),
+                        .element_alignment = alignof(sxml_decimal_format)},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    context->decimal_formats = memory;
+    status = allocate_array(
+        reader,
+        (array_request){.element_count = survey->decimal_format_property_count,
+                        .element_size = sizeof(sxml_decimal_format_property),
+                        .element_alignment = alignof(sxml_decimal_format_property)},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    context->decimal_format_properties = memory;
+    property_list list = {.properties = context->decimal_format_properties,
+                          .property_count = 0};
+    size_t format_count = 0;
+    for (sxml_ast_node_index declaration = first_declaration(ast);
+         status == SXML_STATUS_OK && declaration.value != 0;
+         declaration = next_of(ast, declaration)) {
+        if (node_of(ast, declaration)->kind != SXML_AST_KIND_DECIMAL_FORMAT_DECLARATION) {
+            continue;
+        }
+        sxml_decimal_format *format = &context->decimal_formats[format_count];
+        *format = (sxml_decimal_format){.format_name = {.index = 0}};
+        const sxml_ast_node_index name = child_of(ast, declaration, SXML_AST_FIELD_NAME);
+        if (name.value != 0) {
+            status = resolve_variable_name(reader, name, &format->format_name);
+        }
+        for (size_t earlier_index = 0; status == SXML_STATUS_OK && earlier_index < format_count;
+             earlier_index += 1) {
+            if (context->decimal_formats[earlier_index].format_name.index ==
+                format->format_name.index) {
+                status = report(reader, declaration,
+                                SXML_BYTE_VIEW_FROM_LITERAL(
+                                    "XQST0111 two decimal formats have the same name"));
+            }
+        }
+        const size_t first_property = list.property_count;
+        if (status == SXML_STATUS_OK) {
+            status = read_decimal_format_properties(reader, declaration, &list);
+        }
+        format->decimal_format_properties = (sxml_decimal_format_property_view){
+            .decimal_format_properties = &list.properties[first_property],
+            .decimal_format_property_count = list.property_count - first_property};
+        format_count += 1;
+    }
+    const size_t prolog_count = format_count;
+    for (size_t host_index = 0; status == SXML_STATUS_OK && host_index < host.decimal_format_count;
+         host_index += 1) {
+        bool is_replaced = false;
+        for (size_t prolog_index = 0; prolog_index < prolog_count; prolog_index += 1) {
+            if (context->decimal_formats[prolog_index].format_name.index ==
+                host.decimal_formats[host_index].format_name.index) {
+                is_replaced = true;
+            }
+        }
+        if (!is_replaced) {
+            context->decimal_formats[format_count] = host.decimal_formats[host_index];
+            format_count += 1;
+        }
+    }
+    context->xpath.unit_static_context.decimal_formats = (sxml_decimal_format_view){
+        .decimal_formats = context->decimal_formats, .decimal_format_count = format_count};
     return status;
 }
 
@@ -724,6 +1037,8 @@ static sxml_status resolve_xquery_name(const static_reader *reader,
 typedef struct annotation_check {
     sxml_ast_node_index declaration;
     sxml_byte_view duplicate_error;
+    /* A record declaration: %constructor is known (5.20.2). */
+    bool allows_constructor;
 } annotation_check;
 
 static sxml_status check_annotations(const static_reader *reader, annotation_check check) {
@@ -745,6 +1060,12 @@ static sxml_status check_annotations(const static_reader *reader, annotation_che
             name.namespace_uri.index == xquery_namespace.index &&
             (sxml_byte_view_equals(name.local_name, SXML_BYTE_VIEW_FROM_LITERAL("public")) ||
              sxml_byte_view_equals(name.local_name, SXML_BYTE_VIEW_FROM_LITERAL("private")));
+        const bool is_constructor =
+            check.allows_constructor && name.namespace_uri.index == xquery_namespace.index &&
+            sxml_byte_view_equals(name.local_name, SXML_BYTE_VIEW_FROM_LITERAL("constructor"));
+        if (is_constructor) {
+            continue;
+        }
         if (is_visibility) {
             visibility_count += 1;
             if (visibility_count > 1) {
@@ -845,6 +1166,318 @@ static sxml_status read_options(const static_reader *reader) {
         } else {
             is_declared[parameter] = true;
         }
+    }
+    return status;
+}
+
+/* -------------------------------------------------------------- Types */
+
+/* The sequence type of a SEQUENCE_TYPE node; item()* for none. */
+static sxml_status resolve_type_node(const static_reader *reader, sxml_ast_node_index node,
+                                     sxml_sequence_type *sequence_type) {
+    if (node.value == 0) {
+        *sequence_type = (sxml_sequence_type){
+            .item_type = sxml_builtin_type_identifier(SXML_TYPE_ITEM),
+            .occurrence = SXML_OCCURRENCE_ZERO_OR_MORE};
+        return SXML_STATUS_OK;
+    }
+    return sxml_xpath_resolve_sequence_type(
+        &(sxml_xpath_type_request){.ast = reader->ast,
+                                   .type_node = node,
+                                   .static_context = &reader->context->xpath,
+                                   .error_record = reader->request->error_record},
+        sequence_type);
+}
+
+/* The expanded name of a type or record declaration (the default type
+   namespace rule: the default element namespace, 5.19, 5.20). */
+static sxml_status resolve_type_name(const static_reader *reader, sxml_ast_node_index name_node,
+                                     sxml_name_identifier *name) {
+    sxml_xpath_resolved_name resolved = {0};
+    sxml_status status = sxml_xpath_resolve_name(
+        &(sxml_xpath_name_request){.ast = reader->ast,
+                                   .name_node = name_node,
+                                   .name_role = SXML_XPATH_NAME_ROLE_ELEMENT_OR_TYPE,
+                                   .static_context = &reader->context->xpath,
+                                   .error_record = reader->request->error_record},
+        &resolved);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_name_pool_intern_name(
+        reader->name_pool,
+        &(sxml_name_request){.namespace_uri = resolved.namespace_uri,
+                             .local_name = resolved.local_name},
+        name);
+}
+
+/* Declares each record's name in the type registry, so every type may name
+   it (records may be recursive, 5.20.1). */
+static sxml_status declare_records(const static_reader *reader,
+                                   sxml_xquery_static_context *context) {
+    const sxml_ast *ast = reader->ast;
+    sxml_status status = SXML_STATUS_OK;
+    for (sxml_ast_node_index declaration = first_declaration(ast);
+         status == SXML_STATUS_OK && declaration.value != 0;
+         declaration = next_of(ast, declaration)) {
+        if (node_of(ast, declaration)->kind != SXML_AST_KIND_NOMINATIVE_RECORD_TYPE_DECLARATION) {
+            continue;
+        }
+        sxml_xquery_declared_record *record =
+            &context->declared_records[context->declared_record_count];
+        *record = (sxml_xquery_declared_record){.declaration = declaration};
+        status = check_annotations(
+            reader, (annotation_check){.declaration = declaration,
+                                       .duplicate_error = SXML_BYTE_VIEW_FROM_LITERAL(
+                                           "XQST0106 a record has two visibility annotations"),
+                                       .allows_constructor = true});
+        if (status == SXML_STATUS_OK) {
+            status = resolve_type_name(reader, child_of(ast, declaration, SXML_AST_FIELD_NAME),
+                                       &record->record_name);
+        }
+        if (status != SXML_STATUS_OK) {
+            break;
+        }
+        for (sxml_ast_node_index annotation =
+                 child_of(ast, declaration, SXML_AST_FIELD_ANNOTATION);
+             annotation.value != 0; annotation = next_of(ast, annotation)) {
+            expanded_name name = {0};
+            if (resolve_xquery_name(reader, child_of(ast, annotation, SXML_AST_FIELD_NAME),
+                                    &name) == SXML_STATUS_OK &&
+                sxml_byte_view_equals(name.local_name,
+                                      SXML_BYTE_VIEW_FROM_LITERAL("constructor"))) {
+                record->has_constructor = true;
+            }
+        }
+        /* A record declared by an earlier compilation for this item heap
+           keeps its fields: the registry cannot redefine a type. */
+        if (!sxml_type_registry_find_type(reader->type_registry, record->record_name,
+                                          &record->record_type)) {
+            record->is_new = true;
+            status = sxml_type_registry_declare_nominative_record_type(
+                reader->type_registry, record->record_name, &record->record_type);
+        }
+        context->declared_record_count += 1;
+    }
+    return status;
+}
+
+/* Gives each newly declared record its fields (5.20). */
+static sxml_status define_records(const static_reader *reader,
+                                  const sxml_xquery_static_context *context) {
+    const sxml_ast *ast = reader->ast;
+    sxml_status status = SXML_STATUS_OK;
+    for (size_t record_index = 0;
+         status == SXML_STATUS_OK && record_index < context->declared_record_count;
+         record_index += 1) {
+        const sxml_xquery_declared_record *record = &context->declared_records[record_index];
+        size_t field_count = 0;
+        for (sxml_ast_node_index field = child_of(ast, record->declaration, SXML_AST_FIELD_FIELD);
+             field.value != 0; field = next_of(ast, field)) {
+            field_count += 1;
+        }
+        if (!record->is_new) {
+            continue;
+        }
+        void *memory = NULL;
+        status = allocate_array(
+            reader,
+            (array_request){.element_count = field_count,
+                            .element_size = sizeof(sxml_record_field),
+                            .element_alignment = alignof(sxml_record_field)},
+            &memory);
+        sxml_record_field *fields = memory;
+        size_t field_index = 0;
+        for (sxml_ast_node_index field = child_of(ast, record->declaration, SXML_AST_FIELD_FIELD);
+             status == SXML_STATUS_OK && field.value != 0; field = next_of(ast, field)) {
+            fields[field_index].field_name = sxml_xquery_field_name(ast, field);
+            for (size_t earlier_index = 0; earlier_index < field_index; earlier_index += 1) {
+                if (sxml_byte_view_equals(fields[earlier_index].field_name,
+                                          fields[field_index].field_name)) {
+                    status = report(reader, field,
+                                    SXML_BYTE_VIEW_FROM_LITERAL(
+                                        "XPST0021 two fields of a record have the same name"));
+                }
+            }
+            if (status == SXML_STATUS_OK) {
+                status = resolve_type_node(reader, child_of(ast, field, SXML_AST_FIELD_TYPE),
+                                           &fields[field_index].field_type);
+            }
+            field_index += 1;
+        }
+        if (status == SXML_STATUS_OK) {
+            status = sxml_type_registry_define_record_fields(
+                reader->type_registry,
+                &(sxml_record_definition){
+                    .record_type = record->record_type,
+                    .record_fields = {.record_fields = fields, .record_field_count = field_count}});
+        }
+        sxml_allocator_release(reader->allocator, memory);
+    }
+    return status;
+}
+
+/* The named item types (5.19), in an order that lets each name the ones it
+   uses: rounds over the declarations not resolved yet, until one makes
+   no progress; then the first left reports its error (XPST0051 for a name
+   that is never declared or a cycle). */
+static sxml_status read_item_types(const static_reader *reader, const prolog_survey *survey,
+                                   sxml_xquery_static_context *context) {
+    const sxml_ast *ast = reader->ast;
+    const size_t declaration_count = survey->item_type_declaration_count;
+    if (declaration_count == 0) {
+        return SXML_STATUS_OK;
+    }
+    void *memory = NULL;
+    sxml_status status = allocate_array(
+        reader,
+        (array_request){.element_count = declaration_count,
+                        .element_size = sizeof(sxml_xpath_named_item_type),
+                        .element_alignment = alignof(sxml_xpath_named_item_type)},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    context->named_item_types = memory;
+    status = allocate_array(
+        reader,
+        (array_request){.element_count = declaration_count,
+                        .element_size = sizeof(sxml_ast_node_index),
+                        .element_alignment = alignof(sxml_ast_node_index)},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_ast_node_index *pending = memory;
+    size_t pending_count = 0;
+    for (sxml_ast_node_index declaration = first_declaration(ast); declaration.value != 0;
+         declaration = next_of(ast, declaration)) {
+        if (node_of(ast, declaration)->kind == SXML_AST_KIND_ITEM_TYPE_DECLARATION) {
+            pending[pending_count] = declaration;
+            pending_count += 1;
+        }
+    }
+    bool has_progress = true;
+    while (status == SXML_STATUS_OK && pending_count > 0 && has_progress) {
+        has_progress = false;
+        size_t kept_count = 0;
+        for (size_t pending_index = 0; status == SXML_STATUS_OK && pending_index < pending_count;
+             pending_index += 1) {
+            const sxml_ast_node_index declaration = pending[pending_index];
+            sxml_xpath_named_item_type *entry =
+                &context->named_item_types[context->named_item_type_count];
+            status = resolve_type_name(reader, child_of(ast, declaration, SXML_AST_FIELD_NAME),
+                                       &entry->type_name);
+            if (status != SXML_STATUS_OK) {
+                break;
+            }
+            const sxml_status type_status = sxml_xpath_resolve_item_type(
+                &(sxml_xpath_type_request){.ast = ast,
+                                           .type_node =
+                                               child_of(ast, declaration, SXML_AST_FIELD_TYPE),
+                                           .static_context = &context->xpath,
+                                           .error_record = NULL},
+                &entry->item_type);
+            if (type_status == SXML_STATUS_OK) {
+                context->named_item_type_count += 1;
+                context->xpath.named_item_types = (sxml_xpath_named_item_type_view){
+                    .named_item_types = context->named_item_types,
+                    .named_item_type_count = context->named_item_type_count};
+                has_progress = true;
+            } else if (type_status == SXML_STATUS_STATIC_ERROR) {
+                pending[kept_count] = declaration;
+                kept_count += 1;
+            } else {
+                status = type_status;
+            }
+        }
+        pending_count = kept_count;
+    }
+    if (status == SXML_STATUS_OK && pending_count > 0) {
+        sxml_type_identifier unused = {0};
+        status = sxml_xpath_resolve_item_type(
+            &(sxml_xpath_type_request){.ast = ast,
+                                       .type_node = child_of(ast, pending[0], SXML_AST_FIELD_TYPE),
+                                       .static_context = &context->xpath,
+                                       .error_record = reader->request->error_record},
+            &unused);
+        if (status == SXML_STATUS_OK) {
+            status = report(reader, pending[0],
+                            SXML_BYTE_VIEW_FROM_LITERAL(
+                                "XPST0051 a named item type refers to itself"));
+        }
+    }
+    sxml_allocator_release(reader->allocator, pending);
+    return status;
+}
+
+/* XQST0048: two named item or record types of one name (5.19, 5.20). */
+static sxml_status check_type_names(const static_reader *reader,
+                                    const sxml_xquery_static_context *context) {
+    const size_t alias_count = context->named_item_type_count;
+    const size_t type_count = alias_count + context->declared_record_count;
+    if (type_count < 2) {
+        return SXML_STATUS_OK;
+    }
+    void *memory = NULL;
+    sxml_status status = allocate_array(
+        reader,
+        (array_request){.element_count = type_count,
+                        .element_size = sizeof(sort_entry),
+                        .element_alignment = alignof(sort_entry)},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sort_entry *entries = memory;
+    for (size_t type_index = 0; type_index < type_count; type_index += 1) {
+        const sxml_name_identifier name =
+            type_index < alias_count
+                ? context->named_item_types[type_index].type_name
+                : context->declared_records[type_index - alias_count].record_name;
+        entries[type_index] = (sort_entry){.key = name.index, .position = type_index};
+    }
+    sort_entries(entries, type_count);
+    for (size_t entry_index = 1; status == SXML_STATUS_OK && entry_index < type_count;
+         entry_index += 1) {
+        if (entries[entry_index].key == entries[entry_index - 1].key) {
+            const size_t position = entries[entry_index].position;
+            status = report(reader,
+                            position < alias_count
+                                ? first_declaration(reader->ast)
+                                : context->declared_records[position - alias_count].declaration,
+                            SXML_BYTE_VIEW_FROM_LITERAL(
+                                "XQST0048 two named types have the same name"));
+        }
+    }
+    sxml_allocator_release(reader->allocator, memory);
+    return status;
+}
+
+static sxml_status read_types(const static_reader *reader, const prolog_survey *survey,
+                              sxml_xquery_static_context *context) {
+    void *memory = NULL;
+    sxml_status status = SXML_STATUS_OK;
+    if (survey->record_declaration_count > 0) {
+        status = allocate_array(
+            reader,
+            (array_request){.element_count = survey->record_declaration_count,
+                            .element_size = sizeof(sxml_xquery_declared_record),
+                            .element_alignment = alignof(sxml_xquery_declared_record)},
+            &memory);
+        context->declared_records = memory;
+    }
+    if (status == SXML_STATUS_OK) {
+        status = declare_records(reader, context);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = read_item_types(reader, survey, context);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = define_records(reader, context);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = check_type_names(reader, context);
     }
     return status;
 }
@@ -979,7 +1612,8 @@ static sxml_status read_variables(const static_reader *reader, const prolog_surv
         status = check_annotations(
             reader, (annotation_check){.declaration = declaration,
                                .duplicate_error = SXML_BYTE_VIEW_FROM_LITERAL(
-                                   "XQST0116 a variable has two visibility annotations")});
+                                   "XQST0116 a variable has two visibility annotations"),
+                               .allows_constructor = false});
         const sxml_ast_node_index variable = child_of(ast, declaration, SXML_AST_FIELD_VARIABLE);
         sxml_variable_declaration *entry =
             &context->variable_declarations[context->variable_declaration_count];
@@ -1044,10 +1678,37 @@ static sxml_status resolve_function_name(const static_reader *reader,
         name);
 }
 
+/* The name of a parameter: a variable name, or for a record field its
+   name in no namespace (5.20.2). */
+static sxml_status resolve_parameter_name(const static_reader *reader,
+                                          sxml_ast_node_index parameter,
+                                          sxml_name_identifier *name) {
+    if (node_of(reader->ast, parameter)->kind != SXML_AST_KIND_EXTENDED_FIELD_DECLARATION) {
+        return resolve_variable_name(reader, sxml_xquery_parameter_name(reader->ast, parameter),
+                                     name);
+    }
+    return sxml_name_pool_intern_name(
+        reader->name_pool,
+        &(sxml_name_request){
+            .namespace_uri = sxml_well_known_namespace_identifier(SXML_NAMESPACE_NONE),
+            .local_name = sxml_xquery_field_name(reader->ast, parameter)},
+        name);
+}
+
+/* A function to declare: a FUNCTION_DECLARATION, or the constructor of a
+   record (record_type set, function_name its name). */
+typedef struct function_source {
+    sxml_ast_node_index declaration;
+    sxml_type_identifier record_type;
+    sxml_name_identifier function_name;
+} function_source;
+
 /* The parameters, signatures and IR functions of one declared function. */
-static sxml_status read_function(const static_reader *reader, sxml_ast_node_index declaration,
+static sxml_status read_function(const static_reader *reader, function_source source,
                                  sxml_xquery_static_context *context) {
     const sxml_ast *ast = reader->ast;
+    const sxml_ast_node_index declaration = source.declaration;
+    const bool is_constructor = source.record_type.index != 0;
     sxml_xquery_declared_function *function =
         &context->declared_functions[context->declared_function_count];
     size_t first_parameter = 0;
@@ -1059,21 +1720,27 @@ static sxml_status read_function(const static_reader *reader, sxml_ast_node_inde
                           (previous->parameter_count - previous->required_count) + 1;
     }
     *function = (sxml_xquery_declared_function){.declaration = declaration,
+                                                .function_name = source.function_name,
                                                 .first_parameter = first_parameter,
-                                                .first_signature = first_signature};
-    sxml_status status = check_annotations(
+                                                .first_signature = first_signature,
+                                                .record_type = source.record_type};
+    sxml_status status = SXML_STATUS_OK;
+    if (!is_constructor) {
+        status = check_annotations(
             reader, (annotation_check){.declaration = declaration,
-                           .duplicate_error = SXML_BYTE_VIEW_FROM_LITERAL(
-                               "XQST0106 a function has two visibility annotations")});
-    if (status == SXML_STATUS_OK) {
+                                       .duplicate_error = SXML_BYTE_VIEW_FROM_LITERAL(
+                                           "XQST0106 a function has two visibility annotations"),
+                                       .allows_constructor = false});
+    }
+    if (status == SXML_STATUS_OK && !is_constructor) {
         status = resolve_function_name(reader, child_of(ast, declaration, SXML_AST_FIELD_NAME),
                                        &function->function_name);
     }
     sxml_name_identifier *parameter_names = NULL;
     void *names_memory = NULL;
     size_t parameter_count = 0;
-    for (sxml_ast_node_index parameter = child_of(ast, declaration, SXML_AST_FIELD_PARAMETER);
-         parameter.value != 0; parameter = next_of(ast, parameter)) {
+    for (sxml_ast_node_index parameter = sxml_xquery_first_parameter(ast, declaration);
+         parameter.value != 0; parameter = sxml_xquery_next_parameter(ast, parameter)) {
         parameter_count += 1;
     }
     if (status == SXML_STATUS_OK) {
@@ -1086,13 +1753,10 @@ static sxml_status read_function(const static_reader *reader, sxml_ast_node_inde
         parameter_names = names_memory;
     }
     size_t parameter_index = 0;
-    for (sxml_ast_node_index parameter = child_of(ast, declaration, SXML_AST_FIELD_PARAMETER);
+    for (sxml_ast_node_index parameter = sxml_xquery_first_parameter(ast, declaration);
          status == SXML_STATUS_OK && parameter.value != 0;
-         parameter = next_of(ast, parameter)) {
-        const sxml_ast_node_index variable = child_of(ast, parameter, SXML_AST_FIELD_VARIABLE);
-        const sxml_ast_node_index name_node = child_of(ast, variable, SXML_AST_FIELD_NAME);
-        status = resolve_variable_name(reader, name_node,
-                                       &parameter_names[parameter_index]);
+         parameter = sxml_xquery_next_parameter(ast, parameter)) {
+        status = resolve_parameter_name(reader, parameter, &parameter_names[parameter_index]);
         for (size_t earlier_index = 0; status == SXML_STATUS_OK && earlier_index < parameter_index;
              earlier_index += 1) {
             if (parameter_names[earlier_index].index == parameter_names[parameter_index].index) {
@@ -1102,9 +1766,9 @@ static sxml_status read_function(const static_reader *reader, sxml_ast_node_inde
             }
         }
         if (status == SXML_STATUS_OK) {
-            status = resolve_declared_type(reader, child_of(ast, variable, SXML_AST_FIELD_TYPE),
-                                           &context->parameter_types[first_parameter +
-                                                                     parameter_index]);
+            status = resolve_type_node(reader, sxml_xquery_parameter_type(ast, parameter),
+                                       &context->parameter_types[first_parameter +
+                                                                 parameter_index]);
         }
         const sxml_ast_node_index default_value = child_of(ast, parameter, SXML_AST_FIELD_DEFAULT);
         sxml_parameter_default parameter_default = SXML_PARAMETER_DEFAULT_REQUIRED;
@@ -1119,15 +1783,23 @@ static sxml_status read_function(const static_reader *reader, sxml_ast_node_inde
         } else {
             function->required_count += 1;
         }
+        const sxml_ast_node_index name_node = sxml_xquery_parameter_name(ast, parameter);
         context->function_parameters[first_parameter + parameter_index] = (sxml_function_parameter){
-            .parameter_name = sxml_ast_get_text(ast, node_of(ast, name_node)->payload.name.local_name),
+            .parameter_name =
+                is_constructor
+                    ? sxml_xquery_field_name(ast, parameter)
+                    : sxml_ast_get_text(ast, node_of(ast, name_node)->payload.name.local_name),
             .parameter_type = {.bytes = NULL, .byte_count = 0},
             .parameter_default = parameter_default};
         parameter_index += 1;
     }
     sxml_allocator_release(reader->allocator, names_memory);
     function->parameter_count = (uint32_t)parameter_count;
-    if (status == SXML_STATUS_OK) {
+    if (status == SXML_STATUS_OK && is_constructor) {
+        /* 5.20.2: the record type, no occurrence indicator. */
+        function->result_type = (sxml_sequence_type){.item_type = source.record_type,
+                                                      .occurrence = SXML_OCCURRENCE_EXACTLY_ONE};
+    } else if (status == SXML_STATUS_OK) {
         status = resolve_declared_type(reader, child_of(ast, declaration, SXML_AST_FIELD_RETURN_TYPE),
                                        &function->result_type);
     }
@@ -1275,7 +1947,26 @@ static sxml_status read_functions(const static_reader *reader, const prolog_surv
          status == SXML_STATUS_OK && declaration.value != 0;
          declaration = next_of(reader->ast, declaration)) {
         if (node_of(reader->ast, declaration)->kind == SXML_AST_KIND_FUNCTION_DECLARATION) {
-            status = read_function(reader, declaration, context);
+            status = read_function(reader,
+                                   (function_source){.declaration = declaration,
+                                                     .record_type = {.index = 0},
+                                                     .function_name = {.index = 0}},
+                                   context);
+        }
+    }
+    for (size_t record_index = 0;
+         status == SXML_STATUS_OK && record_index < context->declared_record_count;
+         record_index += 1) {
+        /* Every record gets its constructor: the QT4 tests call
+           constructors of records without %constructor (5.20.2 asks for the
+           annotation; D135). */
+        const sxml_xquery_declared_record *record = &context->declared_records[record_index];
+        {
+            status = read_function(reader,
+                                   (function_source){.declaration = record->declaration,
+                                                     .record_type = record->record_type,
+                                                     .function_name = record->record_name},
+                                   context);
         }
     }
     if (status == SXML_STATUS_OK) {
@@ -1324,6 +2015,76 @@ static sxml_name_identifier rename_function(const sxml_xquery_static_context *co
     return renamed;
 }
 
+/* The constructor function of a named item type that is a generalized
+   atomic type (5.19: "if the item type is a generalized atomic type, the
+   declaration also declares a constructor function"): a cast. */
+static sxml_status find_alias_constructor(const sxml_xquery_static_context *context,
+                                          const sxml_function_query *query,
+                                          sxml_function_entry *entry) {
+    sxml_type_registry *registry = sxml_item_heap_get_type_registry(context->xpath.item_heap);
+    for (size_t alias_index = 0; alias_index < context->named_item_type_count;
+         alias_index += 1) {
+        const sxml_xpath_named_item_type *alias = &context->named_item_types[alias_index];
+        if (alias->type_name.index != query->function_name.index || query->arity != 1) {
+            continue;
+        }
+        sxml_type_description description = {0};
+        sxml_status status = sxml_type_registry_describe_type(registry, alias->item_type,
+                                                              &description);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        switch (description.variety) {
+        case SXML_TYPE_VARIETY_ATOMIC:
+        case SXML_TYPE_VARIETY_UNION:
+        case SXML_TYPE_VARIETY_ENUMERATION:
+        case SXML_TYPE_VARIETY_CHOICE:
+            break;
+        case SXML_TYPE_VARIETY_LIST:
+        case SXML_TYPE_VARIETY_COMPLEX:
+        case SXML_TYPE_VARIETY_ANY_SIMPLE:
+        case SXML_TYPE_VARIETY_ANY_ITEM:
+        case SXML_TYPE_VARIETY_NODE_TEST:
+        case SXML_TYPE_VARIETY_JSON_NODE_TEST:
+        case SXML_TYPE_VARIETY_FUNCTION:
+        case SXML_TYPE_VARIETY_MAP:
+        case SXML_TYPE_VARIETY_ARRAY:
+        case SXML_TYPE_VARIETY_RECORD:
+            return SXML_STATUS_OK;
+        }
+        static const sxml_sequence_type parameter_type = {
+            .item_type = {.index = SXML_TYPE_XS_ANY_ATOMIC_TYPE},
+            .occurrence = SXML_OCCURRENCE_ZERO_OR_ONE};
+        const sxml_sequence_type result_type = {.item_type = alias->item_type,
+                                                .occurrence = SXML_OCCURRENCE_ZERO_OR_ONE};
+        sxml_type_identifier signature = {0};
+        status = sxml_type_registry_register_item_type(
+            registry,
+            &(sxml_type_description){
+                .variety = SXML_TYPE_VARIETY_FUNCTION,
+                .variety_details = {.function_type = {
+                                        .is_any_function = false,
+                                        .parameter_types = {.sequence_types = &parameter_type,
+                                                            .sequence_type_count = 1},
+                                        .result_type = result_type}}},
+            &signature);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        *entry = (sxml_function_entry){
+            .entry_kind = SXML_FUNCTION_ENTRY_KIND_CONSTRUCTOR,
+            .native_function = NULL,
+            .constructor_type = alias->item_type,
+            .ir_function_number = 0,
+            .parameters = {.function_parameters = NULL, .function_parameter_count = 0},
+            .signature = signature,
+            .parameter_types = {.sequence_types = &parameter_type, .sequence_type_count = 1},
+            .result_type = result_type};
+        return SXML_STATUS_OK;
+    }
+    return SXML_STATUS_OK;
+}
+
 /*
  * The core resolves an unprefixed function name to the fn namespace, so a
  * query for fn:L may stand for an unprefixed L (5.14.2): with a default
@@ -1369,6 +2130,11 @@ static sxml_status find_function(void *state, const sxml_function_query *query,
                                 .sequence_type_count = query->arity},
             .result_type = function->result_type};
         return SXML_STATUS_OK;
+    }
+    *entry = (sxml_function_entry){.entry_kind = SXML_FUNCTION_ENTRY_KIND_NONE};
+    sxml_status alias_status = find_alias_constructor(context, query, entry);
+    if (alias_status != SXML_STATUS_OK || entry->entry_kind != SXML_FUNCTION_ENTRY_KIND_NONE) {
+        return alias_status;
     }
     if (is_fn_name && context->has_default_function_namespace && searched.function_name.index != 0) {
         /* A library function in the default function namespace (math:pi
@@ -1494,6 +2260,11 @@ void sxml_xquery_release_static_context(sxml_xquery_static_context *context) {
     sxml_allocator_release(allocator, context->function_parameters);
     sxml_allocator_release(allocator, context->signatures);
     sxml_allocator_release(allocator, context->static_base_uri_memory);
+    sxml_allocator_release(allocator, context->default_collation_memory);
+    sxml_allocator_release(allocator, context->decimal_formats);
+    sxml_allocator_release(allocator, context->decimal_format_properties);
+    sxml_allocator_release(allocator, context->named_item_types);
+    sxml_allocator_release(allocator, context->declared_records);
     *context = (sxml_xquery_static_context){.xpath = {.allocator = allocator}};
 }
 
@@ -1521,6 +2292,12 @@ sxml_status sxml_xquery_read_static_context(const sxml_xquery_static_request *re
     }
     if (status == SXML_STATUS_OK) {
         status = read_base_uri_and_collation(&reader, &survey, &built);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = read_decimal_formats(&reader, &survey, &built);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = read_types(&reader, &survey, &built);
     }
     if (status == SXML_STATUS_OK) {
         status = read_options(&reader);

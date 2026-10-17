@@ -45,6 +45,19 @@
  * Thread safety: the thread of the item heap (D35).
  */
 
+/* A named item type of the static context (XQuery 4.0 "declare type",
+   XSLT 4.0 xsl:item-type): an alias of a registered item type (D98,
+   D135). */
+typedef struct sxml_xpath_named_item_type {
+    sxml_name_identifier type_name;
+    sxml_type_identifier item_type;
+} sxml_xpath_named_item_type;
+
+typedef struct sxml_xpath_named_item_type_view {
+    const sxml_xpath_named_item_type *named_item_types;
+    size_t named_item_type_count;
+} sxml_xpath_named_item_type_view;
+
 /*
  * The static context of one compilation. A plain value; every pointer and
  * view is borrowed for the calls that receive it.
@@ -71,6 +84,9 @@ typedef struct sxml_xpath_static_context {
     /* The decimal formats and collations, already checked; copied into
        the unit by lowering (D131). Zero for none. */
     sxml_ir_static_context unit_static_context;
+    /* Named item types, found by name before the type registry's named
+       types (XPath 4.0, section 3.2.3); empty for none. */
+    sxml_xpath_named_item_type_view named_item_types;
 } sxml_xpath_static_context;
 
 /* Writes a static error: the error code is err:code_local_name. */
@@ -181,6 +197,12 @@ SXML_NODISCARD sxml_status sxml_xpath_resolve_sequence_type(
 /* As sxml_xpath_resolve_sequence_type for an item type. */
 SXML_NODISCARD sxml_status sxml_xpath_resolve_item_type(
     const sxml_xpath_type_request *request, sxml_type_identifier *item_type);
+
+/* The type a name names in static_context: one of its named item types,
+   else a named schema or record type of its type registry. Returns false,
+   leaving *type untouched, for none. */
+bool sxml_xpath_find_named_type(const sxml_xpath_static_context *static_context,
+                                sxml_name_identifier type_name, sxml_type_identifier *type);
 
 /* Item types nest at most this deep (map(K, map(K, ...))). */
 #define SXML_XPATH_MAXIMUM_TYPE_DEPTH 64U

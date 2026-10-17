@@ -309,6 +309,29 @@ static const value_case value_cases[] = {
     {{"declare function local:f() as xs:integer { 'a' }; local:f()", false, 0}, "error:XPTY0004"},
     {{"declare function local:f($x as xs:integer) { $x }; local:f('a')", false, 0}, "error:XPTY0004"},
     {{"declare %private function local:f() { 1 }; local:f()", false, 0}, "1"},
+    /* 5.10, 5.4: decimal formats and the default collation. */
+    {{"declare decimal-format local:f grouping-separator = \"'\"; "
+      "format-number(1234, \"#'##0\", 'local:f')", false, 0},
+     "\"1'234\""},
+    {{"declare default decimal-format NaN = 'none'; format-number(xs:double('NaN'), '0')",
+      false, 0},
+     "\"none\""},
+    {{"declare default collation 'http://www.w3.org/2005/xpath-functions/collation/"
+      "html-ascii-case-insensitive'; compare('a', 'A'), default-collation()", false, 0},
+     "0 \"http://www.w3.org/2005/xpath-functions/collation/html-ascii-case-insensitive\""},
+    /* 5.19, 5.20: named item types and records. */
+    {{"declare type local:i as xs:integer; 3 instance of local:i, local:i('5') + 1", false, 0},
+     "true() 6"},
+    {{"declare variable $v as local:s := 'a'; declare type local:s as xs:string; $v", false, 0},
+     "\"a\""},
+    {{"declare type local:a as local:b; declare type local:b as xs:string; 'x' instance of local:a",
+      false, 0},
+     "true()"},
+    {{"declare record local:p(x as xs:integer, y as xs:integer := 0); "
+      "local:p(3)?y, local:p(3, 4) instance of local:p, map{'x': 1} instance of local:p",
+      false, 0},
+     "0 true() false()"},
+    {{"declare record local:p(x as xs:integer); local:p('a')", false, 0}, "error:XPTY0004"},
     {{"declare function local:f() { . }; local:f()", true, 4}, "error:XPDY0002"},
 };
 
@@ -377,6 +400,14 @@ static const error_case error_cases[] = {
     {"declare function local:f() { $p }; 1", "XPST0008"},
     {"declare function local:f() { local:g() }; 1", "XPST0017"},
     {"declare variable $x as p:t := 1; 1", "XPST0081"},
+    {"declare type local:a as local:a; 1", "XPST0051"},
+    {"declare default decimal-format zero-digit = 'A'; 1", "XQST0097"},
+    {"declare default decimal-format decimal-separator = ','; 1", "XQST0098"},
+    {"declare default decimal-format digit = 'x' digit = 'y'; 1", "XQST0114"},
+    {"declare decimal-format f digit = 'x'; declare decimal-format f digit = 'y'; 1",
+     "XQST0111"},
+    {"declare type local:a as xs:integer; declare type local:a as xs:string; 1", "XQST0048"},
+    {"declare record local:r(a, a); 1", "XPST0021"},
 };
 
 static void test_static_errors_have_codes(sxml_test_state *state) {
@@ -411,6 +442,9 @@ static const value_case allocation_cases[] = {
       "declare function local:f($a, $b := 1) { $a + $b + $y }; <p:a>{local:f(1)}</p:a>", false, 0},
      "<p:a xmlns:p=\"urn:p\">8</p:a>"},
     {{"declare context value external := 5; declare variable $v := . + 1; $v", true, 4}, "5"},
+    {{"declare type local:i as xs:integer; declare record local:p(x as local:i, y := 2); "
+      "local:p(local:i('1'))?y", false, 0},
+     "2"},
 };
 
 static void test_queries_survive_every_allocation_failure(sxml_test_state *state) {

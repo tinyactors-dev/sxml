@@ -576,6 +576,20 @@ static sxml_status intern_resolved_name(const type_resolver *resolver,
         identifier);
 }
 
+bool sxml_xpath_find_named_type(const sxml_xpath_static_context *static_context,
+                                sxml_name_identifier type_name, sxml_type_identifier *type) {
+    /* Named item types of the static context first (D135). */
+    const sxml_xpath_named_item_type_view aliases = static_context->named_item_types;
+    for (size_t alias_index = 0; alias_index < aliases.named_item_type_count; alias_index += 1) {
+        if (aliases.named_item_types[alias_index].type_name.index == type_name.index) {
+            *type = aliases.named_item_types[alias_index].item_type;
+            return true;
+        }
+    }
+    return sxml_type_registry_find_type(sxml_item_heap_get_type_registry(static_context->item_heap),
+                                        type_name, type);
+}
+
 /* What a type name names: found without interning, so an unknown name
    from untrusted text does not grow the pool. */
 static sxml_status find_named_type(const type_resolver *resolver,
@@ -595,12 +609,13 @@ static sxml_status find_named_type(const type_resolver *resolver,
     }
     sxml_name_identifier name = {0};
     sxml_type_identifier found = {0};
-    if (!sxml_name_pool_find_name(
-            resolver->name_pool,
-            &(sxml_name_request){.namespace_uri = resolved.namespace_uri,
-                                 .local_name = resolved.local_name},
-            &name) ||
-        !sxml_type_registry_find_type(resolver->type_registry, name, &found)) {
+    const bool is_interned = sxml_name_pool_find_name(
+        resolver->name_pool,
+        &(sxml_name_request){.namespace_uri = resolved.namespace_uri,
+                             .local_name = resolved.local_name},
+        &name);
+    if (!is_interned ||
+        !sxml_xpath_find_named_type(resolver->static_context, name, &found)) {
         *type = (sxml_type_identifier){.index = SXML_TYPE_NONE};
         return SXML_STATUS_OK;
     }
