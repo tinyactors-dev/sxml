@@ -3297,8 +3297,9 @@ walker; `sxml_grammar_xquery` joins the `sxml` link line.
   9, XQST0085 5, XQST0087 4, XQST0090 13, XQST0118 6); the 145 parsable
   library modules build; all 772 XPST0003 queries fail statically.
 
-### D120. The XML and XHTML output methods (packet 3.3)
-Recorded 2026-10-17. `src/serialize_internal.h` splits the serializer
+### D120b. The XML and XHTML output methods (packet 3.3)
+Recorded 2026-10-17 as a second D120 (4.3 has D120); renamed at the
+Phase 2 gate (D151). `src/serialize_internal.h` splits the serializer
 into parts: `src/serialize.c` keeps the output stream and buffer, the
 parameter checks, the character pipeline, sequence normalization, the
 adaptive method and the dispatch; `src/serialize_xml.c` has the XML and
@@ -3540,7 +3541,7 @@ added. Contract in `src/xquery_lower_internal.h`.
   assertion).
 
 ### D128. The HTML, text, JSON and CSV methods; fn:serialize (packet 3.4)
-Recorded 2026-10-17. Every method runs on the 3.3 pipeline (D120); no
+Recorded 2026-10-17. Every method runs on the 3.3 pipeline (D120b); no
 second writer or escaper was added.
 - **Escape styles**: `sxml_escape_style` grows HTML, NONE (text), JSON and
   CSV; a method picks one in `sxml_serializer_resolve_pipeline`, so
@@ -3557,7 +3558,7 @@ second writer or escaper was added.
   (`<?t d>` before HTML5, SERE0015 for ">"; `<!--?t d?-->` with HTML5).
   Requested version: html-version, else version, else 5.0. No-namespace
   elements are HTML elements (unknown names inline, as span); with HTML5
-  also XHTML-namespace ones (unprefixed, prefix normalization of D120);
+  also XHTML-namespace ones (unprefixed, prefix normalization of D120b);
   others are XML islands. Doctype `<!DOCTYPE html ...>`. SERE0014 for
   controls before HTML5.
 - **Text and CSV** (`src/serialize_text.c`): text writes the string value
@@ -3574,11 +3575,11 @@ second writer or escaper was added.
   canonical); canonical: keys sorted by UTF-16 units (heapsort), numbers
   as ECMAScript from the shortest digits; SERE0022 checked by sorting
   only when some key is not string-like; indentation off with json-lines.
-- **SERE0006** (left by D120): XML and XHTML with version 1.0 (the
+- **SERE0006** (left by D120b): XML and XHTML with version 1.0 (the
   default) raise it for C0 controls in text and attributes; 1.1 writes
   references. **SERE0003** for comments with "--" or a final "-" and PIs
   with "?>" (XML, XHTML). A character map may map any XML 1.1 Char
-  (U+0001 included; serialize.h says XML 1.0's production, D120 already
+  (U+0001 included; serialize.h says XML 1.0's production, D120b already
   writes the 1.1 repertoire).
 - **Parameter reader** (`src/serialize_parameters.c`): both forms decode
   each parameter into one value and assign it the same way. Two arenas:
@@ -4659,8 +4660,78 @@ Recorded 2026-10-17, after D101, D135, D139, D142, D144, D145.
 Reserved here; the record is completed when the packet is ticked.
 
 ### D151. Phase 2 gate review (packet 2.20)
-Recorded 2026-10-17, after D11, D95, D97, D123, D132.
-Reserved here; the record is completed when the gate is reviewed.
+Recorded 2026-10-17 by the review agent (D11), after D95, D97, D123,
+D132. Checked locally (D123): `tools/check-main.sh` on a clean HEAD
+(c7c0c35) builds and tests `release`, `debug` (ASan, UBSan), `debug-gcc`
+and `wasm` (Node.js package tests and size budget included) and lints
+clean, with no call cycle.
+- **Numbers** (code of ed225c2, `release`, `tools/run-qt4.sh`): XP40
+  30,630 of 47,313 passed, 0 errors, no crash, every test set finished;
+  in scope (D95) 30,612 of 31,543, **97.0 %**; by area, in scope: fn
+  95.5 %, op 99.2 %, prod 97.8 %, map 99.7 %, array 99.8 %, math 100 %,
+  xs 99.5 %. Slice 198/198. XQ40 for the record: 39,541 passed, in scope
+  96.0 %, XQ-only 83.9 %, 1,568 errors (all module import, 3.11 running;
+  1,379 of them misc-HtmlTestSuite). Fuzzing, 300 s per target, all five
+  at once, then the two XPath targets 300 s more: cast_fuzz 564,842
+  runs, regex_fuzz 320,438, xml_parse_fuzz 29,846, xpath_compile_fuzz
+  7,679, xpath_evaluate_fuzz 3,097 (fork mode, 12 to 16 runs a second
+  on a loaded machine); no crash, leak, sanitizer report or timeout.
+- **Functions**: every function of F&O 4.0's signatures (282 names, looked
+  up at arities 0 to 7) is in the library but D97's non-goals (html-doc,
+  parse-html, invisible-xml, xsd-validator, transform) and
+  fn:load-xquery-module, which D97 gives to 3.11.
+- **D71 through function pointers**: native bodies that call function
+  items are resumable (D75); the function-body, generator and resolver
+  operations re-enter the evaluator only through
+  `sxml_evaluator_call_function_item`, which refuses a running context
+  (`is_running`); part tasks return to the machine. The lowering machine
+  has no such guard: see the follow-ups.
+- **Merged** (the owner's principle of conceptual smallness): the
+  options of fn:element-to-map, fn:map-to-element, fn:unparsed-text and
+  fn:unparsed-text-lines are read by `sxml_function_library_read_options`
+  (two private readers removed; an unknown key that is not a QName in a
+  namespace is now XPTY0004 there too, F&O 4.0, section 1.7); one
+  `SXML_FUNCTION_OPTION` macro for option tables instead of five; one
+  calendar rule, `sxml_year_is_leap` and `sxml_days_in_month`
+  (`src/cast_internal.h`), instead of four copies; the unused
+  `sxml_function_library_check_collation` removed. XP40 and XQ40 outcomes
+  are identical before and after, case by case.
+- **Headers for 0.2.0** (D47, D104, D138): consistent and documented
+  (one undocumented declaration, `sxml_sequence_get_representation`, got
+  its comment). `xquery.h` and `xslt.h` are **provisional** until the
+  gates of Phases 3 and 4: their implementations are not done, and a
+  Proposed item already changes `xquery.h`'s contract. A minor release
+  may change them, each change with a record (`version.h`,
+  `docs/RELEASE.md`, `CHANGELOG.md`).
+- **Proposed**, the Phase 2 items: collations in min/max,
+  highest/lowest, sort-by and array:sort were done by D136; only the
+  evaluator's SORT (order by with a collation, XQuery) still takes the
+  codepoint collation alone, for Phase 3. The item axis (D113) is
+  accepted: `SXML_AXIS_ITEM` appended to `sxml_axis` (additive, D99)
+  with XPath 4.0, 4.7.4's STEP semantics, and the JNode key test reading
+  the EQName form, for the next sweep. The XSLT driver's report name and
+  areas (D117) are accepted for 4.17. The three are out of Proposed.
+  Left there: the owner's (the two WebAssembly budgets, XQuery's
+  omit-xml-declaration default) and Phase 3 design work (D135's prolog
+  follow-ups, D148's three items), for the Phase 3 gate.
+- **Numbering**: two records were D120; the 3.3 one is D120b now, with
+  its references. D127 follows D128 (recorded in finishing order); kept.
+- **Follow-ups** (not done here): fn:deep-equal still reads its
+  twenty-odd options itself (raise `SXML_FUNCTION_OPTION_LIMIT` from 10
+  and merge); two calendar arithmetics (`days_from_civil` in `src/format_date.c`, the
+  cycle days of `src/operator_temporal.c`); the evaluator's navigation
+  analysis finds fn:root by its local name (a native-function property
+  would say it); the lowering machine (`run_machine` in
+  `src/xpath_lower.c`) should refuse to run inside a step, as the
+  evaluator does, since XQuery and XSLT lowering run procedures and
+  embedded lowerings "outside a machine" by convention only and the
+  call-cycle check cannot see through step pointers (a probe that aborts
+  on a nested run passed all 193 `debug` tests at c7c0c35, so the guard
+  breaks nothing; `src/xpath_lower.c` was being edited by a running
+  packet); size products
+  `count * sizeof(type)` are mostly unchecked, safe where the count
+  mirrors an array already allocated (a lint rule could require
+  `sxml_size_multiply` for the others).
 
 ### D152. Sorting and grouping (packet 4.9)
 Recorded 2026-10-17, after D79, D116, D118, D136, D137, D142, D144, D145.
@@ -4750,37 +4821,6 @@ Reserved here; the record is completed when the packet is ticked.
   holds today with about 10% headroom. Choose: confirm that budget, or
   ask for optional parts (XQuery and XSLT grammars, collation and Unicode
   tables) as separate modules (PLAN.md, risks) and keep a lower budget
-  for the core.
-
-- **The item axis in the evaluator** (packet 2.5, D113; for the owner of
-  `src/evaluator_path.c` and `include/sxml/tree.h`): `item::` is lowered
-  over the child axis and a wrapper array, so the singleton case's JNode
-  has the wrong parent and document order. Proposed: append
-  `SXML_AXIS_ITEM` to `sxml_axis` (additive, D99) with the STEP semantics
-  of XPath 4.0, 4.7.4 (a JNode with ·jkey· 1, ·jvalue· jvalue(G) and
-  ·jparent· G, made once per G so `is` holds); lowering then emits one
-  STEP. Also: the JNode key test casts `key_lexical_form` without
-  namespaces, so a QName key in a namespace (given as an EQName,
-  `include/sxml/types.h`) never matches; the cast should read the EQName
-  form (QT4 sequence-type-61, `jnode(#xml:space)`).
-
-- **Collations in the other comparing bodies** (packet 2.13, D116; for
-  the owners of `src/function_library_numeric.c`,
-  `src/function_library_higher_order.c`, `src/function_library_array.c`
-  and the evaluator's SORT): fn:min/max, fn:highest/lowest, fn:sort-by,
-  array:sort and order-by keys with a collation still accept only the
-  codepoint collation (FOCH0002 otherwise, through
-  `sxml_function_library_check_collation` or their own checks). They
-  should resolve with `sxml_function_library_resolve_collation` and
-  compare with `sxml_function_library_compare_collated`
-  (`src/function_library_core_internal.h`).
-
-- **Report name and areas for the XSLT driver** (packet 4.1, D117; for
-  the owner of `tests/qt4/driver/report.c`): the JSON report says
-  `"report": "sxml-qt4 run"` and sums QT4 areas (fn, op, ...), so
-  `sxml-xslt-test run --format=json` reports area "other" for most sets.
-  Proposed (additive): `program_name` in `sxml_qt4_report_configuration`
-  (empty = "sxml-qt4") and an optional area function there, so the XSLT
-  driver can report its test-set groups (attr, decl, expr, fn, insn,
-  misc, type) for the 4.17 dashboard.
+  for the core. At the Phase 2 gate (D151) `sxml.wasm` is
+  1,865,152 bytes stripped and 647,721 gzipped: 7 % left.
 
