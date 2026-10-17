@@ -2806,6 +2806,61 @@ Recorded 2026-10-17, extending D52 and D59. `src/xpath_ast_internal.h`.
   owns its grammar's names, as lowering parts own their kinds); hook
   state pointers (everything a hook needs is in the AST).
 
+### D112. The XSLT API (packet 4.0)
+Recorded 2026-10-17. `include/sxml/xslt.h` is new, header only, after
+`xquery.h` (D106); 4.15 implements it in `src/xslt.c`.
+- **Stylesheet**: `sxml_xslt_stylesheet` (lifecycle quintet, like
+  `sxml_xquery_query`) compiled from the principal module's bytes, or
+  fetched through the resolver as an XSLT_MODULE (a URI reference) or an
+  XSLT_PACKAGE (name and package-version), chosen by
+  `sxml_xslt_principal_module_source`. Includes, imports and used
+  packages always come from the resolver (XTSE0165, XTSE3000, XTSE0180).
+  Static parameters are `sxml_variable_binding_view` values given at
+  compile time (XTDE0050 is then a compile failure with DYNAMIC_ERROR).
+  Of the shared static context only static_base_uri, the default
+  collation and collation bindings are read; namespaces, variable
+  declarations and decimal formats must be empty, since the stylesheet
+  declares its own.
+- **Output definitions**: `sxml_xslt_output_definition` = the D106
+  parameters struct + `build_tree` (a serialization flag) +
+  `has_serialization_method` (false: method chosen from the raw result,
+  XSLT 4.0 26.1.2, which serialize.h cannot express). Read by name with
+  `sxml_xslt_stylesheet_get_output_definition` (0 = unnamed); XSLT's
+  omit-xml-declaration default is filled in as NO, indent stays DEFAULT
+  and means yes for html/xhtml when sxml serializes.
+- **Transformation**: one call, `sxml_xslt_stylesheet_transform`, primes
+  and invokes (one execution scope per call; a primed object for several
+  invocations is left out). The request embeds the shared dynamic
+  context: context value = global context item (one item or absent),
+  variable bindings = stylesheet parameters, trace sink = xsl:message
+  (terminating events end in XTMM9000/XTMM9001 or the given code, D104).
+  `sxml_xslt_invocation_kind` APPLY_TEMPLATES (0; initial match selection
+  defaulting to the global context item, initial mode 0 = default mode,
+  `selects_unnamed_mode` for the spec's note), CALL_TEMPLATE (name 0 =
+  xsl:initial-template, focus on the global context item), CALL_FUNCTION
+  (arguments by position, arity = count). Template and tunnel parameters
+  are two binding views. Fields are grouped by size (no padding).
+- **Delivery**: `sxml_xslt_result_delivery` DEFAULT (by build-tree), RAW,
+  TREE (sequence normalization, base URI = result URI), SERIALIZED (to an
+  `sxml_output_stream`); the principal result is the call's output
+  sequence (empty when serialized) and its URI the base output URI.
+- **Result documents**: `sxml_xslt_result_document_handler` with `open`
+  (request: href, absolute URI against the base output URI, effective
+  output definition, processor; the handler fills a target: delivery and
+  output stream) and `close` (URI, value, `is_abandoned`), called once
+  per successful open; XTDE1490 is checked before open, a failing open
+  (D50 statuses) stops the transformation. The null handler evaluates and
+  discards. Default implementation and test double:
+  `sxml_xslt_result_document_collector` (quintet; keeps values or bytes
+  by URI, `_get_result_document_count`, `_get_result_document`, `_clear`)
+  for the 4.1 driver's assert-result-document and the WebAssembly host.
+- Left out, each a later field or function: a primed transformer for
+  several invocations, a context item for the initial template other than
+  the global context item, initial function arguments by name, the
+  stylesheet's parameter list, xsl:message output other than the trace
+  sink, warnings, host extension functions and instructions, schema
+  awareness and streaming (D97).
+
 ## Proposed
 
 - **IR adders for catch clauses and name tests** (packet 3.6, D109; for
