@@ -15,10 +15,13 @@ Windows, iOS and Android, and a WebAssembly module for browsers and Node.js.
 
 ## Current phase
 
-**Phase 1: torture slice.** Work only on the packets in
-`docs/tasks/phase-1.md`. The Phase 0 gate was closed by agent review, as the
-owner chose (D11); a human review of those gate boxes is still welcome. Do not
-start Phase 2 work until the Phase 1 gate is closed the same way.
+**Phase 2: XPath 4.0 and F&O 4.0.** Work on the packets in
+`docs/tasks/phase-2.md`, and on the packets marked "Early" in
+`docs/tasks/phase-3.md` and `docs/tasks/phase-4.md` (D96). The Phase 0 and
+Phase 1 gates were closed by agent review, as the owner chose (D11); their CI
+boxes stay open until GitHub Actions runs again. The substrate headers are
+frozen (D99): changing them needs a decision record. Other Phase 3 and 4
+packets wait for the previous phase's gate.
 
 ## Non-negotiable rules
 
