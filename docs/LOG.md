@@ -4,6 +4,24 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 2.5 done (D113): lowering completions. for member and for key/value
+  (array:split / map:entries collections, positions across all arrays
+  or maps, XQST0089), destructuring let in its three forms, dynamic node
+  tests (absent-focus selector, atomic-equal against node-name,
+  local-name or jkey), the item axis (child step or a wrapper array;
+  parent and order deviate, Proposed), constructor functions with a
+  `$value := .` parameter (keyword arguments, `xs:T()`, `xs:T#0`),
+  method calls, but with (map:merge, no coercion to the record type),
+  jnode() selectors for decimals, doubles, negatives and QNames. Only
+  computed node constructors stay unlowered. XP40 23,698 to 24,206
+  passed, none lost; slice 198/198; prod-ForClause.map 7 to 56,
+  .member 0 to 33, prod-LetClause 67 to 137, prod-MethodCall 0 to 12,
+  misc-ConstructorKeywords and misc-FocusConstructors 5 to 153 each,
+  prod-ButWithExpr 0 to 10 (needs parts-of-dateTime), prod-AxisStep.J
+  30 (98 once fn:jkey/fn:jvalue land, 2.17). prod-NamedFunctionRef's 72
+  failures are missing library functions. `debug`, `debug-gcc`, `wasm`
+  119/119, lint clean.
+
 - 3.1 done (D111): query AST and parser part seam. 66 XQuery kinds and
   24 fields in `src/xpath_ast_internal.h` (keyword detail, XQuery flags,
   boundary whitespace and namespace declaration attribute marks, PI
