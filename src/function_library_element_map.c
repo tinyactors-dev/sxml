@@ -1,7 +1,7 @@
 /*
  * Elements to maps and back (F&O 4.0, section 14.6 "Converting elements
  * to maps"): fn:element-to-map-plan, fn:element-to-map and
- * fn:map-to-element, one library part (D101, D129).
+ * fn:map-to-element, one library part (D101, D130).
  *
  * - fn:element-to-map walks the node indices of the element's subtree
  *   twice, never recursing (D71): in document order it chooses each

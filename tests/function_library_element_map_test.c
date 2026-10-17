@@ -1,6 +1,6 @@
 /*
  * Tests for the element map part of the function library
- * (src/function_library_element_map.c, packet 2.10, D129):
+ * (src/function_library_element_map.c, packet 2.10, D130):
  * fn:element-to-map-plan, fn:element-to-map and fn:map-to-element through
  * the public API, values written by the adaptive method (maps compared
  * with fn:deep-equal, elements written as XML), errors checked by code.
