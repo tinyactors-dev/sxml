@@ -3116,6 +3116,59 @@ Recorded 2026-10-17. `tests/xslt/driver/`, the developer tool
   against `tests/xslt/slice-baseline.txt` (0 until XSLT runs);
   `xslt/list_slice` keeps them resolving.
 
+### D118. Patterns: front end, match expressions, priorities (packet 4.4)
+Recorded 2026-10-17. `src/xslt_pattern.c`, `src/xslt_pattern_internal.h`
+(new module header), after D29, D52, D103, D111.
+- **Pattern AST**: 19 kinds appended to `sxml_ast_kind`, one per
+  `..._pattern` node type of `grammars/xslt_pattern` (root PATTERN), the
+  field PATTERN and the flag OPEN (map pattern `*`); everything inside
+  predicates, node tests, names and constants stays the XPath kinds. Built
+  by `sxml_xslt_pattern_build_ast` (declared in `xpath_ast_internal.h`
+  beside the other front ends) through the D111 parser part seam. Every
+  syntax error is XTSE0340 (6.3.1), as is an outermost function call not
+  binding to fn:doc#1, id#1-2, element-with-id#1-2, key#2-3, root#0
+  (prefixed names checked when the match expression is built). 4.4 made
+  these additive edits to `src/xpath_ast_internal.h`,
+  `tests/xpath_parse_test.c` (names) and the `sxml` link line of the root
+  `CMakeLists.txt` (`sxml_grammar_xslt_pattern`), as D111 foresaw.
+- **Match expression**: a pattern becomes an XPath AST (root XPATH) of
+  xs:boolean over the item as context value, built by one loop over an
+  explicit task list (D71) and lowered like any XPath expression through
+  the embedding entry (D103); no new IR kind. Copied subtrees keep their
+  source spans (the output AST starts with a copy of the pattern's text
+  store). Private variables are in namespace
+  `urn:x-sxml:pattern-variable`. XNode patterns are read right to left
+  (6.3.2.3): a step is a self test on the item, the steps to its left a
+  condition on its parent ("/") or an ancestor ("//"); a step with
+  predicates is selected again from its origin so positions count as in
+  the formal definition; leading steps use child-or-top,
+  attribute-or-top, namespace-or-top. Patterns with intersect/except, a
+  filter on a parenthesized pattern or an RHS parenthesized pattern beyond
+  steps and unions use the formal definition (some ancestor-or-self
+  candidate $x with the item in $x/(EE)). Simple, atomic, map, record,
+  array and JNode patterns test the item directly (6.3.3-6.3.9; sequence
+  patterns: count, then every item).
+- **Errors in patterns (6.5)**: a match expression may raise; every
+  evaluator of one (APPLY_TEMPLATES 4.8, xsl:number 4.11, grouping 4.9,
+  keys 4.10) treats a dynamic or type error as "no match". current() in
+  patterns is the item being matched; 4.10 must provide it (the match
+  expression keeps current() as written).
+- **Match function**: `sxml_xslt_pattern_lower_match_function` adds a
+  top-level IR function (item()) as xs:boolean whose fixed focus is its
+  parameter, for template rules (callers outside a lowering machine, no
+  locals in scope); inline uses lower the match expression themselves.
+- **Default priority**: `sxml_xslt_pattern_compute_default_priority`
+  (6.4, incl. the 4.0 union minimum, element/attribute table, atomic
+  0.5 - 2^-N by derivation depth, map, record, array, JNode rules,
+  `##any` through a flag).
+- Suite: of 19,441 pattern attributes in xslt40-test, 19,288 parse; all
+  of them build a match expression; 18,916 lower with only the
+  stylesheet's namespaces, 372 need what a stylesheet adds (XSLT
+  functions current/key/id/accumulators, 145; schema or user types, 227).
+- Rejected: evaluating root(.)//(EE) for every pattern (quadratic per
+  match); a lowering part over pattern kinds (would need the core's node
+  test resolution, which is private to `xpath_lower.c`).
+
 ## Proposed
 
 - **IR adders for catch clauses and name tests** (packet 3.6, D109; for
