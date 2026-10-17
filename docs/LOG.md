@@ -4,6 +4,11 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 1.26 follow-up (D90): map:merge merges into its largest map, so folds
+  that merge one entry into an accumulator, on either side, are O(n log n)
+  (were O(n^2): 6 s and 18 s under ASan on two QT4 seeds). New internal
+  `sxml_map_put_first` (`src/xdm_map_internal.h`). Scaling test
+  `map_merge_scales`.
 - 1.26 done (D86, P9): fuzz targets. `tests/fuzz/` (xml_parse, xpath_compile,
   xpath_evaluate, regex, cast; per-input leak checks and sxml-error
   statuses), preset `fuzz`, `tools/fuzz.sh`, `tools/fuzz-seeds.py` (xmlconf
