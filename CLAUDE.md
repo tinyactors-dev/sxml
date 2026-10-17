@@ -20,8 +20,9 @@ Windows, iOS and Android, and a WebAssembly module for browsers and Node.js.
 `docs/tasks/phase-3.md` and `docs/tasks/phase-4.md` (D96). The Phase 0 and
 Phase 1 gates were closed by agent review, as the owner chose (D11). CI is
 disabled for now by the owner's choice, so gates are checked locally (D123). The substrate headers are
-frozen (D99): changing them needs a decision record. Other Phase 3 and 4
-packets wait for the previous phase's gate.
+frozen (D99): changing them needs a decision record. Any later-phase packet
+may start once the packets it depends on are committed (D132); each phase is
+still closed by its gate review.
 
 ## Design principle
 

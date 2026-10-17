@@ -3772,6 +3772,14 @@ range fast path, 2.9's decimal formats, 2.13's default collation).
   message 3 to 14/14, trace 31/31, format-number 252 (2.9) to 285/286.
   "Before" counts are at the packet's start (24fc6ac).
 
+### D132. Packets start when their dependencies are committed (amends D96)
+Recorded 2026-10-17 by the orchestrator, toward the owner's goal of working
+XQuery and XSLT. A packet of a later phase may start as soon as every packet
+in its "After" list is committed, whether or not it is marked "Early". The
+phase gates still close each phase: a phase is done only when its gate review
+passes, and gate reviews re-check the work of later-phase packets that
+started early. First applied to 3.8, 3.10 and 3.13.
+
 ## Proposed
 
 - **The item axis in the evaluator** (packet 2.5, D113; for the owner of
