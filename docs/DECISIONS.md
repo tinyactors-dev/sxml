@@ -4194,6 +4194,32 @@ part (decode-from-uri, parse-uri, build-uri) and the qname part
   fn-parse-QName 6 (all wrong errors) to 19/19, fn-resolve-QName 4 to 8/8
   run (23 XQuery-only), fn-hash 1 to 54/54.
 
+### D141. CSV parsing: fn:parse-csv, fn:csv-to-xml, fn:csv-doc (packet 2.15)
+Recorded 2026-10-17, after D97, D128, D131, D133. New module `src/csv.c` /
+`src/csv_internal.h` and part `src/function_library_csv.c`.
+- **Scanner** (D97, by hand): `sxml_csv_read_token` gives one `csv_token`
+  (field, row end, input end; glossary) per call and keeps its place in a
+  `csv_cursor`, a plain value: no object, no allocation. A field is a view
+  into the text; only a quoted field with a doubled quote or a CR needs
+  `sxml_csv_decode_field`, into caller memory no longer than the field.
+  Special characters are matched as whole UTF-8 sequences byte by byte.
+- **Rules where F&O 4.0 is loose**: CR is a newline, so it cannot be a
+  separator, quote or comment marker (FOCV0002, like LF); trimming removes
+  U+0020 and U+0009 from unquoted fields and all four XML whitespace
+  characters from header names; with trim-rows, a blank row is padded to
+  the first row's width like any short row; select-columns beyond a
+  header's end name the zero-length string; a selected position past
+  int64_t selects nothing.
+- **fn:csv-to-arrays** is not implemented: F&O 4.0 dropped it (issue 2961,
+  absorbed into fn:parse-csv) and QT4 has no test set for it.
+- **One parse, three functions**: fn:parse-csv builds columns, column
+  index and rows once; the record's get is a function item over a static
+  row (after fn:regex, D133) capturing rows and column index, signature
+  from the record's field type. fn:csv-to-xml walks that result, as the
+  specification defines it over fn:parse-csv. fn:csv-doc calls the
+  fn:unparsed-text row (found by name, as fn:json-doc finds parse-json),
+  so text decoding (D131) is written once.
+
 ## Proposed
 
 - **xsl:record and record-type/@constructor in the stylesheet AST**
