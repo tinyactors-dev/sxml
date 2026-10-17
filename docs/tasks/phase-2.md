@@ -130,6 +130,11 @@ the HTML5 character reference names for fn:char. Functions:
 normalize-unicode, graphemes, characters, char. The `wasm` size growth is
 logged. Done when fn-graphemes (918 cases), fn-normalize-unicode, fn-char,
 fn-characters ≥ 95%. Spec: F&O 4.0 per function; UAX #15, UAX #29.
+**Done** 2026-10-17 (D107): fn-graphemes 918/918, fn-normalize-unicode
+39/41 (44/44 once the driver declares FULLY-NORMALIZED), fn-char 47/48
+(char-001 needs fn:json-doc), fn-characters 8/8; all of Unicode 16.0
+NormalizationTest.txt and GraphemeBreakTest.txt pass; `wasm` grows by
+about 143 KB (136 KB of tables).
 
 ### 2.5 Lowering completions (implementation)
 After 2.1. Owns `src/xpath_lower.c`, `src/xpath_lower_internal.h`,
