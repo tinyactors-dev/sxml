@@ -4,6 +4,26 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 3.10 done (D135): prologs. `src/xquery_static.c` reads the prolog into
+  one XPath static context (namespaces, `local`/`output`/`xq`, default
+  namespaces with a function namespace rule, setters, base URI, default
+  collation and decimal formats into the unit's static context, output
+  declaration names, named item types as aliases, nominative records with
+  constructors, declared functions as IR functions per arity, variables
+  as globals); `src/xquery_prolog.c` lowers bodies, defaults,
+  initializers and the query body (fixed focus on the context global),
+  orders globals by a static dependency walk (XQDY0054) and holds
+  `sxml_xquery_lower`/`_compile`; `src/evaluator_global.c` computes them
+  as calls on the machine. QT4 XQ40 (release; before, every prolog query
+  was an "error"): VarDecl 138/142 run, VarDecl.external 95/97,
+  FunctionDecl 210/227, Annotation 87/88, ItemTypeDecl 65/78 and
+  NamedRecordTypeDecl 77/92 (9 each need module import, 3.11),
+  DecimalFormatDecl 45/46, DefaultNamespaceDecl 71/80, NamespaceDecl
+  52/54, ContextItemDecl 34/43 (8 module imports), ContextValueDecl 13/13,
+  OptionDecl.serialization 32/38, EmptyOrderDecl 28/32 (SORT, Proposed);
+  setter sets 100%. XP40 30,389 (unchanged), slice 198/198; debug,
+  debug-gcc, wasm pass, lint clean. Follow-ups under "Proposed" (D135).
+
 - 4.6 done (D142): sequence constructors and node construction lowered
   into the shared IR by the one lowering machine (procedures pushed per
   instruction, XPath through the embedding entry): literal result
