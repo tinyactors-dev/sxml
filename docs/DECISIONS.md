@@ -4035,6 +4035,67 @@ kind added; contract in `src/xquery_flwor_internal.h`: lowering in
   prod-WindowClause 125/158 (19 not run, the 14 errors are prologs). The
   FLWOR sets are as D126 measured.
 
+### D138. The JavaScript package and release 0.2.0 (packet 2.18)
+Recorded 2026-10-17, completing D10 and D47. Node 22.22, WASI SDK 34.
+- **Layout** (`bindings/javascript/`, glossary `javascript_package`,
+  `javascript_shim`): the shim `sxml_javascript.c` (with its interface
+  `sxml_javascript.h`, not a public header) uses only the public API, as
+  the CLI does. It builds as a library in every preset, so `-Werror`,
+  clang-tidy and ast-grep see it (`cmake/SxmlLint.cmake` globs
+  `bindings/`); under WASI it links into `sxml.wasm`, a reactor module
+  (`-mexec-model=reactor`, `export_name`, `--strip-all`). The package is
+  hand-written TypeScript (`src/index.ts`, `src/wasi.ts`), erasable syntax
+  only, so Node.js (22.18 and later) runs it and its tests directly;
+  `tsc` 5.9.3, a devDependency, type-checks (ctest
+  `javascript/typecheck` after `npm ci` there) and builds `dist/`.
+  No runtime dependencies.
+- **WASI**: the module imports only `clock_time_get`, `fd_write`,
+  `fd_close` and `fd_seek` (sxml does no I/O; resources come through the
+  resolver). The package supplies these itself in Node.js and browsers
+  alike (real clocks; EBADF; ENOSYS for any other import), instead of
+  `node:wasi` and a browser polyfill: one code path. So D65's fast-call
+  workaround does not concern the package; `tools/run-wasi.mjs` is
+  unchanged. Checked in headless Chromium (fetch, resolver, clock).
+- **API**: `load()` gives an `Sxml`; `createProcessor({resolver})`;
+  `Processor.parse`, `compile` (an `XPathExpression` with named
+  external variables, `item()*`, NCName or `Q{uri}local`), `evaluate`,
+  `value`, `serialize`, `dispose`; `Value.serialize`, `toString`
+  (adaptive), `dispose`; failures throw `SxmlError` (status, code
+  `prefix:local`, description, line, column). JavaScript data becomes XDM
+  as fn:parse-json reads its JSON (a string is an xs:string), one
+  general rule instead of per-type conversions; serialization options are
+  fn:serialize's options map, read by `sxml_serialization_parameter_reader`
+  (camelCase keys accepted). The resolver is a synchronous callback
+  (`sxml_host.resolve` import) returning a string, bytes or nothing; an
+  exception it throws is rethrown; it must not use its processor.
+  XQuery arrives additively once `xquery.h` is implemented: a
+  `Processor.compileQuery()` giving an expression object with the same
+  `evaluate` and the query's serialization parameters as the default of
+  `serialize`; resource kinds already include `xquery-module`.
+- **Memory**: every package object owning C memory is a handle
+  (glossary); `dispose()` releases it, a `FinalizationRegistry` releases
+  what is never disposed. A processor's destruction releases its live
+  values and expressions first, since they cannot outlive it in C. Each
+  processor has a counting allocator: tests check that destruction leaves
+  0 allocations and run the allocation-failure loop (D23) from JavaScript.
+- **Size budget** (D93, glossary `size_budget`): at this commit the `sxml`
+  CLI module is 1,820,106 bytes stripped, 629,585 gzipped (zlib -9);
+  `sxml.wasm` 1,788,836 and 617,898. Phase 2 grew both past D93's 1.5 MB
+  and 450 KB (from 1,213,261 and 358,020); `-flto -Oz` saves 2%, so the
+  growth is code and tables, not flags. The budget becomes 2,000,000
+  bytes stripped and 700,000 gzipped for both modules, checked by ctest
+  `javascript/size_budget` (wasm preset), which prints the sizes. The
+  owner may instead want optional parts as separate modules (PLAN.md,
+  risks): see "Proposed".
+- **npm name**: `sxml` is taken on npm (another project, 1.0.4); the
+  package is `sxml-js` until the owner chooses.
+- **Release 0.2.0**: `SXML_VERSION_*` 0.2.0, equal to `SXML_API_VERSION`;
+  CMake project version 0.2.0; `CHANGELOG.md`; `docs/RELEASE.md` says how
+  to cut a release. From 0.2.0 the public headers are stable (D47): a
+  release adds declarations (minor before 1.0.0) and never changes one
+  without a major (before 1.0.0, minor) version and a record. Tagging
+  and publishing to npm are the owner's.
+
 ## Proposed
 
 - **The item axis in the evaluator** (packet 2.5, D113; for the owner of
