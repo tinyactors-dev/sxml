@@ -161,6 +161,10 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `applicability` | Whether a QT4 test case can run for a target: its spec, its other dependencies and its environment are supported; otherwise the reason it is skipped |
 | `test_list` | A file naming QT4 test cases, one `<test-set> <test-case>` per line (`tests/qt4/torture-slice.txt`) |
 | `test_selection` | The QT4 test cases one driver run covers: a test list, one test set, or every test set |
+| `test_outcome` | What running one QT4 test case gave: pass, wrong error (an expected error raised with another code, which passes), fail, error (sxml itself failed: a limit, a leak, a non-specification status) or not run (not applicable, or an assertion the driver cannot check) |
+| `assertion_verdict` | What one QT4 result assertion, or a combination of them (`all-of`, `any-of`, `not`), says about a test's result: pass, wrong error, fail or unsupported |
+| `run_report` | The output of `sxml-qt4 run`: one entry per test case that did not pass, counts per test set and overall, as text or JSON |
+| `slice_baseline` | The number of torture-slice test cases that must pass (`tests/qt4/slice-baseline.txt`); it only goes up |
 | `suite_path` | The path of a QT4 suite file relative to the directory of `catalog.xml`, with `.` and `..` segments removed |
 | `name_pool` | Per-processor table that interns namespace URIs, prefixes and expanded names into small identifiers |
 | `name_identifier` | Identifier of an interned expanded name (namespace URI plus local name) in a name pool |
