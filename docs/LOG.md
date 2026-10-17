@@ -10,7 +10,7 @@ One short entry per week, newest first: what passed, what's next, what is blocke
   content lists enclosed expressions); names, PI, comment and namespace
   errors; strip, preserve/inherit fixed until the IR carries modes
   (proposed with a namespace-binding adder and verifier support).
-  Deviation: `text {""}` is the empty sequence. 60 hand-built IR cases
+  Deviation: `text {""}` is the empty sequence. 62 hand-built IR cases
   with allocation-failure loops, 20,000-deep arrays flattened. `debug`,
   `debug-gcc`, `wasm` 121/121, lint clean; slice 198/198; XP40 23,698
   passed before and after (release run of the snapshot at HEAD).
