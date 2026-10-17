@@ -2651,9 +2651,10 @@ Recorded 2026-10-17. Extends D83 and D92 in `tests/qt4/driver/`.
   attribute as the external encoding), else `file:///SUITE-PATH`;
   COLLECTION and URI_COLLECTION as SEQUENCE (document nodes, or their
   document URIs as xs:anyURI), `uri=""` is the default collection;
-  collection sources with a `uri` are also available documents. Still
-  skipped: collections with a `query` or a `resource` (3.13). Resources are
-  not served to fn:doc.
+  collection sources with a `uri` are also available documents; a
+  collection's resources are served like the environment's and their URIs
+  follow the documents' in fn:uri-collection. Still skipped: collections
+  with a `query` (3.13). Resources are not served to fn:doc.
 - **Dependencies** now satisfied: feature simple-uca-fallback,
   non_empty_sequence_collection, arbitraryPrecisionDecimal;
   unicode-normalization-form NFC NFD NFKC NFKD (Phase 2 makes them work;
