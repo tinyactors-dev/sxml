@@ -6,8 +6,9 @@
  * Golden file: tests/memory_test.c (layout, naming).
  *
  * The suite is read from the source tree, third_party/xmlconf, found from
- * this file's own path. Where that path cannot be opened (the WebAssembly
- * build sees only its working directory) the test says so and passes.
+ * this file's own path. Where that path cannot be opened (a build moved
+ * away from its sources) the test says so and passes. Under WASI,
+ * tools/run-wasi.mjs preopens the source tree, so the suite runs (D93).
  *
  * Every valid and invalid test (both well-formed) must build an arena
  * tree; every not-wf test must be refused with MALFORMED_INPUT,

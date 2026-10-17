@@ -1,8 +1,18 @@
 // Runs a WASI (preview 1) module under Node.js: node run-wasi.mjs module.wasm [arguments...]
 // Used as CMAKE_CROSSCOMPILING_EMULATOR so ctest can run WebAssembly test executables.
 // The exit code of the module becomes the exit code of this process.
+//
+// Visible to the module (WASI preopens, D93): the working directory as ".",
+// and the source tree (the parent of this script's directory) under its own
+// absolute path, so that tests which find the vendored suites from __FILE__
+// (tests/xml_conformance_test.c: <root>/tests/../third_party/xmlconf) open
+// them as they do natively. The whole tree is preopened, not only
+// third_party/, because wasi-libc matches preopens by path prefix and does
+// not resolve the ".." first.
 import { readFile } from 'node:fs/promises';
+import { dirname, resolve } from 'node:path';
 import { argv, cwd, env, exit } from 'node:process';
+import { fileURLToPath } from 'node:url';
 import { setFlagsFromString } from 'node:v8';
 import { WASI } from 'node:wasi';
 
@@ -16,11 +26,12 @@ import { WASI } from 'node:wasi';
 setFlagsFromString('--no-turbo-fast-api-calls');
 
 const modulePath = argv[2];
+const sourceRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const wasi = new WASI({
   version: 'preview1',
   args: argv.slice(2),
   env,
-  preopens: { '.': cwd() },
+  preopens: { '.': cwd(), [sourceRoot]: sourceRoot },
   returnOnExit: true,
 });
 const module = await WebAssembly.compile(await readFile(modulePath));
