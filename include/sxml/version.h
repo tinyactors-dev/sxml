@@ -8,10 +8,15 @@
  * The version follows Semantic Versioning. The macros describe the headers a
  * program was compiled against; sxml_version_text describes the library it
  * runs against, which can differ when the library is shared.
+ *
+ * Stability: from release 0.2.0 on, the public headers (include/sxml/) are
+ * stable (D47, D138): a release adds declarations, and changes or removes
+ * one only with a decision record and a new major version (before 1.0.0,
+ * minor version). docs/RELEASE.md describes a release.
  */
 
 #define SXML_VERSION_MAJOR 0
-#define SXML_VERSION_MINOR 0
+#define SXML_VERSION_MINOR 2
 #define SXML_VERSION_PATCH 0
 
 /*
@@ -38,7 +43,7 @@
 #define SXML_API_VERSION SXML_VERSION_ENCODE(0, 2, 0)
 
 /*
- * Returns the library version as text, for example "0.0.0".
+ * Returns the library version as text, for example "0.2.0".
  *
  * The result is a NUL-terminated ASCII string with static storage duration,
  * owned by the library; the caller must not modify or release it. A

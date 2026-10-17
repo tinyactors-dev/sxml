@@ -217,7 +217,7 @@ struct sxml_cli_invocation {
     sxml_cli_writer *standard_error;
     /* For memory the command needs; outlives the call. */
     sxml_allocator allocator;
-    /* The version text the program reports, such as "0.0.0". */
+    /* The version text the program reports, such as "0.2.0". */
     sxml_byte_view version_text;
     /* Reads the files named on the command line. */
     sxml_cli_file_reader file_reader;

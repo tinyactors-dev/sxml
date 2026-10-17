@@ -11,7 +11,7 @@
  * exit code (docs/CLI.md, "Exit codes").
  *
  *     sxml [-h | --help]          the program's help, exit 0
- *     sxml --version              "sxml 0.0.0", exit 0
+ *     sxml --version              "sxml 0.2.0", exit 0
  *     sxml help [COMMAND]         help, exit 0
  *     sxml COMMAND [ARGUMENT...]  the command's function
  *     sxml                        usage error, exit 2
@@ -27,7 +27,7 @@ typedef struct sxml_cli_run_request {
     sxml_cli_output_stream standard_error;
     /* Memory for the parsed arguments, and for commands. */
     sxml_allocator allocator;
-    /* What "--version" reports after the program name, such as "0.0.0". */
+    /* What "--version" reports after the program name, such as "0.2.0". */
     sxml_byte_view version_text;
     /* Passed to commands that read files; may have no operations. */
     sxml_cli_file_reader file_reader;
