@@ -255,7 +255,9 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `child_index` | Position of a child among the children of its parent, from 0 |
 | `node_kind` | One of the seven XNode kinds: document, element, attribute, text, comment, processing instruction, namespace |
 | `node_reference` | A tree plus a node index (plus a namespace number for namespace nodes); identifies a node |
-| `namespace_number` | Which in-scope namespace of an element a namespace node is, from 1; 0 for other nodes |
+| `namespace_number` | Which in-scope namespace of an element a namespace node is, from 1; 0 for other nodes and for a stored namespace node |
+| `parentless_namespace` | A namespace node without a parent element (XQuery computed namespace constructor, xsl:namespace outside an element); stored as the root of a tree of its own (D98) |
+| `stored_namespace` | A namespace node held as a stored node of a tree: only a parentless one, at node index 0 (D98) |
 | `node_description` | What a tree reports about one node: kind, name, parent, siblings, children, type annotation, flags |
 | `last_descendant` | The node index of the last node in a node's subtree (the node itself when it has none) |
 | `tree_operations` | The operations table a tree implementation supplies |
