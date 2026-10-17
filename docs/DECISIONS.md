@@ -2090,4 +2090,85 @@ and `conformance.json`, step summary, blocking only on the slice) and job
 `fuzz` (D86 command); concurrency cancels in-progress runs except on main.
 The committed dashboard is refreshed by hand (or by an agent), not by CI.
 
+### D95. Pass-rate targets for Phases 2, 3 and 4
+Recorded 2026-10-17 (Phases 2 to 4 planning; PLAN.md leaves the targets to
+the end of Phase 1). Measured by `sxml-qt4 run` (release, one process per
+test set) and, for XSLT, the driver of packet 4.1; "wrong error" counts as
+passed (D92), as the QT4 guide allows.
+- **Denominators**: the cases whose spec applies (XP40, XQ40, XSLT40; a
+  case spec replaces the set's), minus those that need a non-goal: features
+  schemaImport, schemaValidation, typedData, staticTyping, XQUpdate,
+  fullText*, xpath-1.0-compatibility, fn-transform-XSLT*, fn-invisible-xml,
+  remote_http, expath-file, binary, advanced-uca-fallback,
+  schema-location-hint; sets upd-*, ft-*, bin-*, expath-*,
+  misc-HtmlTestSuite, fn-parse-html, fn-html-doc, fn-invisible-xml,
+  fn-transform (D97). About 31,500 XP40 and 41,200 XQ40 cases (9,700 of
+  them XQ-only). XSLT: spec XSLT40 outside the `strm` and `sandp` groups
+  and without the features schema_aware, streaming, dtd, XML_1.1, XSD_1.1,
+  backwards_compatibility, HTML4, ICU_spellout: about 8,700 of 12,627.
+  Cases with serialization assertions count (they fail until 3.3).
+- **Targets**: Phase 2, XP40 ≥ 90%, each area fn, op, prod, map, array,
+  math, xs ≥ 80%. Phase 3, XQ40 ≥ 85%, XQ-only ≥ 75%, method-* ≥ 80%, XP40
+  kept. Phase 4, XSLT in scope ≥ 70%, twelve core sets ≥ 80% (listed in
+  `docs/tasks/phase-4.md`). Every gate also needs zero crashes, leaks and
+  "error" outcomes.
+- **Why these**: Phase 1 ended at 21,443 of about 31,500 XP40 cases (68%).
+  The known causes are missing work, not design faults: unknown functions
+  5,596 cases, regex 480, unlowered constructs 395, math 181, collations
+  100; together about 21% of the denominator, so 90% asks for that plus a
+  third of the remaining failures. XQuery adds 9,700 XQ-only cases that
+  share the XPath core; 75% of those with 90% of the rest gives 86%. The
+  XSLT suite is younger, its cases compare whole outputs and many test
+  packages and error codes, so 70% is the first honest bar; regex-syntax
+  (987) and error (500) alone are 17% of it.
+- A target is changed only by a new record, before its gate review.
+
+### D96. Phases 2 to 4 overlap
+Recorded 2026-10-17. To reach working XQuery and XSLT sooner (D11),
+packets marked **Early** in `docs/tasks/phase-3.md` and `phase-4.md` may
+start once the Phase 1 gate has closed (the substrate freeze) and the
+packets in their "After" lists are committed, while earlier phases still
+run. All other packets of a phase wait for the previous phase's gate.
+- Ownership rules of D45 hold across phases: packets that run at the
+  same time never own the same file; a file named by packets of two phases
+  belongs to whichever runs first, and the other waits.
+- Seams first: Phase 2 wave 0 makes library parts, evaluator parts for the
+  reserved IR kinds and lowering parts register by glob (packets 2.0,
+  2.1), so XQuery and XSLT packets add files instead of editing the
+  evaluator, the lowering machine or the processor's lists.
+- Gates stay sequential: the Phase 3 review needs the Phase 2 gate, and a
+  phase's review counts only its own targets. Early packets do not move
+  their phase's gate forward.
+- `CLAUDE.md` names the current phase; at each gate the review names the
+  next phase file and the Early packets that may run with it.
+
+### D97. Scope of Phases 2 to 4
+Recorded 2026-10-17 (non-goals per PLAN.md, made concrete).
+- **Collations**: the Unicode codepoint collation and the HTML ASCII
+  case-insensitive collation (both required by F&O 4.0), and UCA collation
+  URIs with fallback (on by default): codepoint order, with strength
+  primary and secondary matching case-blind (QT4 simple-uca-fallback).
+  Full UCA (DUCET tables, tailoring, numeric and case-order options;
+  advanced-uca-fallback) stays out: the tables cost more `wasm` size than
+  the 81 tests that need them are worth. fallback=no on a UCA URI is
+  FOCH0002.
+- **Out**: fn:parse-html and fn:html-doc (an HTML5 tree builder is its
+  own project; 1,400 QT4 cases, excluded by D95), invisible XML, schema
+  awareness (validate is XQST0075; XSLT validation="strict" and type
+  attributes raise XTSE1660, as for a basic processor), streaming (streamable="yes" runs
+  unstreamed, as a non-streaming processor may), the Update Facility
+  (its tests are not run; %updating is rejected statically), Full Text, EXPath,
+  XPath 1.0 compatibility mode and XSLT backwards-compatible behaviour,
+  civil-timezone and Olson names (no tz database), calendars other than
+  AD and ISO and languages other than English in format-date and
+  format-integer (the fallback markers F&O allows).
+- **Later in this plan**: fn:serialize with every method (3.4),
+  fn:load-xquery-module (3.11); fn:transform only if Phase 4 sweeps leave
+  time.
+- **Hand-written scanners**: regex syntax (D53), picture strings of the
+  formatting functions and CSV are scanned by hand, because their lexical
+  rules are run-time options (decimal formats, CSV delimiters) that a
+  tree-sitter grammar cannot take. Everything else keeps D12, including
+  XSLT value templates (`grammars/value_template`).
+
 ## Proposed
