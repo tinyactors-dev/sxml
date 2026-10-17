@@ -217,6 +217,26 @@ static const char *const kind_names[] = {
     "direct_comment_constructor",
     "direct_processing_instruction_constructor",
     "qname",
+    /* XSLT 4.0 patterns (D118). */
+    "pattern",
+    "union_pattern",
+    "intersect_except_pattern",
+    "rooted_path_pattern",
+    "absolute_path_pattern",
+    "relative_path_pattern",
+    "filter_pattern",
+    "function_call_pattern",
+    "parenthesized_pattern",
+    "axis_step_pattern",
+    "simple_pattern",
+    "any_item_pattern",
+    "atomic_pattern",
+    "map_pattern",
+    "map_entry_pattern",
+    "record_pattern",
+    "array_pattern",
+    "jnode_pattern",
+    "sequence_pattern",
 };
 _Static_assert(sizeof kind_names / sizeof kind_names[0] == SXML_AST_KIND_COUNT,
                "one name per AST kind");
@@ -259,6 +279,8 @@ static const char *const field_names[] = {
     "specification",
     "start",
     "version",
+    /* XSLT 4.0 patterns (D118). */
+    "pattern",
 };
 _Static_assert(sizeof field_names / sizeof field_names[0] ==
                    SXML_AST_FIELD_COUNT,

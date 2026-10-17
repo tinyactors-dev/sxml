@@ -81,8 +81,9 @@
  *   the prolog with its declarations, the FLWOR clauses where, while,
  *   order by, group by, count, trace and the windows, direct constructors,
  *   string constructors, switch, typeswitch, try/catch, validate,
- *   ordered/unordered and extension expressions. XSLT patterns will add
- *   their `..._pattern` types the same way (Phase 4).
+ *   ordered/unordered and extension expressions. XSLT patterns add their
+ *   19 `..._pattern` types the same way (D118), the field `pattern` and
+ *   the flag OPEN.
  * - Four XPath node types gain fields in XQuery: `annotation` on
  *   inline_function_expression, any_function_type and typed_function_type
  *   (children of kind ANNOTATION), and `allowing_empty` on
@@ -794,6 +795,64 @@ typedef enum sxml_ast_kind {
        or attribute ("p:n" or "n"). */
     SXML_AST_KIND_QNAME,
 
+    /* ====== XSLT 4.0 patterns (D118). Section numbers of XSLT 4.0 (QT4
+       CG draft, October 2026), section 6.3 and Appendix E; one kind per
+       `..._pattern` node type of grammars/xslt_pattern (D29). Built by
+       sxml_xslt_pattern_build_ast (src/xslt_pattern.c, packet 4.4).
+       Predicates, node tests, names and constants inside them are the
+       XPath kinds. ====== */
+    /* pattern: a pattern kind. The root of every pattern AST. */
+    SXML_AST_KIND_PATTERN,
+    /* left, right: pattern kinds. Detail operator UNION. 6.3.2. */
+    SXML_AST_KIND_UNION_PATTERN,
+    /* left, right: pattern kinds. Detail operator INTERSECT or EXCEPT. */
+    SXML_AST_KIND_INTERSECT_EXCEPT_PATTERN,
+    /* variable: VARIABLE_REFERENCE; predicate*: PREDICATE; path?: a
+       pattern kind. Detail operator SLASH or DOUBLE_SLASH before the
+       path (NONE without one). "$v[1]//a". */
+    SXML_AST_KIND_ROOTED_PATH_PATTERN,
+    /* path?: a pattern kind. Detail operator SLASH ("/" alone has no
+       path) or DOUBLE_SLASH. */
+    SXML_AST_KIND_ABSOLUTE_PATH_PATTERN,
+    /* left, right: pattern kinds. Detail operator SLASH or DOUBLE_SLASH. */
+    SXML_AST_KIND_RELATIVE_PATH_PATTERN,
+    /* value: FUNCTION_CALL_PATTERN or PARENTHESIZED_PATTERN; predicate+:
+       PREDICATE. */
+    SXML_AST_KIND_FILTER_PATTERN,
+    /* name: Name; argument*: VARIABLE_REFERENCE or a constant
+       (STRING_LITERAL, a numeric literal, NEGATIVE_NUMERIC_LITERAL,
+       QNAME_LITERAL, BOOLEAN_CONSTANT). "id('a')". */
+    SXML_AST_KIND_FUNCTION_CALL_PATTERN,
+    /* pattern: a pattern kind. */
+    SXML_AST_KIND_PARENTHESIZED_PATTERN,
+    /* test: a node test; predicate*: PREDICATE. Detail axis, as for
+       AXIS_STEP (only the forward axes of ForwardAxisP); flag ABBREVIATED
+       for "@test". */
+    SXML_AST_KIND_AXIS_STEP_PATTERN,
+    /* item: ANY_ITEM_PATTERN, ATOMIC_PATTERN, MAP_PATTERN,
+       RECORD_PATTERN, ARRAY_PATTERN or JNODE_PATTERN; predicate*:
+       PREDICATE. 6.3.3. */
+    SXML_AST_KIND_SIMPLE_PATTERN,
+    /* No fields: ".". */
+    SXML_AST_KIND_ANY_ITEM_PATTERN,
+    /* type+: Name. "atomic(xs:int | xs:long)", 6.3.4. */
+    SXML_AST_KIND_ATOMIC_PATTERN,
+    /* entry*: MAP_ENTRY_PATTERN. Flag OPEN for a trailing "*" (also "{*}"
+       alone). 6.3.6. */
+    SXML_AST_KIND_MAP_PATTERN,
+    /* key: a constant; value?: SEQUENCE_PATTERN. */
+    SXML_AST_KIND_MAP_ENTRY_PATTERN,
+    /* name: Name. 6.3.7. */
+    SXML_AST_KIND_RECORD_PATTERN,
+    /* member: SEQUENCE_PATTERN. 6.3.8. */
+    SXML_AST_KIND_ARRAY_PATTERN,
+    /* selector: WILDCARD or a constant; value: SEQUENCE_PATTERN. 6.3.9. */
+    SXML_AST_KIND_JNODE_PATTERN,
+    /* pattern?: a pattern kind. Detail occurrence: 0 when no indicator is
+       written (exactly one), ZERO for "empty-sequence()", which has no
+       pattern, ZERO_OR_ONE, ZERO_OR_MORE, ONE_OR_MORE. 6.3.5. */
+    SXML_AST_KIND_SEQUENCE_PATTERN,
+
     /* One more than the largest kind; grows with Phases 3 and 4. */
     SXML_AST_KIND_COUNT,
 } sxml_ast_kind;
@@ -876,6 +935,9 @@ typedef enum sxml_ast_field {
     SXML_AST_FIELD_SPECIFICATION,
     SXML_AST_FIELD_START,
     SXML_AST_FIELD_VERSION,
+
+    /* XSLT 4.0 patterns (D118). */
+    SXML_AST_FIELD_PATTERN,
 
     /* One more than the largest field; grows with Phases 3 and 4. */
     SXML_AST_FIELD_COUNT,
@@ -1040,6 +1102,8 @@ typedef enum sxml_ast_flag {
     SXML_AST_FLAG_BOUNDARY_WHITESPACE = 1U << 17U,
     /* DIRECT_ATTRIBUTE named xmlns or xmlns:p (4.12.1.2). */
     SXML_AST_FLAG_NAMESPACE_DECLARATION_ATTRIBUTE = 1U << 18U,
+    /* XSLT patterns (D118). MAP_PATTERN with "*" ("{*}", "{'a', *}"). */
+    SXML_AST_FLAG_OPEN = 1U << 19U,
 } sxml_ast_flag;
 
 /* A name exactly as written; parts that were not written are empty. */
@@ -1369,6 +1433,21 @@ SXML_NODISCARD sxml_status sxml_xpath_build_sequence_type_ast(
  * SXML_STATUS_LIMIT_EXCEEDED, and the failures of the allocator.
  */
 SXML_NODISCARD sxml_status sxml_xquery_build_ast(
+    const sxml_ast_build_request *request, sxml_ast **ast);
+
+/*
+ * Parses request->expression_text, an XSLT 4.0 pattern (XSLT 4.0, section
+ * 6.3), with grammars/xslt_pattern and writes an AST, owned (release with
+ * sxml_ast_destroy), whose root is a PATTERN node, to *ast. Defined in
+ * src/xslt_pattern.c (packet 4.4, D118) on top of
+ * sxml_ast_build_with_parser_part; src/xslt_pattern_internal.h turns
+ * patterns into match expressions.
+ *
+ * Returns SXML_STATUS_STATIC_ERROR for text that is not a pattern
+ * (XTSE0340, 6.3.1), SXML_STATUS_INVALID_UTF8, SXML_STATUS_LIMIT_EXCEEDED,
+ * and the failures of the allocator.
+ */
+SXML_NODISCARD sxml_status sxml_xslt_pattern_build_ast(
     const sxml_ast_build_request *request, sxml_ast **ast);
 
 /* ---------------------------------------------------------- Parser parts */
