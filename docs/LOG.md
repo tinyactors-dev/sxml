@@ -18,6 +18,21 @@ One short entry per week, newest first: what passed, what's next, what is blocke
   `wasm` 117/117, lint clean; XP40 23,146 passed before and after, slice
   198/198.
 
+- 4.2 done (D102), Early packet of Phase 4: the stylesheet AST,
+  `src/xslt_ast_internal.h` (header only). One AST per stylesheet:
+  modules (pre-order, import precedence computed at seal), one node kind
+  per element of the XSLT 4.0 schema plus literal result elements, text
+  nodes, extension, unknown and data elements; attribute kinds per
+  schema attribute with values read into typed forms (expressions,
+  patterns, value templates and types as their own `sxml_ast`); a
+  resolved static context per element; declaration list; text form.
+  for-each-group-001 and a template rule, function and import written
+  out. Builder functions go to 4.5 (`src/xslt_ast.c`). Header compiles
+  alone under clang, gcc and wasi-sdk with the project flags and is
+  clang-tidy clean; `debug`, `debug-gcc`, `wasm` 117/117, lint clean.
+  No translation unit includes it yet, so XP40 and the slice are
+  unchanged (198).
+
 - 1.29 done, Phase 1 gate review (D98-D100). Rubric pass over all public
   headers and the core modules; no writable globals, no allocation or
   printing outside their places, no recursion through function pointers
