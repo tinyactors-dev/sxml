@@ -4,6 +4,21 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 3.6b done (D124): IR extensions accepted from D109/D110.
+  `sxml_ir_unit_add_name_tests`, `_add_catch_clauses`,
+  `_add_namespace_bindings` and accessors; `construction_flags`
+  (no-preserve, no-inherit, preserves-types, xslt-rules) and
+  `name_namespaces` on `sxml_ir_node_construction`, honoured by
+  `src/evaluator_construct.c`; the verifier checks TRY_CATCH and the
+  constructor kinds (only APPLY_TEMPLATES stays reserved); the text form
+  prints clauses, bindings and flags (other dumps unchanged). 4 new IR
+  cases, 10 new constructor-mode cases (also under allocation failure);
+  the try and constructor tests use the adders. `debug`, `debug-gcc`,
+  `wasm` 143/143, lint clean, slice 198/198 (release). Release
+  `evaluator_construct_test` passes at HEAD with gcc and clang -O3, -O2
+  ASan+UBSan and valgrind: the reported release failure did not
+  reproduce.
+
 - 2.8 done (D122): date and time functions in the new part
   `src/function_library_temporal.c`: adjust-dateTime/date/time-to-timezone,
   build-dateTime (record fields coerced by the body), parts-of-dateTime,

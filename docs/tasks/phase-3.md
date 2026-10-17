@@ -151,6 +151,10 @@ when every rule has a unit case, also for an error raised inside a
 resumable native call. Spec: XQuery 4.0 "Try/Catch Expressions".
 **Done** 2026-10-17 (D109): own error record when the caller passes
 none; `$err:map` keys for lowering; IR adders for catch clauses proposed.
+**3.6b IR extensions done** 2026-10-17 (D124): adders for name tests,
+catch clauses and namespace bindings; `construction_flags` and
+`name_namespaces` on constructors, honoured by the evaluator; verifier and
+text form for TRY_CATCH and the constructor kinds.
 
 ### 3.7 FLWOR and other expressions (implementation) — Early
 After 3.2. Owns `src/xquery_lower.c`, `src/xquery_lower_internal.h`,
