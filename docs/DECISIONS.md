@@ -4150,6 +4150,50 @@ headers, so each module has its own.
   values static variables give non-static expressions (the AST does not
   keep them: lowering re-evaluates their select with the same scope).
 
+### D140. URIs, QNames and hashes (packet 2.11)
+Recorded 2026-10-17, after D88, D91, D101. New part `src/function_library_hash.c`
+(fn:hash) over `src/hash.c` / `src/hash_internal.h`; rows added to the uri
+part (decode-from-uri, parse-uri, build-uri) and the qname part
+(parse-QName, resolve-QName).
+- **Hashes**: MD5, SHA-1, SHA-256, BLAKE3 (the draft keeps it) and CRC-32
+  as one call `sxml_hash_compute` (algorithm, message view) into a fixed
+  32-octet `sxml_digest`: no allocation, no state; BLAKE3 merges chunk
+  chaining values with a 54-entry stack (no recursion). The effective
+  name is fn:upper-case(fn:normalize-space()) with Unicode case mapping,
+  matched byte for byte; anything else is FOHA0001. No options are
+  defined, so any unqualified key is XPTY0004. One step per 64 octets.
+- **fn:parse-uri** follows F&O 4.0, 7.6.2 step by step; each regular
+  expression is matched by hand over the octets (no regex per call). The
+  parts are views into one working copy (backslashes made slashes) and one
+  rewritten copy for a drive letter. Implementation-defined: known
+  hierarchical schemes are file, ftp, http, https; a port that is not 1 to
+  18 digits is left out (the field is xs:integer?); a zero-length authority
+  (`////host`) is the empty sequence, as QT4 fn-parse-uri-048b/049b expect.
+  query-parameters keeps keys in first-appearance order with all values;
+  repeated keys are chained through an index map (O(n log n), not
+  quadratic). The result is an annotated fn:uri-structure-record (D133).
+- **Percent decoding** (glossary): one octet reader for decode-from-uri,
+  parse-uri (URI decoding) and query parameters (form decoding, `+` as
+  space); broken escapes take `%` and up to two octets (QT4 `%üü` is
+  U+FFFD then `ü`); UTF-8 breaks off at the first octet outside Unicode's
+  well-formed ranges; U+0000, U+FFFE, U+FFFF become U+FFFD.
+- **fn:build-uri** reuses the escaping table of encode-for-uri (three new
+  kinds: path segment, query parameter, fragment). Deviation: a URI
+  without a scheme gets `//` before an authority (the spec text adds
+  nothing, which would make `{'host': 'x', 'path': '/p'}` read back as a
+  path); an empty query (from an empty map) adds no `?`.
+- **fn:parse-QName** is marked USES_DYNAMIC_CONTEXT so no pass folds it:
+  prefix:local is the xs:QName cast with the static namespaces of
+  `sxml_dynamic_context_get_running_unit` (D131; FONS0004 from the cast,
+  predeclared prefixes included); NCName and Q{uri}local are made directly;
+  FOCA0002 for the rest. **fn:resolve-QName** looks the prefix up in the
+  element's in-scope namespaces only (no predeclared fallback: `xs:x` on
+  `<a/>` is FONS0004).
+- Measured (release driver, XP40, passed of cases): fn-parse-uri 0 to
+  74/74, fn-build-uri 0 to 48/48, fn-decode-from-uri 0 to 29/29,
+  fn-parse-QName 6 (all wrong errors) to 19/19, fn-resolve-QName 4 to 8/8
+  run (23 XQuery-only), fn-hash 1 to 54/54.
+
 ## Proposed
 
 - **xsl:record and record-type/@constructor in the stylesheet AST**
