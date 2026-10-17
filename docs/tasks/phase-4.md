@@ -63,6 +63,12 @@ result-document handler (absolute href to an `sxml_output_stream` or a
 tree; D50 statuses), the message sink of 2.2 (terminate raises XTMM9000).
 Done when header check, lints and rubric pass and 4.1 and 4.15 can be
 written against it.
+**Done** 2026-10-17 (D112): `include/sxml/xslt.h`, header only:
+`sxml_xslt_stylesheet` (quintet; text, XSLT_MODULE or XSLT_PACKAGE;
+static parameters), `sxml_xslt_output_definition`,
+`sxml_xslt_stylesheet_transform` with the three invocation kinds,
+`sxml_xslt_result_delivery`, the result document handler and its
+default, `sxml_xslt_result_document_collector` (for 4.15 to implement).
 
 ### 4.1 XSLT 4.0 test driver (implementation) — Early
 After 4.0, 2.16. Owns new `tests/xslt/driver/`, `docs/QT4_CATALOG.md`
