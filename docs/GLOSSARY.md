@@ -170,6 +170,9 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `sequence_constructor` | The children of a stylesheet element that are evaluated to make a sequence (XSLT 4.0, 5.7) |
 | `literal_result_element` | An element of a sequence constructor outside the XSLT namespace, copied to the result (XSLT 4.0, 11.1) |
 | `value_template` | An attribute value template or text value template: fixed text with enclosed XPath expressions in `{ }` (XSLT 4.0, 5.6) |
+| `fixed_part` | Text of a value template outside its variable parts, with `{{` and `}}` for single curly brackets (XSLT 4.0, 5.6); a string template's are `string_template_fixed_part` |
+| `variable_part` | `{ Expr? }` in a value template; empty, whitespace or comments only give a zero-length string (XSLT 4.0, 5.6) |
+| `curly_bracket` | `{` or `}`, the spec's name; not `brace` |
 | `standard_attribute` | One of the attributes allowed on every XSLT element (`version`, `expand-text`, `use-when`, ...; XSLT 4.0, 3.3) |
 | `shadow_attribute` | An attribute `_name` whose value, a value template evaluated at compile time, replaces the attribute `name` (XSLT 4.0, 3.11.4) |
 | `simplified_stylesheet` | A stylesheet module whose outermost element is not `xsl:stylesheet`, `xsl:transform` or `xsl:package`; read as one template rule matching `.` (XSLT 4.0, 3.7) |
