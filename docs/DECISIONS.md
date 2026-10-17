@@ -4219,8 +4219,22 @@ Recorded 2026-10-17, after D97, D128, D131, D133. New module `src/csv.c` /
   specification defines it over fn:parse-csv. fn:csv-doc calls the
   fn:unparsed-text row (found by name, as fn:json-doc finds parse-json),
   so text decoding (D131) is written once.
+- Measured (release driver, XP40, passed of cases; before at 3a3a3cb, all
+  wrong errors): fn-parse-csv 35 to 107/124, fn-csv-to-xml 9 to 68/68 run,
+  fn-csv-doc 4 to 20/20. The 17 parse-csv failures are assertions such as
+  `?get(1, 1) = "one"` that read the result as the context value, which
+  the driver does not bind (Proposed below); with it, 124/124.
 
 ## Proposed
+
+- **QT4 assertions see the result as the context value** (packet 2.15,
+  D141; for the driver's owner): `<assert>` expressions such as
+  `?get(1, 1) = "one"` (17 of fn-parse-csv) use the result as the focus,
+  as other QT4 drivers bind it. Two lines in
+  `sxml_qt4_assertion_evaluate` (`tests/qt4/driver/assertion.c`):
+  `dynamic_context.has_context_value = true;
+  dynamic_context.context_value = bound->result;`. Measured over all of
+  XP40: 20 more passes, none fewer.
 
 - **The WebAssembly size budget** (packet 2.18, D138; for the owner):
   Phase 2 grew the stripped `sxml` CLI module from 1.21 MB to 1.82 MB
