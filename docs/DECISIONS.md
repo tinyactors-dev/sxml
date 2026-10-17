@@ -4520,6 +4520,10 @@ Reserved here; the record is completed when the packet is ticked.
 Recorded 2026-10-17, after D101, D118, D139, D142, D144.
 Reserved here; the record is completed when the packet is ticked.
 
+### D150. Functions and declarations (packet 4.12)
+Recorded 2026-10-17, after D101, D135, D139, D142, D144, D145.
+Reserved here; the record is completed when the packet is ticked.
+
 ## Proposed
 
 - **XQuery's default for omit-xml-declaration** (packet 3.12, D146; for
