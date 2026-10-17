@@ -3245,6 +3245,50 @@ Recorded 2026-10-17, after D97, D102 and D111.
   record fields `d?`, dropped from the XPath 4.0 draft. Every valid one
   also builds through the C entry.
 
+
+### D121. The XQuery front end (packet 3.2)
+Recorded 2026-10-17, extending D29, D59 and D111. `src/xquery_parse.c`
+defines `sxml_xquery_build_ast`: the XQuery parser part on the XPath
+walker; `sxml_grammar_xquery` joins the `sxml` link line.
+- **Tables and tokens**: the 66 node types and 23 fields XQuery adds; the
+  module's child takes field MODULE. `mode` and `kind` tokens become the
+  keyword detail, a decimal-format property name its detail, the other
+  token fields flags. The `empty` token of order_specification is claimed
+  before the XPath rules, which read `empty` as the empty-sequence
+  occurrence.
+- **Decoding** (describe_payload): XQuery string literals and
+  BracedURILiterals replace references; direct element text also "{{"
+  and "}}"; attribute value text also the doubled delimiter, read from the
+  DIRECT_ATTRIBUTE_VALUE node (the first node containing the text on the
+  parent chain of the last added node), then attribute value normalization
+  (literal tab, line feed, carriage return to a space). Every decoded text
+  (also CDATA, comments, PI content, pragma contents, string constructor
+  characters and string template fixed parts) gets the end-of-line
+  handling of A.3.3.1. A reference to a character outside XML 1.0 Char,
+  or above U+10FFFF, is XQST0090. "(# r #)" has an empty PRAGMA_CONTENTS.
+- **Checks** (finish_node): XQST0118 and XQST0040/XQST0071 on names as
+  written (pairwise up to 32 attributes, else a heapsort of node indices
+  in one work array from the AST's allocator); namespace declaration
+  attributes are flagged, XQST0022 for an enclosed expression, XQST0070
+  for the reserved bindings of 4.12.1.2, XQST0085 for a prefix bound to ""
+  (XML Names 1.0, xgc: xml-version); BOUNDARY_WHITESPACE on text written
+  as whitespace only with no CDATA section or text next to it; a version
+  other than 1.0, 3.0, 3.1, 4.0 is XQST0031, an encoding that is no
+  EncName XQST0087; a string field name in a record declaration annotated
+  `%constructor` (unprefixed or Q{http://www.w3.org/2012/xquery}) is
+  XPST0003, the third D29 false accept. A direct comment ending in "-" is
+  already rejected by the scanner.
+- **Left to later packets**: duplicate expanded names under different
+  prefixes (XQST0040, lowering), the prolog's XQST0070 for namespace
+  declarations, imports and default namespaces and its duplicate
+  declarations (3.10), a prefixed `%constructor`.
+- **Results** (a scratch harness over the case loader of
+  `tools/qt4-parse-check.py`, which itself checks only the grammar): all
+  43,663 valid XQ40 queries build, 70 of them with the static error their
+  test expects (XQST0022 16, XQST0031 5, XQST0040 4, XQST0070 8, XQST0071
+  9, XQST0085 5, XQST0087 4, XQST0090 13, XQST0118 6); the 145 parsable
+  library modules build; all 772 XPST0003 queries fail statically.
+
 ## Proposed
 
 - **IR adders for catch clauses and name tests** (packet 3.6, D109; for
