@@ -1,21 +1,26 @@
 /*
  * Serialization (include/sxml/serialize.h; Serialization 4.0; D47, D51,
- * D82): the output stream wrapper, the output buffer, and the adaptive
- * output method (Serialization 4.0, section 11 "Adaptive Output Method").
+ * D82, D106, D120): the output stream wrapper, the output buffer, the
+ * character pipeline every method writes through (src/serialize_internal.h),
+ * sequence normalization, the adaptive output method (Serialization 4.0,
+ * section 11 "Adaptive Output Method") and the dispatch by method. The XML
+ * and XHTML methods are in src/serialize_xml.c.
  *
  * No recursion (D71): arrays, maps, JNodes and the sequences inside them
  * are written from an explicit stack of serialization frames in heap
- * memory, and a node's subtree is written by walking its node indices in
- * document order with a stack of open elements.
+ * memory; sequence normalization flattens arrays with a stack of its own;
+ * nodes are written by src/serialize_xml.c with a stack of open elements.
  *
  * Golden file: src/memory.c (lifecycle, checked sizes).
  */
 #include "sxml/serialize.h"
 
 #include "cast_internal.h"
+#include "serialize_internal.h"
 #include "sxml/name.h"
 #include "sxml/string.h"
 #include "sxml/types.h"
+#include "unicode_internal.h"
 #include "xdm_internal.h"
 
 #include <stdalign.h>
@@ -202,65 +207,7 @@ void sxml_output_buffer_clear(sxml_output_buffer *output_buffer) {
 
 /* ------------------------------------------------------- The serializer */
 
-typedef enum sxml_serialization_frame_kind {
-    /* The sequence given to the serializer: items with the item separator
-       between them. */
-    SXML_SERIALIZATION_FRAME_KIND_TOP_SEQUENCE,
-    /* A member of an array, the value of a map entry or a JNode's value:
-       items separated by commas, in parentheses unless there is one. */
-    SXML_SERIALIZATION_FRAME_KIND_MEMBER_SEQUENCE,
-    SXML_SERIALIZATION_FRAME_KIND_ARRAY,
-    SXML_SERIALIZATION_FRAME_KIND_MAP,
-    /* Writes the ")" after a JNode's value. */
-    SXML_SERIALIZATION_FRAME_KIND_JSON_NODE_END,
-} sxml_serialization_frame_kind;
-
-/* A value being written (glossary `serialization_frame`). Values are
-   borrowed from the frame below, and the bottom one from the request. */
-typedef struct sxml_serialization_frame {
-    sxml_serialization_frame_kind frame_kind;
-    sxml_sequence sequence;
-    sxml_item container;
-    uint64_t next_index;
-    uint64_t count;
-    bool is_parenthesized;
-} sxml_serialization_frame;
-
-/* An element whose end tag is still to be written. */
-typedef struct sxml_open_element {
-    sxml_node_index element;
-    sxml_node_index last_descendant;
-} sxml_open_element;
-
-typedef struct sxml_serializer {
-    sxml_item_heap *item_heap;
-    const sxml_name_pool *name_pool;
-    const sxml_type_registry *registry;
-    sxml_output_stream output_stream;
-    sxml_error_record *error_record;
-    sxml_byte_view item_separator;
-    /* Memory for the stacks: the heap's, so it counts against its
-       limit. */
-    sxml_allocator allocator;
-    sxml_serialization_frame *frames;
-    size_t frame_count;
-    size_t frame_capacity;
-    sxml_open_element *open_elements;
-    size_t open_element_count;
-    size_t open_element_capacity;
-} sxml_serializer;
-
-/* Makes room for one more element of a stack (frames or open elements). */
-typedef struct sxml_serializer_growth {
-    void **elements;
-    size_t *element_capacity;
-    size_t element_count;
-    size_t element_byte_count;
-    size_t alignment;
-} sxml_serializer_growth;
-
-static sxml_status sxml_serializer_grow(sxml_allocator allocator,
-                                        const sxml_serializer_growth *growth) {
+sxml_status sxml_serializer_grow(sxml_allocator allocator, const sxml_serializer_growth *growth) {
     if (growth->element_count < *growth->element_capacity) {
         return SXML_STATUS_OK;
     }
@@ -292,9 +239,1124 @@ static sxml_status sxml_serializer_grow(sxml_allocator allocator,
     return SXML_STATUS_OK;
 }
 
-static sxml_status sxml_serializer_write(sxml_serializer *serializer,
-                                         sxml_byte_view bytes) {
-    return sxml_output_stream_write(serializer->output_stream, bytes);
+sxml_status sxml_serializer_raise_error(sxml_serializer *serializer,
+                                        sxml_serialization_error error) {
+    if (serializer->error_record != NULL) {
+        *serializer->error_record = (sxml_error_record){
+            .code = {.namespace_uri = SXML_BYTE_VIEW_FROM_LITERAL(SXML_ERROR_NAMESPACE_URI),
+                     .local_name = error.error_local_name,
+                     .namespace_prefix = SXML_BYTE_VIEW_FROM_LITERAL("err")},
+            .value = NULL,
+            .diagnostic = {.description = error.description, .location = {.line_number = 0}},
+        };
+    }
+    return SXML_STATUS_DYNAMIC_ERROR;
+}
+
+/* Serialization 4.0, 5.1.3: a character the encoding cannot represent
+   where no character reference is allowed. */
+static sxml_status sxml_serializer_raise_unencodable(sxml_serializer *serializer) {
+    return sxml_serializer_raise_error(
+        serializer,
+        (sxml_serialization_error){
+            .error_local_name = SXML_BYTE_VIEW_FROM_LITERAL("SERE0008"),
+            .description = SXML_BYTE_VIEW_FROM_LITERAL(
+                "a character the output encoding cannot represent is not in text or an "
+                "attribute value")});
+}
+
+sxml_byte_view sxml_serializer_get_encoding_name(const sxml_serializer *serializer) {
+    switch (serializer->character_encoding) {
+    case SXML_CHARACTER_ENCODING_UTF_8:
+        break;
+    case SXML_CHARACTER_ENCODING_UTF_16:
+        return SXML_BYTE_VIEW_FROM_LITERAL("UTF-16");
+    case SXML_CHARACTER_ENCODING_US_ASCII:
+        return SXML_BYTE_VIEW_FROM_LITERAL("US-ASCII");
+    case SXML_CHARACTER_ENCODING_ISO_8859_1:
+        return SXML_BYTE_VIEW_FROM_LITERAL("ISO-8859-1");
+    }
+    return SXML_BYTE_VIEW_FROM_LITERAL("UTF-8");
+}
+
+/* ------------------------------------------------------------ Encoding */
+
+sxml_status sxml_serializer_flush(sxml_serializer *serializer) {
+    const sxml_byte_view staged = {.bytes = serializer->staged_bytes,
+                                   .byte_count = serializer->staged_byte_count};
+    serializer->staged_byte_count = 0;
+    return sxml_output_stream_write(serializer->output_stream, staged);
+}
+
+/* Appends encoded bytes to the staging area, flushing it when full. */
+static sxml_status sxml_serializer_put_bytes(sxml_serializer *serializer, sxml_byte_view bytes) {
+    sxml_status status = SXML_STATUS_OK;
+    if (serializer->staged_byte_count + bytes.byte_count > SXML_SERIALIZER_STAGING_BYTE_COUNT) {
+        status = sxml_serializer_flush(serializer);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (bytes.byte_count > SXML_SERIALIZER_STAGING_BYTE_COUNT) {
+        return sxml_output_stream_write(serializer->output_stream, bytes);
+    }
+    if (bytes.byte_count > 0) {
+        memcpy(serializer->staged_bytes + serializer->staged_byte_count, bytes.bytes,
+               bytes.byte_count);
+        serializer->staged_byte_count += bytes.byte_count;
+    }
+    return SXML_STATUS_OK;
+}
+
+/* Reads the codepoint at *byte_offset of well-formed UTF-8 and advances
+   the offset (in/out); a malformed byte reads as U+FFFD. */
+static uint32_t sxml_serializer_read_codepoint(sxml_byte_view text, size_t *byte_offset) {
+    const size_t offset = *byte_offset;
+    const uint8_t lead = text.bytes[offset];
+    size_t length = 1;
+    uint32_t codepoint = lead;
+    if (lead >= 0xF0U) {
+        length = 4;
+        codepoint = lead & 0x07U;
+    } else if (lead >= 0xE0U) {
+        length = 3;
+        codepoint = lead & 0x0FU;
+    } else if (lead >= 0xC0U) {
+        length = 2;
+        codepoint = lead & 0x1FU;
+    } else if (lead >= 0x80U) {
+        *byte_offset = offset + 1;
+        return 0xFFFDU;
+    }
+    if (offset + length > text.byte_count) {
+        *byte_offset = text.byte_count;
+        return 0xFFFDU;
+    }
+    for (size_t continuation = 1; continuation < length; continuation += 1) {
+        codepoint = (codepoint << 6) | (text.bytes[offset + continuation] & 0x3FU);
+    }
+    *byte_offset = offset + length;
+    return codepoint;
+}
+
+/* Whether the output encoding represents codepoint (Serialization 4.0,
+   5.1.3). */
+static bool sxml_serializer_can_encode(const sxml_serializer *serializer, uint32_t codepoint) {
+    switch (serializer->character_encoding) {
+    case SXML_CHARACTER_ENCODING_UTF_8:
+    case SXML_CHARACTER_ENCODING_UTF_16:
+        return true;
+    case SXML_CHARACTER_ENCODING_US_ASCII:
+        return codepoint < 0x80U;
+    case SXML_CHARACTER_ENCODING_ISO_8859_1:
+        return codepoint < 0x100U;
+    }
+    return false;
+}
+
+/* Encodes one codepoint the encoding represents. */
+static sxml_status sxml_serializer_put_codepoint(sxml_serializer *serializer, uint32_t codepoint) {
+    uint8_t encoded[4];
+    size_t encoded_count = 0;
+    if (serializer->character_encoding == SXML_CHARACTER_ENCODING_UTF_16) {
+        /* RFC 2781, section 2.1; big endian (D106). */
+        if (codepoint >= 0x10000U) {
+            const uint32_t offset = codepoint - 0x10000U;
+            const uint32_t high = 0xD800U | (offset >> 10);
+            const uint32_t low = 0xDC00U | (offset & 0x3FFU);
+            encoded[0] = (uint8_t)(high >> 8);
+            encoded[1] = (uint8_t)(high & 0xFFU);
+            encoded[2] = (uint8_t)(low >> 8);
+            encoded[3] = (uint8_t)(low & 0xFFU);
+            encoded_count = 4;
+        } else {
+            encoded[0] = (uint8_t)(codepoint >> 8);
+            encoded[1] = (uint8_t)(codepoint & 0xFFU);
+            encoded_count = 2;
+        }
+    } else if (serializer->character_encoding != SXML_CHARACTER_ENCODING_UTF_8 ||
+               codepoint < 0x80U) {
+        encoded[0] = (uint8_t)codepoint;
+        encoded_count = 1;
+    } else if (codepoint < 0x800U) {
+        encoded[0] = (uint8_t)(0xC0U | (codepoint >> 6));
+        encoded[1] = (uint8_t)(0x80U | (codepoint & 0x3FU));
+        encoded_count = 2;
+    } else if (codepoint < 0x10000U) {
+        encoded[0] = (uint8_t)(0xE0U | (codepoint >> 12));
+        encoded[1] = (uint8_t)(0x80U | ((codepoint >> 6) & 0x3FU));
+        encoded[2] = (uint8_t)(0x80U | (codepoint & 0x3FU));
+        encoded_count = 3;
+    } else {
+        encoded[0] = (uint8_t)(0xF0U | (codepoint >> 18));
+        encoded[1] = (uint8_t)(0x80U | ((codepoint >> 12) & 0x3FU));
+        encoded[2] = (uint8_t)(0x80U | ((codepoint >> 6) & 0x3FU));
+        encoded[3] = (uint8_t)(0x80U | (codepoint & 0x3FU));
+        encoded_count = 4;
+    }
+    return sxml_serializer_put_bytes(serializer,
+                                     (sxml_byte_view){.bytes = encoded, .byte_count = encoded_count});
+}
+
+/* Encodes ASCII text (references, the line ending), byte by byte. */
+static sxml_status sxml_serializer_put_ascii(sxml_serializer *serializer, sxml_byte_view text) {
+    if (serializer->character_encoding != SXML_CHARACTER_ENCODING_UTF_16) {
+        return sxml_serializer_put_bytes(serializer, text);
+    }
+    sxml_status status = SXML_STATUS_OK;
+    for (size_t offset = 0; status == SXML_STATUS_OK && offset < text.byte_count; offset += 1) {
+        status = sxml_serializer_put_codepoint(serializer, text.bytes[offset]);
+    }
+    return status;
+}
+
+/* Encodes a codepoint of the serialized text: U+000A becomes the line
+   ending (Serialization 4.0, 5.1.7). */
+static sxml_status sxml_serializer_put_text_codepoint(sxml_serializer *serializer,
+                                                      uint32_t codepoint) {
+    if (codepoint == '\n') {
+        return sxml_serializer_put_ascii(serializer, serializer->line_ending_text);
+    }
+    return sxml_serializer_put_codepoint(serializer, codepoint);
+}
+
+/* Writes &#xHEX; (Serialization 4.0, 5.1.3, and the round-trip rules of
+   section 5). */
+static sxml_status sxml_serializer_put_character_reference(sxml_serializer *serializer,
+                                                           uint32_t codepoint) {
+    static const char hexadecimal_digits[] = "0123456789ABCDEF";
+    uint8_t reference[12] = {'&', '#', 'x'};
+    size_t reference_count = 3;
+    bool has_digit = false;
+    for (int shift = 20; shift >= 0; shift -= 4) {
+        const uint32_t digit = (codepoint >> (uint32_t)shift) & 0xFU;
+        if (digit != 0 || has_digit || shift == 0) {
+            reference[reference_count++] = (uint8_t)hexadecimal_digits[digit];
+            has_digit = true;
+        }
+    }
+    reference[reference_count++] = ';';
+    return sxml_serializer_put_ascii(
+        serializer, (sxml_byte_view){.bytes = reference, .byte_count = reference_count});
+}
+
+sxml_status sxml_serializer_write_markup(sxml_serializer *serializer, sxml_byte_view markup) {
+    if (serializer->character_encoding == SXML_CHARACTER_ENCODING_UTF_8 &&
+        serializer->line_ending_text.byte_count == 1 &&
+        serializer->line_ending_text.bytes[0] == '\n') {
+        return sxml_serializer_put_bytes(serializer, markup);
+    }
+    sxml_status status = SXML_STATUS_OK;
+    size_t offset = 0;
+    while (status == SXML_STATUS_OK && offset < markup.byte_count) {
+        const uint32_t codepoint = sxml_serializer_read_codepoint(markup, &offset);
+        status = sxml_serializer_can_encode(serializer, codepoint)
+                     ? sxml_serializer_put_text_codepoint(serializer, codepoint)
+                     : sxml_serializer_raise_unencodable(serializer);
+    }
+    return status;
+}
+
+/* ------------------------------------------------------------ Escaping */
+
+/* The XML escape of codepoint in text or an attribute value, or an empty
+   view when it is written as it is (Serialization 4.0, section 5: the
+   characters that must be references to survive a round trip). */
+typedef struct sxml_escape_query {
+    uint32_t codepoint;
+    sxml_character_context character_context;
+} sxml_escape_query;
+
+static sxml_byte_view sxml_find_escape(sxml_escape_query query) {
+    const bool is_attribute =
+        query.character_context == SXML_CHARACTER_CONTEXT_ATTRIBUTE ||
+        query.character_context == SXML_CHARACTER_CONTEXT_URI_ATTRIBUTE;
+    const sxml_byte_view none = {.bytes = NULL, .byte_count = 0};
+    switch (query.codepoint) {
+    case '&':
+        return SXML_BYTE_VIEW_FROM_LITERAL("&amp;");
+    case '<':
+        return SXML_BYTE_VIEW_FROM_LITERAL("&lt;");
+    case '>':
+        return is_attribute ? none : SXML_BYTE_VIEW_FROM_LITERAL("&gt;");
+    case '"':
+        return is_attribute ? SXML_BYTE_VIEW_FROM_LITERAL("&quot;") : none;
+    case '\r':
+        return SXML_BYTE_VIEW_FROM_LITERAL("&#xD;");
+    case '\t':
+        return is_attribute ? SXML_BYTE_VIEW_FROM_LITERAL("&#x9;") : none;
+    case '\n':
+        return is_attribute ? SXML_BYTE_VIEW_FROM_LITERAL("&#xA;") : none;
+    default:
+        break;
+    }
+    return none;
+}
+
+/* Whether codepoint is written as a character reference in text and
+   attribute values whatever the encoding (Serialization 4.0, section 5:
+   C0 and C1 controls, NEL, LINE SEPARATOR). */
+static bool sxml_codepoint_needs_reference(uint32_t codepoint) {
+    return (codepoint >= 0x01U && codepoint <= 0x1FU && codepoint != '\t' && codepoint != '\n' &&
+            codepoint != '\r') ||
+           (codepoint >= 0x7FU && codepoint <= 0x9FU) || codepoint == 0x2028U;
+}
+
+/* Writes text escaped for its context, with references for characters
+   the encoding cannot represent; no character maps, no normalization. */
+static sxml_status sxml_serializer_write_escaped(sxml_serializer *serializer,
+                                                 const sxml_character_data *character_data) {
+    const sxml_byte_view text = character_data->text;
+    const bool is_canonical = serializer->escape_style == SXML_ESCAPE_STYLE_CANONICAL;
+    sxml_status status = SXML_STATUS_OK;
+    size_t offset = 0;
+    while (status == SXML_STATUS_OK && offset < text.byte_count) {
+        const size_t run_start = offset;
+        /* Copy a run of plain ASCII at once when the bytes are the
+           output. */
+        if (serializer->character_encoding != SXML_CHARACTER_ENCODING_UTF_16) {
+            while (offset < text.byte_count) {
+                const uint8_t byte = text.bytes[offset];
+                if (byte < 0x20U || byte >= 0x7FU || byte == '&' || byte == '<' || byte == '>' ||
+                    byte == '"') {
+                    break;
+                }
+                offset += 1;
+            }
+            if (offset > run_start) {
+                status = sxml_serializer_put_bytes(
+                    serializer, (sxml_byte_view){.bytes = text.bytes + run_start,
+                                                 .byte_count = offset - run_start});
+                continue;
+            }
+        }
+        const uint32_t codepoint = sxml_serializer_read_codepoint(text, &offset);
+        const sxml_byte_view escape = sxml_find_escape(
+            (sxml_escape_query){.codepoint = codepoint,
+                                            .character_context = character_data->character_context});
+        if (escape.byte_count > 0) {
+            status = sxml_serializer_put_ascii(serializer, escape);
+        } else if (!is_canonical && (sxml_codepoint_needs_reference(codepoint) ||
+                                     !sxml_serializer_can_encode(serializer, codepoint))) {
+            status = sxml_serializer_put_character_reference(serializer, codepoint);
+        } else {
+            status = sxml_serializer_put_text_codepoint(serializer, codepoint);
+        }
+    }
+    return status;
+}
+
+/* Writes the inside of the CDATA sections of one text node (Serialization
+   4.0, 5.1.8): "]]>" is split between two sections; a character the
+   encoding cannot represent, a carriage return or a control character
+   closes the section and is written as a reference. */
+static sxml_status sxml_serializer_write_cdata_sections(sxml_serializer *serializer,
+                                                        sxml_byte_view text) {
+    static const sxml_byte_view open = SXML_BYTE_VIEW_INITIALIZER("<![CDATA[");
+    static const sxml_byte_view close = SXML_BYTE_VIEW_INITIALIZER("]]>");
+    bool is_open = false;
+    size_t bracket_count = 0;
+    sxml_status status = SXML_STATUS_OK;
+    size_t offset = 0;
+    while (status == SXML_STATUS_OK && offset < text.byte_count) {
+        const uint32_t codepoint = sxml_serializer_read_codepoint(text, &offset);
+        if (codepoint == '\r' || sxml_codepoint_needs_reference(codepoint) ||
+            !sxml_serializer_can_encode(serializer, codepoint)) {
+            if (is_open) {
+                status = sxml_serializer_put_ascii(serializer, close);
+                is_open = false;
+            }
+            bracket_count = 0;
+            if (status == SXML_STATUS_OK) {
+                status = sxml_serializer_put_character_reference(serializer, codepoint);
+            }
+            continue;
+        }
+        if (!is_open) {
+            status = sxml_serializer_put_ascii(serializer, open);
+            is_open = true;
+        } else if (codepoint == '>' && bracket_count >= 2) {
+            status = sxml_serializer_put_ascii(serializer, close);
+            if (status == SXML_STATUS_OK) {
+                status = sxml_serializer_put_ascii(serializer, open);
+            }
+        }
+        bracket_count = codepoint == ']' ? bracket_count + 1 : 0;
+        if (status == SXML_STATUS_OK) {
+            status = sxml_serializer_put_text_codepoint(serializer, codepoint);
+        }
+    }
+    if (status == SXML_STATUS_OK && is_open) {
+        status = sxml_serializer_put_ascii(serializer, close);
+    }
+    return status;
+}
+
+/* ------------------------------------------- Mapping and normalization */
+
+/* The replacement of codepoint in the character map, or NULL. */
+static const sxml_character_mapping *sxml_serializer_find_mapping(
+    const sxml_serializer *serializer, uint32_t codepoint) {
+    size_t low = 0;
+    size_t high = serializer->mapping_count;
+    while (low < high) {
+        const size_t middle = low + (high - low) / 2;
+        const uint32_t candidate = serializer->sorted_mappings[middle].codepoint;
+        if (candidate == codepoint) {
+            return &serializer->sorted_mappings[middle];
+        }
+        if (candidate < codepoint) {
+            low = middle + 1;
+        } else {
+            high = middle;
+        }
+    }
+    return NULL;
+}
+
+/* A part of a text without mapped characters, and whether it starts the
+   text (for the fully-normalized check). */
+typedef struct sxml_unmapped_segment {
+    sxml_byte_view text;
+    bool is_start_of_construct;
+} sxml_unmapped_segment;
+
+/* Normalizes and escapes one unmapped segment (Serialization 4.0,
+   section 4, rules d and e; 5.1.12). */
+static sxml_status sxml_serializer_write_segment(sxml_serializer *serializer,
+                                                 sxml_character_context character_context,
+                                                 sxml_unmapped_segment segment) {
+    sxml_byte_view text = segment.text;
+    sxml_unicode_normalized_text normalized = {.allocator = serializer->allocator,
+                                               .bytes = NULL,
+                                               .byte_count = 0};
+    sxml_status status = SXML_STATUS_OK;
+    bool is_ascii = true;
+    for (size_t offset = 0; is_ascii && offset < text.byte_count; offset += 1) {
+        is_ascii = text.bytes[offset] < 0x80U;
+    }
+    if (serializer->is_normalizing && !is_ascii) {
+        sxml_string input;
+        status = sxml_string_from_utf8(text, &input);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_unicode_normalize(
+                &(sxml_unicode_normalization_request){
+                    .allocator = serializer->allocator,
+                    .normalization_form = serializer->normalization_form,
+                    .input = input},
+                &normalized);
+        }
+        if (status == SXML_STATUS_OK) {
+            text = sxml_unicode_normalized_text_view(&normalized);
+        }
+    }
+    if (status == SXML_STATUS_OK && serializer->is_fully_normalized &&
+        segment.is_start_of_construct && text.byte_count > 0) {
+        size_t offset = 0;
+        if (sxml_unicode_is_composing_character(sxml_serializer_read_codepoint(text, &offset))) {
+            status = sxml_serializer_raise_error(
+                serializer,
+                (sxml_serialization_error){
+                    .error_local_name = SXML_BYTE_VIEW_FROM_LITERAL("SERE0012"),
+                    .description = SXML_BYTE_VIEW_FROM_LITERAL(
+                        "fully-normalized output would start a construct with a composing "
+                        "character")});
+        }
+    }
+    if (status == SXML_STATUS_OK) {
+        status = character_context == SXML_CHARACTER_CONTEXT_CDATA_SECTION
+                     ? sxml_serializer_write_cdata_sections(serializer, text)
+                     : sxml_serializer_write_escaped(
+                           serializer, &(sxml_character_data){.text = text,
+                                                              .character_context =
+                                                                  character_context});
+    }
+    sxml_unicode_normalized_text_release(&normalized);
+    return status;
+}
+
+sxml_status sxml_serializer_write_character_data(sxml_serializer *serializer,
+                                                 const sxml_character_data *character_data) {
+    const sxml_byte_view text = character_data->text;
+    const sxml_character_context character_context = character_data->character_context;
+    switch (character_context) {
+    case SXML_CHARACTER_CONTEXT_MARKUP:
+        return sxml_serializer_write_markup(serializer, text);
+    case SXML_CHARACTER_CONTEXT_URI_ATTRIBUTE:
+        return sxml_serializer_write_escaped(serializer, character_data);
+    case SXML_CHARACTER_CONTEXT_CDATA_SECTION:
+        /* Character maps do not apply in CDATA sections (section 12). */
+        return sxml_serializer_write_segment(
+            serializer, character_context,
+            (sxml_unmapped_segment){.text = text, .is_start_of_construct = true});
+    case SXML_CHARACTER_CONTEXT_TEXT:
+    case SXML_CHARACTER_CONTEXT_ATTRIBUTE:
+        break;
+    }
+    if (!serializer->applies_character_maps || serializer->mapping_count == 0) {
+        return sxml_serializer_write_segment(
+            serializer, character_context,
+            (sxml_unmapped_segment){.text = text, .is_start_of_construct = true});
+    }
+    /* Section 12: a mapped character is replaced before anything else and
+       its replacement is written as it is; the rest is normalized and
+       escaped. */
+    sxml_status status = SXML_STATUS_OK;
+    size_t segment_start = 0;
+    size_t offset = 0;
+    while (status == SXML_STATUS_OK && offset < text.byte_count) {
+        const size_t codepoint_start = offset;
+        const sxml_character_mapping *mapping =
+            sxml_serializer_find_mapping(serializer, sxml_serializer_read_codepoint(text, &offset));
+        if (mapping == NULL) {
+            continue;
+        }
+        if (codepoint_start > segment_start) {
+            status = sxml_serializer_write_segment(
+                serializer, character_context,
+                (sxml_unmapped_segment){
+                    .text = {.bytes = text.bytes + segment_start,
+                             .byte_count = codepoint_start - segment_start},
+                    .is_start_of_construct = segment_start == 0});
+        }
+        if (status == SXML_STATUS_OK) {
+            status = sxml_serializer_write_markup(serializer, mapping->replacement_text);
+        }
+        segment_start = offset;
+    }
+    if (status == SXML_STATUS_OK && segment_start < text.byte_count) {
+        status = sxml_serializer_write_segment(
+            serializer, character_context,
+            (sxml_unmapped_segment){.text = {.bytes = text.bytes + segment_start,
+                                             .byte_count = text.byte_count - segment_start},
+                                    .is_start_of_construct = segment_start == 0});
+    }
+    return status;
+}
+
+/* ------------------------------------------------------ Parameter checks */
+
+/* Whether view can be read: bytes present when byte_count is not 0, and
+   well-formed UTF-8. */
+static bool sxml_text_is_valid(sxml_byte_view text) {
+    if (text.byte_count == 0) {
+        return true;
+    }
+    sxml_utf8_validation validation;
+    return text.bytes != NULL && sxml_utf8_validate(text, &validation) == SXML_STATUS_OK;
+}
+
+static bool sxml_flag_is_valid(sxml_serialization_flag flag) {
+    return flag == SXML_SERIALIZATION_FLAG_DEFAULT || flag == SXML_SERIALIZATION_FLAG_NO ||
+           flag == SXML_SERIALIZATION_FLAG_YES;
+}
+
+static bool sxml_element_names_are_valid(sxml_element_name_view names) {
+    if (names.element_name_count > 0 && names.element_names == NULL) {
+        return false;
+    }
+    for (size_t name_index = 0; name_index < names.element_name_count; name_index += 1) {
+        if (names.element_names[name_index].index == 0) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/* XML 1.0, production Char. */
+static bool sxml_codepoint_is_xml_character(uint32_t codepoint) {
+    return codepoint == 0x9U || codepoint == 0xAU || codepoint == 0xDU ||
+           (codepoint >= 0x20U && codepoint <= 0xD7FFU) ||
+           (codepoint >= 0xE000U && codepoint <= 0xFFFDU) ||
+           (codepoint >= 0x10000U && codepoint <= 0x10FFFFU);
+}
+
+/* What C can express but XDM cannot (include/sxml/serialize.h): an
+   invalid argument. */
+static bool sxml_parameters_are_expressible(const sxml_serialization_parameters *parameters) {
+    const sxml_serialization_flag flags[] = {
+        parameters->allow_duplicate_names, parameters->byte_order_mark,
+        parameters->canonical,             parameters->csv_header,
+        parameters->escape_solidus,        parameters->escape_uri_attributes,
+        parameters->include_content_type,  parameters->indent,
+        parameters->indent_attributes,     parameters->json_lines,
+        parameters->omit_xml_declaration,  parameters->undeclare_prefixes,
+    };
+    bool is_valid = parameters->serialization_method <= SXML_SERIALIZATION_METHOD_CSV &&
+                    parameters->character_encoding <= SXML_CHARACTER_ENCODING_ISO_8859_1 &&
+                    parameters->json_node_output_method <= SXML_JSON_NODE_OUTPUT_METHOD_TEXT &&
+                    parameters->line_ending <= SXML_LINE_ENDING_CARRIAGE_RETURN &&
+                    parameters->normalization_form <= SXML_NORMALIZATION_FORM_FULLY_NORMALIZED &&
+                    parameters->standalone <= SXML_STANDALONE_NO;
+    for (size_t flag_index = 0; is_valid && flag_index < sizeof(flags) / sizeof(flags[0]);
+         flag_index += 1) {
+        is_valid = sxml_flag_is_valid(flags[flag_index]);
+    }
+    const sxml_byte_view texts[] = {
+        parameters->doctype_public, parameters->doctype_system, parameters->html_version,
+        parameters->indent_unit,    parameters->item_separator, parameters->media_type,
+        parameters->version,
+    };
+    const bool presences[] = {
+        parameters->has_doctype_public, parameters->has_doctype_system,
+        parameters->has_html_version,   parameters->has_indent_unit,
+        parameters->has_item_separator, parameters->has_media_type,
+        parameters->has_version,
+    };
+    for (size_t text_index = 0; is_valid && text_index < sizeof(texts) / sizeof(texts[0]);
+         text_index += 1) {
+        is_valid = !presences[text_index] || sxml_text_is_valid(texts[text_index]);
+    }
+    is_valid = is_valid && sxml_element_names_are_valid(parameters->cdata_section_elements) &&
+               sxml_element_names_are_valid(parameters->suppress_indentation);
+    const sxml_character_map_view maps = parameters->use_character_maps;
+    if (is_valid && maps.character_mapping_count > 0 && maps.character_mappings == NULL) {
+        is_valid = false;
+    }
+    for (size_t mapping_index = 0; is_valid && mapping_index < maps.character_mapping_count;
+         mapping_index += 1) {
+        const sxml_character_mapping mapping = maps.character_mappings[mapping_index];
+        is_valid = sxml_codepoint_is_xml_character(mapping.codepoint) &&
+                   sxml_text_is_valid(mapping.replacement_text);
+    }
+    return is_valid;
+}
+
+/* XML 1.0, production PubidChar. */
+static bool sxml_byte_is_public_identifier_character(uint8_t byte) {
+    if ((byte >= 'a' && byte <= 'z') || (byte >= 'A' && byte <= 'Z') ||
+        (byte >= '0' && byte <= '9')) {
+        return true;
+    }
+    static const char others[] = " \r\n-'()+,./:=?;!*#@$_%";
+    for (size_t other_index = 0; other_index + 1 < sizeof(others); other_index += 1) {
+        if ((uint8_t)others[other_index] == byte) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* The lexical form of an xs:decimal (XSD 1.1, 3.3.3): an optional sign,
+   digits with at most one point, at least one digit. */
+static bool sxml_text_is_decimal(sxml_byte_view text) {
+    size_t offset = 0;
+    if (offset < text.byte_count && (text.bytes[offset] == '+' || text.bytes[offset] == '-')) {
+        offset += 1;
+    }
+    size_t digit_count = 0;
+    bool has_point = false;
+    for (; offset < text.byte_count; offset += 1) {
+        const uint8_t byte = text.bytes[offset];
+        if (byte >= '0' && byte <= '9') {
+            digit_count += 1;
+        } else if (byte == '.' && !has_point) {
+            has_point = true;
+        } else {
+            return false;
+        }
+    }
+    return digit_count > 0;
+}
+
+/* The permitted values of Serialization 4.0, section 3, that apply
+   whatever the method: SEPM0016 otherwise. */
+static sxml_status sxml_serializer_check_permitted_values(sxml_serializer *serializer) {
+    const sxml_serialization_parameters *parameters = serializer->parameters;
+    const char *problem = NULL;
+    if (parameters->has_indent_unit) {
+        /* (\t|\\t)*| * after the reader's turning "\t" into a tab. */
+        const sxml_byte_view unit = parameters->indent_unit;
+        for (size_t offset = 0; problem == NULL && offset < unit.byte_count; offset += 1) {
+            if ((unit.bytes[offset] != ' ' && unit.bytes[offset] != '\t') ||
+                unit.bytes[offset] != unit.bytes[0]) {
+                problem = "indent-unit must be spaces only or tabs only";
+            }
+        }
+    }
+    if (problem == NULL && parameters->has_doctype_system) {
+        bool has_quotation_mark = false;
+        bool has_apostrophe = false;
+        for (size_t offset = 0; offset < parameters->doctype_system.byte_count; offset += 1) {
+            has_quotation_mark = has_quotation_mark || parameters->doctype_system.bytes[offset] == '"';
+            has_apostrophe = has_apostrophe || parameters->doctype_system.bytes[offset] == '\'';
+        }
+        if (has_quotation_mark && has_apostrophe) {
+            problem = "doctype-system must not hold both quotation marks and apostrophes";
+        }
+    }
+    if (problem == NULL && parameters->has_doctype_public) {
+        for (size_t offset = 0; problem == NULL && offset < parameters->doctype_public.byte_count;
+             offset += 1) {
+            if (!sxml_byte_is_public_identifier_character(parameters->doctype_public.bytes[offset])) {
+                problem = "doctype-public must consist of PubidChar characters";
+            }
+        }
+    }
+    if (problem == NULL && parameters->has_html_version &&
+        !sxml_text_is_decimal(parameters->html_version)) {
+        problem = "html-version must be a decimal";
+    }
+    if (problem == NULL) {
+        return SXML_STATUS_OK;
+    }
+    return sxml_serializer_raise_error(
+        serializer, (sxml_serialization_error){
+                        .error_local_name = SXML_BYTE_VIEW_FROM_LITERAL("SEPM0016"),
+                        .description = sxml_byte_view_from_c_string(problem)});
+}
+
+/* Sorts the character map by codepoint into heap memory (heapsort, so
+   the time stays O(n log n) without recursion) and refuses a codepoint
+   given twice. */
+static sxml_status sxml_serializer_sort_character_map(sxml_serializer *serializer) {
+    const sxml_character_map_view maps = serializer->parameters->use_character_maps;
+    if (maps.character_mapping_count == 0) {
+        return SXML_STATUS_OK;
+    }
+    size_t byte_count = 0;
+    sxml_status status = sxml_size_multiply(maps.character_mapping_count,
+                                            sizeof(sxml_character_mapping), &byte_count);
+    void *memory = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_allocator_allocate(
+            serializer->allocator,
+            (sxml_allocation_request){.byte_count = byte_count,
+                                      .alignment = alignof(sxml_character_mapping)},
+            &memory);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_character_mapping *mappings = memory;
+    memcpy(mappings, maps.character_mappings, byte_count);
+    const size_t count = maps.character_mapping_count;
+    serializer->sorted_mappings = mappings;
+    serializer->mapping_count = count;
+    /* Build a max-heap, then move the largest to the end, count times. */
+    for (size_t sort_pass = 0; sort_pass < 2 * count; sort_pass += 1) {
+        const bool is_building = sort_pass < count;
+        const size_t heap_size = is_building ? count : 2 * count - sort_pass;
+        size_t root = 0;
+        if (is_building) {
+            root = count - 1 - sort_pass;
+        } else {
+            const sxml_character_mapping largest = mappings[0];
+            mappings[0] = mappings[heap_size - 1];
+            mappings[heap_size - 1] = largest;
+        }
+        const size_t sift_size = is_building ? heap_size : heap_size - 1;
+        for (;;) {
+            size_t largest_index = root;
+            const size_t left = 2 * root + 1;
+            const size_t right = left + 1;
+            if (left < sift_size && mappings[left].codepoint > mappings[largest_index].codepoint) {
+                largest_index = left;
+            }
+            if (right < sift_size &&
+                mappings[right].codepoint > mappings[largest_index].codepoint) {
+                largest_index = right;
+            }
+            if (largest_index == root) {
+                break;
+            }
+            const sxml_character_mapping swapped = mappings[root];
+            mappings[root] = mappings[largest_index];
+            mappings[largest_index] = swapped;
+            root = largest_index;
+        }
+    }
+    for (size_t mapping_index = 1; mapping_index < count; mapping_index += 1) {
+        if (mappings[mapping_index].codepoint == mappings[mapping_index - 1].codepoint) {
+            return SXML_STATUS_INVALID_ARGUMENT;
+        }
+    }
+    return SXML_STATUS_OK;
+}
+
+/* ------------------------------------------------ Sequence normalization */
+
+typedef enum sxml_normalizer_frame_kind {
+    /* Items of a sequence: the input, a JNode's value, an array member. */
+    SXML_NORMALIZER_FRAME_KIND_SEQUENCE,
+    /* Members of an array, flattened (array:flatten). */
+    SXML_NORMALIZER_FRAME_KIND_ARRAY,
+} sxml_normalizer_frame_kind;
+
+struct sxml_normalizer_frame {
+    sxml_normalizer_frame_kind frame_kind;
+    sxml_sequence sequence;
+    sxml_item array;
+    uint64_t next_index;
+    uint64_t count;
+};
+
+void sxml_sequence_normalizer_start(sxml_serializer *serializer, sxml_sequence value,
+                                    sxml_sequence_normalizer *normalizer) {
+    /* The first frame is pushed by the first call to next, which can
+       fail; leaf_count UINT64_MAX marks that it has not been. */
+    *normalizer = (sxml_sequence_normalizer){
+        .serializer = serializer,
+        .value = value,
+        .frames = NULL,
+        .frame_count = 0,
+        .frame_capacity = 0,
+        .leaf_count = UINT64_MAX,
+        .was_previous_leaf_atomic = false,
+        .is_in_document = false,
+        .document_tree = NULL,
+        .has_next_child = false,
+        .next_child = {.index = 0},
+        .has_pending_node = false,
+        .pending_node = {.tree = NULL, .node_index = {.index = 0}, .namespace_number = 0},
+        .text_bytes = NULL,
+        .text_byte_count = 0,
+        .text_byte_capacity = 0,
+        .has_given_text = false,
+    };
+}
+
+void sxml_sequence_normalizer_finish(sxml_sequence_normalizer *normalizer) {
+    sxml_allocator_release(normalizer->serializer->allocator, normalizer->frames);
+    sxml_allocator_release(normalizer->serializer->allocator, normalizer->text_bytes);
+    normalizer->frames = NULL;
+    normalizer->text_bytes = NULL;
+}
+
+static sxml_status sxml_sequence_normalizer_push(sxml_sequence_normalizer *normalizer,
+                                                 const sxml_normalizer_frame *frame) {
+    const sxml_status status = sxml_serializer_grow(
+        normalizer->serializer->allocator,
+        &(sxml_serializer_growth){.elements = (void **)&normalizer->frames,
+                                  .element_capacity = &normalizer->frame_capacity,
+                                  .element_count = normalizer->frame_count,
+                                  .element_byte_count = sizeof(sxml_normalizer_frame),
+                                  .alignment = alignof(sxml_normalizer_frame)});
+    if (status == SXML_STATUS_OK) {
+        normalizer->frames[normalizer->frame_count] = *frame;
+        normalizer->frame_count += 1;
+    }
+    return status;
+}
+
+static sxml_status sxml_sequence_normalizer_push_sequence(sxml_sequence_normalizer *normalizer,
+                                                          sxml_sequence sequence) {
+    uint64_t item_count = 0;
+    const sxml_status status =
+        sxml_sequence_count(sequence, normalizer->serializer->error_record, &item_count);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_sequence_normalizer_push(
+        normalizer, &(sxml_normalizer_frame){.frame_kind = SXML_NORMALIZER_FRAME_KIND_SEQUENCE,
+                                             .sequence = sequence,
+                                             .array = {.representation = 0},
+                                             .next_index = 0,
+                                             .count = item_count});
+}
+
+/* Appends text to the text being merged. */
+static sxml_status sxml_sequence_normalizer_append_text(sxml_sequence_normalizer *normalizer,
+                                                        sxml_byte_view text) {
+    if (text.byte_count == 0) {
+        return SXML_STATUS_OK;
+    }
+    size_t required = 0;
+    sxml_status status = sxml_size_add(normalizer->text_byte_count, text.byte_count, &required);
+    if (status == SXML_STATUS_OK && required > normalizer->text_byte_capacity) {
+        size_t capacity = normalizer->text_byte_capacity < 64 ? 64 : normalizer->text_byte_capacity;
+        while (status == SXML_STATUS_OK && capacity < required) {
+            status = sxml_size_multiply(capacity, 2, &capacity);
+        }
+        void *memory = NULL;
+        if (status == SXML_STATUS_OK) {
+            status = sxml_allocator_allocate(
+                normalizer->serializer->allocator,
+                (sxml_allocation_request){.byte_count = capacity, .alignment = 1}, &memory);
+        }
+        if (status == SXML_STATUS_OK) {
+            if (normalizer->text_byte_count > 0) {
+                memcpy(memory, normalizer->text_bytes, normalizer->text_byte_count);
+            }
+            sxml_allocator_release(normalizer->serializer->allocator, normalizer->text_bytes);
+            normalizer->text_bytes = memory;
+            normalizer->text_byte_capacity = capacity;
+        }
+    }
+    if (status == SXML_STATUS_OK) {
+        memcpy(normalizer->text_bytes + normalizer->text_byte_count, text.bytes, text.byte_count);
+        normalizer->text_byte_count = required;
+    }
+    return status;
+}
+
+static sxml_status sxml_sequence_normalizer_raise_unserializable(
+    sxml_sequence_normalizer *normalizer) {
+    return sxml_serializer_raise_error(
+        normalizer->serializer,
+        (sxml_serialization_error){
+            .error_local_name = SXML_BYTE_VIEW_FROM_LITERAL("SENR0001"),
+            .description = SXML_BYTE_VIEW_FROM_LITERAL(
+                "an attribute node, a namespace node or a function item cannot be serialized "
+                "by this method")});
+}
+
+/* Appends the lexical form of an atomic item (its cast to xs:string). */
+static sxml_status sxml_sequence_normalizer_append_atomic(sxml_sequence_normalizer *normalizer,
+                                                          sxml_item item) {
+    sxml_serializer *serializer = normalizer->serializer;
+    uint8_t output[SXML_CAST_CANONICAL_TEXT_CAPACITY];
+    sxml_canonical_text canonical;
+    sxml_status status = sxml_cast_write_canonical_text(
+        serializer->item_heap,
+        &(sxml_canonical_text_request){.item = item,
+                                       .output = {.bytes = output, .byte_count = sizeof(output)}},
+        &canonical);
+    if (status != SXML_STATUS_CAPACITY_EXCEEDED) {
+        return status == SXML_STATUS_OK
+                   ? sxml_sequence_normalizer_append_text(normalizer, canonical.text)
+                   : status;
+    }
+    void *memory = NULL;
+    const size_t byte_count = canonical.required_byte_count;
+    status = sxml_allocator_allocate(serializer->allocator,
+                                     (sxml_allocation_request){.byte_count = byte_count,
+                                                               .alignment = 1},
+                                     &memory);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_cast_write_canonical_text(
+            serializer->item_heap,
+            &(sxml_canonical_text_request){.item = item,
+                                           .output = {.bytes = memory, .byte_count = byte_count}},
+            &canonical);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_sequence_normalizer_append_text(normalizer, canonical.text);
+    }
+    sxml_allocator_release(serializer->allocator, memory);
+    return status;
+}
+
+/* Takes one item of S3 (the input with JNodes and arrays expanded) into
+   the result tree: sets the pending node, enters a document, or appends
+   text. */
+static sxml_status sxml_sequence_normalizer_take_leaf(sxml_sequence_normalizer *normalizer,
+                                                      sxml_item item) {
+    const sxml_serialization_parameters *parameters = normalizer->serializer->parameters;
+    const bool is_atomic = sxml_item_get_kind(item) == SXML_ITEM_KIND_ATOMIC;
+    const bool is_first = normalizer->leaf_count == 0;
+    normalizer->leaf_count += 1;
+    sxml_status status = SXML_STATUS_OK;
+    /* Step S4: the item separator between every two items, or a space
+       between adjacent strings. */
+    if (!is_first && parameters->has_item_separator) {
+        status = sxml_sequence_normalizer_append_text(normalizer, parameters->item_separator);
+    } else if (!is_first && is_atomic && normalizer->was_previous_leaf_atomic) {
+        status = sxml_sequence_normalizer_append_text(normalizer, SXML_BYTE_VIEW_FROM_LITERAL(" "));
+    }
+    normalizer->was_previous_leaf_atomic = is_atomic;
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (is_atomic) {
+        return sxml_sequence_normalizer_append_atomic(normalizer, item);
+    }
+    if (sxml_item_get_kind(item) != SXML_ITEM_KIND_NODE) {
+        return sxml_sequence_normalizer_raise_unserializable(normalizer);
+    }
+    sxml_node_reference node;
+    sxml_node_description description;
+    status = sxml_item_get_node(item, &node);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_node_describe(node, &description);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    switch (description.node_kind) {
+    case SXML_NODE_KIND_DOCUMENT:
+        /* Step S6: a document is replaced by its children. */
+        normalizer->is_in_document = description.has_children;
+        normalizer->document_tree = node.tree;
+        normalizer->has_next_child = description.has_children;
+        normalizer->next_child = description.first_child;
+        return SXML_STATUS_OK;
+    case SXML_NODE_KIND_TEXT: {
+        sxml_byte_view content = {.bytes = NULL, .byte_count = 0};
+        status = sxml_node_get_content(node, &content);
+        return status == SXML_STATUS_OK ? sxml_sequence_normalizer_append_text(normalizer, content)
+                                        : status;
+    }
+    case SXML_NODE_KIND_ELEMENT:
+    case SXML_NODE_KIND_COMMENT:
+    case SXML_NODE_KIND_PROCESSING_INSTRUCTION:
+        normalizer->has_pending_node = true;
+        normalizer->pending_node = node;
+        return SXML_STATUS_OK;
+    case SXML_NODE_KIND_ATTRIBUTE:
+    case SXML_NODE_KIND_NAMESPACE:
+    case SXML_NODE_KIND_ANY:
+        break;
+    }
+    return sxml_sequence_normalizer_raise_unserializable(normalizer);
+}
+
+/* Takes the next child of the document being unwrapped. */
+static sxml_status sxml_sequence_normalizer_take_child(sxml_sequence_normalizer *normalizer) {
+    const sxml_node_reference child = {.tree = normalizer->document_tree,
+                                       .node_index = normalizer->next_child,
+                                       .namespace_number = 0};
+    sxml_node_description description;
+    sxml_status status = sxml_node_describe(child, &description);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    normalizer->has_next_child = description.has_next_sibling;
+    normalizer->next_child = description.next_sibling;
+    normalizer->is_in_document = normalizer->has_next_child;
+    if (description.node_kind == SXML_NODE_KIND_TEXT) {
+        sxml_byte_view content = {.bytes = NULL, .byte_count = 0};
+        status = sxml_node_get_content(child, &content);
+        return status == SXML_STATUS_OK ? sxml_sequence_normalizer_append_text(normalizer, content)
+                                        : status;
+    }
+    normalizer->has_pending_node = true;
+    normalizer->pending_node = child;
+    return SXML_STATUS_OK;
+}
+
+/* Advances the frames by one item. Sets *is_at_end when none is left. */
+static sxml_status sxml_sequence_normalizer_advance(sxml_sequence_normalizer *normalizer,
+                                                    sxml_answer *is_at_end_answer) {
+    sxml_normalizer_frame *frame = &normalizer->frames[normalizer->frame_count - 1];
+    if (frame->next_index == frame->count) {
+        normalizer->frame_count -= 1;
+        is_at_end_answer->is_true = normalizer->frame_count == 0;
+        return SXML_STATUS_OK;
+    }
+    const uint64_t index = frame->next_index;
+    frame->next_index += 1;
+    sxml_status status = SXML_STATUS_OK;
+    if (frame->frame_kind == SXML_NORMALIZER_FRAME_KIND_ARRAY) {
+        sxml_sequence member = sxml_sequence_empty();
+        status = sxml_array_get_member(frame->array, (size_t)index, &member);
+        return status == SXML_STATUS_OK ? sxml_sequence_normalizer_push_sequence(normalizer, member)
+                                        : status;
+    }
+    sxml_item item = {.representation = 0};
+    status = sxml_sequence_get_item(
+        frame->sequence,
+        (sxml_item_request){.item_index = index,
+                            .error_record = normalizer->serializer->error_record},
+        &item);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    switch (sxml_item_get_kind(item)) {
+    case SXML_ITEM_KIND_ARRAY: {
+        /* Step S2: arrays are flattened. */
+        size_t member_count = 0;
+        status = sxml_array_get_size(item, &member_count);
+        return status == SXML_STATUS_OK
+                   ? sxml_sequence_normalizer_push(
+                         normalizer,
+                         &(sxml_normalizer_frame){.frame_kind = SXML_NORMALIZER_FRAME_KIND_ARRAY,
+                                                  .sequence = sxml_sequence_empty(),
+                                                  .array = item,
+                                                  .next_index = 0,
+                                                  .count = member_count})
+                   : status;
+    }
+    case SXML_ITEM_KIND_JSON_NODE: {
+        /* Step S1: a JNode is replaced by its value. */
+        sxml_json_node_description description;
+        status = sxml_json_node_describe(item, &description);
+        return status == SXML_STATUS_OK
+                   ? sxml_sequence_normalizer_push_sequence(normalizer, description.json_value)
+                   : status;
+    }
+    case SXML_ITEM_KIND_ATOMIC:
+    case SXML_ITEM_KIND_NODE:
+    case SXML_ITEM_KIND_FUNCTION:
+    case SXML_ITEM_KIND_MAP:
+        break;
+    }
+    return sxml_sequence_normalizer_take_leaf(normalizer, item);
+}
+
+sxml_status sxml_sequence_normalizer_next(sxml_sequence_normalizer *normalizer,
+                                          sxml_normalized_event *event) {
+    sxml_status status = SXML_STATUS_OK;
+    if (normalizer->has_given_text) {
+        normalizer->text_byte_count = 0;
+        normalizer->has_given_text = false;
+    }
+    if (normalizer->leaf_count == UINT64_MAX) {
+        normalizer->leaf_count = 0;
+        status = sxml_sequence_normalizer_push_sequence(normalizer, normalizer->value);
+    }
+    sxml_answer is_at_end = {.is_true = normalizer->frame_count == 0};
+    while (status == SXML_STATUS_OK && !normalizer->has_pending_node && !is_at_end.is_true) {
+        status = normalizer->is_in_document
+                     ? sxml_sequence_normalizer_take_child(normalizer)
+                     : sxml_sequence_normalizer_advance(normalizer, &is_at_end);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    /* Step S7: merged text comes before the node that ended it. */
+    if (normalizer->text_byte_count > 0) {
+        normalizer->has_given_text = true;
+        *event = (sxml_normalized_event){
+            .event_kind = SXML_NORMALIZED_EVENT_KIND_TEXT,
+            .text = {.bytes = normalizer->text_bytes, .byte_count = normalizer->text_byte_count},
+            .node = {.tree = NULL, .node_index = {.index = 0}, .namespace_number = 0}};
+        return SXML_STATUS_OK;
+    }
+    if (normalizer->has_pending_node) {
+        normalizer->has_pending_node = false;
+        *event = (sxml_normalized_event){.event_kind = SXML_NORMALIZED_EVENT_KIND_NODE,
+                                         .text = {.bytes = NULL, .byte_count = 0},
+                                         .node = normalizer->pending_node};
+        return SXML_STATUS_OK;
+    }
+    *event = (sxml_normalized_event){.event_kind = SXML_NORMALIZED_EVENT_KIND_END,
+                                     .text = {.bytes = NULL, .byte_count = 0},
+                                     .node = {.tree = NULL, .node_index = {.index = 0},
+                                              .namespace_number = 0}};
+    return SXML_STATUS_OK;
+}
+
+/* --------------------------------------------------- The adaptive method */
+
+typedef enum sxml_serialization_frame_kind {
+    /* The sequence given to the serializer: items with the item separator
+       between them. */
+    SXML_SERIALIZATION_FRAME_KIND_TOP_SEQUENCE,
+    /* A member of an array, the value of a map entry or a JNode's value:
+       items separated by commas, in parentheses unless there is one. */
+    SXML_SERIALIZATION_FRAME_KIND_MEMBER_SEQUENCE,
+    SXML_SERIALIZATION_FRAME_KIND_ARRAY,
+    SXML_SERIALIZATION_FRAME_KIND_MAP,
+    /* Writes the ")" after a JNode's value. */
+    SXML_SERIALIZATION_FRAME_KIND_JSON_NODE_END,
+} sxml_serialization_frame_kind;
+
+/* A value being written (glossary `serialization_frame`). Values are
+   borrowed from the frame below, and the bottom one from the request. */
+struct sxml_serialization_frame {
+    sxml_serialization_frame_kind frame_kind;
+    sxml_sequence sequence;
+    sxml_item container;
+    uint64_t next_index;
+    uint64_t count;
+    bool is_parenthesized;
+};
+
+/* The adaptive method's text goes through the pipeline as markup: encoded,
+   with line endings, never escaped (Serialization 4.0, 11.1). */
+static sxml_status sxml_serializer_write(sxml_serializer *serializer, sxml_byte_view bytes) {
+    return sxml_serializer_write_markup(serializer, bytes);
 }
 
 /* Writes text with every byte equal to quote written twice (the
@@ -322,6 +1384,7 @@ static sxml_status sxml_serializer_write_doubling(sxml_serializer *serializer,
     }
     return status;
 }
+
 
 /* --------------------------------------------------------- Atomic items */
 
@@ -561,410 +1624,6 @@ static sxml_status sxml_serializer_write_atomic(sxml_serializer *serializer, sxm
     return status;
 }
 
-/* -------------------------------------------------------------- Nodes */
-
-/* Writes text escaped for XML content or an attribute value (XML output
-   method, Serialization 4.0, section 5). */
-typedef struct sxml_escaped_text {
-    sxml_byte_view text;
-    bool is_attribute_value;
-} sxml_escaped_text;
-
-static sxml_status sxml_serializer_write_escaped(sxml_serializer *serializer,
-                                                 sxml_escaped_text escaped) {
-    const sxml_byte_view text = escaped.text;
-    if (text.byte_count == 0) {
-        return SXML_STATUS_OK;
-    }
-    size_t run_start = 0;
-    sxml_status status = SXML_STATUS_OK;
-    for (size_t offset = 0; status == SXML_STATUS_OK && offset < text.byte_count;
-         offset += 1) {
-        const uint8_t byte = text.bytes[offset];
-        sxml_byte_view replacement = {.bytes = NULL, .byte_count = 0};
-        if (byte == '&') {
-            replacement = SXML_BYTE_VIEW_FROM_LITERAL("&amp;");
-        } else if (byte == '<') {
-            replacement = SXML_BYTE_VIEW_FROM_LITERAL("&lt;");
-        } else if (byte == '>' && !escaped.is_attribute_value) {
-            replacement = SXML_BYTE_VIEW_FROM_LITERAL("&gt;");
-        } else if (byte == '\r') {
-            replacement = SXML_BYTE_VIEW_FROM_LITERAL("&#xD;");
-        } else if (escaped.is_attribute_value && byte == '"') {
-            replacement = SXML_BYTE_VIEW_FROM_LITERAL("&quot;");
-        } else if (escaped.is_attribute_value && byte == '\t') {
-            replacement = SXML_BYTE_VIEW_FROM_LITERAL("&#x9;");
-        } else if (escaped.is_attribute_value && byte == '\n') {
-            replacement = SXML_BYTE_VIEW_FROM_LITERAL("&#xA;");
-        }
-        if (replacement.byte_count == 0) {
-            continue;
-        }
-        status = sxml_serializer_write(serializer,
-                                       (sxml_byte_view){.bytes = text.bytes + run_start,
-                                                        .byte_count = offset - run_start});
-        if (status == SXML_STATUS_OK) {
-            status = sxml_serializer_write(serializer, replacement);
-        }
-        run_start = offset + 1;
-    }
-    if (status == SXML_STATUS_OK) {
-        status = sxml_serializer_write(serializer,
-                                       (sxml_byte_view){.bytes = text.bytes + run_start,
-                                                        .byte_count = text.byte_count - run_start});
-    }
-    return status;
-}
-
-/* Writes the lexical QName of an element or attribute: its prefix as
-   written, a colon, the local name. */
-static sxml_status sxml_serializer_write_node_name(sxml_serializer *serializer,
-                                                   const sxml_node_description *description) {
-    sxml_name_parts parts;
-    sxml_byte_view prefix = {.bytes = NULL, .byte_count = 0};
-    sxml_status status =
-        sxml_name_pool_get_name_parts(serializer->name_pool, description->node_name, &parts);
-    if (status == SXML_STATUS_OK) {
-        status = sxml_name_pool_get_namespace_prefix(serializer->name_pool,
-                                                     description->namespace_prefix, &prefix);
-    }
-    if (status == SXML_STATUS_OK && prefix.byte_count > 0) {
-        status = sxml_serializer_write(serializer, prefix);
-        if (status == SXML_STATUS_OK) {
-            status = sxml_serializer_write(serializer, SXML_BYTE_VIEW_FROM_LITERAL(":"));
-        }
-    }
-    if (status == SXML_STATUS_OK) {
-        status = sxml_serializer_write(serializer, parts.local_name);
-    }
-    return status;
-}
-
-/* A namespace binding to write as xmlns or xmlns:prefix. */
-static sxml_status sxml_serializer_write_namespace(sxml_serializer *serializer,
-                                                   sxml_namespace_binding binding) {
-    sxml_byte_view prefix = {.bytes = NULL, .byte_count = 0};
-    sxml_byte_view namespace_uri = {.bytes = NULL, .byte_count = 0};
-    sxml_status status = sxml_name_pool_get_namespace_prefix(
-        serializer->name_pool, binding.namespace_prefix, &prefix);
-    if (status == SXML_STATUS_OK) {
-        status = sxml_name_pool_get_namespace_uri(serializer->name_pool,
-                                                  binding.namespace_uri, &namespace_uri);
-    }
-    if (status == SXML_STATUS_OK) {
-        status = sxml_serializer_write(serializer, prefix.byte_count > 0 ? SXML_BYTE_VIEW_FROM_LITERAL("xmlns:") : SXML_BYTE_VIEW_FROM_LITERAL("xmlns"));
-    }
-    if (status == SXML_STATUS_OK) {
-        status = sxml_serializer_write(serializer, prefix);
-    }
-    if (status == SXML_STATUS_OK) {
-        status = sxml_serializer_write(serializer, SXML_BYTE_VIEW_FROM_LITERAL("=\""));
-    }
-    if (status == SXML_STATUS_OK) {
-        status = sxml_serializer_write_escaped(
-            serializer,
-            (sxml_escaped_text){.text = namespace_uri, .is_attribute_value = true});
-    }
-    if (status == SXML_STATUS_OK) {
-        status = sxml_serializer_write(serializer, SXML_BYTE_VIEW_FROM_LITERAL("\""));
-    }
-    return status;
-}
-
-/* True when bindings has binding (same prefix and namespace URI). */
-static bool sxml_bindings_contain(sxml_namespace_binding_view bindings,
-                                  sxml_namespace_binding binding) {
-    for (size_t binding_index = 0; binding_index < bindings.namespace_binding_count;
-         binding_index += 1) {
-        const sxml_namespace_binding candidate = bindings.namespace_bindings[binding_index];
-        if (candidate.namespace_prefix.index == binding.namespace_prefix.index &&
-            candidate.namespace_uri.index == binding.namespace_uri.index) {
-            return true;
-        }
-    }
-    return false;
-}
-
-/* True when bindings binds the default namespace. */
-static bool sxml_bindings_have_default(sxml_namespace_binding_view bindings) {
-    for (size_t binding_index = 0; binding_index < bindings.namespace_binding_count;
-         binding_index += 1) {
-        if (bindings.namespace_bindings[binding_index].namespace_prefix.index == 0 &&
-            bindings.namespace_bindings[binding_index].namespace_uri.index != 0) {
-            return true;
-        }
-    }
-    return false;
-}
-
-/* An element whose start tag to write, and whether its parent's start tag
-   was written too (otherwise every in-scope namespace is declared). */
-typedef struct sxml_start_tag {
-    sxml_node_reference element;
-    bool has_written_parent;
-} sxml_start_tag;
-
-/* Writes the namespace declarations an element needs beyond those of its
-   written parent; the xml namespace is never declared. */
-static sxml_status sxml_serializer_write_declarations(sxml_serializer *serializer,
-                                                      sxml_start_tag start_tag,
-                                                      const sxml_node_description *description) {
-    sxml_namespace_binding_view bindings = {.namespace_bindings = NULL,
-                                            .namespace_binding_count = 0};
-    sxml_namespace_binding_view parent_bindings = {.namespace_bindings = NULL,
-                                                   .namespace_binding_count = 0};
-    sxml_status status = sxml_node_get_in_scope_namespaces(start_tag.element, &bindings);
-    if (status == SXML_STATUS_OK && start_tag.has_written_parent) {
-        status = sxml_node_get_in_scope_namespaces(
-            (sxml_node_reference){.tree = start_tag.element.tree,
-                                  .node_index = description->parent,
-                                  .namespace_number = 0},
-            &parent_bindings);
-    }
-    for (size_t binding_index = 0;
-         status == SXML_STATUS_OK && binding_index < bindings.namespace_binding_count;
-         binding_index += 1) {
-        const sxml_namespace_binding binding = bindings.namespace_bindings[binding_index];
-        if (binding.namespace_uri.index == SXML_NAMESPACE_XML ||
-            binding.namespace_uri.index == 0 ||
-            sxml_bindings_contain(parent_bindings, binding)) {
-            continue;
-        }
-        status = sxml_serializer_write(serializer, SXML_BYTE_VIEW_FROM_LITERAL(" "));
-        if (status == SXML_STATUS_OK) {
-            status = sxml_serializer_write_namespace(serializer, binding);
-        }
-    }
-    if (status == SXML_STATUS_OK && sxml_bindings_have_default(parent_bindings) &&
-        !sxml_bindings_have_default(bindings)) {
-        status = sxml_serializer_write(serializer, SXML_BYTE_VIEW_FROM_LITERAL(" xmlns=\"\""));
-    }
-    return status;
-}
-
-/* Writes an attribute as name="value". */
-static sxml_status sxml_serializer_write_attribute(sxml_serializer *serializer,
-                                                   sxml_node_reference attribute,
-                                                   const sxml_node_description *description) {
-    sxml_byte_view value = {.bytes = NULL, .byte_count = 0};
-    sxml_status status = sxml_node_get_content(attribute, &value);
-    if (status == SXML_STATUS_OK) {
-        status = sxml_serializer_write_node_name(serializer, description);
-    }
-    if (status == SXML_STATUS_OK) {
-        status = sxml_serializer_write(serializer, SXML_BYTE_VIEW_FROM_LITERAL("=\""));
-    }
-    if (status == SXML_STATUS_OK) {
-        status = sxml_serializer_write_escaped(
-            serializer, (sxml_escaped_text){.text = value, .is_attribute_value = true});
-    }
-    if (status == SXML_STATUS_OK) {
-        status = sxml_serializer_write(serializer, SXML_BYTE_VIEW_FROM_LITERAL("\""));
-    }
-    return status;
-}
-
-/* Writes a start tag with its namespace declarations and attributes;
-   "/>" when the element has no children. */
-static sxml_status sxml_serializer_write_start_tag(sxml_serializer *serializer,
-                                                   sxml_start_tag start_tag,
-                                                   const sxml_node_description *description) {
-    sxml_status status = sxml_serializer_write(serializer, SXML_BYTE_VIEW_FROM_LITERAL("<"));
-    if (status == SXML_STATUS_OK) {
-        status = sxml_serializer_write_node_name(serializer, description);
-    }
-    if (status == SXML_STATUS_OK) {
-        status = sxml_serializer_write_declarations(serializer, start_tag, description);
-    }
-    for (uint32_t attribute_number = 1;
-         status == SXML_STATUS_OK && attribute_number <= description->attribute_count;
-         attribute_number += 1) {
-        const sxml_node_reference attribute = {
-            .tree = start_tag.element.tree,
-            .node_index = {.index = start_tag.element.node_index.index + attribute_number},
-            .namespace_number = 0};
-        sxml_node_description attribute_description;
-        status = sxml_node_describe(attribute, &attribute_description);
-        if (status == SXML_STATUS_OK) {
-            status = sxml_serializer_write(serializer, SXML_BYTE_VIEW_FROM_LITERAL(" "));
-        }
-        if (status == SXML_STATUS_OK) {
-            status = sxml_serializer_write_attribute(serializer, attribute, &attribute_description);
-        }
-    }
-    if (status == SXML_STATUS_OK) {
-        status = sxml_serializer_write(serializer, description->has_children ? SXML_BYTE_VIEW_FROM_LITERAL(">") : SXML_BYTE_VIEW_FROM_LITERAL("/>"));
-    }
-    return status;
-}
-
-static sxml_status sxml_serializer_write_end_tag(sxml_serializer *serializer,
-                                                 sxml_node_reference element) {
-    sxml_node_description description;
-    sxml_status status = sxml_node_describe(element, &description);
-    if (status == SXML_STATUS_OK) {
-        status = sxml_serializer_write(serializer, SXML_BYTE_VIEW_FROM_LITERAL("</"));
-    }
-    if (status == SXML_STATUS_OK) {
-        status = sxml_serializer_write_node_name(serializer, &description);
-    }
-    if (status == SXML_STATUS_OK) {
-        status = sxml_serializer_write(serializer, SXML_BYTE_VIEW_FROM_LITERAL(">"));
-    }
-    return status;
-}
-
-/* Writes a text, comment or processing instruction node. */
-static sxml_status sxml_serializer_write_leaf_node(sxml_serializer *serializer,
-                                                   sxml_node_reference node,
-                                                   const sxml_node_description *description) {
-    sxml_byte_view content = {.bytes = NULL, .byte_count = 0};
-    sxml_status status = sxml_node_get_content(node, &content);
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    if (description->node_kind == SXML_NODE_KIND_TEXT) {
-        return sxml_serializer_write_escaped(
-            serializer, (sxml_escaped_text){.text = content, .is_attribute_value = false});
-    }
-    if (description->node_kind == SXML_NODE_KIND_COMMENT) {
-        status = sxml_serializer_write(serializer, SXML_BYTE_VIEW_FROM_LITERAL("<!--"));
-        if (status == SXML_STATUS_OK) {
-            status = sxml_serializer_write(serializer, content);
-        }
-        return status == SXML_STATUS_OK ? sxml_serializer_write(serializer, SXML_BYTE_VIEW_FROM_LITERAL("-->")) : status;
-    }
-    status = sxml_serializer_write(serializer, SXML_BYTE_VIEW_FROM_LITERAL("<?"));
-    if (status == SXML_STATUS_OK) {
-        status = sxml_serializer_write_node_name(serializer, description);
-    }
-    if (status == SXML_STATUS_OK && content.byte_count > 0) {
-        status = sxml_serializer_write(serializer, SXML_BYTE_VIEW_FROM_LITERAL(" "));
-        if (status == SXML_STATUS_OK) {
-            status = sxml_serializer_write(serializer, content);
-        }
-    }
-    return status == SXML_STATUS_OK ? sxml_serializer_write(serializer, SXML_BYTE_VIEW_FROM_LITERAL("?>")) : status;
-}
-
-/* Closes the open elements that end before node_index (or all). */
-static sxml_status sxml_serializer_close_elements(sxml_serializer *serializer,
-                                                  sxml_tree *tree, uint64_t node_index) {
-    sxml_status status = SXML_STATUS_OK;
-    while (status == SXML_STATUS_OK && serializer->open_element_count > 0) {
-        const sxml_open_element open_element =
-            serializer->open_elements[serializer->open_element_count - 1];
-        if (open_element.last_descendant.index >= node_index) {
-            break;
-        }
-        serializer->open_element_count -= 1;
-        status = sxml_serializer_write_end_tag(
-            serializer, (sxml_node_reference){.tree = tree,
-                                              .node_index = open_element.element,
-                                              .namespace_number = 0});
-    }
-    return status;
-}
-
-/*
- * Writes a node with the XML output method (Serialization 4.0, sections 5
- * and 11): the subtree of a document or element in document order, by
- * node index up to its last descendant, closing elements from a stack;
- * an attribute as name="value"; a namespace node as xmlns:prefix="uri".
- * No XML declaration is written.
- */
-static sxml_status sxml_serializer_write_node(sxml_serializer *serializer, sxml_item item) {
-    sxml_node_reference node;
-    sxml_status status = sxml_item_get_node(item, &node);
-    sxml_node_description description;
-    if (status == SXML_STATUS_OK) {
-        status = sxml_node_describe(node, &description);
-    }
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    if (description.node_kind == SXML_NODE_KIND_NAMESPACE) {
-        sxml_namespace_binding_view bindings;
-        status = sxml_node_get_in_scope_namespaces(
-            (sxml_node_reference){.tree = node.tree,
-                                  .node_index = node.node_index,
-                                  .namespace_number = 0},
-            &bindings);
-        if (status == SXML_STATUS_OK &&
-            node.namespace_number > bindings.namespace_binding_count) {
-            status = SXML_STATUS_INDEX_OUT_OF_RANGE;
-        }
-        return status == SXML_STATUS_OK
-                   ? sxml_serializer_write_namespace(
-                         serializer, bindings.namespace_bindings[node.namespace_number - 1])
-                   : status;
-    }
-    if (description.node_kind == SXML_NODE_KIND_ATTRIBUTE) {
-        return sxml_serializer_write_attribute(serializer, node, &description);
-    }
-    const uint64_t first_index = node.node_index.index;
-    const uint64_t last_index = description.last_descendant.index;
-    serializer->open_element_count = 0;
-    for (uint64_t node_index = first_index; status == SXML_STATUS_OK && node_index <= last_index;) {
-        status = sxml_serializer_close_elements(serializer, node.tree, node_index);
-        const sxml_node_reference current = {.tree = node.tree,
-                                             .node_index = {.index = (uint32_t)node_index},
-                                             .namespace_number = 0};
-        sxml_node_description current_description;
-        if (status == SXML_STATUS_OK) {
-            status = sxml_node_describe(current, &current_description);
-        }
-        if (status != SXML_STATUS_OK) {
-            break;
-        }
-        switch (current_description.node_kind) {
-        case SXML_NODE_KIND_ELEMENT:
-            status = sxml_serializer_write_start_tag(
-                serializer,
-                (sxml_start_tag){.element = current,
-                                 .has_written_parent =
-                                     node_index != first_index &&
-                                     (current_description.parent.index > first_index ||
-                                      description.node_kind == SXML_NODE_KIND_ELEMENT)},
-                &current_description);
-            if (status == SXML_STATUS_OK && current_description.has_children) {
-                status = sxml_serializer_grow(
-                    serializer->allocator,
-                    &(sxml_serializer_growth){
-                        .elements = (void **)&serializer->open_elements,
-                        .element_capacity = &serializer->open_element_capacity,
-                        .element_count = serializer->open_element_count,
-                        .element_byte_count = sizeof(sxml_open_element),
-                        .alignment = alignof(sxml_open_element)});
-                if (status == SXML_STATUS_OK) {
-                    serializer->open_elements[serializer->open_element_count] =
-                        (sxml_open_element){.element = current.node_index,
-                                            .last_descendant = current_description.last_descendant};
-                    serializer->open_element_count += 1;
-                }
-            }
-            node_index += 1U + current_description.attribute_count;
-            break;
-        case SXML_NODE_KIND_TEXT:
-        case SXML_NODE_KIND_COMMENT:
-        case SXML_NODE_KIND_PROCESSING_INSTRUCTION:
-            status = sxml_serializer_write_leaf_node(serializer, current, &current_description);
-            node_index += 1;
-            break;
-        case SXML_NODE_KIND_DOCUMENT:
-        case SXML_NODE_KIND_ATTRIBUTE:
-        case SXML_NODE_KIND_NAMESPACE:
-        case SXML_NODE_KIND_ANY:
-            node_index += 1;
-            break;
-        }
-    }
-    if (status == SXML_STATUS_OK) {
-        status = sxml_serializer_close_elements(serializer, node.tree, UINT64_MAX);
-    }
-    return status;
-}
-
 /* ------------------------------------------------------ Function items */
 
 /* name#arity, or (anonymous-function)#arity: the serialization of an
@@ -1052,7 +1711,12 @@ static sxml_status sxml_serializer_write_item(sxml_serializer *serializer, sxml_
     case SXML_ITEM_KIND_ATOMIC:
         return sxml_serializer_write_atomic(serializer, item);
     case SXML_ITEM_KIND_NODE:
-        return sxml_serializer_write_node(serializer, item);
+        {
+        sxml_node_reference node;
+        status = sxml_item_get_node(item, &node);
+        return status == SXML_STATUS_OK ? sxml_serializer_write_adaptive_node(serializer, node)
+                                        : status;
+    }
     case SXML_ITEM_KIND_FUNCTION:
         return sxml_serializer_write_function(serializer, item);
     case SXML_ITEM_KIND_ARRAY:
@@ -1188,55 +1852,156 @@ static sxml_status sxml_serializer_step(sxml_serializer *serializer) {
     return SXML_STATUS_INVALID_ARGUMENT;
 }
 
+
+/* Runs the adaptive method (Serialization 4.0, section 11) over value. */
+static sxml_status sxml_serialize_adaptive_method(sxml_serializer *serializer,
+                                                  sxml_sequence value) {
+    uint64_t item_count = 0;
+    sxml_status status = sxml_sequence_count(value, serializer->error_record, &item_count);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_serializer_push(
+            serializer,
+            &(sxml_serialization_frame){.frame_kind = SXML_SERIALIZATION_FRAME_KIND_TOP_SEQUENCE,
+                                        .sequence = value,
+                                        .container = {.representation = 0},
+                                        .next_index = 0,
+                                        .count = item_count,
+                                        .is_parenthesized = false});
+    }
+    while (status == SXML_STATUS_OK && serializer->frame_count > 0) {
+        status = sxml_serializer_step(serializer);
+    }
+    return status;
+}
+
+/* ------------------------------------------------------------ Dispatch */
+
+/* Sets up the character pipeline from the parameters (Serialization 4.0,
+   section 4; canonical XML is UTF-8 with LF and no character maps,
+   Canonical XML 1.1, section 2). */
+static void sxml_serializer_resolve_pipeline(sxml_serializer *serializer) {
+    const sxml_serialization_parameters *parameters = serializer->parameters;
+    const sxml_serialization_method method = parameters->serialization_method;
+    const bool is_xml_like =
+        method == SXML_SERIALIZATION_METHOD_XML || method == SXML_SERIALIZATION_METHOD_XHTML;
+    const bool is_canonical =
+        is_xml_like && parameters->canonical == SXML_SERIALIZATION_FLAG_YES;
+    serializer->character_encoding =
+        is_canonical ? SXML_CHARACTER_ENCODING_UTF_8 : parameters->character_encoding;
+    serializer->escape_style = is_canonical ? SXML_ESCAPE_STYLE_CANONICAL : SXML_ESCAPE_STYLE_XML;
+    const sxml_line_ending line_ending =
+        is_canonical ? SXML_LINE_ENDING_LINE_FEED : parameters->line_ending;
+    switch (line_ending) {
+    case SXML_LINE_ENDING_LINE_FEED:
+        serializer->line_ending_text = SXML_BYTE_VIEW_FROM_LITERAL("\n");
+        break;
+    case SXML_LINE_ENDING_CARRIAGE_RETURN_LINE_FEED:
+        serializer->line_ending_text = SXML_BYTE_VIEW_FROM_LITERAL("\r\n");
+        break;
+    case SXML_LINE_ENDING_CARRIAGE_RETURN:
+        serializer->line_ending_text = SXML_BYTE_VIEW_FROM_LITERAL("\r");
+        break;
+    }
+    /* normalization-form does not apply to the adaptive method (11.1). */
+    serializer->is_normalizing = method != SXML_SERIALIZATION_METHOD_ADAPTIVE &&
+                                 parameters->normalization_form != SXML_NORMALIZATION_FORM_NONE;
+    serializer->is_fully_normalized =
+        serializer->is_normalizing &&
+        parameters->normalization_form == SXML_NORMALIZATION_FORM_FULLY_NORMALIZED;
+    /* D107: serialize.h's forms onto the Unicode module's; fully-normalized
+       is NFC here, with the check of SERE0012 instead of a leading space
+       (Serialization 4.0, 5.1.12). */
+    switch (parameters->normalization_form) {
+    case SXML_NORMALIZATION_FORM_NONE:
+    case SXML_NORMALIZATION_FORM_NFC:
+    case SXML_NORMALIZATION_FORM_FULLY_NORMALIZED:
+        serializer->normalization_form = SXML_UNICODE_NORMALIZATION_FORM_NFC;
+        break;
+    case SXML_NORMALIZATION_FORM_NFD:
+        serializer->normalization_form = SXML_UNICODE_NORMALIZATION_FORM_NFD;
+        break;
+    case SXML_NORMALIZATION_FORM_NFKC:
+        serializer->normalization_form = SXML_UNICODE_NORMALIZATION_FORM_NFKC;
+        break;
+    case SXML_NORMALIZATION_FORM_NFKD:
+        serializer->normalization_form = SXML_UNICODE_NORMALIZATION_FORM_NFKD;
+        break;
+    }
+    serializer->applies_character_maps = is_xml_like && !is_canonical;
+}
+
+/* Writes the byte order mark when byte-order-mark is yes (Serialization
+   4.0, section 3; the Unicode Standard 16.0, section 23.8). */
+static sxml_status sxml_serializer_write_byte_order_mark(sxml_serializer *serializer) {
+    if (serializer->parameters->byte_order_mark != SXML_SERIALIZATION_FLAG_YES ||
+        serializer->escape_style == SXML_ESCAPE_STYLE_CANONICAL) {
+        return SXML_STATUS_OK;
+    }
+    if (serializer->character_encoding == SXML_CHARACTER_ENCODING_UTF_8) {
+        return sxml_serializer_put_bytes(serializer, SXML_BYTE_VIEW_FROM_LITERAL("\xEF\xBB\xBF"));
+    }
+    if (serializer->character_encoding == SXML_CHARACTER_ENCODING_UTF_16) {
+        return sxml_serializer_put_codepoint(serializer, 0xFEFFU);
+    }
+    return SXML_STATUS_OK;
+}
+
 sxml_status sxml_serialize_sequence(sxml_item_heap *item_heap,
                                     const sxml_serialization_request *request,
                                     sxml_output_stream output_stream) {
     if (item_heap == NULL || request == NULL || output_stream.operations == NULL ||
-        request->serialization_parameters.serialization_method !=
-            SXML_SERIALIZATION_METHOD_ADAPTIVE) {
+        output_stream.operations->write == NULL ||
+        !sxml_parameters_are_expressible(&request->serialization_parameters)) {
         return SXML_STATUS_INVALID_ARGUMENT;
     }
-    sxml_byte_view item_separator = SXML_BYTE_VIEW_FROM_LITERAL("\n");
-    if (request->serialization_parameters.has_item_separator) {
-        item_separator = request->serialization_parameters.item_separator;
-        sxml_utf8_validation validation;
-        if ((item_separator.bytes == NULL && item_separator.byte_count != 0) ||
-            sxml_utf8_validate(item_separator, &validation) != SXML_STATUS_OK) {
-            return SXML_STATUS_INVALID_ARGUMENT;
-        }
-    }
-    uint64_t item_count = 0;
-    sxml_status status = sxml_sequence_count(request->value, request->error_record, &item_count);
-    if (status != SXML_STATUS_OK) {
-        return status;
+    const sxml_serialization_method method = request->serialization_parameters.serialization_method;
+    if (method != SXML_SERIALIZATION_METHOD_ADAPTIVE && method != SXML_SERIALIZATION_METHOD_XML &&
+        method != SXML_SERIALIZATION_METHOD_XHTML) {
+        /* The HTML, text, JSON and CSV methods are packet 3.4's (D106). */
+        return SXML_STATUS_UNSUPPORTED_FEATURE;
     }
     sxml_serializer serializer = {
         .item_heap = item_heap,
         .name_pool = sxml_item_heap_get_name_pool(item_heap),
         .registry = sxml_item_heap_get_type_registry(item_heap),
-        .output_stream = output_stream,
-        .error_record = request->error_record,
-        .item_separator = item_separator,
         .allocator = sxml_item_heap_as_allocator(item_heap),
+        .error_record = request->error_record,
+        .parameters = &request->serialization_parameters,
+        .output_stream = output_stream,
+        .character_encoding = SXML_CHARACTER_ENCODING_UTF_8,
+        .escape_style = SXML_ESCAPE_STYLE_XML,
+        .line_ending_text = SXML_BYTE_VIEW_FROM_LITERAL("\n"),
+        .is_normalizing = false,
+        .is_fully_normalized = false,
+        .normalization_form = SXML_UNICODE_NORMALIZATION_FORM_NFC,
+        .applies_character_maps = false,
+        .sorted_mappings = NULL,
+        .mapping_count = 0,
+        .staged_byte_count = 0,
+        .item_separator = request->serialization_parameters.has_item_separator
+                              ? request->serialization_parameters.item_separator
+                              : SXML_BYTE_VIEW_FROM_LITERAL("\n"),
         .frames = NULL,
         .frame_count = 0,
         .frame_capacity = 0,
-        .open_elements = NULL,
-        .open_element_count = 0,
-        .open_element_capacity = 0,
     };
-    status = sxml_serializer_push(
-        &serializer,
-        &(sxml_serialization_frame){.frame_kind = SXML_SERIALIZATION_FRAME_KIND_TOP_SEQUENCE,
-                                    .sequence = request->value,
-                                    .container = {.representation = 0},
-                                    .next_index = 0,
-                                    .count = item_count,
-                                    .is_parenthesized = false});
-    while (status == SXML_STATUS_OK && serializer.frame_count > 0) {
-        status = sxml_serializer_step(&serializer);
+    sxml_serializer_resolve_pipeline(&serializer);
+    sxml_status status = sxml_serializer_check_permitted_values(&serializer);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_serializer_sort_character_map(&serializer);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_serializer_write_byte_order_mark(&serializer);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = method == SXML_SERIALIZATION_METHOD_ADAPTIVE
+                     ? sxml_serialize_adaptive_method(&serializer, request->value)
+                     : sxml_serialize_xml_method(&serializer, request->value);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_serializer_flush(&serializer);
     }
     sxml_allocator_release(serializer.allocator, serializer.frames);
-    sxml_allocator_release(serializer.allocator, serializer.open_elements);
+    sxml_allocator_release(serializer.allocator, serializer.sorted_mappings);
     return status;
 }

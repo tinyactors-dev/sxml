@@ -714,6 +714,57 @@ static void test_nodes(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
 }
 
+/* A parentless namespace node is stored as the root of its own tree (D98):
+   its name is the prefix, its content the URI. */
+static void test_stored_namespace_nodes(sxml_test_state *state) {
+    fixture test_fixture;
+    SXML_TEST_REQUIRE(state, fixture_create(0, &test_fixture) == SXML_STATUS_OK);
+    fixture *current = &test_fixture;
+    const char *const prefixes[] = {"p", ""};
+    const char *const expected_texts[] = {"xmlns:p=\"urn:a&amp;b\"", "xmlns=\"urn:a&amp;b\""};
+    for (size_t case_index = 0; case_index < 2; case_index += 1) {
+        sxml_arena_tree *arena_tree = NULL;
+        SXML_TEST_REQUIRE(state, sxml_arena_tree_create(
+                                     sxml_default_allocator(),
+                                     &(sxml_arena_tree_configuration){
+                                         .allocator = sxml_default_allocator(),
+                                         .item_heap = current->item_heap,
+                                         .duplicate_attribute_policy =
+                                             SXML_DUPLICATE_ATTRIBUTE_POLICY_REJECT,
+                                         .is_destroyed_when_unreferenced = true},
+                                     &arena_tree) == SXML_STATUS_OK);
+        sxml_namespace_binding binding = {.namespace_prefix = {.index = 0},
+                                          .namespace_uri = {.index = 0}};
+        sxml_status status = SXML_STATUS_OK;
+        if (prefixes[case_index][0] != '\0') {
+            status = sxml_name_pool_intern_namespace_prefix(
+                current->name_pool, text_view(prefixes[case_index]), &binding.namespace_prefix);
+        }
+        if (status == SXML_STATUS_OK) {
+            status = sxml_name_pool_intern_namespace_uri(current->name_pool, text_view("urn:a&b"),
+                                                         &binding.namespace_uri);
+        }
+        const sxml_tree_builder builder = sxml_arena_tree_as_tree_builder(arena_tree);
+        if (status == SXML_STATUS_OK) {
+            status = builder.operations->add_namespace_binding(builder.state, &binding);
+        }
+        sxml_tree *tree = NULL;
+        if (status == SXML_STATUS_OK) {
+            status = sxml_arena_tree_finish(arena_tree, &tree);
+        }
+        if (status != SXML_STATUS_OK) {
+            sxml_arena_tree_destroy(arena_tree);
+        }
+        SXML_TEST_REQUIRE(state, status == SXML_STATUS_OK);
+        const sxml_item namespace_node = sxml_node_item_make(
+            (sxml_node_reference){.tree = tree, .node_index = {.index = 0}, .namespace_number = 0});
+        sxml_tree_release(tree);
+        SXML_TEST_EXPECT(state, serializes_to(current, sxml_sequence_from_item(namespace_node),
+                                              expected_texts[case_index]));
+    }
+    SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
+}
+
 /* ------------------------------------------------- Depth and failures */
 
 /* 100,000 nested arrays: the serializer's stack is heap memory (D71). */
@@ -803,6 +854,7 @@ static const sxml_test_case serialize_test_cases[] = {
     {.name = "sequences_arrays_and_maps", .function = test_sequences_arrays_and_maps},
     {.name = "json_nodes", .function = test_json_nodes},
     {.name = "nodes", .function = test_nodes},
+    {.name = "stored_namespace_nodes", .function = test_stored_namespace_nodes},
     {.name = "deep_nesting", .function = test_deep_nesting},
     {.name = "failures", .function = test_failures},
 };
