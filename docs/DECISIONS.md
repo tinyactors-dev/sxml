@@ -3992,6 +3992,49 @@ draft.
   2.15, 3.11 or D97's non-goals (html-doc, parse-html, invisible-xml,
   xsd-validator, transform).
 
+### D137. Group by and window clauses (packet 3.8)
+Recorded 2026-10-17, completing D55 and D126 for these clauses. No IR
+kind added; contract in `src/xquery_flwor_internal.h`: lowering in
+`src/xquery_lower_window.c`, two internal native rows in
+`src/xquery_flwor.c` in no function table (a STATIC_CALL targets the row:
+`Q{}group-by#3`, `Q{}window#4`).
+- **group by** stays a tuple stream clause. Its grouping specifications
+  are bindings of the segment before it (a value is a let, 4.13.8's
+  rewrite); after the last, each grouping variable is rebound to its
+  grouping key: coerced to `xs:anyAtomicType?` (atomized, XPTY0004 for
+  two items), and to a declared type again (so `as attribute(*)` is
+  XPTY0004); XQST0094 when no variable of the FLWOR has the name. Tuple
+  arrays before a group by pack every variable, constants too. The row
+  takes the tuple arrays, the key member numbers and one collation URI
+  per key ("" = default collation; XQST0076 for one `sxml_collation_find`
+  does not know, relative URIs against the static base URI) and returns
+  one tuple array per group, same layout, groups in the order of their
+  first tuples: the first tuple's keys, every other member the
+  concatenation of its values. Keys are equal when both empty or
+  atomic-equal, strings under a non-codepoint collation by collation key,
+  dates and times without timezone given the implicit one
+  (fn:deep-equal); hashed as fn:distinct-values does.
+- **Window clauses** are not tuple stream clauses (glossary): a clause of
+  a segment like for (4.13.4.3), a MAP over the window arrays (glossary
+  `window_array`) the window row returns; the body binds the declared
+  variables by LOOKUP ($w with its type) and lowers the rest of the
+  segment. XQST0103 for two variables of one name. The row's kind bits:
+  sliding, has end, only end. Without end clause a tumbling window ends
+  before the next start; tumbling `only end` without an end item stops.
+- **Condition closures** (glossary): one lowering procedure for window
+  start and end conditions (4 and 8 parameters named by the window
+  variables; the row takes the effective boolean value) and the while
+  clause (D126: tuple unpacked from parameter 1; its body is now
+  `conditional(C, true(), false())`, not `fn:boolean(C)`), so capture
+  analysis and focus capture exist once; `sxml_xquery_unpack_tuple` is
+  shared.
+- Measured (3.13's `--spec=XQ40`, release): prod-GroupByClause 35/40
+  (not run 2; group-020 is a prolog, group-025 a UCA tailoring,
+  use-case-groupby-Q4 an evaluator SORT over an empty input:
+  `sxml_sort_finish` allocates 0 bytes, INVALID_ARGUMENT);
+  prod-WindowClause 125/158 (19 not run, the 14 errors are prologs). The
+  FLWOR sets are as D126 measured.
+
 ## Proposed
 
 - **The item axis in the evaluator** (packet 2.5, D113; for the owner of
