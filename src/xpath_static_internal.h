@@ -86,8 +86,13 @@ typedef struct sxml_xpath_static_context {
        types (sxml_static_context_configuration). */
     sxml_namespace_binding_view namespace_bindings;
     /* The external variables in scope; variable n (from 1) becomes global
-       variable n of the unit, in this order. */
+       variable n of the unit, in this order, unless global_numbers maps
+       it. */
     sxml_variable_declaration_view variable_declarations;
+    /* NULL, or one global number per variable declaration: the global
+       variable each one reads (XQuery modules, whose variables in scope
+       are not the unit's first globals; D148). */
+    const uint32_t *global_numbers;
     /* The statically known function definitions. A table whose operations
        is NULL knows none. */
     sxml_function_table function_table;
@@ -220,6 +225,11 @@ SXML_NODISCARD sxml_status sxml_xpath_resolve_item_type(
    leaving *type untouched, for none. */
 bool sxml_xpath_find_named_type(const sxml_xpath_static_context *static_context,
                                 sxml_name_identifier type_name, sxml_type_identifier *type);
+
+/* The global number of variable declaration declaration_index of
+   static_context: global_numbers' entry, else declaration_index + 1. */
+uint32_t sxml_xpath_global_number(const sxml_xpath_static_context *static_context,
+                                  size_t declaration_index);
 
 /* Item types nest at most this deep (map(K, map(K, ...))). */
 #define SXML_XPATH_MAXIMUM_TYPE_DEPTH 64U

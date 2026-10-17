@@ -15,10 +15,10 @@
 #include "xpath_static_internal.h"
 
 /*
- * The static context of an XQuery main module (docs/DECISIONS.md, D135;
- * packet 3.10). Internal to sxml.
+ * The static context of an XQuery module (docs/DECISIONS.md, D135, D148;
+ * packets 3.10, 3.11). Internal to sxml.
  *
- * sxml_xquery_read_static_context applies a main module's prolog
+ * sxml_xquery_read_static_context applies a module's prolog
  * (XQuery 4.0, section 5) to the host's static context and checks what
  * the prolog alone decides: one XPath static context
  * (sxml_xpath_static_context, src/xpath_static_internal.h) that lowering
@@ -29,11 +29,14 @@
  * - namespace bindings: the namespace declarations and the default element
  *   namespace (prefix 0) in prolog order, then the host's bindings, then
  *   the prefixes XQuery predeclares beyond XPath's (local, output; 2.1.4);
- * - variable declarations: the host's, then the prolog's in prolog order,
- *   so prolog variable n is global variable host count + n of the unit;
+ * - variable declarations: the host's, then the prolog's in prolog order
+ *   (prolog variable n is global variable global_number_base + n of the
+ *   unit), then, after sxml_xquery_link_static_context, the public
+ *   variables of the imported modules, each with its global number;
  * - a function table that finds the declared functions (one IR function
  *   of the unit per arity of the arity range, added here so calls and
  *   recursion find their index before any body is lowered), then the
+ *   public functions of the imported modules (after linking), then the
  *   host's table; an unprefixed name of a call, which the core resolves to
  *   the fn namespace, is searched among no-namespace declared functions
  *   first when no default function namespace is declared (5.14.2);
@@ -61,6 +64,17 @@
  * other than %public and %private are XQST0045 (5.15), so %updating is
  * rejected (D97).
  *
+ * A library module (D148): every module starts from XQuery 4.0's default
+ * static context (namespaces, no host variables, the module URI as static
+ * base URI), its module declaration and module imports bind prefixes
+ * (XQST0033, XQST0070, XQST0088), its public functions, variables, item
+ * types and records are in its target namespace (XQST0048), it declares
+ * no output declaration (XQST0108) and no context value (XQST0113).
+ * Imports name namespaces: the module sees the public declarations of
+ * every module of the module set with an imported namespace (5.12.2), but
+ * not what those import. Linking checks XQST0049 and XQST0034 against
+ * them.
+ *
  * Thread safety: the thread of the item heap (D35).
  */
 
@@ -86,6 +100,8 @@ typedef struct sxml_xquery_declared_function {
        NOMINATIVE_RECORD_TYPE_DECLARATION, 5.20.2): the record type; 0
        for a FUNCTION_DECLARATION. */
     sxml_type_identifier record_type;
+    /* %private: hidden from module import (5.18). */
+    bool is_private;
 } sxml_xquery_declared_function;
 
 /* A nominative record type the prolog declares (5.20). */
@@ -98,27 +114,48 @@ typedef struct sxml_xquery_declared_record {
     /* Declared by this prolog, not by an earlier compilation for the same
        item heap. */
     bool is_new;
+    /* %private: hidden from module import (5.20). */
+    bool is_private;
 } sxml_xquery_declared_record;
+
+typedef struct sxml_xquery_static_context sxml_xquery_static_context;
+
+/* The static contexts of the modules a module imports. */
+typedef struct sxml_xquery_static_context_view {
+    const sxml_xquery_static_context *const *static_contexts;
+    size_t static_context_count;
+} sxml_xquery_static_context_view;
 
 /* What sxml_xquery_read_static_context reads. */
 typedef struct sxml_xquery_static_request {
-    /* A MODULE whose module is a MAIN_MODULE; borrowed for the context's
-       life. */
+    /* A MODULE; borrowed for the context's life. */
     const sxml_ast *ast;
-    /* The host's static context; borrowed for the context's life. */
+    /* The host's static context; borrowed for the context's life. For a
+       library module: no namespace bindings or variables, the module URI
+       as static base URI. */
     const sxml_xpath_static_context *host_static_context;
     /* The unit the declared functions' IR functions are added to (empty
        bodies, which lowering replaces). */
     sxml_ir_unit *unit;
     sxml_error_record *error_record;
+    /* A library module's target namespace (5.2); 0 for a main module. */
+    sxml_namespace_uri_identifier target_namespace;
+    /* Prolog variable n (from 1) is global variable global_number_base +
+       n of the unit. */
+    uint32_t global_number_base;
+    /* The modules of the imported namespaces (this module excluded),
+       read already or not yet (an import cycle): the public item types of
+       those read are in scope. Borrowed for the context's life. */
+    sxml_xquery_static_context_view imported_modules;
 } sxml_xquery_static_request;
 
 /*
- * A main module's static context. A plain value whose arrays are allocated
+ * A module's static context. A plain value whose arrays are allocated
  * with the host's allocator (sxml_xquery_release_static_context releases
- * them); xpath borrows them and the AST.
+ * them); xpath borrows them and the AST. It does not move once read: its
+ * function table points to it.
  */
-typedef struct sxml_xquery_static_context {
+struct sxml_xquery_static_context {
     /* What lowering uses for every expression of the module. */
     sxml_xpath_static_context xpath;
     const sxml_ast *ast;
@@ -127,10 +164,17 @@ typedef struct sxml_xquery_static_context {
     size_t namespace_binding_count;
     sxml_variable_declaration *variable_declarations;
     size_t variable_declaration_count;
-    /* The host's variables are the first host_variable_count. */
+    /* The host's variables are the first host_variable_count, the
+       prolog's the next prolog_variable_count, then the imported ones. */
     size_t host_variable_count;
-    /* The VARIABLE_DECLARATION of prolog variable n is entry n - 1. */
+    size_t prolog_variable_count;
+    /* The global number of each variable declaration (xpath's
+       global_numbers). */
+    uint32_t *global_numbers;
+    /* The VARIABLE_DECLARATION of prolog variable n is entry n - 1, and
+       whether it is %private. */
     sxml_ast_node_index *variable_nodes;
+    bool *private_variables;
     sxml_xquery_declared_function *declared_functions;
     size_t declared_function_count;
     /* Parameter types and names (for keyword arguments) of every declared
@@ -141,6 +185,11 @@ typedef struct sxml_xquery_static_context {
     /* Named item types (5.19) and nominative record types (5.20). */
     sxml_xpath_named_item_type *named_item_types;
     size_t named_item_type_count;
+    /* The first imported_item_type_count named item types are the
+       imported modules' public ones; the prolog's follow, each with its
+       %private in private_item_types (entry n for type n). */
+    size_t imported_item_type_count;
+    bool *private_item_types;
     sxml_xquery_declared_record *declared_records;
     size_t declared_record_count;
     /* The CONTEXT_VALUE_DECLARATION; 0 for none. */
@@ -158,19 +207,52 @@ typedef struct sxml_xquery_static_context {
     void *default_collation_memory;
     sxml_decimal_format *decimal_formats;
     sxml_decimal_format_property *decimal_format_properties;
-} sxml_xquery_static_context;
+    /* A library module's target namespace; 0 for a main module. */
+    sxml_namespace_uri_identifier target_namespace;
+    /* The imported modules (after sxml_xquery_link_static_context). */
+    sxml_xquery_static_context_view imported_modules;
+};
 
 /*
  * Reads request->ast's prolog into *context (see the file comment).
  * Returns SXML_STATUS_STATIC_ERROR with the error record filled,
- * SXML_STATUS_UNSUPPORTED_FEATURE for declarations not supported yet
- * (module imports, packet 3.11), SXML_STATUS_INVALID_ARGUMENT for a
+ * SXML_STATUS_INVALID_ARGUMENT for a
  * request without an AST, host static context or unit, and the failures of
  * the name pool, type registry, unit and allocator; on failure nothing is
  * left allocated and *context is untouched.
  */
 SXML_NODISCARD sxml_status sxml_xquery_read_static_context(
     const sxml_xquery_static_request *request, sxml_xquery_static_context *context);
+
+/*
+ * Adds the public variables of imports (the imported modules, read) to
+ * *context's variables in scope, with their global numbers, and makes its
+ * function table find their public functions; checks XQST0049 (a variable
+ * declared and imported, or imported twice) and XQST0034 (functions of
+ * one name with overlapping arities among the declared and imported
+ * ones). Returns SXML_STATUS_STATIC_ERROR with the error record filled
+ * and the allocator's failures; *context then imports no function and
+ * stays releasable.
+ */
+typedef struct sxml_xquery_link_request {
+    sxml_xquery_static_context_view imports;
+    sxml_error_record *error_record;
+} sxml_xquery_link_request;
+
+SXML_NODISCARD sxml_status sxml_xquery_link_static_context(
+    const sxml_xquery_link_request *request, sxml_xquery_static_context *context);
+
+/* A URILiteral to intern, its whitespace normalized as for xs:anyURI
+   (XQuery 4.0, A.3.1). */
+typedef struct sxml_xquery_uri_literal {
+    sxml_name_pool *name_pool;
+    /* For a copy while collapsing whitespace. */
+    sxml_allocator allocator;
+    sxml_byte_view text;
+} sxml_xquery_uri_literal;
+
+SXML_NODISCARD sxml_status sxml_xquery_intern_uri_literal(const sxml_xquery_uri_literal *literal,
+                                                          sxml_namespace_uri_identifier *uri);
 
 /* Releases what sxml_xquery_read_static_context allocated. NULL is
    allowed. */

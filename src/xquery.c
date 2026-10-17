@@ -443,12 +443,16 @@ static sxml_status sxml_xquery_compile_query(
             configuration->error_record);
     }
     if (status == SXML_STATUS_OK) {
+        /* Library modules come from the processor's resolver (D106,
+           D148). */
         status = sxml_xquery_compile_module(
             &(sxml_xquery_lowering_request){.ast = ast,
                                             .static_context = &static_context,
                                             .maximum_expression_count = 0,
                                             .maximum_expression_depth = maximum_expression_depth,
-                                            .error_record = configuration->error_record},
+                                            .error_record = configuration->error_record,
+                                            .resource_resolver = processor->resource_resolver,
+                                            .processor = processor},
             &compiled->unit);
     }
     if (status == SXML_STATUS_OK) {

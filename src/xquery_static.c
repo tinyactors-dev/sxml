@@ -173,10 +173,10 @@ static bool is_xml_whitespace(uint8_t byte) {
     return byte == ' ' || byte == '\t' || byte == '\n' || byte == '\r';
 }
 
-/* Interns a URILiteral, its whitespace normalized as for xs:anyURI
-   (A.3.1). */
-static sxml_status intern_uri(const static_reader *reader, sxml_byte_view text,
-                              sxml_namespace_uri_identifier *uri) {
+/* Interns a URILiteral (src/xquery_static_internal.h). */
+sxml_status sxml_xquery_intern_uri_literal(const sxml_xquery_uri_literal *literal,
+                                           sxml_namespace_uri_identifier *uri) {
+    const sxml_byte_view text = literal->text;
     size_t first = 0;
     size_t end = text.byte_count;
     while (first < end && is_xml_whitespace(text.bytes[first])) {
@@ -193,13 +193,11 @@ static sxml_status intern_uri(const static_reader *reader, sxml_byte_view text,
     }
     const sxml_byte_view trimmed = {.bytes = text.bytes + first, .byte_count = end - first};
     if (!needs_collapsing) {
-        return sxml_name_pool_intern_namespace_uri(reader->name_pool, trimmed, uri);
+        return sxml_name_pool_intern_namespace_uri(literal->name_pool, trimmed, uri);
     }
     void *memory = NULL;
-    sxml_status status = allocate_array(
-        reader,
-        (array_request){
-            .element_count = trimmed.byte_count, .element_size = 1, .element_alignment = 1},
+    sxml_status status = sxml_allocator_allocate(
+        literal->allocator, (sxml_allocation_request){.byte_count = trimmed.byte_count, .alignment = 1},
         &memory);
     if (status != SXML_STATUS_OK) {
         return status;
@@ -219,10 +217,20 @@ static sxml_status intern_uri(const static_reader *reader, sxml_byte_view text,
         collapsed_count += 1;
     }
     status = sxml_name_pool_intern_namespace_uri(
-        reader->name_pool, (sxml_byte_view){.bytes = collapsed, .byte_count = collapsed_count},
+        literal->name_pool, (sxml_byte_view){.bytes = collapsed, .byte_count = collapsed_count},
         uri);
-    sxml_allocator_release(reader->allocator, memory);
+    sxml_allocator_release(literal->allocator, memory);
     return status;
+}
+
+/* Interns a URILiteral, its whitespace normalized as for xs:anyURI
+   (A.3.1). */
+static sxml_status intern_uri(const static_reader *reader, sxml_byte_view text,
+                              sxml_namespace_uri_identifier *uri) {
+    return sxml_xquery_intern_uri_literal(
+        &(sxml_xquery_uri_literal){
+            .name_pool = reader->name_pool, .allocator = reader->allocator, .text = text},
+        uri);
 }
 
 static bool is_well_known(sxml_namespace_uri_identifier uri,
@@ -341,6 +349,7 @@ static const single_declaration_rule single_declaration_rules[] = {
 /* What the first pass over the prolog counts and finds. */
 typedef struct prolog_survey {
     size_t namespace_declaration_count;
+    size_t module_import_count;
     size_t variable_declaration_count;
     size_t function_declaration_count;
     size_t parameter_count;
@@ -417,6 +426,14 @@ static sxml_status survey_declaration(const static_reader *reader,
         return SXML_STATUS_OK;
     case SXML_AST_KIND_CONTEXT_VALUE_DECLARATION:
         survey->context_value_declaration = declaration;
+        if (reader->request->target_namespace.index != 0 &&
+            (child_of(ast, declaration, SXML_AST_FIELD_VALUE).value != 0 ||
+             child_of(ast, declaration, SXML_AST_FIELD_DEFAULT).value != 0)) {
+            /* 5.17: only the main module sets the initial context value. */
+            return report(reader, declaration,
+                          SXML_BYTE_VIEW_FROM_LITERAL(
+                              "XQST0113 a library module gives the context value a value"));
+        }
         return SXML_STATUS_OK;
     case SXML_AST_KIND_VARIABLE_DECLARATION:
         survey->variable_declaration_count += 1;
@@ -434,13 +451,10 @@ static sxml_status survey_declaration(const static_reader *reader,
                       SXML_BYTE_VIEW_FROM_LITERAL(
                           "XQST0009 schema import is not supported (no schema awareness)"));
     case SXML_AST_KIND_MODULE_IMPORT:
-        if (reader->request->error_record != NULL) {
-            reader->request->error_record->diagnostic = (sxml_diagnostic){
-                .location = sxml_ast_get_source_location(ast, declaration),
-                .description = SXML_BYTE_VIEW_FROM_LITERAL(
-                    "module import is not supported yet (packet 3.11)")};
-        }
-        return SXML_STATUS_UNSUPPORTED_FEATURE;
+        /* The module set loaded the modules (D148); the prefix is bound
+           here. */
+        survey->module_import_count += 1;
+        return SXML_STATUS_OK;
     case SXML_AST_KIND_ITEM_TYPE_DECLARATION:
         survey->item_type_declaration_count += 1;
         return SXML_STATUS_OK;
@@ -519,6 +533,12 @@ static sxml_status read_namespace_declaration(const static_reader *reader,
     if (status != SXML_STATUS_OK) {
         return status;
     }
+    const sxml_ast_kind kind = node_of(ast, declaration)->kind;
+    if (kind != SXML_AST_KIND_NAMESPACE_DECLARATION && uri.index == SXML_NAMESPACE_NONE) {
+        /* 5.2, 5.12: a target namespace is never empty. */
+        return report(reader, declaration,
+                      SXML_BYTE_VIEW_FROM_LITERAL("XQST0088 a target namespace is empty"));
+    }
     if (is_xml_namespace(uri)) {
         return report(reader, declaration,
                       SXML_BYTE_VIEW_FROM_LITERAL(
@@ -528,6 +548,14 @@ static sxml_status read_namespace_declaration(const static_reader *reader,
     status = intern_prefix(reader, prefix_node, &prefix);
     if (status != SXML_STATUS_OK) {
         return status;
+    }
+    if (kind == SXML_AST_KIND_MODULE_IMPORT && list->binding_count > 0 &&
+        list->bindings[0].namespace_prefix.index == prefix.index &&
+        list->bindings[0].namespace_uri.index == uri.index &&
+        reader->request->target_namespace.index == uri.index) {
+        /* 5.12: the module declaration's prefix may be imported again with
+           the same target namespace. */
+        return SXML_STATUS_OK;
     }
     /* 5.13: "" removes the binding: a binding to no namespace, which the
        core reads as an undeclared prefix (D135). */
@@ -597,8 +625,8 @@ static sxml_status read_namespaces(const static_reader *reader, const prolog_sur
         reader->request->host_static_context->namespace_bindings;
     /* Prolog declarations, the default element namespace, the host's,
        local, output and xq. */
-    const size_t capacity = survey->namespace_declaration_count + 1 +
-                            host.namespace_binding_count + 3;
+    const size_t capacity = survey->namespace_declaration_count + survey->module_import_count +
+                            2 + host.namespace_binding_count + 3;
     void *memory = NULL;
     sxml_status status = allocate_array(
         reader,
@@ -621,10 +649,20 @@ static sxml_status read_namespaces(const static_reader *reader, const prolog_sur
     }
     binding_list list = {.bindings = memory, .binding_count = 0};
     sxml_ast_node_index *declarations = declaration_memory;
+    const sxml_ast_node_index module = child_of(ast, ast->root, SXML_AST_FIELD_MODULE);
+    if (node_of(ast, module)->kind == SXML_AST_KIND_LIBRARY_MODULE) {
+        /* 5.2: the module declaration's prefix comes first. */
+        const sxml_ast_node_index declaration = child_of(ast, module, SXML_AST_FIELD_DECLARATION);
+        declarations[0] = declaration;
+        status = read_namespace_declaration(reader, declaration, &list);
+    }
     for (sxml_ast_node_index declaration = first_declaration(ast);
          status == SXML_STATUS_OK && declaration.value != 0;
          declaration = next_of(ast, declaration)) {
-        if (node_of(ast, declaration)->kind == SXML_AST_KIND_NAMESPACE_DECLARATION) {
+        const sxml_ast_kind kind = node_of(ast, declaration)->kind;
+        if (kind == SXML_AST_KIND_NAMESPACE_DECLARATION ||
+            (kind == SXML_AST_KIND_MODULE_IMPORT &&
+             child_of(ast, declaration, SXML_AST_FIELD_PREFIX).value != 0)) {
             declarations[list.binding_count] = declaration;
             status = read_namespace_declaration(reader, declaration, &list);
         }
@@ -1045,6 +1083,8 @@ typedef struct annotation_check {
     sxml_byte_view duplicate_error;
     /* A record declaration: %constructor is known (5.20.2). */
     bool allows_constructor;
+    /* Receives whether %private is among them; may be NULL. */
+    bool *is_private;
 } annotation_check;
 
 static sxml_status check_annotations(const static_reader *reader, annotation_check check) {
@@ -1073,6 +1113,10 @@ static sxml_status check_annotations(const static_reader *reader, annotation_che
             continue;
         }
         if (is_visibility) {
+            if (check.is_private != NULL &&
+                sxml_byte_view_equals(name.local_name, SXML_BYTE_VIEW_FROM_LITERAL("private"))) {
+                *check.is_private = true;
+            }
             visibility_count += 1;
             if (visibility_count > 1) {
                 status = report(reader, annotation, check.duplicate_error);
@@ -1084,6 +1128,31 @@ static sxml_status check_annotations(const static_reader *reader, annotation_che
                             SXML_BYTE_VIEW_FROM_LITERAL(
                                 "XQST0045 an annotation is in a reserved namespace"));
         }
+    }
+    return status;
+}
+
+/* XQST0048: a public declaration of a library module whose name is not in
+   the target namespace (5.16, 5.18, 5.19, 5.20). */
+typedef struct target_namespace_check {
+    sxml_ast_node_index declaration;
+    sxml_name_identifier name;
+    bool is_private;
+} target_namespace_check;
+
+static sxml_status check_target_namespace(const static_reader *reader,
+                                          target_namespace_check check) {
+    const sxml_namespace_uri_identifier target = reader->request->target_namespace;
+    if (target.index == 0 || check.is_private) {
+        return SXML_STATUS_OK;
+    }
+    sxml_name_parts parts = {0};
+    sxml_status status = sxml_name_pool_get_name_parts(reader->name_pool, check.name, &parts);
+    if (status == SXML_STATUS_OK && parts.namespace_uri.index != target.index) {
+        status = report(reader, check.declaration,
+                        SXML_BYTE_VIEW_FROM_LITERAL(
+                            "XQST0048 a public declaration of a library module is not in its "
+                            "target namespace"));
     }
     return status;
 }
@@ -1160,7 +1229,12 @@ static sxml_status read_options(const static_reader *reader) {
             continue;
         }
         const size_t parameter = find_output_parameter(name.local_name);
-        if (parameter == SIZE_MAX) {
+        if (reader->request->target_namespace.index != 0) {
+            /* 5.22: only a main module declares serialization parameters. */
+            status = report(reader, declaration,
+                            SXML_BYTE_VIEW_FROM_LITERAL(
+                                "XQST0108 a library module has an output declaration"));
+        } else if (parameter == SIZE_MAX) {
             status = report(reader, declaration,
                             SXML_BYTE_VIEW_FROM_LITERAL(
                                 "XQST0109 an output declaration names no serialization "
@@ -1236,10 +1310,17 @@ static sxml_status declare_records(const static_reader *reader,
             reader, (annotation_check){.declaration = declaration,
                                        .duplicate_error = SXML_BYTE_VIEW_FROM_LITERAL(
                                            "XQST0106 a record has two visibility annotations"),
-                                       .allows_constructor = true});
+                                       .allows_constructor = true,
+                                       .is_private = &record->is_private});
         if (status == SXML_STATUS_OK) {
             status = resolve_type_name(reader, child_of(ast, declaration, SXML_AST_FIELD_NAME),
                                        &record->record_name);
+        }
+        if (status == SXML_STATUS_OK) {
+            status = check_target_namespace(
+                reader, (target_namespace_check){.declaration = declaration,
+                                                 .name = record->record_name,
+                                                 .is_private = record->is_private});
         }
         if (status != SXML_STATUS_OK) {
             break;
@@ -1327,17 +1408,60 @@ static sxml_status define_records(const static_reader *reader,
    uses: rounds over the declarations not resolved yet, until one makes
    no progress; then the first left reports its error (XPST0051 for a name
    that is never declared or a cycle). */
+/* The public item types an imported module declares, read already (an
+   import cycle may leave one unread: it has none yet). */
+typedef struct imported_item_types {
+    const sxml_xquery_static_context *module;
+    size_t first;
+    size_t end;
+} imported_item_types;
+
+static imported_item_types public_item_types_of(const sxml_xquery_static_context *module) {
+    return (imported_item_types){.module = module,
+                                 .first = module->imported_item_type_count,
+                                 .end = module->named_item_type_count};
+}
+
+/* Puts the imported modules' public item types first (5.12). */
+static void import_item_types(const static_reader *reader, sxml_xquery_static_context *context) {
+    const sxml_xquery_static_context_view imports = reader->request->imported_modules;
+    for (size_t import_index = 0; import_index < imports.static_context_count;
+         import_index += 1) {
+        const imported_item_types types =
+            public_item_types_of(imports.static_contexts[import_index]);
+        for (size_t type_index = types.first; type_index < types.end; type_index += 1) {
+            if (!types.module->private_item_types[type_index]) {
+                context->named_item_types[context->named_item_type_count] =
+                    types.module->named_item_types[type_index];
+                context->named_item_type_count += 1;
+            }
+        }
+    }
+    context->imported_item_type_count = context->named_item_type_count;
+    context->xpath.named_item_types = (sxml_xpath_named_item_type_view){
+        .named_item_types = context->named_item_types,
+        .named_item_type_count = context->named_item_type_count};
+}
+
 static sxml_status read_item_types(const static_reader *reader, const prolog_survey *survey,
                                    sxml_xquery_static_context *context) {
     const sxml_ast *ast = reader->ast;
+    size_t imported_count = 0;
+    const sxml_xquery_static_context_view imports = reader->request->imported_modules;
+    for (size_t import_index = 0; import_index < imports.static_context_count;
+         import_index += 1) {
+        const imported_item_types types =
+            public_item_types_of(imports.static_contexts[import_index]);
+        imported_count += types.end - types.first;
+    }
     const size_t declaration_count = survey->item_type_declaration_count;
-    if (declaration_count == 0) {
+    if (declaration_count + imported_count == 0) {
         return SXML_STATUS_OK;
     }
     void *memory = NULL;
     sxml_status status = allocate_array(
         reader,
-        (array_request){.element_count = declaration_count,
+        (array_request){.element_count = declaration_count + imported_count,
                         .element_size = sizeof(sxml_xpath_named_item_type),
                         .element_alignment = alignof(sxml_xpath_named_item_type)},
         &memory);
@@ -1345,6 +1469,17 @@ static sxml_status read_item_types(const static_reader *reader, const prolog_sur
         return status;
     }
     context->named_item_types = memory;
+    status = allocate_array(
+        reader,
+        (array_request){.element_count = declaration_count + imported_count,
+                        .element_size = sizeof(bool),
+                        .element_alignment = alignof(bool)},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    context->private_item_types = memory;
+    import_item_types(reader, context);
     status = allocate_array(
         reader,
         (array_request){.element_count = declaration_count,
@@ -1356,11 +1491,19 @@ static sxml_status read_item_types(const static_reader *reader, const prolog_sur
     }
     sxml_ast_node_index *pending = memory;
     size_t pending_count = 0;
-    for (sxml_ast_node_index declaration = first_declaration(ast); declaration.value != 0;
+    for (sxml_ast_node_index declaration = first_declaration(ast);
+         status == SXML_STATUS_OK && declaration.value != 0;
          declaration = next_of(ast, declaration)) {
         if (node_of(ast, declaration)->kind == SXML_AST_KIND_ITEM_TYPE_DECLARATION) {
             pending[pending_count] = declaration;
             pending_count += 1;
+            status = check_annotations(
+                reader, (annotation_check){.declaration = declaration,
+                                           .duplicate_error = SXML_BYTE_VIEW_FROM_LITERAL(
+                                               "XQST0106 an item type has two visibility "
+                                               "annotations"),
+                                           .allows_constructor = false,
+                                           .is_private = NULL});
         }
     }
     bool has_progress = true;
@@ -1384,6 +1527,23 @@ static sxml_status read_item_types(const static_reader *reader, const prolog_sur
                                            .static_context = &context->xpath,
                                            .error_record = NULL},
                 &entry->item_type);
+            bool *is_private = &context->private_item_types[context->named_item_type_count];
+            if (type_status == SXML_STATUS_OK) {
+                status = check_annotations(
+                    reader, (annotation_check){.declaration = declaration,
+                                               .duplicate_error = {.bytes = NULL, .byte_count = 0},
+                                               .allows_constructor = false,
+                                               .is_private = is_private});
+            }
+            if (type_status == SXML_STATUS_OK && status == SXML_STATUS_OK) {
+                status = check_target_namespace(
+                    reader, (target_namespace_check){.declaration = declaration,
+                                                     .name = entry->type_name,
+                                                     .is_private = *is_private});
+            }
+            if (status != SXML_STATUS_OK) {
+                break;
+            }
             if (type_status == SXML_STATUS_OK) {
                 context->named_item_type_count += 1;
                 context->xpath.named_item_types = (sxml_xpath_named_item_type_view){
@@ -1605,13 +1765,18 @@ static sxml_status check_variable_names(const static_reader *reader,
     for (size_t entry_index = 1; status == SXML_STATUS_OK && entry_index < declaration_count;
          entry_index += 1) {
         if (entries[entry_index].key == entries[entry_index - 1].key) {
-            /* The later of the two is a prolog variable (the host checked
-               its own). */
-            status = report(
-                reader,
-                context->variable_nodes[entries[entry_index].position -
-                                        context->host_variable_count],
-                SXML_BYTE_VIEW_FROM_LITERAL("XQST0049 a variable is declared twice"));
+            /* Located at a prolog variable of the two (the host checked its
+               own); two imported ones have no place in this module. */
+            sxml_ast_node_index place = {0};
+            for (size_t pair_index = 0; pair_index < 2; pair_index += 1) {
+                const size_t position = entries[entry_index - pair_index].position;
+                if (place.value == 0 && position >= context->host_variable_count &&
+                    position < context->host_variable_count + context->prolog_variable_count) {
+                    place = context->variable_nodes[position - context->host_variable_count];
+                }
+            }
+            status = report(reader, place,
+                            SXML_BYTE_VIEW_FROM_LITERAL("XQST0049 a variable is declared twice"));
         }
     }
     sxml_allocator_release(reader->allocator, memory);
@@ -1647,8 +1812,29 @@ static sxml_status read_variables(const static_reader *reader, const prolog_surv
         return status;
     }
     context->variable_nodes = memory;
+    status = allocate_array(
+        reader,
+        (array_request){.element_count = survey->variable_declaration_count,
+                        .element_size = sizeof(bool),
+                        .element_alignment = alignof(bool)},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    context->private_variables = memory;
+    status = allocate_array(
+        reader,
+        (array_request){.element_count = declaration_count,
+                        .element_size = sizeof(uint32_t),
+                        .element_alignment = alignof(uint32_t)},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    context->global_numbers = memory;
     for (size_t host_index = 0; host_index < host.variable_declaration_count; host_index += 1) {
         context->variable_declarations[host_index] = host.variable_declarations[host_index];
+        context->global_numbers[host_index] = (uint32_t)host_index + 1U;
     }
     context->host_variable_count = host.variable_declaration_count;
     context->variable_declaration_count = host.variable_declaration_count;
@@ -1658,11 +1844,13 @@ static sxml_status read_variables(const static_reader *reader, const prolog_surv
         if (node_of(ast, declaration)->kind != SXML_AST_KIND_VARIABLE_DECLARATION) {
             continue;
         }
+        const size_t prolog_index = context->variable_declaration_count - context->host_variable_count;
         status = check_annotations(
             reader, (annotation_check){.declaration = declaration,
                                .duplicate_error = SXML_BYTE_VIEW_FROM_LITERAL(
                                    "XQST0116 a variable has two visibility annotations"),
-                               .allows_constructor = false});
+                               .allows_constructor = false,
+                               .is_private = &context->private_variables[prolog_index]});
         const sxml_ast_node_index variable = child_of(ast, declaration, SXML_AST_FIELD_VARIABLE);
         sxml_variable_declaration *entry =
             &context->variable_declarations[context->variable_declaration_count];
@@ -1671,13 +1859,22 @@ static sxml_status read_variables(const static_reader *reader, const prolog_surv
                                            &entry->variable_name);
         }
         if (status == SXML_STATUS_OK) {
+            status = check_target_namespace(
+                reader, (target_namespace_check){
+                            .declaration = declaration,
+                            .name = entry->variable_name,
+                            .is_private = context->private_variables[prolog_index]});
+        }
+        if (status == SXML_STATUS_OK) {
             status = resolve_declared_type(reader, child_of(ast, variable, SXML_AST_FIELD_TYPE),
                                            &entry->declared_type);
         }
         if (status == SXML_STATUS_OK) {
-            context->variable_nodes[context->variable_declaration_count -
-                                    context->host_variable_count] = declaration;
+            context->variable_nodes[prolog_index] = declaration;
+            context->global_numbers[context->variable_declaration_count] =
+                reader->request->global_number_base + (uint32_t)prolog_index + 1U;
             context->variable_declaration_count += 1;
+            context->prolog_variable_count += 1;
         }
     }
     if (status == SXML_STATUS_OK) {
@@ -1687,6 +1884,7 @@ static sxml_status read_variables(const static_reader *reader, const prolog_surv
         context->xpath.variable_declarations = (sxml_variable_declaration_view){
             .variable_declarations = context->variable_declarations,
             .variable_declaration_count = context->variable_declaration_count};
+        context->xpath.global_numbers = context->global_numbers;
     }
     return status;
 }
@@ -1750,6 +1948,8 @@ typedef struct function_source {
     sxml_ast_node_index declaration;
     sxml_type_identifier record_type;
     sxml_name_identifier function_name;
+    /* A record's %private, which its constructor shares. */
+    bool is_private;
 } function_source;
 
 /* The parameters, signatures and IR functions of one declared function. */
@@ -1772,18 +1972,26 @@ static sxml_status read_function(const static_reader *reader, function_source so
                                                 .function_name = source.function_name,
                                                 .first_parameter = first_parameter,
                                                 .first_signature = first_signature,
-                                                .record_type = source.record_type};
+                                                .record_type = source.record_type,
+                                                .is_private = source.is_private};
     sxml_status status = SXML_STATUS_OK;
     if (!is_constructor) {
         status = check_annotations(
             reader, (annotation_check){.declaration = declaration,
                                        .duplicate_error = SXML_BYTE_VIEW_FROM_LITERAL(
                                            "XQST0106 a function has two visibility annotations"),
-                                       .allows_constructor = false});
+                                       .allows_constructor = false,
+                                       .is_private = &function->is_private});
     }
     if (status == SXML_STATUS_OK && !is_constructor) {
         status = resolve_function_name(reader, child_of(ast, declaration, SXML_AST_FIELD_NAME),
                                        &function->function_name);
+        if (status == SXML_STATUS_OK) {
+            status = check_target_namespace(
+                reader, (target_namespace_check){.declaration = declaration,
+                                                 .name = function->function_name,
+                                                 .is_private = function->is_private});
+        }
     }
     sxml_name_identifier *parameter_names = NULL;
     void *names_memory = NULL;
@@ -1999,7 +2207,8 @@ static sxml_status read_functions(const static_reader *reader, const prolog_surv
             status = read_function(reader,
                                    (function_source){.declaration = declaration,
                                                      .record_type = {.index = 0},
-                                                     .function_name = {.index = 0}},
+                                                     .function_name = {.index = 0},
+                                                     .is_private = false},
                                    context);
         }
     }
@@ -2014,7 +2223,8 @@ static sxml_status read_functions(const static_reader *reader, const prolog_surv
             status = read_function(reader,
                                    (function_source){.declaration = record->declaration,
                                                      .record_type = record->record_type,
-                                                     .function_name = record->record_name},
+                                                     .function_name = record->record_name,
+                                                     .is_private = record->is_private},
                                    context);
         }
     }
@@ -2067,14 +2277,23 @@ static sxml_name_identifier rename_function(const sxml_xquery_static_context *co
 /* The constructor function of a named item type that is a generalized
    atomic type (5.19: "if the item type is a generalized atomic type, the
    declaration also declares a constructor function"): a cast. */
-static sxml_status find_alias_constructor(const sxml_xquery_static_context *context,
-                                          const sxml_function_query *query,
-                                          sxml_function_entry *entry) {
+/* The named item types a constructor is searched among: all of a
+   module's, or an imported module's public ones. */
+typedef struct alias_search {
+    const sxml_xquery_static_context *module;
+    const sxml_function_query *query;
+    bool is_imported;
+} alias_search;
+
+static sxml_status find_alias_constructor(alias_search search, sxml_function_entry *entry) {
+    const sxml_xquery_static_context *context = search.module;
+    const sxml_function_query *query = search.query;
     sxml_type_registry *registry = sxml_item_heap_get_type_registry(context->xpath.item_heap);
-    for (size_t alias_index = 0; alias_index < context->named_item_type_count;
-         alias_index += 1) {
+    for (size_t alias_index = search.is_imported ? context->imported_item_type_count : 0;
+         alias_index < context->named_item_type_count; alias_index += 1) {
         const sxml_xpath_named_item_type *alias = &context->named_item_types[alias_index];
-        if (alias->type_name.index != query->function_name.index || query->arity != 1) {
+        if (alias->type_name.index != query->function_name.index || query->arity != 1 ||
+            (search.is_imported && context->private_item_types[alias_index])) {
             continue;
         }
         sxml_type_description description = {0};
@@ -2142,28 +2361,66 @@ static sxml_status find_alias_constructor(const sxml_xquery_static_context *cont
  * no-namespace name no declared function has is looked up in fn
  * (5.14.2).
  */
+/* The entry of a declared function of module (5.18) for query's arity. */
+typedef struct declared_entry {
+    const sxml_xquery_static_context *module;
+    const sxml_xquery_declared_function *function;
+} declared_entry;
+
+static sxml_function_entry entry_of_declared(declared_entry declared,
+                                             const sxml_function_query *query) {
+    const sxml_xquery_static_context *module = declared.module;
+    const sxml_xquery_declared_function *function = declared.function;
+    const size_t arity_offset = query->arity - function->required_count;
+    return (sxml_function_entry){
+        .entry_kind = SXML_FUNCTION_ENTRY_KIND_IR_FUNCTION,
+        .native_function = NULL,
+        .ir_function_number = function->first_function.value + (uint32_t)arity_offset,
+        .parameters = {.function_parameters = &module->function_parameters[function->first_parameter],
+                       .function_parameter_count = function->parameter_count},
+        .signature = module->signatures[function->first_signature + arity_offset],
+        .parameter_types = {.sequence_types = &module->parameter_types[function->first_parameter],
+                            .sequence_type_count = query->arity},
+        .result_type = function->result_type};
+}
+
+/* A public function or constructor of an imported module (5.12). */
+static sxml_status find_imported(const sxml_xquery_static_context *context,
+                                 const sxml_function_query *query, sxml_function_entry *entry) {
+    sxml_status status = SXML_STATUS_OK;
+    const sxml_xquery_static_context_view imports = context->imported_modules;
+    for (size_t import_index = 0; status == SXML_STATUS_OK &&
+                                  entry->entry_kind == SXML_FUNCTION_ENTRY_KIND_NONE &&
+                                  import_index < imports.static_context_count;
+         import_index += 1) {
+        const sxml_xquery_static_context *module = imports.static_contexts[import_index];
+        const sxml_xquery_declared_function *function = find_declared(module, query);
+        if (function != NULL && !function->is_private) {
+            *entry = entry_of_declared((declared_entry){.module = module, .function = function},
+                                       query);
+            break;
+        }
+        status = find_alias_constructor(
+            (alias_search){.module = module, .query = query, .is_imported = true}, entry);
+    }
+    return status;
+}
+
 static sxml_status find_function(void *state, const sxml_function_query *query,
                                  sxml_function_entry *entry) {
     const sxml_xquery_static_context *context = state;
     const sxml_xquery_declared_function *function = find_declared(context, query);
     if (function != NULL) {
-        const size_t arity_offset = query->arity - function->required_count;
-        *entry = (sxml_function_entry){
-            .entry_kind = SXML_FUNCTION_ENTRY_KIND_IR_FUNCTION,
-            .native_function = NULL,
-            .ir_function_number = function->first_function.value + (uint32_t)arity_offset,
-            .parameters = {.function_parameters =
-                               &context->function_parameters[function->first_parameter],
-                           .function_parameter_count = function->parameter_count},
-            .signature = context->signatures[function->first_signature + arity_offset],
-            .parameter_types = {.sequence_types =
-                                    &context->parameter_types[function->first_parameter],
-                                .sequence_type_count = query->arity},
-            .result_type = function->result_type};
+        *entry = entry_of_declared((declared_entry){.module = context, .function = function},
+                                   query);
         return SXML_STATUS_OK;
     }
     *entry = (sxml_function_entry){.entry_kind = SXML_FUNCTION_ENTRY_KIND_NONE};
-    sxml_status status = find_alias_constructor(context, query, entry);
+    sxml_status status = find_alias_constructor(
+        (alias_search){.module = context, .query = query, .is_imported = false}, entry);
+    if (status == SXML_STATUS_OK && entry->entry_kind == SXML_FUNCTION_ENTRY_KIND_NONE) {
+        status = find_imported(context, query, entry);
+    }
     if (status != SXML_STATUS_OK || entry->entry_kind != SXML_FUNCTION_ENTRY_KIND_NONE) {
         return status;
     }
@@ -2275,6 +2532,205 @@ static sxml_status read_context_value_type(const static_reader *reader,
     return sxml_xpath_resolve_sequence_type(&request, &context->context_value_type);
 }
 
+/* ------------------------------------------------------------- Linking */
+
+/* Appends the imported modules' public variables (5.12) to the
+   variables in scope. */
+static sxml_status import_variables(const static_reader *reader,
+                                    sxml_xquery_static_context *context) {
+    const sxml_xquery_static_context_view imports = reader->context->imported_modules;
+    size_t imported_count = 0;
+    for (size_t import_index = 0; import_index < imports.static_context_count;
+         import_index += 1) {
+        const sxml_xquery_static_context *module = imports.static_contexts[import_index];
+        for (size_t variable_index = 0; variable_index < module->prolog_variable_count;
+             variable_index += 1) {
+            imported_count += module->private_variables[variable_index] ? 0 : 1;
+        }
+    }
+    if (imported_count == 0) {
+        return SXML_STATUS_OK;
+    }
+    const size_t declaration_count = context->variable_declaration_count + imported_count;
+    void *declaration_memory = NULL;
+    void *number_memory = NULL;
+    sxml_status status = allocate_array(
+        reader,
+        (array_request){.element_count = declaration_count,
+                        .element_size = sizeof(sxml_variable_declaration),
+                        .element_alignment = alignof(sxml_variable_declaration)},
+        &declaration_memory);
+    if (status == SXML_STATUS_OK) {
+        status = allocate_array(reader,
+                                (array_request){.element_count = declaration_count,
+                                                .element_size = sizeof(uint32_t),
+                                                .element_alignment = alignof(uint32_t)},
+                                &number_memory);
+    }
+    if (status != SXML_STATUS_OK) {
+        sxml_allocator_release(reader->allocator, declaration_memory);
+        return status;
+    }
+    sxml_variable_declaration *declarations = declaration_memory;
+    uint32_t *numbers = number_memory;
+    size_t filled = context->variable_declaration_count;
+    memcpy(declarations, context->variable_declarations,
+           filled * sizeof(sxml_variable_declaration));
+    memcpy(numbers, context->global_numbers, filled * sizeof(uint32_t));
+    for (size_t import_index = 0; import_index < imports.static_context_count;
+         import_index += 1) {
+        const sxml_xquery_static_context *module = imports.static_contexts[import_index];
+        for (size_t variable_index = 0; variable_index < module->prolog_variable_count;
+             variable_index += 1) {
+            if (module->private_variables[variable_index]) {
+                continue;
+            }
+            const size_t position = module->host_variable_count + variable_index;
+            declarations[filled] = module->variable_declarations[position];
+            numbers[filled] = module->global_numbers[position];
+            filled += 1;
+        }
+    }
+    sxml_allocator_release(reader->allocator, context->variable_declarations);
+    sxml_allocator_release(reader->allocator, context->global_numbers);
+    context->variable_declarations = declarations;
+    context->global_numbers = numbers;
+    context->variable_declaration_count = declaration_count;
+    context->xpath.variable_declarations = (sxml_variable_declaration_view){
+        .variable_declarations = declarations, .variable_declaration_count = declaration_count};
+    context->xpath.global_numbers = numbers;
+    return SXML_STATUS_OK;
+}
+
+/* A function a module sees by name: declared (module_index 0) or
+   imported (module_index n for import n - 1). */
+typedef struct visible_function {
+    const sxml_xquery_declared_function *function;
+    size_t module_index;
+} visible_function;
+
+/* XQST0034 among the declared functions and the imported public ones
+   (5.12, 5.18): the declared ones were checked among themselves, as each
+   imported module's were. */
+static sxml_status check_imported_functions(const static_reader *reader,
+                                            const sxml_xquery_static_context *context) {
+    const sxml_xquery_static_context_view imports = context->imported_modules;
+    size_t function_count = context->declared_function_count;
+    for (size_t import_index = 0; import_index < imports.static_context_count;
+         import_index += 1) {
+        function_count += imports.static_contexts[import_index]->declared_function_count;
+    }
+    if (function_count < 2 || imports.static_context_count == 0) {
+        return SXML_STATUS_OK;
+    }
+    void *function_memory = NULL;
+    void *entry_memory = NULL;
+    sxml_status status = allocate_array(
+        reader,
+        (array_request){.element_count = function_count,
+                        .element_size = sizeof(visible_function),
+                        .element_alignment = alignof(visible_function)},
+        &function_memory);
+    if (status == SXML_STATUS_OK) {
+        status = allocate_array(reader,
+                                (array_request){.element_count = function_count,
+                                                .element_size = sizeof(sort_entry),
+                                                .element_alignment = alignof(sort_entry)},
+                                &entry_memory);
+    }
+    visible_function *functions = function_memory;
+    sort_entry *entries = entry_memory;
+    size_t visible_count = 0;
+    for (size_t module_index = 0;
+         status == SXML_STATUS_OK && module_index <= imports.static_context_count;
+         module_index += 1) {
+        const sxml_xquery_static_context *module =
+            module_index == 0 ? context : imports.static_contexts[module_index - 1];
+        for (size_t function_index = 0; function_index < module->declared_function_count;
+             function_index += 1) {
+            const sxml_xquery_declared_function *function =
+                &module->declared_functions[function_index];
+            if (module_index > 0 && function->is_private) {
+                continue;
+            }
+            functions[visible_count] =
+                (visible_function){.function = function, .module_index = module_index};
+            entries[visible_count] =
+                (sort_entry){.key = function->function_name.index, .position = visible_count};
+            visible_count += 1;
+        }
+    }
+    if (status == SXML_STATUS_OK) {
+        sort_entries(entries, visible_count);
+    }
+    size_t run_start = 0;
+    for (size_t entry_index = 1; status == SXML_STATUS_OK && entry_index < visible_count;
+         entry_index += 1) {
+        if (entries[entry_index].key != entries[entry_index - 1].key) {
+            run_start = entry_index;
+            continue;
+        }
+        const visible_function later = functions[entries[entry_index].position];
+        for (size_t earlier_index = run_start;
+             status == SXML_STATUS_OK && earlier_index < entry_index; earlier_index += 1) {
+            const visible_function earlier = functions[entries[earlier_index].position];
+            if (earlier.module_index != later.module_index &&
+                earlier.function->required_count <= later.function->parameter_count &&
+                later.function->required_count <= earlier.function->parameter_count) {
+                /* Positions follow module order, so a declared one is
+                   earlier. */
+                status = report(reader,
+                                earlier.module_index == 0 ? earlier.function->declaration
+                                                          : (sxml_ast_node_index){.value = 0},
+                                SXML_BYTE_VIEW_FROM_LITERAL(
+                                    "XQST0034 a declared or imported function has the name and "
+                                    "an arity of another"));
+            }
+        }
+    }
+    sxml_allocator_release(reader->allocator, function_memory);
+    sxml_allocator_release(reader->allocator, entry_memory);
+    return status;
+}
+
+sxml_status sxml_xquery_link_static_context(const sxml_xquery_link_request *request,
+                                            sxml_xquery_static_context *context) {
+    if (request == NULL || context == NULL) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    const sxml_xquery_static_request read_request = {
+        .ast = context->ast,
+        .host_static_context = &context->xpath,
+        .unit = NULL,
+        .error_record = request->error_record,
+        .target_namespace = context->target_namespace,
+        .global_number_base = 0,
+        .imported_modules = request->imports};
+    sxml_xquery_static_context linked = *context;
+    linked.imported_modules = request->imports;
+    const static_reader reader = {
+        .request = &read_request,
+        .ast = context->ast,
+        .name_pool = sxml_item_heap_get_name_pool(context->xpath.item_heap),
+        .type_registry = sxml_item_heap_get_type_registry(context->xpath.item_heap),
+        .allocator = context->xpath.allocator,
+        .context = &linked};
+    sxml_status status = import_variables(&reader, &linked);
+    if (status == SXML_STATUS_OK) {
+        status = check_variable_names(&reader, &linked);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = check_imported_functions(&reader, &linked);
+    }
+    /* The arrays moved even on failure; the context owns them. */
+    *context = linked;
+    if (status != SXML_STATUS_OK) {
+        context->imported_modules =
+            (sxml_xquery_static_context_view){.static_contexts = NULL, .static_context_count = 0};
+    }
+    return status;
+}
+
 /* ------------------------------------------------------------- Entry */
 
 void sxml_xquery_release_static_context(sxml_xquery_static_context *context) {
@@ -2285,6 +2741,9 @@ void sxml_xquery_release_static_context(sxml_xquery_static_context *context) {
     sxml_allocator_release(allocator, context->namespace_bindings);
     sxml_allocator_release(allocator, context->variable_declarations);
     sxml_allocator_release(allocator, context->variable_nodes);
+    sxml_allocator_release(allocator, context->private_variables);
+    sxml_allocator_release(allocator, context->global_numbers);
+    sxml_allocator_release(allocator, context->private_item_types);
     sxml_allocator_release(allocator, context->declared_functions);
     sxml_allocator_release(allocator, context->parameter_types);
     sxml_allocator_release(allocator, context->function_parameters);
@@ -2307,7 +2766,8 @@ sxml_status sxml_xquery_read_static_context(const sxml_xquery_static_request *re
     const sxml_xpath_static_context *host = request->host_static_context;
     sxml_xquery_static_context built = {.xpath = *host,
                                         .ast = request->ast,
-                                        .host_function_table = host->function_table};
+                                        .host_function_table = host->function_table,
+                                        .target_namespace = request->target_namespace};
     const static_reader reader = {
         .request = request,
         .ast = request->ast,

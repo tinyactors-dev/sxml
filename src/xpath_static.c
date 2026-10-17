@@ -591,6 +591,14 @@ static sxml_status intern_resolved_name(const type_resolver *resolver,
         identifier);
 }
 
+uint32_t sxml_xpath_global_number(const sxml_xpath_static_context *static_context,
+                                  size_t declaration_index) {
+    if (static_context->global_numbers != NULL) {
+        return static_context->global_numbers[declaration_index];
+    }
+    return (uint32_t)declaration_index + 1U;
+}
+
 bool sxml_xpath_find_named_type(const sxml_xpath_static_context *static_context,
                                 sxml_name_identifier type_name, sxml_type_identifier *type) {
     /* Named item types of the static context first (D135). */

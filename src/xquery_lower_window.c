@@ -425,7 +425,8 @@ static sxml_ir_atom find_visible_variable(const sxml_xpath_lowerer *state,
                 is_outer = function->function_level != 0;
                 atom = (sxml_ir_atom){
                     .atom_kind = SXML_IR_ATOM_KIND_GLOBAL_VARIABLE,
-                    .global_variable = {.value = (uint32_t)declaration_index + 1U}};
+                    .global_variable = {.value = sxml_xpath_global_number(
+                                            state->static_context, declaration_index)}};
                 break;
             }
         }

@@ -3,6 +3,7 @@
 #include <stdint.h>
 
 #include "ir_internal.h"
+#include "sxml/processor.h"
 #include "sxml/status.h"
 #include "xpath_ast_internal.h"
 #include "xpath_static_internal.h"
@@ -56,7 +57,8 @@
  * Thread safety: the thread of the item heap (D35).
  */
 
-/* An XQuery main module to lower: an AST whose root is a MODULE node. */
+/* An XQuery main module to lower: an AST whose root is a MODULE node,
+   with the library modules it imports. */
 typedef struct sxml_xquery_lowering_request {
     const sxml_ast *ast;
     /* As sxml_xpath_lowering_request: namespaces, external variables
@@ -68,6 +70,11 @@ typedef struct sxml_xquery_lowering_request {
     /* As sxml_xpath_lowering_request.maximum_expression_depth. */
     uint32_t maximum_expression_depth;
     sxml_error_record *error_record;
+    /* Asked for the library modules the main module imports
+       (src/xquery_module_internal.h); the null resolver has none. */
+    sxml_resource_resolver resource_resolver;
+    /* Handed to the resolver in its requests; may be NULL. */
+    sxml_processor *processor;
 } sxml_xquery_lowering_request;
 
 /*
@@ -79,10 +86,14 @@ typedef struct sxml_xquery_lowering_request {
  * static context: declared functions and variables become IR functions
  * and global variables of the unit, after the static context's own
  * external variables (src/xquery_static_internal.h). Defined in
- * src/xquery_prolog.c. A library module gives
- * SXML_STATUS_INVALID_ARGUMENT (packet 3.11), a module import
- * SXML_STATUS_UNSUPPORTED_FEATURE. Otherwise returns the static errors of
- * the prolog and the failures of sxml_xpath_lower.
+ * src/xquery_prolog.c. Library modules (packet 3.11, D148) are loaded
+ * through request->resource_resolver into a module set
+ * (src/xquery_module_internal.h) and lowered into the same unit: their
+ * declared functions, variables and initializers beside the main
+ * module's, every module with its own static context. A library module
+ * as request->ast gives SXML_STATUS_INVALID_ARGUMENT. Otherwise returns
+ * the static errors of the module set and the prologs, the resolver's
+ * failures and those of sxml_xpath_lower.
  */
 SXML_NODISCARD sxml_status sxml_xquery_lower(
     const sxml_xquery_lowering_request *request, sxml_ir_unit **unit);

@@ -1,7 +1,17 @@
 /*
  * Lowering an XQuery main module: its prolog's declared functions and
  * variables and its query body (src/xquery_lower_internal.h; D55, D101,
- * D135; packet 3.10), and the internal compile entry.
+ * D135; packet 3.10), with the library modules it imports (D148, packet
+ * 3.11), and the internal compile entry.
+ *
+ * Library modules (src/xquery_module_internal.h) lower into the same
+ * unit: every module's static context is read in the reading order, so
+ * all declared functions are IR functions from 2 on and each module's
+ * prolog variables are globals numbered after the host's, then linked to
+ * its imports; each library module's functions and initializers are
+ * lowered with a lowerer of its own. The dependency graph below spans
+ * every module, so one walk orders all variables and finds cycles through
+ * imports (XQDY0054).
  *
  * Golden file: src/xquery_lower.c (its former entry points, which this
  * file now holds).
@@ -50,6 +60,7 @@
 #include "ir_pass_internal.h"
 #include "sxml/memory.h"
 #include "xpath_lower_internal.h"
+#include "xquery_module_internal.h"
 #include "xquery_static_internal.h"
 
 #include <stdalign.h>
@@ -121,11 +132,21 @@ static void end_region(const sxml_ir_unit *unit, lowered_region *region) {
  * declared functions (in function index order from function 2).
  */
 typedef struct module_lowering {
+    /* The module being lowered: its lowerer, AST and static context. */
     sxml_xpath_lowerer *lowerer;
     const sxml_ast *ast;
     sxml_xquery_static_context *context;
+    /* The main module's lowerer, which also allocates the scratch arrays
+       of the whole unit. */
+    sxml_xpath_lowerer *main_lowerer;
     sxml_ir_unit *unit;
     sxml_error_record *error_record;
+    /* The module set and the static context of each module (D148). */
+    const sxml_xquery_module_set *set;
+    sxml_xquery_static_context *contexts;
+    /* The host's variables are globals 1 to host_variable_count; prolog
+       variables of every module follow, prolog_variable_count of them. */
+    size_t host_variable_count;
     /* Prolog variables, the context global, declared IR functions. */
     size_t prolog_variable_count;
     size_t declared_ir_function_count;
@@ -623,23 +644,26 @@ static sxml_status lower_initializer(module_lowering *module, const initializer_
     return status;
 }
 
+/* The initializers of the current module's variables, and of the main
+   module's context value declaration (a library module's only states a
+   type, 5.17). */
 static sxml_status lower_initializers(module_lowering *module) {
     const sxml_xquery_static_context *context = module->context;
     sxml_status status = SXML_STATUS_OK;
     for (size_t variable_index = 0;
-         status == SXML_STATUS_OK && variable_index < module->prolog_variable_count;
+         status == SXML_STATUS_OK && variable_index < context->prolog_variable_count;
          variable_index += 1) {
+        const size_t position = context->host_variable_count + variable_index;
         status = lower_initializer(
             module,
             &(initializer_request){
-                .node = variable_index + 1,
+                .node = context->global_numbers[position] - module->host_variable_count,
                 .declaration = context->variable_nodes[variable_index],
-                .declared_type =
-                    context->variable_declarations[context->host_variable_count + variable_index]
-                        .declared_type,
+                .declared_type = context->variable_declarations[position].declared_type,
                 .focus = fixed_focus(module)});
     }
-    if (status == SXML_STATUS_OK && context->context_value_declaration.value != 0) {
+    if (status == SXML_STATUS_OK && context == &module->contexts[0] &&
+        context->context_value_declaration.value != 0) {
         /* The context value's own initializer has no focus (5.17). */
         status = lower_initializer(
             module, &(initializer_request){.node = context_node(module),
@@ -678,7 +702,7 @@ static size_t node_of_atom(const module_lowering *module, sxml_ir_atom atom) {
     if (module->has_context_global && global_number == module->context_global_number) {
         return context_node(module);
     }
-    const size_t host_count = module->context->host_variable_count;
+    const size_t host_count = module->host_variable_count;
     if (global_number > host_count && global_number <= host_count + module->prolog_variable_count) {
         return global_number - host_count;
     }
@@ -820,12 +844,30 @@ typedef struct dependency_walk {
     size_t order_count;
 } dependency_walk;
 
-/* The declaration a variable node stands for. */
-static sxml_ast_node_index declaration_of_node(const module_lowering *module, size_t node) {
+/* The declaration a variable node stands for, in its module's AST. */
+typedef struct declaration_place {
+    const sxml_ast *ast;
+    sxml_ast_node_index declaration;
+} declaration_place;
+
+static declaration_place declaration_of_node(const module_lowering *module, size_t node) {
     if (node == context_node(module)) {
-        return module->context->context_value_declaration;
+        return (declaration_place){.ast = module->contexts[0].ast,
+                                   .declaration = module->contexts[0].context_value_declaration};
     }
-    return module->context->variable_nodes[node - 1];
+    const uint32_t global_number = (uint32_t)(module->host_variable_count + node);
+    for (size_t module_index = 0; module_index < module->set->module_count; module_index += 1) {
+        const sxml_xquery_static_context *context = &module->contexts[module_index];
+        for (size_t variable_index = 0; variable_index < context->prolog_variable_count;
+             variable_index += 1) {
+            if (context->global_numbers[context->host_variable_count + variable_index] ==
+                global_number) {
+                return (declaration_place){.ast = context->ast,
+                                           .declaration = context->variable_nodes[variable_index]};
+            }
+        }
+    }
+    return (declaration_place){.ast = module->contexts[0].ast, .declaration = {.value = 0}};
 }
 
 /* Walks from the query body; XQDY0054 for a cycle through a variable. */
@@ -864,10 +906,16 @@ static sxml_status walk_dependencies(module_lowering *module, const dependency_g
         for (size_t position = walk->path_positions[target]; position < path_count;
              position += 1) {
             if (is_variable_node(module, walk->path_nodes[position])) {
-                return sxml_xpath_lowerer_report_static_error(
-                    module->lowerer, declaration_of_node(module, walk->path_nodes[position]),
-                    SXML_BYTE_VIEW_FROM_LITERAL(
-                        "XQDY0054 the value of a variable depends on itself"));
+                const declaration_place place =
+                    declaration_of_node(module, walk->path_nodes[position]);
+                return sxml_xpath_report_static_error(
+                    &(sxml_xpath_static_error){
+                        .ast = place.ast,
+                        .node = place.declaration,
+                        .code_local_name = SXML_BYTE_VIEW_FROM_LITERAL("XQDY0054"),
+                        .description = SXML_BYTE_VIEW_FROM_LITERAL(
+                            "the value of a variable depends on itself")},
+                    module->error_record);
             }
         }
     }
@@ -1031,24 +1079,44 @@ static sxml_status add_globals(module_lowering *module) {
             status = add_ordered_initializer(module, module->initializers[node], &ordered[node]);
         }
     }
-    const sxml_xquery_static_context *context = module->context;
-    for (size_t declaration_index = 0;
-         status == SXML_STATUS_OK && declaration_index < context->variable_declaration_count;
-         declaration_index += 1) {
+    /* In global number order: the host's (the main module's first
+       declarations), then each module's prolog variables, whose numbers
+       follow the reading order (D148). */
+    const sxml_xquery_static_context *main_context = &module->contexts[0];
+    for (size_t host_index = 0;
+         status == SXML_STATUS_OK && host_index < main_context->host_variable_count;
+         host_index += 1) {
         const sxml_variable_declaration *declaration =
-            &context->variable_declarations[declaration_index];
-        const sxml_ir_function_index initializer =
-            declaration_index < context->host_variable_count
-                ? (sxml_ir_function_index){.value = 0}
-                : ordered[declaration_index - context->host_variable_count + 1];
+            &main_context->variable_declarations[host_index];
         sxml_ir_global_index global = {0};
         status = sxml_ir_unit_add_global_variable(
             module->unit,
             &(sxml_ir_global_variable){.variable_name = declaration->variable_name,
                                        .declared_type = declaration->declared_type,
-                                       .initializer = initializer},
+                                       .initializer = {.value = 0}},
             &global);
     }
+    for (size_t order_index = 0; status == SXML_STATUS_OK && order_index < module->set->module_count;
+         order_index += 1) {
+        const sxml_xquery_static_context *context =
+            &module->contexts[module->set->reading_order[order_index]];
+        for (size_t variable_index = 0;
+             status == SXML_STATUS_OK && variable_index < context->prolog_variable_count;
+             variable_index += 1) {
+            const size_t position = context->host_variable_count + variable_index;
+            const sxml_variable_declaration *declaration = &context->variable_declarations[position];
+            sxml_ir_global_index global = {0};
+            status = sxml_ir_unit_add_global_variable(
+                module->unit,
+                &(sxml_ir_global_variable){
+                    .variable_name = declaration->variable_name,
+                    .declared_type = declaration->declared_type,
+                    .initializer =
+                        ordered[context->global_numbers[position] - module->host_variable_count]},
+                &global);
+        }
+    }
+    const sxml_xquery_static_context *context = main_context;
     if (status == SXML_STATUS_OK && module->has_context_global) {
         sxml_ir_global_index global = {0};
         status = sxml_ir_unit_add_global_variable(
@@ -1065,39 +1133,87 @@ static sxml_status add_globals(module_lowering *module) {
 
 /* ------------------------------------------------------------- Module */
 
-/* True when the prolog makes initializers: a variable with a value or a
-   default, or a context value declaration. */
-static bool needs_context_global(const sxml_xquery_static_context *context) {
-    if (context->context_value_declaration.value != 0) {
+/* True when some prolog makes initializers: a variable with a value or a
+   default, or the main module's context value declaration. */
+static bool needs_context_global(const module_lowering *module) {
+    if (module->contexts[0].context_value_declaration.value != 0) {
         return true;
     }
-    for (size_t variable_index = 0;
-         variable_index < context->variable_declaration_count - context->host_variable_count;
-         variable_index += 1) {
-        if (initializing_expression(context->ast, context->variable_nodes[variable_index]).value !=
-            0) {
-            return true;
+    for (size_t module_index = 0; module_index < module->set->module_count; module_index += 1) {
+        const sxml_xquery_static_context *context = &module->contexts[module_index];
+        for (size_t variable_index = 0; variable_index < context->prolog_variable_count;
+             variable_index += 1) {
+            if (initializing_expression(context->ast, context->variable_nodes[variable_index])
+                    .value != 0) {
+                return true;
+            }
         }
     }
     return false;
 }
 
+/* Lowers the declared functions and initializers of every library module,
+   each with a lowerer over its own static context and AST. */
+static sxml_status lower_library_modules(module_lowering *module,
+                                         const sxml_xquery_lowering_request *request) {
+    sxml_status status = SXML_STATUS_OK;
+    for (size_t module_index = 1; status == SXML_STATUS_OK && module_index < module->set->module_count;
+         module_index += 1) {
+        /* A plain struct on the stack is memory of the lowerer's size and
+           alignment. */
+        sxml_xpath_lowerer storage;
+        sxml_xpath_lowerer *lowerer = NULL;
+        sxml_xquery_static_context *context = &module->contexts[module_index];
+        status = sxml_xpath_lowerer_initialize(
+            (sxml_memory_view){.bytes = (uint8_t *)&storage, .byte_count = sizeof(storage)},
+            &(sxml_xpath_lowerer_configuration){
+                .static_context = &context->xpath,
+                .unit = module->unit,
+                .language = SXML_LANGUAGE_XQUERY,
+                .parts = {.parts = NULL, .part_count = 0},
+                .maximum_expression_depth = request->maximum_expression_depth,
+                .error_record = request->error_record},
+            &lowerer);
+        if (status != SXML_STATUS_OK) {
+            break;
+        }
+        lowerer->ast = context->ast;
+        module->lowerer = lowerer;
+        module->ast = context->ast;
+        module->context = context;
+        status = lower_declared_functions(module);
+        if (status == SXML_STATUS_OK) {
+            status = lower_initializers(module);
+        }
+        sxml_xpath_lowerer_finalize(lowerer);
+    }
+    module->lowerer = module->main_lowerer;
+    module->ast = module->contexts[0].ast;
+    module->context = &module->contexts[0];
+    return status;
+}
+
 /* Lowers everything into module->unit, whose function 1 is the main
    function (see the file comment). */
-static sxml_status lower_module(module_lowering *module, sxml_ast_node_index body) {
-    const sxml_xquery_static_context *context = module->context;
-    module->prolog_variable_count =
-        context->variable_declaration_count - context->host_variable_count;
-    for (size_t function_index = 0; function_index < context->declared_function_count;
-         function_index += 1) {
-        const sxml_xquery_declared_function *function =
-            &context->declared_functions[function_index];
-        module->declared_ir_function_count +=
-            (size_t)(function->parameter_count - function->required_count) + 1;
+static sxml_status lower_module(module_lowering *module,
+                                const sxml_xquery_lowering_request *request,
+                                sxml_ast_node_index body) {
+    const sxml_xquery_static_context *context = &module->contexts[0];
+    module->host_variable_count = context->host_variable_count;
+    for (size_t module_index = 0; module_index < module->set->module_count; module_index += 1) {
+        const sxml_xquery_static_context *each = &module->contexts[module_index];
+        module->prolog_variable_count += each->prolog_variable_count;
+        for (size_t function_index = 0; function_index < each->declared_function_count;
+             function_index += 1) {
+            const sxml_xquery_declared_function *function = &each->declared_functions[function_index];
+            module->declared_ir_function_count +=
+                (size_t)(function->parameter_count - function->required_count) + 1;
+        }
     }
     module->node_count = module->prolog_variable_count + 2 + module->declared_ir_function_count;
-    module->has_context_global = needs_context_global(context);
-    module->context_global_number = (uint32_t)context->variable_declaration_count + 1;
+    module->has_context_global = needs_context_global(module);
+    module->context_global_number =
+        (uint32_t)(module->host_variable_count + module->prolog_variable_count) + 1;
     sxml_status status = allocate_zeroed(
         module,
         (sxml_xpath_lowering_scratch_request){.element_count = module->node_count,
@@ -1112,6 +1228,9 @@ static sxml_status lower_module(module_lowering *module, sxml_ast_node_index bod
                                                   .element_alignment =
                                                       alignof(sxml_ir_function_index)},
             (void **)&module->initializers);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = lower_library_modules(module, request);
     }
     if (status == SXML_STATUS_OK) {
         status = lower_declared_functions(module);
@@ -1149,8 +1268,8 @@ static sxml_status lower_module(module_lowering *module, sxml_ast_node_index bod
 
 /* ===================================================== Entry points */
 
-/* The body of a main module; INVALID_ARGUMENT for a library module
-   (packet 3.11). */
+/* The body of a main module; INVALID_ARGUMENT for a library module,
+   which is compiled only as an import. */
 static sxml_status find_main_body(const sxml_ast *ast, sxml_ast_node_index *body) {
     const sxml_ast_node_index module = child_of(ast, ast->root, SXML_AST_FIELD_MODULE);
     if (node_of(ast, module)->kind != SXML_AST_KIND_MAIN_MODULE) {
@@ -1185,14 +1304,17 @@ static sxml_status add_main_function(const sxml_xpath_static_context *context,
     return status;
 }
 
-/* Lowers the module into new_unit with a lowerer over context. */
+/* What lowering a module set works with: the request, the set, a
+   static context per module, the main module's body. */
 typedef struct lowering_run {
     const sxml_xquery_lowering_request *request;
-    sxml_xquery_static_context *context;
+    const sxml_xquery_module_set *set;
+    sxml_xquery_static_context *contexts;
     sxml_ast_node_index body;
 } lowering_run;
 
 static sxml_status run_lowering(const lowering_run *run, sxml_ir_unit *unit) {
+    sxml_xquery_static_context *main_context = &run->contexts[0];
     /* A plain struct on the stack is memory of the lowerer's size and
        alignment. */
     sxml_xpath_lowerer storage;
@@ -1200,7 +1322,7 @@ static sxml_status run_lowering(const lowering_run *run, sxml_ir_unit *unit) {
     sxml_status status = sxml_xpath_lowerer_initialize(
         (sxml_memory_view){.bytes = (uint8_t *)&storage, .byte_count = sizeof(storage)},
         &(sxml_xpath_lowerer_configuration){
-            .static_context = &run->context->xpath,
+            .static_context = &main_context->xpath,
             .unit = unit,
             .language = SXML_LANGUAGE_XQUERY,
             .parts = {.parts = NULL, .part_count = 0},
@@ -1213,30 +1335,187 @@ static sxml_status run_lowering(const lowering_run *run, sxml_ir_unit *unit) {
     lowerer->ast = run->request->ast;
     module_lowering module = {.lowerer = lowerer,
                               .ast = run->request->ast,
-                              .context = run->context,
+                              .context = main_context,
+                              .main_lowerer = lowerer,
                               .unit = unit,
-                              .error_record = run->request->error_record};
-    status = lower_module(&module, run->body);
+                              .error_record = run->request->error_record,
+                              .set = run->set,
+                              .contexts = run->contexts};
+    status = lower_module(&module, run->request, run->body);
     sxml_xpath_lowerer_finalize(lowerer);
     if (status != SXML_STATUS_OK) {
         return status;
     }
     /* For casts to xs:QName at run time (D84). */
     sxml_xpath_namespace_collection namespaces = {.bindings = NULL, .binding_count = 0};
-    status = sxml_xpath_collect_namespaces(run->request->ast, &run->context->xpath, &namespaces);
+    status = sxml_xpath_collect_namespaces(run->request->ast, &main_context->xpath, &namespaces);
     if (status == SXML_STATUS_OK) {
         status = sxml_ir_unit_set_static_namespaces(
             unit, (sxml_namespace_binding_view){.namespace_bindings = namespaces.bindings,
                                                 .namespace_binding_count =
                                                     namespaces.binding_count});
-        sxml_allocator_release(run->context->xpath.allocator, namespaces.bindings);
+        sxml_allocator_release(main_context->xpath.allocator, namespaces.bindings);
     }
     if (status == SXML_STATUS_OK) {
-        status = sxml_ir_unit_set_static_base_uri(unit, run->context->xpath.static_base_uri);
+        status = sxml_ir_unit_set_static_base_uri(unit, main_context->xpath.static_base_uri);
     }
     if (status == SXML_STATUS_OK) {
         /* Decimal formats and collations, read lexically (D131). */
-        status = sxml_ir_unit_set_static_context(unit, &run->context->xpath.unit_static_context);
+        status = sxml_ir_unit_set_static_context(unit, &main_context->xpath.unit_static_context);
+    }
+    return status;
+}
+
+/* The static contexts of a module set, one per module (by module index),
+   the hosts library modules start from, and the imported contexts each
+   module sees. Allocated with the host's allocator. */
+typedef struct module_contexts {
+    sxml_xquery_static_context *contexts;
+    sxml_xpath_static_context *hosts;
+    const sxml_xquery_static_context **imports;
+    /* How many contexts were read, so release knows. */
+    bool *is_read;
+} module_contexts;
+
+static void release_module_contexts(const sxml_xpath_static_context *host,
+                                    const sxml_xquery_module_set *set, module_contexts *contexts) {
+    for (size_t module_index = 0; contexts->is_read != NULL && module_index < set->module_count;
+         module_index += 1) {
+        if (contexts->is_read[module_index]) {
+            sxml_xquery_release_static_context(&contexts->contexts[module_index]);
+        }
+    }
+    sxml_allocator_release(host->allocator, contexts->contexts);
+    sxml_allocator_release(host->allocator, contexts->hosts);
+    sxml_allocator_release(host->allocator, (void *)contexts->imports);
+    sxml_allocator_release(host->allocator, contexts->is_read);
+}
+
+/* Zeroed memory for count elements of a size. */
+typedef struct context_array {
+    size_t element_count;
+    size_t element_size;
+    size_t element_alignment;
+} context_array;
+
+static sxml_status allocate_context_array(const sxml_xpath_static_context *host,
+                                          context_array array, void **memory) {
+    size_t byte_count = 0;
+    sxml_status status = sxml_size_multiply(array.element_count == 0 ? 1 : array.element_count,
+                                            array.element_size, &byte_count);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_allocator_allocate(
+            host->allocator,
+            (sxml_allocation_request){.byte_count = byte_count,
+                                      .alignment = array.element_alignment},
+            memory);
+    }
+    if (status == SXML_STATUS_OK) {
+        memset(*memory, 0, byte_count);
+    }
+    return status;
+}
+
+/* What reading the module set's static contexts works with. */
+typedef struct context_reading {
+    const sxml_xquery_lowering_request *request;
+    const sxml_xquery_module_set *set;
+    sxml_ir_unit *unit;
+} context_reading;
+
+/*
+ * Reads every module's static context in the reading order, numbering
+ * the prolog variables after the host's in that order, then links each
+ * to its imports (D148). A library module starts from XQuery's default
+ * static context: no host namespaces or variables, its module URI as
+ * static base URI, the host's functions and collations.
+ */
+static sxml_status read_module_contexts(const context_reading *reading,
+                                        module_contexts *contexts) {
+    const sxml_xpath_static_context *host = reading->request->static_context;
+    const sxml_xquery_module_set *set = reading->set;
+    sxml_status status = allocate_context_array(
+        host,
+        (context_array){.element_count = set->module_count,
+                        .element_size = sizeof(sxml_xquery_static_context),
+                        .element_alignment = alignof(sxml_xquery_static_context)},
+        (void **)&contexts->contexts);
+    if (status == SXML_STATUS_OK) {
+        status = allocate_context_array(
+            host,
+            (context_array){.element_count = set->module_count,
+                            .element_size = sizeof(sxml_xpath_static_context),
+                            .element_alignment = alignof(sxml_xpath_static_context)},
+            (void **)&contexts->hosts);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = allocate_context_array(
+            host,
+            (context_array){.element_count = set->imported_module_count,
+                            .element_size = sizeof(sxml_xquery_static_context *),
+                            .element_alignment = alignof(sxml_xquery_static_context *)},
+            (void **)&contexts->imports);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = allocate_context_array(
+            host,
+            (context_array){.element_count = set->module_count,
+                            .element_size = sizeof(bool),
+                            .element_alignment = alignof(bool)},
+            (void **)&contexts->is_read);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    for (size_t import_index = 0; import_index < set->imported_module_count; import_index += 1) {
+        contexts->imports[import_index] = &contexts->contexts[set->imported_modules[import_index]];
+    }
+    uint32_t global_number_base = (uint32_t)host->variable_declarations.variable_declaration_count;
+    for (size_t order_index = 0; status == SXML_STATUS_OK && order_index < set->module_count;
+         order_index += 1) {
+        const size_t module_index = set->reading_order[order_index];
+        const sxml_xquery_module *module = &set->modules[module_index];
+        sxml_xpath_static_context *module_host = &contexts->hosts[module_index];
+        *module_host = *host;
+        if (module_index != 0) {
+            module_host->namespace_bindings =
+                (sxml_namespace_binding_view){.namespace_bindings = NULL,
+                                              .namespace_binding_count = 0};
+            module_host->variable_declarations =
+                (sxml_variable_declaration_view){.variable_declarations = NULL,
+                                                 .variable_declaration_count = 0};
+            module_host->global_numbers = NULL;
+            module_host->static_base_uri = module->module_uri;
+            module_host->named_item_types =
+                (sxml_xpath_named_item_type_view){.named_item_types = NULL,
+                                                  .named_item_type_count = 0};
+        }
+        status = sxml_xquery_read_static_context(
+            &(sxml_xquery_static_request){
+                .ast = module->ast,
+                .host_static_context = module_host,
+                .unit = reading->unit,
+                .error_record = reading->request->error_record,
+                .target_namespace = module->target_namespace,
+                .global_number_base = global_number_base,
+                .imported_modules = {.static_contexts =
+                                         &contexts->imports[module->first_imported_module],
+                                     .static_context_count = module->imported_module_count}},
+            &contexts->contexts[module_index]);
+        if (status == SXML_STATUS_OK) {
+            contexts->is_read[module_index] = true;
+            global_number_base += (uint32_t)contexts->contexts[module_index].prolog_variable_count;
+        }
+    }
+    for (size_t module_index = 0; status == SXML_STATUS_OK && module_index < set->module_count;
+         module_index += 1) {
+        const sxml_xquery_module *module = &set->modules[module_index];
+        status = sxml_xquery_link_static_context(
+            &(sxml_xquery_link_request){
+                .imports = {.static_contexts = &contexts->imports[module->first_imported_module],
+                            .static_context_count = module->imported_module_count},
+                .error_record = reading->request->error_record},
+            &contexts->contexts[module_index]);
     }
     return status;
 }
@@ -1252,6 +1531,20 @@ sxml_status sxml_xquery_lower(const sxml_xquery_lowering_request *request, sxml_
         return status;
     }
     const sxml_xpath_static_context *host = request->static_context;
+    sxml_xquery_module_set set = {.allocator = host->allocator};
+    status = sxml_xquery_load_modules(
+        &(sxml_xquery_module_loading){.main_ast = request->ast,
+                                      .item_heap = host->item_heap,
+                                      .allocator = host->allocator,
+                                      .resource_resolver = request->resource_resolver,
+                                      .processor = request->processor,
+                                      .static_base_uri = host->static_base_uri,
+                                      .maximum_expression_depth = request->maximum_expression_depth,
+                                      .error_record = request->error_record},
+        &set);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
     sxml_ir_unit *new_unit = NULL;
     status = sxml_ir_unit_create(
         host->allocator,
@@ -1262,27 +1555,24 @@ sxml_status sxml_xquery_lower(const sxml_xquery_lowering_request *request, sxml_
                                           request->maximum_expression_count},
         &new_unit);
     if (status != SXML_STATUS_OK) {
+        sxml_xquery_release_modules(&set);
         return status;
     }
     status = add_main_function(host, new_unit, request->ast);
-    sxml_xquery_static_context context;
-    bool has_context = false;
+    module_contexts contexts = {.contexts = NULL, .hosts = NULL, .imports = NULL, .is_read = NULL};
     if (status == SXML_STATUS_OK) {
-        status = sxml_xquery_read_static_context(
-            &(sxml_xquery_static_request){.ast = request->ast,
-                                          .host_static_context = host,
-                                          .unit = new_unit,
-                                          .error_record = request->error_record},
-            &context);
-        has_context = status == SXML_STATUS_OK;
+        status = read_module_contexts(
+            &(context_reading){.request = request, .set = &set, .unit = new_unit}, &contexts);
     }
     if (status == SXML_STATUS_OK) {
-        status = run_lowering(
-            &(lowering_run){.request = request, .context = &context, .body = body}, new_unit);
+        status = run_lowering(&(lowering_run){.request = request,
+                                              .set = &set,
+                                              .contexts = contexts.contexts,
+                                              .body = body},
+                              new_unit);
     }
-    if (has_context) {
-        sxml_xquery_release_static_context(&context);
-    }
+    release_module_contexts(host, &set, &contexts);
+    sxml_xquery_release_modules(&set);
     if (status != SXML_STATUS_OK) {
         sxml_ir_unit_release(new_unit);
         return status;
@@ -1344,7 +1634,9 @@ sxml_status sxml_xquery_compile(const sxml_xpath_compile_request *request, sxml_
                                             request->maximum_expression_count,
                                         .maximum_expression_depth =
                                             request->maximum_expression_depth,
-                                        .error_record = request->error_record},
+                                        .error_record = request->error_record,
+                                        .resource_resolver = {.state = NULL, .operations = NULL},
+                                        .processor = NULL},
         unit);
     sxml_ast_destroy(ast);
     return status;
