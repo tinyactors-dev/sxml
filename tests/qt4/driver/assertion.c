@@ -90,6 +90,10 @@ sxml_qt4_assertion_evaluate(sxml_qt4_assertion_state *state,
     dynamic_context.variable_bindings = (sxml_variable_binding_view){
         .variable_bindings = bindings,
         .variable_binding_count = sizeof bindings / sizeof bindings[0]};
+    /* The result is the context value of the assertion too, as QT4
+       drivers bind it (`?get(1, 1) = "one"`; D141, D143). */
+    dynamic_context.has_context_value = true;
+    dynamic_context.context_value = bound->result;
     status = sxml_xpath_expression_evaluate(
         expression,
         &(sxml_xpath_evaluation_request){.dynamic_context = dynamic_context,

@@ -9,13 +9,13 @@
 #include "reason.h"
 #include "resource_table.h"
 #include "suite_path.h"
-#include "xquery_adapter.h"
 #include "sxml/name.h"
 #include "sxml/processor.h"
 #include "sxml/string.h"
 #include "sxml/types.h"
 #include "sxml/xdm.h"
 #include "sxml/xpath.h"
+#include "sxml/xquery.h"
 
 #include <stdalign.h>
 #include <string.h>
@@ -510,6 +510,13 @@ static sxml_status sxml_qt4_load_source(sxml_qt4_test_context *context,
     sxml_qt4_parsed_source parsed;
     memset(&parsed, 0, sizeof parsed);
     sxml_status status = sxml_qt4_parse_source(context, source, &parsed);
+    if ((status == SXML_STATUS_MALFORMED_INPUT || status == SXML_STATUS_INVALID_UTF8) &&
+        source->role.byte_count == 0) {
+        /* A source that is not well-formed and only has a uri is what the
+           test reads with fn:doc, which then raises FODC0002 (fn-doc-27):
+           it stays unavailable instead of failing the environment. */
+        return SXML_STATUS_OK;
+    }
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -946,7 +953,7 @@ static sxml_status sxml_qt4_evaluate_text(sxml_qt4_test_context *context,
 }
 
 /* The test's query compiled and evaluated: as sxml_qt4_evaluate_text for
-   XPath; for XQuery, a main module through the XQuery adapter, whose
+   XPath; for XQuery, a main module through include/sxml/xquery.h, whose
    serialization parameters the serialization assertions use. */
 typedef struct sxml_qt4_query_answer {
     sxml_sequence value;
@@ -963,8 +970,8 @@ static sxml_status sxml_qt4_evaluate_main_query(sxml_qt4_test_context *context,
     if (!sxml_qt4_runs_xquery(context)) {
         return sxml_qt4_evaluate_text(context, text, &answer->value);
     }
-    sxml_qt4_xquery_query *query = NULL;
-    sxml_status status = sxml_qt4_xquery_query_create(
+    sxml_xquery_query *query = NULL;
+    sxml_status status = sxml_xquery_query_create(
         context->allocator,
         &(sxml_xquery_query_configuration){
             .processor = context->processor,
@@ -975,15 +982,15 @@ static sxml_status sxml_qt4_evaluate_main_query(sxml_qt4_test_context *context,
         &query);
     if (status == SXML_STATUS_OK) {
         answer->serialization_parameters =
-            sxml_qt4_xquery_query_get_serialization_parameters(query);
-        status = sxml_qt4_xquery_query_evaluate(
+            sxml_xquery_query_get_serialization_parameters(query);
+        status = sxml_xquery_query_evaluate(
             query,
             &(sxml_xquery_evaluation_request){
                 .dynamic_context = sxml_qt4_dynamic_context(context),
                 .error_record = &context->error_record},
             &answer->value);
     }
-    sxml_qt4_xquery_query_destroy(query);
+    sxml_xquery_query_destroy(query);
     return status;
 }
 
