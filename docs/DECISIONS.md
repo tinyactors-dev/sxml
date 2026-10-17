@@ -4807,6 +4807,10 @@ Reserved here; the record is completed when the packet is ticked.
 Recorded 2026-10-17, after D105, D114, D118, D119, D142, D145.
 Reserved here; the record is completed when the packet is ticked.
 
+### D154. XQuery conformance sweep 1 (packet 3.14)
+Recorded 2026-10-17, after D71, D75, D95, D135, D148.
+Reserved here; the record is completed when the sweep ends.
+
 ## Proposed
 
 - **The XSLT functions at run time** (packet 4.10, D149; for 4.15, the
