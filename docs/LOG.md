@@ -4,6 +4,14 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 3.9 done (D127): constructor lowering, part `construct` in
+  `src/xquery_lower_construct.c`. Direct elements: SEQUENCE content of one
+  atom per attribute and piece of content; namespace declaration
+  attributes lowered as an embedding with an extended static context;
+  in-scope declarations sent by nested elements; XQST0040. Computed
+  constructors with literal or computed names. Constr sets 0 to 932/1,165
+  (scratch harness); all remaining run failures but 7 need prologs (3.10).
+
 - 2.13 done (D116): collations and comparison options. `src/collation.c`:
   codepoint, Unicode and HTML ASCII case-insensitive, UCA with fallback
   (UTS #10 levels over weights from Unicode properties: strength,
