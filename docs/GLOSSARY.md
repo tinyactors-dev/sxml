@@ -583,7 +583,7 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `initial_context_value` | The context value of the query body and of every variable initializer: a context value declaration's value, else the host's (XQuery 4.0, 5.17) |
 | `context_global` | The global variable of a unit with name 0 that holds the initial context value |
 | `global_table` | The global variables of one unit in one evaluation, a slot per global number; the evaluation's own unit has the first, a unit evaluated on the same machine (fn:load-xquery-module) one more, kept until the evaluation ends |
-| `unit_evaluation` | A native step that asks the machine to evaluate another unit's main function, its global table first, and to hand the value to the next step (D153) |
+| `unit_evaluation` | A native step that asks the machine to evaluate another unit's main function, its global table first, and to hand the value to the next step (D154) |
 | `module_record` | The result of fn:load-xquery-module: the public variables and functions of the loaded module (F&O 4.0, 18.1) |
 | `computation_order` | The order in which the global part computes declared variables: by the index of their initializer functions, which lowering adds dependencies first |
 | `output_stream` | Interface that receives bytes, written in order |
