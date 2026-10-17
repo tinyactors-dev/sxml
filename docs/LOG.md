@@ -4,6 +4,18 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 3.7 done (D126): XQuery lowering part `xquery` (`src/xquery_lower.c`,
+  `src/xquery_lower_internal.h`): FLWOR as clause segments (MAP, LET,
+  CONDITIONAL) with order by, count and while over tuple arrays (SORT,
+  the unpacking MAP's position, fn:take-while with a closure), trace,
+  typeswitch, switch, try/catch, ordered/unordered, pragmas, validate
+  (XQST0075), string constructors; internal `sxml_xquery_compile`.
+  Scratch harness (XQ40, 0 before): For 139/212, Let 158/189, Where
+  68/85, OrderBy 133/210, Count 13/13, While 69/83, Typeswitch 80/88,
+  Switch 34/58, TryCatch 190/212; the rest need prologs (3.10) or group
+  by (3.8). XP40 27,842 (not touched: XQuery only), slice 198/198;
+  debug 150/150, debug-gcc and wasm build and pass, lint clean.
+
 - 3.4 done (D128): HTML, text, JSON and CSV methods and fn:serialize on
   the 3.3 pipeline (escape styles, a raw-text context; HTML a mode of the
   XML node writer, `src/serialize_html.c` for void elements, boolean
