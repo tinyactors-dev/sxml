@@ -388,6 +388,8 @@ After 1.25. Owns `tools/run-wasi.mjs`. `ctest --preset wasm` runs
 edit); sizes of `libsxml.a` and the driver module become the first size
 budget (PLAN.md, risks). The TypeScript package waits for Phase 2 (D47).
 Done when 198/198 pass under `wasm`.
+**Done** 2026-10-17 (D93): 198/198 under `wasm`; `xml_conformance`
+runs under WASI; sizes and the first budget recorded.
 
 ### 1.29 Phase 1 review (review)
 After everything. Owns the gate boxes. A separate agent (D11) runs the rubric

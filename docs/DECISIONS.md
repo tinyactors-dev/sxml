@@ -2072,6 +2072,33 @@ TEST-LIST] [--format=text|json]`; `tests/qt4/driver/test_run.c`,
   the baseline to be raised. Goldens `qt4/run_*` over
   `input/run-catalog.xml` cover every assertion kind passing and failing.
 
+### D93. WebAssembly slice: preopens and the first size budget (packet 1.28)
+Recorded 2026-10-17. Node 22.22, WASI SDK 34, `wasm` preset (MinSizeRel).
+- **Preopens**: `tools/run-wasi.mjs` preopens the working directory as "."
+  (as before) and the source tree, the parent of `tools/`, under its own
+  absolute path. Tests that find files from `__FILE__`
+  (`xml_conformance`: `<root>/tests/../third_party/xmlconf`) now run under
+  WASI instead of "skipped": 601/175/948, as native. The whole tree, not
+  only `third_party/`, because wasi-libc picks a preopen by path prefix
+  without resolving "..". `qt4/slice` already ran in the repository root;
+  198/198 pass under `wasm`. The CLI's `cli/xpath_*` goldens (19) already
+  run under WASI, so no new e2e tests.
+- **Sizes** (module stripped with `llvm-strip`; gzip -9): `sxml` CLI
+  1,534,842 bytes raw, 1,213,261 stripped, 358,020 gzip (code 808 KB,
+  data 401 KB of which 374 KB read-only: parse tables); `sxml-qt4`
+  1,588,530 / 1,264,250 / 376,528. Archives: `libsxml.a` 947,910;
+  tree-sitter 189,342; mpdecimal 153,762; grammars xml 93,664, xpath
+  340,646. Native release `sxml` stripped: 1,743,480 (x86-64).
+- **Time** (3 runs, 4 cores): the slice, `sxml-qt4 run
+  tests/qt4/torture-slice.txt`: native release 0.89-1.00 s, `wasm` 1.88-1.92
+  s (about 2x; Node start-up 0.05 s); `xml_conformance` 0.11 s native,
+  0.26 s `wasm`.
+- **Budget** (PLAN.md risks): the stripped `sxml` CLI module stays under
+  1.5 MB and 450 KB gzipped until a decision raises it; a change that adds
+  more than 50 KB stripped logs the growth (as 1.2 did). Not yet checked
+  by CI: that needs a size test in CMake or `ci.yml` (not this packet's
+  files).
+
 ### D94. Conformance dashboard and CI jobs (packet 1.27)
 Recorded 2026-10-17. `tools/run-qt4.sh --program SXML-QT4` runs one
 `sxml-qt4 run --spec=XP40 --test-set=NAME --format=json` process per test

@@ -4,6 +4,13 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 1.28 done (D93): WebAssembly slice. `tools/run-wasi.mjs` preopens the
+  source tree as well as ".", so `xml_conformance` runs under WASI
+  (601/175/948) instead of skipping; `qt4/slice` 198/198 under `wasm`
+  (117/117 ctest). Sizes, stripped / gzip: `sxml` CLI 1,213,261 / 358,020,
+  `sxml-qt4` 1,264,250 / 376,528; `libsxml.a` 947,910. Slice: native
+  release ~0.95 s, `wasm` ~1.9 s. Budget: CLI < 1.5 MB stripped, < 450 KB
+  gzip; not yet enforced in CI.
 - Phases 2-4 planned (D95-D97): `docs/tasks/phase-2.md` (21 packets:
   seams, regex, Unicode, collations, formatting, resources, driver, JS
   package and release 0.2.0), `phase-3.md` (16: AST, front end,
