@@ -4381,10 +4381,66 @@ Recorded 2026-10-17, after D71, D103, D109, D124, D126, D142.
 Reserved here; the record is completed when the packet is ticked.
 
 ### D146. The XQuery API and the sxml xquery command (packet 3.12)
-Recorded 2026-10-17, after D106, D134, D135.
-Reserved here; the record is completed when the packet is ticked.
+Recorded 2026-10-17, after D106, D134, D135. `include/sxml/xquery.h` is
+implemented in `src/xquery.c`; no header changed.
+- **One evaluation path**: `src/xpath.c` exports its context checks and
+  the evaluation of a sealed unit through `src/xpath_api_internal.h`
+  (`sxml_static_context_configuration_is_valid`,
+  `sxml_processor_static_context`,
+  `sxml_dynamic_context_configuration_is_valid`, `sxml_evaluate_unit`,
+  glossary `unit_evaluation`); the XQuery API compiles with the same
+  static context and evaluates through the same function. Globals are
+  bound by name except the context global (name 0), which no binding
+  reaches. The unit's static base URI (the host's or a base-uri
+  declaration's) is the one evaluation uses.
+- **Compiling**: `src/xquery.c` parses with `sxml_xquery_build_ast`
+  (a library module is XPST0003, as the header says), compiles with the
+  new `sxml_xquery_compile_module` (`src/xquery_lower_internal.h`:
+  lower, passes, seal over a caller's AST; `sxml_xquery_compile` is now
+  parse + that) and reads the output declarations from the AST it kept.
+  Module import stays UNSUPPORTED_FEATURE until 3.11 (the resolver hook
+  is the header's).
+- **Output declarations**: option names resolve against the unit's static
+  namespaces (`sxml_xpath_resolve_name`); declarations in the
+  serialization namespace become `sxml_serialization_parameter_text`s
+  (glossary) read by `sxml_serialization_parameter_reader_read_texts`
+  (`src/serialize_internal.h`), one reader per query owning the views:
+  the parameter document first, then the declarations over it, method xml
+  when nothing names one. The textual decoding is the parameter
+  document's (`src/serialize_parameters.c` now decodes a value attribute
+  and a declaration with one function; QNames resolve with a binding view,
+  first binding of a prefix wins), so xsl:output can use it in Phase 4.
+  Errors are static at the declaration: a value a parameter does not
+  permit SEPM0016 (SESU0007/SESU0011 for encodings and normalization
+  forms), XQST0119 when the document cannot be loaded (processor's
+  resolver, kind XML_DOCUMENT, resolved against the static base URI),
+  XQST0115 when it is not a valid parameter document. XQST0108 waits for
+  library modules (3.11).
+- **QT4 driver**: the adapter (D134) is deleted; the driver calls
+  `include/sxml/xquery.h` and has no `src/` include any more.
+- **CLI**: `sxml xquery (QUERY-FILE | --expression=TEXT)`,
+  `sxml serialize [--method] [--indent] FILE`, and `sxml xpath --method`
+  with adaptive, xml, xhtml, html, text, json. `--param` declares and
+  binds for XPath, only binds for XQuery (the query declares it
+  external; a host declaration would make the prolog's XQST0049). The
+  three commands share `apps/sxml/query_command.{c,h}` (glossary
+  `query_run`). `--output`/`--force` stay planned: the CLI framework has
+  no file writer.
+- **WebAssembly**: the CLI module grows from 1.83 MB to 3.45 MB stripped
+  (767 KB gzipped) with the XQuery grammar; `javascript/size_budget`
+  allows 3,700,000 / 820,000 for the CLI (Proposed below). `sxml.wasm`
+  (1.83 MB) is unchanged; `compileQuery()` in the JavaScript package is
+  left out because it would link the same grammar into it.
 
 ## Proposed
+
+- **The CLI's WebAssembly budget after sxml xquery** (packet 3.12, D146;
+  for the owner, with the budget item below): linking the XQuery grammar
+  makes the stripped `sxml` CLI module 3,450,339 bytes (767,283 gzipped).
+  3.12 set its ctest budget to 3,700,000 / 820,000 and kept `sxml.wasm`
+  at 2,000,000 / 700,000, so `compileQuery()` is not in the JavaScript
+  package yet. Choose: confirm, or split the XQuery grammar into an
+  optional module (then compileQuery() and a lower CLI budget follow).
 
 - **Prolog follow-ups** (packet 3.10, D135). (a) For the owner of the
   evaluator's SORT (`src/evaluator.c`): "empty greatest" with
