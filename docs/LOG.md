@@ -4,6 +4,24 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 2.5 done (D113): lowering completions. for member and for key/value
+  (array:split / map:entries collections, positions across all arrays
+  or maps, XQST0089), destructuring let in its three forms, dynamic node
+  tests (absent-focus selector, atomic-equal against node-name,
+  local-name or jkey), the item axis (child step or a wrapper array;
+  parent and order deviate, Proposed), constructor functions with a
+  `$value := .` parameter (keyword arguments, `xs:T()`, `xs:T#0`),
+  method calls, but with (map:merge, no coercion to the record type),
+  jnode() selectors for decimals, doubles, negatives and QNames. Only
+  computed node constructors stay unlowered. XP40 23,698 to 24,206
+  passed, none lost; slice 198/198; prod-ForClause.map 7 to 56,
+  .member 0 to 33, prod-LetClause 67 to 137, prod-MethodCall 0 to 12,
+  misc-ConstructorKeywords and misc-FocusConstructors 5 to 153 each,
+  prod-ButWithExpr 0 to 10 (needs parts-of-dateTime), prod-AxisStep.J
+  30 (98 once fn:jkey/fn:jvalue land, 2.17). prod-NamedFunctionRef's 72
+  failures are missing library functions. `debug`, `debug-gcc`, `wasm`
+  119/119, lint clean.
+
 - 4.0 done (D112): the XSLT API, header-only. `xslt.h`:
   `sxml_xslt_stylesheet` (quintet) from the principal module's bytes or
   through the resolver (XSLT_MODULE, XSLT_PACKAGE), static parameters at
@@ -43,6 +61,23 @@ One short entry per week, newest first: what passed, what's next, what is blocke
   `debug-gcc`, `wasm` 119/119 (slice included), lint clean; no source
   changed, so XP40 counts cannot move.
 
+- 2.16 done (D108): QT4 driver for Phase 2. Environments decimal-format
+  (D104 properties, prefixed names), collation (D97 URIs run, default
+  sets the default collation), resource and collection (new resource
+  table: TEXT/BINARY by URI with the resource's encoding, COLLECTION and
+  URI_COLLECTION as sequences, default collection) are applied; only
+  collections with a query wait (3.13). Applicability reports the D95
+  scope: `list --spec=XP40` 31,543 in scope, `--spec=XQ40` 41,174. JSON
+  report gains `areas` and `in_scope`/`in_scope_passed` counts (format
+  version 1, additive). New dependencies satisfied: simple-uca-fallback,
+  non_empty_sequence_collection, arbitraryPrecisionDecimal, NFC/NFD/NFKC/
+  NFKD. Goldens `run_environments`, `run_environments_json`,
+  `list_environments`; unit tests for scope and the resource table.
+  XP40 23,146 to 24,451 passed (none lost), not run 18,448 to 16,321;
+  fn-format-number 20 to 27 passed (not run 72 to 22),
+  fn-unparsed-text 40 to 54, -lines 23 to 39, -available 6 to 7,
+  fn-collection 10 to 18, fn-json-doc 7 to 36, misc-BuiltInKeywords 0 to
+  206; slice 198/198. `debug`, `debug-gcc`, `wasm` 122/122, lint clean.
 - 2.1 done (D103): lowering seam. `src/xpath_lower_internal.h` exports
   the lowerer (lifecycle quintet), its building blocks and the frame
   machine; frames point at procedure descriptors, so core and part
