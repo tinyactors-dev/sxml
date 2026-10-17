@@ -107,6 +107,11 @@ normalization-form (2.4), character maps; XHTML rules (empty elements,
 `xml:lang`). Writes through `sxml_output_stream` (D50). Done when
 method-xml, method-xhtml ≥ 90% under the 3.13 driver (unit cases until
 then). Spec: Serialization 4.0 "XML Output Method", "XHTML Output Method".
+**Done** 2026-10-17 (D120): `src/serialize_internal.h` (character
+pipeline, sequence normalizer), `src/serialize_xml.c` (XML, XHTML,
+Canonical XML, adaptive nodes); HTML, text, JSON, CSV return
+UNSUPPORTED_FEATURE. Unit cases only until the 3.13 driver; XP40
+unchanged (26,951). The parameter reader is still undefined (3.4).
 
 ### 3.4 Serializer: HTML, text, JSON, CSV; fn:serialize — Early
 After 3.3. Owns `src/serialize_html.c`, `src/serialize_json.c`,
