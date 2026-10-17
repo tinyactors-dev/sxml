@@ -2543,8 +2543,11 @@ already follow Saxon HE's design.
 ### D106. The XQuery and serialization API (packet 3.0)
 Recorded 2026-10-17. `include/sxml/xquery.h` is new; `serialize.h` grows
 by new constants at the end of `sxml_serialization_method` and new fields
-at the end of `sxml_serialization_parameters`, so Phase 1 and 2 callers
-compile unchanged (zero is still the adaptive method with its defaults).
+in `sxml_serialization_parameters`, regrouped by size (enumerations,
+presence flags, views) because clang-tidy's padding check rejects the
+interleaved order. Callers initialize by field name, so Phase 1 and 2 code
+compiles unchanged (zero is still the adaptive method with its defaults);
+nothing is ABI-stable before 0.2.0 (D99).
 - **Methods**: XML, XHTML, HTML, TEXT, JSON, CSV after ADAPTIVE. No
   constant for implementation-defined (namespaced) methods; the readers
   raise SEPM0016 for them. A method not implemented yet returns
