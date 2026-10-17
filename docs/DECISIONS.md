@@ -3829,7 +3829,45 @@ Recorded 2026-10-17. Extends D92, D94 and D108 in `tests/qt4/driver/`.
   CMakeLists). Packet 3.12 deletes it and drops `qt4_` from the calls.
   Until 3.10 a prolog gives UNSUPPORTED_FEATURE, an "error" outcome.
   Params, context items and collection queries stay XPath expressions.
-- Details follow with the packet's commits.
+- **declared="true"** (params and `$name` sources) under XQ40: bound in
+  the dynamic context, not declared by the host (a host declaration of
+  the prolog's name is XQST0049, D106). Under XP40 they are declared as
+  before.
+- **Modules**: the resource table answers XQUERY_MODULE with the file of
+  a `<module>` of the test case whose uri is the target namespace: the one
+  whose location equals the hint (as written or absolute), else the one
+  whose file name is the hint's last segment, else the first; resource URI
+  `file:///SUITE-PATH`. No longer a skip reason. Unused until 3.10/3.11.
+- **Collection queries**: each `<query>` is evaluated (XPath, the test's
+  contexts so far) and its value follows the collection's documents in
+  fn:collection; no longer a skip reason.
+- **Serialization assertions**: serialization-matches serializes the
+  value with the query's parameters (the adapter gives XQuery's default,
+  method xml; XPath runs use the same) through `sxml_serialize_sequence`
+  and applies fn:matches with the flags (letters only) to the text;
+  output that is not UTF-8 fails. assert-serialization-error judges an
+  error raised by the evaluation, else by serializing, like `error`.
+  assert-serialization (only in comments of the suite) stays unsupported.
+  assert-xml is unchanged (nodes through the adaptive method, which
+  writes nodes as the XML method). Feature `serialization` is satisfied.
+- **Slices**: `qt4/xquery-slice` runs `tests/qt4/xquery-slice.txt`
+  (`--spec=XQ40`, 186 XQ-only cases that pass now, up to four per test
+  set with five or more such passes, spread evenly) against
+  `tests/qt4/xquery-slice-baseline.txt` (186, only goes up);
+  `run-slice-test.cmake` takes SLICE_FILE and SPEC. Golden `qt4/run_xquery`
+  and new cases in run_pass, run_fail cover each new feature.
+- **Report**: `tools/conformance-report.py` writes the D95 gate rate
+  (in_scope_passed / in_scope) per spec and, for XQ40 with an XP40 run in
+  the same directory, the XQ-only rate (run cases whose XP40 outcome is
+  "skip: spec"). `run-qt4.sh --spec XQ40` needed no change.
+- Measured (release, snapshot of c9a0cc6, one process per test set):
+  XP40 29,029 passed before and after (no case changed). XQ40 47,313:
+  33,374 passed (626 wrong error), 2,037 failed, 6,208 errors, 5,694 not
+  run; gate rate 33,356/41,174 = 81.0 %; XQ-only 4,310/10,723 = 40.2 %;
+  method-* 22/444 run. Errors: 5,969 prolog declarations (3.10), 179
+  group by/windows (3.8); fails: 1,559 XPST0017 (Phase 2 functions not
+  in that snapshot: fn:parse-csv, unparsed-text, json-doc, parse-uri,
+  path, hash, collection, ...).
 
 ### D135. Prologs: the static context, declared functions and variables (packet 3.10)
 Recorded 2026-10-17, completing D55 and D101 for XQuery main modules.
