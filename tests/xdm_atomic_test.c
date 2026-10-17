@@ -683,9 +683,19 @@ static void test_equal_numbers_of_different_types_hash_alike(
     SXML_TEST_EXPECT(state, are_unequal(sxml_atomic_item_from_double(nan),
                                         sxml_atomic_item_from_double(1.0)));
     SXML_TEST_EXPECT(state, are_unequal(integer_one, sxml_atomic_item_true()));
+    /* The decimal 0.0 equals the double zero of either sign (QT4
+       distinct-values-406). */
+    sxml_item decimal_zero =
+        decimal_item(&fixture, SXML_BYTE_VIEW_FROM_LITERAL("0.0"));
+    SXML_TEST_EXPECT(state, are_equal_with_equal_hashes(
+                                decimal_zero, sxml_atomic_item_from_double(0.0)));
+    SXML_TEST_EXPECT(state, are_equal_with_equal_hashes(
+                                decimal_zero, sxml_atomic_item_from_double(-0.0)));
+    SXML_TEST_EXPECT(state, are_equal_with_equal_hashes(decimal_zero,
+                                                        float_item(-0.0F)));
     const sxml_item cells[] = {decimal_one, short_one, decimal_half,
                                decimal_tenth, exact_tenth, two_to_64,
-                               odd_decimal};
+                               odd_decimal, decimal_zero};
     for (size_t cell_index = 0; cell_index < SXML_TEST_COUNT(cells);
          cell_index += 1) {
         sxml_item_release(cells[cell_index]);

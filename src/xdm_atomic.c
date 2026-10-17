@@ -752,6 +752,10 @@ static sxml_byte_view sxml_double_write_exact_text(double double_number,
         digit_count -= 1;
         fraction_digit_count -= 1;
     }
+    if (digit_count == 0) {
+        /* Zero, of either sign, is "0" (D136, Proposed): no fraction. */
+        fraction_digit_count = 0;
+    }
     size_t output_count = 0;
     if (parts.is_negative && digit_count != 0) {
         output[output_count] = '-';
