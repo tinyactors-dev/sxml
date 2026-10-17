@@ -9,7 +9,9 @@
  * fn:identity, fn:unordered, fn:void, fn:foot, fn:trunk, fn:slice,
  * fn:items-at, fn:replicate, fn:insert-separator, fn:compare,
  * fn:atomic-equal, fn:all-equal, fn:all-different, fn:duplicate-values
- * and fn:default-collation. From packet 2.13 (D116) the collation
+ * and fn:default-collation; from packet 2.17 fn:starts-with-subsequence,
+ * fn:ends-with-subsequence and fn:contains-subsequence. From packet 2.13
+ * (D116) the collation
  * arguments of fn:compare, fn:index-of, fn:distinct-values,
  * fn:duplicate-values, fn:all-equal, fn:all-different and fn:sort go
  * through the resolver of src/function_library.c: strings compare under
@@ -1055,6 +1057,203 @@ static const sxml_resumable_native_body sort_body = {
     .state_alignment = alignof(sort_state),
 };
 
+/* ------------------------------------------------ Subsequence questions */
+
+/*
+ * fn:starts-with-subsequence, fn:ends-with-subsequence and
+ * fn:contains-subsequence ($input, $subsequence, $compare :=
+ * fn:deep-equal#2) (F&O 4.0, sections 2.2.9, 2.2.7 and 2.2.3) as one
+ * resumable body (D75): each candidate offset of $subsequence in $input
+ * (0 for starts-with, count($input) - count($subsequence) for ends-with,
+ * every one in order for contains) is tried item by item; a step asks for
+ * one call of $compare and the next step reads its xs:boolean? (() is
+ * false). Without $compare the items are compared by fn:deep-equal's leaf
+ * entry, with no call at all.
+ */
+typedef enum subsequence_question {
+    SXML_SUBSEQUENCE_QUESTION_STARTS_WITH,
+    SXML_SUBSEQUENCE_QUESTION_ENDS_WITH,
+    SXML_SUBSEQUENCE_QUESTION_CONTAINS,
+} subsequence_question;
+
+typedef struct subsequence_state {
+    uint64_t input_count;
+    uint64_t subsequence_count;
+    /* The candidate offset in $input and its last value. */
+    uint64_t offset;
+    uint64_t last_offset;
+    /* The position in $subsequence being compared. */
+    uint64_t position;
+    /* Owned while a call of $compare runs. */
+    sxml_sequence call_arguments[2];
+} subsequence_state;
+
+static void release_subsequence_state(void *state) {
+    subsequence_state *subsequence = state;
+    sxml_sequence_release(subsequence->call_arguments[0]);
+    sxml_sequence_release(subsequence->call_arguments[1]);
+    subsequence->call_arguments[0] = sxml_sequence_empty();
+    subsequence->call_arguments[1] = sxml_sequence_empty();
+}
+
+/* The pair of items to compare next, borrowed from the arguments. */
+static sxml_status read_compared_pair(const sxml_function_call *call,
+                                      const subsequence_state *subsequence,
+                                      sxml_item_pair *pair) {
+    sxml_status status = sxml_sequence_get_item(
+        sxml_function_library_get_argument(call, 0),
+        (sxml_item_request){.item_index = subsequence->offset + subsequence->position,
+                            .error_record = call->error_record},
+        &pair->first);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_sequence_get_item(
+            sxml_function_library_get_argument(call, 1),
+            (sxml_item_request){.item_index = subsequence->position,
+                                .error_record = call->error_record},
+            &pair->second);
+    }
+    return status;
+}
+
+/* Moves to the next pair after a comparison: the next position when the
+   items matched, otherwise the next candidate offset. */
+typedef struct comparison_outcome {
+    bool is_match;
+} comparison_outcome;
+
+static void advance_subsequence(subsequence_state *subsequence, comparison_outcome outcome) {
+    if (outcome.is_match) {
+        subsequence->position += 1;
+    } else {
+        subsequence->offset += 1;
+        subsequence->position = 0;
+    }
+}
+
+/* The deep equality of two items (the default $compare). */
+static sxml_status compare_deeply(const sxml_function_call *call, sxml_item_pair pair,
+                                  comparison_outcome *outcome) {
+    sxml_sequence comparison_arguments[2] = {sxml_sequence_from_item(pair.first),
+                                             sxml_sequence_from_item(pair.second)};
+    const sxml_function_call comparison = {
+        .function_item = {.representation = 0},
+        .arguments = {.sequences = comparison_arguments, .sequence_count = 2},
+        .dynamic_context = call->dynamic_context,
+        .item_heap = call->item_heap,
+        .error_record = call->error_record};
+    sxml_sequence is_equal = sxml_sequence_empty();
+    const sxml_status status = sxml_function_library_call_deep_equal(&comparison, &is_equal);
+    outcome->is_match = status == SXML_STATUS_OK &&
+                        sxml_atomic_item_is_atomic_equal(is_equal.content, sxml_atomic_item_true());
+    sxml_sequence_release(is_equal);
+    return status;
+}
+
+static sxml_status step_subsequence(const sxml_native_step_request *request,
+                                    sxml_native_step *step, subsequence_question question) {
+    subsequence_state *subsequence = request->state;
+    const sxml_function_call *call = request->call;
+    sxml_optional_item compare = {.has_item = false};
+    sxml_status status = sxml_function_library_read_optional_item(call, 2, &compare);
+    if (request->step_number == 0) {
+        if (status == SXML_STATUS_OK) {
+            status = sxml_sequence_count(sxml_function_library_get_argument(call, 0),
+                                         call->error_record, &subsequence->input_count);
+        }
+        if (status == SXML_STATUS_OK) {
+            status = sxml_sequence_count(sxml_function_library_get_argument(call, 1),
+                                         call->error_record, &subsequence->subsequence_count);
+        }
+        const bool fits = subsequence->subsequence_count <= subsequence->input_count;
+        const uint64_t room = fits ? subsequence->input_count - subsequence->subsequence_count : 0;
+        subsequence->offset = question == SXML_SUBSEQUENCE_QUESTION_ENDS_WITH ? room : 0;
+        subsequence->last_offset = question == SXML_SUBSEQUENCE_QUESTION_CONTAINS ? room
+                                                                                 : subsequence->offset;
+        if (!fits) {
+            /* No candidate offset at all. */
+            subsequence->offset = 1;
+            subsequence->last_offset = 0;
+        }
+    } else {
+        sxml_atomic_datum datum = {.datum_kind = SXML_DATUM_KIND_BOOLEAN,
+                                   .datum_details = {.boolean = false}};
+        const sxml_sequence answer = request->call_result;
+        if (sxml_sequence_get_representation(answer) == SXML_SEQUENCE_REPRESENTATION_SINGLE_ITEM &&
+            sxml_item_get_kind(answer.content) == SXML_ITEM_KIND_ATOMIC) {
+            status = sxml_atomic_item_get_datum(answer.content, &datum);
+        }
+        sxml_sequence_release(answer);
+        release_subsequence_state(subsequence);
+        advance_subsequence(subsequence,
+                            (comparison_outcome){.is_match = datum.datum_kind ==
+                                                                 SXML_DATUM_KIND_BOOLEAN &&
+                                                             datum.datum_details.boolean});
+    }
+    while (status == SXML_STATUS_OK && subsequence->offset <= subsequence->last_offset &&
+           subsequence->position < subsequence->subsequence_count) {
+        sxml_item_pair pair = {.first = {.representation = 0}, .second = {.representation = 0}};
+        status = read_compared_pair(call, subsequence, &pair);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_function_library_charge_steps(call, 1);
+        }
+        if (status != SXML_STATUS_OK) {
+            break;
+        }
+        if (compare.has_item) {
+            sxml_item_retain(pair.first);
+            sxml_item_retain(pair.second);
+            subsequence->call_arguments[0] = sxml_sequence_from_item(pair.first);
+            subsequence->call_arguments[1] = sxml_sequence_from_item(pair.second);
+            *step = (sxml_native_step){
+                .step_kind = SXML_NATIVE_STEP_KIND_CALL,
+                .result = sxml_sequence_empty(),
+                .function_item = compare.item,
+                .arguments = {.sequences = subsequence->call_arguments, .sequence_count = 2}};
+            return SXML_STATUS_OK;
+        }
+        comparison_outcome outcome = {.is_match = false};
+        status = compare_deeply(call, pair, &outcome);
+        advance_subsequence(subsequence, outcome);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    const bool is_found = subsequence->offset <= subsequence->last_offset;
+    *step = (sxml_native_step){
+        .step_kind = SXML_NATIVE_STEP_KIND_FINISH,
+        .result = sxml_function_library_make_boolean((sxml_boolean_result){.is_true = is_found}),
+        .function_item = {.representation = 0},
+        .arguments = {.sequences = NULL, .sequence_count = 0}};
+    return SXML_STATUS_OK;
+}
+
+static sxml_status step_starts_with_subsequence(const sxml_native_step_request *request,
+                                                sxml_native_step *step) {
+    return step_subsequence(request, step, SXML_SUBSEQUENCE_QUESTION_STARTS_WITH);
+}
+
+static sxml_status step_ends_with_subsequence(const sxml_native_step_request *request,
+                                              sxml_native_step *step) {
+    return step_subsequence(request, step, SXML_SUBSEQUENCE_QUESTION_ENDS_WITH);
+}
+
+static sxml_status step_contains_subsequence(const sxml_native_step_request *request,
+                                             sxml_native_step *step) {
+    return step_subsequence(request, step, SXML_SUBSEQUENCE_QUESTION_CONTAINS);
+}
+
+#define SXML_SUBSEQUENCE_BODY(body_name, step_function)                       \
+    static const sxml_resumable_native_body body_name = {                     \
+        .step = (step_function),                                              \
+        .release_state = release_subsequence_state,                           \
+        .state_byte_count = sizeof(subsequence_state),                        \
+        .state_alignment = alignof(subsequence_state),                        \
+    }
+
+SXML_SUBSEQUENCE_BODY(starts_with_subsequence_body, step_starts_with_subsequence);
+SXML_SUBSEQUENCE_BODY(ends_with_subsequence_body, step_ends_with_subsequence);
+SXML_SUBSEQUENCE_BODY(contains_subsequence_body, step_contains_subsequence);
+
 /* ------------------------------------------------- 4.0 sequence functions */
 
 /* fn:identity($input) and fn:unordered($input) (F&O 4.0, sections 14.1.4
@@ -1577,6 +1776,22 @@ static const sxml_function_parameter sort_parameters[] = {
     SXML_OPTIONAL_PARAMETER("collation", "xs:string?"),
     SXML_OPTIONAL_PARAMETER("key", "(fn(item()) as xs:anyAtomicType*)?")};
 
+static const sxml_function_parameter subsequence_question_parameters[] = {
+    SXML_REQUIRED_PARAMETER("input", "item()*"),
+    SXML_REQUIRED_PARAMETER("subsequence", "item()*"),
+    SXML_OPTIONAL_PARAMETER("compare", "(fn(item(), item()) as xs:boolean?)?")};
+
+#define SXML_SUBSEQUENCE_ROW(name_text, body)                                  \
+    {.function_namespace = SXML_NAMESPACE_FUNCTIONS,                           \
+     .properties = SXML_NATIVE_FUNCTION_CALLS_FUNCTION_ITEMS,                  \
+     .local_name = SXML_BYTE_VIEW_INITIALIZER(name_text),                      \
+     .parameters = {subsequence_question_parameters,                           \
+                    sizeof(subsequence_question_parameters) /                  \
+                        sizeof(subsequence_question_parameters[0])},           \
+     .result_type = SXML_BYTE_VIEW_INITIALIZER("xs:boolean"),                  \
+     .call = NULL,                                                             \
+     .resumable_body = &(body)}
+
 static const sxml_native_function sequence_functions[] = {
     SXML_NULLARY_FUNCTION_ROW("true", "xs:boolean", 0, call_true),
     SXML_NULLARY_FUNCTION_ROW("false", "xs:boolean", 0, call_false),
@@ -1615,6 +1830,9 @@ static const sxml_native_function sequence_functions[] = {
      .result_type = SXML_BYTE_VIEW_INITIALIZER("item()*"),
      .call = NULL,
      .resumable_body = &sort_body},
+    SXML_SUBSEQUENCE_ROW("starts-with-subsequence", starts_with_subsequence_body),
+    SXML_SUBSEQUENCE_ROW("ends-with-subsequence", ends_with_subsequence_body),
+    SXML_SUBSEQUENCE_ROW("contains-subsequence", contains_subsequence_body),
     SXML_FUNCTION_ROW("identity", input_parameters, "item()*", 0, call_identity),
     SXML_FUNCTION_ROW("unordered", input_parameters, "item()*", 0, call_identity),
     SXML_FUNCTION_ROW("void", void_parameters, "empty-sequence()", 0, call_void),
