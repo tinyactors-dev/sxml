@@ -258,7 +258,7 @@ sxml_status sxml_function_library_initialize(
     placed->rows = rows;
     status = index_rows(placed, configuration);
     if (status == SXML_STATUS_OK) {
-        /* Before any row is resolved, so rows may name them (D126). */
+        /* Before any row is resolved, so rows may name them (D133). */
         status = sxml_function_library_declare_record_types(placed);
     }
     if (status != SXML_STATUS_OK) {
