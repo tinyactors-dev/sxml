@@ -1,12 +1,12 @@
 /*
  * The command table of the QT4 driver (driver.h). Imitates
- * apps/sxml/program.c: only commands that work are listed; packet 1.25
- * adds "run".
+ * apps/sxml/program.c: only commands that work are listed.
  */
 #include "driver.h"
 
 static const sxml_cli_command *const sxml_qt4_program_commands[] = {
     &sxml_qt4_list_command,
+    &sxml_qt4_run_command,
 };
 
 static const sxml_cli_program sxml_qt4_program_entry = {

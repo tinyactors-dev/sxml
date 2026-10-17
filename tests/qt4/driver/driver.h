@@ -16,3 +16,7 @@ const sxml_cli_program *sxml_qt4_program(void);
 /* "list": the selected test cases with their resolved environments
    (command_list.c). */
 extern const sxml_cli_command sxml_qt4_list_command;
+
+/* "run": the selected test cases run and checked, with a report
+   (command_run.c). */
+extern const sxml_cli_command sxml_qt4_run_command;
