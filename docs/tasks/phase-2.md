@@ -310,6 +310,10 @@ csv-doc with every option (delimiters, quotes, header, trim, select
 columns); scanned by hand because delimiters are run-time options (D97).
 Done when fn-parse-csv, fn-csv-to-xml, fn-csv-doc ≥ 95%. Spec: F&O 4.0
 "Functions on CSV data"; RFC 4180.
+**Done** 2026-10-17 (D141): `src/csv.c`, the csv part; fn:csv-to-arrays
+dropped by F&O 4.0. fn-csv-to-xml and fn-csv-doc at 100% of what runs;
+fn-parse-csv 107/124, 124/124 once the driver binds the result as the
+assertions' context value (Proposed).
 
 ### 2.16 QT4 driver for Phase 2 (implementation)
 After 2.2. Owns `tests/qt4/driver/`. Environments: `decimal-format`,
