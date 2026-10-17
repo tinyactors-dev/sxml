@@ -257,6 +257,40 @@ SXML_NODISCARD sxml_status sxml_decimal_modulo(
     const sxml_decimal_configuration *configuration,
     const sxml_decimal_operands *operands, sxml_decimal *remainder);
 
+/* A division to a number of decimal places, as fn:divide-decimals($value,
+   $divisor, $precision). */
+typedef struct sxml_decimal_division_request {
+    /* left_operand is $value, right_operand $divisor; borrowed. */
+    const sxml_decimal_operands *operands;
+    /* Decimal places of the quotient; a negative precision makes it a
+       multiple of a power of ten (-2: of hundreds). */
+    int64_t precision;
+} sxml_decimal_division_request;
+
+/* The two results of sxml_decimal_divide_to_precision; both new decimals
+   the caller finalizes. */
+typedef struct sxml_decimal_division {
+    sxml_decimal quotient;
+    sxml_decimal remainder;
+} sxml_decimal_division;
+
+/*
+ * fn:divide-decimals (F&O 4.0, section 4.3.1): the quotient is the
+ * multiple of ten to the power -precision furthest from zero whose
+ * product with the divisor is at most the value in magnitude, with the
+ * sign of value / divisor; the remainder is exactly value - quotient *
+ * divisor (so it has the sign of the value). A precision beyond what the
+ * digit limit allows is lowered to the largest that fits ("adjusted to the
+ * nearest value supported"); one below every digit of the quotient gives
+ * the quotient 0. Returns SXML_STATUS_INVALID_ARGUMENT when right_operand
+ * is zero (FOAR0001) and SXML_STATUS_LIMIT_EXCEEDED when even the integer
+ * part of the quotient has more than maximum_digit_count digits.
+ */
+SXML_NODISCARD sxml_status sxml_decimal_divide_to_precision(
+    const sxml_decimal_configuration *configuration,
+    const sxml_decimal_division_request *request,
+    sxml_decimal_division *division);
+
 /* -decimal (op:numeric-unary-minus). */
 SXML_NODISCARD sxml_status sxml_decimal_negate(
     const sxml_decimal_configuration *configuration,

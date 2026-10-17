@@ -519,6 +519,124 @@ static void test_round_refuses_results_beyond_limit(sxml_test_state *state) {
     sxml_decimal_finalize(&value);
 }
 
+/* ------------------------------------------- Division to a precision */
+
+/* fn:divide-decimals($value, $divisor, $precision) and its results. */
+typedef struct division_case {
+    const char *value_text;
+    const char *divisor_text;
+    int64_t precision;
+    const char *quotient_text;
+    const char *remainder_text;
+} division_case;
+
+/* Divides with configuration; the status, and on success both texts. */
+typedef struct division_outcome {
+    sxml_status status;
+    bool has_expected_texts;
+} division_outcome;
+
+static division_outcome divide_case(const sxml_decimal_configuration *configuration,
+                                    const division_case *test_case) {
+    sxml_decimal value = empty_decimal();
+    sxml_decimal divisor = empty_decimal();
+    division_outcome outcome = {.status = SXML_STATUS_INVALID_ARGUMENT,
+                                .has_expected_texts = false};
+    if (sxml_decimal_parse(configuration, text_of(test_case->value_text), &value) !=
+            SXML_STATUS_OK ||
+        sxml_decimal_parse(configuration, text_of(test_case->divisor_text), &divisor) !=
+            SXML_STATUS_OK) {
+        sxml_decimal_finalize(&value);
+        sxml_decimal_finalize(&divisor);
+        return outcome;
+    }
+    sxml_decimal_division division = {.quotient = empty_decimal(),
+                                      .remainder = empty_decimal()};
+    outcome.status = sxml_decimal_divide_to_precision(
+        configuration,
+        &(sxml_decimal_division_request){
+            .operands = &(sxml_decimal_operands){.left_operand = &value,
+                                                 .right_operand = &divisor},
+            .precision = test_case->precision},
+        &division);
+    if (outcome.status == SXML_STATUS_OK) {
+        outcome.has_expected_texts =
+            has_text((text_expectation){
+                .decimal = &division.quotient,
+                .expected_text = text_of(test_case->quotient_text)}) &&
+            has_text((text_expectation){
+                .decimal = &division.remainder,
+                .expected_text = text_of(test_case->remainder_text)});
+        sxml_decimal_finalize(&division.quotient);
+        sxml_decimal_finalize(&division.remainder);
+    } else {
+        outcome.has_expected_texts = decimal_is_untouched(&division.quotient) &&
+                                     decimal_is_untouched(&division.remainder);
+    }
+    sxml_decimal_finalize(&value);
+    sxml_decimal_finalize(&divisor);
+    return outcome;
+}
+
+/* The examples of F&O 4.0, section 4.3.1 and QT4 fn-divide-decimals. */
+static void test_divide_to_precision_follows_divide_decimals(sxml_test_state *state) {
+    static const division_case cases[] = {
+        {"120.6", "60.3", 4, "2", "0"},
+        {"10", "3", 0, "3", "1"},
+        {"10", "-3", 0, "-3", "1"},
+        {"-10", "3", 0, "-3", "-1"},
+        {"-10", "-3", 0, "3", "-1"},
+        {"10", "3", 6, "3.333333", "0.000001"},
+        {"100", "30", 0, "3", "10"},
+        {"150862", "7", -3, "21000", "3862"},
+        {"100", "30", 2, "3.33", "0.1"},
+        {"1", "300", 2, "0", "1"},
+        {"1000", "25", -1, "40", "0"},
+        {"420", "10", -1, "40", "20"},
+        {"100", "700", 6, "0.142857", "0.0001"},
+        {"0", "7", 3, "0", "0"},
+        {"0.5", "0.25", 0, "2", "0"},
+        /* Beyond the digit limit, the precision is lowered to fit. */
+        {"20", "10", 100000, "2", "0"},
+        {"1.1", "100000", -100000000, "0", "1.1"},
+        {"5", "3", INT64_MIN, "0", "5"},
+    };
+    sxml_decimal_configuration configuration = default_configuration();
+    for (size_t case_index = 0; case_index < SXML_TEST_COUNT(cases);
+         case_index += 1) {
+        division_outcome outcome = divide_case(&configuration, &cases[case_index]);
+        SXML_TEST_EXPECT(state, outcome.status == SXML_STATUS_OK);
+        SXML_TEST_EXPECT(state, outcome.has_expected_texts);
+    }
+}
+
+static void test_divide_to_precision_lowers_precision_to_fit(sxml_test_state *state) {
+    sxml_decimal_configuration configuration = configuration_of(sxml_default_allocator());
+    configuration.maximum_digit_count = 12;
+    configuration.division_digit_count = 12;
+    static const division_case cases[] = {
+        /* Up to twelve digits with "0." and room for the bounds. */
+        {"10", "3", 100000, "3.333333333", "0.000000001"},
+        {"1", "3", INT64_MAX, "0.3333333333", "0.0000000001"},
+        {"123456789", "1", 50, "123456789", "0"},
+    };
+    for (size_t case_index = 0; case_index < SXML_TEST_COUNT(cases);
+         case_index += 1) {
+        division_outcome outcome = divide_case(&configuration, &cases[case_index]);
+        SXML_TEST_EXPECT(state, outcome.status == SXML_STATUS_OK);
+        SXML_TEST_EXPECT(state, outcome.has_expected_texts);
+    }
+    /* An integer quotient of more digits than the limit is refused. */
+    division_outcome refused = divide_case(
+        &configuration, &(division_case){"999999999999", "0.001", 0, "", ""});
+    SXML_TEST_EXPECT(state, refused.status == SXML_STATUS_LIMIT_EXCEEDED);
+    SXML_TEST_EXPECT(state, refused.has_expected_texts);
+    division_outcome by_zero =
+        divide_case(&configuration, &(division_case){"29", "0", 18, "", ""});
+    SXML_TEST_EXPECT(state, by_zero.status == SXML_STATUS_INVALID_ARGUMENT);
+    SXML_TEST_EXPECT(state, by_zero.has_expected_texts);
+}
+
 /* --------------------------------------------- Comparison and predicates */
 
 /* Two texts and their expected ordering. */
@@ -1145,7 +1263,7 @@ static void test_long_product_allocation_failures_are_reported_and_clean(
  */
 static sxml_status use_every_allocating_function(
     const sxml_decimal_configuration *configuration) {
-    sxml_decimal values[10];
+    sxml_decimal values[12];
     for (size_t value_index = 0; value_index < SXML_TEST_COUNT(values);
          value_index += 1) {
         values[value_index] = empty_decimal();
@@ -1188,6 +1306,17 @@ static sxml_status use_every_allocating_function(
     }
     if (status == SXML_STATUS_OK) {
         status = sxml_decimal_copy(configuration, &values[2], &values[9]);
+    }
+    if (status == SXML_STATUS_OK) {
+        sxml_decimal_division division;
+        status = sxml_decimal_divide_to_precision(
+            configuration,
+            &(sxml_decimal_division_request){.operands = &operands, .precision = 40},
+            &division);
+        if (status == SXML_STATUS_OK) {
+            values[10] = division.quotient;
+            values[11] = division.remainder;
+        }
     }
     for (size_t value_index = 0; value_index < SXML_TEST_COUNT(values);
          value_index += 1) {
@@ -1355,6 +1484,10 @@ static const sxml_test_case decimal_test_cases[] = {
      .function = test_round_follows_each_rounding_mode},
     {.name = "round_refuses_results_beyond_limit",
      .function = test_round_refuses_results_beyond_limit},
+    {.name = "divide_to_precision_follows_divide_decimals",
+     .function = test_divide_to_precision_follows_divide_decimals},
+    {.name = "divide_to_precision_lowers_precision_to_fit",
+     .function = test_divide_to_precision_lowers_precision_to_fit},
     {.name = "compare_orders_by_value",
      .function = test_compare_orders_by_value},
     {.name = "predicates_report_sign_zero_and_integrality",

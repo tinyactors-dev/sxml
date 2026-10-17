@@ -1,8 +1,9 @@
 /*
  * The numeric part of the function library (packet 1.20, D78): fn:abs,
  * fn:ceiling, fn:floor, fn:round, fn:round-half-to-even, fn:number,
- * fn:is-NaN, fn:sum, fn:avg, fn:max, fn:min and fn:random-number-generator
- * (F&O 4.0, sections 4.4, 4.5, 4.7 and 14.4).
+ * fn:is-NaN, fn:sum, fn:avg, fn:max, fn:min, fn:divide-decimals and
+ * fn:random-number-generator (F&O 4.0, sections 4.3, 4.4, 4.5, 4.7 and
+ * 14.4).
  *
  * Golden file: src/memory.c (layout and comments); rows as in
  * src/function_library_internal.h.
@@ -281,11 +282,14 @@ static sxml_status call_floor(const sxml_function_call *call, sxml_sequence *res
                         result);
 }
 
-/* Reads $precision (xs:integer?, default 0); values beyond the digit
-   limits are clamped, which gives the same result. */
-static sxml_status read_precision(const sxml_function_call *call, int64_t *precision) {
+/* Reads $precision (xs:integer?, default 0), the argument at
+   argument_index; values beyond the digit limits are clamped, which gives
+   the same result. */
+static sxml_status read_precision(const sxml_function_call *call, size_t argument_index,
+                                  int64_t *precision) {
     sxml_optional_item argument;
-    sxml_status status = sxml_function_library_read_optional_item(call, 1, &argument);
+    sxml_status status =
+        sxml_function_library_read_optional_item(call, argument_index, &argument);
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -342,7 +346,7 @@ static sxml_status call_round(const sxml_function_call *call, sxml_sequence *res
     numeric_request request = {.operation = SXML_NUMERIC_OPERATION_ROUND,
                                .rounding_mode = SXML_ROUNDING_MODE_HALF_TO_CEILING,
                                .precision = 0};
-    sxml_status status = read_precision(call, &request.precision);
+    sxml_status status = read_precision(call, 1, &request.precision);
     sxml_string mode = {.utf8 = {.bytes = NULL, .byte_count = 0}};
     if (status == SXML_STATUS_OK) {
         status = sxml_function_library_read_string_argument(call, 2, &mode);
@@ -374,7 +378,7 @@ static sxml_status call_round_half_to_even(const sxml_function_call *call,
     numeric_request request = {.operation = SXML_NUMERIC_OPERATION_ROUND,
                                .rounding_mode = SXML_ROUNDING_MODE_HALF_TO_EVEN,
                                .precision = 0};
-    sxml_status status = read_precision(call, &request.precision);
+    sxml_status status = read_precision(call, 1, &request.precision);
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -1092,6 +1096,143 @@ static sxml_status call_random_number_generator(const sxml_function_call *call,
     return make_generator(call, random_output(state), result);
 }
 
+/* ------------------------------------------------------ fn:divide-decimals */
+
+static const sxml_static_error division_by_zero_error = {
+    .error_status = SXML_STATUS_DYNAMIC_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("FOAR0001"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "The divisor is zero (F&O 4.0, fn:divide-decimals)"),
+};
+
+static const sxml_static_error quotient_overflow_error = {
+    .error_status = SXML_STATUS_DYNAMIC_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("FOAR0002"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "The quotient has more digits than the processor keeps (F&O 4.0, "
+        "fn:divide-decimals)"),
+};
+
+/* Reads the xs:decimal argument at argument_index (an xs:integer is one)
+   into a new decimal. */
+static sxml_status read_decimal_argument(const sxml_function_call *call,
+                                         size_t argument_index, sxml_decimal *decimal) {
+    sxml_optional_item argument;
+    sxml_status status =
+        sxml_function_library_read_optional_item(call, argument_index, &argument);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    /* Coercion to xs:decimal (exactly one) leaves an item. */
+    if (!argument.has_item) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    return read_decimal(sxml_item_heap_get_decimal_configuration(call->item_heap),
+                        argument.item, decimal);
+}
+
+/* Makes the record { "quotient": ..., "remainder": ... }, taking both
+   decimals of division in every case. */
+static sxml_status make_division_record(const sxml_function_call *call,
+                                        sxml_decimal_division *division,
+                                        sxml_sequence *result) {
+    sxml_map_entry entries[2];
+    memset(entries, 0, sizeof(entries));
+    sxml_item quotient = {.representation = 0};
+    sxml_status status = sxml_atomic_item_make_taking_decimal(
+        call->item_heap,
+        &(sxml_decimal_item_request){
+            .type = sxml_builtin_type_identifier(SXML_TYPE_XS_DECIMAL),
+            .decimal = &division->quotient},
+        &quotient);
+    if (status != SXML_STATUS_OK) {
+        sxml_decimal_finalize(&division->quotient);
+    }
+    sxml_item remainder = {.representation = 0};
+    const sxml_status remainder_status = sxml_atomic_item_make_taking_decimal(
+        call->item_heap,
+        &(sxml_decimal_item_request){
+            .type = sxml_builtin_type_identifier(SXML_TYPE_XS_DECIMAL),
+            .decimal = &division->remainder},
+        &remainder);
+    if (remainder_status != SXML_STATUS_OK) {
+        sxml_decimal_finalize(&division->remainder);
+        if (status == SXML_STATUS_OK) {
+            status = remainder_status;
+        }
+    }
+    entries[0].value = sxml_sequence_from_item(quotient);
+    entries[1].value = sxml_sequence_from_item(remainder);
+    if (status == SXML_STATUS_OK) {
+        status = make_key(call, SXML_BYTE_VIEW_FROM_LITERAL("quotient"), &entries[0].key);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = make_key(call, SXML_BYTE_VIEW_FROM_LITERAL("remainder"), &entries[1].key);
+    }
+    sxml_item map = {.representation = 0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_map_make(
+            call->item_heap,
+            &(sxml_map_request){
+                .map_entries = {.map_entries = entries, .map_entry_count = 2},
+                .duplicate_key_policy = SXML_DUPLICATE_KEY_POLICY_REJECT,
+                .error_record = call->error_record},
+            &map);
+    }
+    for (size_t entry_index = 0; entry_index < 2; entry_index += 1) {
+        sxml_item_release(entries[entry_index].key);
+        sxml_sequence_release(entries[entry_index].value);
+    }
+    if (status == SXML_STATUS_OK) {
+        *result = sxml_sequence_from_item(map);
+    }
+    return status;
+}
+
+/* fn:divide-decimals($value, $divisor, $precision := 0) (F&O 4.0, section
+   4.3.1). The result is a map with the fields of fn:division-record; no
+   static context knows that named record type yet (D121). */
+static sxml_status call_divide_decimals(const sxml_function_call *call,
+                                        sxml_sequence *result) {
+    int64_t precision = 0;
+    sxml_status status = read_precision(call, 2, &precision);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_decimal value;
+    status = read_decimal_argument(call, 0, &value);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_decimal divisor;
+    status = read_decimal_argument(call, 1, &divisor);
+    if (status != SXML_STATUS_OK) {
+        sxml_decimal_finalize(&value);
+        return status;
+    }
+    sxml_decimal_division division;
+    status = sxml_decimal_divide_to_precision(
+        sxml_item_heap_get_decimal_configuration(call->item_heap),
+        &(sxml_decimal_division_request){
+            .operands = &(sxml_decimal_operands){.left_operand = &value,
+                                                 .right_operand = &divisor},
+            .precision = precision},
+        &division);
+    const bool divisor_is_zero = sxml_decimal_is_zero(&divisor);
+    sxml_decimal_finalize(&value);
+    sxml_decimal_finalize(&divisor);
+    if (status == SXML_STATUS_INVALID_ARGUMENT && divisor_is_zero) {
+        return sxml_function_library_report(call, &division_by_zero_error);
+    }
+    if (status == SXML_STATUS_LIMIT_EXCEEDED) {
+        return sxml_function_library_report(call, &quotient_overflow_error);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return make_division_record(call, &division, result);
+}
+
 /* ------------------------------------------------------------------ Rows */
 
 static const sxml_function_parameter numeric_value_parameters[] = {
@@ -1115,6 +1256,10 @@ static const sxml_function_parameter avg_parameters[] = {
 static const sxml_function_parameter extreme_parameters[] = {
     SXML_REQUIRED_PARAMETER("values", "xs:anyAtomicType*"),
     SXML_OPTIONAL_PARAMETER("collation", "xs:string?")};
+static const sxml_function_parameter divide_decimals_parameters[] = {
+    SXML_REQUIRED_PARAMETER("value", "xs:decimal"),
+    SXML_REQUIRED_PARAMETER("divisor", "xs:decimal"),
+    SXML_OPTIONAL_PARAMETER("precision", "xs:integer?")};
 static const sxml_function_parameter random_parameters[] = {
     SXML_OPTIONAL_PARAMETER("seed", "xs:anyAtomicType?")};
 
@@ -1126,6 +1271,9 @@ static const sxml_native_function numeric_functions[] = {
     SXML_FUNCTION_ROW("round-half-to-even", round_half_to_even_parameters, "xs:numeric?",
                       0, call_round_half_to_even),
     SXML_FUNCTION_ROW("number", number_parameters, "xs:double", 0, call_number),
+    SXML_FUNCTION_ROW("divide-decimals", divide_decimals_parameters,
+                      "record(quotient as xs:decimal, remainder as xs:decimal)", 0,
+                      call_divide_decimals),
     SXML_FUNCTION_ROW("is-NaN", is_nan_parameters, "xs:boolean", 0, call_is_nan),
     SXML_FUNCTION_ROW("sum", sum_parameters, "xs:anyAtomicType?", 0, call_sum),
     SXML_FUNCTION_ROW("avg", avg_parameters, "xs:anyAtomicType?", 0, call_avg),

@@ -1200,6 +1200,146 @@ sxml_status sxml_decimal_modulo(const sxml_decimal_configuration *configuration,
         remainder);
 }
 
+/* --------------------------------------------- Division to a precision */
+
+/*
+ * The precision fn:divide-decimals computes with (F&O 4.0, section 4.3.1:
+ * a precision outside the supported range "should be adjusted to the
+ * nearest value supported"). quotient_integer_digit_count bounds the
+ * integer digits of |value / divisor|.
+ *
+ * Upward: the quotient has at most quotient_integer_digit_count + precision
+ * digits and the remainder, below |divisor| * 10^-precision in magnitude
+ * and no larger than |value|, at most the canonical digits of the divisor
+ * plus precision, or those of the value; one more for "0.". A positive
+ * precision that does not fit is lowered until both fit, to 0 at least.
+ * Downward: 10^-precision above |value / divisor| already gives the
+ * quotient 0, so a lower precision changes nothing.
+ */
+typedef struct sxml_decimal_precision_bounds {
+    int64_t precision;
+    int64_t quotient_integer_digit_count;
+    int64_t divisor_digit_count;
+} sxml_decimal_precision_bounds;
+
+static int64_t sxml_decimal_supported_precision(
+    const sxml_decimal_configuration *configuration,
+    sxml_decimal_precision_bounds bounds) {
+    const int64_t maximum_digit_count = (int64_t)configuration->maximum_digit_count;
+    int64_t highest = maximum_digit_count - 1 - bounds.quotient_integer_digit_count;
+    const int64_t remainder_highest =
+        maximum_digit_count - 1 - bounds.divisor_digit_count;
+    if (remainder_highest < highest) {
+        highest = remainder_highest;
+    }
+    if (highest < 0) {
+        highest = 0;
+    }
+    const int64_t lowest = -bounds.quotient_integer_digit_count - 1;
+    if (bounds.precision > highest) {
+        return highest;
+    }
+    return bounds.precision < lowest ? lowest : bounds.precision;
+}
+
+/*
+ * Runs the division in a scope: the divisor's power of ten is shifted by
+ * -precision (exact, no digits move), so that the integer quotient and
+ * remainder of truncating division (mpd_qdivint, mpd_qrem) are the
+ * quotient times 10^precision and the remainder fn:divide-decimals asks
+ * for: value - trunc(value / (divisor * 10^-precision)) * divisor *
+ * 10^-precision.
+ */
+static sxml_status sxml_decimal_run_division(
+    const sxml_decimal_configuration *configuration,
+    const sxml_decimal_division_request *request,
+    sxml_decimal_division *division) {
+    const mpd_t *value = &request->operands->left_operand->number;
+    const mpd_t *divisor = &request->operands->right_operand->number;
+    int64_t quotient_integer_digit_count = 0;
+    if (!mpd_iszero(value)) {
+        quotient_integer_digit_count =
+            (int64_t)mpd_adjexp(value) - (int64_t)mpd_adjexp(divisor) + 1;
+        if (quotient_integer_digit_count < 0) {
+            quotient_integer_digit_count = 0;
+        }
+    }
+    const int64_t precision = sxml_decimal_supported_precision(
+        configuration,
+        (sxml_decimal_precision_bounds){
+            .precision = request->precision,
+            .quotient_integer_digit_count = quotient_integer_digit_count,
+            .divisor_digit_count = (int64_t)sxml_decimal_layout_digit_count(
+                sxml_decimal_lay_out(divisor)),
+        });
+    /* A borrowed view of the divisor with another exponent: read only. */
+    mpd_t shifted_divisor = *divisor;
+    shifted_divisor.flags =
+        (uint8_t)((divisor->flags & ~(uint8_t)(MPD_DATAFLAGS)) | MPD_STATIC |
+                  MPD_CONST_DATA);
+    shifted_divisor.exp = (mpd_ssize_t)((int64_t)divisor->exp - precision);
+    sxml_decimal quotient;
+    sxml_status status = sxml_decimal_start(&quotient);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_decimal remainder;
+    status = sxml_decimal_start(&remainder);
+    if (status != SXML_STATUS_OK) {
+        sxml_decimal_finalize(&quotient);
+        return status;
+    }
+    mpd_context_t context = sxml_decimal_limit_context(configuration);
+    uint32_t flags = 0;
+    mpd_qdivint(&quotient.number, value, &shifted_divisor, &context, &flags);
+    mpd_qrem(&remainder.number, value, &shifted_divisor, &context, &flags);
+    /* Both are exact: anything inexact did not fit the limit. */
+    if ((flags & MPD_Inexact) != 0) {
+        flags |= MPD_Overflow;
+    }
+    status = sxml_decimal_status_from_flags(flags);
+    if (status == SXML_STATUS_OK && !mpd_iszero(&quotient.number)) {
+        quotient.number.exp =
+            (mpd_ssize_t)((int64_t)quotient.number.exp - precision);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_decimal_check_result(configuration, &quotient.number, 0);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_decimal_check_result(configuration, &remainder.number, 0);
+    }
+    if (status != SXML_STATUS_OK) {
+        sxml_decimal_finalize(&quotient);
+        sxml_decimal_finalize(&remainder);
+        return status;
+    }
+    division->quotient = quotient;
+    division->remainder = remainder;
+    return SXML_STATUS_OK;
+}
+
+sxml_status sxml_decimal_divide_to_precision(
+    const sxml_decimal_configuration *configuration,
+    const sxml_decimal_division_request *request,
+    sxml_decimal_division *division) {
+    if (!sxml_decimal_configuration_is_valid(configuration)) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    if (mpd_iszero(&request->operands->right_operand->number)) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    const sxml_allocator *previous_scope =
+        sxml_decimal_enter_scope(configuration);
+    sxml_decimal_division result;
+    sxml_status status =
+        sxml_decimal_run_division(configuration, request, &result);
+    sxml_decimal_leave_scope(previous_scope);
+    if (status == SXML_STATUS_OK) {
+        *division = result;
+    }
+    return status;
+}
+
 /* ------------------------------------------------------------ Rounding */
 
 /* The libmpdec rounding of mode for a value of the given sign (fn:round:
