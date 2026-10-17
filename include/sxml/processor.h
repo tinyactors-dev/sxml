@@ -227,7 +227,9 @@ SXML_EXPORT sxml_resource_resolver sxml_table_resource_resolver(
 
 /*
  * Bounds for untrusted input. Unless a field says otherwise, 0 means no
- * bound, and reaching a bound gives SXML_STATUS_LIMIT_EXCEEDED.
+ * bound, and reaching a bound gives SXML_STATUS_LIMIT_EXCEEDED. Every bound
+ * limits memory or work, never C stack: no part of sxml recurses (D71), so
+ * deep input costs heap, which these bounds and the allocator limit.
  */
 typedef struct sxml_processor_limits {
     /* sxml_name_pool_configuration.maximum_byte_count. */
@@ -243,15 +245,27 @@ typedef struct sxml_processor_limits {
        (sxml_arena_tree_configuration). */
     uint32_t maximum_tree_node_count;
     size_t maximum_tree_text_byte_count;
-    /* Deepest nesting of an expression's syntax, so that compiling an
-       untrusted expression cannot exhaust the C stack. 0 means sxml's
-       default, chosen to fit the smallest C stack of a supported
-       platform. */
+    /* Deepest nesting of an expression's syntax that compilation accepts
+       (parsing and lowering). sxml never recurses in C (D71): each level
+       costs a frame of a few hundred bytes of allocator memory, so this
+       bounds heap use, not the C stack. 0 means sxml's default, 10,000
+       levels (D63). */
     uint32_t maximum_expression_depth;
-    /* Deepest nesting of evaluation (function calls, nested expressions),
-       so that deep recursion gives SXML_STATUS_LIMIT_EXCEEDED rather than a
-       stack overflow. 0 means sxml's default, as above. */
+    /* Most function calls in progress at once in one evaluation (IR
+       function calls and the calls of higher-order library functions; a
+       tail call does not add one). Each costs some hundred bytes of
+       allocator memory, not C stack (D71, D75); beyond it the evaluation
+       stops with SXML_STATUS_LIMIT_EXCEEDED. 0 means sxml's default,
+       1,000,000 calls (D75). */
     uint32_t maximum_evaluation_depth;
+    /* Most evaluation steps of one evaluation: every step of the
+       evaluator's machine counts one, and work that reads many items
+       without taking steps charges them (a general comparison counts its
+       pairs). Bounds the time of an evaluation that allocates little, such
+       as "some $x in 1 to 100000000000 satisfies $x = 0"; beyond it the
+       evaluation stops with SXML_STATUS_LIMIT_EXCEEDED. 0 means sxml's
+       default, 1,000,000,000 steps (D89). */
+    uint64_t maximum_evaluation_step_count;
 } sxml_processor_limits;
 
 typedef struct sxml_processor_configuration {

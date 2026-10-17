@@ -328,6 +328,8 @@ sxml_status sxml_dynamic_context_initialize(
                 ? SXML_EVALUATOR_DEFAULT_MAXIMUM_EVALUATION_DEPTH
                 : configuration->maximum_evaluation_depth,
         .maximum_frame_slot_count = configuration->maximum_frame_slot_count,
+        .evaluation_step_count = 0,
+        .maximum_evaluation_step_count = configuration->maximum_evaluation_step_count,
         .frame_stack = {.slots = NULL, .slot_count_in_use = 0, .slot_capacity = 0},
         .task_stack = {.tasks = NULL, .task_count = 0, .task_capacity = 0},
         .is_running = false,
@@ -337,6 +339,7 @@ sxml_status sxml_dynamic_context_initialize(
         .global_slots = NULL,
         .global_slot_count = 0,
         .error_record = NULL,
+        .static_base_uri = {.bytes = NULL, .byte_count = 0},
         .current_mode = {.value = 0},
         .current_template_rule_index = 0,
     };
@@ -409,22 +412,41 @@ sxml_status sxml_dynamic_context_read_clock(sxml_dynamic_context *dynamic_contex
             /* The null clock (D51). */
             return SXML_STATUS_UNSUPPORTED_FEATURE;
         }
+        /* sxml_clock_read checks the reading against its contract
+           (include/sxml/processor.h). */
         sxml_clock_reading clock_reading;
-        sxml_status status = dynamic_context->clock.operations->read(
-            dynamic_context->clock.state, &clock_reading);
+        sxml_status status = sxml_clock_read(dynamic_context->clock, &clock_reading);
         if (status != SXML_STATUS_OK) {
             return status;
-        }
-        if (!clock_reading.current_date_time.has_timezone ||
-            clock_reading.implicit_timezone_offset_minutes < -840 ||
-            clock_reading.implicit_timezone_offset_minutes > 840) {
-            return SXML_STATUS_INVALID_ARGUMENT;
         }
         dynamic_context->clock_reading = clock_reading;
         dynamic_context->has_clock_reading = true;
     }
     *reading = dynamic_context->clock_reading;
     return SXML_STATUS_OK;
+}
+
+sxml_status sxml_dynamic_context_charge_steps(sxml_dynamic_context *dynamic_context,
+                                              uint64_t step_count) {
+    const uint64_t maximum = dynamic_context->maximum_evaluation_step_count;
+    if (maximum == 0) {
+        return SXML_STATUS_OK;
+    }
+    if (step_count > maximum - dynamic_context->evaluation_step_count) {
+        dynamic_context->evaluation_step_count = maximum;
+        if (dynamic_context->error_record != NULL) {
+            dynamic_context->error_record->diagnostic.description = SXML_BYTE_VIEW_FROM_LITERAL(
+                "the evaluation took more steps than maximum_evaluation_step_count allows");
+        }
+        return SXML_STATUS_LIMIT_EXCEEDED;
+    }
+    dynamic_context->evaluation_step_count += step_count;
+    return SXML_STATUS_OK;
+}
+
+sxml_byte_view sxml_dynamic_context_get_static_base_uri(
+    const sxml_dynamic_context *dynamic_context) {
+    return dynamic_context->static_base_uri;
 }
 
 sxml_status sxml_dynamic_context_read_implicit_timezone(
@@ -1638,6 +1660,22 @@ typedef struct sxml_binary_operands {
     sxml_sequence raw_operands[2];
 } sxml_binary_operands;
 
+/* Charges one step per pair of items of two atomized operands (D89). A
+   count that fails is left for the comparison to raise. */
+static sxml_status sxml_charge_item_pairs(sxml_dynamic_context *context,
+                                          const sxml_sequence *operands) {
+    uint64_t left_count = 0;
+    uint64_t right_count = 0;
+    if (sxml_sequence_count(operands[0], NULL, &left_count) != SXML_STATUS_OK ||
+        sxml_sequence_count(operands[1], NULL, &right_count) != SXML_STATUS_OK) {
+        return SXML_STATUS_OK;
+    }
+    const uint64_t pair_count = right_count != 0 && left_count > UINT64_MAX / right_count
+                                    ? UINT64_MAX
+                                    : left_count * right_count;
+    return sxml_dynamic_context_charge_steps(context, pair_count);
+}
+
 static sxml_status sxml_make_binary_value(sxml_dynamic_context *context,
                                           const sxml_binary_operands *binary,
                                           sxml_sequence *result) {
@@ -1751,6 +1789,13 @@ static sxml_status sxml_make_binary_value(sxml_dynamic_context *context,
         case SXML_IR_BINARY_OPERATOR_GENERAL_GREATER:
         case SXML_IR_BINARY_OPERATOR_GENERAL_GREATER_OR_EQUAL: {
             sxml_item item = {.representation = 0};
+            /* A general comparison compares every pair (XPath 4.0, section
+               4.11.2): charge them first, so long operands cannot run
+               unbounded (D89). Counting is O(1) for ranges. */
+            status = sxml_charge_item_pairs(context, operands);
+            if (status != SXML_STATUS_OK) {
+                break;
+            }
             status = sxml_operator_make_general_comparison(
                 context->item_heap,
                 &(sxml_comparison_request){
@@ -3654,7 +3699,12 @@ static void sxml_machine_locate_error(sxml_dynamic_context *context,
    one is left in the context's task value. */
 static sxml_status sxml_machine_run(sxml_dynamic_context *context, size_t base_count) {
     while (context->task_stack.task_count > base_count) {
-        sxml_status status = SXML_STATUS_OK;
+        /* One step per task run (D89), so no evaluation runs unbounded. */
+        sxml_status status = sxml_dynamic_context_charge_steps(context, 1);
+        if (status != SXML_STATUS_OK) {
+            sxml_machine_unwind(context, base_count);
+            return status;
+        }
         switch (sxml_machine_top(context)->task_kind) {
         case SXML_EVALUATOR_TASK_KIND_EXPRESSION:
             status = sxml_machine_step_expression(context);
@@ -3818,7 +3868,9 @@ sxml_status sxml_evaluator_evaluate(sxml_dynamic_context *dynamic_context,
     context->is_running = true;
     context->error_record = request->error_record;
     context->has_clock_reading = false;
+    context->evaluation_step_count = 0;
     context->unit = request->unit;
+    context->static_base_uri = request->static_base_uri;
     sxml_ir_unit_retain(request->unit);
     const size_t base_count = context->task_stack.task_count;
     sxml_status status = sxml_bind_global_slots(context, request);
@@ -3836,6 +3888,7 @@ sxml_status sxml_evaluator_evaluate(sxml_dynamic_context *dynamic_context,
     sxml_end_run(context, base_count);
     sxml_release_global_slots(context);
     context->unit = NULL;
+    context->static_base_uri = (sxml_byte_view){.bytes = NULL, .byte_count = 0};
     sxml_ir_unit_release(request->unit);
     if (status != SXML_STATUS_OK) {
         sxml_sequence_release(value);
@@ -3874,6 +3927,7 @@ sxml_status sxml_evaluator_call_function_item(const sxml_function_call *call,
     context->is_running = true;
     context->error_record = call->error_record;
     context->has_clock_reading = false;
+    context->evaluation_step_count = 0;
     const size_t base_count = context->task_stack.task_count;
     sxml_evaluator_task root = sxml_expression_task(NULL, 0, (sxml_ir_expression_index){0});
     root.task_kind = SXML_EVALUATOR_TASK_KIND_CALL;

@@ -296,6 +296,9 @@ extern const sxml_native_function_view sxml_function_library_higher_order;
 extern const sxml_native_function_view sxml_function_library_map;
 extern const sxml_native_function_view sxml_function_library_array;
 extern const sxml_native_function_view sxml_function_library_json;
+/* fn:static-base-uri and fn:resolve-uri (src/function_library_uri.c,
+   packet 1.23, D88). */
+extern const sxml_native_function_view sxml_function_library_uri;
 
 /*
  * The operations every function item made from a native row uses (a named

@@ -449,3 +449,42 @@ SXML_NODISCARD sxml_status sxml_atomic_item_make_taking_decimal(
 SXML_NODISCARD sxml_status sxml_atomic_item_compare_in_heap(
     const sxml_item_heap *item_heap, const sxml_atomic_comparison *comparison,
     sxml_ordering *ordering);
+
+/* ---------------------------------------------------------------- URIs */
+
+/* A URI reference to resolve against a base URI (src/xdm_node.c). */
+typedef struct sxml_uri_resolution_request {
+    /* An absolute URI, or empty when there is no base. */
+    sxml_byte_view base_uri;
+    sxml_byte_view reference;
+    /* Provides the memory of a resolved target URI. */
+    sxml_allocator allocator;
+} sxml_uri_resolution_request;
+
+/* The target URI of a resolution. */
+typedef struct sxml_uri_resolution {
+    /* In memory, or request->reference itself when memory is NULL. */
+    sxml_byte_view uri;
+    /* Owned: release it through the request's allocator; NULL when nothing
+       was allocated. */
+    void *memory;
+} sxml_uri_resolution;
+
+/* True when text starts with a scheme followed by ":" (RFC 3986, section
+   3.1, split as appendix B does): an absolute URI or a URI with a
+   fragment. */
+bool sxml_uri_has_scheme(sxml_byte_view text);
+
+/*
+ * Resolves request->reference against request->base_uri (RFC 3986,
+ * section 5.2.2, strict, with remove_dot_segments and the recomposition of
+ * section 5.3) and writes the target URI to *resolution. A reference with a
+ * scheme, and any reference when the base is empty, is the target as it is
+ * (F&O 4.0, fn:resolve-uri: an absolute $href is returned unchanged).
+ * Returns the allocator's failures and SXML_STATUS_ARITHMETIC_OVERFLOW;
+ * *resolution is then untouched. Used by the processor's document loader
+ * (fn:doc) and fn:resolve-uri.
+ */
+SXML_NODISCARD sxml_status sxml_uri_resolve(
+    const sxml_uri_resolution_request *request,
+    sxml_uri_resolution *resolution);

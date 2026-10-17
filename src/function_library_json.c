@@ -460,10 +460,16 @@ static sxml_status json_build_document(const sxml_function_call *call,
                                        const sxml_json_text_request *request,
                                        sxml_arena_tree *arena_tree) {
     const sxml_tree_builder builder = sxml_arena_tree_as_tree_builder(arena_tree);
+    /* The base URI of the document node is the static base URI of the
+       call (F&O 4.0, fn:json-to-xml; D88). */
+    const sxml_byte_view base_uri =
+        call->dynamic_context == NULL
+            ? (sxml_byte_view){.bytes = NULL, .byte_count = 0}
+            : sxml_dynamic_context_get_static_base_uri(call->dynamic_context);
     sxml_status status = builder.operations->start_document(
         builder.state,
         &(sxml_document_start_event){.document_uri = {.bytes = NULL, .byte_count = 0},
-                                     .base_uri = {.bytes = NULL, .byte_count = 0},
+                                     .base_uri = base_uri,
                                      .location = {.source_name = {.bytes = NULL,
                                                                   .byte_count = 0},
                                                   .line_number = 0,
@@ -711,7 +717,12 @@ static sxml_status call_parse_xml(const sxml_function_call *call, sxml_sequence 
                 .xml_bytes = datum.datum_kind == SXML_DATUM_KIND_STRING
                                  ? datum.datum_details.string.utf8
                                  : datum.datum_details.binary,
-                .base_uri = json_option_text(&values, SXML_XML_OPTION_BASE_URI),
+                /* The base-uri option, else the static base URI (F&O 4.0,
+                   fn:parse-xml; D88). */
+                .base_uri = values.is_present[SXML_XML_OPTION_BASE_URI]
+                                ? json_option_text(&values, SXML_XML_OPTION_BASE_URI)
+                                : sxml_dynamic_context_get_static_base_uri(
+                                      call->dynamic_context),
                 .error_record = call->error_record},
             &document_node);
     }

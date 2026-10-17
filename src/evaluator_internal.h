@@ -192,7 +192,17 @@ typedef struct sxml_evaluator_configuration {
     /* Most frame slots in use at once; 0 means no bound beyond the
        allocator's. */
     size_t maximum_frame_slot_count;
+    /* Most evaluation steps of one evaluation (glossary
+       `evaluation_step`; D89): every task the machine runs is one, and
+       leaf work charges what it reads (sxml_dynamic_context_charge_steps).
+       0 means no bound (the processor resolves its public "0 means sxml's
+       default" to SXML_EVALUATOR_DEFAULT_MAXIMUM_EVALUATION_STEP_COUNT). */
+    uint64_t maximum_evaluation_step_count;
 } sxml_evaluator_configuration;
+
+/* The step bound the processor uses when its limits give 0: about a
+   minute of work, far beyond any QT4 test (D89). */
+#define SXML_EVALUATOR_DEFAULT_MAXIMUM_EVALUATION_STEP_COUNT 1000000000U
 
 /* The depth limit when the configuration gives 0. Each level costs some
    hundred bytes of allocator memory, not C stack. */
@@ -229,6 +239,9 @@ struct sxml_dynamic_context {
     uint32_t evaluation_depth;
     uint32_t maximum_evaluation_depth;
     size_t maximum_frame_slot_count;
+    /* Steps taken by the evaluation running, and the bound (0: none). */
+    uint64_t evaluation_step_count;
+    uint64_t maximum_evaluation_step_count;
     sxml_evaluator_frame_stack frame_stack;
     sxml_evaluator_task_stack task_stack;
     /* True while the machine runs on this context (see "Reentry"). */
@@ -244,6 +257,10 @@ struct sxml_dynamic_context {
     size_t global_slot_count;
     /* Receives the error of the evaluation running; may be NULL. */
     sxml_error_record *error_record;
+    /* The static base URI of the unit being evaluated (XPath 4.0, section
+       2.2.1), borrowed from the request; empty when absent or outside
+       sxml_evaluator_evaluate. */
+    sxml_byte_view static_base_uri;
     /* Reserved for XSLT (Phase 4): the current mode and template rule, for
        xsl:next-match, xsl:apply-imports and current-mode(). */
     sxml_ir_mode_index current_mode;
@@ -289,6 +306,26 @@ SXML_NODISCARD sxml_status sxml_dynamic_context_read_clock(
 SXML_NODISCARD sxml_status sxml_dynamic_context_read_implicit_timezone(
     sxml_dynamic_context *dynamic_context, int16_t *offset_minutes);
 
+/*
+ * The static base URI of the evaluation running (fn:static-base-uri,
+ * fn:resolve-uri, fn:doc, fn:parse-xml, fn:json-to-xml), borrowed for the
+ * evaluation; empty when absent (XPath 4.0, section 2.2.1). A function item
+ * called after its evaluation ended sees the static base URI of the
+ * evaluation that calls it (D88).
+ */
+sxml_byte_view sxml_dynamic_context_get_static_base_uri(
+    const sxml_dynamic_context *dynamic_context);
+
+/*
+ * Charges step_count evaluation steps to the evaluation running (D89):
+ * leaf work that reads many items without running a task (a general
+ * comparison of two long sequences) calls it before the work. Returns
+ * SXML_STATUS_LIMIT_EXCEEDED, with the error record's diagnostic filled,
+ * when the steps pass maximum_evaluation_step_count.
+ */
+SXML_NODISCARD sxml_status sxml_dynamic_context_charge_steps(
+    sxml_dynamic_context *dynamic_context, uint64_t step_count);
+
 /* Calls the document loader's load_document (fn:doc). */
 SXML_NODISCARD sxml_status sxml_dynamic_context_load_document(
     sxml_dynamic_context *dynamic_context,
@@ -316,6 +353,9 @@ typedef struct sxml_evaluation_request {
        raises XPDY0002 for an external variable and runs the initializer
        for a declared one. Borrowed; values are retained. */
     sxml_evaluator_slot_view global_values;
+    /* The static base URI of the unit (XPath 4.0, section 2.2.1), an
+       absolute URI, or empty when absent. Borrowed for the call. */
+    sxml_byte_view static_base_uri;
     /* Receives the evaluation's error; may be NULL. */
     sxml_error_record *error_record;
 } sxml_evaluation_request;

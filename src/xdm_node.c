@@ -660,6 +660,43 @@ static void sxml_uri_output_resolve(sxml_uri_output *output,
     }
 }
 
+bool sxml_uri_has_scheme(sxml_byte_view text) {
+    return sxml_uri_reference_split(text).has_scheme;
+}
+
+sxml_status sxml_uri_resolve(const sxml_uri_resolution_request *request,
+                             sxml_uri_resolution *resolution) {
+    if (request->base_uri.byte_count == 0 ||
+        sxml_uri_reference_split(request->reference).has_scheme) {
+        *resolution = (sxml_uri_resolution){.uri = request->reference,
+                                            .memory = NULL};
+        return SXML_STATUS_OK;
+    }
+    const sxml_resolution_request resolution_request = {
+        .base_uri = request->base_uri, .reference = request->reference};
+    size_t byte_count = 0;
+    sxml_status status =
+        sxml_resolution_get_byte_count(&resolution_request, &byte_count);
+    void *memory = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_allocator_allocate(
+            request->allocator,
+            (sxml_allocation_request){.byte_count = byte_count,
+                                      .alignment = 1},
+            &memory);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_uri_output output = {
+        .memory = {.bytes = memory, .byte_count = byte_count},
+        .byte_count = 0};
+    sxml_uri_output_resolve(&output, &resolution_request);
+    *resolution = (sxml_uri_resolution){.uri = sxml_uri_output_view(&output),
+                                        .memory = memory};
+    return SXML_STATUS_OK;
+}
+
 /* ------------------------------------------------------------ Base URIs */
 
 /* The xml:base attribute of an element, if it has one. */

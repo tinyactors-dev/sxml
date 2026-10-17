@@ -232,7 +232,8 @@ static sxml_status call_distinct_ordered_nodes(const sxml_function_call *call,
 }
 
 /* fn:doc($source) (F&O 4.0, section 15.1.1): through the document loader,
-   which gives the same node for the same URI within an evaluation. */
+   which gives the same node for the same URI within an evaluation; a
+   relative URI is resolved against the static base URI (D88). */
 static sxml_status call_doc(const sxml_function_call *call, sxml_sequence *result) {
     if (call->dynamic_context == NULL) {
         return sxml_function_library_report(call, &no_dynamic_context_error);
@@ -253,7 +254,8 @@ static sxml_status call_doc(const sxml_function_call *call, sxml_sequence *resul
         status = sxml_dynamic_context_load_document(
             call->dynamic_context,
             &(sxml_document_request){.uri_reference = uri_reference.utf8,
-                                     .base_uri = {.bytes = NULL, .byte_count = 0},
+                                     .base_uri = sxml_dynamic_context_get_static_base_uri(
+                                         call->dynamic_context),
                                      .error_record = call->error_record},
             &document_node);
     }
