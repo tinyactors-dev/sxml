@@ -396,13 +396,22 @@ static void test_escaping(sxml_test_state *state) {
                                            "<a b=\"&quot;&#x9;&#xA;&#xD;&lt;\">&amp;&lt;&gt;"
                                            "&#xD;&#x85;&#x2028;</a>"));
     /* Control characters are references (K2-Serialization-9, -10,
-       Serialization-xml-27, -30). */
+       Serialization-xml-27, -30); C0 controls only with version 1.1, else
+       SERE0006 (5.1.2, QT4 serialize-xml-162). */
     sxml_sequence controls =
         sxml_sequence_from_item(make_string(current, "\x01x\x7F\xC2\x80\xC2\x9F"));
+    SXML_TEST_EXPECT(state,
+                     serialization_gives(
+                         current,
+                         &(serialization_case){
+                             .value = controls,
+                             .parameters = {XML_METHOD, .has_version = true,
+                                            .version = SXML_BYTE_VIEW_FROM_LITERAL("1.1")}},
+                         text_view("&#x1;x&#x7F;&#x80;&#x9F;")));
     SXML_TEST_EXPECT(state, serialization_gives(current,
                                                 &(serialization_case){.value = controls,
                                                                       .parameters = {XML_METHOD}},
-                                                text_view("&#x1;x&#x7F;&#x80;&#x9F;")));
+                                                text_view("!SERE0006")));
     sxml_sequence_release(controls);
     /* Comments and processing instructions are not escaped. */
     SXML_TEST_EXPECT(state, document_gives(current,
@@ -1006,21 +1015,6 @@ static void test_failures(sxml_test_state *state) {
     sxml_item document = {.representation = 0};
     SXML_TEST_REQUIRE(state, parse_document(&test_fixture, "<a/>", &document) == SXML_STATUS_OK);
     sxml_sequence value = sxml_sequence_from_item(document);
-    /* The methods of packet 3.4 are not there yet (D106). */
-    const sxml_serialization_method unsupported[] = {
-        SXML_SERIALIZATION_METHOD_HTML, SXML_SERIALIZATION_METHOD_TEXT,
-        SXML_SERIALIZATION_METHOD_JSON, SXML_SERIALIZATION_METHOD_CSV};
-    for (size_t method_index = 0; method_index < 4; method_index += 1) {
-        SXML_TEST_EXPECT(
-            state, sxml_serialize_sequence(
-                       test_fixture.item_heap,
-                       &(sxml_serialization_request){
-                           .value = value,
-                           .serialization_parameters = {.serialization_method =
-                                                            unsupported[method_index]}},
-                       sxml_output_buffer_as_output_stream(test_fixture.output_buffer)) ==
-                       SXML_STATUS_UNSUPPORTED_FEATURE);
-    }
     /* What C can say and XDM cannot: an invalid argument. */
     const sxml_name_identifier zero = {.index = 0};
     const sxml_serialization_parameters invalid[] = {

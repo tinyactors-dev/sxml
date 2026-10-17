@@ -75,19 +75,6 @@ static const sxml_byte_view sxml_html5_element_names[] = {
     SXML_BYTE_VIEW_INITIALIZER("video"),    SXML_BYTE_VIEW_INITIALIZER("wbr"),
 };
 
-/* The void elements of HTML5 (Serialization 4.0, section 6). */
-static const sxml_byte_view sxml_html5_void_elements[] = {
-    SXML_BYTE_VIEW_INITIALIZER("area"), SXML_BYTE_VIEW_INITIALIZER("base"), SXML_BYTE_VIEW_INITIALIZER("br"),   SXML_BYTE_VIEW_INITIALIZER("col"),  SXML_BYTE_VIEW_INITIALIZER("embed"),  SXML_BYTE_VIEW_INITIALIZER("hr"),    SXML_BYTE_VIEW_INITIALIZER("img"), SXML_BYTE_VIEW_INITIALIZER("input"),
-    SXML_BYTE_VIEW_INITIALIZER("keygen"), SXML_BYTE_VIEW_INITIALIZER("link"), SXML_BYTE_VIEW_INITIALIZER("meta"), SXML_BYTE_VIEW_INITIALIZER("param"), SXML_BYTE_VIEW_INITIALIZER("source"), SXML_BYTE_VIEW_INITIALIZER("track"), SXML_BYTE_VIEW_INITIALIZER("wbr"),
-};
-
-/* The XHTML elements with an EMPTY content model (Serialization 4.0,
-   section 6). */
-static const sxml_byte_view sxml_xhtml_empty_elements[] = {
-    SXML_BYTE_VIEW_INITIALIZER("area"), SXML_BYTE_VIEW_INITIALIZER("base"), SXML_BYTE_VIEW_INITIALIZER("br"), SXML_BYTE_VIEW_INITIALIZER("col"), SXML_BYTE_VIEW_INITIALIZER("embed"), SXML_BYTE_VIEW_INITIALIZER("hr"), SXML_BYTE_VIEW_INITIALIZER("img"),
-    SXML_BYTE_VIEW_INITIALIZER("input"), SXML_BYTE_VIEW_INITIALIZER("link"), SXML_BYTE_VIEW_INITIALIZER("meta"), SXML_BYTE_VIEW_INITIALIZER("basefont"), SXML_BYTE_VIEW_INITIALIZER("frame"), SXML_BYTE_VIEW_INITIALIZER("isindex"), SXML_BYTE_VIEW_INITIALIZER("param"),
-};
-
 /* Inline elements: %inline of XHTML 1.0 and phrasing content of HTML5
    (Serialization 4.0, 6.1.5); ins and del only without element
    children. */
@@ -173,6 +160,9 @@ typedef struct sxml_xml_open_element {
     bool is_content_type_head;
     /* Written with its local name only (prefix normalization). */
     bool is_unprefixed;
+    /* An HTML script or style element or inside one: its text and the
+       attributes of its descendants are raw text (section 7.1). */
+    bool is_raw_text;
 } sxml_xml_open_element;
 
 /* What is true of the element whose start tag is being written. */
@@ -197,6 +187,14 @@ typedef struct sxml_xml_writer {
     sxml_serializer *serializer;
     const sxml_serialization_parameters *parameters;
     bool is_xhtml;
+    /* The HTML method (section 7): HTML syntax for HTML elements. */
+    bool is_html;
+    /* XHTML or HTML: the rules both share (recognized HTML elements,
+       inline and formatted elements, the meta element, URI attributes). */
+    bool has_html_rules;
+    /* XML or XHTML: SERE0003 for comments and processing instructions
+       XML cannot hold (Serialization 4.0, 5.1). */
+    bool checks_xml_constructs;
     bool is_html5;
     bool is_canonical;
     bool is_indenting;
@@ -385,7 +383,7 @@ static sxml_status sxml_xml_writer_collect_wanted(sxml_xml_writer *writer,
     sxml_namespace_binding_view in_scope = {.namespace_bindings = NULL,
                                             .namespace_binding_count = 0};
     sxml_status status = sxml_node_get_in_scope_namespaces(facts->element, &in_scope);
-    const bool normalizes = writer->is_xhtml && writer->is_html5 && !writer->is_canonical;
+    const bool normalizes = writer->has_html_rules && writer->is_html5 && !writer->is_canonical;
     for (size_t binding_index = 0;
          status == SXML_STATUS_OK && binding_index < in_scope.namespace_binding_count;
          binding_index += 1) {
@@ -786,7 +784,7 @@ static sxml_status sxml_xml_writer_is_suppressed(const sxml_xml_writer *writer,
     const sxml_element_name_view list = writer->parameters->suppress_indentation;
     is_suppressed_answer->is_true = sxml_element_names_contain(list, facts->description.node_name);
     for (size_t name_index = 0;
-         writer->is_xhtml && !is_suppressed_answer->is_true && name_index < list.element_name_count;
+         writer->has_html_rules && !is_suppressed_answer->is_true && name_index < list.element_name_count;
          name_index += 1) {
         sxml_name_parts parts;
         const sxml_status status = sxml_name_pool_get_name_parts(
@@ -866,10 +864,18 @@ typedef struct sxml_children_survey {
 
 static bool sxml_xml_writer_is_inline(const sxml_xml_writer *writer,
                                       const sxml_element_facts *facts) {
-    if (!writer->is_xhtml || !facts->is_html_element) {
+    if (!writer->has_html_rules || !facts->is_html_element) {
         return false;
     }
     const sxml_byte_view local_name = facts->name_parts.local_name;
+    /* Section 7.1: an element the HTML method does not know is written as
+       span is, an inline element. */
+    if (writer->is_html &&
+        !sxml_name_list_contains(SXML_NAME_LIST(sxml_html5_element_names), local_name) &&
+        !sxml_html_element_is_void(
+            (sxml_html_element_query){.local_name = local_name, .is_html5 = false})) {
+        return true;
+    }
     if (sxml_equals_ignoring_case(local_name, SXML_BYTE_VIEW_FROM_LITERAL("ins")) ||
         sxml_equals_ignoring_case(local_name, SXML_BYTE_VIEW_FROM_LITERAL("del"))) {
         return !facts->has_element_child;
@@ -882,10 +888,18 @@ static bool sxml_xml_writer_is_inline(const sxml_xml_writer *writer,
    the name of an HTML5 element). */
 static void sxml_xml_writer_recognize(const sxml_xml_writer *writer, sxml_element_facts *facts) {
     const uint32_t namespace_index = facts->name_parts.namespace_uri.index;
+    const bool is_xhtml_namespace = namespace_index != SXML_NAMESPACE_NONE &&
+                                    namespace_index == writer->xhtml_namespace.index;
+    if (writer->is_html) {
+        /* Section 7.1: in no namespace, or with HTML5 in the XHTML
+           namespace. */
+        facts->is_html_element = namespace_index == SXML_NAMESPACE_NONE ||
+                                 (writer->is_html5 && is_xhtml_namespace);
+        return;
+    }
     facts->is_html_element =
         writer->is_xhtml &&
-        ((namespace_index != SXML_NAMESPACE_NONE &&
-          namespace_index == writer->xhtml_namespace.index) ||
+        (is_xhtml_namespace ||
          (writer->is_html5 && namespace_index == SXML_NAMESPACE_NONE &&
           sxml_name_list_contains(SXML_NAME_LIST(sxml_html5_element_names),
                                   facts->name_parts.local_name)));
@@ -903,7 +917,7 @@ static sxml_status sxml_xml_writer_describe_element(const sxml_xml_writer *write
     if (status == SXML_STATUS_OK) {
         sxml_xml_writer_recognize(writer, facts);
         facts->is_unprefixed =
-            writer->is_xhtml && writer->is_html5 && !writer->is_canonical &&
+            writer->has_html_rules && writer->is_html5 && !writer->is_canonical &&
             sxml_xml_writer_is_normalized_namespace(writer, facts->name_parts.namespace_uri);
     }
     return status;
@@ -957,7 +971,7 @@ static sxml_status sxml_xml_writer_survey_children(const sxml_xml_writer *writer
         }
         if (description.node_kind == SXML_NODE_KIND_ELEMENT) {
             survey->has_element_child = true;
-            if (writer->is_xhtml) {
+            if (writer->has_html_rules) {
                 sxml_element_facts child_facts;
                 status = sxml_xml_writer_describe_element(writer, reference, &child_facts);
                 if (status == SXML_STATUS_OK) {
@@ -1097,10 +1111,25 @@ static sxml_status sxml_xml_writer_write_attribute(sxml_xml_writer *writer,
             writer, (sxml_written_qname){.namespace_prefix = description.namespace_prefix,
                                          .local_name = parts.local_name});
     }
-    if (status == SXML_STATUS_OK) {
-        status = sxml_xml_writer_markup(writer, SXML_BYTE_VIEW_FROM_LITERAL("=\""));
+    const bool is_html_attribute = writer->is_html && facts != NULL && facts->is_html_element &&
+                                   parts.namespace_uri.index == SXML_NAMESPACE_NONE;
+    if (status != SXML_STATUS_OK ||
+        (is_html_attribute &&
+         sxml_html_attribute_is_minimized((sxml_html_attribute_query){
+             .attribute_name = parts.local_name, .value = value}))) {
+        return status;
     }
-    if (status == SXML_STATUS_OK) {
+    const sxml_xml_open_element *parent = writer->open_element_count == 0
+                                              ? NULL
+                                              : &writer->open_elements[writer->open_element_count - 1];
+    const bool is_raw = facts != NULL && parent != NULL && parent->is_raw_text;
+    status = sxml_xml_writer_markup(writer, SXML_BYTE_VIEW_FROM_LITERAL("=\""));
+    if (status == SXML_STATUS_OK && is_raw) {
+        status = sxml_serializer_write_character_data(
+            writer->serializer,
+            &(sxml_character_data){.text = value,
+                                   .character_context = SXML_CHARACTER_CONTEXT_RAW_TEXT});
+    } else if (status == SXML_STATUS_OK) {
         const bool is_uri = writer->escapes_uri_attributes && facts != NULL &&
                             facts->is_html_element &&
                             parts.namespace_uri.index == SXML_NAMESPACE_NONE &&
@@ -1143,7 +1172,11 @@ static sxml_status sxml_xml_writer_write_meta(sxml_xml_writer *writer,
         if (status == SXML_STATUS_OK) {
             status = sxml_xml_writer_markup(writer, encoding_name);
         }
-        return status == SXML_STATUS_OK ? sxml_xml_writer_markup(writer, SXML_BYTE_VIEW_FROM_LITERAL("\"/>")) : status;
+        return status == SXML_STATUS_OK
+                   ? sxml_xml_writer_markup(writer, writer->is_html
+                                                        ? SXML_BYTE_VIEW_FROM_LITERAL("\">")
+                                                        : SXML_BYTE_VIEW_FROM_LITERAL("\"/>"))
+                   : status;
     }
     if (status == SXML_STATUS_OK) {
         status = sxml_xml_writer_markup(writer, SXML_BYTE_VIEW_FROM_LITERAL(" http-equiv=\"Content-Type\" content=\""));
@@ -1162,7 +1195,10 @@ static sxml_status sxml_xml_writer_write_meta(sxml_xml_writer *writer,
     if (status == SXML_STATUS_OK) {
         status = sxml_xml_writer_markup(writer, encoding_name);
     }
-    return status == SXML_STATUS_OK ? sxml_xml_writer_markup(writer, SXML_BYTE_VIEW_FROM_LITERAL("\" />")) : status;
+    return status == SXML_STATUS_OK
+               ? sxml_xml_writer_markup(writer, writer->is_html ? SXML_BYTE_VIEW_FROM_LITERAL("\">")
+                                                                : SXML_BYTE_VIEW_FROM_LITERAL("\" />"))
+               : status;
 }
 
 /* Whether element, a child of a head that received a meta element, is a
@@ -1294,11 +1330,8 @@ static bool sxml_xml_writer_minimizes(const sxml_xml_writer *writer,
         return true;
     }
     return facts->is_html_element &&
-           (writer->is_html5
-                ? sxml_name_list_contains(SXML_NAME_LIST(sxml_html5_void_elements),
-                                          facts->name_parts.local_name)
-                : sxml_name_list_contains(SXML_NAME_LIST(sxml_xhtml_empty_elements),
-                                          facts->name_parts.local_name));
+           sxml_html_element_is_void((sxml_html_element_query){
+               .local_name = facts->name_parts.local_name, .is_html5 = writer->is_html5});
 }
 
 static sxml_status sxml_xml_writer_write_end_tag(sxml_xml_writer *writer,
@@ -1372,6 +1405,19 @@ static sxml_status sxml_xml_writer_open_element(sxml_xml_writer *writer,
     if (status != SXML_STATUS_OK) {
         return status;
     }
+    const bool is_html_syntax = writer->is_html && facts.is_html_element;
+    /* Read before the stack grows: parent points into it. */
+    const bool is_in_raw_text = parent != NULL && parent->is_raw_text;
+    if (!facts.description.has_children && !facts.has_content_type_meta && is_html_syntax) {
+        /* Section 7.1: no end tag for an empty element with an empty
+           content model; never an empty-element tag. */
+        writer->binding_count = binding_mark;
+        status = sxml_xml_writer_markup(writer, SXML_BYTE_VIEW_FROM_LITERAL(">"));
+        const bool is_void = sxml_html_element_is_void((sxml_html_element_query){
+            .local_name = facts.name_parts.local_name, .is_html5 = writer->is_html5});
+        return status == SXML_STATUS_OK && !is_void ? sxml_xml_writer_write_end_tag(writer, &facts)
+                                                    : status;
+    }
     if (!facts.description.has_children && !facts.has_content_type_meta) {
         writer->binding_count = binding_mark;
         if (sxml_xml_writer_minimizes(writer, &facts)) {
@@ -1401,11 +1447,16 @@ static sxml_status sxml_xml_writer_open_element(sxml_xml_writer *writer,
         .depth = facts.depth,
         .is_indenting = is_indenting,
         .has_written_child = facts.has_content_type_meta,
-        .is_cdata_parent = !writer->is_canonical &&
+        /* Section 7.5.7: cdata-section-elements applies to XML islands
+           only with the HTML method. */
+        .is_cdata_parent = !writer->is_canonical && !is_html_syntax &&
                            sxml_element_names_contain(writer->parameters->cdata_section_elements,
                                                       facts.description.node_name),
         .is_content_type_head = facts.has_content_type_meta,
         .is_unprefixed = facts.is_unprefixed,
+        .is_raw_text = is_in_raw_text ||
+                       (is_html_syntax &&
+                        sxml_html_element_has_raw_text(facts.name_parts.local_name)),
     };
     writer->open_element_count += 1;
     if (facts.has_content_type_meta) {
@@ -1456,6 +1507,26 @@ static sxml_status sxml_xml_writer_close_elements(sxml_xml_writer *writer, sxml_
 
 /* ------------------------------------------------------------- Leaves */
 
+/* SERE0003 (Serialization 4.0, 5.1): a comment with "--" or ending in
+   "-", or a processing instruction with "?>", cannot be written as XML. */
+static sxml_status sxml_xml_writer_check_construct(sxml_xml_writer *writer, sxml_node_kind kind,
+                                                   sxml_byte_view content) {
+    bool is_bad = false;
+    for (size_t offset = 0; !is_bad && offset + 1 < content.byte_count; offset += 1) {
+        is_bad = kind == SXML_NODE_KIND_COMMENT
+                     ? content.bytes[offset] == '-' && content.bytes[offset + 1] == '-'
+                     : content.bytes[offset] == '?' && content.bytes[offset + 1] == '>';
+    }
+    if (kind == SXML_NODE_KIND_COMMENT && content.byte_count > 0 &&
+        content.bytes[content.byte_count - 1] == '-') {
+        is_bad = true;
+    }
+    return is_bad ? sxml_xml_writer_raise(
+                        writer, SXML_XML_ERROR("SERE0003", "a comment or processing instruction "
+                                                           "cannot be written as well-formed XML"))
+                  : SXML_STATUS_OK;
+}
+
 /* Writes a text node's content, a comment or a processing instruction. */
 static sxml_status sxml_xml_writer_write_leaf(sxml_xml_writer *writer, sxml_node_reference node,
                                               const sxml_node_description *description) {
@@ -1466,13 +1537,21 @@ static sxml_status sxml_xml_writer_write_leaf(sxml_xml_writer *writer, sxml_node
     }
     if (description->node_kind == SXML_NODE_KIND_TEXT) {
         const sxml_xml_open_element *parent = sxml_xml_writer_top(writer);
+        sxml_character_context character_context = SXML_CHARACTER_CONTEXT_TEXT;
+        if (parent != NULL && parent->is_cdata_parent) {
+            character_context = SXML_CHARACTER_CONTEXT_CDATA_SECTION;
+        } else if (parent != NULL && parent->is_raw_text) {
+            character_context = SXML_CHARACTER_CONTEXT_RAW_TEXT;
+        }
         return sxml_serializer_write_character_data(
             writer->serializer,
-            &(sxml_character_data){.text = content,
-                                   .character_context =
-                                       parent != NULL && parent->is_cdata_parent
-                                           ? SXML_CHARACTER_CONTEXT_CDATA_SECTION
-                                           : SXML_CHARACTER_CONTEXT_TEXT});
+            &(sxml_character_data){.text = content, .character_context = character_context});
+    }
+    if (writer->checks_xml_constructs) {
+        status = sxml_xml_writer_check_construct(writer, description->node_kind, content);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
     }
     if (description->node_kind == SXML_NODE_KIND_COMMENT) {
         status = sxml_xml_writer_markup(writer, SXML_BYTE_VIEW_FROM_LITERAL("<!--"));
@@ -1484,6 +1563,12 @@ static sxml_status sxml_xml_writer_write_leaf(sxml_xml_writer *writer, sxml_node
     sxml_name_parts parts;
     status = sxml_name_pool_get_name_parts(writer->serializer->name_pool, description->node_name,
                                            &parts);
+    if (status == SXML_STATUS_OK && writer->is_html) {
+        return sxml_serializer_write_html_processing_instruction(
+            writer->serializer,
+            &(sxml_html_processing_instruction){
+                .target = parts.local_name, .data = content, .is_html5 = writer->is_html5});
+    }
     if (status == SXML_STATUS_OK) {
         status = sxml_xml_writer_markup(writer, SXML_BYTE_VIEW_FROM_LITERAL("<?"));
     }
@@ -1609,11 +1694,20 @@ static bool sxml_html_version_is_html5(sxml_byte_view html_version) {
     return digit_count > 1 || (digit_count == 1 && first_digit >= '5');
 }
 
+bool sxml_serializer_requests_html5(const sxml_serialization_parameters *parameters) {
+    if (parameters->has_html_version) {
+        return sxml_html_version_is_html5(parameters->html_version);
+    }
+    return !parameters->has_version || sxml_html_version_is_html5(parameters->version);
+}
+
 static void sxml_xml_writer_start(sxml_serializer *serializer, sxml_xml_writer *writer) {
     const sxml_serialization_parameters *parameters = serializer->parameters;
     const bool is_xml_like = parameters->serialization_method == SXML_SERIALIZATION_METHOD_XML ||
                              parameters->serialization_method == SXML_SERIALIZATION_METHOD_XHTML;
     const bool is_xhtml = parameters->serialization_method == SXML_SERIALIZATION_METHOD_XHTML;
+    const bool is_html = parameters->serialization_method == SXML_SERIALIZATION_METHOD_HTML;
+    const bool has_html_rules = is_xhtml || is_html;
     const bool is_canonical = is_xml_like && parameters->canonical == SXML_SERIALIZATION_FLAG_YES;
     const bool is_version_1_1 =
         parameters->has_version &&
@@ -1622,17 +1716,21 @@ static void sxml_xml_writer_start(sxml_serializer *serializer, sxml_xml_writer *
         .serializer = serializer,
         .parameters = parameters,
         .is_xhtml = is_xhtml,
-        .is_html5 = is_xhtml && (!parameters->has_html_version ||
-                                 sxml_html_version_is_html5(parameters->html_version)),
+        .is_html = is_html,
+        .has_html_rules = has_html_rules,
+        .checks_xml_constructs = is_xml_like,
+        .is_html5 = (is_xhtml && (!parameters->has_html_version ||
+                                  sxml_html_version_is_html5(parameters->html_version))) ||
+                    (is_html && sxml_serializer_requests_html5(parameters)),
         .is_canonical = is_canonical,
-        .is_indenting = is_xml_like && !is_canonical &&
+        .is_indenting = (is_xml_like || is_html) && !is_canonical &&
                         parameters->indent == SXML_SERIALIZATION_FLAG_YES,
         .indents_attributes = parameters->indent_attributes == SXML_SERIALIZATION_FLAG_YES,
         .undeclares_prefixes = is_xml_like && !is_canonical && is_version_1_1 &&
                                parameters->undeclare_prefixes == SXML_SERIALIZATION_FLAG_YES,
         .includes_content_type =
-            is_xhtml && parameters->include_content_type != SXML_SERIALIZATION_FLAG_NO,
-        .escapes_uri_attributes = is_xhtml && !is_canonical &&
+            has_html_rules && parameters->include_content_type != SXML_SERIALIZATION_FLAG_NO,
+        .escapes_uri_attributes = has_html_rules && !is_canonical &&
                                   parameters->escape_uri_attributes != SXML_SERIALIZATION_FLAG_NO,
         .indent_unit = parameters->has_indent_unit ? parameters->indent_unit
                                                    : SXML_BYTE_VIEW_FROM_LITERAL("  "),
@@ -1645,7 +1743,7 @@ static void sxml_xml_writer_start(sxml_serializer *serializer, sxml_xml_writer *
         .declared = NULL,
         .attribute_numbers = NULL,
     };
-    if (is_xhtml) {
+    if (has_html_rules) {
         (void)sxml_name_pool_find_namespace_uri(
             serializer->name_pool, SXML_BYTE_VIEW_FROM_LITERAL("http://www.w3.org/1999/xhtml"),
             &writer->xhtml_namespace);
@@ -1753,6 +1851,65 @@ typedef struct sxml_top_level {
     size_t element_count;
 } sxml_top_level;
 
+/* Writes the document type declaration of the HTML method before the
+   first element (Serialization 4.0, 7.5.8): PUBLIC and SYSTEM identifiers
+   as given, or with HTML5 "<!DOCTYPE html>" before an html element. */
+static sxml_status sxml_xml_writer_write_html_doctype(sxml_xml_writer *writer,
+                                                     sxml_top_level *top_level,
+                                                     const sxml_element_facts *facts) {
+    const sxml_serialization_parameters *parameters = writer->parameters;
+    const bool has_identifier = parameters->has_doctype_public || parameters->has_doctype_system;
+    const bool is_html5_doctype =
+        !has_identifier && writer->is_html5 && facts->is_html_element &&
+        sxml_equals_ignoring_case(facts->name_parts.local_name, SXML_BYTE_VIEW_FROM_LITERAL("html")) &&
+        !top_level->has_nonwhitespace_text;
+    if (!has_identifier && !is_html5_doctype) {
+        return SXML_STATUS_OK;
+    }
+    sxml_status status = SXML_STATUS_OK;
+    if (writer->is_indenting && top_level->has_written) {
+        status = sxml_xml_writer_markup(writer, SXML_BYTE_VIEW_FROM_LITERAL("\n"));
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xml_writer_markup(writer, SXML_BYTE_VIEW_FROM_LITERAL("<!DOCTYPE html"));
+    }
+    if (status == SXML_STATUS_OK && parameters->has_doctype_public) {
+        status = sxml_xml_writer_markup(writer, SXML_BYTE_VIEW_FROM_LITERAL(" PUBLIC \""));
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xml_writer_markup(writer, parameters->doctype_public);
+        }
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xml_writer_markup(writer, SXML_BYTE_VIEW_FROM_LITERAL("\""));
+        }
+    } else if (status == SXML_STATUS_OK && parameters->has_doctype_system) {
+        status = sxml_xml_writer_markup(writer, SXML_BYTE_VIEW_FROM_LITERAL(" SYSTEM"));
+    }
+    if (status == SXML_STATUS_OK && parameters->has_doctype_system) {
+        bool has_quotation_mark = false;
+        for (size_t offset = 0; offset < parameters->doctype_system.byte_count; offset += 1) {
+            has_quotation_mark = has_quotation_mark || parameters->doctype_system.bytes[offset] == '"';
+        }
+        const sxml_byte_view quote = has_quotation_mark ? SXML_BYTE_VIEW_FROM_LITERAL("'")
+                                                        : SXML_BYTE_VIEW_FROM_LITERAL("\"");
+        status = sxml_xml_writer_markup(writer, SXML_BYTE_VIEW_FROM_LITERAL(" "));
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xml_writer_markup(writer, quote);
+        }
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xml_writer_markup(writer, parameters->doctype_system);
+        }
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xml_writer_markup(writer, quote);
+        }
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xml_writer_markup(writer, SXML_BYTE_VIEW_FROM_LITERAL(">"));
+    }
+    top_level->has_written = true;
+    top_level->was_previous_text = false;
+    return status;
+}
+
 /* Writes the document type declaration before the first element, if any
    (Serialization 4.0, 5.1.10 and, for XHTML with HTML5, 6.1.11). */
 static sxml_status sxml_xml_writer_write_doctype(sxml_xml_writer *writer,
@@ -1763,6 +1920,9 @@ static sxml_status sxml_xml_writer_write_doctype(sxml_xml_writer *writer,
     sxml_status status = sxml_xml_writer_describe_element(writer, element, &facts);
     if (status != SXML_STATUS_OK || writer->is_canonical) {
         return status;
+    }
+    if (writer->is_html) {
+        return sxml_xml_writer_write_html_doctype(writer, top_level, &facts);
     }
     const bool is_html5_doctype = !parameters->has_doctype_system && writer->is_xhtml &&
                                   writer->is_html5 && facts.is_html_element &&
@@ -1882,7 +2042,7 @@ sxml_status sxml_serialize_xml_method(sxml_serializer *serializer, sxml_sequence
     sxml_xml_writer writer;
     sxml_xml_writer_start(serializer, &writer);
     sxml_status status = SXML_STATUS_OK;
-    if (!writer.is_canonical) {
+    if (!writer.is_canonical && !writer.is_html) {
         status = sxml_xml_writer_check_parameters(&writer);
         if (status == SXML_STATUS_OK) {
             status = sxml_xml_writer_check_document_shape(&writer, value);
@@ -1892,7 +2052,7 @@ sxml_status sxml_serialize_xml_method(sxml_serializer *serializer, sxml_sequence
                                 .was_previous_text = false,
                                 .has_nonwhitespace_text = false,
                                 .element_count = 0};
-    if (status == SXML_STATUS_OK && !writer.is_canonical &&
+    if (status == SXML_STATUS_OK && !writer.is_canonical && !writer.is_html &&
         serializer->parameters->omit_xml_declaration == SXML_SERIALIZATION_FLAG_NO) {
         status = sxml_xml_writer_write_declaration_of_xml(&writer);
         top_level.has_written = true;

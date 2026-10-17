@@ -502,12 +502,127 @@ static bool sxml_codepoint_needs_reference(uint32_t codepoint) {
            (codepoint >= 0x7FU && codepoint <= 0x9FU) || codepoint == 0x2028U;
 }
 
-/* Writes text escaped for its context, with references for characters
-   the encoding cannot represent; no character maps, no normalization. */
+/* Writes \uHHHH (RFC 8259, section 7): upper case hexadecimal digits, or
+   lower case for RFC 8785 (canonical JSON). */
+static sxml_status sxml_serializer_put_json_unit(sxml_serializer *serializer, uint32_t unit) {
+    const char *digits = serializer->is_canonical_json ? "0123456789abcdef" : "0123456789ABCDEF";
+    const uint8_t escape[6] = {'\\', 'u', (uint8_t)digits[(unit >> 12) & 0xFU],
+                               (uint8_t)digits[(unit >> 8) & 0xFU], (uint8_t)digits[(unit >> 4) & 0xFU],
+                               (uint8_t)digits[unit & 0xFU]};
+    return sxml_serializer_put_ascii(serializer,
+                                     (sxml_byte_view){.bytes = escape, .byte_count = sizeof(escape)});
+}
+
+/* Writes one codepoint of a JSON string (Serialization 4.0, 9.1: the JSON
+   escaping; RFC 8785, section 3.2.2.2, when canonical). */
+static sxml_status sxml_serializer_put_json_codepoint(sxml_serializer *serializer,
+                                                      uint32_t codepoint) {
+    static const struct {
+        uint32_t codepoint;
+        sxml_byte_view escape;
+    } short_escapes[] = {
+        {'"', SXML_BYTE_VIEW_INITIALIZER("\\\"")}, {'\\', SXML_BYTE_VIEW_INITIALIZER("\\\\")},
+        {'\b', SXML_BYTE_VIEW_INITIALIZER("\\b")},  {'\f', SXML_BYTE_VIEW_INITIALIZER("\\f")},
+        {'\n', SXML_BYTE_VIEW_INITIALIZER("\\n")},  {'\r', SXML_BYTE_VIEW_INITIALIZER("\\r")},
+        {'\t', SXML_BYTE_VIEW_INITIALIZER("\\t")},
+    };
+    for (size_t escape_index = 0; escape_index < sizeof(short_escapes) / sizeof(short_escapes[0]);
+         escape_index += 1) {
+        if (short_escapes[escape_index].codepoint == codepoint) {
+            return sxml_serializer_put_ascii(serializer, short_escapes[escape_index].escape);
+        }
+    }
+    if (codepoint == '/' && serializer->escapes_solidus && !serializer->is_canonical_json) {
+        return sxml_serializer_put_ascii(serializer, SXML_BYTE_VIEW_FROM_LITERAL("\\/"));
+    }
+    const bool is_control =
+        codepoint < 0x20U ||
+        (!serializer->is_canonical_json && codepoint >= 0x7FU && codepoint <= 0x9FU);
+    if (!is_control && sxml_serializer_can_encode(serializer, codepoint)) {
+        return sxml_serializer_put_codepoint(serializer, codepoint);
+    }
+    if (codepoint < 0x10000U) {
+        return sxml_serializer_put_json_unit(serializer, codepoint);
+    }
+    /* RFC 8259, section 7: a surrogate pair. */
+    const uint32_t offset = codepoint - 0x10000U;
+    const sxml_status status = sxml_serializer_put_json_unit(serializer, 0xD800U | (offset >> 10));
+    return status == SXML_STATUS_OK
+               ? sxml_serializer_put_json_unit(serializer, 0xDC00U | (offset & 0x3FFU))
+               : status;
+}
+
+/* Writes one codepoint of a CSV field (Serialization 4.0, 10.2): the quote
+   character doubled; a carriage return, alone or before a newline, and a
+   newline become the line ending. *was_carriage_return carries a carriage
+   return to the next codepoint (in/out). */
+typedef struct sxml_csv_state {
+    bool was_carriage_return;
+} sxml_csv_state;
+
+static sxml_status sxml_serializer_put_csv_codepoint(sxml_serializer *serializer,
+                                                     uint32_t codepoint, sxml_csv_state *state) {
+    const bool was_carriage_return = state->was_carriage_return;
+    state->was_carriage_return = codepoint == '\r';
+    if (codepoint == '\r') {
+        return sxml_serializer_put_ascii(serializer, serializer->line_ending_text);
+    }
+    if (codepoint == '\n') {
+        return was_carriage_return
+                   ? SXML_STATUS_OK
+                   : sxml_serializer_put_ascii(serializer, serializer->line_ending_text);
+    }
+    if (!sxml_serializer_can_encode(serializer, codepoint)) {
+        return sxml_serializer_raise_unencodable(serializer);
+    }
+    sxml_status status = SXML_STATUS_OK;
+    if (codepoint == serializer->csv_quote_codepoint) {
+        status = sxml_serializer_put_codepoint(serializer, codepoint);
+    }
+    return status == SXML_STATUS_OK ? sxml_serializer_put_codepoint(serializer, codepoint) : status;
+}
+
+/* Serialization 4.0, 5.1.2 and 7.3: characters the XML version or the HTML
+   version does not allow even as references. */
+static sxml_status sxml_serializer_check_allowed(sxml_serializer *serializer, uint32_t codepoint) {
+    const bool is_c0_control = codepoint >= 0x01U && codepoint <= 0x1FU && codepoint != '\t' &&
+                               codepoint != '\n' && codepoint != '\r';
+    if (serializer->is_xml_version_1_0 && is_c0_control) {
+        return sxml_serializer_raise_error(
+            serializer,
+            (sxml_serialization_error){
+                .error_local_name = SXML_BYTE_VIEW_FROM_LITERAL("SERE0006"),
+                .description = SXML_BYTE_VIEW_FROM_LITERAL(
+                    "a control character is not allowed by XML 1.0, even as a reference")});
+    }
+    if (serializer->is_html_before_5 &&
+        (is_c0_control || (codepoint >= 0x7FU && codepoint <= 0x9FU))) {
+        return sxml_serializer_raise_error(
+            serializer,
+            (sxml_serialization_error){
+                .error_local_name = SXML_BYTE_VIEW_FROM_LITERAL("SERE0014"),
+                .description = SXML_BYTE_VIEW_FROM_LITERAL(
+                    "a control character is not allowed by HTML before HTML5")});
+    }
+    return SXML_STATUS_OK;
+}
+
+/* Writes text escaped for its context and the escape style, with
+   references for characters the encoding cannot represent; no character
+   maps, no normalization. */
 static sxml_status sxml_serializer_write_escaped(sxml_serializer *serializer,
                                                  const sxml_character_data *character_data) {
     const sxml_byte_view text = character_data->text;
-    const bool is_canonical = serializer->escape_style == SXML_ESCAPE_STYLE_CANONICAL;
+    const sxml_escape_style style = serializer->escape_style;
+    const bool is_canonical = style == SXML_ESCAPE_STYLE_CANONICAL;
+    const bool is_raw = style == SXML_ESCAPE_STYLE_NONE ||
+                        character_data->character_context == SXML_CHARACTER_CONTEXT_RAW_TEXT;
+    const bool is_attribute =
+        character_data->character_context == SXML_CHARACTER_CONTEXT_ATTRIBUTE ||
+        character_data->character_context == SXML_CHARACTER_CONTEXT_URI_ATTRIBUTE;
+    const bool is_markup_style = !is_raw && style != SXML_ESCAPE_STYLE_JSON &&
+                                 style != SXML_ESCAPE_STYLE_CSV;
+    sxml_csv_state csv_state = {.was_carriage_return = false};
     sxml_status status = SXML_STATUS_OK;
     size_t offset = 0;
     while (status == SXML_STATUS_OK && offset < text.byte_count) {
@@ -518,7 +633,8 @@ static sxml_status sxml_serializer_write_escaped(sxml_serializer *serializer,
             while (offset < text.byte_count) {
                 const uint8_t byte = text.bytes[offset];
                 if (byte < 0x20U || byte >= 0x7FU || byte == '&' || byte == '<' || byte == '>' ||
-                    byte == '"') {
+                    byte == '"' || byte == '\\' || byte == '/' ||
+                    byte == serializer->csv_quote_codepoint) {
                     break;
                 }
                 offset += 1;
@@ -531,9 +647,36 @@ static sxml_status sxml_serializer_write_escaped(sxml_serializer *serializer,
             }
         }
         const uint32_t codepoint = sxml_serializer_read_codepoint(text, &offset);
-        const sxml_byte_view escape = sxml_find_escape(
+        if (style == SXML_ESCAPE_STYLE_JSON && !is_raw) {
+            status = sxml_serializer_put_json_codepoint(serializer, codepoint);
+            continue;
+        }
+        if (style == SXML_ESCAPE_STYLE_CSV) {
+            status = sxml_serializer_put_csv_codepoint(serializer, codepoint, &csv_state);
+            continue;
+        }
+        if (is_raw) {
+            status = sxml_serializer_can_encode(serializer, codepoint)
+                         ? sxml_serializer_put_text_codepoint(serializer, codepoint)
+                         : sxml_serializer_raise_unencodable(serializer);
+            continue;
+        }
+        sxml_byte_view escape = sxml_find_escape(
             (sxml_escape_query){.codepoint = codepoint,
-                                            .character_context = character_data->character_context});
+                                .character_context = character_data->character_context});
+        /* Serialization 4.0, 7.2: "<", and "&" before "{", stay in HTML
+           attribute values. */
+        if (style == SXML_ESCAPE_STYLE_HTML && is_attribute &&
+            (codepoint == '<' ||
+             (codepoint == '&' && offset < text.byte_count && text.bytes[offset] == '{'))) {
+            escape = (sxml_byte_view){.bytes = NULL, .byte_count = 0};
+        }
+        if (is_markup_style && !is_canonical) {
+            status = sxml_serializer_check_allowed(serializer, codepoint);
+        }
+        if (status != SXML_STATUS_OK) {
+            break;
+        }
         if (escape.byte_count > 0) {
             status = sxml_serializer_put_ascii(serializer, escape);
         } else if (!is_canonical && (sxml_codepoint_needs_reference(codepoint) ||
@@ -691,6 +834,7 @@ sxml_status sxml_serializer_write_character_data(sxml_serializer *serializer,
             (sxml_unmapped_segment){.text = text, .is_start_of_construct = true});
     case SXML_CHARACTER_CONTEXT_TEXT:
     case SXML_CHARACTER_CONTEXT_ATTRIBUTE:
+    case SXML_CHARACTER_CONTEXT_RAW_TEXT:
         break;
     }
     if (!serializer->applies_character_maps || serializer->mapping_count == 0) {
@@ -763,10 +907,10 @@ static bool sxml_element_names_are_valid(sxml_element_name_view names) {
     return true;
 }
 
-/* XML 1.0, production Char. */
+/* XML 1.1, production Char: the repertoire the serializer writes (D120,
+   D128; QT4 serialize-xml-167 maps U+0001). */
 static bool sxml_codepoint_is_xml_character(uint32_t codepoint) {
-    return codepoint == 0x9U || codepoint == 0xAU || codepoint == 0xDU ||
-           (codepoint >= 0x20U && codepoint <= 0xD7FFU) ||
+    return (codepoint >= 0x1U && codepoint <= 0xD7FFU) ||
            (codepoint >= 0xE000U && codepoint <= 0xFFFDU) ||
            (codepoint >= 0x10000U && codepoint <= 0x10FFFFU);
 }
@@ -896,6 +1040,17 @@ static sxml_status sxml_serializer_check_permitted_values(sxml_serializer *seria
     if (problem == NULL && parameters->has_html_version &&
         !sxml_text_is_decimal(parameters->html_version)) {
         problem = "html-version must be a decimal";
+    }
+    /* Serialization 4.0, 10.3.1 and 10.3.2. */
+    const uint32_t separator = parameters->csv_separator_codepoint == 0
+                                   ? (uint32_t)','
+                                   : parameters->csv_separator_codepoint;
+    const uint32_t quote = parameters->csv_quote_character_codepoint == 0
+                               ? (uint32_t)'"'
+                               : parameters->csv_quote_character_codepoint;
+    if (problem == NULL && (separator == quote || separator == '\n' || separator == '\r' ||
+                            quote == '\n' || quote == '\r')) {
+        problem = "csv-separator and csv-quote-character must differ and must not be line ends";
     }
     if (problem == NULL) {
         return SXML_STATUS_OK;
@@ -1101,39 +1256,56 @@ static sxml_status sxml_sequence_normalizer_raise_unserializable(
                 "by this method")});
 }
 
-/* Appends the lexical form of an atomic item (its cast to xs:string). */
-static sxml_status sxml_sequence_normalizer_append_atomic(sxml_sequence_normalizer *normalizer,
-                                                          sxml_item item) {
-    sxml_serializer *serializer = normalizer->serializer;
-    uint8_t output[SXML_CAST_CANONICAL_TEXT_CAPACITY];
+sxml_status sxml_serializer_get_atomic_text(sxml_serializer *serializer, sxml_item item,
+                                            sxml_atomic_text *atomic_text) {
+    _Static_assert(SXML_ATOMIC_TEXT_INLINE_CAPACITY == SXML_CAST_CANONICAL_TEXT_CAPACITY,
+                   "the inline text holds a canonical text");
+    atomic_text->text = (sxml_byte_view){.bytes = NULL, .byte_count = 0};
+    atomic_text->memory = NULL;
     sxml_canonical_text canonical;
     sxml_status status = sxml_cast_write_canonical_text(
         serializer->item_heap,
-        &(sxml_canonical_text_request){.item = item,
-                                       .output = {.bytes = output, .byte_count = sizeof(output)}},
+        &(sxml_canonical_text_request){
+            .item = item,
+            .output = {.bytes = atomic_text->inline_bytes,
+                       .byte_count = sizeof(atomic_text->inline_bytes)}},
         &canonical);
-    if (status != SXML_STATUS_CAPACITY_EXCEEDED) {
-        return status == SXML_STATUS_OK
-                   ? sxml_sequence_normalizer_append_text(normalizer, canonical.text)
-                   : status;
-    }
-    void *memory = NULL;
-    const size_t byte_count = canonical.required_byte_count;
-    status = sxml_allocator_allocate(serializer->allocator,
-                                     (sxml_allocation_request){.byte_count = byte_count,
-                                                               .alignment = 1},
-                                     &memory);
-    if (status == SXML_STATUS_OK) {
-        status = sxml_cast_write_canonical_text(
-            serializer->item_heap,
-            &(sxml_canonical_text_request){.item = item,
-                                           .output = {.bytes = memory, .byte_count = byte_count}},
-            &canonical);
+    if (status == SXML_STATUS_CAPACITY_EXCEEDED) {
+        const size_t byte_count = canonical.required_byte_count;
+        status = sxml_allocator_allocate(
+            serializer->allocator,
+            (sxml_allocation_request){.byte_count = byte_count, .alignment = 1},
+            &atomic_text->memory);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_cast_write_canonical_text(
+                serializer->item_heap,
+                &(sxml_canonical_text_request){
+                    .item = item, .output = {.bytes = atomic_text->memory, .byte_count = byte_count}},
+                &canonical);
+        }
     }
     if (status == SXML_STATUS_OK) {
-        status = sxml_sequence_normalizer_append_text(normalizer, canonical.text);
+        atomic_text->text = canonical.text;
     }
-    sxml_allocator_release(serializer->allocator, memory);
+    return status;
+}
+
+void sxml_serializer_release_atomic_text(sxml_serializer *serializer,
+                                         sxml_atomic_text *atomic_text) {
+    sxml_allocator_release(serializer->allocator, atomic_text->memory);
+    atomic_text->memory = NULL;
+}
+
+/* Appends the lexical form of an atomic item (its cast to xs:string). */
+static sxml_status sxml_sequence_normalizer_append_atomic(sxml_sequence_normalizer *normalizer,
+                                                          sxml_item item) {
+    sxml_atomic_text atomic_text;
+    sxml_status status =
+        sxml_serializer_get_atomic_text(normalizer->serializer, item, &atomic_text);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_sequence_normalizer_append_text(normalizer, atomic_text.text);
+    }
+    sxml_serializer_release_atomic_text(normalizer->serializer, &atomic_text);
     return status;
 }
 
@@ -1878,17 +2050,50 @@ static sxml_status sxml_serialize_adaptive_method(sxml_serializer *serializer,
 
 /* Sets up the character pipeline from the parameters (Serialization 4.0,
    section 4; canonical XML is UTF-8 with LF and no character maps,
-   Canonical XML 1.1, section 2). */
+   Canonical XML 1.1, section 2; canonical JSON is UTF-8, RFC 8785). */
 static void sxml_serializer_resolve_pipeline(sxml_serializer *serializer) {
     const sxml_serialization_parameters *parameters = serializer->parameters;
     const sxml_serialization_method method = parameters->serialization_method;
     const bool is_xml_like =
         method == SXML_SERIALIZATION_METHOD_XML || method == SXML_SERIALIZATION_METHOD_XHTML;
-    const bool is_canonical =
-        is_xml_like && parameters->canonical == SXML_SERIALIZATION_FLAG_YES;
-    serializer->character_encoding =
-        is_canonical ? SXML_CHARACTER_ENCODING_UTF_8 : parameters->character_encoding;
-    serializer->escape_style = is_canonical ? SXML_ESCAPE_STYLE_CANONICAL : SXML_ESCAPE_STYLE_XML;
+    const bool is_canonical_requested = parameters->canonical == SXML_SERIALIZATION_FLAG_YES;
+    const bool is_canonical = is_xml_like && is_canonical_requested;
+    serializer->is_canonical_json = method == SXML_SERIALIZATION_METHOD_JSON && is_canonical_requested;
+    serializer->character_encoding = is_canonical || serializer->is_canonical_json
+                                         ? SXML_CHARACTER_ENCODING_UTF_8
+                                         : parameters->character_encoding;
+    switch (method) {
+    case SXML_SERIALIZATION_METHOD_ADAPTIVE:
+    case SXML_SERIALIZATION_METHOD_XML:
+    case SXML_SERIALIZATION_METHOD_XHTML:
+        serializer->escape_style = is_canonical ? SXML_ESCAPE_STYLE_CANONICAL : SXML_ESCAPE_STYLE_XML;
+        break;
+    case SXML_SERIALIZATION_METHOD_HTML:
+        serializer->escape_style = SXML_ESCAPE_STYLE_HTML;
+        break;
+    case SXML_SERIALIZATION_METHOD_TEXT:
+        serializer->escape_style = SXML_ESCAPE_STYLE_NONE;
+        break;
+    case SXML_SERIALIZATION_METHOD_JSON:
+        serializer->escape_style = SXML_ESCAPE_STYLE_JSON;
+        break;
+    case SXML_SERIALIZATION_METHOD_CSV:
+        serializer->escape_style = SXML_ESCAPE_STYLE_CSV;
+        break;
+    }
+    /* Serialization 4.0, 5.1.2: version 1.0 (the default) has no C0
+       controls but tab, newline and carriage return. */
+    serializer->is_xml_version_1_0 =
+        is_xml_like && !is_canonical &&
+        (!parameters->has_version ||
+         sxml_byte_view_equals(parameters->version, SXML_BYTE_VIEW_FROM_LITERAL("1.0")));
+    serializer->is_html_before_5 =
+        method == SXML_SERIALIZATION_METHOD_HTML && !sxml_serializer_requests_html5(parameters);
+    serializer->escapes_solidus = parameters->escape_solidus != SXML_SERIALIZATION_FLAG_NO;
+    serializer->csv_quote_codepoint =
+        method != SXML_SERIALIZATION_METHOD_CSV         ? 0U
+        : parameters->csv_quote_character_codepoint == 0 ? (uint32_t)'"'
+                                                         : parameters->csv_quote_character_codepoint;
     const sxml_line_ending line_ending =
         is_canonical ? SXML_LINE_ENDING_LINE_FEED : parameters->line_ending;
     switch (line_ending) {
@@ -1927,14 +2132,17 @@ static void sxml_serializer_resolve_pipeline(sxml_serializer *serializer) {
         serializer->normalization_form = SXML_UNICODE_NORMALIZATION_FORM_NFKD;
         break;
     }
-    serializer->applies_character_maps = is_xml_like && !is_canonical;
+    /* Section 12: character maps apply to every method but adaptive, and
+       not to the canonical forms. */
+    serializer->applies_character_maps = method != SXML_SERIALIZATION_METHOD_ADAPTIVE &&
+                                         !is_canonical && !serializer->is_canonical_json;
 }
 
 /* Writes the byte order mark when byte-order-mark is yes (Serialization
    4.0, section 3; the Unicode Standard 16.0, section 23.8). */
 static sxml_status sxml_serializer_write_byte_order_mark(sxml_serializer *serializer) {
     if (serializer->parameters->byte_order_mark != SXML_SERIALIZATION_FLAG_YES ||
-        serializer->escape_style == SXML_ESCAPE_STYLE_CANONICAL) {
+        serializer->escape_style == SXML_ESCAPE_STYLE_CANONICAL || serializer->is_canonical_json) {
         return SXML_STATUS_OK;
     }
     if (serializer->character_encoding == SXML_CHARACTER_ENCODING_UTF_8) {
@@ -1946,30 +2154,35 @@ static sxml_status sxml_serializer_write_byte_order_mark(sxml_serializer *serial
     return SXML_STATUS_OK;
 }
 
-sxml_status sxml_serialize_sequence(sxml_item_heap *item_heap,
-                                    const sxml_serialization_request *request,
-                                    sxml_output_stream output_stream) {
-    if (item_heap == NULL || request == NULL || output_stream.operations == NULL ||
-        output_stream.operations->write == NULL ||
-        !sxml_parameters_are_expressible(&request->serialization_parameters)) {
-        return SXML_STATUS_INVALID_ARGUMENT;
-    }
-    const sxml_serialization_method method = request->serialization_parameters.serialization_method;
-    if (method != SXML_SERIALIZATION_METHOD_ADAPTIVE && method != SXML_SERIALIZATION_METHOD_XML &&
-        method != SXML_SERIALIZATION_METHOD_XHTML) {
-        /* The HTML, text, JSON and CSV methods are packet 3.4's (D106). */
-        return SXML_STATUS_UNSUPPORTED_FEATURE;
-    }
-    sxml_serializer serializer = {
-        .item_heap = item_heap,
-        .name_pool = sxml_item_heap_get_name_pool(item_heap),
-        .registry = sxml_item_heap_get_type_registry(item_heap),
-        .allocator = sxml_item_heap_as_allocator(item_heap),
-        .error_record = request->error_record,
-        .parameters = &request->serialization_parameters,
-        .output_stream = output_stream,
+/* Places a serializer for parameters over output_stream in *serializer,
+   checks the parameters every method shares and writes the byte order
+   mark. The caller releases it with sxml_serializer_release, also on
+   failure. */
+typedef struct sxml_serializer_setup {
+    sxml_item_heap *item_heap;
+    const sxml_serialization_parameters *parameters;
+    sxml_output_stream output_stream;
+    sxml_error_record *error_record;
+} sxml_serializer_setup;
+
+static sxml_status sxml_serializer_start(const sxml_serializer_setup *setup,
+                                         sxml_serializer *serializer) {
+    const sxml_serialization_parameters *parameters = setup->parameters;
+    *serializer = (sxml_serializer){
+        .item_heap = setup->item_heap,
+        .name_pool = sxml_item_heap_get_name_pool(setup->item_heap),
+        .registry = sxml_item_heap_get_type_registry(setup->item_heap),
+        .allocator = sxml_item_heap_as_allocator(setup->item_heap),
+        .error_record = setup->error_record,
+        .parameters = parameters,
+        .output_stream = setup->output_stream,
         .character_encoding = SXML_CHARACTER_ENCODING_UTF_8,
         .escape_style = SXML_ESCAPE_STYLE_XML,
+        .is_xml_version_1_0 = false,
+        .is_html_before_5 = false,
+        .escapes_solidus = true,
+        .is_canonical_json = false,
+        .csv_quote_codepoint = 0,
         .line_ending_text = SXML_BYTE_VIEW_FROM_LITERAL("\n"),
         .is_normalizing = false,
         .is_fully_normalized = false,
@@ -1978,30 +2191,135 @@ sxml_status sxml_serialize_sequence(sxml_item_heap *item_heap,
         .sorted_mappings = NULL,
         .mapping_count = 0,
         .staged_byte_count = 0,
-        .item_separator = request->serialization_parameters.has_item_separator
-                              ? request->serialization_parameters.item_separator
-                              : SXML_BYTE_VIEW_FROM_LITERAL("\n"),
+        .item_separator = parameters->has_item_separator ? parameters->item_separator
+                                                         : SXML_BYTE_VIEW_FROM_LITERAL("\n"),
         .frames = NULL,
         .frame_count = 0,
         .frame_capacity = 0,
     };
-    sxml_serializer_resolve_pipeline(&serializer);
-    sxml_status status = sxml_serializer_check_permitted_values(&serializer);
+    sxml_serializer_resolve_pipeline(serializer);
+    sxml_status status = sxml_serializer_check_permitted_values(serializer);
     if (status == SXML_STATUS_OK) {
-        status = sxml_serializer_sort_character_map(&serializer);
+        status = sxml_serializer_sort_character_map(serializer);
     }
     if (status == SXML_STATUS_OK) {
-        status = sxml_serializer_write_byte_order_mark(&serializer);
+        status = sxml_serializer_write_byte_order_mark(serializer);
+    }
+    return status;
+}
+
+static void sxml_serializer_release(sxml_serializer *serializer) {
+    sxml_allocator_release(serializer->allocator, serializer->frames);
+    sxml_allocator_release(serializer->allocator, serializer->sorted_mappings);
+    serializer->frames = NULL;
+    serializer->sorted_mappings = NULL;
+}
+
+/* -------------------------------------------------- Sub-serialization */
+
+sxml_status sxml_serializer_write_node_as_string(sxml_serializer *serializer,
+                                                 sxml_node_reference node) {
+    const sxml_serialization_parameters *outer = serializer->parameters;
+    /* Serialization 4.0, 9.1 and 9.3.12: omit-xml-declaration yes and no
+       other parameter, unless canonical, which passes them all on. */
+    sxml_serialization_parameters parameters = {.serialization_method =
+                                                    SXML_SERIALIZATION_METHOD_XML};
+    if (outer->canonical == SXML_SERIALIZATION_FLAG_YES) {
+        parameters = *outer;
+    }
+    parameters.omit_xml_declaration = SXML_SERIALIZATION_FLAG_YES;
+    switch (outer->json_node_output_method) {
+    case SXML_JSON_NODE_OUTPUT_METHOD_XML:
+        parameters.serialization_method = SXML_SERIALIZATION_METHOD_XML;
+        break;
+    case SXML_JSON_NODE_OUTPUT_METHOD_XHTML:
+        parameters.serialization_method = SXML_SERIALIZATION_METHOD_XHTML;
+        break;
+    case SXML_JSON_NODE_OUTPUT_METHOD_HTML:
+        parameters.serialization_method = SXML_SERIALIZATION_METHOD_HTML;
+        break;
+    case SXML_JSON_NODE_OUTPUT_METHOD_TEXT:
+        parameters.serialization_method = SXML_SERIALIZATION_METHOD_TEXT;
+        break;
+    }
+    /* The string is made in UTF-8 and re-encoded by the outer pipeline. */
+    parameters.character_encoding = SXML_CHARACTER_ENCODING_UTF_8;
+    parameters.byte_order_mark = SXML_SERIALIZATION_FLAG_NO;
+    sxml_output_buffer *output = NULL;
+    sxml_status status = sxml_output_buffer_create(
+        serializer->allocator,
+        &(sxml_output_buffer_configuration){.allocator = serializer->allocator,
+                                            .maximum_byte_count = 0},
+        &output);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    const sxml_item item = sxml_node_item_make(node);
+    sxml_serializer inner;
+    status = sxml_serializer_start(
+        &(sxml_serializer_setup){.item_heap = serializer->item_heap,
+                                 .parameters = &parameters,
+                                 .output_stream = sxml_output_buffer_as_output_stream(output),
+                                 .error_record = serializer->error_record},
+        &inner);
+    if (status == SXML_STATUS_OK) {
+        status = parameters.serialization_method == SXML_SERIALIZATION_METHOD_TEXT
+                     ? sxml_serialize_text_method(&inner, sxml_sequence_from_item(item))
+                     : sxml_serialize_xml_method(&inner, sxml_sequence_from_item(item));
     }
     if (status == SXML_STATUS_OK) {
-        status = method == SXML_SERIALIZATION_METHOD_ADAPTIVE
-                     ? sxml_serialize_adaptive_method(&serializer, request->value)
-                     : sxml_serialize_xml_method(&serializer, request->value);
+        status = sxml_serializer_flush(&inner);
+    }
+    sxml_serializer_release(&inner);
+    sxml_item_release(item);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_serializer_write_character_data(
+            serializer, &(sxml_character_data){.text = sxml_output_buffer_get_bytes(output),
+                                               .character_context = SXML_CHARACTER_CONTEXT_TEXT});
+    }
+    sxml_output_buffer_destroy(output);
+    return status;
+}
+
+sxml_status sxml_serialize_sequence(sxml_item_heap *item_heap,
+                                    const sxml_serialization_request *request,
+                                    sxml_output_stream output_stream) {
+    if (item_heap == NULL || request == NULL || output_stream.operations == NULL ||
+        output_stream.operations->write == NULL ||
+        !sxml_parameters_are_expressible(&request->serialization_parameters)) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    sxml_serializer serializer;
+    sxml_status status = sxml_serializer_start(
+        &(sxml_serializer_setup){.item_heap = item_heap,
+                                 .parameters = &request->serialization_parameters,
+                                 .output_stream = output_stream,
+                                 .error_record = request->error_record},
+        &serializer);
+    if (status == SXML_STATUS_OK) {
+        switch (request->serialization_parameters.serialization_method) {
+        case SXML_SERIALIZATION_METHOD_ADAPTIVE:
+            status = sxml_serialize_adaptive_method(&serializer, request->value);
+            break;
+        case SXML_SERIALIZATION_METHOD_XML:
+        case SXML_SERIALIZATION_METHOD_XHTML:
+        case SXML_SERIALIZATION_METHOD_HTML:
+            status = sxml_serialize_xml_method(&serializer, request->value);
+            break;
+        case SXML_SERIALIZATION_METHOD_TEXT:
+            status = sxml_serialize_text_method(&serializer, request->value);
+            break;
+        case SXML_SERIALIZATION_METHOD_JSON:
+            status = sxml_serialize_json_method(&serializer, request->value);
+            break;
+        case SXML_SERIALIZATION_METHOD_CSV:
+            status = sxml_serialize_csv_method(&serializer, request->value);
+            break;
+        }
     }
     if (status == SXML_STATUS_OK) {
         status = sxml_serializer_flush(&serializer);
     }
-    sxml_allocator_release(serializer.allocator, serializer.frames);
-    sxml_allocator_release(serializer.allocator, serializer.sorted_mappings);
+    sxml_serializer_release(&serializer);
     return status;
 }

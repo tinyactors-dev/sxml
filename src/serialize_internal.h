@@ -24,10 +24,15 @@
  *   escaping, line endings, encoding) behind sxml_serializer, sequence
  *   normalization (section 2), the adaptive method (section 11) and the
  *   dispatch by method.
- * - src/serialize_xml.c: the XML and XHTML methods (sections 5 and 6),
- *   and the node writer the adaptive method uses.
- * - Later parts (HTML, text, JSON, CSV) build on the same pipeline and on
- *   sxml_sequence_normalizer.
+ * - src/serialize_xml.c: the XML, XHTML and HTML methods (sections 5, 6
+ *   and 7) as one node writer, and the node writer the adaptive method
+ *   uses; src/serialize_html.c has what HTML adds (void elements, boolean
+ *   attributes, raw text elements, processing instructions).
+ * - src/serialize_text.c: the text and CSV methods (sections 8 and 10).
+ * - src/serialize_json.c: the JSON method (section 9).
+ * - src/serialize_parameters.c: sxml_serialization_parameter_reader.
+ * Every method writes through the one character pipeline; the escape
+ * style says how text is escaped for the method (D128).
  *
  * No recursion (D71): subtrees are written by walking node indices in
  * document order with a stack of open elements in heap memory; arrays,
@@ -47,6 +52,20 @@ typedef enum sxml_escape_style {
        &gt; &#xD; in text; &amp; &lt; &quot; &#x9; &#xA; &#xD; in
        attributes; nothing else. */
     SXML_ESCAPE_STYLE_CANONICAL,
+    /* The HTML method (section 7.2, 7.3): as XML, except that "<" and an
+       "&" before "{" stay as they are in attribute values; before HTML5
+       control characters are SERE0014. */
+    SXML_ESCAPE_STYLE_HTML,
+    /* The text method (section 8): nothing is escaped; a character the
+       encoding cannot represent is SERE0008. */
+    SXML_ESCAPE_STYLE_NONE,
+    /* JSON strings (section 9.1): \" \\ \b \f \n \r \t, \uHHHH for
+       other controls and characters the encoding cannot represent, \/
+       with escape-solidus; RFC 8785's minimal escaping when canonical. */
+    SXML_ESCAPE_STYLE_JSON,
+    /* CSV fields (section 10.2): the quote character doubled, line
+       endings in the field replaced by the line ending; nothing else. */
+    SXML_ESCAPE_STYLE_CSV,
 } sxml_escape_style;
 
 /* Where characters are written (Serialization 4.0, section 4). */
@@ -66,6 +85,11 @@ typedef enum sxml_character_context {
        normalized, not mapped; "]]>" and characters the encoding cannot
        represent close the section around a reference. */
     SXML_CHARACTER_CONTEXT_CDATA_SECTION,
+    /* Raw text (glossary): text the method writes without escaping
+       whatever the escape style, the content of HTML script and style
+       elements (section 7.1): mapped and normalized; a character the
+       encoding cannot represent is SERE0008. */
+    SXML_CHARACTER_CONTEXT_RAW_TEXT,
 } sxml_character_context;
 
 /* Text to write and where it goes. */
@@ -97,6 +121,16 @@ typedef struct sxml_serializer {
     /* ---- The character pipeline. */
     sxml_character_encoding character_encoding;
     sxml_escape_style escape_style;
+    /* XML and XHTML with version 1.0: a C0 control character in text or
+       an attribute is SERE0006 (Serialization 4.0, 5.1.2). */
+    bool is_xml_version_1_0;
+    /* HTML before HTML5: control characters are SERE0014 (7.3). */
+    bool is_html_before_5;
+    /* JSON: escape-solidus; canonical (RFC 8785 escaping). */
+    bool escapes_solidus;
+    bool is_canonical_json;
+    /* CSV: the quote character. */
+    uint32_t csv_quote_codepoint;
     /* What each U+000A becomes (parameter line-ending). */
     sxml_byte_view line_ending_text;
     /* Whether the text of text nodes and attributes is normalized, and
@@ -173,6 +207,29 @@ SXML_NODISCARD sxml_status sxml_serializer_flush(sxml_serializer *serializer);
    element ("UTF-8", "UTF-16", "US-ASCII", "ISO-8859-1"). */
 sxml_byte_view sxml_serializer_get_encoding_name(const sxml_serializer *serializer);
 
+/* Bytes an atomic item's text may take without heap memory (the cast
+   module's canonical text capacity, src/cast_internal.h). */
+#define SXML_ATOMIC_TEXT_INLINE_CAPACITY 96U
+
+/* The lexical form of an atomic item, its cast to xs:string (F&O 4.0,
+   19.1.2), as sequence normalization, JSON strings and CSV fields write
+   it. Used in place: text may point into inline_bytes. */
+typedef struct sxml_atomic_text {
+    sxml_byte_view text;
+    /* Heap memory to release, or NULL. */
+    void *memory;
+    uint8_t inline_bytes[SXML_ATOMIC_TEXT_INLINE_CAPACITY];
+} sxml_atomic_text;
+
+/* Fills *atomic_text for item; release it with
+   sxml_serializer_release_atomic_text, also on failure. */
+SXML_NODISCARD sxml_status sxml_serializer_get_atomic_text(sxml_serializer *serializer,
+                                                           sxml_item item,
+                                                           sxml_atomic_text *atomic_text);
+
+void sxml_serializer_release_atomic_text(sxml_serializer *serializer,
+                                         sxml_atomic_text *atomic_text);
+
 /* ------------------------------------------------ Sequence normalization */
 
 /* What the sequence normalizer gives next. */
@@ -246,15 +303,15 @@ SXML_NODISCARD sxml_status sxml_sequence_normalizer_next(sxml_sequence_normalize
 /* Releases the normalizer's memory. */
 void sxml_sequence_normalizer_finish(sxml_sequence_normalizer *normalizer);
 
-/* ---------------------------------------------- XML and XHTML methods */
+/* -------------------------------------------- XML, XHTML and HTML methods */
 
 /*
- * Serializes value with the XML or XHTML method, as the serializer's
- * parameters say (Serialization 4.0, sections 5 and 6): sequence
- * normalization, the XML declaration, the document type declaration, the
- * result tree. The parameters were checked by sxml_serialize_sequence;
- * raises SEPM0004, SEPM0009, SEPM0010, SESU0013, SERE0024 and the errors
- * of the pipeline.
+ * Serializes value with the XML, XHTML or HTML method, as the
+ * serializer's parameters say (Serialization 4.0, sections 5, 6 and 7):
+ * sequence normalization, the XML declaration, the document type
+ * declaration, the result tree. The parameters were checked by
+ * sxml_serialize_sequence; raises SEPM0004, SEPM0009, SEPM0010, SESU0013,
+ * SERE0003, SERE0015, SERE0024 and the errors of the pipeline.
  */
 SXML_NODISCARD sxml_status sxml_serialize_xml_method(sxml_serializer *serializer,
                                                      sxml_sequence value);
@@ -269,3 +326,75 @@ SXML_NODISCARD sxml_status sxml_serialize_xml_method(sxml_serializer *serializer
  */
 SXML_NODISCARD sxml_status sxml_serializer_write_adaptive_node(sxml_serializer *serializer,
                                                                sxml_node_reference node);
+
+/* ------------------------------------------------------ The HTML method */
+
+/* The HTML version a serialization requests (Serialization 4.0, section
+   7: html-version, else version, else 5.0): whether it is 5.0 or more. */
+bool sxml_serializer_requests_html5(const sxml_serialization_parameters *parameters);
+
+/* Whether an element serialized as an HTML element, named local_name
+   (compared without regard to case), has an empty content model: the
+   void elements of HTML5, or the empty elements of HTML 4 (section 7.1). */
+typedef struct sxml_html_element_query {
+    sxml_byte_view local_name;
+    bool is_html5;
+} sxml_html_element_query;
+
+bool sxml_html_element_is_void(sxml_html_element_query query);
+
+/* Whether the text and attributes below an HTML element named local_name
+   are raw text: script and style (section 7.1). */
+bool sxml_html_element_has_raw_text(sxml_byte_view local_name);
+
+/* Whether an attribute in no namespace of an HTML element is written in
+   minimized form: a boolean attribute of HTML 4 or HTML5 whose value is
+   its name, without regard to case (section 7.2). */
+typedef struct sxml_html_attribute_query {
+    sxml_byte_view attribute_name;
+    sxml_byte_view value;
+} sxml_html_attribute_query;
+
+bool sxml_html_attribute_is_minimized(sxml_html_attribute_query query);
+
+/* Writes a processing instruction by the HTML method (section 7.4):
+   "<?target data>" before HTML5 (SERE0015 for ">" in it), and with HTML5
+   the comment "<!--?target data?-->" with "--" split by a space. */
+typedef struct sxml_html_processing_instruction {
+    sxml_byte_view target;
+    sxml_byte_view data;
+    bool is_html5;
+} sxml_html_processing_instruction;
+
+SXML_NODISCARD sxml_status sxml_serializer_write_html_processing_instruction(
+    sxml_serializer *serializer, const sxml_html_processing_instruction *instruction);
+
+/* -------------------------------------------- The text and CSV methods */
+
+/* Serializes value with the text method (Serialization 4.0, section 8):
+   the string value of the result tree, unescaped. */
+SXML_NODISCARD sxml_status sxml_serialize_text_method(sxml_serializer *serializer,
+                                                      sxml_sequence value);
+
+/* Serializes value with the CSV method (section 10): a parsed CSV
+   structure or a sequence of arrays of atomic items; SERE0025 for other
+   input. */
+SXML_NODISCARD sxml_status sxml_serialize_csv_method(sxml_serializer *serializer,
+                                                     sxml_sequence value);
+
+/* ---------------------------------------------------- The JSON method */
+
+/* Serializes value with the JSON method (Serialization 4.0, section 9);
+   raises SERE0020, SERE0021, SERE0022 and SERE0023. */
+SXML_NODISCARD sxml_status sxml_serialize_json_method(sxml_serializer *serializer,
+                                                      sxml_sequence value);
+
+/*
+ * Serializes node by json-node-output-method into a string and writes it
+ * as text of the serializer (a sub-serialization, glossary; section 9.1):
+ * with omit-xml-declaration yes and no other parameters, or with all the
+ * serializer's parameters when canonical. The sub-serialization never
+ * uses the JSON method, so nothing recurses.
+ */
+SXML_NODISCARD sxml_status sxml_serializer_write_node_as_string(sxml_serializer *serializer,
+                                                                sxml_node_reference node);
