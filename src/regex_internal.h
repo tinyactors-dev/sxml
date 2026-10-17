@@ -15,11 +15,13 @@
  * the flags of section 6.2). Internal to sxml; used by fn:matches,
  * fn:replace, fn:tokenize, fn:analyze-string and fn:matching-segments.
  *
- * docs/DECISIONS.md D9, D48 and D53. This interface is the one the full
- * engine of D9 (a Phase 2 packet, after Saxon HE) implements unchanged;
- * src/regex.c is the Phase 1 seed: a backtracking matcher for a subset of
- * the dialect, which rejects everything outside the subset with FORX0002
- * rather than matching wrongly (D53 lists the subset).
+ * docs/DECISIONS.md D9, D48, D53 and D105. src/regex.c implements the
+ * whole dialect of F&O 4.0: the XSD 1.1 syntax (character class
+ * subtraction, category and block escapes, \i and \c), back-references
+ * (numbered and \k<name>), reluctant quantifiers, non-capturing and named
+ * groups, the assertions ^ $ \b \B, lookahead and lookbehind (both
+ * spellings), and the flags s m i x q c, with case-blind matching by the
+ * Unicode case mappings of fn:lower-case and fn:upper-case.
  *
  * Three steps:
  * 1. sxml_regex_parse_flags turns the $flags string into sxml_regex_flags
@@ -61,8 +63,7 @@
  *
  * Errors and limits
  * -----------------
- * A regex that is invalid, or uses syntax this build does not support, is
- * SXML_STATUS_DYNAMIC_ERROR with err:FORX0002 (flags: err:FORX0001) in the
+ * A regex that is invalid is SXML_STATUS_DYNAMIC_ERROR with err:FORX0002 (flags: err:FORX0001) in the
  * error record the request or configuration points to; descriptions are
  * static text (D21). A search that runs past maximum_step_count, or whose
  * backtrack stack would pass maximum_backtrack_byte_count, is
@@ -88,7 +89,9 @@ typedef struct sxml_regex_flags {
     /* m: "^" and "$" match at the start and end of every line (section
        6.1.8.1). */
     bool is_multi_line;
-    /* i: characters and ranges match their case variants too. */
+    /* i: characters, ranges and back-references match their case
+       variants too; category, block and multi-character escapes do
+       not. */
     bool is_case_insensitive;
     /* x: whitespace outside character class expressions is removed
        before the regex is parsed. */
@@ -208,6 +211,29 @@ uint32_t sxml_regex_group_count(const sxml_regex *regex);
 
 /* The flags the regex was compiled with (fn:replace reads is_literal). */
 sxml_regex_flags sxml_regex_get_flags(const sxml_regex *regex);
+
+/*
+ * The name of capturing group group_number when it is a named capturing
+ * subexpression, (?<name>...) (F&O 4.0, section 6.1.5): a view of the
+ * compiled regex's memory, valid as long as the regex. Empty for an
+ * unnamed group and for a group_number that is not a group.
+ */
+sxml_byte_view sxml_regex_group_name(const sxml_regex *regex,
+                                     uint32_t group_number);
+
+/* The number of the capturing group named name; 0 when no group has that
+   name (names are unique, section 6.1.5). */
+uint32_t sxml_regex_find_named_group(const sxml_regex *regex,
+                                     sxml_byte_view name);
+
+/*
+ * True when capturing group group_number lies within a lookahead
+ * assertion (section 6.1.8.3): its captured group need not be part of the
+ * matching segment, and fn:analyze-string writes it as
+ * fn:lookahead-group. False for a group_number that is not a group.
+ */
+bool sxml_regex_group_is_in_lookahead(const sxml_regex *regex,
+                                      uint32_t group_number);
 
 /* --------------------------------------------------------------- Matcher */
 
@@ -378,11 +404,54 @@ typedef struct sxml_regex_codepoint_range {
     uint32_t last_codepoint;
 } sxml_regex_codepoint_range;
 
-/* Sorted, disjoint, non-adjacent ranges. */
-typedef struct sxml_regex_codepoint_range_list {
-    const sxml_regex_codepoint_range *ranges;
-    size_t range_count;
-} sxml_regex_codepoint_range_list;
+/* The general categories of the Unicode Character Database, in the order
+   of tools/generate-regex-tables.py (XSD 1.1 Part 2, appendix G,
+   "Category escapes"). */
+typedef enum sxml_regex_general_category {
+    SXML_REGEX_GENERAL_CATEGORY_LU,
+    SXML_REGEX_GENERAL_CATEGORY_LL,
+    SXML_REGEX_GENERAL_CATEGORY_LT,
+    SXML_REGEX_GENERAL_CATEGORY_LM,
+    SXML_REGEX_GENERAL_CATEGORY_LO,
+    SXML_REGEX_GENERAL_CATEGORY_MN,
+    SXML_REGEX_GENERAL_CATEGORY_MC,
+    SXML_REGEX_GENERAL_CATEGORY_ME,
+    SXML_REGEX_GENERAL_CATEGORY_ND,
+    SXML_REGEX_GENERAL_CATEGORY_NL,
+    SXML_REGEX_GENERAL_CATEGORY_NO,
+    SXML_REGEX_GENERAL_CATEGORY_PC,
+    SXML_REGEX_GENERAL_CATEGORY_PD,
+    SXML_REGEX_GENERAL_CATEGORY_PS,
+    SXML_REGEX_GENERAL_CATEGORY_PE,
+    SXML_REGEX_GENERAL_CATEGORY_PI,
+    SXML_REGEX_GENERAL_CATEGORY_PF,
+    SXML_REGEX_GENERAL_CATEGORY_PO,
+    SXML_REGEX_GENERAL_CATEGORY_ZS,
+    SXML_REGEX_GENERAL_CATEGORY_ZL,
+    SXML_REGEX_GENERAL_CATEGORY_ZP,
+    SXML_REGEX_GENERAL_CATEGORY_SM,
+    SXML_REGEX_GENERAL_CATEGORY_SC,
+    SXML_REGEX_GENERAL_CATEGORY_SK,
+    SXML_REGEX_GENERAL_CATEGORY_SO,
+    SXML_REGEX_GENERAL_CATEGORY_CC,
+    SXML_REGEX_GENERAL_CATEGORY_CF,
+    SXML_REGEX_GENERAL_CATEGORY_CS,
+    SXML_REGEX_GENERAL_CATEGORY_CO,
+    SXML_REGEX_GENERAL_CATEGORY_CN,
+} sxml_regex_general_category;
+
+/* Sets of categories: bit c stands for category c. */
+#define SXML_REGEX_CATEGORY_MASK_L 0x0000001FU
+#define SXML_REGEX_CATEGORY_MASK_M 0x000000E0U
+#define SXML_REGEX_CATEGORY_MASK_N 0x00000700U
+#define SXML_REGEX_CATEGORY_MASK_P 0x0003F800U
+#define SXML_REGEX_CATEGORY_MASK_Z 0x001C0000U
+#define SXML_REGEX_CATEGORY_MASK_S 0x01E00000U
+#define SXML_REGEX_CATEGORY_MASK_C 0x3E000000U
+
+/* The general category of codepoint; Cn for unassigned codepoints. */
+sxml_regex_general_category sxml_regex_get_general_category(
+    uint32_t codepoint);
 
 /* True when codepoint is in \d: general category Nd. */
 bool sxml_regex_is_decimal_digit(uint32_t codepoint);
@@ -390,3 +459,34 @@ bool sxml_regex_is_decimal_digit(uint32_t codepoint);
 /* True when codepoint is in \w: not in category P, Z or C (unassigned
    codepoints are Cn). */
 bool sxml_regex_is_word_character(uint32_t codepoint);
+
+/*
+ * Finds the block whose name, without spaces, is name (the X of \p{IsX},
+ * case-sensitive: "BasicLatin", "Latin-1Supplement") and writes its range
+ * to *range. Returns false, leaving *range untouched, for an unknown
+ * name, which F&O 4.0, section 6.1.7 makes FORX0002.
+ */
+bool sxml_regex_find_block(sxml_byte_view name,
+                           sxml_regex_codepoint_range *range);
+
+/* The most case variants one codepoint has, itself included. */
+#define SXML_REGEX_MAXIMUM_CASE_VARIANT_COUNT 8U
+
+/* A codepoint and its case variants (F&O 4.0, section 6.2, flag i). */
+typedef struct sxml_regex_case_variants {
+    uint32_t codepoints[SXML_REGEX_MAXIMUM_CASE_VARIANT_COUNT];
+    size_t codepoint_count;
+} sxml_regex_case_variants;
+
+/*
+ * True when second_codepoint is a case variant of first_codepoint (or
+ * equal to it): fn:lower-case of the two is equal or fn:upper-case of the
+ * two is (F&O 4.0, section 6.2, flag i).
+ */
+bool sxml_regex_are_case_variants(uint32_t first_codepoint,
+                                  uint32_t second_codepoint);
+
+/* Writes codepoint and all its case variants to *variants, codepoint
+   first. */
+void sxml_regex_find_case_variants(uint32_t codepoint,
+                                   sxml_regex_case_variants *variants);

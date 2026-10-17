@@ -9,6 +9,7 @@
 #include "test_runner.h"
 
 #include <stdalign.h>
+#include <stdio.h>
 #include <string.h>
 
 /* ---------------------------------------------------------------- Helpers */
@@ -773,7 +774,7 @@ static void test_invalid_regexes_raise_forx0002(sxml_test_state *state) {
     static const char *const invalid_regexes[] = {
         "(", ")", "a)", "(a", "a**", "*a", "+", "?", "{", "}", "]", "a{",
         "a{,2}", "a{3,2}", "a{2", "a{x}", "[", "[a", "[]", "[^]", "[a-", "[z-a]",
-        "[a-c-e]", "[a[b]]", "[\\d-z]", "[a-\\d]", "\\", "\\0", "\\x", "\\1",
+        "[a[b]]", "[\\d-z]", "[a-\\d]", "\\", "\\0", "\\x", "\\1",
         "(a\\1)", "\\1(a)", "^*", "$+", "a|*", "(?", "(?x)", "[a-[b]c]",
         "a{2}{3}", "[\\1]",
     };
@@ -788,21 +789,297 @@ static void test_invalid_regexes_raise_forx0002(sxml_test_state *state) {
     }
 }
 
-static void test_unsupported_syntax_raises_forx0002(sxml_test_state *state) {
-    /* Outside the seed (D48, D53): rejected, never matched wrongly. */
-    static const char *const unsupported_regexes[] = {
-        "\\p{Lu}", "\\P{L}", "[\\p{Lu}]", "\\i", "\\c", "\\b", "\\B",
-        "(?=a)", "(?!a)", "(?<=a)b", "(?<!a)b", "(?<name>a)", "\\k<name>",
-        "(*positive_lookahead:a)",
+static void test_invalid_assertions_and_escapes_raise_forx0002(
+    sxml_test_state *state) {
+    static const char *const invalid_regexes[] = {
+        /* Category and block escapes (XSD 1.1 Part 2, appendix G; F&O 4.0,
+           section 6.1.7). */
+        "\\p{Cs}", "\\p{Lx}", "\\p{IsNoSuchBlock}", "\\p{Is}", "\\p", "\\p{L",
+        "\\p{IsaA0-a9}", "[\\p{Lu}-z]",
+        /* Assertions take no quantifier (section 6.1.8). */
+        "(?=a)*", "(?!a)+", "\\b?", "\\B{2}", "(?<=a){1}",
+        /* Lookbehind assertions hold single characters (6.1.8.5). */
+        "(?<=a*)b", "(?<=(a))b", "(?<=a{2})b", "(?<=\\1)b", "(?<=^a)b",
+        "(?<=\\b)a", "(?<=(?:a))b",
+        /* Named groups and \k (sections 6.1.5 and 6.1.6). */
+        "(?<1a>x)", "(?<>x)", "(?<a-b>x)", "(?<a>x)(?<a>y)", "\\k<b>",
+        "(?<a>x)\\k<a", "\\k<a>(?<a>x)", "(?<a>x\\k<a>)", "\\k",
+        /* Unknown "(*" and "(?" constructs. */
+        "(*foo:a)", "(*positive_lookahead", "(?<", "(?>a)",
+        /* \b is no escape in a class. */
+        "[\\b]", "[\\k]",
     };
     for (size_t regex_index = 0;
-         regex_index < SXML_TEST_COUNT(unsupported_regexes); regex_index++) {
-        SXML_TEST_EXPECT(state, test_raises(unsupported_regexes[regex_index],
-                                            "", "FORX0002"));
+         regex_index < SXML_TEST_COUNT(invalid_regexes); regex_index++) {
+        bool is_raised = test_raises(invalid_regexes[regex_index], "", "FORX0002");
+        SXML_TEST_EXPECT(state, is_raised);
+        if (!is_raised) {
+            SXML_TEST_EXPECT(state, invalid_regexes[regex_index] == NULL);
+        }
     }
-    SXML_TEST_EXPECT(state, test_raises("\xC3\xA9", "i", "FORX0002"));
-    SXML_TEST_EXPECT(state, test_raises("[a-\xC3\xA9]", "i", "FORX0002"));
-    SXML_TEST_EXPECT(state, test_raises("(a)\\1", "i", "FORX0002"));
+}
+
+/* ------------------------------------------------- Class escapes and case */
+
+static void test_category_and_block_escapes(sxml_test_state *state) {
+    /* XSD 1.1 Part 2, appendix G, "Category escapes" and "Block
+       escapes". */
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"\\p{Lu}+", "", "abCD\xC3\x89" "e"},
+                                "[CD\xC3\x89]"));
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"\\P{L}+", "", "ab12.c"}, "[12.]"));
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"[\\p{Nd}\\p{Pd}]+", "", "x1-2y"},
+                                "[1-2]"));
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"\\p{IsGreekandCoptic}+", "",
+                                              "a\xCE\xB1\xCE\xB2" "b"},
+                                "[\xCE\xB1\xCE\xB2]"));
+    /* The XSD 1.0 name of the same block. */
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"\\p{IsGreek}", "", "\xCE\xB1"},
+                                "[\xCE\xB1]"));
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"\\P{IsBasicLatin}", "", "ab\xC3\xA9"},
+                                "[\xC3\xA9]"));
+    /* An unassigned codepoint is Cn (U+0378). */
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"\\p{Cn}", "", "a\xCD\xB8"},
+                                "[\xCD\xB8]"));
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"\\p{C}", "", "a\t"}, "[\t]"));
+    /* With x, whitespace inside \p{..} is removed (F&O 4.0, section 6.2). */
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"\\p{ I s B a s i c L a t i n }",
+                                              "x", "a"},
+                                "[a]"));
+    /* The i flag does not affect category escapes. */
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"\\p{Lu}", "i", "a"}, "none"));
+    /* Subtraction of a category from a block. */
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"[\\p{IsBasicLatin}-[\\p{Ll}]]+",
+                                              "", "abC1d"},
+                                "[C1]"));
+}
+
+static void test_name_character_escapes(sxml_test_state *state) {
+    /* \i and \c: NameStartChar and NameChar of XML. */
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"\\i\\c*", "", "1.x_:y-2.z w"},
+                                "[x_:y-2.z]"));
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"\\I+", "", "a1.-b"}, "[1.-]"));
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"\\C+", "", "ab \t\r"}, "[ \t\r]"));
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"[\\i-[:]]+", "", ":ab:"}, "[ab]"));
+}
+
+static void test_case_insensitive_unicode(sxml_test_state *state) {
+    /* F&O 4.0, section 6.2: case variants by fn:lower-case and
+       fn:upper-case, beyond ASCII. */
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"\xC3\xA9", "i", "\xC3\x89"},
+                                "[\xC3\x89]"));
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"[\xC3\xA0-\xC3\xBE]+", "i",
+                                              "x\xC3\x80\xC3\x89y"},
+                                "[\xC3\x80\xC3\x89]"));
+    /* Sigma: final sigma and capital sigma have the same upper case. */
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"\xCF\x83", "i", "\xCF\x82"},
+                                "[\xCF\x82]"));
+    /* ANGSTROM SIGN lowers to a with ring above. */
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"[\xC3\xA5]", "i", "\xE2\x84\xAB"},
+                                "[\xE2\x84\xAB]"));
+    /* Back-references compare case-blind: section 6.2 example. */
+    static const char *const words[] = {"Mum", "mom", "Dad", "DUD"};
+    for (size_t word_index = 0; word_index < SXML_TEST_COUNT(words);
+         word_index++) {
+        test_text expected = {.character_count = 0};
+        expected.characters[0] = '\0';
+        test_text_append(&expected, SXML_BYTE_VIEW_FROM_LITERAL("["));
+        test_text_append(&expected,
+                         sxml_byte_view_from_c_string(words[word_index]));
+        test_text_append(&expected, SXML_BYTE_VIEW_FROM_LITERAL("]<"));
+        test_text_append(&expected, (sxml_byte_view){
+                                        .bytes = (const uint8_t *)words[word_index],
+                                        .byte_count = 1});
+        test_text_append(&expected, SXML_BYTE_VIEW_FROM_LITERAL(">"));
+        SXML_TEST_EXPECT(state, test_first_match_is(
+                                    (test_search){"([md])[aeiou]\\1", "i",
+                                                  words[word_index]},
+                                    expected.characters));
+    }
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"(\xC3\xA9)\\1", "i", "\xC3\xA9\xC3\x89"},
+                                "[\xC3\xA9\xC3\x89]<\xC3\xA9>"));
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"(a)\\1", "i", "ab"}, "none"));
+}
+
+/* ------------------------------------------------------------- Assertions */
+
+static void test_word_boundaries(sxml_test_state *state) {
+    /* F&O 4.0, section 6.1.8.2. */
+    SXML_TEST_EXPECT(state, test_tokenize_is(
+                                (test_search){"\\b", "", "Do not eat"},
+                                "[Do][ ][not][ ][eat]"));
+    SXML_TEST_EXPECT(state, test_tokenize_is((test_search){"\\b", "", "the end"},
+                                             "[the][ ][end]"));
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"\\b[A-Z]{3}\\b", "", "LHRX LAX"},
+                                "[LAX]"));
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"a\\Bb", "", "a b ab"}, "[ab]"));
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"\\b", "", ""}, "none"));
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"\\B", "", ""}, "[]"));
+}
+
+static void test_lookahead_and_lookbehind(sxml_test_state *state) {
+    /* F&O 4.0, sections 6.1.8.3 to 6.1.8.6. */
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"Chapter(?=\\s+[1-9])", "",
+                                              "Chapter x Chapter 5"},
+                                "[Chapter]"));
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"Chapter(?!\\s*[1-9])", "",
+                                              "Chapter 5 Chapter x"},
+                                "[Chapter]"));
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"(?<=\\[)[0-9]+(?=\\])", "",
+                                              "1 [23] 4"},
+                                "[23]"));
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"(?<!\\$)[0-9]+", "", "$12 34"},
+                                "[2]"));
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"(?<=ab|c)d", "", "abd"}, "[d]"));
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"(?<=ab|c)d", "", "bd"}, "none"));
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"(?<!ab|c)d", "", "cdabdbd"},
+                                "[d]"));
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"(?<=\\p{Lu}.)x", "",
+                                              "axAbx"},
+                                "[x]"));
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"(?<=\xC3\xA9)x", "", "x\xC3\xA9x"},
+                                "[x]"));
+    /* The other spelling. */
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"a(*positive_lookahead:b)", "", "acab"},
+                                "[a]"));
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"(*negative_lookbehind:c)a", "", "caba"},
+                                "[a]"));
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"(*positive_lookbehind:b|cd)e", "", "cde"},
+                                "[e]"));
+    /* Groups within a lookahead capture (section 6.1.8.3), from its first
+       match; a negative one captures nothing. */
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"(Chapter|Appendix)(?=\\s+([0-9]+))",
+                                              "", "Chapter 5"},
+                                "[Chapter]<Chapter><5>"));
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"\\b(?=(\\w+))", "", "There we"},
+                                "[]<There>"));
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"a(?!(b))", "", "abac"}, "[a]<->"));
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"(?=(a+))a*b\\1", "", "baaabac"},
+                                "[aba]<a>"));
+    /* Backtracking into what precedes a lookahead undoes its captures. */
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"(?:a(?=(c))x|ac)", "", "ac"},
+                                "[ac]<->"));
+    /* The section 6.1.1 note: a*(?=x) on aaax gives two segments. */
+    SXML_TEST_EXPECT(state, test_tokenize_is((test_search){"a*(?=x)", "", "aaax"},
+                                             "[][][x]"));
+    /* Nested assertions, and a quantified group holding one. */
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"(?=a(?!b))..", "", "abacd"},
+                                "[ac]"));
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"(?:(?<=a)b|c){2,3}", "", "xcabcb"},
+                                "[bc]"));
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"(?:x(?=y)|y)+", "", "xyxz"},
+                                "[xy]"));
+    /* The replace example of section 6.3.2 at the segment level. */
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"[a-z](?=.*(.)$)", "", "abcd!"},
+                                "[a]<!>"));
+}
+
+static void test_named_groups(sxml_test_state *state) {
+    /* F&O 4.0, sections 6.1.5 and 6.1.6. */
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"(?<x>abc)\\k<x>", "", "abcabc"},
+                                "[abcabc]<abc>"));
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"(?<x>abc)\\k<x>", "", "abcabd"},
+                                "none"));
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"(?<quote>'|\").*\\k<quote>", "",
+                                              "x'a\"b'"},
+                                "['a\"b']<'>"));
+    SXML_TEST_EXPECT(state, test_first_match_is(
+                                (test_search){"(?< y e a r >\\d+)", "x", "x12"},
+                                "[12]<12>"));
+    test_compilation compilation = {
+        .regex_text = "(?<year>\\d{4})-(\\d{2})-(?<Day1>\\d{2})(?=(?<more>.))",
+        .flags_text = ""};
+    test_compile(&compilation);
+    SXML_TEST_REQUIRE(state, compilation.status == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, sxml_regex_group_count(compilation.regex) == 4);
+    SXML_TEST_EXPECT(state, test_view_equals_text(
+                                sxml_regex_group_name(compilation.regex, 1),
+                                "year"));
+    SXML_TEST_EXPECT(state,
+                     sxml_regex_group_name(compilation.regex, 2).byte_count == 0);
+    SXML_TEST_EXPECT(state, test_view_equals_text(
+                                sxml_regex_group_name(compilation.regex, 3),
+                                "Day1"));
+    SXML_TEST_EXPECT(state,
+                     sxml_regex_group_name(compilation.regex, 0).byte_count == 0);
+    SXML_TEST_EXPECT(state,
+                     sxml_regex_group_name(compilation.regex, 9).byte_count == 0);
+    SXML_TEST_EXPECT(state, sxml_regex_find_named_group(
+                                compilation.regex,
+                                SXML_BYTE_VIEW_FROM_LITERAL("Day1")) == 3);
+    SXML_TEST_EXPECT(state, sxml_regex_find_named_group(
+                                compilation.regex,
+                                SXML_BYTE_VIEW_FROM_LITERAL("day1")) == 0);
+    SXML_TEST_EXPECT(state, !sxml_regex_group_is_in_lookahead(compilation.regex, 3));
+    SXML_TEST_EXPECT(state, sxml_regex_group_is_in_lookahead(compilation.regex, 4));
+    SXML_TEST_EXPECT(state, !sxml_regex_group_is_in_lookahead(compilation.regex, 5));
+    SXML_TEST_EXPECT(state, test_release(&compilation));
+    /* More names than the compiler's own name table holds. */
+    char many_names[2048];
+    size_t written_count = 0;
+    for (size_t group_index = 0; group_index < 60; group_index++) {
+        int printed = snprintf(many_names + written_count,
+                               sizeof(many_names) - written_count,
+                               "(?<groupname%zu>a)", group_index);
+        written_count += printed > 0 ? (size_t)printed : 0;
+    }
+    (void)snprintf(many_names + written_count,
+                   sizeof(many_names) - written_count, "\\k<groupname59>");
+    test_compilation many = {.regex_text = many_names, .flags_text = ""};
+    test_compile(&many);
+    SXML_TEST_EXPECT(state, many.status == SXML_STATUS_OK &&
+                                sxml_regex_find_named_group(
+                                    many.regex, SXML_BYTE_VIEW_FROM_LITERAL(
+                                                    "groupname42")) == 43);
+    SXML_TEST_EXPECT(state, test_release(&many));
 }
 
 /* ----------------------------------------------------------------- Limits */
@@ -1265,8 +1542,17 @@ static const sxml_test_case regex_test_cases[] = {
     {.name = "search_positions", .function = test_search_positions},
     {.name = "invalid_regexes_raise_forx0002",
      .function = test_invalid_regexes_raise_forx0002},
-    {.name = "unsupported_syntax_raises_forx0002",
-     .function = test_unsupported_syntax_raises_forx0002},
+    {.name = "invalid_assertions_and_escapes_raise_forx0002",
+     .function = test_invalid_assertions_and_escapes_raise_forx0002},
+    {.name = "category_and_block_escapes",
+     .function = test_category_and_block_escapes},
+    {.name = "name_character_escapes", .function = test_name_character_escapes},
+    {.name = "case_insensitive_unicode",
+     .function = test_case_insensitive_unicode},
+    {.name = "word_boundaries", .function = test_word_boundaries},
+    {.name = "lookahead_and_lookbehind",
+     .function = test_lookahead_and_lookbehind},
+    {.name = "named_groups", .function = test_named_groups},
     {.name = "catastrophic_backtracking_reaches_the_step_limit",
      .function = test_catastrophic_backtracking_reaches_the_step_limit},
     {.name = "compile_limits", .function = test_compile_limits},

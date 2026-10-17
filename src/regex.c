@@ -1,16 +1,17 @@
 /*
- * The regular expression seed (src/regex_internal.h; docs/DECISIONS.md D48
- * and D53): a hand-written parser that compiles the regex into
- * instructions, and a backtracking matcher that runs them with an explicit
- * stack. Nothing here recurses (D71): the parser keeps open groups on a
- * stack of frames, a chain of class subtractions is read and matched in a
- * loop, and the matcher keeps its choices on the backtrack stack.
+ * The regular expression engine (src/regex_internal.h; docs/DECISIONS.md
+ * D9, D48, D53 and D105): a hand-written parser that compiles the regex
+ * into instructions, and a backtracking matcher that runs them with an
+ * explicit stack, after the design of Saxon HE's engine (D9). Nothing here
+ * recurses (D71): the parser keeps open groups and assertions on a stack
+ * of frames, a chain of class subtractions is read and matched in a loop,
+ * and the matcher keeps its choices, and the start of every lookaround
+ * assertion it is in, on the backtrack stack.
  *
  * Imitates the golden module src/memory.c (lifecycle, requirements by
  * sxml_memory_requirements_append, checked sizes). The syntax is that of
  * F&O 4.0, section 6.1.3 "Regular expression grammar", which builds on
- * XSD 1.1 Part 2, appendix G "Regular Expressions"; the subset and what
- * is rejected as unsupported are listed in D53.
+ * XSD 1.1 Part 2, appendix G "Regular Expressions".
  *
  * Compilation runs the parser twice over the same code: a counting pass
  * (regex NULL) that finds the exact number of instructions, classes and
@@ -123,8 +124,27 @@ typedef enum sxml_regex_operation {
     SXML_REGEX_OPERATION_STRING_END,
     SXML_REGEX_OPERATION_LINE_START,
     SXML_REGEX_OPERATION_LINE_END,
-    /* Matches what group operand captured (section 6.1.6). */
+    /* Matches what group operand captured (section 6.1.6); with the i
+       flag, its case variants too (section 6.2). */
     SXML_REGEX_OPERATION_BACK_REFERENCE,
+    /* \b and \B (section 6.1.8.2). */
+    SXML_REGEX_OPERATION_WORD_BOUNDARY,
+    SXML_REGEX_OPERATION_NOT_WORD_BOUNDARY,
+    /* Starts a lookahead or lookbehind assertion (sections 6.1.8.3 to
+       6.1.8.6): marks the position on the backtrack stack and runs the
+       assertion's regex, which ends with LOOK_END. operand is the
+       instruction after that LOOK_END, where a negative assertion goes on
+       when its regex fails. */
+    SXML_REGEX_OPERATION_POSITIVE_LOOK_START,
+    SXML_REGEX_OPERATION_NEGATIVE_LOOK_START,
+    /* The regex of the innermost assertion has matched: a positive one
+       goes on at the marked position, keeping what its groups captured
+       but none of its other choices; a negative one fails. */
+    SXML_REGEX_OPERATION_LOOK_END,
+    /* Moves back operand codepoints: the start of a branch of a
+       lookbehind assertion, whose branches are fixed-length (section
+       6.1.8.5). */
+    SXML_REGEX_OPERATION_STEP_BACK,
     /* The whole regex has matched. */
     SXML_REGEX_OPERATION_MATCH,
 } sxml_regex_operation;
@@ -135,6 +155,7 @@ typedef struct sxml_regex_instruction {
 } sxml_regex_instruction;
 
 typedef enum sxml_regex_class_item_kind {
+    /* A character, a character range or a block escape (\p{IsX}). */
     SXML_REGEX_CLASS_ITEM_KIND_RANGE,
     /* \s: space, tab, newline, carriage return. */
     SXML_REGEX_CLASS_ITEM_KIND_SPACE,
@@ -142,16 +163,29 @@ typedef enum sxml_regex_class_item_kind {
     SXML_REGEX_CLASS_ITEM_KIND_DECIMAL_DIGIT,
     /* \w. */
     SXML_REGEX_CLASS_ITEM_KIND_WORD_CHARACTER,
+    /* \i: NameStartChar of XML 1.0 (fifth edition), section 2.3 (XSD 1.1
+       Part 2, appendix G, "Multi-character escapes"). */
+    SXML_REGEX_CLASS_ITEM_KIND_NAME_START_CHARACTER,
+    /* \c: NameChar of the same section. */
+    SXML_REGEX_CLASS_ITEM_KIND_NAME_CHARACTER,
+    /* A category escape (\p{Lu}): the categories of category_mask. */
+    SXML_REGEX_CLASS_ITEM_KIND_CATEGORY,
 } sxml_regex_class_item_kind;
 
-/* One part of a character group: a range or a multi-character escape. */
+/* One part of a character group: a range or a class escape. */
 typedef struct sxml_regex_class_item {
     sxml_regex_class_item_kind kind;
-    /* \S, \D, \W. */
+    /* \S, \D, \W, \I, \C, \P{..}. */
     bool is_complemented;
+    /* RANGE only: a range of the regex under the i flag, which also
+       matches the case variants of its characters (section 6.2); never
+       set for block escapes. */
+    bool is_case_insensitive;
     /* RANGE only. */
     uint32_t first_codepoint;
     uint32_t last_codepoint;
+    /* CATEGORY only: bit c for sxml_regex_general_category c. */
+    uint32_t category_mask;
 } sxml_regex_class_item;
 
 /* A character class: items, negation, and an optional subtraction. */
@@ -163,6 +197,16 @@ typedef struct sxml_regex_class {
     uint32_t subtracted_class_number;
 } sxml_regex_class;
 
+/* What the compiled regex knows of a capturing group. */
+typedef struct sxml_regex_group {
+    /* The name of a named capturing subexpression, in group_names; 0 and
+       0 for an unnamed group. */
+    uint32_t name_offset;
+    uint32_t name_byte_count;
+    /* Within a lookahead assertion (section 6.1.8.3). */
+    bool is_in_lookahead;
+} sxml_regex_group;
+
 struct sxml_regex {
     sxml_regex_flags flags;
     uint32_t group_count;
@@ -172,9 +216,14 @@ struct sxml_regex {
     uint32_t instruction_count;
     uint32_t class_count;
     uint32_t class_item_count;
+    uint32_t group_name_byte_count;
     sxml_regex_instruction *instructions;
     sxml_regex_class *classes;
     sxml_regex_class_item *class_items;
+    /* group_count + 1 entries; entry 0 (the whole match) is unnamed. */
+    sxml_regex_group *groups;
+    /* The names of the named groups, one after the other. */
+    uint8_t *group_names;
     /* The allocator of sxml_regex_create; the null allocator otherwise. */
     sxml_allocator owning_allocator;
 };
@@ -191,6 +240,7 @@ typedef struct sxml_regex_counts {
     uint32_t class_item_count;
     uint32_t group_count;
     uint32_t register_count;
+    uint32_t group_name_byte_count;
 } sxml_regex_counts;
 
 /* ------------------------------------------------------------- Compiler */
@@ -211,21 +261,43 @@ typedef struct sxml_regex_atom_start {
     uint32_t atom_parse_count;
 } sxml_regex_atom_start;
 
+/* What a parenthesized construct is (F&O 4.0, section 6.1.3). */
+typedef enum sxml_regex_frame_kind {
+    /* The whole regex, or a group: capturing, named or (?:...). */
+    SXML_REGEX_FRAME_KIND_GROUP,
+    /* (?=...) and (*positive_lookahead:...), section 6.1.8.3. */
+    SXML_REGEX_FRAME_KIND_POSITIVE_LOOKAHEAD,
+    /* (?!...) and (*negative_lookahead:...), section 6.1.8.4. */
+    SXML_REGEX_FRAME_KIND_NEGATIVE_LOOKAHEAD,
+    /* (?<=...) and (*positive_lookbehind:...), section 6.1.8.5. */
+    SXML_REGEX_FRAME_KIND_POSITIVE_LOOKBEHIND,
+    /* (?<!...) and (*negative_lookbehind:...), section 6.1.8.6. */
+    SXML_REGEX_FRAME_KIND_NEGATIVE_LOOKBEHIND,
+} sxml_regex_frame_kind;
+
 /*
- * A group whose ")" has not been read yet, or the whole regex (the first
- * frame). The parser keeps these on an explicit stack instead of
- * recursing (docs/DECISIONS.md D71).
+ * A group or assertion whose ")" has not been read yet, or the whole regex
+ * (the first frame). The parser keeps these on an explicit stack instead
+ * of recursing (docs/DECISIONS.md D71).
  */
 typedef struct sxml_regex_group_frame {
-    /* The capturing group's number; 0 for a non-capturing group and for
-       the whole regex. */
+    sxml_regex_frame_kind kind;
+    /* The capturing group's number; 0 for a non-capturing group, an
+       assertion and the whole regex. */
     uint32_t group_number;
-    /* The first instruction of the branch being read. */
+    /* The first instruction of the branch being read; in a lookbehind
+       assertion, its STEP_BACK. */
     uint32_t branch_start;
     /* The jumps at the ends of the branches read so far. */
     sxml_regex_pending_targets branch_ends;
     /* Where the group's atom starts, before its "(". */
     sxml_regex_atom_start atom_start;
+    /* An assertion's LOOK_START. */
+    uint32_t look_start_index;
+    /* A lookbehind assertion: the characters of the branch being read. */
+    uint32_t branch_length;
+    /* Within a lookahead assertion, this one included. */
+    bool is_in_lookahead;
 } sxml_regex_group_frame;
 
 typedef struct sxml_regex_compiler {
@@ -255,8 +327,18 @@ typedef struct sxml_regex_compiler {
     /* The frames sxml_regex_compile holds itself; frames is these until
        the stack grows. */
     sxml_regex_group_frame *inline_frames;
-    /* Grows the stack beyond the inline frames; may be the null
-       allocator. */
+    /* The names of the named groups read so far, so that duplicates and
+       \k<name> are found in the counting pass too: entries of a group
+       number and a byte count (two uint32_t, unaligned) and the name's
+       bytes. A name being read is appended after the last entry. */
+    uint8_t *name_table;
+    size_t name_table_byte_count;
+    size_t name_table_capacity;
+    /* The table sxml_regex_compile holds itself; name_table is this until
+       it grows. */
+    uint8_t *inline_name_table;
+    /* Grows the stack and the name table beyond their inline memory; may
+       be the null allocator. */
     sxml_allocator stack_allocator;
     sxml_error_record *error_record;
 } sxml_regex_compiler;
@@ -270,11 +352,6 @@ static sxml_status sxml_regex_syntax_error(sxml_regex_compiler *compiler,
 #define SXML_REGEX_INVALID(compiler, text)                                   \
     sxml_regex_syntax_error((compiler), SXML_BYTE_VIEW_FROM_LITERAL(          \
                                             "Invalid regular expression: " text))
-#define SXML_REGEX_UNSUPPORTED(compiler, text)                               \
-    sxml_regex_syntax_error((compiler),                                       \
-                            SXML_BYTE_VIEW_FROM_LITERAL(                      \
-                                text " not supported by the regex seed "     \
-                                     "(docs/DECISIONS.md, D53)"))
 
 /* --------------------------------------------------------------- Reading */
 
@@ -447,7 +524,9 @@ static void sxml_regex_compiler_write(sxml_regex_compiler *compiler,
 static bool sxml_regex_operation_has_target(sxml_regex_operation operation) {
     return operation == SXML_REGEX_OPERATION_SPLIT_NEXT_FIRST ||
            operation == SXML_REGEX_OPERATION_SPLIT_TARGET_FIRST ||
-           operation == SXML_REGEX_OPERATION_JUMP;
+           operation == SXML_REGEX_OPERATION_JUMP ||
+           operation == SXML_REGEX_OPERATION_POSITIVE_LOOK_START ||
+           operation == SXML_REGEX_OPERATION_NEGATIVE_LOOK_START;
 }
 
 /* Raises the array counts to what has been written so far. */
@@ -616,119 +695,31 @@ static sxml_status sxml_regex_compiler_emit_range_item(
         compiler, (sxml_regex_class_item){
                       .kind = SXML_REGEX_CLASS_ITEM_KIND_RANGE,
                       .is_complemented = false,
+                      .is_case_insensitive = false,
                       .first_codepoint = range.first_codepoint,
                       .last_codepoint = range.last_codepoint,
+                      .category_mask = 0,
                   });
 }
 
-/* Characters outside ASCII whose case variants include an ASCII letter. */
-#define SXML_REGEX_KELVIN_SIGN 0x212AU
-#define SXML_REGEX_LATIN_SMALL_LONG_S 0x017FU
-#define SXML_REGEX_LATIN_SMALL_DOTLESS_I 0x0131U
-#define SXML_REGEX_ASCII_LIMIT 0x80U
-#define SXML_REGEX_ASCII_CASE_DISTANCE 32U
-
-static bool sxml_regex_range_contains(sxml_regex_codepoint_range range,
-                                      uint32_t codepoint) {
-    return codepoint >= range.first_codepoint &&
-           codepoint <= range.last_codepoint;
-}
-
-/* The letters of one ASCII case, and which way the other case lies. */
-typedef struct sxml_regex_case_shift {
-    sxml_regex_codepoint_range letters;
-    bool is_upward;
-} sxml_regex_case_shift;
-
-/* Emits the part of range within shift.letters, moved to the other case. */
-static sxml_status sxml_regex_compiler_emit_shifted_letters(
-    sxml_regex_compiler *compiler, sxml_regex_codepoint_range range,
-    sxml_regex_case_shift shift) {
-    uint32_t first_codepoint = range.first_codepoint > shift.letters.first_codepoint
-                                   ? range.first_codepoint
-                                   : shift.letters.first_codepoint;
-    uint32_t last_codepoint = range.last_codepoint < shift.letters.last_codepoint
-                                  ? range.last_codepoint
-                                  : shift.letters.last_codepoint;
-    if (first_codepoint > last_codepoint) {
-        return SXML_STATUS_OK;
-    }
-    sxml_regex_codepoint_range shifted = {
-        .first_codepoint = shift.is_upward
-                               ? first_codepoint + SXML_REGEX_ASCII_CASE_DISTANCE
-                               : first_codepoint - SXML_REGEX_ASCII_CASE_DISTANCE,
-        .last_codepoint = shift.is_upward
-                              ? last_codepoint + SXML_REGEX_ASCII_CASE_DISTANCE
-                              : last_codepoint - SXML_REGEX_ASCII_CASE_DISTANCE,
-    };
-    return sxml_regex_compiler_emit_range_item(compiler, shifted);
-}
-
 /*
- * Emits a range of a character group, with its case variants under the i
- * flag (F&O 4.0, section 6.2: C2 is a case variant of C1 when their
- * fn:lower-case or their fn:upper-case are equal). For ASCII letters these
- * are the other ASCII case plus three characters outside ASCII: KELVIN
- * SIGN (lower case k), LATIN SMALL LETTER LONG S (upper case S) and LATIN
- * SMALL LETTER DOTLESS I (upper case I). The seed has no case data beyond
- * that, so a range reaching outside ASCII is unsupported under i.
+ * Emits a character or range of a character group. Under the i flag it
+ * also matches the case variants of its characters (F&O 4.0, section 6.2:
+ * C2 is a case variant of C1 when their fn:lower-case or their
+ * fn:upper-case are equal), which the matcher checks with the Unicode case
+ * mappings, since a range may hold any number of characters.
  */
 static sxml_status sxml_regex_compiler_emit_range(
     sxml_regex_compiler *compiler, sxml_regex_codepoint_range range) {
-    if (compiler->flags.is_case_insensitive &&
-        range.last_codepoint >= SXML_REGEX_ASCII_LIMIT) {
-        return SXML_REGEX_UNSUPPORTED(
-            compiler, "Case-insensitive matching of non-ASCII characters is");
-    }
-    sxml_status status = sxml_regex_compiler_emit_range_item(compiler, range);
-    if (status != SXML_STATUS_OK || !compiler->flags.is_case_insensitive) {
-        return status;
-    }
-    status = sxml_regex_compiler_emit_shifted_letters(
-        compiler, range,
-        (sxml_regex_case_shift){
-            .letters = {.first_codepoint = 'A', .last_codepoint = 'Z'},
-            .is_upward = true,
-        });
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    status = sxml_regex_compiler_emit_shifted_letters(
-        compiler, range,
-        (sxml_regex_case_shift){
-            .letters = {.first_codepoint = 'a', .last_codepoint = 'z'},
-            .is_upward = false,
-        });
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    static const struct {
-        uint32_t lower_case_letter;
-        uint32_t other_variant;
-    } outside_variants[] = {
-        {'k', SXML_REGEX_KELVIN_SIGN},
-        {'s', SXML_REGEX_LATIN_SMALL_LONG_S},
-        {'i', SXML_REGEX_LATIN_SMALL_DOTLESS_I},
-    };
-    for (size_t variant_index = 0;
-         variant_index < sizeof(outside_variants) / sizeof(outside_variants[0]);
-         variant_index++) {
-        uint32_t letter = outside_variants[variant_index].lower_case_letter;
-        if (sxml_regex_range_contains(range, letter) ||
-            sxml_regex_range_contains(range,
-                                      letter - SXML_REGEX_ASCII_CASE_DISTANCE)) {
-            uint32_t variant = outside_variants[variant_index].other_variant;
-            status = sxml_regex_compiler_emit_range_item(
-                compiler, (sxml_regex_codepoint_range){
-                              .first_codepoint = variant,
-                              .last_codepoint = variant,
-                          });
-            if (status != SXML_STATUS_OK) {
-                return status;
-            }
-        }
-    }
-    return SXML_STATUS_OK;
+    return sxml_regex_compiler_emit_class_item(
+        compiler, (sxml_regex_class_item){
+                      .kind = SXML_REGEX_CLASS_ITEM_KIND_RANGE,
+                      .is_complemented = false,
+                      .is_case_insensitive = compiler->flags.is_case_insensitive,
+                      .first_codepoint = range.first_codepoint,
+                      .last_codepoint = range.last_codepoint,
+                      .category_mask = 0,
+                  });
 }
 
 /* Emits the instruction that matches class class_index. */
@@ -738,26 +729,35 @@ static sxml_status sxml_regex_compiler_emit_class_instruction(
         compiler, SXML_REGEX_OPERATION_CLASS, class_index);
 }
 
-/* Emits a normal character as an atom (with its case variants under i). */
+/*
+ * Emits a normal character as an atom. Under the i flag a character with
+ * case variants becomes a class of the character and its variants, found
+ * once here (section 6.2).
+ */
 static sxml_status sxml_regex_compiler_emit_literal(
     sxml_regex_compiler *compiler, uint32_t codepoint) {
-    bool is_ascii_letter = (codepoint >= 'A' && codepoint <= 'Z') ||
-                           (codepoint >= 'a' && codepoint <= 'z');
-    if (!compiler->flags.is_case_insensitive ||
-        (!is_ascii_letter && codepoint < SXML_REGEX_ASCII_LIMIT)) {
+    sxml_regex_case_variants variants = {.codepoint_count = 1};
+    variants.codepoints[0] = codepoint;
+    if (compiler->flags.is_case_insensitive) {
+        sxml_regex_find_case_variants(codepoint, &variants);
+    }
+    if (variants.codepoint_count == 1) {
         return sxml_regex_compiler_emit_operation(
             compiler, SXML_REGEX_OPERATION_CODEPOINT, codepoint);
     }
     uint32_t class_index = 0;
     sxml_status status =
         sxml_regex_compiler_reserve_class(compiler, &class_index);
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
     uint32_t first_item_index = compiler->counts.class_item_count;
-    status = sxml_regex_compiler_emit_range(
-        compiler, (sxml_regex_codepoint_range){.first_codepoint = codepoint,
-                                               .last_codepoint = codepoint});
+    for (size_t variant_index = 0;
+         status == SXML_STATUS_OK && variant_index < variants.codepoint_count;
+         variant_index++) {
+        status = sxml_regex_compiler_emit_range_item(
+            compiler, (sxml_regex_codepoint_range){
+                          .first_codepoint = variants.codepoints[variant_index],
+                          .last_codepoint = variants.codepoints[variant_index],
+                      });
+    }
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -814,65 +814,170 @@ static bool sxml_regex_single_character_escape(uint32_t escaped_codepoint,
     }
 }
 
+/* The names of category escapes (XSD 1.1 Part 2, appendix G, "Category
+   escapes": IsCategory) and the categories each stands for. */
+typedef struct sxml_regex_category_name {
+    char name[3];
+    uint32_t category_mask;
+} sxml_regex_category_name;
+
+#define SXML_REGEX_CATEGORY_BIT(category)                                    \
+    ((uint32_t)1 << (uint32_t)(SXML_REGEX_GENERAL_CATEGORY_##category))
+
+static const sxml_regex_category_name sxml_regex_category_names[] = {
+    {"L", SXML_REGEX_CATEGORY_MASK_L},  {"Lu", SXML_REGEX_CATEGORY_BIT(LU)},
+    {"Ll", SXML_REGEX_CATEGORY_BIT(LL)}, {"Lt", SXML_REGEX_CATEGORY_BIT(LT)},
+    {"Lm", SXML_REGEX_CATEGORY_BIT(LM)}, {"Lo", SXML_REGEX_CATEGORY_BIT(LO)},
+    {"M", SXML_REGEX_CATEGORY_MASK_M},  {"Mn", SXML_REGEX_CATEGORY_BIT(MN)},
+    {"Mc", SXML_REGEX_CATEGORY_BIT(MC)}, {"Me", SXML_REGEX_CATEGORY_BIT(ME)},
+    {"N", SXML_REGEX_CATEGORY_MASK_N},  {"Nd", SXML_REGEX_CATEGORY_BIT(ND)},
+    {"Nl", SXML_REGEX_CATEGORY_BIT(NL)}, {"No", SXML_REGEX_CATEGORY_BIT(NO)},
+    {"P", SXML_REGEX_CATEGORY_MASK_P},  {"Pc", SXML_REGEX_CATEGORY_BIT(PC)},
+    {"Pd", SXML_REGEX_CATEGORY_BIT(PD)}, {"Ps", SXML_REGEX_CATEGORY_BIT(PS)},
+    {"Pe", SXML_REGEX_CATEGORY_BIT(PE)}, {"Pi", SXML_REGEX_CATEGORY_BIT(PI)},
+    {"Pf", SXML_REGEX_CATEGORY_BIT(PF)}, {"Po", SXML_REGEX_CATEGORY_BIT(PO)},
+    {"Z", SXML_REGEX_CATEGORY_MASK_Z},  {"Zs", SXML_REGEX_CATEGORY_BIT(ZS)},
+    {"Zl", SXML_REGEX_CATEGORY_BIT(ZL)}, {"Zp", SXML_REGEX_CATEGORY_BIT(ZP)},
+    {"S", SXML_REGEX_CATEGORY_MASK_S},  {"Sm", SXML_REGEX_CATEGORY_BIT(SM)},
+    {"Sc", SXML_REGEX_CATEGORY_BIT(SC)}, {"Sk", SXML_REGEX_CATEGORY_BIT(SK)},
+    {"So", SXML_REGEX_CATEGORY_BIT(SO)}, {"C", SXML_REGEX_CATEGORY_MASK_C},
+    {"Cc", SXML_REGEX_CATEGORY_BIT(CC)}, {"Cf", SXML_REGEX_CATEGORY_BIT(CF)},
+    {"Co", SXML_REGEX_CATEGORY_BIT(CO)}, {"Cn", SXML_REGEX_CATEGORY_BIT(CN)},
+};
+
+/* The longest charProp read: "Is" and the longest block name of Unicode
+   16.0 (44 bytes) fit with room to spare. */
+#define SXML_REGEX_MAXIMUM_PROPERTY_BYTE_COUNT 64U
+
+/* True for the characters of a block name (IsBlock: [a-zA-Z0-9-]). */
+static bool sxml_regex_is_block_name_character(uint32_t codepoint) {
+    return (codepoint >= 'a' && codepoint <= 'z') ||
+           (codepoint >= 'A' && codepoint <= 'Z') ||
+           (codepoint >= '0' && codepoint <= '9') || codepoint == '-';
+}
+
 /*
- * The class item of a multi-character escape (\s \S \d \D \w \W), or false
- * when escaped_codepoint is not one the seed supports.
+ * Reads "{" charProp "}" after "\p" or "\P" (XSD 1.1 Part 2, appendix G,
+ * catEsc and complEsc) into the item of a category or block escape. An
+ * unknown block is FORX0002 (F&O 4.0, section 6.1.7). Inside a class
+ * expression nothing is removed; outside, the x flag has removed
+ * whitespace, so "\p{ Lu }" is "\p{Lu}".
  */
-static bool sxml_regex_multi_character_escape(uint32_t escaped_codepoint,
-                                              sxml_regex_class_item *item) {
-    sxml_regex_class_item_kind kind = SXML_REGEX_CLASS_ITEM_KIND_SPACE;
+static sxml_status sxml_regex_compiler_parse_property(
+    sxml_regex_compiler *compiler, sxml_regex_class_item *item) {
+    uint32_t codepoint = 0;
+    if (!sxml_regex_compiler_next(compiler, &codepoint) || codepoint != '{') {
+        return SXML_REGEX_INVALID(compiler, "\"\\p\" must be followed by \"{\"");
+    }
+    uint8_t property[SXML_REGEX_MAXIMUM_PROPERTY_BYTE_COUNT];
+    size_t property_byte_count = 0;
+    for (;;) {
+        if (!sxml_regex_compiler_next(compiler, &codepoint)) {
+            return SXML_REGEX_INVALID(compiler, "\"\\p{\" without \"}\"");
+        }
+        if (codepoint == '}') {
+            break;
+        }
+        if (!sxml_regex_is_block_name_character(codepoint) ||
+            property_byte_count == SXML_REGEX_MAXIMUM_PROPERTY_BYTE_COUNT) {
+            return SXML_REGEX_INVALID(compiler,
+                                      "unknown category or block name");
+        }
+        property[property_byte_count] = (uint8_t)codepoint;
+        property_byte_count += 1;
+    }
+    if (property_byte_count > 2 && property[0] == 'I' && property[1] == 's') {
+        sxml_regex_codepoint_range range = {.first_codepoint = 0};
+        if (!sxml_regex_find_block(
+                (sxml_byte_view){.bytes = property + 2,
+                                 .byte_count = property_byte_count - 2},
+                &range)) {
+            return SXML_REGEX_INVALID(compiler, "unknown block name");
+        }
+        item->kind = SXML_REGEX_CLASS_ITEM_KIND_RANGE;
+        item->first_codepoint = range.first_codepoint;
+        item->last_codepoint = range.last_codepoint;
+        return SXML_STATUS_OK;
+    }
+    for (size_t name_index = 0;
+         name_index < sizeof(sxml_regex_category_names) /
+                          sizeof(sxml_regex_category_names[0]);
+         name_index++) {
+        const sxml_regex_category_name *name =
+            &sxml_regex_category_names[name_index];
+        size_t name_byte_count = name->name[1] == '\0' ? 1 : 2;
+        if (name_byte_count == property_byte_count &&
+            memcmp(name->name, property, name_byte_count) == 0) {
+            item->kind = SXML_REGEX_CLASS_ITEM_KIND_CATEGORY;
+            item->category_mask = name->category_mask;
+            return SXML_STATUS_OK;
+        }
+    }
+    return SXML_REGEX_INVALID(compiler, "unknown category name");
+}
+
+/* What sxml_regex_compiler_parse_class_escape read. */
+typedef struct sxml_regex_class_escape {
+    /* False when the escaped character starts no class escape; nothing
+       was read then. */
+    bool is_class_escape;
+    sxml_regex_class_item item;
+} sxml_regex_class_escape;
+
+/*
+ * Reads a class escape (XSD 1.1 Part 2, appendix G, charClassEsc) whose
+ * backslash and escaped_codepoint have been read: a multi-character
+ * escape (\s \S \i \I \c \C \d \D \w \W) or a category or block escape
+ * (\p{..} \P{..}). None of them is affected by the i flag (F&O 4.0,
+ * section 6.2).
+ */
+static sxml_status sxml_regex_compiler_parse_class_escape(
+    sxml_regex_compiler *compiler, uint32_t escaped_codepoint,
+    sxml_regex_class_escape *escape) {
+    sxml_regex_class_item item = {
+        .kind = SXML_REGEX_CLASS_ITEM_KIND_SPACE,
+        .is_complemented = escaped_codepoint >= 'A' && escaped_codepoint <= 'Z',
+        .is_case_insensitive = false,
+        .first_codepoint = 0,
+        .last_codepoint = 0,
+        .category_mask = 0,
+    };
+    escape->is_class_escape = true;
     switch (escaped_codepoint) {
     case 's':
     case 'S':
-        kind = SXML_REGEX_CLASS_ITEM_KIND_SPACE;
+        item.kind = SXML_REGEX_CLASS_ITEM_KIND_SPACE;
         break;
     case 'd':
     case 'D':
-        kind = SXML_REGEX_CLASS_ITEM_KIND_DECIMAL_DIGIT;
+        item.kind = SXML_REGEX_CLASS_ITEM_KIND_DECIMAL_DIGIT;
         break;
     case 'w':
     case 'W':
-        kind = SXML_REGEX_CLASS_ITEM_KIND_WORD_CHARACTER;
+        item.kind = SXML_REGEX_CLASS_ITEM_KIND_WORD_CHARACTER;
         break;
-    default:
-        return false;
-    }
-    *item = (sxml_regex_class_item){
-        .kind = kind,
-        .is_complemented = escaped_codepoint == 'S' ||
-                           escaped_codepoint == 'D' ||
-                           escaped_codepoint == 'W',
-        .first_codepoint = 0,
-        .last_codepoint = 0,
-    };
-    return true;
-}
-
-/* Reports an escape that is valid in the dialect but not in the seed, or
-   invalid altogether. */
-static sxml_status sxml_regex_compiler_reject_escape(
-    sxml_regex_compiler *compiler, uint32_t escaped_codepoint) {
-    switch (escaped_codepoint) {
-    case 'p':
-    case 'P':
-        return SXML_REGEX_UNSUPPORTED(compiler,
-                                      "Category and block escapes (\\p, \\P) are");
     case 'i':
     case 'I':
+        item.kind = SXML_REGEX_CLASS_ITEM_KIND_NAME_START_CHARACTER;
+        break;
     case 'c':
     case 'C':
-        return SXML_REGEX_UNSUPPORTED(
-            compiler, "Name character escapes (\\i, \\I, \\c, \\C) are");
-    case 'b':
-    case 'B':
-        return SXML_REGEX_UNSUPPORTED(compiler,
-                                      "Word boundaries (\\b, \\B) are");
-    case 'k':
-        return SXML_REGEX_UNSUPPORTED(compiler,
-                                      "Named back-references (\\k) are");
-    default:
-        return SXML_REGEX_INVALID(compiler, "unknown escape");
+        item.kind = SXML_REGEX_CLASS_ITEM_KIND_NAME_CHARACTER;
+        break;
+    case 'p':
+    case 'P': {
+        sxml_status status = sxml_regex_compiler_parse_property(compiler, &item);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        break;
     }
+    default:
+        escape->is_class_escape = false;
+        return SXML_STATUS_OK;
+    }
+    escape->item = item;
+    return SXML_STATUS_OK;
 }
 
 /* Reads the end of a range after "-": a single character, escaped or not
@@ -899,6 +1004,19 @@ static sxml_status sxml_regex_compiler_parse_range_end(
     return SXML_STATUS_OK;
 }
 
+/* True when the next two characters are "-" and a character that ends a
+   range (not "]" or "["): the hyphen is a range separator (XSD 1.1 Part
+   2, appendix G, charRange). */
+static bool sxml_regex_compiler_is_at_range_separator(
+    const sxml_regex_compiler *compiler) {
+    uint32_t following_codepoint = 0;
+    uint32_t second_codepoint = 0;
+    return sxml_regex_compiler_peek_raw(compiler, &following_codepoint) &&
+           following_codepoint == '-' &&
+           sxml_regex_compiler_peek_second_raw(compiler, &second_codepoint) &&
+           second_codepoint != ']' && second_codepoint != '[';
+}
+
 /* Reads a character group part that starts with codepoint (already read),
    and emits its items. */
 static sxml_status sxml_regex_compiler_parse_group_part(
@@ -913,34 +1031,29 @@ static sxml_status sxml_regex_compiler_parse_group_part(
         if (!sxml_regex_compiler_next_raw(compiler, &escaped_codepoint)) {
             return SXML_REGEX_INVALID(compiler, "unterminated character class");
         }
-        sxml_regex_class_item item = {.kind = SXML_REGEX_CLASS_ITEM_KIND_SPACE};
-        if (sxml_regex_multi_character_escape(escaped_codepoint, &item)) {
-            uint32_t following_codepoint = 0;
-            uint32_t second_codepoint = 0;
-            if (sxml_regex_compiler_peek_raw(compiler, &following_codepoint) &&
-                following_codepoint == '-' &&
-                sxml_regex_compiler_peek_second_raw(compiler,
-                                                    &second_codepoint) &&
-                second_codepoint != ']' && second_codepoint != '[') {
+        sxml_regex_class_escape escape = {.is_class_escape = false};
+        sxml_status status = sxml_regex_compiler_parse_class_escape(
+            compiler, escaped_codepoint, &escape);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        if (escape.is_class_escape) {
+            if (sxml_regex_compiler_is_at_range_separator(compiler)) {
                 return SXML_REGEX_INVALID(
                     compiler, "a range cannot start with a class escape");
             }
-            return sxml_regex_compiler_emit_class_item(compiler, item);
+            return sxml_regex_compiler_emit_class_item(compiler, escape.item);
         }
         if (!sxml_regex_single_character_escape(escaped_codepoint,
                                                 &first_codepoint)) {
-            return sxml_regex_compiler_reject_escape(compiler,
-                                                     escaped_codepoint);
+            return SXML_REGEX_INVALID(compiler,
+                                      "unknown escape in a character class");
         }
     }
     uint32_t last_codepoint = first_codepoint;
-    uint32_t following_codepoint = 0;
-    uint32_t second_codepoint = 0;
-    if (sxml_regex_compiler_peek_raw(compiler, &following_codepoint) &&
-        following_codepoint == '-' &&
-        sxml_regex_compiler_peek_second_raw(compiler, &second_codepoint) &&
-        second_codepoint != ']' && second_codepoint != '[') {
-        (void)sxml_regex_compiler_next_raw(compiler, &following_codepoint);
+    if (sxml_regex_compiler_is_at_range_separator(compiler)) {
+        uint32_t hyphen = 0;
+        (void)sxml_regex_compiler_next_raw(compiler, &hyphen);
         sxml_status status =
             sxml_regex_compiler_parse_range_end(compiler, &last_codepoint);
         if (status != SXML_STATUS_OK) {
@@ -1001,9 +1114,9 @@ typedef struct sxml_regex_class_end {
 
 /*
  * Reads the group parts of one class expression up to its "]" or its
- * subtraction "-[" (XSD 1.1 Part 2, appendix G, charClassExpr). A "-" is
- * a literal only as the first part or the last; elsewhere it must be
- * escaped.
+ * subtraction "-[" (XSD 1.1 Part 2, appendix G, charClassExpr). A "-"
+ * that separates no range is a character (XSD 1.1 allows it anywhere,
+ * QT4 re00056a: "[a-d-b-c]" is a-d, "-" and b-c), except before "[".
  */
 static sxml_status sxml_regex_compiler_read_class_parts(
     sxml_regex_compiler *compiler, sxml_regex_class_end *class_end) {
@@ -1031,10 +1144,6 @@ static sxml_status sxml_regex_compiler_read_class_parts(
             (void)sxml_regex_compiler_next_raw(compiler, &following_codepoint);
             class_end->has_subtraction = true;
             return SXML_STATUS_OK;
-        }
-        if (codepoint == '-' && part_count != 0 &&
-            !(has_following && following_codepoint == ']')) {
-            return SXML_REGEX_INVALID(compiler, "\"-\" must be escaped here");
         }
         sxml_status status =
             sxml_regex_compiler_parse_group_part(compiler, codepoint);
@@ -1170,6 +1279,186 @@ static sxml_status sxml_regex_compiler_push_frame(
     return SXML_STATUS_OK;
 }
 
+/* ------------------------------------------------------------ Group names */
+
+/* The bytes before a name in the name table: its group number and byte
+   count. */
+#define SXML_REGEX_NAME_ENTRY_HEADER_BYTE_COUNT (2U * sizeof(uint32_t))
+/* The name table sxml_regex_compile holds itself. */
+#define SXML_REGEX_INLINE_NAME_TABLE_BYTE_COUNT 256U
+
+/* Makes room for byte_count more bytes in the name table. */
+static sxml_status sxml_regex_compiler_reserve_names(
+    sxml_regex_compiler *compiler, size_t byte_count) {
+    if (byte_count <= compiler->name_table_capacity -
+                          compiler->name_table_byte_count) {
+        return SXML_STATUS_OK;
+    }
+    if (sxml_allocator_is_null(compiler->stack_allocator)) {
+        return SXML_STATUS_CAPACITY_EXCEEDED;
+    }
+    size_t needed_byte_count = 0;
+    sxml_status status = sxml_size_add(compiler->name_table_byte_count,
+                                       byte_count, &needed_byte_count);
+    size_t new_capacity = 0;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_size_multiply(compiler->name_table_capacity, 2,
+                                    &new_capacity);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (new_capacity < needed_byte_count) {
+        new_capacity = needed_byte_count;
+    }
+    void *memory = NULL;
+    status = sxml_allocator_allocate(
+        compiler->stack_allocator,
+        (sxml_allocation_request){.byte_count = new_capacity, .alignment = 1},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    uint8_t *new_table = memory;
+    memcpy(new_table, compiler->name_table, compiler->name_table_byte_count);
+    if (compiler->name_table != compiler->inline_name_table) {
+        sxml_allocator_release(compiler->stack_allocator, compiler->name_table);
+    }
+    compiler->name_table = new_table;
+    compiler->name_table_capacity = new_capacity;
+    return SXML_STATUS_OK;
+}
+
+/* Gives a grown name table back to its allocator. */
+static void sxml_regex_compiler_release_names(sxml_regex_compiler *compiler) {
+    if (compiler->name_table != compiler->inline_name_table) {
+        sxml_allocator_release(compiler->stack_allocator, compiler->name_table);
+        compiler->name_table = compiler->inline_name_table;
+    }
+}
+
+/* The uint32_t at byte_offset of the name table (entries are not
+   aligned). */
+static uint32_t sxml_regex_compiler_read_name_table_field(
+    const sxml_regex_compiler *compiler, size_t byte_offset) {
+    uint32_t value = 0;
+    memcpy(&value, compiler->name_table + byte_offset, sizeof(value));
+    return value;
+}
+
+/* A group name just read: it lies after the last entry of the name
+   table, from byte_offset, until the next append. */
+typedef struct sxml_regex_read_name {
+    size_t byte_offset;
+    size_t byte_count;
+} sxml_regex_read_name;
+
+static sxml_byte_view sxml_regex_compiler_name_view(
+    const sxml_regex_compiler *compiler, sxml_regex_read_name name) {
+    return (sxml_byte_view){.bytes = compiler->name_table + name.byte_offset,
+                            .byte_count = name.byte_count};
+}
+
+/*
+ * Reads a group name up to its ">" (F&O 4.0, section 6.1.3, groupName: an
+ * ASCII letter, then ASCII letters and digits) after the end of the name
+ * table, leaving room for an entry header before it.
+ */
+static sxml_status sxml_regex_compiler_read_group_name(
+    sxml_regex_compiler *compiler, sxml_regex_read_name *name) {
+    sxml_status status = sxml_regex_compiler_reserve_names(
+        compiler, SXML_REGEX_NAME_ENTRY_HEADER_BYTE_COUNT);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    size_t name_offset =
+        compiler->name_table_byte_count + SXML_REGEX_NAME_ENTRY_HEADER_BYTE_COUNT;
+    size_t name_byte_count = 0;
+    for (;;) {
+        uint32_t codepoint = 0;
+        if (!sxml_regex_compiler_next(compiler, &codepoint)) {
+            return SXML_REGEX_INVALID(compiler, "a group name must end with \">\"");
+        }
+        if (codepoint == '>') {
+            break;
+        }
+        bool is_letter = (codepoint >= 'a' && codepoint <= 'z') ||
+                         (codepoint >= 'A' && codepoint <= 'Z');
+        bool is_digit = codepoint >= '0' && codepoint <= '9';
+        if (!is_letter && !(is_digit && name_byte_count != 0)) {
+            return SXML_REGEX_INVALID(
+                compiler, "a group name is an ASCII letter followed by ASCII "
+                          "letters and digits");
+        }
+        status = sxml_regex_compiler_reserve_names(
+            compiler, SXML_REGEX_NAME_ENTRY_HEADER_BYTE_COUNT +
+                          name_byte_count + 1);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        compiler->name_table[name_offset + name_byte_count] = (uint8_t)codepoint;
+        name_byte_count += 1;
+    }
+    if (name_byte_count == 0) {
+        return SXML_REGEX_INVALID(compiler, "a group name cannot be empty");
+    }
+    *name = (sxml_regex_read_name){.byte_offset = name_offset,
+                                   .byte_count = name_byte_count};
+    return SXML_STATUS_OK;
+}
+
+/* The number of the group named like the name just read, or 0. */
+static uint32_t sxml_regex_compiler_find_name(
+    const sxml_regex_compiler *compiler, sxml_regex_read_name name) {
+    sxml_byte_view name_view = sxml_regex_compiler_name_view(compiler, name);
+    size_t entry_offset = 0;
+    while (entry_offset < compiler->name_table_byte_count) {
+        uint32_t group_number =
+            sxml_regex_compiler_read_name_table_field(compiler, entry_offset);
+        uint32_t byte_count = sxml_regex_compiler_read_name_table_field(
+            compiler, entry_offset + sizeof(uint32_t));
+        if (byte_count == name_view.byte_count &&
+            memcmp(compiler->name_table + entry_offset +
+                       SXML_REGEX_NAME_ENTRY_HEADER_BYTE_COUNT,
+                   name_view.bytes, byte_count) == 0) {
+            return group_number;
+        }
+        entry_offset += SXML_REGEX_NAME_ENTRY_HEADER_BYTE_COUNT + byte_count;
+    }
+    return 0;
+}
+
+/*
+ * Makes the name just read the name of group group_number: an entry of
+ * the name table, and in the emitting pass the group's name in the
+ * compiled regex. A name used twice is FORX0002 (F&O 4.0, section 6.1.5).
+ */
+static sxml_status sxml_regex_compiler_name_group(
+    sxml_regex_compiler *compiler, sxml_regex_read_name name,
+    uint32_t group_number) {
+    if (sxml_regex_compiler_find_name(compiler, name) != 0) {
+        return SXML_REGEX_INVALID(compiler,
+                                  "two capturing groups have the same name");
+    }
+    if (name.byte_count > UINT32_MAX - compiler->counts.group_name_byte_count) {
+        return SXML_STATUS_LIMIT_EXCEEDED;
+    }
+    uint32_t name_byte_count = (uint32_t)name.byte_count;
+    uint8_t *entry = compiler->name_table + compiler->name_table_byte_count;
+    memcpy(entry, &group_number, sizeof(group_number));
+    memcpy(entry + sizeof(uint32_t), &name_byte_count, sizeof(name_byte_count));
+    compiler->name_table_byte_count = name.byte_offset + name.byte_count;
+    uint32_t name_offset = compiler->counts.group_name_byte_count;
+    compiler->counts.group_name_byte_count = name_offset + name_byte_count;
+    if (compiler->regex != NULL) {
+        memcpy(compiler->regex->group_names + name_offset,
+               compiler->name_table + name.byte_offset, name.byte_count);
+        compiler->regex->groups[group_number].name_offset = name_offset;
+        compiler->regex->groups[group_number].name_byte_count = name_byte_count;
+    }
+    return SXML_STATUS_OK;
+}
+
 /* ------------------------------------------------------- Back-references */
 
 /* True when group_number is a group whose ")" has been read. */
@@ -1223,10 +1512,150 @@ static uint32_t sxml_regex_compiler_read_back_reference(
  *   copy and appends the other copies.
  */
 
+/* The innermost open frame. */
+static sxml_regex_group_frame *sxml_regex_compiler_top_frame(
+    sxml_regex_compiler *compiler) {
+    return &compiler->frames[compiler->frame_count - 1];
+}
+
+static bool sxml_regex_frame_kind_is_lookbehind(sxml_regex_frame_kind kind) {
+    return kind == SXML_REGEX_FRAME_KIND_POSITIVE_LOOKBEHIND ||
+           kind == SXML_REGEX_FRAME_KIND_NEGATIVE_LOOKBEHIND;
+}
+
+static bool sxml_regex_frame_kind_is_lookahead(sxml_regex_frame_kind kind) {
+    return kind == SXML_REGEX_FRAME_KIND_POSITIVE_LOOKAHEAD ||
+           kind == SXML_REGEX_FRAME_KIND_NEGATIVE_LOOKAHEAD;
+}
+
+/* True inside a lookbehind assertion, whose regex holds only branches of
+   single characters (F&O 4.0, section 6.1.3, simpleRegExp). */
+static bool sxml_regex_compiler_is_in_lookbehind(
+    sxml_regex_compiler *compiler) {
+    return sxml_regex_frame_kind_is_lookbehind(
+        sxml_regex_compiler_top_frame(compiler)->kind);
+}
+
+/* The longest name of a "(*" assertion. */
+#define SXML_REGEX_MAXIMUM_ASSERTION_NAME_BYTE_COUNT 24U
+
+/* The "(*name:" spellings of the assertions (section 6.1.3). */
+typedef struct sxml_regex_assertion_name {
+    const char *name;
+    sxml_regex_frame_kind kind;
+} sxml_regex_assertion_name;
+
+static const sxml_regex_assertion_name sxml_regex_assertion_names[] = {
+    {"positive_lookahead", SXML_REGEX_FRAME_KIND_POSITIVE_LOOKAHEAD},
+    {"negative_lookahead", SXML_REGEX_FRAME_KIND_NEGATIVE_LOOKAHEAD},
+    {"positive_lookbehind", SXML_REGEX_FRAME_KIND_POSITIVE_LOOKBEHIND},
+    {"negative_lookbehind", SXML_REGEX_FRAME_KIND_NEGATIVE_LOOKBEHIND},
+};
+
+/* Reads "name:" after "(*" and writes the assertion it names to *kind. */
+static sxml_status sxml_regex_compiler_parse_assertion_name(
+    sxml_regex_compiler *compiler, sxml_regex_frame_kind *kind) {
+    char name[SXML_REGEX_MAXIMUM_ASSERTION_NAME_BYTE_COUNT];
+    size_t name_byte_count = 0;
+    for (;;) {
+        uint32_t codepoint = 0;
+        if (!sxml_regex_compiler_next(compiler, &codepoint)) {
+            return SXML_REGEX_INVALID(compiler, "unterminated \"(*\"");
+        }
+        if (codepoint == ':') {
+            break;
+        }
+        if (!((codepoint >= 'a' && codepoint <= 'z') || codepoint == '_') ||
+            name_byte_count == SXML_REGEX_MAXIMUM_ASSERTION_NAME_BYTE_COUNT) {
+            return SXML_REGEX_INVALID(compiler, "unknown \"(*\" assertion");
+        }
+        name[name_byte_count] = (char)codepoint;
+        name_byte_count += 1;
+    }
+    for (size_t name_index = 0;
+         name_index < sizeof(sxml_regex_assertion_names) /
+                          sizeof(sxml_regex_assertion_names[0]);
+         name_index++) {
+        const char *known_name = sxml_regex_assertion_names[name_index].name;
+        if (strlen(known_name) == name_byte_count &&
+            memcmp(known_name, name, name_byte_count) == 0) {
+            *kind = sxml_regex_assertion_names[name_index].kind;
+            return SXML_STATUS_OK;
+        }
+    }
+    return SXML_REGEX_INVALID(compiler, "unknown \"(*\" assertion");
+}
+
+/* What the "(" of a group or assertion introduces. */
+typedef struct sxml_regex_group_opening {
+    sxml_regex_frame_kind kind;
+    bool is_capturing;
+    bool has_name;
+    sxml_regex_read_name name;
+} sxml_regex_group_opening;
+
 /*
- * Reads a group after its "(" up to its body (F&O 4.0, section 6.1.3,
- * atom), numbers a capturing group and pushes its frame. atom_start is
- * where the group's atom started.
+ * Reads what follows "(" (F&O 4.0, section 6.1.3, atom and assertion):
+ * "?:", "?<name>", "?=", "?!", "?<=", "?<!", "(*name:" or nothing (a
+ * capturing group).
+ */
+static sxml_status sxml_regex_compiler_parse_group_opening(
+    sxml_regex_compiler *compiler, sxml_regex_group_opening *opening) {
+    *opening = (sxml_regex_group_opening){
+        .kind = SXML_REGEX_FRAME_KIND_GROUP,
+        .is_capturing = true,
+        .has_name = false,
+        .name = {.byte_offset = 0, .byte_count = 0},
+    };
+    uint32_t codepoint = 0;
+    if (sxml_regex_compiler_peek(compiler, &codepoint) && codepoint == '*') {
+        (void)sxml_regex_compiler_next(compiler, &codepoint);
+        opening->is_capturing = false;
+        return sxml_regex_compiler_parse_assertion_name(compiler,
+                                                        &opening->kind);
+    }
+    if (!sxml_regex_compiler_peek(compiler, &codepoint) || codepoint != '?') {
+        return SXML_STATUS_OK;
+    }
+    (void)sxml_regex_compiler_next(compiler, &codepoint);
+    if (!sxml_regex_compiler_next(compiler, &codepoint)) {
+        return SXML_REGEX_INVALID(compiler, "unterminated group");
+    }
+    opening->is_capturing = false;
+    switch (codepoint) {
+    case ':':
+        return SXML_STATUS_OK;
+    case '=':
+        opening->kind = SXML_REGEX_FRAME_KIND_POSITIVE_LOOKAHEAD;
+        return SXML_STATUS_OK;
+    case '!':
+        opening->kind = SXML_REGEX_FRAME_KIND_NEGATIVE_LOOKAHEAD;
+        return SXML_STATUS_OK;
+    case '<':
+        break;
+    default:
+        return SXML_REGEX_INVALID(compiler, "unknown \"(?\" construct");
+    }
+    uint32_t following_codepoint = 0;
+    if (sxml_regex_compiler_peek(compiler, &following_codepoint) &&
+        (following_codepoint == '=' || following_codepoint == '!')) {
+        (void)sxml_regex_compiler_next(compiler, &following_codepoint);
+        opening->kind = following_codepoint == '='
+                            ? SXML_REGEX_FRAME_KIND_POSITIVE_LOOKBEHIND
+                            : SXML_REGEX_FRAME_KIND_NEGATIVE_LOOKBEHIND;
+        return SXML_STATUS_OK;
+    }
+    opening->is_capturing = true;
+    opening->has_name = true;
+    return sxml_regex_compiler_read_group_name(compiler, &opening->name);
+}
+
+/*
+ * Reads a group or assertion after its "(" up to its body, numbers and
+ * names a capturing group and pushes its frame. An assertion starts with
+ * its LOOK_START; each branch of a lookbehind assertion with a STEP_BACK
+ * whose count its end writes. atom_start is where the group's atom
+ * started.
  */
 static sxml_status sxml_regex_compiler_open_group(
     sxml_regex_compiler *compiler, const sxml_regex_atom_start *atom_start) {
@@ -1234,90 +1663,138 @@ static sxml_status sxml_regex_compiler_open_group(
         compiler->maximum_group_depth) {
         return SXML_STATUS_LIMIT_EXCEEDED;
     }
-    bool is_capturing = true;
-    uint32_t codepoint = 0;
-    if (sxml_regex_compiler_peek(compiler, &codepoint) && codepoint == '?') {
-        (void)sxml_regex_compiler_next(compiler, &codepoint);
-        if (!sxml_regex_compiler_next(compiler, &codepoint)) {
-            return SXML_REGEX_INVALID(compiler, "unterminated group");
-        }
-        if (codepoint == '=' || codepoint == '!' || codepoint == '<') {
-            uint32_t following_codepoint = 0;
-            bool is_lookaround =
-                codepoint != '<' ||
-                (sxml_regex_compiler_peek(compiler, &following_codepoint) &&
-                 (following_codepoint == '=' || following_codepoint == '!'));
-            if (is_lookaround) {
-                return SXML_REGEX_UNSUPPORTED(
-                    compiler, "Lookahead and lookbehind assertions are");
-            }
-            return SXML_REGEX_UNSUPPORTED(compiler, "Named groups are");
-        }
-        if (codepoint != ':') {
-            return SXML_REGEX_INVALID(compiler, "unknown \"(?\" construct");
-        }
-        is_capturing = false;
-    } else if (sxml_regex_compiler_peek(compiler, &codepoint) &&
-               codepoint == '*') {
-        return SXML_REGEX_UNSUPPORTED(compiler, "\"(*\" assertions are");
+    if (sxml_regex_compiler_is_in_lookbehind(compiler)) {
+        /* Section 6.1.8.5. */
+        return SXML_REGEX_INVALID(
+            compiler, "a lookbehind assertion cannot contain parentheses");
+    }
+    bool is_in_lookahead =
+        sxml_regex_compiler_top_frame(compiler)->is_in_lookahead;
+    sxml_regex_group_opening opening = {.kind = SXML_REGEX_FRAME_KIND_GROUP};
+    sxml_status status =
+        sxml_regex_compiler_parse_group_opening(compiler, &opening);
+    if (status != SXML_STATUS_OK) {
+        return status;
     }
     uint32_t group_number = 0;
-    if (is_capturing) {
+    if (opening.is_capturing) {
         group_number = compiler->counts.group_count + 1;
         compiler->counts.group_count = group_number;
-        sxml_status status = sxml_regex_compiler_emit_operation(
-            compiler, SXML_REGEX_OPERATION_SAVE, 2 * group_number);
+        if (compiler->regex != NULL) {
+            compiler->regex->groups[group_number] = (sxml_regex_group){
+                .name_offset = 0,
+                .name_byte_count = 0,
+                .is_in_lookahead = is_in_lookahead,
+            };
+        }
+        if (opening.has_name) {
+            status = sxml_regex_compiler_name_group(compiler, opening.name,
+                                                    group_number);
+        }
+        if (status == SXML_STATUS_OK) {
+            status = sxml_regex_compiler_emit_operation(
+                compiler, SXML_REGEX_OPERATION_SAVE, 2 * group_number);
+        }
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+    }
+    uint32_t look_start_index = 0;
+    if (opening.kind != SXML_REGEX_FRAME_KIND_GROUP) {
+        bool is_negative =
+            opening.kind == SXML_REGEX_FRAME_KIND_NEGATIVE_LOOKAHEAD ||
+            opening.kind == SXML_REGEX_FRAME_KIND_NEGATIVE_LOOKBEHIND;
+        status = sxml_regex_compiler_emit(
+            compiler,
+            (sxml_regex_instruction){
+                .operation = is_negative
+                                 ? SXML_REGEX_OPERATION_NEGATIVE_LOOK_START
+                                 : SXML_REGEX_OPERATION_POSITIVE_LOOK_START,
+                .operand = 0},
+            &look_start_index);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+    }
+    uint32_t branch_start = compiler->counts.instruction_count;
+    if (sxml_regex_frame_kind_is_lookbehind(opening.kind)) {
+        status = sxml_regex_compiler_emit_operation(
+            compiler, SXML_REGEX_OPERATION_STEP_BACK, 0);
         if (status != SXML_STATUS_OK) {
             return status;
         }
     }
     return sxml_regex_compiler_push_frame(
-        compiler, (sxml_regex_group_frame){
-                      .group_number = group_number,
-                      .branch_start = compiler->counts.instruction_count,
-                      .branch_ends = {.last_instruction_number = 0},
-                      .atom_start = *atom_start,
-                  });
+        compiler,
+        (sxml_regex_group_frame){
+            .kind = opening.kind,
+            .group_number = group_number,
+            .branch_start = branch_start,
+            .branch_ends = {.last_instruction_number = 0},
+            .atom_start = *atom_start,
+            .look_start_index = look_start_index,
+            .branch_length = 0,
+            .is_in_lookahead =
+                is_in_lookahead || sxml_regex_frame_kind_is_lookahead(opening.kind),
+        });
 }
 
-/* Ends the branches of the innermost frame at the current instruction. */
+/* Ends the branches of the innermost frame at the current instruction;
+   in a lookbehind assertion, the last branch's STEP_BACK gets its
+   length. */
 static void sxml_regex_compiler_end_branches(sxml_regex_compiler *compiler) {
-    const sxml_regex_group_frame *frame =
-        &compiler->frames[compiler->frame_count - 1];
+    const sxml_regex_group_frame *frame = sxml_regex_compiler_top_frame(compiler);
+    if (sxml_regex_frame_kind_is_lookbehind(frame->kind)) {
+        sxml_regex_compiler_patch(compiler, frame->branch_start,
+                                  frame->branch_length);
+    }
     sxml_regex_pending_targets_resolve(compiler, frame->branch_ends,
                                        compiler->counts.instruction_count);
 }
 
 /*
- * Reads the ")" of the innermost group, ends it and pops its frame,
- * writing where the group's atom started to *atom_start.
+ * Reads the ")" of the innermost group or assertion, ends it and pops its
+ * frame into *closed_frame. An assertion ends with LOOK_END, after which
+ * its LOOK_START goes on when its regex fails.
  */
 static sxml_status sxml_regex_compiler_close_group(
-    sxml_regex_compiler *compiler, sxml_regex_atom_start *atom_start) {
+    sxml_regex_compiler *compiler, sxml_regex_group_frame *closed_frame) {
     sxml_regex_compiler_end_branches(compiler);
     const sxml_regex_group_frame frame =
         compiler->frames[compiler->frame_count - 1];
     compiler->frame_count -= 1;
     uint32_t codepoint = 0;
     (void)sxml_regex_compiler_next(compiler, &codepoint);
-    *atom_start = frame.atom_start;
-    if (frame.group_number == 0) {
-        return SXML_STATUS_OK;
+    *closed_frame = frame;
+    sxml_status status = SXML_STATUS_OK;
+    if (frame.group_number != 0) {
+        status = sxml_regex_compiler_emit_operation(
+            compiler, SXML_REGEX_OPERATION_SAVE, 2 * frame.group_number + 1);
     }
-    return sxml_regex_compiler_emit_operation(
-        compiler, SXML_REGEX_OPERATION_SAVE, 2 * frame.group_number + 1);
+    if (status == SXML_STATUS_OK && frame.kind != SXML_REGEX_FRAME_KIND_GROUP) {
+        status = sxml_regex_compiler_emit_operation(
+            compiler, SXML_REGEX_OPERATION_LOOK_END, 0);
+        sxml_regex_compiler_patch(compiler, frame.look_start_index,
+                                  compiler->counts.instruction_count);
+    }
+    return status;
 }
 
 /*
  * Reads a "|": the branch before it gets a split at its start that prefers
  * it, and a jump to the end of the group; the next branch starts after.
+ * In a lookbehind assertion every branch starts with its own STEP_BACK.
  */
 static sxml_status sxml_regex_compiler_start_next_branch(
     sxml_regex_compiler *compiler) {
-    sxml_regex_group_frame *frame = &compiler->frames[compiler->frame_count - 1];
+    sxml_regex_group_frame *frame = sxml_regex_compiler_top_frame(compiler);
+    bool is_lookbehind = sxml_regex_frame_kind_is_lookbehind(frame->kind);
     uint32_t codepoint = 0;
     (void)sxml_regex_compiler_next(compiler, &codepoint);
     uint32_t split_index = frame->branch_start;
+    if (is_lookbehind) {
+        sxml_regex_compiler_patch(compiler, split_index, frame->branch_length);
+    }
     sxml_status status = sxml_regex_compiler_insert(
         compiler, (sxml_regex_instruction_range){
                       .first_instruction_index = split_index,
@@ -1342,12 +1819,54 @@ static sxml_status sxml_regex_compiler_start_next_branch(
     sxml_regex_pending_targets_add(compiler, &frame->branch_ends, jump_index);
     frame->branch_start = compiler->counts.instruction_count;
     sxml_regex_compiler_patch(compiler, split_index, frame->branch_start);
+    if (is_lookbehind) {
+        frame->branch_length = 0;
+        status = sxml_regex_compiler_emit_operation(
+            compiler, SXML_REGEX_OPERATION_STEP_BACK, 0);
+    }
+    return status;
+}
+
+/* Fails when a quantifier follows: assertions take none (F&O 4.0,
+   section 6.1.8), nor do the characters of a lookbehind assertion. */
+static sxml_status sxml_regex_compiler_reject_quantifier(
+    sxml_regex_compiler *compiler) {
+    uint32_t codepoint = 0;
+    if (sxml_regex_compiler_peek(compiler, &codepoint) &&
+        (codepoint == '?' || codepoint == '*' || codepoint == '+' ||
+         codepoint == '{')) {
+        return sxml_regex_compiler_is_in_lookbehind(compiler)
+                   ? SXML_REGEX_INVALID(compiler,
+                                        "a lookbehind assertion cannot contain "
+                                        "a quantifier")
+                   : SXML_REGEX_INVALID(compiler,
+                                        "an assertion cannot have a quantifier");
+    }
     return SXML_STATUS_OK;
+}
+
+/* What an escape outside a class was. */
+typedef struct sxml_regex_escape_outcome {
+    /* \b or \B: an assertion, which takes no quantifier. */
+    bool is_assertion;
+} sxml_regex_escape_outcome;
+
+/* Emits a back-reference to group_number, which must be closed already
+   (F&O 4.0, section 6.1.6). */
+static sxml_status sxml_regex_compiler_emit_back_reference(
+    sxml_regex_compiler *compiler, uint32_t group_number) {
+    if (!sxml_regex_compiler_group_is_closed(compiler, group_number)) {
+        return SXML_REGEX_INVALID(
+            compiler, "a back-reference must follow the \")\" of its group");
+    }
+    return sxml_regex_compiler_emit_operation(
+        compiler, SXML_REGEX_OPERATION_BACK_REFERENCE, group_number);
 }
 
 /* Reads an escape outside a class after its backslash. */
 static sxml_status sxml_regex_compiler_parse_escape(
-    sxml_regex_compiler *compiler) {
+    sxml_regex_compiler *compiler, sxml_regex_escape_outcome *outcome) {
+    outcome->is_assertion = false;
     uint32_t escaped_codepoint = 0;
     if (!sxml_regex_compiler_next_escaped(compiler, &escaped_codepoint)) {
         return SXML_REGEX_INVALID(compiler, "\"\\\" at the end");
@@ -1356,16 +1875,20 @@ static sxml_status sxml_regex_compiler_parse_escape(
     if (sxml_regex_single_character_escape(escaped_codepoint, &codepoint)) {
         return sxml_regex_compiler_emit_literal(compiler, codepoint);
     }
-    sxml_regex_class_item item = {.kind = SXML_REGEX_CLASS_ITEM_KIND_SPACE};
-    if (sxml_regex_multi_character_escape(escaped_codepoint, &item)) {
+    sxml_regex_class_escape escape = {.is_class_escape = false};
+    sxml_status status = sxml_regex_compiler_parse_class_escape(
+        compiler, escaped_codepoint, &escape);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (escape.is_class_escape) {
         uint32_t class_index = 0;
-        sxml_status status =
-            sxml_regex_compiler_reserve_class(compiler, &class_index);
+        status = sxml_regex_compiler_reserve_class(compiler, &class_index);
         if (status != SXML_STATUS_OK) {
             return status;
         }
         uint32_t first_item_index = compiler->counts.class_item_count;
-        status = sxml_regex_compiler_emit_class_item(compiler, item);
+        status = sxml_regex_compiler_emit_class_item(compiler, escape.item);
         if (status != SXML_STATUS_OK) {
             return status;
         }
@@ -1380,22 +1903,49 @@ static sxml_status sxml_regex_compiler_parse_escape(
         return sxml_regex_compiler_emit_class_instruction(compiler,
                                                           class_index);
     }
-    if (escaped_codepoint >= '1' && escaped_codepoint <= '9') {
-        uint32_t group_number = sxml_regex_compiler_read_back_reference(
-            compiler, escaped_codepoint);
-        if (!sxml_regex_compiler_group_is_closed(compiler, group_number)) {
+    bool is_in_lookbehind = sxml_regex_compiler_is_in_lookbehind(compiler);
+    if (escaped_codepoint == 'b' || escaped_codepoint == 'B') {
+        if (is_in_lookbehind) {
             return SXML_REGEX_INVALID(
-                compiler,
-                "a back-reference must follow the \")\" of its group");
+                compiler, "a lookbehind assertion cannot contain \\b or \\B");
         }
-        if (compiler->flags.is_case_insensitive) {
-            return SXML_REGEX_UNSUPPORTED(
-                compiler, "Back-references with the i flag are");
-        }
+        /* Section 6.1.8.2. */
+        outcome->is_assertion = true;
         return sxml_regex_compiler_emit_operation(
-            compiler, SXML_REGEX_OPERATION_BACK_REFERENCE, group_number);
+            compiler,
+            escaped_codepoint == 'b' ? SXML_REGEX_OPERATION_WORD_BOUNDARY
+                                     : SXML_REGEX_OPERATION_NOT_WORD_BOUNDARY,
+            0);
     }
-    return sxml_regex_compiler_reject_escape(compiler, escaped_codepoint);
+    bool is_back_reference = (escaped_codepoint >= '1' && escaped_codepoint <= '9') ||
+                             escaped_codepoint == 'k';
+    if (is_back_reference && is_in_lookbehind) {
+        return SXML_REGEX_INVALID(
+            compiler, "a lookbehind assertion cannot contain a back-reference");
+    }
+    if (escaped_codepoint >= '1' && escaped_codepoint <= '9') {
+        return sxml_regex_compiler_emit_back_reference(
+            compiler,
+            sxml_regex_compiler_read_back_reference(compiler, escaped_codepoint));
+    }
+    if (escaped_codepoint == 'k') {
+        /* \k<name> (section 6.1.6). */
+        if (!sxml_regex_compiler_next(compiler, &codepoint) || codepoint != '<') {
+            return SXML_REGEX_INVALID(compiler, "\"\\k\" must be followed by \"<\"");
+        }
+        sxml_regex_read_name name = {.byte_offset = 0};
+        status = sxml_regex_compiler_read_group_name(compiler, &name);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        uint32_t group_number = sxml_regex_compiler_find_name(compiler, name);
+        if (group_number == 0) {
+            return SXML_REGEX_INVALID(
+                compiler, "\"\\k<name>\" names no capturing group");
+        }
+        return sxml_regex_compiler_emit_back_reference(compiler, group_number);
+    }
+    return SXML_REGEX_INVALID(compiler, "unknown escape");
 }
 
 typedef struct sxml_regex_quantifier {
@@ -1602,8 +2152,10 @@ static sxml_status sxml_regex_compiler_apply_quantifier(
            what it wrote still had to fit the arrays. */
         sxml_regex_compiler_note_array_counts(compiler);
         uint32_t group_count = compiler->counts.group_count;
+        uint32_t group_name_byte_count = compiler->counts.group_name_byte_count;
         compiler->counts = atom_start->counts;
         compiler->counts.group_count = group_count;
+        compiler->counts.group_name_byte_count = group_name_byte_count;
         return SXML_STATUS_OK;
     }
     sxml_regex_atom_copy_source atom = {
@@ -1691,7 +2243,9 @@ static sxml_status sxml_regex_compiler_end_atom(
 
 /*
  * Reads one atom (F&O 4.0, section 6.1.3, atom) and emits it with its
- * quantifier; a group's "(" only opens the group, which its ")" ends.
+ * quantifier; a group's "(" only opens the group, which its ")" ends. In
+ * a lookbehind assertion an atom is one character without a quantifier
+ * (simplePiece), counted for the branch's STEP_BACK.
  */
 static sxml_status sxml_regex_compiler_parse_atom(
     sxml_regex_compiler *compiler) {
@@ -1708,6 +2262,7 @@ static sxml_status sxml_regex_compiler_parse_atom(
         return SXML_REGEX_INVALID(compiler, "missing atom");
     }
     sxml_status status = SXML_STATUS_OK;
+    sxml_regex_escape_outcome outcome = {.is_assertion = false};
     switch (codepoint) {
     case '(':
         return sxml_regex_compiler_open_group(compiler, &atom_start);
@@ -1729,7 +2284,7 @@ static sxml_status sxml_regex_compiler_parse_atom(
             0);
         break;
     case '\\':
-        status = sxml_regex_compiler_parse_escape(compiler);
+        status = sxml_regex_compiler_parse_escape(compiler, &outcome);
         break;
     case '?':
     case '*':
@@ -1750,12 +2305,24 @@ static sxml_status sxml_regex_compiler_parse_atom(
     if (status != SXML_STATUS_OK) {
         return status;
     }
+    if (outcome.is_assertion) {
+        return sxml_regex_compiler_reject_quantifier(compiler);
+    }
+    if (sxml_regex_compiler_is_in_lookbehind(compiler)) {
+        sxml_regex_compiler_top_frame(compiler)->branch_length += 1;
+        return sxml_regex_compiler_reject_quantifier(compiler);
+    }
     return sxml_regex_compiler_end_atom(compiler, &atom_start);
 }
 
 /* Reads "^" or "$" (already peeked), which takes no quantifier. */
 static sxml_status sxml_regex_compiler_parse_assertion(
     sxml_regex_compiler *compiler) {
+    if (sxml_regex_compiler_is_in_lookbehind(compiler)) {
+        /* Section 6.1.8.5: only single characters. */
+        return SXML_REGEX_INVALID(
+            compiler, "a lookbehind assertion cannot contain \"^\" or \"$\"");
+    }
     uint32_t codepoint = 0;
     (void)sxml_regex_compiler_next(compiler, &codepoint);
     sxml_regex_operation operation =
@@ -1764,13 +2331,10 @@ static sxml_status sxml_regex_compiler_parse_assertion(
                                              : SXML_REGEX_OPERATION_STRING_START)
             : (compiler->flags.is_multi_line ? SXML_REGEX_OPERATION_LINE_END
                                              : SXML_REGEX_OPERATION_STRING_END);
-    uint32_t following_codepoint = 0;
-    if (sxml_regex_compiler_peek(compiler, &following_codepoint) &&
-        (following_codepoint == '?' || following_codepoint == '*' ||
-         following_codepoint == '+' || following_codepoint == '{')) {
-        /* F&O 4.0, section 6.1.8. */
-        return SXML_REGEX_INVALID(compiler,
-                                  "an assertion cannot have a quantifier");
+    /* F&O 4.0, section 6.1.8. */
+    sxml_status status = sxml_regex_compiler_reject_quantifier(compiler);
+    if (status != SXML_STATUS_OK) {
+        return status;
     }
     return sxml_regex_compiler_emit_operation(compiler, operation, 0);
 }
@@ -1785,13 +2349,16 @@ static sxml_status sxml_regex_compiler_parse_step(
         if (!has_codepoint) {
             return SXML_REGEX_INVALID(compiler, "\"(\" without \")\"");
         }
-        sxml_regex_atom_start atom_start = {.atom_parse_count = 0};
+        sxml_regex_group_frame closed_frame = {.kind = SXML_REGEX_FRAME_KIND_GROUP};
         sxml_status status =
-            sxml_regex_compiler_close_group(compiler, &atom_start);
+            sxml_regex_compiler_close_group(compiler, &closed_frame);
         if (status != SXML_STATUS_OK) {
             return status;
         }
-        return sxml_regex_compiler_end_atom(compiler, &atom_start);
+        if (closed_frame.kind != SXML_REGEX_FRAME_KIND_GROUP) {
+            return sxml_regex_compiler_reject_quantifier(compiler);
+        }
+        return sxml_regex_compiler_end_atom(compiler, &closed_frame.atom_start);
     }
     if (codepoint == '|') {
         return sxml_regex_compiler_start_next_branch(compiler);
@@ -1808,10 +2375,14 @@ static sxml_status sxml_regex_compiler_parse_regex(
     sxml_regex_compiler *compiler) {
     sxml_status status = sxml_regex_compiler_push_frame(
         compiler, (sxml_regex_group_frame){
+                      .kind = SXML_REGEX_FRAME_KIND_GROUP,
                       .group_number = 0,
                       .branch_start = compiler->counts.instruction_count,
                       .branch_ends = {.last_instruction_number = 0},
                       .atom_start = {.atom_parse_count = 0},
+                      .look_start_index = 0,
+                      .branch_length = 0,
+                      .is_in_lookahead = false,
                   });
     while (status == SXML_STATUS_OK) {
         uint32_t codepoint = 0;
@@ -1852,6 +2423,7 @@ static sxml_status sxml_regex_compile(
     const sxml_regex_configuration *configuration, sxml_regex *regex,
     sxml_regex_counts *counts) {
     sxml_regex_group_frame inline_frames[SXML_REGEX_INLINE_FRAME_COUNT];
+    uint8_t inline_name_table[SXML_REGEX_INLINE_NAME_TABLE_BYTE_COUNT];
     sxml_regex_compiler compiler = {
         .regex_text = configuration->regex_text,
         .byte_offset = 0,
@@ -1873,6 +2445,10 @@ static sxml_status sxml_regex_compile(
         .frame_count = 0,
         .frame_capacity = SXML_REGEX_INLINE_FRAME_COUNT,
         .inline_frames = inline_frames,
+        .name_table = inline_name_table,
+        .name_table_byte_count = 0,
+        .name_table_capacity = SXML_REGEX_INLINE_NAME_TABLE_BYTE_COUNT,
+        .inline_name_table = inline_name_table,
         .stack_allocator = configuration->stack_allocator,
         .error_record = configuration->error_record,
     };
@@ -1883,6 +2459,7 @@ static sxml_status sxml_regex_compile(
         status = sxml_regex_compiler_parse_regex(&compiler);
     }
     sxml_regex_compiler_release_frames(&compiler);
+    sxml_regex_compiler_release_names(&compiler);
     if (status == SXML_STATUS_OK) {
         status = sxml_regex_compiler_emit_operation(
             &compiler, SXML_REGEX_OPERATION_MATCH, 0);
@@ -1906,9 +2483,11 @@ typedef struct sxml_regex_layout {
     size_t instructions_offset;
     size_t classes_offset;
     size_t class_items_offset;
+    size_t groups_offset;
+    size_t group_names_offset;
 } sxml_regex_layout;
 
-/* Lays out the header and the three arrays for counts. */
+/* Lays out the header and the five arrays for counts. */
 static sxml_status sxml_regex_compute_layout(sxml_regex_counts counts,
                                              sxml_regex_layout *layout) {
     sxml_regex_layout new_layout = {
@@ -1958,6 +2537,25 @@ static sxml_status sxml_regex_compute_layout(sxml_regex_counts counts,
                 .byte_count = array_byte_count,
                 .alignment = alignof(sxml_regex_class_item)},
             &new_layout.class_items_offset);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_size_multiply((size_t)counts.group_count + 1,
+                                    sizeof(sxml_regex_group),
+                                    &array_byte_count);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_memory_requirements_append(
+            &new_layout.requirements,
+            (sxml_memory_requirements){.byte_count = array_byte_count,
+                                       .alignment = alignof(sxml_regex_group)},
+            &new_layout.groups_offset);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_memory_requirements_append(
+            &new_layout.requirements,
+            (sxml_memory_requirements){
+                .byte_count = counts.group_name_byte_count, .alignment = 1},
+            &new_layout.group_names_offset);
     }
     if (status != SXML_STATUS_OK) {
         return status;
@@ -2039,8 +2637,15 @@ sxml_status sxml_regex_initialize(sxml_memory_view memory,
                                        counts.class_count),
         .class_items = sxml_regex_array_at(memory, layout.class_items_offset,
                                            counts.class_item_count),
+        .group_name_byte_count = counts.group_name_byte_count,
+        .groups = sxml_regex_array_at(memory, layout.groups_offset,
+                                      (size_t)counts.group_count + 1),
+        .group_names = sxml_regex_array_at(memory, layout.group_names_offset,
+                                           counts.group_name_byte_count),
         .owning_allocator = {.state = NULL, .operations = NULL},
     };
+    new_regex->groups[0] = (sxml_regex_group){
+        .name_offset = 0, .name_byte_count = 0, .is_in_lookahead = false};
     sxml_regex_counts written_counts = {.instruction_count = 0};
     status = sxml_regex_compile(configuration, new_regex, &written_counts);
     if (status != SXML_STATUS_OK) {
@@ -2111,6 +2716,37 @@ sxml_regex_flags sxml_regex_get_flags(const sxml_regex *regex) {
     return regex->flags;
 }
 
+sxml_byte_view sxml_regex_group_name(const sxml_regex *regex,
+                                     uint32_t group_number) {
+    if (group_number > regex->group_count ||
+        regex->groups[group_number].name_byte_count == 0) {
+        return (sxml_byte_view){.bytes = NULL, .byte_count = 0};
+    }
+    const sxml_regex_group *group = &regex->groups[group_number];
+    return (sxml_byte_view){.bytes = regex->group_names + group->name_offset,
+                            .byte_count = group->name_byte_count};
+}
+
+uint32_t sxml_regex_find_named_group(const sxml_regex *regex,
+                                     sxml_byte_view name) {
+    for (uint32_t group_number = 1; group_number <= regex->group_count;
+         group_number++) {
+        sxml_byte_view group_name = sxml_regex_group_name(regex, group_number);
+        if (group_name.byte_count != 0 &&
+            group_name.byte_count == name.byte_count &&
+            memcmp(group_name.bytes, name.bytes, name.byte_count) == 0) {
+            return group_number;
+        }
+    }
+    return 0;
+}
+
+bool sxml_regex_group_is_in_lookahead(const sxml_regex *regex,
+                                      uint32_t group_number) {
+    return group_number <= regex->group_count &&
+           regex->groups[group_number].is_in_lookahead;
+}
+
 /* ------------------------------------------------------------- Matching */
 
 typedef enum sxml_regex_backtrack_kind {
@@ -2118,6 +2754,14 @@ typedef enum sxml_regex_backtrack_kind {
     SXML_REGEX_BACKTRACK_KIND_RESUME,
     /* Put byte_offset back into slot index. */
     SXML_REGEX_BACKTRACK_KIND_RESTORE_SLOT,
+    /* The start of a positive assertion at byte_offset: reaching it when
+       backtracking means the assertion's regex failed, so the assertion
+       fails too. */
+    SXML_REGEX_BACKTRACK_KIND_POSITIVE_ASSERTION,
+    /* The start of a negative assertion at byte_offset: reaching it when
+       backtracking means the assertion holds, and matching resumes at
+       instruction index (after its LOOK_END) and byte_offset. */
+    SXML_REGEX_BACKTRACK_KIND_NEGATIVE_ASSERTION,
 } sxml_regex_backtrack_kind;
 
 typedef struct sxml_regex_backtrack_entry {
@@ -2394,13 +3038,89 @@ static sxml_status sxml_regex_matcher_push(sxml_regex_matcher *matcher,
     return SXML_STATUS_OK;
 }
 
-static bool sxml_regex_class_item_contains(const sxml_regex_class_item *item,
+/* XML 1.0 (fifth edition), section 2.3: NameStartChar, and the
+   characters NameChar adds to it. */
+static const sxml_regex_codepoint_range sxml_regex_name_start_ranges[] = {
+    {':', ':'},         {'A', 'Z'},         {'_', '_'},
+    {'a', 'z'},         {0xC0, 0xD6},       {0xD8, 0xF6},
+    {0xF8, 0x2FF},      {0x370, 0x37D},     {0x37F, 0x1FFF},
+    {0x200C, 0x200D},   {0x2070, 0x218F},   {0x2C00, 0x2FEF},
+    {0x3001, 0xD7FF},   {0xF900, 0xFDCF},   {0xFDF0, 0xFFFD},
+    {0x10000, 0xEFFFF},
+};
+static const sxml_regex_codepoint_range sxml_regex_name_extra_ranges[] = {
+    {'-', '-'}, {'.', '.'}, {'0', '9'}, {0xB7, 0xB7},
+    {0x300, 0x36F}, {0x203F, 0x2040},
+};
+
+typedef struct sxml_regex_range_list {
+    const sxml_regex_codepoint_range *ranges;
+    size_t range_count;
+} sxml_regex_range_list;
+
+static bool sxml_regex_range_list_contains(sxml_regex_range_list list,
                                            uint32_t codepoint) {
+    for (size_t range_index = 0; range_index < list.range_count;
+         range_index++) {
+        if (codepoint >= list.ranges[range_index].first_codepoint &&
+            codepoint <= list.ranges[range_index].last_codepoint) {
+            return true;
+        }
+    }
+    return false;
+}
+
+#define SXML_REGEX_RANGE_LIST(array)                                         \
+    ((sxml_regex_range_list){.ranges = (array),                              \
+                             .range_count = sizeof(array) / sizeof((array)[0])})
+
+static bool sxml_regex_is_name_start_character(uint32_t codepoint) {
+    return sxml_regex_range_list_contains(
+        SXML_REGEX_RANGE_LIST(sxml_regex_name_start_ranges), codepoint);
+}
+
+static bool sxml_regex_is_name_character(uint32_t codepoint) {
+    return sxml_regex_is_name_start_character(codepoint) ||
+           sxml_regex_range_list_contains(
+               SXML_REGEX_RANGE_LIST(sxml_regex_name_extra_ranges), codepoint);
+}
+
+/* The character a class is asked about, with its case variants, found
+   the first time a case-insensitive range needs them (section 6.2). */
+typedef struct sxml_regex_class_query {
+    uint32_t codepoint;
+    bool has_variants;
+    sxml_regex_case_variants variants;
+} sxml_regex_class_query;
+
+/* True when a range under the i flag holds the character or one of its
+   case variants. */
+static bool sxml_regex_case_insensitive_range_contains(
+    const sxml_regex_class_item *item, sxml_regex_class_query *query) {
+    if (!query->has_variants) {
+        sxml_regex_find_case_variants(query->codepoint, &query->variants);
+        query->has_variants = true;
+    }
+    for (size_t variant_index = 0;
+         variant_index < query->variants.codepoint_count; variant_index++) {
+        uint32_t variant = query->variants.codepoints[variant_index];
+        if (variant >= item->first_codepoint && variant <= item->last_codepoint) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool sxml_regex_class_item_contains(const sxml_regex_class_item *item,
+                                           sxml_regex_class_query *query) {
+    uint32_t codepoint = query->codepoint;
     bool is_member = false;
     switch (item->kind) {
     case SXML_REGEX_CLASS_ITEM_KIND_RANGE:
-        is_member = codepoint >= item->first_codepoint &&
-                    codepoint <= item->last_codepoint;
+        is_member = (codepoint >= item->first_codepoint &&
+                     codepoint <= item->last_codepoint) ||
+                    (item->is_case_insensitive &&
+                     sxml_regex_case_insensitive_range_contains(item, query));
         break;
     case SXML_REGEX_CLASS_ITEM_KIND_SPACE:
         is_member = sxml_regex_is_removable_whitespace(codepoint);
@@ -2411,21 +3131,32 @@ static bool sxml_regex_class_item_contains(const sxml_regex_class_item *item,
     case SXML_REGEX_CLASS_ITEM_KIND_WORD_CHARACTER:
         is_member = sxml_regex_is_word_character(codepoint);
         break;
+    case SXML_REGEX_CLASS_ITEM_KIND_NAME_START_CHARACTER:
+        is_member = sxml_regex_is_name_start_character(codepoint);
+        break;
+    case SXML_REGEX_CLASS_ITEM_KIND_NAME_CHARACTER:
+        is_member = sxml_regex_is_name_character(codepoint);
+        break;
+    case SXML_REGEX_CLASS_ITEM_KIND_CATEGORY:
+        is_member = (item->category_mask &
+                     ((uint32_t)1 << (uint32_t)sxml_regex_get_general_category(
+                          codepoint))) != 0;
+        break;
     }
     return is_member != item->is_complemented;
 }
 
-/* True when codepoint is in the class's own items, with its negation but
-   without its subtraction. */
+/* True when the character is in the class's own items, with its negation
+   but without its subtraction. */
 static bool sxml_regex_class_own_contains(const sxml_regex_class *regex_class,
                                           const sxml_regex *regex,
-                                          uint32_t codepoint) {
+                                          sxml_regex_class_query *query) {
     bool is_member = false;
     for (uint32_t item_index = regex_class->first_item_index;
          item_index < regex_class->first_item_index + regex_class->item_count;
          item_index++) {
         if (sxml_regex_class_item_contains(&regex->class_items[item_index],
-                                           codepoint)) {
+                                           query)) {
             is_member = true;
             break;
         }
@@ -2446,10 +3177,13 @@ static bool sxml_regex_class_own_contains(const sxml_regex_class *regex_class,
 static bool sxml_regex_class_contains(const sxml_regex *regex,
                                       uint32_t class_index,
                                       uint32_t codepoint) {
+    sxml_regex_class_query query = {.codepoint = codepoint,
+                                    .has_variants = false,
+                                    .variants = {.codepoint_count = 0}};
     bool is_negated = false;
     const sxml_regex_class *regex_class = &regex->classes[class_index];
     for (;;) {
-        if (!sxml_regex_class_own_contains(regex_class, regex, codepoint)) {
+        if (!sxml_regex_class_own_contains(regex_class, regex, &query)) {
             return is_negated;
         }
         if (regex_class->subtracted_class_number == 0) {
@@ -2493,6 +3227,29 @@ static bool sxml_regex_matcher_is_at_line_end(
     return input.bytes[byte_offset] == '\n';
 }
 
+/* With the i flag a back-reference matches the captured characters one
+   by one, each or a case variant of it (section 6.2). */
+static bool sxml_regex_matcher_match_back_reference_case_blind(
+    const sxml_regex_matcher *matcher, sxml_byte_range captured,
+    size_t *byte_offset) {
+    size_t captured_offset = captured.byte_offset;
+    size_t input_offset = *byte_offset;
+    while (captured_offset < captured.byte_offset + captured.byte_count) {
+        uint32_t captured_codepoint = 0;
+        uint32_t input_codepoint = 0;
+        (void)sxml_regex_matcher_read_codepoint(matcher, &captured_offset,
+                                                &captured_codepoint);
+        if (!sxml_regex_matcher_read_codepoint(matcher, &input_offset,
+                                               &input_codepoint) ||
+            !sxml_regex_are_case_variants(captured_codepoint,
+                                          input_codepoint)) {
+            return false;
+        }
+    }
+    *byte_offset = input_offset;
+    return true;
+}
+
 /* Section 6.1.6: a back-reference matches what the group captured, or the
    empty string when the group has captured nothing. */
 static bool sxml_regex_matcher_match_back_reference(
@@ -2505,6 +3262,13 @@ static bool sxml_regex_matcher_match_back_reference(
         return true;
     }
     size_t group_byte_count = group_end - group_start;
+    if (matcher->regex->flags.is_case_insensitive) {
+        return sxml_regex_matcher_match_back_reference_case_blind(
+            matcher,
+            (sxml_byte_range){.byte_offset = group_start,
+                              .byte_count = group_byte_count},
+            byte_offset);
+    }
     const sxml_byte_view input = matcher->regex_input.utf8;
     if (group_byte_count > input.byte_count - *byte_offset) {
         return false;
@@ -2515,6 +3279,114 @@ static bool sxml_regex_matcher_match_back_reference(
         return false;
     }
     *byte_offset += group_byte_count;
+    return true;
+}
+
+/* The offset of the codepoint before the one at byte_offset (not 0). */
+static size_t sxml_regex_previous_codepoint_offset(sxml_string input,
+                                                   size_t byte_offset) {
+    size_t previous_offset = byte_offset - 1;
+    while (previous_offset > 0 &&
+           (input.utf8.bytes[previous_offset] & 0xC0U) == 0x80U) {
+        previous_offset -= 1;
+    }
+    return previous_offset;
+}
+
+/* Section 6.1.8.2: \b matches where a \w character and a \W character
+   (or the start or end of the string) meet. */
+static bool sxml_regex_matcher_is_at_word_boundary(
+    const sxml_regex_matcher *matcher, size_t byte_offset) {
+    bool is_word_before = false;
+    bool is_word_after = false;
+    uint32_t codepoint = 0;
+    if (byte_offset > 0) {
+        size_t previous_offset = sxml_regex_previous_codepoint_offset(
+            matcher->regex_input, byte_offset);
+        (void)sxml_regex_matcher_read_codepoint(matcher, &previous_offset,
+                                                &codepoint);
+        is_word_before = sxml_regex_is_word_character(codepoint);
+    }
+    size_t next_offset = byte_offset;
+    if (sxml_regex_matcher_read_codepoint(matcher, &next_offset, &codepoint)) {
+        is_word_after = sxml_regex_is_word_character(codepoint);
+    }
+    return is_word_before != is_word_after;
+}
+
+/* Moves *byte_offset back codepoint_count codepoints; false when the
+   input starts before that (a lookbehind branch longer than what
+   precedes). */
+static bool sxml_regex_matcher_step_back(const sxml_regex_matcher *matcher,
+                                         uint32_t codepoint_count,
+                                         size_t *byte_offset) {
+    size_t offset = *byte_offset;
+    for (uint32_t stepped_count = 0; stepped_count < codepoint_count;
+         stepped_count++) {
+        if (offset == 0) {
+            return false;
+        }
+        offset = sxml_regex_previous_codepoint_offset(matcher->regex_input,
+                                                      offset);
+    }
+    *byte_offset = offset;
+    return true;
+}
+
+/* The index of the innermost assertion's entry on the backtrack stack;
+   LOOK_END runs only inside an assertion, so there is one. */
+static size_t sxml_regex_matcher_find_assertion_entry(
+    const sxml_regex_matcher *matcher) {
+    size_t entry_index = matcher->entry_count;
+    while (entry_index > 0) {
+        entry_index -= 1;
+        sxml_regex_backtrack_kind kind = matcher->entries[entry_index].kind;
+        if (kind == SXML_REGEX_BACKTRACK_KIND_POSITIVE_ASSERTION ||
+            kind == SXML_REGEX_BACKTRACK_KIND_NEGATIVE_ASSERTION) {
+            return entry_index;
+        }
+    }
+    return 0;
+}
+
+/*
+ * LOOK_END: the regex of the innermost assertion has matched (sections
+ * 6.1.8.3 to 6.1.8.6). A positive assertion holds: its choices are
+ * dropped, so that no other way of matching it is tried (the groups it
+ * captured are those of its first match), but the entries that restore
+ * slots stay, so backtracking past the assertion still undoes its
+ * captures; matching goes on at the assertion's position. A negative
+ * assertion fails: its entries are undone and the thread backtracks.
+ * Returns false when the thread must backtrack.
+ */
+static bool sxml_regex_matcher_end_assertion(sxml_regex_matcher *matcher,
+                                             size_t *byte_offset) {
+    size_t assertion_index = sxml_regex_matcher_find_assertion_entry(matcher);
+    const sxml_regex_backtrack_entry assertion =
+        matcher->entries[assertion_index];
+    if (assertion.kind == SXML_REGEX_BACKTRACK_KIND_NEGATIVE_ASSERTION) {
+        while (matcher->entry_count > assertion_index + 1) {
+            matcher->entry_count -= 1;
+            const sxml_regex_backtrack_entry entry =
+                matcher->entries[matcher->entry_count];
+            if (entry.kind == SXML_REGEX_BACKTRACK_KIND_RESTORE_SLOT) {
+                matcher->slots[entry.index] = entry.byte_offset;
+            }
+        }
+        matcher->entry_count = assertion_index;
+        return false;
+    }
+    size_t kept_count = assertion_index;
+    for (size_t entry_index = assertion_index + 1;
+         entry_index < matcher->entry_count; entry_index++) {
+        if (matcher->entries[entry_index].kind ==
+            SXML_REGEX_BACKTRACK_KIND_RESTORE_SLOT) {
+            matcher->entries[kept_count] = matcher->entries[entry_index];
+            kept_count += 1;
+        }
+    }
+    matcher->entry_count = kept_count;
+    *byte_offset = assertion.byte_offset;
     return true;
 }
 
@@ -2609,6 +3481,34 @@ static sxml_status sxml_regex_matcher_step(sxml_regex_matcher *matcher,
         is_successful = sxml_regex_matcher_match_back_reference(
             matcher, instruction.operand, &thread->byte_offset);
         break;
+    case SXML_REGEX_OPERATION_WORD_BOUNDARY:
+        is_successful = sxml_regex_matcher_is_at_word_boundary(
+            matcher, thread->byte_offset);
+        break;
+    case SXML_REGEX_OPERATION_NOT_WORD_BOUNDARY:
+        is_successful = !sxml_regex_matcher_is_at_word_boundary(
+            matcher, thread->byte_offset);
+        break;
+    case SXML_REGEX_OPERATION_POSITIVE_LOOK_START:
+    case SXML_REGEX_OPERATION_NEGATIVE_LOOK_START:
+        status = sxml_regex_matcher_push(
+            matcher,
+            (sxml_regex_backtrack_entry){
+                .kind = instruction.operation ==
+                                SXML_REGEX_OPERATION_POSITIVE_LOOK_START
+                            ? SXML_REGEX_BACKTRACK_KIND_POSITIVE_ASSERTION
+                            : SXML_REGEX_BACKTRACK_KIND_NEGATIVE_ASSERTION,
+                .index = instruction.operand,
+                .byte_offset = thread->byte_offset});
+        break;
+    case SXML_REGEX_OPERATION_LOOK_END:
+        is_successful =
+            sxml_regex_matcher_end_assertion(matcher, &thread->byte_offset);
+        break;
+    case SXML_REGEX_OPERATION_STEP_BACK:
+        is_successful = sxml_regex_matcher_step_back(
+            matcher, instruction.operand, &thread->byte_offset);
+        break;
     case SXML_REGEX_OPERATION_MATCH:
         /* The caller stops before running MATCH. */
         break;
@@ -2630,7 +3530,11 @@ static bool sxml_regex_matcher_backtrack(sxml_regex_matcher *matcher,
         case SXML_REGEX_BACKTRACK_KIND_RESTORE_SLOT:
             matcher->slots[entry.index] = entry.byte_offset;
             break;
+        case SXML_REGEX_BACKTRACK_KIND_POSITIVE_ASSERTION:
+            /* The assertion's regex failed: so does the assertion. */
+            break;
         case SXML_REGEX_BACKTRACK_KIND_RESUME:
+        case SXML_REGEX_BACKTRACK_KIND_NEGATIVE_ASSERTION:
             thread->instruction_index = entry.index;
             thread->byte_offset = entry.byte_offset;
             return true;
