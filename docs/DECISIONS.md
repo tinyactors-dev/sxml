@@ -4222,6 +4222,16 @@ Recorded 2026-10-17, after D97, D128, D131, D133. New module `src/csv.c` /
 
 ## Proposed
 
+- **The WebAssembly size budget** (packet 2.18, D138; for the owner):
+  Phase 2 grew the stripped `sxml` CLI module from 1.21 MB to 1.82 MB
+  and its gzipped size from 358 KB to 630 KB, past D93's 1.5 MB / 450 KB.
+  2.18 set the ctest budget (`javascript/size_budget`) to 2,000,000
+  bytes stripped and 700,000 gzipped for the CLI and `sxml.wasm`, so it
+  holds today with about 10% headroom. Choose: confirm that budget, or
+  ask for optional parts (XQuery and XSLT grammars, collation and Unicode
+  tables) as separate modules (PLAN.md, risks) and keep a lower budget
+  for the core.
+
 - **xsl:record and record-type/@constructor in the stylesheet AST**
   (packet 4.5, D139): XSLT 4.0's xsl:record instruction (17 in-scope
   cases) has no kind in `src/xslt_ast_internal.h` and is read as a
