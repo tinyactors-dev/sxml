@@ -378,6 +378,9 @@ After 1.25. Owns `tools/conformance-report.py`, `docs/CONFORMANCE.md`,
 each XP40 test set, total; run, pass, fail, skip; commit, date). CI runs the
 slice (blocking) and all XP40 sets (informational). Done when regeneration
 on a clean tree gives no diff.
+**Done** 2026-10-17 (D94): `tools/run-qt4.sh` + `tools/conformance-report.py`;
+XP40 21,443/47,313 passed, slice 198/198; CI jobs `conformance` and
+`fuzz`. Regenerating from the same run gives no diff.
 
 ### 1.28 WebAssembly slice (implementation)
 After 1.25. Owns `tools/run-wasi.mjs`. `ctest --preset wasm` runs
