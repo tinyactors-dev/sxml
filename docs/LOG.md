@@ -4,6 +4,21 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 2.12 done (D131): resources and the evaluation environment. New part
+  `resource` (unparsed-text, -lines, -available, unparsed-binary,
+  json-doc, collection, uri-collection, environment variables,
+  default-language); fn:trace and fn:message reach the trace sink,
+  `sxml_stream_trace_sink`. Static decimal formats and collations are
+  checked and copied into the IR unit and read lexically (accepting
+  2.9's and 2.13's proposals), plus 2.6's O(1) range comparison. XP40
+  sets (release, before at 24fc6ac): unparsed-text 54 to 94/94,
+  -lines 39 to 58/58, -available 7 to 57/57, unparsed-binary 16 to
+  21/21, json-doc 36 to 73/77, collection 18 to 24/25,
+  environment-variable 6 to 12/12, available-environment-variables 2 to
+  10/10, default-language 0 to 5/5, message 3 to 14/14, format-number
+  252 to 285/286. XP40 28,791 of 30,992 run (CONFORMANCE.md 23,146);
+  slice 198/198; debug, debug-gcc, wasm, clang-tidy clean.
+
 - 2.10 done (D130): elements to maps and back, part `element_map`.
   fn:element-to-map chooses layouts in document order and builds values
   in reverse document order over per-node element slots; plans group by
