@@ -284,6 +284,12 @@ static const value_case value_cases[] = {
     {"for $x in ([1], [], [2], []) group by $k := $x?* return count($x)", "1 2 1"},
     {"for $x in (xs:double('NaN'), 1, 1.0, xs:double('NaN')) group by $k := $x return count($x)",
      "2 2"},
+    /* Dates and times without timezone have the implicit one (F&O 4.0,
+       fn:deep-equal). */
+    {"for $k in (xs:dateTime('2015-04-08T01:30:00'), adjust-dateTime-to-timezone("
+     "xs:dateTime('2015-04-08T01:30:00'), implicit-timezone())) group by $g := $k "
+     "return count($k)",
+     "2"},
     /* Two keys, a collation. */
     {"for $p in ('a1', 'b2', 'A1', 'a2') group by $l := substring($p, 1, 1) "
      "collation 'http://www.w3.org/2005/xpath-functions/collation/html-ascii-case-insensitive', "

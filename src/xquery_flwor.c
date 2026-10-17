@@ -77,10 +77,13 @@ static int64_t integer_of(sxml_item item) {
 
 /* ============================================================ group by */
 
-/* One grouping key of a tuple: empty or one atomic item (borrowed), with
-   its collation key when the collation compares it by one. */
+/* One grouping key of a tuple: empty or one atomic item, with its
+   collation key when the collation compares it by one. The item is
+   borrowed from the tuple, or owned (is_adjusted) when it is a date or
+   time without timezone given the implicit timezone. */
 typedef struct grouping_key {
     bool is_empty;
+    bool is_adjusted;
     sxml_item item;
     sxml_collated_key collated;
 } grouping_key;
@@ -109,6 +112,10 @@ typedef struct grouping {
 
 static void release_keys(grouping_key *keys, size_t key_count) {
     for (size_t key_index = 0; key_index < key_count; key_index += 1) {
+        if (keys[key_index].is_adjusted) {
+            sxml_item_release(keys[key_index].item);
+            keys[key_index].is_adjusted = false;
+        }
         if (keys[key_index].collated.is_keyed) {
             sxml_collation_key_release(&keys[key_index].collated.key);
             keys[key_index].collated.is_keyed = false;
@@ -171,6 +178,38 @@ static bool keys_are_equal(const grouping_key *first, const grouping_key *second
     return true;
 }
 
+/* fn:deep-equal compares dates and times without timezone as if they had
+   the implicit timezone (F&O 4.0, 2.2.4 and 9.4.1): the key compared is
+   the item with that timezone. */
+static sxml_status adjust_to_implicit_timezone(const grouping *work, grouping_key *key) {
+    const sxml_function_call *call = work->call;
+    sxml_atomic_datum datum;
+    sxml_status status = sxml_atomic_item_get_datum(key->item, &datum);
+    if (status != SXML_STATUS_OK || call->dynamic_context == NULL ||
+        datum.datum_kind != SXML_DATUM_KIND_DATE_TIME ||
+        datum.datum_details.date_time.has_timezone) {
+        return status;
+    }
+    int16_t timezone = 0;
+    status = sxml_dynamic_context_read_implicit_timezone(call->dynamic_context, &timezone);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    datum.datum_details.date_time.has_timezone = true;
+    datum.datum_details.date_time.timezone_offset_minutes = timezone;
+    sxml_item adjusted = {.representation = 0};
+    status = sxml_atomic_item_make(
+        call->item_heap,
+        &(sxml_atomic_item_request){.type = sxml_item_get_type_annotation(key->item),
+                                    .datum = datum},
+        &adjusted);
+    if (status == SXML_STATUS_OK) {
+        key->item = adjusted;
+        key->is_adjusted = true;
+    }
+    return status;
+}
+
 /* Reads the keys of tuple tuple_index into keys. */
 static sxml_status read_keys(grouping *work, size_t tuple_index, grouping_key *keys) {
     const sxml_function_call *call = work->call;
@@ -193,6 +232,9 @@ static sxml_status read_keys(grouping *work, size_t tuple_index, grouping_key *k
         status = sxml_sequence_get_item(
             member, (sxml_item_request){.item_index = 0, .error_record = call->error_record},
             &key->item);
+        if (status == SXML_STATUS_OK) {
+            status = adjust_to_implicit_timezone(work, key);
+        }
         if (status == SXML_STATUS_OK &&
             !sxml_collation_is_codepoint_order(&work->collations[key_index])) {
             status = sxml_function_library_make_collated_key(
