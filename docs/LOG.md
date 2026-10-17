@@ -4,6 +4,19 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 3.2 done (D121): XQuery front end. `sxml_xquery_build_ast` in
+  `src/xquery_parse.c`, the XQuery parser part on the XPath walker:
+  tables, keyword tokens, XQuery decoding (references with XQST0090,
+  doubled delimiters and braces, attribute value normalization,
+  end-of-line handling) and the D29 builder checks (XQST0118, XQST0040,
+  XQST0071, XQST0022, XQST0070, XQST0085, boundary whitespace, XQST0031,
+  XQST0087, %constructor record fields). XQ40 front end: before (scratch
+  part, 3.1) 43,663 valid build with no checks; after 43,663 valid and
+  145 modules build, 70 with their expected static error, 772/772
+  XPST0003 rejected, 0 false accepts. XP40 26,951 passed at HEAD (no
+  XPath path changed; CONFORMANCE.md 23,146), slice 198/198. `debug`,
+  `debug-gcc`, `wasm` 126/126, lint clean.
+
 - 2.6 done (D115): evaluator, paths, references. fn:jkey/fn:jvalue in
   new part `src/function_library_jnode.c` (moved from 2.17); selector
   interpretation of non-navigational steps from JNodes (XPDY0002 when

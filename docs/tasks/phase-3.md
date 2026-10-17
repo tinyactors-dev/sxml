@@ -90,6 +90,11 @@ XQST0090), CDATA, pragmas, string constructors, the three D29 false
 accepts. Done when all 43,663 valid XQ40 queries and the 145 parsable
 library modules build an AST and the 772 XPST0003 cases fail statically
 (`tools/qt4-parse-check.py --spec XQ40`).
+**Done** 2026-10-17 (D121): the XQuery parser part in
+`src/xquery_parse.c`; all 43,663 valid XQ40 queries and 145 library
+modules build (70 raise the static error their test expects), all 772
+XPST0003 cases fail. Prolog XQST0070 and expanded-name XQST0040 are
+left to 3.10 and lowering.
 
 ### 3.3 Serializer: XML and XHTML methods (implementation) — Early
 After 3.0, 2.4. Owns `src/serialize.c`, new `src/serialize_internal.h`,
