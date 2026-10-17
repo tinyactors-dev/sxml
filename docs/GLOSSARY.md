@@ -610,6 +610,7 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `group_name` | The name of a named capturing subexpression, `(?<name>...)`; `\k<name>` refers back to it and result maps key its group by it (F&O 4.0, section 6.1.5) |
 | `lookahead_group` | A captured group of a capturing subexpression within a lookahead assertion; it may lie outside the matching segment (F&O 4.0, `fn:analyze-string`) |
 | `assertion_entry` | A backtrack-stack entry marking where a lookahead or lookbehind assertion started; the assertion's end and backtracking find it (D105) |
+| `counted_loop` | A counted repetition `x{n,m}` compiled as `x` once plus a counter slot that counts its iterations, instead of copies of `x`; used when the copies would pass 256 instructions (D147) |
 | `general_category` | The Unicode general category of a codepoint (Lu, Nd, ...), what a category escape `\p{..}` tests (XSD 1.1 Part 2, appendix G) |
 | `block_escape` | `\p{IsX}`: the codepoints of Unicode block X, named as in Blocks.txt without spaces |
 | `name_table` | The regex compiler's list of the group names read so far, for duplicates and `\k<name>` (D105) |
