@@ -130,21 +130,69 @@ Frequency: `assert-true` 11,638; `error` 10,063; `assert-eq` 6,500;
 
 ## xslt40-test layout
 
+Read by `sxml-xslt-test` (`tests/xslt/driver/`, D117), which this section
+describes as it reads the suite.
+
 - `catalog.xml` is in namespace `http://www.w3.org/2012/10/xslt-test-catalog`.
-  It lists 278 `<test-set name file>` entries, with 13,867 test cases in all.
-  12,639 of them apply to XSLT 4.0 (tokens `XSLT10+` up to `XSLT40+`).
+  It holds only `<test-set name file>` entries: 250 active ones (28 more are
+  commented out), with 13,867 test cases in all, and no environments
+  ("at present there are no global environments", catalog-schema.xsd).
+  12,639 of them apply to XSLT 4.0 (tokens `XSLT10+` up to `XSLT40+`, or
+  `XSLT40`; 12 cases have no spec at all and apply to every version).
 - `tests/<group>/<area>/_<area>-test-set.xml` sits next to its `.xsl` and
   `.xml` files. The groups, with case counts: `misc` 3,123, `strm`
   (streaming) 2,564, `insn` 1,996, `attr` 1,634, `decl` 1,497, `fn` 1,339,
-  `type` 975 and `expr` 739. `sandp` holds generated streamability-posture tests.
-- Dependencies sit inside a `<dependencies>` wrapper, as `<spec value>`,
-  `<feature value>` and implementation-defined items such as
-  `year_component_values`. Again, a test-case spec replaces the test-set
-  spec.
-- `<test>` holds `stylesheet file`, `package`, `initial-template`,
-  `initial-mode`, `initial-function`, `param` and `output`. Environments are
-  like those in QT4, plus `stylesheet` entries.
-- The assertions are the QT4 set plus `assert-result-document`,
-  `assert-message`, `assert-warning` and `assert-serialization`.
+  `type` 975 and `expr` 739. `sandp` holds generated streamability-posture
+  tests, none of them in the catalog today.
+- Scope (D95): of the 12,639, the 8,728 outside `strm` and `sandp` that
+  need none of the features schema_aware, streaming, dtd, XML_1.1, XSD_1.1,
+  backwards_compatibility, HTML4, ICU_spellout. A case that asks for one of
+  them to be absent (`satisfied="false"`) stays in scope.
+- Dependencies sit inside a `<dependencies>` wrapper of the test set or the
+  test case. Each child is one dependency, its element name the type:
+  `<spec value>`, `<feature value [satisfied]>` and implementation-defined
+  items such as `year_component_values`, `combinations_for_numbering`,
+  `package_version_resolution`, `on-multiple-match` and
+  `maximum_number_of_decimal_digits`. Their values are phrases ("support
+  negative year", "CIRCLED DIGIT ONE"), not token lists; only spec values
+  are space-separated tokens. A test-case spec replaces the test-set spec.
+  `XPath_3.1` is XSLT 3.0's optional support of XPath 3.1, not a request
+  for 3.1 behaviour.
+- Environments are named in the test set (`<environment name>`), referred
+  to by `<environment ref>` in a test case, or inline there. They hold the
+  QT4 children `source`, `param`, `resource`, `collection`, `collation`,
+  `schema`, `context-item`, plus `stylesheet`, `package` and `output`. A
+  `source` gives its document by `file` or inline in a `<content>` child
+  (CDATA), may `select` the global context item within it (role "."), and
+  has the flags `streaming`, `dtd`, `defines-stylesheet` (the document's
+  xml-stylesheet processing instruction names the stylesheet: 16 cases),
+  `xinclude` and `xml-version`.
+- `<test>` holds `package*`, `stylesheet*` (`file`, `role` principal or
+  secondary; packages also `uri`, the package name, and `package-version`),
+  `posture-and-sweep?`, `param*` (`name` an xs:QName, `select`, `as`,
+  `static="yes"`), then one of `initial-template name?` (absent name:
+  `xsl:initial-template`), `initial-mode name select?` (`#default`,
+  `#unnamed` or a QName; `select` is the initial match selection) and
+  `initial-function name`, each with its own `param` children (`tunnel`
+  for templates and modes, by position for functions), and `output`
+  (`serialize`, `tree`, `well-formed`, `file`, `result-var`). Without an
+  initial element the stylesheet is applied to the global context item in
+  the default mode. The principal module is the first non-secondary
+  module of `<test>`, else of the environment (8,913 cases have it in the
+  test, 4,708 only in the environment). Counts: initial-template 6,312,
+  initial-mode 156, initial-function 38; 422 tests use packages.
+- The assertions are the QT4 set plus `assert-result-document uri`,
+  `assert-message`, `assert-warning`, `assert-serialization`
+  (`method`, `file`), `serialization-matches` (`flags`),
+  `assert-serialization-error code` and `assert-posture-and-sweep`. `assert`
+  is evaluated with the document node of the principal result as the
+  context item and the default element namespace none (not with
+  `$result`); `assert-message` and `assert-result-document` each hold one
+  assertion about one message or result document. Counts, as assertions
+  (test cases): `assert` 8,998 (5,345), `assert-xml` 5,215 (5,178),
+  `error` 2,828 (2,706), `all-of` 1,273, `serialization-matches` 890
+  (369), `assert-string-value` 350, `assert-result-document` 156 (74),
+  `assert-serialization` 112, `assert-message` 92 (50), `assert-warning`
+  6; `assert-posture-and-sweep` occurs only in `sandp`.
 - `admin/catalog-schema.xsd` defines the format. `runner/` holds an XSLT-based
   reference runner.
