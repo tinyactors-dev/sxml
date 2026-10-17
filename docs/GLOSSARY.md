@@ -333,9 +333,9 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `attribute_default` | The value an attribute definition supplies when an element does not specify the attribute (XML 1.0, section 3.3.2) |
 | `file_reader` | Interface through which a command of the sxml program reads a named file or standard input (`sxml_cli_file_reader`) |
 | `resource` | What a resource resolver delivers for a URI: bytes, a document node, or nothing |
-| `resource_resolver` | Host interface that retrieves resources by URI, for `fn:doc` and, later, text, modules and stylesheets |
+| `resource_resolver` | Host interface that retrieves resources by URI: documents, text, binary resources, collections, XQuery modules, XSLT modules and packages |
 | `resource_kind` | What a resource is wanted for: an XML document for `fn:doc`, ... |
-| `resource_form` | How a resolver delivers a resource: none, bytes, or a document node |
+| `resource_form` | How a resolver delivers a resource: none, bytes, a document node, or a sequence (collections) |
 | `resource_entry` | One URI and its bytes in a list served by the table resolver |
 | `uri_reference` | A URI as written, possibly relative (RFC 3986, section 4.1) |
 | `absolute_uri` | A URI with a scheme, after resolving a reference against a base URI (RFC 3986, section 5) |
@@ -348,6 +348,23 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `variable_binding` | A variable name with its value, in the dynamic context |
 | `declared_type` | The sequence type a variable or parameter is declared with |
 | `available_document` | A URI and the document node `fn:doc` returns for it (XPath 4.0, "available documents") |
+| `decimal_format` | A named or unnamed set of properties that `fn:format-number` formats with (XPath 4.0, section 2.2.1, "statically known decimal formats") |
+| `unnamed_decimal_format` | The decimal format without a name, used when `fn:format-number` names none |
+| `decimal_format_property` | One property of a decimal format (decimal-separator, percent, NaN, ...), given as text |
+| `marker` | The single character that stands for a decimal format property in a picture string |
+| `rendition` | The string a decimal format property becomes in the formatted result; `%:pc` is marker `%`, rendition `pc` |
+| `default_collation` | The collation used when a function or operator is given none (XPath 4.0, section 2.2.2) |
+| `collation_binding` | A host's collation URI standing for a collation sxml implements, added to the statically known collations |
+| `default_language` | The language of the dynamic context, for `fn:default-language` and the formatting functions |
+| `environment_variable` | A name and value the host exposes to `fn:environment-variable`; sxml never reads the platform's environment |
+| `collection` | The sequence of items `fn:collection` returns for a URI |
+| `uri_collection` | The sequence of `xs:anyURI` items `fn:uri-collection` returns for a URI |
+| `default_collection` | The collection (or URI collection) for a call without a URI (XPath 4.0, section 2.2.2) |
+| `target_namespace_uri` | The namespace of an XQuery library module that `import module` asks for |
+| `package_version` | The versions of an XSLT package that `xsl:use-package` accepts (XSLT 4.0, "Versions of a Package") |
+| `trace_sink` | Host interface receiving the output of `fn:trace`, `fn:message` and `xsl:message` |
+| `trace_event` | One piece of trace output: its kind, label, value and, for `xsl:message`, whether it terminates |
+| `api_version` | The release whose interface the headers declare, as one integer (`SXML_API_VERSION`) |
 | `xpath_expression` | An XPath expression compiled for one processor, evaluated any number of times |
 | `expression_text` | The source text of an expression or query |
 | `evaluation` | One run of a compiled expression or query against a dynamic context |
