@@ -113,6 +113,9 @@ expressions; lowered as string templates are. XTSE0350, XTSE0370. Done
 when every AVT and TVT of the in-scope stylesheets parses (a
 value-template mode of `tools/qt4-parse-check.py --spec XT40`).
 Spec: XSLT 4.0 "Value Templates".
+**Done** 2026-10-17 (D120): `sxml_xslt_build_value_template_ast` in
+`src/xslt_value_template_internal.h`; `--value-templates` accepts all
+12,232 valid value templates of the in-scope stylesheets.
 
 ### 4.4 Patterns (implementation) — Early
 After 2.1. Owns `src/xslt_pattern.c`, `tests/xslt_pattern_test.c`. CST of

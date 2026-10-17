@@ -4,6 +4,16 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 4.3 done (D120): value templates. `grammars/value_template`
+  (inherits xpath; own scanner adds the fixed part and a zero-width
+  start token), `sxml_xslt_build_value_template_ast` to an XPATH root
+  with a STRING_TEMPLATE body through the parser part seam, XTSE0350 and
+  XTSE0370 from a lexical scan after a syntax error. Every grammar now
+  joins the sxml link line (`grammars/CMakeLists.txt`).
+  `qt4-parse-check.py --spec XT40 --value-templates`: 12,244 in scope,
+  12,232 accepted, 0 false rejects (one uses dropped `record(d?)`).
+  `debug`, `debug-gcc`, `wasm` 126/126, lint clean; slice 198/198; XP40
+  26,678 passed with and without the packet (sxml-qt4 links none of it).
 - 4.1 done (D117): the XSLT 4.0 test driver `sxml-xslt-test`
   (`tests/xslt/driver/`), a sibling of sxml-qt4 that links its library.
   `list` resolves every case of `third_party/xslt40-test` (13,867, no
