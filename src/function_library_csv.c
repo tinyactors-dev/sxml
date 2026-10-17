@@ -178,13 +178,36 @@ static void csv_list_release(csv_list *list) {
     list->capacity = 0;
 }
 
-/* The concatenation of the list's sequences, owned. */
-static sxml_status csv_list_concatenate(const sxml_function_call *call, const csv_list *list,
-                                        sxml_sequence *result) {
-    return sxml_sequence_concatenate(
-        call->item_heap,
-        (sxml_sequence_view){.sequences = list->sequences, .sequence_count = list->sequence_count},
-        result);
+/* The sequence of the list's items (each sequence is one item), owned:
+   a vector, so fn:parse-csv's get reaches a row in O(1). */
+static sxml_status csv_list_make_sequence(const sxml_function_call *call, const csv_list *list,
+                                          sxml_sequence *result) {
+    const size_t item_count = list->sequence_count;
+    if (item_count > SIZE_MAX / sizeof(sxml_item)) {
+        return SXML_STATUS_ARITHMETIC_OVERFLOW;
+    }
+    void *memory = NULL;
+    sxml_status status = SXML_STATUS_OK;
+    if (item_count > 0) {
+        status = sxml_item_heap_allocate_bytes(
+            call->item_heap,
+            (sxml_allocation_request){.byte_count = item_count * sizeof(sxml_item),
+                                      .alignment = alignof(sxml_item)},
+            &memory);
+    }
+    sxml_item *items = memory;
+    for (size_t item_index = 0; status == SXML_STATUS_OK && item_index < item_count;
+         item_index += 1) {
+        items[item_index] = list->sequences[item_index].content;
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_sequence_make_vector(call->item_heap,
+                                           (sxml_item_view){.items = items, .item_count = item_count},
+                                           result);
+    }
+    sxml_item_heap_release_bytes(
+        call->item_heap, (sxml_heap_bytes){.memory = memory, .byte_count = item_count * sizeof(sxml_item)});
+    return status;
 }
 
 /* --------------------------------------------------------------- Options */
@@ -690,13 +713,13 @@ static sxml_status csv_parse(const sxml_function_call *call, csv_parse_request r
         status = csv_select_names(&state);
     }
     if (status == SXML_STATUS_OK) {
-        status = csv_list_concatenate(call, &state.names, &parsed->columns);
+        status = csv_list_make_sequence(call, &state.names, &parsed->columns);
     }
     if (status == SXML_STATUS_OK) {
         status = csv_make_column_index(&state, &parsed->column_index);
     }
     if (status == SXML_STATUS_OK) {
-        status = csv_list_concatenate(call, &state.rows, &parsed->rows);
+        status = csv_list_make_sequence(call, &state.rows, &parsed->rows);
     }
     if (status != SXML_STATUS_OK) {
         csv_parsed_release(parsed);
