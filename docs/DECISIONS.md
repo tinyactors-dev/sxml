@@ -3539,7 +3539,7 @@ added. Contract in `src/xquery_lower_internal.h`.
   for three (fn:message missing, `local:` undeclared, one driver
   assertion).
 
-### D127. The HTML, text, JSON and CSV methods; fn:serialize (packet 3.4)
+### D128. The HTML, text, JSON and CSV methods; fn:serialize (packet 3.4)
 Recorded 2026-10-17. Every method runs on the 3.3 pipeline (D120); no
 second writer or escaper was added.
 - **Escape styles**: `sxml_escape_style` grows HTML, NONE (text), JSON and
