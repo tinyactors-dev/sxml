@@ -4,6 +4,19 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 3.0 done (D106): the XQuery and serialization API, header-only.
+  `xquery.h`: `sxml_xquery_query` (quintet) compiled with the shared
+  static context, library modules through the XQUERY_MODULE resolver
+  kind, evaluation with the shared dynamic context, the prolog's
+  serialization parameters returned by value. `serialize.h`: methods
+  xml, xhtml, html, text, json, csv; one struct with every
+  Serialization 4.0 parameter (tri-state `sxml_serialization_flag`,
+  encodings UTF-8/UTF-16/US-ASCII/ISO-8859-1, character maps, element
+  name lists); `sxml_serialization_parameter_reader` for
+  output:serialization-parameters elements and option maps. `debug`,
+  `debug-gcc`, `wasm` 119/119 (slice included), lint clean; no source
+  changed, so XP40 counts cannot move.
+
 - 2.1 done (D103): lowering seam. `src/xpath_lower_internal.h` exports
   the lowerer (lifecycle quintet), its building blocks and the frame
   machine; frames point at procedure descriptors, so core and part
