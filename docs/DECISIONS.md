@@ -4225,6 +4225,10 @@ Recorded 2026-10-17, after D97, D128, D131, D133. New module `src/csv.c` /
   `?get(1, 1) = "one"` that read the result as the context value, which
   the driver does not bind (Proposed below); with it, 124/124.
 
+### D142. Sequence constructors and node construction (packet 4.6)
+Recorded 2026-10-17, after D102, D103, D110, D120, D124, D127, D139.
+Reserved here; the record is completed when the packet is ticked.
+
 ## Proposed
 
 - **QT4 assertions see the result as the context value** (packet 2.15,
