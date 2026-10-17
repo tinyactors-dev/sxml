@@ -12,7 +12,7 @@
 #include "xslt_ast_internal.h"
 
 /*
- * The stylesheet reader of XSLT 4.0 (docs/DECISIONS.md D102, D138).
+ * The stylesheet reader of XSLT 4.0 (docs/DECISIONS.md D102, D139).
  * Module xslt_read, defined in src/xslt_read.c (packet 4.5). Internal to
  * sxml.
  *

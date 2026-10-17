@@ -1,6 +1,6 @@
 /*
  * The stylesheet reader of XSLT 4.0 (src/xslt_read_internal.h; XSLT 4.0,
- * sections 3.3 to 3.11, 5.6; docs/DECISIONS.md D102, D138).
+ * sections 3.3 to 3.11, 5.6; docs/DECISIONS.md D102, D139).
  *
  * Golden files: src/xml.c (a tree walked with an explicit stack of frames
  * in allocator memory, D71) and src/processor.c (a document parsed into

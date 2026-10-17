@@ -1,7 +1,7 @@
 /*
  * Unit tests for src/xslt_read.c and src/xslt_static.c: stylesheet
  * modules read into the stylesheet AST (XSLT 4.0, 3.3 to 3.11; D102,
- * D138).
+ * D139).
  *
  * Golden file: tests/xslt_ast_test.c (an AST's text form compared with
  * the expected text).

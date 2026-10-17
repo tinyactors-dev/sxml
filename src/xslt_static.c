@@ -1,6 +1,6 @@
 /*
  * Static expressions of XSLT 4.0 (src/xslt_static_internal.h; XSLT 4.0,
- * sections 9.6, 9.7, 3.11.3, 3.11.4; docs/DECISIONS.md D138).
+ * sections 9.6, 9.7, 3.11.3, 3.11.4; docs/DECISIONS.md D139).
  *
  * Golden file: src/xpath.c (an expression compiled through the front end
  * and lowering, then evaluated with a dynamic context of its own); the
