@@ -227,6 +227,15 @@ uint32_t sxml_regex_find_named_group(const sxml_regex *regex,
                                      sxml_byte_view name);
 
 /*
+ * The number of the innermost capturing group whose parentheses enclose
+ * those of group group_number ("A(B(C))": 2 for 3, 1 for 2); 0 for an
+ * outermost group and for a group_number that is not a group. Groups
+ * always have smaller numbers than the groups they enclose.
+ */
+uint32_t sxml_regex_group_parent(const sxml_regex *regex,
+                                 uint32_t group_number);
+
+/*
  * True when capturing group group_number lies within a lookahead
  * assertion (section 6.1.8.3): its captured group need not be part of the
  * matching segment, and fn:analyze-string writes it as

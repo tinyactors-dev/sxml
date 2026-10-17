@@ -38,10 +38,16 @@ typedef struct fixture {
     sxml_function_library *library;
 } fixture;
 
+/* The regex part (src/function_library_regex.c, packet 2.3, D105) holds
+   fn:matches, fn:replace and fn:tokenize since they left the string
+   part; the generated part registry declares it for the library. */
+extern const sxml_native_function_view sxml_function_library_regex;
+
 static const sxml_native_function_view *const core_parts[] = {
     &sxml_function_library_numeric, &sxml_function_library_string,
     &sxml_function_library_sequence, &sxml_function_library_node,
     &sxml_function_library_context, &sxml_function_library_error,
+    &sxml_function_library_regex,
 };
 
 static sxml_allocator fixture_allocator(const fixture *test_fixture) {
@@ -1057,6 +1063,25 @@ static void test_regular_expression_functions(sxml_test_state *state) {
         {"replace('abc', 'b', fn($a, $b, $c) { 'Z' })", "!FOTY0013"},
         {"replace('abc', 'x', fn{'y'})", "\"abc\""},
         {"replace((), 'x', fn{'y'})", "\"\""},
+        /* Named groups, analyze-string, matching-segments and regex
+           (F&O 4.0, sections 6.1.5 and 6.3.2 to 6.3.9; packet 2.3). */
+        {"replace('2026-06-25', '(?<y>\\d{4})-(?<m>\\d{2})-(?<d>\\d{2})', '$<d>/$<m>/$<y>')",
+         "\"25/06/2026\""},
+        {"replace('42 plus 7', '(?<a>\\d+) plus (?<b>\\d+)', fn($s, $g) { string($g?a + $g?b) })",
+         "\"49\""},
+        {"replace('ab', '(?<x>a)', '$<y>')", "!FORX0004"},
+        {"analyze-string('a1b', '(\\d)')/*:match/*:group/@nr/string()", "\"1\""},
+        {"string(analyze-string('a1b22', '\\d+')), count(analyze-string('a1b22', '\\d+')/*)",
+         "\"a1b22\" 4"},
+        {"analyze-string('Chapter 5', '(Chapter)(?=\\s+([0-9]+))')//*:lookahead-group/@position/string()",
+         "\"9\""},
+        {"matching-segments('A1,C15', '([A-Z])([0-9]+)')?position", "1 4"},
+        {"matching-segments('xa', '(?<n>a)')?groups?n?nr", "1"},
+        {"matching-segments('b', 'a')", ""},
+        {"regex('a+')?matches('baa'), regex('-')?tokenize('a-b')", "true \"a\" \"b\""},
+        {"regex('a')?replace('banana', fn { upper-case(.) }), regex('x', 'i')?flags",
+         "\"bAnAnA\" \"i\""},
+        {"regex('(')", "!FORX0002"},
     };
     expect_all(state, cases, SXML_TEST_COUNT(cases));
 }
@@ -1405,6 +1430,45 @@ static void test_evaluation_survives_every_allocation_failure(sxml_test_state *s
     SXML_TEST_EXPECT(state, has_succeeded);
 }
 
+/* As above for the regex part: compiled regexes, matchers, records and
+   the analyze-string tree release everything when an allocation fails. */
+static void test_regex_functions_survive_every_allocation_failure(sxml_test_state *state) {
+    const char *expression =
+        "string-join((replace('ab', '(?<x>a)', '$<x>!'), "
+        "matching-segments('xay', '(a)')?groups?1?value, "
+        "string(analyze-string('a1', '(\\d)')), regex('b')?replace('abc', fn { 'B' })), ',')";
+    const char *expected = "\"a!b,a,a1,aBc\"";
+    bool has_succeeded = false;
+    for (uint64_t failing_number = 1; !has_succeeded && failing_number < 20000;
+         failing_number += 1) {
+        evaluation_fixture *evaluation = &shared_fixture;
+        sxml_status status = fixture_create(
+            (fixture_request){.failing_allocation_number = failing_number,
+                              .is_library_wanted = true}, &evaluation->test_fixture);
+        if (status == SXML_STATUS_OK) {
+            evaluate_with(&evaluation->test_fixture,
+                          &(evaluation_case){.expression_text = expression},
+                          &evaluation->outcome);
+            status = evaluation->outcome.status;
+            SXML_TEST_EXPECT(state, fixture_released_cells(&evaluation->test_fixture));
+        }
+        const bool has_failed_allocation =
+            sxml_counting_allocator_read_counts(evaluation->test_fixture.counting_allocator)
+                .failed_allocation_count > 0;
+        if (!has_failed_allocation) {
+            has_succeeded = true;
+            SXML_TEST_EXPECT(state, status == SXML_STATUS_OK &&
+                                        strcmp(evaluation->outcome.text, expected) == 0);
+        } else if (status != SXML_STATUS_OUT_OF_MEMORY) {
+            (void)fprintf(stderr, "allocation %llu: status %d\n",
+                          (unsigned long long)failing_number, (int)status);
+            SXML_TEST_EXPECT(state, status == SXML_STATUS_OUT_OF_MEMORY);
+        }
+        SXML_TEST_EXPECT(state, fixture_destroy(&evaluation->test_fixture));
+    }
+    SXML_TEST_EXPECT(state, has_succeeded);
+}
+
 static const sxml_test_case function_library_test_cases[] = {
     {.name = "library_lifecycle", .function = test_library_lifecycle},
     {.name = "library_survives_every_allocation_failure",
@@ -1428,6 +1492,8 @@ static const sxml_test_case function_library_test_cases[] = {
      .function = test_error_has_description_and_value},
     {.name = "evaluation_survives_every_allocation_failure",
      .function = test_evaluation_survives_every_allocation_failure},
+    {.name = "regex_functions_survive_every_allocation_failure",
+     .function = test_regex_functions_survive_every_allocation_failure},
 };
 
 int main(int argument_count, char **arguments) {

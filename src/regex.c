@@ -203,6 +203,8 @@ typedef struct sxml_regex_group {
        0 for an unnamed group. */
     uint32_t name_offset;
     uint32_t name_byte_count;
+    /* The innermost capturing group around this one; 0 for none. */
+    uint32_t parent_group_number;
     /* Within a lookahead assertion (section 6.1.8.3). */
     bool is_in_lookahead;
 } sxml_regex_group;
@@ -1670,6 +1672,13 @@ static sxml_status sxml_regex_compiler_open_group(
     }
     bool is_in_lookahead =
         sxml_regex_compiler_top_frame(compiler)->is_in_lookahead;
+    uint32_t parent_group_number = 0;
+    for (size_t frame_index = compiler->frame_count; frame_index > 0; frame_index--) {
+        if (compiler->frames[frame_index - 1].group_number != 0) {
+            parent_group_number = compiler->frames[frame_index - 1].group_number;
+            break;
+        }
+    }
     sxml_regex_group_opening opening = {.kind = SXML_REGEX_FRAME_KIND_GROUP};
     sxml_status status =
         sxml_regex_compiler_parse_group_opening(compiler, &opening);
@@ -1684,6 +1693,7 @@ static sxml_status sxml_regex_compiler_open_group(
             compiler->regex->groups[group_number] = (sxml_regex_group){
                 .name_offset = 0,
                 .name_byte_count = 0,
+                .parent_group_number = parent_group_number,
                 .is_in_lookahead = is_in_lookahead,
             };
         }
@@ -2644,8 +2654,10 @@ sxml_status sxml_regex_initialize(sxml_memory_view memory,
                                            counts.group_name_byte_count),
         .owning_allocator = {.state = NULL, .operations = NULL},
     };
-    new_regex->groups[0] = (sxml_regex_group){
-        .name_offset = 0, .name_byte_count = 0, .is_in_lookahead = false};
+    new_regex->groups[0] = (sxml_regex_group){.name_offset = 0,
+                                              .name_byte_count = 0,
+                                              .parent_group_number = 0,
+                                              .is_in_lookahead = false};
     sxml_regex_counts written_counts = {.instruction_count = 0};
     status = sxml_regex_compile(configuration, new_regex, &written_counts);
     if (status != SXML_STATUS_OK) {
@@ -2739,6 +2751,13 @@ uint32_t sxml_regex_find_named_group(const sxml_regex *regex,
         }
     }
     return 0;
+}
+
+uint32_t sxml_regex_group_parent(const sxml_regex *regex,
+                                 uint32_t group_number) {
+    return group_number <= regex->group_count
+               ? regex->groups[group_number].parent_group_number
+               : 0;
 }
 
 bool sxml_regex_group_is_in_lookahead(const sxml_regex *regex,

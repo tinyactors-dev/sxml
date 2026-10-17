@@ -1061,7 +1061,18 @@ static void test_named_groups(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, !sxml_regex_group_is_in_lookahead(compilation.regex, 3));
     SXML_TEST_EXPECT(state, sxml_regex_group_is_in_lookahead(compilation.regex, 4));
     SXML_TEST_EXPECT(state, !sxml_regex_group_is_in_lookahead(compilation.regex, 5));
+    SXML_TEST_EXPECT(state, sxml_regex_group_parent(compilation.regex, 1) == 0 &&
+                                sxml_regex_group_parent(compilation.regex, 4) == 0 &&
+                                sxml_regex_group_parent(compilation.regex, 9) == 0);
     SXML_TEST_EXPECT(state, test_release(&compilation));
+    test_compilation nested = {.regex_text = "a(b(?:c(d))(e))(f)", .flags_text = ""};
+    test_compile(&nested);
+    SXML_TEST_REQUIRE(state, nested.status == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, sxml_regex_group_parent(nested.regex, 1) == 0 &&
+                                sxml_regex_group_parent(nested.regex, 2) == 1 &&
+                                sxml_regex_group_parent(nested.regex, 3) == 1 &&
+                                sxml_regex_group_parent(nested.regex, 4) == 0);
+    SXML_TEST_EXPECT(state, test_release(&nested));
     /* More names than the compiler's own name table holds. */
     char many_names[2048];
     size_t written_count = 0;
