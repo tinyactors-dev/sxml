@@ -2749,8 +2749,9 @@ constructor kinds and SHALLOW_COPY (D55, D101).
   DOCUMENT follow XQuery (duplicate attributes XQDY0025, XQTY0024,
   XPTY0004 for attributes in a document), SHALLOW_COPY follows XSLT 4.0
   5.7.1 (later duplicates replace, XTDE0410, XTDE0420, XTDE0450,
-  XTTE3180 for more than one item; element namespaces copied). The IR
-  cannot say otherwise yet (see "Proposed").
+  XTTE3180 for more than one item; element namespaces copied).
+  construction_flags and name_namespaces select the other modes
+  (D124).
 - **Base URIs**: elements get the static base URI as their tree's base
   URI (`sxml_arena_tree_configuration.base_uri`, D98), documents through
   their start event; attributes, text, comments and PIs have none
@@ -3415,38 +3416,53 @@ this point"). Gate boxes that name CI are satisfied by the same checks run
 locally (all presets, lint, slice, conformance runs, fuzzing). macOS, Windows
 and MSVC stay unverified until CI returns; that remains a known risk.
 
+### D124. IR extensions for try/catch and constructors (packet 3.6b)
+Recorded 2026-10-17; accepts the IR proposals of D109 and D110
+(`src/ir_internal.h`, `src/ir.c`, `src/ir_verify.c`).
+- **Adders**: `sxml_ir_unit_add_name_tests(unit, sxml_ir_name_test_view,
+  &list)`, `sxml_ir_unit_add_catch_clauses(unit, view, &list)` and
+  `sxml_ir_unit_add_namespace_bindings(unit, view, &list)` work as
+  `sxml_ir_unit_add_sort_keys`, with accessors `sxml_ir_unit_get_name_tests`,
+  `_get_catch_clauses`, `_get_namespace_bindings`. A LOCAL_NAME_WILDCARD
+  test's local name is interned in the item heap's name pool (pool text
+  never moves), so callers may free theirs; an empty one is
+  INVALID_ARGUMENT. The static namespaces are one run of the same array.
+- **`sxml_ir_node_construction`** gains `name_namespaces` (a binding run;
+  empty means the unit's static namespaces; lowering gives the static
+  namespaces extended by enclosing direct constructors, for QT4
+  Constr-compelem-compname) and `uint32_t construction_flags`
+  (`SXML_IR_CONSTRUCTION_NO_PRESERVE_NAMESPACES`, `_NO_INHERIT_NAMESPACES`,
+  `_PRESERVES_TYPES`, `_XSLT_RULES`; 0 = construction strip,
+  copy-namespaces preserve, inherit, XQuery rules). Lowering (3.9, 3.10)
+  sets them per constructor from the prolog; XSLT (4.x) sets XSLT_RULES on
+  literal result elements and xsl:element/xsl:document.
+- **Evaluator** (`src/evaluator_construct.c`): flags pick the copy request
+  of content nodes (no-preserve, no-inherit, keep annotations), xs:anyType
+  for elements under PRESERVES_TYPES, XSLT rules (REPLACE duplicates, XTDE
+  codes) for ELEMENT and DOCUMENT; SHALLOW_COPY drops the element's
+  namespaces under NO_PRESERVE (copy-namespaces "no") and keeps its type
+  under PRESERVES_TYPES. Names given as strings resolve with
+  `name_namespaces`. `src/evaluator_try.c` reads clauses through the
+  accessors.
+- **Verifier**: TRY_CATCH needs a body and clauses or a finally body;
+  each clause one or more name tests of a known kind, an error details
+  slot of the function (bound in its handler only) and a handler. The
+  constructor kinds and SHALLOW_COPY: fields the kind does not use must be
+  empty (kinds as in the header), lists in range, known flags; a NONE name
+  or value is allowed (the empty sequence: `attribute {()} {}` raises at
+  run time, `namespace {()} {...}` is the default namespace). Only
+  APPLY_TEMPLATES stays reserved.
+- **Text form**: constructors print name, value, then `(namespaces p="u"
+  ""="d")`, `(name-namespaces ...)` and the flag words on one line, then
+  the content; TRY_CATCH prints body, `(catch (TESTS) $SLOT HANDLER)` per
+  clause and `(finally BODY)` (golden text in `tests/ir_test.c`). Dumps of
+  the other kinds are unchanged.
+- Test units of `tests/evaluator_try_test.c` and
+  `tests/evaluator_construct_test.c` use the adders; all of them pass the
+  verifier (checked once in a scratch build, after giving
+  `shallow_others` one content expression per copy: the IR is a tree).
+
 ## Proposed
-
-- **IR adders for catch clauses and name tests** (packet 3.6, D109; for
-  the owner of `src/ir_internal.h`/`src/ir.c`, needed by the lowering of
-  try/catch in 3.7): the unit has the reserved arrays `name_tests` and
-  `catch_clauses` but no function to fill them. Proposed
-  `sxml_ir_unit_add_name_tests(unit, sxml_name_test_view, sxml_ir_name_test_list *)`
-  and `sxml_ir_unit_add_catch_clauses(unit, view, sxml_ir_catch_clause_list *)`
-  like `sxml_ir_unit_add_sort_keys`, plus accessors. Also
-  `src/ir_verify.c` still rejects TRY_CATCH as reserved; it should check
-  body, clauses (handler, slot within slot_count, name test ranges) and
-  finally body, and `sxml_ir_unit_write_text` should write the clauses.
-  `tests/evaluator_try_test.c` fills the arrays directly until then.
-
-- **Constructor modes in the IR** (packet 3.5, D110; for the owner of
-  `src/ir_internal.h`, needed by 3.9, 3.10 and 4.x): XQuery's
-  copy-namespaces (no-preserve, no-inherit) and construction (preserve:
-  xs:anyType for constructed elements, copies keep annotations) modes hold
-  per module, and literal result elements need XSLT's content rules, but
-  `sxml_ir_node_construction` has no place for them. Proposed: a
-  `uint32_t construction_flags` field at its end, zero meaning today's
-  behaviour, with `SXML_IR_CONSTRUCTION_NO_PRESERVE_NAMESPACES`,
-  `_NO_INHERIT_NAMESPACES`, `_PRESERVES_TYPES` and `_XSLT_RULES`; and a
-  `sxml_ir_namespace_binding_list name_namespaces` for resolving a
-  computed name given as a string with the namespaces of enclosing direct
-  constructors (QT4 Constr-compelem-compname: `<e xmlns:foo="...">{element
-  {'foo:e'} {}}</e>`), empty meaning the unit's static namespaces. Also
-  `sxml_ir_unit_add_namespace_bindings(unit, view, list *)`: the unit has
-  no adder for the `namespace_bindings` runs of direct constructors (tests
-  use the static namespaces' run), and `src/ir_verify.c` should accept the
-  constructor kinds (checking name, value and content) instead of
-  rejecting them as reserved.
 
 - **The item axis in the evaluator** (packet 2.5, D113; for the owner of
   `src/evaluator_path.c` and `include/sxml/tree.h`): `item::` is lowered
