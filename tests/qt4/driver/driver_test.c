@@ -1,6 +1,6 @@
 /*
  * Unit tests of the QT4 driver's modules (suite_path.h, applicability.h,
- * test_list.h, environment.h, catalog.h), over files held in memory so they
+ * test_list.h, environment.h, catalog.h, resource_table.h), over files held in memory so they
  * run the same natively and under WASI. Imitates tests/memory_test.c:
  * lifecycle, allocation-failure loops (D23).
  */
@@ -9,6 +9,7 @@
 
 #include "applicability.h"
 #include "catalog.h"
+#include "resource_table.h"
 #include "suite_path.h"
 #include "sxml/memory.h"
 #include "test_list.h"
@@ -327,6 +328,8 @@ test_applicability_follows_the_rules_in_order(sxml_test_state *state) {
         state, sxml_byte_view_equals(applicability.reason, TEXT("feature")));
 
     request.test_case_dependencies.dependency_count = 0;
+    /* Resources and collections of sources run (packet 2.16); a
+       collection with a query waits for XQuery. */
     const sxml_qt4_resource resource = {
         .uri = TEXT("u"),
         .file_path = TEXT("f"),
@@ -335,11 +338,42 @@ test_applicability_follows_the_rules_in_order(sxml_test_state *state) {
     environment.resources =
         (sxml_qt4_resource_view){.resources = &resource, .resource_count = 1};
     sxml_qt4_decide_applicability(&request, &applicability);
+    SXML_TEST_EXPECT(state, applicability.is_applicable);
+    const sxml_byte_view query = TEXT("1 to 10");
+    const sxml_qt4_collection collection = {
+        .uri = TEXT("urn:c"),
+        .sources = {.sources = NULL, .source_count = 0},
+        .resources = {.resources = NULL, .resource_count = 0},
+        .queries = {.texts = &query, .text_count = 1}};
+    environment.collections = (sxml_qt4_collection_view){
+        .collections = &collection, .collection_count = 1};
+    sxml_qt4_decide_applicability(&request, &applicability);
     SXML_TEST_EXPECT(state, sxml_byte_view_equals(applicability.reason,
                                                   TEXT("environment")));
-    SXML_TEST_EXPECT(
-        state, sxml_byte_view_equals(applicability.detail, TEXT("resource")));
+    SXML_TEST_EXPECT(state, sxml_byte_view_equals(applicability.detail,
+                                                  TEXT("collection query")));
+    SXML_TEST_EXPECT(state, applicability.is_in_scope);
+    environment.collections.collection_count = 0;
 
+    /* The collations of D97 run; others are skipped. */
+    const sxml_qt4_collation collations[] = {
+        {.uri = TEXT("http://www.w3.org/2005/xpath-functions/collation/"
+                     "html-ascii-case-insensitive"),
+         .is_default = false},
+        {.uri = TEXT("http://www.w3.org/2013/collation/UCA?strength=primary"),
+         .is_default = true},
+        {.uri = TEXT("http://www.w3.org/2013/collation/UCA?fallback=no"),
+         .is_default = false},
+        {.uri = TEXT("http://example.com/collation"), .is_default = false},
+    };
+    for (size_t collation_count = 1; collation_count <= 4;
+         collation_count += 1) {
+        environment.collations = (sxml_qt4_collation_view){
+            .collations = collations, .collation_count = collation_count};
+        sxml_qt4_decide_applicability(&request, &applicability);
+        SXML_TEST_EXPECT(state,
+                         applicability.is_applicable == (collation_count <= 2));
+    }
     environment.resources.resource_count = 0;
     const sxml_qt4_collation codepoint = {
         .uri = TEXT("http://www.w3.org/2005/xpath-functions/collation/"
@@ -354,6 +388,261 @@ test_applicability_follows_the_rules_in_order(sxml_test_state *state) {
     request.module_count = 0;
     sxml_qt4_decide_applicability(&request, &applicability);
     SXML_TEST_EXPECT(state, applicability.is_applicable);
+}
+
+static void test_scope_follows_the_non_goals_of_d95(sxml_test_state *state) {
+    SXML_TEST_EXPECT(state, sxml_qt4_feature_is_non_goal(TEXT("schemaImport")));
+    SXML_TEST_EXPECT(state,
+                     sxml_qt4_feature_is_non_goal(TEXT("fullText-ignore")));
+    SXML_TEST_EXPECT(state,
+                     sxml_qt4_feature_is_non_goal(TEXT("fn-transform-XSLT30")));
+    SXML_TEST_EXPECT(
+        state, sxml_qt4_feature_is_non_goal(TEXT(" binary expath-file ")));
+    SXML_TEST_EXPECT(
+        state, !sxml_qt4_feature_is_non_goal(TEXT("higherOrderFunctions")));
+    SXML_TEST_EXPECT(state, !sxml_qt4_feature_is_non_goal(
+                                TEXT("schemaImport higherOrderFunctions")));
+    SXML_TEST_EXPECT(state, !sxml_qt4_feature_is_non_goal(TEXT("")));
+    SXML_TEST_EXPECT(state, sxml_qt4_test_set_is_non_goal(TEXT("upd-delete")));
+    SXML_TEST_EXPECT(state, sxml_qt4_test_set_is_non_goal(TEXT("fn-transform")));
+    SXML_TEST_EXPECT(state,
+                     !sxml_qt4_test_set_is_non_goal(TEXT("fn-transform-x")));
+    SXML_TEST_EXPECT(state, !sxml_qt4_test_set_is_non_goal(TEXT("ft")));
+    SXML_TEST_EXPECT(state, !sxml_qt4_test_set_is_non_goal(TEXT("fn-abs")));
+
+    const sxml_qt4_dependency xquery[] = {
+        {.dependency_type = TEXT("spec"),
+         .value = TEXT("XQ40+"),
+         .requires_satisfaction = true},
+    };
+    const sxml_qt4_dependency schema[] = {
+        {.dependency_type = TEXT("feature"),
+         .value = TEXT("schemaImport"),
+         .requires_satisfaction = true},
+    };
+    const sxml_qt4_dependency no_schema[] = {
+        {.dependency_type = TEXT("feature"),
+         .value = TEXT("schemaImport"),
+         .requires_satisfaction = false},
+    };
+    sxml_qt4_environment environment = sxml_qt4_environment_absent();
+    sxml_qt4_applicability_request request = {
+        .target = xpath_40,
+        .test_set_dependencies = {.dependencies = xquery,
+                                  .dependency_count = 1},
+        .test_case_dependencies = {.dependencies = NULL, .dependency_count = 0},
+        .environment = &environment,
+        .module_count = 0,
+        .test_set_name = TEXT("fn-abs")};
+    sxml_qt4_applicability applicability = {.is_applicable = true};
+    /* A spec that does not match is outside every denominator. */
+    sxml_qt4_decide_applicability(&request, &applicability);
+    SXML_TEST_EXPECT(state, !applicability.is_in_scope);
+    SXML_TEST_EXPECT(state, applicability.non_goal_kind.byte_count == 0);
+
+    request.test_set_dependencies.dependency_count = 0;
+    sxml_qt4_decide_applicability(&request, &applicability);
+    SXML_TEST_EXPECT(state, applicability.is_applicable);
+    SXML_TEST_EXPECT(state, applicability.is_in_scope);
+
+    /* A non-goal test set still runs, out of scope. */
+    request.test_set_name = TEXT("fn-parse-html");
+    sxml_qt4_decide_applicability(&request, &applicability);
+    SXML_TEST_EXPECT(state, applicability.is_applicable);
+    SXML_TEST_EXPECT(state, !applicability.is_in_scope);
+    SXML_TEST_EXPECT(state, sxml_byte_view_equals(applicability.non_goal_kind,
+                                                  TEXT("test-set")));
+    request.test_set_name = TEXT("fn-abs");
+
+    request.test_case_dependencies = (sxml_qt4_dependency_view){
+        .dependencies = schema, .dependency_count = 1};
+    sxml_qt4_decide_applicability(&request, &applicability);
+    SXML_TEST_EXPECT(state, !applicability.is_applicable);
+    SXML_TEST_EXPECT(state, !applicability.is_in_scope);
+    SXML_TEST_EXPECT(state, sxml_byte_view_equals(applicability.non_goal,
+                                                  TEXT("schemaImport")));
+
+    /* Asking for a non-goal to be absent is in scope. */
+    request.test_case_dependencies.dependencies = no_schema;
+    sxml_qt4_decide_applicability(&request, &applicability);
+    SXML_TEST_EXPECT(state, applicability.is_applicable);
+    SXML_TEST_EXPECT(state, applicability.is_in_scope);
+}
+
+/* ---------------------------------------------------------- Resource table */
+
+/* Resolves kind and uri through resolver; the resource is released. */
+typedef struct resolution {
+    sxml_byte_view uri;
+    sxml_resource_kind resource_kind;
+    bool is_default_collection;
+} resolution;
+
+typedef struct resolved {
+    sxml_resource_form resource_form;
+    sxml_byte_view content;
+    sxml_byte_view encoding_name;
+    int64_t first_integer;
+} resolved;
+
+static resolved resolve_through(sxml_resource_resolver resolver,
+                                resolution wanted) {
+    sxml_resource_request request;
+    memset(&request, 0, sizeof request);
+    request.resource_kind = wanted.resource_kind;
+    request.uri_reference = wanted.uri;
+    request.is_default_collection = wanted.is_default_collection;
+    sxml_resource resource;
+    memset(&resource, 0, sizeof resource);
+    resolved answer = {.resource_form = SXML_RESOURCE_FORM_NONE,
+                       .content = {.bytes = NULL, .byte_count = 0},
+                       .encoding_name = {.bytes = NULL, .byte_count = 0},
+                       .first_integer = 0};
+    if (resolver.operations->resolve(resolver.state, &request, &resource) !=
+        SXML_STATUS_OK) {
+        return answer;
+    }
+    answer.resource_form = resource.resource_form;
+    answer.encoding_name = resource.encoding_name;
+    if (resource.resource_form == SXML_RESOURCE_FORM_BYTES) {
+        /* The bytes go back to the resolver below: compare them first. */
+        answer.content = sxml_byte_view_equals(resource.content,
+                                               TEXT("<works/>"))
+                             ? TEXT("<works/>")
+                             : TEXT("?");
+    }
+    if (resource.resource_form == SXML_RESOURCE_FORM_SEQUENCE) {
+        sxml_item item;
+        memset(&item, 0, sizeof item);
+        sxml_atomic_datum datum;
+        memset(&datum, 0, sizeof datum);
+        if (sxml_sequence_get_item(resource.items,
+                                   (sxml_item_request){.item_index = 0,
+                                                       .error_record = NULL},
+                                   &item) == SXML_STATUS_OK &&
+            sxml_atomic_item_get_datum(item, &datum) == SXML_STATUS_OK) {
+            answer.first_integer = datum.datum_details.integer;
+        }
+        /* The resolver handed over a reference (processor.h). */
+        sxml_sequence_release(resource.items);
+    }
+    resolver.operations->release(resolver.state, &resource);
+    return answer;
+}
+
+static void
+test_resource_table_serves_resources_and_collections(sxml_test_state *state) {
+    sxml_counting_allocator *counting_allocator = NULL;
+    SXML_TEST_REQUIRE(
+        state, sxml_counting_allocator_create(
+                   sxml_default_allocator(),
+                   &(sxml_counting_allocator_configuration){
+                       .backing_allocator = sxml_default_allocator(),
+                       .failing_allocation_number = 0},
+                   &counting_allocator) == SXML_STATUS_OK);
+    const sxml_allocator allocator =
+        sxml_counting_allocator_as_allocator(counting_allocator);
+    sxml_qt4_catalog *catalog = NULL;
+    const sxml_qt4_catalog_configuration configuration =
+        suite_configuration(allocator);
+    SXML_TEST_REQUIRE(state, sxml_qt4_catalog_create(allocator, &configuration,
+                                                     &catalog) ==
+                                 SXML_STATUS_OK);
+    const sxml_qt4_served_resource resources[] = {
+        {.uri = TEXT("http://e/works.txt"),
+         .file_path = TEXT("docs/works.xml"),
+         .encoding = TEXT("utf-8")},
+        {.uri = TEXT("http://e/missing.txt"),
+         .file_path = TEXT("docs/missing.txt"),
+         .encoding = {.bytes = NULL, .byte_count = 0}},
+    };
+    const sxml_qt4_served_collection collections[] = {
+        {.is_default = false,
+         .uri = TEXT("urn:c"),
+         .items = sxml_sequence_from_item(sxml_atomic_item_from_integer(1)),
+         .uris = sxml_sequence_from_item(sxml_atomic_item_from_integer(2))},
+        {.is_default = true,
+         .uri = {.bytes = NULL, .byte_count = 0},
+         .items = sxml_sequence_from_item(sxml_atomic_item_from_integer(3)),
+         .uris = sxml_sequence_from_item(sxml_atomic_item_from_integer(4))},
+    };
+    const sxml_qt4_resource_table table = {
+        .catalog = catalog,
+        .allocator = allocator,
+        .served_resources = {.served_resources = resources,
+                             .served_resource_count = 2},
+        .served_collections = {.served_collections = collections,
+                               .served_collection_count = 2}};
+    const sxml_resource_resolver resolver =
+        sxml_qt4_resource_table_resolver(&table);
+
+    resolved answer = resolve_through(
+        resolver, (resolution){.resource_kind = SXML_RESOURCE_KIND_TEXT,
+                               .uri = TEXT("http://e/works.txt"),
+                               .is_default_collection = false});
+    SXML_TEST_EXPECT(state, answer.resource_form == SXML_RESOURCE_FORM_BYTES);
+    SXML_TEST_EXPECT(state,
+                     sxml_byte_view_equals(answer.content, TEXT("<works/>")));
+    SXML_TEST_EXPECT(state,
+                     sxml_byte_view_equals(answer.encoding_name, TEXT("utf-8")));
+    /* A binary resource has no encoding. */
+    answer = resolve_through(
+        resolver, (resolution){.resource_kind = SXML_RESOURCE_KIND_BINARY,
+                               .uri = TEXT("http://e/works.txt"),
+                               .is_default_collection = false});
+    SXML_TEST_EXPECT(state, answer.resource_form == SXML_RESOURCE_FORM_BYTES);
+    SXML_TEST_EXPECT(state, answer.encoding_name.byte_count == 0);
+    /* Suite files by file:///SUITE-PATH, for documents and texts. */
+    answer = resolve_through(
+        resolver, (resolution){.resource_kind = SXML_RESOURCE_KIND_TEXT,
+                               .uri = TEXT("file:///docs/works.xml"),
+                               .is_default_collection = false});
+    SXML_TEST_EXPECT(state,
+                     sxml_byte_view_equals(answer.content, TEXT("<works/>")));
+    answer = resolve_through(
+        resolver, (resolution){.resource_kind = SXML_RESOURCE_KIND_XML_DOCUMENT,
+                               .uri = TEXT("file:///docs/works.xml"),
+                               .is_default_collection = false});
+    SXML_TEST_EXPECT(state, answer.resource_form == SXML_RESOURCE_FORM_BYTES);
+    /* Resources are not documents; missing files and other URIs are not
+       available. */
+    const resolution unavailable[] = {
+        {TEXT("http://e/works.txt"), SXML_RESOURCE_KIND_XML_DOCUMENT, false},
+        {TEXT("http://e/missing.txt"), SXML_RESOURCE_KIND_TEXT, false},
+        {TEXT("http://e/other.txt"), SXML_RESOURCE_KIND_TEXT, false},
+        {TEXT("file:///docs/none.txt"), SXML_RESOURCE_KIND_TEXT, false},
+        {TEXT("urn:other"), SXML_RESOURCE_KIND_COLLECTION, false},
+        {TEXT("urn:c"), SXML_RESOURCE_KIND_XQUERY_MODULE, false},
+    };
+    for (size_t unavailable_index = 0;
+         unavailable_index < sizeof unavailable / sizeof unavailable[0];
+         unavailable_index += 1) {
+        answer = resolve_through(resolver, unavailable[unavailable_index]);
+        SXML_TEST_EXPECT(state, answer.resource_form == SXML_RESOURCE_FORM_NONE);
+    }
+    const struct {
+        resolution wanted;
+        int64_t first_integer;
+    } collection_cases[] = {
+        {{TEXT("urn:c"), SXML_RESOURCE_KIND_COLLECTION, false}, 1},
+        {{TEXT("urn:c"), SXML_RESOURCE_KIND_URI_COLLECTION, false}, 2},
+        {{TEXT(""), SXML_RESOURCE_KIND_COLLECTION, true}, 3},
+        {{TEXT(""), SXML_RESOURCE_KIND_URI_COLLECTION, true}, 4},
+    };
+    for (size_t case_index = 0;
+         case_index < sizeof collection_cases / sizeof collection_cases[0];
+         case_index += 1) {
+        answer = resolve_through(resolver, collection_cases[case_index].wanted);
+        SXML_TEST_EXPECT(state,
+                         answer.resource_form == SXML_RESOURCE_FORM_SEQUENCE);
+        SXML_TEST_EXPECT(state, answer.first_integer ==
+                                    collection_cases[case_index].first_integer);
+    }
+    sxml_qt4_catalog_destroy(catalog);
+    const sxml_allocation_counts counts =
+        sxml_counting_allocator_read_counts(counting_allocator);
+    SXML_TEST_EXPECT(state, counts.live_allocation_count == 0);
+    sxml_counting_allocator_destroy(counting_allocator);
 }
 
 /* ------------------------------------------------------------- Test lists */
@@ -822,6 +1111,10 @@ static const sxml_test_case driver_test_cases[] = {
      test_dependency_table_lists_what_sxml_supports},
     {"applicability_follows_the_rules_in_order",
      test_applicability_follows_the_rules_in_order},
+    {"scope_follows_the_non_goals_of_d95",
+     test_scope_follows_the_non_goals_of_d95},
+    {"resource_table_serves_resources_and_collections",
+     test_resource_table_serves_resources_and_collections},
     {"test_lists_are_read_like_the_check_script",
      test_test_lists_are_read_like_the_check_script},
     {"catalog_resolves_test_cases_and_environments",

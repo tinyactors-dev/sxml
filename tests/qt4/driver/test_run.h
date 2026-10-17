@@ -32,7 +32,12 @@
  * - context-item select gives the context value;
  * - namespaces are statically known; the static base URI is
  *   file:///SUITE-PATH of the test-set file, the given one, or absent;
- * - fn:doc reads other file:/// URIs as suite paths through the catalog.
+ * - decimal formats are statically known decimal formats; a collation
+ *   marked default is the default collation;
+ * - resources and collections are served by the resource table
+ *   (resource_table.h), which also reads other file:/// URIs as suite
+ *   paths through the catalog; the sources of a collection are parsed as
+ *   other sources and, with a uri, are available documents too.
  *
  * Outcomes: pass; wrong error (an error assertion met by another code);
  * fail (the assertions do not hold); error (sxml failed outside the
@@ -66,6 +71,8 @@ typedef struct sxml_qt4_test_result {
     sxml_qt4_test_outcome outcome;
     /* Empty for a pass; otherwise in the request's arena or static. */
     sxml_byte_view reason;
+    /* In the D95 denominator (applicability.h). */
+    bool is_in_scope;
 } sxml_qt4_test_result;
 
 /* One test case to run. Borrowed for the call. */

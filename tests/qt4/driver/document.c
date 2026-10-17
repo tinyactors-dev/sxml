@@ -317,3 +317,37 @@ sxml_status sxml_qt4_document_get_text(const sxml_qt4_document *document,
     *text = joined;
     return SXML_STATUS_OK;
 }
+
+sxml_status
+sxml_qt4_document_resolve_prefix(const sxml_qt4_document *document,
+                                 sxml_qt4_prefix_lookup lookup,
+                                 sxml_qt4_attribute_value *value) {
+    *value = (sxml_qt4_attribute_value){.is_present = false,
+                                        .value = sxml_qt4_empty_text};
+    sxml_namespace_binding_view bindings = {.namespace_bindings = NULL,
+                                            .namespace_binding_count = 0};
+    sxml_status status = sxml_node_get_in_scope_namespaces(
+        sxml_qt4_document_reference(document, lookup.element), &bindings);
+    for (size_t binding_index = 0;
+         status == SXML_STATUS_OK &&
+         binding_index < bindings.namespace_binding_count;
+         binding_index += 1) {
+        const sxml_namespace_binding *binding =
+            &bindings.namespace_bindings[binding_index];
+        sxml_byte_view prefix = sxml_qt4_empty_text;
+        status = sxml_name_pool_get_namespace_prefix(
+            document->name_pool, binding->namespace_prefix, &prefix);
+        if (status == SXML_STATUS_OK &&
+            sxml_byte_view_equals(prefix, lookup.namespace_prefix)) {
+            sxml_byte_view namespace_uri = sxml_qt4_empty_text;
+            status = sxml_name_pool_get_namespace_uri(
+                document->name_pool, binding->namespace_uri, &namespace_uri);
+            if (status == SXML_STATUS_OK) {
+                *value = (sxml_qt4_attribute_value){.is_present = true,
+                                                    .value = namespace_uri};
+            }
+            return status;
+        }
+    }
+    return status;
+}

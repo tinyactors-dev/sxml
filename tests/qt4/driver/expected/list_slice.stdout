@@ -351,4 +351,4 @@ fn-deep-equal deep-equal-40-comments-001
 fn-error fn-error-1
 fn-error fn-error-20
 fn-error cbcl-error-017
-198 test cases: 198 applicable, 0 skipped
+198 test cases: 198 applicable, 0 skipped; 198 in scope

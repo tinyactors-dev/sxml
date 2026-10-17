@@ -38,13 +38,25 @@
  *                 "outcome": "pass", "reason": ""}, ...],
  *      "test_sets": [{"name": "fn-abs", "total": 30, "pass": 27,
  *                     "wrong_error": 1, "fail": 1, "error": 0,
- *                     "not_run": 1}, ...],
+ *                     "not_run": 1, "in_scope": 30,
+ *                     "in_scope_passed": 28}, ...],
+ *      "areas": [{"area": "fn", "total": ..., "pass": ..., ...,
+ *                 "in_scope": ..., "in_scope_passed": ...}, ...],
  *      "totals": {"total": 198, "pass": ..., "wrong_error": ...,
- *                 "fail": ..., "error": ..., "not_run": ...}}
+ *                 "fail": ..., "error": ..., "not_run": ...,
+ *                 "in_scope": ..., "in_scope_passed": ...}}
  *
  * "tests" holds every selected test case in run order, passes included;
  * "test_sets" holds the test sets with test cases in catalog order;
- * "passed" in the text is pass + wrong_error.
+ * "areas" sums them by area, the test-set name up to its first "-" when
+ * that is one of fn, op, prod, map, array, math, xs, misc, app, method,
+ * upd, ft, bin, expath, else "other" (D94's areas), in that order and only
+ * areas with test cases; "in_scope" counts the test cases of the D95
+ * denominator (applicability.h) and "in_scope_passed" those of them that
+ * passed or raised a wrong error, so in_scope_passed / in_scope is the
+ * pass rate the phase gates measure. "passed" in the text is pass +
+ * wrong_error. The members after "not_run" were added by packet 2.16
+ * (D108); readers of version 1 ignore them.
  */
 
 typedef enum sxml_qt4_report_format {
@@ -52,9 +64,12 @@ typedef enum sxml_qt4_report_format {
     SXML_QT4_REPORT_FORMAT_JSON,
 } sxml_qt4_report_format;
 
-/* Counts of each outcome, indexed by sxml_qt4_test_outcome. */
+/* Counts of each outcome, indexed by sxml_qt4_test_outcome, and of the
+   test cases in scope. */
 typedef struct sxml_qt4_outcome_counts {
     size_t counts[SXML_QT4_TEST_OUTCOME_COUNT];
+    size_t in_scope_count;
+    size_t in_scope_passed_count;
 } sxml_qt4_outcome_counts;
 
 /* A report. A plain value: start it, add test cases, finish it, release

@@ -23,6 +23,18 @@
  *    supports; satisfied="false" asks for the opposite;
  * 3. its environment and modules ask only for what sxml can provide.
  * The first rule that fails is the reason the test is skipped.
+ *
+ * Separately, a test case is in scope when it counts in the denominator
+ * of the pass-rate targets (D95): its spec matches the target, its test
+ * set is not a non-goal (upd-*, ft-*, bin-*, expath-*, misc-HtmlTestSuite,
+ * fn-parse-html, fn-html-doc, fn-invisible-xml, fn-transform) and none of
+ * its dependencies asks for a non-goal feature (schemaImport,
+ * schemaValidation, typedData, staticTyping, XQUpdate, fullText*,
+ * xpath-1.0-compatibility, fn-transform-XSLT*, fn-invisible-xml,
+ * remote_http, expath-file, binary, advanced-uca-fallback,
+ * schema-location-hint). Scope does not decide whether a test runs: a
+ * non-goal test case that is applicable still runs, so that the pass
+ * count of earlier runs stays comparable.
  */
 
 typedef enum sxml_qt4_language {
@@ -80,6 +92,8 @@ typedef struct sxml_qt4_applicability_request {
     const sxml_qt4_environment *environment;
     /* <module> elements of the test case (XQuery library modules). */
     size_t module_count;
+    /* The name of the test set, for the non-goal test sets of D95. */
+    sxml_byte_view test_set_name;
 } sxml_qt4_applicability_request;
 
 /* The answer. Views point into static text or the request's data. */
@@ -94,7 +108,24 @@ typedef struct sxml_qt4_applicability {
     /* For a dependency: true when it failed because it is satisfied and
        satisfied="false" asked otherwise. */
     bool is_inverted;
+    /* In the D95 denominator (see the top of this header). */
+    bool is_in_scope;
+    /* When the spec matches but the test case is out of scope: the
+       non-goal, "test-set" or "feature", and the test set's name or the
+       feature. Empty otherwise. */
+    sxml_byte_view non_goal_kind;
+    sxml_byte_view non_goal;
 } sxml_qt4_applicability;
+
+/*
+ * True when a dependency value names only non-goal features of D95 (each
+ * space-separated token is one), so that requiring it puts a test case
+ * out of scope.
+ */
+bool sxml_qt4_feature_is_non_goal(sxml_byte_view value);
+
+/* True when a test set is a non-goal of D95. */
+bool sxml_qt4_test_set_is_non_goal(sxml_byte_view test_set_name);
 
 /* Decides as described at the top of this header. */
 void sxml_qt4_decide_applicability(

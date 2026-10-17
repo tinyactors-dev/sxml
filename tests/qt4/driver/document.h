@@ -147,6 +147,24 @@ SXML_NODISCARD sxml_status sxml_qt4_document_find_attribute(
     const sxml_qt4_document *document, sxml_qt4_attribute_lookup lookup,
     sxml_qt4_attribute_value *value);
 
+/* A namespace prefix in scope on one element. */
+typedef struct sxml_qt4_prefix_lookup {
+    sxml_node_index element;
+    /* Not empty. */
+    sxml_byte_view namespace_prefix;
+} sxml_qt4_prefix_lookup;
+
+/*
+ * Finds the namespace URI the prefix is bound to among the element's
+ * in-scope namespaces (XDM 4.0, "in-scope-namespaces") and writes it,
+ * owned by the name pool, to *value (is_present false and an empty value
+ * when the prefix is not bound). Returns the tree's and the name pool's
+ * failures.
+ */
+SXML_NODISCARD sxml_status sxml_qt4_document_resolve_prefix(
+    const sxml_qt4_document *document, sxml_qt4_prefix_lookup lookup,
+    sxml_qt4_attribute_value *value);
+
 /* The text of one element, and where to put it when it must be joined. */
 typedef struct sxml_qt4_text_request {
     sxml_node_index element;

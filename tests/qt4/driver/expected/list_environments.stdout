@@ -1,0 +1,35 @@
+run-environments decimal-formats
+  environment formats (test set)
+  decimal-format - decimal-separator , grouping-separator .
+  decimal-format f:percent {urn:f}percent percent %:pc NaN none
+  decimal-format plain zero-digit ٠
+run-environments default-collation
+  environment (inline)
+  collation http://www.w3.org/2005/xpath-functions/collation/html-ascii-case-insensitive default
+run-environments uca-collation
+  environment (inline)
+  collation http://www.w3.org/2013/collation/UCA?strength=primary
+run-environments resources-are-not-documents
+  environment resources (test set)
+  resource http://example.com/text.txt docs/text.txt media-type text/plain encoding utf-8
+  resource relative.txt docs/text.txt
+run-environments collection-sources-are-available
+  environment collections (test set)
+  collection -
+    source - docs/a.xml uri http://example.com/a.xml
+    source - docs/b.xml
+  collection http://example.com/collection
+    source - docs/c.xml uri http://example.com/c.xml
+    resource http://example.com/in-collection.txt docs/text.txt
+run-environments collection-query
+  environment (inline)
+  collection http://example.com/integers
+    query 1 to 10
+  skip: environment collection query
+run-environments other-collation
+  environment (inline)
+  collation http://example.com/collation
+  skip: environment collation
+run-environments without-schema-import
+  dependency feature schemaImport unsatisfied
+8 test cases: 6 applicable, 2 skipped; 8 in scope

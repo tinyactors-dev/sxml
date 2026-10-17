@@ -538,11 +538,14 @@ const sxml_cli_command sxml_qt4_run_command = {
         "Run test cases and check their assertions"),
     .description = SXML_BYTE_VIEW_INITIALIZER(
         "Runs each selected test case with its environment (sources,\n"
-        "parameters, namespaces, static base URI) in a processor of its own,\n"
+        "parameters, namespaces, static base URI, decimal formats, the\n"
+        "default collation, resources, collections) in a processor of its "
+        "own,\n"
         "with at most 10^8 evaluation steps and 512 MiB, and checks its\n"
         "result assertions. Writes each test case that failed, ended in\n"
         "error or raised a wrong error code, then counts per test set and\n"
-        "a \"total:\" line; --format=json writes every test case. The\n"
+        "a \"total:\" line; --format=json writes every test case, counts\n"
+        "per test set and per area, and how many are in the D95 scope. The\n"
         "selection is the test cases of TEST-LIST, those of the test set\n"
         "--test-set names, or with neither every test case of the catalog.\n"
         "Exits 1 when a test case failed or ended in error, 3 when a file\n"

@@ -112,6 +112,16 @@ sxml_add_qt4_test(run_unknown_test_set EXIT_CODE 1
     ARGUMENTS run --catalog=run-catalog.xml --test-set=no-such-set)
 sxml_add_qt4_test(run_help EXIT_CODE 0 ARGUMENTS run --help)
 
+# The environment kinds of packet 2.16 (decimal formats, collations,
+# resources, collections) applied, listed and reported per area.
+sxml_add_qt4_test(run_environments EXIT_CODE 0
+    ARGUMENTS run --catalog=run-catalog.xml --test-set=run-environments)
+sxml_add_qt4_test(run_environments_json EXIT_CODE 0
+    ARGUMENTS run --catalog=run-catalog.xml --format=json
+        --test-set=run-environments)
+sxml_add_qt4_test(list_environments EXIT_CODE 0
+    ARGUMENTS list --catalog=run-catalog.xml --test-set=run-environments)
+
 # The torture slice against the vendored suite: all 198 test cases resolve
 # and apply to XP40 (packet 1.24).
 sxml_add_qt4_test(list_slice EXIT_CODE 0 IN_SOURCE_ROOT

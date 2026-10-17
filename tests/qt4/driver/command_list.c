@@ -18,8 +18,12 @@
  *       source - docs/works.xml uri http://www.w3.org/fots/docs/works.xml
  *       ...
  *       skip: feature schemaImport
+ *       out of scope: feature schemaImport
  *
- * then "N test cases: A applicable, S skipped". Lines that would be empty
+ * ("out of scope" for a test case whose spec matches but that D95 leaves
+ * out of the denominator, applicability.h), then "N test cases: A
+ * applicable, S skipped; D in scope", where D is the D95 denominator of
+ * the selection. Lines that would be empty
  * are left out; "-" stands for an empty value. Problems (an unknown test
  * set, test case or environment) go to standard error as
  * "sxml-qt4 list: FILE[:LINE]: description 'subject'" and the listing goes
@@ -108,6 +112,7 @@ typedef struct sxml_qt4_list_run {
     sxml_qt4_target target;
     size_t listed_count;
     size_t applicable_count;
+    size_t in_scope_count;
     bool has_problem;
     bool has_unreadable_file;
     /* Out of memory or a bug: the run stops. */
@@ -329,6 +334,54 @@ sxml_qt4_write_environment_lists(sxml_cli_writer *output,
     sxml_qt4_write_resources(output, environment->resources, 1);
 }
 
+/* The attribute names of the decimal-format properties, in
+   sxml_decimal_format_property_kind order (catalog-schema.xsd). */
+static const sxml_byte_view sxml_qt4_decimal_format_property_names[] = {
+    SXML_BYTE_VIEW_INITIALIZER("decimal-separator"),
+    SXML_BYTE_VIEW_INITIALIZER("grouping-separator"),
+    SXML_BYTE_VIEW_INITIALIZER("exponent-separator"),
+    SXML_BYTE_VIEW_INITIALIZER("percent"),
+    SXML_BYTE_VIEW_INITIALIZER("per-mille"),
+    SXML_BYTE_VIEW_INITIALIZER("zero-digit"),
+    SXML_BYTE_VIEW_INITIALIZER("digit"),
+    SXML_BYTE_VIEW_INITIALIZER("pattern-separator"),
+    SXML_BYTE_VIEW_INITIALIZER("infinity"),
+    SXML_BYTE_VIEW_INITIALIZER("NaN"),
+    SXML_BYTE_VIEW_INITIALIZER("minus-sign"),
+};
+
+/* "  decimal-format NAME [{URI}LOCAL] PROPERTY VALUE ...". */
+static void
+sxml_qt4_write_decimal_format(sxml_cli_writer *output,
+                              const sxml_qt4_decimal_format *decimal_format) {
+    sxml_cli_writer_write(output, SXML_TEXT("  decimal-format"));
+    sxml_qt4_write_value(output, decimal_format->name);
+    if (decimal_format->namespace_uri.byte_count != 0) {
+        sxml_cli_writer_write(output, SXML_TEXT(" {"));
+        sxml_cli_writer_write_escaped(output, decimal_format->namespace_uri);
+        sxml_cli_writer_write_byte(output, '}');
+        sxml_cli_writer_write_escaped(output, decimal_format->local_name);
+    }
+    const size_t name_count = sizeof sxml_qt4_decimal_format_property_names /
+                              sizeof sxml_qt4_decimal_format_property_names[0];
+    const sxml_decimal_format_property_view properties =
+        decimal_format->properties;
+    for (size_t property_index = 0;
+         property_index < properties.decimal_format_property_count;
+         property_index += 1) {
+        const sxml_decimal_format_property *property =
+            &properties.decimal_format_properties[property_index];
+        if ((size_t)property->property_kind < name_count) {
+            sxml_cli_writer_write_byte(output, ' ');
+            sxml_cli_writer_write(
+                output,
+                sxml_qt4_decimal_format_property_names[property->property_kind]);
+            sxml_qt4_write_value(output, property->property_value);
+        }
+    }
+    sxml_cli_writer_write_byte(output, '\n');
+}
+
 /* The environment's rarer lines: collections and what needs more than
    sxml has. */
 static void
@@ -365,12 +418,10 @@ sxml_qt4_write_environment_extras(sxml_cli_writer *output,
         sxml_cli_writer_write_byte(output, '\n');
     }
     for (size_t format_index = 0;
-         format_index < environment->decimal_format_names.text_count;
+         format_index < environment->decimal_formats.decimal_format_count;
          format_index += 1) {
-        sxml_cli_writer_write(output, SXML_TEXT("  decimal-format"));
-        sxml_qt4_write_value(
-            output, environment->decimal_format_names.texts[format_index]);
-        sxml_cli_writer_write_byte(output, '\n');
+        sxml_qt4_write_decimal_format(
+            output, &environment->decimal_formats.decimal_formats[format_index]);
     }
     for (size_t schema_index = 0;
          schema_index < environment->schemas.schema_count; schema_index += 1) {
@@ -463,6 +514,13 @@ sxml_qt4_write_test_case(sxml_cli_writer *output,
         }
         sxml_cli_writer_write_byte(output, '\n');
     }
+    if (applicability->non_goal_kind.byte_count != 0) {
+        sxml_cli_writer_write(output, SXML_TEXT("  out of scope: "));
+        sxml_cli_writer_write_escaped(output, applicability->non_goal_kind);
+        sxml_cli_writer_write_byte(output, ' ');
+        sxml_cli_writer_write_escaped(output, applicability->non_goal);
+        sxml_cli_writer_write_byte(output, '\n');
+    }
 }
 
 /* -------------------------------------------------------------- Selection */
@@ -490,6 +548,9 @@ static void sxml_qt4_list_test_case(sxml_qt4_list_run *run,
     run->listed_count += 1;
     if (applicability.is_applicable) {
         run->applicable_count += 1;
+    }
+    if (applicability.is_in_scope) {
+        run->in_scope_count += 1;
     }
 }
 
@@ -737,6 +798,7 @@ sxml_qt4_run_list_command(const sxml_cli_invocation *invocation) {
                    .version = 40},
         .listed_count = 0,
         .applicable_count = 0,
+        .in_scope_count = 0,
         .has_problem = false,
         .has_unreadable_file = false,
         .has_failed = false};
@@ -755,7 +817,9 @@ sxml_qt4_run_list_command(const sxml_cli_invocation *invocation) {
         sxml_cli_writer_write(output, SXML_TEXT(" applicable, "));
         sxml_cli_writer_write_decimal(output,
                                       run.listed_count - run.applicable_count);
-        sxml_cli_writer_write_line(output, SXML_TEXT(" skipped"));
+        sxml_cli_writer_write(output, SXML_TEXT(" skipped; "));
+        sxml_cli_writer_write_decimal(output, run.in_scope_count);
+        sxml_cli_writer_write_line(output, SXML_TEXT(" in scope"));
     }
     sxml_qt4_catalog_destroy(catalog);
     return sxml_qt4_list_exit_code(&run);
@@ -771,11 +835,13 @@ const sxml_cli_command sxml_qt4_list_command = {
         "test case: its query file, its environment (sources, parameters,\n"
         "namespaces, static base URI, resources, collections) with file paths\n"
         "relative to the catalog's directory, its dependencies, and, when it\n"
-        "cannot run for SPEC, \"skip:\" and the reason. The selection is the\n"
-        "test cases of TEST-LIST, those of the test set --test-set names, or\n"
-        "with neither every test case of the catalog. Exits 1 when a test "
-        "set,\n"
-        "test case or environment does not exist, 3 when a file cannot be "
+        "cannot run for SPEC, \"skip:\" and the reason; \"out of scope:\"\n"
+        "when it needs a non-goal of D95. The last line counts the test\n"
+        "cases, those that run, and those in scope: the denominator of the\n"
+        "pass-rate targets. The selection is the test cases of TEST-LIST,\n"
+        "those of the test set --test-set names, or with neither every test\n"
+        "case of the catalog. Exits 1 when a test set, test case or\n"
+        "environment does not exist, 3 when a file cannot be "
         "read."),
     .options = sxml_qt4_list_option_table,
     .option_count = sizeof sxml_qt4_list_option_table /

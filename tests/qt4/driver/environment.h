@@ -7,6 +7,7 @@
 #include "sxml/memory.h"
 #include "sxml/status.h"
 #include "sxml/view.h"
+#include "sxml/xpath.h"
 
 /*
  * QT4 environments, resolved (glossary: qt4_environment;
@@ -147,6 +148,30 @@ typedef struct sxml_qt4_schema_view {
     size_t schema_count;
 } sxml_qt4_schema_view;
 
+/*
+ * A <decimal-format>: a decimal format of the static context
+ * (catalog-schema.xsd, element "decimal-format"; F&O 4.0, "Defining a
+ * decimal format"). Each attribute the element has is one property, its
+ * value as written (sxml_decimal_format_property: a marker, a marker and
+ * rendition such as "%:pc", or a rendition).
+ */
+typedef struct sxml_qt4_decimal_format {
+    /* The name's namespace URI, its prefix bound by the element's in-scope
+       namespaces; empty for a name without a prefix (XSLT 4.0 and XQuery
+       4.0 put unprefixed decimal-format names in no namespace). */
+    sxml_byte_view namespace_uri;
+    /* The name's local part; empty for the unnamed decimal format. */
+    sxml_byte_view local_name;
+    /* The name as written, for listings; empty for the unnamed one. */
+    sxml_byte_view name;
+    sxml_decimal_format_property_view properties;
+} sxml_qt4_decimal_format;
+
+typedef struct sxml_qt4_decimal_format_view {
+    const sxml_qt4_decimal_format *decimal_formats;
+    size_t decimal_format_count;
+} sxml_qt4_decimal_format_view;
+
 /* What the static base URI of the test is. */
 typedef enum sxml_qt4_static_base_uri_kind {
     /* No <static-base-uri>: the URI of the test-set file. */
@@ -175,9 +200,7 @@ typedef struct sxml_qt4_environment {
     sxml_qt4_static_base_uri_kind static_base_uri_kind;
     /* For SXML_QT4_STATIC_BASE_URI_GIVEN. */
     sxml_byte_view static_base_uri;
-    /* The names of <decimal-format> elements, empty for the unnamed
-       (default) one. */
-    sxml_qt4_text_view decimal_format_names;
+    sxml_qt4_decimal_format_view decimal_formats;
     /* <function-library> and <sandpit>: XSLT/XQuery function libraries and
        writable directories (EXPath File). */
     bool has_function_library;
@@ -205,8 +228,10 @@ typedef struct sxml_qt4_environment_request {
 /*
  * Reads the environment element request names into *environment.
  * Elements the catalog schema allows that the driver does not need
- * (description, created, modified) are skipped. Returns the document's and
- * the arena's failures, leaving *environment untouched.
+ * (description, created, modified) are skipped. Returns
+ * SXML_STATUS_MALFORMED_INPUT for a decimal-format name whose prefix is
+ * not bound, and the document's and the arena's failures, leaving
+ * *environment untouched.
  */
 SXML_NODISCARD sxml_status
 sxml_qt4_environment_read(const sxml_qt4_environment_request *request,

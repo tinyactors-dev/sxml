@@ -40,6 +40,7 @@ set-basic schema-feature
   dependency feature higherOrderFunctions
   dependency feature schemaImport
   skip: feature schemaImport
+  out of scope: feature schemaImport
 set-basic not-serialization
   dependency feature higherOrderFunctions
   dependency feature serialization unsatisfied
@@ -54,7 +55,6 @@ set-basic resource
   environment (inline)
   resource http://example.com/t.txt docs/t.txt media-type text/plain encoding utf-8
   dependency feature higherOrderFunctions
-  skip: environment resource
 set-basic collection
   environment (inline)
   collection http://example.com/c
@@ -62,18 +62,16 @@ set-basic collection
     resource http://example.com/t.txt docs/t.txt
     query <x/>
   dependency feature higherOrderFunctions
-  skip: environment collection
+  skip: environment collection query
 set-basic other-collation
   environment (inline)
   collation http://www.w3.org/2013/collation/UCA
   dependency feature higherOrderFunctions
-  skip: environment collation
 set-basic decimal-formats
   environment (inline)
-  decimal-format -
-  decimal-format f
+  decimal-format - decimal-separator ,
+  decimal-format f grouping-separator .
   dependency feature higherOrderFunctions
-  skip: environment decimal-format
 set-basic schema-import
   environment (inline)
   source . docs/a.xml validation strict
@@ -97,4 +95,4 @@ set-xquery replaced-spec
 set-xquery old-xpath
   skip: spec XP20 XP30
 set-bad-environment bad-environment-2
-25 test cases: 13 applicable, 12 skipped
+25 test cases: 16 applicable, 9 skipped; 21 in scope

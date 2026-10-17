@@ -6,10 +6,13 @@ Reads the QT4 catalog with sxml's XML parser and writes each selected
 test case: its query file, its environment (sources, parameters,
 namespaces, static base URI, resources, collections) with file paths
 relative to the catalog's directory, its dependencies, and, when it
-cannot run for SPEC, "skip:" and the reason. The selection is the
-test cases of TEST-LIST, those of the test set --test-set names, or
-with neither every test case of the catalog. Exits 1 when a test set,
-test case or environment does not exist, 3 when a file cannot be read.
+cannot run for SPEC, "skip:" and the reason; "out of scope:"
+when it needs a non-goal of D95. The last line counts the test
+cases, those that run, and those in scope: the denominator of the
+pass-rate targets. The selection is the test cases of TEST-LIST,
+those of the test set --test-set names, or with neither every test
+case of the catalog. Exits 1 when a test set, test case or
+environment does not exist, 3 when a file cannot be read.
 
 Options:
   -h, --help           Show this help and exit

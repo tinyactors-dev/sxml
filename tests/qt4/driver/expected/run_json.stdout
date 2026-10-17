@@ -26,5 +26,7 @@
 {"test_set": "run-pass", "test_case": "not-run-dependency", "outcome": "not-run", "reason": "skip: feature schemaImport"},
 {"test_set": "run-pass", "test_case": "not-run-serialization", "outcome": "not-run", "reason": "serialization-matches: needs serialization the driver does not have"}],
 "test_sets": [
-{"name": "run-pass", "total": 25, "pass": 22, "wrong_error": 1, "fail": 0, "error": 0, "not_run": 2}],
-"totals": {"total": 25, "pass": 22, "wrong_error": 1, "fail": 0, "error": 0, "not_run": 2}}
+{"name": "run-pass", "total": 25, "pass": 22, "wrong_error": 1, "fail": 0, "error": 0, "not_run": 2, "in_scope": 24, "in_scope_passed": 23}],
+"areas": [
+{"area": "other", "total": 25, "pass": 22, "wrong_error": 1, "fail": 0, "error": 0, "not_run": 2, "in_scope": 24, "in_scope_passed": 23}],
+"totals": {"total": 25, "pass": 22, "wrong_error": 1, "fail": 0, "error": 0, "not_run": 2, "in_scope": 24, "in_scope_passed": 23}}

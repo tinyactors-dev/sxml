@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<test-set xmlns="http://www.w3.org/2010/09/qt-fots-catalog" name="run-environments">
+   <description>Every environment kind of packet 2.16 applied: decimal
+      formats, collations, resources and collections; and those still
+      skipped.</description>
+   <environment name="formats">
+      <decimal-format decimal-separator="," grouping-separator="."/>
+      <decimal-format xmlns:f="urn:f" name="f:percent" percent="%:pc" NaN="none"/>
+      <decimal-format name="plain" zero-digit="&#x660;"/>
+   </environment>
+   <environment name="resources">
+      <resource uri="http://example.com/text.txt" file="../docs/text.txt"
+                media-type="text/plain" encoding="utf-8"/>
+      <resource uri="relative.txt" file="../docs/text.txt"/>
+   </environment>
+   <environment name="collections">
+      <collection uri="">
+         <source file="../docs/a.xml" uri="http://example.com/a.xml"/>
+         <source file="../docs/b.xml"/>
+      </collection>
+      <collection uri="http://example.com/collection">
+         <source file="../docs/c.xml" uri="http://example.com/c.xml"/>
+         <resource uri="http://example.com/in-collection.txt" file="../docs/text.txt"/>
+      </collection>
+   </environment>
+   <test-case name="decimal-formats">
+      <environment ref="formats"/>
+      <test>1 + 1</test>
+      <result><assert-eq>2</assert-eq></result>
+   </test-case>
+   <test-case name="default-collation">
+      <environment>
+         <collation uri="http://www.w3.org/2005/xpath-functions/collation/html-ascii-case-insensitive"
+                    default="true"/>
+      </environment>
+      <test>true()</test>
+      <result><assert-true/></result>
+   </test-case>
+   <test-case name="uca-collation">
+      <environment>
+         <collation uri="http://www.w3.org/2013/collation/UCA?strength=primary"/>
+      </environment>
+      <test>true()</test>
+      <result><assert-true/></result>
+   </test-case>
+   <test-case name="resources-are-not-documents">
+      <environment ref="resources"/>
+      <test>doc-available('http://example.com/text.txt')</test>
+      <result><assert-false/></result>
+   </test-case>
+   <test-case name="collection-sources-are-available">
+      <environment ref="collections"/>
+      <test>doc('http://example.com/a.xml')/*/name(), doc('http://example.com/c.xml')/*/local-name()</test>
+      <result><assert-deep-eq>'a', 'root'</assert-deep-eq></result>
+   </test-case>
+   <test-case name="collection-query">
+      <environment>
+         <collection uri="http://example.com/integers"><query>1 to 10</query></collection>
+      </environment>
+      <test>true()</test>
+      <result><assert-true/></result>
+   </test-case>
+   <test-case name="other-collation">
+      <environment>
+         <collation uri="http://example.com/collation"/>
+      </environment>
+      <test>true()</test>
+      <result><assert-true/></result>
+   </test-case>
+   <test-case name="without-schema-import">
+      <dependency type="feature" value="schemaImport" satisfied="false"/>
+      <test>1</test>
+      <result><assert-eq>1</assert-eq></result>
+   </test-case>
+</test-set>

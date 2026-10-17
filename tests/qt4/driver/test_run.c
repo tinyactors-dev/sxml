@@ -7,9 +7,11 @@
 
 #include "assertion.h"
 #include "reason.h"
+#include "resource_table.h"
 #include "suite_path.h"
 #include "sxml/name.h"
 #include "sxml/processor.h"
+#include "sxml/string.h"
 #include "sxml/types.h"
 #include "sxml/xdm.h"
 #include "sxml/xpath.h"
@@ -126,64 +128,6 @@ static const sxml_allocator_operations sxml_qt4_budget_operations = {
     .release = sxml_qt4_budget_release,
 };
 
-/* -------------------------------------------------------------- Resolver */
-
-/* fn:doc reads file:///SUITE-PATH through the catalog, nothing else. */
-typedef struct sxml_qt4_suite_resolver {
-    sxml_qt4_catalog *catalog;
-    sxml_allocator allocator;
-} sxml_qt4_suite_resolver;
-
-static sxml_status sxml_qt4_resolve_suite_file(
-    void *state, const sxml_resource_request *request, sxml_resource *resource) {
-    const sxml_qt4_suite_resolver *resolver = state;
-    const sxml_byte_view prefix = SXML_TEXT(SXML_QT4_SUITE_URI_PREFIX);
-    const sxml_byte_view uri = request->absolute_uri.byte_count != 0
-                                   ? request->absolute_uri
-                                   : request->uri_reference;
-    resource->resource_form = SXML_RESOURCE_FORM_NONE;
-    if (request->resource_kind != SXML_RESOURCE_KIND_XML_DOCUMENT ||
-        uri.byte_count <= prefix.byte_count ||
-        memcmp(uri.bytes, prefix.bytes, prefix.byte_count) != 0) {
-        resource->description =
-            SXML_TEXT("The QT4 driver serves only the suite's files");
-        return SXML_STATUS_OK;
-    }
-    sxml_byte_view contents = sxml_qt4_empty_text;
-    const sxml_status status = sxml_qt4_catalog_read_file(
-        resolver->catalog,
-        &(sxml_qt4_file_request){
-            .suite_path = {.bytes = uri.bytes + prefix.byte_count,
-                           .byte_count = uri.byte_count - prefix.byte_count},
-            .allocator = resolver->allocator},
-        &contents);
-    if (status == SXML_STATUS_INPUT_OUTPUT_FAILED) {
-        resource->description = SXML_TEXT("The file cannot be read");
-        return SXML_STATUS_OK;
-    }
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    resource->resource_form = SXML_RESOURCE_FORM_BYTES;
-    resource->content = contents;
-    return SXML_STATUS_OK;
-}
-
-static void sxml_qt4_release_suite_file(void *state,
-                                        const sxml_resource *resource) {
-    const sxml_qt4_suite_resolver *resolver = state;
-    if (resource->resource_form == SXML_RESOURCE_FORM_BYTES) {
-        sxml_allocator_release(resolver->allocator,
-                               (void *)resource->content.bytes);
-    }
-}
-
-static const sxml_resource_resolver_operations sxml_qt4_suite_resolver_operations =
-    {
-        .resolve = sxml_qt4_resolve_suite_file,
-        .release = sxml_qt4_release_suite_file,
-};
-
 /* ------------------------------------------------------------ The context */
 
 /* Everything one test holds while it runs. */
@@ -201,10 +145,17 @@ typedef struct sxml_qt4_test_context {
     size_t variable_count;
     sxml_available_document *available_documents;
     size_t available_document_count;
+    sxml_decimal_format *decimal_formats;
+    size_t decimal_format_count;
+    /* Empty for the codepoint collation. */
+    sxml_byte_view default_collation_uri;
+    /* What the resolver serves; its arrays are filled here. */
+    sxml_qt4_resource_table *resource_table;
     bool has_context_value;
     sxml_sequence context_value;
-    /* Owned values: one per source and parameter, and the context item's;
-       released at the end. */
+    /* Owned values: one per source (of the environment and of its
+       collections) and parameter, two per collection and the context
+       item's; released at the end. */
     sxml_sequence *owned_values;
     size_t owned_value_count;
     /* What was being done when something failed, for the reason. */
@@ -376,7 +327,13 @@ sxml_qt4_static_context(const sxml_qt4_test_context *context) {
         .static_base_uri = context->static_base_uri,
         .variable_declarations = {.variable_declarations = context->declarations,
                                   .variable_declaration_count =
-                                      context->variable_count}};
+                                      context->variable_count},
+        .decimal_formats = {.decimal_formats = context->decimal_formats,
+                            .decimal_format_count =
+                                context->decimal_format_count},
+        .default_collation_uri = context->default_collation_uri,
+        .collation_bindings = {.collation_bindings = NULL,
+                               .collation_binding_count = 0}};
 }
 
 /* The dynamic context of the test, with what is bound so far. */
@@ -470,9 +427,19 @@ static const sxml_sequence_type sxml_qt4_any_sequence_type = {
     .item_type = {.index = SXML_TYPE_ITEM},
     .occurrence = SXML_OCCURRENCE_ZERO_OR_MORE};
 
-/* Parses, declares, binds and makes available one source. */
-static sxml_status sxml_qt4_load_source(sxml_qt4_test_context *context,
-                                        const sxml_qt4_source *source) {
+/* A parsed source: its document node, owned by the test, and its
+   document URI. */
+typedef struct sxml_qt4_parsed_source {
+    sxml_item document_node;
+    sxml_byte_view document_uri;
+} sxml_qt4_parsed_source;
+
+/* Parses one source (document URI and base URI: its uri made absolute, or
+   file:///SUITE-PATH), keeps its document node until the end of the test
+   and makes it available by its uri, when it has one. */
+static sxml_status sxml_qt4_parse_source(sxml_qt4_test_context *context,
+                                         const sxml_qt4_source *source,
+                                         sxml_qt4_parsed_source *parsed) {
     sxml_qt4_set_stage(context,
                        (sxml_qt4_stage){.description = SXML_TEXT("source"),
                                         .subject = source->file_path});
@@ -508,8 +475,28 @@ static sxml_status sxml_qt4_load_source(sxml_qt4_test_context *context,
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    const sxml_sequence value = sxml_sequence_from_item(document_node);
-    sxml_qt4_own_value(context, value);
+    sxml_qt4_own_value(context, sxml_sequence_from_item(document_node));
+    if (source->uri.byte_count != 0) {
+        context->available_documents[context->available_document_count] =
+            (sxml_available_document){.document_uri = document_uri,
+                                      .document_node = document_node};
+        context->available_document_count += 1;
+    }
+    *parsed = (sxml_qt4_parsed_source){.document_node = document_node,
+                                       .document_uri = document_uri};
+    return SXML_STATUS_OK;
+}
+
+/* Parses one source of the environment and binds it as its role says. */
+static sxml_status sxml_qt4_load_source(sxml_qt4_test_context *context,
+                                        const sxml_qt4_source *source) {
+    sxml_qt4_parsed_source parsed;
+    memset(&parsed, 0, sizeof parsed);
+    sxml_status status = sxml_qt4_parse_source(context, source, &parsed);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    const sxml_sequence value = sxml_sequence_from_item(parsed.document_node);
     if (sxml_byte_view_equals(source->role, SXML_TEXT("."))) {
         context->has_context_value = true;
         context->context_value = value;
@@ -530,13 +517,289 @@ static sxml_status sxml_qt4_load_source(sxml_qt4_test_context *context,
                                          .is_bound = true,
                                          .value = value});
     }
-    if (source->uri.byte_count != 0) {
-        context->available_documents[context->available_document_count] =
-            (sxml_available_document){.document_uri = document_uri,
-                                      .document_node = document_node};
-        context->available_document_count += 1;
-    }
     return SXML_STATUS_OK;
+}
+
+/* Adds the served form of each resource to served, from *served_count
+   on. */
+typedef struct sxml_qt4_served_resources {
+    sxml_qt4_served_resource *served_resources;
+    size_t served_resource_count;
+} sxml_qt4_served_resources;
+
+static sxml_status sxml_qt4_add_served_resources(
+    sxml_qt4_test_context *context, sxml_qt4_resource_view resources,
+    sxml_qt4_served_resources *served) {
+    sxml_status status = SXML_STATUS_OK;
+    /* The array is NULL only when there are no resources at all. */
+    for (size_t resource_index = 0;
+         status == SXML_STATUS_OK && served->served_resources != NULL &&
+         resource_index < resources.resource_count;
+         resource_index += 1) {
+        const sxml_qt4_resource *resource =
+            &resources.resources[resource_index];
+        sxml_qt4_served_resource *entry =
+            &served->served_resources[served->served_resource_count];
+        *entry = (sxml_qt4_served_resource){.uri = sxml_qt4_empty_text,
+                                            .file_path = resource->file_path,
+                                            .encoding = resource->encoding};
+        status = sxml_qt4_absolute_uri(context, resource->uri, &entry->uri);
+        if (status == SXML_STATUS_OK) {
+            served->served_resource_count += 1;
+        }
+    }
+    return status;
+}
+
+/* Makes the served resources: each <resource> of the environment and of
+   its collections under its absolute URI. */
+static sxml_status sxml_qt4_serve_resources(sxml_qt4_test_context *context) {
+    const sxml_qt4_environment *environment = context->environment;
+    size_t resource_count = environment->resources.resource_count;
+    for (size_t collection_index = 0;
+         collection_index < environment->collections.collection_count;
+         collection_index += 1) {
+        resource_count += environment->collections.collections[collection_index]
+                              .resources.resource_count;
+    }
+    void *memory = NULL;
+    sxml_status status = sxml_qt4_allocate_array(
+        context,
+        (sxml_qt4_array_request){
+            .element_count = resource_count,
+            .element_byte_count = sizeof(sxml_qt4_served_resource),
+            .alignment = alignof(sxml_qt4_served_resource)},
+        &memory);
+    sxml_qt4_served_resources served = {.served_resources = memory,
+                                        .served_resource_count = 0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_qt4_add_served_resources(context, environment->resources,
+                                               &served);
+    }
+    for (size_t collection_index = 0;
+         status == SXML_STATUS_OK &&
+         collection_index < environment->collections.collection_count;
+         collection_index += 1) {
+        status = sxml_qt4_add_served_resources(
+            context,
+            environment->collections.collections[collection_index].resources,
+            &served);
+    }
+    if (status == SXML_STATUS_OK) {
+        context->resource_table->served_resources =
+            (sxml_qt4_served_resource_view){
+                .served_resources = served.served_resources,
+                .served_resource_count = served.served_resource_count};
+    }
+    return status;
+}
+
+/* An xs:anyURI item of uri, owned (F&O 4.0, "fn:uri-collection"). */
+static sxml_status sxml_qt4_make_uri_item(sxml_qt4_test_context *context,
+                                          sxml_byte_view uri,
+                                          sxml_item *item) {
+    sxml_string string = {.utf8 = sxml_qt4_empty_text,
+                          .codepoint_count = 0,
+                          .is_ascii = true};
+    const sxml_status status = sxml_string_from_utf8(uri, &string);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_atomic_item_make(
+        sxml_processor_get_item_heap(context->processor),
+        &(sxml_atomic_item_request){
+            .type = {.index = SXML_TYPE_XS_ANY_URI},
+            .datum = {.datum_kind = SXML_DATUM_KIND_STRING,
+                      .datum_details = {.string = string}}},
+        item);
+}
+
+/* Parses the sources of one collection and makes its two sequences:
+   the document nodes, and the URIs of the documents and then of the
+   collection's resources (which the resource table serves by URI). */
+static sxml_status
+sxml_qt4_serve_collection(sxml_qt4_test_context *context,
+                          const sxml_qt4_collection *collection,
+                          sxml_qt4_served_collection *served) {
+    const size_t source_count = collection->sources.source_count;
+    const size_t resource_count = collection->resources.resource_count;
+    const size_t uri_count = source_count + resource_count;
+    void *memory = NULL;
+    sxml_status status = sxml_qt4_allocate_array(
+        context,
+        (sxml_qt4_array_request){.element_count = source_count + uri_count,
+                                 .element_byte_count = sizeof(sxml_item),
+                                 .alignment = alignof(sxml_item)},
+        &memory);
+    sxml_item *documents = memory;
+    sxml_item *uris = documents == NULL ? NULL : documents + source_count;
+    size_t made_uri_count = 0;
+    /* The array is NULL only when it has no elements. */
+    for (size_t source_index = 0;
+         status == SXML_STATUS_OK && documents != NULL &&
+         source_index < source_count;
+         source_index += 1) {
+        sxml_qt4_parsed_source parsed;
+        memset(&parsed, 0, sizeof parsed);
+        status = sxml_qt4_parse_source(
+            context, &collection->sources.sources[source_index], &parsed);
+        if (status == SXML_STATUS_OK) {
+            documents[source_index] = parsed.document_node;
+            status = sxml_qt4_make_uri_item(context, parsed.document_uri,
+                                            &uris[source_index]);
+        }
+        if (status == SXML_STATUS_OK) {
+            made_uri_count += 1;
+        }
+    }
+    sxml_qt4_set_stage(context,
+                       (sxml_qt4_stage){.description = SXML_TEXT("collection"),
+                                        .subject = collection->uri});
+    for (size_t resource_index = 0;
+         status == SXML_STATUS_OK && uris != NULL &&
+         resource_index < resource_count;
+         resource_index += 1) {
+        sxml_byte_view resource_uri = sxml_qt4_empty_text;
+        status = sxml_qt4_absolute_uri(
+            context, collection->resources.resources[resource_index].uri,
+            &resource_uri);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_qt4_make_uri_item(context, resource_uri,
+                                            &uris[made_uri_count]);
+        }
+        if (status == SXML_STATUS_OK) {
+            made_uri_count += 1;
+        }
+    }
+    sxml_qt4_set_stage(context,
+                       (sxml_qt4_stage){.description = SXML_TEXT("collection"),
+                                        .subject = collection->uri});
+    sxml_item_heap *item_heap =
+        sxml_processor_get_item_heap(context->processor);
+    sxml_sequence items = sxml_sequence_empty();
+    sxml_sequence uri_items = sxml_sequence_empty();
+    if (status == SXML_STATUS_OK) {
+        status = sxml_sequence_make_vector(
+            item_heap,
+            (sxml_item_view){.items = documents, .item_count = source_count},
+            &items);
+    }
+    if (status == SXML_STATUS_OK) {
+        sxml_qt4_own_value(context, items);
+        status = sxml_sequence_make_vector(
+            item_heap, (sxml_item_view){.items = uris, .item_count = uri_count},
+            &uri_items);
+    }
+    if (status == SXML_STATUS_OK) {
+        sxml_qt4_own_value(context, uri_items);
+    }
+    /* The vector retains its items; the URI items made here are released
+       so that the vector holds the only reference. */
+    for (size_t uri_index = 0; uri_index < made_uri_count; uri_index += 1) {
+        sxml_item_release(uris[uri_index]);
+    }
+    *served = (sxml_qt4_served_collection){.is_default =
+                                               collection->uri.byte_count == 0,
+                                           .uri = sxml_qt4_empty_text,
+                                           .items = items,
+                                           .uris = uri_items};
+    if (status == SXML_STATUS_OK && !served->is_default) {
+        status = sxml_qt4_absolute_uri(context, collection->uri, &served->uri);
+    }
+    return status;
+}
+
+static sxml_status sxml_qt4_serve_collections(sxml_qt4_test_context *context) {
+    const sxml_qt4_collection_view collections =
+        context->environment->collections;
+    void *memory = NULL;
+    sxml_status status = sxml_qt4_allocate_array(
+        context,
+        (sxml_qt4_array_request){
+            .element_count = collections.collection_count,
+            .element_byte_count = sizeof(sxml_qt4_served_collection),
+            .alignment = alignof(sxml_qt4_served_collection)},
+        &memory);
+    sxml_qt4_served_collection *served = memory;
+    size_t served_count = 0;
+    for (size_t collection_index = 0;
+         status == SXML_STATUS_OK &&
+         collection_index < collections.collection_count;
+         collection_index += 1) {
+        status = sxml_qt4_serve_collection(
+            context, &collections.collections[collection_index],
+            &served[collection_index]);
+        served_count += 1;
+    }
+    /* What was made is owned by the test, so a failure leaves nothing to
+       release here. */
+    context->resource_table->served_collections =
+        (sxml_qt4_served_collection_view){.served_collections = served,
+                                          .served_collection_count =
+                                              status == SXML_STATUS_OK
+                                                  ? served_count
+                                                  : 0};
+    return status;
+}
+
+/* Makes the statically known decimal formats: names in the processor's
+   name pool, properties as the environment wrote them (D104). */
+static sxml_status
+sxml_qt4_declare_decimal_formats(sxml_qt4_test_context *context) {
+    const sxml_qt4_decimal_format_view formats =
+        context->environment->decimal_formats;
+    void *memory = NULL;
+    sxml_status status = sxml_qt4_allocate_array(
+        context,
+        (sxml_qt4_array_request){.element_count = formats.decimal_format_count,
+                                 .element_byte_count =
+                                     sizeof(sxml_decimal_format),
+                                 .alignment = alignof(sxml_decimal_format)},
+        &memory);
+    context->decimal_formats = memory;
+    sxml_name_pool *name_pool = sxml_processor_get_name_pool(context->processor);
+    for (size_t format_index = 0;
+         status == SXML_STATUS_OK && format_index < formats.decimal_format_count;
+         format_index += 1) {
+        const sxml_qt4_decimal_format *format =
+            &formats.decimal_formats[format_index];
+        sxml_qt4_set_stage(
+            context, (sxml_qt4_stage){.description = SXML_TEXT("decimal-format"),
+                                      .subject = format->name});
+        sxml_name_identifier format_name = {.index = 0};
+        if (format->local_name.byte_count != 0) {
+            sxml_namespace_uri_identifier namespace_uri = {.index = 0};
+            status = sxml_name_pool_intern_namespace_uri(
+                name_pool, format->namespace_uri, &namespace_uri);
+            if (status == SXML_STATUS_OK) {
+                status = sxml_name_pool_intern_name(
+                    name_pool,
+                    &(sxml_name_request){.namespace_uri = namespace_uri,
+                                         .local_name = format->local_name},
+                    &format_name);
+            }
+        }
+        if (status == SXML_STATUS_OK) {
+            context->decimal_formats[format_index] = (sxml_decimal_format){
+                .format_name = format_name,
+                .decimal_format_properties = format->properties};
+            context->decimal_format_count += 1;
+        }
+    }
+    return status;
+}
+
+/* The default collation: the collation marked default="true", if any. */
+static void sxml_qt4_set_default_collation(sxml_qt4_test_context *context) {
+    const sxml_qt4_collation_view collations =
+        context->environment->collations;
+    for (size_t collation_index = 0;
+         collation_index < collations.collation_count; collation_index += 1) {
+        if (collations.collations[collation_index].is_default) {
+            context->default_collation_uri =
+                collations.collations[collation_index].uri;
+        }
+    }
 }
 
 /* Compiles and evaluates text in the test's contexts, as they are so far,
@@ -610,6 +873,18 @@ static sxml_status sxml_qt4_apply_environment(sxml_qt4_test_context *context) {
     const size_t source_count = environment->sources.source_count;
     const size_t parameter_count = environment->parameters.parameter_count;
     const size_t variable_capacity = source_count + parameter_count;
+    size_t collection_source_count = 0;
+    for (size_t collection_index = 0;
+         collection_index < environment->collections.collection_count;
+         collection_index += 1) {
+        collection_source_count += environment->collections
+                                       .collections[collection_index]
+                                       .sources.source_count;
+    }
+    const size_t document_capacity = source_count + collection_source_count;
+    const size_t owned_capacity =
+        variable_capacity + 1 + collection_source_count +
+        2 * environment->collections.collection_count;
     sxml_qt4_set_stage(context,
                        (sxml_qt4_stage){.description = SXML_TEXT("environment"),
                                         .subject = environment->name});
@@ -636,7 +911,7 @@ static sxml_status sxml_qt4_apply_environment(sxml_qt4_test_context *context) {
         status = sxml_qt4_allocate_array(
             context,
             (sxml_qt4_array_request){
-                .element_count = source_count,
+                .element_count = document_capacity,
                 .element_byte_count = sizeof(sxml_available_document),
                 .alignment = alignof(sxml_available_document)},
             &memory);
@@ -645,7 +920,7 @@ static sxml_status sxml_qt4_apply_environment(sxml_qt4_test_context *context) {
     if (status == SXML_STATUS_OK) {
         status = sxml_qt4_allocate_array(
             context,
-            (sxml_qt4_array_request){.element_count = variable_capacity + 1,
+            (sxml_qt4_array_request){.element_count = owned_capacity,
                                      .element_byte_count = sizeof(sxml_sequence),
                                      .alignment = alignof(sxml_sequence)},
             &memory);
@@ -656,6 +931,16 @@ static sxml_status sxml_qt4_apply_environment(sxml_qt4_test_context *context) {
     }
     if (status == SXML_STATUS_OK) {
         status = sxml_qt4_set_static_base_uri(context);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_qt4_declare_decimal_formats(context);
+    }
+    sxml_qt4_set_default_collation(context);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_qt4_serve_resources(context);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_qt4_serve_collections(context);
     }
     for (size_t source_index = 0;
          status == SXML_STATUS_OK && source_index < source_count;
@@ -846,11 +1131,17 @@ static void sxml_qt4_run_isolated(const sxml_qt4_test_run_request *request,
                               .was_exceeded = false};
     const sxml_allocator allocator = {.state = &budget,
                                       .operations = &sxml_qt4_budget_operations};
-    sxml_qt4_suite_resolver resolver = {.catalog = request->catalog,
-                                        .allocator = allocator};
+    sxml_qt4_resource_table resource_table = {
+        .catalog = request->catalog,
+        .allocator = allocator,
+        .served_resources = {.served_resources = NULL,
+                             .served_resource_count = 0},
+        .served_collections = {.served_collections = NULL,
+                               .served_collection_count = 0}};
     sxml_qt4_test_context context;
     memset(&context, 0, sizeof context);
     context.request = request;
+    context.resource_table = &resource_table;
     context.environment = &request->test_case->environment;
     context.allocator = allocator;
     context.stage = SXML_TEXT("processor");
@@ -863,9 +1154,8 @@ static void sxml_qt4_run_isolated(const sxml_qt4_test_run_request *request,
                                           SXML_QT4_MAXIMUM_EXPANSION_BYTE_COUNT},
                        .maximum_evaluation_step_count =
                            SXML_QT4_TEST_MAXIMUM_STEP_COUNT},
-            .resource_resolver = {.state = &resolver,
-                                  .operations =
-                                      &sxml_qt4_suite_resolver_operations},
+            .resource_resolver =
+                sxml_qt4_resource_table_resolver(&resource_table),
             .clock = sxml_system_clock()},
         &context.processor);
     if (status == SXML_STATUS_OK) {
@@ -932,6 +1222,7 @@ sxml_status sxml_qt4_run_test_case(const sxml_qt4_test_run_request *request,
         .outcome = answer.outcome,
         .reason = answer.outcome == SXML_QT4_TEST_OUTCOME_PASS
                       ? sxml_qt4_empty_text
-                      : sxml_qt4_reason_text(&answer.reason)};
+                      : sxml_qt4_reason_text(&answer.reason),
+        .is_in_scope = applicability.is_in_scope};
     return SXML_STATUS_OK;
 }

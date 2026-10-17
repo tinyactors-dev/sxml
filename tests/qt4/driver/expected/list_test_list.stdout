@@ -11,4 +11,4 @@ set-basic local-environment
   source $doc docs/b.xml uri http://example.com/b.xml
   source - docs/a.xml uri http://example.com/a.xml
   dependency feature higherOrderFunctions
-4 test cases: 4 applicable, 0 skipped
+4 test cases: 4 applicable, 0 skipped; 4 in scope

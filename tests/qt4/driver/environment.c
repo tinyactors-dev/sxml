@@ -35,7 +35,8 @@ sxml_qt4_environment sxml_qt4_environment_absent(void) {
         .context_item_select = sxml_qt4_empty_text,
         .static_base_uri_kind = SXML_QT4_STATIC_BASE_URI_TEST_SET_FILE,
         .static_base_uri = sxml_qt4_empty_text,
-        .decimal_format_names = {.texts = NULL, .text_count = 0},
+        .decimal_formats = {.decimal_formats = NULL,
+                            .decimal_format_count = 0},
         .has_function_library = false,
         .has_sandpit = false,
     };
@@ -306,7 +307,7 @@ typedef struct sxml_qt4_child_arrays {
     sxml_qt4_collection *collections;
     sxml_qt4_collation *collations;
     sxml_qt4_schema *schemas;
-    sxml_byte_view *decimal_format_names;
+    sxml_qt4_decimal_format *decimal_formats;
     sxml_byte_view *queries;
 } sxml_qt4_child_arrays;
 
@@ -331,8 +332,8 @@ sxml_qt4_allocate_child_arrays(sxml_arena *arena,
          alignof(sxml_qt4_collation)},
         {counts->schema_count, sizeof(sxml_qt4_schema),
          alignof(sxml_qt4_schema)},
-        {counts->decimal_format_count, sizeof(sxml_byte_view),
-         alignof(sxml_byte_view)},
+        {counts->decimal_format_count, sizeof(sxml_qt4_decimal_format),
+         alignof(sxml_qt4_decimal_format)},
         {counts->query_count, sizeof(sxml_byte_view), alignof(sxml_byte_view)},
     };
     for (size_t array_index = 0; array_index < 9; array_index += 1) {
@@ -350,9 +351,155 @@ sxml_qt4_allocate_child_arrays(sxml_arena *arena,
         .collections = memory[4],
         .collations = memory[5],
         .schemas = memory[6],
-        .decimal_format_names = memory[7],
+        .decimal_formats = memory[7],
         .queries = memory[8],
     };
+    return SXML_STATUS_OK;
+}
+
+/* The attributes of <decimal-format> that are properties, in the order of
+   catalog-schema.xsd, with the property each one sets. */
+typedef struct sxml_qt4_decimal_format_attribute {
+    sxml_byte_view local_name;
+    sxml_decimal_format_property_kind property_kind;
+} sxml_qt4_decimal_format_attribute;
+
+static const sxml_qt4_decimal_format_attribute
+    sxml_qt4_decimal_format_attributes[] = {
+        {SXML_BYTE_VIEW_INITIALIZER("decimal-separator"),
+         SXML_DECIMAL_FORMAT_PROPERTY_DECIMAL_SEPARATOR},
+        {SXML_BYTE_VIEW_INITIALIZER("grouping-separator"),
+         SXML_DECIMAL_FORMAT_PROPERTY_GROUPING_SEPARATOR},
+        {SXML_BYTE_VIEW_INITIALIZER("zero-digit"),
+         SXML_DECIMAL_FORMAT_PROPERTY_ZERO_DIGIT},
+        {SXML_BYTE_VIEW_INITIALIZER("digit"),
+         SXML_DECIMAL_FORMAT_PROPERTY_DIGIT},
+        {SXML_BYTE_VIEW_INITIALIZER("minus-sign"),
+         SXML_DECIMAL_FORMAT_PROPERTY_MINUS_SIGN},
+        {SXML_BYTE_VIEW_INITIALIZER("percent"),
+         SXML_DECIMAL_FORMAT_PROPERTY_PERCENT},
+        {SXML_BYTE_VIEW_INITIALIZER("per-mille"),
+         SXML_DECIMAL_FORMAT_PROPERTY_PER_MILLE},
+        {SXML_BYTE_VIEW_INITIALIZER("pattern-separator"),
+         SXML_DECIMAL_FORMAT_PROPERTY_PATTERN_SEPARATOR},
+        {SXML_BYTE_VIEW_INITIALIZER("exponent-separator"),
+         SXML_DECIMAL_FORMAT_PROPERTY_EXPONENT_SEPARATOR},
+        {SXML_BYTE_VIEW_INITIALIZER("infinity"),
+         SXML_DECIMAL_FORMAT_PROPERTY_INFINITY},
+        {SXML_BYTE_VIEW_INITIALIZER("NaN"), SXML_DECIMAL_FORMAT_PROPERTY_NAN},
+};
+
+enum {
+    SXML_QT4_DECIMAL_FORMAT_ATTRIBUTE_COUNT =
+        sizeof sxml_qt4_decimal_format_attributes /
+        sizeof sxml_qt4_decimal_format_attributes[0]
+};
+
+/* Splits the xs:QName of a decimal-format name and binds its prefix by the
+   element's in-scope namespaces (XSD 1.1 Part 2, section 3.3.18). */
+static sxml_status
+sxml_qt4_read_decimal_format_name(const sxml_qt4_environment_reader *reader,
+                                  sxml_node_index element,
+                                  sxml_qt4_decimal_format *decimal_format) {
+    const sxml_byte_view name = decimal_format->name;
+    decimal_format->local_name = name;
+    for (size_t byte_index = 0; byte_index < name.byte_count;
+         byte_index += 1) {
+        if (name.bytes[byte_index] != ':') {
+            continue;
+        }
+        decimal_format->local_name =
+            (sxml_byte_view){.bytes = name.bytes + byte_index + 1,
+                             .byte_count = name.byte_count - byte_index - 1};
+        sxml_qt4_attribute_value namespace_uri = {.is_present = false,
+                                                  .value = sxml_qt4_empty_text};
+        const sxml_status status = sxml_qt4_document_resolve_prefix(
+            reader->document,
+            (sxml_qt4_prefix_lookup){
+                .element = element,
+                .namespace_prefix = {.bytes = name.bytes,
+                                     .byte_count = byte_index}},
+            &namespace_uri);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        if (!namespace_uri.is_present || byte_index == 0) {
+            return SXML_STATUS_MALFORMED_INPUT;
+        }
+        decimal_format->namespace_uri = namespace_uri.value;
+        break;
+    }
+    return SXML_STATUS_OK;
+}
+
+/* Reads a <decimal-format>: its name and one property per attribute. */
+static sxml_status
+sxml_qt4_read_decimal_format(const sxml_qt4_environment_reader *reader,
+                             sxml_node_index element,
+                             sxml_qt4_decimal_format *decimal_format) {
+    *decimal_format = (sxml_qt4_decimal_format){
+        .namespace_uri = sxml_qt4_empty_text,
+        .local_name = sxml_qt4_empty_text,
+        .name = sxml_qt4_empty_text,
+        .properties = {.decimal_format_properties = NULL,
+                       .decimal_format_property_count = 0}};
+    sxml_status status = sxml_qt4_read_attribute(
+        reader,
+        (sxml_qt4_attribute_name){.element = element,
+                                  .local_name = SXML_TEXT("name")},
+        &decimal_format->name);
+    if (status == SXML_STATUS_OK) {
+        status =
+            sxml_qt4_read_decimal_format_name(reader, element, decimal_format);
+    }
+    sxml_qt4_attribute_value values[SXML_QT4_DECIMAL_FORMAT_ATTRIBUTE_COUNT] = {
+        {.is_present = false, .value = {.bytes = NULL, .byte_count = 0}}};
+    size_t property_count = 0;
+    for (size_t attribute_index = 0;
+         status == SXML_STATUS_OK &&
+         attribute_index < SXML_QT4_DECIMAL_FORMAT_ATTRIBUTE_COUNT;
+         attribute_index += 1) {
+        status = sxml_qt4_document_find_attribute(
+            reader->document,
+            (sxml_qt4_attribute_lookup){
+                .element = element,
+                .local_name = sxml_qt4_decimal_format_attributes[attribute_index]
+                                  .local_name},
+            &values[attribute_index]);
+        if (status == SXML_STATUS_OK && values[attribute_index].is_present) {
+            property_count += 1;
+        }
+    }
+    void *memory = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_qt4_allocate_array(
+            reader->arena,
+            (sxml_qt4_array_request){
+                .element_count = property_count,
+                .element_byte_count = sizeof(sxml_decimal_format_property),
+                .alignment = alignof(sxml_decimal_format_property)},
+            &memory);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_decimal_format_property *properties = memory;
+    size_t filled_count = 0;
+    for (size_t attribute_index = 0;
+         attribute_index < SXML_QT4_DECIMAL_FORMAT_ATTRIBUTE_COUNT;
+         attribute_index += 1) {
+        if (values[attribute_index].is_present) {
+            properties[filled_count] = (sxml_decimal_format_property){
+                .property_kind =
+                    sxml_qt4_decimal_format_attributes[attribute_index]
+                        .property_kind,
+                .property_value = values[attribute_index].value};
+            filled_count += 1;
+        }
+    }
+    decimal_format->properties = (sxml_decimal_format_property_view){
+        .decimal_format_properties = properties,
+        .decimal_format_property_count = filled_count};
     return SXML_STATUS_OK;
 }
 
@@ -569,11 +716,9 @@ sxml_qt4_environment_read(const sxml_qt4_environment_request *request,
                                                       &schema->file_path);
             }
         } else if (sxml_qt4_is_named(step, SXML_TEXT("decimal-format"))) {
-            status = sxml_qt4_read_attribute(
-                &reader,
-                (sxml_qt4_attribute_name){.element = element,
-                                          .local_name = SXML_TEXT("name")},
-                &arrays.decimal_format_names[filled.decimal_format_count]);
+            status = sxml_qt4_read_decimal_format(
+                &reader, element,
+                &arrays.decimal_formats[filled.decimal_format_count]);
             filled.decimal_format_count += 1;
         } else {
             status = sxml_qt4_read_environment_child(&reader, step, &result);
@@ -600,9 +745,9 @@ sxml_qt4_environment_read(const sxml_qt4_environment_request *request,
                                   .collation_count = filled.collation_count};
     result.schemas = (sxml_qt4_schema_view){
         .schemas = arrays.schemas, .schema_count = filled.schema_count};
-    result.decimal_format_names =
-        (sxml_qt4_text_view){.texts = arrays.decimal_format_names,
-                             .text_count = filled.decimal_format_count};
+    result.decimal_formats = (sxml_qt4_decimal_format_view){
+        .decimal_formats = arrays.decimal_formats,
+        .decimal_format_count = filled.decimal_format_count};
     *environment = result;
     return SXML_STATUS_OK;
 }
