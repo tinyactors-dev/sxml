@@ -953,7 +953,7 @@ static void test_random_number_generator(sxml_test_state *state) {
            (QT4 fn-random-number-generator-56, -57). */
         {"random-number-generator()?take(-1)", "!XPTY0004"},
         {"random-number-generator()?take(())", "!XPTY0004"},
-        /* The built-in record types (D126). */
+        /* The built-in record types (D133). */
         {"random-number-generator(1) instance of fn:random-number-generator-record, "
          "random-number-generator(1)?next instance of fn() as fn:random-number-generator-record",
          "true true"},

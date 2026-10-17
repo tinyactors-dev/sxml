@@ -575,7 +575,7 @@ static sxml_status make_field_value(const sxml_function_call *call, field_reques
 
 /* fn:parts-of-dateTime($value) as fn:dateTime-record? (F&O 4.0, section
    9.6.17): every field, the empty sequence for an absent component, in a
-   record annotated with fn:dateTime-record (D126). */
+   record annotated with fn:dateTime-record (D133). */
 static sxml_status call_parts_of_date_time(const sxml_function_call *call,
                                            sxml_sequence *result) {
     date_time_argument value;

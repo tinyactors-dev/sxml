@@ -279,7 +279,7 @@ static void test_components_of_gregorian_values(sxml_test_state *state) {
         VALUE_CASE("parts-of-dateTime(xs:gYearMonth('2007-05Z'))?*",
                    "2007 5 xs:dayTimeDuration(\"PT0S\")"),
         VALUE_CASE("parts-of-dateTime(())", ""),
-        /* An fn:dateTime-record (D126), which fn:build-dateTime takes. */
+        /* An fn:dateTime-record (D133), which fn:build-dateTime takes. */
         VALUE_CASE("parts-of-dateTime(xs:gDay('---05')) instance of fn:dateTime-record",
                    "true()"),
     };

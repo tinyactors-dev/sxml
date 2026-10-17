@@ -1,5 +1,5 @@
 /*
- * The built-in record types (glossary `builtin_record_type`, D126): the
+ * The built-in record types (glossary `builtin_record_type`, D133): the
  * nominative record types of F&O 4.0, appendix C "Built-in nominal record
  * types", which "are available in the static context of every
  * application". The function library declares them in the type registry of

@@ -1164,7 +1164,7 @@ typedef struct match_group {
     sxml_regex_captured_group group;
 } match_group;
 
-/* Makes the built-in record local_name of field_values (D126) when
+/* Makes the built-in record local_name of field_values (D133) when
    making the values succeeded (making_status), and releases the values. */
 typedef struct record_values {
     const char *local_name;
@@ -1949,7 +1949,7 @@ static sxml_status describe_regex_record(const sxml_function_call *call,
 /* fn:regex($pattern, $flags := "") (F&O 4.0, section 6.3.8): the
    fn:compiled-regex-record of the pattern and flags, after compiling them
    once for their errors. Each function item's signature is the item type
-   of its field (D126). */
+   of its field (D133). */
 static sxml_status call_regex(const sxml_function_call *call, sxml_sequence *result) {
     regex_source source;
     sxml_status status = sxml_function_library_read_string_argument(call, 0, &source.pattern_text);

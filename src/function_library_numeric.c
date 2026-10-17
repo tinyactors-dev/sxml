@@ -745,7 +745,7 @@ static sxml_status call_min(const sxml_function_call *call, sxml_sequence *resul
  * "number" (an xs:double in [0, 1)), "next" (a function giving the next
  * generator), "permute" (a function giving a random permutation of a
  * sequence) and "take" (a function giving the next $count numbers), in
- * an fn:random-number-generator-record (D126). The generator is
+ * an fn:random-number-generator-record (D133). The generator is
  * SplitMix64 (Steele, Lea and Flood, 2014):
  * its 64-bit state is kept as the captured xs:integer of the two function
  * items, so equal seeds give equal results within one heap.
@@ -960,7 +960,7 @@ static const sxml_native_function *const generator_function_rows[] = {
 #define SXML_GENERATOR_FIELD_COUNT ((size_t)4)
 
 /* The fn:random-number-generator-record of state (F&O 4.0, section
-   4.11.1, D126): each function item's signature is the item type of its
+   4.11.1, D133): each function item's signature is the item type of its
    field, so ?next gives fn() as fn:random-number-generator-record and
    ?take checks xs:nonNegativeInteger. */
 static sxml_status make_generator(const sxml_function_call *call, uint64_t state,
@@ -1123,7 +1123,7 @@ static sxml_status make_division_record(const sxml_function_call *call,
 }
 
 /* fn:divide-decimals($value, $divisor, $precision := 0) (F&O 4.0, section
-   4.3.1). The result is an fn:division-record (D126). */
+   4.3.1). The result is an fn:division-record (D133). */
 static sxml_status call_divide_decimals(const sxml_function_call *call,
                                         sxml_sequence *result) {
     int64_t precision = 0;

@@ -475,7 +475,7 @@ SXML_NODISCARD sxml_status sxml_function_library_resolve_type_text(
 
 /*
  * Declares the built-in record types of F&O 4.0, appendix C (glossary
- * `builtin_record_type`, D126; src/function_library_records.c) in the type
+ * `builtin_record_type`, D133; src/function_library_records.c) in the type
  * registry of the library's item heap, under their names in the fn
  * namespace. A type the registry knows already is left as it is, so
  * libraries sharing a heap declare each type once. Called by
