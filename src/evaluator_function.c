@@ -561,6 +561,48 @@ typedef struct sxml_json_key_question {
     const sxml_json_node_test *test;
 } sxml_json_key_question;
 
+/* A jnode() key test with a QName key, given as an EQName Q{uri}local
+   (XPath 4.0, section 3.2.12): equal to an xs:QName key with that
+   expanded name. A name the pool never saw names no key. */
+static sxml_status sxml_json_key_matches_qname(const sxml_type_matcher *matcher,
+                                               sxml_json_key_question question,
+                                               sxml_type_match *match) {
+    match->is_match = false;
+    const sxml_item key = question.node->json_key;
+    const sxml_byte_view text = question.test->key_lexical_form;
+    if (!sxml_item_is_atomic(key) ||
+        sxml_atomic_item_get_primitive_type(key).index != SXML_TYPE_XS_QNAME ||
+        text.byte_count < 3 || text.bytes[0] != 'Q' || text.bytes[1] != '{') {
+        return SXML_STATUS_OK;
+    }
+    size_t close_index = 2;
+    while (close_index < text.byte_count && text.bytes[close_index] != '}') {
+        close_index += 1;
+    }
+    if (close_index + 1 >= text.byte_count) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_name_pool *name_pool =
+        sxml_item_heap_get_name_pool(matcher->dynamic_context->item_heap);
+    sxml_name_request request = {
+        .namespace_uri = {.index = SXML_NAMESPACE_NONE},
+        .local_name = {.bytes = text.bytes + close_index + 1,
+                       .byte_count = text.byte_count - close_index - 1}};
+    sxml_name_identifier name = {.index = 0};
+    if (!sxml_name_pool_find_namespace_uri(
+            name_pool, (sxml_byte_view){.bytes = text.bytes + 2, .byte_count = close_index - 2},
+            &request.namespace_uri) ||
+        !sxml_name_pool_find_name(name_pool, &request, &name)) {
+        return SXML_STATUS_OK;
+    }
+    sxml_atomic_datum datum;
+    const sxml_status status = sxml_atomic_item_get_datum(key, &datum);
+    if (status == SXML_STATUS_OK) {
+        match->is_match = datum.datum_details.qname.expanded_name.index == name.index;
+    }
+    return status;
+}
+
 static sxml_status sxml_json_key_matches(const sxml_type_matcher *matcher,
                                          sxml_json_key_question question,
                                          sxml_type_match *match) {
@@ -580,6 +622,10 @@ static sxml_status sxml_json_key_matches(const sxml_type_matcher *matcher,
     *is_match = false;
     if (!node->has_parent) {
         return SXML_STATUS_OK;
+    }
+    if (test->key_type.index == SXML_TYPE_XS_QNAME && test->key_lexical_form.byte_count > 2 &&
+        test->key_lexical_form.bytes[0] == 'Q' && test->key_lexical_form.bytes[1] == '{') {
+        return sxml_json_key_matches_qname(matcher, question, match);
     }
     sxml_sequence constant = sxml_sequence_empty();
     sxml_status status = sxml_cast_make_value_from_text(
