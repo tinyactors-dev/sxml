@@ -1954,4 +1954,31 @@ over many items without tasks (fn:count, fn:string-join, sorting, regex)
 do not charge yet; each can call the function when needed.
 `xpath_evaluate_fuzz` sets 10^7 steps.
 
+### D90. map:merge merges into its largest map (fuzzing follow-up of 1.26)
+Recorded 2026-10-16. A fold that merges a small map into its accumulator
+was O(n^2): map:merge inserted every entry of every map into a new map.
+- map:merge starts from its first largest map L (`src/function_library_
+  map.c`) instead of the empty map. With L first, it is taken as it is
+  (no map has duplicate keys, so inserting it into the empty map meets
+  none, under every policy). With L later, and without a duplicates
+  function, the entries of the earlier maps are put first, last map and
+  last entry first, through `sxml_map_put_first` (`src/xdm_map_
+  internal.h`): an entry of an equal key is dropped and the earlier entry
+  takes the front with its key and the combined value (use-first/any: the
+  earlier value; use-last: the later; combine: earlier then later; reject:
+  FOJS0003). These combinations are associative, so the result, entry
+  order and kept key included, is the forward insertion's. The maps after
+  L are inserted as before. A duplicates function keeps the forward order
+  (its calls stay in F&O 4.0 order) but still takes the first map as is.
+- Persistent maps (D61) number entries from 2^63: puts last count up from
+  there, puts first down; `previous_entry_stamp` beside `next_entry_stamp`.
+- Cost: O(m log n) for the m entries outside L, so
+  `fold-left(1 to N, map{}, fn($m, $i) { map:merge(($m, {$i: $i})) })`
+  and its mirror `map:merge(({$i: $i}, $m))` (QT4 duplicates-maps-2) are
+  O(N log N). `map_merge_scales` in
+  `tests/function_library_higher_order_test.c`: folds of 10,000 steps,
+  3.6 s for the case under ASan (release: 320,000 merges in 1.8 s); the
+  quadratic version took 6-18 s under ASan for 1,000.
+  map:put in a fold was already O(log n) per step.
+
 ## Proposed
