@@ -1498,8 +1498,17 @@ static sxml_status sxml_parameter_decode_text(sxml_parameter_reading *reading,
         return SXML_STATUS_OK;
     case SXML_PARAMETER_KIND_METHOD: {
         sxml_serialization_method method = SXML_SERIALIZATION_METHOD_XML;
-        if (sxml_parameter_find_method(trimmed, &method)) {
-            value->text = trimmed;
+        /* An EQName in no namespace, Q{}xml, is the unprefixed name
+           (appendix B, method-type is an EQName). */
+        const sxml_byte_view no_namespace = SXML_BYTE_VIEW_FROM_LITERAL("Q{}");
+        const sxml_byte_view unqualified =
+            trimmed.byte_count > no_namespace.byte_count &&
+                    memcmp(trimmed.bytes, no_namespace.bytes, no_namespace.byte_count) == 0
+                ? (sxml_byte_view){.bytes = trimmed.bytes + no_namespace.byte_count,
+                                   .byte_count = trimmed.byte_count - no_namespace.byte_count}
+                : trimmed;
+        if (sxml_parameter_find_method(unqualified, &method)) {
+            value->text = unqualified;
             return SXML_STATUS_OK;
         }
         /* Otherwise a QName with a prefix: an implementation-defined
