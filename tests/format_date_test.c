@@ -145,7 +145,7 @@ static const sxml_date_time antiquity = {.year = -55, .month = 12, .day = 1};
      .expected_error = (error)}
 
 static void test_pictures_format(sxml_test_state *state) {
-    static const date_case cases[] = {
+    const date_case cases[] = {
         VALUE_CASE("[Y0001]-[M01]-[D01]T[H01]:[m01]:[s01].[f001]", "2003-09-07T09:15:06.456"),
         VALUE_CASE("[[[Y]-[M01]-[D]]]", "[2003-09-7]"),
         VALUE_CASE("([Y01]-[M01]-[D01])", "(03-09-07)"),
@@ -186,7 +186,7 @@ static void test_pictures_format(sxml_test_state *state) {
 }
 
 static void test_invalid_pictures_are_rejected(sxml_test_state *state) {
-    static const date_case cases[] = {
+    const date_case cases[] = {
         ERROR_CASE("[bla]", SXML_DATE_VALUE_KIND_DATE, SXML_DATE_PICTURE_ERROR_SYNTAX),
         ERROR_CASE("[]", SXML_DATE_VALUE_KIND_DATE, SXML_DATE_PICTURE_ERROR_SYNTAX),
         ERROR_CASE("[Y", SXML_DATE_VALUE_KIND_DATE, SXML_DATE_PICTURE_ERROR_SYNTAX),
@@ -209,7 +209,7 @@ static void test_invalid_pictures_are_rejected(sxml_test_state *state) {
 }
 
 static void test_engine_survives_every_allocation_failure(sxml_test_state *state) {
-    static const date_case test_case =
+    const date_case test_case =
         VALUE_CASE("[Y,8] [D1o] [MNn,3-3] [f,6-6] [z] [YWw]",
                    "00002003 7th Sep 456000 GMT+05:30 Two Thousand and Three");
     sxml_status status = SXML_STATUS_OUT_OF_MEMORY;
