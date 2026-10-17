@@ -4516,6 +4516,10 @@ Reserved here; the record is completed when the packet is ticked.
 Recorded 2026-10-17, after D106, D134, D135, D146.
 Reserved here; the record is completed when the packet is ticked.
 
+### D149. Keys and XSLT functions (packet 4.10)
+Recorded 2026-10-17, after D101, D118, D139, D142, D144.
+Reserved here; the record is completed when the packet is ticked.
+
 ## Proposed
 
 - **XQuery's default for omit-xml-declaration** (packet 3.12, D146; for
