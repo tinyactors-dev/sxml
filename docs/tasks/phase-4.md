@@ -222,6 +222,13 @@ type-available, unparsed-entity-uri/-public-id, current-output-uri,
 snapshot, copy-of, apply-templates as a function if the draft keeps it.
 Done when fn-key, document, system-property, function-available,
 snapshot, copy-of ≥ 85%.
+**Done** 2026-10-17 (D149): `src/xslt_key.c` with `src/xslt_key_internal.h`,
+`src/function_library_xslt.c`, `tests/xslt_key_test.c`; the evaluation memo
+(`src/evaluator.c`), the current item in lowering, and patterns without
+re-selection (`src/xslt_pattern.c`). Scratch harness: key 75/91, document
+64/98, system-property 20/23, snapshot 7/19, copy-of 3/8 of applicable
+cases; most of the rest need xsl:function (4.12), xsl:sort (4.9) or
+stylesheet parameters. fn:apply-templates and current-output-uri are left.
 
 ### 4.11 Numbering and analyze-string (implementation)
 After 4.8, 2.9. Owns `src/xslt_lower_number.c`, `tests/xslt_number_test.c`.
