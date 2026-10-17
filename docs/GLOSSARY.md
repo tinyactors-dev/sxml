@@ -645,3 +645,7 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `digest` | The octets a hash algorithm returns for a message: 16 (MD5), 20 (SHA-1), 32 (SHA-256, BLAKE3) or 4 (CRC-32, big-endian) |
 | `uri_structure` | The parts of a URI as `fn:parse-uri` finds them and `fn:build-uri` joins them: the fields of `fn:uri-structure-record` (F&O 4.0, section 7.6.1) |
 | `percent_decoding` | Replacing `%HH` by its octet and reading the octets as UTF-8, with U+FFFD for what is not (F&O 4.0, fn:decode-from-uri); `form_decoding` turns `+` into a space first |
+| `javascript_package` | The hand-written TypeScript package in `bindings/javascript/` (npm name `sxml`) that loads `sxml.wasm` in Node.js and browsers (D10) |
+| `javascript_shim` | The C entry points `sxml.wasm` exports for the JavaScript package (`bindings/javascript/sxml_javascript.c`), written against the public API only |
+| `handle` | The address of a C object in WebAssembly memory that a JavaScript object owns; released by `dispose()` or, failing that, by a `FinalizationRegistry` |
+| `size_budget` | The most bytes a WebAssembly module may have, stripped and gzipped, checked by a ctest (D93) |
