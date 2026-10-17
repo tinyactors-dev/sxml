@@ -4227,7 +4227,71 @@ Recorded 2026-10-17, after D97, D128, D131, D133. New module `src/csv.c` /
 
 ### D142. Sequence constructors and node construction (packet 4.6)
 Recorded 2026-10-17, after D102, D103, D110, D120, D124, D127, D139.
-Reserved here; the record is completed when the packet is ticked.
+`src/xslt_lower.c`, `src/xslt_lower_construct.c`,
+`src/xslt_simple_content.c` with `src/xslt_lower_internal.h`; no IR kind,
+no evaluator change, no public header.
+- **One machine**: XSLT instructions are lowering procedures pushed with
+  `sxml_xpath_lowering_push_procedure` (D103) on a lowerer of language
+  XSLT; every expression and value template goes through the embedding
+  entry with an XPath static context made once per AST static context
+  (namespaces, xpath-default-namespace as prefix 0, base URI, the
+  processor's function table). The files define no lowering part (no
+  XPath AST kind is XSLT's yet); instructions are found through
+  `sxml_xslt_instruction_rule` views, one per file, listed in
+  `src/xslt_lower.c` (4.7 to 4.14 add a view and one line).
+- **Sequence constructor** = one atom per child, bound in the caller's
+  block; its value is the SEQUENCE of them, given to constructors as one
+  ATOM content (D110: one enclosed expression, so 5.7.1 joins adjacent
+  atomic values across instructions). Variables a child pushes stay in
+  scope until the constructor ends (4.7's xsl:variable). A constructor
+  call may install a focus (FIXED for xsl:copy select, SLOTS for the
+  for-each of xsl:array).
+- **Literal result elements**: ELEMENT_CONSTRUCTOR with XSLT_RULES, an
+  xs:QName constant, namespace bindings from the stylesheet tree's
+  in-scope namespaces minus xml, the excluded namespaces (unless an alias
+  outputs them) and alias literal URIs (11.1.3, 11.1.4; aliases resolved
+  by import precedence, XTSE0810); xsl:inherit-namespaces="no" is
+  NO_INHERIT. Attributes are ATTRIBUTE_CONSTRUCTORs of their AVT.
+- **Value templates and simple content** (5.6, 5.7.2): string templates
+  lowered here; each enclosed value goes through the internal native row
+  `merge-text-nodes` (adjacent text nodes to one xs:untypedAtomic, else
+  the value as it is) and fn:string-join. Fixes D120's deviation:
+  `{//item/text()}` is "onetwo". The same path gives xsl:attribute,
+  xsl:value-of, xsl:text, xsl:comment (hyphens fixed with fn:replace,
+  11.8), xsl:processing-instruction (leading space, "?>", 11.6) and
+  xsl:namespace (XTDE0930) their strings.
+- **Names**: a name (and namespace) without enclosed expressions is
+  resolved while lowering to an xs:QName constant; an invalid one becomes
+  a RAISE of XTDE0820/0830/0850/0855/0860 when evaluated. A computed name
+  is a string resolved by the evaluator with the instruction's in-scope
+  namespaces as name_namespaces (without the default one for
+  attributes), or fn:QName(namespace, name) (prefix dropped for "").
+- **XSLT error codes** where the evaluator raises XQuery's: a TRY_CATCH
+  around the constructor alone whose clauses RAISE the XSLT code
+  (`sxml_xslt_lowering_bind_mapped_expression`): XQDY0137 to XTDE3365,
+  XPTY0004 to XTTE3375 (maps), XQDY0074/0044/FOCA0002 to XTDE08x0
+  (names), XQDY0041/0064 to XTDE0890, XQDY0074/0101 to XTDE0920/0925.
+- **Others**: xsl:copy is SHALLOW_COPY with the content as its own body;
+  xsl:copy-of a MAP that SHALLOW_COPYs elements and documents with
+  `(@*, node())` as content and other nodes whole; xsl:map/xsl:record a
+  MAP_CONSTRUCTOR (fields, then the content's maps as a merged entry),
+  with [xsl:]duplicates map:merge; xsl:array array:of-members over
+  JNodes (fn:jtree for non-JNodes), xsl:array-member fn:jtree; xsl:select
+  its content expression; extension and unknown instructions their
+  xsl:fallback children or XTDE1450.
+- **Stylesheet AST** (accepts D139's Proposed item): appended
+  SXML_XSLT_AST_KIND_RECORD and attribute kinds CONSTRUCTOR
+  (record-type, BOOLEAN) and RECORD_FIELD (EXPRESSION); xsl:record reads
+  attributes in no namespace as fields (no shadow or standard
+  attributes), xsl:-prefixed ones as standard attributes and
+  xsl:duplicates.
+- **Entry** (until 4.8 and 4.15): `sxml_xslt_lower_initial_template`
+  lowers one template's sequence constructor as the main function (focus
+  = global context item), optionally inside a DOCUMENT constructor (the
+  principal result tree), then runs the standard passes and seals.
+- Deviations: xpath-default-namespace="##any" reads as none; attribute
+  sets (4.12), xsl:type/validation ignored (D97); a zero-length text node
+  is no node (D110).
 
 ## Proposed
 
