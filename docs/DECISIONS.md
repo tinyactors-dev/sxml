@@ -3634,10 +3634,11 @@ kind or header change.
   element and document constructors; they take effect once 3.10 lets
   prologs through `sxml_xquery_lower` (D126 rejects them now).
 - Results (scratch harness: xpath.c compiling with sxml_xquery_compile,
-  as 3.7's): Constr sets 0 to 932 of 1,165 passed. Of the rest, all
-  errors but none are prologs (3.10); the 7 others are the evaluator's
-  URI whitespace in "Q{ _ _ }x" (2), `local:` not predeclared (3.10/3.12),
-  `text {''}` (D110 deviation) and a missing function (3).
+  as 3.7's): the 13 constructor test sets 0 to 932 of 1,165 passed, 59
+  not run (dependencies); of the 174 failures and errors, 167 are queries
+  with a prolog (3.10). The 7 others are not lowering's: URI whitespace of
+  "Q{ _   _ }x" in the evaluator (2), `local:` not predeclared (3.10,
+  3.12), `text {''}` (the D110 deviation) and a missing function (3).
 
 ## Proposed
 
