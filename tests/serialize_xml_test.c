@@ -1,6 +1,6 @@
 /*
  * Tests for the XML and XHTML output methods (src/serialize_xml.c,
- * src/serialize.c; Serialization 4.0, sections 2, 4, 5, 6 and 12; D120):
+ * src/serialize.c; Serialization 4.0, sections 2, 4, 5, 6 and 12; D120b):
  * sequence normalization, escaping, encodings, line endings, indentation,
  * CDATA sections, declarations, namespaces, character maps, Unicode
  * normalization, Canonical XML and the rules of XHTML.

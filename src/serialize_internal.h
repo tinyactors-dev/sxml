@@ -16,7 +16,7 @@
 
 /*
  * The parts of the serializer (include/sxml/serialize.h; Serialization
- * 4.0; docs/DECISIONS.md D82, D106, D120). Internal to sxml.
+ * 4.0; docs/DECISIONS.md D82, D106, D120b). Internal to sxml.
  *
  * - src/serialize.c: the output stream and buffer, the checks of the
  *   parameters every method shares, the character pipeline of section 4

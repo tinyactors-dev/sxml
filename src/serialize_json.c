@@ -1,6 +1,6 @@
 /*
  * The JSON output method (Serialization 4.0, section 9 "JSON Output
- * Method"; docs/DECISIONS.md D82, D120, D128): maps as objects, arrays as
+ * Method"; docs/DECISIONS.md D82, D120b, D128): maps as objects, arrays as
  * arrays, atomic items as JSON values, nodes as strings by
  * json-node-output-method (a sub-serialization, src/serialize.c), JSON
  * Lines, indentation and RFC 8785 canonical JSON.

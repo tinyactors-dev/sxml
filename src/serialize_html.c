@@ -1,7 +1,7 @@
 /*
  * What the HTML output method adds to the node writer of
  * src/serialize_xml.c (Serialization 4.0, section 7 "HTML Output Method";
- * docs/DECISIONS.md D120, D128): the elements with an empty content model
+ * docs/DECISIONS.md D120b, D128): the elements with an empty content model
  * (also used by the XHTML method, section 6), raw text elements, boolean
  * attributes in minimized form, and HTML processing instructions.
  *

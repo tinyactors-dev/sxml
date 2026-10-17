@@ -1,6 +1,6 @@
 /*
  * The text and CSV output methods (Serialization 4.0, sections 8 "Text
- * Output Method" and 10 "CSV Output Method"; docs/DECISIONS.md D120,
+ * Output Method" and 10 "CSV Output Method"; docs/DECISIONS.md D120b,
  * D128). Both write through the character pipeline of src/serialize.c:
  * the text method with the escape style that escapes nothing, the CSV
  * method with the one that doubles the quote character.

@@ -1,6 +1,6 @@
 /*
  * The XML and XHTML output methods (Serialization 4.0, sections 5 and 6;
- * docs/DECISIONS.md D106, D120), and the node writer of the adaptive
+ * docs/DECISIONS.md D106, D120b), and the node writer of the adaptive
  * method (section 11, D82).
  *
  * The result tree of sequence normalization (src/serialize.c) arrives as

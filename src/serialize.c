@@ -1,6 +1,6 @@
 /*
  * Serialization (include/sxml/serialize.h; Serialization 4.0; D47, D51,
- * D82, D106, D120): the output stream wrapper, the output buffer, the
+ * D82, D106, D120b): the output stream wrapper, the output buffer, the
  * character pipeline every method writes through (src/serialize_internal.h),
  * sequence normalization, the adaptive output method (Serialization 4.0,
  * section 11 "Adaptive Output Method") and the dispatch by method. The XML
@@ -907,7 +907,7 @@ static bool sxml_element_names_are_valid(sxml_element_name_view names) {
     return true;
 }
 
-/* XML 1.1, production Char: the repertoire the serializer writes (D120,
+/* XML 1.1, production Char: the repertoire the serializer writes (D120b,
    D128; QT4 serialize-xml-167 maps U+0001). */
 static bool sxml_codepoint_is_xml_character(uint32_t codepoint) {
     return (codepoint >= 0x1U && codepoint <= 0xD7FFU) ||
