@@ -2296,4 +2296,49 @@ Recorded 2026-10-17 by the review agent (D11), who did not write Phase 1.
   boxes of the gate stay open until the owner restores billing and a run
   is green.
 
+### D101. Part registries and the evaluator seams (packet 2.0)
+Recorded 2026-10-17, completing D45 and D55 for Phases 2 to 4.
+- **Library parts by glob.** `cmake/SxmlParts.cmake` reads every
+  `src/function_library_*.c` and generates `function_library_parts.c` in
+  the build tree from each definition `const sxml_native_function_view
+  sxml_function_library_<part> =`; files without one (case tables, deep
+  equality, `function_library.c`) are not parts. A part serves every
+  language unless it also defines `const sxml_language_set
+  sxml_function_library_<part>_languages = SXML_LANGUAGE_XSLT;` (any of
+  `SXML_LANGUAGE_XPATH`, `_XQUERY`, `_XSLT` joined by `|`): CMake reads
+  the names, the generated table also points at the variable, and a unit
+  test checks the two agree. `src/function_library_parts_internal.h`
+  declares `sxml_function_library_registered_parts()` (every part, sorted
+  by name) and `sxml_function_library_parts_for_language()` (a static
+  list per language). The processor and the fuzz fixture take the XPath
+  list; XQuery and XSLT compilation take theirs (3.x, 4.x). A new part
+  declares its own `extern` view (or none: the generated unit declares
+  it); `function_library_internal.h` keeps the Phase 1 declarations.
+- **Evaluator parts by glob.** The same module reads `src/evaluator_*.c`
+  for `const sxml_evaluator_part sxml_evaluator_part_<part> =`: a table
+  of IR expression kinds and step functions. The machine runs its
+  built-in kinds itself and every other kind through the registry; a
+  kind no part claims, or two parts claim, is
+  SXML_STATUS_UNSUPPORTED_FEATURE (a unit test checks each reserved kind
+  has exactly one). Parts `construct` (seven constructors, SHALLOW_COPY),
+  `try` (TRY_CATCH), `template` (APPLY_TEMPLATES) and `global` (no kind;
+  `sxml_evaluator_start_global_initializers`, called before the main
+  function's body runs for globals with an initializer and no value)
+  return UNSUPPORTED_FEATURE until 3.5, 3.6, 4.x and 3.8 fill them.
+- **Machine API** in `src/evaluator_machine_internal.h` (defined in
+  `src/evaluator.c`): the task type, top task, push an expression task in
+  the top task's frame, push a part task (a step function and owned state
+  with its release function), hand a value down (finish), take the value
+  of the task above, read and bind atoms, raise (report into the error
+  record), and catching: a task whose `catches_errors` is set receives a
+  dynamic or type error raised above it. The run loop locates the error,
+  unwinds every task above the innermost catching task above its base,
+  stores the status in the context (`caught_status`) and steps that task
+  again; limits, memory and invalid-argument statuses are never caught.
+  No C recursion: step functions return to the one loop (D71).
+- Rejected: a hand-kept part list (every new part edits the processor,
+  the fuzz fixture and tests: D45's conflict); per-language libraries
+  chosen at run time from flags in the view (needs a change of the frozen
+  row header and filtering memory).
+
 ## Proposed
