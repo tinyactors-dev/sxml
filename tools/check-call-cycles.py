@@ -2,11 +2,14 @@
 """Fails when project code has a cycle in its call graph (D71: no C recursion).
 
 clang-tidy's misc-no-recursion sees recursion within one file only. This gate
-compiles every project file of src/ and apps/ (not third_party/, not the
-generated grammars/) to LLVM bitcode with the flags of compile_commands.json,
-links them into one module and lists the strongly connected components of the
-call graph (`opt -passes=print-callgraph-sccs`), so it also finds recursion
-across files. Calls through function pointers are not in the call graph:
+compiles every project file of src/, apps/ and the QT4 driver in
+tests/qt4/driver/ (not third_party/, not the generated grammars/, not unit
+tests) to LLVM bitcode with the flags of compile_commands.json, links each
+program into one module (the library with the sxml CLI; the library with the
+CLI framework, the stdio platform layer and the driver) and lists the
+strongly connected components of its call graph
+(`opt -passes=print-callgraph-sccs`), so it also finds recursion across
+files. Calls through function pointers are not in the call graph:
 review still checks those (D71).
 
 A cycle whose functions are all listed in tools/call-cycles-allowlist.txt is
@@ -28,7 +31,20 @@ import sys
 
 REPOSITORY_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ALLOWLIST_PATH = os.path.join(REPOSITORY_ROOT, "tools", "call-cycles-allowlist.txt")
-PROJECT_DIRECTORIES = ("src", "apps")
+PROJECT_DIRECTORIES = ("src", "apps", os.path.join("tests", "qt4", "driver"))
+DRIVER_DIRECTORY = os.path.join("tests", "qt4", "driver")
+
+
+def program_groups(sources):
+    """The programs to link: each is checked as one module, so that the two
+    main functions never meet (D71 review at the Phase 1 gate, D98)."""
+    library = [source for source in sources if source.startswith("src" + os.sep)]
+    cli = [source for source in sources if source.startswith("apps" + os.sep)]
+    driver = [source for source in sources
+              if source.startswith(DRIVER_DIRECTORY + os.sep)
+              or source.startswith(os.path.join("apps", "cli_framework") + os.sep)
+              or source == os.path.join("apps", "sxml", "platform_stdio.c")]
+    return [("sxml", library + cli), ("sxml-qt4", library + driver)]
 
 
 def find_tool(name):
@@ -41,7 +57,9 @@ def find_tool(name):
 
 def is_project_file(path):
     relative = os.path.relpath(path, REPOSITORY_ROOT)
-    return relative.split(os.sep)[0] in PROJECT_DIRECTORIES and relative.endswith(".c")
+    if not relative.endswith(".c") or relative.endswith("_test.c"):
+        return False
+    return any(relative.startswith(directory + os.sep) for directory in PROJECT_DIRECTORIES)
 
 
 def bitcode_command(entry, clang, output):
@@ -107,10 +125,10 @@ def defining_files(bitcode_files, llvm_nm):
     return files_of
 
 
-def find_cycles(bitcode_files, output_directory):
+def find_cycles(bitcode_files, output_directory, program):
     llvm_link = find_tool("llvm-link")
     opt = find_tool("opt")
-    linked = os.path.join(output_directory, "all.bc")
+    linked = os.path.join(output_directory, program + ".bc")
     subprocess.run([llvm_link, "-o", linked, *sorted(bitcode_files)], check=True)
     result = subprocess.run(
         [opt, "-passes=print-callgraph-sccs", "-disable-output", linked],
@@ -141,7 +159,13 @@ def main():
         sys.argv[1] if len(sys.argv) > 1 else os.path.join(REPOSITORY_ROOT, "build", "debug"))
     clang = find_tool("clang")
     bitcode_files, output_directory = compile_all(build_directory, clang)
-    cycles = find_cycles(bitcode_files, output_directory)
+    sources = {source: bitcode for bitcode, source in bitcode_files.items()}
+    cycles = []
+    for program, group in program_groups(sorted(sources)):
+        for cycle in find_cycles([sources[source] for source in group],
+                                 output_directory, program):
+            if cycle not in cycles:
+                cycles.append(cycle)
     files_of = defining_files(bitcode_files, find_tool("llvm-nm"))
     allowed = read_allowlist()
 
