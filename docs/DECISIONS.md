@@ -2709,6 +2709,55 @@ Recorded 2026-10-17, completing D101 for TRY_CATCH
 - `tests/evaluator_machine_test.c` no longer expects UNSUPPORTED_FEATURE
   for TRY_CATCH (list `evaluated_kinds`, where 3.5 adds the constructors).
 
+### D110. Node constructors in the evaluator (packet 3.5)
+Recorded 2026-10-17. `src/evaluator_construct.c` evaluates the seven
+constructor kinds and SHALLOW_COPY (D55, D101).
+- **One tree per constructed node.** Each constructor makes a new arena
+  tree in the item heap's memory that destroys itself with its last
+  reference (as fn:json-to-xml); a nested constructor's node is a tree of
+  its own that the enclosing constructor copies with
+  `sxml_tree_builder_copy_node`. So a constructor's step only waits for
+  its content value and then does leaf work (no C recursion, D71); copying
+  costs one evaluation step per copied node, each content item one (D89).
+  The arena tree gets the evaluation's error record: it reports only while
+  events are sent, inside the step.
+- **Content convention for lowering (3.9, 4.x).** A content expression of
+  kind SEQUENCE lists the enclosed expressions and literal text of a direct
+  constructor, one atom each, read directly (not pushed); atomic items are
+  joined by spaces only within one atom (`<c>{1}{2}</c>` is "12", XQuery
+  4.0, 4.12.1.3). Any other content expression (an ATOM, a LET...) is one
+  enclosed expression: a computed constructor's whose value is a
+  SEQUENCE must be bound to a slot first. Arrays are flattened with an
+  explicit stack of content frames; JNodes add their atomized value;
+  function items are XQTY0105.
+- **Names.** The name atom holds an xs:QName (used as it is, prefix kept)
+  or an xs:string, xs:untypedAtomic or xs:anyURI: trimmed, `Q{uri}local`,
+  `Q{uri}prefix:local` or a lexical QName resolved with the unit's static
+  namespaces (prefix 0 = default element namespace, elements only);
+  XQDY0074 otherwise, XPTY0004 for another type or not exactly one item.
+  XQDY0096 and XQDY0044 are checked here for every name; an attribute in a
+  namespace without a prefix gets `xml` or `ns0`. PI targets XQDY0041 (any
+  non-NCName string, as QT4 expects), XQDY0064, XQDY0026; comments
+  XQDY0072; namespace prefixes XQDY0074, URIs XPTY0004 (not one string),
+  XQDY0101 from the builder. Written namespace bindings (the
+  `namespace_bindings` run) are sent after the start event: lowering
+  should give a direct constructor's own declarations (enclosing ones are
+  inherited through the copy while copy-namespaces is inherit).
+- **Modes fixed for now**: construction strip (xs:untyped,
+  xs:untypedAtomic), copy-namespaces preserve, inherit; ELEMENT and
+  DOCUMENT follow XQuery (duplicate attributes XQDY0025, XQTY0024,
+  XPTY0004 for attributes in a document), SHALLOW_COPY follows XSLT 4.0
+  5.7.1 (later duplicates replace, XTDE0410, XTDE0420, XTDE0450,
+  XTTE3180 for more than one item; element namespaces copied). The IR
+  cannot say otherwise yet (see "Proposed").
+- **Base URIs**: elements get the static base URI as their tree's base
+  URI (`sxml_arena_tree_configuration.base_uri`, D98), documents through
+  their start event; attributes, text, comments and PIs have none
+  (QT4 fn-base-uri-5 to -7).
+- **Deviation**: `text {""}` gives the empty sequence, not an empty text
+  node: the arena tree drops empty text (D40). Inside a constructor the
+  two are the same (the empty text node is deleted).
+
 ## Proposed
 
 - **IR adders for catch clauses and name tests** (packet 3.6, D109; for
@@ -2722,3 +2771,22 @@ Recorded 2026-10-17, completing D101 for TRY_CATCH
   body, clauses (handler, slot within slot_count, name test ranges) and
   finally body, and `sxml_ir_unit_write_text` should write the clauses.
   `tests/evaluator_try_test.c` fills the arrays directly until then.
+
+- **Constructor modes in the IR** (packet 3.5, D110; for the owner of
+  `src/ir_internal.h`, needed by 3.9, 3.10 and 4.x): XQuery's
+  copy-namespaces (no-preserve, no-inherit) and construction (preserve:
+  xs:anyType for constructed elements, copies keep annotations) modes hold
+  per module, and literal result elements need XSLT's content rules, but
+  `sxml_ir_node_construction` has no place for them. Proposed: a
+  `uint32_t construction_flags` field at its end, zero meaning today's
+  behaviour, with `SXML_IR_CONSTRUCTION_NO_PRESERVE_NAMESPACES`,
+  `_NO_INHERIT_NAMESPACES`, `_PRESERVES_TYPES` and `_XSLT_RULES`; and a
+  `sxml_ir_namespace_binding_list name_namespaces` for resolving a
+  computed name given as a string with the namespaces of enclosing direct
+  constructors (QT4 Constr-compelem-compname: `<e xmlns:foo="...">{element
+  {'foo:e'} {}}</e>`), empty meaning the unit's static namespaces. Also
+  `sxml_ir_unit_add_namespace_bindings(unit, view, list *)`: the unit has
+  no adder for the `namespace_bindings` runs of direct constructors (tests
+  use the static namespaces' run), and `src/ir_verify.c` should accept the
+  constructor kinds (checking name, value and content) instead of
+  rejecting them as reserved.
