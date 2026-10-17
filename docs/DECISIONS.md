@@ -3000,6 +3000,14 @@ vendored with QT4 (PR 2734 for selectors).
 
 ## Proposed
 
+- **FULLY-NORMALIZED in the QT4 driver** (packet 2.4, D107; for the
+  owner of `tests/qt4/driver/applicability.c`, packet 2.16): fn:normalize-
+  unicode supports FULLY-NORMALIZED, so the supported dependencies should
+  list `unicode-normalization-form` `FULLY-NORMALIZED` next to NFC, NFD,
+  NFKC and NFKD. Then the two "not implemented" variants
+  (cbcl-fn-normalize-unicode-001a, -006a) stop running and the five
+  FULLY-NORMALIZED cases run: fn-normalize-unicode 44 of 44 (checked in
+  a private snapshot).
 - **IR adders for catch clauses and name tests** (packet 3.6, D109; for
   the owner of `src/ir_internal.h`/`src/ir.c`, needed by the lowering of
   try/catch in 3.7): the unit has the reserved arrays `name_tests` and
