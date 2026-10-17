@@ -176,6 +176,26 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `fixed_namespace_bindings` | The namespace bindings that the `fixed-namespaces` attribute sets for every expression of a stylesheet module (XSLT 4.0, 3.6.1) |
 | `module_uri` | The absolute URI a stylesheet module was read from; the source name of its expressions |
 | `nesting_depth` | How many modules lie between a stylesheet module and the principal module in the module tree |
+| `transformation` | One run of a compiled stylesheet: priming it (stylesheet parameters, global context item) and invoking it once (XSLT 4.0, 2.4) |
+| `invocation_kind` | How a transformation starts: apply-templates, call-template or a function call (XSLT 4.0, 2.4.3 to 2.4.5) |
+| `initial_match_selection` | The value an apply-templates invocation processes (XSLT 4.0, 2.4.3) |
+| `initial_mode` | The mode an apply-templates invocation selects template rules in (XSLT 4.0, 2.4.3) |
+| `initial_template` | The named template a call-template invocation evaluates, `xsl:initial-template` by default (the spec's "initial named template", XSLT 4.0, 2.4.4) |
+| `initial_function` | The stylesheet function a function call invocation calls (XSLT 4.0, 2.4.5) |
+| `global_context_item` | The context item of global variables and parameters, one item or absent (XSLT 4.0, 2.4.2) |
+| `stylesheet_parameter` | A global `xsl:param` that is not static, given its value when a transformation is primed (XSLT 4.0, 9.5) |
+| `static_parameter` | A global `xsl:param` with `static="yes"`, given its value before compilation (XSLT 4.0, 9.6) |
+| `template_parameter` | An `xsl:param` of a template; the host passes values to those of the initial template or of the rules of the initial mode |
+| `tunnel_parameter` | A template parameter with `tunnel="yes"`, passed on through every template to the ones that declare it (XSLT 4.0, 10.1.3) |
+| `raw_result` | The value an invoked template or function returns, coerced to its declared type, before any tree is built or serialization (XSLT 4.0, 2.4) |
+| `principal_result` | The result of the invocation itself, as opposed to the result documents (XSLT 4.0, 2.4.6) |
+| `result_document` | A secondary result: what one `xsl:result-document` instruction delivers, identified by its absolute URI (XSLT 4.0, 26.2) |
+| `base_output_uri` | The URI relative `href` values of `xsl:result-document` are resolved against; the URI of the principal result (XSLT 4.0, 2.4.6) |
+| `output_definition` | The serialization parameters and `build-tree` of one `xsl:output` declaration, named or unnamed (XSLT 4.0, 26.1) |
+| `build_tree` | The `build-tree` setting of an output definition: whether an unserialized result is turned into a document node (XSLT 4.0, 26.1) |
+| `result_delivery` | How a principal result or result document reaches the host: raw, as a tree, or serialized to an output stream |
+| `result_document_handler` | Host interface that receives result documents: it is opened with a document's URI and output definition and closed with its value |
+| `result_document_collector` | The built-in result document handler: keeps every result document in memory, by URI |
 | `front_end` | The code that turns the text of one language (XPath, XQuery, an XSLT pattern) into an abstract syntax tree |
 | `abstract_syntax_tree` | What a front end builds from a concrete syntax tree: one node per visible grammar production, children by grammar field, names as written, literals decoded; `ast` allowed as a module name only (`sxml_ast_node`) |
 | `ast_field` | The role of a child in its AST parent: a field name of the grammar (`left`, `predicate`, `argument`) |
