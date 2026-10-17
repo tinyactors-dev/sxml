@@ -4,7 +4,7 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
-- 1.25 done (D91): `sxml-qt4 run` (`test_run.c`, `assertion.c`,
+- 1.25 done (D92): `sxml-qt4 run` (`test_run.c`, `assertion.c`,
   `report.c`, `reason.c`, `command_run.c`). Each test in its own processor
   and 512 MiB budget allocator, 10^8 steps, leak check per test; every
   assertion kind (assert-xml by parse-and-deep-equal; serialization ones

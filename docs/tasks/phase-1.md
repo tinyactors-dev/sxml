@@ -358,7 +358,7 @@ ones (reported "unsupported", failing); `assert` binds `$result`; a wrong
 error code passes and is reported. Counts per test set, text and
 `--format=json`. ctest `qt4_slice` fails on any slice failure. Done when
 198/198 pass under `debug` and `debug-gcc`.
-**Done** 2026-10-17 (D91): `sxml-qt4 run`; 198/198 pass under `debug`,
+**Done** 2026-10-17 (D92): `sxml-qt4 run`; 198/198 pass under `debug`,
 `debug-gcc` and `wasm`; ctest `qt4/slice` fails below the baseline in
 `tests/qt4/slice-baseline.txt` (198). Serialization assertions are
 not-run rather than failing; no `--output` (no file writer in the CLI).

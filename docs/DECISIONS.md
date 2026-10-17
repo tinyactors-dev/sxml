@@ -2030,7 +2030,7 @@ Recorded 2026-10-17.
   for fn:matches, fn:replace and fn:tokenize; |value| x |replace| for
   fn:translate.
 
-### D91. The QT4 driver: running tests, assertions, reports (packet 1.25)
+### D92. The QT4 driver: running tests, assertions, reports (packet 1.25)
 Recorded 2026-10-17. `sxml-qt4 run [--catalog] [--spec] [--test-set=NAME |
 TEST-LIST] [--format=text|json]`; `tests/qt4/driver/test_run.c`,
 `assertion.c`, `report.c`, `reason.c`, `command_run.c`.
