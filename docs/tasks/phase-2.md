@@ -174,6 +174,16 @@ failing), function-annotations, JNode paths (prod-PathExpr.J 104,
 prod-AxisStep.J 97), lazy sequences where step limits now fail
 (fold-left/right-022/023, RangeExpr-408/410). Done when those sets reach
 ≥ 90% and no XP40 case is an "error" outcome for a limit.
+**Done** 2026-10-17 (D115): fn:jkey and fn:jvalue (new part
+`src/function_library_jnode.c`, moved from 2.17), the selector
+interpretation of JNode steps, numeric predicates, maps and arrays as
+typed functions, fold fixpoints, drop-while over ranges. prod-PathExpr.J
+71 to 160 of 175 (91%), fn-fold-left/right 100%; prod-AxisStep.J 64 of
+127 (the rest need lowering or the item axis), fn-function-lookup 85%
+(missing functions of other packets, focus functions need lowering).
+Still limit errors: RangeExpr-408h/410h (fast path waits for
+`tests/xpath_test.c`, Proposed), -408g/i/j and -410g/i/j (reverse of a
+range, 2.17).
 
 ### 2.7 Numeric, math and decimal functions (implementation)
 After 2.0. Owns `src/function_library_numeric.c`,
@@ -278,7 +288,7 @@ After 2.13. Owns `src/function_library_node.c`,
 `src/function_library_json.c`, `tests/function_library_test.c`. path,
 innermost, outermost, lang, id, idref, element-with-id (xml:id; DTD IDs
 when the parser marks them), nilled, siblings, type-of, schema-type,
-atomic-type-annotation, node-type-annotation, jkey, jvalue,
+atomic-type-annotation, node-type-annotation (jkey, jvalue: 2.6, D115),
 parse-xml-fragment, starts-/ends-/contains-subsequence, index-of-substring,
 pad-string, system-properties, location. Done when 1.23b's list of
 missing functions holds only D97's non-goals, fn:serialize (3.4) and
