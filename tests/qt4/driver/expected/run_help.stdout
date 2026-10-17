@@ -1,0 +1,29 @@
+sxml-qt4 run - Run test cases and check their assertions
+
+Usage: sxml-qt4 run [--catalog=FILE] [--spec=SPEC] [--test-set=NAME] [--format=FORMAT] [TEST-LIST]
+
+Runs each selected test case with its environment (sources,
+parameters, namespaces, static base URI) in a processor of its own,
+with at most 10^8 evaluation steps and 512 MiB, and checks its
+result assertions. Writes each test case that failed, ended in
+error or raised a wrong error code, then counts per test set and
+a "total:" line; --format=json writes every test case. The
+selection is the test cases of TEST-LIST, those of the test set
+--test-set names, or with neither every test case of the catalog.
+Exits 1 when a test case failed or ended in error, 3 when a file
+cannot be read.
+
+Options:
+  -h, --help           Show this help and exit
+      --catalog=FILE   The catalog.xml of the suite (default: third_party/qt4tests/catalog.xml)
+      --spec=SPEC      The language and version the run targets (one of: XP40, XQ40; default: XP40)
+      --test-set=NAME  Run every test case of one test set
+      --format=FORMAT  The form of the report (one of: text, json; default: text)
+
+Arguments:
+  TEST-LIST  File naming test cases, one '<test-set> <test-case>' per line
+
+Examples:
+  sxml-qt4 run tests/qt4/torture-slice.txt
+  sxml-qt4 run --test-set=fn-abs
+  sxml-qt4 run --format=json > report.json

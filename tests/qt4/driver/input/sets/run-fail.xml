@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<test-set xmlns="http://www.w3.org/2010/09/qt-fots-catalog" name="run-fail">
+   <description>Every assertion kind, failing; and errors.</description>
+   <test-case name="eq">
+      <test>1 + 1</test>
+      <result><assert-eq>3</assert-eq></result>
+   </test-case>
+   <test-case name="eq-type-error">
+      <test>'2'</test>
+      <result><assert-eq>2</assert-eq></result>
+   </test-case>
+   <test-case name="deep-eq">
+      <test>(1, 2)</test>
+      <result><assert-deep-eq>(2, 1)</assert-deep-eq></result>
+   </test-case>
+   <test-case name="permutation">
+      <test>(1, 1, 2)</test>
+      <result><assert-permutation>(1, 2, 2)</assert-permutation></result>
+   </test-case>
+   <test-case name="assert">
+      <test>(1, 2, 3)</test>
+      <result><assert>$result[3] eq 4</assert></result>
+   </test-case>
+   <test-case name="string-value">
+      <test>('one', 'two')</test>
+      <result><assert-string-value>one  two</assert-string-value></result>
+   </test-case>
+   <test-case name="type">
+      <test>(1, 2.5)</test>
+      <result><assert-type>xs:integer+</assert-type></result>
+   </test-case>
+   <test-case name="count">
+      <test>1 to 4</test>
+      <result><assert-count>5</assert-count></result>
+   </test-case>
+   <test-case name="empty">
+      <test>0</test>
+      <result><assert-empty/></result>
+   </test-case>
+   <test-case name="true">
+      <test>1</test>
+      <result><assert-true/></result>
+   </test-case>
+   <test-case name="false">
+      <test>()</test>
+      <result><assert-false/></result>
+   </test-case>
+   <test-case name="xml">
+      <test>'a &lt; b'</test>
+      <result><assert-xml><![CDATA[a &lt; c]]></assert-xml></result>
+   </test-case>
+   <test-case name="error-expected">
+      <test>1</test>
+      <result><error code="FOAR0001"/></result>
+   </test-case>
+   <test-case name="value-expected">
+      <test>1 div 0</test>
+      <result><assert-eq>1</assert-eq></result>
+   </test-case>
+   <test-case name="not">
+      <test>1</test>
+      <result><not><assert-eq>1</assert-eq></not></result>
+   </test-case>
+   <test-case name="all-of">
+      <test>1</test>
+      <result><all-of><assert-eq>1</assert-eq><assert-count>2</assert-count></all-of></result>
+   </test-case>
+   <test-case name="missing-source">
+      <environment>
+         <source role="." file="../docs/missing.xml"/>
+      </environment>
+      <test>1</test>
+      <result><assert-eq>1</assert-eq></result>
+   </test-case>
+</test-set>

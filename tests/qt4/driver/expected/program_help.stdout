@@ -5,6 +5,7 @@ Usage: sxml-qt4 [--version] COMMAND [ARGUMENT...]
 Commands:
   help  Show help for the program or for one command
   list  List test cases with their environments and applicability
+  run   Run test cases and check their assertions
 
 Options:
   -h, --help     Show this help and exit

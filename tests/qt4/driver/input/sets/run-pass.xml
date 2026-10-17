@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<test-set xmlns="http://www.w3.org/2010/09/qt-fots-catalog" name="run-pass">
+   <description>Every assertion kind, passing; and the outcomes besides fail.</description>
+   <environment name="doc">
+      <source role="." file="../docs/c.xml"/>
+      <source role="$c" file="../docs/c.xml" uri="http://example.com/c.xml"/>
+      <namespace prefix="p" uri="urn:p"/>
+   </environment>
+   <test-case name="eq">
+      <test>1 + 1</test>
+      <result><assert-eq>2.0e0</assert-eq></result>
+   </test-case>
+   <test-case name="eq-untyped">
+      <environment ref="doc"/>
+      <test>data(//p:item[1]/@n)</test>
+      <result><assert-eq>1</assert-eq></result>
+   </test-case>
+   <test-case name="eq-nan">
+      <test>xs:double('NaN')</test>
+      <result><assert-eq>xs:double('NaN')</assert-eq></result>
+   </test-case>
+   <test-case name="deep-eq">
+      <test>(1, 'a', [2])</test>
+      <result><assert-deep-eq>1, 'a', [2]</assert-deep-eq></result>
+   </test-case>
+   <test-case name="permutation">
+      <test>(3, 1, 2, 1, xs:double('NaN'))</test>
+      <result><assert-permutation>(xs:double('NaN'), 1, 1, 2, 3)</assert-permutation></result>
+   </test-case>
+   <test-case name="assert">
+      <test>(1, 2, 3)</test>
+      <result><assert>$result[3] eq 3</assert></result>
+   </test-case>
+   <test-case name="string-value">
+      <environment ref="doc"/>
+      <test>//p:item</test>
+      <result><assert-string-value>one two</assert-string-value></result>
+   </test-case>
+   <test-case name="string-value-normalized">
+      <test>'  a   b '</test>
+      <result><assert-string-value normalize-space="true"> a b</assert-string-value></result>
+   </test-case>
+   <test-case name="type">
+      <test>(1, 2)</test>
+      <result><assert-type>xs:integer+</assert-type></result>
+   </test-case>
+   <test-case name="count">
+      <test>1 to 5</test>
+      <result><assert-count>5</assert-count></result>
+   </test-case>
+   <test-case name="empty">
+      <test>()</test>
+      <result><assert-empty/></result>
+   </test-case>
+   <test-case name="true">
+      <test>1 = 1</test>
+      <result><assert-true/></result>
+   </test-case>
+   <test-case name="false">
+      <test>1 = 2</test>
+      <result><assert-false/></result>
+   </test-case>
+   <test-case name="xml">
+      <environment ref="doc"/>
+      <test>(//p:item[2], 'x &amp; y', 3)</test>
+      <result><assert-xml><![CDATA[<q:item xmlns:q="urn:p" n="2">two</q:item>x &amp; y 3]]></assert-xml></result>
+   </test-case>
+   <test-case name="xml-document">
+      <environment ref="doc"/>
+      <test>/</test>
+      <result><assert-xml file="../docs/c.xml"/></result>
+   </test-case>
+   <test-case name="error">
+      <test>1 div 0</test>
+      <result><error code="FOAR0001"/></result>
+   </test-case>
+   <test-case name="error-any">
+      <test>error()</test>
+      <result><error code="*"/></result>
+   </test-case>
+   <test-case name="error-qualified">
+      <test>error(QName('urn:e', 'e:mine'))</test>
+      <result><error code="Q{urn:e}mine"/></result>
+   </test-case>
+   <test-case name="wrong-error">
+      <test>1 div 0</test>
+      <result><error code="FOAR0002"/></result>
+   </test-case>
+   <test-case name="any-of">
+      <test>1 div 0</test>
+      <result><any-of><assert-eq>1</assert-eq><error code="FOAR0001"/></any-of></result>
+   </test-case>
+   <test-case name="all-of">
+      <test>(1, 2)</test>
+      <result><all-of><assert-count>2</assert-count><not><assert-empty/></not></all-of></result>
+   </test-case>
+   <test-case name="variables-and-documents">
+      <environment ref="doc"/>
+      <test>$c is doc('http://example.com/c.xml') and not(. is $c) and exists(doc('../docs/a.xml'))</test>
+      <result><assert-true/></result>
+   </test-case>
+   <test-case name="parameters">
+      <environment>
+         <param name="x" select="'a b'" as="xs:string"/>
+         <static-base-uri uri="http://example.com/base/"/>
+         <context-item select="3"/>
+      </environment>
+      <test>$x || . || static-base-uri()</test>
+      <result><assert-eq>'a b3http://example.com/base/'</assert-eq></result>
+   </test-case>
+   <test-case name="not-run-dependency">
+      <dependency type="feature" value="schemaImport"/>
+      <test>1</test>
+      <result><assert-eq>1</assert-eq></result>
+   </test-case>
+   <test-case name="not-run-serialization">
+      <test>1</test>
+      <result><serialization-matches>1</serialization-matches></result>
+   </test-case>
+</test-set>

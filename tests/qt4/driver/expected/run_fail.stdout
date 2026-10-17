@@ -1,0 +1,19 @@
+fail run-fail eq: assert-eq: got 2, expected 3
+fail run-fail eq-type-error: assert-eq: comparing raised err:XPTY0004: the compared items belong to different type families (XPath 4.0, section 4.11.1; F&O 4.0, fn:compare)
+fail run-fail deep-eq: assert-deep-eq: got (1, 2), expected (2, 1)
+fail run-fail permutation: assert-permutation: got (1, 1, 2), expected (1, 2, 2)
+fail run-fail assert: assert: got (1, 2, 3)
+fail run-fail string-value: assert-string-value: got ("one", "two"), expected "one  two"
+fail run-fail type: assert-type: got (1, 2.5)
+fail run-fail count: assert-count: got (1, 2, 3, 4)
+fail run-fail empty: assert-empty: got 0
+fail run-fail true: assert-true: got 1
+fail run-fail false: assert-false: got ()
+fail run-fail xml: assert-xml: got a &lt; b
+fail run-fail error-expected: error: expected FOAR0001, got 1
+fail run-fail value-expected: assert-eq: got error err:FOAR0001: division by zero (F&O 4.0, op:numeric-divide, op:numeric-integer-divide, op:numeric-mod)
+fail run-fail not: not: the assertion holds
+fail run-fail all-of: assert-count: got 1
+error run-fail missing-source: source docs/missing.xml: SXML_STATUS_INPUT_OUTPUT_FAILED
+test set run-fail: 17 test cases: 0 passed (0 wrong error), 16 failed, 1 errors, 0 not run
+total: 17 test cases: 0 passed (0 wrong error), 16 failed, 1 errors, 0 not run
