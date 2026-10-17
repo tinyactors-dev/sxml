@@ -16,6 +16,7 @@
  *
  * Thread safety: the thread of the item heap (D35).
  */
+#include "collation_internal.h"
 #include "function_library_internal.h"
 #include "sxml/string.h"
 #include "sxml/xdm.h"
@@ -112,17 +113,80 @@ SXML_NODISCARD sxml_status sxml_function_library_read_optional_item(
 SXML_NODISCARD sxml_status sxml_function_library_read_string_argument(
     const sxml_function_call *call, size_t argument_index, sxml_string *string);
 
+/* ------------------------------------------------------------ Collations */
+
 /*
- * Checks a "$collation as xs:string?" argument: absent, empty or the
- * Unicode codepoint collation URI are the default collation (F&O 4.0,
- * section 5.3.2); any other URI is FOCH0002, since Phase 1 supports no
- * other collation.
+ * Finds the collation collation_uri names for call, by the rules of F&O
+ * 4.0, section 5.2.7 "Choosing a collation" (D116), and writes it to
+ * *collation: the zero-length string is the default collation (the
+ * Unicode codepoint collation until the static context hands its own
+ * down); a relative URI is resolved against the static base URI; a URI
+ * sxml does not support (sxml_collation_find), and a relative one without
+ * a base URI, is FOCH0002. This is the one resolver every collation
+ * argument and option goes through.
+ */
+SXML_NODISCARD sxml_status sxml_function_library_find_collation(
+    const sxml_function_call *call, sxml_byte_view collation_uri,
+    sxml_collation *collation);
+
+/*
+ * Resolves a "$collation as xs:string?" argument (the empty sequence is
+ * the default collation) as sxml_function_library_find_collation does.
+ */
+SXML_NODISCARD sxml_status sxml_function_library_resolve_collation(
+    const sxml_function_call *call, size_t argument_index, sxml_collation *collation);
+
+/*
+ * Resolves a collation argument for a body that compares by codepoints
+ * only: FOCH0002 as sxml_function_library_resolve_collation, and also
+ * for a supported collation that is not the codepoint collation. Bodies
+ * outside the string, sequence and deep-equal parts use it until they
+ * compare through sxml_function_library_compare_collated (D116).
  */
 SXML_NODISCARD sxml_status sxml_function_library_check_collation(
     const sxml_function_call *call, size_t argument_index);
 
-/* The URI of the Unicode codepoint collation (F&O 4.0, section 5.3.2). */
+/* The URI of the Unicode codepoint collation (F&O 4.0, section 5.2.3). */
 sxml_byte_view sxml_function_library_codepoint_collation_uri(void);
+
+/* Two atomic items to order under a collation. */
+typedef struct sxml_collated_comparison {
+    const sxml_collation *collation;
+    /* As for sxml_atomic_item_compare_in_heap. */
+    sxml_atomic_comparison comparison;
+} sxml_collated_comparison;
+
+/*
+ * Orders two atomic items as fn:compare($first, $second, $collation)
+ * does (F&O 4.0, fn:compare): strings, xs:anyURI and xs:untypedAtomic
+ * under the collation, everything else as sxml_atomic_item_compare_in_heap
+ * (whose failures it returns). The collation's working memory comes from
+ * item_heap.
+ */
+SXML_NODISCARD sxml_status sxml_function_library_compare_collated(
+    sxml_item_heap *item_heap, const sxml_collated_comparison *comparison,
+    sxml_ordering *ordering);
+
+/*
+ * Writes to *key the collation key of an atomic item for hashing and
+ * equality under collation (fn:distinct-values and its relatives): for a
+ * string, xs:anyURI or xs:untypedAtomic under a collation other than the
+ * codepoint collation, its sxml_collation_make_key bytes and true in
+ * *is_keyed; otherwise *is_keyed is false and *key stays empty.
+ */
+typedef struct sxml_collated_key_request {
+    const sxml_collation *collation;
+    sxml_item item;
+} sxml_collated_key_request;
+
+typedef struct sxml_collated_key {
+    bool is_keyed;
+    /* Owned through the item heap's allocator when is_keyed. */
+    sxml_collation_key key;
+} sxml_collated_key;
+
+SXML_NODISCARD sxml_status sxml_function_library_make_collated_key(
+    sxml_item_heap *item_heap, sxml_collated_key_request request, sxml_collated_key *key);
 
 /* The positions of fn:subsequence and fn:substring (F&O 4.0, sections
    14.1.14 and 5.4.3): p with round($start) <= p < round($start) +
@@ -261,9 +325,14 @@ void sxml_function_library_map_case(sxml_case_mapping_request request,
 /* ------------------------------------------------------------ Deep equality */
 
 /*
- * The body of fn:deep-equal($input1, $input2, $options := {}) (F&O 4.0,
- * section 14.2.4), a row of src/function_library_sequence.c, defined in
- * src/function_library_deep_equal.c.
+ * fn:deep-equal($input1, $input2, $options := {}) (F&O 4.0, section
+ * 2.2.4), defined in src/function_library_deep_equal.c: the resumable body
+ * of the row in src/function_library_sequence.c (it calls the items-equal
+ * option's function, D116), and a leaf entry for callers that pass no
+ * options map (array:index-of), which returns
+ * SXML_STATUS_UNSUPPORTED_FEATURE should a call be needed.
  */
+extern const sxml_resumable_native_body sxml_function_library_deep_equal_body;
+
 SXML_NODISCARD sxml_status sxml_function_library_call_deep_equal(
     const sxml_function_call *call, sxml_sequence *result);

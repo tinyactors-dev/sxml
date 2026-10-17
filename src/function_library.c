@@ -257,6 +257,10 @@ sxml_status sxml_function_library_initialize(
     }
     placed->rows = rows;
     status = index_rows(placed, configuration);
+    if (status == SXML_STATUS_OK) {
+        /* Before any row is resolved, so rows may name them (D126). */
+        status = sxml_function_library_declare_record_types(placed);
+    }
     if (status != SXML_STATUS_OK) {
         sxml_allocator_release(placed->allocator, placed->rows);
         return status;
@@ -357,6 +361,16 @@ static sxml_status resolve_type_text(const sxml_function_library *library,
         return SXML_STATUS_INVALID_ARGUMENT;
     }
     return status;
+}
+
+sxml_status sxml_function_library_resolve_type_text(const sxml_function_library *library,
+                                                    sxml_byte_view type_text,
+                                                    sxml_sequence_type *sequence_type) {
+    return resolve_type_text(library, type_text, sequence_type);
+}
+
+sxml_item_heap *sxml_function_library_get_item_heap(const sxml_function_library *library) {
+    return library->item_heap;
 }
 
 static sxml_status allocate_types(const sxml_function_library *library,
@@ -706,33 +720,143 @@ sxml_status sxml_function_library_read_string_argument(const sxml_function_call 
     return SXML_STATUS_OK;
 }
 
+/* ------------------------------------------------------------ Collations */
+
 sxml_byte_view sxml_function_library_codepoint_collation_uri(void) {
-    return SXML_BYTE_VIEW_FROM_LITERAL(
-        "http://www.w3.org/2005/xpath-functions/collation/codepoint");
+    return sxml_collation_codepoint_uri();
 }
 
 static const sxml_static_error unsupported_collation_error = {
     .error_status = SXML_STATUS_DYNAMIC_ERROR,
     .code_local_name = SXML_BYTE_VIEW_INITIALIZER("FOCH0002"),
     .description = SXML_BYTE_VIEW_INITIALIZER(
-        "The collation is not supported: only the Unicode codepoint collation is "
-        "(F&O 4.0, section 5.3.2)"),
+        "The collation is not supported (F&O 4.0, section 5.2.7)"),
 };
 
-sxml_status sxml_function_library_check_collation(const sxml_function_call *call,
-                                                  size_t argument_index) {
-    sxml_string collation;
-    sxml_status status =
-        sxml_function_library_read_string_argument(call, argument_index, &collation);
+static const sxml_static_error unresolved_collation_error = {
+    .error_status = SXML_STATUS_DYNAMIC_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("FOCH0002"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "The collation URI is relative and there is no static base URI to resolve it "
+        "against (F&O 4.0, section 5.2.7)"),
+};
+
+static const sxml_static_error codepoint_only_collation_error = {
+    .error_status = SXML_STATUS_DYNAMIC_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("FOCH0002"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "The collation is not supported by this function: only the Unicode codepoint "
+        "collation is (F&O 4.0, section 5.2.7)"),
+};
+
+sxml_status sxml_function_library_find_collation(const sxml_function_call *call,
+                                                 sxml_byte_view collation_uri,
+                                                 sxml_collation *collation) {
+    if (collation_uri.byte_count == 0) {
+        /* The default collation (F&O 4.0, section 5.2.7); the static
+           context's default_collation_uri does not reach the evaluator yet
+           (D116), so it is the Unicode codepoint collation. */
+        *collation = sxml_collation_codepoint();
+        return SXML_STATUS_OK;
+    }
+    if (sxml_uri_has_scheme(collation_uri)) {
+        return sxml_collation_find(collation_uri, collation)
+                   ? SXML_STATUS_OK
+                   : sxml_function_library_report(call, &unsupported_collation_error);
+    }
+    /* A relative URI reference: resolved against the static base URI. */
+    const sxml_byte_view base_uri = call->dynamic_context == NULL
+                                        ? (sxml_byte_view){.bytes = NULL, .byte_count = 0}
+                                        : sxml_dynamic_context_get_static_base_uri(
+                                              call->dynamic_context);
+    if (!sxml_uri_has_scheme(base_uri)) {
+        return sxml_function_library_report(call, &unresolved_collation_error);
+    }
+    const sxml_allocator allocator = sxml_item_heap_as_allocator(call->item_heap);
+    sxml_uri_resolution resolution = {.uri = {.bytes = NULL, .byte_count = 0}, .memory = NULL};
+    sxml_status status = sxml_uri_resolve(
+        &(sxml_uri_resolution_request){
+            .base_uri = base_uri, .reference = collation_uri, .allocator = allocator},
+        &resolution);
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    if (collation.utf8.byte_count == 0 ||
-        sxml_byte_view_equals(collation.utf8,
-                              sxml_function_library_codepoint_collation_uri())) {
+    const bool is_found = sxml_collation_find(resolution.uri, collation);
+    sxml_allocator_release(allocator, resolution.memory);
+    return is_found ? SXML_STATUS_OK
+                    : sxml_function_library_report(call, &unsupported_collation_error);
+}
+
+sxml_status sxml_function_library_resolve_collation(const sxml_function_call *call,
+                                                    size_t argument_index,
+                                                    sxml_collation *collation) {
+    sxml_string collation_uri;
+    sxml_status status =
+        sxml_function_library_read_string_argument(call, argument_index, &collation_uri);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_function_library_find_collation(call, collation_uri.utf8, collation);
+}
+
+sxml_status sxml_function_library_check_collation(const sxml_function_call *call,
+                                                  size_t argument_index) {
+    sxml_collation collation;
+    sxml_status status =
+        sxml_function_library_resolve_collation(call, argument_index, &collation);
+    if (status == SXML_STATUS_OK && !sxml_collation_is_codepoint_order(&collation)) {
+        status = sxml_function_library_report(call, &codepoint_only_collation_error);
+    }
+    return status;
+}
+
+/* The string of a string-family item (xs:string, xs:anyURI,
+   xs:untypedAtomic), or false. */
+static bool read_string_datum(sxml_item item, sxml_string *string) {
+    sxml_atomic_datum datum;
+    if (sxml_item_get_kind(item) != SXML_ITEM_KIND_ATOMIC ||
+        sxml_atomic_item_get_datum(item, &datum) != SXML_STATUS_OK ||
+        datum.datum_kind != SXML_DATUM_KIND_STRING) {
+        return false;
+    }
+    *string = datum.datum_details.string;
+    return true;
+}
+
+sxml_status sxml_function_library_compare_collated(sxml_item_heap *item_heap,
+                                                   const sxml_collated_comparison *comparison,
+                                                   sxml_ordering *ordering) {
+    sxml_string first;
+    sxml_string second;
+    if (!sxml_collation_is_codepoint_order(comparison->collation) &&
+        read_string_datum(comparison->comparison.first, &first) &&
+        read_string_datum(comparison->comparison.second, &second)) {
+        return sxml_collation_compare(
+            &(sxml_collation_comparison){.collation = comparison->collation,
+                                         .allocator = sxml_item_heap_as_allocator(item_heap),
+                                         .first = first,
+                                         .second = second},
+            ordering);
+    }
+    return sxml_atomic_item_compare_in_heap(item_heap, &comparison->comparison, ordering);
+}
+
+sxml_status sxml_function_library_make_collated_key(sxml_item_heap *item_heap,
+                                                    sxml_collated_key_request request,
+                                                    sxml_collated_key *key) {
+    *key = (sxml_collated_key){
+        .is_keyed = false,
+        .key = {.allocator = sxml_item_heap_as_allocator(item_heap), .bytes = NULL}};
+    sxml_string string;
+    if (sxml_collation_is_codepoint_order(request.collation) ||
+        !read_string_datum(request.item, &string)) {
         return SXML_STATUS_OK;
     }
-    return sxml_function_library_report(call, &unsupported_collation_error);
+    sxml_status status = sxml_collation_make_key(
+        &(sxml_collation_key_request){.collation = request.collation, .input = string},
+        &key->key);
+    key->is_keyed = status == SXML_STATUS_OK;
+    return status;
 }
 
 sxml_status sxml_function_library_make_string(sxml_item_heap *item_heap,

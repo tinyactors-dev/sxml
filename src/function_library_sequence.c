@@ -9,7 +9,11 @@
  * fn:identity, fn:unordered, fn:void, fn:foot, fn:trunk, fn:slice,
  * fn:items-at, fn:replicate, fn:insert-separator, fn:compare,
  * fn:atomic-equal, fn:all-equal, fn:all-different, fn:duplicate-values
- * and fn:default-collation.
+ * and fn:default-collation. From packet 2.13 (D116) the collation
+ * arguments of fn:compare, fn:index-of, fn:distinct-values,
+ * fn:duplicate-values, fn:all-equal, fn:all-different and fn:sort go
+ * through the resolver of src/function_library.c: strings compare under
+ * the collation, and the distinct-value sets hash collation keys.
  *
  * Golden file: src/memory.c (layout and comments); rows as in
  * src/function_library_internal.h. fn:sort is a resumable body (D75): it
@@ -367,7 +371,8 @@ static sxml_status call_exactly_one(const sxml_function_call *call, sxml_sequenc
    K-SeqIndexOfFunc-9a). */
 static sxml_status call_index_of(const sxml_function_call *call, sxml_sequence *result) {
     sxml_optional_item target;
-    sxml_status status = sxml_function_library_check_collation(call, 2);
+    sxml_collation collation;
+    sxml_status status = sxml_function_library_resolve_collation(call, 2, &collation);
     if (status == SXML_STATUS_OK) {
         status = sxml_function_library_read_optional_item(call, 1, &target);
     }
@@ -393,13 +398,15 @@ static sxml_status call_index_of(const sxml_function_call *call, sxml_sequence *
         }
         position += 1;
         sxml_ordering ordering = SXML_ORDERING_LESS;
-        const sxml_status compared = sxml_atomic_item_compare_in_heap(
+        const sxml_status compared = sxml_function_library_compare_collated(
             call->item_heap,
-            &(sxml_atomic_comparison){.first = step.item,
-                                      .second = target.item,
-                                      .implicit_timezone_offset_minutes = implicit_timezone,
-                                      .error_record = NULL,
-                                      .name_pool = sxml_item_heap_get_name_pool(call->item_heap)},
+            &(sxml_collated_comparison){
+                .collation = &collation,
+                .comparison = {.first = step.item,
+                               .second = target.item,
+                               .implicit_timezone_offset_minutes = implicit_timezone,
+                               .error_record = NULL,
+                               .name_pool = sxml_item_heap_get_name_pool(call->item_heap)}},
             &ordering);
         if (compared != SXML_STATUS_OK && compared != SXML_STATUS_TYPE_ERROR) {
             status = compared;
@@ -520,67 +527,155 @@ static sxml_status call_remove(const sxml_function_call *call, sxml_sequence *re
 
 /* ----------------------------------------------------- distinct-values */
 
-/* An open-addressing set of item positions, by fn:atomic-equal. */
+/* An open-addressing set of item positions, by fn:atomic-equal, or by
+   collation keys for strings under a collation other than the codepoint
+   collation (F&O 4.0, fn:distinct-values: "equal ... using the
+   collation"). */
 typedef struct distinct_set {
     sxml_item_heap *item_heap;
+    const sxml_collation *collation;
     /* Kept items, borrowed from the input; slots hold position + 1. */
     sxml_item *items;
+    /* The collation key of each kept item; NULL under the codepoint
+       collation. */
+    sxml_collated_key *keys;
     size_t item_count;
     size_t *slots;
     size_t slot_count;
 } distinct_set;
 
+static bool uses_keys(const distinct_set *set) {
+    return !sxml_collation_is_codepoint_order(set->collation);
+}
+
 static void release_distinct_set(distinct_set *set) {
+    for (size_t item_index = 0; set->keys != NULL && item_index < set->item_count;
+         item_index += 1) {
+        sxml_collation_key_release(&set->keys[item_index].key);
+    }
     sxml_item_heap_release_bytes(
         set->item_heap, (sxml_heap_bytes){.memory = set->items,
                                           .byte_count = set->slot_count * sizeof(sxml_item)});
     sxml_item_heap_release_bytes(
+        set->item_heap,
+        (sxml_heap_bytes){.memory = set->keys,
+                          .byte_count = set->keys == NULL
+                                            ? 0
+                                            : set->slot_count * sizeof(sxml_collated_key)});
+    sxml_item_heap_release_bytes(
         set->item_heap, (sxml_heap_bytes){.memory = set->slots,
                                           .byte_count = set->slot_count * sizeof(size_t)});
     set->items = NULL;
+    set->keys = NULL;
     set->slots = NULL;
+}
+
+/* FNV-1a over the bytes of a collation key. */
+static uint64_t hash_key_bytes(sxml_byte_view bytes) {
+    uint64_t hash = UINT64_C(0xcbf29ce484222325);
+    for (size_t byte_index = 0; byte_index < bytes.byte_count; byte_index += 1) {
+        hash = (hash ^ bytes.bytes[byte_index]) * UINT64_C(0x100000001b3);
+    }
+    return hash;
+}
+
+/* The hash of an item with its collation key (when keyed). */
+typedef struct keyed_item {
+    sxml_item item;
+    const sxml_collated_key *key;
+} keyed_item;
+
+static uint64_t hash_keyed_item(keyed_item item) {
+    if (item.key != NULL && item.key->is_keyed) {
+        return hash_key_bytes(sxml_collation_key_view(&item.key->key));
+    }
+    return sxml_atomic_item_hash(item.item);
+}
+
+static bool keyed_items_are_equal(keyed_item first, keyed_item second) {
+    const bool is_first_keyed = first.key != NULL && first.key->is_keyed;
+    const bool is_second_keyed = second.key != NULL && second.key->is_keyed;
+    if (is_first_keyed || is_second_keyed) {
+        return is_first_keyed && is_second_keyed &&
+               sxml_byte_view_equals(sxml_collation_key_view(&first.key->key),
+                                     sxml_collation_key_view(&second.key->key));
+    }
+    return sxml_atomic_item_is_atomic_equal(first.item, second.item);
+}
+
+static keyed_item kept_item(const distinct_set *set, size_t item_index) {
+    return (keyed_item){.item = set->items[item_index],
+                        .key = set->keys == NULL ? NULL : &set->keys[item_index]};
+}
+
+/* Heap memory for byte_count bytes, or nothing for a count of zero. */
+static sxml_status allocate_set_array(sxml_item_heap *item_heap, size_t byte_count,
+                                      void **memory) {
+    *memory = NULL;
+    if (byte_count == 0) {
+        return SXML_STATUS_OK;
+    }
+    return sxml_item_heap_allocate_bytes(
+        item_heap,
+        (sxml_allocation_request){.byte_count = byte_count, .alignment = alignof(sxml_item)},
+        memory);
 }
 
 /* Makes room for slot_count slots (a power of two) and items. */
 static sxml_status allocate_distinct_set(distinct_set *set, size_t slot_count) {
     size_t item_bytes = 0;
+    size_t key_bytes = 0;
     size_t slot_bytes = 0;
     sxml_status status = sxml_size_multiply(slot_count, sizeof(sxml_item), &item_bytes);
+    if (status == SXML_STATUS_OK && uses_keys(set)) {
+        status = sxml_size_multiply(slot_count, sizeof(sxml_collated_key), &key_bytes);
+    }
     if (status == SXML_STATUS_OK) {
         status = sxml_size_multiply(slot_count, sizeof(size_t), &slot_bytes);
     }
     void *items = NULL;
+    void *keys = NULL;
     void *slots = NULL;
     if (status == SXML_STATUS_OK) {
-        status = sxml_item_heap_allocate_bytes(
-            set->item_heap,
-            (sxml_allocation_request){.byte_count = item_bytes, .alignment = alignof(sxml_item)},
-            &items);
+        status = allocate_set_array(set->item_heap, item_bytes, &items);
     }
     if (status == SXML_STATUS_OK) {
-        status = sxml_item_heap_allocate_bytes(
-            set->item_heap,
-            (sxml_allocation_request){.byte_count = slot_bytes, .alignment = alignof(size_t)},
-            &slots);
-        if (status != SXML_STATUS_OK) {
-            sxml_item_heap_release_bytes(
-                set->item_heap, (sxml_heap_bytes){.memory = items, .byte_count = item_bytes});
-        }
+        status = allocate_set_array(set->item_heap, key_bytes, &keys);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = allocate_set_array(set->item_heap, slot_bytes, &slots);
+    }
+    if (status == SXML_STATUS_OK && (items == NULL || slots == NULL)) {
+        /* slot_count is never 0. */
+        status = SXML_STATUS_INVALID_ARGUMENT;
     }
     if (status != SXML_STATUS_OK) {
+        sxml_item_heap_release_bytes(set->item_heap,
+                                     (sxml_heap_bytes){.memory = items, .byte_count = item_bytes});
+        sxml_item_heap_release_bytes(set->item_heap,
+                                     (sxml_heap_bytes){.memory = keys, .byte_count = key_bytes});
+        sxml_item_heap_release_bytes(set->item_heap,
+                                     (sxml_heap_bytes){.memory = slots, .byte_count = slot_bytes});
         return status;
     }
     memset(slots, 0, slot_bytes);
-    if (set->item_count > 0) {
-        memcpy(items, set->items, set->item_count * sizeof(sxml_item));
-    }
     const size_t old_count = set->item_count;
+    if (old_count > 0) {
+        memcpy(items, set->items, old_count * sizeof(sxml_item));
+        if (keys != NULL) {
+            memcpy(keys, set->keys, old_count * sizeof(sxml_collated_key));
+        }
+    }
+    /* The keys moved: release the old arrays without their keys. */
+    set->item_count = 0;
     release_distinct_set(set);
     set->items = items;
+    set->keys = keys;
     set->slots = slots;
     set->slot_count = slot_count;
+    set->item_count = old_count;
     for (size_t item_index = 0; item_index < old_count; item_index += 1) {
-        size_t slot = (size_t)sxml_atomic_item_hash(set->items[item_index]) & (slot_count - 1);
+        size_t slot = (size_t)hash_keyed_item(kept_item(set, item_index)) & (slot_count - 1);
         while (set->slots[slot] != 0) {
             slot = (slot + 1) & (slot_count - 1);
         }
@@ -594,7 +689,7 @@ typedef struct distinct_addition {
     bool is_new;
 } distinct_addition;
 
-/* Adds item unless an atomic-equal one is in set; addition tells. */
+/* Adds item unless an equal one is in set; addition tells. */
 static sxml_status add_distinct(distinct_set *set, sxml_item item,
                                 distinct_addition *addition) {
     if ((set->item_count + 1) * 2 > set->slot_count) {
@@ -604,15 +699,34 @@ static sxml_status add_distinct(distinct_set *set, sxml_item item,
             return status;
         }
     }
-    size_t slot = (size_t)sxml_atomic_item_hash(item) & (set->slot_count - 1);
+    if (set->items == NULL || set->slots == NULL) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    sxml_collated_key key = {.is_keyed = false};
+    if (uses_keys(set)) {
+        sxml_status status = sxml_function_library_make_collated_key(
+            set->item_heap,
+            (sxml_collated_key_request){.collation = set->collation, .item = item}, &key);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+    }
+    const keyed_item probe = {.item = item, .key = uses_keys(set) ? &key : NULL};
+    size_t slot = (size_t)hash_keyed_item(probe) & (set->slot_count - 1);
     while (set->slots[slot] != 0) {
-        if (sxml_atomic_item_is_atomic_equal(set->items[set->slots[slot] - 1], item)) {
+        if (keyed_items_are_equal(kept_item(set, set->slots[slot] - 1), probe)) {
+            if (key.is_keyed) {
+                sxml_collation_key_release(&key.key);
+            }
             addition->is_new = false;
             return SXML_STATUS_OK;
         }
         slot = (slot + 1) & (set->slot_count - 1);
     }
     set->items[set->item_count] = item;
+    if (set->keys != NULL) {
+        set->keys[set->item_count] = key;
+    }
     set->item_count += 1;
     set->slots[slot] = set->item_count;
     addition->is_new = true;
@@ -625,12 +739,15 @@ static sxml_status add_distinct(distinct_set *set, sxml_item item,
    codepoints). */
 static sxml_status call_distinct_values(const sxml_function_call *call,
                                         sxml_sequence *result) {
-    sxml_status status = sxml_function_library_check_collation(call, 1);
+    sxml_collation collation;
+    sxml_status status = sxml_function_library_resolve_collation(call, 1, &collation);
     if (status != SXML_STATUS_OK) {
         return status;
     }
     distinct_set set = {.item_heap = call->item_heap,
+                        .collation = &collation,
                         .items = NULL,
+                        .keys = NULL,
                         .item_count = 0,
                         .slots = NULL,
                         .slot_count = 0};
@@ -684,6 +801,8 @@ typedef struct sort_state {
     size_t next_key_index;
     /* Owned while a call of $key runs. */
     sxml_sequence call_argument;
+    /* The collation the keys compare under. */
+    sxml_collation collation;
 } sort_state;
 
 static void release_array(const sort_state *sort, void *memory, size_t element_size) {
@@ -728,7 +847,7 @@ static sxml_status allocate_array(const sort_state *sort, size_t element_size,
 /* Reads the input into the state's arrays (step 0). On failure what was
    allocated is left to release_sort_state. */
 static sxml_status start_sort(const sxml_function_call *call, sort_state *sort) {
-    sxml_status status = sxml_function_library_check_collation(call, 1);
+    sxml_status status = sxml_function_library_resolve_collation(call, 1, &sort->collation);
     const sxml_sequence input = sxml_function_library_get_argument(call, 0);
     uint64_t item_count = 0;
     if (status == SXML_STATUS_OK) {
@@ -810,15 +929,17 @@ static sxml_status compare_keys(void *state, sxml_index_pair pair, sxml_ordering
             return SXML_STATUS_OK;
         }
         sxml_ordering item_ordering = SXML_ORDERING_EQUAL;
-        sxml_status status = sxml_atomic_item_compare_in_heap(
+        sxml_status status = sxml_function_library_compare_collated(
             comparison->call->item_heap,
-            &(sxml_atomic_comparison){
-                .first = first_item,
-                .second = second_item,
-                .implicit_timezone_offset_minutes =
-                    comparison->implicit_timezone_offset_minutes,
-                .error_record = comparison->call->error_record,
-                .name_pool = sxml_item_heap_get_name_pool(comparison->call->item_heap)},
+            &(sxml_collated_comparison){
+                .collation = &comparison->sort->collation,
+                .comparison = {.first = first_item,
+                               .second = second_item,
+                               .implicit_timezone_offset_minutes =
+                                   comparison->implicit_timezone_offset_minutes,
+                               .error_record = comparison->call->error_record,
+                               .name_pool =
+                                   sxml_item_heap_get_name_pool(comparison->call->item_heap)}},
             &item_ordering);
         if (status != SXML_STATUS_OK) {
             return status;
@@ -1247,12 +1368,13 @@ static sxml_status call_insert_separator(const sxml_function_call *call,
 static sxml_status call_compare(const sxml_function_call *call, sxml_sequence *result) {
     sxml_optional_item first;
     sxml_optional_item second;
+    sxml_collation collation;
     sxml_status status = sxml_function_library_read_optional_item(call, 0, &first);
     if (status == SXML_STATUS_OK) {
         status = sxml_function_library_read_optional_item(call, 1, &second);
     }
     if (status == SXML_STATUS_OK) {
-        status = sxml_function_library_check_collation(call, 2);
+        status = sxml_function_library_resolve_collation(call, 2, &collation);
     }
     if (status != SXML_STATUS_OK || !first.has_item || !second.has_item) {
         *result = sxml_sequence_empty();
@@ -1265,13 +1387,15 @@ static sxml_status call_compare(const sxml_function_call *call, sxml_sequence *r
     }
     sxml_ordering ordering = SXML_ORDERING_EQUAL;
     if (status == SXML_STATUS_OK) {
-        status = sxml_atomic_item_compare_in_heap(
+        status = sxml_function_library_compare_collated(
             call->item_heap,
-            &(sxml_atomic_comparison){.first = first.item,
-                                      .second = second.item,
-                                      .implicit_timezone_offset_minutes = implicit_timezone,
-                                      .error_record = call->error_record,
-                                      .name_pool = sxml_item_heap_get_name_pool(call->item_heap)},
+            &(sxml_collated_comparison){
+                .collation = &collation,
+                .comparison = {.first = first.item,
+                               .second = second.item,
+                               .implicit_timezone_offset_minutes = implicit_timezone,
+                               .error_record = call->error_record,
+                               .name_pool = sxml_item_heap_get_name_pool(call->item_heap)}},
             &ordering);
     }
     if (status == SXML_STATUS_OK) {
@@ -1305,12 +1429,15 @@ static sxml_status call_atomic_equal(const sxml_function_call *call, sxml_sequen
    fn:distinct-values, in the order of these second appearances. */
 static sxml_status call_duplicate_values(const sxml_function_call *call,
                                          sxml_sequence *result) {
-    sxml_status status = sxml_function_library_check_collation(call, 1);
+    sxml_collation collation;
+    sxml_status status = sxml_function_library_resolve_collation(call, 1, &collation);
     if (status != SXML_STATUS_OK) {
         return status;
     }
     distinct_set seen = {.item_heap = call->item_heap,
+                         .collation = &collation,
                          .items = NULL,
+                         .keys = NULL,
                          .item_count = 0,
                          .slots = NULL,
                          .slot_count = 0};
@@ -1384,8 +1511,9 @@ static sxml_status call_all_different(const sxml_function_call *call, sxml_seque
     return call_distinctness(call, (distinctness_question){.is_all_equal = false}, result);
 }
 
-/* fn:default-collation() (F&O 4.0, section 5.3.4): the codepoint
-   collation, the only one sxml has (D78). */
+/* fn:default-collation() (F&O 4.0, section 5.3.4): the Unicode codepoint
+   collation, until the static context's default collation reaches the
+   evaluator (D116). */
 static sxml_status call_default_collation(const sxml_function_call *call,
                                           sxml_sequence *result) {
     return sxml_function_library_make_string(call->item_heap,
@@ -1472,8 +1600,14 @@ static const sxml_native_function sequence_functions[] = {
     SXML_FUNCTION_ROW("remove", remove_parameters, "item()*", 0, call_remove),
     SXML_FUNCTION_ROW("distinct-values", distinct_values_parameters, "xs:anyAtomicType*", 0,
                       call_distinct_values),
-    SXML_FUNCTION_ROW("deep-equal", deep_equal_parameters, "xs:boolean", 0,
-                      sxml_function_library_call_deep_equal),
+    {.function_namespace = SXML_NAMESPACE_FUNCTIONS,
+     .properties = SXML_NATIVE_FUNCTION_CALLS_FUNCTION_ITEMS,
+     .local_name = SXML_BYTE_VIEW_INITIALIZER("deep-equal"),
+     .parameters = {deep_equal_parameters,
+                    sizeof(deep_equal_parameters) / sizeof(deep_equal_parameters[0])},
+     .result_type = SXML_BYTE_VIEW_INITIALIZER("xs:boolean"),
+     .call = NULL,
+     .resumable_body = &sxml_function_library_deep_equal_body},
     {.function_namespace = SXML_NAMESPACE_FUNCTIONS,
      .properties = SXML_NATIVE_FUNCTION_CALLS_FUNCTION_ITEMS,
      .local_name = SXML_BYTE_VIEW_INITIALIZER("sort"),

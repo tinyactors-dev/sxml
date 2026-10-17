@@ -1180,15 +1180,14 @@ static void test_deep_equal(sxml_test_state *state) {
     expect_all(state, cases, SXML_TEST_COUNT(cases));
 }
 
-static void test_deep_equal_unsupported_options(sxml_test_state *state) {
-    evaluation_outcome *outcome = NULL;
-    SXML_TEST_EXPECT(state,
-                     run_case((case_check){.test_case = &(evaluation_case){
-                                               .expression_text =
-                                                   "deep-equal((1, 2), (2, 1), map{'ordered': false()})"},
-                                           .context_document = NULL},
-                              &outcome) &&
-                         outcome->status == SXML_STATUS_UNSUPPORTED_FEATURE);
+/* Packet 2.13 (D116) supports the 4.0 options; tests/collation_test.c
+   covers them. */
+static void test_deep_equal_unordered_option(sxml_test_state *state) {
+    static const expression_case cases[] = {
+        {"deep-equal((1, 2), (2, 1), map{'ordered': false()})", "true"},
+        {"deep-equal((1, 1, 2), (1, 2, 2), map{'ordered': false()})", "false"},
+    };
+    expect_all(state, cases, SXML_TEST_COUNT(cases));
 }
 
 static void test_deep_equal_of_nodes(sxml_test_state *state) {
@@ -1482,7 +1481,7 @@ static const sxml_test_case function_library_test_cases[] = {
     {.name = "regular_expression_functions", .function = test_regular_expression_functions},
     {.name = "sequence_functions", .function = test_sequence_functions},
     {.name = "deep_equal", .function = test_deep_equal},
-    {.name = "deep_equal_unsupported_options", .function = test_deep_equal_unsupported_options},
+    {.name = "deep_equal_unordered_option", .function = test_deep_equal_unordered_option},
     {.name = "deep_equal_of_nodes", .function = test_deep_equal_of_nodes},
     {.name = "node_functions", .function = test_node_functions},
     {.name = "doc_and_qname", .function = test_doc_and_qname},

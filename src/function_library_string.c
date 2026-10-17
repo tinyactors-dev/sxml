@@ -13,9 +13,14 @@
  * Golden file: src/memory.c (layout and comments); rows as in
  * src/function_library_internal.h.
  *
- * Strings are sequences of codepoints (XDM 4.0); every collation argument
- * must name the Unicode codepoint collation (FOCH0002 otherwise), so
- * comparing strings is comparing bytes of UTF-8.
+ * From packet 2.13 (D116): the collation functions of F&O 4.0, section
+ * 5.2 (fn:collation, fn:collation-available, fn:collation-key), and every
+ * collation argument through the resolver of src/function_library.c, so
+ * substring matching and fn:contains-token honour the collations of
+ * src/collation_internal.h.
+ *
+ * Strings are sequences of codepoints (XDM 4.0); under the Unicode
+ * codepoint collation comparing strings is comparing bytes of UTF-8.
  */
 #include "cast_internal.h"
 #include "decimal_internal.h"
@@ -887,73 +892,62 @@ typedef enum substring_question {
     SXML_SUBSTRING_QUESTION_AFTER_LAST,
 } substring_question;
 
-/* The byte offset of the first occurrence of needle in haystack, or
-   SIZE_MAX. UTF-8 is self-synchronizing, so a byte match is a codepoint
-   match. */
-static size_t find_bytes(sxml_byte_view haystack, sxml_byte_view needle) {
-    if (needle.byte_count == 0) {
-        return 0;
+/* The match kind each question looks for. */
+static sxml_collation_match_kind match_kind_of(substring_question question) {
+    switch (question) {
+    case SXML_SUBSTRING_QUESTION_STARTS_WITH:
+        return SXML_COLLATION_MATCH_KIND_START;
+    case SXML_SUBSTRING_QUESTION_ENDS_WITH:
+        return SXML_COLLATION_MATCH_KIND_END;
+    case SXML_SUBSTRING_QUESTION_BEFORE_LAST:
+    case SXML_SUBSTRING_QUESTION_AFTER_LAST:
+        return SXML_COLLATION_MATCH_KIND_LAST;
+    case SXML_SUBSTRING_QUESTION_CONTAINS:
+    case SXML_SUBSTRING_QUESTION_BEFORE:
+    case SXML_SUBSTRING_QUESTION_AFTER:
+        break;
     }
-    if (needle.byte_count > haystack.byte_count) {
-        return SIZE_MAX;
-    }
-    for (size_t offset = 0; offset + needle.byte_count <= haystack.byte_count;
-         offset += 1) {
-        if (memcmp(haystack.bytes + offset, needle.bytes, needle.byte_count) == 0) {
-            return offset;
-        }
-    }
-    return SIZE_MAX;
+    return SXML_COLLATION_MATCH_KIND_FIRST;
 }
 
-/* The byte offset of the last occurrence of needle in haystack (the end
-   for an empty needle), or SIZE_MAX. */
-static size_t find_last_bytes(sxml_byte_view haystack, sxml_byte_view needle) {
-    if (needle.byte_count > haystack.byte_count) {
-        return SIZE_MAX;
-    }
-    for (size_t offset = haystack.byte_count - needle.byte_count + 1; offset > 0; offset -= 1) {
-        if (needle.byte_count == 0 ||
-            memcmp(haystack.bytes + offset - 1, needle.bytes, needle.byte_count) == 0) {
-            return needle.byte_count == 0 ? haystack.byte_count : offset - 1;
-        }
-    }
-    return SIZE_MAX;
-}
-
+/* The functions of F&O 4.0, section 5.4: the minimal match of $substring
+   in $value under the collation (sxml_collation_find_match); a
+   zero-length $substring matches at the start (the end for the "-last"
+   functions). */
 static sxml_status call_substring_question(const sxml_function_call *call,
                                            substring_question question,
                                            sxml_sequence *result) {
     sxml_string value;
     sxml_string substring;
+    sxml_collation collation;
     sxml_status status = sxml_function_library_read_string_argument(call, 0, &value);
     if (status == SXML_STATUS_OK) {
         status = sxml_function_library_read_string_argument(call, 1, &substring);
     }
     if (status == SXML_STATUS_OK) {
-        status = sxml_function_library_check_collation(call, 2);
+        status = sxml_function_library_resolve_collation(call, 2, &collation);
+    }
+    sxml_collation_match match = {.is_found = false, .byte_offset = 0, .byte_count = 0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_collation_find_match(
+            &(sxml_collation_match_request){
+                .collation = &collation,
+                .allocator = sxml_item_heap_as_allocator(call->item_heap),
+                .input = value,
+                .search = substring,
+                .match_kind = match_kind_of(question)},
+            &match);
     }
     if (status != SXML_STATUS_OK) {
         return status;
     }
     const sxml_byte_view haystack = value.utf8;
-    const sxml_byte_view needle = substring.utf8;
     switch (question) {
     case SXML_SUBSTRING_QUESTION_CONTAINS:
-        *result = sxml_function_library_make_boolean((sxml_boolean_result){.is_true = find_bytes(haystack, needle) != SIZE_MAX});
-        return SXML_STATUS_OK;
     case SXML_SUBSTRING_QUESTION_STARTS_WITH:
-        *result = sxml_function_library_make_boolean((sxml_boolean_result){.is_true = 
-            needle.byte_count <= haystack.byte_count &&
-            (needle.byte_count == 0 ||
-             memcmp(haystack.bytes, needle.bytes, needle.byte_count) == 0)});
-        return SXML_STATUS_OK;
     case SXML_SUBSTRING_QUESTION_ENDS_WITH:
-        *result = sxml_function_library_make_boolean((sxml_boolean_result){.is_true = 
-            needle.byte_count <= haystack.byte_count &&
-            (needle.byte_count == 0 ||
-             memcmp(haystack.bytes + haystack.byte_count - needle.byte_count, needle.bytes,
-                    needle.byte_count) == 0)});
+        *result = sxml_function_library_make_boolean(
+            (sxml_boolean_result){.is_true = match.is_found});
         return SXML_STATUS_OK;
     case SXML_SUBSTRING_QUESTION_BEFORE:
     case SXML_SUBSTRING_QUESTION_AFTER:
@@ -961,18 +955,15 @@ static sxml_status call_substring_question(const sxml_function_call *call,
     case SXML_SUBSTRING_QUESTION_AFTER_LAST:
         break;
     }
-    const bool is_last = question == SXML_SUBSTRING_QUESTION_BEFORE_LAST ||
-                         question == SXML_SUBSTRING_QUESTION_AFTER_LAST;
-    const size_t offset = is_last ? find_last_bytes(haystack, needle) : find_bytes(haystack, needle);
     sxml_byte_view part = {.bytes = NULL, .byte_count = 0};
-    if (offset != SIZE_MAX) {
+    if (match.is_found) {
+        const size_t match_end = match.byte_offset + match.byte_count;
         part = question == SXML_SUBSTRING_QUESTION_BEFORE ||
                        question == SXML_SUBSTRING_QUESTION_BEFORE_LAST
-                   ? (sxml_byte_view){.bytes = haystack.bytes, .byte_count = offset}
-                   : slice_of(haystack,
-                              (byte_part){.byte_offset = offset + needle.byte_count,
-                                          .byte_count =
-                                              haystack.byte_count - offset - needle.byte_count});
+                   ? slice_of(haystack, (byte_part){.byte_offset = 0,
+                                                    .byte_count = match.byte_offset})
+                   : slice_of(haystack, (byte_part){.byte_offset = match_end,
+                                                    .byte_count = haystack.byte_count - match_end});
     }
     return sxml_function_library_make_string(call->item_heap, part, result);
 }
@@ -1125,10 +1116,25 @@ static sxml_byte_view trim_whitespace(sxml_byte_view text) {
     return slice_of(text, (byte_part){.byte_offset = first, .byte_count = end - first});
 }
 
-/* Whether a whitespace-separated token of text equals token. */
-static bool has_token(sxml_byte_view text, sxml_byte_view token) {
+/* A token to look for and the collation to compare under. */
+typedef struct token_search {
+    const sxml_function_call *call;
+    const sxml_collation *collation;
+    sxml_byte_view token;
+} token_search;
+
+/* What find_token found. */
+typedef struct token_finding {
+    bool is_found;
+} token_finding;
+
+/* Whether a whitespace-separated token of text equals search.token under
+   the collation (compare($t, $token, $collation) eq 0, F&O 4.0,
+   fn:contains-token), in *finding. */
+static sxml_status find_token(token_search search, sxml_byte_view text, token_finding *finding) {
     size_t offset = 0;
-    while (offset < text.byte_count) {
+    finding->is_found = false;
+    while (offset < text.byte_count && !finding->is_found) {
         while (offset < text.byte_count && is_xml_whitespace(text.bytes[offset])) {
             offset += 1;
         }
@@ -1136,33 +1142,60 @@ static bool has_token(sxml_byte_view text, sxml_byte_view token) {
         while (end < text.byte_count && !is_xml_whitespace(text.bytes[end])) {
             end += 1;
         }
-        if (end > offset && end - offset == token.byte_count &&
-            memcmp(text.bytes + offset, token.bytes, token.byte_count) == 0) {
-            return true;
-        }
+        const sxml_byte_view candidate =
+            slice_of(text, (byte_part){.byte_offset = offset, .byte_count = end - offset});
         offset = end;
+        if (candidate.byte_count == 0) {
+            continue;
+        }
+        if (sxml_collation_is_codepoint_order(search.collation)) {
+            finding->is_found = sxml_byte_view_equals(candidate, search.token);
+            continue;
+        }
+        sxml_string first;
+        sxml_string second;
+        sxml_status status = sxml_string_from_utf8(candidate, &first);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_string_from_utf8(search.token, &second);
+        }
+        sxml_ordering ordering = SXML_ORDERING_LESS;
+        if (status == SXML_STATUS_OK) {
+            status = sxml_collation_compare(
+                &(sxml_collation_comparison){
+                    .collation = search.collation,
+                    .allocator = sxml_item_heap_as_allocator(search.call->item_heap),
+                    .first = first,
+                    .second = second},
+                &ordering);
+        }
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        finding->is_found = ordering == SXML_ORDERING_EQUAL;
     }
-    return false;
+    return SXML_STATUS_OK;
 }
 
-/* fn:contains-token($value, $token, $collation) (F&O 4.0, section 5.5.8):
+/* fn:contains-token($value, $token, $collation) (F&O 4.0, section 5.4.1):
    true when some item of $value, split at whitespace, has a token equal
-   to $token with its whitespace trimmed; false for an empty token. */
+   under the collation to $token with its whitespace trimmed; false for an
+   empty token. */
 static sxml_status call_contains_token(const sxml_function_call *call,
                                        sxml_sequence *result) {
     sxml_string token;
+    sxml_collation collation;
     sxml_status status = sxml_function_library_read_string_argument(call, 1, &token);
     if (status == SXML_STATUS_OK) {
-        status = sxml_function_library_check_collation(call, 2);
+        status = sxml_function_library_resolve_collation(call, 2, &collation);
     }
     if (status != SXML_STATUS_OK) {
         return status;
     }
     const sxml_byte_view trimmed = trim_whitespace(token.utf8);
-    bool is_found = false;
+    token_finding finding = {.is_found = false};
     sxml_sequence_iterator iterator =
         sxml_sequence_iterator_start(sxml_function_library_get_argument(call, 0));
-    while (trimmed.byte_count > 0 && !is_found) {
+    while (trimmed.byte_count > 0 && !finding.is_found) {
         sxml_iteration_step step;
         status = sxml_sequence_iterator_next(&iterator, call->error_record, &step);
         if (status != SXML_STATUS_OK || !step.has_item) {
@@ -1173,14 +1206,157 @@ static sxml_status call_contains_token(const sxml_function_call *call,
         if (status == SXML_STATUS_OK) {
             status = sxml_function_library_charge_steps(call, 1);
         }
+        if (status == SXML_STATUS_OK) {
+            status = find_token(
+                (token_search){.call = call, .collation = &collation, .token = trimmed},
+                datum.datum_details.string.utf8, &finding);
+        }
         if (status != SXML_STATUS_OK) {
             break;
         }
-        is_found = has_token(datum.datum_details.string.utf8, trimmed);
     }
     if (status == SXML_STATUS_OK) {
-        *result = sxml_function_library_make_boolean((sxml_boolean_result){.is_true = is_found});
+        *result = sxml_function_library_make_boolean(
+            (sxml_boolean_result){.is_true = finding.is_found});
     }
+    return status;
+}
+
+/* ------------------------------------------------------------ Collations */
+
+/* fn:collation-available($collation) (F&O 4.0, section 5.2.10): whether
+   the collation URI is one sxml recognizes, after the rules of section
+   5.2.7 (a relative URI against the static base URI). */
+static sxml_status call_collation_available(const sxml_function_call *call,
+                                            sxml_sequence *result) {
+    sxml_string collation_uri;
+    sxml_status status = sxml_function_library_read_string_argument(call, 0, &collation_uri);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_collation collation;
+    /* The resolver reports FOCH0002 for what it does not recognize; that
+       is the answer false, not an error. */
+    status = sxml_function_library_find_collation(
+        &(sxml_function_call){.function_item = call->function_item,
+                              .arguments = call->arguments,
+                              .dynamic_context = call->dynamic_context,
+                              .item_heap = call->item_heap,
+                              .error_record = NULL},
+        collation_uri.utf8, &collation);
+    if (status != SXML_STATUS_OK && status != SXML_STATUS_DYNAMIC_ERROR) {
+        return status;
+    }
+    *result = sxml_function_library_make_boolean(
+        (sxml_boolean_result){.is_true = status == SXML_STATUS_OK});
+    return SXML_STATUS_OK;
+}
+
+/* fn:collation-key($value, $collation := default) (F&O 4.0, section
+   5.2.11): the collation key as xs:base64Binary, whose order as binary
+   values is the order of the strings (sxml_collation_make_key). */
+static sxml_status call_collation_key(const sxml_function_call *call, sxml_sequence *result) {
+    sxml_string value;
+    sxml_collation collation;
+    sxml_status status = sxml_function_library_read_string_argument(call, 0, &value);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_function_library_resolve_collation(call, 1, &collation);
+    }
+    sxml_collation_key key = {.allocator = sxml_item_heap_as_allocator(call->item_heap),
+                              .bytes = NULL};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_collation_make_key(
+            &(sxml_collation_key_request){.collation = &collation, .input = value}, &key);
+    }
+    sxml_item item = {.representation = 0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_atomic_item_make(
+            call->item_heap,
+            &(sxml_atomic_item_request){
+                .type = sxml_builtin_type_identifier(SXML_TYPE_XS_BASE64_BINARY),
+                .datum = {.datum_kind = SXML_DATUM_KIND_BINARY,
+                          .datum_details = {.binary = sxml_collation_key_view(&key)}}},
+            &item);
+    }
+    sxml_collation_key_release(&key);
+    if (status == SXML_STATUS_OK) {
+        *result = sxml_sequence_from_item(item);
+    }
+    return status;
+}
+
+static const sxml_static_error collation_option_error = {
+    .error_status = SXML_STATUS_TYPE_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XPTY0004"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "An option of fn:collation has a key that is not a string or a value that is "
+        "not a single atomic item (F&O 4.0, section 5.2.9)"),
+};
+
+/* Appends one keyword=value parameter for a map entry of fn:collation:
+   the key's string, "=", and the value's string, with true and false as
+   yes and no. */
+static sxml_status append_collation_parameter(const sxml_function_call *call,
+                                              sxml_library_text *text,
+                                              sxml_map_entry entry) {
+    sxml_atomic_datum key_datum;
+    if (sxml_atomic_item_get_datum(entry.key, &key_datum) != SXML_STATUS_OK ||
+        key_datum.datum_kind != SXML_DATUM_KIND_STRING ||
+        sxml_sequence_get_representation(entry.value) !=
+            SXML_SEQUENCE_REPRESENTATION_SINGLE_ITEM ||
+        sxml_item_get_kind(entry.value.content) != SXML_ITEM_KIND_ATOMIC) {
+        return sxml_function_library_report(call, &collation_option_error);
+    }
+    sxml_status status = sxml_function_library_text_append(text, key_datum.datum_details.string.utf8);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_function_library_text_append(text, SXML_BYTE_VIEW_FROM_LITERAL("="));
+    }
+    sxml_atomic_datum value_datum;
+    if (status == SXML_STATUS_OK &&
+        sxml_atomic_item_get_datum(entry.value.content, &value_datum) == SXML_STATUS_OK &&
+        value_datum.datum_kind == SXML_DATUM_KIND_BOOLEAN) {
+        return sxml_function_library_text_append(
+            text, value_datum.datum_details.boolean ? SXML_BYTE_VIEW_FROM_LITERAL("yes")
+                                                     : SXML_BYTE_VIEW_FROM_LITERAL("no"));
+    }
+    if (status == SXML_STATUS_OK) {
+        status = append_atomic_text(text, entry.value.content);
+    }
+    return status;
+}
+
+/* fn:collation($options) (F&O 4.0, section 5.2.9): the UCA collation URI
+   with one keyword=value parameter per entry, in entry order. */
+static sxml_status call_collation(const sxml_function_call *call, sxml_sequence *result) {
+    sxml_optional_item options;
+    sxml_status status = sxml_function_library_read_optional_item(call, 0, &options);
+    size_t entry_count = 0;
+    if (status == SXML_STATUS_OK && options.has_item) {
+        status = sxml_map_get_size(options.item, &entry_count);
+    }
+    sxml_library_text text = {.item_heap = call->item_heap};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_function_library_text_append(
+            &text, SXML_BYTE_VIEW_FROM_LITERAL("http://www.w3.org/2013/collation/UCA"));
+    }
+    for (size_t entry_index = 0; status == SXML_STATUS_OK && entry_index < entry_count;
+         entry_index += 1) {
+        sxml_map_entry entry;
+        status = sxml_map_get_entry(options.item, entry_index, &entry);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_function_library_text_append(
+                &text, entry_index == 0 ? SXML_BYTE_VIEW_FROM_LITERAL("?")
+                                        : SXML_BYTE_VIEW_FROM_LITERAL(";"));
+        }
+        if (status == SXML_STATUS_OK) {
+            status = append_collation_parameter(call, &text, entry);
+        }
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_function_library_make_string(
+            call->item_heap, sxml_function_library_text_view(&text), result);
+    }
+    sxml_function_library_text_release(&text);
     return status;
 }
 
@@ -1229,7 +1405,19 @@ static const sxml_function_parameter contains_token_parameters[] = {
     SXML_REQUIRED_PARAMETER("value", "xs:string*"),
     SXML_REQUIRED_PARAMETER("token", "xs:string"),
     SXML_OPTIONAL_PARAMETER("collation", "xs:string?")};
+static const sxml_function_parameter collation_parameters[] = {
+    SXML_REQUIRED_PARAMETER("options", "map(*)")};
+static const sxml_function_parameter collation_available_parameters[] = {
+    SXML_REQUIRED_PARAMETER("collation", "xs:string")};
+static const sxml_function_parameter collation_key_parameters[] = {
+    SXML_REQUIRED_PARAMETER("value", "xs:string"),
+    SXML_OPTIONAL_PARAMETER("collation", "xs:string?")};
 static const sxml_native_function string_functions[] = {
+    SXML_FUNCTION_ROW("collation", collation_parameters, "xs:string", 0, call_collation),
+    SXML_FUNCTION_ROW("collation-available", collation_available_parameters, "xs:boolean", 0,
+                      call_collation_available),
+    SXML_FUNCTION_ROW("collation-key", collation_key_parameters, "xs:base64Binary", 0,
+                      call_collation_key),
     SXML_FUNCTION_ROW("string", string_parameters, "xs:string", 0, call_string),
     SXML_FUNCTION_ROW("codepoints-to-string", codepoints_parameters, "xs:string", 0,
                       call_codepoints_to_string),
