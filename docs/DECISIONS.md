@@ -3296,6 +3296,79 @@ walker; `sxml_grammar_xquery` joins the `sxml` link line.
   9, XQST0085 5, XQST0087 4, XQST0090 13, XQST0118 6); the 145 parsable
   library modules build; all 772 XPST0003 queries fail statically.
 
+### D120. The XML and XHTML output methods (packet 3.3)
+Recorded 2026-10-17. `src/serialize_internal.h` splits the serializer
+into parts: `src/serialize.c` keeps the output stream and buffer, the
+parameter checks, the character pipeline, sequence normalization, the
+adaptive method and the dispatch; `src/serialize_xml.c` has the XML and
+XHTML methods and the node writer the adaptive method uses. Packet 3.4's
+HTML, text, JSON and CSV parts build on the same internal interface.
+- **Dispatch** (D106 follow-up): HTML, text, JSON and CSV return
+  UNSUPPORTED_FEATURE until 3.4; parameters C can say but XDM cannot
+  (enumerations out of range, ill-formed UTF-8, name 0, a character map
+  codepoint twice or not an XML Char) are INVALID_ARGUMENT for every
+  method; indent-unit, doctype-system, doctype-public and html-version
+  values the spec forbids are SEPM0016.
+- **Character pipeline** (Serialization 4.0, section 4): `sxml_serializer`
+  writes markup, text, attribute values, URI attribute values and CDATA
+  sections. Text and attribute values go through the character map
+  (sorted once, binary search), then `sxml_unicode_normalize` (D107; the
+  serialize.h form maps onto unicode_internal.h's, fully-normalized as NFC
+  plus SERE0012 for a construct that starts with a composing character)
+  on each unmapped segment, then escaping, line endings and the encoding
+  into a 512-byte staging area. References are `&#xHEX;`; C0 and C1
+  controls, NEL and LINE SEPARATOR are always references in text and
+  attributes (also with version 1.0: XML 1.1's repertoire, QT4
+  K2-Serialization-7, Serialization-xml-27 to -31); a character the
+  encoding lacks is a reference there and SERE0008 in markup. UTF-16 is
+  big endian; byte-order-mark writes EF BB BF or FE FF.
+- **Sequence normalization** is a pull iterator
+  (`sxml_sequence_normalizer`) that never builds the result tree: frames
+  flatten arrays and JNode values, atomic items are cast to text joined
+  by a space or the item separator, documents give their children, text
+  is merged in a heap buffer. SEPM0004 (doctype-system or standalone with
+  text or several elements at the top) runs the iterator once more first.
+- **Namespaces**: each element's declarations are computed against a
+  stack of written bindings: its in-scope namespaces (minus xml) plus what
+  its own and its attributes' names need, declared where the written
+  bindings differ, `xmlns=""` where a default goes out of scope, and
+  `xmlns:p=""` only with undeclare-prefixes and version 1.1 (SEPM0010
+  with 1.0). XHTML with HTML5 applies prefix normalization (XHTML, SVG,
+  MathML elements unprefixed; their prefixes dropped unless an attribute
+  of an ancestor-or-self uses them, Issue 2821). Canonical XML uses the
+  same rule (it is C14N 1.1's namespace axis) and sorts declarations and
+  attributes by heapsort (no recursion, O(n log n)).
+- **Indentation** (5.1.4, 6.1.5): an element's content is indented only
+  when it has element, comment or PI children and no text other than
+  whitespace, its name is not in suppress-indentation (XHTML: also
+  without regard to case), it has no xml:space="preserve", it is not a
+  formatted or inline HTML element and has no inline child, and its
+  parent is indented itself, so nothing below mixed or suppressed content
+  moves. Whitespace-only text is dropped where whitespace is added.
+  indent-unit defaults to two spaces; indent-attributes puts each further
+  attribute on its own line. Newlines between top-level nodes and after
+  the declaration only when indenting; none otherwise (QT4
+  Serialization-xml-01, -xhtml-72).
+- **XHTML** (section 6): html-version defaults to 5.0; minimized tags only
+  for elements expected to be empty (`<br/>` with HTML5, `<br />`
+  before), `<p></p>` otherwise; `<!DOCTYPE html>` before an html document
+  element with HTML5 and no doctype-system; include-content-type (default
+  yes) adds `<meta charset="ENC"/>` (HTML5) or the http-equiv form (media
+  type text/html by default) as head's first child and drops existing
+  charset or Content-Type meta children; escape-uri-attributes (default
+  yes) applies URI escaping to the attributes of appendix D.
+- **Canonical XML**: UTF-8, LF, no declaration, doctype, CDATA, character
+  maps or indentation; start-end tag pairs; line feeds around nodes
+  outside the document element; SERE0024 for top-level text, more or
+  fewer than one element, or a relative namespace URI.
+- **Adaptive nodes** (D82) are written by the same XML writer with the
+  default parameters; a stored parentless namespace node (D98) is
+  written from its name (the prefix) and content (the URI).
+- Not done here: `sxml_serialization_parameter_reader` (declared by D106)
+  has no definition yet; it belongs with fn:serialize (3.4). Not checked:
+  SERE0005/SERE0006 (names and characters of the XML version), comments
+  with "--" (SERE0003). The CLI's `--method` stays adaptive until 3.12.
+
 ## Proposed
 
 - **IR adders for catch clauses and name tests** (packet 3.6, D109; for
