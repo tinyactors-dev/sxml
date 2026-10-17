@@ -1217,7 +1217,10 @@ static void test_filters_maps_and_ranges(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, evaluates_to("(1 to 3)[0]", ""));
     SXML_TEST_EXPECT(state, evaluates_to("('a', 'b')[.]", "a b"));
     SXML_TEST_EXPECT(state, evaluates_to("(1 to 3) ! (., last())", "1 3 2 3 3 3"));
-    SXML_TEST_EXPECT(state, fails_with("(1 to 3)[(1, 2)]", "FORG0006"));
+    /* XPath 4.0, section 4.4.1: several numbers select by any of them;
+       a number followed by a non-number is FORG0006. */
+    SXML_TEST_EXPECT(state, evaluates_to("(1 to 3)[(1, 2)]", "1 2"));
+    SXML_TEST_EXPECT(state, fails_with("(1 to 3)[(1, 'a')]", "FORG0006"));
     SXML_TEST_EXPECT(state, evaluates_to("some $x in (1, 2) satisfies $x + $x = 3",
                                          "false"));  /* quantExpr-1 */
     SXML_TEST_EXPECT(state, evaluates_to("every $x in (1, 2) satisfies $x < 3", "true"));

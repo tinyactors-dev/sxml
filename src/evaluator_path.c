@@ -32,6 +32,14 @@ static const sxml_static_error sxml_step_origin_error = {
         "4.6.4)"),
 };
 
+static const sxml_static_error sxml_json_attribute_axis_error = {
+    .error_status = SXML_STATUS_TYPE_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XPTY0004"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "The attribute and namespace axes are not defined for JNodes (XPath "
+        "4.0, section 4.7.5.1)"),
+};
+
 static const sxml_static_error sxml_mixed_path_result_error = {
     .error_status = SXML_STATUS_TYPE_ERROR,
     .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XPTY0018"),
@@ -449,6 +457,61 @@ static sxml_status sxml_json_key_equals_text(sxml_item json_key,
     return status;
 }
 
+/* A JNode and the name test of a step's element test. */
+typedef struct sxml_json_name_question {
+    sxml_item json_node;
+    const sxml_name_test *name_test;
+} sxml_json_name_question;
+
+/*
+ * Whether a JNode's ·jkey· matches a name test (XPath 4.0, section
+ * 4.7.5.4): * matches every JNode; an NCName (a name in no namespace) a
+ * string, xs:anyURI or xs:untypedAtomic key equal to it; any other name or
+ * wildcard an xs:QName key, by the rules of XNode name tests. The IR does
+ * not keep the difference between NCName a and EQName Q{}a, so Q{}a is
+ * read as the NCName.
+ */
+static sxml_status sxml_json_key_matches_name_test(const sxml_item_heap *item_heap,
+                                                   sxml_json_name_question question,
+                                                   sxml_type_match *match) {
+    const sxml_name_test *name_test = question.name_test;
+    match->is_match = false;
+    if (name_test->name_test_kind == SXML_NAME_TEST_KIND_ANY_NAME) {
+        match->is_match = true;
+        return SXML_STATUS_OK;
+    }
+    sxml_json_node_description description;
+    sxml_status status = sxml_json_node_describe(question.json_node, &description);
+    if (status != SXML_STATUS_OK || !description.has_parent ||
+        !sxml_item_is_atomic(description.json_key)) {
+        return status;
+    }
+    if (name_test->name_test_kind == SXML_NAME_TEST_KIND_EXPANDED_NAME) {
+        sxml_name_parts parts;
+        status = sxml_name_pool_get_name_parts(sxml_item_heap_get_name_pool(item_heap),
+                                               name_test->expanded_name, &parts);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        if (parts.namespace_uri.index == SXML_NAMESPACE_NONE) {
+            return sxml_json_key_equals_text(description.json_key, parts.local_name, match);
+        }
+    }
+    if (sxml_atomic_item_get_primitive_type(description.json_key).index != SXML_TYPE_XS_QNAME) {
+        return SXML_STATUS_OK;
+    }
+    sxml_atomic_datum datum;
+    status = sxml_atomic_item_get_datum(description.json_key, &datum);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_name_matches_test(
+        item_heap,
+        (sxml_name_question){.name = datum.datum_details.qname.expanded_name,
+                             .name_test = name_test},
+        match);
+}
+
 /* Appends the JNode, taking over the caller's reference, if it matches. */
 static sxml_status sxml_step_output_take_json_node(
     const sxml_step_output *output, sxml_item json_node) {
@@ -461,29 +524,11 @@ static sxml_status sxml_step_output_take_json_node(
            4.0, section 4.6.5). */
         const sxml_node_test *node_test = &test->node_test;
         if (node_test->node_kind == SXML_NODE_KIND_ELEMENT) {
-            const sxml_name_test *name_test = &node_test->name_test;
-            if (name_test->name_test_kind == SXML_NAME_TEST_KIND_EXPANDED_NAME) {
-                sxml_name_parts parts;
-                sxml_json_node_description description;
-                status = sxml_name_pool_get_name_parts(
-                    sxml_item_heap_get_name_pool(
-                        output->dynamic_context->item_heap),
-                    name_test->expanded_name, &parts);
-                if (status == SXML_STATUS_OK) {
-                    status = sxml_json_node_describe(json_node, &description);
-                }
-                if (status == SXML_STATUS_OK) {
-                    match.is_match = parts.namespace_uri.index ==
-                                     SXML_NAMESPACE_NONE;
-                }
-                if (status == SXML_STATUS_OK && match.is_match) {
-                    status = sxml_json_key_equals_text(description.json_key,
-                                                       parts.local_name, &match);
-                }
-            } else {
-                match.is_match =
-                    name_test->name_test_kind == SXML_NAME_TEST_KIND_ANY_NAME;
-            }
+            status = sxml_json_key_matches_name_test(
+                output->dynamic_context->item_heap,
+                (sxml_json_name_question){.json_node = json_node,
+                                          .name_test = &node_test->name_test},
+                &match);
         } else {
             match.is_match = node_test->node_kind == SXML_NODE_KIND_ANY;
         }
@@ -747,8 +792,8 @@ static sxml_status sxml_step_json_children(const sxml_step_output *output,
     return status;
 }
 
-/* One axis from a JNode over its JTree (XPath 4.0, section 4.6.4; XDM 4.0,
-   section 8.5): attribute and namespace axes are empty. */
+/* One axis from a JNode over its JTree (XPath 4.0, section 4.7.5.1; XDM
+   4.0, section 8.5): the attribute and namespace axes raise XPTY0004. */
 static sxml_status sxml_step_json_node(const sxml_step_output *output,
                                        sxml_item origin, sxml_axis axis) {
     sxml_json_node_description description;
@@ -778,7 +823,8 @@ static sxml_status sxml_step_json_node(const sxml_step_output *output,
         return sxml_step_json_descendants(output, origin);
     case SXML_AXIS_ATTRIBUTE:
     case SXML_AXIS_NAMESPACE:
-        return SXML_STATUS_OK;
+        return sxml_error_record_report(output->error_record,
+                                        &sxml_json_attribute_axis_error);
     case SXML_AXIS_PARENT:
         if (!description.has_parent) {
             return SXML_STATUS_OK;

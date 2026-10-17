@@ -682,3 +682,33 @@ typedef struct sxml_call_signature {
 SXML_NODISCARD sxml_status sxml_evaluator_describe_call_signature(
     sxml_dynamic_context *dynamic_context, sxml_item function_item,
     sxml_call_signature *signature);
+
+/* A fold's question (packet 2.6, D115): does every later call return the
+   accumulator unchanged? */
+typedef struct sxml_fixpoint_question {
+    /* The fold's function item, borrowed. */
+    sxml_item function_item;
+    /* The accumulator the next call would get, borrowed. */
+    sxml_sequence accumulator;
+    /* Its argument position: 0 (fold-left) or 1 (fold-right). */
+    size_t accumulator_index;
+} sxml_fixpoint_question;
+
+typedef struct sxml_fixpoint_answer {
+    /* True only when it is certain that function_item called with
+       accumulator in that position returns accumulator, whatever the
+       other argument. */
+    bool is_fixpoint;
+} sxml_fixpoint_answer;
+
+/*
+ * Answers question for an inline function (also behind function coercion
+ * to item()* parameters and result) whose body is "if (C) then $acc else
+ * E" or "if (C) then E else $acc", C a value or general comparison of
+ * numeric constants, captured variables and $acc: C is evaluated here
+ * for accumulator. Every other function is not a fixpoint. Defined in
+ * src/evaluator_function.c; never raises (a failing C answers false).
+ */
+SXML_NODISCARD sxml_status sxml_evaluator_test_fixpoint(
+    sxml_dynamic_context *dynamic_context, const sxml_fixpoint_question *question,
+    sxml_fixpoint_answer *answer);

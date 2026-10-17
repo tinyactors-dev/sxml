@@ -747,8 +747,13 @@ static const sxml_function_table_operations test_table_operations = {
     .find_function = find_test_function,
 };
 
+/* The JNode accessors fn:jkey and fn:jvalue (src/function_library_jnode.c,
+   packet 2.6, D115); the generated part registry declares the view. */
+extern const sxml_native_function_view sxml_function_library_jnode;
+
 static const sxml_native_function_view *const table_parts[] = {
     &sxml_function_library_higher_order,
+    &sxml_function_library_jnode,
     &sxml_function_library_map,
     &sxml_function_library_array,
     /* fn:abs, fn:round (round#2 for fn-partial-apply-01), fn:avg. */
@@ -1573,6 +1578,97 @@ static void test_every_allocation_failure_is_clean(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, failing_allocation_number > 20);
 }
 
+/* ---------------------------------------- JNodes, selectors (packet 2.6) */
+
+/* F&O 4.0, sections 16.1.2 and 16.1.3; XPath 4.0, sections 4.7.3 and
+   4.7.5.4 (the selector interpretation of non-navigational steps). */
+static void test_json_node_accessors_and_selectors(sxml_test_state *state) {
+    SXML_TEST_EXPECT(state, evaluates_to("jtree({\"a\":1, \"b\":2})/b/preceding-sibling::* "
+                                         "! jkey(), "
+                                         "jtree({\"a\":1, \"b\":2})/b/preceding-sibling::* "
+                                         "! jvalue(), count(jkey(jtree([1]))), jkey(())",
+                                         "a 1 0"));
+    SXML_TEST_EXPECT(state, evaluates_to("jtree([ \"a\", \"b\", \"c\", \"d\" ])/* =!> jkey()",
+                                         "1 2 3 4"));
+    SXML_TEST_EXPECT(state, evaluates_to("let $map := {\"x\":1, \"y\":2, \"z\":3} "
+                                         "return $map/(\"z\", \"x\") =!> jvalue()",
+                                         "1 3"));  /* JAxes-202 */
+    SXML_TEST_EXPECT(state, evaluates_to("[4, 5, 6]/2 =!> jvalue(), "
+                                         "count({ '1': 'a' }/1), count({ 1: 'a' }/'1')",
+                                         "5 0 0"));  /* JAxes-288 */
+    SXML_TEST_EXPECT(state, evaluates_to("let $m := {'A':(), 'B':1, 'C':(1, 2)} "
+                                         "return $m/C/1 =!> jvalue()",
+                                         "1"));
+    SXML_TEST_EXPECT(state, evaluates_to("{ #Q{u}a: 1, #Q{v}a: 2, #Q{u}b: 3 }/*:a "
+                                         "=!> jvalue()",
+                                         "1 2"));  /* JAxes-294 */
+    SXML_TEST_EXPECT(state, fails_with("{'a': 1}/count(.)", "XPDY0002"));
+    SXML_TEST_EXPECT(state, fails_with("[1]/jvalue()", "XPDY0002"));
+    SXML_TEST_EXPECT(state, evaluates_to("({ 'a': { 'b': 1 } }/a)?b, "
+                                         "({ 'a': [ 1, 2 ] }/a)?*, "
+                                         "({ 'a': [ 1 ] }/a, { 'b': [ 2 ] }/b)?1",
+                                         "1 1 2 1 2"));  /* PathExpr-J-490 */
+    SXML_TEST_EXPECT(state, fails_with("({ 'a': (1, 2) }/a)?*", "XPTY0004"));
+}
+
+/* XPath 4.0, section 4.4.1: a predicate of several numbers. */
+static void test_numeric_predicates(sxml_test_state *state) {
+    SXML_TEST_EXPECT(state, evaluates_to("(1 to 10)[(5, 2)], (1 to 10)[3 to 5], "
+                                         "(1 to 3)[-5 to 1], (1 to 3)[2.0, 7]",
+                                         "2 5 3 4 5 1 2"));
+    SXML_TEST_EXPECT(state, evaluates_to("(['a', 'b'], ['b', 'c'])[ *[1 to 2] = 'b'] "
+                                         "=> count()",
+                                         "2"));  /* PathExpr-J-007 */
+    SXML_TEST_EXPECT(state, fails_with("(1 to 3)[(1, 'a')]", "FORG0006"));
+}
+
+/* XPath 4.0, sections 3.2.9 and 3.2.10: maps and arrays as functions. */
+static void test_maps_and_arrays_match_function_types(sxml_test_state *state) {
+    SXML_TEST_EXPECT(state,
+                     evaluates_to("{3: 5} instance of function(xs:anyAtomicType) as xs:integer?, "
+                                  "{3: 5} instance of function(xs:anyAtomicType) as xs:integer, "
+                                  "{3: 'a'} instance of function(xs:integer) as xs:integer?, "
+                                  "[1, 2] instance of function(xs:integer) as xs:integer, "
+                                  "[1, 'a'] instance of function(xs:integer) as xs:integer, "
+                                  "[1] instance of function(xs:string) as item()*",
+                                  "true false false true false false"));
+}
+
+/* F&O 4.0, fn:fold-left and fn:fold-right: an accumulator the function
+   returns unchanged from then on ends the fold early (QT4 fold-left-022,
+   fold-right-023); a condition that can change does not. */
+static void test_folds_exit_at_a_fixpoint(sxml_test_state *state) {
+    SXML_TEST_EXPECT(state, evaluates_to("fold-left(1 to 100000000, 0, function($count, $item)"
+                                         "{if ($count gt 100) then $count else $count+1})",
+                                         "101"));
+    SXML_TEST_EXPECT(state, evaluates_to("fold-left(1 to 100000000, 0, function($sum, $item)"
+                                         "{if ($sum gt 1000) then $sum else $sum + $item})",
+                                         "1035"));
+    SXML_TEST_EXPECT(state, evaluates_to("fold-right(1 to 100000000, 0, function($item, $count)"
+                                         "{if ($count gt 100) then $count else $count+1})",
+                                         "101"));
+    SXML_TEST_EXPECT(state, evaluates_to("let $limit := 3 return "
+                                         "fold-left(1 to 100000000, 0, function($count, $item)"
+                                         "{if ($count >= $limit) then $count else $count + 1})",
+                                         "3"));
+    SXML_TEST_EXPECT(state, evaluates_to("fold-left(1 to 6, 0, function($sum, $item)"
+                                         "{if ($sum lt 5) then $sum + $item else $sum})",
+                                         "6"));
+    SXML_TEST_EXPECT(state, evaluates_to("fold-left(1 to 6, 0, function($sum, $item)"
+                                         "{if ($item lt 3) then $sum else $sum + $item})",
+                                         "18"));
+}
+
+/* F&O 4.0, fn:drop-while: the rest of an integer range stays a range
+   (QT4 drop-while-014). */
+static void test_drop_while_keeps_a_range(sxml_test_state *state) {
+    SXML_TEST_EXPECT(state, evaluates_to("drop-while(1 to 1000000000, function($x) "
+                                         "{ $x lt 3 })[1], "
+                                         "count(drop-while(1 to 10, function($x) { $x lt 4 })), "
+                                         "drop-while(-3 to -1, function($x) { $x lt -2 })",
+                                         "3 7 -2 -1"));
+}
+
 /* ------------------------------------------------------------------ Main */
 
 static const sxml_test_case higher_order_test_cases[] = {
@@ -1590,6 +1686,13 @@ static const sxml_test_case higher_order_test_cases[] = {
      .function = test_nested_native_steps_use_no_c_stack},
     {.name = "every_allocation_failure_is_clean",
      .function = test_every_allocation_failure_is_clean},
+    {.name = "json_node_accessors_and_selectors",
+     .function = test_json_node_accessors_and_selectors},
+    {.name = "numeric_predicates", .function = test_numeric_predicates},
+    {.name = "maps_and_arrays_match_function_types",
+     .function = test_maps_and_arrays_match_function_types},
+    {.name = "folds_exit_at_a_fixpoint", .function = test_folds_exit_at_a_fixpoint},
+    {.name = "drop_while_keeps_a_range", .function = test_drop_while_keeps_a_range},
 };
 
 int main(int argument_count, char **arguments) {

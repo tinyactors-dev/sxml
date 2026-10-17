@@ -719,6 +719,54 @@ static sxml_status traversal_finish(sxml_traversal_state *state,
     return finish_with(value, step);
 }
 
+/* fn:drop-while over an integer range: once the predicate is false, the
+   rest of the range from the current item is the result, kept as a range
+   (QT4 drop-while-014: head(drop-while(1 to 1000000000, ...))). */
+typedef struct drop_while_value {
+    sxml_traversal_state *state;
+    const sxml_function_call *call;
+    /* The predicate's value, owned: taken by the callee. */
+    sxml_sequence predicate_value;
+} drop_while_value;
+
+typedef struct drop_while_outcome {
+    bool is_done;
+    /* Owned when is_done. */
+    sxml_sequence rest;
+} drop_while_outcome;
+
+static sxml_status drop_while_take_range_value(drop_while_value taken,
+                                               drop_while_outcome *outcome) {
+    sxml_traversal_state *state = taken.state;
+    const sxml_function_call *call = taken.call;
+    sxml_effective_boolean_value truth = {.is_true = false};
+    sxml_status status = read_truth(taken.predicate_value, call->error_record, &truth);
+    sxml_sequence_release(taken.predicate_value);
+    release_call_arguments(state->call_arguments, 3);
+    if (status != SXML_STATUS_OK || truth.is_true) {
+        return status;
+    }
+    const sxml_sequence input = call_argument(call, 0);
+    sxml_item first = {.representation = 0};
+    uint64_t item_count = 0;
+    status = sxml_sequence_get_item(
+        input, (sxml_item_request){.item_index = 0, .error_record = call->error_record},
+        &first);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_sequence_count(input, call->error_record, &item_count);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_sequence_make_integer_range(
+            call->item_heap,
+            (sxml_integer_range){
+                .first_integer = state->current_item.payload.integer,
+                .last_integer = (int64_t)((uint64_t)first.payload.integer + (item_count - 1))},
+            &outcome->rest);
+    }
+    outcome->is_done = status == SXML_STATUS_OK;
+    return status;
+}
+
 sxml_status sxml_traversal_step(const sxml_native_step_request *request,
                                 sxml_native_step *step,
                                 sxml_traversal_operation operation) {
@@ -727,9 +775,23 @@ sxml_status sxml_traversal_step(const sxml_native_step_request *request,
     const traversal_shape shape = traversal_shapes[operation];
     const optional_function action =
         read_optional_function(call, shape.function_argument_index);
-    sxml_status status = request->step_number == 0
-                             ? traversal_start(state, call, operation)
-                             : traversal_take_value(state, call, request->call_result);
+    sxml_status status = SXML_STATUS_OK;
+    if (request->step_number == 0) {
+        status = traversal_start(state, call, operation);
+    } else if (operation == SXML_TRAVERSAL_OPERATION_DROP_WHILE &&
+               sxml_sequence_get_representation(call_argument(call, 0)) ==
+                   SXML_SEQUENCE_REPRESENTATION_INTEGER_RANGE) {
+        drop_while_outcome outcome = {.is_done = false, .rest = sxml_sequence_empty()};
+        status = drop_while_take_range_value(
+            (drop_while_value){
+                .state = state, .call = call, .predicate_value = request->call_result},
+            &outcome);
+        if (status == SXML_STATUS_OK && outcome.is_done) {
+            return finish_with(outcome.rest, step);
+        }
+    } else {
+        status = traversal_take_value(state, call, request->call_result);
+    }
     while (status == SXML_STATUS_OK) {
         if (state->is_finished) {
             return traversal_finish(state, call, step);
@@ -891,6 +953,25 @@ sxml_status sxml_fold_step(const sxml_native_step_request *request,
             state->accumulator = sxml_sequence_empty();
         }
         return status == SXML_STATUS_OK ? finish_with(result, step) : status;
+    }
+    if (operation != SXML_FOLD_OPERATION_SCAN && call->dynamic_context != NULL) {
+        /* An early exit: every later call would return the accumulator. */
+        sxml_fixpoint_answer answer = {.is_fixpoint = false};
+        status = sxml_evaluator_test_fixpoint(
+            call->dynamic_context,
+            &(sxml_fixpoint_question){.function_item = call_argument(call, 2).content,
+                                      .accumulator = state->accumulator,
+                                      .accumulator_index =
+                                          fold_is_from_the_right(operation) ? 1 : 0},
+            &answer);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        if (answer.is_fixpoint) {
+            const sxml_sequence result = state->accumulator;
+            state->accumulator = sxml_sequence_empty();
+            return finish_with(result, step);
+        }
     }
     state->position += 1;
     sxml_sequence_retain(value);

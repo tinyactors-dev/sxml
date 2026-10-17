@@ -21,6 +21,7 @@
  */
 #include "cast_internal.h"
 #include "evaluator_internal.h"
+#include "operator_internal.h"
 #include "xdm_internal.h"
 
 #include <stdalign.h>
@@ -649,6 +650,75 @@ static sxml_status sxml_map_keys_are_fields(const sxml_type_matcher *matcher,
 }
 
 /* Decides an ITEM frame, or turns it into the frame its type needs. */
+/* A map or array item and a function type it did not match by its type
+   annotation. */
+typedef struct sxml_collection_function_question {
+    const sxml_type_matcher *matcher;
+    const sxml_function_type *function_type;
+    /* The ITEM frame of the item; becomes the goal of its entries. */
+    sxml_type_match_frame *frame;
+} sxml_collection_function_question;
+
+/*
+ * XPath 4.0, section 3.2.9: a map that matches map(K, V) matches
+ * function(xs:anyAtomicType) as R when V is a subtype of R and R allows
+ * the empty sequence; section 3.2.10: an array that matches array(V)
+ * matches function(xs:integer) as V. With contravariant parameters
+ * (section 3.3.2.6), the parameter type may be any single atomic type
+ * (maps) or integer type (arrays). The values then become the goal:
+ * every entry value, or member, must match R.
+ */
+static sxml_status sxml_collection_matches_function_type(
+    sxml_collection_function_question question, sxml_type_match_outcome *outcome) {
+    const sxml_function_type *function_type = question.function_type;
+    sxml_type_match_frame *frame = question.frame;
+    const sxml_item item = frame->item;
+    const sxml_item_kind kind = sxml_item_get_kind(item);
+    *outcome = SXML_TYPE_MATCH_OUTCOME_FAILS;
+    if ((kind != SXML_ITEM_KIND_MAP && kind != SXML_ITEM_KIND_ARRAY) ||
+        function_type->parameter_types.sequence_type_count != 1) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_sequence_type parameter_type =
+        function_type->parameter_types.sequence_types[0];
+    const sxml_sequence_type result_type = function_type->result_type;
+    const sxml_type_identifier key_type = sxml_builtin_type_identifier(
+        kind == SXML_ITEM_KIND_MAP ? SXML_TYPE_XS_ANY_ATOMIC_TYPE : SXML_TYPE_XS_INTEGER);
+    if (parameter_type.occurrence != SXML_OCCURRENCE_EXACTLY_ONE ||
+        !sxml_type_registry_is_subtype(
+            question.matcher->registry,
+            (sxml_type_pair){.derived_type = parameter_type.item_type,
+                             .base_type = key_type})) {
+        return SXML_STATUS_OK;
+    }
+    if (kind == SXML_ITEM_KIND_MAP) {
+        if (((uint32_t)result_type.occurrence & (uint32_t)SXML_OCCURRENCE_ZERO) == 0) {
+            return SXML_STATUS_OK;
+        }
+        size_t entry_count = 0;
+        const sxml_status status = sxml_map_get_size(item, &entry_count);
+        if (status == SXML_STATUS_OK) {
+            frame->frame_kind = SXML_TYPE_MATCH_FRAME_KIND_MAP_ENTRIES;
+            frame->item_type = key_type;
+            frame->sequence_type = result_type;
+            frame->next_index = 0;
+            frame->part_count = entry_count;
+            *outcome = SXML_TYPE_MATCH_OUTCOME_CONTINUES;
+        }
+        return status;
+    }
+    size_t member_count = 0;
+    const sxml_status status = sxml_array_get_size(item, &member_count);
+    if (status == SXML_STATUS_OK) {
+        frame->frame_kind = SXML_TYPE_MATCH_FRAME_KIND_ARRAY_MEMBERS;
+        frame->sequence_type = result_type;
+        frame->next_index = 0;
+        frame->part_count = member_count;
+        *outcome = SXML_TYPE_MATCH_OUTCOME_CONTINUES;
+    }
+    return status;
+}
+
 static sxml_status sxml_type_matcher_advance_item(sxml_type_matcher *matcher,
                                                   sxml_type_match_frame *frame,
                                                   sxml_type_match_outcome *outcome) {
@@ -762,7 +832,8 @@ static sxml_status sxml_type_matcher_advance_item(sxml_type_matcher *matcher,
     }
     case SXML_TYPE_VARIETY_FUNCTION:
         /* A function item matches by its signature (section 3.2.8.1); a map
-           or array by its type annotation as a function. */
+           or array by its type annotation as a function, or by its
+           entries (sections 3.2.9 and 3.2.10). */
         is_match = sxml_item_is_function_item(item) &&
                    (description.variety_details.function_type.is_any_function ||
                     sxml_type_registry_is_subtype(
@@ -770,6 +841,14 @@ static sxml_status sxml_type_matcher_advance_item(sxml_type_matcher *matcher,
                         (sxml_type_pair){
                             .derived_type = sxml_item_get_type_annotation(item),
                             .base_type = type}));
+        if (!is_match) {
+            return sxml_collection_matches_function_type(
+                (sxml_collection_function_question){
+                    .matcher = matcher,
+                    .function_type = &description.variety_details.function_type,
+                    .frame = frame},
+                outcome);
+        }
         break;
     case SXML_TYPE_VARIETY_MAP: {
         if (sxml_item_get_kind(item) != SXML_ITEM_KIND_MAP) {
@@ -2690,3 +2769,291 @@ const sxml_function_body_operations sxml_evaluator_constructor_body_operations =
     .retain = NULL,
     .release = NULL,
 };
+
+/* ----------------------------------------------------- Fold fixpoints */
+
+/* True for item()*, the type whose coercion changes nothing. */
+static bool sxml_is_any_sequence_type(sxml_sequence_type sequence_type) {
+    return sequence_type.item_type.index == SXML_TYPE_ITEM &&
+           sequence_type.occurrence == SXML_OCCURRENCE_ZERO_OR_MORE;
+}
+
+/* The comparison a BINARY operator makes, and whether it is general. */
+typedef struct sxml_fixpoint_comparison {
+    bool is_comparison;
+    bool is_general;
+    sxml_comparison_operator comparison_operator;
+} sxml_fixpoint_comparison;
+
+static sxml_fixpoint_comparison sxml_fixpoint_comparison_of(sxml_ir_binary_operator binary_operator) {
+    sxml_fixpoint_comparison comparison = {.is_comparison = true,
+                                           .is_general = false,
+                                           .comparison_operator = SXML_COMPARISON_OPERATOR_EQUAL};
+    switch (binary_operator) {
+    case SXML_IR_BINARY_OPERATOR_GENERAL_EQUAL:
+        comparison.is_general = true;
+        break;
+    case SXML_IR_BINARY_OPERATOR_VALUE_EQUAL:
+        break;
+    case SXML_IR_BINARY_OPERATOR_GENERAL_NOT_EQUAL:
+        comparison.is_general = true;
+        comparison.comparison_operator = SXML_COMPARISON_OPERATOR_NOT_EQUAL;
+        break;
+    case SXML_IR_BINARY_OPERATOR_VALUE_NOT_EQUAL:
+        comparison.comparison_operator = SXML_COMPARISON_OPERATOR_NOT_EQUAL;
+        break;
+    case SXML_IR_BINARY_OPERATOR_GENERAL_LESS:
+        comparison.is_general = true;
+        comparison.comparison_operator = SXML_COMPARISON_OPERATOR_LESS;
+        break;
+    case SXML_IR_BINARY_OPERATOR_VALUE_LESS:
+        comparison.comparison_operator = SXML_COMPARISON_OPERATOR_LESS;
+        break;
+    case SXML_IR_BINARY_OPERATOR_GENERAL_LESS_OR_EQUAL:
+        comparison.is_general = true;
+        comparison.comparison_operator = SXML_COMPARISON_OPERATOR_LESS_OR_EQUAL;
+        break;
+    case SXML_IR_BINARY_OPERATOR_VALUE_LESS_OR_EQUAL:
+        comparison.comparison_operator = SXML_COMPARISON_OPERATOR_LESS_OR_EQUAL;
+        break;
+    case SXML_IR_BINARY_OPERATOR_GENERAL_GREATER:
+        comparison.is_general = true;
+        comparison.comparison_operator = SXML_COMPARISON_OPERATOR_GREATER;
+        break;
+    case SXML_IR_BINARY_OPERATOR_VALUE_GREATER:
+        comparison.comparison_operator = SXML_COMPARISON_OPERATOR_GREATER;
+        break;
+    case SXML_IR_BINARY_OPERATOR_GENERAL_GREATER_OR_EQUAL:
+        comparison.is_general = true;
+        comparison.comparison_operator = SXML_COMPARISON_OPERATOR_GREATER_OR_EQUAL;
+        break;
+    case SXML_IR_BINARY_OPERATOR_VALUE_GREATER_OR_EQUAL:
+        comparison.comparison_operator = SXML_COMPARISON_OPERATOR_GREATER_OR_EQUAL;
+        break;
+    case SXML_IR_BINARY_OPERATOR_ADD:
+    case SXML_IR_BINARY_OPERATOR_SUBTRACT:
+    case SXML_IR_BINARY_OPERATOR_MULTIPLY:
+    case SXML_IR_BINARY_OPERATOR_DIVIDE:
+    case SXML_IR_BINARY_OPERATOR_INTEGER_DIVIDE:
+    case SXML_IR_BINARY_OPERATOR_MODULO:
+    case SXML_IR_BINARY_OPERATOR_IS:
+    case SXML_IR_BINARY_OPERATOR_IS_NOT:
+    case SXML_IR_BINARY_OPERATOR_PRECEDES:
+    case SXML_IR_BINARY_OPERATOR_FOLLOWS:
+    case SXML_IR_BINARY_OPERATOR_PRECEDES_OR_IS:
+    case SXML_IR_BINARY_OPERATOR_FOLLOWS_OR_IS:
+    case SXML_IR_BINARY_OPERATOR_RANGE:
+    case SXML_IR_BINARY_OPERATOR_UNION:
+    case SXML_IR_BINARY_OPERATOR_INTERSECT:
+    case SXML_IR_BINARY_OPERATOR_EXCEPT:
+    case SXML_IR_BINARY_OPERATOR_CONCATENATE:
+        comparison.is_comparison = false;
+        break;
+    }
+    return comparison;
+}
+
+/* The IR function behind a fold's function item, through coerced
+   functions whose accumulator parameter and result are item()* (their
+   coercions change nothing there); NULL for any other body. */
+typedef struct sxml_fixpoint_target {
+    sxml_item function_item;
+    size_t accumulator_index;
+} sxml_fixpoint_target;
+
+static const sxml_ir_function *sxml_fixpoint_function(sxml_dynamic_context *dynamic_context,
+                                                      sxml_fixpoint_target target,
+                                                      sxml_function_item_description *description) {
+    sxml_item function_item = target.function_item;
+    const sxml_type_registry *registry =
+        sxml_item_heap_get_type_registry(dynamic_context->item_heap);
+    for (;;) {
+        if (sxml_item_get_kind(function_item) != SXML_ITEM_KIND_FUNCTION ||
+            sxml_function_item_describe(function_item, description) != SXML_STATUS_OK) {
+            return NULL;
+        }
+        if (description->body.operations == &sxml_evaluator_function_body_operations) {
+            return description->body.state;
+        }
+        if (description->body.operations != &sxml_evaluator_coerced_function_body_operations ||
+            description->captured_values.sequence_count != 1) {
+            return NULL;
+        }
+        sxml_type_description type_description;
+        if (sxml_type_registry_describe_type(registry, description->signature,
+                                             &type_description) != SXML_STATUS_OK ||
+            type_description.variety != SXML_TYPE_VARIETY_FUNCTION) {
+            return NULL;
+        }
+        const sxml_function_type *function_type =
+            &type_description.variety_details.function_type;
+        if (!function_type->is_any_function) {
+            if (!sxml_is_any_sequence_type(function_type->result_type)) {
+                return NULL;
+            }
+            if (target.accumulator_index < function_type->parameter_types.sequence_type_count &&
+                !sxml_is_any_sequence_type(function_type->parameter_types
+                                               .sequence_types[target.accumulator_index])) {
+                return NULL;
+            }
+        }
+        function_item = description->captured_values.sequences[0].content;
+    }
+}
+
+/* The value of an operand atom of C: a constant, the accumulator or a
+   captured variable; false for anything else. */
+typedef struct sxml_fixpoint_operand {
+    const sxml_ir_function *function;
+    const sxml_function_item_description *description;
+    sxml_ir_slot accumulator_slot;
+    sxml_sequence accumulator;
+} sxml_fixpoint_operand;
+
+static bool sxml_fixpoint_read_operand(const sxml_fixpoint_operand *operand, sxml_ir_atom atom,
+                                       sxml_sequence *value) {
+    if (atom.atom_kind == SXML_IR_ATOM_KIND_CONSTANT) {
+        *value = sxml_ir_unit_get_constant(operand->function->unit, atom.constant);
+        return true;
+    }
+    if (atom.atom_kind != SXML_IR_ATOM_KIND_SLOT) {
+        return false;
+    }
+    if (atom.slot.value == operand->accumulator_slot.value) {
+        *value = operand->accumulator;
+        return true;
+    }
+    const uint32_t parameter_count = operand->function->parameter_count;
+    if (atom.slot.value <= parameter_count ||
+        atom.slot.value - parameter_count > operand->description->captured_values.sequence_count) {
+        return false;
+    }
+    *value = operand->description->captured_values.sequences[atom.slot.value - parameter_count - 1];
+    return true;
+}
+
+/* True when every item of value is numeric (no implicit timezone, no
+   collation needed to compare it). */
+static bool sxml_fixpoint_is_numeric(sxml_sequence value) {
+    sxml_sequence_iterator iterator = sxml_sequence_iterator_start(value);
+    for (;;) {
+        sxml_iteration_step step;
+        if (sxml_sequence_iterator_next(&iterator, NULL, &step) != SXML_STATUS_OK) {
+            return false;
+        }
+        if (!step.has_item) {
+            return true;
+        }
+        if (!sxml_atomic_item_is_numeric(step.item)) {
+            return false;
+        }
+    }
+}
+
+/*
+ * F&O 4.0, fn:fold-left and fn:fold-right: the function is applied to
+ * every item. When the body is "if (C($acc)) then $acc else E" and C,
+ * which reads neither the other parameter nor the focus nor anything
+ * nondeterministic, holds for the accumulator A, every later call returns
+ * A, so the fold's result is A (the "early exit" of QT4 fold-left-022).
+ */
+sxml_status sxml_evaluator_test_fixpoint(sxml_dynamic_context *dynamic_context,
+                                         const sxml_fixpoint_question *question,
+                                         sxml_fixpoint_answer *answer) {
+    answer->is_fixpoint = false;
+    sxml_function_item_description description;
+    const sxml_ir_function *function =
+        sxml_fixpoint_function(dynamic_context,
+                               (sxml_fixpoint_target){.function_item = question->function_item,
+                                                      .accumulator_index =
+                                                          question->accumulator_index},
+                               &description);
+    if (function == NULL || function->parameter_count != 2 ||
+        question->accumulator_index > 1) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_type_registry *registry =
+        sxml_item_heap_get_type_registry(dynamic_context->item_heap);
+    sxml_type_description signature;
+    if (sxml_type_registry_describe_type(registry, function->signature, &signature) !=
+            SXML_STATUS_OK ||
+        signature.variety != SXML_TYPE_VARIETY_FUNCTION ||
+        signature.variety_details.function_type.parameter_types.sequence_type_count != 2 ||
+        !sxml_is_any_sequence_type(signature.variety_details.function_type.parameter_types
+                                       .sequence_types[question->accumulator_index])) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_ir_unit *unit = function->unit;
+    const sxml_ir_expression *body = sxml_ir_unit_get_expression(unit, function->body);
+    if (body->expression_kind != SXML_IR_EXPRESSION_KIND_LET) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_ir_expression *condition =
+        sxml_ir_unit_get_expression(unit, body->let.bound_expression);
+    const sxml_ir_expression *choice = sxml_ir_unit_get_expression(unit, body->let.body);
+    const sxml_ir_slot accumulator_slot = {.value = (uint32_t)question->accumulator_index + 1};
+    if (condition->expression_kind != SXML_IR_EXPRESSION_KIND_BINARY ||
+        choice->expression_kind != SXML_IR_EXPRESSION_KIND_CONDITIONAL ||
+        choice->conditional.condition.atom_kind != SXML_IR_ATOM_KIND_SLOT ||
+        choice->conditional.condition.slot.value != body->let.variable.value) {
+        return SXML_STATUS_OK;
+    }
+    /* Which branch returns the accumulator as it is. */
+    const sxml_ir_expression *branches[2] = {
+        sxml_ir_unit_get_expression(unit, choice->conditional.then_branch),
+        sxml_ir_unit_get_expression(unit, choice->conditional.else_branch)};
+    int returning_branch = -1;
+    for (int branch_index = 0; branch_index < 2; branch_index += 1) {
+        const sxml_ir_expression *branch = branches[branch_index];
+        if (branch->expression_kind == SXML_IR_EXPRESSION_KIND_ATOM &&
+            branch->atom.atom_kind == SXML_IR_ATOM_KIND_SLOT &&
+            branch->atom.slot.value == accumulator_slot.value) {
+            returning_branch = branch_index;
+        }
+    }
+    const sxml_fixpoint_comparison comparison =
+        sxml_fixpoint_comparison_of(condition->binary.operator);
+    const sxml_fixpoint_operand operand = {.function = function,
+                                           .description = &description,
+                                           .accumulator_slot = accumulator_slot,
+                                           .accumulator = question->accumulator};
+    sxml_sequence operands[2] = {sxml_sequence_empty(), sxml_sequence_empty()};
+    if (returning_branch < 0 || !comparison.is_comparison ||
+        !sxml_fixpoint_read_operand(&operand, condition->binary.left_operand, &operands[0]) ||
+        !sxml_fixpoint_read_operand(&operand, condition->binary.right_operand, &operands[1]) ||
+        !sxml_fixpoint_is_numeric(operands[0]) || !sxml_fixpoint_is_numeric(operands[1])) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_comparison_request request = {
+        .comparison_operator = comparison.comparison_operator,
+        .left_operand = operands[0],
+        .right_operand = operands[1],
+        .implicit_timezone_offset_minutes = 0,
+        .namespace_bindings = {.namespace_bindings = NULL, .namespace_binding_count = 0},
+        .error_record = NULL};
+    sxml_sequence value = sxml_sequence_empty();
+    sxml_status status = SXML_STATUS_OK;
+    if (comparison.is_general) {
+        sxml_item item = {.representation = 0};
+        status = sxml_operator_make_general_comparison(dynamic_context->item_heap, &request,
+                                                       &item);
+        value = sxml_sequence_from_item(item);
+    } else {
+        status = sxml_operator_make_value_comparison(dynamic_context->item_heap, &request,
+                                                     &value);
+    }
+    if (status == SXML_STATUS_OUT_OF_MEMORY) {
+        return status;
+    }
+    if (status != SXML_STATUS_OK) {
+        /* The call itself raises the error. */
+        return SXML_STATUS_OK;
+    }
+    sxml_effective_boolean_value truth = {.is_true = false};
+    status = sxml_evaluator_compute_effective_boolean_value(value, NULL, &truth);
+    sxml_sequence_release(value);
+    if (status == SXML_STATUS_OK) {
+        answer->is_fixpoint = truth.is_true == (returning_branch == 0);
+    }
+    return SXML_STATUS_OK;
+}

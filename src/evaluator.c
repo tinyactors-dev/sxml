@@ -1908,10 +1908,35 @@ static sxml_status sxml_make_lookup_value(sxml_dynamic_context *context,
         if (status != SXML_STATUS_OK || !step.has_item) {
             break;
         }
-        status = sxml_lookup_in_item(
-            context,
-            (sxml_lookup_target){.item = step.item, .keys = is_wildcard ? NULL : &keys},
-            builder);
+        if (sxml_item_get_kind(step.item) != SXML_ITEM_KIND_JSON_NODE) {
+            status = sxml_lookup_in_item(
+                context,
+                (sxml_lookup_target){.item = step.item, .keys = is_wildcard ? NULL : &keys},
+                builder);
+            continue;
+        }
+        /* A JNode is coerced to its ·jvalue·, whose items must be maps or
+           arrays (XPath 4.0, section 4.15.3; F&O 4.0, fn:jvalue, notes). */
+        sxml_json_node_description description;
+        status = sxml_json_node_describe(step.item, &description);
+        if (status != SXML_STATUS_OK) {
+            break;
+        }
+        sxml_sequence_iterator value_iterator =
+            sxml_sequence_iterator_start(description.json_value);
+        while (status == SXML_STATUS_OK) {
+            sxml_iteration_step value_step;
+            status = sxml_sequence_iterator_next(&value_iterator, context->error_record,
+                                                 &value_step);
+            if (status != SXML_STATUS_OK || !value_step.has_item) {
+                break;
+            }
+            status = sxml_lookup_in_item(
+                context,
+                (sxml_lookup_target){.item = value_step.item,
+                                     .keys = is_wildcard ? NULL : &keys},
+                builder);
+        }
     }
     if (status == SXML_STATUS_OK) {
         status = sxml_sequence_builder_finish(builder, result);
@@ -2266,6 +2291,257 @@ static sxml_status sxml_loop_finish(sxml_dynamic_context *context) {
     return sxml_machine_finish(context, value);
 }
 
+/* ---------------------------------------------- Selectors over JNodes */
+
+/*
+ * XPath 4.0 (editor's draft), section 4.7.3: in E1/E2, when the item N
+ * that supplies the focus is a JNode and E2 is not a navigational
+ * expression, the selector interpretation applies: E2 is the dynamic node
+ * test {E2} on the child axis (section 4.7.5.4), evaluated with an absent
+ * focus (XPDY0002 when it depends on the focus), and the result is the
+ * children of N whose ·jkey· is atomic-equal to an item of E2's atomized
+ * value. Otherwise E2 is evaluated with N as the focus.
+ *
+ * Whether E2 is navigational is decided from the IR of the path MAP's
+ * body (lowering keeps E2's shape): the context value ".", an axis step
+ * (STEP), a path (a MAP that requires nodes, DOCUMENT_ORDER), the root of
+ * an absolute path (fn:root, TREAT), a filter of a navigational input,
+ * and union, intersect, except, sequences, conditionals and lets whose
+ * results are all navigational. A body too large for the fixed tables
+ * below counts as navigational (the Phase 1 behaviour).
+ */
+
+/* Bits of the task phase of a path's MAP beyond bit 0, which
+   sxml_loop_start sets. */
+enum {
+    /* The body now running is a selector for loop->current_item. */
+    SXML_MAP_PHASE_SELECTING = 1U << 1U,
+    /* The body was analysed; NAVIGATIONAL holds the outcome. */
+    SXML_MAP_PHASE_ANALYSED = 1U << 2U,
+    SXML_MAP_PHASE_NAVIGATIONAL = 1U << 3U,
+};
+
+/* How many lets and pending expressions the analysis follows. */
+#define SXML_NAVIGATION_TABLE_SIZE 48
+
+typedef struct sxml_navigation_binding {
+    sxml_ir_slot slot;
+    sxml_ir_expression_index expression;
+} sxml_navigation_binding;
+
+typedef struct sxml_navigation_analysis {
+    const sxml_ir_unit *unit;
+    sxml_ir_slot focus_slot;
+    sxml_navigation_binding bindings[SXML_NAVIGATION_TABLE_SIZE];
+    size_t binding_count;
+    sxml_ir_expression_index pending[SXML_NAVIGATION_TABLE_SIZE];
+    size_t pending_count;
+    /* False once a result is found that is not navigational. */
+    bool is_navigational;
+    /* True when a table overflowed. */
+    bool is_overflowed;
+} sxml_navigation_analysis;
+
+static void sxml_navigation_push(sxml_navigation_analysis *analysis,
+                                 sxml_ir_expression_index expression) {
+    if (analysis->pending_count == SXML_NAVIGATION_TABLE_SIZE) {
+        analysis->is_overflowed = true;
+        return;
+    }
+    analysis->pending[analysis->pending_count] = expression;
+    analysis->pending_count += 1;
+}
+
+/* An atom in a result position: "." is navigational, a slot bound by a
+   let of the body is what it is bound to, anything else is not. */
+static void sxml_navigation_follow_atom(sxml_navigation_analysis *analysis,
+                                        sxml_ir_atom atom) {
+    if (atom.atom_kind == SXML_IR_ATOM_KIND_SLOT) {
+        if (analysis->focus_slot.value != 0 &&
+            atom.slot.value == analysis->focus_slot.value) {
+            return;
+        }
+        for (size_t binding_index = 0; binding_index < analysis->binding_count;
+             binding_index += 1) {
+            if (analysis->bindings[binding_index].slot.value == atom.slot.value) {
+                sxml_navigation_push(analysis,
+                                     analysis->bindings[binding_index].expression);
+                return;
+            }
+        }
+    }
+    analysis->is_navigational = false;
+}
+
+static void sxml_navigation_step(sxml_navigation_analysis *analysis,
+                                 const sxml_ir_expression *expression) {
+    const sxml_ir_expression_kind kind = expression->expression_kind;
+    if (kind == SXML_IR_EXPRESSION_KIND_STEP ||
+        kind == SXML_IR_EXPRESSION_KIND_DOCUMENT_ORDER) {
+        return;
+    }
+    if (kind == SXML_IR_EXPRESSION_KIND_MAP) {
+        if ((expression->map.flags & SXML_IR_MAP_REQUIRES_NODES) == 0) {
+            analysis->is_navigational = false;
+        }
+        return;
+    }
+    if (kind == SXML_IR_EXPRESSION_KIND_STATIC_CALL) {
+        /* fn:root of an absolute path "/" (section 4.7.1). */
+        const sxml_ir_function_target target = expression->static_call.target;
+        if (target.target_kind != SXML_IR_FUNCTION_TARGET_KIND_NATIVE ||
+            !sxml_byte_view_equals(target.native_function->local_name,
+                                   SXML_BYTE_VIEW_FROM_LITERAL("root"))) {
+            analysis->is_navigational = false;
+        }
+        return;
+    }
+    if (kind == SXML_IR_EXPRESSION_KIND_ATOM) {
+        sxml_navigation_follow_atom(analysis, expression->atom);
+        return;
+    }
+    if (kind == SXML_IR_EXPRESSION_KIND_LET) {
+        if (analysis->binding_count == SXML_NAVIGATION_TABLE_SIZE) {
+            analysis->is_overflowed = true;
+            return;
+        }
+        analysis->bindings[analysis->binding_count] = (sxml_navigation_binding){
+            .slot = expression->let.variable,
+            .expression = expression->let.bound_expression};
+        analysis->binding_count += 1;
+        sxml_navigation_push(analysis, expression->let.body);
+        return;
+    }
+    if (kind == SXML_IR_EXPRESSION_KIND_CONDITIONAL) {
+        sxml_navigation_push(analysis, expression->conditional.then_branch);
+        sxml_navigation_push(analysis, expression->conditional.else_branch);
+        return;
+    }
+    if (kind == SXML_IR_EXPRESSION_KIND_FILTER) {
+        sxml_navigation_follow_atom(analysis, expression->filter.input);
+        return;
+    }
+    if (kind == SXML_IR_EXPRESSION_KIND_TREAT) {
+        sxml_navigation_follow_atom(analysis, expression->type_test.value);
+        return;
+    }
+    if (kind == SXML_IR_EXPRESSION_KIND_BINARY &&
+        (expression->binary.operator == SXML_IR_BINARY_OPERATOR_UNION ||
+         expression->binary.operator == SXML_IR_BINARY_OPERATOR_INTERSECT ||
+         expression->binary.operator == SXML_IR_BINARY_OPERATOR_EXCEPT)) {
+        sxml_navigation_follow_atom(analysis, expression->binary.left_operand);
+        sxml_navigation_follow_atom(analysis, expression->binary.right_operand);
+        return;
+    }
+    if (kind == SXML_IR_EXPRESSION_KIND_SEQUENCE) {
+        const sxml_ir_atom_view parts =
+            sxml_ir_unit_get_atoms(analysis->unit, expression->sequence);
+        for (size_t part_index = 0; part_index < parts.atom_count; part_index += 1) {
+            sxml_navigation_follow_atom(analysis, parts.atoms[part_index]);
+        }
+        return;
+    }
+    analysis->is_navigational = false;
+}
+
+/* Whether the body of the path MAP map, of the top task's function, is a
+   navigational expression. */
+static bool sxml_path_body_is_navigational(const sxml_ir_unit *unit,
+                                           const sxml_ir_map *map) {
+    sxml_navigation_analysis analysis = {.unit = unit,
+                                         .focus_slot = map->focus.context_value,
+                                         .binding_count = 0,
+                                         .pending_count = 0,
+                                         .is_navigational = true,
+                                         .is_overflowed = false};
+    sxml_navigation_push(&analysis, map->body);
+    while (analysis.pending_count > 0 && analysis.is_navigational &&
+           !analysis.is_overflowed) {
+        analysis.pending_count -= 1;
+        sxml_navigation_step(&analysis, sxml_ir_unit_get_expression(
+                                            unit, analysis.pending[analysis.pending_count]));
+    }
+    return analysis.is_navigational || analysis.is_overflowed;
+}
+
+static const sxml_static_error sxml_selector_focus_error = {
+    .error_status = SXML_STATUS_DYNAMIC_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XPDY0002"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "A step that selects from a JNode is evaluated with an absent focus, "
+        "and this one depends on the focus (XPath 4.0, sections 4.7.3 and "
+        "4.7.5.4)"),
+};
+
+/* The children of json_node whose ·jkey· is atomic-equal to an item of
+   selector (owned; atomized here), in document order (section 4.7.5.4). */
+typedef struct sxml_json_selection {
+    sxml_item json_node;
+    sxml_sequence selector;
+} sxml_json_selection;
+
+static sxml_status sxml_select_json_children(sxml_dynamic_context *context,
+                                             sxml_json_selection selection,
+                                             sxml_sequence *result) {
+    sxml_sequence keys = sxml_sequence_empty();
+    sxml_status status = sxml_machine_atomize(context, selection.selector, &keys);
+    sxml_sequence_release(selection.selector);
+    uint64_t key_count = 0;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_sequence_count(keys, context->error_record, &key_count);
+    }
+    sxml_json_node_description description;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_json_node_describe(selection.json_node, &description);
+    }
+    sxml_sequence_builder *builder = NULL;
+    if (status == SXML_STATUS_OK && key_count > 0 && description.child_count > 0) {
+        status = sxml_sequence_builder_create(
+            context->allocator,
+            &(sxml_sequence_builder_configuration){.item_heap = context->item_heap},
+            &builder);
+    }
+    for (uint64_t child_index = 0;
+         status == SXML_STATUS_OK && builder != NULL && child_index < description.child_count;
+         child_index += 1) {
+        sxml_item child = {.representation = 0};
+        status = sxml_json_node_make_child(
+            context->item_heap,
+            (sxml_json_child_request){.json_node = selection.json_node,
+                                      .child_index = child_index},
+            &child);
+        sxml_json_node_description child_description;
+        if (status == SXML_STATUS_OK) {
+            status = sxml_json_node_describe(child, &child_description);
+        }
+        bool is_selected = false;
+        sxml_sequence_iterator iterator = sxml_sequence_iterator_start(keys);
+        while (status == SXML_STATUS_OK && !is_selected) {
+            sxml_iteration_step key_step;
+            status = sxml_sequence_iterator_next(&iterator, context->error_record, &key_step);
+            if (status != SXML_STATUS_OK || !key_step.has_item) {
+                break;
+            }
+            is_selected = sxml_atomic_item_is_atomic_equal(key_step.item,
+                                                           child_description.json_key);
+        }
+        if (status == SXML_STATUS_OK && is_selected) {
+            status = sxml_sequence_builder_append_item(builder, child);
+        }
+        sxml_item_release(child);
+    }
+    sxml_sequence value = sxml_sequence_empty();
+    if (status == SXML_STATUS_OK && builder != NULL) {
+        status = sxml_sequence_builder_finish(builder, &value);
+    }
+    sxml_sequence_builder_destroy(builder);
+    sxml_sequence_release(keys);
+    if (status == SXML_STATUS_OK) {
+        *result = value;
+    }
+    return status;
+}
+
 /* Whether a loop has run out of items. */
 typedef struct sxml_loop_progress {
     bool is_done;
@@ -2276,8 +2552,10 @@ typedef struct sxml_loop_progress {
 typedef struct sxml_loop_advance {
     sxml_ir_focus focus;
     sxml_ir_expression_index body;
-    /* A path's MAP: every item must be a node (XPTY0019). */
-    bool requires_nodes;
+    /* A path's MAP: every item must be a node (XPTY0019), and a JNode
+       may select by the value of body (see "Selectors over JNodes");
+       NULL for other loops. */
+    const sxml_ir_map *path_map;
 } sxml_loop_advance;
 
 static sxml_status sxml_loop_advance_focus(sxml_dynamic_context *context,
@@ -2295,9 +2573,30 @@ static sxml_status sxml_loop_advance_focus(sxml_dynamic_context *context,
     if (progress->is_done) {
         return SXML_STATUS_OK;
     }
-    if (advance.requires_nodes && !sxml_item_is_generic_node(step.item)) {
+    const sxml_ir_map *path_map = advance.path_map;
+    if (path_map != NULL && !sxml_item_is_generic_node(step.item)) {
         return sxml_error_record_report(context->error_record,
                                         &sxml_path_operand_error);
+    }
+    if (path_map != NULL &&
+        sxml_item_get_kind(step.item) == SXML_ITEM_KIND_JSON_NODE) {
+        if ((task->phase & SXML_MAP_PHASE_ANALYSED) == 0) {
+            task->phase |= SXML_MAP_PHASE_ANALYSED;
+            if (sxml_path_body_is_navigational(task->function->unit, path_map)) {
+                task->phase |= SXML_MAP_PHASE_NAVIGATIONAL;
+            }
+        }
+        if ((task->phase & SXML_MAP_PHASE_NAVIGATIONAL) == 0) {
+            /* The selector interpretation (section 4.7.3): the body must
+               not depend on the focus. */
+            if (advance.focus.context_value.value != 0 ||
+                advance.focus.context_position.value != 0 ||
+                advance.focus.context_size.value != 0) {
+                return sxml_error_record_report(context->error_record,
+                                                &sxml_selector_focus_error);
+            }
+            task->phase |= SXML_MAP_PHASE_SELECTING;
+        }
     }
     loop->position += 1;
     loop->current_item = step.item;
@@ -2418,8 +2717,21 @@ static sxml_status sxml_machine_step_map(sxml_dynamic_context *context,
             return sxml_machine_push(context, &body);
         }
     } else {
-        status = sxml_loop_append(context, &task->details.loop,
-                                  sxml_machine_take_value(context));
+        sxml_sequence value = sxml_machine_take_value(context);
+        if ((task->phase & SXML_MAP_PHASE_SELECTING) != 0) {
+            task->phase &= ~(uint32_t)SXML_MAP_PHASE_SELECTING;
+            sxml_sequence selected = sxml_sequence_empty();
+            status = sxml_select_json_children(
+                context,
+                (sxml_json_selection){.json_node = task->details.loop.current_item,
+                                      .selector = value},
+                &selected);
+            if (status != SXML_STATUS_OK) {
+                return status;
+            }
+            value = selected;
+        }
+        status = sxml_loop_append(context, &task->details.loop, value);
         if (status != SXML_STATUS_OK) {
             return status;
         }
@@ -2429,7 +2741,9 @@ static sxml_status sxml_machine_step_map(sxml_dynamic_context *context,
         context,
         (sxml_loop_advance){.focus = map->focus,
                             .body = map->body,
-                            .requires_nodes = (map->flags & SXML_IR_MAP_REQUIRES_NODES) != 0},
+                            .path_map = (map->flags & SXML_IR_MAP_REQUIRES_NODES) != 0
+                                            ? map
+                                            : NULL},
         &progress);
     if (status == SXML_STATUS_OK && progress.is_done) {
         status = sxml_loop_finish(context);
@@ -2449,13 +2763,105 @@ typedef struct sxml_predicate_outcome {
     bool selects;
 } sxml_predicate_outcome;
 
+static const sxml_static_error sxml_numeric_predicate_error = {
+    .error_status = SXML_STATUS_TYPE_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("FORG0006"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "A predicate value starts with a number but is not a sequence of "
+        "numbers (XPath 4.0, section 4.4.1)"),
+};
+
+/* The predicate truth value of two or more items, the first numeric
+   (XPath 4.0, section 4.4.1): every item must be numeric (FORG0006), and
+   the item at position is selected when one of them equals position. An
+   integer range is decided from its bounds. */
+static sxml_status sxml_numeric_predicate_selects(sxml_dynamic_context *context,
+                                                  sxml_predicate_test test,
+                                                  sxml_predicate_outcome *outcome) {
+    outcome->selects = false;
+    if (sxml_sequence_get_representation(test.value) ==
+        SXML_SEQUENCE_REPRESENTATION_INTEGER_RANGE) {
+        sxml_item head = {.representation = 0};
+        uint64_t item_count = 0;
+        sxml_status status = sxml_sequence_get_item(
+            test.value, (sxml_item_request){.item_index = 0, .error_record = context->error_record},
+            &head);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_sequence_count(test.value, context->error_record, &item_count);
+        }
+        if (status == SXML_STATUS_OK && head.payload.integer <= 0) {
+            const uint64_t below_one = (uint64_t)1 - (uint64_t)head.payload.integer;
+            outcome->selects = item_count > below_one &&
+                               test.position <= item_count - below_one;
+        } else if (status == SXML_STATUS_OK) {
+            const uint64_t first_position = (uint64_t)head.payload.integer;
+            outcome->selects = test.position >= first_position &&
+                               test.position - first_position < item_count;
+        }
+        return status;
+    }
+    sxml_sequence_iterator iterator = sxml_sequence_iterator_start(test.value);
+    for (;;) {
+        sxml_iteration_step step;
+        sxml_status status =
+            sxml_sequence_iterator_next(&iterator, context->error_record, &step);
+        if (status != SXML_STATUS_OK || !step.has_item) {
+            return status;
+        }
+        if (!sxml_atomic_item_is_numeric(step.item)) {
+            return sxml_error_record_report(context->error_record,
+                                            &sxml_numeric_predicate_error);
+        }
+        if (outcome->selects) {
+            continue;
+        }
+        if (sxml_item_get_representation(step.item) == SXML_ITEM_REPRESENTATION_INTEGER) {
+            outcome->selects = step.item.payload.integer >= 0 &&
+                               (uint64_t)step.item.payload.integer == test.position;
+            continue;
+        }
+        sxml_sequence equal = sxml_sequence_empty();
+        status = sxml_operator_make_value_comparison(
+            context->item_heap,
+            &(sxml_comparison_request){
+                .comparison_operator = SXML_COMPARISON_OPERATOR_EQUAL,
+                .left_operand = sxml_sequence_from_item(step.item),
+                .right_operand = sxml_sequence_from_item(
+                    sxml_atomic_item_from_integer((int64_t)test.position)),
+                .implicit_timezone_offset_minutes = 0,
+                .namespace_bindings = {.namespace_bindings = NULL,
+                                       .namespace_binding_count = 0},
+                .error_record = context->error_record},
+            &equal);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        outcome->selects = equal.content.payload.integer != 0;
+        sxml_sequence_release(equal);
+    }
+}
+
 static sxml_status sxml_predicate_selects(sxml_dynamic_context *context,
                                           sxml_predicate_test test,
                                           sxml_predicate_outcome *outcome) {
     bool *selects = &outcome->selects;
     const sxml_item first = test.value.content;
-    if (sxml_sequence_get_representation(test.value) ==
-            SXML_SEQUENCE_REPRESENTATION_SINGLE_ITEM &&
+    const sxml_sequence_representation representation =
+        sxml_sequence_get_representation(test.value);
+    if (representation != SXML_SEQUENCE_REPRESENTATION_EMPTY &&
+        representation != SXML_SEQUENCE_REPRESENTATION_SINGLE_ITEM) {
+        sxml_item head = {.representation = 0};
+        sxml_status status = sxml_sequence_get_item(
+            test.value, (sxml_item_request){.item_index = 0, .error_record = context->error_record},
+            &head);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        if (sxml_atomic_item_is_numeric(head)) {
+            return sxml_numeric_predicate_selects(context, test, outcome);
+        }
+    }
+    if (representation == SXML_SEQUENCE_REPRESENTATION_SINGLE_ITEM &&
         sxml_atomic_item_is_numeric(first)) {
         if (sxml_item_get_representation(first) == SXML_ITEM_REPRESENTATION_INTEGER) {
             *selects = first.payload.integer >= 0 &&
