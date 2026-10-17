@@ -2540,4 +2540,67 @@ already follow Saxon HE's design.
 - Not done: counted repetition is still expanded, so `a{2147483647}` is
   LIMIT_EXCEEDED (QT4 cbcl-matches-004, -038).
 
+### D106. The XQuery and serialization API (packet 3.0)
+Recorded 2026-10-17. `include/sxml/xquery.h` is new; `serialize.h` grows
+by new constants at the end of `sxml_serialization_method` and new fields
+at the end of `sxml_serialization_parameters`, so Phase 1 and 2 callers
+compile unchanged (zero is still the adaptive method with its defaults).
+- **Methods**: XML, XHTML, HTML, TEXT, JSON, CSV after ADAPTIVE. No
+  constant for implementation-defined (namespaced) methods; the readers
+  raise SEPM0016 for them. A method not implemented yet returns
+  UNSUPPORTED_FEATURE (the header's contract); `src/serialize.c` still
+  returns INVALID_ARGUMENT for non-adaptive methods until 3.3 changes it.
+- **Parameters**: one struct with every Serialization 4.0 parameter,
+  including the 4.0 additions (canonical, csv-*, escape-solidus,
+  indent-unit, indent-attributes, json-lines, line-ending), field names
+  the parameter names with `_`. Booleans are `sxml_serialization_flag`
+  (DEFAULT, NO, YES), because several defaults are "yes"
+  (escape-solidus, escape-uri-attributes, include-content-type,
+  omit-xml-declaration) and a zero struct must mean "defaults"; DEFAULT
+  is fn:serialize's default (F&O 4.0 table), so omit-xml-declaration
+  defaults to yes; XSLT sets NO itself. Enumerations have their default
+  as constant 0 (UTF-8, standalone omit, normalization none, LF,
+  json-node-output-method xml). Parameters the spec lets be absent
+  (doctype-*, html-version, indent-unit, item-separator, media-type,
+  version) are `has_` + text; html-version stays text (an xs:decimal
+  lexical form) because the HTML method also falls back on version.
+  csv-separator and csv-quote-character are codepoints, 0 the default.
+  Element-name lists are name pool identifiers (`sxml_element_name_view`,
+  in serialize.h because name.h is frozen); character maps are
+  codepoint/replacement pairs. Encodings: UTF-8, UTF-16 (big endian),
+  US-ASCII, ISO-8859-1 (`sxml_character_encoding`); other names SESU0007.
+  Indent unit default two spaces.
+- **Errors**: a value Serialization 4.0 does not permit is SEPM0016 (a
+  dynamic error) when serialized, so fn:serialize sees the spec code; what
+  XDM cannot even express (ill-formed UTF-8, unknown constants, name 0,
+  a repeated character-map codepoint) is INVALID_ARGUMENT.
+- **Parameter reader**: `sxml_serialization_parameter_reader` (lifecycle
+  quintet; allocator and item heap) reads fn:serialize's `$options` (empty,
+  a map, or an `output:serialization-parameters` element) into the struct
+  and owns the copied text and lists until its next read. Map: XPTY0004
+  for wrong types, SEPM0016 for bad values; element: SEPM0017, SEPM0018,
+  SEPM0019 (Serialization 4.0, 3.1); method xml when none is given. The
+  textual forms of XQuery output declarations and xsl:output (yes/no/1/0,
+  `\t`, QName lists) are read by internal code of 3.10 and Phase 4, not
+  by a public function.
+- **XQuery**: `sxml_xquery_query` (quintet, like `sxml_xpath_expression`;
+  the main module's text is `expression_text`, glossary) compiled with
+  the shared `sxml_static_context_configuration`, evaluated with
+  `sxml_xquery_evaluation_request` holding the shared dynamic context.
+  Host variable declarations are in scope in the main module only (a
+  prolog declaration of the same name is XQST0049); bindings also bind
+  every module's external variables. Library modules come from the
+  resolver, kind XQUERY_MODULE, one request per location hint (an
+  empty uri_reference for none); the parameter document of
+  output:parameter-document is an XML_DOCUMENT request, read at compile
+  time (XQST0119/XQST0115). Output declaration errors (XQST0108-0110,
+  SEPM0016) are compile errors.
+  `sxml_xquery_query_get_serialization_parameters` returns the struct by
+  value: declarations over the parameter document over XQuery defaults
+  (method xml); the host overrides fields of the copy (CLI `--method`).
+- Left out, each a later field: XQuery-only static context settings
+  from the host (boundary-space, construction, ordering), a list of the
+  query's external variables, fn:load-xquery-module options (3.11 is
+  internal), implementation-defined serialization parameters.
+
 ## Proposed
