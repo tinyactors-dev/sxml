@@ -4312,6 +4312,66 @@ no evaluator change, no public header.
   sets (4.12), xsl:type/validation ignored (D97); a zero-length text node
   is no node (D110).
 
+### D143. Conformance sweep 1: computed constructors in XPath, the JSON fallback, descending ranges, function equivalence (packet 2.19)
+Recorded 2026-10-17, after D95, D110, D127, D133, D136, D141. Accepts the
+Proposed items "QT4 assertions see the result as the context value",
+"Decimal zero against doubles", "A descending integer range" and
+"Equivalence of function items" (orchestrator, packet 2.19).
+- **Computed constructors are XPath 4.0** (section 4.13): the lowering
+  part `construct` (D127) serves every language; direct constructors only
+  parse in XQuery. 136 "error" outcomes of XP40 (prod-Comp*Constructor)
+  become passes.
+- **The fallback option** of fn:parse-json, fn:json-to-xml and fn:json-doc
+  (F&O 4.0, 17.4.4 to 17.4.6): the three rows are resumable bodies (D75)
+  of the json part; before the parse, the fallback is called once per
+  codepoint that has an `unpermitted_escape` (`sxml_json_find_unpermitted_
+  escape`, a lexical scan that pairs surrogates as parsing does), with the
+  escape as written; its result is coerced to xs:anyAtomicType and its
+  string value becomes the `json_replacement` the parse inserts for every
+  escape of that codepoint (`sxml_json_parse_options.replacements`,
+  U+FFFD without one). A fallback whose arity is not 1 is XPTY0004 when
+  the options are read. fn:json-doc's row moves to the json part; the
+  resource part keeps reading its text
+  (`sxml_function_library_read_json_document`).
+- **fn:generate-id of a JNode**: "j" tree, then "c" child index for the
+  node and each ancestor below the root, read upwards: unique per JNode
+  (JTree and path), the same for two cells of one JNode.
+- **Decimal zero**: `sxml_double_write_exact_text` writes a zero of
+  either sign as "0", so 0.0 eq 0e0 and the hash of 0.0 match.
+- **A descending integer range** (additive, D99):
+  `SXML_SEQUENCE_REPRESENTATION_DESCENDING_INTEGER_RANGE` and
+  `sxml_sequence_make_descending_integer_range` in `include/sxml/xdm.h`;
+  the range cell with a second cell class. fn:reverse of a range in
+  either order is O(1); count, get_item and iteration are O(1) per item;
+  the general comparison of a range with one integer and the temporal
+  check read either order. Fast paths that only know ascending ranges
+  iterate a descending one.
+- **Equivalent function items** (F&O 4.0, 1.9.5): deep-equal treats two
+  IR functions of one unit as the same body when they have the same
+  `static_form` (`sxml_ir_function_has_same_static_form`): the IR text
+  form of each (D51 printer, explicit stack) without names, annotations
+  and the atoms of the function's own captures, with every nested
+  FUNCTION_DEFINITION printed as the function it defines; the captured
+  values are compared by deep-equal as before. Slots are numbered by
+  position, so renaming a variable does not change the form.
+- **QT4 driver**: assertions see the result as the context value; a
+  source that only has a uri and is not well-formed stays unavailable, so
+  fn:doc raises FODC0002 instead of an "error" outcome.
+- math:sin, math:cos and math:tan name their parameter $radians.
+- **fn:last#0 and other focus-dependent named references** keep their
+  name on the closure (XPath 4.0, 4.5.4), so function-name(fn:last#0) is
+  fn:last and fn:last#0 differs from fn:position#0 under deep-equal.
+- Measured (release, XP40, before at 62947af with the 3.10 prolog commit
+  after it): passed 30,389 to 30,628 (+239, none lost), errors 187 to 2,
+  in scope 96.3 % to 97.0 %; prod 96.6 to 98.1 %, fn 98.3 to 98.9 %, op
+  99.7 to 99.8 %, misc 97.8 to 98.2 %; slice 198/198.
+- Not done (open, for later sweeps): fn:function-lookup of a
+  focus-dependent function (45 cases need the dynamic focus at the call),
+  casts to array, map and record types (prod-Cast*Expr.composite, 82
+  cases), counted regex repetition without expansion (cbcl-matches-004,
+  -038: the last two "error" outcomes, LIMIT_EXCEEDED), partial
+  application of a dynamic call with the wrong arity (xqhof8, xqhof9).
+
 ### D144. Templates and modes (packet 4.8)
 Recorded 2026-10-17, after D55, D101, D118, D124, D139, D142.
 Reserved here; the record is completed when the packet is ticked.
@@ -4340,15 +4400,6 @@ Reserved here; the record is completed when the packet is ticked.
   element namespace "##any"` (5.14.1) is not supported. (f) For the QT4
   driver (3.13): `assert-eq` should atomize the result (default_namespace-023,
   -024, namespaceDecl-26).
-
-- **QT4 assertions see the result as the context value** (packet 2.15,
-  D141; for the driver's owner): `<assert>` expressions such as
-  `?get(1, 1) = "one"` (17 of fn-parse-csv) use the result as the focus,
-  as other QT4 drivers bind it. Two lines in
-  `sxml_qt4_assertion_evaluate` (`tests/qt4/driver/assertion.c`):
-  `dynamic_context.has_context_value = true;
-  dynamic_context.context_value = bound->result;`. Measured over all of
-  XP40: 20 more passes, none fewer.
 
 - **The WebAssembly size budget** (packet 2.18, D138; for the owner):
   Phase 2 grew the stripped `sxml` CLI module from 1.21 MB to 1.82 MB
@@ -4382,14 +4433,6 @@ Reserved here; the record is completed when the packet is ticked.
   should resolve with `sxml_function_library_resolve_collation` and
   compare with `sxml_function_library_compare_collated`
   (`src/function_library_core_internal.h`).
-- **Equivalence of function items** (packet 2.13, D116; for the owner of
-  `src/ir.c`): F&O 4.0 (PR 2805) makes two inline functions deep-equal
-  when they are equivalent (`fn($x) { $x }` and `fn($y) { $y }`); about 30
-  QT4 fn-deep-equal cases need it, without which the set stays below 95%.
-  Proposed: `bool sxml_ir_function_is_equivalent(const sxml_ir_function *,
-  const sxml_ir_function *)`, walking both bodies on an explicit stack
-  (kinds, atoms, constants, slots, types); deep-equal calls it when both
-  bodies are IR functions and then compares the captured values as now.
 
 - **Report name and areas for the XSLT driver** (packet 4.1, D117; for
   the owner of `tests/qt4/driver/report.c`): the JSON report says
@@ -4400,20 +4443,3 @@ Reserved here; the record is completed when the packet is ticked.
   driver can report its test-set groups (attr, decl, expr, fn, insn,
   misc, type) for the 4.17 dashboard.
 
-- **Decimal zero against doubles** (packet 2.17, D136; for the owner of
-  `src/xdm_atomic.c`): `0.0 eq 0e0`, `atomic-equal(0.0, 0e0)` and
-  `distinct-values((0.0, 0e0))` treat the decimal 0 and the double 0 as
-  different (QT4 distinct-values-406). `sxml_double_write_exact_text`
-  writes zero as "0." followed by the zero exponent's 1074 fraction
-  digits, because the loop that drops trailing fraction zeros needs a
-  digit; a decimal 0 then never `equals_double`, and
-  `sxml_decimal_double_compare` orders them unequal. Proposed: when
-  `digit_count` is 0, set `fraction_digit_count` to 0, so zero (either
-  sign) is written "0"; one line.
-- **A descending integer range** (packet 2.17, D136; for the owner of
-  `include/sxml/xdm.h` and `src/xdm_sequence.c`, D62, D99): fn:reverse of
-  an integer range materializes it, so `count(reverse(1 to
-  100000000000))` (QT4 RangeExpr-408g) runs out of memory. Proposed
-  (additive, D99): `sxml_sequence_make_descending_integer_range(heap,
-  range, sequence)` with a range cell flag read by get_item and the
-  iterator; fn:reverse then returns it for a range in O(1).
