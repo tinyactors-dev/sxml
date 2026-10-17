@@ -3204,6 +3204,47 @@ Recorded 2026-10-17. `src/format.c`, `src/format_internal.h`,
   fn-format-number 20 to 252 of 286 run; 33 of the 34 failures use QT4
   decimal-format environments.
 
+### D120. Value templates (packet 4.3)
+Recorded 2026-10-17, after D97, D102 and D111.
+- **Grammar** `grammars/value_template` inherits `grammars/xpath`:
+  `value_template` (the XPATH root) with field body
+  `value_template_body` (STRING_TEMPLATE), parts
+  `value_template_fixed_part` (STRING_TEMPLATE_FIXED_PART) and the XPath
+  `enclosed_expression`. Its own `src/scanner.c` wraps the shared query
+  scanner and appends two tokens after the shared list (which is
+  untouched): the fixed part (5.6: `{{`, `}}`; a backquote and "(:" are
+  text) and a zero-width start token, so the body exists for a
+  zero-length template.
+- **Entry** `sxml_xslt_build_value_template_ast` in a new
+  `src/xslt_value_template_internal.h` (the packet named no header; the
+  module's own). A parser part (D111) with three node types and a
+  describe_payload hook that decodes the template's own fixed parts; a
+  fixed part of an XPath string template inside a variable part keeps
+  the XPath decoder (told apart by the body's last child, the variable
+  part being walked). The AST equals that of `` `...` `` but for spans.
+- **Errors**: the grammar decides acceptance (D12). After XPST0003 a
+  lexical scan (fixed parts, string literals, comments, nested brackets
+  and string templates; nesting up to 64 in one word) finds XTSE0370 (an
+  unescaped `}` in a fixed part) or XTSE0350 (a `{` never closed), with
+  the location of that bracket; otherwise XPST0003 stays.
+- **Effective value** is the string template's lowering (D102): each
+  variable part atomized and joined with spaces. 5.7.2 (simple content)
+  also merges adjacent text nodes and drops zero-length ones first, so
+  `{text{'a'}, text{'b'}}` gives "a b", not "ab": left to 4.6, which
+  lowers sequence constructors.
+- **Every grammar joins the link line of sxml** (`grammars/CMakeLists.txt`,
+  a call deferred to the end of the root directory), so 3.2 and 4.4 need
+  no edit of the root `CMakeLists.txt` for xquery and xslt_pattern (an
+  explicit entry there is harmless).
+- **Check**: `tools/qt4-parse-check.py --spec XT40 --value-templates`
+  (scope of D95; attribute value templates from the element syntax
+  summaries, literal result elements and shadow attributes; text value
+  templates under expand-text, xsl:note merged away): 12,244 value
+  templates, 12,232 accepted, 0 false rejects, 11 "either" (the 5 of
+  error-0350a/b, error-0370a and cvt-013 rejected); 1 uses optional
+  record fields `d?`, dropped from the XPath 4.0 draft. Every valid one
+  also builds through the C entry.
+
 ## Proposed
 
 - **IR adders for catch clauses and name tests** (packet 3.6, D109; for
