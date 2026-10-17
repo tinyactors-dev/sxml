@@ -4,6 +4,43 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 1.25 done (D91): `sxml-qt4 run` (`test_run.c`, `assertion.c`,
+  `report.c`, `reason.c`, `command_run.c`). Each test in its own processor
+  and 512 MiB budget allocator, 10^8 steps, leak check per test; every
+  assertion kind (assert-xml by parse-and-deep-equal; serialization ones
+  not-run); outcomes pass / wrong-error / fail / error / not-run; text and
+  JSON reports. Slice: **198/198 pass** (`debug`, `debug-gcc`, `wasm`);
+  ctest `qt4/slice` against `tests/qt4/slice-baseline.txt` (198), goldens
+  `qt4/run_*`. Whole catalog, XP40, release, one process per test set (20
+  s on 3 cores; no crash, no leak): 47,313 cases: 21,443 passed (1,007
+  wrong error), 6,933 failed, 489 errors, 18,448 not run (XQ-only and
+  unsupported dependencies). By area (cases: passed/failed/errors/not
+  run): fn 17,250: 8,374/5,751/90/3,035; prod 14,932: 7,859/521/391/6,161;
+  op 4,789: 3,765/14/8/1,002; misc 3,042: 159/305/0/2,578; app 3,034:
+  318/95/0/2,621; array 537: 456/35/0/46; map 361: 334/17/0/10; xs 227:
+  178/14/0/35; math 181: 0/181/0/0; upd, ft, bin, method, expath: not run.
+  Causes: XPST0017 unknown function 5,596 (+148 keyword arguments);
+  FORX0002 regex category/block escapes 405, lookaround 42, name escapes
+  32; FOCH0002 collations 100; XPTY0004 110; errors: not lowered in Phase
+  1 (171 constructs, 157 for member/key-value/destructuring let, 43
+  dynamic node tests, 24 item axis), 15 step/memory limits (fold-left/
+  right-022/023, RangeExpr-408/410, cbcl-matches-004/038). Most failing
+  sets: fn-graphemes 918, fn-matches.re 502, fn-format-number 216,
+  fn-compare 204, fn-function-lookup 165, fn-map-to-element 153,
+  fn-element-to-map 151, misc-ConstructorKeywords and
+  misc-FocusConstructors 148 each, fn-serialize 146,
+  prod-NamedFunctionRef 144, fn-deep-equal 120, fn-duplicate-values 106,
+  fn-format-date 104, prod-PathExpr.J 104, prod-AxisStep.J 97.
+- 1.23b follow-ups (D91): 62 library functions added (new parts
+  `src/function_library_math.c` and `src/function_library_qname.c`, rows
+  in the node, string, uri, sequence and context parts), found by listing
+  the XP40 fn-/map-/array-/math- test sets whose function the library
+  lacks (139 functions, 5,796 cases before; 77 and 4,165 after; the list
+  is in the task file). Adaptive output writes the type annotation's name
+  (`xs:dateTimeStamp(...)`, qtspecs PR 2981). The static base URI is
+  lexical: IR units carry it, so a function item keeps its own.
+  fn:string-join, sort, distinct-values, deep-equal, count of a lazy
+  sequence and the regex functions charge evaluation steps (D89).
 - 1.23 done (D88, D89): processor and XPath API. `src/processor.c`
   (clocks, table resolver, processor in one block with pool, registry,
   heap and the whole function library, document parsing, the
