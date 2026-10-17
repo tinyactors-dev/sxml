@@ -143,6 +143,12 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `evaluation_memo` | Values a native body computes once per evaluation and subject node (an xsl:key's index for one tree), kept in the dynamic context until the evaluation ends (D149) |
 | `current_item` | XSLT's current item (fn:current, XSLT 4.0, 20.3.1): the context value the outermost expression started with, the focus of its embedding; in a pattern, the item being matched (D149) |
 | `xslt_function_table` | The function table put in front of every static context of a stylesheet: stylesheet functions lowered into the unit (fn:key, fn:copy-of), then the XSLT-only library parts (D149) |
+| `context_function` | An XSLT function whose value an enclosing instruction sets lexically: fn:current-group, fn:current-grouping-key, fn:current-merge-group, fn:current-merge-key; lowering reads a variable of the same local name in the XSLT namespace, absent when none is in scope (D152) |
+| `population` | The sequence xsl:for-each-group groups, its select value, in population order (XSLT 4.0, 14.1) |
+| `grouping_pair` | The array [item, value] lowering makes for each item of a population: its grouping keys, or whether it matches the pattern (D152) |
+| `group_array` | One group of xsl:for-each-group as the array [current group, current grouping key] (D152) |
+| `grouping_method` | How xsl:for-each-group forms groups: by key, by adjacent keys (each composite or not), starting or ending with a pattern (D152) |
+| `kept_ast` | An XPath AST a stylesheet lowering makes (a short text, a pattern's match expression) and keeps until it ends (D152) |
 | `key_index` | The map from key values to nodes of one xsl:key name for one tree, built once per evaluation (XSLT 4.0, 20.2; D149) |
 | `sort_key` | An expression whose value orders the items of a sort, with direction and empty order |
 | `template_rule` | An XSLT rule: a match function, a template function, priority and import precedence |
@@ -665,6 +671,8 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `accumulator` | The value a fold carries from one call of its function item to the next (`fn:fold-left`, `fn:scan`) |
 | `comparator` | A function item of `fn:sort-with` that orders two items by returning a negative, zero or positive integer |
 | `sort_key_definition` | One key of `fn:sort-by`: a key function (or `fn:data#1`), a collation and an order direction (F&O 4.0, `fn:sort-key-record`) |
+| `sort_key_rule` | A SORT key's collation and direction, resolved once when the SORT is evaluated (D152) |
+| `composite_sort_key` | A sort key whose value is a sequence of atomic items compared item by item, the shorter first when one starts the other (XSLT 4.0, 13.1.2) |
 | `partially_applied_function` | The function item `fn:partial-apply` or a placeholder call makes: the wrapped function with some arguments bound, captured with it |
 | `operator_function` | A function item made by `fn:op`: `fn($x, $y) { $x op $y }` for one binary operator |
 | `assembly` | How `map:build` and `map:merge` add entries one by one to a map, combining duplicate keys by the `duplicates` option |
