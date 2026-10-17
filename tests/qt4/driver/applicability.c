@@ -4,21 +4,12 @@
  * in full.
  */
 #include "applicability.h"
+#include "sxml/xpath.h"
 
 #define SXML_TEXT(literal) SXML_BYTE_VIEW_FROM_LITERAL(literal)
 
 static const sxml_byte_view sxml_qt4_empty_text = {.bytes = NULL,
                                                    .byte_count = 0};
-
-/* The collations of D97 (F&O 4.0, "The Unicode codepoint collation", "The
-   HTML ASCII case-insensitive collation", "The Unicode Collation
-   Algorithm"). */
-#define SXML_QT4_CODEPOINT_COLLATION_URI                                       \
-    "http://www.w3.org/2005/xpath-functions/collation/codepoint"
-#define SXML_QT4_HTML_ASCII_COLLATION_URI                                      \
-    "http://www.w3.org/2005/xpath-functions/collation/"                        \
-    "html-ascii-case-insensitive"
-#define SXML_QT4_UCA_COLLATION_URI "http://www.w3.org/2013/collation/UCA"
 
 /* A dependency sxml satisfies (dependency_meanings.xml). */
 typedef struct sxml_qt4_supported_dependency {
@@ -42,7 +33,7 @@ typedef struct sxml_qt4_supported_dependency {
  *   2.13); non_empty_sequence_collection: collections of any items
  *   (D104, SEQUENCE resources); arbitraryPrecisionDecimal: xs:decimal on
  *   mpdecimal (D36); unicode-normalization-form NFC, NFD, NFKC, NFKD
- *   (packet 2.4). Phase 2 packets make them work; until then their test
+ *   and FULLY-NORMALIZED (packet 2.4, D107). Phase 2 packets make them work; until then their test
  *   cases run and fail, which the D95 denominator counts anyway.
  */
 static const sxml_qt4_supported_dependency sxml_qt4_supported_dependencies[] = {
@@ -77,6 +68,8 @@ static const sxml_qt4_supported_dependency sxml_qt4_supported_dependencies[] = {
      SXML_BYTE_VIEW_INITIALIZER("NFKC")},
     {SXML_BYTE_VIEW_INITIALIZER("unicode-normalization-form"),
      SXML_BYTE_VIEW_INITIALIZER("NFKD")},
+    {SXML_BYTE_VIEW_INITIALIZER("unicode-normalization-form"),
+     SXML_BYTE_VIEW_INITIALIZER("FULLY-NORMALIZED")},
 };
 
 /* The non-goals of D95 that a feature dependency names; an entry ending in
@@ -352,35 +345,11 @@ sxml_qt4_decide_dependencies(sxml_qt4_dependency_view dependencies,
     return true;
 }
 
-/* True for a collation of D97: the codepoint and HTML ASCII
-   case-insensitive collations, and UCA URIs unless they ask for no
-   fallback. Packet 2.12's sxml_collation_is_supported (D104) answers the
-   same for the library once it exists. */
+/* True for a collation of D97, as the library answers it (D104, D116):
+   the codepoint, Unicode and HTML ASCII case-insensitive collations, and
+   UCA URIs unless they ask for no fallback. */
 static bool sxml_qt4_collation_is_provided(sxml_byte_view uri) {
-    if (sxml_byte_view_equals(uri, SXML_TEXT(SXML_QT4_CODEPOINT_COLLATION_URI)) ||
-        sxml_byte_view_equals(uri,
-                              SXML_TEXT(SXML_QT4_HTML_ASCII_COLLATION_URI))) {
-        return true;
-    }
-    const sxml_byte_view uca = SXML_TEXT(SXML_QT4_UCA_COLLATION_URI);
-    if (!sxml_qt4_starts_with(uri, uca)) {
-        return false;
-    }
-    if (uri.byte_count != uca.byte_count && uri.bytes[uca.byte_count] != '?') {
-        return false;
-    }
-    const sxml_byte_view no_fallback = SXML_TEXT("fallback=no");
-    for (size_t byte_index = uca.byte_count;
-         byte_index + no_fallback.byte_count <= uri.byte_count;
-         byte_index += 1) {
-        if (sxml_qt4_starts_with(
-                (sxml_byte_view){.bytes = uri.bytes + byte_index,
-                                 .byte_count = uri.byte_count - byte_index},
-                no_fallback)) {
-            return false;
-        }
-    }
-    return true;
+    return sxml_collation_is_supported(uri);
 }
 
 /* Rule 3: what the environment asks for. Returns the element sxml cannot
