@@ -498,11 +498,17 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `sequence_normalizer` | Gives the children of the result tree one at a time (`normalized_event`: text or a node to copy), without building the tree |
 | `character_pipeline` | What text goes through on its way out: character maps, Unicode normalization, escaping, line endings, encoding (Serialization 4.0, section 4) |
 | `character_context` | Where characters are written: markup, text, an attribute value, a URI attribute value or CDATA sections; decides escaping and mapping |
-| `escape_style` | Which characters become references: the XML method's, or Canonical XML's |
+| `escape_style` | How the character pipeline escapes text for a method: XML, Canonical XML, HTML, none (text), JSON strings or CSV fields |
 | `staged_bytes` | Encoded bytes the serializer collects before one write to the output stream |
 | `xml_writer` | Writes nodes by the XML or XHTML method: open elements and written bindings on stacks (D71) |
 | `written_bindings` | The namespace bindings already declared for the open elements, against which an element's declarations and undeclarations are computed |
 | `prefix_normalization` | XHTML with HTML5: elements in the XHTML, SVG or MathML namespace written unprefixed with a default namespace, and prefixes for those namespaces dropped (Serialization 4.0, section 6) |
+| `raw_text` | Text the serializer writes unescaped whatever the escape style: the content of HTML `script` and `style` elements (character context `RAW_TEXT`) |
+| `void_element` | An HTML element with an empty content model, written as a start tag alone (`<br>`; Serialization 4.0, 7.1) |
+| `boolean_attribute` | An HTML attribute whose only value is its name, written in minimized form (`<option selected>`; Serialization 4.0, 7.2) |
+| `xml_island` | An element the HTML method writes as XML because it is not an HTML element (Serialization 4.0, 7.1) |
+| `sub_serialization` | Serializing a node into a string inside another serialization (the JSON method's nodes, json-node-output-method) |
+| `atomic_text` | The lexical form of an atomic item (its cast to xs:string) as the serializer writes it, inline or in heap memory |
 | `html_element` | An element the XHTML method recognizes as HTML: in the XHTML namespace, or with HTML5 in no namespace with an HTML5 element name |
 | `uri_escaping` | NFC and %-escaping of non-ASCII characters in a URI attribute value of an HTML element (Serialization 4.0, section 4, rule a; appendix D) |
 | `content_type_meta` | The meta element the XHTML and HTML methods add as the first child of head (parameter `include-content-type`) |
