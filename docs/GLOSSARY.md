@@ -243,6 +243,12 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `run_report` | The output of `sxml-qt4 run`: one entry per test case that did not pass, counts per test set and overall, as text or JSON |
 | `slice_baseline` | The number of torture-slice test cases that must pass (`tests/qt4/slice-baseline.txt`); it only goes up |
 | `suite_path` | The path of a QT4 suite file relative to the directory of `catalog.xml`, with `.` and `..` segments removed |
+| `xslt_test_driver` | The XSLT 4.0 test-suite driver: the developer tool `sxml-xslt-test` under `tests/xslt/driver/`, a sibling of the QT4 driver that links its library (D117) |
+| `xslt_test_catalog` | The XSLT 4.0 suite's `catalog.xml` (`third_party/xslt40-test/`) as the driver holds it: its test-set entries and one open test set |
+| `xslt_test_case` | One `<test-case>` of an XSLT 4.0 test set: environment, stylesheets and packages, parameters, invocation, output, dependencies, result |
+| `xslt_test_environment` | The environment of an XSLT 4.0 test case: what a QT4 environment holds, plus inline source documents, stylesheets, packages, static parameters and an output element |
+| `xslt_test_plan` | What the transformation of one XSLT 4.0 test case needs, read from the catalog alone: principal module, secondary modules, static and stylesheet parameters, global context item, invocation kind, result delivery |
+| `test_set_group` | The directory under `tests/` of the XSLT 4.0 suite that holds a test set (`attr`, `decl`, `expr`, `fn`, `insn`, `misc`, `strm`, `type`, `sandp`); D95 leaves `strm` and `sandp` out of scope |
 | `name_pool` | Per-processor table that interns namespace URIs, prefixes and expanded names into small identifiers |
 | `name_identifier` | Identifier of an interned expanded name (namespace URI plus local name) in a name pool |
 | `namespace_uri_identifier` | Identifier of an interned namespace URI; 0 is "no namespace" |
