@@ -392,6 +392,17 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `serialization_method` | The Serialization 4.0 output method: adaptive in Phase 1; xml, json, text and others later |
 | `serialization_parameters` | The Serialization 4.0 parameters of one serialization (method, item separator, ...) |
 | `item_separator` | The text written between the items of a serialized sequence |
+| `serialization_parameter_names` | Fields of `sxml_serialization_parameters` spell the Serialization 4.0 parameter names with `_` for `-` (`omit_xml_declaration`, `use_character_maps`); `serialization_method` is `method`, `character_encoding` is `encoding`; a `has_` field marks a parameter that may be absent |
+| `serialization_flag` | The value of a boolean serialization parameter: default (not given), no or yes |
+| `character_map` | The pairs of the `use-character-maps` parameter: characters and the text written in their place (Serialization 4.0, section 12) |
+| `character_mapping` | One pair of a character map: a codepoint and its `replacement_text` |
+| `line_ending` | What the serializer writes for each newline (parameter `line-ending`): LF, CR LF or CR |
+| `parameter_document` | An `output:serialization-parameters` element giving serialization parameters (Serialization 4.0, section 3.1) |
+| `serialization_parameter_reader` | Reads serialization parameters from a parameter document or an options map and keeps what they refer to |
+| `output_declaration` | An XQuery option declaration in the serialization namespace (`declare option output:indent "yes"`, XQuery 4.0, section 5.22) |
+| `xquery_query` | An XQuery main module compiled for one processor, with the library modules it imports, evaluated any number of times |
+| `main_module` | An XQuery module with a query body, the one a host compiles (XQuery 4.0, section 5) |
+| `library_module` | An XQuery module that starts with a module declaration and is reached by `import module` |
 | `output_stream` | Interface that receives bytes, written in order |
 | `output_buffer` | The built-in output stream: collects bytes in memory |
 | `well_known_namespace` | A namespace with a fixed `namespace_uri_identifier` in every name pool (`SXML_NAMESPACE_XML_SCHEMA`) |
