@@ -2674,4 +2674,51 @@ Recorded 2026-10-17. Extends D83 and D92 in `tests/qt4/driver/`.
   18,448 to 16,321. The ten new "error" outcomes are UNSUPPORTED_FEATURE
   in newly run cases, not the driver.
 
+### D109. try/catch in the evaluator (packet 3.6)
+Recorded 2026-10-17, completing D101 for TRY_CATCH
+(`src/evaluator_try.c`; XQuery 4.0, section 4.20).
+- **One catching task** per TRY_CATCH, phases start, body, handler,
+  finally. The try clause's value is read completely before it counts,
+  so a lazy sequence's error is caught by the try that made it. Catch
+  clauses are tried in order, the first whose name tests match wins
+  (`*`, EQName, `p:*`/`Q{uri}*`, `*:local`); an error with no code in the
+  record counts as err:FOER0000.
+- **Error details** (glossary `error_details`): a clause's
+  `error_details` slot is bound to `$err:map`, entries keyed by xs:string
+  in table order: "code" (xs:QName, prefix kept only with a namespace),
+  "description", "value", "module", "line-number", "column-number"; none
+  for an empty value. `$err:stack-trace` and `$err:additional` are always
+  `()` in sxml, so they have no entry. Lowering (3.7) reads each `$err:`
+  variable as `map:get($slot, "local-name")` and `$err:map` is the slot.
+  They are copied out of the record before anything else runs (D41).
+- **Own error record**: when the caller passed none, the outermost try
+  points the context's record at one in its task state while it runs and
+  puts NULL back when it ends or unwinds; inner tries use it. Uncaught
+  errors are still reported nowhere. Done inside the part because
+  `src/evaluator.c` belongs to 2.6 in this wave; the machine may later
+  keep its own record instead, with no visible change.
+- **finally**: an error of the try clause that no clause matches, and an
+  error of the catch clause, are caught only to run the finally clause;
+  their details are kept (glossary `pending_error`) and raised again
+  through the heap when it succeeds (the finally clause may raise and
+  catch errors on the same heap). An error of the finally clause replaces
+  them; a non-empty value is XQTY0153 (type error). Limits, memory and
+  invalid arguments run no catch or finally clause.
+- XPath 4.0 has no try/catch (checked in the 4.0 draft): nothing for 2.5.
+  XSLT's xsl:try (4.x) can lower to the same kind.
+- `tests/evaluator_machine_test.c` no longer expects UNSUPPORTED_FEATURE
+  for TRY_CATCH (list `evaluated_kinds`, where 3.5 adds the constructors).
+
 ## Proposed
+
+- **IR adders for catch clauses and name tests** (packet 3.6, D109; for
+  the owner of `src/ir_internal.h`/`src/ir.c`, needed by the lowering of
+  try/catch in 3.7): the unit has the reserved arrays `name_tests` and
+  `catch_clauses` but no function to fill them. Proposed
+  `sxml_ir_unit_add_name_tests(unit, sxml_name_test_view, sxml_ir_name_test_list *)`
+  and `sxml_ir_unit_add_catch_clauses(unit, view, sxml_ir_catch_clause_list *)`
+  like `sxml_ir_unit_add_sort_keys`, plus accessors. Also
+  `src/ir_verify.c` still rejects TRY_CATCH as reserved; it should check
+  body, clauses (handler, slot within slot_count, name test ranges) and
+  finally body, and `sxml_ir_unit_write_text` should write the clauses.
+  `tests/evaluator_try_test.c` fills the arrays directly until then.
