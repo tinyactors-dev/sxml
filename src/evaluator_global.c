@@ -28,6 +28,7 @@
  * Golden file: src/evaluator_try.c.
  */
 #include "evaluator_machine_internal.h"
+#include "sort_internal.h"
 
 #include <stdalign.h>
 #include <string.h>
@@ -89,59 +90,22 @@ static sxml_status bind_context_global(sxml_dynamic_context *context, size_t tab
     return SXML_STATUS_OK;
 }
 
-static bool is_computed_before(const sxml_evaluator_global_table *table, uint32_t left_number,
-                               uint32_t right_number) {
-    return global_of(table, left_number)->initializer.value <
-           global_of(table, right_number)->initializer.value;
+/* Whether a global (a uint32_t number) is computed before another: its
+   initializer comes first. state is the global table. */
+static bool is_computed_before(const void *state, sxml_sort_pair pair) {
+    const sxml_evaluator_global_table *table = state;
+    return global_of(table, *(const uint32_t *)pair.first)->initializer.value <
+           global_of(table, *(const uint32_t *)pair.second)->initializer.value;
 }
 
-/* A heap of global numbers ordered by initializer index. */
-typedef struct global_heap {
-    const sxml_evaluator_global_table *table;
-    uint32_t *numbers;
-    size_t number_count;
-} global_heap;
-
-static void sift_down(global_heap heap, size_t root) {
-    size_t parent = root;
-    for (;;) {
-        size_t largest = parent;
-        const size_t left = 2 * parent + 1;
-        if (left < heap.number_count &&
-            is_computed_before(heap.table, heap.numbers[largest], heap.numbers[left])) {
-            largest = left;
-        }
-        if (left + 1 < heap.number_count &&
-            is_computed_before(heap.table, heap.numbers[largest], heap.numbers[left + 1])) {
-            largest = left + 1;
-        }
-        if (largest == parent) {
-            return;
-        }
-        const uint32_t moved = heap.numbers[parent];
-        heap.numbers[parent] = heap.numbers[largest];
-        heap.numbers[largest] = moved;
-        parent = largest;
-    }
-}
-
-/* Sorts the computation's globals by initializer index (a heapsort: no
-   recursion, O(n log n)). */
+/* Sorts the computation's globals by initializer index. */
 static void sort_by_initializer(const sxml_evaluator_global_table *table,
                                 global_computation *computation) {
-    uint32_t *numbers = computation->global_numbers;
-    const size_t count = computation->global_count;
-    for (size_t heap_root = count / 2; heap_root > 0; heap_root -= 1) {
-        sift_down((global_heap){.table = table, .numbers = numbers, .number_count = count},
-                  heap_root - 1);
-    }
-    for (size_t heap_end = count; heap_end > 1; heap_end -= 1) {
-        const uint32_t largest = numbers[0];
-        numbers[0] = numbers[heap_end - 1];
-        numbers[heap_end - 1] = largest;
-        sift_down((global_heap){.table = table, .numbers = numbers, .number_count = heap_end - 1},
-                  0);
-    }
+    sxml_sort_in_place(&(sxml_sort_request){.elements = computation->global_numbers,
+                                            .element_count = computation->global_count,
+                                            .element_size = sizeof(uint32_t),
+                                            .is_before = is_computed_before,
+                                            .state = table});
 }
 
 /* Pushes a CALL of the initializer of the next global (see the file

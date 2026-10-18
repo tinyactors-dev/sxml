@@ -50,13 +50,13 @@ typedef struct sxml_unit_evaluation {
     /* Checked by the caller (sxml_dynamic_context_configuration_is_valid). */
     const sxml_dynamic_context_configuration *dynamic_context;
     sxml_error_record *error_record;
-    /* What a language adds to the evaluation; NULL for none (XPath,
-       XQuery). Borrowed for the call. */
+    /* What a language adds to the evaluation; NULL for none (XPath).
+       Borrowed for the call. */
     const struct sxml_unit_evaluation_extension *extension;
 } sxml_unit_evaluation;
 
-/* What XSLT adds to an evaluation (src/xslt.c). Each zero member keeps
-   what XPath and XQuery get. */
+/* What XQuery (its function table, src/xquery.c) and XSLT (src/xslt.c)
+   add to an evaluation. Each zero member keeps what XPath gets. */
 typedef struct sxml_unit_evaluation_extension {
     /* The dynamic context's function table (fn:function-lookup,
        function-available); the null table means the processor's. */

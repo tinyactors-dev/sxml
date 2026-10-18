@@ -25,6 +25,7 @@
 #include "function_library_core_internal.h"
 #include "processor_internal.h"
 #include "serialize_internal.h"
+#include "sort_internal.h"
 #include "sxml/tree.h"
 #include "xdm_internal.h"
 #include "xslt_lower_internal.h"
@@ -317,46 +318,22 @@ typedef struct ordered_mapping {
     size_t position;
 } ordered_mapping;
 
-static bool mapping_precedes(const ordered_mapping *first, const ordered_mapping *second) {
+static bool mapping_precedes(const void *state, sxml_sort_pair pair) {
+    (void)state;
+    const ordered_mapping *first = pair.first;
+    const ordered_mapping *second = pair.second;
     if (first->mapping.codepoint != second->mapping.codepoint) {
         return first->mapping.codepoint < second->mapping.codepoint;
     }
     return first->position < second->position;
 }
 
-/* Restores the heap property below root (an explicit loop, D71). */
-typedef struct heap_range {
-    size_t root;
-    size_t end;
-} heap_range;
-
-static void sift_down(ordered_mapping *mappings, heap_range range) {
-    size_t root = range.root;
-    while (2 * root + 1 < range.end) {
-        size_t child = 2 * root + 1;
-        if (child + 1 < range.end && mapping_precedes(&mappings[child], &mappings[child + 1])) {
-            child += 1;
-        }
-        if (!mapping_precedes(&mappings[root], &mappings[child])) {
-            return;
-        }
-        const ordered_mapping swapped = mappings[root];
-        mappings[root] = mappings[child];
-        mappings[child] = swapped;
-        root = child;
-    }
-}
-
 static void sort_mappings(ordered_mapping *mappings, size_t mapping_count) {
-    for (size_t start = mapping_count / 2; start > 0; start -= 1) {
-        sift_down(mappings, (heap_range){.root = start - 1, .end = mapping_count});
-    }
-    for (size_t heap_end = mapping_count; heap_end > 1; heap_end -= 1) {
-        const ordered_mapping swapped = mappings[0];
-        mappings[0] = mappings[heap_end - 1];
-        mappings[heap_end - 1] = swapped;
-        sift_down(mappings, (heap_range){.root = 0, .end = heap_end - 1});
-    }
+    sxml_sort_in_place(&(sxml_sort_request){.elements = mappings,
+                                            .element_count = mapping_count,
+                                            .element_size = sizeof(ordered_mapping),
+                                            .is_before = mapping_precedes,
+                                            .state = NULL});
 }
 
 /* Character maps concatenated in order, a later mapping of a character
@@ -1055,75 +1032,6 @@ static bool names_contain(const sxml_byte_view *names, size_t name_count, sxml_b
     return false;
 }
 
-/* The document element of a document node; false for none. */
-static bool find_document_element(sxml_item document_node, sxml_node_reference *element) {
-    sxml_node_reference document;
-    sxml_node_description description;
-    if (sxml_item_get_node(document_node, &document) != SXML_STATUS_OK ||
-        sxml_node_describe(document, &description) != SXML_STATUS_OK) {
-        return false;
-    }
-    bool has_child = description.has_children;
-    sxml_node_index child = description.first_child;
-    while (has_child) {
-        const sxml_node_reference child_node = {
-            .tree = document.tree, .node_index = child, .namespace_number = 0};
-        sxml_node_description child_description;
-        if (sxml_node_describe(child_node, &child_description) != SXML_STATUS_OK) {
-            return false;
-        }
-        if (child_description.node_kind == SXML_NODE_KIND_ELEMENT) {
-            *element = child_node;
-            return true;
-        }
-        has_child = child_description.has_next_sibling;
-        child = child_description.next_sibling;
-    }
-    return false;
-}
-
-/* A parameter document to load: href against base_uri, through a loader. */
-typedef struct parameter_document_request {
-    sxml_document_loader loader;
-    sxml_byte_view href;
-    sxml_byte_view base_uri;
-} parameter_document_request;
-
-/* A loaded parameter document; nothing when it cannot be found (26.1.5:
-   the attribute is then ignored). */
-typedef struct loaded_parameter_document {
-    bool has_document;
-    /* Owned. */
-    sxml_item document_node;
-    sxml_node_reference element;
-} loaded_parameter_document;
-
-static sxml_status load_parameter_document(const parameter_document_request *request,
-                                           loaded_parameter_document *loaded) {
-    loaded->has_document = false;
-    sxml_error_record load_error;
-    memset(&load_error, 0, sizeof(load_error));
-    sxml_item document_node = {.representation = 0};
-    const sxml_status status = request->loader.operations->load_document(
-        request->loader.state,
-        &(sxml_document_request){
-            .uri_reference = request->href, .base_uri = request->base_uri, .error_record = &load_error},
-        &document_node);
-    if (status == SXML_STATUS_DYNAMIC_ERROR) {
-        return SXML_STATUS_OK;
-    }
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    if (!find_document_element(document_node, &loaded->element)) {
-        sxml_item_release(document_node);
-        return SXML_STATUS_OK;
-    }
-    loaded->has_document = true;
-    loaded->document_node = document_node;
-    return SXML_STATUS_OK;
-}
-
 /* ------------------------------------------------- Output definitions */
 
 /* The definition named name, or NULL. */
@@ -1399,29 +1307,6 @@ static sxml_status read_definition(const output_compilation *compilation,
     return SXML_STATUS_OK;
 }
 
-/* A loader over the processor's resolver for parameter documents of
-   xsl:output, read while compiling (26.1.5). */
-typedef struct compile_loader {
-    sxml_processor_document_loader memory;
-    sxml_processor_document_loader *loader;
-} compile_loader;
-
-static sxml_status start_compile_loader(sxml_processor *processor, compile_loader *loader) {
-    return sxml_processor_document_loader_initialize(
-        (sxml_memory_view){.bytes = (uint8_t *)&loader->memory, .byte_count = sizeof(loader->memory)},
-        &(sxml_processor_document_loader_configuration){
-            .evaluation_environment = {.processor = processor,
-                                       .resource_resolver = processor->resource_resolver,
-                                       .trace_sink = processor->trace_sink,
-                                       .default_language = SXML_BYTE_VIEW_FROM_LITERAL("en"),
-                                       .environment_variables = {.environment_variables = NULL,
-                                                                 .environment_variable_count = 0},
-                                       .result_writer = NULL},
-            .available_documents = {.available_documents = NULL, .available_document_count = 0},
-            .document_preparation = {.state = NULL, .operations = NULL}},
-        &loader->loader);
-}
-
 /* Builds one definition: its texts, its parameter document, its maps. */
 static sxml_status compile_definition(const output_compilation *compilation,
                                       compiled_definition *definition) {
@@ -1468,14 +1353,20 @@ static sxml_status compile_definition(const output_compilation *compilation,
             builds_tree = read_boolean_text(kept).is_true;
             continue;
         case SXML_ATTRIBUTE_ROLE_PARAMETER_DOCUMENT: {
-            compile_loader loader;
-            status = start_compile_loader(compilation->processor, &loader);
-            loaded_parameter_document loaded = {.has_document = false};
+            /* 26.1.5: a document that cannot be read, or has no
+               element, is ignored. */
+            sxml_processor_document_loader loader_memory;
+            sxml_processor_document_loader *loader = NULL;
+            status = sxml_processor_compile_document_loader_initialize(
+                (sxml_memory_view){.bytes = (uint8_t *)&loader_memory,
+                                   .byte_count = sizeof(loader_memory)},
+                compilation->processor, &loader);
+            sxml_parameter_document loaded = {.is_loaded = false};
             if (status == SXML_STATUS_OK) {
-                status = load_parameter_document(
-                    &(parameter_document_request){
-                        .loader = sxml_processor_document_loader_as_document_loader(loader.loader),
-                        .href = kept,
+                status = sxml_parameter_document_load(
+                    &(sxml_parameter_document_request){
+                        .loader = sxml_processor_document_loader_as_document_loader(loader),
+                        .uri_reference = kept,
                         .base_uri = sxml_xslt_ast_get_text(
                             compilation->ast,
                             sxml_xslt_ast_get_static_context(
@@ -1483,12 +1374,14 @@ static sxml_status compile_definition(const output_compilation *compilation,
                                 node_of(compilation, definition->node)->static_context)
                                 ->static_base_uri)},
                     &loaded);
-                sxml_processor_document_loader_finalize(loader.loader);
+                sxml_processor_document_loader_finalize(loader);
             }
-            if (status == SXML_STATUS_OK && loaded.has_document) {
+            if (status == SXML_STATUS_OK && loaded.has_document_element) {
                 definition->has_parameter_document = true;
                 definition->parameter_document = loaded.document_node;
-                definition->parameter_element = loaded.element;
+                definition->parameter_element = loaded.document_element;
+            } else {
+                sxml_parameter_document_release(&loaded);
             }
             continue;
         }
@@ -2812,7 +2705,7 @@ static sxml_status make_effective_definition(sxml_xslt_result_writer *writer,
     }
     sxml_serialization_flag build_tree = base->definition.build_tree;
     bool has_method = base->definition.has_serialization_method;
-    loaded_parameter_document loaded = {.has_document = false};
+    sxml_parameter_document loaded = {.is_loaded = false};
     for (size_t attribute_index = 0;
          status == SXML_STATUS_OK && attribute_index < SERIALIZATION_ATTRIBUTE_COUNT;
          attribute_index += 1) {
@@ -2841,10 +2734,10 @@ static sxml_status make_effective_definition(sxml_xslt_result_writer *writer,
             sxml_processor_document_loader *loader =
                 sxml_processor_document_loader_from_dynamic_context(call->dynamic_context);
             if (loader != NULL) {
-                status = load_parameter_document(
-                    &(parameter_document_request){
+                status = sxml_parameter_document_load(
+                    &(sxml_parameter_document_request){
                         .loader = sxml_processor_document_loader_as_document_loader(loader),
-                        .href = value,
+                        .uri_reference = value,
                         .base_uri = instruction->static_base_uri},
                     &loaded);
             }
@@ -2877,12 +2770,12 @@ static sxml_status make_effective_definition(sxml_xslt_result_writer *writer,
         }
     }
     document_names names = {.names = NULL, .name_count = 0};
-    if (status == SXML_STATUS_OK && loaded.has_document) {
+    if (status == SXML_STATUS_OK && loaded.has_document_element) {
         /* 26.1.5: the instruction's document wins over everything. */
         status = collect_document_names(
             &(document_names_request){.arena = document->arena,
                                       .name_pool = writer->processor->name_pool,
-                                      .element = loaded.element},
+                                      .element = loaded.document_element},
             &names);
         for (size_t name_index = 0; name_index < names.name_count; name_index += 1) {
             remove_text(&list, names.names[name_index]);
@@ -2896,13 +2789,13 @@ static sxml_status make_effective_definition(sxml_xslt_result_writer *writer,
     sxml_serialization_parameters parameters;
     memset(&parameters, 0, sizeof(parameters));
     if (status == SXML_STATUS_OK) {
-        const bool has_document = loaded.has_document || base->has_parameter_document;
+        const bool has_document = loaded.has_document_element || base->has_parameter_document;
         status = sxml_serialization_parameter_reader_read_texts(
             document->reader,
             &(sxml_serialization_parameter_text_request){
                 .has_parameter_document = has_document,
                 .parameter_document =
-                    loaded.has_document ? loaded.element : base->parameter_element,
+                    loaded.has_document_element ? loaded.document_element : base->parameter_element,
                 .parameter_texts = {.parameter_texts = list.texts,
                                     .parameter_text_count = list.text_count},
                 .namespace_bindings = instruction->namespace_bindings,
@@ -2913,7 +2806,7 @@ static sxml_status make_effective_definition(sxml_xslt_result_writer *writer,
     if (status == SXML_STATUS_OK) {
         const sxml_character_map_view parts[3] = {
             base->mappings, instruction->mappings,
-            loaded.has_document
+            loaded.has_document_element
                 ? parameters.use_character_maps
                 : (sxml_character_map_view){.character_mappings = NULL,
                                             .character_mapping_count = 0}};
@@ -2923,9 +2816,7 @@ static sxml_status make_effective_definition(sxml_xslt_result_writer *writer,
                                                  .part_count = 3},
                                 &parameters.use_character_maps);
     }
-    if (loaded.has_document) {
-        sxml_item_release(loaded.document_node);
-    }
+    sxml_parameter_document_release(&loaded);
     if (status != SXML_STATUS_OK) {
         return status;
     }

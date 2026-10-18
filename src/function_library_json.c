@@ -1358,6 +1358,9 @@ static const system_property system_properties[] = {
     SXML_BOOLEAN_PROPERTY("supports-dtd-validation", false),
     SXML_BOOLEAN_PROPERTY("supports-dtd-attribute-typing", false),
     SXML_BOOLEAN_PROPERTY("supports-invisible-xml", false),
+    /* True where fn:load-xquery-module is a known function: the body
+       asks the dynamic context's function table (XQuery has it, XPath
+       not; D154, D161). */
     SXML_BOOLEAN_PROPERTY("supports-dynamic-xquery", false),
     SXML_BOOLEAN_PROPERTY("supports-dynamic-xslt", false),
     SXML_BOOLEAN_PROPERTY("supports-binary-library", false),
@@ -1366,6 +1369,39 @@ static const system_property system_properties[] = {
 
 #define SXML_SYSTEM_PROPERTY_COUNT (sizeof(system_properties) / sizeof(system_properties[0]))
 
+/* Whether fn:load-xquery-module#1 is in the function table of call's
+   dynamic context: what supports-dynamic-xquery says (F&O 4.0, 17.1.9). */
+typedef struct dynamic_xquery_support {
+    bool is_supported;
+} dynamic_xquery_support;
+
+static sxml_status find_dynamic_xquery_support(const sxml_function_call *call,
+                                               dynamic_xquery_support *support) {
+    support->is_supported = false;
+    const sxml_function_table table = call->dynamic_context == NULL
+                                          ? (sxml_function_table){.state = NULL, .operations = NULL}
+                                          : call->dynamic_context->function_table;
+    if (table.operations == NULL) {
+        return SXML_STATUS_OK;
+    }
+    sxml_name_identifier name = {.index = 0};
+    sxml_status status = sxml_name_pool_intern_name(
+        sxml_item_heap_get_name_pool(call->item_heap),
+        &(sxml_name_request){.namespace_uri = {.index = SXML_NAMESPACE_FUNCTIONS},
+                             .local_name = SXML_BYTE_VIEW_FROM_LITERAL("load-xquery-module")},
+        &name);
+    sxml_function_entry entry;
+    memset(&entry, 0, sizeof(entry));
+    entry.entry_kind = SXML_FUNCTION_ENTRY_KIND_NONE;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_function_table_find(
+            table, &(sxml_function_query){.function_name = name, .arity = 1}, &entry);
+    }
+    support->is_supported =
+        status == SXML_STATUS_OK && entry.entry_kind != SXML_FUNCTION_ENTRY_KIND_NONE;
+    return status;
+}
+
 /* fn:system-properties() as map(xs:QName, xs:anyAtomicType) (F&O 4.0,
    section 17.1.9): the built-in properties, keyed by no-namespace QNames. */
 static sxml_status call_system_properties(const sxml_function_call *call,
@@ -1373,10 +1409,14 @@ static sxml_status call_system_properties(const sxml_function_call *call,
     sxml_map_entry entries[SXML_SYSTEM_PROPERTY_COUNT];
     size_t entry_count = 0;
     sxml_name_pool *name_pool = sxml_item_heap_get_name_pool(call->item_heap);
-    sxml_status status = SXML_STATUS_OK;
+    dynamic_xquery_support support = {.is_supported = false};
+    sxml_status status = find_dynamic_xquery_support(call, &support);
     while (status == SXML_STATUS_OK && entry_count < SXML_SYSTEM_PROPERTY_COUNT) {
         const system_property *property = &system_properties[entry_count];
         sxml_atomic_datum datum = property->value;
+        if (strcmp(property->property_name, "supports-dynamic-xquery") == 0) {
+            datum.datum_details.boolean = support.is_supported;
+        }
         if (datum.datum_kind == SXML_DATUM_KIND_STRING && datum.datum_details.string.utf8.bytes == NULL) {
             datum.datum_details.string.utf8 = sxml_byte_view_from_c_string(sxml_version_text());
             datum.datum_details.string.codepoint_count = datum.datum_details.string.utf8.byte_count;

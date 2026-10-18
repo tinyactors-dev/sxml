@@ -33,6 +33,7 @@
 #include "xpath_api_internal.h"
 #include "xpath_ast_internal.h"
 #include "xpath_static_internal.h"
+#include "xquery_load_module_internal.h"
 #include "xquery_lower_internal.h"
 
 #include <stdalign.h>
@@ -50,6 +51,12 @@ struct sxml_xquery_query {
        declares no serialization parameter. */
     sxml_serialization_parameter_reader *parameter_reader;
     sxml_serialization_parameters serialization_parameters;
+    /* XQuery's functions (fn:load-xquery-module) after the processor's,
+       as compilation saw them, and the table over them that evaluations
+       give fn:function-lookup and fn:system-properties (F&O 4.0, 17.1.9;
+       D161). */
+    sxml_xquery_function_table functions;
+    sxml_function_table function_table;
 };
 
 /* ----------------------------------------------------------- AST access */
@@ -199,98 +206,36 @@ static sxml_status sxml_output_declarations_find(const sxml_output_reading *read
     return status;
 }
 
-/* A loaded parameter document and its document element. */
-typedef struct sxml_parameter_document {
-    sxml_processor_document_loader loader_memory;
-    sxml_processor_document_loader *loader;
-    /* Owned; representation 0 when nothing was loaded. */
-    sxml_item document_node;
-    sxml_node_reference document_element;
-    bool has_document_element;
-} sxml_parameter_document;
-
-static void sxml_parameter_document_release(sxml_parameter_document *document) {
-    if (document->document_node.representation != 0) {
-        sxml_item_release(document->document_node);
-    }
-    sxml_processor_document_loader_finalize(document->loader);
-}
-
-/* The document element of a document node; false for none. */
-static bool sxml_document_element_of(sxml_node_reference document,
-                                     sxml_node_reference *element) {
-    sxml_node_description description;
-    if (sxml_node_describe(document, &description) != SXML_STATUS_OK) {
-        return false;
-    }
-    bool has_child = description.has_children;
-    sxml_node_index child = description.first_child;
-    while (has_child) {
-        const sxml_node_reference child_node = {
-            .tree = document.tree, .node_index = child, .namespace_number = 0};
-        sxml_node_description child_description;
-        if (sxml_node_describe(child_node, &child_description) != SXML_STATUS_OK) {
-            return false;
-        }
-        if (child_description.node_kind == SXML_NODE_KIND_ELEMENT) {
-            *element = child_node;
-            return true;
-        }
-        has_child = child_description.has_next_sibling;
-        child = child_description.next_sibling;
-    }
-    return false;
-}
-
 /*
  * Loads the parameter document of output:parameter-document (5.22): its
  * value is a URI reference resolved against the static base URI and asked
  * of the processor's resolver as an XML document. XQST0119 when it cannot
  * be read or is not well-formed.
  */
-static sxml_status sxml_parameter_document_load(const sxml_output_reading *reading,
-                                                sxml_ast_node_index declaration,
-                                                sxml_parameter_document *document) {
-    sxml_processor *processor = reading->processor;
-    sxml_status status = sxml_processor_document_loader_initialize(
-        (sxml_memory_view){.bytes = (uint8_t *)&document->loader_memory,
-                           .byte_count = sizeof(document->loader_memory)},
-        &(sxml_processor_document_loader_configuration){
-            .evaluation_environment = {.processor = processor,
-                                       .resource_resolver = processor->resource_resolver,
-                                       .trace_sink = processor->trace_sink,
-                                       .default_language = SXML_BYTE_VIEW_FROM_LITERAL("en"),
-                                       .environment_variables =
-                                           {.environment_variables = NULL,
-                                            .environment_variable_count = 0}},
-            .available_documents = {.available_documents = NULL,
-                                    .available_document_count = 0}},
-        &document->loader);
+static sxml_status sxml_output_parameter_document_load(const sxml_output_reading *reading,
+                                                       sxml_ast_node_index declaration,
+                                                       sxml_parameter_document *document) {
+    sxml_processor_document_loader loader_memory;
+    sxml_processor_document_loader *loader = NULL;
+    sxml_status status = sxml_processor_compile_document_loader_initialize(
+        (sxml_memory_view){.bytes = (uint8_t *)&loader_memory,
+                           .byte_count = sizeof(loader_memory)},
+        reading->processor, &loader);
     if (status != SXML_STATUS_OK) {
         return status;
     }
     const sxml_ast *ast = reading->ast;
     const sxml_ast_node_index value = child_of(ast, declaration, SXML_AST_FIELD_VALUE);
-    const sxml_document_loader loader =
-        sxml_processor_document_loader_as_document_loader(document->loader);
-    sxml_error_record load_error;
-    memset(&load_error, 0, sizeof(load_error));
-    status = loader.operations->load_document(
-        loader.state,
-        &(sxml_document_request){
+    status = sxml_parameter_document_load(
+        &(sxml_parameter_document_request){
+            .loader = sxml_processor_document_loader_as_document_loader(loader),
             .uri_reference = sxml_ast_get_text(ast, node_of(ast, value)->payload.text),
             .base_uri = reading->unit->has_static_base_uri
                             ? reading->unit->static_base_uri
-                            : (sxml_byte_view){.bytes = NULL, .byte_count = 0},
-            .error_record = &load_error},
-        &document->document_node);
-    sxml_node_reference document_node;
-    if (status == SXML_STATUS_OK &&
-        sxml_item_get_node(document->document_node, &document_node) == SXML_STATUS_OK) {
-        document->has_document_element =
-            sxml_document_element_of(document_node, &document->document_element);
-    }
-    if (status == SXML_STATUS_DYNAMIC_ERROR) {
+                            : (sxml_byte_view){.bytes = NULL, .byte_count = 0}},
+        document);
+    sxml_processor_document_loader_finalize(loader);
+    if (status == SXML_STATUS_OK && !document->is_loaded) {
         return sxml_xpath_report_static_error(
             &(sxml_xpath_static_error){
                 .ast = ast,
@@ -323,7 +268,8 @@ static sxml_status sxml_output_declarations_apply(const sxml_output_reading *rea
     sxml_status status = SXML_STATUS_OK;
     if (declarations->parameter_document.value != 0) {
         status =
-            sxml_parameter_document_load(reading, declarations->parameter_document, &document);
+            sxml_output_parameter_document_load(reading, declarations->parameter_document,
+                                                &document);
     }
     sxml_serialization_parameter_reader *parameter_reader = NULL;
     if (status == SXML_STATUS_OK) {
@@ -509,13 +455,29 @@ sxml_status sxml_xquery_query_initialize(sxml_memory_view memory,
     if (status != SXML_STATUS_OK) {
         return status;
     }
+    sxml_processor *processor = configuration->processor;
+    sxml_xquery_function_table functions = {.host_table = {.state = NULL, .operations = NULL},
+                                            .library = NULL};
+    status = sxml_xquery_function_table_initialize(
+        &functions, &(sxml_xpath_static_context){
+                        .item_heap = processor->item_heap,
+                        .allocator = processor->allocator,
+                        .function_table = sxml_processor_get_function_table(processor)});
+    if (status != SXML_STATUS_OK) {
+        sxml_ir_unit_release(compiled.unit);
+        sxml_serialization_parameter_reader_destroy(compiled.parameter_reader);
+        return status;
+    }
     void *placement = memory.bytes;
     sxml_xquery_query *new_query = placement;
-    *new_query = (sxml_xquery_query){.processor = configuration->processor,
+    *new_query = (sxml_xquery_query){.processor = processor,
                                      .creating_allocator = {.state = NULL, .operations = NULL},
                                      .unit = compiled.unit,
                                      .parameter_reader = compiled.parameter_reader,
-                                     .serialization_parameters = compiled.parameters};
+                                     .serialization_parameters = compiled.parameters,
+                                     .functions = functions,
+                                     .function_table = {.state = NULL, .operations = NULL}};
+    new_query->function_table = sxml_xquery_function_table_as_table(&new_query->functions);
     *query = new_query;
     return SXML_STATUS_OK;
 }
@@ -526,6 +488,7 @@ void sxml_xquery_query_finalize(sxml_xquery_query *query) {
     }
     sxml_ir_unit_release(query->unit);
     sxml_serialization_parameter_reader_destroy(query->parameter_reader);
+    sxml_xquery_function_table_finalize(&query->functions);
     query->unit = NULL;
     query->parameter_reader = NULL;
 }
@@ -584,7 +547,11 @@ sxml_status sxml_xquery_query_evaluate(const sxml_xquery_query *query,
                                 .unit = query->unit,
                                 .static_base_uri = {.bytes = NULL, .byte_count = 0},
                                 .dynamic_context = &request->dynamic_context,
-                                .error_record = request->error_record},
+                                .error_record = request->error_record,
+                                .extension = &(sxml_unit_evaluation_extension){
+                                    .function_table = query->function_table,
+                                    .document_preparation = {.state = NULL, .operations = NULL},
+                                    .result_writer = NULL}},
         result);
 }
 

@@ -30,6 +30,7 @@
  *
  * Section numbers are of XQuery 4.0 (W3C QT4 CG draft, 13 October 2026).
  */
+#include "sort_internal.h"
 #include "xpath_ast_internal.h"
 
 #include <string.h>
@@ -1264,67 +1265,24 @@ typedef struct sxml_xquery_attribute_list {
     size_t attribute_count;
 } sxml_xquery_attribute_list;
 
-/* Two positions in an attribute list. */
-typedef struct sxml_xquery_entry_pair {
-    size_t first;
-    size_t second;
-} sxml_xquery_entry_pair;
-
-/* Orders attributes by key, then by source order (node index). */
-static bool sxml_xquery_attribute_is_before(sxml_xquery_attribute_list list,
-                                            sxml_xquery_entry_pair pair) {
-    const uint32_t first = list.attributes[pair.first];
-    const uint32_t second = list.attributes[pair.second];
+/* Orders attributes (uint32_t node indices) by key, then by source order
+   (node index). state is the AST. */
+static bool sxml_xquery_attribute_is_before(const void *state, sxml_sort_pair pair) {
+    const sxml_ast *ast = state;
+    const uint32_t first = *(const uint32_t *)pair.first;
+    const uint32_t second = *(const uint32_t *)pair.second;
     const int comparison = sxml_xquery_compare_keys(
-        sxml_xquery_attribute_key_of(list.ast,
-                                     (sxml_ast_node_index){.value = first}),
-        sxml_xquery_attribute_key_of(list.ast,
-                                     (sxml_ast_node_index){.value = second}));
+        sxml_xquery_attribute_key_of(ast, (sxml_ast_node_index){.value = first}),
+        sxml_xquery_attribute_key_of(ast, (sxml_ast_node_index){.value = second}));
     return comparison < 0 || (comparison == 0 && first < second);
 }
 
-/* Moves the entry at root down the heap of the first heap_count entries. */
-static void sxml_xquery_sift_down(sxml_xquery_attribute_list list,
-                                  size_t root, size_t heap_count) {
-    size_t parent = root;
-    for (;;) {
-        size_t largest = parent;
-        const size_t left = 2U * parent + 1U;
-        const size_t right = left + 1U;
-        if (left < heap_count &&
-            sxml_xquery_attribute_is_before(
-                list,
-                (sxml_xquery_entry_pair){.first = largest, .second = left})) {
-            largest = left;
-        }
-        if (right < heap_count &&
-            sxml_xquery_attribute_is_before(
-                list,
-                (sxml_xquery_entry_pair){.first = largest, .second = right})) {
-            largest = right;
-        }
-        if (largest == parent) {
-            return;
-        }
-        const uint32_t moved = list.attributes[parent];
-        list.attributes[parent] = list.attributes[largest];
-        list.attributes[largest] = moved;
-        parent = largest;
-    }
-}
-
-/* Heapsort: iterative, O(n log n), no extra memory (D71). */
 static void sxml_xquery_sort_attributes(sxml_xquery_attribute_list list) {
-    const size_t count = list.attribute_count;
-    for (size_t heap_root = count / 2U; heap_root > 0; heap_root -= 1U) {
-        sxml_xquery_sift_down(list, heap_root - 1U, count);
-    }
-    for (size_t heap_count = count; heap_count > 1U; heap_count -= 1U) {
-        const uint32_t largest = list.attributes[0];
-        list.attributes[0] = list.attributes[heap_count - 1U];
-        list.attributes[heap_count - 1U] = largest;
-        sxml_xquery_sift_down(list, 0, heap_count - 1U);
-    }
+    sxml_sort_in_place(&(sxml_sort_request){.elements = list.attributes,
+                                            .element_count = list.attribute_count,
+                                            .element_size = sizeof(uint32_t),
+                                            .is_before = sxml_xquery_attribute_is_before,
+                                            .state = list.ast});
 }
 
 /* The second attribute of the earliest duplicate name in source order;

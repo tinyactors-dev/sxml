@@ -217,6 +217,51 @@ const sxml_evaluation_environment *sxml_processor_document_loader_get_environmen
 const sxml_evaluation_environment *sxml_processor_get_evaluation_environment(
     const sxml_dynamic_context *dynamic_context);
 
+/* -------------------------------------------------- Parameter documents */
+
+/*
+ * A loader placed in memory over the processor's resolver and trace sink,
+ * with no available documents, environment variables or document
+ * preparation: what a compiler reads documents through (a parameter
+ * document of XQuery's output:parameter-document or of xsl:output).
+ * Fails as sxml_processor_document_loader_initialize.
+ */
+SXML_NODISCARD sxml_status sxml_processor_compile_document_loader_initialize(
+    sxml_memory_view memory, sxml_processor *processor,
+    sxml_processor_document_loader **loader);
+
+/* A serialization parameter document to read (glossary
+   `parameter_document`; Serialization 4.0, section 3.1). Views are
+   borrowed for the call. */
+typedef struct sxml_parameter_document_request {
+    sxml_document_loader loader;
+    /* As written; resolved against base_uri by the loader. */
+    sxml_byte_view uri_reference;
+    sxml_byte_view base_uri;
+} sxml_parameter_document_request;
+
+/* A parameter document as read. */
+typedef struct sxml_parameter_document {
+    /* False when the loader raised a dynamic error (the document is not
+       available or not well-formed): the caller decides what that is
+       (XQST0119 in XQuery, ignored by XSLT 4.0, 26.1.5). */
+    bool is_loaded;
+    /* Owned when is_loaded. */
+    sxml_item document_node;
+    /* The document element, when the document has one. */
+    bool has_document_element;
+    sxml_node_reference document_element;
+} sxml_parameter_document;
+
+/* Reads request's document into *document. A dynamic error of the loader
+   is no failure (is_loaded is false); returns the loader's other failures,
+   with *document not loaded. */
+SXML_NODISCARD sxml_status sxml_parameter_document_load(
+    const sxml_parameter_document_request *request, sxml_parameter_document *document);
+
+/* Releases a loaded document's node and marks it not loaded. */
+void sxml_parameter_document_release(sxml_parameter_document *document);
+
 /* ------------------------------------------------------------ Resources */
 
 /* A text or binary resource to retrieve (F&O 4.0, "fn:unparsed-text",

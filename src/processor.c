@@ -1050,6 +1050,85 @@ sxml_document_loader sxml_processor_document_loader_as_document_loader(
                                   .operations = &sxml_processor_document_loader_operations};
 }
 
+sxml_status sxml_processor_compile_document_loader_initialize(
+    sxml_memory_view memory, sxml_processor *processor,
+    sxml_processor_document_loader **loader) {
+    return sxml_processor_document_loader_initialize(
+        memory,
+        &(sxml_processor_document_loader_configuration){
+            .evaluation_environment = {.processor = processor,
+                                       .resource_resolver = processor->resource_resolver,
+                                       .trace_sink = processor->trace_sink,
+                                       .default_language = SXML_BYTE_VIEW_FROM_LITERAL("en"),
+                                       .environment_variables = {.environment_variables = NULL,
+                                                                 .environment_variable_count = 0},
+                                       .result_writer = NULL},
+            .available_documents = {.available_documents = NULL, .available_document_count = 0},
+            .document_preparation = {.state = NULL, .operations = NULL}},
+        loader);
+}
+
+/* The first element child of a document node; false for none (XDM 4.0,
+   a document node's children). */
+static bool sxml_find_document_element(sxml_item document_node, sxml_node_reference *element) {
+    sxml_node_reference document;
+    sxml_node_description description;
+    if (sxml_item_get_node(document_node, &document) != SXML_STATUS_OK ||
+        sxml_node_describe(document, &description) != SXML_STATUS_OK) {
+        return false;
+    }
+    bool has_child = description.has_children;
+    sxml_node_index child = description.first_child;
+    while (has_child) {
+        const sxml_node_reference child_node = {
+            .tree = document.tree, .node_index = child, .namespace_number = 0};
+        sxml_node_description child_description;
+        if (sxml_node_describe(child_node, &child_description) != SXML_STATUS_OK) {
+            return false;
+        }
+        if (child_description.node_kind == SXML_NODE_KIND_ELEMENT) {
+            *element = child_node;
+            return true;
+        }
+        has_child = child_description.has_next_sibling;
+        child = child_description.next_sibling;
+    }
+    return false;
+}
+
+sxml_status sxml_parameter_document_load(const sxml_parameter_document_request *request,
+                                         sxml_parameter_document *document) {
+    memset(document, 0, sizeof(*document));
+    sxml_error_record load_error;
+    memset(&load_error, 0, sizeof(load_error));
+    sxml_item document_node = {.representation = 0};
+    const sxml_status status = request->loader.operations->load_document(
+        request->loader.state,
+        &(sxml_document_request){.uri_reference = request->uri_reference,
+                                 .base_uri = request->base_uri,
+                                 .error_record = &load_error},
+        &document_node);
+    if (status == SXML_STATUS_DYNAMIC_ERROR) {
+        return SXML_STATUS_OK;
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    document->is_loaded = true;
+    document->document_node = document_node;
+    document->has_document_element =
+        sxml_find_document_element(document_node, &document->document_element);
+    return SXML_STATUS_OK;
+}
+
+void sxml_parameter_document_release(sxml_parameter_document *document) {
+    if (document->is_loaded) {
+        sxml_item_release(document->document_node);
+    }
+    document->is_loaded = false;
+    document->has_document_element = false;
+}
+
 sxml_processor_document_loader *sxml_processor_document_loader_from_dynamic_context(
     const sxml_dynamic_context *dynamic_context) {
     if (dynamic_context == NULL ||

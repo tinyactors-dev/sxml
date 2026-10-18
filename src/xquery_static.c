@@ -14,6 +14,7 @@
 #include "xquery_static_internal.h"
 
 #include "format_internal.h"
+#include "sort_internal.h"
 #include "sxml/memory.h"
 #include "sxml/xdm.h"
 #include "xdm_internal.h"
@@ -270,49 +271,19 @@ typedef struct sort_entry {
     size_t position;
 } sort_entry;
 
-static bool sorts_before(sort_entry left, sort_entry right) {
-    return left.key < right.key || (left.key == right.key && left.position < right.position);
-}
-
-/* Moves entries[root] down the heap of entry_count entries. */
-typedef struct heap_span {
-    sort_entry *entries;
-    size_t entry_count;
-} heap_span;
-
-static void sift_down(heap_span heap, size_t root) {
-    size_t parent = root;
-    for (;;) {
-        size_t largest = parent;
-        const size_t left = 2 * parent + 1;
-        const size_t right = left + 1;
-        if (left < heap.entry_count && sorts_before(heap.entries[largest], heap.entries[left])) {
-            largest = left;
-        }
-        if (right < heap.entry_count &&
-            sorts_before(heap.entries[largest], heap.entries[right])) {
-            largest = right;
-        }
-        if (largest == parent) {
-            return;
-        }
-        const sort_entry moved = heap.entries[parent];
-        heap.entries[parent] = heap.entries[largest];
-        heap.entries[largest] = moved;
-        parent = largest;
-    }
+static bool sorts_before(const void *state, sxml_sort_pair pair) {
+    (void)state;
+    const sort_entry *left = pair.first;
+    const sort_entry *right = pair.second;
+    return left->key < right->key || (left->key == right->key && left->position < right->position);
 }
 
 static void sort_entries(sort_entry *entries, size_t entry_count) {
-    for (size_t heap_root = entry_count / 2; heap_root > 0; heap_root -= 1) {
-        sift_down((heap_span){.entries = entries, .entry_count = entry_count}, heap_root - 1);
-    }
-    for (size_t heap_end = entry_count; heap_end > 1; heap_end -= 1) {
-        const sort_entry largest = entries[0];
-        entries[0] = entries[heap_end - 1];
-        entries[heap_end - 1] = largest;
-        sift_down((heap_span){.entries = entries, .entry_count = heap_end - 1}, 0);
-    }
+    sxml_sort_in_place(&(sxml_sort_request){.elements = entries,
+                                            .element_count = entry_count,
+                                            .element_size = sizeof(sort_entry),
+                                            .is_before = sorts_before,
+                                            .state = NULL});
 }
 
 /* ------------------------------------------------------- Setters */
