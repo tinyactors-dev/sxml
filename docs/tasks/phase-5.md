@@ -292,6 +292,14 @@ instance tests of MS and Sun pass ≥ 80% and NIST ≥ 95%, and
 an item of that type (unit test through the public API). Golden:
 `src/arena_tree.c` (a builder), `src/xslt_whitespace.c` (a filtering
 builder).
+**Done** 2026-10-18 (D173): the validator as a filtering tree builder
+(content models, wildcards, xsi:type, xsi:nil, attributes, defaults and
+fixed values, simple values through the cast engine, IDs as XSD 1.1
+binds them), the subtree recorder and the type alternative copy for 5.8
+and 5.9, `sxml_schema_validate_node`, derived typed values; the driver
+validates instance tests and follows location hints. Instance tests in
+scope: NIST 100 %, MS 95.0 %, Sun 93.9 %; XSD in scope 40,755 of 41,518,
+slice 147. Not done: inherited attributes for type alternatives (5.9).
 
 ### 5.8 Identity constraints (implementation)
 After 5.7. Owns `src/schema_identity.c`, `tests/schema_identity_test.c`.

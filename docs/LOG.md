@@ -4,6 +4,28 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 5.7 done (D173): validation and the typed tree. The schema validator
+  is a filtering tree builder (`src/schema_validate.c`): an element's
+  start is held back until its attributes are known (xsi:type, xsi:nil,
+  abstract declarations and types), children step 5.6's content model
+  cursor (wildcards strict, lax and skip, lax assessment, one report per
+  error in content, Element Declarations Consistent at validation),
+  attributes by uses, xsi: declarations and attribute wildcards, defaults
+  and fixed values added and compared, simple values through the cast
+  engine with the facets' cvc-* names, schema normalized values sent on,
+  IDs and IDREFs as XSD 1.1 binds them (`src/schema_validate_value.c`);
+  the subtree recorder for 5.8 and 5.9 (`src/schema_validate_record.c`);
+  `sxml_schema_validate_node`; typed values derived from annotations in
+  `sxml_node_make_typed_value`. sxml-xsd-test validates instance tests
+  and follows the instances' location hints. XSD in scope 40,755 of
+  41,518 (instance tests 25,533 of 26,189: NIST 100 %, MS 95.0 %, Sun
+  93.9 %; 632 wait for identity constraints, assertions and type
+  alternatives), gate groups 100 %, 95.6 %, 83.3 %, slice 147/147. Quick
+  fixes for 5.5 and 5.6: xs:anySimpleType value constraints
+  (au-props-correct.2 and the others), ##definedSibling with substitution
+  groups. schema.h's comment on undelivered documents fixed (5.4's
+  Proposed item). XP40 30,647, XQ40 40,034, XT40 7,990 unchanged.
+
 - 5.4 done (D170): schema documents read and assembled. READ walks each
   document's arena tree (no recursion) with one table of schema element
   roles: the schema for schema documents' attributes and child slots and
