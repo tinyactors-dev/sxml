@@ -220,6 +220,13 @@ NIST ≥ 90% under the driver once 5.4 and 5.7 run them (unit tests before:
 cast of `"5"` to a restriction of xs:integer with minInclusive 10 raises
 FORG0001 with cvc-minInclusive-valid in the description). Golden:
 `src/cast.c`, `src/types.c`.
+**Done** 2026-10-18 (D171): facets in the cast engine (`src/cast_facet.c`,
+hooked into `src/cast.c`), the regex engine's XSD dialect, schema type
+registration in `src/types.c`, SIMPLE_TYPES in `src/schema_simple_type.c`
+with `tests/schema_simple_type_test.c`; the packet's unit test passes.
+Schema tests: NIST 100 %, MS-Regex 100 %, MS-DataTypes 99.7 %,
+MS-SimpleType 96.4 %; the ≥ 90 % of the instance tests is measured once
+5.7 validates.
 
 ### 5.6 Complex types and content models (implementation)
 After 5.2. Owns `src/schema_complex_type.c`, new

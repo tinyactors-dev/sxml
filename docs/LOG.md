@@ -4,6 +4,21 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 5.5 done (D171): simple types and facets. Casting to a registered
+  schema type is its whiteSpace facet, the built-in lexical mapping, then
+  every facet of it and its registered bases (new `src/cast_facet.c`, part
+  of the cast engine; FORG0001 whose description starts with the
+  constraint name); the regex engine's XSD dialect (`is_xsd_pattern`);
+  `sxml_type_registry_register_schema_type`; SIMPLE_TYPES in derivation
+  order on an explicit stack, with facet applicability, canonical facet
+  values, the valid-restriction and consistency rules (built-in types'
+  implicit facets included), NOTATION rules and attribute value
+  constraints. Schema tests (release): NIST 3,953/3,953, MS-Regex
+  2,590/2,590, MS-DataTypes 2,240/2,247, MS-SimpleType 322/334, Saxon
+  Simple 65/65 (the failures left are the reader's and complex types');
+  instance tests wait for 5.7. XP40 30,647, XQ40 40,034, slice 198:
+  unchanged.
+
 - 5.6 done (D172): complex types and content models. COMPLEX_TYPES
   (`src/schema_complex_type.c`) derives content types, attribute uses and
   wildcards (union, intersection, cyclic attribute groups) and assertions
