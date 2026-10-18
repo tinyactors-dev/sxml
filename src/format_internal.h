@@ -73,9 +73,15 @@ void sxml_format_text_release(sxml_format_text *text);
 typedef enum sxml_numbering_kind {
     /* A digit pattern, in radix 10 or in the radix before "^". */
     SXML_NUMBERING_KIND_DIGITS,
-    /* "a" and "A": a b ... z aa ab ... */
-    SXML_NUMBERING_KIND_LOWER_ALPHABETIC,
-    SXML_NUMBERING_KIND_UPPER_ALPHABETIC,
+    /* The first letter of an alphabet ("a", "A", Greek alpha and Alpha):
+       the letters as a bijective numeration, a b ... z aa ab ...; the
+       alphabet is sequence_index. */
+    SXML_NUMBERING_KIND_ALPHABETIC,
+    /* The symbol for 1 of a sequence with one symbol per number, such as
+       CIRCLED DIGIT ONE (U+2460, 0 to 50) or DIGIT ONE FULL STOP (U+2488,
+       0 to 20): the symbols of the sequence's range; the sequence is
+       sequence_index. */
+    SXML_NUMBERING_KIND_SYMBOLS,
     /* "i" and "I": Roman numerals, 1 to 3999. */
     SXML_NUMBERING_KIND_LOWER_ROMAN,
     SXML_NUMBERING_KIND_UPPER_ROMAN,
@@ -95,6 +101,9 @@ typedef enum sxml_numbering_kind {
  */
 typedef struct sxml_integer_picture {
     sxml_numbering_kind numbering_kind;
+    /* SXML_NUMBERING_KIND_ALPHABETIC and SXML_NUMBERING_KIND_SYMBOLS: which
+       alphabet or symbol sequence of src/format.c; 0 for the other kinds. */
+    uint32_t sequence_index;
     /* SXML_NUMBERING_KIND_DIGITS: the digit pattern (after "R^" when a
        radix is given), borrowed; well-formed by the rules of section
        4.8.1. Empty for the other kinds. */
@@ -157,8 +166,9 @@ typedef struct sxml_integer_formatting {
 
 /*
  * Appends the integer formatted by its picture to text (F&O 4.0, section
- * 4.8.1): digits with grouping and padding, letters, Roman numerals
- * (1 to 3999) or English words (below 10^21), each falling back to the
+ * 4.8.1): digits with grouping and padding, letters, symbol sequences
+ * (within their ranges), Roman numerals (1 to 3999) or English words
+ * (below 10^21), each falling back to the
  * token "1" outside its range, and English ordinal suffixes or words for
  * "o". Uses text's allocator for scratch memory.
  *

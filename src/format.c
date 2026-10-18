@@ -333,6 +333,121 @@ static bool has_decimal_digit(sxml_byte_view token) {
     return false;
 }
 
+/* --------------------------------------------- Alphabets and symbols */
+
+/*
+ * The alphabets (glossary) sxml numbers with, each named by its first
+ * letter (F&O 4.0, section 4.8.1: "a" and "A" and other alphabetic
+ * sequences; XSLT 4.0, 12.4). Greek counts the letters of its block in
+ * order: lower case with final sigma (U+03C2, as the XSLT test suite's
+ * number-0901 expects), upper case without the unassigned U+03A2.
+ */
+typedef struct numbering_alphabet {
+    uint32_t first_letter;
+    /* Runs of consecutive codepoints, in order. */
+    uint32_t run_starts[2];
+    uint32_t run_lengths[2];
+} numbering_alphabet;
+
+static const numbering_alphabet numbering_alphabets[] = {
+    {.first_letter = 'a', .run_starts = {'a', 0}, .run_lengths = {26, 0}},
+    {.first_letter = 'A', .run_starts = {'A', 0}, .run_lengths = {26, 0}},
+    {.first_letter = 0x03B1U, .run_starts = {0x03B1U, 0}, .run_lengths = {25, 0}},
+    {.first_letter = 0x0391U, .run_starts = {0x0391U, 0x03A3U}, .run_lengths = {17, 7}},
+};
+
+/* One range of numbers whose symbols are consecutive codepoints. */
+typedef struct numbering_symbol_run {
+    uint32_t first_number;
+    uint32_t last_number;
+    uint32_t first_codepoint;
+} numbering_symbol_run;
+
+/*
+ * The symbol sequences (glossary), each named by its symbol for 1: the
+ * Unicode characters whose names number them (The Unicode Standard 16.0,
+ * code charts "Enclosed Alphanumerics", "Dingbats", "Enclosed CJK Letters
+ * and Months", "Enclosed Alphanumeric Supplement" and the historic
+ * number blocks). A sequence lists up to four runs of numbers; numbers
+ * outside them are written with the token "1" (section 4.8.1).
+ */
+typedef struct numbering_symbols {
+    uint32_t one;
+    numbering_symbol_run runs[4];
+    size_t run_count;
+} numbering_symbols;
+
+static const numbering_symbols numbering_symbol_sequences[] = {
+    /* CIRCLED DIGIT ZERO, ONE to TWENTY, CIRCLED NUMBER TWENTY ONE to
+       THIRTY FIVE, THIRTY SIX to FIFTY. */
+    {.one = 0x2460U,
+     .runs = {{0, 0, 0x24EAU}, {1, 20, 0x2460U}, {21, 35, 0x3251U}, {36, 50, 0x32B1U}},
+     .run_count = 4},
+    /* PARENTHESIZED DIGIT ONE to PARENTHESIZED NUMBER TWENTY. */
+    {.one = 0x2474U, .runs = {{1, 20, 0x2474U}}, .run_count = 1},
+    /* DIGIT ZERO FULL STOP, DIGIT ONE FULL STOP to NUMBER TWENTY FULL STOP. */
+    {.one = 0x2488U, .runs = {{0, 0, 0x1F100U}, {1, 20, 0x2488U}}, .run_count = 2},
+    /* DIGIT ZERO COMMA to DIGIT NINE COMMA. */
+    {.one = 0x1F102U, .runs = {{0, 9, 0x1F101U}}, .run_count = 1},
+    /* NEGATIVE CIRCLED DIGIT ZERO, DINGBAT NEGATIVE CIRCLED DIGIT ONE to
+       NUMBER TEN, NEGATIVE CIRCLED NUMBER ELEVEN to TWENTY. */
+    {.one = 0x2776U,
+     .runs = {{0, 0, 0x24FFU}, {1, 10, 0x2776U}, {11, 20, 0x24EBU}},
+     .run_count = 3},
+    /* DOUBLE CIRCLED DIGIT ONE to DOUBLE CIRCLED NUMBER TEN. */
+    {.one = 0x24F5U, .runs = {{1, 10, 0x24F5U}}, .run_count = 1},
+    /* DINGBAT CIRCLED SANS-SERIF DIGIT ZERO, ONE to NUMBER TEN. */
+    {.one = 0x2780U, .runs = {{0, 0, 0x1F10BU}, {1, 10, 0x2780U}}, .run_count = 2},
+    /* DINGBAT NEGATIVE CIRCLED SANS-SERIF DIGIT ZERO, ONE to NUMBER TEN. */
+    {.one = 0x278AU, .runs = {{0, 0, 0x1F10CU}, {1, 10, 0x278AU}}, .run_count = 2},
+    /* PARENTHESIZED IDEOGRAPH ONE to TEN. */
+    {.one = 0x3220U, .runs = {{1, 10, 0x3220U}}, .run_count = 1},
+    /* CIRCLED IDEOGRAPH ONE to TEN. */
+    {.one = 0x3280U, .runs = {{1, 10, 0x3280U}}, .run_count = 1},
+    /* AEGEAN NUMBER ONE to TEN. */
+    {.one = 0x10107U, .runs = {{1, 10, 0x10107U}}, .run_count = 1},
+    /* COPTIC EPACT DIGIT ONE to NUMBER TEN. */
+    {.one = 0x102E1U, .runs = {{1, 10, 0x102E1U}}, .run_count = 1},
+    /* RUMI DIGIT ONE to NUMBER TEN. */
+    {.one = 0x10E60U, .runs = {{1, 10, 0x10E60U}}, .run_count = 1},
+    /* BRAHMI NUMBER ONE to TEN. */
+    {.one = 0x11052U, .runs = {{1, 10, 0x11052U}}, .run_count = 1},
+    /* SINHALA ARCHAIC DIGIT ONE to NUMBER TEN. */
+    {.one = 0x111E1U, .runs = {{1, 10, 0x111E1U}}, .run_count = 1},
+    /* COUNTING ROD UNIT DIGIT ONE to NINE. */
+    {.one = 0x1D360U, .runs = {{1, 9, 0x1D360U}}, .run_count = 1},
+    /* MENDE KIKAKUI DIGIT ONE to NINE. */
+    {.one = 0x1E8C7U, .runs = {{1, 9, 0x1E8C7U}}, .run_count = 1},
+};
+
+/* When token is one codepoint naming an alphabet or a symbol sequence,
+   sets picture's kind and sequence_index and returns true. */
+static bool find_numbering_sequence(sxml_byte_view token, sxml_integer_picture *picture) {
+    const decoded_codepoint decoded = decode_codepoint(token, 0);
+    if (decoded.byte_count != token.byte_count) {
+        return false;
+    }
+    for (size_t alphabet_index = 0;
+         alphabet_index < sizeof(numbering_alphabets) / sizeof(numbering_alphabets[0]);
+         alphabet_index += 1) {
+        if (numbering_alphabets[alphabet_index].first_letter == decoded.codepoint) {
+            picture->numbering_kind = SXML_NUMBERING_KIND_ALPHABETIC;
+            picture->sequence_index = (uint32_t)alphabet_index;
+            return true;
+        }
+    }
+    for (size_t sequence_index = 0;
+         sequence_index < sizeof(numbering_symbol_sequences) / sizeof(numbering_symbol_sequences[0]);
+         sequence_index += 1) {
+        if (numbering_symbol_sequences[sequence_index].one == decoded.codepoint) {
+            picture->numbering_kind = SXML_NUMBERING_KIND_SYMBOLS;
+            picture->sequence_index = (uint32_t)sequence_index;
+            return true;
+        }
+    }
+    return false;
+}
+
 sxml_status sxml_integer_picture_parse_primary_format_token(sxml_byte_view primary_format_token,
                                                             sxml_integer_picture *picture) {
     if (primary_format_token.byte_count == 0) {
@@ -340,6 +455,7 @@ sxml_status sxml_integer_picture_parse_primary_format_token(sxml_byte_view prima
         return SXML_STATUS_MALFORMED_INPUT;
     }
     sxml_integer_picture result = {.numbering_kind = SXML_NUMBERING_KIND_UNSUPPORTED,
+                                   .sequence_index = 0,
                                    .digit_pattern = {.bytes = NULL, .byte_count = 0},
                                    .radix = 10,
                                    .zero_digit = '0',
@@ -362,10 +478,8 @@ sxml_status sxml_integer_picture_parse_primary_format_token(sxml_byte_view prima
         result.radix = prefix.radix;
         result.zero_digit = check.zero_digit;
         result.has_upper_case_digits = check.has_upper_case_digits;
-    } else if (sxml_byte_view_equals(primary_format_token, SXML_BYTE_VIEW_FROM_LITERAL("a"))) {
-        result.numbering_kind = SXML_NUMBERING_KIND_LOWER_ALPHABETIC;
-    } else if (sxml_byte_view_equals(primary_format_token, SXML_BYTE_VIEW_FROM_LITERAL("A"))) {
-        result.numbering_kind = SXML_NUMBERING_KIND_UPPER_ALPHABETIC;
+    } else if (find_numbering_sequence(primary_format_token, &result)) {
+        /* An alphabet or a symbol sequence named by its first token. */
     } else if (sxml_byte_view_equals(primary_format_token, SXML_BYTE_VIEW_FROM_LITERAL("i"))) {
         result.numbering_kind = SXML_NUMBERING_KIND_LOWER_ROMAN;
     } else if (sxml_byte_view_equals(primary_format_token, SXML_BYTE_VIEW_FROM_LITERAL("I"))) {
@@ -702,26 +816,53 @@ static small_value read_small_value(sxml_byte_view decimal_digits) {
     return (small_value){.fits = true, .value = value};
 }
 
-/* Letters a b ... z aa ab ...: bijective base 26. */
+/* Letters of an alphabet, a b ... z aa ab ...: the bijective numeration
+   in base letter_count (glossary: alphabet). */
 typedef struct alphabetic_request {
     uint64_t value;
-    char first_letter;
+    const numbering_alphabet *alphabet;
 } alphabetic_request;
 
+/* The letter of alphabet with index letter_index (from 0). */
+static uint32_t alphabet_letter(const numbering_alphabet *alphabet, uint32_t letter_index) {
+    return letter_index < alphabet->run_lengths[0]
+               ? alphabet->run_starts[0] + letter_index
+               : alphabet->run_starts[1] + (letter_index - alphabet->run_lengths[0]);
+}
+
+/* The most letters of a uint64_t value: 14 in base 24 or more. */
+#define SXML_FORMAT_LONGEST_LETTERS 16U
+
 static sxml_status append_alphabetic(alphabetic_request request, sxml_format_text *text) {
-    char letters[16];
-    size_t letter_count = 0;
+    const uint32_t letter_count =
+        request.alphabet->run_lengths[0] + request.alphabet->run_lengths[1];
+    uint32_t letter_indexes[SXML_FORMAT_LONGEST_LETTERS];
+    size_t index_count = 0;
     uint64_t remaining = request.value;
-    while (remaining > 0 && letter_count < sizeof(letters)) {
+    while (remaining > 0 && index_count < SXML_FORMAT_LONGEST_LETTERS) {
         remaining -= 1;
-        letters[sizeof(letters) - 1 - letter_count] =
-            (char)(request.first_letter + (char)(remaining % 26U));
-        letter_count += 1;
-        remaining /= 26U;
+        letter_indexes[index_count] = (uint32_t)(remaining % letter_count);
+        index_count += 1;
+        remaining /= letter_count;
     }
-    return sxml_format_text_append(
-        text, (sxml_byte_view){.bytes = (const uint8_t *)letters + sizeof(letters) - letter_count,
-                               .byte_count = letter_count});
+    sxml_status status = SXML_STATUS_OK;
+    while (status == SXML_STATUS_OK && index_count > 0) {
+        index_count -= 1;
+        status = sxml_format_text_append_codepoint(
+            text, alphabet_letter(request.alphabet, letter_indexes[index_count]));
+    }
+    return status;
+}
+
+/* The symbol for value in sequence, or 0 outside its runs. */
+static uint32_t find_symbol(const numbering_symbols *sequence, small_value value) {
+    for (size_t run_index = 0; value.fits && run_index < sequence->run_count; run_index += 1) {
+        const numbering_symbol_run *run = &sequence->runs[run_index];
+        if (value.value >= run->first_number && value.value <= run->last_number) {
+            return run->first_codepoint + (uint32_t)(value.value - run->first_number);
+        }
+    }
+    return 0;
 }
 
 /* Roman numerals, 1 to 3999. */
@@ -908,6 +1049,7 @@ static const char *ordinal_suffix(sxml_byte_view decimal_digits) {
    sequence's range is formatted with. */
 static const sxml_integer_picture fallback_picture = {
     .numbering_kind = SXML_NUMBERING_KIND_DIGITS,
+    .sequence_index = 0,
     .digit_pattern = SXML_BYTE_VIEW_INITIALIZER("1"),
     .radix = 10,
     .zero_digit = '0',
@@ -943,20 +1085,26 @@ sxml_status sxml_format_integer(const sxml_integer_formatting *formatting,
     const small_value small = read_small_value(digits);
     bool is_digits = false;
     switch (picture->numbering_kind) {
-    case SXML_NUMBERING_KIND_LOWER_ALPHABETIC:
-    case SXML_NUMBERING_KIND_UPPER_ALPHABETIC:
+    case SXML_NUMBERING_KIND_ALPHABETIC:
         if (small.fits && small.value > 0) {
             status = append_alphabetic(
-                (alphabetic_request){
-                    .value = small.value,
-                    .first_letter =
-                        picture->numbering_kind == SXML_NUMBERING_KIND_LOWER_ALPHABETIC ? 'a'
-                                                                                        : 'A'},
+                (alphabetic_request){.value = small.value,
+                                     .alphabet = &numbering_alphabets[picture->sequence_index]},
                 text);
         } else {
             is_digits = true;
         }
         break;
+    case SXML_NUMBERING_KIND_SYMBOLS: {
+        const uint32_t symbol =
+            find_symbol(&numbering_symbol_sequences[picture->sequence_index], small);
+        if (symbol != 0) {
+            status = sxml_format_text_append_codepoint(text, symbol);
+        } else {
+            is_digits = true;
+        }
+        break;
+    }
     case SXML_NUMBERING_KIND_LOWER_ROMAN:
     case SXML_NUMBERING_KIND_UPPER_ROMAN:
         if (small.fits && small.value > 0 && small.value <= SXML_FORMAT_LARGEST_ROMAN) {
