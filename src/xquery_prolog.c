@@ -892,6 +892,13 @@ static sxml_status walk_dependencies(module_lowering *module, const dependency_g
         }
         const size_t target = graph->targets[walk->path_edges[path_count - 1]];
         walk->path_edges[path_count - 1] += 1;
+        /* A variable read in its own initializer is a cycle only if the
+           read runs while the variable is computed (5.16): a closure that
+           reads its own variable is not one (D135 (c)), and a read that
+           does run is BEING_COMPUTED, XQDY0054, in the evaluator. */
+        if (target == top) {
+            continue;
+        }
         if (walk->colors[target] == 0) {
             walk->colors[target] = 1;
             walk->path_positions[target] = path_count;

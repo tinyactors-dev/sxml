@@ -1278,9 +1278,16 @@ static sxml_status find_free_variables(sxml_xpath_lowerer *state,
                XPST0008 at it. */
             continue;
         }
-        /* A constant needs no capture: the function reads it directly. */
+        /* A constant needs no capture: the function reads it directly.
+           Nor does an XQuery global: the function's unit reads its own
+           global table at call time (D154), so a variable whose value is
+           a closure that reads the variable itself is no cycle (XQuery
+           4.0, 5.16; D135 (c)). Other languages capture globals, so their
+           function items read them after the evaluation too (D55). */
         const bool is_constant =
-            lookup.atom.atom_kind == SXML_IR_ATOM_KIND_CONSTANT;
+            lookup.atom.atom_kind == SXML_IR_ATOM_KIND_CONSTANT ||
+            (lookup.atom.atom_kind == SXML_IR_ATOM_KIND_GLOBAL_VARIABLE &&
+             state->language == SXML_LANGUAGE_XQUERY);
         status = add_free_variable(
             state, variables,
             (sxml_xpath_lowering_capture_entry){
