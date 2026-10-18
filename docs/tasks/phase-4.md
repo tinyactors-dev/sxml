@@ -275,6 +275,13 @@ and explicit primary result), xsl:document, disable-output-escaping as
 Serialization 4.0 allows. Done when decl-output (245), character-map,
 insn-result-document (150), xsl-document ≥ 80%. Spec: XSLT 4.0
 "Serialization", "Creating Final Result Trees".
+**Done** 2026-10-18 (D156): `src/xslt_output.c` with
+`src/xslt_output_internal.h`, `src/function_library_output.c`,
+`tests/xslt_output_test.c`; hooks in `src/xslt_lower.c`,
+`src/xslt_lower_template.c`, `src/processor_internal.h`. Stylesheet
+outputs, the result writer and the result document collector for 4.15 to
+call. Scratch harness: decl/output 235/244, character-map 32/33,
+result-document 129/149, xsl-document 23/25, current-output-uri 6/16.
 
 ### 4.14 Accumulators (implementation)
 After 4.12. Owns `src/xslt_accumulator.c`, `tests/xslt_accumulator_test.c`.

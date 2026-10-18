@@ -40,12 +40,21 @@ One short entry per week, newest first: what passed, what's next, what is blocke
   done: split-when, merge-when, XTDE2210/2220/3490, a dynamic current
   group in called templates.
 
-- 4.13 claimed (D156): output and result documents. Files: new
+- 4.13 done (D156): output and result documents. xsl:output merged into
+  output definitions (XTSE1560) and read by the serialization parameter
+  reader over the parameter document, as XQuery's output declarations;
+  xsl:character-map expanded on an explicit stack (XTSE1580/1590/1600) and
+  fn:character-map; xsl:result-document as two internal rows around its
+  content (href, format, value templates over the definition, XTDE1460,
+  XTDE1490, XTDE1480 lexically and through a tunnel mark), the result
+  writer (principal result delivery, current output URI) and the public
+  result document collector, both for 4.15 to call. Files:
   `src/xslt_output.c`, `src/xslt_output_internal.h`,
-  `tests/xslt_output_test.c`; one-line hooks in `src/xslt_lower.c` and
-  `src/xslt_lower_internal.h` (the rule view), `src/processor_internal.h`
-  (the result writer in the evaluation environment),
-  `src/function_library_xslt.c` (current-output-uri, character-map).
+  `src/function_library_output.c`, `tests/xslt_output_test.c`. Scratch
+  harness: decl/output 235/244, character-map 32/33, result-document
+  129/149, xsl-document 23/25, current-output-uri 6/16 (before: none
+  lowered). Not done: XTDE1500, clearing current-output-uri in functions,
+  globals and patterns.
 
 - 4.12 done (D150): xsl:function as IR functions (one per arity, a
   function table in front of every static context, optional parameters
