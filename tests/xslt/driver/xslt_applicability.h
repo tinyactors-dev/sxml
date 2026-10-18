@@ -20,13 +20,14 @@
  *    every version (as for QT4, D83);
  * 2. every other dependency of the test set and the test case has the
  *    satisfaction it asks for: a dependency is satisfied when its whole
- *    value is in the driver's table of what sxml provides as a basic
- *    XSLT 4.0 processor with serialization and higher-order functions
- *    (xslt_applicability.c; values such as "support negative year" are
- *    phrases, not token lists); satisfied="false" asks for the opposite;
- * 3. its environment asks only for what sxml can provide: no source
- *    validation, no schema, no XInclude, no XML 1.1 source, no collation
- *    other than codepoint, HTML ASCII and UCA ones (D97);
+ *    value is in the driver's table of what sxml provides as a
+ *    schema-aware XSLT 4.0 processor (D179) with serialization and
+ *    higher-order functions (xslt_applicability.c; values such as
+ *    "support negative year" are phrases, not token lists);
+ *    satisfied="false" asks for the opposite;
+ * 3. its environment asks only for what sxml can provide: no XInclude,
+ *    no XML 1.1 source, no collation other than codepoint, HTML ASCII and
+ *    UCA ones (D97); schemas and validated sources are provided (D179);
  * 4. it runs a transformation: <posture-and-sweep> tests ask for a
  *    streamability assessment instead.
  * The first rule that fails is the reason the test is skipped.
@@ -37,6 +38,12 @@
  * backwards_compatibility, HTML4, ICU_spellout to be satisfied (asking for
  * one to be absent keeps the test case in scope). As for QT4, scope does
  * not decide whether a test runs.
+ *
+ * A test case is schema-aware (the area "schema-aware" of the report, as
+ * for QT4, D174, D179) when its spec matches and it requires the feature
+ * schema_aware, or its environment has a schema or a validated source.
+ * schema_aware stays a non-goal for scope: its test cases are outside
+ * the D95 denominator, counted in that area instead.
  */
 
 /* XSLT 4.0 as the spec tokens write it. */

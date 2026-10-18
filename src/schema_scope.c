@@ -5,7 +5,9 @@
  */
 #include "schema_scope_internal.h"
 
+#include "processor_internal.h"
 #include "schema_internal.h"
+#include "xdm_internal.h"
 
 #include <string.h>
 
@@ -141,6 +143,49 @@ bool sxml_schema_scope_defines_namespace(const sxml_schema *schema,
     return false;
 }
 
+sxml_status sxml_schema_scope_probe_document(const sxml_schema_scope_probe *request,
+                                             sxml_schema_scope_delivery *delivery) {
+    delivery->is_delivered = false;
+    sxml_processor *processor = request->processor;
+    const sxml_resource_resolver resolver = processor->resource_resolver;
+    if (resolver.operations == NULL || resolver.operations->resolve == NULL) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_schema_document *document = &request->document;
+    sxml_uri_resolution resolution = {.uri = {.bytes = NULL, .byte_count = 0}, .memory = NULL};
+    sxml_status status = SXML_STATUS_OK;
+    if (document->document_uri.byte_count > 0) {
+        status = sxml_uri_resolve(&(sxml_uri_resolution_request){.reference = document->document_uri,
+                                                                 .base_uri = request->base_uri,
+                                                                 .allocator = processor->allocator},
+                                  &resolution);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_resource resource;
+    memset(&resource, 0, sizeof resource);
+    status = resolver.operations->resolve(
+        resolver.state,
+        &(sxml_resource_request){.resource_kind = SXML_RESOURCE_KIND_SCHEMA_DOCUMENT,
+                                 .uri_reference = document->document_uri,
+                                 .absolute_uri = resolution.uri,
+                                 .processor = processor,
+                                 .target_namespace_uri = document->target_namespace_uri},
+        &resource);
+    if (status == SXML_STATUS_OK) {
+        delivery->is_delivered = resource.resource_form != SXML_RESOURCE_FORM_NONE;
+        if (resource.resource_form == SXML_RESOURCE_FORM_DOCUMENT_NODE) {
+            sxml_item_release(resource.document_node);
+        }
+        if (resolver.operations->release != NULL) {
+            resolver.operations->release(resolver.state, &resource);
+        }
+    }
+    sxml_allocator_release(processor->allocator, resolution.memory);
+    return status;
+}
+
 /* The global declaration of head, by its name. */
 static const sxml_schema_element_declaration *
 head_declaration(const sxml_schema_scope_element *head) {
@@ -194,9 +239,17 @@ bool sxml_schema_scope_get_member(const sxml_schema_scope_member_request *reques
 
 sxml_status sxml_schema_scope_raise(const sxml_schema_scope_error *request) {
     const sxml_error_record *record = request->schema_error;
-    const sxml_byte_view constraint = record->code.local_name;
+    sxml_byte_view constraint = record->code.local_name;
     const sxml_byte_view description = record->diagnostic.description;
-    static const sxml_byte_view separator = SXML_BYTE_VIEW_INITIALIZER(": ");
+    sxml_byte_view separator = SXML_BYTE_VIEW_FROM_LITERAL(": ");
+    if (description.byte_count > constraint.byte_count &&
+        memcmp(description.bytes, constraint.bytes, constraint.byte_count) == 0 &&
+        description.bytes[constraint.byte_count] == ':') {
+        /* The description names its constraint already (D173's facet
+           errors): not twice. */
+        constraint = (sxml_byte_view){.bytes = NULL, .byte_count = 0};
+        separator = constraint;
+    }
     const size_t byte_count = constraint.byte_count + separator.byte_count + description.byte_count;
     void *memory = NULL;
     sxml_status status = sxml_allocator_allocate(

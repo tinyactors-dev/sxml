@@ -431,7 +431,12 @@ typedef struct sxml_xslt_stylesheet_configuration {
      * - default_collation_uri is the default collation where no
      *   [xsl:]default-collation attribute gives one (3.6.2);
      * - collation_bindings are added to the statically known collations
-     *   of every module.
+     *   of every module;
+     * - in_scope_schemas are in scope in every module, before the schema
+     *   its xsl:import-schema declarations compile into, and an
+     *   xsl:import-schema of a namespace one of them defines takes it
+     *   from there (3.13; D179), as XQuery's import schema does
+     *   (include/sxml/xpath.h).
      * namespace_bindings, variable_declarations and decimal_formats must
      * be empty (SXML_STATUS_INVALID_ARGUMENT): a stylesheet declares its
      * namespaces, variables and decimal formats itself.

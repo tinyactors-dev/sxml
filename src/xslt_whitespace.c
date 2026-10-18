@@ -98,6 +98,29 @@ bool sxml_xslt_strips_whitespace(const sxml_xslt_ast *ast) {
     return false;
 }
 
+/* XSLT 4.0, 4.1: some module root asks for input-type-annotations="strip"
+   (D179). */
+static bool strips_type_annotations(const sxml_xslt_ast *ast) {
+    for (uint32_t module_index = 1; module_index < ast->module_count; module_index += 1) {
+        const sxml_xslt_ast_module *module =
+            sxml_xslt_ast_get_module(ast, (sxml_xslt_ast_module_index){.value = module_index});
+        const sxml_xslt_ast_attribute *attribute = sxml_xslt_ast_get_attribute(
+            ast, sxml_xslt_ast_find_attribute(
+                     ast, (sxml_xslt_ast_attribute_query){
+                              .node = module->root,
+                              .kind = SXML_XSLT_AST_ATTRIBUTE_INPUT_TYPE_ANNOTATIONS}));
+        if (attribute->value.kind == SXML_XSLT_AST_VALUE_KIND_KEYWORD &&
+            attribute->value.payload.keyword == SXML_XSLT_AST_KEYWORD_STRIP) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool sxml_xslt_prepares_documents(const sxml_xslt_ast *ast) {
+    return sxml_xslt_strips_whitespace(ast) || strips_type_annotations(ast);
+}
+
 static uint32_t precedence_of(const sxml_xslt_ast *ast, sxml_xslt_ast_node_index node) {
     return sxml_xslt_ast_get_module(ast, sxml_xslt_ast_get_node(ast, node)->module)
         ->import_precedence;
@@ -408,7 +431,8 @@ static bool is_document_node(sxml_item item, sxml_node_reference *node) {
 sxml_status sxml_xslt_strip_document(const sxml_xslt_whitespace_stripping *stripping,
                                      sxml_item document_node, sxml_item *stripped) {
     sxml_node_reference node = {.tree = NULL, .node_index = {.index = 0}, .namespace_number = 0};
-    if (!sxml_xslt_strips_whitespace(stripping->ast) || !is_document_node(document_node, &node)) {
+    const bool strips_annotations = strips_type_annotations(stripping->ast);
+    if (!sxml_xslt_prepares_documents(stripping->ast) || !is_document_node(document_node, &node)) {
         sxml_item_retain(document_node);
         *stripped = document_node;
         return SXML_STATUS_OK;
@@ -455,7 +479,8 @@ sxml_status sxml_xslt_strip_document(const sxml_xslt_whitespace_stripping *strip
             &(sxml_copy_request){.node = node,
                                  .preserves_namespaces = true,
                                  .inherits_namespaces = true,
-                                 .preserves_type_annotations = true});
+                                 /* 4.1: xs:untyped and xs:untypedAtomic. */
+                                 .preserves_type_annotations = !strips_annotations});
     }
     sxml_allocator_release(processor->allocator, filter.rules);
     sxml_allocator_release(processor->allocator, filter.elements);

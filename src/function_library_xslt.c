@@ -34,6 +34,7 @@
 #include "function_library_internal.h"
 #include "function_library_parts_internal.h"
 #include "ir_internal.h"
+#include "schema_scope_internal.h"
 #include "xdm_internal.h"
 #include "xslt_accumulator_internal.h"
 #include "xslt_lower_internal.h"
@@ -463,8 +464,8 @@ static sxml_status call_element_available(const sxml_function_call *call, sxml_s
     return SXML_STATUS_OK;
 }
 
-/* fn:type-available($name) (XSLT 4.0, 20.4): the built-in types (no
-   imported schemas, D97). */
+/* fn:type-available($name) (XSLT 4.0, 20.4): a built-in type, or a type
+   of the in-scope schemas of the call's static context (D179). */
 static sxml_status call_type_available(const sxml_function_call *call, sxml_sequence *result) {
     sxml_name_identifier name = {.index = 0};
     const sxml_status status =
@@ -476,8 +477,16 @@ static sxml_status call_type_available(const sxml_function_call *call, sxml_sequ
         return status;
     }
     sxml_type_identifier type = {.index = 0};
-    const bool is_available = sxml_type_registry_find_type(
-        sxml_item_heap_get_type_registry(call->item_heap), name, &type);
+    const sxml_ir_static_context *context =
+        call->dynamic_context == NULL
+            ? NULL
+            : sxml_dynamic_context_get_static_context(call->dynamic_context);
+    sxml_schema_scope_type found;
+    const bool is_available =
+        sxml_type_registry_find_type(sxml_item_heap_get_type_registry(call->item_heap), name,
+                                     &type) ||
+        (context != NULL &&
+         sxml_schema_scope_find_type(context->in_scope_schemas, name, &found));
     *result = sxml_function_library_make_boolean((sxml_boolean_result){.is_true = is_available});
     return SXML_STATUS_OK;
 }
@@ -606,6 +615,35 @@ static sxml_status read_document_reference(const sxml_function_call *call, sxml_
     return status;
 }
 
+/* The xsd-validation option of fn:document's options map (4.0, as
+   fn:doc's, F&O 4.0, 17.2.1; D179) into *validation (owned); empty
+   without one. */
+static sxml_status read_xsd_validation(const sxml_function_call *call, sxml_sequence *validation) {
+    *validation = sxml_sequence_empty();
+    sxml_optional_item options = {.has_item = false};
+    sxml_status status = SXML_STATUS_OK;
+    if (call->arguments.sequence_count > 1) {
+        status = sxml_function_library_read_optional_item(call, 1, &options);
+    }
+    if (status != SXML_STATUS_OK || !options.has_item ||
+        sxml_item_get_kind(options.item) != SXML_ITEM_KIND_MAP) {
+        return status;
+    }
+    sxml_sequence key = sxml_sequence_empty();
+    status = sxml_function_library_make_string(
+        call->item_heap, SXML_BYTE_VIEW_FROM_LITERAL("xsd-validation"), &key);
+    sxml_map_lookup lookup = {.is_found = false};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_map_find(options.item, key.content, &lookup);
+    }
+    sxml_sequence_release(key);
+    if (status == SXML_STATUS_OK && lookup.is_found) {
+        sxml_sequence_retain(lookup.entry.value);
+        *validation = lookup.entry.value;
+    }
+    return status;
+}
+
 /* fn:document($uri-sequence, $options?) (XSLT 4.0, 20.1; $options a node
    whose base URI, or a map whose base-uri option, relative references are
    resolved against): the documents
@@ -613,13 +651,20 @@ static sxml_status read_document_reference(const sxml_function_call *call, sxml_
    same node for the same URI within an evaluation), in document order
    without duplicates. A fragment identifier is ignored (20.1 leaves its
    meaning to the media type; sxml supports none): the whole document is
-   returned. */
+   returned. The xsd-validation option validates each document as fn:doc's
+   would (F&O 4.0, 17.2.1; D179). */
 static sxml_status call_document(const sxml_function_call *call, sxml_sequence *result) {
     if (call->dynamic_context == NULL) {
         return SXML_STATUS_INVALID_ARGUMENT;
     }
+    sxml_sequence validation = sxml_sequence_empty();
+    sxml_status status = read_xsd_validation(call, &validation);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    const sxml_byte_view xsd_validation = text_of(validation);
     sxml_sequence_builder *builder = NULL;
-    sxml_status status = sxml_sequence_builder_create(
+    status = sxml_sequence_builder_create(
         sxml_item_heap_as_allocator(call->item_heap),
         &(sxml_sequence_builder_configuration){.item_heap = call->item_heap}, &builder);
     if (status != SXML_STATUS_OK) {
@@ -659,6 +704,9 @@ static sxml_status call_document(const sxml_function_call *call, sxml_sequence *
                 &document_node);
         }
         release_document_reference(&reference);
+        if (status == SXML_STATUS_OK && xsd_validation.byte_count > 0) {
+            status = sxml_schema_scope_validate_document(call, xsd_validation, &document_node);
+        }
         if (status == SXML_STATUS_OK) {
             status = sxml_sequence_builder_append_item(builder, document_node);
             sxml_item_release(document_node);
@@ -672,6 +720,7 @@ static sxml_status call_document(const sxml_function_call *call, sxml_sequence *
         status = sxml_sequence_builder_finish(builder, &documents);
     }
     sxml_sequence_builder_destroy(builder);
+    sxml_sequence_release(validation);
     if (status == SXML_STATUS_OK) {
         status = sxml_evaluator_make_document_order_value(
             call->dynamic_context,

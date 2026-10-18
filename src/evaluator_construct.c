@@ -985,20 +985,39 @@ static sxml_construction *sxml_construct_find_receiver(sxml_dynamic_context *con
  * Starts a document or element construction for the constructor on top
  * of the task stack in the construction it delivers into (D166), when the
  * node made there is the copy that a tree of its own would give: the same
- * rules and construction flags, so its content is built alike, and copies
+ * rules and construction flags (sxml_construct_flags_allow_delivery), so
+ * its content is built alike, and copies
  * that keep their namespaces (copy-namespaces preserve), so nothing would
  * be dropped; inherit or no-inherit is the element start's
  * ignores_parent_namespaces, its type annotation is the copy's under
  * either construction mode, and the copy has no base URI of its own. Its
  * own tree otherwise.
  */
+/* True when a node built with own_flags is the same built in place in a
+   receiver with receiver_flags as built alone and then copied there: the
+   same flags, except that a receiver that preserves types keeps whatever
+   annotations a construction without PRESERVES_TYPES gives (XSLT 4.0,
+   25.1.1; D179). */
+typedef struct sxml_construct_flag_pair {
+    uint32_t receiver_flags;
+    uint32_t own_flags;
+} sxml_construct_flag_pair;
+
+static bool sxml_construct_flags_allow_delivery(sxml_construct_flag_pair pair) {
+    const uint32_t preserves = (uint32_t)SXML_IR_CONSTRUCTION_PRESERVES_TYPES;
+    return (pair.receiver_flags & ~preserves) == (pair.own_flags & ~preserves) &&
+           ((pair.receiver_flags & preserves) != 0 || (pair.own_flags & preserves) == 0);
+}
+
 static sxml_status sxml_construction_open(sxml_dynamic_context *context,
                                           const sxml_construction_request *request,
                                           sxml_construction *construction) {
     sxml_construction *enclosing = sxml_construct_find_receiver(context);
     const sxml_construction empty = sxml_construction_empty(context, request->rules);
     if (enclosing == NULL || enclosing->rules != empty.rules ||
-        enclosing->construction_flags != empty.construction_flags ||
+        !sxml_construct_flags_allow_delivery(
+            (sxml_construct_flag_pair){.receiver_flags = enclosing->construction_flags,
+                                       .own_flags = empty.construction_flags}) ||
         (empty.construction_flags & (uint32_t)SXML_IR_CONSTRUCTION_NO_PRESERVE_NAMESPACES) != 0) {
         return sxml_construction_start(context, request, construction);
     }
@@ -2152,8 +2171,16 @@ static sxml_status sxml_construct_copy_whole(sxml_dynamic_context *context,
                                              sxml_sequence *result) {
     const sxml_construction *enclosing = sxml_construct_find_receiver(context);
     const sxml_construction empty = sxml_construction_empty(context, SXML_CONSTRUCT_RULES_XSLT);
+    /* Only an attribute has a type annotation to keep or drop (XSLT 4.0,
+       25.1.1): for other nodes the receiver's validation flag does not
+       matter (D179). */
+    const uint32_t ignored_flags =
+        copied->description.node_kind == SXML_NODE_KIND_ATTRIBUTE
+            ? 0U
+            : (uint32_t)SXML_IR_CONSTRUCTION_PRESERVES_TYPES;
     if (enclosing != NULL && enclosing->rules == empty.rules &&
-        enclosing->construction_flags == empty.construction_flags) {
+        (enclosing->construction_flags | ignored_flags) ==
+            (empty.construction_flags | ignored_flags)) {
         sxml_item_retain(copied->item);
         *result = sxml_sequence_from_item(copied->item);
         return SXML_STATUS_OK;

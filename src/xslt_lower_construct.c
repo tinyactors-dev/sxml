@@ -31,6 +31,9 @@
  */
 #include "xslt_lower_internal.h"
 
+#include "schema_scope_internal.h"
+#include "xpath_static_internal.h"
+
 #include "sxml/name.h"
 #include "sxml/types.h"
 #include "sxml/xdm.h"
@@ -340,6 +343,206 @@ static sxml_status finish_branch(sxml_xpath_lowerer *lowerer, branch *built,
     return sxml_xpath_lowerer_finish_block(
         lowerer, (sxml_xpath_lowering_block_result){.block = built->block, .result = built->result},
         expression);
+}
+
+/* ----------------------------------------------------------- Validation */
+
+/* What XSLT 4.0, 25 asks of one instruction: a keyword (STRICT, LAX,
+   PRESERVE, STRIP) or, for [xsl:]type, NONE and the type's name. */
+typedef struct validation_choice {
+    sxml_xslt_ast_keyword keyword;
+    sxml_name_identifier type_name;
+    const sxml_xslt_ast_attribute *type_attribute;
+} validation_choice;
+
+static validation_choice validation_of(sxml_xslt_validation_query query) {
+    const sxml_xslt_ast_attribute *type = find_attribute(
+        query.lowering,
+        (attribute_lookup){.node = query.node, .kind = SXML_XSLT_AST_ATTRIBUTE_TYPE});
+    if (type->value.kind == SXML_XSLT_AST_VALUE_KIND_NAME) {
+        return (validation_choice){.keyword = SXML_XSLT_AST_KEYWORD_NONE,
+                                   .type_name = type->value.payload.name,
+                                   .type_attribute = type};
+    }
+    const sxml_xslt_ast_attribute *validation = find_attribute(
+        query.lowering,
+        (attribute_lookup){.node = query.node, .kind = SXML_XSLT_AST_ATTRIBUTE_VALIDATION});
+    validation_choice choice = {.keyword = SXML_XSLT_AST_KEYWORD_STRIP,
+                                .type_name = {.index = 0},
+                                .type_attribute = NULL};
+    const sxml_xslt_ast_node *node = node_of(query.lowering, query.node);
+    if (validation->value.kind == SXML_XSLT_AST_VALUE_KIND_KEYWORD) {
+        choice.keyword = validation->value.payload.keyword;
+    } else if (node->kind != SXML_XSLT_AST_KIND_SOURCE_DOCUMENT) {
+        /* 25: the [xsl:]default-validation in force (3.6.1). */
+        choice.keyword =
+            sxml_xslt_ast_get_static_context(query.lowering->ast, node->static_context)
+                ->default_validation;
+    }
+    if (choice.keyword == SXML_XSLT_AST_KEYWORD_PRESERVE &&
+        node->kind == SXML_XSLT_AST_KIND_ATTRIBUTE) {
+        /* 25.1.1: for xsl:attribute preserve is strip. */
+        choice.keyword = SXML_XSLT_AST_KEYWORD_STRIP;
+    }
+    return choice;
+}
+
+uint32_t sxml_xslt_lowering_validation_flags(sxml_xslt_validation_query query) {
+    return validation_of(query).keyword == SXML_XSLT_AST_KEYWORD_PRESERVE
+               ? (uint32_t)SXML_IR_CONSTRUCTION_PRESERVES_TYPES
+               : 0U;
+}
+
+bool sxml_xslt_lowering_validates(sxml_xslt_validation_query query) {
+    const validation_choice choice = validation_of(query);
+    return choice.type_attribute != NULL || choice.keyword == SXML_XSLT_AST_KEYWORD_STRICT ||
+           choice.keyword == SXML_XSLT_AST_KEYWORD_LAX;
+}
+
+/* The constant QName of type_name. */
+static sxml_status add_type_name(sxml_xpath_lowerer *lowerer, sxml_name_identifier type_name,
+                                 sxml_ir_atom *atom) {
+    sxml_item item;
+    memset(&item, 0, sizeof item);
+    const sxml_status status = sxml_atomic_item_make(
+        lowerer->item_heap,
+        &(sxml_atomic_item_request){
+            .type = {.index = SXML_TYPE_XS_QNAME},
+            .datum = {.datum_kind = SXML_DATUM_KIND_QNAME,
+                      .datum_details = {.qname = {.expanded_name = type_name,
+                                                  .namespace_prefix = {.index = 0}}}}},
+        &item);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_xpath_lowerer_add_item_constant(lowerer, item, atom);
+}
+
+/* XTSE1520 and XTSE1530 (25.1.2) for the type of choice. */
+static sxml_status check_validation_type(const sxml_xslt_validation_query *query,
+                                         const validation_choice *choice) {
+    const sxml_xslt_lowering *lowering = query->lowering;
+    const sxml_xslt_ast_node *node = node_of(lowering, query->node);
+    sxml_type_identifier type = {.index = SXML_TYPE_NONE};
+    if (node->static_context.value >= lowering->static_context_count ||
+        !sxml_xpath_find_named_type(&lowering->static_contexts[node->static_context.value],
+                                    choice->type_name, &type)) {
+        return sxml_xslt_lowering_report_static_error(
+            lowering, (sxml_xslt_static_error){
+                          .node = query->node,
+                          .code_and_description = SXML_BYTE_VIEW_FROM_LITERAL(
+                              "XTSE1520 the type attribute names no type of the in-scope "
+                              "schema components (XSLT 4.0, 25.1.2)")});
+    }
+    sxml_type_description description;
+    if (node->kind == SXML_XSLT_AST_KIND_ATTRIBUTE &&
+        sxml_type_registry_describe_type(sxml_item_heap_get_type_registry(lowering->lowerer->item_heap),
+                                         type, &description) == SXML_STATUS_OK &&
+        description.variety == SXML_TYPE_VARIETY_COMPLEX) {
+        return sxml_xslt_lowering_report_static_error(
+            lowering, (sxml_xslt_static_error){
+                          .node = query->node,
+                          .code_and_description = SXML_BYTE_VIEW_FROM_LITERAL(
+                              "XTSE1530 the type attribute of xsl:attribute names a complex "
+                              "type (XSLT 4.0, 25.1.2)")});
+    }
+    return SXML_STATUS_OK;
+}
+
+sxml_status sxml_xslt_lowering_bind_validation(sxml_xpath_lowerer *lowerer,
+                                               const sxml_xslt_validation_request *request,
+                                               sxml_ir_atom *atom) {
+    const validation_choice choice = validation_of(request->query);
+    sxml_schema_validate_mode mode = SXML_SCHEMA_VALIDATE_MODE_STRICT;
+    if (choice.type_attribute != NULL) {
+        mode = SXML_SCHEMA_VALIDATE_MODE_TYPE;
+    } else if (choice.keyword == SXML_XSLT_AST_KEYWORD_LAX) {
+        mode = SXML_SCHEMA_VALIDATE_MODE_LAX;
+    } else if (choice.keyword != SXML_XSLT_AST_KEYWORD_STRICT) {
+        /* strip and preserve are the constructor's (its flags). */
+        *atom = request->value;
+        return SXML_STATUS_OK;
+    }
+    sxml_status status = SXML_STATUS_OK;
+    if (choice.type_attribute != NULL) {
+        status = check_validation_type(&request->query, &choice);
+    }
+    sxml_ir_atom arguments[3] = {request->value, {0}, {0}};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_add_item_constant(
+            lowerer,
+            sxml_atomic_item_from_integer((int64_t)mode +
+                                          (int64_t)SXML_SCHEMA_VALIDATE_MODE_XSLT_RULES),
+            &arguments[1]);
+    }
+    if (status == SXML_STATUS_OK && choice.type_attribute != NULL) {
+        status = add_type_name(lowerer, choice.type_name, &arguments[2]);
+    } else if (status == SXML_STATUS_OK) {
+        status = bind(lowerer,
+                      (sxml_xslt_expression_to_bind){
+                          .block = request->block,
+                          .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_SEQUENCE,
+                                         .sequence = (sxml_ir_atom_list){0}}},
+                      &arguments[2]);
+    }
+    sxml_ir_atom_list argument_list = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ir_unit_add_atoms(
+            lowerer->unit, (sxml_ir_atom_view){.atoms = arguments, .atom_count = 3},
+            &argument_list);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return bind(lowerer,
+                (sxml_xslt_expression_to_bind){
+                    .block = request->block,
+                    .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_STATIC_CALL,
+                                   .static_call = {.target = {.target_kind =
+                                                                  SXML_IR_FUNCTION_TARGET_KIND_NATIVE,
+                                                              .native_function =
+                                                                  &sxml_schema_validate_items_function},
+                                                   .arguments = argument_list}}},
+                atom);
+}
+
+/* Ends frame with atom, validated as query's instruction asks. */
+static sxml_status finish_validated_atom(sxml_xpath_lowering_machine *machine,
+                                         sxml_xpath_lowering_frame *frame,
+                                         sxml_xslt_validation_request request) {
+    request.block = frame->block;
+    sxml_ir_atom validated = {0};
+    const sxml_status status =
+        sxml_xslt_lowering_bind_validation(machine->state, &request, &validated);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return finish_with_atom(machine, frame, validated);
+}
+
+/* Ends frame with expression, validated as query's instruction asks. */
+typedef struct validated_expression {
+    sxml_xslt_validation_query query;
+    sxml_ir_expression expression;
+} validated_expression;
+
+static sxml_status finish_validated(sxml_xpath_lowering_machine *machine,
+                                    sxml_xpath_lowering_frame *frame,
+                                    const validated_expression *request) {
+    if (!sxml_xslt_lowering_validates(request->query)) {
+        return finish_with_expression(machine, frame, request->expression);
+    }
+    sxml_ir_atom value = {0};
+    const sxml_status status = bind(
+        machine->state,
+        (sxml_xslt_expression_to_bind){.block = frame->block, .expression = request->expression},
+        &value);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return finish_validated_atom(
+        machine, frame,
+        (sxml_xslt_validation_request){.query = request->query, .block = NULL, .value = value});
 }
 
 /* ---------------------------------------------------- Value and content */
@@ -1330,7 +1533,9 @@ static sxml_status finish_named_constructor(sxml_xpath_lowering_machine *machine
                     .lowering = lowering, .node = locals->head.node, .focus = NULL},
                 &content);
         }
-        uint32_t flags = (uint32_t)SXML_IR_CONSTRUCTION_XSLT_RULES;
+        uint32_t flags = (uint32_t)SXML_IR_CONSTRUCTION_XSLT_RULES |
+                         sxml_xslt_lowering_validation_flags((sxml_xslt_validation_query){
+                             .lowering = lowering, .node = locals->head.node});
         const sxml_xslt_ast_attribute *inherit = find_attribute(
             lowering, (attribute_lookup){.node = locals->head.node,
                                          .kind = SXML_XSLT_AST_ATTRIBUTE_INHERIT_NAMESPACES});
@@ -1351,8 +1556,12 @@ static sxml_status finish_named_constructor(sxml_xpath_lowering_machine *machine
     if (status != SXML_STATUS_OK) {
         return status;
     }
+    const sxml_xslt_validation_query validation = {.lowering = lowering,
+                                                   .node = locals->head.node};
     if (locals->is_name_fixed) {
-        return finish_with_expression(machine, frame, expression);
+        return finish_validated(
+            machine, frame,
+            &(validated_expression){.query = validation, .expression = expression});
     }
     sxml_ir_atom constructed = {0};
     status = sxml_xslt_lowering_bind_mapped_expression(
@@ -1366,7 +1575,9 @@ static sxml_status finish_named_constructor(sxml_xpath_lowering_machine *machine
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    return finish_with_atom(machine, frame, constructed);
+    return finish_validated_atom(
+        machine, frame,
+        (sxml_xslt_validation_request){.query = validation, .block = NULL, .value = constructed});
 }
 
 static sxml_status continue_named_constructor(sxml_xpath_lowering_machine *machine,
@@ -1476,16 +1687,20 @@ static sxml_status continue_document(sxml_xpath_lowering_machine *machine,
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    return finish_with_expression(
+    const sxml_xslt_validation_query validation = {.lowering = locals->head.lowering,
+                                                   .node = locals->head.node};
+    return finish_validated(
         machine, frame,
-        (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_DOCUMENT_CONSTRUCTOR,
-                             .node_construction = {.content = content,
-                                                   .construction_flags =
-                                                       (uint32_t)SXML_IR_CONSTRUCTION_XSLT_RULES,
-                                                   .module_number =
-                                                       sxml_xslt_lowering_module_of_node(
-                                                           locals->head.lowering,
-                                                           locals->head.node)}});
+        &(validated_expression){
+            .query = validation,
+            .expression = (sxml_ir_expression){
+                .expression_kind = SXML_IR_EXPRESSION_KIND_DOCUMENT_CONSTRUCTOR,
+                .node_construction = {.content = content,
+                                      .construction_flags =
+                                          (uint32_t)SXML_IR_CONSTRUCTION_XSLT_RULES |
+                                          sxml_xslt_lowering_validation_flags(validation),
+                                      .module_number = sxml_xslt_lowering_module_of_node(
+                                          locals->head.lowering, locals->head.node)}}});
 }
 
 static const sxml_xpath_lowering_procedure document_procedure = {
@@ -1733,12 +1948,15 @@ static sxml_status continue_copy_of(sxml_xpath_lowering_machine *machine,
                                            .conflict_error = NULL},
                            &source);
     }
+    const sxml_xslt_validation_query validation = {.lowering = lowering,
+                                                   .node = locals->head.node};
     sxml_ir_atom copies = {0};
     sxml_status status =
         bind_copy_of(machine->state,
                      (copy_of_request){.block = frame->block,
                                        .value = locals->value,
-                                       .flags = copy_flags_of(lowering, locals->head.node)},
+                                       .flags = copy_flags_of(lowering, locals->head.node) |
+                                                sxml_xslt_lowering_validation_flags(validation)},
                      &copies);
     const sxml_xslt_ast_attribute *copy_accumulators = find_attribute(
         lowering, (attribute_lookup){.node = locals->head.node,
@@ -1756,7 +1974,9 @@ static sxml_status continue_copy_of(sxml_xpath_lowering_machine *machine,
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    return finish_with_atom(machine, frame, copies);
+    return finish_validated_atom(
+        machine, frame,
+        (sxml_xslt_validation_request){.query = validation, .block = NULL, .value = copies});
 }
 
 static const sxml_xpath_lowering_procedure copy_of_procedure = {
@@ -1834,13 +2054,19 @@ static sxml_status continue_copy(sxml_xpath_lowering_machine *machine,
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    return finish_with_expression(
+    const sxml_xslt_validation_query validation = {.lowering = lowering,
+                                                   .node = locals->head.node};
+    return finish_validated(
         machine, frame,
-        (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_SHALLOW_COPY,
-                             .node_construction = {.value = locals->item,
-                                                   .content = locals->content,
-                                                   .construction_flags = copy_flags_of(
-                                                       lowering, locals->head.node)}});
+        &(validated_expression){
+            .query = validation,
+            .expression = (sxml_ir_expression){
+                .expression_kind = SXML_IR_EXPRESSION_KIND_SHALLOW_COPY,
+                .node_construction = {.value = locals->item,
+                                      .content = locals->content,
+                                      .construction_flags =
+                                          copy_flags_of(lowering, locals->head.node) |
+                                          sxml_xslt_lowering_validation_flags(validation)}}});
 }
 
 static const sxml_xpath_lowering_procedure copy_procedure = {

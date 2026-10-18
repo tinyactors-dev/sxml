@@ -11,6 +11,7 @@
 #include "resource_table.h"
 #include "suite_path.h"
 #include "sxml/name.h"
+#include "sxml/schema.h"
 #include "sxml/serialize.h"
 #include "sxml/string.h"
 #include "sxml/types.h"
@@ -60,6 +61,12 @@ typedef struct sxml_xslt_test_context {
     sxml_processor *processor;
     sxml_arena *scratch;
     sxml_qt4_resource_table resource_table;
+    /* The environment's schemas compiled into one schema (none: the
+       built-in components' alone, when a source asks for validation):
+       the host's in-scope schema of the stylesheet and the schema of
+       source validation (D179); NULL without schemas and validated
+       sources, or when it does not compile. */
+    sxml_schema *schema;
     /* The result element's in-scope namespaces, in the processor's pool:
        for params' select and the assertions. */
     sxml_namespace_binding *namespace_bindings;
@@ -427,28 +434,19 @@ static const sxml_trace_sink_operations sxml_xslt_test_trace_operations = {
 
 /* ----------------------------------------------------------- Environment */
 
-/* The in-scope namespaces of the result element, prefixed ones only (the
-   catalog's default namespace is not the expressions'), moved from the
-   catalog's name pool to the processor's. */
-static sxml_status sxml_xslt_test_bind_namespaces(sxml_xslt_test_context *context) {
+/* Adds the prefixed bindings of in_scope whose prefix is not bound yet
+   (the result element's first, then its descendants' in document
+   order), moved from the catalog's name pool to the processor's. */
+static sxml_status sxml_xslt_test_add_bindings(sxml_xslt_test_context *context,
+                                               sxml_namespace_binding_view in_scope) {
     const sxml_qt4_document *document = sxml_xslt_test_catalog_get_test_set_document(
         context->request->run->catalog);
-    sxml_namespace_binding_view in_scope = {.namespace_bindings = NULL,
-                                            .namespace_binding_count = 0};
-    sxml_status status = sxml_node_get_in_scope_namespaces(
-        sxml_qt4_document_reference(document, context->test_case->result), &in_scope);
-    void *memory = NULL;
-    if (status == SXML_STATUS_OK) {
-        status = sxml_xslt_test_scratch_array(
-            context,
-            (sxml_xslt_test_scratch_request){
-                .element_count = in_scope.namespace_binding_count,
-                .element_byte_count = sizeof(sxml_namespace_binding),
-                .alignment = alignof(sxml_namespace_binding)},
-            &memory);
-    }
-    context->namespace_bindings = memory;
     sxml_name_pool *name_pool = sxml_processor_get_name_pool(context->processor);
+    sxml_status status = SXML_STATUS_OK;
+    if (context->namespace_bindings == NULL) {
+        /* No element has bindings (the capacity counted them). */
+        return SXML_STATUS_OK;
+    }
     for (size_t binding_index = 0;
          status == SXML_STATUS_OK && binding_index < in_scope.namespace_binding_count;
          binding_index += 1) {
@@ -474,13 +472,74 @@ static sxml_status sxml_xslt_test_bind_namespaces(sxml_xslt_test_context *contex
             status = sxml_name_pool_intern_namespace_prefix(name_pool, prefix,
                                                             &moved.namespace_prefix);
         }
-        if (status == SXML_STATUS_OK) {
+        bool is_bound = false;
+        for (size_t bound_index = 0; bound_index < context->namespace_binding_count;
+             bound_index += 1) {
+            is_bound = is_bound || context->namespace_bindings[bound_index].namespace_prefix.index ==
+                                       moved.namespace_prefix.index;
+        }
+        if (status == SXML_STATUS_OK && !is_bound) {
             status =
                 sxml_name_pool_intern_namespace_uri(name_pool, uri, &moved.namespace_uri);
+            if (status == SXML_STATUS_OK) {
+                context->namespace_bindings[context->namespace_binding_count] = moved;
+                context->namespace_binding_count += 1;
+            }
         }
-        if (status == SXML_STATUS_OK) {
-            context->namespace_bindings[context->namespace_binding_count] = moved;
-            context->namespace_binding_count += 1;
+    }
+    return status;
+}
+
+/* The prefixed in-scope namespaces of the result element and of the
+   assertions inside it (an all-of may declare a prefix its asserts use;
+   the catalog's default namespace is not the expressions'). */
+static sxml_status sxml_xslt_test_bind_namespaces(sxml_xslt_test_context *context) {
+    const sxml_qt4_document *document = sxml_xslt_test_catalog_get_test_set_document(
+        context->request->run->catalog);
+    const sxml_node_reference result =
+        sxml_qt4_document_reference(document, context->test_case->result);
+    sxml_node_description description;
+    sxml_status status = sxml_node_describe(result, &description);
+    size_t capacity = 0;
+    for (uint32_t node_index = result.node_index.index;
+         status == SXML_STATUS_OK && node_index <= description.last_descendant.index;
+         node_index += 1) {
+        const sxml_node_reference node = {
+            .tree = result.tree, .node_index = {.index = node_index}, .namespace_number = 0};
+        sxml_node_description node_description;
+        sxml_namespace_binding_view in_scope = {.namespace_bindings = NULL,
+                                                .namespace_binding_count = 0};
+        status = sxml_node_describe(node, &node_description);
+        if (status == SXML_STATUS_OK && node_description.node_kind == SXML_NODE_KIND_ELEMENT) {
+            status = sxml_node_get_in_scope_namespaces(node, &in_scope);
+            capacity += in_scope.namespace_binding_count;
+        }
+    }
+    void *memory = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xslt_test_scratch_array(
+            context,
+            (sxml_xslt_test_scratch_request){
+                .element_count = capacity,
+                .element_byte_count = sizeof(sxml_namespace_binding),
+                .alignment = alignof(sxml_namespace_binding)},
+            &memory);
+    }
+    context->namespace_bindings = memory;
+    for (uint32_t node_index = result.node_index.index;
+         status == SXML_STATUS_OK && node_index <= description.last_descendant.index;
+         node_index += 1) {
+        const sxml_node_reference node = {
+            .tree = result.tree, .node_index = {.index = node_index}, .namespace_number = 0};
+        sxml_node_description node_description;
+        sxml_namespace_binding_view in_scope = {.namespace_bindings = NULL,
+                                                .namespace_binding_count = 0};
+        status = sxml_node_describe(node, &node_description);
+        if (status == SXML_STATUS_OK && node_description.node_kind == SXML_NODE_KIND_ELEMENT) {
+            status = sxml_node_get_in_scope_namespaces(node, &in_scope);
+            if (status == SXML_STATUS_OK) {
+                status = sxml_xslt_test_add_bindings(context, in_scope);
+            }
         }
     }
     return status;
@@ -537,6 +596,132 @@ static sxml_status sxml_xslt_test_evaluate(sxml_xslt_test_context *context,
     return status;
 }
 
+/* True when a source asks for strict or lax validation
+   (catalog-schema.xsd, "validation"). */
+static bool sxml_xslt_test_validates(const sxml_qt4_source *source) {
+    return sxml_byte_view_equals(source->validation, SXML_TEXT("strict")) ||
+           sxml_byte_view_equals(source->validation, SXML_TEXT("lax"));
+}
+
+/* Serves the environment's schema documents by their suite URIs (and by
+   namespace, resource_table.h) and compiles them into context->schema,
+   as the QT4 driver does (D174); a schema that does not compile is left
+   out, so that the stylesheet's own xsl:import-schema reports it. */
+static sxml_status sxml_xslt_test_compile_schemas(sxml_xslt_test_context *context) {
+    const sxml_qt4_environment *environment = &context->test_case->environment.shared;
+    const sxml_qt4_schema_view schemas = environment->schemas;
+    bool needs_schema = false;
+    for (size_t source_index = 0; source_index < environment->sources.source_count;
+         source_index += 1) {
+        needs_schema =
+            needs_schema || sxml_xslt_test_validates(&environment->sources.sources[source_index]);
+    }
+    void *memory = NULL;
+    sxml_status status = sxml_xslt_test_scratch_array(
+        context,
+        (sxml_xslt_test_scratch_request){.element_count = schemas.schema_count,
+                                         .element_byte_count = sizeof(sxml_qt4_served_schema),
+                                         .alignment = alignof(sxml_qt4_served_schema)},
+        &memory);
+    sxml_qt4_served_schema *served = memory;
+    void *document_memory = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xslt_test_scratch_array(
+            context,
+            (sxml_xslt_test_scratch_request){.element_count = schemas.schema_count,
+                                             .element_byte_count = sizeof(sxml_schema_document),
+                                             .alignment = alignof(sxml_schema_document)},
+            &document_memory);
+    }
+    sxml_schema_document *documents = document_memory;
+    size_t served_count = 0;
+    for (size_t schema_index = 0; status == SXML_STATUS_OK && schema_index < schemas.schema_count;
+         schema_index += 1) {
+        const sxml_qt4_schema *schema = &schemas.schemas[schema_index];
+        if (schema->file_path.byte_count == 0) {
+            continue;
+        }
+        sxml_qt4_served_schema *entry = &served[served_count];
+        *entry = (sxml_qt4_served_schema){.namespace_uri = schema->uri,
+                                          .file_path = schema->file_path,
+                                          .file_uri = sxml_xslt_test_empty_text};
+        status = sxml_xslt_test_suite_uri(context, schema->file_path, &entry->file_uri);
+        if (status == SXML_STATUS_OK) {
+            documents[served_count] =
+                (sxml_schema_document){.document_source = SXML_SCHEMA_DOCUMENT_SOURCE_RESOLVED,
+                                       .document_uri = entry->file_uri,
+                                       .checks_target_namespace = false};
+            served_count += 1;
+        }
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    context->resource_table.served_schemas = (sxml_qt4_served_schema_view){
+        .served_schemas = served, .served_schema_count = served_count};
+    if (served_count == 0 && !needs_schema) {
+        return SXML_STATUS_OK;
+    }
+    sxml_xslt_test_set_stage(
+        context, (sxml_xslt_test_stage){.description = SXML_TEXT("schema"),
+                                        .subject = served_count > 0 ? served[0].file_path
+                                                                    : sxml_xslt_test_empty_text});
+    /* A compilation error stays in the error record for a source that
+       asks for validation (sxml_xslt_test_validate_source). */
+    memset(&context->error_record, 0, sizeof context->error_record);
+    status = sxml_schema_create(
+        context->allocator,
+        &(sxml_schema_configuration){
+            .processor = context->processor,
+            .schema_documents = {.schema_documents = documents,
+                                 .schema_document_count = served_count},
+            .base_uri = sxml_xslt_test_empty_text,
+            .report_sink = {.state = NULL, .operations = NULL},
+            .maximum_content_model_state_count = 0,
+            .error_record = &context->error_record},
+        &context->schema);
+    sxml_item_heap_clear_raised_error(sxml_processor_get_item_heap(context->processor));
+    if (status == SXML_STATUS_STATIC_ERROR) {
+        context->schema = NULL;
+        return SXML_STATUS_OK;
+    }
+    return status;
+}
+
+/* Replaces *document_node, owned, by its validated copy when the source
+   asks for strict or lax validation against the environment's schema. */
+static sxml_status sxml_xslt_test_validate_source(sxml_xslt_test_context *context,
+                                                  const sxml_qt4_source *source,
+                                                  sxml_item *document_node) {
+    if (!sxml_xslt_test_validates(source)) {
+        return SXML_STATUS_OK;
+    }
+    if (context->schema == NULL) {
+        /* The environment's schema did not compile: its error is still
+           in the error record. */
+        sxml_item_release(*document_node);
+        return SXML_STATUS_STATIC_ERROR;
+    }
+    sxml_item validated;
+    memset(&validated, 0, sizeof validated);
+    const sxml_status status = sxml_schema_validate_node(
+        context->schema,
+        &(sxml_schema_validation_request){
+            .node = *document_node,
+            .validation_mode = sxml_byte_view_equals(source->validation, SXML_TEXT("strict"))
+                                   ? SXML_VALIDATION_MODE_STRICT
+                                   : SXML_VALIDATION_MODE_LAX,
+            .governing_type = {.index = SXML_TYPE_NONE},
+            .report_sink = {.state = NULL, .operations = NULL},
+            .error_record = &context->error_record},
+        &validated);
+    sxml_item_release(*document_node);
+    if (status == SXML_STATUS_OK) {
+        *document_node = validated;
+    }
+    return status;
+}
+
 /* Parses one source: its inline content or its file. */
 static sxml_status sxml_xslt_test_parse_source(sxml_xslt_test_context *context,
                                                size_t source_index) {
@@ -580,6 +765,9 @@ static sxml_status sxml_xslt_test_parse_source(sxml_xslt_test_context *context,
             &document_node);
         if (!has_content) {
             sxml_allocator_release(context->allocator, (void *)contents.bytes);
+        }
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xslt_test_validate_source(context, source, &document_node);
         }
     }
     if (status != SXML_STATUS_OK) {
@@ -810,6 +998,9 @@ static sxml_status sxml_xslt_test_apply_environment(sxml_xslt_test_context *cont
     if (status == SXML_STATUS_OK) {
         status = sxml_xslt_test_bind_namespaces(context);
     }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xslt_test_compile_schemas(context);
+    }
     for (size_t source_index = 0; status == SXML_STATUS_OK && source_index < sources.source_count;
          source_index += 1) {
         status = sxml_xslt_test_parse_source(context, source_index);
@@ -877,6 +1068,11 @@ static sxml_status sxml_xslt_test_compile(sxml_xslt_test_context *context,
         .variable_bindings = context->static_parameters.bindings,
         .variable_binding_count = context->static_parameters.binding_count};
     configuration.error_record = &context->error_record;
+    /* The environment's schema is the host's (xslt.h, D179). */
+    configuration.static_context.in_scope_schemas = (sxml_schema_view){
+        .schemas = context->schema == NULL ? NULL
+                                           : (const sxml_schema *const *)&context->schema,
+        .schema_count = context->schema == NULL ? 0 : 1};
     sxml_byte_view text = sxml_xslt_test_empty_text;
     sxml_status status = SXML_STATUS_OK;
     if (plan->principal_module_source == SXML_XSLT_PRINCIPAL_MODULE_SOURCE_TEXT) {
@@ -1285,6 +1481,8 @@ static void sxml_xslt_test_release_context(sxml_xslt_test_context *context) {
     if (context->processor != NULL) {
         sxml_item_heap_clear_raised_error(sxml_processor_get_item_heap(context->processor));
     }
+    sxml_schema_destroy(context->schema);
+    context->schema = NULL;
     sxml_processor_destroy(context->processor);
     sxml_arena_destroy(context->scratch);
 }

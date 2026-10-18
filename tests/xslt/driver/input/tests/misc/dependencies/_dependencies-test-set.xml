@@ -26,7 +26,7 @@
       <result><assert-true/></result>
    </test-case>
    <test-case name="schema-aware">
-      <description>Needs a non-goal: skipped and out of scope.</description>
+      <description>Needs schema awareness: runs, out of scope (D179).</description>
       <created by="sxml" on="2026-10-17"/>
       <dependencies>
          <feature value="schema_aware"/>
@@ -35,7 +35,7 @@
       <result><assert-true/></result>
    </test-case>
    <test-case name="basic-processor">
-      <description>Asks for schema awareness to be absent: in scope.</description>
+      <description>Asks for schema awareness to be absent: skipped, in scope.</description>
       <created by="sxml" on="2026-10-17"/>
       <dependencies>
          <feature value="schema_aware" satisfied="false"/>
@@ -62,7 +62,7 @@
       <result><assert-true/></result>
    </test-case>
    <test-case name="validation">
-      <description>A validated source.</description>
+      <description>A source validated by xsi:type alone (the built-in components' schema).</description>
       <created by="sxml" on="2026-10-17"/>
       <environment>
          <source role="." file="doc.xml" validation="strict"/>

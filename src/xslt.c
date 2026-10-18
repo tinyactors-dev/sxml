@@ -46,6 +46,7 @@
 #include "xslt_lower_internal.h"
 #include "xslt_output_internal.h"
 #include "xslt_read_internal.h"
+#include "xslt_schema_internal.h"
 #include "xslt_whitespace_internal.h"
 
 #include <stdalign.h>
@@ -384,6 +385,14 @@ static sxml_status sxml_xslt_compile(const sxml_xslt_stylesheet_configuration *c
     }
     if (status == SXML_STATUS_OK) {
         status = sxml_check_package(configuration, compiled->ast);
+    }
+    if (status == SXML_STATUS_OK) {
+        /* 3.13: the in-scope schemas, before anything resolves a type. */
+        status = sxml_xslt_import_schemas(&(sxml_xslt_schema_request){
+            .ast = compiled->ast,
+            .processor = processor,
+            .host_schemas = configuration->static_context.in_scope_schemas,
+            .error_record = configuration->error_record});
     }
     if (status == SXML_STATUS_OK) {
         status = sxml_xslt_lower_invocation(
@@ -1009,7 +1018,7 @@ static sxml_status sxml_transformation_run(const sxml_transformation *transforma
     const sxml_unit_evaluation_extension extension = {
         .function_table = sxml_function_library_as_table(stylesheet->function_library),
         .document_preparation =
-            sxml_xslt_strips_whitespace(stylesheet->ast)
+            sxml_xslt_prepares_documents(stylesheet->ast)
                 ? sxml_xslt_whitespace_stripping_as_document_preparation(&stylesheet->stripping)
                 : (sxml_document_preparation){.state = NULL, .operations = NULL},
         .result_writer = transformation->writer};

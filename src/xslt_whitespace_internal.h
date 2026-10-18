@@ -10,7 +10,9 @@
 
 /*
  * Whitespace stripping of source documents (XSLT 4.0, 4.2.2; packet 4.12,
- * docs/DECISIONS.md D150). Internal to sxml.
+ * docs/DECISIONS.md D150), and the stripping of their type annotations
+ * that input-type-annotations="strip" on a module asks for (4.1; D179):
+ * the same copy, without the annotations. Internal to sxml.
  *
  * The xsl:strip-space and xsl:preserve-space declarations of a stylesheet
  * decide, for each element name, whether the whitespace text nodes among
@@ -46,6 +48,10 @@ typedef struct sxml_xslt_whitespace_stripping {
 /* True when some xsl:strip-space can remove a text node: without one,
    stripping changes nothing and no copy is made. */
 bool sxml_xslt_strips_whitespace(const sxml_xslt_ast *ast);
+
+/* True when the stylesheet strips whitespace or type annotations: only
+   then are documents copied (sxml_xslt_strip_document). */
+bool sxml_xslt_prepares_documents(const sxml_xslt_ast *ast);
 
 /*
  * Writes document_node, or (when it is a document node and the stylesheet

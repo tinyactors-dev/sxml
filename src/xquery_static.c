@@ -914,41 +914,13 @@ typedef struct hint_delivery {
 
 static sxml_status probe_hint(const static_reader *reader, sxml_schema_document document,
                               hint_delivery *delivery) {
-    delivery->is_delivered = false;
-    sxml_processor *processor = reader->context->xpath.processor;
-    const sxml_resource_resolver resolver = processor->resource_resolver;
-    if (resolver.operations == NULL || resolver.operations->resolve == NULL) {
-        return SXML_STATUS_OK;
-    }
-    sxml_uri_resolution resolution = {0};
-    sxml_status status = sxml_uri_resolve(
-        &(sxml_uri_resolution_request){.reference = document.document_uri,
-                                       .base_uri = reader->context->xpath.static_base_uri,
-                                       .allocator = reader->allocator},
-        &resolution);
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    sxml_resource resource;
-    memset(&resource, 0, sizeof resource);
-    status = resolver.operations->resolve(
-        resolver.state,
-        &(sxml_resource_request){.resource_kind = SXML_RESOURCE_KIND_SCHEMA_DOCUMENT,
-                                 .uri_reference = document.document_uri,
-                                 .absolute_uri = resolution.uri,
-                                 .processor = processor,
-                                 .target_namespace_uri = document.target_namespace_uri},
-        &resource);
-    if (status == SXML_STATUS_OK) {
-        delivery->is_delivered = resource.resource_form != SXML_RESOURCE_FORM_NONE;
-        if (resource.resource_form == SXML_RESOURCE_FORM_DOCUMENT_NODE) {
-            sxml_item_release(resource.document_node);
-        }
-        if (resolver.operations->release != NULL) {
-            resolver.operations->release(resolver.state, &resource);
-        }
-    }
-    sxml_allocator_release(reader->allocator, resolution.memory);
+    sxml_schema_scope_delivery delivered = {.is_delivered = false};
+    const sxml_status status = sxml_schema_scope_probe_document(
+        &(sxml_schema_scope_probe){.processor = reader->context->xpath.processor,
+                                   .document = document,
+                                   .base_uri = reader->context->xpath.static_base_uri},
+        &delivered);
+    delivery->is_delivered = delivered.is_delivered;
     return status;
 }
 

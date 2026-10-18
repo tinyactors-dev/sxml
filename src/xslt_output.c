@@ -3500,6 +3500,52 @@ static sxml_status continue_result_document(sxml_xpath_lowering_machine *machine
         }
         return status;
     }
+    const sxml_xslt_validation_query validation = {.lowering = lowering,
+                                                   .node = locals->head.node};
+    if (sxml_xslt_lowering_validates(validation)) {
+        /* 25.2: the result tree's document node, validated. */
+        sxml_ir_expression_index content = {0};
+        sxml_ir_expression_index document = {0};
+        status = sxml_xpath_lowerer_add_expression(
+            machine->state,
+            (sxml_xpath_lowering_expression_to_add){
+                .node = no_ast_node,
+                .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_ATOM,
+                               .atom = locals->raw_result}},
+            &content);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xpath_lowerer_add_expression(
+                machine->state,
+                (sxml_xpath_lowering_expression_to_add){
+                    .node = no_ast_node,
+                    .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_DOCUMENT_CONSTRUCTOR,
+                                   .node_construction = {
+                                       .content = content,
+                                       .construction_flags =
+                                           (uint32_t)SXML_IR_CONSTRUCTION_XSLT_RULES,
+                                       .module_number = sxml_xslt_lowering_module_of_node(
+                                           lowering, locals->head.node)}}},
+                &document);
+        }
+        sxml_ir_atom document_atom = {0};
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xpath_lowerer_bind_expression(
+                machine->state,
+                (sxml_xpath_lowering_expression_in_block){.block = frame->block,
+                                                          .expression = document},
+                &document_atom);
+        }
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xslt_lowering_bind_validation(
+                machine->state,
+                &(sxml_xslt_validation_request){
+                    .query = validation, .block = frame->block, .value = document_atom},
+                &locals->raw_result);
+        }
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+    }
     const sxml_ir_atom arguments[2] = {locals->opened, locals->raw_result};
     sxml_ir_atom closed = {0};
     status = bind_row_call(machine->state,

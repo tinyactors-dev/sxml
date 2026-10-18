@@ -104,7 +104,8 @@ typedef enum content_model {
     SXML_CONTENT_MODEL_SEQUENCE_CONSTRUCTOR_THEN_CHILDREN,
     /* Text that is an expression, and xsl:fallback (xsl:select). */
     SXML_CONTENT_MODEL_TEXT,
-    /* An inline schema (xsl:import-schema), not read. */
+    /* An inline schema (xsl:import-schema), read by src/xslt_schema.c
+       from the module's tree. */
     SXML_CONTENT_MODEL_SCHEMA,
 } content_model;
 
@@ -3612,12 +3613,21 @@ static sxml_status read_value(stylesheet_reader *reader, const value_request *re
             return raise_value_error(reader, request,
 (reader_error){.description = "The attribute must be an NCName (XSLT 4.0, 2.3)"});
         }
+        /* 25.1.2: an unprefixed [xsl:]type is in the default namespace for
+           elements and types. */
+        const sxml_xslt_ast_static_context *context =
+            sxml_xslt_ast_get_static_context(reader->ast, request->static_context);
+        const sxml_namespace_uri_identifier unprefixed_namespace = {
+            .index = request->rule->attribute_kind == SXML_XSLT_AST_ATTRIBUTE_TYPE &&
+                             !context->is_any_namespace
+                         ? context->xpath_default_namespace.index
+                         : (uint32_t)SXML_NAMESPACE_NONE};
         const sxml_status status = resolve_eqname(
             reader,
             &(eqname_request){.text = trimmed,
                               .bindings = sxml_xslt_ast_get_namespace_bindings(
                                   reader->ast, request->static_context),
-                              .unprefixed_namespace = {.index = SXML_NAMESPACE_NONE}},
+                              .unprefixed_namespace = unprefixed_namespace},
             &result);
         if (status != SXML_STATUS_OK) {
             return status;
@@ -3873,16 +3883,6 @@ static sxml_status compute_static_context(stylesheet_reader *reader, const conte
             default_validation = SXML_XSLT_AST_KEYWORD_STRIP;
         } else if (sxml_byte_view_equals(word, SXML_BYTE_VIEW_FROM_LITERAL("preserve"))) {
             default_validation = SXML_XSLT_AST_KEYWORD_PRESERVE;
-        } else if (sxml_byte_view_equals(word, SXML_BYTE_VIEW_FROM_LITERAL("strict")) ||
-                   sxml_byte_view_equals(word, SXML_BYTE_VIEW_FROM_LITERAL("lax"))) {
-            return raise_error(reader, (reader_error){.error_code = "XTSE1660",
-                                                      .description = "default-validation strict "
-                                                                     "or lax needs a schema-aware "
-                                                                     "processor (XSLT 4.0, 27.2; "
-                                                                     "D97, D162)",
-                                                      .module = request->module,
-                                                      .source_span =
-                                                          validation_attribute->source_span});
         } else if (version <= 4.0) {
             return raise_error(reader, (reader_error){.error_code = "XTSE0020",
                                                       .description = "default-validation is "
@@ -4656,52 +4656,39 @@ static sxml_status classify_record_attribute(stylesheet_reader *reader,
                                               .source_span = attribute->source_span});
 }
 
-/* What a non-schema-aware processor rejects (XSLT 4.0, 27.2; sxml is not
-   schema-aware yet: D97, a delay, D162). This is the one place: the
-   schema-aware feature replaces it. */
+/* XTSE1505 (XSLT 4.0, 25): [xsl:]type and [xsl:]validation are mutually
+   exclusive. With src/xslt_schema.c's imports this is what the reader
+   checks of schema awareness (D179); lowering resolves the types. */
 typedef struct schema_awareness_check {
-    const sxml_xslt_ast_attribute_request *attribute;
+    sxml_xslt_ast_node_index node;
     sxml_xslt_ast_module_index module;
 } schema_awareness_check;
 
-static sxml_status reject_schema_awareness(stylesheet_reader *reader,
-                                           schema_awareness_check check) {
-    const sxml_xslt_ast_attribute_request *attribute = check.attribute;
-    const bool is_typed_mode = attribute->kind == SXML_XSLT_AST_ATTRIBUTE_TYPED &&
-                               attribute->value.kind == SXML_XSLT_AST_VALUE_KIND_KEYWORD &&
-                               (attribute->value.payload.keyword == SXML_XSLT_AST_KEYWORD_YES ||
-                                attribute->value.payload.keyword == SXML_XSLT_AST_KEYWORD_STRICT);
-    const bool is_strict = attribute->kind == SXML_XSLT_AST_ATTRIBUTE_VALIDATION &&
-                           attribute->value.kind == SXML_XSLT_AST_VALUE_KIND_KEYWORD &&
-                           attribute->value.payload.keyword == SXML_XSLT_AST_KEYWORD_STRICT;
-    if (attribute->kind != SXML_XSLT_AST_ATTRIBUTE_TYPE && !is_strict && !is_typed_mode) {
+static sxml_status check_type_and_validation(stylesheet_reader *reader,
+                                             schema_awareness_check check) {
+    const sxml_xslt_ast_attribute_index type = sxml_xslt_ast_find_attribute(
+        reader->ast,
+        (sxml_xslt_ast_attribute_query){.node = check.node, .kind = SXML_XSLT_AST_ATTRIBUTE_TYPE});
+    if (type.value == 0 ||
+        sxml_xslt_ast_find_attribute(reader->ast, (sxml_xslt_ast_attribute_query){
+                                                      .node = check.node,
+                                                      .kind = SXML_XSLT_AST_ATTRIBUTE_VALIDATION})
+                .value == 0) {
         return SXML_STATUS_OK;
     }
-    /* XTSE1660: [xsl:]type, [xsl:]validation="strict", typed="yes" or
-       "strict" on xsl:mode; lax and preserve are taken as strip. */
-    return raise_error(reader, (reader_error){.error_code = "XTSE1660",
-                                              .description = "A type attribute, strict validation "
-                                                             "or a typed mode needs a "
-                                                             "schema-aware processor (XSLT 4.0, "
-                                                             "27.2)",
+    return raise_error(reader, (reader_error){.error_code = "XTSE1505",
+                                              .description = "Both a type and a validation "
+                                                             "attribute (XSLT 4.0, 25)",
                                               .module = check.module,
-                                              .source_span = attribute->source_span});
+                                              .source_span = sxml_xslt_ast_get_attribute(
+                                                                 reader->ast, type)
+                                                                 ->source_span});
 }
 
 static sxml_status add_node_attributes(stylesheet_reader *reader, const node_attributes_request *request) {
     const element_facts *facts = request->facts;
     const bool is_rule_element = request->role == SXML_ELEMENT_ROLE_XSLT ||
                                  request->role == SXML_ELEMENT_ROLE_MODULE_ROOT;
-    if (is_rule_element && facts->rule->kind == SXML_XSLT_AST_KIND_IMPORT_SCHEMA) {
-        /* XTSE1650 (27.2), with reject_schema_awareness's XTSE1660 the
-           schema-aware feature's one place (D162). */
-        return raise_error(reader, (reader_error){.error_code = "XTSE1650",
-                                                  .description = "xsl:import-schema needs a "
-                                                                 "schema-aware processor (XSLT "
-                                                                 "4.0, 27.2)",
-                                                  .module = request->parent->module,
-                                                  .source_span = facts->source_span});
-    }
     for (size_t index = 0; index < reader->attributes.count; index += 1) {
         const element_attribute attribute = *attribute_at(reader, index);
         if (attribute.is_ignored) {
@@ -4815,17 +4802,17 @@ static sxml_status add_node_attributes(stylesheet_reader *reader, const node_att
 
         }
         if (status == SXML_STATUS_OK) {
-            status = reject_schema_awareness(
-                reader, (schema_awareness_check){.attribute = &partial,
-                                                 .module = request->parent->module});
-        }
-        if (status == SXML_STATUS_OK) {
             sxml_xslt_ast_attribute_index added = {.value = 0};
             status = sxml_xslt_ast_add_attribute(reader->ast, &partial, &added);
         }
         if (status != SXML_STATUS_OK) {
             return status;
         }
+    }
+    sxml_status checked = check_type_and_validation(
+        reader, (schema_awareness_check){.node = request->node, .module = request->parent->module});
+    if (checked != SXML_STATUS_OK) {
+        return checked;
     }
     /* Required attributes (element syntax summaries; XTSE0010). */
     if (is_rule_element) {

@@ -1928,6 +1928,17 @@ static sxml_status continue_source_document(sxml_xpath_lowering_machine *machine
                                                                  .atom_count = 1}},
                 &locals->document);
         }
+        if (status == SXML_STATUS_OK) {
+            /* 25.2: validation and type, when asked for (D179). */
+            const sxml_ir_atom loaded = locals->document;
+            status = sxml_xslt_lowering_bind_validation(
+                lowerer,
+                &(sxml_xslt_validation_request){
+                    .query = {.lowering = lowering, .node = locals->head.node},
+                    .block = frame->block,
+                    .value = loaded},
+                &locals->document);
+        }
         sxml_ir_atom scope = {0};
         if (status == SXML_STATUS_OK && lowering->accumulators != NULL &&
             lowering->accumulators->accumulator_count > 0) {

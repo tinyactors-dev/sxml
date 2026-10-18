@@ -90,6 +90,30 @@ bool sxml_schema_scope_defines_namespace(const sxml_schema *schema,
                                          sxml_namespace_uri_identifier namespace_uri);
 
 /*
+ * Whether the processor's resource resolver delivers a schema document
+ * (XQuery's "import schema" and XSLT's xsl:import-schema may ignore a
+ * location hint that leads nowhere, and a namespace no document is found
+ * for: XQuery 4.0, 5.11; XSLT 4.0, 3.13): request->document is RESOLVED,
+ * its document_uri resolved against request->base_uri (empty: asked by
+ * its target namespace alone). Asks once with kind SCHEMA_DOCUMENT and
+ * releases what is delivered; is_delivered is false when nothing is or
+ * the processor has no resolver. Returns the resolver's and the URI
+ * resolution's failures.
+ */
+typedef struct sxml_schema_scope_probe {
+    sxml_processor *processor;
+    sxml_schema_document document;
+    sxml_byte_view base_uri;
+} sxml_schema_scope_probe;
+
+typedef struct sxml_schema_scope_delivery {
+    bool is_delivered;
+} sxml_schema_scope_delivery;
+
+SXML_NODISCARD sxml_status sxml_schema_scope_probe_document(const sxml_schema_scope_probe *request,
+                                                            sxml_schema_scope_delivery *delivery);
+
+/*
  * The members of the substitution group of a global element declaration
  * (XSD 1.1 Part 1, 3.3.6.2, transitively), the head first, that an
  * element may stand for (XPath 4.0, 3.2.7.3, schema-element(N)): not
@@ -144,6 +168,8 @@ typedef enum sxml_schema_validate_mode {
     SXML_SCHEMA_VALIDATE_MODE_LAX = 1,
     /* "validate type T": $type names T. */
     SXML_SCHEMA_VALIDATE_MODE_TYPE = 2,
+    /* Added to one of the above: XSLT's rules (below). */
+    SXML_SCHEMA_VALIDATE_MODE_XSLT_RULES = 4,
 } sxml_schema_validate_mode;
 
 /*
@@ -156,8 +182,23 @@ typedef enum sxml_schema_validate_mode {
  * the validation root's name (strict: XQDY0084 when none does; lax: the
  * first schema then) or, for $mode TYPE, that defines $type. An invalid
  * node is XQDY0027 with the constraint name in the description.
+ *
+ * With SXML_SCHEMA_VALIDATE_MODE_XSLT_RULES added to $mode, the rules of
+ * XSLT's [xsl:]validation and [xsl:]type attributes (XSLT 4.0, 25; D179):
+ * every item of $node is validated in turn, documents, elements and
+ * attributes (each a validation root, its in-scope schema found as
+ * above), other items kept as they are; a document whose children are
+ * not one element, no text and any comments and processing instructions
+ * is XTTE1550; strict validation without a declaration XTTE1512, an
+ * invalid node XTTE1510 (strict), XTTE1515 (lax) or XTTE1540 (by type),
+ * a document that breaks an ID/IDREF constraint XTTE1555, an attribute by
+ * a complex type XTTE1535.
  */
 extern const sxml_native_function sxml_schema_validate_function;
+
+/* The same row as validate-items($node, $mode, $type) as item()*, for
+   XSLT's rules, whose result is any number of items. */
+extern const sxml_native_function sxml_schema_validate_items_function;
 
 /*
  * The xsd-validation option of fn:parse-xml and fn:doc (F&O 4.0, 17.2.1;

@@ -286,6 +286,7 @@ sxml_xslt_test_run_test_case(const sxml_xslt_test_run_request *request,
         .reason = judgement.outcome == SXML_QT4_TEST_OUTCOME_PASS
                       ? sxml_xslt_test_empty_text
                       : sxml_qt4_reason_text(&reason),
-        .is_in_scope = applicability.is_in_scope};
+        .is_in_scope = applicability.is_in_scope,
+        .is_schema_aware = applicability.is_schema_aware};
     return SXML_STATUS_OK;
 }

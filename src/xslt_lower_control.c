@@ -678,8 +678,12 @@ static sxml_status finish_binding_value(sxml_xpath_lowering_machine *machine,
                     .block = frame->block,
                     .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_DOCUMENT_CONSTRUCTOR,
                                    .node_construction = {.content = content,
-                                                         .construction_flags = (uint32_t)
-                                                             SXML_IR_CONSTRUCTION_XSLT_RULES,
+                                                         /* 25.2: as preserve (D179). */
+                                                         .construction_flags =
+                                                             (uint32_t)
+                                                                 SXML_IR_CONSTRUCTION_XSLT_RULES |
+                                                             (uint32_t)
+                                                                 SXML_IR_CONSTRUCTION_PRESERVES_TYPES,
                                                          .module_number =
                                                              sxml_xslt_lowering_module_of_node(
                                                                  lowering, locals->node)}}},

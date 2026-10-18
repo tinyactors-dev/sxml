@@ -18,7 +18,6 @@ set-dependencies schema-aware
   dependency feature schema_aware
   plan stylesheet tests/misc/dependencies/a.xsl, 0 secondary, 0 static, 0 parameters, delivery default
   assertions assert-true 1
-  skip: feature schema_aware
   out of scope: feature schema_aware
 set-dependencies basic-processor
   stylesheet - tests/misc/dependencies/a.xsl
@@ -26,6 +25,7 @@ set-dependencies basic-processor
   dependency feature schema_aware unsatisfied
   plan stylesheet tests/misc/dependencies/a.xsl, 0 secondary, 0 static, 0 parameters, delivery default
   assertions error 1
+  skip: feature schema_aware (satisfied)
 set-dependencies inverted
   stylesheet - tests/misc/dependencies/a.xsl
   invoke apply-templates
@@ -47,7 +47,6 @@ set-dependencies validation
   invoke apply-templates
   plan stylesheet tests/misc/dependencies/a.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
   assertions assert-true 1
-  skip: environment source validation
 set-dependencies posture
   stylesheet - tests/misc/dependencies/a.xsl
   invoke apply-templates
@@ -59,4 +58,4 @@ set-dependencies warning
   invoke apply-templates
   plan stylesheet tests/misc/dependencies/a.xsl, 0 secondary, 0 static, 0 parameters, delivery default
   assertions all-of 1 assert 1 assert-warning 1
-9 test cases: 3 applicable, 6 skipped; 7 in scope
+9 test cases: 4 applicable, 5 skipped; 7 in scope

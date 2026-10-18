@@ -357,8 +357,219 @@ static sxml_status read_datum_argument(const sxml_function_call *call, size_t ar
     return status;
 }
 
+/* ------------------------------------------- XSLT's validation rules */
+
+static const sxml_static_error xslt_document_error = {
+    .error_status = SXML_STATUS_TYPE_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XTTE1550"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "A document node to validate must have exactly one element child and no text "
+        "children (XSLT 4.0, 25.2)")};
+
+static const sxml_static_error xslt_declaration_error = {
+    .error_status = SXML_STATUS_TYPE_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XTTE1512"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "Strict validation of a node whose name has no top-level declaration in the "
+        "in-scope schemas (XSLT 4.0, 25.1.1)")};
+
+static const sxml_static_error xslt_type_error = {
+    .error_status = SXML_STATUS_TYPE_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XTTE1540"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "The type to validate against is not among the in-scope schema definitions (XSLT "
+        "4.0, 25.1.2)")};
+
+static const sxml_static_error xslt_attribute_type_error = {
+    .error_status = SXML_STATUS_TYPE_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XTTE1535"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "An attribute is to be validated against a complex type (XSLT 4.0, 25.1.2)")};
+
+/* The code of an invalid node (25.1.1, 25.1.2, 25.2). */
+typedef struct invalid_node {
+    sxml_schema_validate_mode mode;
+    sxml_node_kind node_kind;
+    const sxml_error_record *schema_error;
+} invalid_node;
+
+static sxml_byte_view xslt_invalid_code(invalid_node invalid) {
+    const sxml_byte_view constraint = invalid.schema_error->code.local_name;
+    static const sxml_byte_view id_prefix = SXML_BYTE_VIEW_INITIALIZER("cvc-id");
+    if (invalid.node_kind == SXML_NODE_KIND_DOCUMENT &&
+        constraint.byte_count >= id_prefix.byte_count &&
+        memcmp(constraint.bytes, id_prefix.bytes, id_prefix.byte_count) == 0) {
+        /* 25.2: Validation Root Valid (ID/IDREF) of a document. */
+        return SXML_BYTE_VIEW_FROM_LITERAL("XTTE1555");
+    }
+    if (invalid.mode == SXML_SCHEMA_VALIDATE_MODE_LAX) {
+        return SXML_BYTE_VIEW_FROM_LITERAL("XTTE1515");
+    }
+    return invalid.mode == SXML_SCHEMA_VALIDATE_MODE_TYPE ? SXML_BYTE_VIEW_FROM_LITERAL("XTTE1540")
+                                                          : SXML_BYTE_VIEW_FROM_LITERAL("XTTE1510");
+}
+
+/* True when type is a complex type. */
+static bool is_complex_type(const sxml_function_call *call, sxml_type_identifier type) {
+    sxml_type_description description;
+    return sxml_type_registry_describe_type(sxml_item_heap_get_type_registry(call->item_heap),
+                                            type, &description) == SXML_STATUS_OK &&
+           description.variety == SXML_TYPE_VARIETY_COMPLEX;
+}
+
+/* One item of $node under XSLT's rules: *validated, owned, is its
+   validated copy, or the item itself for anything but a document,
+   element or attribute. */
+typedef struct xslt_item {
+    sxml_item item;
+    sxml_schema_validate_mode mode;
+    sxml_name_identifier type_name;
+} xslt_item;
+
+static sxml_status validate_xslt_item(const sxml_function_call *call, const xslt_item *request,
+                                      sxml_item *validated) {
+    sxml_node_reference node = {.tree = NULL};
+    sxml_node_description description;
+    memset(&description, 0, sizeof description);
+    if (sxml_item_get_node(request->item, &node) != SXML_STATUS_OK ||
+        sxml_node_describe(node, &description) != SXML_STATUS_OK ||
+        (description.node_kind != SXML_NODE_KIND_DOCUMENT &&
+         description.node_kind != SXML_NODE_KIND_ELEMENT &&
+         description.node_kind != SXML_NODE_KIND_ATTRIBUTE)) {
+        sxml_item_retain(request->item);
+        *validated = request->item;
+        return SXML_STATUS_OK;
+    }
+    sxml_status status = SXML_STATUS_OK;
+    if (description.node_kind == SXML_NODE_KIND_DOCUMENT) {
+        document_form form = {.is_well_formed = true};
+        status = is_well_formed_document(node, &form);
+        if (status == SXML_STATUS_OK && !form.is_well_formed) {
+            return sxml_function_library_report(call, &xslt_document_error);
+        }
+    }
+    const scope_validation validation = {
+        .node = node, .mode = request->mode, .type_name = request->type_name};
+    scope_plan plan;
+    if (status == SXML_STATUS_OK) {
+        status = plan_validation(call, &validation, &plan);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (plan.plan_kind == SXML_SCOPE_PLAN_NO_DECLARATION) {
+        return sxml_function_library_report(call, &xslt_declaration_error);
+    }
+    if (plan.plan_kind == SXML_SCOPE_PLAN_NO_TYPE) {
+        return sxml_function_library_report(call, &xslt_type_error);
+    }
+    if (description.node_kind == SXML_NODE_KIND_ATTRIBUTE &&
+        plan.plan_kind == SXML_SCOPE_PLAN_VALIDATE && request->mode == SXML_SCHEMA_VALIDATE_MODE_TYPE &&
+        is_complex_type(call, plan.governing_type)) {
+        return sxml_function_library_report(call, &xslt_attribute_type_error);
+    }
+    sxml_error_record schema_error;
+    memset(&schema_error, 0, sizeof schema_error);
+    status = run_validation(call,
+                            &(scope_run){.validation = &validation,
+                                         .plan = &plan,
+                                         .report_sink = {.state = NULL, .operations = NULL},
+                                         .schema_error = &schema_error},
+                            validated);
+    if (status == SXML_STATUS_DYNAMIC_ERROR) {
+        /* XSLT 4.0, 25: these are type errors. */
+        return sxml_schema_scope_raise(&(sxml_schema_scope_error){
+            .item_heap = call->item_heap,
+            .allocator = sxml_item_heap_as_allocator(call->item_heap),
+            .error_status = SXML_STATUS_TYPE_ERROR,
+            .error_code = xslt_invalid_code((invalid_node){.mode = request->mode,
+                                                           .node_kind = description.node_kind,
+                                                           .schema_error = &schema_error}),
+            .schema_error = &schema_error,
+            .error_record = call->error_record,
+            .location = {.line_number = 0}});
+    }
+    return status;
+}
+
+/* Every item of $node under XSLT's rules, into *result. */
+static sxml_status validate_xslt_items(const sxml_function_call *call, xslt_item request,
+                                       sxml_sequence *result) {
+    const sxml_sequence items = sxml_function_library_get_argument(call, 0);
+    uint64_t item_count = 0;
+    sxml_status status = sxml_sequence_count(items, call->error_record, &item_count);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (item_count > SIZE_MAX / sizeof(sxml_item)) {
+        return SXML_STATUS_LIMIT_EXCEEDED;
+    }
+    const sxml_allocator allocator = sxml_item_heap_as_allocator(call->item_heap);
+    void *memory = NULL;
+    status = sxml_allocator_allocate(
+        allocator,
+        (sxml_allocation_request){.byte_count = item_count == 0 ? 1 : (size_t)item_count *
+                                                                           sizeof(sxml_item),
+                                  .alignment = _Alignof(sxml_item)},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_item *validated = memory;
+    size_t validated_count = 0;
+    for (uint64_t item_index = 0; status == SXML_STATUS_OK && item_index < item_count;
+         item_index += 1) {
+        status = sxml_sequence_get_item(items, (sxml_item_request){.item_index = item_index},
+                                        &request.item);
+        if (status == SXML_STATUS_OK) {
+            status = validate_xslt_item(call, &request, &validated[validated_count]);
+        }
+        if (status == SXML_STATUS_OK) {
+            validated_count += 1;
+        }
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_sequence_make_vector(
+            call->item_heap, (sxml_item_view){.items = validated, .item_count = validated_count},
+            result);
+    }
+    for (size_t item_index = 0; item_index < validated_count; item_index += 1) {
+        sxml_item_release(validated[item_index]);
+    }
+    sxml_allocator_release(allocator, memory);
+    return status;
+}
+
 /* validate($node, $mode, $type) (src/schema_scope_internal.h). */
 static sxml_status call_validate(const sxml_function_call *call, sxml_sequence *result) {
+    sxml_atomic_datum xslt_mode_datum;
+    sxml_atomic_datum xslt_type_datum;
+    bool has_xslt_mode = false;
+    bool has_xslt_type = false;
+    sxml_status read_status = read_datum_argument(
+        call, 1, (datum_answer){.datum = &xslt_mode_datum, .has_datum = &has_xslt_mode});
+    if (read_status == SXML_STATUS_OK) {
+        read_status = read_datum_argument(
+            call, 2, (datum_answer){.datum = &xslt_type_datum, .has_datum = &has_xslt_type});
+    }
+    if (read_status != SXML_STATUS_OK) {
+        return read_status;
+    }
+    if (has_xslt_mode && xslt_mode_datum.datum_kind == SXML_DATUM_KIND_INTEGER &&
+        xslt_mode_datum.datum_details.integer >= SXML_SCHEMA_VALIDATE_MODE_XSLT_RULES &&
+        xslt_mode_datum.datum_details.integer <=
+            SXML_SCHEMA_VALIDATE_MODE_XSLT_RULES + SXML_SCHEMA_VALIDATE_MODE_TYPE &&
+        (!has_xslt_type || xslt_type_datum.datum_kind == SXML_DATUM_KIND_QNAME)) {
+        return validate_xslt_items(
+            call,
+            (xslt_item){.item = {.representation = SXML_ITEM_REPRESENTATION_NONE},
+                        .mode = (sxml_schema_validate_mode)(xslt_mode_datum.datum_details.integer -
+                                                            SXML_SCHEMA_VALIDATE_MODE_XSLT_RULES),
+                        .type_name = has_xslt_type
+                                         ? xslt_type_datum.datum_details.qname.expanded_name
+                                         : (sxml_name_identifier){.index = 0}},
+            result);
+    }
     single_node single = {.node = {.tree = NULL}};
     bool is_single = false;
     sxml_status status =
@@ -446,6 +657,15 @@ const sxml_native_function sxml_schema_validate_function = {
     .local_name = SXML_BYTE_VIEW_INITIALIZER("validate"),
     .parameters = {validate_parameters, 3},
     .result_type = SXML_BYTE_VIEW_INITIALIZER("node()"),
+    .call = call_validate,
+    .resumable_body = NULL};
+
+const sxml_native_function sxml_schema_validate_items_function = {
+    .function_namespace = SXML_NAMESPACE_NONE,
+    .properties = SXML_NATIVE_FUNCTION_USES_DYNAMIC_CONTEXT,
+    .local_name = SXML_BYTE_VIEW_INITIALIZER("validate-items"),
+    .parameters = {validate_parameters, 3},
+    .result_type = SXML_BYTE_VIEW_INITIALIZER("item()*"),
     .call = call_validate,
     .resumable_body = NULL};
 

@@ -1473,8 +1473,11 @@ static sxml_status bind_default(sxml_xpath_lowerer *lowerer, sxml_xpath_lowering
             lowerer,
             (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_DOCUMENT_CONSTRUCTOR,
                                  .node_construction = {.content = locals->default_value,
-                                                       .construction_flags = (uint32_t)
-                                                           SXML_IR_CONSTRUCTION_XSLT_RULES,
+                                                       /* 25.2: as preserve (D179). */
+                                                       .construction_flags =
+                                                           (uint32_t)SXML_IR_CONSTRUCTION_XSLT_RULES |
+                                                           (uint32_t)
+                                                               SXML_IR_CONSTRUCTION_PRESERVES_TYPES,
                                                        .module_number =
                                                            sxml_xslt_lowering_module_of_node(
                                                                lowering, parameter)}},
@@ -2358,7 +2361,8 @@ static sxml_status add_static_context_module(const sxml_xslt_lowering *lowering,
                                      .decimal_format_count = request.formats->format_count},
                  .default_collation_uri =
                      sxml_xslt_ast_get_text(lowering->ast, request.ast_context->default_collation),
-                 .collation_bindings = {.collation_bindings = NULL, .collation_binding_count = 0}},
+                 .collation_bindings = {.collation_bindings = NULL, .collation_binding_count = 0},
+                 .in_scope_schemas = request.context->unit_static_context.in_scope_schemas},
             .static_context_memory = NULL,
             .has_static_namespaces = true,
             .static_namespaces = request.context->namespace_bindings,
@@ -2383,14 +2387,17 @@ sxml_status sxml_xslt_declare_static_context_modules(const sxml_xslt_lowering *l
     }
     /* Code no module names (the main function's, XSLT's own calls) reads
        the top-level package's formats (package 1). */
-    if (status == SXML_STATUS_OK && formats[1].format_count > 0) {
+    const sxml_schema_view schemas = sxml_xslt_ast_get_in_scope_schemas(lowering->ast);
+    if (status == SXML_STATUS_OK && (formats[1].format_count > 0 || schemas.schema_count > 0)) {
+        /* The in-scope schemas too (validation, type-available; D179). */
         status = sxml_ir_unit_set_static_context(
             lowering->lowerer->unit,
             &(sxml_ir_static_context){
                 .decimal_formats = {.decimal_formats = formats[1].storage.formats,
                                     .decimal_format_count = formats[1].format_count},
                 .default_collation_uri = {.bytes = NULL, .byte_count = 0},
-                .collation_bindings = {.collation_bindings = NULL, .collation_binding_count = 0}});
+                .collation_bindings = {.collation_bindings = NULL, .collation_binding_count = 0},
+                .in_scope_schemas = schemas});
     }
     for (uint32_t context_index = 1;
          status == SXML_STATUS_OK && context_index < lowering->static_context_count;

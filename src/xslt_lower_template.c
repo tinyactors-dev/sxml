@@ -51,6 +51,7 @@
 #include "xslt_pattern_internal.h"
 #include "sort_internal.h"
 
+#include <math.h>
 #include <stdalign.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -112,6 +113,8 @@ typedef struct mode_entry {
     mode_property on_no_match;
     mode_property fails_on_multiple_match;
     mode_property copies_namespaces;
+    /* typed (6.9.4): 1 for yes, strict and lax, 2 for no. */
+    mode_property typed;
     /* The xsl:mode of highest precedence with an as attribute (6.9.5);
        0 for none. */
     sxml_xslt_ast_node_index as_declaration;
@@ -137,6 +140,9 @@ typedef enum snippet_kind {
     SXML_SNIPPET_MEMBERS,
     SXML_SNIPPET_STRING,
     SXML_SNIPPET_DEFAULT_SELECT,
+    SXML_SNIPPET_BREAKS_TYPED,
+    SXML_SNIPPET_BREAKS_UNTYPED,
+    SXML_SNIPPET_RAISE_TYPED_MODE,
     SXML_SNIPPET_COUNT,
 } snippet_kind;
 
@@ -162,6 +168,21 @@ static const char *const snippet_texts[SXML_SNIPPET_COUNT] = {
         "else error(QName('http://www.w3.org/2005/xqt-errors', 'XTTE0510'), "
         "'xsl:apply-templates without select is evaluated with a context item that is not "
         "a node, a map or an array (XSLT 4.0, 6.6)')",
+    /* 6.9.4 (D179): what typed="yes" (strict, lax) and typed="no" do not
+       allow: an item that is not an XNode, or an element or attribute
+       that is untyped (yes) or typed (no). */
+    [SXML_SNIPPET_BREAKS_TYPED] =
+        "not(. instance of node()) or . instance of "
+        "(element(*, Q{http://www.w3.org/2001/XMLSchema}untyped) | "
+        "attribute(*, Q{http://www.w3.org/2001/XMLSchema}untypedAtomic))",
+    [SXML_SNIPPET_BREAKS_UNTYPED] =
+        "not(. instance of node()) or (. instance of (element() | attribute()) and "
+        "not(. instance of (element(*, Q{http://www.w3.org/2001/XMLSchema}untyped) | "
+        "attribute(*, Q{http://www.w3.org/2001/XMLSchema}untypedAtomic))))",
+    [SXML_SNIPPET_RAISE_TYPED_MODE] =
+        "error(QName('http://www.w3.org/2005/xqt-errors', 'XTTE3100'), "
+        "'xsl:apply-templates selects an item the typed attribute of its mode does not allow "
+        "(XSLT 4.0, 6.9.4)')",
 };
 
 struct sxml_xslt_template_lowering {
@@ -175,6 +196,9 @@ struct sxml_xslt_template_lowering {
     /* By sxml_ir_built_in_rule, then copy-namespaces "no"; 0 until made. */
     sxml_ir_function_index built_in_templates[2U * BUILT_IN_TEMPLATE_KIND_COUNT];
     sxml_ast *snippets[SXML_SNIPPET_COUNT];
+    /* The rule that raises XTTE3100 in typed modes (6.9.4), for typed 1
+       and 2; zero until made. */
+    sxml_ir_template_rule typed_rules[2];
     /* The template whose body is being lowered (0: none) and the focus of
        its function frame: instructions in it see its parameter maps;
        those lowered with another focus (xsl:for-each) or in another
@@ -807,8 +831,11 @@ static sxml_status finish_default_branch(sxml_xpath_lowerer *lowerer,
             lowerer,
             (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_DOCUMENT_CONSTRUCTOR,
                                  .node_construction = {.content = locals->default_branch,
-                                                       .construction_flags = (uint32_t)
-                                                           SXML_IR_CONSTRUCTION_XSLT_RULES}},
+                                                       /* 25.2: as preserve (D179). */
+                                                       .construction_flags =
+                                                           (uint32_t)SXML_IR_CONSTRUCTION_XSLT_RULES |
+                                                           (uint32_t)
+                                                               SXML_IR_CONSTRUCTION_PRESERVES_TYPES}},
             &locals->default_branch);
     }
     if (status != SXML_STATUS_OK || !locals->plan.type.has_type || locals->plan.is_required) {
@@ -1203,8 +1230,10 @@ static sxml_status finish_with_parameter(sxml_xpath_lowerer *lowerer,
             status = bind_expression(lowerer, (expression_binding){.block = frame->block, .expression = (sxml_ir_expression){
                     .expression_kind = SXML_IR_EXPRESSION_KIND_DOCUMENT_CONSTRUCTOR,
                     .node_construction = {.content = content,
+                                          /* 25.2: as preserve (D179). */
                                           .construction_flags =
-                                              (uint32_t)SXML_IR_CONSTRUCTION_XSLT_RULES}}}, &value->value);
+                                              (uint32_t)SXML_IR_CONSTRUCTION_XSLT_RULES |
+                                              (uint32_t)SXML_IR_CONSTRUCTION_PRESERVES_TYPES}}}, &value->value);
         }
     }
     if (status == SXML_STATUS_OK && locals->type.has_type) {
@@ -2011,6 +2040,18 @@ static sxml_status read_mode_declaration(const sxml_xslt_lowering *lowering,
         (mode->as_declaration.value == 0 || precedence > mode->as_precedence)) {
         mode->as_declaration = declaration;
         mode->as_precedence = precedence;
+    }
+    const sxml_xslt_ast_attribute *typed =
+        find_attribute(lowering, declaration, SXML_XSLT_AST_ATTRIBUTE_TYPED);
+    if (typed->value.kind == SXML_XSLT_AST_VALUE_KIND_KEYWORD &&
+        typed->value.payload.keyword != SXML_XSLT_AST_KEYWORD_UNSPECIFIED) {
+        set_property(&mode->typed,
+                     (property_setting){.value = typed->value.payload.keyword ==
+                                                         SXML_XSLT_AST_KEYWORD_NO
+                                                     ? 2U
+                                                     : 1U,
+                                        .import_precedence = precedence,
+                                        .node = declaration});
     }
     const sxml_xslt_ast_attribute *on_no_match =
         find_attribute(lowering, declaration, SXML_XSLT_AST_ATTRIBUTE_ON_NO_MATCH);
@@ -2924,6 +2965,121 @@ static sxml_status priority_of(const sxml_xslt_lowering *lowering, const templat
         priority);
 }
 
+/* A function of the unit whose body is a snippet, with the focus its
+   kind needs: a match function (one item, the focus) or a template
+   function (the template rules' parameters). */
+typedef struct snippet_function {
+    snippet_kind kind;
+    bool is_match_function;
+} snippet_function;
+
+static sxml_status add_snippet_function(const sxml_xslt_lowering *lowering,
+                                        snippet_function request,
+                                        sxml_ir_function_index *function) {
+    sxml_xslt_template_lowering *templates = lowering->templates;
+    sxml_xpath_lowerer *lowerer = lowering->lowerer;
+    sxml_status status = ensure_snippet(lowering, request.kind);
+    sxml_type_identifier signature = templates->template_signature;
+    if (status == SXML_STATUS_OK && request.is_match_function) {
+        /* function(item()) as xs:boolean (src/ir_internal.h, template
+           rules). */
+        const sxml_sequence_type parameter_type = {
+            .item_type = sxml_builtin_type_identifier(SXML_TYPE_ITEM),
+            .occurrence = SXML_OCCURRENCE_EXACTLY_ONE};
+        status = sxml_xpath_lowerer_register_signature(
+            lowerer,
+            (sxml_xpath_lowering_signature_request){
+                .parameter_types = {.sequence_types = &parameter_type, .sequence_type_count = 1},
+                .result_type = {.item_type = sxml_builtin_type_identifier(SXML_TYPE_XS_BOOLEAN),
+                                .occurrence = SXML_OCCURRENCE_EXACTLY_ONE}},
+            &signature);
+    }
+    const uint32_t parameter_count = request.is_match_function ? 1U : TEMPLATE_PARAMETER_COUNT;
+    sxml_ir_function_index index = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ir_unit_add_function(
+            lowerer->unit,
+            &(sxml_ir_function){.signature = signature, .parameter_count = parameter_count},
+            &index);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    const sxml_ir_focus focus_slots = {
+        .context_value = item_slot, .context_position = position_slot, .context_size = size_slot};
+    sxml_xpath_lowering_function_frame function_frame = {
+        .function = {.function_index = index,
+                     .function_level = 0,
+                     .slot_count = parameter_count,
+                     .captures = NULL,
+                     .capture_count = 0},
+        .focus = request.is_match_function
+                     ? (sxml_xpath_lowering_focus){.kind = SXML_XPATH_LOWERING_FOCUS_KIND_FIXED,
+                                                   .fixed_value = sxml_ir_slot_atom(item_slot)}
+                     : (sxml_xpath_lowering_focus){.kind = SXML_XPATH_LOWERING_FOCUS_KIND_SLOTS,
+                                                   .slots = focus_slots},
+    };
+    sxml_xpath_lowerer_enter_function(lowerer, &function_frame);
+    sxml_ir_expression_index body = {0};
+    status = sxml_xpath_lowerer_lower_embedded(
+        lowerer,
+        &(sxml_xpath_lowering_embedding){.ast = templates->snippets[request.kind],
+                                         .node = {.value = 0},
+                                         .static_context = NULL,
+                                         .focus = NULL},
+        &body);
+    sxml_xpath_lowerer_leave_function(lowerer, &function_frame);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_ir_function_replacement replacement = {
+        .index = index, .function = *sxml_ir_unit_get_function(lowerer->unit, index)};
+    replacement.function.body = body;
+    replacement.function.slot_count = function_frame.function.slot_count;
+    if (!request.is_match_function) {
+        replacement.function.focus = focus_slots;
+    }
+    status = sxml_ir_unit_replace_function(lowerer->unit, &replacement);
+    if (status == SXML_STATUS_OK) {
+        *function = index;
+    }
+    return status;
+}
+
+/* The rule a typed mode tries first (6.9.4, D179): it matches what the
+   mode's typed value does not allow, before every template rule, and
+   raises XTTE3100. typed is 1 (yes, strict, lax) or 2 (no); made once. */
+static sxml_status get_typed_rule(const sxml_xslt_lowering *lowering, uint32_t typed,
+                                  sxml_ir_template_rule *rule) {
+    sxml_xslt_template_lowering *templates = lowering->templates;
+    sxml_ir_template_rule *made = &templates->typed_rules[typed - 1U];
+    sxml_status status = SXML_STATUS_OK;
+    if (made->match_function.value == 0) {
+        sxml_ir_template_rule new_rule = {.priority = HUGE_VAL,
+                                          .import_precedence = INT32_MAX,
+                                          .lowest_imported_precedence = INT32_MAX,
+                                          .declaration_order = UINT32_MAX};
+        status = add_snippet_function(
+            lowering,
+            (snippet_function){.kind = typed == 1U ? SXML_SNIPPET_BREAKS_TYPED
+                                                   : SXML_SNIPPET_BREAKS_UNTYPED,
+                               .is_match_function = true},
+            &new_rule.match_function);
+        if (status == SXML_STATUS_OK) {
+            status = add_snippet_function(
+                lowering,
+                (snippet_function){.kind = SXML_SNIPPET_RAISE_TYPED_MODE,
+                                   .is_match_function = false},
+                &new_rule.template_function);
+        }
+        if (status == SXML_STATUS_OK) {
+            *made = new_rule;
+        }
+    }
+    *rule = *made;
+    return status;
+}
+
 /* The match functions, rules and modes of the unit. */
 static sxml_status add_rules_and_modes(const sxml_xslt_lowering *lowering) {
     sxml_xslt_template_lowering *templates = lowering->templates;
@@ -2996,8 +3152,9 @@ static sxml_status add_rules_and_modes(const sxml_xslt_lowering *lowering) {
     }
     sxml_ir_template_rule *ir_rules = NULL;
     if (status == SXML_STATUS_OK) {
+        /* Room for each mode's typed rule too. */
         status = allocate_zeroed(allocator,
-                                 (zeroed_request){.element_count = filled,
+                                 (zeroed_request){.element_count = filled + 1U,
                                                   .element_size = sizeof(sxml_ir_template_rule),
                                                   .element_alignment =
                                                       alignof(sxml_ir_template_rule)},
@@ -3022,11 +3179,20 @@ static sxml_status add_rules_and_modes(const sxml_xslt_lowering *lowering) {
             rule_index += 1;
         }
         /* The rules of the mode, from the front of ir_rules (room for all
-           of them). */
-        for (size_t copied = first; copied < rule_index; copied += 1) {
-            ir_rules[copied - first] = rules[copied].rule;
+           of them), after the typed rule of a typed mode. */
+        size_t typed_count = 0;
+        if (mode->typed.is_set) {
+            status = get_typed_rule(lowering, mode->typed.value, &ir_rules[0]);
+            typed_count = 1;
         }
-        const sxml_ir_template_rule *run = rule_index > first ? ir_rules : NULL;
+        if (status != SXML_STATUS_OK) {
+            break;
+        }
+        for (size_t copied = first; copied < rule_index; copied += 1) {
+            ir_rules[typed_count + copied - first] = rules[copied].rule;
+        }
+        const size_t mode_rule_count = typed_count + rule_index - first;
+        const sxml_ir_template_rule *run = mode_rule_count > 0 ? ir_rules : NULL;
         const sxml_ir_built_in_rule built_in = mode->on_no_match.is_set
                                                    ? (sxml_ir_built_in_rule)mode->on_no_match.value
                                                    : SXML_IR_BUILT_IN_RULE_TEXT_ONLY_COPY;
@@ -3042,7 +3208,7 @@ static sxml_status add_rules_and_modes(const sxml_xslt_lowering *lowering) {
             status = sxml_ir_unit_add_template_rules(
                 lowerer->unit,
                 (sxml_ir_template_rule_view){.template_rules = run,
-                                             .template_rule_count = rule_index - first},
+                                             .template_rule_count = mode_rule_count},
                 &list);
         }
         ir_modes[mode_index] = (sxml_ir_mode){

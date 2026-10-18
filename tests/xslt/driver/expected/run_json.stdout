@@ -2,15 +2,15 @@
 "tests": [
 {"test_set": "set-dependencies", "test_case": "spec-replaced", "outcome": "not-run", "reason": "skip: spec XSLT20 XSLT30"},
 {"test_set": "set-dependencies", "test_case": "spec-40", "outcome": "fail", "reason": "assert-true: got true"},
-{"test_set": "set-dependencies", "test_case": "schema-aware", "outcome": "not-run", "reason": "skip: feature schema_aware"},
-{"test_set": "set-dependencies", "test_case": "basic-processor", "outcome": "fail", "reason": "error: expected XTSE1650, got true"},
+{"test_set": "set-dependencies", "test_case": "schema-aware", "outcome": "fail", "reason": "assert-true: got true"},
+{"test_set": "set-dependencies", "test_case": "basic-processor", "outcome": "not-run", "reason": "skip: feature schema_aware (satisfied)"},
 {"test_set": "set-dependencies", "test_case": "inverted", "outcome": "not-run", "reason": "skip: feature higher_order_functions (satisfied)"},
 {"test_set": "set-dependencies", "test_case": "numbering", "outcome": "not-run", "reason": "skip: combinations_for_numbering PARENTHESIZED LATIN SMALL LETTER A"},
-{"test_set": "set-dependencies", "test_case": "validation", "outcome": "not-run", "reason": "skip: environment source validation"},
+{"test_set": "set-dependencies", "test_case": "validation", "outcome": "fail", "reason": "assert-true: got 42"},
 {"test_set": "set-dependencies", "test_case": "posture", "outcome": "not-run", "reason": "skip: posture-and-sweep"},
 {"test_set": "set-dependencies", "test_case": "warning", "outcome": "not-run", "reason": "unsupported: assert-warning"}],
 "test_sets": [
-{"name": "set-dependencies", "total": 9, "pass": 0, "wrong_error": 0, "fail": 2, "error": 0, "not_run": 7, "in_scope": 7, "in_scope_passed": 0, "schema_aware": 0, "schema_aware_passed": 0}],
+{"name": "set-dependencies", "total": 9, "pass": 0, "wrong_error": 0, "fail": 3, "error": 0, "not_run": 6, "in_scope": 7, "in_scope_passed": 0, "schema_aware": 2, "schema_aware_passed": 0}],
 "areas": [
-{"area": "other", "total": 9, "pass": 0, "wrong_error": 0, "fail": 2, "error": 0, "not_run": 7, "in_scope": 7, "in_scope_passed": 0, "schema_aware": 0, "schema_aware_passed": 0}],
-"totals": {"total": 9, "pass": 0, "wrong_error": 0, "fail": 2, "error": 0, "not_run": 7, "in_scope": 7, "in_scope_passed": 0, "schema_aware": 0, "schema_aware_passed": 0}}
+{"area": "other", "total": 9, "pass": 0, "wrong_error": 0, "fail": 3, "error": 0, "not_run": 6, "in_scope": 7, "in_scope_passed": 0, "schema_aware": 2, "schema_aware_passed": 0}],
+"totals": {"total": 9, "pass": 0, "wrong_error": 0, "fail": 3, "error": 0, "not_run": 6, "in_scope": 7, "in_scope_passed": 0, "schema_aware": 2, "schema_aware_passed": 0}}

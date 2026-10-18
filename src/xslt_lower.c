@@ -1189,6 +1189,8 @@ static sxml_status finish_literal_result(sxml_xpath_lowering_machine *machine,
                                          sxml_xpath_lowering_frame *frame) {
     sxml_xpath_lowerer *lowerer = machine->state;
     literal_result_locals *locals = frame->locals;
+    const sxml_xslt_validation_query validation = {.lowering = locals->head.lowering,
+                                                   .node = locals->head.node};
     sxml_status status = mark_literal_result_atom(lowerer, locals);
     sxml_ir_atom_list atoms = {0};
     if (status == SXML_STATUS_OK) {
@@ -1232,8 +1234,33 @@ static sxml_status finish_literal_result(sxml_xpath_lowering_machine *machine,
                                                      .namespace_bindings =
                                                          locals->namespace_bindings,
                                                      .construction_flags =
-                                                         locals->construction_flags}}},
+                                                         locals->construction_flags |
+                                                         sxml_xslt_lowering_validation_flags(
+                                                             validation)}}},
             &element);
+    }
+    if (status == SXML_STATUS_OK && sxml_xslt_lowering_validates(validation)) {
+        /* 11.1.2: xsl:validation and xsl:type (XSLT 4.0, 25; D179). */
+        sxml_ir_atom constructed = {0};
+        status = sxml_xpath_lowerer_bind_expression(
+            lowerer,
+            (sxml_xpath_lowering_expression_in_block){.block = frame->block, .expression = element},
+            &constructed);
+        sxml_ir_atom validated = {0};
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xslt_lowering_bind_validation(
+                lowerer,
+                &(sxml_xslt_validation_request){
+                    .query = validation, .block = frame->block, .value = constructed},
+                &validated);
+        }
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xslt_lowering_add_expression(
+                lowerer,
+                (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_ATOM,
+                                     .atom = validated},
+                &element);
+        }
     }
     if (status != SXML_STATUS_OK) {
         return status;
@@ -2504,7 +2531,11 @@ sxml_status sxml_xslt_lower_initial_template(const sxml_xslt_lowering_request *r
         .namespace_bindings = {.namespace_bindings = NULL, .namespace_binding_count = 0},
         .variable_declarations = {.variable_declarations = NULL, .variable_declaration_count = 0},
         .function_table = sxml_processor_get_function_table(processor),
-        .static_base_uri = {.bytes = NULL, .byte_count = 0}};
+        .static_base_uri = {.bytes = NULL, .byte_count = 0},
+        /* 3.13: the stylesheet's in-scope schemas, in every module
+           (src/xslt_schema_internal.h, D179). */
+        .unit_static_context = {.in_scope_schemas =
+                                    sxml_xslt_ast_get_in_scope_schemas(request->ast)}};
     sxml_ir_unit *new_unit = NULL;
     sxml_status status = sxml_ir_unit_create(
         processor->allocator,

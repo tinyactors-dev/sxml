@@ -48,10 +48,9 @@ static const sxml_system_property sxml_system_property_table[] = {
     SXML_DECIMAL_PROPERTY("", "version", "4.0"),
     SXML_TEXT_PROPERTY("", "vendor", "sxml"),
     SXML_TEXT_PROPERTY("", "vendor-url", ""),
-    /* XQuery and XPath are schema-aware (D174); XSLT's validation
-       attributes are packet 5.12's. */
+    /* XQuery, XPath (D174) and XSLT (D179) are schema-aware. */
     SXML_BOOLEAN_PROPERTY("schema-aware", "", true),
-    SXML_BOOLEAN_PROPERTY("", "is-schema-aware", false),
+    SXML_BOOLEAN_PROPERTY("", "is-schema-aware", true),
     SXML_BOOLEAN_PROPERTY("", "supports-serialization", true),
     SXML_BOOLEAN_PROPERTY("", "supports-backwards-compatibility", false),
     SXML_BOOLEAN_PROPERTY("", "supports-namespace-axis", true),

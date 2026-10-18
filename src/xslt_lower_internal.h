@@ -411,6 +411,46 @@ SXML_NODISCARD sxml_status sxml_xslt_lowering_bind_copy_of(sxml_xpath_lowerer *l
                                                            sxml_xslt_copy_request request,
                                                            sxml_ir_atom *atom);
 
+/* ----------------------------------------------------------- Validation */
+
+/*
+ * The validation an instruction or literal result element asks for (XSLT
+ * 4.0, 25; D179): its [xsl:]validation or [xsl:]type attribute, else the
+ * [xsl:]default-validation of its static context (strip or preserve;
+ * none for xsl:source-document, which validates only when asked, 25).
+ * src/xslt_lower_construct.c.
+ */
+typedef struct sxml_xslt_validation_query {
+    const sxml_xslt_lowering *lowering;
+    sxml_xslt_ast_node_index node;
+} sxml_xslt_validation_query;
+
+/* The construction flag the validation adds to the constructor:
+   SXML_IR_CONSTRUCTION_PRESERVES_TYPES for preserve (not for xsl:attribute,
+   whose preserve is strip, 25.1.1), else 0. */
+uint32_t sxml_xslt_lowering_validation_flags(sxml_xslt_validation_query query);
+
+/* True when the validation is strict, lax or by [xsl:]type: the
+   constructed nodes go through sxml_xslt_lowering_bind_validation. */
+bool sxml_xslt_lowering_validates(sxml_xslt_validation_query query);
+
+/*
+ * Binds value, the nodes the instruction constructed or copied, as its
+ * validation makes them in block: for strict, lax and [xsl:]type the
+ * validate-items row with XSLT's rules (src/schema_scope_internal.h),
+ * otherwise value itself. XTSE1520 for a type that is not an in-scope
+ * schema type, XTSE1530 for a complex type on xsl:attribute.
+ */
+typedef struct sxml_xslt_validation_request {
+    sxml_xslt_validation_query query;
+    sxml_xpath_lowering_block *block;
+    sxml_ir_atom value;
+} sxml_xslt_validation_request;
+
+SXML_NODISCARD sxml_status sxml_xslt_lowering_bind_validation(
+    sxml_xpath_lowerer *lowerer, const sxml_xslt_validation_request *request,
+    sxml_ir_atom *atom);
+
 /* ----------------------------------------------------------- Error codes */
 
 /* A dynamic error of the evaluator replaced by XSLT's (both in the err

@@ -107,7 +107,7 @@ static const memory_file suite_files[] = {
          "<test-case name='a-3'><description/><created by='x' on='2026-01-01'/>"
          "<environment><source role='.' file='d.xml' defines-stylesheet='true'"
          " streaming='true'/></environment>"
-         "<dependencies><feature value='schema_aware'/></dependencies>"
+         "<dependencies><feature value='streaming'/></dependencies>"
          "<test><initial-mode name='#unnamed' select='//x'>"
          "<param name='t' select='1' tunnel='yes'/></initial-mode>"
          "<output tree='no' result-var='result'/></test>"
@@ -128,12 +128,15 @@ static const memory_file suite_files[] = {
          "<test-case name='a-8'><description/><created by='x' on='2026-01-01'/>"
          "<test/><result><assert-nothing/></result></test-case>"
          "<test-case name='a-9'><description/><created by='x' on='2026-01-01'/>"
-         "<dependencies><feature value='schema_aware' satisfied='false'/>"
+         "<dependencies><feature value='streaming' satisfied='false'/>"
          "<year_component_values value='support year zero'/>"
          "<maximum_number_of_decimal_digits value='60'/>"
          "</dependencies><test/><result><assert/></result></test-case>"
          "<test-case name='a-10'><description/>"
          "<created by='x' on='2026-01-01'/><test/></test-case>"
+         "<test-case name='a-11'><description/><created by='x' on='2026-01-01'/>"
+         "<dependencies><feature value='schema_aware'/></dependencies>"
+         "<test/><result><assert/></result></test-case>"
          "</test-set>")},
     {SXML_BYTE_VIEW_INITIALIZER("suite/tests/strm/s/_s-test-set.xml"),
      SXML_BYTE_VIEW_INITIALIZER(
@@ -277,7 +280,8 @@ test_dependency_table_lists_what_sxml_provides(sxml_test_state *state) {
     SXML_TEST_EXPECT(state,
                      is_supported(TEXT("feature"), TEXT("higher_order_functions")));
     SXML_TEST_EXPECT(state, is_supported(TEXT("feature"), TEXT("serialization")));
-    SXML_TEST_EXPECT(state, !is_supported(TEXT("feature"), TEXT("schema_aware")));
+    /* Schema-aware since D179. */
+    SXML_TEST_EXPECT(state, is_supported(TEXT("feature"), TEXT("schema_aware")));
     SXML_TEST_EXPECT(state, !is_supported(TEXT("feature"), TEXT("streaming")));
     SXML_TEST_EXPECT(state, is_supported(TEXT("feature"), TEXT("XPath_3.1")));
     SXML_TEST_EXPECT(state,
@@ -310,7 +314,7 @@ static void test_catalog_reads_tests_and_environments(sxml_test_state *state) {
     sxml_xslt_test_catalog *catalog = open_catalog(state, TEXT("a"));
     SXML_TEST_REQUIRE(state, catalog != NULL);
     SXML_TEST_EXPECT(state, sxml_xslt_test_catalog_test_set_count(catalog) == 3);
-    SXML_TEST_EXPECT(state, sxml_xslt_test_catalog_test_case_count(catalog) == 10);
+    SXML_TEST_EXPECT(state, sxml_xslt_test_catalog_test_case_count(catalog) == 11);
     sxml_xslt_test_case test_case = {.name = {.bytes = NULL, .byte_count = 0}};
 
     SXML_TEST_REQUIRE(state, read_case(catalog, TEXT("a-1"), &test_case).status ==
@@ -470,7 +474,14 @@ test_applicability_follows_the_rules_in_order(sxml_test_state *state) {
                                                   TEXT("feature")));
     SXML_TEST_EXPECT(state, !applicability.is_in_scope);
     SXML_TEST_EXPECT(state, sxml_byte_view_equals(applicability.non_goal,
-                                                  TEXT("schema_aware")));
+                                                  TEXT("streaming")));
+    SXML_TEST_EXPECT(state, !applicability.is_schema_aware);
+
+    /* Schema-aware cases run, outside the D95 denominator (D179). */
+    applicability = decide(state, catalog, TEXT("a-11"));
+    SXML_TEST_EXPECT(state, applicability.is_applicable);
+    SXML_TEST_EXPECT(state, !applicability.is_in_scope);
+    SXML_TEST_EXPECT(state, applicability.is_schema_aware);
 
     applicability = decide(state, catalog, TEXT("a-4"));
     SXML_TEST_EXPECT(state, !applicability.is_applicable);
@@ -614,7 +625,7 @@ static void test_runs_judge_outcomes(sxml_test_state *state) {
         {SXML_BYTE_VIEW_INITIALIZER("a-1"), SXML_QT4_TEST_OUTCOME_PASS,
          SXML_BYTE_VIEW_INITIALIZER("")},
         {SXML_BYTE_VIEW_INITIALIZER("a-3"), SXML_QT4_TEST_OUTCOME_NOT_RUN,
-         SXML_BYTE_VIEW_INITIALIZER("skip: feature schema_aware")},
+         SXML_BYTE_VIEW_INITIALIZER("skip: feature streaming")},
         {SXML_BYTE_VIEW_INITIALIZER("a-4"), SXML_QT4_TEST_OUTCOME_NOT_RUN,
          SXML_BYTE_VIEW_INITIALIZER("skip: spec XSLT10")},
         {SXML_BYTE_VIEW_INITIALIZER("a-7"), SXML_QT4_TEST_OUTCOME_ERROR,

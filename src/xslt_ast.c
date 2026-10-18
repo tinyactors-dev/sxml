@@ -125,6 +125,7 @@ void sxml_xslt_ast_finalize(sxml_xslt_ast *ast) {
     sxml_allocator_release(allocator, ast->namespace_bindings);
     sxml_allocator_release(allocator, ast->namespace_uris);
     sxml_allocator_release(allocator, ast->text_bytes);
+    sxml_allocator_release(allocator, (void *)ast->in_scope_schemas);
     const bool is_created = ast->is_created;
     memset(ast, 0, sizeof(*ast));
     ast->is_created = is_created;
@@ -182,6 +183,37 @@ void sxml_xslt_ast_destroy(sxml_xslt_ast *ast) {
            sizeof(creating_allocator));
     sxml_xslt_ast_finalize(ast);
     sxml_allocator_release(creating_allocator, ast);
+}
+
+/* ------------------------------------------------------ In-scope schemas */
+
+sxml_status sxml_xslt_ast_set_in_scope_schemas(sxml_xslt_ast *ast, sxml_schema_view schemas) {
+    void *memory = NULL;
+    if (schemas.schema_count > 0) {
+        size_t byte_count = 0;
+        sxml_status status =
+            sxml_size_multiply(schemas.schema_count, sizeof(const sxml_schema *), &byte_count);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_allocator_allocate(
+                ast->allocator,
+                (sxml_allocation_request){.byte_count = byte_count,
+                                          .alignment = alignof(const sxml_schema *)},
+                &memory);
+        }
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        memcpy(memory, (const void *)schemas.schemas, byte_count);
+    }
+    sxml_allocator_release(ast->allocator, (void *)ast->in_scope_schemas);
+    ast->in_scope_schemas = (const sxml_schema **)memory;
+    ast->in_scope_schema_count = schemas.schema_count;
+    return SXML_STATUS_OK;
+}
+
+sxml_schema_view sxml_xslt_ast_get_in_scope_schemas(const sxml_xslt_ast *ast) {
+    return (sxml_schema_view){.schemas = ast->in_scope_schemas,
+                              .schema_count = ast->in_scope_schema_count};
 }
 
 /* ---------------------------------------------------------------- Arrays */

@@ -47,8 +47,8 @@ bool sxml_xslt_test_spec_token_matches(sxml_xslt_test_spec_token spec_token) {
 /* ------------------------------------------------------------- The table */
 
 /*
- * What sxml provides, as dependency type and whole value. A basic XSLT
- * 4.0 processor (no schema awareness, no streaming, D97) with
+ * What sxml provides, as dependency type and whole value. A
+ * schema-aware XSLT 4.0 processor (D179; no streaming, D97) with
  * serialization (packets 3.3 and 3.4) and higher-order functions. A
  * dependency type of the dependencyTypeTrue kind has no value; its entry
  * has an empty value. Grows with sxml.
@@ -64,6 +64,7 @@ typedef struct sxml_xslt_test_supported_dependency {
 static const sxml_xslt_test_supported_dependency
     sxml_xslt_test_supported_dependencies[] = {
         SXML_XSLT_TEST_SUPPORTED("feature", "higher_order_functions"),
+        SXML_XSLT_TEST_SUPPORTED("feature", "schema_aware"),
         SXML_XSLT_TEST_SUPPORTED("feature", "namespace_axis"),
         SXML_XSLT_TEST_SUPPORTED("feature", "serialization"),
         SXML_XSLT_TEST_SUPPORTED("feature", "built_in_derived_types"),
@@ -353,12 +354,6 @@ static bool sxml_xslt_test_collation_is_provided(sxml_byte_view uri) {
 static sxml_byte_view sxml_xslt_test_unsupported_environment_part(
     const sxml_xslt_test_environment *environment) {
     const sxml_qt4_environment *shared = &environment->shared;
-    for (size_t source_index = 0; source_index < shared->sources.source_count;
-         source_index += 1) {
-        if (shared->sources.sources[source_index].validation.byte_count != 0) {
-            return SXML_TEXT("source validation");
-        }
-    }
     for (size_t detail_index = 0;
          detail_index < environment->source_details.source_detail_count;
          detail_index += 1) {
@@ -370,9 +365,6 @@ static sxml_byte_view sxml_xslt_test_unsupported_environment_part(
         if (sxml_byte_view_equals(detail->xml_version, SXML_TEXT("1.1"))) {
             return SXML_TEXT("xml-version 1.1");
         }
-    }
-    if (shared->schemas.schema_count != 0) {
-        return SXML_TEXT("schema");
     }
     for (size_t collation_index = 0;
          collation_index < shared->collations.collation_count;
@@ -415,6 +407,38 @@ static void sxml_xslt_test_decide_scope(const sxml_xslt_test_case *test_case,
     }
 }
 
+/* The feature schema_aware required, a schema or a validated source. */
+static bool sxml_xslt_test_is_schema_aware(const sxml_xslt_test_case *test_case) {
+    const sxml_qt4_dependency_view lists[2] = {test_case->test_set_dependencies,
+                                               test_case->dependencies};
+    for (size_t list_index = 0; list_index < 2; list_index += 1) {
+        for (size_t dependency_index = 0;
+             dependency_index < lists[list_index].dependency_count;
+             dependency_index += 1) {
+            const sxml_qt4_dependency *dependency =
+                &lists[list_index].dependencies[dependency_index];
+            if (dependency->requires_satisfaction &&
+                sxml_byte_view_equals(dependency->dependency_type,
+                                      SXML_TEXT("feature")) &&
+                sxml_byte_view_equals(dependency->value,
+                                      SXML_TEXT("schema_aware"))) {
+                return true;
+            }
+        }
+    }
+    const sxml_qt4_environment *shared = &test_case->environment.shared;
+    for (size_t source_index = 0; source_index < shared->sources.source_count;
+         source_index += 1) {
+        const sxml_byte_view validation =
+            shared->sources.sources[source_index].validation;
+        if (validation.byte_count != 0 &&
+            !sxml_byte_view_equals(validation, SXML_TEXT("skip"))) {
+            return true;
+        }
+    }
+    return shared->schemas.schema_count != 0;
+}
+
 void sxml_xslt_test_decide_applicability(
     const sxml_xslt_test_case *test_case,
     sxml_qt4_applicability *applicability) {
@@ -424,12 +448,14 @@ void sxml_xslt_test_decide_applicability(
         .detail = sxml_xslt_test_empty_text,
         .is_inverted = false,
         .is_in_scope = false,
+        .is_schema_aware = false,
         .non_goal_kind = sxml_xslt_test_empty_text,
         .non_goal = sxml_xslt_test_empty_text};
     if (!sxml_xslt_test_decide_spec(test_case, applicability)) {
         return;
     }
     sxml_xslt_test_decide_scope(test_case, applicability);
+    applicability->is_schema_aware = sxml_xslt_test_is_schema_aware(test_case);
     if (!sxml_xslt_test_decide_dependencies(test_case->test_set_dependencies,
                                             applicability) ||
         !sxml_xslt_test_decide_dependencies(test_case->dependencies,
