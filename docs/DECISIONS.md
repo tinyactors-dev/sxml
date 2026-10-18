@@ -6790,6 +6790,9 @@ Recorded 2026-10-18. IDENTITY_CONSTRAINTS and the identity seam of D167
 ### D178. XSD and schema-aware conformance sweep 1 (packet 5.13)
 Reserved 2026-10-18; the record follows when the sweep lands.
 
+### D179. Schema-aware XSLT (packet 5.12)
+Reserved 2026-10-18; the record follows when the packet lands.
+
 ## Proposed
 
 - **The CLI's WebAssembly budget after sxml validate** (packet 5.10,
