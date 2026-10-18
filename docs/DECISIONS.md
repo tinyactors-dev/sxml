@@ -5952,7 +5952,72 @@ the Phase 5 notes of D32, D53, D58, D97 and D162.
   (D44: only once it works).
 
 ### D166. Content that streams into a constructor; XSLT sweep 3 (packet 4.17)
-Reserved 2026-10-18; completed when the sweep is logged.
+Recorded 2026-10-18, after D71, D101, D110, D163. Accepts D163's Proposed
+item "content that streams into a constructor", as one mechanism of the
+shared evaluator and IR, used by XSLT and XQuery alike.
+- **Receiving and delivering tasks** (glossary `receiving_task`,
+  `delivering_task`; `src/evaluator_machine_internal.h`, "Delivering"):
+  a document or element constructor (and SHALLOW_COPY of an element or
+  document) whose content expression is not a D110 enclosed list opens
+  its node, sets its part task's `receive` function and pushes the
+  content as a delivering task (`sxml_evaluator_task.delivers_content`).
+  When a delivering task finishes, the machine hands its value to the
+  nearest receiving task below and the task below gets (). Delivering
+  passes on only where a value reaches the receiver unchanged: LET bodies
+  and conditional branches (they replace their task), a content LET's
+  bound expression, each body of a MAP (not a path's MAP, whose body may
+  select JNodes), the body of a function a delivering call enters (not
+  through a coerced function item: its COERCE_RESULT task delivers), and
+  the template calls of a delivering APPLY_TEMPLATES (which delivers its
+  separators itself). A try/catch body never delivers, so no caught error
+  leaves part of a content behind. The order and the rules of XSLT 4.0,
+  5.7.1 and XQuery 4.0, 4.12.1.3 are those of the content sequence: the
+  receiver adds each value as before (arrays flattened, atomic items
+  joined within one enclosed expression, nodes copied, documents
+  unwrapped, XTDE0410 and XQTY0024 from the same state).
+- **Building into the receiver**: a constructor in a delivering task
+  builds its node in the receiver's tree when that is what copying a tree
+  of its own would give (`sxml_construction_open`): the same rules and
+  construction flags and copy-namespaces preserve; no-inherit becomes the
+  element start's `ignores_parent_namespaces`; a document's children
+  become the content. Text, attribute, comment and processing-instruction
+  constructors add their node directly (a namespace node keeps its own
+  tree, whose builder checks XQDY0101); xsl:copy of another node delivers
+  the node, which the receiver copies.
+- **Content LETs** (glossary `content_let`, `sxml_ir_let.is_content`,
+  printed `(let $n content ...)`): a LET whose variable only the result
+  of its block reads, first and in order; in a delivering task its bound
+  expression delivers too. Lowering marks them with
+  `sxml_xpath_lowerer_mark_content_let` (the block's open LET made for the
+  item, else marking stops unless the item is ()). The machine also
+  evaluates `let $v := E return $v` as E in place.
+- **Lowerings**: an XSLT literal result element, xsl:element,
+  xsl:document and a temporary tree (9.4) compute their content in a block
+  inside the constructor; a sequence constructor marks its children's LETs
+  when it is a body or content (not with xsl:on-empty or
+  xsl:on-non-empty, which read the atoms). XQuery computed element and
+  document constructors do the same; a direct element constructor too,
+  literal text as text constructors, unless two enclosed expressions are
+  adjacent (`<c>{1}{2}</c>` stays a D110 enclosed list). Other temporary
+  trees (with-param, message bodies) still take their content as a value.
+- **Arena nodes**: content and in-scope namespaces share a union (a node
+  has one or the other by kind), 72 to 56 bytes.
+- **XSLT driver**: result documents are collected only for
+  assert-result-document (else the null handler, which still checks
+  them); the evaluation step budget is 4 x the QT4 driver's (D89), as
+  json-to-xml-013 takes about 190 million steps.
+- **Measured** (release, whole suites, before at 53bd400): json-to-xml-013
+  peaks at about 410 MB (2.1 GB before) and passes; XT40 in scope 7,986 to 7,987 of 8,728
+  (91.5 %), errors 1 to 0, no test set lost a case; XP40 30,647 and XQ40
+  40,034 passed, 0 errors; slices 198 and 147. The driver change was
+  committed with 457f530 (packet 5.3), which took the working tree's file.
+- **Not done**: XTDE3052 when an abstract variable is read (accept-042,
+  -043a): v1-proxy is a global that reads the abstract v1, and globals are
+  computed before the evaluation (XQuery's too, D148: only unreferenced
+  ones are skipped), so a lazy error needs globals computed on first read,
+  which a step function's synchronous atom reads cannot do today
+  (Proposed). A RAISE read in place of the abstract variable alone was
+  tried and dropped: v1-proxy still raises when it is computed.
 
 ### D167. Schema components and compile stages (packet 5.2)
 Recorded 2026-10-18. The internal design of Phase 5 (D165), in
@@ -6084,13 +6149,13 @@ sxml-xslt-test that links `sxml_qt4_driver_library`.
   fn:key and the accumulator functions in the run-time function table
   (fn:function-lookup of an xsl:function, of fn:key#2).
 
-- **Content that streams into a constructor** (packet 4.17, D163; for the
-  owner of the evaluator): an element or document constructor takes its
-  content as one value, so `<array>{ for each line: a document }</array>`
-  holds every document before copying the first (json-to-xml-013: 209,579
-  documents, beyond the driver's 512 MB). Proposed: a constructor whose
-  content is a MAP takes the items of each iteration as they come (copied,
-  then released), as XSLT's sequence constructors allow.
+- **Globals computed on first read** (packet 4.17, D166; for the owner of
+  the evaluator): XSLT 4.0, 3.4.5.2 raises XTDE3052 only when an
+  invocation of an abstract variable is evaluated, but every global is
+  computed before the evaluation, so a global that reads one raises too
+  (accept-042, -043a). Proposed: a global read while ABSENT is computed
+  then; it needs the machine to finish such reads before a step reads its
+  atoms (D71: no nested run).
 
 - **XQuery's default for omit-xml-declaration** (packet 3.12, D146; for
   the owner of `include/sxml/xquery.h`): the header gives every
