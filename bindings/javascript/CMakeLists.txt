@@ -41,12 +41,13 @@ if(SXML_BUILD_TESTS AND SXML_NODE_EXECUTABLE)
     endif()
     # The CLI's budget grew with sxml xquery, which links the XQuery
     # grammar (packet 3.12, D146), and with sxml transform, which links
-    # XSLT and the pattern and value template grammars (packet 4.15, D157;
-    # the owner confirms both under Proposed).
+    # XSLT and the pattern and value template grammars (packet 4.15, D157),
+    # and with sxml validate, which links schema compilation and validation
+    # (packet 5.10, D176; the owner confirms all three under Proposed).
     if(TARGET sxml_cli)
         add_test(NAME javascript/size_budget
             COMMAND "${SXML_NODE_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test/size-budget.mjs"
-                "$<TARGET_FILE:sxml_cli>" 5000000 1100000
+                "$<TARGET_FILE:sxml_cli>" 5500000 1250000
                 "$<TARGET_FILE:sxml_javascript_module>" 2000000 700000)
     endif()
 endif()

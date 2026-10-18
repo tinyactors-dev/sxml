@@ -1,0 +1,1 @@
+{"schema":{"documents":["xsd/books.xsd"],"status":"valid"},"files":[{"file":"missing.xml","status":"unreadable","message":"the file cannot be read"}]}

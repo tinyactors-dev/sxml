@@ -1,23 +1,25 @@
-sxml - check, query and transform XML documents
+sxml - check, validate, query and transform XML documents
 
 Usage: sxml [--version] COMMAND [ARGUMENT...]
 
-sxml checks XML 1.0 documents, evaluates XPath 4.0 expressions and
-XQuery 4.0 queries, and runs XSLT 4.0 stylesheets. Results go to
-standard output, errors to standard error. Documents and modules
-are read from local files; sxml never uses the network. A FILE
-operand of - reads standard input.
+sxml checks XML 1.0 documents, validates them against XSD 1.1
+schemas, evaluates XPath 4.0 expressions and XQuery 4.0 queries, and
+runs XSLT 4.0 stylesheets. Results go to standard output, errors to
+standard error. Documents, schemas and modules are read from local
+files; sxml never uses the network. A FILE operand of - reads
+standard input.
 
 Exit status: 0 on success; 1 when the operation fails (a document
-is not well-formed, a query or stylesheet raises an error); 2 for a
-usage error; 3 when a file cannot be read or written; 4 for an
-internal error or an exceeded limit.
+is not well-formed or not valid, a query or stylesheet raises an
+error); 2 for a usage error; 3 when a file cannot be read or
+written; 4 for an internal error or an exceeded limit.
 
 Commands:
   help       Show help for the program or for one command
   check      Check that XML documents are well-formed
   serialize  Parse an XML document and write it out again
   transform  Transform a document with an XSLT 4.0 stylesheet
+  validate   Validate XML documents against an XSD 1.1 schema
   version    Print the sxml version
   xpath      Evaluate an XPath 4.0 expression
   xquery     Run an XQuery 4.0 query
@@ -28,6 +30,7 @@ Options:
 
 Examples:
   sxml check books.xml
+  sxml validate --schema=books.xsd books.xml
   sxml xpath --context-item=books.xml '//title/string()'
   sxml xquery --context-item=books.xml titles.xq
   sxml transform list.xsl books.xml

@@ -74,6 +74,9 @@ typedef enum sxml_cli_option_multiplicity {
     SXML_CLI_OPTION_AT_MOST_ONCE,
     /* Any number of times; every value is kept, in order. */
     SXML_CLI_OPTION_REPEATABLE,
+    /* One or more times, as REPEATABLE; not giving it is a usage error
+       (sxml validate --schema). */
+    SXML_CLI_OPTION_AT_LEAST_ONCE,
 } sxml_cli_option_multiplicity;
 
 typedef struct sxml_cli_option {

@@ -248,58 +248,6 @@ typedef struct sxml_transform_plan {
     sxml_item input;
 } sxml_transform_plan;
 
-/* The stylesheet's base URI, which its relative hrefs resolve against
-   (RFC 3986, section 5.2): file://PATH for an absolute PATH, and for a
-   relative one file:// with the working directory before it, so that
-   "../" in an href leaves the stylesheet's directory as it should;
-   file:PATH when the working directory is unknown. */
-static sxml_status sxml_transform_make_stylesheet_uri(const sxml_cli_invocation *invocation,
-                                                      sxml_transform_plan *plan) {
-    const sxml_byte_view path = plan->stylesheet_file;
-    const sxml_byte_view directory = invocation->working_directory;
-    const bool is_absolute = path.byte_count > 0 && path.bytes[0] == '/';
-    const bool has_directory = !is_absolute && directory.byte_count > 0;
-    sxml_byte_view parts[4] = {
-        has_directory || is_absolute ? SXML_TEXT("file://") : SXML_TEXT("file:"),
-        {.bytes = NULL, .byte_count = 0},
-        {.bytes = NULL, .byte_count = 0},
-        path};
-    if (has_directory) {
-        /* "C:/work" of Windows becomes file:///C:/work. */
-        parts[1] = directory.bytes[0] == '/' ? directory : SXML_TEXT("/");
-        parts[2] = directory.bytes[0] == '/' ? (sxml_byte_view){.bytes = NULL, .byte_count = 0}
-                                             : directory;
-    }
-    size_t byte_count = 0;
-    for (size_t part_index = 0; part_index < 4; part_index += 1) {
-        byte_count += parts[part_index].byte_count;
-    }
-    const bool needs_separator =
-        has_directory && directory.bytes[directory.byte_count - 1] != '/';
-    byte_count += needs_separator ? 1 : 0;
-    void *memory = NULL;
-    const sxml_status status = sxml_allocator_allocate(
-        invocation->allocator, (sxml_allocation_request){.byte_count = byte_count, .alignment = 1},
-        &memory);
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    uint8_t *bytes = memory;
-    size_t written_count = 0;
-    for (size_t part_index = 0; part_index < 4; part_index += 1) {
-        if (part_index == 3 && needs_separator) {
-            bytes[written_count] = '/';
-            written_count += 1;
-        }
-        if (parts[part_index].byte_count > 0) {
-            memcpy(bytes + written_count, parts[part_index].bytes, parts[part_index].byte_count);
-            written_count += parts[part_index].byte_count;
-        }
-    }
-    plan->stylesheet_uri = (sxml_byte_view){.bytes = bytes, .byte_count = written_count};
-    return SXML_STATUS_OK;
-}
-
 /* Reads the operands and the names. Returns SXML_CLI_EXIT_SUCCESS to go
    on. */
 static sxml_cli_exit_code sxml_transform_read_plan(sxml_query_run *run,
@@ -343,7 +291,8 @@ static sxml_cli_exit_code sxml_transform_read_plan(sxml_query_run *run,
         return status == SXML_STATUS_INPUT_OUTPUT_FAILED ? SXML_CLI_EXIT_INPUT_OUTPUT_ERROR
                                                          : SXML_CLI_EXIT_INTERNAL_ERROR;
     }
-    if (sxml_transform_make_stylesheet_uri(invocation, plan) != SXML_STATUS_OK) {
+    if (sxml_query_make_file_uri(invocation, plan->stylesheet_file, &plan->stylesheet_uri) !=
+        SXML_STATUS_OK) {
         return SXML_CLI_EXIT_INTERNAL_ERROR;
     }
     if (!plan->has_input) {
@@ -384,49 +333,17 @@ typedef struct sxml_transform_module {
     const sxml_transform_plan *plan;
 } sxml_transform_module;
 
-static bool sxml_transform_starts_with(sxml_byte_view text, sxml_byte_view prefix) {
-    return text.byte_count >= prefix.byte_count &&
-           (prefix.byte_count == 0 || memcmp(text.bytes, prefix.bytes, prefix.byte_count) == 0);
-}
-
 /* The file to name in an error report: STYLESHEET for the principal
-   module (or no location), and for another module its path, relative to
-   the working directory when it is inside it (the file:// URI the base
-   URI of sxml_transform_make_stylesheet_uri gave it, without the
-   scheme and the directory). */
+   module (or no location), and for another module the file its URI names
+   (sxml_query_file_of_uri). */
 static sxml_byte_view sxml_transform_module_file(const sxml_cli_invocation *invocation,
                                                  const sxml_transform_module *module) {
-    sxml_byte_view name = module->module_uri;
-    const sxml_byte_view directory = invocation->working_directory;
+    const sxml_byte_view name = module->module_uri;
     if (name.byte_count == 0 || sxml_byte_view_equals(name, module->plan->stylesheet_file) ||
         sxml_byte_view_equals(name, module->plan->stylesheet_uri)) {
         return module->plan->stylesheet_file;
     }
-    const sxml_byte_view absolute_scheme = SXML_TEXT("file://");
-    const sxml_byte_view relative_scheme = SXML_TEXT("file:");
-    if (sxml_transform_starts_with(name, absolute_scheme)) {
-        name.bytes += absolute_scheme.byte_count;
-        name.byte_count -= absolute_scheme.byte_count;
-        if (directory.byte_count > 0 && directory.bytes[0] != '/' &&
-            sxml_transform_starts_with(name, SXML_TEXT("/"))) {
-            /* file:///C:/work: a Windows path. */
-            name.bytes += 1;
-            name.byte_count -= 1;
-        }
-        if (directory.byte_count > 0 && sxml_transform_starts_with(name, directory) &&
-            name.byte_count > directory.byte_count &&
-            (directory.bytes[directory.byte_count - 1] == '/' ||
-             name.bytes[directory.byte_count] == '/')) {
-            const size_t skipped_count =
-                directory.byte_count + (directory.bytes[directory.byte_count - 1] == '/' ? 0 : 1);
-            name.bytes += skipped_count;
-            name.byte_count -= skipped_count;
-        }
-    } else if (sxml_transform_starts_with(name, relative_scheme)) {
-        name.bytes += relative_scheme.byte_count;
-        name.byte_count -= relative_scheme.byte_count;
-    }
-    return name;
+    return sxml_query_file_of_uri(invocation, name);
 }
 
 static sxml_cli_exit_code sxml_transform_run(const sxml_query_run *run,

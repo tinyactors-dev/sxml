@@ -1,0 +1,4 @@
+<books>
+  <book year="1979"><title>Godel, Escher, Bach</title><price>cheap</price></book>
+  <book year="soon"><price>180.00</price></book>
+</books>

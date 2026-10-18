@@ -99,6 +99,8 @@ typedef enum sxml_cli_usage_error_kind {
     SXML_CLI_USAGE_ERROR_INVALID_CHOICE,
     /* An option that may be given at most once was given again. */
     SXML_CLI_USAGE_ERROR_REPEATED_OPTION,
+    /* An option that must be given at least once was not given. */
+    SXML_CLI_USAGE_ERROR_MISSING_OPTION,
     /* A required positional argument is missing. */
     SXML_CLI_USAGE_ERROR_MISSING_POSITIONAL,
     /* There are more positional arguments than the command takes. */
@@ -117,7 +119,7 @@ typedef struct sxml_cli_usage_error {
     /* For UNKNOWN_OPTION: true when it was a short option ("-x"). */
     bool is_short_option;
     /* The option concerned, for MISSING_VALUE, UNEXPECTED_VALUE,
-       INVALID_CHOICE and REPEATED_OPTION; NULL otherwise. */
+       INVALID_CHOICE, REPEATED_OPTION and MISSING_OPTION; NULL otherwise. */
     const sxml_cli_option *option;
     /* The positional concerned, for MISSING_POSITIONAL; NULL otherwise. */
     const sxml_cli_positional *positional;

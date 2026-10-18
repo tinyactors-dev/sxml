@@ -603,6 +603,24 @@ static sxml_cli_parse_step sxml_cli_parser_parse_argument(
     return sxml_cli_parser_parse_short_options(parser, argument);
 }
 
+/* Reports the first option that must be given at least once and was not. */
+static void sxml_cli_parser_check_required_options(sxml_cli_parser *parser) {
+    const sxml_cli_command *command = parser->arguments->command;
+    for (size_t option_index = 0; option_index < command->option_count;
+         option_index += 1) {
+        if (command->options[option_index].multiplicity ==
+                SXML_CLI_OPTION_AT_LEAST_ONCE &&
+            sxml_cli_arguments_count_option(parser->arguments, option_index) ==
+                0) {
+            sxml_cli_usage_error usage_error =
+                sxml_usage_error_of_kind(SXML_CLI_USAGE_ERROR_MISSING_OPTION);
+            usage_error.option = &command->options[option_index];
+            sxml_cli_parser_report(parser, usage_error);
+            return;
+        }
+    }
+}
+
 /* Checks the number of positional arguments against the declarations. */
 static void sxml_cli_parser_check_positionals(sxml_cli_parser *parser) {
     const sxml_cli_command *command = parser->arguments->command;
@@ -678,6 +696,9 @@ sxml_status sxml_cli_arguments_parse(sxml_cli_arguments *arguments,
             };
             return SXML_STATUS_OK;
         }
+    }
+    if (!parser.has_usage_error) {
+        sxml_cli_parser_check_required_options(&parser);
     }
     if (!parser.has_usage_error) {
         sxml_cli_parser_check_positionals(&parser);

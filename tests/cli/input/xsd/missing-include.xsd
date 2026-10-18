@@ -1,0 +1,4 @@
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:include schemaLocation="types/missing.xsd"/>
+  <xs:element name="books" type="book"/>
+</xs:schema>

@@ -37,6 +37,22 @@ typedef struct sxml_query_file_resolver {
     const sxml_cli_invocation *invocation;
 } sxml_query_file_resolver;
 
+/* Writes to *uri the file URI of a file named on the command line, the
+   base URI its relative references resolve against (RFC 3986, section
+   5.2): file://PATH for an absolute PATH; for a relative one, file:// with
+   the working directory before it, so that "../" leaves the file's
+   directory as it should; file:PATH when the working directory is
+   unknown. *uri is owned: release its bytes through the invocation's
+   allocator. Returns the allocator's failures. */
+SXML_NODISCARD sxml_status sxml_query_make_file_uri(const sxml_cli_invocation *invocation,
+                                                    sxml_byte_view path, sxml_byte_view *uri);
+
+/* The file a URI names, for messages: for a URI that
+   sxml_query_make_file_uri gave, or one resolved against it, its path
+   without the scheme, relative to the working directory when it is
+   inside it; another URI unchanged. Borrowed from uri. */
+sxml_byte_view sxml_query_file_of_uri(const sxml_cli_invocation *invocation, sxml_byte_view uri);
+
 /* One run of a query command. Set invocation, command_name and
    parameter_binding, zero the rest, then call sxml_query_run_start. */
 typedef struct sxml_query_run {

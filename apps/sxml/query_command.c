@@ -117,6 +117,87 @@ static const sxml_resource_resolver_operations sxml_query_file_resolver_operatio
     .release = sxml_query_release_file,
 };
 
+static bool sxml_query_starts_with(sxml_byte_view text, sxml_byte_view prefix) {
+    return text.byte_count >= prefix.byte_count &&
+           (prefix.byte_count == 0 || memcmp(text.bytes, prefix.bytes, prefix.byte_count) == 0);
+}
+
+sxml_status sxml_query_make_file_uri(const sxml_cli_invocation *invocation, sxml_byte_view path,
+                                     sxml_byte_view *uri) {
+    const sxml_byte_view directory = invocation->working_directory;
+    const bool is_absolute = path.byte_count > 0 && path.bytes[0] == '/';
+    const bool has_directory = !is_absolute && directory.byte_count > 0;
+    sxml_byte_view parts[4] = {
+        has_directory || is_absolute ? SXML_TEXT("file://") : SXML_TEXT("file:"),
+        {.bytes = NULL, .byte_count = 0},
+        {.bytes = NULL, .byte_count = 0},
+        path};
+    if (has_directory) {
+        /* "C:/work" of Windows becomes file:///C:/work. */
+        parts[1] = directory.bytes[0] == '/' ? directory : SXML_TEXT("/");
+        parts[2] = directory.bytes[0] == '/' ? (sxml_byte_view){.bytes = NULL, .byte_count = 0}
+                                             : directory;
+    }
+    size_t byte_count = 0;
+    for (size_t part_index = 0; part_index < 4; part_index += 1) {
+        byte_count += parts[part_index].byte_count;
+    }
+    const bool needs_separator =
+        has_directory && directory.bytes[directory.byte_count - 1] != '/';
+    byte_count += needs_separator ? 1 : 0;
+    void *memory = NULL;
+    const sxml_status status = sxml_allocator_allocate(
+        invocation->allocator, (sxml_allocation_request){.byte_count = byte_count, .alignment = 1},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    uint8_t *bytes = memory;
+    size_t written_count = 0;
+    for (size_t part_index = 0; part_index < 4; part_index += 1) {
+        if (part_index == 3 && needs_separator) {
+            bytes[written_count] = '/';
+            written_count += 1;
+        }
+        if (parts[part_index].byte_count > 0) {
+            memcpy(bytes + written_count, parts[part_index].bytes, parts[part_index].byte_count);
+            written_count += parts[part_index].byte_count;
+        }
+    }
+    *uri = (sxml_byte_view){.bytes = bytes, .byte_count = written_count};
+    return SXML_STATUS_OK;
+}
+
+sxml_byte_view sxml_query_file_of_uri(const sxml_cli_invocation *invocation, sxml_byte_view uri) {
+    sxml_byte_view name = uri;
+    const sxml_byte_view directory = invocation->working_directory;
+    const sxml_byte_view absolute_scheme = SXML_TEXT("file://");
+    const sxml_byte_view relative_scheme = SXML_TEXT("file:");
+    if (sxml_query_starts_with(name, absolute_scheme)) {
+        name.bytes += absolute_scheme.byte_count;
+        name.byte_count -= absolute_scheme.byte_count;
+        if (directory.byte_count > 0 && directory.bytes[0] != '/' &&
+            sxml_query_starts_with(name, SXML_TEXT("/"))) {
+            /* file:///C:/work: a Windows path. */
+            name.bytes += 1;
+            name.byte_count -= 1;
+        }
+        if (directory.byte_count > 0 && sxml_query_starts_with(name, directory) &&
+            name.byte_count > directory.byte_count &&
+            (directory.bytes[directory.byte_count - 1] == '/' ||
+             name.bytes[directory.byte_count] == '/')) {
+            const size_t skipped_count =
+                directory.byte_count + (directory.bytes[directory.byte_count - 1] == '/' ? 0 : 1);
+            name.bytes += skipped_count;
+            name.byte_count -= skipped_count;
+        }
+    } else if (sxml_query_starts_with(name, relative_scheme)) {
+        name.bytes += relative_scheme.byte_count;
+        name.byte_count -= relative_scheme.byte_count;
+    }
+    return name;
+}
+
 /* -------------------------------------------------------------- Output */
 
 static sxml_status sxml_query_write_output(void *state, sxml_byte_view bytes) {

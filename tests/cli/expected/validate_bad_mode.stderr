@@ -1,0 +1,3 @@
+sxml validate: invalid value 'loose' for option '--mode' (one of: strict, lax)
+Usage: sxml validate --schema=SCHEMA [--schema=SCHEMA]... [--mode=MODE] [--format=FORMAT] FILE...
+Try 'sxml validate --help'.

@@ -1,0 +1,5 @@
+<books>
+  <book year="1979"><title>Godel, Escher, Bach</title><price>22.50</price></book>
+  <book year="1968"><title>The Art of Computer Programming</title><price>180.00</price></book>
+  <book year="1986"><title>Structure and Interpretation of Computer Programs</title><price>55.00</price></book>
+</books>

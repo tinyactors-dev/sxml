@@ -1,8 +1,9 @@
 # The sxml command
 
-`sxml` checks, queries and transforms XML documents from the command line.
-It runs XPath 4.0 expressions, XQuery 4.0 queries and XSLT 4.0 stylesheets
-with the sxml library, and writes the results to standard output.
+`sxml` checks, validates, queries and transforms XML documents from the
+command line. It validates documents against XSD 1.1 schemas, runs XPath
+4.0 expressions, XQuery 4.0 queries and XSLT 4.0 stylesheets with the sxml
+library, and writes the results to standard output.
 
 ```console
 $ sxml xpath --context-item=books.xml '//book[@year < 1980]/title/string()'
@@ -12,10 +13,10 @@ $ sxml xpath --context-item=books.xml '//book[@year < 1980]/title/string()'
 
 - [Getting sxml](#getting-sxml)
 - [Usage](#usage)
-- Commands: [check](#sxml-check), [xpath](#sxml-xpath),
-  [xquery](#sxml-xquery), [transform](#sxml-transform),
-  [serialize](#sxml-serialize), [version](#sxml-version),
-  [help](#sxml-help)
+- Commands: [check](#sxml-check), [validate](#sxml-validate),
+  [xpath](#sxml-xpath), [xquery](#sxml-xquery),
+  [transform](#sxml-transform), [serialize](#sxml-serialize),
+  [version](#sxml-version), [help](#sxml-help)
 - [Exit codes](#exit-codes)
 - [Design](#design)
 
@@ -48,9 +49,9 @@ sxml [-h | --help | --version] COMMAND [ARGUMENT...]
   command. `--help` wins over everything else on the command line.
 - Results go to standard output. Errors and diagnostics go to standard
   error.
-- sxml reads documents, modules and stylesheets from local files only. It
-  never uses the network, never writes files, and reads no configuration
-  files.
+- sxml reads documents, schemas, modules and stylesheets from local files
+  only. It never uses the network, never writes files, and reads no
+  configuration files.
 
 The examples on this page use these files.
 
@@ -96,6 +97,36 @@ The examples on this page use these files.
     <li>{title} ({@year})</li>
   </xsl:template>
 </xsl:stylesheet>
+```
+
+`books.xsd`, an XSD schema for `books.xml`:
+
+```xml
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="books">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="book" type="book" maxOccurs="unbounded"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+  <xs:complexType name="book">
+    <xs:sequence>
+      <xs:element name="title" type="xs:string"/>
+      <xs:element name="price" type="xs:decimal"/>
+    </xs:sequence>
+    <xs:attribute name="year" type="xs:gYear" use="required"/>
+  </xs:complexType>
+</xs:schema>
+```
+
+`bad-books.xml`, which breaks it:
+
+```xml
+<books>
+  <book year="1979"><title>Godel, Escher, Bach</title><price>cheap</price></book>
+  <book year="soon"><price>180.00</price></book>
+</books>
 ```
 
 `hello.xsl`:
@@ -146,6 +177,89 @@ $ sxml check --format=json books.xml broken.xml
 {"files":[{"file":"books.xml","status":"well-formed"},{"file":"broken.xml","status":"not-well-formed","line":2,"column":1,"byte_offset":11,"message":"not well-formed: the document ends or breaks off before a construct is complete (XML 1.0, section 2.1)"}]}
 $ sxml check missing.xml
 sxml check: cannot read 'missing.xml'
+```
+
+## sxml validate
+
+Validate XML documents against an XSD 1.1 schema.
+
+```
+sxml validate --schema=SCHEMA [--schema=SCHEMA]... [--mode=MODE] [--format=FORMAT] FILE...
+```
+
+Validates each FILE against the XSD 1.1 schema that the SCHEMA documents
+form. The schema is assembled from all of them together with every document
+they include, import, redefine or override: local files, relative to the
+document that refers to them. Each FILE is parsed and validated in one
+pass. No document is written: `sxml validate` only checks.
+
+The schema is compiled first. Each of its errors is reported on standard
+error as `SCHEMA:LINE:COLUMN: CONSTRAINT: description`, where SCHEMA is the
+document that has the error, and then no FILE is read. A document that
+an `xs:include` or `xs:import` names but that cannot be read is no error
+by itself (XSD 1.1 Part 1, 4.2.3): its components are missing, and
+`src-resolve` is reported where they are used.
+
+sxml prints nothing when every FILE is valid. Each error in a FILE is
+reported on standard error as `FILE:LINE:COLUMN: CONSTRAINT: description`:
+every error, not only the first. CONSTRAINT is the name XSD 1.1 gives the
+rule that failed, such as `cvc-complex-type.2.4` (XSD 1.1 Part 1, appendix
+C). A FILE that is not well-formed is reported as `sxml check` reports it.
+
+| Option | Description |
+| --- | --- |
+| `--schema=SCHEMA` | An XSD schema document; `-` reads standard input. Required; repeatable: all of them form one schema. |
+| `--mode=MODE` | `strict` (default): the document element of each FILE must have a global declaration in the schema. `lax`: a document element without one is assessed laxly, and the FILE's validity is "not known". |
+| `--format=FORMAT` | Report format: `text` (default) or `json` |
+
+- With `--mode=lax`, the elements and attributes that have a declaration
+  are still validated, wherever they are. A FILE whose validity is not
+  known is reported on standard error as
+  `FILE: validity not known: ...`, but it does not fail.
+- `xsi:schemaLocation` and `xsi:noNamespaceSchemaLocation` hints in a FILE
+  are not followed: the schema is the one `--schema` names. To use a
+  hinted document, name it with `--schema`.
+- Standard input is read at most once: `-` given twice, as a SCHEMA and a
+  FILE or as two of either, is a usage error.
+
+With `--format=json`, one JSON object on standard output gives the
+`schema` with its `documents` and its `status`, and lists every FILE in
+`files` with its `status`:
+
+- The schema's status is `valid`, `invalid`, `unreadable` or `failed`. An
+  invalid schema has `errors`, each with `document`, `code` (the
+  constraint name), `line`, `column`, `byte_offset` and `message`, and
+  `files` is empty.
+- A FILE's status is `valid`, `invalid`, `not-known` (with
+  `--mode=lax`), `not-well-formed`, `unreadable` or `failed`. An invalid
+  FILE has `errors` as above, without `document`. A FILE that is not
+  well-formed has `line`, `column`, `byte_offset` and `message`, as for
+  `sxml check`.
+- Fields may be added to this object in later versions; existing fields do
+  not change.
+
+Exit status: 0 when every FILE is valid (or not known, with
+`--mode=lax`); 1 when the schema or a FILE is invalid or a FILE is not
+well-formed; 2 for a usage error; 3 when a SCHEMA or a FILE cannot be read;
+4 when a limit is exceeded or validation needs a feature sxml does not
+have yet. 3 wins over 4, and 4 over 1.
+
+```console
+$ sxml validate --schema=books.xsd books.xml
+$ sxml validate --schema=books.xsd bad-books.xml
+bad-books.xml:2:55: cvc-datatype-valid.1.2.1: the value is not in the lexical space or value space of the target type
+bad-books.xml:3:9: cvc-datatype-valid.1.2.1: the value is not in the lexical space or value space of the target type
+bad-books.xml:3:21: cvc-complex-type.2.4: The element is not allowed here
+$ sxml validate --schema=books.xsd --format=json books.xml
+{"schema":{"documents":["books.xsd"],"status":"valid"},"files":[{"file":"books.xml","status":"valid"}]}
+$ sxml validate --schema=books.xsd --format=json bad-books.xml
+{"schema":{"documents":["books.xsd"],"status":"valid"},"files":[{"file":"bad-books.xml","status":"invalid","errors":[{"code":"cvc-datatype-valid.1.2.1","line":2,"column":55,"byte_offset":62,"message":"the value is not in the lexical space or value space of the target type"},{"code":"cvc-datatype-valid.1.2.1","line":3,"column":9,"byte_offset":98,"message":"the value is not in the lexical space or value space of the target type"},{"code":"cvc-complex-type.2.4","line":3,"column":21,"byte_offset":110,"message":"The element is not allowed here"}]}]}
+$ echo '<shelf><books/></shelf>' | sxml validate --schema=books.xsd --mode=lax -
+-:1:8: cvc-complex-type.2.4: The element's content is incomplete
+$ echo '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"><xs:element name="books" type="catalog"/></xs:schema>' | sxml validate --schema=- books.xml
+-:1:56: src-resolve: A QName value names no component of its kind: catalog
+$ sxml validate --schema=books.xsd missing.xml
+sxml validate: cannot read 'missing.xml'
 ```
 
 ## sxml xpath
@@ -400,7 +514,7 @@ Try 'sxml --help'.
 | Code | Meaning |
 | --- | --- |
 | 0 | Success |
-| 1 | The operation failed: a document is not well-formed, or a query or stylesheet raised a static, dynamic or type error |
+| 1 | The operation failed: a document is not well-formed or not valid, a schema has errors, or a query or stylesheet raised a static, dynamic or type error |
 | 2 | Usage error: unknown command or option, missing or extra operand, bad option value |
 | 3 | Input or output error: a file cannot be read, or a write to standard output or standard error failed (closed pipe, full disk) |
 | 4 | Internal error: out of memory, a limit was exceeded, a bug in sxml |
@@ -435,7 +549,8 @@ Every invocation does exactly what its words say, and nothing else.
   `version`/`--version`, which the guidelines ask for.
 - **No repeated single options.** `--format=json --format=text` is a usage
   error, not "last one wins"; collecting options (`--param`) say
-  "repeatable".
+  "repeatable", and one that must be given at least once (`--schema`)
+  says "required; repeatable".
 
 ### Syntax
 
@@ -487,7 +602,6 @@ binds external variable `$NAME` to `xs:untypedAtomic(VALUE)`),
 | --- | --- | --- |
 | 3 | `--output=FILE [--force]` for `xquery` and `serialize` (the CLI framework has no file writer yet) | as the command |
 | 4 | `--output=FILE [--force]` for `transform`, and writing its result documents below FILE's directory (the CLI framework has no file writer yet) | as the command |
-| 5 | `sxml validate --schema=XSD [--format=text\|json] FILE...` | a FILE is not valid against XSD |
 
 The QT4 and XSLT 4.0 conformance drivers are not `sxml` commands but
 developer tools under `tests/` built with the same framework (D44).

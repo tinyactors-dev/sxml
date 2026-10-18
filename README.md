@@ -1,13 +1,16 @@
 # sxml
 
 sxml is a small, embeddable XML toolchain written in portable C. It parses
-XML, evaluates XPath 4.0 and XQuery 4.0, and runs XSLT 4.0 stylesheets, as
-a library and as the `sxml` command.
+XML, validates it against XSD 1.1 schemas, evaluates XPath 4.0 and XQuery
+4.0, and runs XSLT 4.0 stylesheets, as a library and as the `sxml` command.
 
 ## What it does
 
 - **XML 1.0** with namespaces: parsing into a tree, from UTF-8, UTF-16,
   ISO-8859-1 and US-ASCII.
+- **XSD 1.1** schema validation: every XSD 1.0 structure, the XSD 1.1
+  additions such as open content and conditional inclusion, and all
+  built-in datatypes and facets.
 - **XPath 4.0** with the full F&O 4.0 function library: maps, arrays,
   higher-order functions, regular expressions, dates and times, decimal
   arithmetic.
@@ -58,6 +61,37 @@ Check that a document is well-formed. No output means it is:
 $ sxml check books.xml
 $ echo $?
 0
+```
+
+Validate it against an XSD schema. `books.xsd`:
+
+```xml
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="books">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="book" type="book" maxOccurs="unbounded"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+  <xs:complexType name="book">
+    <xs:sequence>
+      <xs:element name="title" type="xs:string"/>
+      <xs:element name="price" type="xs:decimal"/>
+    </xs:sequence>
+    <xs:attribute name="year" type="xs:gYear" use="required"/>
+  </xs:complexType>
+</xs:schema>
+```
+
+No output means the document is valid. Errors name the line, the column
+and the XSD rule that failed:
+
+```console
+$ sxml validate --schema=books.xsd books.xml
+$ echo '<books><book year="soon"><title>Dune</title></book></books>' | sxml validate --schema=books.xsd -
+-:1:14: cvc-datatype-valid.1.2.1: the value is not in the lexical space or value space of the target type
+-:1:8: cvc-complex-type.2.4: The element's content is incomplete
 ```
 
 Evaluate XPath 4.0:
@@ -323,8 +357,10 @@ set and by failure cause.
 sxml is under active development and has no tagged release yet. XML
 parsing, XPath 4.0, XQuery 4.0 and serialization are implemented, and
 their C headers are stable. XSLT 4.0 is still being finished: `xslt.h` may change.
-Schema validation (XSD 1.1) and schema-aware processing are not available
-yet.
+Schema validation (XSD 1.1) is available in the library (`schema.h`, still
+provisional) and as `sxml validate`; identity constraints (`xs:unique`,
+`xs:key`, `xs:keyref`) and assertions are in progress. Schema-aware XPath,
+XQuery and XSLT are not available yet.
 
 ## License
 

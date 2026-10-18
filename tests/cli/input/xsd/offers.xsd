@@ -1,0 +1,10 @@
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:p="urn:example:prices">
+  <xs:import namespace="urn:example:prices" schemaLocation="prices.xsd"/>
+  <xs:element name="offers">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="p:price" maxOccurs="unbounded"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

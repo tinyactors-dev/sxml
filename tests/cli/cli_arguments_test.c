@@ -537,6 +537,53 @@ static void test_missing_positional(sxml_test_state *state) {
                      parsed.outcome.usage_error.positional == &test_positionals[0]);
 }
 
+/* "required --schema=SCHEMA [--schema=SCHEMA]... INPUT [FILE...]" */
+static const sxml_cli_option test_required_options[] = {
+    {.long_name = SXML_BYTE_VIEW_INITIALIZER("schema"),
+     .short_name = 0,
+     .value_kind = SXML_CLI_VALUE_KIND_TEXT,
+     .value_name = SXML_BYTE_VIEW_INITIALIZER("SCHEMA"),
+     .choices = {.texts = NULL, .text_count = 0},
+     .default_value = SXML_BYTE_VIEW_INITIALIZER(""),
+     .multiplicity = SXML_CLI_OPTION_AT_LEAST_ONCE,
+     .summary = SXML_BYTE_VIEW_INITIALIZER("A schema")},
+};
+
+static const sxml_cli_command test_required_command = {
+    .name = SXML_BYTE_VIEW_INITIALIZER("required"),
+    .summary = SXML_BYTE_VIEW_INITIALIZER("A test command"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(""),
+    .options = test_required_options,
+    .option_count = SXML_TEST_COUNT(test_required_options),
+    .positionals = test_positionals,
+    .positional_count = SXML_TEST_COUNT(test_positionals),
+    .examples = {.texts = NULL, .text_count = 0},
+    .run = test_run_nothing,
+};
+
+static void test_option_given_at_least_once(sxml_test_state *state) {
+    parsed_command_line parsed;
+    static const char *const missing[] = {"in", NULL};
+    SXML_TEST_REQUIRE(state, parse_command_line(&parsed, (test_command_line){
+                                                             .command = &test_required_command,
+                                                             .texts = missing,
+                                                             .stops_at_first_positional = false,
+                                                         }));
+    SXML_TEST_REQUIRE(state, is_usage_error(&parsed, SXML_CLI_USAGE_ERROR_MISSING_OPTION));
+    SXML_TEST_EXPECT(state, parsed.outcome.usage_error.option == &test_required_options[0]);
+    static const char *const twice[] = {"--schema=a", "in", "--schema", "b", NULL};
+    SXML_TEST_REQUIRE(state, parse_command_line(&parsed, (test_command_line){
+                                                             .command = &test_required_command,
+                                                             .texts = twice,
+                                                             .stops_at_first_positional = false,
+                                                         }));
+    SXML_TEST_REQUIRE(state, parsed.outcome.kind == SXML_CLI_PARSE_OUTCOME_PARSED);
+    const sxml_cli_option_match second =
+        find_option(&parsed, (option_query){.long_name = "schema", .occurrence_index = 1});
+    SXML_TEST_EXPECT(state, second.occurrence_count == 2);
+    SXML_TEST_EXPECT(state, sxml_byte_view_equals(second.value, TEXT("b")));
+}
+
 static void test_unexpected_positional(sxml_test_state *state) {
     parsed_command_line parsed;
     static const char *const texts[] = {"in", "extra", "more", NULL};
@@ -693,6 +740,8 @@ static const sxml_test_case cli_arguments_test_cases[] = {
      .function = test_repeated_single_option},
     {.name = "missing_positional", .function = test_missing_positional},
     {.name = "unexpected_positional", .function = test_unexpected_positional},
+    {.name = "option_given_at_least_once",
+     .function = test_option_given_at_least_once},
     {.name = "first_error_is_reported",
      .function = test_first_error_is_reported},
     {.name = "requirements_grow_with_arguments",

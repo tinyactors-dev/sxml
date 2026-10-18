@@ -1,0 +1,8 @@
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="books" type="catalog"/>
+  <xs:element name="book">
+    <xs:complexType>
+      <xs:attribute name="year" type="xs:gYear" use="sometimes"/>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

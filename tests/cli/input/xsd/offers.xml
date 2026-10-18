@@ -1,0 +1,4 @@
+<offers xmlns:p="urn:example:prices">
+  <p:price currency="EUR">22.50</p:price>
+  <p:price>180.00</p:price>
+</offers>

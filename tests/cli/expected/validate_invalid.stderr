@@ -1,0 +1,3 @@
+xsd/bad-books.xml:2:55: cvc-datatype-valid.1.2.1: the value is not in the lexical space or value space of the target type
+xsd/bad-books.xml:3:9: cvc-datatype-valid.1.2.1: the value is not in the lexical space or value space of the target type
+xsd/bad-books.xml:3:21: cvc-complex-type.2.4: The element is not allowed here

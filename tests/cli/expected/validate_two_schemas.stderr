@@ -1,0 +1,2 @@
+xsd/library.xsd:3:3: sch-props-correct.2: Two global components of one kind have the same name: books
+xsd/types/book.xsd:2:3: sch-props-correct.2: Two global components of one kind have the same name: book

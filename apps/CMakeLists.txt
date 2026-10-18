@@ -26,6 +26,7 @@ add_library(sxml_program STATIC
     sxml/command_check.c
     sxml/command_serialize.c
     sxml/command_transform.c
+    sxml/command_validate.c
     sxml/command_version.c
     sxml/command_xpath.c
     sxml/command_xquery.c

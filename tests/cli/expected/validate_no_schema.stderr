@@ -1,0 +1,3 @@
+sxml validate: missing option '--schema'
+Usage: sxml validate --schema=SCHEMA [--schema=SCHEMA]... [--mode=MODE] [--format=FORMAT] FILE...
+Try 'sxml validate --help'.

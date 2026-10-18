@@ -43,16 +43,30 @@ void sxml_cli_write_help_hint(sxml_cli_writer *writer,
 
 /* ----------------------------------------------------------- Usage line */
 
-static void sxml_cli_write_option_usage(sxml_cli_writer *writer,
-                                        const sxml_cli_option *option) {
-    sxml_cli_writer_write(writer, SXML_TEXT(" [--"));
+/* "--name=VALUE", or "--name" for a flag. */
+static void sxml_cli_write_option_form(sxml_cli_writer *writer,
+                                       const sxml_cli_option *option) {
+    sxml_cli_writer_write(writer, SXML_TEXT("--"));
     sxml_cli_writer_write(writer, option->long_name);
     if (option->value_kind != SXML_CLI_VALUE_KIND_NONE) {
         sxml_cli_writer_write_byte(writer, '=');
         sxml_cli_writer_write(writer, option->value_name);
     }
+}
+
+/* " [--name=VALUE]", " [--name=VALUE]..." or, for an option given at
+   least once, " --name=VALUE [--name=VALUE]...". */
+static void sxml_cli_write_option_usage(sxml_cli_writer *writer,
+                                        const sxml_cli_option *option) {
+    sxml_cli_writer_write_byte(writer, ' ');
+    if (option->multiplicity == SXML_CLI_OPTION_AT_LEAST_ONCE) {
+        sxml_cli_write_option_form(writer, option);
+        sxml_cli_writer_write_byte(writer, ' ');
+    }
+    sxml_cli_writer_write_byte(writer, '[');
+    sxml_cli_write_option_form(writer, option);
     sxml_cli_writer_write_byte(writer, ']');
-    if (option->multiplicity == SXML_CLI_OPTION_REPEATABLE) {
+    if (option->multiplicity != SXML_CLI_OPTION_AT_MOST_ONCE) {
         sxml_cli_writer_write(writer, SXML_TEXT("..."));
     }
 }
@@ -131,10 +145,13 @@ static void sxml_cli_write_option_notes(sxml_cli_writer *writer,
         sxml_cli_writer_write(writer, option->default_value);
         has_note = true;
     }
-    if (option->multiplicity == SXML_CLI_OPTION_REPEATABLE) {
+    if (option->multiplicity != SXML_CLI_OPTION_AT_MOST_ONCE) {
         sxml_cli_writer_write(writer,
                               has_note ? SXML_TEXT("; ") : SXML_TEXT(" ("));
-        sxml_cli_writer_write(writer, SXML_TEXT("repeatable"));
+        sxml_cli_writer_write(writer,
+                              option->multiplicity == SXML_CLI_OPTION_REPEATABLE
+                                  ? SXML_TEXT("repeatable")
+                                  : SXML_TEXT("required; repeatable"));
         has_note = true;
     }
     if (has_note) {
@@ -402,6 +419,10 @@ static void sxml_cli_write_usage_error_description(
         sxml_cli_writer_write(writer, SXML_TEXT("option "));
         sxml_cli_write_option_name(writer, usage_error->option);
         sxml_cli_writer_write(writer, SXML_TEXT(" given more than once"));
+        break;
+    case SXML_CLI_USAGE_ERROR_MISSING_OPTION:
+        sxml_cli_writer_write(writer, SXML_TEXT("missing option "));
+        sxml_cli_write_option_name(writer, usage_error->option);
         break;
     case SXML_CLI_USAGE_ERROR_MISSING_POSITIONAL:
         sxml_cli_writer_write(writer, SXML_TEXT("missing argument "));

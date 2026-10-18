@@ -1,0 +1,1 @@
+{"schema":{"documents":["xsd/broken.xsd"],"status":"invalid","errors":[{"document":"xsd/broken.xsd","code":"src-attribute","line":5,"column":7,"byte_offset":154,"message":"An attribute's value is not allowed: use"}]},"files":[]}

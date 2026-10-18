@@ -22,6 +22,9 @@ extern const sxml_cli_command sxml_serialize_command;
 /* The "transform" command (command_transform.c). */
 extern const sxml_cli_command sxml_transform_command;
 
+/* The "validate" command (command_validate.c). */
+extern const sxml_cli_command sxml_validate_command;
+
 /* The "version" command (command_version.c). */
 extern const sxml_cli_command sxml_version_command;
 
