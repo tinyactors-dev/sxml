@@ -24,6 +24,12 @@
 #include <math.h>
 #include <string.h>
 
+/* An answer of a facet test: the value satisfies it, equals the facet
+   value, or matches the pattern. */
+typedef struct sxml_facet_answer {
+    bool holds;
+} sxml_facet_answer;
+
 /* --------------------------------------------------------------- Errors */
 
 #define SXML_FACET_ERROR(constraint_text)                                     \
@@ -76,8 +82,8 @@ enum { SXML_FACET_MAXIMUM_DERIVATION_STEP_COUNT = 1024 };
 
 /* ----------------------------------------------------------- Whitespace */
 
-static bool sxml_facet_value_is(sxml_byte_view value, const char *text) {
-    return sxml_byte_view_equals(value, sxml_byte_view_from_c_string(text));
+static bool sxml_facet_value_is(sxml_byte_view value, sxml_byte_view text) {
+    return sxml_byte_view_equals(value, text);
 }
 
 sxml_whitespace_facet sxml_cast_find_whitespace_facet(
@@ -99,10 +105,10 @@ sxml_whitespace_facet sxml_cast_find_whitespace_facet(
             if (facet->facet_kind != SXML_FACET_KIND_WHITESPACE) {
                 continue;
             }
-            if (sxml_facet_value_is(facet->value, "preserve")) {
+            if (sxml_facet_value_is(facet->value, SXML_BYTE_VIEW_FROM_LITERAL("preserve"))) {
                 return SXML_WHITESPACE_FACET_PRESERVE;
             }
-            return sxml_facet_value_is(facet->value, "replace")
+            return sxml_facet_value_is(facet->value, SXML_BYTE_VIEW_FROM_LITERAL("replace"))
                        ? SXML_WHITESPACE_FACET_REPLACE
                        : SXML_WHITESPACE_FACET_COLLAPSE;
         }
@@ -397,7 +403,7 @@ sxml_status sxml_cast_order_values(sxml_item_heap *item_heap,
  */
 static sxml_status sxml_facet_qname_equals(sxml_item_heap *item_heap,
                                            sxml_facet_value_request request,
-                                           bool *is_equal) {
+                                           sxml_facet_answer *answer) {
     sxml_atomic_datum datum;
     sxml_status status = sxml_atomic_item_get_datum(request.item, &datum);
     sxml_name_parts parts;
@@ -418,7 +424,7 @@ static sxml_status sxml_facet_qname_equals(sxml_item_heap *item_heap,
     sxml_byte_view value = request.value;
     size_t expected_count =
         3 + namespace_uri.byte_count + parts.local_name.byte_count;
-    *is_equal =
+    answer->holds =
         value.byte_count == expected_count && value.bytes[0] == 'Q' &&
         value.bytes[1] == '{' &&
         (namespace_uri.byte_count == 0 ||
@@ -433,25 +439,25 @@ static sxml_status sxml_facet_qname_equals(sxml_item_heap *item_heap,
 
 static sxml_status sxml_facet_value_equals(sxml_item_heap *item_heap,
                                            sxml_facet_value_request request,
-                                           bool *is_equal) {
+                                           sxml_facet_answer *answer) {
     sxml_builtin_type primitive_type =
         (sxml_builtin_type)sxml_atomic_item_get_primitive_type(request.item)
             .index;
     if (primitive_type == SXML_TYPE_XS_QNAME ||
         primitive_type == SXML_TYPE_XS_NOTATION) {
-        return sxml_facet_qname_equals(item_heap, request, is_equal);
+        return sxml_facet_qname_equals(item_heap, request, answer);
     }
     sxml_item value_item = {.representation = 0};
     sxml_status status =
         sxml_facet_read_value(item_heap, request, &value_item);
     if (status == SXML_STATUS_INVALID_ARGUMENT) {
-        *is_equal = false;
+        answer->holds = false;
         return SXML_STATUS_OK;
     }
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    *is_equal = sxml_atomic_item_is_atomic_equal(request.item, value_item);
+    answer->holds = sxml_atomic_item_is_atomic_equal(request.item, value_item);
     sxml_item_release(value_item);
     return SXML_STATUS_OK;
 }
@@ -466,18 +472,18 @@ typedef struct sxml_facet_items_request {
 
 static sxml_status sxml_facet_items_equal(sxml_item_heap *item_heap,
                                           sxml_facet_items_request request,
-                                          bool *is_equal) {
+                                          sxml_facet_answer *answer) {
     if (!request.is_list) {
         return sxml_facet_value_equals(
             item_heap,
             (sxml_facet_value_request){.item = request.items.items[0],
                                        .value = request.value},
-            is_equal);
+            answer);
     }
     sxml_byte_view text = request.value;
     size_t offset = 0;
-    *is_equal = true;
-    for (size_t item_index = 0; *is_equal && item_index <= request.items.item_count;
+    answer->holds = true;
+    for (size_t item_index = 0; answer->holds && item_index <= request.items.item_count;
          item_index += 1) {
         while (offset < text.byte_count && text.bytes[offset] == ' ') {
             offset += 1;
@@ -488,11 +494,11 @@ static sxml_status sxml_facet_items_equal(sxml_item_heap *item_heap,
         }
         if (item_index == request.items.item_count) {
             /* No token may be left over. */
-            *is_equal = token_end == offset;
+            answer->holds = token_end == offset;
             break;
         }
         if (token_end == offset) {
-            *is_equal = false;
+            answer->holds = false;
             break;
         }
         sxml_status status = sxml_facet_value_equals(
@@ -501,7 +507,7 @@ static sxml_status sxml_facet_items_equal(sxml_item_heap *item_heap,
                 .item = request.items.items[item_index],
                 .value = {.bytes = text.bytes + offset,
                           .byte_count = token_end - offset}},
-            is_equal);
+            answer);
         if (status != SXML_STATUS_OK) {
             return status;
         }
@@ -593,14 +599,18 @@ static bool sxml_facet_count_digits(sxml_item_heap *item_heap, sxml_item item,
 
 /* Whether the value matches one of the patterns: a regex of the XSD
    dialect (D53), compiled in heap memory for the check. */
+typedef struct sxml_pattern_request {
+    sxml_byte_view lexical_form;
+    sxml_byte_view pattern;
+} sxml_pattern_request;
+
 static sxml_status sxml_facet_match_pattern(sxml_item_heap *item_heap,
-                                            sxml_facet_subject subject,
-                                            sxml_byte_view pattern,
-                                            bool *is_match) {
+                                            sxml_pattern_request request,
+                                            sxml_facet_answer *answer) {
     sxml_string pattern_text;
     sxml_string input;
-    if (sxml_string_from_utf8(pattern, &pattern_text) != SXML_STATUS_OK ||
-        sxml_string_from_utf8(subject.lexical_form, &input) != SXML_STATUS_OK) {
+    if (sxml_string_from_utf8(request.pattern, &pattern_text) != SXML_STATUS_OK ||
+        sxml_string_from_utf8(request.lexical_form, &input) != SXML_STATUS_OK) {
         return SXML_STATUS_INVALID_ARGUMENT;
     }
     sxml_allocator allocator = sxml_item_heap_as_allocator(item_heap);
@@ -642,17 +652,23 @@ static sxml_status sxml_facet_match_pattern(sxml_item_heap *item_heap,
     sxml_regex_matcher_destroy(matcher);
     sxml_regex_destroy(regex);
     if (status == SXML_STATUS_OK) {
-        *is_match = result.is_found;
+        answer->holds = result.is_found;
     }
     return status;
 }
 
 /* Checks one facet other than pattern, enumeration and whiteSpace; true
-   in *holds when the value satisfies it. */
-static sxml_status sxml_facet_check_one(sxml_item_heap *item_heap,
-                                        sxml_facet_subject subject,
-                                        const sxml_facet *facet, bool *holds) {
-    *holds = true;
+   in answer->holds when the value satisfies it. */
+typedef struct sxml_facet_test {
+    sxml_facet_subject subject;
+    const sxml_facet *facet;
+} sxml_facet_test;
+
+static sxml_status sxml_facet_check_one(sxml_item_heap *item_heap, sxml_facet_test test,
+                                        sxml_facet_answer *answer) {
+    sxml_facet_subject subject = test.subject;
+    const sxml_facet *facet = test.facet;
+    answer->holds = true;
     uint64_t count = 0;
     switch (facet->facet_kind) {
     case SXML_FACET_KIND_LENGTH:
@@ -666,11 +682,11 @@ static sxml_status sxml_facet_check_one(sxml_item_heap *item_heap,
             return SXML_STATUS_OK;
         }
         if (facet->facet_kind == SXML_FACET_KIND_LENGTH) {
-            *holds = length == count;
+            answer->holds = length == count;
         } else if (facet->facet_kind == SXML_FACET_KIND_MIN_LENGTH) {
-            *holds = length >= count;
+            answer->holds = length >= count;
         } else {
-            *holds = length <= count;
+            answer->holds = length <= count;
         }
         return SXML_STATUS_OK;
     }
@@ -685,7 +701,7 @@ static sxml_status sxml_facet_check_one(sxml_item_heap *item_heap,
                                      &digits)) {
             return SXML_STATUS_OK;
         }
-        *holds = facet->facet_kind == SXML_FACET_KIND_TOTAL_DIGITS
+        answer->holds = facet->facet_kind == SXML_FACET_KIND_TOTAL_DIGITS
                      ? digits.total_digit_count <= count
                      : digits.fraction_digit_count <= count;
         return SXML_STATUS_OK;
@@ -699,10 +715,10 @@ static sxml_status sxml_facet_check_one(sxml_item_heap *item_heap,
             return SXML_STATUS_OK;
         }
         bool has_timezone = datum.datum_details.date_time.has_timezone;
-        if (sxml_facet_value_is(facet->value, "required")) {
-            *holds = has_timezone;
-        } else if (sxml_facet_value_is(facet->value, "prohibited")) {
-            *holds = !has_timezone;
+        if (sxml_facet_value_is(facet->value, SXML_BYTE_VIEW_FROM_LITERAL("required"))) {
+            answer->holds = has_timezone;
+        } else if (sxml_facet_value_is(facet->value, SXML_BYTE_VIEW_FROM_LITERAL("prohibited"))) {
+            answer->holds = !has_timezone;
         }
         return SXML_STATUS_OK;
     }
@@ -735,13 +751,13 @@ static sxml_status sxml_facet_check_one(sxml_item_heap *item_heap,
         bool is_equal = order == SXML_VALUE_ORDER_EQUAL;
         bool is_greater = order == SXML_VALUE_ORDER_GREATER;
         if (facet->facet_kind == SXML_FACET_KIND_MAX_INCLUSIVE) {
-            *holds = is_less || is_equal;
+            answer->holds = is_less || is_equal;
         } else if (facet->facet_kind == SXML_FACET_KIND_MAX_EXCLUSIVE) {
-            *holds = is_less;
+            answer->holds = is_less;
         } else if (facet->facet_kind == SXML_FACET_KIND_MIN_EXCLUSIVE) {
-            *holds = is_greater;
+            answer->holds = is_greater;
         } else {
-            *holds = is_greater || is_equal;
+            answer->holds = is_greater || is_equal;
         }
         return SXML_STATUS_OK;
     }
@@ -775,14 +791,17 @@ static sxml_status sxml_facet_check_step(sxml_item_heap *item_heap,
          facet_index += 1) {
         const sxml_facet *facet = &step->facets.facets[facet_index];
         sxml_status status = SXML_STATUS_OK;
-        bool holds = true;
+        sxml_facet_answer answer = {.holds = true};
         if (facet->facet_kind == SXML_FACET_KIND_PATTERN) {
             alternatives.has_pattern = true;
             if (!alternatives.is_pattern_matched) {
-                status = sxml_facet_match_pattern(item_heap, subject,
-                                                  facet->value, &holds);
+                status = sxml_facet_match_pattern(
+                    item_heap,
+                    (sxml_pattern_request){.lexical_form = subject.lexical_form,
+                                           .pattern = facet->value},
+                    &answer);
                 alternatives.is_pattern_matched = status == SXML_STATUS_OK &&
-                                                  holds;
+                                                  answer.holds;
             }
         } else if (facet->facet_kind == SXML_FACET_KIND_ENUMERATION) {
             alternatives.has_enumeration = true;
@@ -793,17 +812,18 @@ static sxml_status sxml_facet_check_step(sxml_item_heap *item_heap,
                     (sxml_facet_items_request){.items = request->items,
                                                .value = facet->value,
                                                .is_list = subject.is_list},
-                    &holds);
+                    &answer);
                 alternatives.is_enumeration_matched =
-                    status == SXML_STATUS_OK && holds;
+                    status == SXML_STATUS_OK && answer.holds;
             } else if (request->items.item_count == 0 &&
                        facet->value.byte_count == 0) {
                 /* The empty list equals an empty enumeration value. */
                 alternatives.is_enumeration_matched = true;
             }
         } else if (subject.is_list || request->items.item_count != 0) {
-            status = sxml_facet_check_one(item_heap, subject, facet, &holds);
-            if (status == SXML_STATUS_OK && !holds) {
+            status = sxml_facet_check_one(
+                item_heap, (sxml_facet_test){.subject = subject, .facet = facet}, &answer);
+            if (status == SXML_STATUS_OK && !answer.holds) {
                 return sxml_facet_fail(request, facet->facet_kind);
             }
         }

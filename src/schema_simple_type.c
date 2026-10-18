@@ -327,11 +327,15 @@ static void sxml_effective_facets_put(sxml_effective_facets *effective,
     }
 }
 
-static sxml_step_facet sxml_builtin_facet(const char *value, bool is_fixed) {
-    return (sxml_step_facet){.is_present = true,
-                             .is_fixed = is_fixed,
-                             .is_own = false,
-                             .value = sxml_byte_view_from_c_string(value)};
+static sxml_step_facet sxml_builtin_facet(sxml_byte_view value) {
+    return (sxml_step_facet){
+        .is_present = true, .is_fixed = false, .is_own = false, .value = value};
+}
+
+static sxml_step_facet sxml_fixed_builtin_facet(sxml_byte_view value) {
+    sxml_step_facet facet = sxml_builtin_facet(value);
+    facet.is_fixed = true;
+    return facet;
 }
 
 static bool sxml_builtin_derives_from(const sxml_simple_type_compiler *compiler,
@@ -349,11 +353,11 @@ static void sxml_effective_facets_add_builtin(const sxml_simple_type_compiler *c
     effective->builtin_type = builtin_type;
     if (effective->variety == SXML_TYPE_VARIETY_LIST) {
         sxml_effective_facets_put(effective, SXML_FACET_KIND_WHITESPACE,
-                                  sxml_builtin_facet("collapse", true));
+                                  sxml_fixed_builtin_facet(SXML_BYTE_VIEW_FROM_LITERAL("collapse")));
         if (builtin_type == SXML_TYPE_XS_NMTOKENS || builtin_type == SXML_TYPE_XS_IDREFS ||
             builtin_type == SXML_TYPE_XS_ENTITIES) {
             sxml_effective_facets_put(effective, SXML_FACET_KIND_MIN_LENGTH,
-                                      sxml_builtin_facet("1", false));
+                                      sxml_builtin_facet(SXML_BYTE_VIEW_FROM_LITERAL("1")));
         }
         return;
     }
@@ -362,25 +366,25 @@ static void sxml_effective_facets_add_builtin(const sxml_simple_type_compiler *c
     }
     if (sxml_builtin_derives_from(compiler, builtin_type, SXML_TYPE_XS_TOKEN)) {
         sxml_effective_facets_put(effective, SXML_FACET_KIND_WHITESPACE,
-                                  sxml_builtin_facet("collapse", false));
+                                  sxml_builtin_facet(SXML_BYTE_VIEW_FROM_LITERAL("collapse")));
     } else if (sxml_builtin_derives_from(compiler, builtin_type,
                                          SXML_TYPE_XS_NORMALIZED_STRING)) {
         sxml_effective_facets_put(effective, SXML_FACET_KIND_WHITESPACE,
-                                  sxml_builtin_facet("replace", false));
+                                  sxml_builtin_facet(SXML_BYTE_VIEW_FROM_LITERAL("replace")));
     } else if (builtin_type == SXML_TYPE_XS_STRING) {
         sxml_effective_facets_put(effective, SXML_FACET_KIND_WHITESPACE,
-                                  sxml_builtin_facet("preserve", false));
+                                  sxml_builtin_facet(SXML_BYTE_VIEW_FROM_LITERAL("preserve")));
     } else {
         sxml_effective_facets_put(effective, SXML_FACET_KIND_WHITESPACE,
-                                  sxml_builtin_facet("collapse", true));
+                                  sxml_fixed_builtin_facet(SXML_BYTE_VIEW_FROM_LITERAL("collapse")));
     }
     if (sxml_builtin_derives_from(compiler, builtin_type, SXML_TYPE_XS_INTEGER)) {
         sxml_effective_facets_put(effective, SXML_FACET_KIND_FRACTION_DIGITS,
-                                  sxml_builtin_facet("0", true));
+                                  sxml_fixed_builtin_facet(SXML_BYTE_VIEW_FROM_LITERAL("0")));
     }
     if (builtin_type == SXML_TYPE_XS_DATE_TIME_STAMP) {
         sxml_effective_facets_put(effective, SXML_FACET_KIND_EXPLICIT_TIMEZONE,
-                                  sxml_builtin_facet("required", true));
+                                  sxml_fixed_builtin_facet(SXML_BYTE_VIEW_FROM_LITERAL("required")));
     }
 }
 
@@ -432,6 +436,12 @@ static void sxml_effective_facets_of(const sxml_simple_type_compiler *compiler,
     }
 }
 
+/* Whether a definition, facet or value passed a check (a reported error
+   makes it false). */
+typedef struct sxml_check_answer {
+    bool is_valid;
+} sxml_check_answer;
+
 /* ---------------------------------------------------- Reading values */
 
 /* Reads a non-negative integer facet value; false for none. */
@@ -477,8 +487,8 @@ static sxml_byte_view sxml_trim(sxml_byte_view text) {
     return (sxml_byte_view){.bytes = text.bytes + start, .byte_count = end - start};
 }
 
-static bool sxml_text_is(sxml_byte_view text, const char *expected) {
-    return sxml_byte_view_equals(text, sxml_byte_view_from_c_string(expected));
+static bool sxml_text_is(sxml_byte_view text, sxml_byte_view expected) {
+    return sxml_byte_view_equals(text, expected);
 }
 
 /* Appends the canonical text of an item, an EQName for xs:QName and
@@ -612,7 +622,7 @@ typedef struct sxml_simple_cast {
     sxml_schema_namespace_context_index namespace_context;
 } sxml_simple_cast;
 
-/* Casts; a cast error gives *is_valid false, not a failure. */
+/* Casts; a cast error gives answer->is_valid false, not a failure. */
 typedef struct sxml_simple_cast_outcome {
     bool is_valid;
     sxml_sequence value;
@@ -679,12 +689,15 @@ static sxml_schema_position sxml_facet_position(const sxml_simple_type_compiler 
                                                 size_t facet_index) {
     sxml_schema_index_view indexes =
         sxml_schema_get_list(compiler->components, check->definition.facets);
+    if (indexes.indexes == NULL || facet_index >= indexes.index_count) {
+        return check->definition.position;
+    }
     return sxml_schema_get_facet(compiler->components,
                                  (sxml_schema_facet_index){.value = indexes.indexes[facet_index]})
         ->position;
 }
 
-/* Reads one facet's value into its canonical text; *is_valid false when
+/* Reads one facet's value into its canonical text; answer->is_valid false when
    it is not a value of the facet (reported by the caller). */
 typedef struct sxml_facet_reading {
     const sxml_simple_type_check *check;
@@ -693,15 +706,15 @@ typedef struct sxml_facet_reading {
 } sxml_facet_reading;
 
 static sxml_status sxml_read_count_value(const sxml_simple_type_compiler *compiler,
-                                         sxml_facet_reading reading, bool *is_valid) {
+                                         sxml_facet_reading reading, sxml_check_answer *answer) {
     uint64_t count = 0;
-    *is_valid = sxml_read_count(sxml_schema_get_text(compiler->components, reading.facet->value),
+    answer->is_valid = sxml_read_count(sxml_schema_get_text(compiler->components, reading.facet->value),
                                 &count);
-    if (*is_valid && reading.facet->facet_kind == SXML_FACET_KIND_TOTAL_DIGITS && count == 0) {
+    if (answer->is_valid && reading.facet->facet_kind == SXML_FACET_KIND_TOTAL_DIGITS && count == 0) {
         /* totalDigits is a positiveInteger (Part 2, 4.3.11.1). */
-        *is_valid = false;
+        answer->is_valid = false;
     }
-    if (!*is_valid) {
+    if (!answer->is_valid) {
         return SXML_STATUS_OK;
     }
     /* The canonical form: decimal digits without leading zeros. */
@@ -718,17 +731,17 @@ static sxml_status sxml_read_count_value(const sxml_simple_type_compiler *compil
 }
 
 static sxml_status sxml_read_keyword_value(const sxml_simple_type_compiler *compiler,
-                                           sxml_facet_reading reading, bool *is_valid) {
+                                           sxml_facet_reading reading, sxml_check_answer *answer) {
     sxml_byte_view value =
         sxml_trim(sxml_schema_get_text(compiler->components, reading.facet->value));
     if (reading.facet->facet_kind == SXML_FACET_KIND_WHITESPACE) {
-        *is_valid = sxml_text_is(value, "preserve") || sxml_text_is(value, "replace") ||
-                    sxml_text_is(value, "collapse");
+        answer->is_valid = sxml_text_is(value, SXML_BYTE_VIEW_FROM_LITERAL("preserve")) || sxml_text_is(value, SXML_BYTE_VIEW_FROM_LITERAL("replace")) ||
+                    sxml_text_is(value, SXML_BYTE_VIEW_FROM_LITERAL("collapse"));
     } else {
-        *is_valid = sxml_text_is(value, "required") || sxml_text_is(value, "prohibited") ||
-                    sxml_text_is(value, "optional");
+        answer->is_valid = sxml_text_is(value, SXML_BYTE_VIEW_FROM_LITERAL("required")) || sxml_text_is(value, SXML_BYTE_VIEW_FROM_LITERAL("prohibited")) ||
+                    sxml_text_is(value, SXML_BYTE_VIEW_FROM_LITERAL("optional"));
     }
-    if (*is_valid) {
+    if (answer->is_valid) {
         /* The trimmed run of the value as written (the text table may move
            while it grows, so it is not copied from itself). */
         sxml_byte_view written = sxml_schema_get_text(compiler->components, reading.facet->value);
@@ -743,10 +756,10 @@ static sxml_status sxml_read_keyword_value(const sxml_simple_type_compiler *comp
 /* A pattern compiles in the XSD dialect (Part 2, appendix G); it is kept
    as written. */
 static sxml_status sxml_read_pattern_value(const sxml_simple_type_compiler *compiler,
-                                           sxml_facet_reading reading, bool *is_valid) {
+                                           sxml_facet_reading reading, sxml_check_answer *answer) {
     sxml_byte_view value = sxml_schema_get_text(compiler->components, reading.facet->value);
     sxml_string pattern;
-    *is_valid = false;
+    answer->is_valid = false;
     if (sxml_string_from_utf8(value, &pattern) != SXML_STATUS_OK) {
         return SXML_STATUS_OK;
     }
@@ -766,7 +779,7 @@ static sxml_status sxml_read_pattern_value(const sxml_simple_type_compiler *comp
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    *is_valid = true;
+    answer->is_valid = true;
     *reading.canonical_value = reading.facet->value;
     return SXML_STATUS_OK;
 }
@@ -775,7 +788,7 @@ static sxml_status sxml_read_pattern_value(const sxml_simple_type_compiler *comp
    (Part 2, 4.3.5.5). A bound is a value of the base's built-in type
    (4.3.7 to 4.3.10), compared with the base's bounds afterwards. */
 static sxml_status sxml_read_typed_value(const sxml_simple_type_compiler *compiler,
-                                         sxml_facet_reading reading, bool *is_valid) {
+                                         sxml_facet_reading reading, sxml_check_answer *answer) {
     const sxml_simple_type_check *check = reading.check;
     sxml_type_identifier target =
         sxml_simple_type_get(compiler, check->base_index)->registered_type;
@@ -794,7 +807,7 @@ static sxml_status sxml_read_typed_value(const sxml_simple_type_compiler *compil
             .target_type = target,
             .namespace_context = reading.facet->namespace_context},
         &outcome);
-    *is_valid = outcome.is_valid;
+    answer->is_valid = outcome.is_valid;
     if (status != SXML_STATUS_OK || !outcome.is_valid) {
         return status;
     }
@@ -804,30 +817,30 @@ static sxml_status sxml_read_typed_value(const sxml_simple_type_compiler *compil
 }
 
 static sxml_status sxml_read_facet_value(const sxml_simple_type_compiler *compiler,
-                                         sxml_facet_reading reading, bool *is_valid) {
+                                         sxml_facet_reading reading, sxml_check_answer *answer) {
     sxml_facet_kind kind = reading.facet->facet_kind;
     if (sxml_facet_kind_is_count(kind)) {
-        return sxml_read_count_value(compiler, reading, is_valid);
+        return sxml_read_count_value(compiler, reading, answer);
     }
     if (kind == SXML_FACET_KIND_WHITESPACE || kind == SXML_FACET_KIND_EXPLICIT_TIMEZONE) {
-        return sxml_read_keyword_value(compiler, reading, is_valid);
+        return sxml_read_keyword_value(compiler, reading, answer);
     }
     if (kind == SXML_FACET_KIND_PATTERN) {
-        return sxml_read_pattern_value(compiler, reading, is_valid);
+        return sxml_read_pattern_value(compiler, reading, answer);
     }
-    return sxml_read_typed_value(compiler, reading, is_valid);
+    return sxml_read_typed_value(compiler, reading, answer);
 }
 
 /* Reads the step's facets: applicable, one per kind (st-props-correct.4),
-   values valid. *is_valid false when one was reported. */
+   values valid. answer->is_valid false when one was reported. */
 static sxml_status sxml_read_step_facets(const sxml_simple_type_compiler *compiler,
-                                         sxml_simple_type_check *check, bool *is_valid) {
+                                         sxml_simple_type_check *check, sxml_check_answer *answer) {
     sxml_schema_index_view indexes =
         sxml_schema_get_list(compiler->components, check->definition.facets);
     uint32_t applicable = sxml_applicable_facets(
         (sxml_facet_owner){.variety = check->variety, .primitive_type = check->primitive_type});
     uint32_t seen = 0;
-    *is_valid = true;
+    answer->is_valid = true;
     for (size_t facet_index = 0; facet_index < indexes.index_count; facet_index += 1) {
         const sxml_schema_facet *facet = sxml_schema_get_facet(
             compiler->components, (sxml_schema_facet_index){.value = indexes.indexes[facet_index]});
@@ -835,7 +848,7 @@ static sxml_status sxml_read_step_facets(const sxml_simple_type_compiler *compil
         sxml_simple_type_error error = {.constraint_name = NULL,
                                         .description = NULL,
                                         .position = facet->position};
-        bool is_value_valid = true;
+        sxml_check_answer value_answer = {.is_valid = true};
         sxml_status status = SXML_STATUS_OK;
         if ((applicable & sxml_facet_bit(kind)) == 0) {
             error.constraint_name = "cos-applicable-facets";
@@ -852,8 +865,8 @@ static sxml_status sxml_read_step_facets(const sxml_simple_type_compiler *compil
                 (sxml_facet_reading){.check = check,
                                      .facet = facet,
                                      .canonical_value = &check->canonical_values[facet_index]},
-                &is_value_valid);
-            if (status == SXML_STATUS_OK && !is_value_valid) {
+                &value_answer);
+            if (status == SXML_STATUS_OK && !value_answer.is_valid) {
                 error.constraint_name = sxml_facet_texts[kind].restriction_constraint;
                 error.description = kind == SXML_FACET_KIND_ENUMERATION || sxml_facet_kind_is_bound(kind)
                                         ? "the facet's value is not a value of the base type "
@@ -868,7 +881,7 @@ static sxml_status sxml_read_step_facets(const sxml_simple_type_compiler *compil
         seen |= sxml_facet_bit(kind);
         check->facets[facet_index].facet_kind = kind;
         if (error.constraint_name != NULL) {
-            *is_valid = false;
+            answer->is_valid = false;
             status = sxml_check_report(compiler, check, error);
             if (status != SXML_STATUS_OK) {
                 return status;
@@ -877,7 +890,7 @@ static sxml_status sxml_read_step_facets(const sxml_simple_type_compiler *compil
     }
     if ((seen & sxml_facet_bit(SXML_FACET_KIND_MAX_INCLUSIVE)) != 0 &&
         (seen & sxml_facet_bit(SXML_FACET_KIND_MAX_EXCLUSIVE)) != 0) {
-        *is_valid = false;
+        answer->is_valid = false;
         return sxml_check_report(
             compiler, check,
             (sxml_simple_type_error){.constraint_name = "maxInclusive-maxExclusive",
@@ -886,7 +899,7 @@ static sxml_status sxml_read_step_facets(const sxml_simple_type_compiler *compil
     }
     if ((seen & sxml_facet_bit(SXML_FACET_KIND_MIN_INCLUSIVE)) != 0 &&
         (seen & sxml_facet_bit(SXML_FACET_KIND_MIN_EXCLUSIVE)) != 0) {
-        *is_valid = false;
+        answer->is_valid = false;
         return sxml_check_report(
             compiler, check,
             (sxml_simple_type_error){.constraint_name = "minInclusive-minExclusive",
@@ -900,14 +913,14 @@ static sxml_status sxml_read_step_facets(const sxml_simple_type_compiler *compil
 
 /* Orders two bound values, read in the type's built-in type. */
 typedef struct sxml_bound_pair {
+    sxml_builtin_type builtin_type;
     sxml_byte_view first;
     sxml_byte_view second;
 } sxml_bound_pair;
 
 static sxml_status sxml_order_bounds(const sxml_simple_type_compiler *compiler,
-                                     const sxml_simple_type_check *check, sxml_bound_pair pair,
-                                     sxml_value_order *order) {
-    sxml_type_identifier builtin = sxml_builtin_type_identifier(check->builtin_type);
+                                     sxml_bound_pair pair, sxml_value_order *order) {
+    sxml_type_identifier builtin = sxml_builtin_type_identifier(pair.builtin_type);
     sxml_simple_cast_outcome first;
     sxml_simple_cast_outcome second = {.is_valid = false, .value = sxml_sequence_empty()};
     *order = SXML_VALUE_ORDER_INCOMPARABLE;
@@ -1010,11 +1023,11 @@ static bool sxml_breaks_base_facet(sxml_facet_kind kind, sxml_step_facet own,
         return own_count > base_count || (base.is_fixed && own_count != base_count);
     case SXML_FACET_KIND_WHITESPACE:
         /* preserve < replace < collapse in restrictiveness (4.3.6.4). */
-        return (sxml_text_is(base.value, "collapse") && !sxml_text_is(own.value, "collapse")) ||
-               (sxml_text_is(base.value, "replace") && sxml_text_is(own.value, "preserve")) ||
+        return (sxml_text_is(base.value, SXML_BYTE_VIEW_FROM_LITERAL("collapse")) && !sxml_text_is(own.value, SXML_BYTE_VIEW_FROM_LITERAL("collapse"))) ||
+               (sxml_text_is(base.value, SXML_BYTE_VIEW_FROM_LITERAL("replace")) && sxml_text_is(own.value, SXML_BYTE_VIEW_FROM_LITERAL("preserve"))) ||
                (base.is_fixed && !sxml_byte_view_equals(own.value, base.value));
     case SXML_FACET_KIND_EXPLICIT_TIMEZONE:
-        return (!sxml_text_is(base.value, "optional") || base.is_fixed) &&
+        return (!sxml_text_is(base.value, SXML_BYTE_VIEW_FROM_LITERAL("optional")) || base.is_fixed) &&
                !sxml_byte_view_equals(own.value, base.value);
     case SXML_FACET_KIND_PATTERN:
     case SXML_FACET_KIND_ENUMERATION:
@@ -1028,9 +1041,16 @@ static bool sxml_breaks_base_facet(sxml_facet_kind kind, sxml_step_facet own,
 }
 
 /* The bound rules for one own bound facet against the base's bounds. */
+typedef struct sxml_bound_check {
+    const sxml_simple_type_check *check;
+    size_t facet_index;
+} sxml_bound_check;
+
 static sxml_status sxml_check_bound_against_base(const sxml_simple_type_compiler *compiler,
-                                                 const sxml_simple_type_check *check,
-                                                 size_t facet_index, bool *is_valid) {
+                                                 sxml_bound_check bound,
+                                                 sxml_check_answer *answer) {
+    const sxml_simple_type_check *check = bound.check;
+    size_t facet_index = bound.facet_index;
     sxml_facet_kind kind = check->facets[facet_index].facet_kind;
     sxml_byte_view own =
         sxml_schema_get_text(compiler->components, check->canonical_values[facet_index]);
@@ -1043,7 +1063,10 @@ static sxml_status sxml_check_bound_against_base(const sxml_simple_type_compiler
         }
         sxml_value_order order = SXML_VALUE_ORDER_INCOMPARABLE;
         sxml_status status = sxml_order_bounds(
-            compiler, check, (sxml_bound_pair){.first = own, .second = base.value}, &order);
+            compiler,
+            (sxml_bound_pair){
+                .builtin_type = check->builtin_type, .first = own, .second = base.value},
+            &order);
         if (status != SXML_STATUS_OK) {
             return status;
         }
@@ -1051,7 +1074,7 @@ static sxml_status sxml_check_bound_against_base(const sxml_simple_type_compiler
                          (rule->base_kind == kind && base.is_fixed &&
                           order != SXML_VALUE_ORDER_EQUAL);
         if (is_broken) {
-            *is_valid = false;
+            answer->is_valid = false;
             return sxml_check_report(
                 compiler, check,
                 (sxml_simple_type_error){
@@ -1066,7 +1089,7 @@ static sxml_status sxml_check_bound_against_base(const sxml_simple_type_compiler
 /* The own facets against the base's, then the overlaid set's
    consistency. */
 static sxml_status sxml_check_against_base(const sxml_simple_type_compiler *compiler,
-                                           sxml_simple_type_check *check, bool *is_valid) {
+                                           sxml_simple_type_check *check, sxml_check_answer *answer) {
     check->facets_after = check->base_facets;
     for (size_t facet_index = 0; facet_index < check->facet_count; facet_index += 1) {
         sxml_facet_kind kind = check->facets[facet_index].facet_kind;
@@ -1077,9 +1100,11 @@ static sxml_status sxml_check_against_base(const sxml_simple_type_compiler *comp
             .value = sxml_schema_get_text(compiler->components, check->canonical_values[facet_index])};
         sxml_status status = SXML_STATUS_OK;
         if (sxml_facet_kind_is_bound(kind)) {
-            status = sxml_check_bound_against_base(compiler, check, facet_index, is_valid);
+            status = sxml_check_bound_against_base(
+                compiler, (sxml_bound_check){.check = check, .facet_index = facet_index},
+                answer);
         } else if (sxml_breaks_base_facet(kind, own, check->base_facets.facets[kind])) {
-            *is_valid = false;
+            answer->is_valid = false;
             status = sxml_check_report(
                 compiler, check,
                 (sxml_simple_type_error){
@@ -1087,7 +1112,7 @@ static sxml_status sxml_check_against_base(const sxml_simple_type_compiler *comp
                     .description = sxml_facet_texts[kind].restriction_description,
                     .position = sxml_facet_position(compiler, check, facet_index)});
         }
-        if (status != SXML_STATUS_OK || !*is_valid) {
+        if (status != SXML_STATUS_OK || !answer->is_valid) {
             return status;
         }
         if (kind != SXML_FACET_KIND_PATTERN && kind != SXML_FACET_KIND_ENUMERATION) {
@@ -1129,7 +1154,10 @@ static sxml_status sxml_check_against_base(const sxml_simple_type_compiler *comp
         }
         sxml_value_order order = SXML_VALUE_ORDER_INCOMPARABLE;
         sxml_status status = sxml_order_bounds(
-            compiler, check, (sxml_bound_pair){.first = lower.value, .second = upper.value},
+            compiler,
+            (sxml_bound_pair){.builtin_type = check->builtin_type,
+                              .first = lower.value,
+                              .second = upper.value},
             &order);
         if (status != SXML_STATUS_OK) {
             return status;
@@ -1141,7 +1169,7 @@ static sxml_status sxml_check_against_base(const sxml_simple_type_compiler *comp
     if (constraint_name == NULL) {
         return SXML_STATUS_OK;
     }
-    *is_valid = false;
+    answer->is_valid = false;
     return sxml_check_report(
         compiler, check,
         (sxml_simple_type_error){.constraint_name = constraint_name,
@@ -1186,7 +1214,7 @@ static bool sxml_union_has_list_member(const sxml_simple_type_compiler *compiler
 }
 
 /* The variety of the definition from what it is made of, and the checks
-   of Part 1, 3.16.6.1 and 3.16.6.2 that need no facets. *is_valid false
+   of Part 1, 3.16.6.1 and 3.16.6.2 that need no facets. answer->is_valid false
    when one was reported; *is_skipped when a type it is made of failed
    (already reported). */
 typedef struct sxml_variety_outcome {
@@ -1311,6 +1339,11 @@ static sxml_status sxml_combine_assertions(const sxml_simple_type_compiler *comp
     sxml_schema_index_view base_entries = sxml_schema_get_list(compiler->components, base->assertions);
     sxml_schema_index_view own_entries =
         sxml_schema_get_list(compiler->components, check->definition.assertions);
+    if (base_entries.indexes == NULL || own_entries.indexes == NULL ||
+        base_entries.index_count + own_entries.index_count != count) {
+        sxml_allocator_release(compiler->allocator, memory);
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
     memcpy(entries, base_entries.indexes, base_entries.index_count * sizeof(uint32_t));
     memcpy(entries + base_entries.index_count, own_entries.indexes,
            own_entries.index_count * sizeof(uint32_t));
@@ -1431,19 +1464,31 @@ static sxml_status sxml_allocate_step_facets(const sxml_simple_type_compiler *co
     if (check->facet_count == 0) {
         return SXML_STATUS_OK;
     }
-    size_t entry_byte_count = sizeof(sxml_facet) + sizeof(sxml_schema_text);
-    void *memory = NULL;
+    void *facets = NULL;
+    void *canonical_values = NULL;
     sxml_status status = sxml_allocator_allocate(
         compiler->allocator,
-        (sxml_allocation_request){.byte_count = check->facet_count * entry_byte_count,
+        (sxml_allocation_request){.byte_count = check->facet_count * sizeof(sxml_facet),
                                   .alignment = alignof(sxml_facet)},
-        &memory);
+        &facets);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_allocator_allocate(
+            compiler->allocator,
+            (sxml_allocation_request){.byte_count =
+                                          check->facet_count * sizeof(sxml_schema_text),
+                                      .alignment = alignof(sxml_schema_text)},
+            &canonical_values);
+    }
     if (status != SXML_STATUS_OK) {
+        if (facets != NULL) {
+            sxml_allocator_release(compiler->allocator, facets);
+        }
         return status;
     }
-    memset(memory, 0, check->facet_count * entry_byte_count);
-    check->facets = memory;
-    check->canonical_values = (sxml_schema_text *)(void *)(check->facets + check->facet_count);
+    memset(facets, 0, check->facet_count * sizeof(sxml_facet));
+    memset(canonical_values, 0, check->facet_count * sizeof(sxml_schema_text));
+    check->facets = facets;
+    check->canonical_values = canonical_values;
     return SXML_STATUS_OK;
 }
 
@@ -1468,12 +1513,12 @@ static sxml_status sxml_compile_one(const sxml_simple_type_compiler *compiler,
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    bool is_valid = true;
+    sxml_check_answer answer = {.is_valid = true};
     if (check.facet_count != 0 &&
         check.definition.derivation_method != SXML_SCHEMA_DERIVATION_RESTRICTION) {
         /* xs:list and xs:union have no facets of their own (3.16.6.2,
            2.2.1.2 and 3.2.1.2). */
-        is_valid = false;
+        answer.is_valid = false;
         status = sxml_check_report(
             compiler, &check,
             (sxml_simple_type_error){.constraint_name = "cos-st-restricts.2.2.1.2",
@@ -1481,10 +1526,10 @@ static sxml_status sxml_compile_one(const sxml_simple_type_compiler *compiler,
                                                     "member types has no facets (XSD 1.1 Part "
                                                     "1, 3.16.6.2)"});
     }
-    if (status == SXML_STATUS_OK && is_valid) {
-        status = sxml_read_step_facets(compiler, &check, &is_valid);
+    if (status == SXML_STATUS_OK && answer.is_valid) {
+        status = sxml_read_step_facets(compiler, &check, &answer);
     }
-    if (status == SXML_STATUS_OK && is_valid) {
+    if (status == SXML_STATUS_OK && answer.is_valid) {
         check.base_facets.variety = check.variety;
         if (check.definition.derivation_method == SXML_SCHEMA_DERIVATION_RESTRICTION) {
             sxml_effective_facets_of(compiler, check.base_index, &check.base_facets);
@@ -1492,13 +1537,14 @@ static sxml_status sxml_compile_one(const sxml_simple_type_compiler *compiler,
             sxml_effective_facets_add_builtin(compiler, &check.base_facets,
                                               SXML_TYPE_XS_ANY_SIMPLE_TYPE);
         }
-        status = sxml_check_against_base(compiler, &check, &is_valid);
+        status = sxml_check_against_base(compiler, &check, &answer);
     }
-    if (status == SXML_STATUS_OK && is_valid) {
+    if (status == SXML_STATUS_OK && answer.is_valid) {
         status = sxml_register_simple_type(compiler, &check);
     }
     if (check.facets != NULL) {
         sxml_allocator_release(compiler->allocator, check.facets);
+        sxml_allocator_release(compiler->allocator, check.canonical_values);
     }
     return status;
 }
@@ -1518,10 +1564,15 @@ typedef struct sxml_simple_type_frame {
     size_t next_dependency;
 } sxml_simple_type_frame;
 
-/* The walk's memory: a state per type definition and the stack. */
+/* The walk's memory, one slot per type definition: the state of type
+   definition N in slot N, frame N of the stack in slot N. */
+typedef struct sxml_simple_type_slot {
+    uint32_t state;
+    sxml_simple_type_frame frame;
+} sxml_simple_type_slot;
+
 typedef struct sxml_simple_type_walk {
-    uint8_t *states;
-    sxml_simple_type_frame *frames;
+    sxml_simple_type_slot *slots;
     size_t frame_count;
     uint32_t type_count;
 } sxml_simple_type_walk;
@@ -1537,11 +1588,11 @@ static bool sxml_needs_compiling(const sxml_simple_type_compiler *compiler, uint
    walk's stack; a type met again while on the stack is circular. */
 static sxml_status sxml_walk_from(const sxml_simple_type_compiler *compiler,
                                   sxml_simple_type_walk *walk, uint32_t type_index) {
-    walk->frames[0] = (sxml_simple_type_frame){.type_index = type_index, .next_dependency = 0};
+    walk->slots[0].frame = (sxml_simple_type_frame){.type_index = type_index, .next_dependency = 0};
     walk->frame_count = 1;
-    walk->states[type_index] = SXML_SIMPLE_TYPE_ON_STACK;
+    walk->slots[type_index].state = SXML_SIMPLE_TYPE_ON_STACK;
     while (walk->frame_count != 0) {
-        sxml_simple_type_frame *top = &walk->frames[walk->frame_count - 1];
+        sxml_simple_type_frame *top = &walk->slots[walk->frame_count - 1].frame;
         uint32_t dependency = 0;
         if (sxml_simple_type_dependency_at(
                 compiler,
@@ -1550,13 +1601,13 @@ static sxml_status sxml_walk_from(const sxml_simple_type_compiler *compiler,
                 &dependency)) {
             top->next_dependency += 1;
             if (dependency >= walk->type_count || !sxml_needs_compiling(compiler, dependency) ||
-                walk->states[dependency] == SXML_SIMPLE_TYPE_DONE) {
+                walk->slots[dependency].state == SXML_SIMPLE_TYPE_DONE) {
                 continue;
             }
-            if (walk->states[dependency] == SXML_SIMPLE_TYPE_ON_STACK) {
+            if (walk->slots[dependency].state == SXML_SIMPLE_TYPE_ON_STACK) {
                 /* Reported once, at the type that closes the cycle; the
                    types on it stay unregistered. */
-                walk->states[top->type_index] = SXML_SIMPLE_TYPE_DONE;
+                walk->slots[top->type_index].state = SXML_SIMPLE_TYPE_DONE;
                 walk->frame_count -= 1;
                 sxml_status status = sxml_simple_type_report(
                     compiler,
@@ -1570,18 +1621,18 @@ static sxml_status sxml_walk_from(const sxml_simple_type_compiler *compiler,
                 }
                 continue;
             }
-            walk->states[dependency] = SXML_SIMPLE_TYPE_ON_STACK;
-            walk->frames[walk->frame_count] =
+            walk->slots[dependency].state = SXML_SIMPLE_TYPE_ON_STACK;
+            walk->slots[walk->frame_count].frame =
                 (sxml_simple_type_frame){.type_index = dependency, .next_dependency = 0};
             walk->frame_count += 1;
             continue;
         }
         uint32_t done = top->type_index;
         walk->frame_count -= 1;
-        if (walk->states[done] == SXML_SIMPLE_TYPE_DONE) {
+        if (walk->slots[done].state == SXML_SIMPLE_TYPE_DONE) {
             continue;
         }
-        walk->states[done] = SXML_SIMPLE_TYPE_DONE;
+        walk->slots[done].state = SXML_SIMPLE_TYPE_DONE;
         sxml_status status = sxml_compile_one(compiler, done);
         if (status != SXML_STATUS_OK) {
             return status;
@@ -1641,15 +1692,15 @@ static sxml_status sxml_check_value_constraint(const sxml_simple_type_compiler *
 
 /* Whether two values are equal item by item (Part 1, 3.5.6.1, 2). */
 static sxml_status sxml_values_equal(sxml_sequence first, sxml_sequence second,
-                                     bool *is_equal) {
+                                     sxml_check_answer *answer) {
     uint64_t first_count = 0;
     uint64_t second_count = 0;
     sxml_status status = sxml_sequence_count(first, NULL, &first_count);
     if (status == SXML_STATUS_OK) {
         status = sxml_sequence_count(second, NULL, &second_count);
     }
-    *is_equal = status == SXML_STATUS_OK && first_count == second_count;
-    for (uint64_t item_index = 0; status == SXML_STATUS_OK && *is_equal && item_index < first_count;
+    answer->is_valid = status == SXML_STATUS_OK && first_count == second_count;
+    for (uint64_t item_index = 0; status == SXML_STATUS_OK && answer->is_valid && item_index < first_count;
          item_index += 1) {
         sxml_item first_item;
         sxml_item second_item;
@@ -1661,7 +1712,7 @@ static sxml_status sxml_values_equal(sxml_sequence first, sxml_sequence second,
                 &second_item);
         }
         if (status == SXML_STATUS_OK) {
-            *is_equal = sxml_atomic_item_is_atomic_equal(first_item, second_item);
+            answer->is_valid = sxml_atomic_item_is_atomic_equal(first_item, second_item);
         }
     }
     return status;
@@ -1683,7 +1734,7 @@ static sxml_status sxml_check_attribute_use(const sxml_simple_type_compiler *com
         use->value_constraint.variety == SXML_SCHEMA_VALUE_CONSTRAINT_NONE) {
         return status;
     }
-    bool is_equal = false;
+    sxml_check_answer equality = {.is_valid = false};
     if (use->value_constraint.variety == SXML_SCHEMA_VALUE_CONSTRAINT_FIXED) {
         sxml_value_constraint_check fixed = own;
         fixed.value_constraint = declaration->value_constraint;
@@ -1694,16 +1745,16 @@ static sxml_status sxml_check_attribute_use(const sxml_simple_type_compiler *com
             status = sxml_cast_value_constraint(compiler, fixed, &second);
         }
         if (status == SXML_STATUS_OK && first.is_valid && second.is_valid) {
-            status = sxml_values_equal(first.value, second.value, &is_equal);
+            status = sxml_values_equal(first.value, second.value, &equality);
         } else if (status == SXML_STATUS_OK) {
             /* An invalid value was reported already, or the type is
                complex: nothing to compare. */
-            is_equal = true;
+            equality.is_valid = true;
         }
         sxml_sequence_release(first.value);
         sxml_sequence_release(second.value);
     }
-    if (status != SXML_STATUS_OK || is_equal) {
+    if (status != SXML_STATUS_OK || equality.is_valid) {
         return status;
     }
     return sxml_simple_type_report(
@@ -1759,29 +1810,26 @@ sxml_status sxml_schema_compile_simple_types(sxml_schema_compilation *compilatio
         compilation->components->tables[SXML_SCHEMA_TABLE_TYPE_DEFINITION].entry_count;
     sxml_status status = SXML_STATUS_OK;
     if (type_count > 1) {
-        /* A state per type definition, then a frame per type definition:
-           a dependency chain visits each at most once. */
-        size_t frames_offset = ((size_t)type_count + alignof(sxml_simple_type_frame) - 1U) /
-                               alignof(sxml_simple_type_frame) * alignof(sxml_simple_type_frame);
+        /* A dependency chain visits each type definition at most once, so
+           the stack needs a frame per type definition. */
         void *memory = NULL;
         status = sxml_allocator_allocate(
             compiler.allocator,
             (sxml_allocation_request){
-                .byte_count = frames_offset + (size_t)type_count * sizeof(sxml_simple_type_frame),
-                .alignment = alignof(sxml_simple_type_frame)},
+                .byte_count = (size_t)type_count * sizeof(sxml_simple_type_slot),
+                .alignment = alignof(sxml_simple_type_slot)},
             &memory);
         if (status != SXML_STATUS_OK) {
             return status;
         }
-        memset(memory, 0, type_count);
+        memset(memory, 0, (size_t)type_count * sizeof(sxml_simple_type_slot));
         sxml_simple_type_walk walk = {
-            .states = memory,
-            .frames = (sxml_simple_type_frame *)(void *)((uint8_t *)memory + frames_offset),
+            .slots = memory,
             .frame_count = 0,
             .type_count = type_count};
         for (uint32_t type_index = 1; status == SXML_STATUS_OK && type_index < type_count;
              type_index += 1) {
-            if (walk.states[type_index] == SXML_SIMPLE_TYPE_UNVISITED &&
+            if (walk.slots[type_index].state == SXML_SIMPLE_TYPE_UNVISITED &&
                 sxml_needs_compiling(&compiler, type_index)) {
                 status = sxml_walk_from(&compiler, &walk, type_index);
             }
