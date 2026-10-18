@@ -1271,10 +1271,12 @@ static const sxml_xpath_lowering_procedure choose_procedure = {
 /* xsl:for-each (7.1): a MAP over the select value whose body is the
    sequence constructor with the item, its position and the size as the
    focus; with a separator (7.1.1), a text node of its value after the
-   result of each item but the last. xsl:sort children are packet 4.9's. */
+   result of each item but the last. With xsl:sort children the input is
+   sorted first (13.3, src/xslt_lower_group.c). */
 typedef struct for_each_locals {
     sxml_xslt_instruction_locals head;
     sxml_ir_atom input;
+    bool is_sorted;
     sxml_ir_atom separator;
     bool has_separator;
     sxml_xpath_lowering_focus item_focus;
@@ -1382,14 +1384,6 @@ static sxml_status continue_for_each(sxml_xpath_lowering_machine *machine,
     const sxml_xslt_lowering *lowering = locals->head.lowering;
     if (frame->step == 0) {
         frame->step = 1;
-        if (count_children(lowering, (child_count_query){.node = locals->head.node,
-                                                         .kind = SXML_XSLT_AST_KIND_SORT}) > 0) {
-            return sxml_xslt_lowering_report_unsupported(
-                lowering,
-                (sxml_xslt_static_error){.node = locals->head.node,
-                                         .code_and_description = SXML_BYTE_VIEW_FROM_LITERAL(
-                                             "xsl:sort is not lowered yet (packet 4.9)")});
-        }
         const sxml_xslt_ast_attribute *select =
             find_attribute(lowering, (attribute_lookup){.node = locals->head.node,
                                                         .kind = SXML_XSLT_AST_ATTRIBUTE_SELECT});
@@ -1399,6 +1393,17 @@ static sxml_status continue_for_each(sxml_xpath_lowering_machine *machine,
                                                   .block = frame->block,
                                                   .atom = &locals->input,
                                                   .focus = NULL});
+    }
+    if (frame->step == 1 && !locals->is_sorted &&
+        sxml_xslt_lowering_has_sort(lowering, locals->head.node)) {
+        locals->is_sorted = true;
+        return sxml_xslt_lowering_call_sort(
+            machine, &(sxml_xslt_sort_call){.lowering = lowering,
+                                            .node = locals->head.node,
+                                            .input = locals->input,
+                                            .sorts_groups = false,
+                                            .block = frame->block,
+                                            .atom = &locals->input});
     }
     if (frame->step == 1) {
         frame->step = 2;

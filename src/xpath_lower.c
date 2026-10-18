@@ -2132,6 +2132,187 @@ static size_t find_parameter(const sxml_function_entry *entry,
     return SIZE_MAX;
 }
 
+/*
+ * XSLT's context functions (glossary `context_function`, D152): in XSLT,
+ * fn:current-group(), fn:current-grouping-key(), fn:current-merge-group()
+ * and fn:current-merge-key() read the variable of the same local name in
+ * the XSLT namespace that the instruction binding the value put in scope
+ * (xsl:for-each-group, xsl:merge; src/xslt_lower_group.c). XTSE0080
+ * keeps that namespace out of the names of the stylesheet's variables.
+ * Where none is in scope in the current function (outside the
+ * instruction, in a pattern, a called template or function, an inline
+ * function) the value is absent: the call raises the function's error
+ * when evaluated (XSLT 4.0, 14.2, 15.5).
+ */
+typedef struct context_function {
+    const char *local_name;
+    const char *absent_code;
+    const char *description;
+} context_function;
+
+static const context_function context_functions[] = {
+    {.local_name = "current-group",
+     .absent_code = "XTDE1061",
+     .description = "There is no current group (XSLT 4.0, 14.2.1)"},
+    {.local_name = "current-grouping-key",
+     .absent_code = "XTDE1071",
+     .description = "There is no current grouping key (XSLT 4.0, 14.2.2)"},
+    {.local_name = "current-merge-group",
+     .absent_code = "XTDE3480",
+     .description = "There is no current merge group (XSLT 4.0, 15.5.1)"},
+    {.local_name = "current-merge-key",
+     .absent_code = "XTDE3510",
+     .description = "There is no current merge key (XSLT 4.0, 15.5.3)"},
+    {.local_name = "current-merge-key-array",
+     .absent_code = "XTDE3510",
+     .description = "There is no current merge key (XSLT 4.0, 15.5.2)"},
+};
+
+/* fn:current-merge-group($source) is map:get of the map of merge sources
+   to their items in the current merge group, the variable
+   Q{XSLT}current-merge-sources (15.5.1). */
+static const context_function merge_sources_function = {
+    .local_name = "current-merge-sources",
+    .absent_code = "XTDE3480",
+    .description = "There is no current merge group (XSLT 4.0, 15.5.1)"};
+
+#define CONTEXT_FUNCTION_COUNT (sizeof(context_functions) / sizeof(context_functions[0]))
+
+/* The context function a call with no arguments of the name at
+   name_node is, or NULL. */
+static const context_function *find_context_function(sxml_xpath_lowerer *state,
+                                                     sxml_ast_node_index name_node) {
+    sxml_xpath_resolved_name resolved = {0};
+    if (state->language != SXML_LANGUAGE_XSLT ||
+        sxml_xpath_resolve_name(
+            &(sxml_xpath_name_request){.ast = state->ast,
+                                       .name_node = name_node,
+                                       .name_role = SXML_XPATH_NAME_ROLE_FUNCTION,
+                                       .static_context = state->static_context,
+                                       .error_record = state->error_record},
+            &resolved) != SXML_STATUS_OK ||
+        resolved.namespace_uri.index != SXML_NAMESPACE_FUNCTIONS) {
+        return NULL;
+    }
+    for (size_t function_index = 0; function_index < CONTEXT_FUNCTION_COUNT;
+         function_index += 1) {
+        if (sxml_byte_view_equals(
+                resolved.local_name,
+                sxml_byte_view_from_c_string(context_functions[function_index].local_name))) {
+            return &context_functions[function_index];
+        }
+    }
+    return NULL;
+}
+
+/* The atom of a context function's variable in scope in the current
+   function; false when the value is absent (no such variable, or one
+   bound to NONE: an instruction that makes it absent, 14.2.2). */
+static bool find_context_value(const sxml_xpath_lowerer *state, const context_function *function,
+                               sxml_ir_atom *atom) {
+    sxml_name_identifier variable_name = {0};
+    if (!sxml_name_pool_find_name(
+            state->name_pool,
+            &(sxml_name_request){.namespace_uri = {.index = SXML_NAMESPACE_XSLT},
+                                 .local_name = sxml_byte_view_from_c_string(function->local_name)},
+            &variable_name)) {
+        return false;
+    }
+    for (size_t entry_number = state->scope_entry_count; entry_number > 0; entry_number -= 1) {
+        const sxml_xpath_lowering_scope_entry *entry = &state->scope_entries[entry_number - 1];
+        if (entry->variable_name.index == variable_name.index) {
+            if (entry->function_level != state->function->function_level ||
+                entry->atom.atom_kind == SXML_IR_ATOM_KIND_NONE) {
+                return false;
+            }
+            *atom = entry->atom;
+            return true;
+        }
+    }
+    return false;
+}
+
+/* The RAISE of a context function whose value is absent. */
+static sxml_ir_expression absent_context_raise(const context_function *function) {
+    return (sxml_ir_expression){
+        .expression_kind = SXML_IR_EXPRESSION_KIND_RAISE,
+        .raise = {.error_status = SXML_STATUS_DYNAMIC_ERROR,
+                  .error_code = {.namespace_uri =
+                                     SXML_BYTE_VIEW_FROM_LITERAL(SXML_ERROR_NAMESPACE_URI),
+                                 .local_name = sxml_byte_view_from_c_string(function->absent_code),
+                                 .namespace_prefix = SXML_BYTE_VIEW_FROM_LITERAL("err")},
+                  .description = sxml_byte_view_from_c_string(function->description)}};
+}
+
+/* The value of a context function call: its variable's atom, or a RAISE
+   of its error. */
+typedef struct context_call {
+    sxml_ast_node_index node;
+    const context_function *function;
+} context_call;
+
+static sxml_status lower_context_function(sxml_xpath_lowerer *state, context_call call,
+                                          sxml_ir_expression_index *expression) {
+    sxml_ir_expression value = absent_context_raise(call.function);
+    sxml_ir_atom atom = {0};
+    if (find_context_value(state, call.function, &atom)) {
+        value = (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_ATOM, .atom = atom};
+    }
+    return sxml_xpath_lowerer_add_expression(
+        state, (sxml_xpath_lowering_expression_to_add){.node = call.node, .expression = value},
+        expression);
+}
+
+/* A reference to a context function: a closure of arity 0 that returns
+   the value captured when the reference is evaluated (XSLT 4.0, 14.2.1:
+   current-group#0 retains the current group), or raises its error. */
+typedef struct context_reference {
+    sxml_ast_node_index node;
+    const context_function *function;
+    sxml_name_identifier name;
+} context_reference;
+
+static sxml_status lower_context_function_reference(sxml_xpath_lowerer *state,
+                                                    context_reference reference,
+                                                    sxml_ir_expression_index *expression) {
+    sxml_ir_atom value = {0};
+    const bool is_present = find_context_value(state, reference.function, &value);
+    sxml_type_identifier signature = {0};
+    sxml_status status = sxml_xpath_lowerer_register_signature(
+        state,
+        (sxml_xpath_lowering_signature_request){
+            .parameter_types = {.sequence_types = NULL, .sequence_type_count = 0},
+            .result_type = {.item_type = sxml_builtin_type_identifier(SXML_TYPE_ITEM),
+                            .occurrence = SXML_OCCURRENCE_ZERO_OR_MORE}},
+        &signature);
+    sxml_ir_function_index function = {0};
+    if (status == SXML_STATUS_OK) {
+        status = add_closure_function(
+            state,
+            (closure_request){.node = reference.node,
+                              .function_name = reference.name,
+                              .signature = signature,
+                              .parameter_count = 0,
+                              .captured_atoms = {.atoms = &value,
+                                                 .atom_count = is_present ? 1U : 0U}},
+            &function);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return finish_closure(
+        state,
+        (closure_body){.function = function,
+                       .body = is_present
+                                   ? (sxml_ir_expression){.expression_kind =
+                                                              SXML_IR_EXPRESSION_KIND_ATOM,
+                                                          .atom = slot_atom((sxml_ir_slot){
+                                                              .value = 1})}
+                                   : absent_context_raise(reference.function),
+                       .node = reference.node},
+        expression);
+}
+
 /* A named function reference (XPath 4.0, section 4.5.4). */
 static sxml_status
 lower_named_function_reference(sxml_xpath_lowerer *state,
@@ -2153,6 +2334,14 @@ lower_named_function_reference(sxml_xpath_lowerer *state,
         if (arity > UINT32_MAX) {
             break;
         }
+    }
+    const context_function *context =
+        arity == 0 ? find_context_function(state, child_of(state, node, SXML_AST_FIELD_NAME))
+                   : NULL;
+    if (context != NULL) {
+        return lower_context_function_reference(
+            state, (context_reference){.node = node, .function = context, .name = name},
+            expression);
     }
     sxml_function_entry entry = {0};
     if (arity <= UINT32_MAX) {
@@ -5430,9 +5619,50 @@ static sxml_status begin_function_call(sxml_xpath_lowering_machine *machine,
         return status;
     }
     size_t arity = positional_count + keyword_count;
+    const context_function *context =
+        arity <= 1 ? find_context_function(state, child_of(state, call_node, SXML_AST_FIELD_NAME))
+                   : NULL;
+    if (context != NULL && arity == 0) {
+        sxml_ir_expression_index value = {0};
+        status = lower_context_function(
+            state, (context_call){.node = frame->node, .function = context}, &value);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        return sxml_xpath_lowering_finish_frame(machine, frame, value);
+    }
     sxml_function_entry entry = {0};
-    status = find_function(
-        state, (function_lookup){.function_name = name, .arity = arity}, &entry);
+    sxml_ir_atom merge_sources = {0};
+    if (context != NULL && keyword_count == 0 && !locals->request.has_leading_argument &&
+        strcmp(context->local_name, "current-merge-group") == 0) {
+        /* current-merge-group($source): map:get(sources, $source). */
+        if (!find_context_value(state, &merge_sources_function, &merge_sources)) {
+            sxml_ir_expression_index value = {0};
+            status = sxml_xpath_lowerer_add_expression(
+                state,
+                (sxml_xpath_lowering_expression_to_add){
+                    .node = frame->node, .expression = absent_context_raise(&merge_sources_function)},
+                &value);
+            if (status != SXML_STATUS_OK) {
+                return status;
+            }
+            return sxml_xpath_lowering_finish_frame(machine, frame, value);
+        }
+        locals->request.has_leading_argument = true;
+        locals->request.leading_argument = merge_sources;
+        positional_count += 1;
+        arity = 2;
+        status = find_builtin_function(
+            state,
+            (builtin_function_request){.node = call_node,
+                                       .function_namespace = SXML_NAMESPACE_MAP_FUNCTIONS,
+                                       .local_name = SXML_BYTE_VIEW_FROM_LITERAL("get"),
+                                       .arity = 2},
+            &entry);
+    } else {
+        status = find_function(
+            state, (function_lookup){.function_name = name, .arity = arity}, &entry);
+    }
     if (status != SXML_STATUS_OK) {
         return status;
     }

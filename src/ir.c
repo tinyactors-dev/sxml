@@ -2590,6 +2590,13 @@ static void print_sort_key(text_writer *writer, uint32_t sort_key_index) {
         write_text(writer, " collation ");
         write_atom(writer, key->collation);
     }
+    if (key->order.atom_kind != SXML_IR_ATOM_KIND_NONE) {
+        write_text(writer, " order ");
+        write_atom(writer, key->order);
+    }
+    if (key->is_composite) {
+        write_text(writer, " composite");
+    }
 }
 
 static void print_catch_clause(text_writer *writer, uint32_t clause_index) {

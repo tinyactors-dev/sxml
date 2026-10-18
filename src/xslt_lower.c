@@ -27,6 +27,7 @@
 
 /* The instruction rules of every XSLT lowering file. */
 static const sxml_xslt_instruction_rule_view *const instruction_rule_views[] = {
+    &sxml_xslt_instruction_rules_group,
     &sxml_xslt_instruction_rules_construct,
     &sxml_xslt_instruction_rules_control,
     &sxml_xslt_instruction_rules_template,
@@ -232,6 +233,55 @@ static sxml_status add_mapping_clause(sxml_xpath_lowerer *lowerer,
             &clause->handler);
     }
     return status;
+}
+
+/* ------------------------------------------------------------ Kept ASTs */
+
+sxml_status sxml_xslt_lowering_keep_ast(const sxml_xslt_lowering *lowering, sxml_ast *ast) {
+    sxml_xslt_kept_asts *kept = lowering->kept_asts;
+    if (kept == NULL) {
+        sxml_ast_destroy(ast);
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    if (kept->ast_count == kept->ast_capacity) {
+        const size_t capacity = kept->ast_capacity == 0 ? 8 : kept->ast_capacity * 2;
+        size_t byte_count = 0;
+        sxml_status status = sxml_size_multiply(capacity, sizeof(sxml_ast *), &byte_count);
+        void *memory = NULL;
+        if (status == SXML_STATUS_OK) {
+            status = sxml_allocator_allocate(
+                kept->allocator,
+                (sxml_allocation_request){.byte_count = byte_count, .alignment = alignof(sxml_ast *)},
+                &memory);
+        }
+        if (status != SXML_STATUS_OK) {
+            sxml_ast_destroy(ast);
+            return status;
+        }
+        if (kept->ast_count > 0) {
+            memcpy(memory, (const void *)kept->asts, kept->ast_count * sizeof(sxml_ast *));
+        }
+        if (kept->asts != NULL) {
+            sxml_allocator_release(kept->allocator, (void *)kept->asts);
+        }
+        kept->asts = (sxml_ast **)memory;
+        kept->ast_capacity = capacity;
+    }
+    kept->asts[kept->ast_count] = ast;
+    kept->ast_count += 1;
+    return SXML_STATUS_OK;
+}
+
+void sxml_xslt_release_kept_asts(sxml_xslt_kept_asts *kept_asts) {
+    for (size_t ast_index = 0; ast_index < kept_asts->ast_count; ast_index += 1) {
+        sxml_ast_destroy(kept_asts->asts[ast_index]);
+    }
+    if (kept_asts->asts != NULL) {
+        sxml_allocator_release(kept_asts->allocator, (void *)kept_asts->asts);
+    }
+    kept_asts->asts = NULL;
+    kept_asts->ast_count = 0;
+    kept_asts->ast_capacity = 0;
 }
 
 sxml_status sxml_xslt_lowering_bind_mapped_expression(sxml_xpath_lowerer *lowerer,
@@ -1734,7 +1784,11 @@ static sxml_status lower_into_unit(const unit_lowering *work) {
                                    .namespace_alias_count = 0,
                                    .error_record = request->error_record,
                                    .templates = NULL,
-                                   .components = NULL};
+                                   .components = NULL,
+                                   .kept_asts = NULL};
+    sxml_xslt_kept_asts kept_asts = {
+        .allocator = lowerer->allocator, .asts = NULL, .ast_count = 0, .ast_capacity = 0};
+    lowering.kept_asts = &kept_asts;
     status = make_static_contexts((context_source){.ast = request->ast, .base = work->base_context},
                                   &memory, &lowering);
     if (status == SXML_STATUS_OK) {
@@ -1808,6 +1862,7 @@ static sxml_status lower_into_unit(const unit_lowering *work) {
     sxml_xslt_release_functions(xslt_functions);
     sxml_xslt_release_components(&lowering);
     release_storage(work->base_context->allocator, &memory);
+    sxml_xslt_release_kept_asts(&kept_asts);
     sxml_xpath_lowerer_finalize(lowerer);
     return status;
 }

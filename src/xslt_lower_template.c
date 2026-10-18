@@ -1387,6 +1387,7 @@ typedef struct apply_templates_locals {
     sxml_ir_atom tunnel_parameters;
     sxml_ir_atom separator;
     bool has_separator;
+    bool is_sorted;
 } apply_templates_locals;
 
 /* The mode of an xsl:apply-templates: its mode attribute or the default
@@ -1432,16 +1433,6 @@ static sxml_status continue_apply_templates(sxml_xpath_lowering_machine *machine
     const sxml_xslt_ast_node_index node = locals->head.node;
     if (frame->step == 0) {
         frame->step = 1;
-        for (sxml_xslt_ast_node_index child = node_of(lowering, node)->first_child;
-             child.value != 0; child = node_of(lowering, child)->next_sibling) {
-            if (node_of(lowering, child)->kind == SXML_XSLT_AST_KIND_SORT) {
-                return sxml_xslt_lowering_report_unsupported(
-                    lowering, (sxml_xslt_static_error){
-                                  .node = child,
-                                  .code_and_description = SXML_BYTE_VIEW_FROM_LITERAL(
-                                      "xsl:sort is not lowered yet (packet 4.9)")});
-            }
-        }
         const sxml_xslt_ast_attribute *select =
             find_attribute(lowering, node, SXML_XSLT_AST_ATTRIBUTE_SELECT);
         if (select->kind != SXML_XSLT_AST_ATTRIBUTE_NONE) {
@@ -1471,6 +1462,17 @@ static sxml_status continue_apply_templates(sxml_xpath_lowering_machine *machine
                                 .atom = &locals->select,
                                 .atom_block = frame->block,
                                 .focused = NULL}});
+    }
+    if (frame->step == 1 && !locals->is_sorted && sxml_xslt_lowering_has_sort(lowering, node)) {
+        /* 13.3: the selected items are processed in sorted order. */
+        locals->is_sorted = true;
+        return sxml_xslt_lowering_call_sort(
+            machine, &(sxml_xslt_sort_call){.lowering = lowering,
+                                            .node = node,
+                                            .input = locals->select,
+                                            .sorts_groups = false,
+                                            .block = frame->block,
+                                            .atom = &locals->select});
     }
     if (frame->step == 1) {
         frame->step = 2;

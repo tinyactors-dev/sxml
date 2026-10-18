@@ -644,13 +644,30 @@ typedef enum sxml_ir_empty_order {
     SXML_IR_EMPTY_ORDER_GREATEST,
 } sxml_ir_empty_order;
 
-/* One sort key: an expression evaluated with each input item as focus. */
+/*
+ * One sort key: an expression evaluated with each input item as focus.
+ * Its atomized values are compared as fn:compare does under the collation
+ * (D116): the empty sequence before or after every other value as
+ * empty_order says, and the direction reverses the whole order, empty
+ * keys included (XQuery 4.0, 4.13.9; XSLT 4.0, 13.1.1).
+ */
 typedef struct sxml_ir_sort_key {
     sxml_ir_expression_index key;
     sxml_ir_sort_direction direction;
     sxml_ir_empty_order empty_order;
-    /* A collation URI constant; NONE for the codepoint collation. */
+    /* An xs:string atom: a collation URI, resolved when evaluated as
+       F&O 4.0, 5.2.7 says (D116; "" is the default collation); NONE for
+       the codepoint collation. */
     sxml_ir_atom collation;
+    /* An xs:string atom, "ascending" or "descending", that gives the
+       direction when evaluated (an xsl:sort order attribute value
+       template, D152); NONE keeps direction. */
+    sxml_ir_atom order;
+    /* A composite sort key (XSLT 4.0, 13.1.2): its value is a sequence of
+       atomic items, compared item by item, a shorter sequence before a
+       longer one it starts. Otherwise a key of more than one item is
+       XPTY0004 (XQuery 4.0 "order by"). */
+    bool is_composite;
 } sxml_ir_sort_key;
 
 typedef struct sxml_ir_sort_key_view {

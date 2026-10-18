@@ -17,6 +17,7 @@
 #include "cast_internal.h"
 #include "evaluator_internal.h"
 #include "evaluator_machine_internal.h"
+#include "function_library_core_internal.h"
 #include "operator_internal.h"
 #include "xdm_internal.h"
 
@@ -141,19 +142,6 @@ static const sxml_static_error sxml_sort_key_error = {
     .description = SXML_BYTE_VIEW_INITIALIZER(
         "A sort key has more than one item (XQuery 4.0, \"order by\")"),
 };
-
-static const sxml_static_error sxml_collation_error = {
-    .error_status = SXML_STATUS_DYNAMIC_ERROR,
-    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("FOCH0002"),
-    .description = SXML_BYTE_VIEW_INITIALIZER(
-        "Only the Unicode codepoint collation is supported (F&O 4.0, section "
-        "5.3)"),
-};
-
-/* The URI of the Unicode codepoint collation (F&O 4.0, section 5.3.2). */
-static const sxml_byte_view sxml_codepoint_collation_uri =
-    SXML_BYTE_VIEW_INITIALIZER(
-        "http://www.w3.org/2005/xpath-functions/collation/codepoint");
 
 /* ---------------------------------------------------------------- Tasks */
 
@@ -3257,16 +3245,83 @@ static sxml_status sxml_machine_step_quantified(sxml_dynamic_context *context,
     return sxml_machine_push(context, &condition);
 }
 
+/* How one sort key compares, resolved once per SORT. */
+typedef struct sxml_sort_key_rule {
+    sxml_collation collation;
+    bool is_descending;
+    bool empty_is_least;
+} sxml_sort_key_rule;
+
 /* What the sort comparison needs. */
 typedef struct sxml_sort_comparison {
     sxml_dynamic_context *context;
     const sxml_sort_state *sort_state;
-    sxml_ir_sort_key_view sort_keys;
+    const sxml_sort_key_rule *key_rules;
     int16_t implicit_timezone_offset_minutes;
 } sxml_sort_comparison;
 
-/* Orders two items by their keys (XQuery 4.0, "order by": empty least or
-   greatest, NaN below every other number, fn:compare otherwise). */
+/* The values of one sort key for two items. */
+typedef struct sxml_sort_key_values {
+    sxml_sequence first;
+    sxml_sequence second;
+    const sxml_sort_key_rule *rule;
+} sxml_sort_key_values;
+
+/* Orders two values of one sort key in ascending order: the empty
+   sequence least or greatest, then item by item as fn:compare does under
+   the key's collation, a shorter sequence before a longer one it starts
+   (XQuery 4.0, 4.13.9: NaN below every other number; XSLT 4.0, 13.1.2:
+   composite sort keys). */
+static sxml_status sxml_compare_sort_key_values(const sxml_sort_comparison *comparison,
+                                                sxml_sort_key_values values,
+                                                sxml_ordering *ordering) {
+    sxml_dynamic_context *context = comparison->context;
+    sxml_sequence_iterator first_iterator = sxml_sequence_iterator_start(values.first);
+    sxml_sequence_iterator second_iterator = sxml_sequence_iterator_start(values.second);
+    for (bool is_first_item = true;; is_first_item = false) {
+        sxml_iteration_step first_step;
+        sxml_iteration_step second_step;
+        sxml_status status =
+            sxml_sequence_iterator_next(&first_iterator, context->error_record, &first_step);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_sequence_iterator_next(&second_iterator, context->error_record,
+                                                 &second_step);
+        }
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        if (!first_step.has_item || !second_step.has_item) {
+            if (first_step.has_item == second_step.has_item) {
+                *ordering = SXML_ORDERING_EQUAL;
+            } else {
+                /* An empty key is least or greatest; a sequence that ends
+                   first is less. */
+                const bool first_is_less =
+                    is_first_item ? (!first_step.has_item) == values.rule->empty_is_least
+                                  : !first_step.has_item;
+                *ordering = first_is_less ? SXML_ORDERING_LESS : SXML_ORDERING_GREATER;
+            }
+            return SXML_STATUS_OK;
+        }
+        status = sxml_function_library_compare_collated(
+            context->item_heap,
+            &(sxml_collated_comparison){
+                .collation = &values.rule->collation,
+                .comparison = {.first = first_step.item,
+                               .second = second_step.item,
+                               .implicit_timezone_offset_minutes =
+                                   comparison->implicit_timezone_offset_minutes,
+                               .error_record = context->error_record,
+                               .name_pool = sxml_item_heap_get_name_pool(context->item_heap)}},
+            ordering);
+        if (status != SXML_STATUS_OK || *ordering != SXML_ORDERING_EQUAL) {
+            return status;
+        }
+    }
+}
+
+/* Orders two items by their keys, major to minor; a descending key
+   reverses its whole order, empty keys included (XQuery 4.0, 4.13.9). */
 static sxml_status sxml_compare_sort_keys(void *state, sxml_index_pair pair,
                                           sxml_ordering *ordering) {
     const sxml_sort_comparison *comparison = state;
@@ -3274,53 +3329,94 @@ static sxml_status sxml_compare_sort_keys(void *state, sxml_index_pair pair,
     const size_t key_count = sort_state->key_count;
     *ordering = SXML_ORDERING_EQUAL;
     for (size_t key_index = 0; key_index < key_count; key_index += 1) {
-        const sxml_ir_sort_key *sort_key = &comparison->sort_keys.sort_keys[key_index];
-        const sxml_sequence first =
-            sort_state->key_values[pair.first_index * key_count + key_index];
-        const sxml_sequence second =
-            sort_state->key_values[pair.second_index * key_count + key_index];
-        const bool first_is_empty = sxml_sequence_get_representation(first) ==
-                                    SXML_SEQUENCE_REPRESENTATION_EMPTY;
-        const bool second_is_empty = sxml_sequence_get_representation(second) ==
-                                     SXML_SEQUENCE_REPRESENTATION_EMPTY;
+        const sxml_sort_key_rule *rule = &comparison->key_rules[key_index];
         sxml_ordering key_ordering = SXML_ORDERING_EQUAL;
-        if (first_is_empty || second_is_empty) {
-            if (first_is_empty != second_is_empty) {
-                const bool empty_is_least =
-                    sort_key->empty_order == SXML_IR_EMPTY_ORDER_LEAST;
-                key_ordering = (first_is_empty == empty_is_least)
-                                   ? SXML_ORDERING_LESS
-                                   : SXML_ORDERING_GREATER;
-            }
-        } else {
-            sxml_status status = sxml_atomic_item_compare_in_heap(
-                comparison->context->item_heap,
-                &(sxml_atomic_comparison){
-                    .first = first.content,
-                    .second = second.content,
-                    .implicit_timezone_offset_minutes =
-                        comparison->implicit_timezone_offset_minutes,
-                    .error_record = comparison->context->error_record,
-                    .name_pool = sxml_item_heap_get_name_pool(
-                        comparison->context->item_heap)},
-                &key_ordering);
-            if (status != SXML_STATUS_OK) {
-                return status;
-            }
-            if (sort_key->direction == SXML_IR_SORT_DIRECTION_DESCENDING) {
-                key_ordering = key_ordering == SXML_ORDERING_LESS
-                                   ? SXML_ORDERING_GREATER
-                                   : (key_ordering == SXML_ORDERING_GREATER
-                                          ? SXML_ORDERING_LESS
-                                          : SXML_ORDERING_EQUAL);
-            }
+        const sxml_status status = sxml_compare_sort_key_values(
+            comparison,
+            (sxml_sort_key_values){
+                .first = sort_state->key_values[pair.first_index * key_count + key_index],
+                .second = sort_state->key_values[pair.second_index * key_count + key_index],
+                .rule = rule},
+            &key_ordering);
+        if (status != SXML_STATUS_OK) {
+            return status;
         }
         if (key_ordering != SXML_ORDERING_EQUAL) {
+            if (rule->is_descending) {
+                key_ordering = key_ordering == SXML_ORDERING_LESS ? SXML_ORDERING_GREATER
+                                                                  : SXML_ORDERING_LESS;
+            }
             *ordering = key_ordering;
             return SXML_STATUS_OK;
         }
     }
     return SXML_STATUS_OK;
+}
+
+/* The string an optional xs:string atom of a sort key gives; false for
+   NONE. */
+typedef struct sxml_sort_key_text {
+    bool is_present;
+    sxml_byte_view utf8;
+} sxml_sort_key_text;
+
+static sxml_status sxml_read_sort_key_text(sxml_dynamic_context *context, sxml_ir_atom atom,
+                                           sxml_sort_key_text *text) {
+    *text = (sxml_sort_key_text){.is_present = false, .utf8 = {.bytes = NULL, .byte_count = 0}};
+    if (atom.atom_kind == SXML_IR_ATOM_KIND_NONE) {
+        return SXML_STATUS_OK;
+    }
+    sxml_sequence value = sxml_sequence_empty();
+    sxml_status status = sxml_machine_read_atom(context, atom, &value);
+    if (status != SXML_STATUS_OK ||
+        sxml_sequence_get_representation(value) == SXML_SEQUENCE_REPRESENTATION_EMPTY) {
+        return status;
+    }
+    sxml_atomic_datum datum;
+    status = sxml_atomic_item_get_datum(value.content, &datum);
+    if (status == SXML_STATUS_OK && datum.datum_kind != SXML_DATUM_KIND_STRING) {
+        status = SXML_STATUS_INVALID_ARGUMENT;
+    }
+    if (status == SXML_STATUS_OK) {
+        /* The string stays with the atom's value, which the frame or the
+           unit holds while the SORT runs. */
+        *text = (sxml_sort_key_text){.is_present = true,
+                                     .utf8 = datum.datum_details.string.utf8};
+    }
+    return status;
+}
+
+/* Resolves each key's collation (D116: F&O 4.0, 5.2.7, through the one
+   resolver; FOCH0002 for a URI sxml does not support) and direction. */
+static sxml_status sxml_resolve_sort_key_rules(sxml_dynamic_context *context,
+                                               sxml_ir_sort_key_view sort_keys,
+                                               sxml_sort_key_rule *key_rules) {
+    const sxml_function_call call = {.dynamic_context = context,
+                                     .item_heap = context->item_heap,
+                                     .error_record = context->error_record};
+    sxml_status status = SXML_STATUS_OK;
+    for (size_t key_index = 0; status == SXML_STATUS_OK && key_index < sort_keys.sort_key_count;
+         key_index += 1) {
+        const sxml_ir_sort_key *sort_key = &sort_keys.sort_keys[key_index];
+        sxml_sort_key_rule *rule = &key_rules[key_index];
+        *rule = (sxml_sort_key_rule){
+            .collation = sxml_collation_codepoint(),
+            .is_descending = sort_key->direction == SXML_IR_SORT_DIRECTION_DESCENDING,
+            .empty_is_least = sort_key->empty_order == SXML_IR_EMPTY_ORDER_LEAST};
+        sxml_sort_key_text text;
+        status = sxml_read_sort_key_text(context, sort_key->collation, &text);
+        if (status == SXML_STATUS_OK && text.is_present) {
+            status = sxml_function_library_find_collation(&call, text.utf8, &rule->collation);
+        }
+        if (status == SXML_STATUS_OK) {
+            status = sxml_read_sort_key_text(context, sort_key->order, &text);
+        }
+        if (status == SXML_STATUS_OK && text.is_present) {
+            rule->is_descending =
+                sxml_byte_view_equals(text.utf8, SXML_BYTE_VIEW_FROM_LITERAL("descending"));
+        }
+    }
+    return status;
 }
 
 /* Sorts the items of the SORT on top by their computed keys and finishes
@@ -3332,48 +3428,59 @@ static sxml_status sxml_sort_finish(sxml_dynamic_context *context,
     const size_t item_count = sort_state->item_count;
     const sxml_ir_sort_key_view sort_keys =
         sxml_ir_unit_get_sort_keys(task->function->unit, sort->keys);
-    for (size_t key_index = 0; key_index < sort_keys.sort_key_count; key_index += 1) {
-        sxml_sequence collation = sxml_sequence_empty();
-        sxml_status status = sxml_machine_read_atom(context, sort_keys.sort_keys[key_index].collation, &collation);
-        if (status == SXML_STATUS_OK &&
-            sxml_sequence_get_representation(collation) !=
-                SXML_SEQUENCE_REPRESENTATION_EMPTY) {
-            sxml_atomic_datum datum;
-            status = sxml_atomic_item_get_datum(collation.content, &datum);
-            if (status == SXML_STATUS_OK &&
-                (datum.datum_kind != SXML_DATUM_KIND_STRING ||
-                 !sxml_byte_view_equals(datum.datum_details.string.utf8,
-                                        sxml_codepoint_collation_uri))) {
-                status = sxml_error_record_report(context->error_record,
-                                                  &sxml_collation_error);
-            }
-        }
-        if (status != SXML_STATUS_OK) {
-            return status;
-        }
-    }
-    if (item_count == 0) {
-        /* Nothing to sort, and a zero-byte allocation is invalid (D22). */
+    if (sort_keys.sort_key_count == 0) {
         return sxml_machine_finish(context, sxml_sequence_empty());
     }
+    /* The key rules, then the positions (at least one). */
+    size_t rules_byte_count = 0;
+    size_t byte_count = 0;
+    sxml_status status = sxml_size_multiply(sort_keys.sort_key_count,
+                                            sizeof(sxml_sort_key_rule), &rules_byte_count);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_size_multiply(item_count == 0 ? 1 : item_count, sizeof(size_t),
+                                    &byte_count);
+    }
+    void *rules_memory = NULL;
     void *memory = NULL;
-    sxml_status status = sxml_allocator_allocate(
-        context->allocator,
-        (sxml_allocation_request){.byte_count = item_count * sizeof(size_t),
-                                  .alignment = alignof(size_t)},
-        &memory);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_allocator_allocate(
+            context->allocator,
+            (sxml_allocation_request){.byte_count = rules_byte_count,
+                                      .alignment = alignof(sxml_sort_key_rule)},
+            &rules_memory);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_allocator_allocate(
+            context->allocator,
+            (sxml_allocation_request){.byte_count = byte_count, .alignment = alignof(size_t)},
+            &memory);
+    }
     if (status != SXML_STATUS_OK) {
+        if (rules_memory != NULL) {
+            sxml_allocator_release(context->allocator, rules_memory);
+        }
         return status;
     }
+    sxml_sort_key_rule *key_rules = rules_memory;
     size_t *indices = memory;
     for (size_t item_index = 0; item_index < item_count; item_index += 1) {
         indices[item_index] = item_index;
     }
+    /* The collations are checked even for an empty input (XSLT 4.0,
+       13.1.3 permits it). */
+    status = sxml_resolve_sort_key_rules(context, sort_keys, key_rules);
+    if (status == SXML_STATUS_OK && item_count == 0) {
+        sxml_allocator_release(context->allocator, memory);
+        sxml_allocator_release(context->allocator, rules_memory);
+        return sxml_machine_finish(context, sxml_sequence_empty());
+    }
     int16_t timezone = 0;
-    status = sxml_dynamic_context_read_implicit_timezone(context, &timezone);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_dynamic_context_read_implicit_timezone(context, &timezone);
+    }
     sxml_sort_comparison comparison = {.context = context,
                                        .sort_state = sort_state,
-                                       .sort_keys = sort_keys,
+                                       .key_rules = key_rules,
                                        .implicit_timezone_offset_minutes = timezone};
     if (status == SXML_STATUS_OK) {
         status = sxml_evaluator_sort_indices(
@@ -3406,6 +3513,7 @@ static sxml_status sxml_sort_finish(sxml_dynamic_context *context,
         sxml_allocator_release(context->allocator, sorted_memory);
     }
     sxml_allocator_release(context->allocator, memory);
+    sxml_allocator_release(context->allocator, rules_memory);
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -3493,7 +3601,13 @@ static sxml_status sxml_machine_step_sort(sxml_dynamic_context *context,
         if (status == SXML_STATUS_OK) {
             uint64_t item_count = 0;
             status = sxml_sequence_count(atomized, context->error_record, &item_count);
-            if (status == SXML_STATUS_OK && item_count > 1) {
+            const size_t key_index = task->details.loop.sort_state->next_value_index %
+                                     key_count;
+            const sxml_ir_sort_key_view sort_keys =
+                sxml_ir_unit_get_sort_keys(task->function->unit, sort->keys);
+            if (status == SXML_STATUS_OK && item_count > 1 &&
+                (key_index >= sort_keys.sort_key_count ||
+                 !sort_keys.sort_keys[key_index].is_composite)) {
                 status = sxml_error_record_report(context->error_record,
                                                   &sxml_sort_key_error);
             }

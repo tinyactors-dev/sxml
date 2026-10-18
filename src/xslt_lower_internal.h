@@ -122,7 +122,28 @@ typedef struct sxml_xslt_lowering {
     sxml_xslt_template_lowering *templates;
     /* Made by sxml_xslt_declare_components; NULL before. */
     sxml_xslt_component_lowering *components;
+    /* The kept ASTs (glossary `kept_ast`, D152): short XPath texts and
+       match expressions that procedures parse and lower, released when the
+       lowering ends. */
+    struct sxml_xslt_kept_asts *kept_asts;
 } sxml_xslt_lowering;
+
+/* ASTs a lowering keeps until it ends (glossary `kept_ast`). */
+typedef struct sxml_xslt_kept_asts {
+    sxml_allocator allocator;
+    sxml_ast **asts;
+    size_t ast_count;
+    size_t ast_capacity;
+} sxml_xslt_kept_asts;
+
+/* Keeps ast, owned, until the lowering ends; on failure ast is destroyed
+   (the allocator's failures; SXML_STATUS_INVALID_ARGUMENT without a kept
+   list). From a step or outside a machine. */
+SXML_NODISCARD sxml_status sxml_xslt_lowering_keep_ast(const sxml_xslt_lowering *lowering,
+                                                       sxml_ast *ast);
+
+/* Destroys the kept ASTs and releases the list's memory. */
+void sxml_xslt_release_kept_asts(sxml_xslt_kept_asts *kept_asts);
 
 /* What every XSLT lowering procedure's locals start with; it is pushed
    with these as its initial locals. */
@@ -153,6 +174,8 @@ typedef struct sxml_xslt_instruction_rule_view {
    packets define their own views and add them to the list in
    src/xslt_lower.c. */
 extern const sxml_xslt_instruction_rule_view sxml_xslt_instruction_rules_construct;
+/* The instructions of src/xslt_lower_group.c (packet 4.9). */
+extern const sxml_xslt_instruction_rule_view sxml_xslt_instruction_rules_group;
 /* The instructions of src/xslt_lower_control.c (packet 4.7). */
 extern const sxml_xslt_instruction_rule_view sxml_xslt_instruction_rules_control;
 /* The instructions of src/xslt_lower_template.c (packet 4.8). */
@@ -225,6 +248,40 @@ typedef struct sxml_xslt_conditional_content_call {
    constructor in call->block (src/xslt_lower_control.c, packet 4.7). */
 SXML_NODISCARD sxml_status sxml_xslt_lowering_call_conditional_content(
     sxml_xpath_lowering_machine *machine, const sxml_xslt_conditional_content_call *call);
+
+/* ------------------------------------------------------------- Sorting */
+
+/* A sort key specification (13.1) to apply to a sequence. */
+typedef struct sxml_xslt_sort_call {
+    const sxml_xslt_lowering *lowering;
+    /* The instruction whose xsl:sort children are the specification
+       (xsl:for-each, xsl:apply-templates, xsl:perform-sort,
+       xsl:for-each-group). */
+    sxml_xslt_ast_node_index node;
+    /* The initial sequence; for xsl:for-each-group its group arrays
+       (src/xslt_group_internal.h), each sorted with its initial item as
+       the context item and the group as the current group (13.1.1). */
+    sxml_ir_atom input;
+    bool sorts_groups;
+    /* Nonzero for xsl:merge (15.4): node is the first xsl:merge-source,
+       whose xsl:merge-key children give the order, and each input item is
+       an array whose member tuple_key_offset + K is its merge key K
+       (from 0), computed already. */
+    uint32_t tuple_key_offset;
+    /* Where the sorted sequence is bound, and its atom. */
+    sxml_xpath_lowering_block *block;
+    sxml_ir_atom *atom;
+} sxml_xslt_sort_call;
+
+/* From a step: pushes the frame that binds the sorted sequence: a SORT
+   whose keys are the xsl:sort children's (src/xslt_lower_group.c, packet
+   4.9, D152). XTSE1015, XTSE1017, XTSE0020 are static errors. */
+SXML_NODISCARD sxml_status sxml_xslt_lowering_call_sort(sxml_xpath_lowering_machine *machine,
+                                                        const sxml_xslt_sort_call *call);
+
+/* True when node has xsl:sort children. */
+bool sxml_xslt_lowering_has_sort(const sxml_xslt_lowering *lowering,
+                                 sxml_xslt_ast_node_index node);
 
 /* ------------------------------------------------------ Global variables */
 

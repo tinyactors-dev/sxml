@@ -714,6 +714,10 @@ static sxml_status visit_expression(verifier *checker,
             status = check_atom(checker, (atom_check){.atom = key->collation,
                                                       .is_optional = true});
             if (status == SXML_STATUS_OK) {
+                status = check_atom(checker, (atom_check){.atom = key->order,
+                                                          .is_optional = true});
+            }
+            if (status == SXML_STATUS_OK) {
                 status = push_scoped_visit(
                     checker, (scoped_visit){.expression = key->key,
                                             .focus = expression->sort.focus});
