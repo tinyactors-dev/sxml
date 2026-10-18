@@ -4,6 +4,23 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 4.17 sweep 2 done (D163): XSLT conformance. Zero-length parentless
+  text nodes (XDM 4.0, 7.5.7.1) and CDATA requests (the cdata attribute,
+  11.4.3) in the tree builder contract (tree.h, additive); sized arena
+  trees (a small constructed tree 1.3 KB, was 5 to 9 KB) and a JSON key
+  cache; a hashed evaluation memo and xsl:function cache="yes"; the static
+  context of a call at run time (unit modules with base URI, namespaces,
+  collation and decimal formats, named by STATIC_CALL and constructors);
+  keys, decimal formats, namespace aliases, character maps and output
+  definitions local to a package; XTDE0160, XTSE1650 and XTSE1660 in one
+  place each and one system property table (D161's D162 items); merged
+  helpers (slot atoms, 16 whitespace trims, declared types, two
+  heapsorts); lint at HEAD fixed. Release, whole XT40: in scope 7,879 to
+  7,986 of 8,728 (90.3 % to 91.5 %), errors 3 to 1 (json-to-xml-013,
+  Proposed: content that streams into a constructor); value-of 53.3 % to
+  93.3 %, so every core set is at 80 % or more. XP40 30,647, XQ40 40,034
+  passed, 0 errors; slices 198, 186; XSLT slice 147 of 154.
+
 - Docs pass (owner's request): `README.md` is the project's front page
   (what sxml does, where it runs, quick start, a C and a JavaScript
   example, conformance, design, status); `docs/CLI.md` is a user

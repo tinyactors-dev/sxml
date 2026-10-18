@@ -5729,7 +5729,106 @@ year one" list of PLAN.md.
   revisited against the wasm budget then; a feature may be a build option.
 
 ### D163. XSLT conformance sweep 2 (packet 4.17)
-Reserved 2026-10-19; completed when the packet is ticked.
+Recorded 2026-10-19, after D99, D148, D159, D160, D161, D162.
+- **Zero-length text nodes** (D159's Proposed item, accepted; additive to
+  the frozen `include/sxml/tree.h`, D99): XDM 4.0, 7.5.7.1 lets a text
+  node without a parent be empty ("text nodes are allowed to be empty
+  only if they have no parents"). The builder contract: a parentless text
+  whose events are all empty is a zero-length text node; inside a parent
+  empty text still makes none, so the node disappears when it is added
+  to content. TEXT_CONSTRUCTOR (XQuery `text {""}`, xsl:value-of,
+  xsl:text) makes it; simple content drops zero-length text nodes first
+  (XSLT 4.0, 5.7.2 step 1). D110's deviation is gone.
+- **CDATA requests** (additive to tree.h): `sxml_text_event.
+  is_cdata_section` and `sxml_node_description.is_cdata_section`
+  (glossary `cdata_section`) carry XSLT 4.0, 11.4.3's cdata attribute of
+  xsl:value-of and xsl:text (construction flag CDATA_SECTION; a computed
+  value is one CONDITIONAL). A text node built from several events keeps
+  the request when one has it (implementation-defined; value-of-012
+  expects mixed nodes and fails). Copies keep it; the serializer writes
+  such a text node as CDATA sections with the XML and XHTML methods.
+- **Sized arena trees**: the first node segment holds 2 nodes, a growable
+  tree without initial memory takes 768 bytes with its own allocation as
+  the arena's first memory, location segments are made only when kept,
+  the base URI is an exact allocation, the text store starts at 64 bytes.
+  A constructed tree of a few nodes is about 1.3 KB (was 5 to 9 KB).
+  JSON parsing reuses the key items of a parse (a cache of 32 keys).
+  array-022 (209,579 small element trees) runs within the driver's
+  512 MB.
+- **The evaluation memo** is an open-addressing hash; subjects are the
+  same when they are one node, atomic items of one type that are
+  atomic-equal, or arrays whose members are, item by item.
+  **xsl:function cache="yes"** (10.3.7; not for new-each-time="yes"): the
+  full arity calls the internal row cached-call(number, [$p1, ...],
+  body#n), body the sequence constructor's IR function; equal arguments
+  give the first call's value (function-1031).
+- **The static context of a call at run time** (D159's Proposed item,
+  accepted, D149's names-as-strings item with it): one mechanism, the
+  unit's modules (glossary `ir_module`, widened from D148): a module may
+  carry its own decimal formats and collations and its own static
+  namespaces besides its static base URI; STATIC_CALL and the node
+  constructors gained `module_number`. XSLT lowering makes one module per
+  AST static context (xml:base, namespaces, [xsl:]default-collation, the
+  package's decimal formats, 3.4.8) and the XPath lowerer stamps the
+  function calls of an expression with its context's module
+  (`sxml_xpath_static_context.ir_module_number`); XSLT stamps the
+  elements, documents and temporary trees it constructs. The evaluator's
+  lexical getters (`sxml_dynamic_context_get_static_base_uri`, new
+  `_get_static_context`, `_get_static_namespaces`) read the innermost
+  IR task's expression module, then its function's, then the unit's.
+  So fn:static-base-uri, resolve-uri#1, doc, base URIs of constructed
+  nodes, default collations, names given as strings (fn:key,
+  system-property, function-available, format-number) and decimal formats
+  per package follow the expression. Not covered: fn:function-lookup of
+  fn:key and the accumulator functions (lowered snippets, not natives),
+  and XSLT's own library calls (they read the unit's).
+- **Declarations local to a package** (D160's Proposed item, accepted;
+  3.4.8): one rule, each named-declaration table is keyed by name and
+  the package of the declaration, and a reference looks up its own
+  package's (as attribute sets and modes already were): keys (the XSLT
+  function table has one state per package, so fn:key and
+  fn:map-for-key of package P see P's keys; the accumulator table keeps
+  each static context's inner table instead of the first context's),
+  namespace aliases (collected after the package table), decimal formats
+  (through the modules above), character maps and output definitions
+  (each package has its unnamed definition; xsl:result-document reads its
+  package's). The output compilation, which runs without the package
+  table, names a package by its top module
+  (`sxml_xslt_package_top_module`, the same rule the table uses).
+  Accumulators themselves are still stylesheet-wide.
+- **D162 one-place rules** (from D161): XTDE0160 for an instruction whose
+  effective version is below 2.0 (3.8, 27.4: XSLT 2.0 and 3.0 modes run
+  as 4.0) in `lower_child`; XTSE1650 (xsl:import-schema) and XTSE1660
+  ([xsl:]type, validation="strict", typed modes) in the reader's
+  `reject_schema_awareness`; lax and preserve are taken as strip (27.2).
+  One system property table (`src/system_property.c`, glossary
+  `system_property`) serves fn:system-properties and the XSLT
+  fn:system-property.
+- **Merges**: `sxml_ir_slot_atom` (10 copies), `sxml_xml_text_trim_
+  whitespace` (16), `sxml_xslt_lowering_resolve_declared_type` and
+  `_expression_context` (3 and 2), the two remaining heapsorts onto
+  `sxml_sort_in_place`, one boolean-attribute helper (yes, true, 1).
+- Lint at HEAD fixed: invocation global names are byte views
+  (`src/xslt.c`), the driver's serialization comparison returns its
+  verdict, `decide_role` reads a RULE frame's rule once.
+- **Measured** (release, whole suites, before at 9e7f5fc, after at the
+  last commit of this packet): XT40 in scope 7,879 to 7,986 of 8,728
+  (90.3 % to 91.5 %), errors 3 to 1; value-of 8 to 14 of 15 (53.3 % to
+  93.3 %, every core set now 80 % or more), seqtor 61 to 85 of 92, text 9
+  to 15, base-uri 32 to 49 of 52, collations 23 to 34, resolve-uri 15 to
+  21, use-package 34 to 41 of 53, error 465 to 470, function 111 to 113;
+  no test set lost a case. XP40 30,646 to 30,647 and XQ40 40,030 to
+  40,034 passed, 0 errors; slices 198 and 186.
+- **Not done**: json-to-xml-013 still runs out of the driver's 512 MB: it
+  turns a 19 MB file into 209,579 documents that an xsl:for-each returns
+  as one sequence before the enclosing element copies them, and then a
+  tree of 2.7 million nodes (2 GB without a budget); it needs content
+  that streams into the constructor (Proposed). XTDE3052 for an abstract
+  variable is still raised when the globals are computed, read or not
+  (accept-042, -043a: XSLT globals are all computed first, so a lazy
+  error needs lazy globals). Accumulators are stylesheet-wide;
+  fn:function-lookup does not find fn:key or the accumulator functions
+  (they are lowered stylesheet functions, not rows).
 
 ### D164. Phase 5 starts now, alongside the end of Phase 4 (owner)
 Recorded 2026-10-18 on the owner's choice ("Start Phase 5 now"), after they
@@ -5746,41 +5845,12 @@ Reserved 2026-10-18; completed when the packet is ticked.
 
 ## Proposed
 
-- **Empty parentless text nodes** (packet 4.17, D159; for the owner of
-  `include/sxml/tree.h`, frozen, D99): the builder contract says "empty
-  text makes no node", so `text {""}` and an xsl:value-of of "" give no
-  node (D110's deviation). XQuery 4.0, 4.12.3.4 and XSLT 4.0, 5.7.2 make
-  a zero-length text node there; it separates atomic values in a
-  sequence (no space between them) and counts. Affected: QT4
-  Constr-text-count-1, XT40 value-of-001/002, text-001/002, seqtor-008
-  to -026, -030, -032 (about 25 cases). Proposed: a parentless text event
-  with empty text makes an empty text node; inside a parent it still
-  makes none.
-
-- **The static context of a call at run time** (packet 4.17, D159; for
-  the owners of `src/ir_internal.h`, `src/xpath_lower.c` and the
-  evaluator): natives read the unit's static base URI and namespaces, so
-  fn:static-base-uri, fn:resolve-uri#1 and the base URI of constructed
-  nodes ignore xml:base on stylesheet elements (base-uri, resolve-uri:
-  about 25 cases), and EQNames given as strings ignore the expression's
-  namespaces (D157, accepted item of 4.17). Proposed, one mechanism: the
-  unit keeps a table of static contexts (base URI, namespaces, default
-  collation); a STATIC_CALL of a context-dependent row and a node
-  constructor name an entry; the evaluator gives it to the call.
-
 - **Matching package versions for host resolvers** (packet 4.16, D160;
   for the owner of `include/sxml/xslt.h`): a resolver that serves
   XSLT_PACKAGE must pick a version the range matches (XSLT 4.0, 3.4.1);
   sxml has the function internally (`sxml_xslt_package_version_matches`)
   and the test driver keeps a copy. Proposed: export it from xslt.h, with
   the order of two versions, so hosts and the driver share one.
-
-- **Declarations local to a package** (packet 4.16, D160; for a sweep):
-  keys, accumulators, decimal formats, namespace aliases, character maps
-  and output definitions are still stylesheet-wide (3.4.8;
-  use-package-101 to -106, -108b, override-misc-006). Each is a table
-  keyed by name that would take the package as part of its key, as
-  attribute sets and modes now do.
 
 - **The CLI's WebAssembly budget after sxml transform** (packet 4.15,
   D157; for the owner, with the budget items below): linking XSLT (its
@@ -5790,13 +5860,18 @@ Reserved 2026-10-18; completed when the packet is ticked.
   (no XSLT in the JavaScript package yet). Choose: confirm, or split the
   XSLT front ends into an optional module.
 
-- **The XSLT functions at run time** (packet 4.10, D149): the table over
-  the XSLT parts is done (D157); still open: the unit's stylesheet
-  functions in that table (fn:function-lookup of an xsl:function), and
-  EQNames given as strings (fn:key, system-property, function-available)
-  resolving against each expression's namespaces rather than the unit's
-  (the initial template's): an additive STATIC_CALL field with the call's
-  static namespaces, or resolving literal arguments while lowering.
+- **The XSLT functions at run time** (packet 4.10, D149; EQNames given
+  as strings done by D163): still open, the unit's stylesheet functions,
+  fn:key and the accumulator functions in the run-time function table
+  (fn:function-lookup of an xsl:function, of fn:key#2).
+
+- **Content that streams into a constructor** (packet 4.17, D163; for the
+  owner of the evaluator): an element or document constructor takes its
+  content as one value, so `<array>{ for each line: a document }</array>`
+  holds every document before copying the first (json-to-xml-013: 209,579
+  documents, beyond the driver's 512 MB). Proposed: a constructor whose
+  content is a MAP takes the items of each iteration as they come (copied,
+  then released), as XSLT's sequence constructors allow.
 
 - **XQuery's default for omit-xml-declaration** (packet 3.12, D146; for
   the owner of `include/sxml/xquery.h`): the header gives every

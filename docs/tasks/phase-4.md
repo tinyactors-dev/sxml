@@ -334,6 +334,14 @@ packages), errors 7 to 3; number 57.5 to 97.4 %. Open: value-of (empty
 text nodes and cdata, Proposed), the call's static context at run time
 (Proposed), memory of many small trees (json-to-xml-013, array-022),
 xsl:function cache (function-1031), call-template-ext, host collations.
+**Sweep 2 done** 2026-10-19 (D163): XT40 in scope 7,879 to 7,986 of
+8,728 (90.3 % to 91.5 %), errors 3 to 1; value-of 53.3 to 93.3 % (every
+core set ≥ 80 %); zero-length text nodes and CDATA requests (tree.h),
+sized arena trees, xsl:function cache, the static context of a call at
+run time, declarations local to a package, XTDE0160, XTSE1650, XTSE1660.
+Open: json-to-xml-013 (memory, Proposed: streaming constructor content),
+XTDE3052 when an abstract variable is read, call-template-ext, host
+collations.
 
 ### 4.18 Phase 4 review (review)
 After everything. Owns the gate boxes. A separate agent (D11) runs the
