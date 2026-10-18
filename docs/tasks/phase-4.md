@@ -211,6 +211,11 @@ composite, collation), current-group, current-grouping-key; xsl:merge
 with current-merge-group and -key (internal native rows, D55). Done when
 insn-sort, for-each-group, merge ≥ 85%. Spec: XSLT 4.0 "Sorting",
 "Grouping", "Merging".
+**Done** 2026-10-18 (D152): `src/xslt_lower_group.c`, `src/xslt_group.c`,
+`tests/xslt_group_test.c`, hooks in for-each, apply-templates, the
+evaluator's SORT and `src/xpath_lower.c`. Scratch harness: insn/sort
+74/82, for-each-group 79/86 (90%, 92%), merge 61/88 (69%: collections,
+schemas and xsl:function in the rest); split-when and merge-when not done.
 
 ### 4.10 Keys and XSLT functions (implementation)
 After 4.8. Owns `src/xslt_key.c`, `src/function_library_xslt.c` (a part

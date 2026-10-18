@@ -4879,7 +4879,83 @@ clean, with no call cycle.
 
 ### D152. Sorting and grouping (packet 4.9)
 Recorded 2026-10-17, after D79, D116, D118, D136, D137, D142, D144, D145.
-Reserved here; the record is completed when the packet is ticked.
+`src/xslt_lower_group.c`, `src/xslt_group.c` (`src/xslt_group_internal.h`),
+`tests/xslt_group_test.c`; hooks in `src/xslt_lower.c`,
+`src/xslt_lower_control.c` (xsl:for-each), `src/xslt_lower_template.c`
+(xsl:apply-templates), `src/xpath_lower.c` (context functions),
+`src/evaluator.c` (SORT). No IR kind, no public header.
+- **Evaluator SORT** (fixes 3.10's Proposed (a) and D116/D136's last
+  codepoint-only body): a descending key reverses the whole order, empty
+  keys included (XQuery 4.0, 4.13.9: "empty greatest descending" puts ()
+  first); each key's collation is resolved once per SORT through the one
+  resolver (`sxml_function_library_find_collation`, FOCH0002 otherwise,
+  also for an empty input) and strings compare with
+  `sxml_function_library_compare_collated` (glossary `sort_key_rule`).
+  `sxml_ir_sort_key` gains `order` (an xs:string atom, "ascending" or
+  "descending", read when evaluated: an xsl:sort order AVT) and
+  `is_composite` (XSLT 4.0, 13.1.2: a key is a sequence compared item by
+  item, the shorter first; otherwise more than one item is XPTY0004 as
+  before). The text form prints them; the verifier checks the atom.
+- **xsl:sort** is one SORT key per xsl:sort, under for-each,
+  apply-templates (the select value is sorted before the MAP or
+  APPLY_TEMPLATES), perform-sort and for-each-group
+  (`sxml_xslt_lowering_call_sort`). AVTs use the instruction's focus;
+  data-type number/text convert the key (`data(K) ! number(.)`), a QName
+  converts nothing; lang/case-order without collation give
+  `UCA?fallback=yes;lang=L;caseFirst=C` (D116's fallback, lang ignored),
+  none the codepoint collation. Fixed invalid values are XTSE0020,
+  computed ones XTDE0030 when evaluated; XTSE1015, XTSE1017, XTSE1040;
+  a TRY_CATCH maps XPTY0004 to XTDE1030 and FOCH0002 to XTDE1035.
+  Stable is always.
+- **xsl:for-each-group**: a MAP over the population makes one grouping
+  pair per item ([item, keys] atomized, untyped as string, distinct for
+  group-by; [item, matches] for patterns: the match expression lowered in
+  place with the item as fixed focus, errors are no match, 6.5); the row
+  `for-each-group($pairs, $method, $collation)` of `src/xslt_group.c`
+  returns group arrays [current group, current grouping key]; group-by
+  calls the XQuery group-by row (D137) over [item, key] tuples (composite
+  keys one member per item, padded with empty members), so keys compare
+  exactly as XQuery's; adjacent runs and pattern boundaries are the row's.
+  xsl:sort sorts the group arrays with the initial item as context item,
+  the group's position and count, and the current group bound. The body
+  is a MAP over the groups whose focus is the initial item with the MAP's
+  position and size slots. XTSE1080, XTSE1090, XTTE1100, XTDE1110.
+- **xsl:merge** is the same parts: per merge source (for-each-item,
+  for-each-source as `doc(resolve-uri(., base))`, or none) tuples
+  [source number, item, keys...] (keys with a singleton focus), all
+  tuples sorted stably by the first source's merge keys (SORT keys are
+  tuple members, `tuple_key_offset`), runs of equal keys by the row
+  (composite, the first key's collation), and the merge-action as the
+  group body. XTSE2200, XTSE3190, XTSE3195, XTSE3200.
+- **Context functions** (glossary): in XSLT, fn:current-group(),
+  current-grouping-key(), current-merge-group(), current-merge-key(),
+  current-merge-key-array() read the variable Q{XSLT}local-name the
+  instruction put in scope (XTSE0080 keeps the namespace out of
+  stylesheet variables); a variable bound to NONE (pattern grouping) or
+  none in the current function raises XTDE1061/1071/3480/3510 when
+  evaluated. `name#0` makes a closure over the value (4.0: it retains
+  it). current-merge-group($source) is map:get of Q{XSLT}
+  current-merge-sources. Lowering-wide XPath ASTs (short texts, match
+  expressions) are kept until the lowering ends
+  (`sxml_xslt_lowering_keep_ast` in `src/xslt_lower.c`, glossary
+  `kept_ast`; 4.14 uses them too).
+- Deviations: the current group is lexical, so a template called from
+  the body sees none (XTDE1061; the spec makes it dynamic there);
+  split-when and merge-when are UNSUPPORTED_FEATURE; sort keys of groups
+  are evaluated with the group's position; merge inputs are always
+  sorted (no XTDE2220, XTDE2210), equality under the first key's
+  collation, a composite merge key is the keys' concatenation;
+  current-merge-group with an unknown name gives () (not XTDE3490), with
+  () an error.
+- Measured with a scratch harness (each case's initial template or
+  match="/", xml/error/string/file assertions; release of HEAD 2f0c640
+  plus the packet): insn/sort 74 of 82 runnable cases (before: 0, xsl:sort
+  was UNSUPPORTED), insn/for-each-group 79 of 86 (before: 0), insn/merge
+  61 of 88 (before: 0); the rest need xsl:function, schemas, collections,
+  xsl:number or accumulators, or are the deviations above (split-when,
+  XTDE2210, XTDE2220, XTDE3490). QT4 XQ40: prod-EmptyOrderDecl 28 to 32,
+  prod-OrderByClause 139, prod-GroupByClause 37, unchanged; ctest
+  (debug, debug-gcc, wasm) and lint pass.
 
 ### D153. Numbering and analyze-string (packet 4.11)
 Recorded 2026-10-17, after D105, D114, D118, D119, D142, D145.

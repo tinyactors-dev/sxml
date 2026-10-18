@@ -4,6 +4,22 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 4.9 done (D152): sorting, grouping, merging. xsl:sort is one SORT key
+  per xsl:sort (composite keys, order and collation computed when
+  evaluated; data-type, lang/case-order as a UCA collation) under
+  for-each, apply-templates, perform-sort and for-each-group;
+  xsl:for-each-group makes grouping pairs and calls the new row of
+  `src/xslt_group.c` (group-by through XQuery's group-by row, D137), then
+  a MAP over group arrays; xsl:merge on the same parts. current-group and
+  the other context functions are lexical variables in the XSLT
+  namespace (`src/xpath_lower.c`). Evaluator SORT: descending reverses
+  the empty order (3.10's Proposed (a)), any supported collation (D116's
+  last codepoint-only body). Harness: insn/sort 74/82, for-each-group
+  79/86, merge 61/88 (needs xsl:function, schemas, collections); QT4
+  prod-EmptyOrderDecl 28 to 32, other order/group sets unchanged. Not
+  done: split-when, merge-when, XTDE2210/2220/3490, a dynamic current
+  group in called templates.
+
 - 4.13 claimed (D156): output and result documents. Files: new
   `src/xslt_output.c`, `src/xslt_output_internal.h`,
   `tests/xslt_output_test.c`; one-line hooks in `src/xslt_lower.c` and
