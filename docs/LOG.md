@@ -43,12 +43,21 @@ One short entry per week, newest first: what passed, what's next, what is blocke
   90/108, whitespace 24/27, format-number 66/70; 4.8's sets 474/614
   (was 316/615). Not done: character maps (4.13), memoization (cache).
 
-- 3.14 sweep 1 claimed (D154): XQ40. Files: `tests/qt4/driver/test_run.c`,
-  `environment.c`/`.h`, `applicability.c`; `src/arena_tree.c`;
-  `src/evaluator.c`, `src/evaluator_global.c`, `src/evaluator_internal.h`,
-  `src/evaluator_machine_internal.h`, `src/function_library_internal.h`
-  (a unit evaluation step); new `src/xquery_load_module.c`;
-  `src/xquery_static.c`; `docs/CONFORMANCE.md`.
+- 3.14 sweep 1 done (D154): XQ40. fn:load-xquery-module without C
+  nesting: global tables per unit in the dynamic context and a unit
+  evaluation native step (`src/evaluator.c`, `src/evaluator_global.c`);
+  the row in `src/xquery_load_module.c`, after the host's table for XQuery
+  compilations only; the module record is a generated main module of
+  named function references (18.1). QT4 driver: out-of-scope cases that
+  stop at a missing feature are not run (misc-HtmlTestSuite), a param's
+  prefix is its element's; arena tree blocks 4 KiB (655 MB for 10,000
+  constructed elements). QT4 (release, 00ac981): XQ40 39,698 to 39,928,
+  in scope 96.4 % to 96.9 %, XQ-only 85.3 % to 97.9 %, errors 5 to 1
+  (modules-40); fn-load-xquery-module 103/117 run, misc-Subtyping 109/110;
+  method-* 97.5 %; XP40 30,630 (97.0 %, 0 errors) and slice 198/198
+  unchanged. Left in Proposed: closures reading globals at call time and
+  focus-reading defaults (`src/xpath_lower.c`), keyword arguments after an
+  omitted declared default, a library module's base URI at run time.
 
 - 4.10 done (D149): keys and XSLT functions. `src/function_library_xslt.c`,
   the XSLT-only library part (system-property and the other static-expression

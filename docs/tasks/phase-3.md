@@ -293,6 +293,11 @@ XQ-only cases, baseline 186, passes under debug, debug-gcc, wasm. XQ40
 After 3.11, 3.13. As 2.19, over XQ40 sets (misc-CombinedErrorCodes,
 app-Walmsley, app-FunctxFunctx, app-spec-examples first). Each sweep
 claims its files in `docs/LOG.md` and stops after one session.
+**Sweep 1 done** 2026-10-18 (D154): fn:load-xquery-module (global tables
+per unit, a unit evaluation step), the QT4 driver's non-goal cases not
+run; XQ40 in scope 96.4 % to 96.9 %, XQ-only 85.3 % to 97.9 %, errors 5
+to 1 (modules-40). Open for the next sweep: D135 (b), (c), (g), a library
+module's static context at run time, trusted=false (FODC0016).
 
 ### 3.15 Phase 3 review (review)
 After everything. Owns the gate boxes. A separate agent (D11) runs the
