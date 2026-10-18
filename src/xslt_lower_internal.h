@@ -126,6 +126,9 @@ typedef struct sxml_xslt_lowering {
        match expressions that procedures parse and lower, released when the
        lowering ends. */
     struct sxml_xslt_kept_asts *kept_asts;
+    /* Made by sxml_xslt_declare_accumulators (src/xslt_accumulator.c,
+       packet 4.14, D155); NULL before. */
+    struct sxml_xslt_accumulator_table *accumulators;
 } sxml_xslt_lowering;
 
 /* ASTs a lowering keeps until it ends (glossary `kept_ast`). */

@@ -13,6 +13,7 @@
 #include "xslt_lower_internal.h"
 
 #include "ir_pass_internal.h"
+#include "xslt_accumulator_internal.h"
 #include "xslt_key_internal.h"
 #include "processor_internal.h"
 #include "sxml/name.h"
@@ -27,6 +28,7 @@
 
 /* The instruction rules of every XSLT lowering file. */
 static const sxml_xslt_instruction_rule_view *const instruction_rule_views[] = {
+    &sxml_xslt_instruction_rules_accumulator,
     &sxml_xslt_instruction_rules_group,
     &sxml_xslt_instruction_rules_construct,
     &sxml_xslt_instruction_rules_control,
@@ -1698,6 +1700,14 @@ static sxml_status lower_main_function(sxml_xpath_lowerer *lowerer, const main_r
                                                            .block = &block});
     }
     if (status == SXML_STATUS_OK) {
+        /* 19.2: the accumulators applicable to the initial match
+           selection's tree (packet 4.14). */
+        status = sxml_xslt_bind_accumulator_scope(
+            lowerer, &(sxml_xslt_accumulator_scope_call){.table = request->lowering->accumulators,
+                                                         .invocation = request->invocation,
+                                                         .block = &block});
+    }
+    if (status == SXML_STATUS_OK) {
         status = sxml_xslt_lowering_bind_invocation(
             lowerer,
             &(sxml_xslt_invocation_request){
@@ -1808,6 +1818,13 @@ static sxml_status lower_into_unit(const unit_lowering *work) {
     if (status == SXML_STATUS_OK) {
         status = sxml_xslt_declare_functions(&lowering, memory.static_contexts, &xslt_functions);
     }
+    /* fn:accumulator-before and -after in front of them (packet 4.14). */
+    sxml_xslt_accumulator_table *accumulators = NULL;
+    if (status == SXML_STATUS_OK) {
+        status =
+            sxml_xslt_declare_accumulators(&lowering, memory.static_contexts, &accumulators);
+        lowering.accumulators = accumulators;
+    }
     if (status == SXML_STATUS_OK) {
         status = sxml_xslt_lowering_declare_global_variables(&lowering, memory.static_contexts);
     }
@@ -1832,6 +1849,9 @@ static sxml_status lower_into_unit(const unit_lowering *work) {
     if (status == SXML_STATUS_OK) {
         /* While the templates are there (a key's sequence constructor may
            apply them); again after the global variables. */
+        status = sxml_xslt_lower_accumulators(accumulators);
+    }
+    if (status == SXML_STATUS_OK) {
         status = sxml_xslt_lower_functions(xslt_functions);
     }
     if (status == SXML_STATUS_OK) {
@@ -1841,7 +1861,14 @@ static sxml_status lower_into_unit(const unit_lowering *work) {
     }
     sxml_xslt_release_templates(&lowering);
     if (status == SXML_STATUS_OK) {
+        status = sxml_xslt_lower_accumulators(accumulators);
+    }
+    if (status == SXML_STATUS_OK) {
         status = sxml_xslt_lower_functions(xslt_functions);
+    }
+    if (status == SXML_STATUS_OK) {
+        /* A key's body may name an accumulator function. */
+        status = sxml_xslt_lower_accumulators(accumulators);
     }
     const sxml_xslt_ast_node_index context_node =
         work->invocation.template_node.value != 0
@@ -1861,6 +1888,7 @@ static sxml_status lower_into_unit(const unit_lowering *work) {
         }
     }
     sxml_xslt_lowering_release_global_variables(&lowering);
+    sxml_xslt_release_accumulators(accumulators);
     sxml_xslt_release_functions(xslt_functions);
     sxml_xslt_release_components(&lowering);
     release_storage(work->base_context->allocator, &memory);

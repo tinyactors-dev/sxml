@@ -16,7 +16,10 @@
  * no part): key-name, key-index (the index of one key for one tree, built
  * once per evaluation and kept in the evaluation memo) and key-normalize
  * (key values as map keys). src/xslt_key.c lowers fn:key from XPath texts
- * that call them.
+ * that call them. The rows behind the accumulator functions
+ * (sxml_xslt_accumulator_functions, packet 4.14, D155): accumulator-name,
+ * accumulator-scope, accumulator-values, accumulator-link and
+ * accumulator-original, for src/xslt_accumulator.c.
  *
  * Golden file: src/function_library_format.c (rows of one part, bodies
  * reading their arguments through function_library_core_internal.h);
@@ -32,6 +35,7 @@
 #include "function_library_parts_internal.h"
 #include "ir_internal.h"
 #include "xdm_internal.h"
+#include "xslt_accumulator_internal.h"
 #include "xslt_static_internal.h"
 
 #include <stdalign.h>
@@ -1023,13 +1027,14 @@ static const sxml_static_error key_name_error = {
     .description = SXML_BYTE_VIEW_INITIALIZER(
         "The key name given to fn:key is not a valid EQName (XSLT 4.0, 20.2.2)")};
 
-/* key-name($key-name): the expanded name an xs:QName or a string holding
-   an EQName gives (XSLT 4.0, 20.2.2: unprefixed, no namespace). */
-static sxml_status call_key_name(const sxml_function_call *call, sxml_sequence *result) {
+/* The expanded name an xs:QName or a string holding an EQName gives
+   (unprefixed, no namespace) as an xs:QName; error for anything else. */
+static sxml_status make_name_result(const sxml_function_call *call, const sxml_static_error *error,
+                                    sxml_sequence *result) {
     sxml_name_identifier name = {.index = 0};
     sxml_status status = read_name_argument(
         (name_argument_request){
-            .call = call, .role = SXML_NAME_ARGUMENT_ROLE_NO_NAMESPACE, .error = &key_name_error},
+            .call = call, .role = SXML_NAME_ARGUMENT_ROLE_NO_NAMESPACE, .error = error},
         &name);
     sxml_item item = {.representation = 0};
     if (status == SXML_STATUS_OK) {
@@ -1047,6 +1052,12 @@ static sxml_status call_key_name(const sxml_function_call *call, sxml_sequence *
         *result = sxml_sequence_from_item(item);
     }
     return status;
+}
+
+/* key-name($key-name): the expanded name of the key (XSLT 4.0, 20.2.2:
+   unprefixed, no namespace). */
+static sxml_status call_key_name(const sxml_function_call *call, sxml_sequence *result) {
+    return make_name_result(call, &key_name_error, result);
 }
 
 /* key-index($number, $root, $build): the index of key $number for the tree
@@ -1388,3 +1399,360 @@ static const sxml_native_function key_functions[] = {
 };
 
 const sxml_native_function_view sxml_xslt_key_functions = SXML_LIBRARY_PART(key_functions);
+
+/* ----------------------------------- Rows behind the accumulator functions */
+
+static const sxml_static_error accumulator_name_error = {
+    .error_status = SXML_STATUS_DYNAMIC_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XTDE3340"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "The accumulator name given to fn:accumulator-before or fn:accumulator-after is not a "
+        "valid EQName (XSLT 4.0, 19.6)")};
+
+static const sxml_static_error accumulator_applicability_error = {
+    .error_status = SXML_STATUS_DYNAMIC_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XTDE3362"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "The accumulator is not applicable to the tree of the context node: use-accumulators of "
+        "the initial mode does not name it (XSLT 4.0, 19.2, 19.6)")};
+
+static const sxml_static_error accumulator_cycle_error = {
+    .error_status = SXML_STATUS_DYNAMIC_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XTDE3400"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "The values of an accumulator depend on themselves: a rule asks for the accumulator "
+        "it computes (XSLT 4.0, 19.6)")};
+
+/* accumulator-name($name): the expanded name of the accumulator (XSLT 4.0,
+   19.6: an xs:QName or an EQName, unprefixed meaning no namespace). */
+static sxml_status call_accumulator_name(const sxml_function_call *call, sxml_sequence *result) {
+    return make_name_result(call, &accumulator_name_error, result);
+}
+
+/* The computation number of the memo entry that holds the accumulators
+   applicable to a tree (src/xslt_accumulator_internal.h); accumulators
+   are numbered from 1. */
+#define ACCUMULATOR_SCOPE_NUMBER 0U
+
+/* The non-negative xs:integer item, or UINT64_MAX for anything else. */
+static uint64_t read_number(sxml_item item) {
+    sxml_atomic_datum datum;
+    memset(&datum, 0, sizeof(datum));
+    if (sxml_atomic_item_get_datum(item, &datum) != SXML_STATUS_OK ||
+        datum.datum_kind != SXML_DATUM_KIND_INTEGER || datum.datum_details.integer < 0) {
+        return UINT64_MAX;
+    }
+    return (uint64_t)datum.datum_details.integer;
+}
+
+/* accumulator-scope($root, $numbers): records that only the accumulators
+   numbered $numbers are applicable to the tree of $root (XSLT 4.0, 19.2:
+   the initial match selection and use-accumulators of the initial mode),
+   for the rest of the evaluation; returns the empty sequence. */
+static sxml_status call_accumulator_scope(const sxml_function_call *call, sxml_sequence *result) {
+    if (call->dynamic_context == NULL) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    const sxml_status status = sxml_dynamic_context_store_memo(
+        call->dynamic_context,
+        &(sxml_evaluation_memo_entry){
+            .key = {.computation = &sxml_xslt_accumulator_functions,
+                    .computation_number = ACCUMULATOR_SCOPE_NUMBER,
+                    .subject = sxml_function_library_get_argument(call, 0).content},
+            .value = sxml_function_library_get_argument(call, 1)});
+    if (status == SXML_STATUS_OK) {
+        *result = sxml_sequence_empty();
+    }
+    return status;
+}
+
+/*
+ * accumulator-values($number, $root, $build): the values of accumulator
+ * $number for the tree of $root, the map $build($root) returns, computed
+ * the first time an evaluation asks for them and kept in the evaluation
+ * memo (D149) for the rest of it (XSLT 4.0, 19.3: lazily, per tree).
+ * XTDE3362 when a scope of the tree leaves the accumulator out. While the
+ * build runs, the entry is the empty sequence, so a build that asks for
+ * its own accumulator raises XTDE3400 instead of running forever; a build
+ * that fails leaves xs:boolean false, and the next call builds again and
+ * raises its error again (19.5).
+ */
+typedef struct accumulator_values_state {
+    /* Owned while the build call runs. */
+    sxml_sequence call_argument;
+    /* Set while the build runs: release_state then marks the entry for a
+       new build (the build failed). */
+    sxml_dynamic_context *dynamic_context;
+    sxml_evaluation_memo_key key;
+    bool is_building;
+} accumulator_values_state;
+
+static sxml_status check_applicable(const sxml_function_call *call, sxml_item root,
+                                    uint64_t number) {
+    sxml_sequence numbers = sxml_sequence_empty();
+    if (!sxml_dynamic_context_find_memo(
+            call->dynamic_context,
+            &(sxml_evaluation_memo_key){.computation = &sxml_xslt_accumulator_functions,
+                                        .computation_number = ACCUMULATOR_SCOPE_NUMBER,
+                                        .subject = root},
+            &numbers)) {
+        return SXML_STATUS_OK;
+    }
+    uint64_t count = 0;
+    const sxml_status status = sxml_sequence_count(numbers, NULL, &count);
+    for (uint64_t item_index = 0; status == SXML_STATUS_OK && item_index < count;
+         item_index += 1) {
+        sxml_item item = {.representation = 0};
+        if (sxml_sequence_get_item(numbers,
+                                   (sxml_item_request){.item_index = item_index,
+                                                       .error_record = NULL},
+                                   &item) == SXML_STATUS_OK &&
+            read_number(item) == number) {
+            return SXML_STATUS_OK;
+        }
+    }
+    return sxml_function_library_report(call, &accumulator_applicability_error);
+}
+
+static sxml_status step_accumulator_values(const sxml_native_step_request *request,
+                                           sxml_native_step *step) {
+    accumulator_values_state *state = request->state;
+    const sxml_function_call *call = request->call;
+    if (call->dynamic_context == NULL) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    const sxml_item root = sxml_function_library_get_argument(call, 1).content;
+    const uint64_t number = read_number(sxml_function_library_get_argument(call, 0).content);
+    const sxml_evaluation_memo_key key = {.computation = &sxml_xslt_accumulator_functions,
+                                          .computation_number = number,
+                                          .subject = root};
+    if (request->step_number == 0) {
+        sxml_status status = check_applicable(call, root, number);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        sxml_sequence values = sxml_sequence_empty();
+        if (sxml_dynamic_context_find_memo(call->dynamic_context, &key, &values)) {
+            sxml_item item = {.representation = 0};
+            if (sxml_sequence_get_item(values,
+                                       (sxml_item_request){.item_index = 0, .error_record = NULL},
+                                       &item) != SXML_STATUS_OK) {
+                return sxml_function_library_report(call, &accumulator_cycle_error);
+            }
+            if (sxml_item_get_kind(item) == SXML_ITEM_KIND_MAP) {
+                sxml_sequence_retain(values);
+                *step = (sxml_native_step){.step_kind = SXML_NATIVE_STEP_KIND_FINISH,
+                                           .result = values};
+                return SXML_STATUS_OK;
+            }
+        }
+        status = sxml_dynamic_context_store_memo(
+            call->dynamic_context,
+            &(sxml_evaluation_memo_entry){.key = key, .value = sxml_sequence_empty()});
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        state->dynamic_context = call->dynamic_context;
+        state->key = key;
+        state->is_building = true;
+        state->call_argument = sxml_function_library_get_argument(call, 1);
+        sxml_sequence_retain(state->call_argument);
+        *step = (sxml_native_step){
+            .step_kind = SXML_NATIVE_STEP_KIND_CALL,
+            .result = sxml_sequence_empty(),
+            .function_item = sxml_function_library_get_argument(call, 2).content,
+            .arguments = {.sequences = &state->call_argument, .sequence_count = 1}};
+        return SXML_STATUS_OK;
+    }
+    state->is_building = false;
+    const sxml_sequence values = request->call_result;
+    const sxml_status status = sxml_dynamic_context_store_memo(
+        call->dynamic_context, &(sxml_evaluation_memo_entry){.key = key, .value = values});
+    if (status != SXML_STATUS_OK) {
+        sxml_sequence_release(values);
+        return status;
+    }
+    *step = (sxml_native_step){.step_kind = SXML_NATIVE_STEP_KIND_FINISH, .result = values};
+    return SXML_STATUS_OK;
+}
+
+static void release_accumulator_values_state(void *state) {
+    accumulator_values_state *values_state = state;
+    if (values_state->is_building) {
+        /* The entry exists, so replacing it allocates nothing and cannot
+           fail. */
+        const sxml_status status = sxml_dynamic_context_store_memo(
+            values_state->dynamic_context,
+            &(sxml_evaluation_memo_entry){
+                .key = values_state->key,
+                .value = sxml_function_library_make_boolean((sxml_boolean_result){.is_true = false})});
+        (void)status;
+        values_state->is_building = false;
+    }
+    sxml_sequence_release(values_state->call_argument);
+    values_state->call_argument = sxml_sequence_empty();
+}
+
+static const sxml_resumable_native_body accumulator_values_body = {
+    .step = step_accumulator_values,
+    .release_state = release_accumulator_values_state,
+    .state_byte_count = sizeof(accumulator_values_state),
+    .state_alignment = alignof(accumulator_values_state),
+};
+
+/* The computation number of the memo entries that link a copy to the node
+   it copies (19.10). */
+#define ACCUMULATOR_ORIGINAL_NUMBER UINT64_MAX
+
+/* accumulator-link($copies, $originals): records that each node of
+   $copies is a copy of the item at the same position of $originals, whose
+   accumulator values it has (XSLT 4.0, 19.10: fn:copy-of, xsl:copy-of
+   with copy-accumulators="yes"); returns $copies. */
+static sxml_status call_accumulator_link(const sxml_function_call *call, sxml_sequence *result) {
+    if (call->dynamic_context == NULL) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    const sxml_sequence copies = sxml_function_library_get_argument(call, 0);
+    const sxml_sequence originals = sxml_function_library_get_argument(call, 1);
+    uint64_t copy_count = 0;
+    uint64_t original_count = 0;
+    sxml_status status = sxml_sequence_count(copies, NULL, &copy_count);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_sequence_count(originals, NULL, &original_count);
+    }
+    for (uint64_t item_index = 0;
+         status == SXML_STATUS_OK && item_index < copy_count && item_index < original_count;
+         item_index += 1) {
+        const sxml_item_request request = {.item_index = item_index, .error_record = NULL};
+        sxml_item copy = {.representation = 0};
+        sxml_item original = {.representation = 0};
+        status = sxml_sequence_get_item(copies, request, &copy);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_sequence_get_item(originals, request, &original);
+        }
+        if (status == SXML_STATUS_OK && sxml_item_get_kind(copy) == SXML_ITEM_KIND_NODE &&
+            sxml_item_get_kind(original) == SXML_ITEM_KIND_NODE) {
+            status = sxml_dynamic_context_store_memo(
+                call->dynamic_context,
+                &(sxml_evaluation_memo_entry){
+                    .key = {.computation = &sxml_xslt_accumulator_functions,
+                            .computation_number = ACCUMULATOR_ORIGINAL_NUMBER,
+                            .subject = copy},
+                    .value = sxml_sequence_from_item(original)});
+        }
+    }
+    if (status == SXML_STATUS_OK) {
+        sxml_sequence_retain(copies);
+        *result = copies;
+    }
+    return status;
+}
+
+/* accumulator-original($node): the node $node is a copy of by
+   accumulator-link, or the empty sequence. */
+static sxml_status call_accumulator_original(const sxml_function_call *call,
+                                             sxml_sequence *result) {
+    if (call->dynamic_context == NULL) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    sxml_sequence original = sxml_sequence_empty();
+    if (sxml_dynamic_context_find_memo(
+            call->dynamic_context,
+            &(sxml_evaluation_memo_key){.computation = &sxml_xslt_accumulator_functions,
+                                        .computation_number = ACCUMULATOR_ORIGINAL_NUMBER,
+                                        .subject =
+                                            sxml_function_library_get_argument(call, 0).content},
+            &original)) {
+        sxml_sequence_retain(original);
+        *result = original;
+        return SXML_STATUS_OK;
+    }
+    *result = sxml_sequence_empty();
+    return SXML_STATUS_OK;
+}
+
+static const sxml_function_parameter accumulator_link_parameters[] = {
+    {.parameter_name = SXML_BYTE_VIEW_INITIALIZER("copies"),
+     .parameter_type = SXML_BYTE_VIEW_INITIALIZER("item()*"),
+     .parameter_default = SXML_PARAMETER_DEFAULT_REQUIRED},
+    {.parameter_name = SXML_BYTE_VIEW_INITIALIZER("originals"),
+     .parameter_type = SXML_BYTE_VIEW_INITIALIZER("item()*"),
+     .parameter_default = SXML_PARAMETER_DEFAULT_REQUIRED},
+};
+
+static const sxml_function_parameter accumulator_original_parameters[] = {
+    {.parameter_name = SXML_BYTE_VIEW_INITIALIZER("node"),
+     .parameter_type = SXML_BYTE_VIEW_INITIALIZER("node()"),
+     .parameter_default = SXML_PARAMETER_DEFAULT_REQUIRED},
+};
+
+static const sxml_function_parameter accumulator_name_parameters[] = {
+    {.parameter_name = SXML_BYTE_VIEW_INITIALIZER("name"),
+     .parameter_type = SXML_BYTE_VIEW_INITIALIZER("xs:anyAtomicType"),
+     .parameter_default = SXML_PARAMETER_DEFAULT_REQUIRED},
+};
+
+static const sxml_function_parameter accumulator_scope_parameters[] = {
+    {.parameter_name = SXML_BYTE_VIEW_INITIALIZER("root"),
+     .parameter_type = SXML_BYTE_VIEW_INITIALIZER("node()"),
+     .parameter_default = SXML_PARAMETER_DEFAULT_REQUIRED},
+    {.parameter_name = SXML_BYTE_VIEW_INITIALIZER("numbers"),
+     .parameter_type = SXML_BYTE_VIEW_INITIALIZER("xs:integer*"),
+     .parameter_default = SXML_PARAMETER_DEFAULT_REQUIRED},
+};
+
+static const sxml_function_parameter accumulator_values_parameters[] = {
+    {.parameter_name = SXML_BYTE_VIEW_INITIALIZER("number"),
+     .parameter_type = SXML_BYTE_VIEW_INITIALIZER("xs:integer"),
+     .parameter_default = SXML_PARAMETER_DEFAULT_REQUIRED},
+    {.parameter_name = SXML_BYTE_VIEW_INITIALIZER("root"),
+     .parameter_type = SXML_BYTE_VIEW_INITIALIZER("node()"),
+     .parameter_default = SXML_PARAMETER_DEFAULT_REQUIRED},
+    {.parameter_name = SXML_BYTE_VIEW_INITIALIZER("build"),
+     .parameter_type = SXML_BYTE_VIEW_INITIALIZER("fn(node()) as map(*)"),
+     .parameter_default = SXML_PARAMETER_DEFAULT_REQUIRED},
+};
+
+/* In no namespace: only the texts of src/xslt_accumulator.c name them,
+   through a table no stylesheet expression sees. */
+static const sxml_native_function accumulator_functions[] = {
+    {.function_namespace = SXML_NAMESPACE_NONE,
+     .properties = SXML_NATIVE_FUNCTION_USES_DYNAMIC_CONTEXT,
+     .local_name = SXML_BYTE_VIEW_INITIALIZER("accumulator-name"),
+     .parameters = {accumulator_name_parameters, 1},
+     .result_type = SXML_BYTE_VIEW_INITIALIZER("xs:QName"),
+     .call = call_accumulator_name,
+     .resumable_body = NULL},
+    {.function_namespace = SXML_NAMESPACE_NONE,
+     .properties = SXML_NATIVE_FUNCTION_USES_DYNAMIC_CONTEXT,
+     .local_name = SXML_BYTE_VIEW_INITIALIZER("accumulator-scope"),
+     .parameters = {accumulator_scope_parameters, 2},
+     .result_type = SXML_BYTE_VIEW_INITIALIZER("empty-sequence()"),
+     .call = call_accumulator_scope,
+     .resumable_body = NULL},
+    {.function_namespace = SXML_NAMESPACE_NONE,
+     .properties =
+         SXML_NATIVE_FUNCTION_USES_DYNAMIC_CONTEXT | SXML_NATIVE_FUNCTION_CALLS_FUNCTION_ITEMS,
+     .local_name = SXML_BYTE_VIEW_INITIALIZER("accumulator-values"),
+     .parameters = {accumulator_values_parameters, 3},
+     .result_type = SXML_BYTE_VIEW_INITIALIZER("map(*)"),
+     .call = NULL,
+     .resumable_body = &accumulator_values_body},
+    {.function_namespace = SXML_NAMESPACE_NONE,
+     .properties = SXML_NATIVE_FUNCTION_USES_DYNAMIC_CONTEXT,
+     .local_name = SXML_BYTE_VIEW_INITIALIZER("accumulator-link"),
+     .parameters = {accumulator_link_parameters, 2},
+     .result_type = SXML_BYTE_VIEW_INITIALIZER("item()*"),
+     .call = call_accumulator_link,
+     .resumable_body = NULL},
+    {.function_namespace = SXML_NAMESPACE_NONE,
+     .properties = SXML_NATIVE_FUNCTION_USES_DYNAMIC_CONTEXT,
+     .local_name = SXML_BYTE_VIEW_INITIALIZER("accumulator-original"),
+     .parameters = {accumulator_original_parameters, 1},
+     .result_type = SXML_BYTE_VIEW_INITIALIZER("node()?"),
+     .call = call_accumulator_original,
+     .resumable_body = NULL},
+};
+
+const sxml_native_function_view sxml_xslt_accumulator_functions =
+    SXML_LIBRARY_PART(accumulator_functions);

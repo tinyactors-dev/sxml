@@ -54,6 +54,7 @@
 #include "sxml/types.h"
 #include "sxml/xdm.h"
 #include "xpath_ast_internal.h"
+#include "xslt_accumulator_internal.h"
 #include "xslt_pattern_internal.h"
 
 #include <stdalign.h>
@@ -980,6 +981,9 @@ typedef struct snippet_function {
     const snippet_variable *variables;
     /* At least the function's parameter count. */
     size_t variable_count;
+    /* The value's nodes are copies of the items of the first parameter
+       that keep their accumulator values (fn:snapshot, XSLT 4.0, 19.10). */
+    bool links_copies;
 } snippet_function;
 
 static sxml_status lower_snippet_function(sxml_xslt_function_table *table,
@@ -1021,6 +1025,36 @@ static sxml_status lower_snippet_function(sxml_xslt_function_table *table,
                                              .static_context = &table->snippet_context,
                                              .focus = NULL},
             &body);
+    }
+    if (status == SXML_STATUS_OK && request.links_copies &&
+        sxml_xslt_has_accumulators(table->lowering)) {
+        sxml_xpath_lowering_block block = {.first = {0}, .open_let = {0}};
+        sxml_ir_atom copies = {0};
+        status = sxml_xpath_lowerer_bind_expression(
+            lowerer, (sxml_xpath_lowering_expression_in_block){.block = &block, .expression = body},
+            &copies);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xslt_bind_accumulator_link(
+                lowerer,
+                (sxml_xslt_accumulator_link_request){
+                    .block = &block, .copies = copies, .originals = slot_atom(1)},
+                &copies);
+        }
+        sxml_ir_expression_index result = {0};
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xpath_lowerer_add_expression(
+                lowerer,
+                (sxml_xpath_lowering_expression_to_add){
+                    .node = no_ast_node,
+                    .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_ATOM,
+                                   .atom = copies}},
+                &result);
+        }
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xpath_lowerer_finish_block(
+                lowerer, (sxml_xpath_lowering_block_result){.block = block, .result = result},
+                &body);
+        }
     }
     sxml_xpath_lowerer_leave_function(lowerer, &frame);
     if (status != SXML_STATUS_OK) {
@@ -1396,6 +1430,15 @@ static sxml_status lower_copy_of(sxml_xslt_function_table *table) {
                                  .value = slot_atom(1),
                                  .construction_flags = (uint32_t)SXML_IR_CONSTRUCTION_XSLT_RULES},
         &copies);
+    if (status == SXML_STATUS_OK && sxml_xslt_has_accumulators(table->lowering)) {
+        /* XSLT 4.0, 19.10: the copies keep the accumulator values (packet
+           4.14). */
+        status = sxml_xslt_bind_accumulator_link(
+            lowerer,
+            (sxml_xslt_accumulator_link_request){
+                .block = &block, .copies = copies, .originals = slot_atom(1)},
+            &copies);
+    }
     sxml_ir_expression_index result = {0};
     if (status == SXML_STATUS_OK) {
         status = sxml_xpath_lowerer_add_expression(
@@ -1443,7 +1486,8 @@ static sxml_status lower_snapshot(sxml_xslt_function_table *table) {
                                   .text = {.bytes = (const uint8_t *)snapshot_text,
                                            .byte_count = sizeof(snapshot_text) - 1},
                                   .variables = input_variables,
-                                  .variable_count = 1});
+                                  .variable_count = 1,
+                                  .links_copies = true});
 }
 
 sxml_status sxml_xslt_lower_functions(sxml_xslt_function_table *table) {

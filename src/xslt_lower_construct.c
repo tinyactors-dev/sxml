@@ -35,6 +35,7 @@
 #include "sxml/types.h"
 #include "sxml/xdm.h"
 #include "xml_internal.h"
+#include "xslt_accumulator_internal.h"
 
 #include <stdalign.h>
 #include <stdbool.h>
@@ -1619,12 +1620,25 @@ static sxml_status continue_copy_of(sxml_xpath_lowering_machine *machine,
                            &source);
     }
     sxml_ir_atom copies = {0};
-    const sxml_status status =
+    sxml_status status =
         bind_copy_of(machine->state,
                      (copy_of_request){.block = frame->block,
                                        .value = locals->value,
                                        .flags = copy_flags_of(lowering, locals->head.node)},
                      &copies);
+    const sxml_xslt_ast_attribute *copy_accumulators = find_attribute(
+        lowering, (attribute_lookup){.node = locals->head.node,
+                                     .kind = SXML_XSLT_AST_ATTRIBUTE_COPY_ACCUMULATORS});
+    if (status == SXML_STATUS_OK && sxml_xslt_has_accumulators(lowering) &&
+        copy_accumulators->value.kind == SXML_XSLT_AST_VALUE_KIND_BOOLEAN &&
+        copy_accumulators->value.payload.is_true) {
+        /* 19.10: the copies keep the accumulator values (packet 4.14). */
+        status = sxml_xslt_bind_accumulator_link(
+            machine->state,
+            (sxml_xslt_accumulator_link_request){
+                .block = frame->block, .copies = copies, .originals = locals->value},
+            &copies);
+    }
     if (status != SXML_STATUS_OK) {
         return status;
     }
