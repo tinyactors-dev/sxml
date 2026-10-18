@@ -757,7 +757,8 @@ static sxml_status sxml_transformation_prime_context(sxml_transformation *transf
 
 /* The name Q{urn:x-sxml:invocation}local_name of a global the unit reads
    its run-time invocation values from (src/xslt_lower_internal.h). */
-static sxml_status sxml_invocation_global_name(sxml_processor *processor, const char *local_name,
+static sxml_status sxml_invocation_global_name(sxml_processor *processor,
+                                               sxml_byte_view local_name,
                                                sxml_name_identifier *name) {
     sxml_name_pool *name_pool = sxml_item_heap_get_name_pool(processor->item_heap);
     sxml_namespace_uri_identifier namespace_uri = {.index = 0};
@@ -767,7 +768,7 @@ static sxml_status sxml_invocation_global_name(sxml_processor *processor, const 
         status = sxml_name_pool_intern_name(
             name_pool,
             &(sxml_name_request){.namespace_uri = namespace_uri,
-                                 .local_name = sxml_byte_view_from_c_string(local_name)},
+                                 .local_name = local_name},
             name);
     }
     return status;
@@ -846,7 +847,7 @@ sxml_transformation_bind_invocation_values(sxml_transformation *transformation) 
     const sxml_xslt_transformation_request *request = transformation->request;
     sxml_processor *processor = transformation->stylesheet->processor;
     sxml_sequence values[SXML_INVOCATION_VALUE_COUNT];
-    const char *local_names[SXML_INVOCATION_VALUE_COUNT];
+    sxml_byte_view local_names[SXML_INVOCATION_VALUE_COUNT];
     size_t value_count = 0;
     sxml_status status = SXML_STATUS_OK;
     if (request->invocation_kind == SXML_XSLT_INVOCATION_KIND_CALL_FUNCTION) {
@@ -854,26 +855,30 @@ sxml_transformation_bind_invocation_values(sxml_transformation *transformation) 
         status = sxml_array_make(processor->item_heap, request->function_arguments, &arguments);
         if (status == SXML_STATUS_OK) {
             values[value_count] = sxml_sequence_from_item(arguments);
-            local_names[value_count] = SXML_XSLT_INVOCATION_FUNCTION_ARGUMENTS;
+            local_names[value_count] =
+                SXML_BYTE_VIEW_FROM_LITERAL(SXML_XSLT_INVOCATION_FUNCTION_ARGUMENTS);
             value_count += 1;
         }
     } else {
         status = sxml_parameter_map_make(processor, request->template_parameters,
                                          &values[value_count]);
         if (status == SXML_STATUS_OK) {
-            local_names[value_count] = SXML_XSLT_INVOCATION_TEMPLATE_PARAMETERS;
+            local_names[value_count] =
+                SXML_BYTE_VIEW_FROM_LITERAL(SXML_XSLT_INVOCATION_TEMPLATE_PARAMETERS);
             value_count += 1;
             status = sxml_parameter_map_make(processor, request->tunnel_parameters,
                                              &values[value_count]);
         }
         if (status == SXML_STATUS_OK) {
-            local_names[value_count] = SXML_XSLT_INVOCATION_TUNNEL_PARAMETERS;
+            local_names[value_count] =
+                SXML_BYTE_VIEW_FROM_LITERAL(SXML_XSLT_INVOCATION_TUNNEL_PARAMETERS);
             value_count += 1;
         }
         if (status == SXML_STATUS_OK && request->has_initial_match_selection) {
             sxml_sequence_retain(request->initial_match_selection);
             values[value_count] = request->initial_match_selection;
-            local_names[value_count] = SXML_XSLT_INVOCATION_INITIAL_MATCH_SELECTION;
+            local_names[value_count] =
+                SXML_BYTE_VIEW_FROM_LITERAL(SXML_XSLT_INVOCATION_INITIAL_MATCH_SELECTION);
             value_count += 1;
         }
     }

@@ -386,7 +386,7 @@ sxml_xslt_test_expected_text(const sxml_xslt_test_check_request *request,
 }
 
 /* Evaluates sxml_xslt_test_serialization_check with $result and
-   $expected bound to two strings. */
+   $expected bound to two strings: the verdict passes when it is true. */
 typedef struct sxml_xslt_test_comparison {
     sxml_sequence result;
     sxml_sequence expected;
@@ -395,7 +395,7 @@ typedef struct sxml_xslt_test_comparison {
 static sxml_status
 sxml_xslt_test_compare_serialization(const sxml_xslt_test_check_request *request,
                                      sxml_xslt_test_comparison comparison,
-                                     bool *is_equal) {
+                                     sxml_qt4_assertion_verdict *verdict) {
     const sxml_qt4_assertion_request *base = &request->base;
     sxml_name_pool *name_pool = sxml_processor_get_name_pool(base->processor);
     sxml_name_identifier names[2] = {{.index = 0}, {.index = 0}};
@@ -452,7 +452,7 @@ sxml_xslt_test_compare_serialization(const sxml_xslt_test_check_request *request
             &value);
     }
     sxml_xpath_expression_destroy(expression);
-    *is_equal = false;
+    bool is_equal = false;
     if (status == SXML_STATUS_OK) {
         sxml_item item = {.representation = 0};
         sxml_atomic_datum datum;
@@ -463,10 +463,17 @@ sxml_xslt_test_compare_serialization(const sxml_xslt_test_check_request *request
                                    &item) == SXML_STATUS_OK &&
             sxml_atomic_item_get_datum(item, &datum) == SXML_STATUS_OK &&
             datum.datum_kind == SXML_DATUM_KIND_BOOLEAN) {
-            *is_equal = datum.datum_details.boolean;
+            is_equal = datum.datum_details.boolean;
         }
         sxml_sequence_release(value);
     }
+    *verdict = is_equal
+                   ? sxml_xslt_test_verdict(SXML_QT4_VERDICT_PASS,
+                                            sxml_xslt_test_empty_text)
+                   : sxml_xslt_test_verdict(
+                         SXML_QT4_VERDICT_FAIL,
+                         SXML_TEXT("assert-serialization: the "
+                                   "serialization differs"));
     sxml_item_heap_clear_raised_error(
         sxml_processor_get_item_heap(base->processor));
     /* An error of the comparison itself is a difference. */
@@ -523,25 +530,15 @@ sxml_xslt_test_check_serialized(const sxml_xslt_test_check_request *request,
     if (status == SXML_STATUS_OK) {
         status = sxml_xslt_test_make_string(processor, expected_text, &expected);
     }
-    bool is_equal = false;
     if (status == SXML_STATUS_OK) {
         status = sxml_xslt_test_compare_serialization(
             request,
             (sxml_xslt_test_comparison){.result = serialized,
                                         .expected = expected},
-            &is_equal);
+            verdict);
         sxml_sequence_release(expected);
     }
     sxml_sequence_release(serialized);
-    if (status == SXML_STATUS_OK) {
-        *verdict = is_equal
-                       ? sxml_xslt_test_verdict(SXML_QT4_VERDICT_PASS,
-                                                sxml_xslt_test_empty_text)
-                       : sxml_xslt_test_verdict(
-                             SXML_QT4_VERDICT_FAIL,
-                             SXML_TEXT("assert-serialization: the "
-                                       "serialization differs"));
-    }
     return status;
 }
 

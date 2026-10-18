@@ -4452,21 +4452,22 @@ static role_decision decide_role(const stylesheet_reader *reader, const role_req
         return is_forwards_compatible ? ignored : misplaced;
     case SXML_CHILD_CONTEXT_SEQUENCE_CONSTRUCTOR:
     case SXML_CHILD_CONTEXT_RULE: {
-        if (parent->child_context == SXML_CHILD_CONTEXT_RULE && facts->is_xslt && rule != NULL &&
-            rule_lists_child(parent->rule, rule->kind)) {
+        /* The rule of a RULE frame (which always has its element's rule);
+           NULL for a sequence constructor frame. */
+        const element_rule *parent_rule =
+            parent->child_context == SXML_CHILD_CONTEXT_RULE ? parent->rule : NULL;
+        if (parent->child_context == SXML_CHILD_CONTEXT_RULE && parent_rule == NULL) {
+            return misplaced;
+        }
+        if (parent_rule != NULL && facts->is_xslt && rule != NULL &&
+            rule_lists_child(parent_rule, rule->kind)) {
             return (role_decision){.role = SXML_ELEMENT_ROLE_XSLT, .error_code = NULL,
                                    .description = NULL};
         }
-        /* A RULE frame always has its element's rule. */
-        if (parent->child_context == SXML_CHILD_CONTEXT_RULE && parent->rule == NULL) {
-            return misplaced;
-        }
-        const bool has_sequence_constructor =
-            parent->child_context == SXML_CHILD_CONTEXT_SEQUENCE_CONSTRUCTOR ||
-            parent->rule->content_model == SXML_CONTENT_MODEL_CHILDREN_THEN_SEQUENCE_CONSTRUCTOR ||
-            parent->rule->content_model == SXML_CONTENT_MODEL_SEQUENCE_CONSTRUCTOR_THEN_CHILDREN;
-        if (!has_sequence_constructor) {
-            if (parent->rule->content_model == SXML_CONTENT_MODEL_EMPTY) {
+        if (parent_rule != NULL &&
+            parent_rule->content_model != SXML_CONTENT_MODEL_CHILDREN_THEN_SEQUENCE_CONSTRUCTOR &&
+            parent_rule->content_model != SXML_CONTENT_MODEL_SEQUENCE_CONSTRUCTOR_THEN_CHILDREN) {
+            if (parent_rule->content_model == SXML_CONTENT_MODEL_EMPTY) {
                 return (role_decision){.role = SXML_ELEMENT_ROLE_IGNORED,
                                        .error_code = "XTSE0260",
                                        .description = "An XSLT element that must be empty has "
