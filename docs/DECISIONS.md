@@ -6787,6 +6787,9 @@ Recorded 2026-10-18. IDENTITY_CONSTRAINTS and the identity seam of D167
   gate groups 100 %, 99.5 %, 98.9 %;
   slice 147 of 147. No shared code changed: XP40, XQ40 and XT40 hold.
 
+### D178. XSD and schema-aware conformance sweep 1 (packet 5.13)
+Reserved 2026-10-18; the record follows when the sweep lands.
+
 ## Proposed
 
 - **The CLI's WebAssembly budget after sxml validate** (packet 5.10,

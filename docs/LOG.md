@@ -4,6 +4,11 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 5.13 sweep 1 claimed (D178): owns tests/qt4/driver/test_run.c (the D174
+  outcome rules), src/schema_*.c except schema_scope.c, src/types.c (the
+  Proposed simple base), apps/sxml/command_validate.c, the validate CLI
+  goldens, docs/CLI.md's validate section and docs/CONFORMANCE.md.
+
 - 5.11 done (D174): schema-aware XPath and XQuery. xpath.h gained
   `in_scope_schemas` (the in-scope schema definitions, carried into the
   unit's IR static context); `src/schema_scope.c` looks types,
