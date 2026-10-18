@@ -213,3 +213,12 @@ SXML_NODISCARD sxml_status sxml_xslt_test_catalog_read_test_case(
 SXML_NODISCARD sxml_status sxml_xslt_test_catalog_read_file(
     sxml_xslt_test_catalog *catalog, const sxml_qt4_file_request *request,
     sxml_byte_view *contents);
+
+/*
+ * A QT4 catalog over the same suite files, never loaded: the file reader
+ * of the QT4 resource table (resource_table.h) and assertions
+ * (assertion.h) when they run XSLT test cases. NULL before a successful
+ * sxml_xslt_test_catalog_load; owned by the catalog.
+ */
+sxml_qt4_catalog *
+sxml_xslt_test_catalog_get_file_catalog(const sxml_xslt_test_catalog *catalog);

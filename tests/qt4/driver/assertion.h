@@ -127,5 +127,18 @@ SXML_NODISCARD sxml_status
 sxml_qt4_check_assertion(const sxml_qt4_assertion_request *request,
                          sxml_qt4_assertion_verdict *verdict);
 
+/*
+ * Checks one assertion element, request->result_element itself (a leaf or
+ * a combination, whose local name is element_name), as
+ * sxml_qt4_check_assertion checks the children of a <result>. For drivers
+ * that walk assertions of their own around the QT4 ones (the XSLT 4.0
+ * driver's assert-message and assert-result-document, D157). Returns the
+ * failures sxml_qt4_check_assertion returns.
+ */
+SXML_NODISCARD sxml_status
+sxml_qt4_check_assertion_element(const sxml_qt4_assertion_request *request,
+                                 sxml_byte_view element_name,
+                                 sxml_qt4_assertion_verdict *verdict);
+
 /* The deepest nesting of all-of, any-of and not. */
 enum { SXML_QT4_MAXIMUM_ASSERTION_DEPTH = 32 };

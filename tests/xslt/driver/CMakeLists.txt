@@ -112,9 +112,10 @@ sxml_add_xslt_test(list_missing_catalog EXIT_CODE 3
 sxml_add_xslt_test(list_both_selections EXIT_CODE 2
     ARGUMENTS list --catalog=catalog.xml --test-set=set-basic list.txt)
 sxml_add_xslt_test(list_help EXIT_CODE 0 ARGUMENTS list --help)
-sxml_add_xslt_test(run_test_set EXIT_CODE 0
+# The runs (packet 4.15) end in a fail each, hence exit code 1.
+sxml_add_xslt_test(run_test_set EXIT_CODE 1
     ARGUMENTS run --catalog=catalog.xml --test-set=set-basic)
-sxml_add_xslt_test(run_json EXIT_CODE 0
+sxml_add_xslt_test(run_json EXIT_CODE 1
     ARGUMENTS run --catalog=catalog.xml --format=json --test-set=set-dependencies)
 sxml_add_xslt_test(run_problems EXIT_CODE 1
     ARGUMENTS run --catalog=catalog.xml --test-set=set-problems)

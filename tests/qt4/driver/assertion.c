@@ -1422,8 +1422,72 @@ static sxml_status sxml_qt4_push_frame(sxml_qt4_assertion_state *state,
     return status;
 }
 
+/* Where the walk starts: at the children of request->result_element, or
+   at that element itself. */
+typedef struct sxml_qt4_assertion_start {
+    sxml_qt4_assertion_verdict *verdict;
+    /* Of the frame over the children of request->result_element: ALL_OF
+       for a <result>, or the combination the element is. */
+    sxml_qt4_combination combination;
+} sxml_qt4_assertion_start;
+
+static sxml_status
+sxml_qt4_check_from(const sxml_qt4_assertion_request *request,
+                    sxml_qt4_assertion_start start);
+
 sxml_status sxml_qt4_check_assertion(const sxml_qt4_assertion_request *request,
                                      sxml_qt4_assertion_verdict *verdict) {
+    return sxml_qt4_check_from(
+        request,
+        (sxml_qt4_assertion_start){.verdict = verdict,
+                                   .combination = SXML_QT4_COMBINATION_ALL_OF});
+}
+
+sxml_status
+sxml_qt4_check_assertion_element(const sxml_qt4_assertion_request *request,
+                                 sxml_byte_view element_name,
+                                 sxml_qt4_assertion_verdict *verdict) {
+    sxml_qt4_combination combination = SXML_QT4_COMBINATION_ALL_OF;
+    if (sxml_qt4_find_combination(element_name, &combination)) {
+        return sxml_qt4_check_from(
+            request, (sxml_qt4_assertion_start){.verdict = verdict,
+                                                .combination = combination});
+    }
+    /* A leaf: the walk of a <result> holding only it. */
+    sxml_qt4_assertion_state state = {
+        .request = request,
+        .item_heap = sxml_processor_get_item_heap(request->processor),
+        .result_name = {.index = 0},
+        .expected_name = {.index = 0}};
+    memset(&state.error_record, 0, sizeof state.error_record);
+    sxml_name_pool *name_pool = sxml_processor_get_name_pool(request->processor);
+    sxml_status status = sxml_name_pool_intern_name(
+        name_pool,
+        &(sxml_name_request){.namespace_uri = {.index = 0},
+                             .local_name = SXML_TEXT("result")},
+        &state.result_name);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_name_pool_intern_name(
+            name_pool,
+            &(sxml_name_request){.namespace_uri = {.index = 0},
+                                 .local_name = SXML_TEXT("expected")},
+            &state.expected_name);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_qt4_check_leaf(
+            &state,
+            &(sxml_qt4_leaf){.element = request->result_element,
+                             .name = element_name},
+            verdict);
+    }
+    sxml_item_heap_clear_raised_error(state.item_heap);
+    return status;
+}
+
+static sxml_status
+sxml_qt4_check_from(const sxml_qt4_assertion_request *request,
+                    sxml_qt4_assertion_start start) {
+    sxml_qt4_assertion_verdict *verdict = start.verdict;
     sxml_qt4_assertion_state state = {
         .request = request,
         .item_heap = sxml_processor_get_item_heap(request->processor),
@@ -1448,7 +1512,7 @@ sxml_status sxml_qt4_check_assertion(const sxml_qt4_assertion_request *request,
     if (status == SXML_STATUS_OK) {
         status = sxml_qt4_push_frame(
             &state, &stack,
-            (sxml_qt4_frame_push){.combination = SXML_QT4_COMBINATION_ALL_OF,
+            (sxml_qt4_frame_push){.combination = start.combination,
                                   .element = request->result_element});
     }
     while (status == SXML_STATUS_OK) {

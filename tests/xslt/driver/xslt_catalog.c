@@ -65,6 +65,10 @@ struct sxml_xslt_test_catalog {
     sxml_xslt_test_named_environment_view local_environments;
     sxml_qt4_dependency_view test_set_dependencies;
     sxml_xslt_test_node_list test_cases;
+    /* A QT4 catalog that is never loaded, over the same files: what the
+       QT4 resource table and assertions read suite files through (made by
+       load). */
+    sxml_qt4_catalog *file_catalog;
 };
 
 /* ------------------------------------------------------------ Lifecycle */
@@ -154,6 +158,8 @@ void sxml_xslt_test_catalog_finalize(sxml_xslt_test_catalog *catalog) {
     sxml_item_heap_destroy(catalog->item_heap);
     sxml_type_registry_destroy(catalog->type_registry);
     sxml_name_pool_destroy(catalog->name_pool);
+    sxml_qt4_catalog_destroy(catalog->file_catalog);
+    catalog->file_catalog = NULL;
     catalog->test_set_arena = NULL;
     catalog->catalog_arena = NULL;
     catalog->xml_parser = NULL;
@@ -515,6 +521,11 @@ sxml_status sxml_xslt_test_catalog_load(sxml_xslt_test_catalog *catalog,
     }
     catalog->has_started_loading = true;
     sxml_status status = sxml_xslt_test_create_parts(catalog);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_qt4_catalog_create(catalog->configuration.allocator,
+                                         &catalog->configuration,
+                                         &catalog->file_catalog);
+    }
     if (status == SXML_STATUS_OK) {
         const sxml_qt4_document_reader reader =
             sxml_xslt_test_reader_of(catalog);
@@ -1076,4 +1087,9 @@ sxml_status sxml_xslt_test_catalog_read_file(
             contents);
     }
     return status;
+}
+
+sxml_qt4_catalog *
+sxml_xslt_test_catalog_get_file_catalog(const sxml_xslt_test_catalog *catalog) {
+    return catalog->file_catalog;
 }

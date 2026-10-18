@@ -3,9 +3,11 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#include "assertion.h"
 #include "document.h"
 #include "sxml/status.h"
 #include "sxml/view.h"
+#include "sxml/xslt.h"
 
 /*
  * The result assertions of XSLT 4.0 test cases (glossary:
@@ -108,3 +110,41 @@ typedef struct sxml_xslt_test_assertion_request {
 SXML_NODISCARD sxml_status
 sxml_xslt_test_survey_assertions(const sxml_xslt_test_assertion_request *request,
                                  sxml_xslt_test_assertion_survey *survey);
+
+/* ------------------------------------------------------------- Checking */
+
+/*
+ * What a transformation gave, for its assertions (D157): the principal
+ * result (or the raised error) in base.evaluation, the serialized bytes
+ * when it was serialized, the xsl:message values and the result documents.
+ * base is the QT4 assertion request whose result_element is the <result>;
+ * its document, catalog, static context and arena serve every check.
+ * Borrowed for the call.
+ */
+typedef struct sxml_xslt_test_check_request {
+    sxml_qt4_assertion_request base;
+    /* The serialized principal result; meaningful when is_serialized. */
+    sxml_byte_view serialized_bytes;
+    bool is_serialized;
+    /* Each message an xsl:message or failed xsl:assert sent. */
+    sxml_sequence_view messages;
+    /* The result documents; NULL when there are none to look at. */
+    const sxml_xslt_result_document_collector *collector;
+    /* What assert-result-document's uri= is resolved against. */
+    sxml_byte_view base_output_uri;
+} sxml_xslt_test_check_request;
+
+/*
+ * Checks the assertions under request->base.result_element, with the
+ * semantics described at the top of this header, and writes the verdict
+ * to *verdict. all-of, any-of and not are walked with an explicit stack
+ * (D71); every other assertion is checked by the QT4 driver
+ * (sxml_qt4_check_assertion_element), against the principal result, one
+ * message (assert-message: the best verdict over the messages), one result
+ * document (assert-result-document) or, for serialization-matches and
+ * assert-serialization on a serialized result, its bytes as an xs:string.
+ * Returns the failures sxml_qt4_check_assertion returns.
+ */
+SXML_NODISCARD sxml_status
+sxml_xslt_test_check_assertions(const sxml_xslt_test_check_request *request,
+                                sxml_qt4_assertion_verdict *verdict);

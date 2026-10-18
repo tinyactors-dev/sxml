@@ -56,9 +56,14 @@ sxml_qt4_report_start(const sxml_qt4_report_configuration *configuration,
                                            .in_scope_passed_count = 0},
                                 .added_count = 0};
     if (report->format == SXML_QT4_REPORT_FORMAT_JSON) {
+        /* "report": "PROGRAM run" (D157: the XSLT driver's runs). */
+        sxml_cli_writer_write(report->output, SXML_TEXT("{\"report\": \""));
         sxml_cli_writer_write(report->output,
-                              SXML_TEXT("{\"report\": \"sxml-qt4 run\", "
-                                        "\"version\": 1, \"spec\": "));
+                              configuration->program_name.byte_count > 0
+                                  ? configuration->program_name
+                                  : SXML_TEXT("sxml-qt4"));
+        sxml_cli_writer_write(report->output,
+                              SXML_TEXT(" run\", \"version\": 1, \"spec\": "));
         sxml_cli_writer_write_json_string(report->output, configuration->spec);
         sxml_cli_writer_write(report->output, SXML_TEXT(",\n\"tests\": ["));
     }

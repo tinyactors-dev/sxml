@@ -5,9 +5,8 @@
  * Runs every selected XSLT 4.0 test case (xslt_test_run.h) and writes the
  * QT4 driver's run report (report.h, spec "XSLT40") to standard output.
  * Imitates tests/qt4/driver/command_run.c; the selection is
- * xslt_selection.h's. Until include/sxml/xslt.h is implemented (packet
- * 4.15) every applicable test case is "not run" with the reason "XSLT not
- * implemented".
+ * xslt_selection.h's. Each applicable test case is executed through
+ * include/sxml/xslt.h (xslt_execution.h, packet 4.15).
  *
  * Exit code: 3 when a file cannot be read, else 4 when the driver failed
  * (out of memory), else 1 after a problem or when a test case failed or
@@ -212,6 +211,7 @@ static void sxml_xslt_test_run_catalog(sxml_xslt_test_selection *selection,
                 .test_set_count =
                     sxml_xslt_test_catalog_test_set_count(selection->catalog),
                 .spec = SXML_TEXT("XSLT40"),
+                .program_name = SXML_TEXT("sxml-xslt-test"),
                 .allocator = invocation->allocator},
             &run->report);
     }
@@ -302,9 +302,9 @@ const sxml_cli_command sxml_xslt_test_run_command = {
         "Plans each selected test case's transformation (principal\n"
         "stylesheet or package, secondary modules, static and stylesheet\n"
         "parameters, global context item, invocation, delivery) and checks\n"
-        "that its assertions are known, then reports it: until sxml\n"
-        "implements XSLT every applicable test case is \"not run\" with the\n"
-        "reason \"XSLT not implemented\". Writes each test case that failed\n"
+        "that its assertions are known, runs it through sxml's XSLT API in\n"
+        "a processor of its own and checks its assertions. Writes each test\n"
+        "case that failed\n"
         "or ended in error, counts per test set and a \"total:\" line;\n"
         "--format=json writes every test case and how many are in the D95\n"
         "scope. The selection is the test cases of TEST-LIST, those of the\n"

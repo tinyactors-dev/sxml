@@ -6,6 +6,7 @@
 
 #include "reason.h"
 #include "xslt_applicability.h"
+#include "xslt_execution.h"
 
 #define SXML_TEXT(literal) SXML_BYTE_VIEW_FROM_LITERAL(literal)
 
@@ -236,11 +237,20 @@ sxml_xslt_test_judge_applicable(const sxml_xslt_test_run_request *request,
         sxml_xslt_test_append_problem(judgement->reason, &problem);
         return;
     }
-    /* include/sxml/xslt.h has no implementation before packet 4.15; the
-       plan is complete, and running it is that packet's (D117). */
-    judgement->outcome = SXML_QT4_TEST_OUTCOME_NOT_RUN;
-    sxml_qt4_reason_append(judgement->reason,
-                           SXML_TEXT("XSLT not implemented"));
+    if (plan.principal_kind == SXML_XSLT_TEST_PRINCIPAL_KIND_EMBEDDED) {
+        /* The xml-stylesheet processing instruction is not followed. */
+        judgement->outcome = SXML_QT4_TEST_OUTCOME_NOT_RUN;
+        sxml_qt4_reason_append(judgement->reason,
+                               SXML_TEXT("unsupported: embedded stylesheet"));
+        return;
+    }
+    sxml_xslt_test_answer answer = {.outcome = SXML_QT4_TEST_OUTCOME_FAIL,
+                                    .reason = judgement->reason};
+    sxml_xslt_test_execute(
+        &(sxml_xslt_test_execution_request){
+            .run = request, .plan = &plan, .survey = &survey},
+        &answer);
+    judgement->outcome = answer.outcome;
 }
 
 sxml_status

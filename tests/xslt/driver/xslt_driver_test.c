@@ -74,6 +74,13 @@ static const memory_file suite_files[] = {
          "<test-set name='broken' file='tests/misc/broken.xml'/>"
          "<!--<test-set name='hidden' file='x.xml'/>-->"
          "</catalog>")},
+    /* a-1 runs it (packet 4.15): the initial template makes /out. */
+    {SXML_BYTE_VIEW_INITIALIZER("suite/tests/insn/a/shared.xsl"),
+     SXML_BYTE_VIEW_INITIALIZER(
+         "<xsl:stylesheet version='3.0'"
+         " xmlns:xsl='http://www.w3.org/1999/XSL/Transform'>"
+         "<xsl:template name='main'><out/></xsl:template>"
+         "</xsl:stylesheet>")},
     {SXML_BYTE_VIEW_INITIALIZER("suite/tests/insn/a/_a-test-set.xml"),
      SXML_BYTE_VIEW_INITIALIZER(
          "<test-set " CATALOG_NAMESPACE " xmlns:f='urn:f' name='a'>"
@@ -602,10 +609,10 @@ typedef struct run_expectation {
     sxml_byte_view reason;
 } run_expectation;
 
-static void test_runs_report_not_implemented(sxml_test_state *state) {
+static void test_runs_judge_outcomes(sxml_test_state *state) {
     static const run_expectation expectations[] = {
-        {SXML_BYTE_VIEW_INITIALIZER("a-1"), SXML_QT4_TEST_OUTCOME_NOT_RUN,
-         SXML_BYTE_VIEW_INITIALIZER("XSLT not implemented")},
+        {SXML_BYTE_VIEW_INITIALIZER("a-1"), SXML_QT4_TEST_OUTCOME_PASS,
+         SXML_BYTE_VIEW_INITIALIZER("")},
         {SXML_BYTE_VIEW_INITIALIZER("a-3"), SXML_QT4_TEST_OUTCOME_NOT_RUN,
          SXML_BYTE_VIEW_INITIALIZER("skip: feature schema_aware")},
         {SXML_BYTE_VIEW_INITIALIZER("a-4"), SXML_QT4_TEST_OUTCOME_NOT_RUN,
@@ -761,7 +768,7 @@ static const sxml_test_case xslt_driver_test_cases[] = {
     {"assertions_are_surveyed", test_assertions_are_surveyed},
     {"plans_choose_the_principal_module",
      test_plans_choose_the_principal_module},
-    {"runs_report_not_implemented", test_runs_report_not_implemented},
+    {"runs_judge_outcomes", test_runs_judge_outcomes},
     {"catalog_lifecycle_on_caller_memory",
      test_catalog_lifecycle_on_caller_memory},
     {"catalog_survives_every_allocation_failure",

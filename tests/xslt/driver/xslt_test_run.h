@@ -54,10 +54,10 @@
  * Outcomes, as for QT4 (test_run.h): a test case that is not applicable
  * (xslt_applicability.h) is not run, reason "skip: ..."; one with an
  * assertion the driver does not check is not run, "unsupported: KIND";
- * one whose plan cannot be made is an error; every other is not run with
- * the reason "XSLT not implemented" until include/sxml/xslt.h has an
- * implementation (packet 4.15), which then runs the plan in a processor
- * of its own with the QT4 driver's limits and checks the assertions
+ * one whose plan cannot be made is an error; one whose principal module
+ * is embedded in a source is not run, "unsupported: embedded stylesheet";
+ * every other is executed (xslt_execution.h, packet 4.15) in a processor
+ * of its own with the QT4 driver's limits, and its assertions checked
  * (xslt_assertion.h).
  */
 

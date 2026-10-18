@@ -34,6 +34,7 @@
  * JSON (for the dashboard of packet 1.27), one object:
  *
  *     {"report": "sxml-qt4 run", "version": 1, "spec": "XP40",
+ *     (the program's name: "sxml-xslt-test run" for the XSLT driver)
  *      "tests": [{"test_set": "fn-abs", "test_case": "fn-abs-1",
  *                 "outcome": "pass", "reason": ""}, ...],
  *      "test_sets": [{"name": "fn-abs", "total": 30, "pass": 27,
@@ -92,6 +93,9 @@ typedef struct sxml_qt4_report_configuration {
     size_t test_set_count;
     /* For the JSON "spec" member, such as "XP40". */
     sxml_byte_view spec;
+    /* For the JSON "report" member, "PROGRAM run": empty means sxml-qt4;
+       the XSLT 4.0 driver's is sxml-xslt-test (D157). ASCII. */
+    sxml_byte_view program_name;
     sxml_allocator allocator;
 } sxml_qt4_report_configuration;
 

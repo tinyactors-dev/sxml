@@ -3,8 +3,10 @@
 
 Input is the directory tools/run-qt4.sh writes: one JSON report per test
 set (the layout of tests/qt4/driver/report.h, version 1) under a directory
-per specification (XP40, XQ40), the torture slice's report and the commit
-of the code under test. Output:
+per specification (XP40, XQ40; XT40 from tools/run-xslt.sh, with its
+areas the suite's groups, the core sets of the Phase 4 gate and the XSLT
+slice), the torture slice's report and the commit of the code under test.
+Output:
 
 - the Markdown dashboard (--output, default docs/CONFORMANCE.md): the
   slice, totals, the gate rates (D95: the in-scope test cases; for XQ40
@@ -36,7 +38,26 @@ import sys
 OUTCOMES = ("pass", "wrong_error", "fail", "error", "not_run")
 # Members of report.h added by packet 2.16 (D108): the D95 denominator.
 SCOPE_COUNTS = ("in_scope", "in_scope_passed")
-SPECS = ("XP40", "XQ40")
+SPECS = ("XP40", "XQ40", "XT40")
+# XSLT 4.0 (tools/run-xslt.sh, D157): areas are the groups of the suite,
+# the directory under tests/ of each test set's file in catalog.xml.
+XSLT_AREAS = (
+    ("attr", "Attributes"),
+    ("decl", "Declarations"),
+    ("expr", "Expressions"),
+    ("fn", "Functions"),
+    ("insn", "Instructions"),
+    ("misc", "Miscellaneous"),
+    ("strm", "Streaming (out of scope, D95)"),
+    ("sandp", "Schema and packages (out of scope, D95)"),
+    ("other", "Other"),
+)
+# The core test sets of the Phase 4 gate (docs/tasks/phase-4.md: 80 % each).
+XSLT_CORE_SETS = ("apply-templates", "mode", "match", "for-each-group", "sort",
+                  "key", "number", "choose", "copy", "value-of",
+                  "result-document", "function")
+XSLT_CATALOG = (pathlib.Path(__file__).resolve().parent.parent / "third_party"
+                / "xslt40-test" / "catalog.xml")
 # Areas in the order of the table; a test set belongs to the area of its
 # name's prefix up to the first hyphen, and to "other" when none matches.
 AREAS = (
@@ -152,10 +173,10 @@ def xquery_only_counts(xquery_result, xpath_result):
     return counts
 
 
-def read_slice(run_directory):
-    exit_code = read_text(run_directory / "slice.exit").strip()
+def read_slice(run_directory, name="slice"):
+    exit_code = read_text(run_directory / (name + ".exit")).strip()
     try:
-        report = json.loads(read_text(run_directory / "slice.json"))
+        report = json.loads(read_text(run_directory / (name + ".json")))
     except json.JSONDecodeError:
         report = None
     if exit_code not in FINISHED_EXIT_CODES or report is None:
@@ -170,6 +191,19 @@ def read_slice(run_directory):
 def area_of(test_set_name):
     prefix = test_set_name.split("-", 1)[0]
     return prefix if prefix in AREA_NAMES else "other"
+
+
+def read_xslt_groups():
+    """The group of each XSLT test set: tests/GROUP/... of its file."""
+    groups = {}
+    pattern = re.compile(r'<test-set\s+name="([^"]*)"\s+file="tests/([^/"]*)/')
+    for line in read_text(XSLT_CATALOG).splitlines():
+        if "<!--" in line:
+            continue
+        match = pattern.search(line)
+        if match:
+            groups[match.group(1)] = match.group(2)
+    return groups
 
 
 def failure_cause(reason):
@@ -272,15 +306,31 @@ def render_spec(lines, result):
                   f"passed, **{percent(xquery_only['passed'], xquery_only['total'])}**.",
                   ""]
 
-    lines += [f"### {spec} by area", "",
-              COUNTS_HEADER.format("Area (test-set prefix)")]
+    if spec == "XT40":
+        render_xslt_core(lines, result)
+        groups = read_xslt_groups()
+        areas = XSLT_AREAS
+        names = {prefix for prefix, _ in XSLT_AREAS}
+
+        def area(name):
+            group = groups.get(name, "other")
+            return group if group in names else "other"
+        heading = "Area (group: tests/GROUP/)"
+    else:
+        areas = AREAS
+        area = area_of
+        heading = "Area (test-set prefix)"
+    lines += [f"### {spec} by area", "", COUNTS_HEADER.format(heading)]
     by_area = collections.OrderedDict(
-        (prefix, empty_counts()) for prefix, _ in AREAS)
+        (prefix, empty_counts()) for prefix, _ in areas)
     for entry in result["test_sets"]:
-        add_counts(by_area[area_of(entry["name"])], entry)
-    for prefix, title in AREAS:
+        add_counts(by_area[area(entry["name"])], entry)
+    for prefix, title in areas:
         if by_area[prefix]["total"]:
-            label = f"{title}: `{prefix}-*`" if prefix != "other" else title
+            label = title
+            if prefix != "other":
+                label = (f"{title}: `tests/{prefix}/`" if spec == "XT40"
+                         else f"{title}: `{prefix}-*`")
             lines.append(counts_row(label, by_area[prefix]))
     lines.append("")
 
@@ -341,6 +391,29 @@ def render_spec(lines, result):
                      f"| {entry['fail']:,} | {entry['error']:,} "
                      f"| {entry['not_run']:,} |")
     lines += ["", "</details>", ""]
+
+
+def render_xslt_core(lines, result):
+    """The in-scope pass rate of each core test set of the Phase 4 gate."""
+    by_name = {entry["name"]: entry for entry in result["test_sets"]}
+    lines += ["### XT40 core test sets (Phase 4 gate: 80 % each)", "",
+              "| Test set | In scope | Passed | Rate |", "|---|--:|--:|--:|"]
+    for name in XSLT_CORE_SETS:
+        entry = by_name.get(name)
+        if entry is None:
+            lines.append(f"| {name} | – | – | – |")
+            continue
+        lines.append(f"| {name} | {entry['in_scope']:,} "
+                     f"| {entry['in_scope_passed']:,} "
+                     f"| {percent(entry['in_scope_passed'], entry['in_scope'])} |")
+    lines.append("")
+    xslt_slice = result.get("slice")
+    if xslt_slice is not None:
+        totals = xslt_slice["totals"]
+        lines += [(f"XSLT slice (`tests/xslt/slice.txt`): "
+                   f"**{passed(totals)}/{totals['total']} passed**"
+                   if xslt_slice["finished"] else
+                   "**The XSLT slice run did not finish**") + ".", ""]
 
 
 def render(information, slice_result, baseline, spec_results):
@@ -419,8 +492,11 @@ def main():
     if "XQ40" in by_spec:
         by_spec["XQ40"]["xquery_only"] = xquery_only_counts(
             by_spec["XQ40"], by_spec.get("XP40"))
+    if "XT40" in by_spec:
+        xslt_slice = read_slice(run_directory, "xslt-slice")
+        by_spec["XT40"]["slice"] = xslt_slice
     if not spec_results:
-        print(f"{run_directory}: no XP40 or XQ40 reports", file=sys.stderr)
+        print(f"{run_directory}: no XP40, XQ40 or XT40 reports", file=sys.stderr)
         return 2
     baseline = int(arguments.slice_baseline.read_text().strip())
 

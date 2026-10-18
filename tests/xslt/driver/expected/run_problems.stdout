@@ -1,5 +1,5 @@
 error set-problems no-stylesheet: no principal stylesheet in no-stylesheet
 error set-problems unknown-assertion: unknown assertion assert-everything
 error set-problems empty-not: wrong number of assertions in not
-test set set-problems: 4 test cases: 0 passed (0 wrong error), 0 failed, 3 errors, 1 not run
-total: 4 test cases: 0 passed (0 wrong error), 0 failed, 3 errors, 1 not run
+test set set-problems: 4 test cases: 1 passed (0 wrong error), 0 failed, 3 errors, 0 not run
+total: 4 test cases: 1 passed (0 wrong error), 0 failed, 3 errors, 0 not run
