@@ -158,6 +158,10 @@ void sxml_ir_unit_finalize(sxml_ir_unit *unit) {
     sxml_allocator_release(allocator, unit->template_rules);
     sxml_allocator_release(allocator, unit->static_base_uri_memory);
     sxml_allocator_release(allocator, unit->static_context_memory);
+    for (uint32_t module_number = 1; module_number < unit->module_count; module_number += 1) {
+        sxml_allocator_release(allocator, unit->modules[module_number].text_memory);
+    }
+    sxml_allocator_release(allocator, unit->modules);
     memset(unit, 0, sizeof(*unit));
 }
 
@@ -968,6 +972,60 @@ sxml_status sxml_ir_unit_set_static_base_uri(sxml_ir_unit *unit,
             (sxml_byte_view){.bytes = copied_bytes, .byte_count = static_base_uri.byte_count};
     }
     unit->has_static_base_uri = true;
+    return SXML_STATUS_OK;
+}
+
+void sxml_ir_unit_set_untrusted(sxml_ir_unit *unit) { unit->is_untrusted = true; }
+
+sxml_status sxml_ir_unit_add_module(sxml_ir_unit *unit, const sxml_ir_module *module,
+                                    uint32_t *module_number) {
+    const size_t source_count = module->source_name.byte_count;
+    const size_t base_count = module->static_base_uri.byte_count;
+    if (unit->is_sealed || (source_count > 0 && module->source_name.bytes == NULL) ||
+        (base_count > 0 && module->static_base_uri.bytes == NULL) ||
+        source_count > SIZE_MAX - base_count) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    array_room room = {0};
+    sxml_status status = make_array_room(
+        unit,
+        &(array_room_request){.elements = unit->modules,
+                              .element_count = unit->module_count,
+                              .element_capacity = unit->module_capacity,
+                              .element_size = sizeof(sxml_ir_module),
+                              .element_alignment = alignof(sxml_ir_module),
+                              .added_count = 1},
+        &room);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    unit->modules = room.elements;
+    unit->module_capacity = room.element_capacity;
+    void *memory = NULL;
+    if (source_count + base_count > 0) {
+        status = sxml_allocator_allocate(
+            unit->allocator,
+            (sxml_allocation_request){.byte_count = source_count + base_count, .alignment = 1},
+            &memory);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        uint8_t *bytes = memory;
+        if (source_count > 0) {
+            memcpy(bytes, module->source_name.bytes, source_count);
+        }
+        if (base_count > 0) {
+            memcpy(bytes + source_count, module->static_base_uri.bytes, base_count);
+        }
+    }
+    const uint8_t *copied = memory;
+    unit->modules[room.element_count] = (sxml_ir_module){
+        .source_name = {.bytes = copied, .byte_count = source_count},
+        .static_base_uri = {.bytes = copied == NULL ? NULL : copied + source_count,
+                            .byte_count = base_count},
+        .text_memory = memory};
+    unit->module_count = room.element_count + 1U;
+    *module_number = room.element_count;
     return SXML_STATUS_OK;
 }
 

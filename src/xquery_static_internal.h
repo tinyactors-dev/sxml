@@ -89,6 +89,10 @@ typedef struct sxml_xquery_declared_function {
     uint32_t required_count;
     /* The IR function of arity required_count. */
     sxml_ir_function_index first_function;
+    /* The default functions (glossary `default_function`) of the
+       parameters whose default is SXML_PARAMETER_DEFAULT_EXPRESSION, in
+       parameter order, the IR functions after the full arity's. */
+    uint32_t default_function_count;
     /* parameter_count entries of the context's parameter arrays from
        first_parameter on. */
     size_t first_parameter;

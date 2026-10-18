@@ -96,6 +96,13 @@ typedef enum sxml_parameter_default {
        that is lexically in scope, or the empty sequence when none is (a
        function item of the shorter arity captures it when it is made). */
     SXML_PARAMETER_DEFAULT_CONTEXT_VARIABLE,
+    /* A declared function's default expression (XQuery 4.0, 5.18.3):
+       the caller calls the parameter's default function (glossary
+       `default_function`, the function parameter's
+       default_function_number) with the parts of its focus the default
+       reads, so a default sees the focus of the call, the named function
+       reference or the partial application (XPath 4.0, 4.5.1.2). */
+    SXML_PARAMETER_DEFAULT_EXPRESSION,
 } sxml_parameter_default;
 
 /*
@@ -110,6 +117,9 @@ typedef struct sxml_function_parameter {
        prefixes above. */
     sxml_byte_view parameter_type;
     sxml_parameter_default parameter_default;
+    /* For SXML_PARAMETER_DEFAULT_EXPRESSION: the IR function, of the
+       unit being lowered, that computes the default; 0 otherwise. */
+    uint32_t default_function_number;
 } sxml_function_parameter;
 
 typedef struct sxml_function_parameter_view {

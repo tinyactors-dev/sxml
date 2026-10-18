@@ -913,8 +913,84 @@ sxml_xpath_lowerer_read_focus(sxml_xpath_lowerer *state,
             return status;
         }
     }
+    if (request.part == SXML_XPATH_LOWERING_FOCUS_PART_VALUE) {
+        focus->parts_read.context_value = *slot;
+    } else if (request.part == SXML_XPATH_LOWERING_FOCUS_PART_POSITION) {
+        focus->parts_read.context_position = *slot;
+    } else {
+        focus->parts_read.context_size = *slot;
+    }
     *atom = slot_atom(*slot);
     return SXML_STATUS_OK;
+}
+
+/* A default function's call (XQuery 4.0, 5.18.3: a default "takes only
+   the focus from" the caller's dynamic context, XPath 4.0, 4.5.1.2). */
+sxml_status sxml_xpath_lowerer_call_default_function(
+    sxml_xpath_lowerer *state, sxml_xpath_lowering_default_call request,
+    sxml_ir_atom *atom) {
+    const sxml_ir_function *function = sxml_ir_unit_get_function(
+        state->unit, (sxml_ir_function_index){.value = request.default_function_number});
+    const sxml_ir_slot parts_read[3] = {function->focus.context_value,
+                                        function->focus.context_position,
+                                        function->focus.context_size};
+    static const sxml_xpath_lowering_focus_part parts[3] = {
+        SXML_XPATH_LOWERING_FOCUS_PART_VALUE, SXML_XPATH_LOWERING_FOCUS_PART_POSITION,
+        SXML_XPATH_LOWERING_FOCUS_PART_SIZE};
+    sxml_ir_atom focus_atoms[3] = {{0}};
+    /* A default function not lowered yet (one default calling a function
+       whose default comes later) names every part; reading them for it
+       does not make the reader read them: prolog lowering adds the
+       callee's parts to the caller's when all are known. */
+    const bool is_pending = function->body.value == 0;
+    const sxml_ir_focus parts_before = state->function->focus->parts_read;
+    sxml_status status = SXML_STATUS_OK;
+    for (size_t part_index = 0; status == SXML_STATUS_OK && part_index < 3;
+         part_index += 1) {
+        if (parts_read[part_index].value != 0) {
+            status = sxml_xpath_lowerer_read_focus(
+                state,
+                (sxml_xpath_lowering_focus_read){
+                    .block = request.block, .node = request.node, .part = parts[part_index]},
+                &focus_atoms[part_index]);
+            continue;
+        }
+        sxml_ir_expression_index empty = {0};
+        status = sxml_xpath_lowerer_add_empty_sequence(state, request.node, &empty);
+        if (status == SXML_STATUS_OK) {
+            status = bind_in_block(
+                state, (binding_request){.block = request.block, .expression = empty},
+                &focus_atoms[part_index]);
+        }
+    }
+    if (is_pending) {
+        state->function->focus->parts_read = parts_before;
+    }
+    sxml_ir_atom_list arguments = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ir_unit_add_atoms(
+            state->unit, (sxml_ir_atom_view){.atoms = focus_atoms, .atom_count = 3},
+            &arguments);
+    }
+    sxml_ir_expression_index call = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_add_expression(
+            state,
+            (sxml_xpath_lowering_expression_to_add){
+                .node = request.node,
+                .expression = {
+                    .expression_kind = SXML_IR_EXPRESSION_KIND_STATIC_CALL,
+                    .static_call = {
+                        .target = {.target_kind = SXML_IR_FUNCTION_TARGET_KIND_IR_FUNCTION,
+                                   .function = {.value = request.default_function_number}},
+                        .arguments = arguments}}},
+            &call);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return bind_in_block(state, (binding_request){.block = request.block, .expression = call},
+                         atom);
 }
 
 /* ---------------------------------------------------- Free variables */
@@ -2320,6 +2396,227 @@ static sxml_status lower_context_function_reference(sxml_xpath_lowerer *state,
         expression);
 }
 
+/* Whether a reference to entry of arity leaves out a parameter whose
+   default expression reads the focus (XQuery 4.0, 5.18.3): an omitted
+   ":= ." or a default function that reads some part of the focus. */
+static bool needs_focus_of_reference(const sxml_xpath_lowerer *state,
+                                     const sxml_function_entry *entry, size_t arity) {
+    if (entry->entry_kind != SXML_FUNCTION_ENTRY_KIND_IR_FUNCTION) {
+        return false;
+    }
+    bool has_expression = false;
+    bool reads_focus = false;
+    for (size_t parameter_index = arity;
+         parameter_index < entry->parameters.function_parameter_count; parameter_index += 1) {
+        const sxml_function_parameter *parameter =
+            &entry->parameters.function_parameters[parameter_index];
+        if (parameter->parameter_default == SXML_PARAMETER_DEFAULT_CONTEXT_VALUE) {
+            reads_focus = true;
+        } else if (parameter->parameter_default == SXML_PARAMETER_DEFAULT_EXPRESSION) {
+            has_expression = true;
+            const sxml_ir_focus focus =
+                sxml_ir_unit_get_function(
+                    state->unit,
+                    (sxml_ir_function_index){.value = parameter->default_function_number})
+                    ->focus;
+            reads_focus = reads_focus || focus.context_value.value != 0 ||
+                          focus.context_position.value != 0 || focus.context_size.value != 0;
+        }
+    }
+    return has_expression && reads_focus;
+}
+
+/* A reference F#N to a declared function whose omitted defaults read the
+   focus (XQuery 4.0, 5.18.3; XPath 4.0, 4.5.4): a closure of arity N that
+   captures the parts of the reference's focus those defaults read, and
+   whose body calls the full arity with its parameters, the defaults
+   computed with the captured focus, which is the closure's own (so a
+   default that refers to F#N again is computed only when called). */
+typedef struct focused_reference {
+    sxml_ast_node_index node;
+    sxml_xpath_lowering_block *block;
+    sxml_name_identifier name;
+    size_t arity;
+} focused_reference;
+
+/* The closure's body, lowered in its own function frame. */
+typedef struct focused_body_request {
+    sxml_ast_node_index node;
+    const sxml_function_entry *full;
+    size_t arity;
+    sxml_ir_function_index closure;
+    sxml_ir_focus focus;
+} focused_body_request;
+
+static sxml_status lower_focused_body(sxml_xpath_lowerer *state, focused_body_request request,
+                                      sxml_ir_expression_index *body) {
+    const sxml_ir_function *closure = sxml_ir_unit_get_function(state->unit, request.closure);
+    sxml_xpath_lowering_function_frame frame = {
+        .function = {.function_index = request.closure,
+                     .function_level = state->function->function_level + 1U,
+                     .slot_count = closure->slot_count,
+                     .captures = NULL,
+                     .capture_count = 0},
+        .focus = {.kind = SXML_XPATH_LOWERING_FOCUS_KIND_SLOTS, .slots = request.focus},
+    };
+    sxml_xpath_lowerer_enter_function(state, &frame);
+    const size_t full_arity = request.full->parameters.function_parameter_count;
+    call_argument *arguments = NULL;
+    sxml_status status = sxml_xpath_lowerer_allocate_scratch(
+        state,
+        (sxml_xpath_lowering_scratch_request){.element_count = full_arity,
+                                              .element_size = sizeof(call_argument),
+                                              .element_alignment = alignof(call_argument)},
+        (void **)&arguments);
+    sxml_xpath_lowering_block block = {0};
+    for (size_t parameter_index = 0; status == SXML_STATUS_OK && parameter_index < full_arity;
+         parameter_index += 1) {
+        const sxml_function_parameter *parameter =
+            &request.full->parameters.function_parameters[parameter_index];
+        arguments[parameter_index] = (call_argument){
+            .is_placeholder = false,
+            .atom = slot_atom((sxml_ir_slot){.value = (uint32_t)parameter_index + 1U})};
+        if (parameter_index < request.arity) {
+            continue;
+        }
+        if (parameter->parameter_default == SXML_PARAMETER_DEFAULT_EXPRESSION) {
+            status = sxml_xpath_lowerer_call_default_function(
+                state,
+                (sxml_xpath_lowering_default_call){
+                    .block = &block,
+                    .node = request.node,
+                    .default_function_number = parameter->default_function_number},
+                &arguments[parameter_index].atom);
+        } else {
+            /* ":= .", the only other default of a declared function. */
+            status = sxml_xpath_lowerer_read_focus(
+                state,
+                (sxml_xpath_lowering_focus_read){.block = &block,
+                                                 .node = request.node,
+                                                 .part = SXML_XPATH_LOWERING_FOCUS_PART_VALUE},
+                &arguments[parameter_index].atom);
+        }
+    }
+    sxml_ir_expression_index call = {0};
+    if (status == SXML_STATUS_OK) {
+        const prepared_call prepared = {.node = request.node,
+                                        .entry = *request.full,
+                                        .arguments = arguments,
+                                        .argument_count = full_arity,
+                                        .placeholder_count = 0};
+        status = emit_call(
+            state, (call_emission){.block = &block, .call = &prepared, .coerces_arguments = true},
+            &call);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_finish_block(
+            state, (sxml_xpath_lowering_block_result){.block = block, .result = call}, body);
+    }
+    sxml_xpath_lowerer_release_scratch(state, arguments);
+    sxml_xpath_lowerer_leave_function(state, &frame);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_ir_function_replacement replacement = {.index = request.closure, .function = *closure};
+    replacement.function.body = *body;
+    replacement.function.slot_count = frame.function.slot_count;
+    return sxml_ir_unit_replace_function(state->unit, &replacement);
+}
+
+static sxml_status lower_focused_reference(sxml_xpath_lowerer *state, focused_reference reference,
+                                           sxml_ir_expression_index *expression) {
+    sxml_function_entry entry = {0};
+    sxml_status status = find_function(
+        state, (function_lookup){.function_name = reference.name, .arity = reference.arity},
+        &entry);
+    const sxml_type_identifier signature = entry.signature;
+    sxml_function_entry full = {0};
+    if (status == SXML_STATUS_OK) {
+        status = find_function(
+            state,
+            (function_lookup){.function_name = reference.name,
+                              .arity = entry.parameters.function_parameter_count},
+            &full);
+    }
+    if (status == SXML_STATUS_OK && full.entry_kind != SXML_FUNCTION_ENTRY_KIND_IR_FUNCTION) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    /* The parts of the focus the omitted defaults read. */
+    bool reads_part[3] = {false, false, false};
+    for (size_t parameter_index = reference.arity;
+         status == SXML_STATUS_OK &&
+         parameter_index < full.parameters.function_parameter_count;
+         parameter_index += 1) {
+        const sxml_function_parameter *parameter =
+            &full.parameters.function_parameters[parameter_index];
+        if (parameter->parameter_default == SXML_PARAMETER_DEFAULT_EXPRESSION) {
+            const sxml_ir_focus focus =
+                sxml_ir_unit_get_function(
+                    state->unit,
+                    (sxml_ir_function_index){.value = parameter->default_function_number})
+                    ->focus;
+            reads_part[0] = reads_part[0] || focus.context_value.value != 0;
+            reads_part[1] = reads_part[1] || focus.context_position.value != 0;
+            reads_part[2] = reads_part[2] || focus.context_size.value != 0;
+        } else {
+            reads_part[0] = true;
+        }
+    }
+    static const sxml_xpath_lowering_focus_part parts[3] = {
+        SXML_XPATH_LOWERING_FOCUS_PART_VALUE, SXML_XPATH_LOWERING_FOCUS_PART_POSITION,
+        SXML_XPATH_LOWERING_FOCUS_PART_SIZE};
+    sxml_ir_atom captured[3] = {{0}};
+    uint32_t captured_slots[3] = {0, 0, 0};
+    size_t captured_count = 0;
+    for (size_t part_index = 0; status == SXML_STATUS_OK && part_index < 3; part_index += 1) {
+        if (!reads_part[part_index]) {
+            continue;
+        }
+        status = sxml_xpath_lowerer_read_focus(
+            state,
+            (sxml_xpath_lowering_focus_read){
+                .block = reference.block, .node = reference.node, .part = parts[part_index]},
+            &captured[captured_count]);
+        captured_count += 1;
+        captured_slots[part_index] = (uint32_t)(reference.arity + captured_count);
+    }
+    sxml_ir_function_index closure = {0};
+    if (status == SXML_STATUS_OK) {
+        status = add_closure_function(
+            state,
+            (closure_request){.node = reference.node,
+                              .function_name = reference.name,
+                              .signature = signature,
+                              .parameter_count = (uint32_t)reference.arity,
+                              .captured_atoms = {.atoms = captured, .atom_count = captured_count}},
+            &closure);
+    }
+    sxml_ir_expression_index body = {0};
+    if (status == SXML_STATUS_OK) {
+        status = lower_focused_body(
+            state,
+            (focused_body_request){
+                .node = reference.node,
+                .full = &full,
+                .arity = reference.arity,
+                .closure = closure,
+                .focus = {.context_value = {.value = captured_slots[0]},
+                          .context_position = {.value = captured_slots[1]},
+                          .context_size = {.value = captured_slots[2]}}},
+            &body);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_xpath_lowerer_add_expression(
+        state,
+        (sxml_xpath_lowering_expression_to_add){
+            .node = reference.node,
+            .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_FUNCTION_DEFINITION,
+                           .function_definition = {.function = closure}}},
+        expression);
+}
+
 /* A named function reference (XPath 4.0, section 4.5.4). */
 static sxml_status
 lower_named_function_reference(sxml_xpath_lowerer *state,
@@ -2365,6 +2662,16 @@ lower_named_function_reference(sxml_xpath_lowerer *state,
             state, node,
             SXML_BYTE_VIEW_FROM_LITERAL(
                 "XPST0017 no function with this name and arity is known"));
+    }
+    /* Without a focus (a function body), the reference is the IR function
+       of the shorter arity, whose defaults raise XPDY0002 when called. */
+    if (state->function->focus->kind != SXML_XPATH_LOWERING_FOCUS_KIND_ABSENT &&
+        needs_focus_of_reference(state, &entry, (size_t)arity)) {
+        return lower_focused_reference(
+            state,
+            (focused_reference){.node = node, .block = request.block, .name = name,
+                                .arity = (size_t)arity},
+            expression);
     }
     const uint32_t properties = native_properties(&entry);
     const bool reads_position_or_size =
@@ -2707,19 +3014,28 @@ static sxml_status resolve_simple_node_test(sxml_xpath_lowerer *state,
                                        .error_record = state->error_record},
             &resolved);
         sxml_name_identifier name = {0};
-        if (status == SXML_STATUS_OK) {
-            status = sxml_name_pool_intern_name(
-                state->name_pool,
-                &(sxml_name_request){.namespace_uri = resolved.namespace_uri,
-                                     .local_name = resolved.local_name},
-                &name);
+        if (status == SXML_STATUS_OK && resolved.is_any_namespace &&
+            test->kind == SXML_AST_KIND_NCNAME) {
+            /* "##any": the element name matching rule reads local as
+               *:local (XPath 4.0, 2.2.1). */
+            name_test = (sxml_name_test){
+                .name_test_kind = SXML_NAME_TEST_KIND_LOCAL_NAME_WILDCARD,
+                .local_name = resolved.local_name};
+        } else {
+            if (status == SXML_STATUS_OK) {
+                status = sxml_name_pool_intern_name(
+                    state->name_pool,
+                    &(sxml_name_request){.namespace_uri = resolved.namespace_uri,
+                                         .local_name = resolved.local_name},
+                    &name);
+            }
+            if (status != SXML_STATUS_OK) {
+                return status;
+            }
+            name_test = (sxml_name_test){
+                .name_test_kind = SXML_NAME_TEST_KIND_EXPANDED_NAME,
+                .expanded_name = name};
         }
-        if (status != SXML_STATUS_OK) {
-            return status;
-        }
-        name_test = (sxml_name_test){
-            .name_test_kind = SXML_NAME_TEST_KIND_EXPANDED_NAME,
-            .expanded_name = name};
     }
     return sxml_type_registry_register_item_type(
         state->type_registry,
@@ -3132,6 +3448,10 @@ static sxml_status resolve_cast_target(sxml_xpath_lowerer *state,
         &resolved);
     if (status != SXML_STATUS_OK) {
         return status;
+    }
+    if (resolved.is_any_namespace) {
+        /* "##any": a type name is in xs (XPath 4.0, 2.2.1). */
+        resolved.namespace_uri = sxml_well_known_namespace_identifier(SXML_NAMESPACE_XML_SCHEMA);
     }
     sxml_name_identifier name = {0};
     sxml_type_identifier type = {0};
@@ -5708,10 +6028,14 @@ static sxml_status begin_function_call(sxml_xpath_lowering_machine *machine,
         }
     }
     /* A parameter whose default is the context value, left out, is
-       supplied by the caller (F&O 4.0, section 1.5). */
+       supplied by the caller (F&O 4.0, section 1.5), as is a declared
+       function's default expression (XQuery 4.0, 5.18.3), so such a call
+       goes to the full arity. */
     while (needed_arity < entry.parameters.function_parameter_count &&
            (entry.parameters.function_parameters[needed_arity].parameter_default ==
                 SXML_PARAMETER_DEFAULT_CONTEXT_VALUE ||
+            entry.parameters.function_parameters[needed_arity].parameter_default ==
+                SXML_PARAMETER_DEFAULT_EXPRESSION ||
             entry.parameters.function_parameters[needed_arity].parameter_default ==
                 SXML_PARAMETER_DEFAULT_CURRENT_ITEM ||
             entry.parameters.function_parameters[needed_arity].parameter_default ==
@@ -5837,7 +6161,16 @@ static sxml_status finish_function_call(sxml_xpath_lowering_machine *machine,
                 ? entry->parameters.function_parameters[argument_index]
                       .parameter_default
                 : SXML_PARAMETER_DEFAULT_REQUIRED;
-        if (parameter_default == SXML_PARAMETER_DEFAULT_CONTEXT_VARIABLE) {
+        if (parameter_default == SXML_PARAMETER_DEFAULT_EXPRESSION) {
+            status = sxml_xpath_lowerer_call_default_function(
+                state,
+                (sxml_xpath_lowering_default_call){
+                    .block = locals->request.preparation_block,
+                    .node = call_node,
+                    .default_function_number = entry->parameters.function_parameters[argument_index]
+                                                   .default_function_number},
+                &locals->arguments[argument_index].atom);
+        } else if (parameter_default == SXML_PARAMETER_DEFAULT_CONTEXT_VARIABLE) {
             status = read_context_variable(
                 state,
                 (context_variable_read){

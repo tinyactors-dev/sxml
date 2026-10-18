@@ -21,6 +21,7 @@
  */
 #include "cast_internal.h"
 #include "evaluator_internal.h"
+#include "evaluator_machine_internal.h"
 #include "operator_internal.h"
 #include "xdm_internal.h"
 
@@ -2698,6 +2699,40 @@ sxml_status sxml_evaluator_make_function_reference(
         return status;
     }
     return sxml_function_item_make(dynamic_context->item_heap, &item_request, item);
+}
+
+sxml_status sxml_evaluator_find_unit_function(sxml_dynamic_context *dynamic_context,
+                                              sxml_unit_function_query query,
+                                              sxml_item *item) {
+    item->representation = 0;
+    if (dynamic_context->task_stack.task_count == 0 || query.function_name.index == 0) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_evaluator_task *caller =
+        &dynamic_context->task_stack.tasks[dynamic_context->task_stack.task_count - 1];
+    const sxml_ir_unit *unit = caller->function->unit;
+    for (uint32_t function_number = 1; function_number < unit->function_count;
+         function_number += 1) {
+        const sxml_ir_function *function = &unit->functions[function_number];
+        /* Top-level and named: no closure of a reference, no default
+           function or initializer. */
+        if (function->function_name.index != query.function_name.index ||
+            function->parameter_count != query.arity ||
+            function->defining_function.value != 0 ||
+            function->captured_variables.atom_count != 0) {
+            continue;
+        }
+        const sxml_ir_function_reference reference = {
+            .target = {.target_kind = SXML_IR_FUNCTION_TARGET_KIND_IR_FUNCTION,
+                       .function = {.value = function_number}},
+            .arity = function->parameter_count,
+            .signature = function->signature};
+        return sxml_evaluator_make_function_reference(
+            dynamic_context,
+            &(sxml_function_reference_request){.unit = unit, .function_reference = &reference},
+            item);
+    }
+    return SXML_STATUS_OK;
 }
 
 sxml_status sxml_evaluator_describe_call_signature(

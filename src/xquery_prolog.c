@@ -307,6 +307,10 @@ static sxml_status lower_body(module_lowering *module, const body_request *reque
         replacement.function.focus = request->reserves_context_slot
                                          ? (sxml_ir_focus){.context_value = context_slot}
                                          : frame.focus.slots;
+    } else if (request->focus.kind == SXML_XPATH_LOWERING_FOCUS_KIND_SLOTS) {
+        /* A default function: the parts of the focus it reads, which its
+           callers pass (glossary `default_function`). */
+        replacement.function.focus = frame.focus.parts_read;
     }
     return sxml_ir_unit_replace_function(module->unit, &replacement);
 }
@@ -315,8 +319,10 @@ static sxml_status lower_body(module_lowering *module, const body_request *reque
 
 /* The IR function of a shorter arity (5.18.3): the defaults of the
    parameters from arity on, each coerced to its parameter's type, and a
-   call of the full arity. Defaults see no parameters and no focus but
-   ":= .", which the core supplies at the call. */
+   call of the full arity. Defaults see no parameters; a declared
+   function's are calls of its default functions with this function's
+   absent focus (a static call or a reference that needs the focus calls
+   them itself, with its own), a record constructor's are lowered here. */
 typedef struct default_request {
     const sxml_xquery_declared_function *function;
     uint32_t arity;
@@ -362,6 +368,20 @@ static sxml_status lower_defaults(module_lowering *module, default_request reque
         }
         const sxml_ast_node_index default_value =
             child_of(module->ast, parameter, SXML_AST_FIELD_DEFAULT);
+        const sxml_function_parameter *declared =
+            &module->context->function_parameters[function->first_parameter + parameter_number - 1];
+        if (declared->parameter_default == SXML_PARAMETER_DEFAULT_EXPRESSION) {
+            /* The default function, with this function's absent focus: a
+               function item of the shorter arity made without one. */
+            status = sxml_xpath_lowerer_call_default_function(
+                state,
+                (sxml_xpath_lowering_default_call){
+                    .block = &block,
+                    .node = default_value,
+                    .default_function_number = declared->default_function_number},
+                &arguments[parameter_number - 1]);
+            continue;
+        }
         sxml_ir_expression_index lowered = {0};
         status = sxml_xpath_lowerer_lower_embedded(
             state,
@@ -545,6 +565,159 @@ static sxml_status lower_constructor(module_lowering *module,
     replacement.function.body = body;
     replacement.function.slot_count = frame.function.slot_count;
     return sxml_ir_unit_replace_function(module->unit, &replacement);
+}
+
+/* Lowers the default functions of every declared function of the current
+   module (glossary `default_function`): each default, coerced to its
+   parameter's type, with the caller's focus in slots 1 to 3 (5.18.3: the
+   focus "is the focus of the construct that invokes the function"); the
+   function's focus becomes the parts it reads. */
+static sxml_status lower_default_functions(module_lowering *module) {
+    const sxml_xquery_static_context *context = module->context;
+    sxml_status status = SXML_STATUS_OK;
+    for (size_t function_index = 0;
+         status == SXML_STATUS_OK && function_index < context->declared_function_count;
+         function_index += 1) {
+        const sxml_xquery_declared_function *function =
+            &context->declared_functions[function_index];
+        uint32_t parameter_index = 0;
+        for (sxml_ast_node_index parameter =
+                 sxml_xquery_first_parameter(module->ast, function->declaration);
+             status == SXML_STATUS_OK && parameter.value != 0;
+             parameter = sxml_xquery_next_parameter(module->ast, parameter)) {
+            const size_t position = function->first_parameter + parameter_index;
+            parameter_index += 1;
+            const sxml_function_parameter *declared = &context->function_parameters[position];
+            if (declared->parameter_default != SXML_PARAMETER_DEFAULT_EXPRESSION) {
+                continue;
+            }
+            const sxml_ir_function_index index = {.value = declared->default_function_number};
+            lowered_region *region = &module->regions[function_node(module, index)];
+            *region = begin_region(module->unit);
+            status = lower_body(
+                module,
+                &(body_request){
+                    .function = index,
+                    .node = child_of(module->ast, parameter, SXML_AST_FIELD_DEFAULT),
+                    .focus = {.kind = SXML_XPATH_LOWERING_FOCUS_KIND_SLOTS,
+                              .slots = {.context_value = {.value = 1},
+                                        .context_position = {.value = 2},
+                                        .context_size = {.value = 3}}},
+                    .parameters = {.declaration = {.value = 0}, .parameter_count = 3},
+                    .result_type = context->parameter_types[position],
+                    .role = SXML_IR_COERCION_ROLE_FUNCTION_ARGUMENT,
+                    .reserves_context_slot = false});
+            end_region(module->unit, region);
+        }
+    }
+    return status;
+}
+
+/* Whether function is a default function of some module of the set. */
+static bool is_default_function(const module_lowering *module, sxml_ir_function_index function) {
+    for (size_t module_index = 0; module_index < module->set->module_count; module_index += 1) {
+        const sxml_xquery_static_context *context = &module->contexts[module_index];
+        for (size_t function_index = 0; function_index < context->declared_function_count;
+             function_index += 1) {
+            const sxml_xquery_declared_function *declared =
+                &context->declared_functions[function_index];
+            for (uint32_t parameter_index = 0; parameter_index < declared->parameter_count;
+                 parameter_index += 1) {
+                if (context->function_parameters[declared->first_parameter + parameter_index]
+                        .default_function_number == function.value) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+/* Where close_default_focus stands: whether a round added a part. */
+typedef struct focus_closure {
+    bool is_changed;
+} focus_closure;
+
+/* Adds to caller's focus the parts it passes on, in slots 1 to 3, to the
+   default functions it calls that read them; closure->is_changed is set
+   when one was added. */
+static sxml_status add_passed_parts(module_lowering *module, sxml_ir_function_index caller,
+                                    focus_closure *closure) {
+    const lowered_region *region = &module->regions[function_node(module, caller)];
+    sxml_ir_focus focus = sxml_ir_unit_get_function(module->unit, caller)->focus;
+    bool is_added = false;
+    for (uint32_t expression_index = region->first_expression;
+         expression_index < region->end_expression; expression_index += 1) {
+        const sxml_ir_expression *expression = sxml_ir_unit_get_expression(
+            module->unit, (sxml_ir_expression_index){.value = expression_index});
+        if (expression->expression_kind != SXML_IR_EXPRESSION_KIND_STATIC_CALL ||
+            expression->static_call.target.target_kind !=
+                SXML_IR_FUNCTION_TARGET_KIND_IR_FUNCTION ||
+            expression->static_call.arguments.atom_count != 3 ||
+            !is_default_function(module, expression->static_call.target.function)) {
+            continue;
+        }
+        const sxml_ir_focus callee =
+            sxml_ir_unit_get_function(module->unit, expression->static_call.target.function)
+                ->focus;
+        const uint32_t callee_parts[3] = {callee.context_value.value,
+                                          callee.context_position.value,
+                                          callee.context_size.value};
+        sxml_ir_slot *caller_parts[3] = {&focus.context_value, &focus.context_position,
+                                         &focus.context_size};
+        for (size_t part_index = 0; part_index < 3; part_index += 1) {
+            const sxml_ir_atom argument =
+                module->unit->atoms[expression->static_call.arguments.first_atom_index +
+                                    part_index];
+            if (callee_parts[part_index] == 0 || argument.atom_kind != SXML_IR_ATOM_KIND_SLOT ||
+                argument.slot.value == 0 || argument.slot.value > 3 ||
+                caller_parts[argument.slot.value - 1]->value != 0) {
+                continue;
+            }
+            caller_parts[argument.slot.value - 1]->value = argument.slot.value;
+            is_added = true;
+        }
+    }
+    if (!is_added) {
+        return SXML_STATUS_OK;
+    }
+    closure->is_changed = true;
+    sxml_ir_function_replacement replacement = {
+        .index = caller, .function = *sxml_ir_unit_get_function(module->unit, caller)};
+    replacement.function.focus = focus;
+    return sxml_ir_unit_replace_function(module->unit, &replacement);
+}
+
+/* After every module's default functions are lowered: a default that
+   calls another reads the parts it passes to it (glossary
+   `default_function`), until nothing changes. */
+static sxml_status close_default_focus(module_lowering *module) {
+    sxml_status status = SXML_STATUS_OK;
+    focus_closure closure = {.is_changed = true};
+    while (status == SXML_STATUS_OK && closure.is_changed) {
+        closure.is_changed = false;
+        for (size_t module_index = 0; module_index < module->set->module_count;
+             module_index += 1) {
+            const sxml_xquery_static_context *context = &module->contexts[module_index];
+            for (size_t function_index = 0; function_index < context->declared_function_count;
+                 function_index += 1) {
+                const sxml_xquery_declared_function *declared =
+                    &context->declared_functions[function_index];
+                for (uint32_t parameter_index = 0;
+                     status == SXML_STATUS_OK && parameter_index < declared->parameter_count;
+                     parameter_index += 1) {
+                    const uint32_t number =
+                        context->function_parameters[declared->first_parameter + parameter_index]
+                            .default_function_number;
+                    if (number != 0) {
+                        status = add_passed_parts(
+                            module, (sxml_ir_function_index){.value = number}, &closure);
+                    }
+                }
+            }
+        }
+    }
+    return status;
 }
 
 /* Lowers every IR function of every declared function, recording each
@@ -1124,7 +1297,20 @@ static sxml_status add_globals(module_lowering *module) {
                 &global);
         }
     }
+    /* The main module's context value declaration, or without one the
+       first library module's, which states the type the context value
+       must have (5.17; fn:load-xquery-module checks it, F&O 4.0, 18.2). */
     const sxml_xquery_static_context *context = main_context;
+    for (size_t module_index = 1; context->context_value_declaration.value == 0 &&
+                                  module_index < module->set->module_count;
+         module_index += 1) {
+        if (module->contexts[module_index].context_value_declaration.value != 0) {
+            context = &module->contexts[module_index];
+        }
+    }
+    if (context->context_value_declaration.value == 0) {
+        context = main_context;
+    }
     if (status == SXML_STATUS_OK && module->has_context_global) {
         sxml_ir_global_index global = {0};
         status = sxml_ir_unit_add_global_variable(
@@ -1141,14 +1327,15 @@ static sxml_status add_globals(module_lowering *module) {
 
 /* ------------------------------------------------------------- Module */
 
-/* True when some prolog makes initializers: a variable with a value or a
-   default, or the main module's context value declaration. */
+/* True when some prolog makes initializers or states the context value's
+   type: a variable with a value or a default, or a context value
+   declaration. */
 static bool needs_context_global(const module_lowering *module) {
-    if (module->contexts[0].context_value_declaration.value != 0) {
-        return true;
-    }
     for (size_t module_index = 0; module_index < module->set->module_count; module_index += 1) {
         const sxml_xquery_static_context *context = &module->contexts[module_index];
+        if (context->context_value_declaration.value != 0) {
+            return true;
+        }
         for (size_t variable_index = 0; variable_index < context->prolog_variable_count;
              variable_index += 1) {
             if (initializing_expression(context->ast, context->variable_nodes[variable_index])
@@ -1160,10 +1347,61 @@ static bool needs_context_global(const module_lowering *module) {
     return false;
 }
 
-/* Lowers the declared functions and initializers of every library module,
-   each with a lowerer over its own static context and AST. */
+/* What lower_library_modules lowers: the default functions, which come
+   first in every module so that calls know which focus parts they read,
+   or the other declared functions and the initializers. */
+typedef enum library_phase {
+    SXML_LIBRARY_PHASE_DEFAULT_FUNCTIONS,
+    SXML_LIBRARY_PHASE_FUNCTIONS_AND_INITIALIZERS,
+} library_phase;
+
+/* Marks the functions of the unit from first_function on, and the
+   declared functions of the current module, as the module's (its static
+   base URI and source name, glossary `ir_module`). */
+typedef struct module_functions {
+    uint32_t module_number;
+    uint32_t first_function;
+} module_functions;
+
+static sxml_status mark_module_function(module_lowering *module, uint32_t module_number,
+                                        sxml_ir_function_index index) {
+    sxml_ir_function_replacement replacement = {
+        .index = index, .function = *sxml_ir_unit_get_function(module->unit, index)};
+    replacement.function.module_number = module_number;
+    return sxml_ir_unit_replace_function(module->unit, &replacement);
+}
+
+static sxml_status mark_module_functions(module_lowering *module, module_functions request) {
+    sxml_status status = SXML_STATUS_OK;
+    for (uint32_t function_number = request.first_function;
+         status == SXML_STATUS_OK && function_number < module->unit->function_count;
+         function_number += 1) {
+        status = mark_module_function(module, request.module_number,
+                                      (sxml_ir_function_index){.value = function_number});
+    }
+    const sxml_xquery_static_context *context = module->context;
+    for (size_t function_index = 0;
+         status == SXML_STATUS_OK && function_index < context->declared_function_count;
+         function_index += 1) {
+        const sxml_xquery_declared_function *declared = &context->declared_functions[function_index];
+        const uint32_t ir_function_count =
+            declared->parameter_count - declared->required_count + 1U +
+            declared->default_function_count;
+        for (uint32_t offset = 0; status == SXML_STATUS_OK && offset < ir_function_count;
+             offset += 1) {
+            status = mark_module_function(
+                module, request.module_number,
+                (sxml_ir_function_index){.value = declared->first_function.value + offset});
+        }
+    }
+    return status;
+}
+
+/* Lowers phase of every library module, each with a lowerer over its own
+   static context and AST. */
 static sxml_status lower_library_modules(module_lowering *module,
-                                         const sxml_xquery_lowering_request *request) {
+                                         const sxml_xquery_lowering_request *request,
+                                         library_phase phase) {
     sxml_status status = SXML_STATUS_OK;
     for (size_t module_index = 1; status == SXML_STATUS_OK && module_index < module->set->module_count;
          module_index += 1) {
@@ -1189,9 +1427,32 @@ static sxml_status lower_library_modules(module_lowering *module,
         module->lowerer = lowerer;
         module->ast = context->ast;
         module->context = context;
-        status = lower_declared_functions(module);
+        const uint32_t first_function = module->unit->function_count;
+        if (phase == SXML_LIBRARY_PHASE_DEFAULT_FUNCTIONS) {
+            /* The module's static base URI and source name, module number
+               module_index (D148). */
+            uint32_t module_number = 0;
+            status = sxml_ir_unit_add_module(
+                module->unit,
+                &(sxml_ir_module){.source_name = module->set->modules[module_index].module_uri,
+                                  .static_base_uri = context->xpath.static_base_uri},
+                &module_number);
+            if (status == SXML_STATUS_OK && module_number != module_index) {
+                status = SXML_STATUS_INVALID_ARGUMENT;
+            }
+            if (status == SXML_STATUS_OK) {
+                status = lower_default_functions(module);
+            }
+        } else {
+            status = lower_declared_functions(module);
+            if (status == SXML_STATUS_OK) {
+                status = lower_initializers(module);
+            }
+        }
         if (status == SXML_STATUS_OK) {
-            status = lower_initializers(module);
+            status = mark_module_functions(
+                module, (module_functions){.module_number = (uint32_t)module_index,
+                                           .first_function = first_function});
         }
         sxml_xpath_lowerer_finalize(lowerer);
     }
@@ -1215,7 +1476,8 @@ static sxml_status lower_module(module_lowering *module,
              function_index += 1) {
             const sxml_xquery_declared_function *function = &each->declared_functions[function_index];
             module->declared_ir_function_count +=
-                (size_t)(function->parameter_count - function->required_count) + 1;
+                (size_t)(function->parameter_count - function->required_count) + 1 +
+                function->default_function_count;
         }
     }
     module->node_count = module->prolog_variable_count + 2 + module->declared_ir_function_count;
@@ -1238,7 +1500,17 @@ static sxml_status lower_module(module_lowering *module,
             (void **)&module->initializers);
     }
     if (status == SXML_STATUS_OK) {
-        status = lower_library_modules(module, request);
+        status = lower_library_modules(module, request, SXML_LIBRARY_PHASE_DEFAULT_FUNCTIONS);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = lower_default_functions(module);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = close_default_focus(module);
+    }
+    if (status == SXML_STATUS_OK) {
+        status =
+            lower_library_modules(module, request, SXML_LIBRARY_PHASE_FUNCTIONS_AND_INITIALIZERS);
     }
     if (status == SXML_STATUS_OK) {
         status = lower_declared_functions(module);

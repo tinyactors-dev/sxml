@@ -2784,6 +2784,19 @@ static sxml_status call_function_lookup(const sxml_function_call *call,
     }
     const sxml_function_query query = {
         .function_name = name.datum_details.qname.expanded_name, .arity = (size_t)arity};
+    /* The calling unit's own functions first: XQuery's declared
+       functions, XSLT's stylesheet functions. */
+    sxml_item found = {.representation = 0};
+    status = sxml_evaluator_find_unit_function(
+        call->dynamic_context,
+        (sxml_unit_function_query){.function_name = query.function_name, .arity = query.arity},
+        &found);
+    if (status != SXML_STATUS_OK || found.representation != 0) {
+        if (status == SXML_STATUS_OK) {
+            *result = sxml_sequence_from_item(found);
+        }
+        return status;
+    }
     sxml_function_entry entry = {.entry_kind = SXML_FUNCTION_ENTRY_KIND_NONE};
     status = table.operations->find_function(table.state, &query, &entry);
     if (status != SXML_STATUS_OK) {

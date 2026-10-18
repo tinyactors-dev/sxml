@@ -109,6 +109,12 @@ typedef struct sxml_xpath_static_context {
     sxml_xpath_function_namespace_rule function_namespace_rule;
     /* For SXML_XPATH_FUNCTION_NAMESPACE_RULE_DECLARED. */
     sxml_namespace_uri_identifier default_function_namespace;
+    /* The default namespace for elements and types is "##any" (XQuery
+       4.0, 5.14.1; XPath 4.0, 2.2.1): an unprefixed element name in a
+       name test or element test matches the local name in any namespace,
+       an unprefixed type name is in the xs namespace, and prefix 0 is
+       bound to no namespace (for constructed elements). */
+    bool has_any_default_element_namespace;
 } sxml_xpath_static_context;
 
 /* Writes a static error: the error code is err:code_local_name. */
@@ -158,6 +164,11 @@ typedef struct sxml_xpath_name_request {
 typedef struct sxml_xpath_resolved_name {
     sxml_namespace_uri_identifier namespace_uri;
     sxml_byte_view local_name;
+    /* An unprefixed element or type name under the default namespace
+       "##any" (has_any_default_element_namespace; namespace_uri is no
+       namespace): a name test or element test matches any namespace, a
+       type name is in the xs namespace. */
+    bool is_any_namespace;
 } sxml_xpath_resolved_name;
 
 /*

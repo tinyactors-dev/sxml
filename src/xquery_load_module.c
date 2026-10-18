@@ -859,6 +859,14 @@ static sxml_status compile_module(const load_request *request, load_state *load)
     if (status == SXML_STATUS_OK) {
         status = compile_record(&compiling, sxml_function_library_text_view(&text), &load->unit);
     }
+    if (status == SXML_STATUS_OK &&
+        (!sxml_function_library_option_is_true(
+             (sxml_option_lookup){.values = options, .option_index = SXML_LOAD_OPTION_TRUSTED}) ||
+         sxml_dynamic_context_check_trust(call->dynamic_context, NULL) != SXML_STATUS_OK)) {
+        /* 18.2: trusted is false by default, and a module an untrusted
+           call loads is untrusted too. */
+        sxml_ir_unit_set_untrusted(load->unit);
+    }
     release_declarations(&declarations);
     sxml_function_library_text_release(&text);
     return map_compile_error(&compiling, status);

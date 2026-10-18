@@ -409,7 +409,14 @@ bool sxml_dynamic_context_find_memo(const sxml_dynamic_context *dynamic_context,
 SXML_NODISCARD sxml_status sxml_dynamic_context_store_memo(
     sxml_dynamic_context *dynamic_context, const sxml_evaluation_memo_entry *entry);
 
-/* Calls the document loader's load_document (fn:doc). */
+/* SXML_STATUS_OK when the running unit may access external resources;
+   else FODC0016 in error_record (F&O 4.0, 18.2: the functions of a module
+   fn:load-xquery-module loaded without trust are untrusted). */
+SXML_NODISCARD sxml_status sxml_dynamic_context_check_trust(
+    const sxml_dynamic_context *dynamic_context, sxml_error_record *error_record);
+
+/* Calls the document loader's load_document (fn:doc), after
+   sxml_dynamic_context_check_trust. */
 SXML_NODISCARD sxml_status sxml_dynamic_context_load_document(
     sxml_dynamic_context *dynamic_context,
     const sxml_document_request *request, sxml_item *document_node);
@@ -740,6 +747,21 @@ typedef struct sxml_function_reference_request {
 SXML_NODISCARD sxml_status sxml_evaluator_make_function_reference(
     sxml_dynamic_context *dynamic_context,
     const sxml_function_reference_request *request, sxml_item *item);
+
+/* A function of the calling unit to find by name and arity. */
+typedef struct sxml_unit_function_query {
+    sxml_name_identifier function_name;
+    size_t arity;
+} sxml_unit_function_query;
+
+/* fn:function-lookup's search of the unit of the task that calls it (F&O
+   4.0, 13.1.1: the "named function definitions" of the dynamic context):
+   a top-level IR function of the name and arity, such as an XQuery
+   declared function or an XSLT stylesheet function, made a function item
+   as a named function reference makes it, in *item; item->representation
+   stays 0 when there is none. Returns the heap's failures. */
+SXML_NODISCARD sxml_status sxml_evaluator_find_unit_function(
+    sxml_dynamic_context *dynamic_context, sxml_unit_function_query query, sxml_item *item);
 
 /* The parameter and result types of a function item's signature. */
 typedef struct sxml_call_signature {

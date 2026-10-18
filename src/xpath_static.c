@@ -309,6 +309,7 @@ sxml_status sxml_xpath_resolve_name(const sxml_xpath_name_request *request,
          (node->flags & SXML_AST_FLAG_BRACED_URI) != 0);
     sxml_namespace_uri_identifier uri = {0};
     sxml_status status = SXML_STATUS_OK;
+    bool is_any_namespace = false;
     if (is_braced) {
         status = intern_uri_text(
             (uri_text){.text = sxml_ast_get_text(ast, name.namespace_uri),
@@ -338,6 +339,7 @@ sxml_status sxml_xpath_resolve_name(const sxml_xpath_name_request *request,
                 (default_namespace_lookup){
                     .ast = ast, .static_context = request->static_context},
                 &uri);
+            is_any_namespace = request->static_context->has_any_default_element_namespace;
             break;
         case SXML_XPATH_NAME_ROLE_FUNCTION:
             switch (request->static_context->function_namespace_rule) {
@@ -361,7 +363,8 @@ sxml_status sxml_xpath_resolve_name(const sxml_xpath_name_request *request,
         return status;
     }
     *resolved_name = (sxml_xpath_resolved_name){.namespace_uri = uri,
-                                                .local_name = local_name};
+                                                .local_name = local_name,
+                                                .is_any_namespace = is_any_namespace};
     return SXML_STATUS_OK;
 }
 
@@ -630,6 +633,11 @@ static sxml_status find_named_type(const type_resolver *resolver,
     if (status != SXML_STATUS_OK) {
         return status;
     }
+    if (resolved.is_any_namespace) {
+        /* "##any": the default type namespace rule gives xs (XPath 4.0,
+           2.2.1). */
+        resolved.namespace_uri = sxml_well_known_namespace_identifier(SXML_NAMESPACE_XML_SCHEMA);
+    }
     sxml_name_identifier name = {0};
     sxml_type_identifier found = {0};
     const bool is_interned = sxml_name_pool_find_name(
@@ -716,6 +724,16 @@ static sxml_status resolve_name_test(const type_resolver *resolver,
                                      name_test_request request,
                                      sxml_name_test *name_test) {
     const sxml_ast_node *node = sxml_ast_get_node(resolver->ast, request.node);
+    if (is_name_kind(node->kind) && request.name_role == SXML_XPATH_NAME_ROLE_ELEMENT_OR_TYPE &&
+        resolver->static_context->has_any_default_element_namespace &&
+        node->kind == SXML_AST_KIND_NCNAME) {
+        /* "##any": the element name matching rule reads local as *:local
+           (XPath 4.0, 2.2.1). */
+        *name_test = (sxml_name_test){
+            .name_test_kind = SXML_NAME_TEST_KIND_LOCAL_NAME_WILDCARD,
+            .local_name = sxml_ast_get_text(resolver->ast, node->payload.name.local_name)};
+        return SXML_STATUS_OK;
+    }
     if (is_name_kind(node->kind)) {
         sxml_name_identifier name = {0};
         sxml_status status = intern_resolved_name(

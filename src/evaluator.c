@@ -443,6 +443,11 @@ sxml_byte_view sxml_dynamic_context_get_static_base_uri(
     for (size_t task_count = stack->task_count; task_count > 0; task_count -= 1) {
         const sxml_ir_function *function = stack->tasks[task_count - 1].function;
         if (function != NULL && function->unit != NULL) {
+            if (function->module_number != 0 &&
+                function->module_number < function->unit->module_count) {
+                /* A library module's function: its module's (D148). */
+                return function->unit->modules[function->module_number].static_base_uri;
+            }
             if (function->unit->has_static_base_uri) {
                 return function->unit->static_base_uri;
             }
@@ -496,9 +501,31 @@ static const sxml_static_error sxml_document_unparsable_error = {
         "No document can be parsed here (F&O 4.0, fn:parse-xml)"),
 };
 
+static const sxml_static_error sxml_untrusted_error = {
+    .error_status = SXML_STATUS_DYNAMIC_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("FODC0016"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "External resources are not available to an untrusted call (F&O 4.0, "
+        "fn:load-xquery-module)"),
+};
+
+sxml_status sxml_dynamic_context_check_trust(const sxml_dynamic_context *dynamic_context,
+                                             sxml_error_record *error_record) {
+    const sxml_ir_unit *unit = sxml_dynamic_context_get_running_unit(dynamic_context);
+    if (unit != NULL && unit->is_untrusted) {
+        return sxml_error_record_report(error_record, &sxml_untrusted_error);
+    }
+    return SXML_STATUS_OK;
+}
+
 sxml_status sxml_dynamic_context_load_document(
     sxml_dynamic_context *dynamic_context, const sxml_document_request *request,
     sxml_item *document_node) {
+    const sxml_status trust = sxml_dynamic_context_check_trust(dynamic_context,
+                                                               request->error_record);
+    if (trust != SXML_STATUS_OK) {
+        return trust;
+    }
     const sxml_document_loader loader = dynamic_context->document_loader;
     if (loader.operations == NULL || loader.operations->load_document == NULL) {
         return sxml_error_record_report(request->error_record,
@@ -4410,8 +4437,11 @@ static void sxml_machine_locate_error(sxml_dynamic_context *context,
     if (span.line_number == 0) {
         return;
     }
+    const uint32_t module_number = task->function->module_number;
     record->diagnostic.location = (sxml_source_location){
-        .source_name = unit->source_name,
+        .source_name = module_number != 0 && module_number < unit->module_count
+                           ? unit->modules[module_number].source_name
+                           : unit->source_name,
         .line_number = span.line_number,
         .column_number = span.column_number,
         .byte_offset = span.byte_offset};

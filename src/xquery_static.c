@@ -673,11 +673,17 @@ static sxml_status read_namespaces(const static_reader *reader, const prolog_sur
                                                        .binding_count = list.binding_count});
     }
     if (status == SXML_STATUS_OK && survey->default_element_namespace.value != 0) {
+        const sxml_byte_view uri_text =
+            text_of(ast, child_of(ast, survey->default_element_namespace, SXML_AST_FIELD_URI));
         sxml_namespace_uri_identifier uri = {0};
-        status = intern_uri(
-            reader,
-            text_of(ast, child_of(ast, survey->default_element_namespace, SXML_AST_FIELD_URI)),
-            &uri);
+        status = intern_uri(reader, uri_text, &uri);
+        if (status == SXML_STATUS_OK && uri_text.byte_count == 5 &&
+            memcmp(uri_text.bytes, "##any", 5) == 0) {
+            /* 5.14.1: "##any" binds no namespace for constructed elements
+               and makes unprefixed name tests wildcards. */
+            context->xpath.has_any_default_element_namespace = true;
+            uri = sxml_well_known_namespace_identifier(SXML_NAMESPACE_NONE);
+        }
         if (status == SXML_STATUS_OK && is_xml_namespace(uri)) {
             status = report(reader, survey->default_element_namespace,
                             SXML_BYTE_VIEW_FROM_LITERAL(
@@ -1952,6 +1958,72 @@ typedef struct function_source {
     bool is_private;
 } function_source;
 
+/* The default functions of one declared function's parameters (glossary
+   `default_function`), after its other IR functions: three parameters,
+   the caller's context value, position and size, and the default's
+   type as result. Their focus names all three parts until prolog
+   lowering knows which the default reads, so a call lowered before
+   that passes the whole focus. */
+typedef struct default_functions {
+    sxml_xquery_declared_function *function;
+    sxml_xquery_static_context *context;
+} default_functions;
+
+static sxml_status add_default_functions(const static_reader *reader,
+                                         default_functions request) {
+    sxml_xquery_declared_function *function = request.function;
+    sxml_xquery_static_context *context = request.context;
+    static const sxml_sequence_type focus_types[3] = {
+        {.item_type = {.index = SXML_TYPE_ITEM}, .occurrence = SXML_OCCURRENCE_ZERO_OR_MORE},
+        {.item_type = {.index = SXML_TYPE_ITEM}, .occurrence = SXML_OCCURRENCE_ZERO_OR_MORE},
+        {.item_type = {.index = SXML_TYPE_ITEM}, .occurrence = SXML_OCCURRENCE_ZERO_OR_MORE}};
+    sxml_status status = SXML_STATUS_OK;
+    for (uint32_t parameter_index = 0;
+         status == SXML_STATUS_OK && parameter_index < function->parameter_count;
+         parameter_index += 1) {
+        sxml_function_parameter *parameter =
+            &context->function_parameters[function->first_parameter + parameter_index];
+        if (parameter->parameter_default != SXML_PARAMETER_DEFAULT_EXPRESSION) {
+            continue;
+        }
+        sxml_type_identifier signature = {0};
+        status = sxml_type_registry_register_item_type(
+            reader->type_registry,
+            &(sxml_type_description){
+                .variety = SXML_TYPE_VARIETY_FUNCTION,
+                .variety_details = {.function_type = {
+                                        .is_any_function = false,
+                                        .parameter_types = {.sequence_types = focus_types,
+                                                            .sequence_type_count = 3},
+                                        .result_type = context->parameter_types
+                                                           [function->first_parameter +
+                                                            parameter_index]}}},
+            &signature);
+        sxml_ir_function_index index = {0};
+        if (status == SXML_STATUS_OK) {
+            const sxml_ast_source_span span = node_of(reader->ast, function->declaration)->source_span;
+            status = sxml_ir_unit_add_function(
+                reader->request->unit,
+                &(sxml_ir_function){.signature = signature,
+                                    .parameter_count = 3,
+                                    .slot_count = 3,
+                                    .focus = {.context_value = {.value = 1},
+                                              .context_position = {.value = 2},
+                                              .context_size = {.value = 3}},
+                                    .source_span = {.byte_offset = span.byte_offset,
+                                                    .byte_count = span.byte_count,
+                                                    .line_number = span.line_number,
+                                                    .column_number = span.column_number}},
+                &index);
+        }
+        if (status == SXML_STATUS_OK) {
+            parameter->default_function_number = index.value;
+            function->default_function_count += 1;
+        }
+    }
+    return status;
+}
+
 /* The parameters, signatures and IR functions of one declared function. */
 static sxml_status read_function(const static_reader *reader, function_source source,
                                  sxml_xquery_static_context *context) {
@@ -2032,11 +2104,14 @@ static sxml_status read_function(const static_reader *reader, function_source so
         if (default_value.value != 0) {
             /* 5.18.3: ":= ." is the caller's context value, which the core
                supplies as for library functions; other defaults are
-               computed by the IR function of the shorter arity. */
+               computed by a default function the caller calls with its
+               focus (a record constructor's by the IR function of the
+               shorter arity). */
             parameter_default =
                 node_of(ast, default_value)->kind == SXML_AST_KIND_CONTEXT_VALUE_REFERENCE
                     ? SXML_PARAMETER_DEFAULT_CONTEXT_VALUE
-                    : SXML_PARAMETER_DEFAULT_SUPPLIED_BY_BODY;
+                : is_constructor ? SXML_PARAMETER_DEFAULT_SUPPLIED_BY_BODY
+                                 : SXML_PARAMETER_DEFAULT_EXPRESSION;
         } else {
             function->required_count += 1;
         }
@@ -2099,6 +2174,10 @@ static sxml_status read_function(const static_reader *reader, function_source so
         if (status == SXML_STATUS_OK && arity == function->required_count) {
             function->first_function = index;
         }
+    }
+    if (status == SXML_STATUS_OK) {
+        status = add_default_functions(
+            reader, (default_functions){.function = function, .context = context});
     }
     if (status == SXML_STATUS_OK) {
         context->declared_function_count += 1;

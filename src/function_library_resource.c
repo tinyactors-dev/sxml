@@ -632,7 +632,14 @@ static sxml_status start_text_reading(const sxml_function_call *call, text_funct
    map(*))? := {}) as xs:string? (F&O 4.0, section 17.1.5). */
 static sxml_status call_unparsed_text(const sxml_function_call *call, sxml_sequence *result) {
     text_reading reading;
-    sxml_status status = start_text_reading(call, SXML_TEXT_FUNCTION_UNPARSED_TEXT, &reading);
+    sxml_status status = call->dynamic_context == NULL
+                             ? SXML_STATUS_OK
+                             : sxml_dynamic_context_check_trust(call->dynamic_context,
+                                                                call->error_record);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    status = start_text_reading(call, SXML_TEXT_FUNCTION_UNPARSED_TEXT, &reading);
     if (status == SXML_STATUS_OK && reading.has_source) {
         if (reading.outcome.failure != SXML_TEXT_FAILURE_NONE) {
             status = report_text_failure(call, &reading.outcome);
@@ -713,7 +720,14 @@ static sxml_status make_lines(const sxml_function_call *call, sxml_byte_view tex
 static sxml_status call_unparsed_text_lines(const sxml_function_call *call,
                                             sxml_sequence *result) {
     text_reading reading;
-    sxml_status status = start_text_reading(call, SXML_TEXT_FUNCTION_UNPARSED_TEXT_LINES, &reading);
+    sxml_status status = call->dynamic_context == NULL
+                             ? SXML_STATUS_OK
+                             : sxml_dynamic_context_check_trust(call->dynamic_context,
+                                                                call->error_record);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    status = start_text_reading(call, SXML_TEXT_FUNCTION_UNPARSED_TEXT_LINES, &reading);
     if (status == SXML_STATUS_OK && reading.has_source) {
         if (reading.outcome.failure != SXML_TEXT_FAILURE_NONE) {
             status = report_text_failure(call, &reading.outcome);
@@ -757,8 +771,11 @@ static sxml_status call_unparsed_binary(const sxml_function_call *call, sxml_seq
     if (call->dynamic_context == NULL) {
         return SXML_STATUS_INVALID_ARGUMENT;
     }
-    sxml_optional_item source;
-    sxml_status status = sxml_function_library_read_optional_item(call, 0, &source);
+    sxml_optional_item source = {.has_item = false};
+    sxml_status status = sxml_dynamic_context_check_trust(call->dynamic_context, call->error_record);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_function_library_read_optional_item(call, 0, &source);
+    }
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -846,8 +863,11 @@ static sxml_status read_collection(const sxml_function_call *call,
     if (call->dynamic_context == NULL) {
         return SXML_STATUS_INVALID_ARGUMENT;
     }
-    sxml_optional_item source;
-    sxml_status status = sxml_function_library_read_optional_item(call, 0, &source);
+    sxml_optional_item source = {.has_item = false};
+    sxml_status status = sxml_dynamic_context_check_trust(call->dynamic_context, call->error_record);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_function_library_read_optional_item(call, 0, &source);
+    }
     sxml_string uri_reference = {.utf8 = {.bytes = NULL, .byte_count = 0}};
     if (status == SXML_STATUS_OK && source.has_item) {
         status = sxml_function_library_read_string_argument(call, 0, &uri_reference);

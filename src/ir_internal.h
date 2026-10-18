@@ -996,12 +996,17 @@ typedef struct sxml_ir_function {
     uint32_t slot_count;
     /* For the main function: the slots the evaluation's context value,
        position and size go to. For a template function: slots 1, 2, 3.
-       Otherwise all 0. */
+       For a default function (glossary): of slots 1, 2, 3 those whose
+       part its body reads, which callers pass. Otherwise all 0. */
     sxml_ir_focus focus;
     sxml_ir_expression_index body;
     /* %annotations (XQuery); borrowed from the unit. */
     sxml_function_annotation_view function_annotations;
     sxml_ir_source_span source_span;
+    /* The library module the function was written in (the unit's
+       modules[module_number]), whose static base URI and source name it
+       reads; 0 for the unit's own. */
+    uint32_t module_number;
 } sxml_ir_function;
 
 /* --------------------------------------------------------------- Globals */
@@ -1119,6 +1124,20 @@ typedef struct sxml_ir_static_context {
     sxml_collation_binding_view collation_bindings;
 } sxml_ir_static_context;
 
+/*
+ * A library module whose functions the unit holds (XQuery 4.0, 5.2; D148,
+ * glossary `ir_module`): the parts of its own static context its functions
+ * read when they run, which are not the unit's. Views of unit memory.
+ */
+typedef struct sxml_ir_module {
+    /* The module's source name, for error locations (err:module). */
+    sxml_byte_view source_name;
+    /* Its static base URI (XPath 4.0, section 2.2.1); empty when absent. */
+    sxml_byte_view static_base_uri;
+    /* The memory both view, released when the unit is finalized. */
+    void *text_memory;
+} sxml_ir_module;
+
 struct sxml_ir_unit {
     uint32_t reference_count;
     bool is_sealed;
@@ -1191,6 +1210,14 @@ struct sxml_ir_unit {
     sxml_ir_template_rule *template_rules;
     uint32_t template_rule_count;
     uint32_t template_rule_capacity;
+    /* fn:load-xquery-module made the unit without trust (F&O 4.0, 18.2,
+       the trusted option): its functions cannot access external
+       resources (FODC0016). Set by sxml_ir_unit_set_untrusted. */
+    bool is_untrusted;
+    /* Library modules (sxml_ir_unit_add_module), from module 1. */
+    sxml_ir_module *modules;
+    uint32_t module_count;
+    uint32_t module_capacity;
 
     /* All zero: what the accessors return for index 0 or an index out of
        range, so they need no array (arrays are allocated on first add). */
@@ -1321,6 +1348,19 @@ SXML_NODISCARD sxml_status sxml_ir_unit_set_static_context(
    before sealing. */
 SXML_NODISCARD sxml_status sxml_ir_unit_set_static_base_uri(
     sxml_ir_unit *unit, sxml_byte_view static_base_uri);
+
+/* Copies module's source name and static base URI into the unit as a new
+   module and writes its number (from 1), which functions of the module
+   carry (sxml_ir_function's module_number). Before sealing. Returns
+   SXML_STATUS_INVALID_ARGUMENT on a sealed unit and the allocator's
+   failures. */
+SXML_NODISCARD sxml_status sxml_ir_unit_add_module(sxml_ir_unit *unit,
+                                                   const sxml_ir_module *module,
+                                                   uint32_t *module_number);
+
+/* Marks the unit untrusted (is_untrusted). Also after sealing, before the
+   unit's first evaluation. */
+void sxml_ir_unit_set_untrusted(sxml_ir_unit *unit);
 
 /* Adds a function (its body may still be 0) and sets its unit field. The
    first function added is the main function. */

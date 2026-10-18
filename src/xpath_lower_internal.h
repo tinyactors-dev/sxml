@@ -110,6 +110,9 @@ typedef struct sxml_xpath_lowering_focus {
     sxml_xpath_lowering_focus_kind kind;
     /* SLOTS: the slots read so far; a part never read stays 0. */
     sxml_ir_focus slots;
+    /* SLOTS: the slots of the parts read so far, also of preset slots
+       (a default function's focus, glossary `default_function`). */
+    sxml_ir_focus parts_read;
     /* FIXED: the context value. */
     sxml_ir_atom fixed_value;
 } sxml_xpath_lowering_focus;
@@ -377,6 +380,20 @@ typedef struct sxml_xpath_lowering_focus_read {
 /* Writes the atom of the focus part, making its slot on first read. */
 SXML_NODISCARD sxml_status sxml_xpath_lowerer_read_focus(
     sxml_xpath_lowerer *lowerer, sxml_xpath_lowering_focus_read request,
+    sxml_ir_atom *atom);
+
+/* A call of a default function (glossary `default_function`) at node
+   with the parts of the current focus its IR function's focus names,
+   the empty sequence for the others, bound in block. */
+typedef struct sxml_xpath_lowering_default_call {
+    sxml_xpath_lowering_block *block;
+    sxml_ast_node_index node;
+    uint32_t default_function_number;
+} sxml_xpath_lowering_default_call;
+
+/* Writes the atom of the default's value. */
+SXML_NODISCARD sxml_status sxml_xpath_lowerer_call_default_function(
+    sxml_xpath_lowerer *lowerer, sxml_xpath_lowering_default_call request,
     sxml_ir_atom *atom);
 
 /* -------------------------------------------------------------- Types */
