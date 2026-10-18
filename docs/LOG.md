@@ -4,6 +4,19 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 5.1 done (D165): Phase 5 planned in `docs/tasks/phase-5.md` (14
+  packets, waves, gate proposal, the `sxml validate` design). New
+  `include/sxml/schema.h`: compiled schemas, a schema validator that is a
+  tree builder filter (parser, tree copy or construction in, annotated
+  events out), `sxml_schema_validate_node`, XSD constraint names as error
+  codes, a report sink. Substrate additions with D165: facets and complex
+  content types in `types.h` descriptions, typed values derived from
+  annotations (`tree.h`, `xdm.h` comments), resource kind
+  SCHEMA_DOCUMENT (`processor.h`), internal schema type registration
+  declared in `src/types_internal.h`. W3C XSD suite vendored in
+  `third_party/xsdtests` (54 MB): 41,538 tests in scope for XSD 1.1.
+  Nothing implemented yet; all ctests pass under debug, debug-gcc, wasm.
+
 - 4.17 sweep 2 done (D163): XSLT conformance. Zero-length parentless
   text nodes (XDM 4.0, 7.5.7.1) and CDATA requests (the cdata attribute,
   11.4.3) in the tree builder contract (tree.h, additive); sized arena
