@@ -301,6 +301,14 @@ After 4.13. Owns `src/xslt.c`, `tests/xslt_test.c`,
 lists it, with golden tests. Done when the 4.1 driver runs the slice at
 its baseline under `debug`, `debug-gcc` and `wasm` and 20 transformations
 round-trip through the public headers alone.
+**Done** 2026-10-19 (D157): `src/xslt.c`, `tests/xslt_test.c` (26
+transformations and the parameter, function, delivery, resolver and
+lifecycle cases), `apps/sxml/command_transform.c`, `docs/CLI.md`,
+`tests/cli/`; the driver's runs (`tests/xslt/driver/xslt_execution.c`),
+`tools/run-xslt.sh`, XT40 in `tools/conformance-report.py`. Slice 140 of
+154 under all three presets. Release, whole suite: in scope 7,585 of 8,728
+(86.9 %); number (57.5 %) and value-of (53.3 %) are the core sets below
+80 %.
 
 ### 4.16 Packages, minimal (implementation)
 After 4.15. Owns `src/xslt_package.c`, `tests/xslt_package_test.c`.

@@ -4,6 +4,28 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 4.15 done (D157): XSLT works through the public API and the CLI.
+  `src/xslt.c` implements `include/sxml/xslt.h` on the shared unit
+  evaluation (now with an extension: XSLT function table, strip-space
+  document preparation, result writer); the host's template and tunnel
+  parameters, initial match selection and initial function arguments are
+  invocation globals bound by name; a result document without href is the
+  principal result. `sxml transform STYLESHEET [INPUT]` with --param,
+  --initial-template, --initial-mode, --method (21 golden tests);
+  `tests/xslt_test.c` runs 26 transformations and an allocation-failure
+  loop (which found three failure-path bugs in the XSLT lowering, fixed).
+  The driver executes cases (`xslt_execution.c`, assertions over the QT4
+  checks), `tools/run-xslt.sh` and XT40 in `tools/conformance-report.py`.
+  Release run of the whole suite: in scope 7,585 of 8,728 passed
+  (**86.9 %**, gate 70 %), 785 failed, 7 errors (memory and step limits),
+  no test set crashed; core sets apply-templates 97.4, mode 87.3, match
+  92.8, for-each-group 90.7, sort 100, key 97.1, number 57.5 (114
+  in-scope cases need numbering combinations such as circled digits),
+  choose 95.4, copy 88.4, value-of 53.3 (7 wrong results), result-document
+  94.0, function 89.5 %. Slice 0 to 140 of 154; XP40 30,646 passed (the
+  dashboard's 30,630), qt4 slice 198. `debug`, `debug-gcc` 227/227,
+  `wasm` 229/229, lint clean. CLI wasm budget raised (Proposed).
+
 - 4.14 done (D155): accumulators. xsl:accumulator rules are match
   functions (D118) and rule functions (as templates, D144); per
   accumulator a traversal function from an XPath text, a fold-left over
