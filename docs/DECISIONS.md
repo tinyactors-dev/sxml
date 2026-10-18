@@ -6548,6 +6548,9 @@ Reserved 2026-10-18; the record follows when the packet lands.
 ### D176. sxml validate (packet 5.10)
 Reserved 2026-10-18; the record follows when the packet lands.
 
+### D177. Identity constraints (packet 5.8)
+Reserved 2026-10-18; the record follows when the packet lands.
+
 ## Proposed
 
 - **A simple base for a complex type in the registry** (packet 5.6, D172;
