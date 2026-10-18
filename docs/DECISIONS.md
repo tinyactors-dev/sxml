@@ -5417,6 +5417,10 @@ Reserved here; the record is completed when the packet is ticked.
 Recorded 2026-10-19, after D112, D117, D139, D148, D157.
 Reserved here; the record is completed when the packet is ticked.
 
+### D161. Phase 3 gate review (packet 3.15)
+Recorded 2026-10-19, after D11, D95, D123, D132, D151.
+Reserved here; the record is completed when the packet is ticked.
+
 ## Proposed
 
 - **An xsl:stylesheet as the principal package** (packet 4.15, D157; for
