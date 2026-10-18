@@ -4,7 +4,7 @@
 
 Results of the W3C QT4 test suite (`third_party/qt4tests`, D13) under `sxml-qt4 run` (D92), a release build, one process per test set. *Passed* counts passes and wrong errors (a wrong error code counts as a pass, catalog-schema.xsd); *not run* means not applicable to sxml or using an unsupported feature; *run* is test cases minus not run.
 
-- Code under test: commit `be79b9e4449a` of 2026-10-18
+- Code under test: commit `ae616ca7fa7f` of 2026-10-18
 - Regenerate: `cmake --preset release && cmake --build --preset release && tools/run-qt4.sh --program build/release/tests/qt4/driver/sxml-qt4 && tools/run-qt4.sh --program build/release/tests/qt4/driver/sxml-qt4 --spec XQ40 && tools/conformance-report.py build/qt4-run` (XQ40 is reported when its run is in the directory; XT40 and XSD11 when `tools/run-xslt.sh` and `tools/run-xsd.sh` ran into it too)
 
 ## Torture slice
@@ -1819,11 +1819,11 @@ Not run, by the first dependency that is not met:
 
 | Specification | Test cases | Run | Passed | of which wrong error | Failed | Errors | Not run | Passed of run |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|
-| XT40 | 13,867 | 9,208 | 8,649 | 162 | 553 | 6 | 4,659 | 93.9 % |
+| XT40 | 13,867 | 9,208 | 8,650 | 162 | 558 | 0 | 4,659 | 93.9 % |
 
 Gate rate (D95): 8,029 of 8,728 in-scope test cases passed, **92.0 %** (in scope: the spec matches and no non-goal is needed; not-run cases count as not passed).
 
-Schema-aware (D174, area "schema-aware"): 626 of 971 test cases passed, **64.5 %** (the test cases that need schemaImport, schemaValidation or typedData, or whose environment has a schema or a validated source; outside the D95 denominator unless only their environment is schema-aware; not-run cases count as not passed).
+Schema-aware (D174, area "schema-aware"): 627 of 971 test cases passed, **64.6 %** (the test cases that need schemaImport, schemaValidation or typedData, or whose environment has a schema or a validated source; outside the D95 denominator unless only their environment is schema-aware; not-run cases count as not passed).
 
 ### XT40 core test sets (Phase 4 gate: 80 % each)
 
@@ -1848,12 +1848,12 @@ XSLT slice (`tests/xslt/slice.txt`): **147/154 passed**.
 
 | Area (group: tests/GROUP/) | Test cases | Run | Passed | of which wrong error | Failed | Errors | Not run | Passed of run |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|
-| Attributes: `tests/attr/` | 1,634 | 1,367 | 1,254 | 13 | 109 | 4 | 267 | 91.7 % |
+| Attributes: `tests/attr/` | 1,634 | 1,367 | 1,254 | 13 | 113 | 0 | 267 | 91.7 % |
 | Declarations: `tests/decl/` | 1,497 | 1,395 | 1,313 | 33 | 82 | 0 | 102 | 94.1 % |
 | Expressions: `tests/expr/` | 739 | 706 | 699 | 0 | 7 | 0 | 33 | 99.0 % |
 | Functions: `tests/fn/` | 1,339 | 1,202 | 1,087 | 12 | 115 | 0 | 137 | 90.4 % |
 | Instructions: `tests/insn/` | 1,996 | 1,725 | 1,597 | 32 | 128 | 0 | 271 | 92.6 % |
-| Miscellaneous: `tests/misc/` | 3,123 | 1,894 | 1,839 | 49 | 53 | 2 | 1,229 | 97.1 % |
+| Miscellaneous: `tests/misc/` | 3,123 | 1,894 | 1,840 | 49 | 54 | 0 | 1,229 | 97.1 % |
 | Streaming (out of scope, D95): `tests/strm/` | 2,564 | 0 | 0 | 0 | 0 | 0 | 2,564 | – |
 | Other | 975 | 919 | 860 | 23 | 59 | 0 | 56 | 93.6 % |
 
@@ -1863,7 +1863,7 @@ Failed and error test cases by the error code the query raised (or the status th
 
 | Error code | Test cases |
 |---|--:|
-| (no error: wrong result) | 330 |
+| (no error: wrong result) | 328 |
 | XTSE0340 | 49 |
 | XPST0051 | 32 |
 | XTDE1450 | 25 |
@@ -1872,7 +1872,7 @@ Failed and error test cases by the error code the query raised (or the status th
 | XPDY0002 | 12 |
 | XPST0008 | 12 |
 | XTSE3000 | 8 |
-| XTTE1510 | 7 |
+| XTTE1510 | 8 |
 | XPTY0004 | 5 |
 | FONS0004 | 4 |
 | XPDY0050 | 4 |
@@ -1893,7 +1893,7 @@ The 25 most frequent reasons:
 
 | Cause | Test cases |
 |---|--:|
-| wrong result (assert-xml) | 112 |
+| wrong result (assert-xml) | 113 |
 | wrong result (assert) | 72 |
 | XTSE0340: the text is not a pattern (XSLT 4.0, 6.3.1) | 49 |
 | XPST0051: the type name is not defined | 32 |
@@ -1964,7 +1964,7 @@ Not run, by the first dependency that is not met:
 | merge | 120 | 67 | 24 | 0 | 29 |
 | record | 47 | 22 | 23 | 0 | 2 |
 | document | 99 | 76 | 22 | 0 | 1 |
-| match | 309 | 277 | 17 | 2 | 13 |
+| match | 309 | 277 | 19 | 0 | 13 |
 | snapshot | 35 | 16 | 19 | 0 | 0 |
 | type-alias | 32 | 13 | 18 | 0 | 1 |
 | copy | 165 | 146 | 16 | 0 | 3 |
@@ -1991,14 +1991,14 @@ Not run, by the first dependency that is not met:
 
 | Test set | Test cases | Passed | of which wrong error | Failed | Errors | Not run |
 |---|--:|--:|--:|--:|--:|--:|
-| as | 203 | 192 | 1 | 2 | 2 | 7 |
+| as | 203 | 192 | 1 | 4 | 0 | 7 |
 | avt | 34 | 33 | 0 | 0 | 0 | 1 |
 | capture | 9 | 1 | 0 | 0 | 0 | 8 |
 | declared-modes | 14 | 14 | 0 | 0 | 0 | 0 |
 | disable-output-escaping | 32 | 2 | 0 | 1 | 0 | 29 |
 | expand-text | 64 | 63 | 0 | 1 | 0 | 0 |
 | fixed-namespaces | 16 | 15 | 0 | 1 | 0 | 0 |
-| match | 309 | 277 | 1 | 17 | 2 | 13 |
+| match | 309 | 277 | 1 | 19 | 0 | 13 |
 | mode | 196 | 146 | 2 | 11 | 0 | 39 |
 | package-version | 37 | 33 | 1 | 1 | 0 | 3 |
 | priority | 40 | 6 | 0 | 34 | 0 | 0 |
@@ -2123,7 +2123,7 @@ Not run, by the first dependency that is not met:
 | backwards | 47 | 0 | 0 | 0 | 0 | 47 |
 | bug | 86 | 77 | 0 | 0 | 0 | 9 |
 | built-in-templates | 6 | 5 | 0 | 0 | 0 | 1 |
-| catalog | 13 | 4 | 0 | 2 | 2 | 5 |
+| catalog | 13 | 5 | 0 | 3 | 0 | 5 |
 | collations | 43 | 34 | 2 | 9 | 0 | 0 |
 | docbook | 4 | 0 | 0 | 1 | 0 | 3 |
 | embedded-stylesheet | 23 | 0 | 0 | 0 | 0 | 23 |
