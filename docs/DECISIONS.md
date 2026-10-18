@@ -4893,6 +4893,10 @@ Reserved here; the record is completed when the sweep ends.
 Recorded 2026-10-18, after D118, D144, D149, D150.
 Reserved here; the record is completed when the packet is ticked.
 
+### D156. Output and result documents (packet 4.13)
+Recorded 2026-10-18, after D106, D112, D120b, D128, D144, D145, D146, D150.
+Reserved here; the record is completed when the packet is ticked.
+
 ## Proposed
 
 - **The XSLT functions at run time** (packet 4.10, D149; for 4.15, the
