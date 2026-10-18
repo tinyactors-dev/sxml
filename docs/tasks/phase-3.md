@@ -298,6 +298,12 @@ per unit, a unit evaluation step), the QT4 driver's non-goal cases not
 run; XQ40 in scope 96.4 % to 96.9 %, XQ-only 85.3 % to 97.9 %, errors 5
 to 1 (modules-40). Open for the next sweep: D135 (b), (c), (g), a library
 module's static context at run time, trusted=false (FODC0016).
+**Sweep 2 done** 2026-10-18 (D158): default functions (focus-reading
+defaults, keyword arguments after omitted ones), XQuery globals read at
+call time by closures, fn:function-lookup of unit functions, "##any",
+library module base URIs and source names at run time, trust, function
+annotations; XQ40 in scope 96.9 % to 97.2 %, XQ-only 97.9 % to 98.8 %,
+errors 1 to 0; XP40 97.1 %. Open: D158's "Not done".
 
 ### 3.15 Phase 3 review (review)
 After everything. Owns the gate boxes. A separate agent (D11) runs the
