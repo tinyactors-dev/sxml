@@ -6289,6 +6289,9 @@ Recorded 2026-10-18. Fills SIMPLE_TYPES (D167) and registration (D165).
   attribute declarations and uses are cast to their types (a-props-correct.2,
   au-props-correct.2). NOTATION enumeration values are read as QNames.
 
+### D172. Complex types and content models (packet 5.6)
+Reserved 2026-10-18.
+
 ## Proposed
 
 - **Membership of a pattern rooted at a variable** (packet 4.18, D169;
