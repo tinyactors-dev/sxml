@@ -240,8 +240,9 @@ sxml_status sxml_dynamic_context_initialize(
         .task_value = sxml_sequence_empty(),
         .caught_status = SXML_STATUS_OK,
         .unit = NULL,
-        .global_slots = NULL,
-        .global_slot_count = 0,
+        .global_tables = NULL,
+        .global_table_count = 0,
+        .global_table_capacity = 0,
         .error_record = NULL,
         .static_base_uri = {.bytes = NULL, .byte_count = 0},
         .current_mode = {.value = 0},
@@ -764,16 +765,19 @@ static sxml_status sxml_machine_read_atom(sxml_dynamic_context *context,
         }
         slot = &context->frame_stack.slots[task->frame_base + atom.slot.value - 1];
         break;
-    case SXML_IR_ATOM_KIND_GLOBAL_VARIABLE:
-        /* Only the evaluation's own unit reads globals: closures capture
-           them (D55). */
-        if (task->function->unit != context->unit ||
-            atom.global_variable.value == 0 ||
-            atom.global_variable.value > context->global_slot_count) {
+    case SXML_IR_ATOM_KIND_GLOBAL_VARIABLE: {
+        /* The global table of the function's unit (D154); a unit without
+           one (a function item called after its evaluation ended) reads
+           none: closures capture globals (D55). */
+        const sxml_evaluator_global_table *table =
+            sxml_evaluator_find_global_table(context, task->function->unit);
+        if (table == NULL || atom.global_variable.value == 0 ||
+            atom.global_variable.value > table->slot_count) {
             return SXML_STATUS_INVALID_ARGUMENT;
         }
-        slot = &context->global_slots[atom.global_variable.value - 1];
+        slot = &table->slots[atom.global_variable.value - 1];
         break;
+    }
     }
     switch (slot->slot_state) {
     case SXML_EVALUATOR_SLOT_STATE_ABSENT:
@@ -1179,6 +1183,35 @@ static sxml_status sxml_machine_step_call(sxml_dynamic_context *context) {
     return sxml_machine_call_leaf(context, NULL);
 }
 
+static sxml_status sxml_add_global_table(sxml_dynamic_context *context,
+                                         const sxml_evaluation_request *request,
+                                         size_t *table_index);
+static sxml_status sxml_start_main_function(sxml_dynamic_context *context,
+                                            const sxml_evaluation_request *request,
+                                            size_t table_index);
+
+/* A unit evaluation (glossary `unit_evaluation`, D154) asked for by the
+   NATIVE_STEP task on top: the unit's global table, then its main function
+   and initializers above the task, which runs its next step with the
+   value, as after a call. */
+static sxml_status sxml_machine_evaluate_unit(sxml_dynamic_context *context,
+                                              const sxml_evaluation_request *request) {
+    if (request == NULL || request->unit == NULL || !request->unit->is_sealed ||
+        sxml_evaluator_find_global_table(context, request->unit) != NULL) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    if (context->evaluation_depth >= context->maximum_evaluation_depth) {
+        return SXML_STATUS_LIMIT_EXCEEDED;
+    }
+    sxml_machine_top(context)->phase = 1;
+    size_t table_index = 0;
+    sxml_status status = sxml_add_global_table(context, request, &table_index);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_start_main_function(context, request, table_index);
+    }
+    return status;
+}
+
 /* Runs one step of the NATIVE_STEP task on top. */
 static sxml_status sxml_machine_step_native(sxml_dynamic_context *context) {
     sxml_evaluator_task *task = sxml_machine_top(context);
@@ -1206,6 +1239,8 @@ static sxml_status sxml_machine_step_native(sxml_dynamic_context *context) {
         return sxml_machine_finish(context, step.result);
     case SXML_NATIVE_STEP_KIND_CALL:
         break;
+    case SXML_NATIVE_STEP_KIND_EVALUATE_UNIT:
+        return sxml_machine_evaluate_unit(context, step.unit_evaluation);
     }
     /* The step asks for a call: copy what it lends, then run the call as
        any dynamic call. */
@@ -4553,48 +4588,107 @@ static sxml_status sxml_value_make_complete(sxml_dynamic_context *context,
     return sxml_sequence_count(value, context->error_record, &item_count);
 }
 
-/* Releases the global table of the evaluation. */
-static void sxml_release_global_slots(sxml_dynamic_context *context) {
-    for (size_t slot_index = 0; slot_index < context->global_slot_count;
-         slot_index += 1) {
-        sxml_sequence_release(context->global_slots[slot_index].value);
+sxml_evaluator_global_table *sxml_evaluator_find_global_table(
+    sxml_dynamic_context *dynamic_context, const sxml_ir_unit *unit) {
+    for (size_t table_index = 0; table_index < dynamic_context->global_table_count;
+         table_index += 1) {
+        if (dynamic_context->global_tables[table_index].unit == unit) {
+            return &dynamic_context->global_tables[table_index];
+        }
     }
-    if (context->global_slots != NULL) {
-        sxml_allocator_release(context->allocator, context->global_slots);
-    }
-    context->global_slots = NULL;
-    context->global_slot_count = 0;
+    return NULL;
 }
 
-/* Fills the global table from the request: external values coerced to
-   their declared types (XPTY0004). */
-static sxml_status sxml_bind_global_slots(sxml_dynamic_context *context,
-                                          const sxml_evaluation_request *request) {
-    const sxml_ir_unit *unit = request->unit;
-    const size_t global_count =
-        unit->global_variable_count > 1 ? unit->global_variable_count - 1 : 0;
-    if (global_count == 0) {
+/* Releases the global tables of the evaluation and their units. */
+static void sxml_release_global_tables(sxml_dynamic_context *context) {
+    for (size_t table_index = 0; table_index < context->global_table_count;
+         table_index += 1) {
+        sxml_evaluator_global_table *table = &context->global_tables[table_index];
+        for (size_t slot_index = 0; slot_index < table->slot_count; slot_index += 1) {
+            sxml_sequence_release(table->slots[slot_index].value);
+        }
+        if (table->slots != NULL) {
+            sxml_allocator_release(context->allocator, table->slots);
+        }
+        sxml_ir_unit_release(table->unit);
+    }
+    if (context->global_tables != NULL) {
+        sxml_allocator_release(context->allocator, context->global_tables);
+    }
+    context->global_tables = NULL;
+    context->global_table_count = 0;
+    context->global_table_capacity = 0;
+}
+
+/* Makes room for one more global table. */
+static sxml_status sxml_reserve_global_table(sxml_dynamic_context *context) {
+    if (context->global_table_count < context->global_table_capacity) {
         return SXML_STATUS_OK;
     }
-    if (request->global_values.slot_count != global_count) {
-        return SXML_STATUS_INVALID_ARGUMENT;
-    }
+    const size_t capacity =
+        context->global_table_capacity == 0 ? 2 : context->global_table_capacity * 2;
+    size_t byte_count = 0;
+    sxml_status status =
+        sxml_size_multiply(capacity, sizeof(sxml_evaluator_global_table), &byte_count);
     void *memory = NULL;
-    sxml_status status = sxml_allocator_allocate(
-        context->allocator,
-        (sxml_allocation_request){.byte_count = global_count * sizeof(sxml_evaluator_slot),
-                                  .alignment = alignof(sxml_evaluator_slot)},
-        &memory);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_allocator_allocate(
+            context->allocator,
+            (sxml_allocation_request){.byte_count = byte_count,
+                                      .alignment = alignof(sxml_evaluator_global_table)},
+            &memory);
+    }
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    context->global_slots = memory;
+    if (context->global_table_count > 0) {
+        memcpy(memory, context->global_tables,
+               context->global_table_count * sizeof(sxml_evaluator_global_table));
+        sxml_allocator_release(context->allocator, context->global_tables);
+    }
+    context->global_tables = memory;
+    context->global_table_capacity = capacity;
+    return SXML_STATUS_OK;
+}
+
+/* Adds the global table of request->unit, filled from the request:
+   external values coerced to their declared types (XPTY0004), the others
+   ABSENT; writes its index. */
+static sxml_status sxml_add_global_table(sxml_dynamic_context *context,
+                                         const sxml_evaluation_request *request,
+                                         size_t *table_index) {
+    sxml_ir_unit *unit = request->unit;
+    const size_t global_count =
+        unit->global_variable_count > 1 ? unit->global_variable_count - 1 : 0;
+    if (global_count != 0 && request->global_values.slot_count != global_count) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    sxml_status status = sxml_reserve_global_table(context);
+    void *memory = NULL;
+    if (status == SXML_STATUS_OK && global_count > 0) {
+        size_t byte_count = 0;
+        status = sxml_size_multiply(global_count, sizeof(sxml_evaluator_slot), &byte_count);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_allocator_allocate(
+                context->allocator,
+                (sxml_allocation_request){.byte_count = byte_count,
+                                          .alignment = alignof(sxml_evaluator_slot)},
+                &memory);
+        }
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_ir_unit_retain(unit);
+    *table_index = context->global_table_count;
+    sxml_evaluator_global_table *table = &context->global_tables[context->global_table_count];
+    *table = (sxml_evaluator_global_table){.unit = unit, .slots = memory, .slot_count = global_count};
+    context->global_table_count += 1;
     for (size_t slot_index = 0; slot_index < global_count; slot_index += 1) {
-        context->global_slots[slot_index] = (sxml_evaluator_slot){
+        table->slots[slot_index] = (sxml_evaluator_slot){
             .value = sxml_sequence_empty(),
             .slot_state = SXML_EVALUATOR_SLOT_STATE_ABSENT};
     }
-    context->global_slot_count = global_count;
     for (size_t slot_index = 0; status == SXML_STATUS_OK && slot_index < global_count;
          slot_index += 1) {
         const sxml_ir_global_variable *variable = sxml_ir_unit_get_global_variable(
@@ -4616,7 +4710,7 @@ static sxml_status sxml_bind_global_slots(sxml_dynamic_context *context,
                                      .error_record = context->error_record},
             &coerced);
         if (status == SXML_STATUS_OK) {
-            context->global_slots[slot_index] = (sxml_evaluator_slot){
+            table->slots[slot_index] = (sxml_evaluator_slot){
                 .value = coerced, .slot_state = SXML_EVALUATOR_SLOT_STATE_BOUND};
         }
     }
@@ -4627,7 +4721,8 @@ static sxml_status sxml_bind_global_slots(sxml_dynamic_context *context,
    slots bound to the context value (XPath 4.0, section 2.2.2), and its
    body. */
 static sxml_status sxml_start_main_function(sxml_dynamic_context *context,
-                                            const sxml_evaluation_request *request) {
+                                            const sxml_evaluation_request *request,
+                                            size_t table_index) {
     const sxml_ir_function *main_function =
         sxml_ir_unit_get_function(request->unit, (sxml_ir_function_index){.value = 1});
     if (main_function->body.value == 0) {
@@ -4664,7 +4759,7 @@ static sxml_status sxml_start_main_function(sxml_dynamic_context *context,
         return status;
     }
     /* Declared global variables (src/evaluator_global.c, D101). */
-    return sxml_evaluator_start_global_initializers(context);
+    return sxml_evaluator_start_global_initializers(context, table_index);
 }
 
 /* Ends a run: restores the context for the next one. */
@@ -4692,9 +4787,10 @@ sxml_status sxml_evaluator_evaluate(sxml_dynamic_context *dynamic_context,
     context->static_base_uri = request->static_base_uri;
     sxml_ir_unit_retain(request->unit);
     const size_t base_count = context->task_stack.task_count;
-    sxml_status status = sxml_bind_global_slots(context, request);
+    size_t table_index = 0;
+    sxml_status status = sxml_add_global_table(context, request, &table_index);
     if (status == SXML_STATUS_OK) {
-        status = sxml_start_main_function(context, request);
+        status = sxml_start_main_function(context, request, table_index);
     }
     if (status == SXML_STATUS_OK) {
         status = sxml_machine_run(context, base_count);
@@ -4705,7 +4801,7 @@ sxml_status sxml_evaluator_evaluate(sxml_dynamic_context *dynamic_context,
         status = sxml_value_make_complete(context, value);
     }
     sxml_end_run(context, base_count);
-    sxml_release_global_slots(context);
+    sxml_release_global_tables(context);
     context->unit = NULL;
     context->static_base_uri = (sxml_byte_view){.bytes = NULL, .byte_count = 0};
     sxml_ir_unit_release(request->unit);
@@ -4769,6 +4865,8 @@ sxml_status sxml_evaluator_call_function_item(const sxml_function_call *call,
         status = sxml_value_make_complete(context, value);
     }
     sxml_end_run(context, base_count);
+    /* The tables of units evaluated during the call (D154). */
+    sxml_release_global_tables(context);
     if (status != SXML_STATUS_OK) {
         sxml_sequence_release(value);
         return status;

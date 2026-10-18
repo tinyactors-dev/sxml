@@ -81,6 +81,8 @@ typedef struct sxml_qt4_dependency_view {
 typedef struct sxml_qt4_dependency_value {
     sxml_byte_view dependency_type;
     sxml_byte_view value;
+    /* The run targets XQuery: XQuery's own features count. */
+    bool runs_xquery;
 } sxml_qt4_dependency_value;
 
 bool sxml_qt4_dependency_is_supported(sxml_qt4_dependency_value dependency);

@@ -215,7 +215,18 @@ typedef enum sxml_native_step_kind {
     /* Call function_item with arguments, then run the next step with the
        result. */
     SXML_NATIVE_STEP_KIND_CALL,
+    /* Evaluate another unit's main function on the same machine
+       (glossary `unit_evaluation`, D154): its global table is made from
+       unit_evaluation's global values and kept until the evaluation ends,
+       its globals computed as for sxml_evaluator_evaluate, then the next
+       step runs with the main function's value. fn:load-xquery-module
+       runs a module compiled at run time so, without nesting the
+       evaluator in C (D71). */
+    SXML_NATIVE_STEP_KIND_EVALUATE_UNIT,
 } sxml_native_step_kind;
+
+/* See src/evaluator_internal.h. */
+struct sxml_evaluation_request;
 
 /* The outcome of one native step. */
 typedef struct sxml_native_step {
@@ -227,6 +238,13 @@ typedef struct sxml_native_step {
        evaluator retains what it keeps. */
     sxml_item function_item;
     sxml_sequence_view arguments;
+    /* EVALUATE_UNIT: what to evaluate, borrowed until the next step runs:
+       a sealed unit (retained by its global table), the context value and
+       the global values (coerced to their types, XPTY0004). Its
+       static_base_uri and error_record are not read: a unit without a
+       static base URI sees the evaluation's, and the call's error record
+       receives the errors. */
+    const struct sxml_evaluation_request *unit_evaluation;
 } sxml_native_step;
 
 /* What one native step receives. */

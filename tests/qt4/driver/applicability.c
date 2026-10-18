@@ -37,6 +37,8 @@ typedef struct sxml_qt4_supported_dependency {
  *   cases run and fail, which the D95 denominator counts anyway.
  * - serialization: the serializers of packets 3.3 and 3.4, which the
  *   serialization assertions use (packet 3.13).
+ * - fn-load-xquery-module, for XQuery only: the function is XQuery's
+ *   (src/xquery_load_module.c, D154).
  */
 static const sxml_qt4_supported_dependency sxml_qt4_supported_dependencies[] = {
     {SXML_BYTE_VIEW_INITIALIZER("feature"),
@@ -75,6 +77,32 @@ static const sxml_qt4_supported_dependency sxml_qt4_supported_dependencies[] = {
     {SXML_BYTE_VIEW_INITIALIZER("feature"),
      SXML_BYTE_VIEW_INITIALIZER("serialization")},
 };
+
+/* Supported only when the run targets XQuery. */
+static const sxml_qt4_supported_dependency sxml_qt4_xquery_dependencies[] = {
+    {SXML_BYTE_VIEW_INITIALIZER("feature"),
+     SXML_BYTE_VIEW_INITIALIZER("fn-load-xquery-module")},
+};
+
+/* A table of supported dependencies. */
+typedef struct sxml_qt4_dependency_table {
+    const sxml_qt4_supported_dependency *entries;
+    size_t entry_count;
+} sxml_qt4_dependency_table;
+
+static bool sxml_qt4_table_has(sxml_qt4_dependency_table table,
+                               sxml_byte_view dependency_type,
+                               sxml_byte_view token) {
+    for (size_t entry_index = 0; entry_index < table.entry_count;
+         entry_index += 1) {
+        if (sxml_byte_view_equals(table.entries[entry_index].dependency_type,
+                                  dependency_type) &&
+            sxml_byte_view_equals(table.entries[entry_index].value, token)) {
+            return true;
+        }
+    }
+    return false;
+}
 
 /* The non-goals of D95 that a feature dependency names; an entry ending in
    "*" matches every value it starts. */
@@ -233,21 +261,21 @@ bool sxml_qt4_spec_token_matches(sxml_byte_view token, sxml_qt4_target target) {
 }
 
 bool sxml_qt4_dependency_is_supported(sxml_qt4_dependency_value dependency) {
+    const sxml_qt4_dependency_table common = {
+        .entries = sxml_qt4_supported_dependencies,
+        .entry_count = sizeof sxml_qt4_supported_dependencies /
+                       sizeof sxml_qt4_supported_dependencies[0]};
+    const sxml_qt4_dependency_table xquery = {
+        .entries = sxml_qt4_xquery_dependencies,
+        .entry_count = sizeof sxml_qt4_xquery_dependencies /
+                       sizeof sxml_qt4_xquery_dependencies[0]};
     sxml_qt4_token_cursor cursor = {.text = dependency.value, .byte_index = 0};
     sxml_byte_view token = sxml_qt4_empty_text;
     while (sxml_qt4_next_token(&cursor, &token)) {
-        const size_t supported_count =
-            sizeof sxml_qt4_supported_dependencies /
-            sizeof sxml_qt4_supported_dependencies[0];
-        for (size_t supported_index = 0; supported_index < supported_count;
-             supported_index += 1) {
-            const sxml_qt4_supported_dependency *supported =
-                &sxml_qt4_supported_dependencies[supported_index];
-            if (sxml_byte_view_equals(supported->dependency_type,
-                                      dependency.dependency_type) &&
-                sxml_byte_view_equals(supported->value, token)) {
-                return true;
-            }
+        if (sxml_qt4_table_has(common, dependency.dependency_type, token) ||
+            (dependency.runs_xquery &&
+             sxml_qt4_table_has(xquery, dependency.dependency_type, token))) {
+            return true;
         }
     }
     return false;
@@ -324,6 +352,7 @@ static bool sxml_qt4_decide_spec(const sxml_qt4_applicability_request *request,
 /* Rule 2 for one list. Returns true when every dependency is as asked. */
 static bool
 sxml_qt4_decide_dependencies(sxml_qt4_dependency_view dependencies,
+                             sxml_qt4_target target,
                              sxml_qt4_applicability *applicability) {
     for (size_t dependency_index = 0;
          dependency_index < dependencies.dependency_count;
@@ -336,7 +365,8 @@ sxml_qt4_decide_dependencies(sxml_qt4_dependency_view dependencies,
         const bool is_supported =
             sxml_qt4_dependency_is_supported((sxml_qt4_dependency_value){
                 .dependency_type = dependency->dependency_type,
-                .value = dependency->value});
+                .value = dependency->value,
+                .runs_xquery = target.language == SXML_QT4_LANGUAGE_XQUERY});
         if (is_supported != dependency->requires_satisfaction) {
             sxml_qt4_skip(applicability, (sxml_qt4_skip_reason){
                                              .reason =
@@ -451,9 +481,9 @@ void sxml_qt4_decide_applicability(
     }
     sxml_qt4_decide_scope(request, applicability);
     if (!sxml_qt4_decide_dependencies(request->test_set_dependencies,
-                                      applicability) ||
+                                      request->target, applicability) ||
         !sxml_qt4_decide_dependencies(request->test_case_dependencies,
-                                      applicability)) {
+                                      request->target, applicability)) {
         return;
     }
     const sxml_byte_view environment_part =

@@ -102,6 +102,17 @@ typedef struct sxml_evaluator_slot_view {
     size_t slot_count;
 } sxml_evaluator_slot_view;
 
+/* The global table of one unit in one evaluation (glossary
+   `global_table`): slot n - 1 for global n. */
+typedef struct sxml_evaluator_global_table {
+    /* Retained while the table lives. */
+    sxml_ir_unit *unit;
+    /* Allocated with the dynamic context's allocator; NULL for a unit
+       without globals. */
+    sxml_evaluator_slot *slots;
+    size_t slot_count;
+} sxml_evaluator_global_table;
+
 /* The slots of every active frame, innermost last. */
 typedef struct sxml_evaluator_frame_stack {
     sxml_evaluator_slot *slots;
@@ -276,11 +287,17 @@ struct sxml_dynamic_context {
        (src/evaluator_machine_internal.h, "Catching"); SXML_STATUS_OK when
        none. */
     sxml_status caught_status;
-    /* The unit being evaluated and its global variables, slot n - 1 for
-       global n. Set by sxml_evaluator_evaluate for its duration. */
+    /* The unit being evaluated. Set by sxml_evaluator_evaluate for its
+       duration. */
     const sxml_ir_unit *unit;
-    sxml_evaluator_slot *global_slots;
-    size_t global_slot_count;
+    /* The global tables of the evaluation running: the unit's first, then
+       one for each unit a native step evaluated on the machine
+       (fn:load-xquery-module, D154), kept until the evaluation ends so
+       the functions of that unit read its globals. A task reads the
+       table of its function's unit. Allocated with allocator. */
+    sxml_evaluator_global_table *global_tables;
+    size_t global_table_count;
+    size_t global_table_capacity;
     /* Receives the error of the evaluation running; may be NULL. */
     sxml_error_record *error_record;
     /* The static base URI of the unit being evaluated (XPath 4.0, section

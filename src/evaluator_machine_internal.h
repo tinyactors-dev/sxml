@@ -281,13 +281,20 @@ SXML_NODISCARD sxml_status sxml_evaluator_machine_raise(
 /* --------------------------------------------------- Global variables */
 
 /*
- * Called by sxml_evaluator_evaluate after the main function's frame,
- * RETURN task and body task are pushed, so tasks it pushes run before the
- * body (the top task is the body's): starts computing the global variables
- * with an initializer that the request left ABSENT (XQuery 4.0,
- * "Variable Declaration") in the order of their initializers' indices,
- * and binds the context global (name 0) to the host's context value
- * (D135). Defined in src/evaluator_global.c.
+ * Called by sxml_evaluator_evaluate, and for a unit evaluation (D154),
+ * after the main function's frame, RETURN task and body task are pushed,
+ * so tasks it pushes run before the body (the top task is the body's):
+ * starts computing the global variables of the global table at
+ * table_index with an initializer that the request left ABSENT (XQuery
+ * 4.0, "Variable Declaration") in the order of their initializers'
+ * indices, and binds the context global (name 0) to the host's context
+ * value (D135). Defined in src/evaluator_global.c.
  */
 SXML_NODISCARD sxml_status sxml_evaluator_start_global_initializers(
-    sxml_dynamic_context *dynamic_context);
+    sxml_dynamic_context *dynamic_context, size_t table_index);
+
+/* The global table of unit in the evaluation running, or NULL when it
+   has none (glossary `global_table`). Valid until a table is added.
+   Defined in src/evaluator.c. */
+sxml_evaluator_global_table *sxml_evaluator_find_global_table(
+    sxml_dynamic_context *dynamic_context, const sxml_ir_unit *unit);

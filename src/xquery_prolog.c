@@ -60,6 +60,7 @@
 #include "ir_pass_internal.h"
 #include "sxml/memory.h"
 #include "xpath_lower_internal.h"
+#include "xquery_load_module_internal.h"
 #include "xquery_module_internal.h"
 #include "xquery_static_internal.h"
 
@@ -1586,8 +1587,21 @@ sxml_status sxml_xquery_compile_module(const sxml_xquery_lowering_request *reque
     if (request == NULL || request->static_context == NULL) {
         return SXML_STATUS_INVALID_ARGUMENT;
     }
+    /* XQuery's own functions after the host's (fn:load-xquery-module,
+       src/xquery_load_module_internal.h, D154). */
+    sxml_xquery_function_table functions = {.host_table = {.state = NULL, .operations = NULL},
+                                            .library = NULL};
+    sxml_status status =
+        sxml_xquery_function_table_initialize(&functions, request->static_context);
+    sxml_xpath_static_context static_context = *request->static_context;
+    static_context.function_table = sxml_xquery_function_table_as_table(&functions);
+    sxml_xquery_lowering_request lowering = *request;
+    lowering.static_context = &static_context;
     sxml_ir_unit *new_unit = NULL;
-    sxml_status status = sxml_xquery_lower(request, &new_unit);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xquery_lower(&lowering, &new_unit);
+    }
+    sxml_xquery_function_table_finalize(&functions);
     if (status != SXML_STATUS_OK) {
         return status;
     }
