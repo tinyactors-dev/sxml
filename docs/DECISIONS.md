@@ -6977,6 +6977,9 @@ schema), `tests/xquery_schema_test.c`.
   sweep: whether a schema document for the XSD namespace may restate
   them).
 
+### D180. Conformance sweep 2 (packet 5.13)
+Reserved 2026-10-18; the record follows when the sweep lands.
+
 ## Proposed
 
 - **xslt.h reads the host's in-scope schemas** (packet 5.12, D179; for

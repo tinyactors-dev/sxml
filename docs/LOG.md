@@ -4,6 +4,10 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 5.13 sweep 2 claimed (D180): owns src/schema_read.c,
+  src/schema_assemble.c, tests/xslt/driver/xslt_execution.c, README.md's
+  status lines and docs/CONFORMANCE.md.
+
 - 5.12 done (D179): schema-aware XSLT. xsl:import-schema (inline
   xs:schema, schema-location, namespace; XTSE0215, XTSE0220) compiles in
   `src/xslt_schema.c` into one kept schema after the host's in-scope
