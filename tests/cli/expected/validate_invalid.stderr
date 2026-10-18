@@ -1,3 +1,3 @@
-xsd/bad-books.xml:2:55: cvc-datatype-valid.1.2.1: the value is not in the lexical space or value space of the target type
-xsd/bad-books.xml:3:9: cvc-datatype-valid.1.2.1: the value is not in the lexical space or value space of the target type
-xsd/bad-books.xml:3:21: cvc-complex-type.2.4: The element is not allowed here
+xsd/bad-books.xml:2:55: cvc-datatype-valid.1.2.1: element 'price' has the value 'cheap', which is not valid for type 'xs:decimal'
+xsd/bad-books.xml:3:9: cvc-datatype-valid.1.2.1: attribute 'year' has the value 'soon', which is not valid for type 'xs:gYear'
+xsd/bad-books.xml:3:21: cvc-complex-type.2.4: element 'price' is not allowed here; expected 'title'

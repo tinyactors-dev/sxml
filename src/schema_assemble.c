@@ -25,6 +25,7 @@
 
 #include "evaluator_internal.h"
 #include "processor_internal.h"
+#include "tree_internal.h"
 #include "xdm_internal.h"
 #include "xml_internal.h"
 
@@ -150,6 +151,10 @@ typedef struct document_error {
     /* Shown after the description: a URI or the parser's description. */
     sxml_byte_view subject;
     sxml_schema_position position;
+    /* A configured document that has no entry: located in itself
+       (sxml_schema_report_request). */
+    sxml_byte_view document_uri;
+    sxml_byte_view configured_uri;
 } document_error;
 
 static sxml_status report_document(sxml_schema_assembly *assembly, document_error error) {
@@ -172,7 +177,9 @@ static sxml_status report_document(sxml_schema_assembly *assembly, document_erro
                 .constraint_name = sxml_byte_view_from_c_string(error.constraint_name),
                 .description = description,
                 .detailed_description = {.bytes = detail.bytes, .byte_count = detail.byte_count},
-                .position = error.position});
+                .position = error.position,
+                .document_uri = error.document_uri,
+                .configured_uri = error.configured_uri});
     }
     sxml_xml_buffer_release(&detail);
     return status;
@@ -279,12 +286,26 @@ static sxml_status parse_document(sxml_schema_assembly *assembly, const document
         sxml_arena_tree_destroy(arena_tree);
         if (status != SXML_STATUS_OUT_OF_MEMORY && status != SXML_STATUS_LIMIT_EXCEEDED &&
             status != SXML_STATUS_ARITHMETIC_OVERFLOW) {
+            /* A configured document is located in itself, where the
+               parser stopped; an included one where it is referred to. */
+            const bool is_configured = source->relation == SXML_DOCUMENT_RELATION_CONFIGURED;
             return report_document(
                 assembly,
-                (document_error){.constraint_name = unreadable_constraints[source->relation],
-                                 .description = "A schema document is not well-formed",
-                                 .subject = diagnostic.description,
-                                 .position = source->position});
+                (document_error){
+                    .constraint_name = unreadable_constraints[source->relation],
+                    .description = "A schema document is not well-formed",
+                    .subject = diagnostic.description,
+                    .position = is_configured
+                                    ? (sxml_schema_position){.document = {.value = 0},
+                                                             .line_number = diagnostic.location
+                                                                                .line_number,
+                                                             .column_number = diagnostic.location
+                                                                                  .column_number,
+                                                             .byte_offset =
+                                                                 diagnostic.location.byte_offset}
+                                    : source->position,
+                    .document_uri = is_configured ? source->uri : SXML_TEXT(""),
+                    .configured_uri = is_configured ? source->configured_uri : SXML_TEXT("")});
         }
         return status;
     }
@@ -522,12 +543,32 @@ static sxml_status add_document(sxml_schema_assembly *assembly, const document_s
         .is_found = false, .tree = NULL, .schema_element = {.index = 0}};
     status = find_schema_element(assembly, root, &search);
     if (status == SXML_STATUS_OK && !search.is_found) {
+        /* A configured document is located at its document element. */
+        const bool is_configured = source->relation == SXML_DOCUMENT_RELATION_CONFIGURED;
+        sxml_source_location element_location;
+        memset(&element_location, 0, sizeof(element_location));
+        if (is_configured && search.tree != NULL && search.tree->operations->get_location != NULL &&
+            search.tree->operations->get_location(search.tree->state, search.schema_element,
+                                                  &element_location) != SXML_STATUS_OK) {
+            memset(&element_location, 0, sizeof(element_location));
+        }
         status = report_document(
-            assembly, (document_error){.constraint_name = unreadable_constraints[source->relation],
-                                       .description = "A document is not a schema document: "
-                                                      "its document element is not xs:schema",
-                                       .subject = source->uri,
-                                       .position = source->position});
+            assembly,
+            (document_error){
+                .constraint_name = unreadable_constraints[source->relation],
+                .description = "A document is not a schema document: its document element is "
+                               "not xs:schema",
+                .subject = is_configured ? SXML_TEXT("") : source->uri,
+                .position = is_configured
+                                ? (sxml_schema_position){
+                                      .document = {.value = 0},
+                                      .line_number = element_location.line_number,
+                                      .column_number = element_location.column_number,
+                                      .byte_offset = element_location.byte_offset}
+                                : source->position,
+                .document_uri = is_configured && source->uri.byte_count != 0 ? source->uri
+                                                                             : SXML_TEXT(""),
+                .configured_uri = is_configured ? source->configured_uri : SXML_TEXT("")});
         sxml_item_release(root);
         return status;
     }
@@ -946,6 +987,21 @@ static sxml_status add_configured_document(sxml_schema_assembly *assembly,
 static sxml_status read_document(sxml_schema_assembly *assembly, size_t position,
                                  const pending_read *pending) {
     assembly_document *document = assembly->documents[position];
+    /* 4.2.5: the children of xs:override take the place of components of
+       the overridden document D2', whose xs:schema attributes and
+       defaults (defaultOpenContent, defaultAttributes, ...) are D2's. */
+    sxml_schema_document_defaults *defaults = &document->defaults;
+    for (size_t overridden = 0; pending != NULL &&
+                                pending->read_kind == SXML_SCHEMA_READ_KIND_OVERRIDE &&
+                                overridden < assembly->document_count;
+         overridden += 1) {
+        assembly_document *candidate = assembly->documents[overridden];
+        if (candidate->index.value == pending->redefined_document.value &&
+            candidate->defaults.is_read) {
+            defaults = &candidate->defaults;
+            break;
+        }
+    }
     const sxml_schema_read_request request = {
         .read_kind = pending == NULL ? SXML_SCHEMA_READ_KIND_DOCUMENT : pending->read_kind,
         .document = document->index,
@@ -955,7 +1011,7 @@ static sxml_status read_document(sxml_schema_assembly *assembly, size_t position
         .target_namespace = document->target_namespace,
         .is_chameleon = document->is_chameleon,
         .document_uri = uri_of(document),
-        .defaults = &document->defaults,
+        .defaults = defaults,
         .redefined_document = pending == NULL ? (sxml_schema_document_index){.value = 0}
                                               : pending->redefined_document};
     return sxml_schema_read_document(assembly, &request);

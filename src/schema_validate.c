@@ -147,15 +147,40 @@ static identity_marks marks_of(const sxml_schema_validator *validator,
 /* A report at a location. */
 typedef struct located_error {
     sxml_byte_view constraint_name;
-    sxml_byte_view description;
+    sxml_schema_message message;
     sxml_source_location location;
 } located_error;
 
 static sxml_status report_at(sxml_schema_validator *validator, located_error error) {
     return sxml_schema_validator_report_error(
         validator, &(sxml_schema_validation_error){.constraint_name = error.constraint_name,
-                                                   .description = error.description,
+                                                   .message = error.message,
                                                    .location = error.location});
+}
+
+/* The element of a frame, named with a prefix in scope. */
+static sxml_schema_written_name frame_element(const sxml_schema_validation_frame *frame) {
+    return (sxml_schema_written_name){.name = frame->element_name,
+                                      .namespace_prefix = {.index = 0}};
+}
+
+/* The held-back element (and the one whose attributes are assessed), as
+   written. */
+static sxml_schema_written_name pending_element(const sxml_schema_validator *validator) {
+    const sxml_element_start_event *event = &validator->pending.event;
+    return (sxml_schema_written_name){.name = event->element_name,
+                                      .namespace_prefix = event->namespace_prefix};
+}
+
+static sxml_schema_written_name attribute_name_of(const sxml_schema_pending_attribute *attribute) {
+    return (sxml_schema_written_name){.name = attribute->attribute_name,
+                                      .namespace_prefix = attribute->namespace_prefix};
+}
+
+/* Whose value an attribute's or element's is. */
+static sxml_schema_subject attribute_subject(const sxml_schema_pending_attribute *attribute) {
+    return (sxml_schema_subject){.subject_kind = SXML_SCHEMA_SUBJECT_ATTRIBUTE,
+                                 .name = attribute_name_of(attribute)};
 }
 
 /* --------------------------------------------------------------- Frames */
@@ -331,7 +356,8 @@ static sxml_status assess_declared_attribute(sxml_schema_validator *validator,
         &(sxml_schema_value_request){.simple_type = simple_type,
                                      .text = declared->value,
                                      .location = declared->attribute->location,
-                                     .element_number = validator->attribute_element_number},
+                                     .element_number = validator->attribute_element_number,
+                                     .subject = attribute_subject(declared->attribute)},
         &outcome);
     if (status != SXML_STATUS_OK) {
         return status;
@@ -371,12 +397,18 @@ static sxml_status assess_declared_attribute(sxml_schema_validator *validator,
                                                         .value_constraint = value_constraint},
                                     &fixed);
         if (status == SXML_STATUS_OK && !fixed.is_equal) {
+            const sxml_schema_message message = {
+                .text = TEXT("%a has the value %v, not its fixed value %V"),
+                .attribute = attribute_name_of(declared->attribute),
+                .value = declared->value,
+                .second_value =
+                    sxml_schema_get_text(validator->components, value_constraint.lexical_form)};
             status =
                 report_at(validator,
                           (located_error){
                               .constraint_name = declared->use.value != 0 ? TEXT("cvc-au")
                                                                           : TEXT("cvc-attribute.4"),
-                              .description = TEXT("An attribute's value is not its fixed value"),
+                              .message = message,
                               .location = declared->attribute->location});
         }
     }
@@ -482,9 +514,13 @@ static sxml_status assess_complex_attribute(sxml_schema_validator *validator,
                                          .symbol_space =
                                              SXML_SCHEMA_SYMBOL_SPACE_ATTRIBUTE_DECLARATION})) {
         /* 3.4.4.2, clause 3: no use and no wildcard for it. */
+        const sxml_schema_message message = {
+            .text = TEXT("%a is not allowed on %e"),
+            .attribute = attribute_name_of(attribute),
+            .element = pending_element(validator)};
         sxml_status status = report_at(
             validator, (located_error){.constraint_name = TEXT("cvc-complex-type.3.2.2"),
-                                       .description = TEXT("The attribute is not allowed"),
+                                       .message = message,
                                        .location = attribute->location});
         if (status == SXML_STATUS_OK) {
             status = send_unassessed_attribute(validator, attribute, value);
@@ -506,13 +542,13 @@ static sxml_status assess_complex_attribute(sxml_schema_validator *validator,
         (sxml_schema_name_key){.symbol_space = SXML_SCHEMA_SYMBOL_SPACE_ATTRIBUTE_DECLARATION,
                                .name = attribute->attribute_name});
     if (declaration == 0) {
-        sxml_status status = report_at(
-            validator,
-            (located_error){.constraint_name = TEXT("cvc-assess-attr"),
-                            .description =
-                                TEXT("A strict attribute wildcard matched an attribute without a "
-                                     "global declaration"),
-                            .location = attribute->location});
+        const sxml_schema_message message = {
+            .text = TEXT("%a matches a strict attribute wildcard but has no global declaration"),
+            .attribute = attribute_name_of(attribute)};
+        sxml_status status = report_at(validator, (located_error){.constraint_name =
+                                                                      TEXT("cvc-assess-attr"),
+                                                                  .message = message,
+                                                                  .location = attribute->location});
         if (status == SXML_STATUS_OK) {
             status = send_unassessed_attribute(validator, attribute, value);
         }
@@ -547,10 +583,16 @@ static sxml_status add_missing_uses(sxml_schema_validator *validator, missing_us
             validator->components,
             (sxml_schema_attribute_use_index){.value = uses.indexes[position]});
         if (use->use_kind == SXML_SCHEMA_ATTRIBUTE_USE_REQUIRED) {
-            status = report_at(
-                validator, (located_error){.constraint_name = TEXT("cvc-complex-type.4"),
-                                           .description = TEXT("A required attribute is missing"),
-                                           .location = missing.location});
+            const sxml_schema_message message = {
+                .text = TEXT("%e lacks the required %a"),
+                .element = pending_element(validator),
+                .attribute = {.name = attribute_at(validator, use->attribute_declaration)
+                                          ->attribute_name,
+                              .namespace_prefix = {.index = 0}}};
+            status = report_at(validator,
+                               (located_error){.constraint_name = TEXT("cvc-complex-type.4"),
+                                               .message = message,
+                                               .location = missing.location});
             continue;
         }
         const sxml_schema_value_constraint value_constraint = use_value_constraint(validator, use);
@@ -646,11 +688,15 @@ static sxml_status assess_attributes(sxml_schema_validator *validator,
         } else if (type_definition != NULL) {
             /* 3.4.4.1 cvc-type.3.1.1: a simple type allows no attributes
                but the xsi: ones. */
-            status = report_at(
-                validator,
-                (located_error){.constraint_name = TEXT("cvc-type.3.1.1"),
-                                .description = TEXT("An element of a simple type has an attribute"),
-                                .location = attribute->location});
+            const sxml_schema_message message = {
+                .text = TEXT("%a is not allowed on %e: its type is simple, %t"),
+                .attribute = attribute_name_of(attribute),
+                .element = pending_element(validator),
+                .type_definition = frame->type_definition};
+            status = report_at(validator,
+                               (located_error){.constraint_name = TEXT("cvc-type.3.1.1"),
+                                               .message = message,
+                                               .location = attribute->location});
             if (status == SXML_STATUS_OK) {
                 status = send_unassessed_attribute(validator, attribute, value);
             }
@@ -706,10 +752,13 @@ static sxml_status resolve_xsi_type(sxml_schema_validator *validator,
                                   .error_record = &ignored},
         &value);
     if (status == SXML_STATUS_DYNAMIC_ERROR || status == SXML_STATUS_TYPE_ERROR) {
-        return report_at(validator,
-                         (located_error){.constraint_name = TEXT("cvc-elt.4.1"),
-                                         .description = TEXT("The xsi:type value is not a QName"),
-                                         .location = attribute->location});
+        const sxml_schema_message message = {
+            .text = TEXT("the xsi:type value %v of %e is not a QName"),
+            .value = pending_value(validator, attribute),
+            .element = pending_element(validator)};
+        return report_at(validator, (located_error){.constraint_name = TEXT("cvc-elt.4.1"),
+                                                    .message = message,
+                                                    .location = attribute->location});
     }
     if (status != SXML_STATUS_OK) {
         return status;
@@ -732,11 +781,13 @@ static sxml_status resolve_xsi_type(sxml_schema_validator *validator,
         validator, (sxml_schema_name_key){.symbol_space = SXML_SCHEMA_SYMBOL_SPACE_TYPE_DEFINITION,
                                           .name = type_name});
     if (type->value == 0) {
-        return report_at(
-            validator,
-            (located_error){.constraint_name = TEXT("cvc-elt.4.2"),
-                            .description = TEXT("The xsi:type value names no type definition"),
-                            .location = attribute->location});
+        const sxml_schema_message message = {
+            .text = TEXT("the xsi:type value %v of %e names no type definition"),
+            .value = pending_value(validator, attribute),
+            .element = pending_element(validator)};
+        return report_at(validator, (located_error){.constraint_name = TEXT("cvc-elt.4.2"),
+                                                    .message = message,
+                                                    .location = attribute->location});
     }
     return SXML_STATUS_OK;
 }
@@ -778,12 +829,15 @@ static sxml_status apply_xsi_type(sxml_schema_validator *validator, type_choice 
         return status;
     }
     if (!outcome.is_derived) {
-        return report_at(
-            validator,
-            (located_error){.constraint_name = TEXT("cvc-elt.4.3"),
-                            .description = TEXT("The xsi:type type is not validly derived from "
-                                                "the declared type"),
-                            .location = choice.xsi_type->location});
+        const sxml_schema_message message = {
+            .text = TEXT("xsi:type gives %e %t, which is not validly derived from its "
+                         "declared type, %T"),
+            .type_definition = local_type,
+            .element = pending_element(validator),
+            .second_type = *choice.type};
+        return report_at(validator, (located_error){.constraint_name = TEXT("cvc-elt.4.3"),
+                                                    .message = message,
+                                                    .location = choice.xsi_type->location});
     }
     *choice.type = local_type;
     return SXML_STATUS_OK;
@@ -804,11 +858,12 @@ static sxml_status apply_xsi_nil(sxml_schema_validator *validator, nil_check che
         return SXML_STATUS_OK;
     }
     if (!declaration->is_nillable) {
-        return report_at(validator,
-                         (located_error){.constraint_name = TEXT("cvc-elt.3.1"),
-                                         .description = TEXT("xsi:nil on an element that is not "
-                                                             "nillable"),
-                                         .location = check.xsi_nil->location});
+        const sxml_schema_message message = {
+            .text = TEXT("%e has xsi:nil, but its declaration is not nillable"),
+            .element = pending_element(validator)};
+        return report_at(validator, (located_error){.constraint_name = TEXT("cvc-elt.3.1"),
+                                                    .message = message,
+                                                    .location = check.xsi_nil->location});
     }
     sxml_error_record ignored;
     sxml_sequence value = sxml_sequence_empty();
@@ -841,10 +896,12 @@ static sxml_status apply_xsi_nil(sxml_schema_validator *validator, nil_check che
     }
     frame->is_nilled = true;
     if (declaration->value_constraint.variety == SXML_SCHEMA_VALUE_CONSTRAINT_FIXED) {
-        return report_at(validator,
-                         (located_error){.constraint_name = TEXT("cvc-elt.3.2.2"),
-                                         .description = TEXT("A nilled element has a fixed value"),
-                                         .location = check.xsi_nil->location});
+        const sxml_schema_message message = {
+            .text = TEXT("%e is nilled, but its declaration has a fixed value"),
+            .element = pending_element(validator)};
+        return report_at(validator, (located_error){.constraint_name = TEXT("cvc-elt.3.2.2"),
+                                                    .message = message,
+                                                    .location = check.xsi_nil->location});
     }
     return SXML_STATUS_OK;
 }
@@ -902,11 +959,12 @@ static sxml_status choose_type(sxml_schema_validator *validator,
             element_at(validator, frame->element_declaration);
         if (declaration->is_abstract) {
             /* cvc-elt.2: an abstract declaration governs no element. */
-            status = report_at(validator,
-                               (located_error){.constraint_name = TEXT("cvc-elt.2"),
-                                               .description = TEXT("The element's declaration is "
-                                                                   "abstract"),
-                                               .location = frame->location});
+            const sxml_schema_message message = {
+                .text = TEXT("%e has an abstract declaration"),
+                .element = pending_element(validator)};
+            status = report_at(validator, (located_error){.constraint_name = TEXT("cvc-elt.2"),
+                                                          .message = message,
+                                                          .location = frame->location});
         }
         if (status == SXML_STATUS_OK) {
             /* 3.3.4.1: the type table selects the type (packet 5.9). */
@@ -927,10 +985,13 @@ static sxml_status choose_type(sxml_schema_validator *validator,
     if (type.value == 0) {
         frame->assessment = SXML_SCHEMA_ASSESSMENT_LAX;
         if (pending->missing_declaration_constraint.byte_count != 0) {
+            const sxml_schema_message message = {
+                .text = TEXT("no global declaration governs %e"),
+                .element = pending_element(validator)};
             status = report_at(
                 validator,
                 (located_error){.constraint_name = pending->missing_declaration_constraint,
-                                .description = TEXT("No declaration governs the element"),
+                                .message = message,
                                 .location = frame->location});
         }
         return status;
@@ -940,10 +1001,13 @@ static sxml_status choose_type(sxml_schema_validator *validator,
     const sxml_schema_type_definition *definition = type_at(validator, type);
     if (definition->variety == SXML_TYPE_VARIETY_COMPLEX && definition->is_abstract) {
         /* cvc-type.2: no element is of an abstract type. */
-        status = report_at(validator,
-                           (located_error){.constraint_name = TEXT("cvc-type.2"),
-                                           .description = TEXT("The element's type is abstract"),
-                                           .location = frame->location});
+        const sxml_schema_message message = {
+            .text = TEXT("the type of %e is abstract: %t"),
+            .element = pending_element(validator),
+            .type_definition = type};
+        status = report_at(validator, (located_error){.constraint_name = TEXT("cvc-type.2"),
+                                                      .message = message,
+                                                      .location = frame->location});
     }
     if (status == SXML_STATUS_OK) {
         status = set_content(validator, frame);
@@ -1032,12 +1096,15 @@ static sxml_status check_consistent_type(sxml_schema_validator *validator,
     if (status != SXML_STATUS_OK || outcome.is_derived) {
         return status;
     }
-    return report_at(validator,
-                     (located_error){.constraint_name = TEXT("cvc-complex-type.5"),
-                                     .description = TEXT("An element a wildcard matched is not of "
-                                                         "a type derived from the content model's "
-                                                         "declaration of its name"),
-                                     .location = frame->location});
+    const sxml_schema_message message = {
+        .text = TEXT("%e, which a wildcard matched, has %t, which is not derived from %T, the type "
+                     "the content model declares for its name"),
+        .element = pending_element(validator),
+        .type_definition = governing_type,
+        .second_type = declaration->type_definition};
+    return report_at(validator, (located_error){.constraint_name = TEXT("cvc-complex-type.5"),
+                                                .message = message,
+                                                .location = frame->location});
 }
 
 /* Ends the attribute phase of the held-back element: its type, xsi:nil,
@@ -1142,14 +1209,14 @@ static child_assessment lax_child(const sxml_schema_validator *validator,
 typedef struct content_error {
     sxml_schema_validation_frame *frame;
     sxml_byte_view constraint_name;
-    sxml_byte_view description;
+    sxml_schema_message message;
     sxml_source_location location;
 } content_error;
 
 static sxml_status report_content_error(sxml_schema_validator *validator, content_error error) {
     error.frame->has_content_error = true;
     return report_at(validator, (located_error){.constraint_name = error.constraint_name,
-                                                .description = error.description,
+                                                .message = error.message,
                                                 .location = error.location});
 }
 
@@ -1256,6 +1323,7 @@ static sxml_status find_particle_declaration(sxml_schema_validator *validator,
 typedef struct child_request {
     sxml_schema_validation_frame *parent;
     sxml_name_identifier element_name;
+    sxml_namespace_prefix_identifier namespace_prefix;
     sxml_source_location location;
 } child_request;
 
@@ -1263,22 +1331,37 @@ static sxml_status match_child(sxml_schema_validator *validator, child_request r
                                child_assessment *child) {
     sxml_schema_validation_frame *parent = request.parent;
     *child = lax_child(validator, request.element_name);
+    const sxml_schema_written_name child_element = {.name = request.element_name,
+                                                    .namespace_prefix = request.namespace_prefix};
     if (parent->is_nilled) {
-        return report_content_error(
-            validator, (content_error){.frame = parent,
-                                       .constraint_name = TEXT("cvc-elt.3.2.1"),
-                                       .description = TEXT("A nilled element has content"),
-                                       .location = request.location});
+        const sxml_schema_message message = {
+            .text = TEXT("%e is nilled, but has the child %E"),
+            .element = frame_element(parent),
+            .second_element = child_element};
+        return report_content_error(validator,
+                                    (content_error){.frame = parent,
+                                                    .constraint_name = TEXT("cvc-elt.3.2.1"),
+                                                    .message = message,
+                                                    .location = request.location});
     }
     switch (parent->content_variety) {
-    case SXML_CONTENT_TYPE_VARIETY_EMPTY:
-        return report_content_error(
-            validator,
-            (content_error){.frame = parent,
-                            .constraint_name = TEXT("cvc-complex-type.2.1"),
-                            .description = TEXT("An element of empty content has a child element"),
-                            .location = request.location});
-    case SXML_CONTENT_TYPE_VARIETY_SIMPLE:
+    case SXML_CONTENT_TYPE_VARIETY_EMPTY: {
+        const sxml_schema_message message = {
+            .text = TEXT("%E is not allowed: %e has empty content"),
+            .element = frame_element(parent),
+            .second_element = child_element};
+        return report_content_error(validator,
+                                    (content_error){.frame = parent,
+                                                    .constraint_name = TEXT("cvc-complex-type.2.1"),
+                                                    .message = message,
+                                                    .location = request.location});
+    }
+    case SXML_CONTENT_TYPE_VARIETY_SIMPLE: {
+        const sxml_schema_message message = {
+            .text = TEXT("%E is not allowed: %e has simple content of %t"),
+            .element = frame_element(parent),
+            .second_element = child_element,
+            .type_definition = parent->simple_type};
         return report_content_error(
             validator,
             (content_error){.frame = parent,
@@ -1287,13 +1370,19 @@ static sxml_status match_child(sxml_schema_validator *validator, child_request r
                                         SXML_TYPE_VARIETY_COMPLEX
                                     ? TEXT("cvc-complex-type.2.2")
                                     : TEXT("cvc-type.3.1.2"),
-                            .description = TEXT("An element of simple content has a child element"),
+                            .message = message,
                             .location = request.location});
+    }
     case SXML_CONTENT_TYPE_VARIETY_ELEMENT_ONLY:
     case SXML_CONTENT_TYPE_VARIETY_MIXED:
         break;
     }
     sxml_schema_content_model_match match = {.match_kind = SXML_SCHEMA_MATCH_NONE};
+    /* Where the content was before the child, for the expected terms. */
+    sxml_schema_content_model_cursor before = {.content_model = NULL,
+                                               .state = 0,
+                                               .counter_values = NULL,
+                                               .counter_count = 0};
     if (parent->content_model != NULL) {
         sxml_schema_content_model_cursor cursor = {
             .content_model = parent->content_model,
@@ -1301,6 +1390,7 @@ static sxml_status match_child(sxml_schema_validator *validator, child_request r
             .counter_values =
                 sxml_schema_scratch_array_at(&validator->counter_values, parent->first_counter),
             .counter_count = parent->counter_count};
+        before = cursor;
         const sxml_status status = sxml_schema_content_model_step(
             validator->components,
             &(sxml_schema_content_model_step_request){.cursor = &cursor,
@@ -1312,13 +1402,19 @@ static sxml_status match_child(sxml_schema_validator *validator, child_request r
         parent->content_model_state = cursor.state;
     }
     switch (match.match_kind) {
-    case SXML_SCHEMA_MATCH_NONE:
-        /* 3.4.4.2, clause 2.4: the child does not fit the content model. */
-        return report_content_error(
-            validator, (content_error){.frame = parent,
-                                       .constraint_name = TEXT("cvc-complex-type.2.4"),
-                                       .description = TEXT("The element is not allowed here"),
-                                       .location = request.location});
+    case SXML_SCHEMA_MATCH_NONE: {
+        /* 3.4.4.2, clause 2.4: the child does not fit the content model.
+           A step that does not match leaves the counters as they were. */
+        const sxml_schema_message message = {
+            .text = TEXT("%e is not allowed here; expected %x"),
+            .element = child_element,
+            .cursor = parent->content_model != NULL ? &before : NULL};
+        return report_content_error(validator,
+                                    (content_error){.frame = parent,
+                                                    .constraint_name = TEXT("cvc-complex-type.2.4"),
+                                                    .message = message,
+                                                    .location = request.location});
+    }
     case SXML_SCHEMA_MATCH_ELEMENT_DECLARATION:
         *child = (child_assessment){.assessment = SXML_SCHEMA_ASSESSMENT_STRICT,
                                     .element_declaration = match.element_declaration,
@@ -1422,7 +1518,9 @@ static sxml_status end_simple_content(sxml_schema_validator *validator,
         &(sxml_schema_value_request){.simple_type = frame->simple_type,
                                      .text = text,
                                      .location = frame->location,
-                                     .element_number = parent_number_of(validator)},
+                                     .element_number = parent_number_of(validator),
+                                     .subject = {.subject_kind = SXML_SCHEMA_SUBJECT_ELEMENT,
+                                                 .name = frame_element(frame)}},
         &outcome);
     if (status != SXML_STATUS_OK) {
         return status;
@@ -1437,11 +1535,16 @@ static sxml_status end_simple_content(sxml_schema_validator *validator,
                                                         .value_constraint = value_constraint},
                                     &fixed);
         if (status == SXML_STATUS_OK && !fixed.is_equal) {
-            status = report_at(
-                validator,
-                (located_error){.constraint_name = TEXT("cvc-elt.5.2.2.2.2"),
-                                .description = TEXT("The element's value is not its fixed value"),
-                                .location = frame->location});
+            const sxml_schema_message message = {
+                .text = TEXT("%e has the value %v, not its fixed value %V"),
+                .element = frame_element(frame),
+                .value = text,
+                .second_value =
+                    sxml_schema_get_text(validator->components, value_constraint.lexical_form)};
+            status = report_at(validator,
+                               (located_error){.constraint_name = TEXT("cvc-elt.5.2.2.2.2"),
+                                               .message = message,
+                                               .location = frame->location});
         }
     }
     sxml_sequence_release(outcome.value);
@@ -1467,18 +1570,24 @@ static sxml_status end_mixed_content(sxml_schema_validator *validator,
         return SXML_STATUS_OK;
     }
     if (frame->has_element_children) {
-        return report_at(validator,
-                         (located_error){.constraint_name = TEXT("cvc-elt.5.2.2.1"),
-                                         .description = TEXT("An element with a fixed value has "
-                                                             "element children"),
-                                         .location = frame->location});
+        const sxml_schema_message message = {
+            .text = TEXT("%e has the fixed value %v, but element children"),
+            .element = frame_element(frame),
+            .value = lexical_form};
+        return report_at(validator, (located_error){.constraint_name = TEXT("cvc-elt.5.2.2.1"),
+                                                    .message = message,
+                                                    .location = frame->location});
     }
-    if (!sxml_byte_view_equals(collected_text(validator, frame), lexical_form)) {
-        return report_at(validator,
-                         (located_error){.constraint_name = TEXT("cvc-elt.5.2.2.2.1"),
-                                         .description = TEXT("The element's content is not its "
-                                                             "fixed value"),
-                                         .location = frame->location});
+    const sxml_byte_view content = collected_text(validator, frame);
+    if (!sxml_byte_view_equals(content, lexical_form)) {
+        const sxml_schema_message message = {
+            .text = TEXT("%e has the content %v, not its fixed value %V"),
+            .element = frame_element(frame),
+            .value = content,
+            .second_value = lexical_form};
+        return report_at(validator, (located_error){.constraint_name = TEXT("cvc-elt.5.2.2.2.1"),
+                                                    .message = message,
+                                                    .location = frame->location});
     }
     return SXML_STATUS_OK;
 }
@@ -1508,10 +1617,13 @@ static sxml_status end_strict_element(sxml_schema_validator *validator,
                 .counter_count = frame->counter_count};
             if (!sxml_schema_content_model_can_end(&cursor)) {
                 /* 3.4.4.2, clause 2.4: the content is not complete. */
+                const sxml_schema_message message = {
+                    .text = TEXT("the content of %e is incomplete; expected %x"),
+                    .element = frame_element(frame),
+                    .cursor = &cursor};
                 status = report_at(validator,
                                    (located_error){.constraint_name = TEXT("cvc-complex-type.2.4"),
-                                                   .description = TEXT("The element's content is "
-                                                                       "incomplete"),
+                                                   .message = message,
                                                    .location = frame->location});
             }
         }
@@ -1619,6 +1731,7 @@ static sxml_status validator_start_element(void *state, const sxml_element_start
             status = match_child(validator,
                                  (child_request){.parent = parent,
                                                  .element_name = event->element_name,
+                                                 .namespace_prefix = event->namespace_prefix,
                                                  .location = event->location},
                                  &child);
         }
@@ -1686,7 +1799,8 @@ static sxml_status validate_root_attribute(sxml_schema_validator *validator,
             &(sxml_schema_value_request){.simple_type = governing_type,
                                          .text = event->attribute_value,
                                          .location = event->location,
-                                         .element_number = 0},
+                                         .element_number = 0,
+                                         .subject = attribute_subject(&attribute)},
             &outcome);
         if (status == SXML_STATUS_OK) {
             status = send_attribute(
@@ -1714,11 +1828,13 @@ static sxml_status validate_root_attribute(sxml_schema_validator *validator,
         } else {
             validator->is_root_not_known = true;
             if (validator->configuration.validation_mode == SXML_VALIDATION_MODE_STRICT) {
-                status = report_at(
-                    validator,
-                    (located_error){.constraint_name = TEXT("cvc-assess-attr.1"),
-                                    .description = TEXT("No declaration governs the attribute"),
-                                    .location = event->location});
+                const sxml_schema_message message = {
+                    .text = TEXT("no global declaration governs %a"),
+                    .attribute = attribute_name_of(&attribute)};
+                status = report_at(validator,
+                                   (located_error){.constraint_name = TEXT("cvc-assess-attr.1"),
+                                                   .message = message,
+                                                   .location = event->location});
             }
             if (status == SXML_STATUS_OK) {
                 status = send_unassessed_attribute(validator, &attribute, event->attribute_value);
@@ -1823,11 +1939,15 @@ static sxml_status assess_text(sxml_schema_validator *validator, text_request re
         return SXML_STATUS_OK;
     }
     if (frame->is_nilled) {
-        return report_content_error(
-            validator, (content_error){.frame = frame,
-                                       .constraint_name = TEXT("cvc-elt.3.2.1"),
-                                       .description = TEXT("A nilled element has content"),
-                                       .location = request.event->location});
+        const sxml_schema_message message = {
+            .text = TEXT("%e is nilled, but has the text %v"),
+            .element = frame_element(frame),
+            .value = text};
+        return report_content_error(validator,
+                                    (content_error){.frame = frame,
+                                                    .constraint_name = TEXT("cvc-elt.3.2.1"),
+                                                    .message = message,
+                                                    .location = request.event->location});
     }
     switch (frame->content_variety) {
     case SXML_CONTENT_TYPE_VARIETY_MIXED: {
@@ -1844,15 +1964,18 @@ static sxml_status assess_text(sxml_schema_validator *validator, text_request re
         outcome->keeps = false;
         return sxml_schema_scratch_array_append_bytes(validator->allocator, &validator->text_bytes,
                                                       text);
-    case SXML_CONTENT_TYPE_VARIETY_EMPTY:
+    case SXML_CONTENT_TYPE_VARIETY_EMPTY: {
         outcome->keeps = false;
-        return report_content_error(
-            validator,
-            (content_error){.frame = frame,
-                            .constraint_name = TEXT("cvc-complex-type.2.1"),
-                            .description = TEXT("An element of empty content has character "
-                                                "children"),
-                            .location = request.event->location});
+        const sxml_schema_message message = {
+            .text = TEXT("the text %v is not allowed: %e has empty content"),
+            .value = text,
+            .element = frame_element(frame)};
+        return report_content_error(validator,
+                                    (content_error){.frame = frame,
+                                                    .constraint_name = TEXT("cvc-complex-type.2.1"),
+                                                    .message = message,
+                                                    .location = request.event->location});
+    }
     case SXML_CONTENT_TYPE_VARIETY_ELEMENT_ONLY:
         if (is_whitespace(text)) {
             /* XDM 4.0, 7.5.7.4: whitespace in content that is not mixed
@@ -1860,12 +1983,15 @@ static sxml_status assess_text(sxml_schema_validator *validator, text_request re
             outcome->keeps = false;
             return SXML_STATUS_OK;
         }
-        return report_content_error(
-            validator, (content_error){.frame = frame,
-                                       .constraint_name = TEXT("cvc-complex-type.2.3"),
-                                       .description = TEXT("Character children in element-only "
-                                                           "content"),
-                                       .location = request.event->location});
+        const sxml_schema_message message = {
+            .text = TEXT("the text %v is not allowed: %e has element-only content"),
+            .value = text,
+            .element = frame_element(frame)};
+        return report_content_error(validator,
+                                    (content_error){.frame = frame,
+                                                    .constraint_name = TEXT("cvc-complex-type.2.3"),
+                                                    .message = message,
+                                                    .location = request.event->location});
     }
     return SXML_STATUS_OK;
 }
@@ -2058,6 +2184,7 @@ sxml_schema_validator_initialize(sxml_memory_view memory,
         .counter_values = scratch_of(sizeof(uint64_t)),
         .text_bytes = scratch_of(1),
         .value_bytes = scratch_of(1),
+        .message_bytes = scratch_of(1),
         .base_uri_bytes = scratch_of(1),
         .entity_names = scratch_of(1),
         .is_document = false,
@@ -2088,6 +2215,7 @@ void sxml_schema_validator_finalize(sxml_schema_validator *validator) {
     sxml_schema_scratch_array_release(allocator, &validator->counter_values);
     sxml_schema_scratch_array_release(allocator, &validator->text_bytes);
     sxml_schema_scratch_array_release(allocator, &validator->value_bytes);
+    sxml_schema_scratch_array_release(allocator, &validator->message_bytes);
     sxml_schema_scratch_array_release(allocator, &validator->base_uri_bytes);
     sxml_schema_scratch_array_release(allocator, &validator->entity_names);
     sxml_schema_id_table_release(&validator->id_table);

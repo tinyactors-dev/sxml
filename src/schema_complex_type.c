@@ -360,40 +360,6 @@ static sxml_status combine_wildcards(complex_type_stage *stage, wildcard_combina
     return status;
 }
 
-/* Wildcard Subset (3.10.6.2), on namespaces. */
-static bool is_wildcard_subset(const sxml_schema_components *components,
-                               sxml_schema_wildcard_index subset_index,
-                               sxml_schema_wildcard_index superset_index) {
-    const sxml_schema_wildcard *subset = sxml_schema_get_wildcard(components, subset_index);
-    const sxml_schema_wildcard *superset = sxml_schema_get_wildcard(components, superset_index);
-    if (superset->namespace_constraint_variety == SXML_SCHEMA_NAMESPACE_CONSTRAINT_ANY) {
-        return true;
-    }
-    if (subset->namespace_constraint_variety == SXML_SCHEMA_NAMESPACE_CONSTRAINT_ANY) {
-        return false;
-    }
-    if (subset->namespace_constraint_variety == SXML_SCHEMA_NAMESPACE_CONSTRAINT_ENUMERATION) {
-        const sxml_schema_index_view namespaces =
-            sxml_schema_get_list(components, subset->namespaces);
-        for (size_t entry = 0; entry < namespaces.index_count; entry += 1) {
-            if (!allows_namespace(components, superset, namespaces.indexes[entry])) {
-                return false;
-            }
-        }
-        return true;
-    }
-    if (superset->namespace_constraint_variety != SXML_SCHEMA_NAMESPACE_CONSTRAINT_NOT) {
-        return false;
-    }
-    const sxml_schema_index_view excluded = sxml_schema_get_list(components, superset->namespaces);
-    for (size_t entry = 0; entry < excluded.index_count; entry += 1) {
-        if (allows_namespace(components, subset, excluded.indexes[entry])) {
-            return false;
-        }
-    }
-    return true;
-}
-
 /* ---------------------------------------------------- Attribute uses */
 
 /* The attribute name of an attribute use. */
@@ -744,9 +710,13 @@ static sxml_status derive_complex_content(complex_type_stage *stage, uint32_t ty
                 &content->particle);
         }
     }
-    /* Clauses 5 and 6: the wildcard element, as the reader gave it. */
+    /* Clauses 5 and 6: the wildcard element, as the reader gave it; a
+       default one with appliesToEmpty false does not apply to an empty
+       explicit content type (clause 6.1). */
+    const bool skips_empty =
+        read.open_content_skips_empty && content->variety == SXML_CONTENT_TYPE_VARIETY_EMPTY;
     if (status == SXML_STATUS_OK && read.open_content_mode != SXML_SCHEMA_OPEN_CONTENT_NONE &&
-        read.open_content_wildcard.value != 0) {
+        read.open_content_wildcard.value != 0 && !skips_empty) {
         if (content->variety == SXML_CONTENT_TYPE_VARIETY_EMPTY) {
             content->variety = SXML_CONTENT_TYPE_VARIETY_ELEMENT_ONLY;
             status =
@@ -1086,7 +1056,12 @@ static sxml_status check_attribute_restriction(complex_type_stage *stage, uint32
     /* The wildcard: within the base's, no weaker (XSD 1.0 clause 4). */
     if (attributes.attribute_wildcard.value != 0 &&
         (base->attribute_wildcard.value == 0 ||
-         !is_wildcard_subset(components, attributes.attribute_wildcard, base->attribute_wildcard) ||
+         !sxml_schema_wildcard_is_subset(
+             components,
+             &(sxml_schema_wildcard_subset_request){
+                 .subset = attributes.attribute_wildcard,
+                 .superset = base->attribute_wildcard,
+                 .symbol_space = SXML_SCHEMA_SYMBOL_SPACE_ATTRIBUTE_DECLARATION}) ||
          process_contents_strength(components, attributes.attribute_wildcard) <
              process_contents_strength(components, base->attribute_wildcard))) {
         return report(stage, error);
@@ -1201,18 +1176,20 @@ static sxml_status check_type_derivation(complex_type_stage *stage, uint32_t typ
     return SXML_STATUS_OK;
 }
 
-/* Registers a complex type (D165): its base's registered type (xs:anyType
-   for a simple base, which the registry does not take as the base of a
-   complex type) and its content type. */
+/* Registers a complex type (D165): its base's registered type (a simple
+   one for simple content, 3.4.1; xs:anyType when the base did not
+   register) and its content type. */
 static sxml_status register_complex_type(complex_type_stage *stage, uint32_t type_index) {
     const sxml_schema_components *components = stage->components;
     const sxml_schema_type_definition *type_definition = get_type(components, type_index);
     const sxml_schema_type_definition *base =
         get_type(components, type_definition->base_type.value);
+    const bool takes_base =
+        base->registered_type.index != 0 &&
+        (base->variety == SXML_TYPE_VARIETY_COMPLEX ||
+         type_definition->content_type_variety == SXML_CONTENT_TYPE_VARIETY_SIMPLE);
     const sxml_type_identifier base_type =
-        base->variety == SXML_TYPE_VARIETY_COMPLEX && base->registered_type.index != 0
-            ? base->registered_type
-            : sxml_builtin_type_identifier(SXML_TYPE_XS_ANY_TYPE);
+        takes_base ? base->registered_type : sxml_builtin_type_identifier(SXML_TYPE_XS_ANY_TYPE);
     sxml_type_description description = {.variety = SXML_TYPE_VARIETY_COMPLEX,
                                          .type_name = type_definition->type_name,
                                          .base_type = base_type,

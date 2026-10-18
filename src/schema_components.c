@@ -803,8 +803,11 @@ sxml_status sxml_schema_compilation_report(sxml_schema_compilation *compilation,
     const sxml_schema_configuration *configuration = compilation->configuration;
     const sxml_schema_document_entry *document =
         sxml_schema_get_document(compilation->components, request->position.document);
+    const bool is_unentered = request->document_uri.byte_count != 0;
     const sxml_source_location location = {
-        .source_name = sxml_schema_get_text(compilation->components, document->document_uri),
+        .source_name = is_unentered
+                           ? request->document_uri
+                           : sxml_schema_get_text(compilation->components, document->document_uri),
         .line_number = request->position.line_number,
         .column_number = request->position.column_number,
         .byte_offset = request->position.byte_offset};
@@ -817,7 +820,8 @@ sxml_status sxml_schema_compilation_report(sxml_schema_compilation *compilation,
         sxml_source_location record_location = location;
         /* The record outlives the components; the configuration's view
            outlives the call. */
-        record_location.source_name = document->configured_uri;
+        record_location.source_name =
+            is_unentered ? request->configured_uri : document->configured_uri;
         *configuration->error_record = (sxml_error_record){
             .code = code,
             .value = NULL,

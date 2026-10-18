@@ -918,6 +918,10 @@ typedef struct sxml_schema_type_definition {
        for none (mode NONE, or the absent wildcard of mode="none"). */
     sxml_schema_open_content_mode open_content_mode;
     sxml_schema_wildcard_index open_content_wildcard;
+    /* As read: the open content is the document's xs:defaultOpenContent
+       with appliesToEmpty false, so COMPLEX_TYPES drops it when the
+       explicit content type is empty (3.4.2.3.3, clause 6.1). */
+    bool open_content_skips_empty;
     /* As read: the type's own attribute uses (attribute use indexes,
        including prohibited ones), xs:attributeGroup references (reference
        indexes) and xs:anyAttribute (0: none). Property, COMPLEX_TYPES:
@@ -1784,6 +1788,13 @@ typedef struct sxml_schema_report_request {
        the description with the names involved. Borrowed for the call. */
     sxml_byte_view detailed_description;
     sxml_schema_position position;
+    /* A document without an entry (a configured one that is not
+       well-formed or not a schema document): its absolute URI names the
+       location instead of position.document's, with position's line and
+       column in it, and its configured URI the error record's (both
+       outlive the call). Empty otherwise. */
+    sxml_byte_view document_uri;
+    sxml_byte_view configured_uri;
 } sxml_schema_report_request;
 
 /*
@@ -1830,6 +1841,31 @@ SXML_NODISCARD sxml_status sxml_schema_compile_identity_constraints(
 /* ASSERTIONS: src/schema_assertion.c (5.9). */
 SXML_NODISCARD sxml_status sxml_schema_compile_assertions(
     sxml_schema_compilation *compilation);
+
+/* One XPath record to compile (sxml_schema_compile_xpath_record). */
+typedef struct sxml_schema_xpath_compilation {
+    sxml_schema_xpath_record_index record;
+    /* Assertions declare $value as xs:anyAtomicType* (3.13.6.1). */
+    bool declares_value;
+    /* The constraint reported when the expression is not valid XPath
+       (as-props-correct.2, c-selector-xpath, ...), and its description;
+       static text. */
+    sxml_byte_view constraint_name;
+    sxml_byte_view description;
+} sxml_schema_xpath_compilation;
+
+/*
+ * Compiles an XPath record with include/sxml/xpath.h in the static
+ * context XPath Valid gives it (3.13.6.2): the record's namespace
+ * bindings with a prefix, each prefix once (xml predeclared), its
+ * {default namespace} as the default element namespace, its base URI
+ * when absolute, $value when declared. A static or type error is
+ * reported as request->constraint_name. Does nothing for record 0 or a
+ * record already compiled. The one compilation of assertions, type
+ * alternatives, selectors and fields (src/schema_assertion.c).
+ */
+SXML_NODISCARD sxml_status sxml_schema_compile_xpath_record(
+    sxml_schema_compilation *compilation, const sxml_schema_xpath_compilation *request);
 
 /*
  * Checks and registers one simple type definition whose base is
@@ -1969,6 +2005,26 @@ typedef struct sxml_schema_wildcard_test {
  */
 bool sxml_schema_wildcard_allows_name(const sxml_schema_components *components,
                                       const sxml_schema_wildcard_test *test);
+
+/* Two wildcards: is subset a subset of superset (3.10.6.2)? */
+typedef struct sxml_schema_wildcard_subset_request {
+    sxml_schema_wildcard_index subset;
+    sxml_schema_wildcard_index superset;
+    /* ELEMENT_DECLARATION or ATTRIBUTE_DECLARATION, as for
+       sxml_schema_wildcard_test. */
+    sxml_schema_symbol_space symbol_space;
+} sxml_schema_wildcard_subset_request;
+
+/*
+ * Wildcard Subset (3.10.6.2): the subset's namespace constraint is a
+ * subset of the superset's (clause 1), every name the superset disallows
+ * the subset does not allow, and the subset disallows the keywords
+ * defined and sibling the superset disallows (clauses 2 to 4). The one
+ * check of content restriction and attribute wildcard restriction.
+ * src/schema_content_model.c.
+ */
+bool sxml_schema_wildcard_is_subset(const sxml_schema_components *components,
+                                    const sxml_schema_wildcard_subset_request *request);
 
 /* A content model to print in the text form (see the top of this
    header). */

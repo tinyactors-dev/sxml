@@ -90,8 +90,8 @@ and the XSD rule that failed:
 ```console
 $ sxml validate --schema=books.xsd books.xml
 $ echo '<books><book year="soon"><title>Dune</title></book></books>' | sxml validate --schema=books.xsd -
--:1:14: cvc-datatype-valid.1.2.1: the value is not in the lexical space or value space of the target type
--:1:8: cvc-complex-type.2.4: The element's content is incomplete
+-:1:14: cvc-datatype-valid.1.2.1: attribute 'year' has the value 'soon', which is not valid for type 'xs:gYear'
+-:1:8: cvc-complex-type.2.4: the content of element 'book' is incomplete; expected 'price'
 ```
 
 Evaluate XPath 4.0:

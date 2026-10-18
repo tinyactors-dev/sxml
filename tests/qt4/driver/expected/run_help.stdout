@@ -5,7 +5,7 @@ Usage: sxml-qt4 run [--catalog=FILE] [--spec=SPEC] [--test-set=NAME] [--format=F
 Runs each selected test case with its environment (sources,
 parameters, namespaces, static base URI, decimal formats, the
 default collation, resources, collections) in a processor of its own,
-with at most 10^8 evaluation steps and 512 MiB, and checks its
+with at most 4 x 10^8 evaluation steps and 512 MiB, and checks its
 result assertions. Writes each test case that failed, ended in
 error or raised a wrong error code, then counts per test set and
 a "total:" line; --format=json writes every test case, counts

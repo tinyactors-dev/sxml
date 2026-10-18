@@ -799,8 +799,9 @@ typedef enum sxml_date_time_split {
 enum { SXML_CAST_MAXIMUM_YEAR_DIGIT_COUNT = 16 };
 
 /*
- * yearFrag: -?(([1-9][0-9]{3,})|(0[0-9]{3})), "-0000" excluded (XSD 1.1
- * Part 2, D.3.1).
+ * yearFrag: -?(([1-9][0-9]{3,})|(0[0-9]{3})) (XSD 1.1 Part 2, D.3.1):
+ * "-0000" is in the lexical space and is year zero (yearFragValue; QT4
+ * cbcl-cast-gYearMonth-004a, XSD saxon zone202).
  */
 static sxml_date_time_split sxml_cursor_read_year(sxml_text_cursor *cursor,
                                                   int64_t *year) {
@@ -818,9 +819,6 @@ static sxml_date_time_split sxml_cursor_read_year(sxml_text_cursor *cursor,
         (sxml_digit_value_request){.digits = digits,
                                    .maximum = (uint64_t)INT64_MAX},
         &magnitude);
-    if (is_negative && magnitude == 0) {
-        return SXML_DATE_TIME_SPLIT_MALFORMED;
-    }
     *year = is_negative ? -(int64_t)magnitude : (int64_t)magnitude;
     return SXML_DATE_TIME_SPLIT_OK;
 }

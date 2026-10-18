@@ -195,7 +195,8 @@ pass. No document is written: `sxml validate` only checks.
 
 The schema is compiled first. Each of its errors is reported on standard
 error as `SCHEMA:LINE:COLUMN: CONSTRAINT: description`, where SCHEMA is the
-document that has the error, and then no FILE is read. A document that
+document that has the error (a SCHEMA that is not well-formed is located
+where the parser stopped), and then no FILE is read. A document that
 an `xs:include` or `xs:import` names but that cannot be read is no error
 by itself (XSD 1.1 Part 1, 4.2.3): its components are missing, and
 `src-resolve` is reported where they are used.
@@ -204,7 +205,10 @@ sxml prints nothing when every FILE is valid. Each error in a FILE is
 reported on standard error as `FILE:LINE:COLUMN: CONSTRAINT: description`:
 every error, not only the first. CONSTRAINT is the name XSD 1.1 gives the
 rule that failed, such as `cvc-complex-type.2.4` (XSD 1.1 Part 1, appendix
-C). A FILE that is not well-formed is reported as `sxml check` reports it.
+C). The description names the element or attribute, the value that is
+not valid, and what was expected: the elements the content model allows
+there, the type, the facet. A FILE that is not well-formed is reported as
+`sxml check` reports it.
 
 | Option | Description |
 | --- | --- |
@@ -247,15 +251,15 @@ have yet. 3 wins over 4, and 4 over 1.
 ```console
 $ sxml validate --schema=books.xsd books.xml
 $ sxml validate --schema=books.xsd bad-books.xml
-bad-books.xml:2:55: cvc-datatype-valid.1.2.1: the value is not in the lexical space or value space of the target type
-bad-books.xml:3:9: cvc-datatype-valid.1.2.1: the value is not in the lexical space or value space of the target type
-bad-books.xml:3:21: cvc-complex-type.2.4: The element is not allowed here
+bad-books.xml:2:55: cvc-datatype-valid.1.2.1: element 'price' has the value 'cheap', which is not valid for type 'xs:decimal'
+bad-books.xml:3:9: cvc-datatype-valid.1.2.1: attribute 'year' has the value 'soon', which is not valid for type 'xs:gYear'
+bad-books.xml:3:21: cvc-complex-type.2.4: element 'price' is not allowed here; expected 'title'
 $ sxml validate --schema=books.xsd --format=json books.xml
 {"schema":{"documents":["books.xsd"],"status":"valid"},"files":[{"file":"books.xml","status":"valid"}]}
 $ sxml validate --schema=books.xsd --format=json bad-books.xml
-{"schema":{"documents":["books.xsd"],"status":"valid"},"files":[{"file":"bad-books.xml","status":"invalid","errors":[{"code":"cvc-datatype-valid.1.2.1","line":2,"column":55,"byte_offset":62,"message":"the value is not in the lexical space or value space of the target type"},{"code":"cvc-datatype-valid.1.2.1","line":3,"column":9,"byte_offset":98,"message":"the value is not in the lexical space or value space of the target type"},{"code":"cvc-complex-type.2.4","line":3,"column":21,"byte_offset":110,"message":"The element is not allowed here"}]}]}
+{"schema":{"documents":["books.xsd"],"status":"valid"},"files":[{"file":"bad-books.xml","status":"invalid","errors":[{"code":"cvc-datatype-valid.1.2.1","line":2,"column":55,"byte_offset":62,"message":"element 'price' has the value 'cheap', which is not valid for type 'xs:decimal'"},{"code":"cvc-datatype-valid.1.2.1","line":3,"column":9,"byte_offset":98,"message":"attribute 'year' has the value 'soon', which is not valid for type 'xs:gYear'"},{"code":"cvc-complex-type.2.4","line":3,"column":21,"byte_offset":110,"message":"element 'price' is not allowed here; expected 'title'"}]}]}
 $ echo '<shelf><books/></shelf>' | sxml validate --schema=books.xsd --mode=lax -
--:1:8: cvc-complex-type.2.4: The element's content is incomplete
+-:1:8: cvc-complex-type.2.4: the content of element 'books' is incomplete; expected 'book'
 $ echo '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"><xs:element name="books" type="catalog"/></xs:schema>' | sxml validate --schema=- books.xml
 -:1:56: src-resolve: A QName value names no component of its kind: catalog
 $ sxml validate --schema=books.xsd missing.xml

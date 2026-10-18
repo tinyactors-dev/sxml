@@ -203,15 +203,18 @@ static sxml_byte_view sxml_validate_outcome_name(sxml_validate_outcome outcome) 
 
 /* The schema document a report's source name (an absolute URI) names: a
    SCHEMA as the command line gave it, else the file of the URI (an
-   included or imported document). The empty name is a SCHEMA itself (one
-   that is not a schema document: schema.h locates such errors nowhere)
-   or standard input: the one SCHEMA, else unknown (empty). */
+   included or imported document). Only standard input has no URI: the
+   empty name is "-" when it is a SCHEMA, else unknown (empty). */
 static sxml_byte_view sxml_validate_document_name(const sxml_validate_run *run,
                                                   sxml_byte_view source_name) {
     const sxml_validate_schema_files *files = &run->schema_files;
     if (source_name.byte_count == 0) {
-        return files->file_count == 1 ? files->names[0]
-                                      : (sxml_byte_view){.bytes = NULL, .byte_count = 0};
+        for (size_t file_index = 0; file_index < files->file_count; file_index += 1) {
+            if (sxml_byte_view_equals(files->names[file_index], SXML_TEXT("-"))) {
+                return files->names[file_index];
+            }
+        }
+        return (sxml_byte_view){.bytes = NULL, .byte_count = 0};
     }
     for (size_t file_index = 0; file_index < files->file_count; file_index += 1) {
         if (sxml_byte_view_equals(source_name, files->uris[file_index])) {

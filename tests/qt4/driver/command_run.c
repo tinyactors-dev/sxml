@@ -541,7 +541,7 @@ const sxml_cli_command sxml_qt4_run_command = {
         "parameters, namespaces, static base URI, decimal formats, the\n"
         "default collation, resources, collections) in a processor of its "
         "own,\n"
-        "with at most 10^8 evaluation steps and 512 MiB, and checks its\n"
+        "with at most 4 x 10^8 evaluation steps and 512 MiB, and checks its\n"
         "result assertions. Writes each test case that failed, ended in\n"
         "error or raised a wrong error code, then counts per test set and\n"
         "a \"total:\" line; --format=json writes every test case, counts\n"

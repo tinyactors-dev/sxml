@@ -38,6 +38,9 @@ sxml_byte_view sxml_type_builtin_local_name(sxml_builtin_type builtin_type);
  *   schema compilation registers in derivation order);
  * - an ATOMIC type's base is atomic; its primitive_type is computed from
  *   the base (the description's is ignored);
+ * - a COMPLEX type's base is complex, or of any variety when its content
+ *   type is SIMPLE (XSD 1.1 Part 1, 3.4.1: a simple type definition may be
+ *   the {base type definition} of a complex type with simple content);
  * - facets only on ATOMIC, LIST and UNION types.
  * type_name is kept for describing but not entered into the name index
  * (sxml_type_registry_find_type does not find it); is_builtin is ignored.

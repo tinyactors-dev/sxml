@@ -248,6 +248,8 @@ struct sxml_schema_validator {
     /* Collected simple content of the open elements, and scratch text. */
     sxml_schema_scratch_array text_bytes;
     sxml_schema_scratch_array value_bytes;
+    /* The description of the report being made (its message filled in). */
+    sxml_schema_scratch_array message_bytes;
     /* The document's base URI (its start event's base URI, else its
        document URI), the base URI of the parentless copies made for
        assertions and type alternatives (fn:base-uri, XDM 4.0, 5.2). */
@@ -283,6 +285,61 @@ static inline sxml_type_identifier sxml_schema_cast_target_of(sxml_type_identifi
     return registered;
 }
 
+/* ----------------------------------------------------- Error descriptions */
+
+/* A name in an event, with the prefix it was written with (0: a prefix in
+   scope for its namespace is used). */
+typedef struct sxml_schema_written_name {
+    sxml_name_identifier name;
+    sxml_namespace_prefix_identifier namespace_prefix;
+} sxml_schema_written_name;
+
+/*
+ * A validation error's description (glossary message_template): static
+ * text whose placeholders the fields fill.
+ *   %e, %E   element 'NAME' (element, second_element)
+ *   %a       attribute 'NAME' (attribute)
+ *   %n       'NAME' (name)
+ *   %v, %V   'VALUE' (value, second_value), quoted, shortened past 60
+ *            bytes, one line
+ *   %t, %T   type 'NAME', or an anonymous type derived from 'NAME' (its
+ *            nearest named base) (type_definition, second_type)
+ *   %x       the expected terms of cursor: 'a', 'b' or any element; no
+ *            element when the content must end
+ *   %r       reason, as it is
+ *   %f       "; the NAME facet is 'VALUE'": the facet facet_constraint
+ *            (cvc-NAME-valid) names, as type_definition or its nearest
+ *            registered base has it; nothing for another constraint
+ * Names print with the prefix they were written with, else one in scope
+ * for their namespace (xs for XSD's), else as Q{URI}local.
+ */
+typedef struct sxml_schema_message {
+    sxml_byte_view text;
+    sxml_schema_written_name element;
+    sxml_schema_written_name second_element;
+    sxml_schema_written_name attribute;
+    sxml_name_identifier name;
+    sxml_byte_view value;
+    sxml_byte_view second_value;
+    sxml_schema_type_definition_index type_definition;
+    sxml_schema_type_definition_index second_type;
+    const sxml_schema_content_model_cursor *cursor;
+    sxml_byte_view reason;
+    sxml_byte_view facet_constraint;
+} sxml_schema_message;
+
+/* Whose value a simple value is, for its reports. */
+typedef enum sxml_schema_subject_kind {
+    SXML_SCHEMA_SUBJECT_NONE = 0,
+    SXML_SCHEMA_SUBJECT_ELEMENT,
+    SXML_SCHEMA_SUBJECT_ATTRIBUTE,
+} sxml_schema_subject_kind;
+
+typedef struct sxml_schema_subject {
+    sxml_schema_subject_kind subject_kind;
+    sxml_schema_written_name name;
+} sxml_schema_subject;
+
 /* --------------------------------------------- src/schema_validate_value.c */
 
 /* A simple value to assess (3.16.4 String Valid; Part 2, 4.1.4). */
@@ -296,6 +353,8 @@ typedef struct sxml_schema_value_request {
     /* The element an ID of the value identifies (sxml_schema_id_request);
        0 for none. */
     uint64_t element_number;
+    /* Whose value it is, named in reports. */
+    sxml_schema_subject subject;
 } sxml_schema_value_request;
 
 /* What assessing a simple value gave. */
@@ -338,13 +397,15 @@ SXML_NODISCARD sxml_status sxml_schema_validator_get_cast_bindings(
 typedef struct sxml_schema_validation_error {
     /* The constraint name, static text. */
     sxml_byte_view constraint_name;
-    /* Static text (the error record keeps it). */
-    sxml_byte_view description;
+    /* The description: the message's template filled in. */
+    sxml_schema_message message;
     sxml_source_location location;
 } sxml_schema_validation_error;
 
-/* Reports a validation error (sxml_schema_validator_report) and returns
-   its status. */
+/* Reports a validation error (sxml_schema_validator_report) with its
+   description made from its message in validator->message_bytes (the
+   error record keeps a copy, raised on the item heap), and returns its
+   status. */
 SXML_NODISCARD sxml_status sxml_schema_validator_report_error(
     sxml_schema_validator *validator, const sxml_schema_validation_error *error);
 

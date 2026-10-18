@@ -915,6 +915,10 @@ typedef struct schema_reader {
     sxml_xml_buffer base_uri;
     sxml_schema_namespace_context_index last_context;
     redefinition_state redefinition;
+    /* The mixed attribute of the xs:complexType last read, for its
+       xs:complexContent child (src-ct). */
+    bool has_complex_type_mixed;
+    bool complex_type_mixed;
     element_state element;
 } schema_reader;
 
@@ -2475,11 +2479,116 @@ static sxml_status begin_redefinition(schema_reader *reader) {
     return status;
 }
 
+/* A pre-resolved reference to a component (sxml_schema_reference). */
+typedef struct resolved_reference {
+    sxml_schema_symbol_space symbol_space;
+    uint32_t component;
+} resolved_reference;
+
+static sxml_status add_resolved_reference(schema_reader *reader, resolved_reference request,
+                                          uint32_t *reference) {
+    const sxml_schema_reference entry = {.symbol_space = request.symbol_space,
+                                         .name = reader->redefinition.name,
+                                         .position = reader->redefinition.position,
+                                         .component = request.component};
+    return add_component(reader,
+                         (component_entry){.table = SXML_SCHEMA_TABLE_REFERENCE, .entry = &entry},
+                         reference);
+}
+
+/* One of the two complex types a redefinition's restriction check is made
+   of: for a group, its content the group's model group; for an attribute
+   group, its attributes the group's. */
+typedef struct restriction_side {
+    uint32_t group;
+    /* The base type (0: xs:anyType, the base side). */
+    uint32_t base_type;
+} restriction_side;
+
+static sxml_status add_restriction_side(schema_reader *reader, restriction_side side,
+                                        uint32_t *type) {
+    const redefinition_state *redefinition = &reader->redefinition;
+    sxml_schema_type_definition definition = {
+        .variety = SXML_TYPE_VARIETY_COMPLEX,
+        .position = redefinition->position,
+        .derivation_method = SXML_SCHEMA_DERIVATION_RESTRICTION};
+    sxml_status status = SXML_STATUS_OK;
+    if (side.base_type != 0) {
+        status = add_resolved_reference(
+            reader,
+            (resolved_reference){.symbol_space = SXML_SCHEMA_SYMBOL_SPACE_TYPE_DEFINITION,
+                                 .component = side.base_type},
+            &definition.base_type_reference.value);
+    }
+    const bool is_group =
+        redefinition->symbol_space == SXML_SCHEMA_SYMBOL_SPACE_MODEL_GROUP_DEFINITION;
+    const uint32_t model_group =
+        is_group ? sxml_schema_get_model_group_definition(
+                       reader->components,
+                       (sxml_schema_model_group_definition_index){.value = side.group})
+                       ->model_group.value
+                 : 0;
+    if (status == SXML_STATUS_OK && is_group && model_group != 0) {
+        const sxml_schema_particle particle = {.position = redefinition->position,
+                                               .minimum_occurrences = 1,
+                                               .maximum_occurrences = 1,
+                                               .term_kind = SXML_SCHEMA_TERM_MODEL_GROUP,
+                                               .term = model_group};
+        status = add_component(reader,
+                               (component_entry){.table = SXML_SCHEMA_TABLE_PARTICLE,
+                                                 .entry = &particle},
+                               &definition.explicit_content.value);
+    } else if (status == SXML_STATUS_OK && !is_group) {
+        uint32_t reference = 0;
+        status = add_resolved_reference(
+            reader,
+            (resolved_reference){.symbol_space = SXML_SCHEMA_SYMBOL_SPACE_ATTRIBUTE_GROUP,
+                                 .component = side.group},
+            &reference);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_schema_components_add_list(
+                reader->components,
+                (sxml_schema_index_view){.indexes = &reference, .index_count = 1},
+                &definition.attribute_group_references);
+        }
+    }
+    if (status == SXML_STATUS_OK) {
+        status = add_component(reader,
+                               (component_entry){.table = SXML_SCHEMA_TABLE_TYPE_DEFINITION,
+                                                 .entry = &definition},
+                               type);
+    }
+    return status;
+}
+
+/* src-redefine.6.2.2 and 7.2.2 (Part 1, 4.2.4): a group or attribute
+   group redefined without a reference to itself must be a valid
+   restriction of the original. The check is a restriction of complex
+   types, so COMPLEX_TYPES makes it with its own rules
+   (cos-content-act-restrict for the content, derivation-ok-restriction
+   clauses 2 to 4 for the attributes, as 6.2.2 and 7.2.2 say): an
+   unnamed type of the original's content or attributes, and an unnamed
+   restriction of it of the redefinition's. */
+static sxml_status add_restriction_check(schema_reader *reader) {
+    uint32_t base_type = 0;
+    sxml_status status = add_restriction_side(
+        reader, (restriction_side){.group = reader->redefinition.original, .base_type = 0},
+        &base_type);
+    uint32_t derived_type = 0;
+    if (status == SXML_STATUS_OK) {
+        status = add_restriction_side(
+            reader,
+            (restriction_side){.group = reader->redefinition.replacement, .base_type = base_type},
+            &derived_type);
+    }
+    return status;
+}
+
 /* The end of an xs:redefine child (Part 1, 4.2.4): a type derives from
    itself (src-redefine.5); a group or attribute group refers to itself at
-   most once (src-redefine.6.1.1, 7.1), a group exactly once (6.1.2). The
-   restriction a group or attribute group without a self-reference must
-   be (6.2.2, 7.2.2) is not checked. */
+   most once (src-redefine.6.1.1, 7.1), a group exactly once (6.1.2), and
+   without a reference to itself restricts the original (6.2.2, 7.2.2;
+   add_restriction_check). */
 static sxml_status end_redefinition(schema_reader *reader) {
     redefinition_state *redefinition = &reader->redefinition;
     if (!redefinition->is_active) {
@@ -2504,6 +2613,11 @@ static sxml_status end_redefinition(schema_reader *reader) {
     } else if (redefinition->has_counted_self_reference) {
         constraint_name = SXML_TEXT("src-redefine.6.1.2");
         description = "A redefined group's reference to itself has minOccurs and maxOccurs 1";
+    }
+    if (description == NULL && redefinition->self_reference_count == 0 &&
+        redefinition->symbol_space != SXML_SCHEMA_SYMBOL_SPACE_TYPE_DEFINITION &&
+        redefinition->replacement != 0) {
+        return add_restriction_check(reader);
     }
     if (description == NULL) {
         return SXML_STATUS_OK;
@@ -2960,7 +3074,8 @@ static sxml_status read_assertion(schema_reader *reader) {
 /* Applies the schema document's xs:defaultOpenContent where it may apply
    (Part 1, 3.4.2.3.3, clause 6): to complex content, unless
    appliesToEmpty is false and the type has no particle of its own or
-   through complexContent; xs:openContent replaces it. */
+   through complexContent (COMPLEX_TYPES drops it too when the explicit
+   content type turns out empty); xs:openContent replaces it. */
 static void apply_default_open_content(const schema_reader *reader,
                                        sxml_schema_type_definition *definition) {
     const sxml_schema_document_defaults *defaults = reader->defaults;
@@ -2975,6 +3090,7 @@ static void apply_default_open_content(const schema_reader *reader,
     }
     definition->open_content_mode = defaults->open_content_mode;
     definition->open_content_wildcard = defaults->open_content_wildcard;
+    definition->open_content_skips_empty = !defaults->open_content_applies_to_empty;
 }
 
 static sxml_status read_complex_type(schema_reader *reader) {
@@ -3000,6 +3116,8 @@ static sxml_status read_complex_type(schema_reader *reader) {
         definition.default_attribute_group_reference = reader->defaults->default_attributes;
     }
     apply_default_open_content(reader, &definition);
+    reader->has_complex_type_mixed = has_attribute(reader, SXML_READ_ATTRIBUTE_MIXED);
+    reader->complex_type_mixed = definition.is_mixed;
     sxml_status status = SXML_STATUS_OK;
     if (is_global) {
         status = global_name(reader, &definition.type_name);
@@ -3054,9 +3172,19 @@ static sxml_status read_content(schema_reader *reader) {
     sxml_schema_type_definition *definition = edit_type(reader, owner.index);
     if (definition != NULL && reader->element.role == SXML_READ_ROLE_COMPLEX_CONTENT &&
         has_attribute(reader, SXML_READ_ATTRIBUTE_MIXED)) {
-        definition->is_mixed =
+        const bool is_mixed =
             boolean_value(reader, (boolean_request){.attribute = SXML_READ_ATTRIBUTE_MIXED,
                                                     .default_value = false});
+        definition->is_mixed = is_mixed;
+        if (reader->has_complex_type_mixed && reader->complex_type_mixed != is_mixed) {
+            /* Part 1, 3.4.3 (src-ct): mixed on both xs:complexType and
+               xs:complexContent must agree (XSD 1.1 bug 16786). */
+            return report(reader,
+                          (read_error){.constraint_name = SXML_TEXT("src-ct"),
+                                       .description = "The mixed attributes of xs:complexType "
+                                                      "and xs:complexContent disagree",
+                                       .subject = {.bytes = NULL, .byte_count = 0}});
+        }
     }
     return SXML_STATUS_OK;
 }
@@ -3071,6 +3199,21 @@ static sxml_status read_content_derivation(schema_reader *reader) {
                                   reader->element.role == SXML_READ_ROLE_COMPLEX_CONTENT_EXTENSION;
         definition->derivation_method =
             is_extension ? SXML_SCHEMA_DERIVATION_EXTENSION : SXML_SCHEMA_DERIVATION_RESTRICTION;
+    }
+    if (reader->element.role == SXML_READ_ROLE_COMPLEX_CONTENT_RESTRICTION &&
+        has_child_role(reader, ROLE_BIT(SXML_READ_ROLE_OPEN_CONTENT)) &&
+        !has_child_role(reader, CONTENT_PARTICLE_ROLES)) {
+        /* The schema for schema documents (complexRestrictionType, XSD
+           1.1 bug 16786): xs:openContent in a restriction is followed by
+           its particle. */
+        const sxml_status status = report(
+            reader, (read_error){.constraint_name = SXML_TEXT("src-ct"),
+                                 .description = "Open content in a restriction of complex content "
+                                                "needs a particle after it",
+                                 .subject = {.bytes = NULL, .byte_count = 0}});
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
     }
     return read_base(reader, (sxml_schema_type_definition_index){.value = owner.index});
 }
@@ -3112,6 +3255,7 @@ static sxml_status read_open_content(schema_reader *reader) {
     if (definition != NULL) {
         definition->open_content_mode = mode;
         definition->open_content_wildcard.value = 0;
+        definition->open_content_skips_empty = false;
     }
     return status;
 }

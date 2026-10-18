@@ -544,10 +544,51 @@ static sxml_status push_rest(sxml_xpath_lowering_machine *machine,
 
 /* ----------------------------------------------------- Tuple arrays */
 
+/* Whether a variable reference or grouping specification from clause on
+   (its later sibling clauses and the return clause too) names
+   variable_name: a variable a group by does not pack when none does, since
+   its grouped value (4.13.8: every tuple's value concatenated) is never
+   read. Conservative: a reference to an inner variable of the name counts. */
+typedef struct later_reference_query {
+    sxml_ast_node_index clause;
+    sxml_name_identifier variable_name;
+} later_reference_query;
+
+/* What is_referenced_later found. */
+typedef struct later_reference {
+    bool is_referenced;
+} later_reference;
+
+static sxml_status is_referenced_later(sxml_xpath_lowerer *state, later_reference_query query,
+                                       later_reference *found) {
+    found->is_referenced = false;
+    sxml_status status = SXML_STATUS_OK;
+    for (sxml_ast_node_index sibling = query.clause;
+         status == SXML_STATUS_OK && !found->is_referenced && sibling.value != 0;
+         sibling = node_of(state, sibling)->next_sibling) {
+        for (sxml_ast_node_index walked = sibling;
+             status == SXML_STATUS_OK && !found->is_referenced && walked.value != 0;
+             walked = next_in_subtree(state, sibling, walked)) {
+            const sxml_ast_kind kind = node_of(state, walked)->kind;
+            if (kind != SXML_AST_KIND_VARIABLE_REFERENCE &&
+                kind != SXML_AST_KIND_GROUPING_SPECIFICATION) {
+                continue;
+            }
+            sxml_name_identifier name = {0};
+            status = sxml_xpath_lowerer_resolve_variable_name(
+                state, child_of(state, walked, SXML_AST_FIELD_NAME), &name);
+            found->is_referenced =
+                status == SXML_STATUS_OK && name.index == query.variable_name.index;
+        }
+    }
+    return status;
+}
+
 /*
  * Ends a segment at a tuple stream clause: the tuple array of the live
  * variables of the FLWOR (the innermost of each name), whose layout goes
- * to the FLWOR's frame.
+ * to the FLWOR's frame. A group by leaves out the variables nothing reads
+ * after it (is_referenced_later).
  */
 static sxml_status finish_with_tuple_array(sxml_xpath_lowering_machine *machine,
                                            sxml_xpath_lowering_frame *frame) {
@@ -557,7 +598,7 @@ static sxml_status finish_with_tuple_array(sxml_xpath_lowering_machine *machine,
     flwor_locals *flwor = flwor_frame->locals;
     const size_t first_entry = flwor->scope_mark;
     const size_t entry_count = state->scope_entry_count - first_entry;
-    /* A group by packs every variable (src/xquery_flwor_internal.h). */
+    /* A group by packs every variable it keeps (src/xquery_flwor_internal.h). */
     const bool packs_every_variable =
         node_of(state, locals->position.clause)->kind == SXML_AST_KIND_GROUP_BY_CLAUSE;
     sxml_xpath_lowerer_release_scratch(state, flwor_frame->owned_memory[0]);
@@ -601,7 +642,18 @@ static sxml_status finish_with_tuple_array(sxml_xpath_lowering_machine *machine,
                 break;
             }
         }
-        if (is_occluded) {
+        later_reference read = {.is_referenced = true};
+        if (!is_occluded && packs_every_variable) {
+            status = is_referenced_later(
+                state,
+                (later_reference_query){.clause = locals->position.clause,
+                                        .variable_name = entry->variable_name},
+                &read);
+        }
+        if (status != SXML_STATUS_OK) {
+            break;
+        }
+        if (is_occluded || !read.is_referenced) {
             continue;
         }
         tuple_member member = {.variable_name = entry->variable_name,
@@ -614,6 +666,10 @@ static sxml_status finish_with_tuple_array(sxml_xpath_lowering_machine *machine,
         }
         members[member_count] = member;
         member_count += 1;
+    }
+    if (status != SXML_STATUS_OK) {
+        sxml_xpath_lowerer_release_scratch(state, atom_memory);
+        return status;
     }
     flwor->members = members;
     flwor->member_count = member_count;

@@ -659,6 +659,9 @@ static void test_date_time_lexical_forms(sxml_test_state *state) {
         {"--12", SXML_TYPE_XS_G_MONTH, "--12"},
         {"2002-10-10T12:00:00Z", SXML_TYPE_XS_DATE_TIME_STAMP,
          "2002-10-10T12:00:00Z"},
+        /* XSD 1.1 Part 2, D.3.1: "-0000" is year zero. */
+        {"-0000-01-01", SXML_TYPE_XS_DATE, "0000-01-01"},
+        {"-0000-05", SXML_TYPE_XS_G_YEAR_MONTH, "0000-05"},
     };
     for (size_t case_index = 0; case_index < SXML_TEST_COUNT(forms);
          case_index += 1) {
@@ -678,7 +681,6 @@ static void test_date_time_lexical_forms(sxml_test_state *state) {
         {"2002-10-10T12:00:00.", SXML_TYPE_XS_DATE_TIME},
         {"2002-10-10T12:00:00z", SXML_TYPE_XS_DATE_TIME},
         {"2001-02-29T24:00:00", SXML_TYPE_XS_DATE_TIME},
-        {"-0000-01-01", SXML_TYPE_XS_DATE},
         {"01234-01-01", SXML_TYPE_XS_DATE},
         {"999-01-01", SXML_TYPE_XS_DATE},
         {"2001-13-01", SXML_TYPE_XS_DATE},

@@ -33,6 +33,13 @@ static const sxml_byte_view sxml_qt4_empty_text = {.bytes = NULL,
 /* As sxml check and sxml xpath: entity expansion is bounded. */
 enum { SXML_QT4_MAXIMUM_EXPANSION_BYTE_COUNT = 4 * 1024 * 1024 };
 
+/* Most evaluation steps of one evaluation of a test case (D89): four times
+   SXML_QT4_TEST_MAXIMUM_STEP_COUNT, as the XSLT driver allows (D166), since
+   a query may read a whole large source quadratically (app-Demos itunes
+   compares the keys of 6,597 tracks of a 10 MB library once per artist,
+   about 287 million steps; D178). */
+#define SXML_QT4_QUERY_MAXIMUM_STEP_COUNT ((uint64_t)4 * SXML_QT4_TEST_MAXIMUM_STEP_COUNT)
+
 /* The scratch arena of one test: environment arrays and URIs. */
 enum { SXML_QT4_SCRATCH_BLOCK_BYTE_COUNT = 8 * 1024 };
 
@@ -1236,12 +1243,6 @@ typedef struct sxml_qt4_test_answer {
     /* The query failed for something sxml does not have: an unknown
        function (XPST0017) or SXML_STATUS_UNSUPPORTED_FEATURE. */
     bool needs_missing_feature;
-    /* Of those, SXML_STATUS_UNSUPPORTED_FEATURE: a construct sxml has
-       not finished (D162, D167). */
-    bool is_unsupported;
-    /* The query ran out of the test budget: steps (LIMIT_EXCEEDED) or
-       memory (OUT_OF_MEMORY). */
-    bool exceeds_budget;
 } sxml_qt4_test_answer;
 
 /* Ends the reason with "STAGE[ SUBJECT]: ERROR". */
@@ -1338,9 +1339,6 @@ static void sxml_qt4_evaluate_query(sxml_qt4_test_context *context,
     }
     const sxml_sequence value = query_answer.value;
     sxml_allocator_release(context->allocator, query_contents);
-    answer->is_unsupported = status == SXML_STATUS_UNSUPPORTED_FEATURE;
-    answer->exceeds_budget =
-        status == SXML_STATUS_LIMIT_EXCEEDED || status == SXML_STATUS_OUT_OF_MEMORY;
     answer->needs_missing_feature =
         status == SXML_STATUS_UNSUPPORTED_FEATURE ||
         (sxml_status_has_error_record(status) &&
@@ -1431,7 +1429,7 @@ static void sxml_qt4_run_isolated(const sxml_qt4_test_run_request *request,
                                       .maximum_entity_expansion_byte_count =
                                           SXML_QT4_MAXIMUM_EXPANSION_BYTE_COUNT},
                        .maximum_evaluation_step_count =
-                           SXML_QT4_TEST_MAXIMUM_STEP_COUNT},
+                           SXML_QT4_QUERY_MAXIMUM_STEP_COUNT},
             .resource_resolver =
                 sxml_qt4_resource_table_resolver(&resource_table),
             .clock = sxml_system_clock()},
@@ -1457,8 +1455,6 @@ static void sxml_qt4_run_isolated(const sxml_qt4_test_run_request *request,
     sxml_qt4_release_context(&context);
     if (budget.live_allocation_count != 0) {
         answer->needs_missing_feature = false;
-        answer->is_unsupported = false;
-        answer->exceeds_budget = false;
     }
     sxml_qt4_budget_finish(&budget,
                            (sxml_qt4_budget_verdict){.outcome = &answer->outcome,
@@ -1507,21 +1503,6 @@ sxml_status sxml_qt4_run_test_case(const sxml_qt4_test_run_request *request,
         sxml_qt4_reason_append(&answer.reason, applicability.non_goal_kind);
         sxml_qt4_reason_append(&answer.reason, SXML_TEXT(" "));
         sxml_qt4_reason_append(&answer.reason, applicability.non_goal);
-    } else if (applicability.is_schema_aware && answer.is_unsupported &&
-               answer.outcome == SXML_QT4_TEST_OUTCOME_ERROR &&
-               sxml_qt4_reason_start(request->arena, &answer.reason) == SXML_STATUS_OK) {
-        /* A schema-aware test that stops at a part of XSD sxml has not
-           finished (identity constraints and assertions, D167) is not
-           run, and counts as not passed in the schema-aware area. */
-        answer.outcome = SXML_QT4_TEST_OUTCOME_NOT_RUN;
-        sxml_qt4_reason_append(&answer.reason,
-                               SXML_TEXT("skip: needs a part of XSD sxml has not finished"));
-    } else if (applicability.is_schema_aware && answer.exceeds_budget &&
-               answer.outcome == SXML_QT4_TEST_OUTCOME_ERROR) {
-        /* A schema-aware test whose query outgrows the test budget (a
-           10 MB source with a quadratic query, every test set loaded at
-           once; D174) fails rather than counting as a fault of sxml. */
-        answer.outcome = SXML_QT4_TEST_OUTCOME_FAIL;
     }
     *result = (sxml_qt4_test_result){
         .outcome = answer.outcome,

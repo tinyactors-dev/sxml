@@ -226,6 +226,12 @@ static const query_case query_cases[] = {
     QUERY_VALUE("group-by", "for $x in (1, 2, 3, 4) group by $odd := $x mod 2 order by $odd "
                             "return sum($x)",
                 "6 4"),
+    /* 4.13.8: a variable read after group by is the concatenation of its
+       values in the group; one nothing reads is not kept (D178). */
+    QUERY_VALUE("group-by-outer-let",
+                "let $s := (1, 2) let $unread := (1 to 1000) for $x in (1, 1, 2) "
+                "group by $x order by $x return count($s)",
+                "4 2"),
     QUERY_VALUE("tumbling-window",
                 "for tumbling window $w in 1 to 7 start at $s when $s mod 3 eq 1 "
                 "return <w>{$w}</w>",

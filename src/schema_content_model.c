@@ -2838,32 +2838,53 @@ global_declaration(const sxml_schema_components *components, sxml_name_identifie
     return (sxml_schema_element_declaration_index){.value = component};
 }
 
-/* Wildcard Subset (3.10.6.2), clauses 1 to 4 (namespaces only). */
-static bool wildcard_is_subset(const sxml_schema_components *components, wildcard_pair pair_index) {
-    const sxml_schema_wildcard *subset =
-        sxml_schema_get_wildcard(components, pair_index.first_wildcard);
-    const sxml_schema_wildcard *superset =
-        sxml_schema_get_wildcard(components, pair_index.second_wildcard);
-    if (superset->namespace_constraint_variety == SXML_SCHEMA_NAMESPACE_CONSTRAINT_ANY) {
-        return true;
-    }
-    const sxml_schema_index_view namespaces = sxml_schema_get_list(components, subset->namespaces);
-    if (subset->namespace_constraint_variety == SXML_SCHEMA_NAMESPACE_CONSTRAINT_ENUMERATION) {
-        for (size_t entry = 0; entry < namespaces.index_count; entry += 1) {
-            if (!namespace_constraint_allows(components, superset, namespaces.indexes[entry])) {
-                return false;
+bool sxml_schema_wildcard_is_subset(const sxml_schema_components *components,
+                                    const sxml_schema_wildcard_subset_request *request) {
+    const sxml_schema_wildcard *subset = sxml_schema_get_wildcard(components, request->subset);
+    const sxml_schema_wildcard *superset = sxml_schema_get_wildcard(components, request->superset);
+    bool is_namespace_subset = true;
+    /* Clause 1: the namespace constraints (cos-ns-subset). */
+    if (superset->namespace_constraint_variety != SXML_SCHEMA_NAMESPACE_CONSTRAINT_ANY) {
+        const sxml_schema_index_view namespaces =
+            sxml_schema_get_list(components, subset->namespaces);
+        if (subset->namespace_constraint_variety == SXML_SCHEMA_NAMESPACE_CONSTRAINT_ENUMERATION) {
+            for (size_t entry = 0; is_namespace_subset && entry < namespaces.index_count;
+                 entry += 1) {
+                is_namespace_subset =
+                    namespace_constraint_allows(components, superset, namespaces.indexes[entry]);
+            }
+        } else if (subset->namespace_constraint_variety == SXML_SCHEMA_NAMESPACE_CONSTRAINT_ANY ||
+                   superset->namespace_constraint_variety !=
+                       SXML_SCHEMA_NAMESPACE_CONSTRAINT_NOT) {
+            is_namespace_subset = false;
+        } else {
+            /* not(A) within not(B): B within A. */
+            const sxml_schema_index_view excluded =
+                sxml_schema_get_list(components, superset->namespaces);
+            for (size_t entry = 0; is_namespace_subset && entry < excluded.index_count;
+                 entry += 1) {
+                is_namespace_subset =
+                    !namespace_constraint_allows(components, subset, excluded.indexes[entry]);
             }
         }
-        return true;
     }
-    if (subset->namespace_constraint_variety == SXML_SCHEMA_NAMESPACE_CONSTRAINT_ANY ||
-        superset->namespace_constraint_variety != SXML_SCHEMA_NAMESPACE_CONSTRAINT_NOT) {
+    if (!is_namespace_subset) {
         return false;
     }
-    /* not(A) within not(B): B within A. */
-    const sxml_schema_index_view excluded = sxml_schema_get_list(components, superset->namespaces);
-    for (size_t entry = 0; entry < excluded.index_count; entry += 1) {
-        if (namespace_constraint_allows(components, subset, excluded.indexes[entry])) {
+    /* Clauses 2 to 4: what the superset disallows, the subset does not
+       allow; its keywords defined and sibling the subset has too. */
+    if ((superset->disallows_defined && !subset->disallows_defined) ||
+        (superset->disallows_sibling && !subset->disallows_sibling)) {
+        return false;
+    }
+    const sxml_schema_index_view disallowed =
+        sxml_schema_get_list(components, superset->disallowed_names);
+    for (size_t entry = 0; entry < disallowed.index_count; entry += 1) {
+        if (sxml_schema_wildcard_allows_name(
+                components,
+                &(sxml_schema_wildcard_test){.wildcard = request->subset,
+                                             .name = {.index = disallowed.indexes[entry]},
+                                             .symbol_space = request->symbol_space})) {
             return false;
         }
     }
@@ -3053,9 +3074,12 @@ static sxml_status check_wildcard_move(restriction_walk *walk,
         }
         if (transition->term_kind == SXML_SCHEMA_TERM_WILDCARD) {
             if (!is_covered &&
-                wildcard_is_subset(components,
-                                   (wildcard_pair){.first_wildcard = wildcard,
-                                                   .second_wildcard = {transition->term}})) {
+                sxml_schema_wildcard_is_subset(
+                    components, &(sxml_schema_wildcard_subset_request){
+                                    .subset = wildcard,
+                                    .superset = {transition->term},
+                                    .symbol_space =
+                                        SXML_SCHEMA_SYMBOL_SPACE_ELEMENT_DECLARATION})) {
                 is_covered = true;
                 covering.value = transition->term;
             }
@@ -3108,9 +3132,12 @@ static sxml_status check_wildcard_move(restriction_walk *walk,
             }
         }
     } else if (base->open_content_mode != SXML_SCHEMA_OPEN_CONTENT_NONE &&
-               wildcard_is_subset(
-                   components, (wildcard_pair){.first_wildcard = wildcard,
-                                               .second_wildcard = base->open_content_wildcard}) &&
+               sxml_schema_wildcard_is_subset(
+                   components,
+                   &(sxml_schema_wildcard_subset_request){
+                       .subset = wildcard,
+                       .superset = base->open_content_wildcard,
+                       .symbol_space = SXML_SCHEMA_SYMBOL_SPACE_ELEMENT_DECLARATION}) &&
                (base->open_content_mode == SXML_SCHEMA_OPEN_CONTENT_INTERLEAVE ||
                 walk->base.state == base->suffix_state ||
                 sxml_schema_content_model_can_end(&walk->base))) {

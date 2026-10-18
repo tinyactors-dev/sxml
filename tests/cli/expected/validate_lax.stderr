@@ -1,2 +1,2 @@
 xsd/shelf.xml: validity not known: the schema has no declaration of the document element (lax assessment)
-xsd/bad-shelf.xml:3:5: cvc-complex-type.4: A required attribute is missing
+xsd/bad-shelf.xml:3:5: cvc-complex-type.4: element 'book' lacks the required attribute 'year'

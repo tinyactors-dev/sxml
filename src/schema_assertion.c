@@ -44,89 +44,81 @@
 /* The local name of the variable assertions declare (3.13.6.1). */
 static const sxml_byte_view value_local_name = SXML_BYTE_VIEW_INITIALIZER("value");
 
-/* ------------------------------------------------------------- The stage */
-
-typedef struct assertion_stage {
-    sxml_schema_compilation *compilation;
-    sxml_schema_components *components;
-    sxml_processor *processor;
-    sxml_name_pool *name_pool;
-    /* $value, in no namespace. */
-    sxml_name_identifier value_name;
-    sxml_namespace_prefix_identifier xml_prefix;
-    /* sxml_namespace_binding: the static context's bindings of one
-       record. */
-    sxml_schema_scratch_array bindings;
-} assertion_stage;
+/* ------------------------------------------------------- XPath records */
 
 /* The statically known namespaces of a record (3.13.6.2 clauses 2.2.2 and
    2.2.3): its bindings with a prefix, each prefix once (the xml prefix is
-   predeclared), and its default namespace as the binding of prefix 0. */
-static sxml_status gather_bindings(assertion_stage *stage,
+   predeclared), and its default namespace as the binding of prefix 0, in
+   bindings. */
+typedef struct binding_gathering {
+    const sxml_schema_components *components;
+    sxml_namespace_prefix_identifier xml_prefix;
+    sxml_schema_scratch_array *bindings;
+} binding_gathering;
+
+static sxml_status gather_bindings(binding_gathering gathering,
                                    const sxml_schema_namespace_context *context,
                                    sxml_namespace_binding_view *view) {
-    stage->bindings.entry_count = 0;
+    sxml_schema_scratch_array *kept = gathering.bindings;
     const sxml_namespace_binding_view bindings =
-        sxml_schema_get_namespace_bindings(stage->components, context->namespace_bindings);
+        sxml_schema_get_namespace_bindings(gathering.components, context->namespace_bindings);
     sxml_status status = SXML_STATUS_OK;
     for (size_t binding_index = 0;
          status == SXML_STATUS_OK && binding_index < bindings.namespace_binding_count;
          binding_index += 1) {
         const sxml_namespace_binding *binding = &bindings.namespace_bindings[binding_index];
-        if (binding->namespace_prefix.index == 0 ||
-            binding->namespace_prefix.index == stage->xml_prefix.index ||
-            binding->namespace_uri.index == SXML_NAMESPACE_NONE) {
-            continue;
+        bool is_skipped = binding->namespace_prefix.index == 0 ||
+                          binding->namespace_prefix.index == gathering.xml_prefix.index ||
+                          binding->namespace_uri.index == SXML_NAMESPACE_NONE;
+        for (size_t earlier = 0; !is_skipped && earlier < kept->entry_count; earlier += 1) {
+            const sxml_namespace_binding *known = sxml_schema_scratch_array_at(kept, earlier);
+            is_skipped = known->namespace_prefix.index == binding->namespace_prefix.index;
         }
-        bool is_known = false;
-        for (size_t known = 0; known < stage->bindings.entry_count; known += 1) {
-            const sxml_namespace_binding *earlier =
-                sxml_schema_scratch_array_at(&stage->bindings, known);
-            is_known = is_known || earlier->namespace_prefix.index == binding->namespace_prefix.index;
-        }
-        if (!is_known) {
-            status = sxml_schema_scratch_array_append(stage->components->allocator,
-                                                      &stage->bindings, binding);
+        if (!is_skipped) {
+            status = sxml_schema_scratch_array_append(gathering.components->allocator, kept,
+                                                      binding);
         }
     }
     if (status == SXML_STATUS_OK && context->default_namespace.index != SXML_NAMESPACE_NONE) {
         const sxml_namespace_binding default_binding = {
             .namespace_prefix = {.index = 0}, .namespace_uri = context->default_namespace};
-        status = sxml_schema_scratch_array_append(stage->components->allocator, &stage->bindings,
+        status = sxml_schema_scratch_array_append(gathering.components->allocator, kept,
                                                   &default_binding);
     }
     *view = (sxml_namespace_binding_view){
-        .namespace_bindings = sxml_schema_scratch_array_at(&stage->bindings, 0),
-        .namespace_binding_count = stage->bindings.entry_count};
+        .namespace_bindings = sxml_schema_scratch_array_at(kept, 0),
+        .namespace_binding_count = kept->entry_count};
     return status;
 }
 
-/* One XPath record to compile. */
-typedef struct record_compilation {
-    sxml_schema_xpath_record_index record;
-    /* Assertions declare $value (3.13.6.1); type alternatives do not. */
-    bool declares_value;
-    /* The constraint XPath Valid is part of: as-props-correct.2 or
-       ta-props-correct.2. */
-    sxml_byte_view constraint_name;
-} record_compilation;
+/* The expression compiled in the record's static context, or a report. */
+typedef struct expression_compilation {
+    sxml_schema_compilation *compilation;
+    const sxml_schema_xpath_compilation *request;
+    sxml_namespace_binding_view bindings;
+} expression_compilation;
 
-static sxml_status compile_record(assertion_stage *stage, record_compilation request) {
+static sxml_status compile_expression(expression_compilation compilation,
+                                      sxml_xpath_expression **expression) {
+    sxml_schema_components *components = compilation.compilation->components;
+    const sxml_schema_xpath_compilation *request = compilation.request;
     const sxml_schema_xpath_record *record =
-        sxml_schema_get_xpath_record(stage->components, request.record);
-    if (request.record.value == 0 || record->compiled_expression != NULL) {
-        return SXML_STATUS_OK;
-    }
-    const sxml_schema_position position = record->position;
+        sxml_schema_get_xpath_record(components, request->record);
     const sxml_schema_namespace_context *context =
-        sxml_schema_get_namespace_context(stage->components, record->namespace_context);
-    sxml_namespace_binding_view bindings = {.namespace_bindings = NULL,
-                                            .namespace_binding_count = 0};
-    sxml_status status = gather_bindings(stage, context, &bindings);
+        sxml_schema_get_namespace_context(components, record->namespace_context);
+    sxml_name_identifier value_name = {.index = 0};
+    sxml_status status = SXML_STATUS_OK;
+    if (request->declares_value) {
+        status = sxml_name_pool_intern_name(
+            sxml_processor_get_name_pool(components->processor),
+            &(sxml_name_request){.namespace_uri = {.index = SXML_NAMESPACE_NONE},
+                                 .local_name = value_local_name},
+            &value_name);
+    }
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    const sxml_byte_view base_uri = sxml_schema_get_text(stage->components, context->base_uri);
+    const sxml_byte_view base_uri = sxml_schema_get_text(components, context->base_uri);
     /* XPath 4.0, 2.2.1: the static base URI is absolute; a schema read
        without an absolute URI has none. */
     const sxml_byte_view static_base_uri =
@@ -134,43 +126,78 @@ static sxml_status compile_record(assertion_stage *stage, record_compilation req
             ? base_uri
             : (sxml_byte_view){.bytes = NULL, .byte_count = 0};
     const sxml_variable_declaration value_declaration = {
-        .variable_name = stage->value_name,
+        .variable_name = value_name,
         .declared_type = {.item_type = {.index = SXML_TYPE_XS_ANY_ATOMIC_TYPE},
                           .occurrence = SXML_OCCURRENCE_ZERO_OR_MORE}};
     sxml_error_record error_record;
     memset(&error_record, 0, sizeof(error_record));
-    sxml_xpath_expression *expression = NULL;
     status = sxml_xpath_expression_create(
-        stage->components->allocator,
+        components->allocator,
         &(sxml_xpath_expression_configuration){
-            .processor = stage->processor,
-            .expression_text = sxml_schema_get_text(stage->components, record->expression),
+            .processor = components->processor,
+            .expression_text = sxml_schema_get_text(components, record->expression),
             .source_name = static_base_uri,
             .static_context =
-                {.namespace_bindings = bindings,
+                {.namespace_bindings = compilation.bindings,
                  .static_base_uri = static_base_uri,
                  .variable_declarations = {.variable_declarations = &value_declaration,
                                            .variable_declaration_count =
-                                               request.declares_value ? 1U : 0U}},
+                                               request->declares_value ? 1U : 0U}},
             .error_record = &error_record},
-        &expression);
+        expression);
     if (status == SXML_STATUS_STATIC_ERROR || status == SXML_STATUS_TYPE_ERROR) {
         /* 3.13.6.2 XPath Valid: a static error (and a type error found
-           statically) makes the schema invalid. */
+           statically, an undeclared prefix, say) makes the schema
+           invalid. */
+        *expression = NULL;
         return sxml_schema_compilation_report(
-            stage->compilation,
+            compilation.compilation,
             &(sxml_schema_report_request){
-                .constraint_name = request.constraint_name,
-                .description = TEXT("The test is not a valid XPath expression"),
+                .constraint_name = request->constraint_name,
+                .description = request->description,
                 .detailed_description = error_record.diagnostic.description,
-                .position = position});
+                .position = record->position});
     }
-    if (status != SXML_STATUS_OK) {
+    return status;
+}
+
+sxml_status sxml_schema_compile_xpath_record(sxml_schema_compilation *compilation,
+                                             const sxml_schema_xpath_compilation *request) {
+    sxml_schema_components *components = compilation->components;
+    const sxml_schema_xpath_record *record =
+        sxml_schema_get_xpath_record(components, request->record);
+    if (request->record.value == 0 || record->compiled_expression != NULL) {
+        return SXML_STATUS_OK;
+    }
+    sxml_schema_scratch_array bindings = {.bytes = NULL,
+                                          .entry_byte_count = sizeof(sxml_namespace_binding),
+                                          .entry_count = 0,
+                                          .entry_capacity = 0};
+    binding_gathering gathering = {
+        .components = components, .xml_prefix = {.index = 0}, .bindings = &bindings};
+    sxml_status status = sxml_name_pool_intern_namespace_prefix(
+        sxml_processor_get_name_pool(components->processor), TEXT("xml"), &gathering.xml_prefix);
+    sxml_namespace_binding_view binding_view = {.namespace_bindings = NULL,
+                                                .namespace_binding_count = 0};
+    if (status == SXML_STATUS_OK) {
+        status = gather_bindings(
+            gathering, sxml_schema_get_namespace_context(components, record->namespace_context),
+            &binding_view);
+    }
+    sxml_xpath_expression *expression = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = compile_expression((expression_compilation){.compilation = compilation,
+                                                             .request = request,
+                                                             .bindings = binding_view},
+                                    &expression);
+    }
+    sxml_schema_scratch_array_release(components->allocator, &bindings);
+    if (status != SXML_STATUS_OK || expression == NULL) {
         return status;
     }
     sxml_schema_xpath_record *edited = sxml_schema_components_edit_entry(
-        stage->components, (sxml_schema_entry_key){.table = SXML_SCHEMA_TABLE_XPATH_RECORD,
-                                                   .index = request.record.value});
+        components, (sxml_schema_entry_key){.table = SXML_SCHEMA_TABLE_XPATH_RECORD,
+                                            .index = request->record.value});
     if (edited == NULL) {
         sxml_xpath_expression_destroy(expression);
         return SXML_STATUS_INVALID_ARGUMENT;
@@ -179,61 +206,40 @@ static sxml_status compile_record(assertion_stage *stage, record_compilation req
     return SXML_STATUS_OK;
 }
 
-static sxml_status prepare_stage(assertion_stage *stage) {
-    sxml_status status =
-        sxml_name_pool_intern_name(stage->name_pool,
-                                   &(sxml_name_request){.namespace_uri = {.index = SXML_NAMESPACE_NONE},
-                                                        .local_name = value_local_name},
-                                   &stage->value_name);
-    if (status == SXML_STATUS_OK) {
-        status = sxml_name_pool_intern_namespace_prefix(stage->name_pool, TEXT("xml"),
-                                                        &stage->xml_prefix);
-    }
-    return status;
-}
+/* ------------------------------------------------------------- The stage */
 
 sxml_status sxml_schema_compile_assertions(sxml_schema_compilation *compilation) {
     sxml_schema_components *components = compilation->components;
-    assertion_stage stage = {
-        .compilation = compilation,
-        .components = components,
-        .processor = components->processor,
-        .name_pool = sxml_processor_get_name_pool(components->processor),
-        .value_name = {.index = 0},
-        .xml_prefix = {.index = 0},
-        .bindings = {.bytes = NULL,
-                     .entry_byte_count = sizeof(sxml_namespace_binding),
-                     .entry_count = 0,
-                     .entry_capacity = 0}};
-    sxml_status status = prepare_stage(&stage);
+    sxml_status status = SXML_STATUS_OK;
     const uint32_t assertion_count =
         components->tables[SXML_SCHEMA_TABLE_ASSERTION].entry_count;
     for (uint32_t assertion = 1; status == SXML_STATUS_OK && assertion < assertion_count;
          assertion += 1) {
-        status = compile_record(
-            &stage,
-            (record_compilation){
+        status = sxml_schema_compile_xpath_record(
+            compilation,
+            &(sxml_schema_xpath_compilation){
                 .record = sxml_schema_get_assertion(
                               components, (sxml_schema_assertion_index){.value = assertion})
                               ->test,
                 .declares_value = true,
-                .constraint_name = TEXT("as-props-correct.2")});
+                .constraint_name = TEXT("as-props-correct.2"),
+                .description = TEXT("The test is not a valid XPath expression")});
     }
     const uint32_t alternative_count =
         components->tables[SXML_SCHEMA_TABLE_TYPE_ALTERNATIVE].entry_count;
     for (uint32_t alternative = 1; status == SXML_STATUS_OK && alternative < alternative_count;
          alternative += 1) {
-        status = compile_record(
-            &stage,
-            (record_compilation){
+        status = sxml_schema_compile_xpath_record(
+            compilation,
+            &(sxml_schema_xpath_compilation){
                 .record = sxml_schema_get_type_alternative(
                               components,
                               (sxml_schema_type_alternative_index){.value = alternative})
                               ->test,
                 .declares_value = false,
-                .constraint_name = TEXT("ta-props-correct.2")});
+                .constraint_name = TEXT("ta-props-correct.2"),
+                .description = TEXT("The test is not a valid XPath expression")});
     }
-    sxml_schema_scratch_array_release(components->allocator, &stage.bindings);
     return status;
 }
 
@@ -935,8 +941,22 @@ static sxml_status check_simple_value(const assertion_run *run,
         run->validator,
         &(sxml_schema_validation_error){
             .constraint_name = TEXT("cvc-assertions-valid"),
-            .description = TEXT("An assertion of the value's type is false"),
+            .message = {.text = TEXT("the value %v breaks an assertion of %t"),
+                        .value = request->text,
+                        .type_definition = request->type_definition},
             .location = request->location});
+}
+
+/* The element a node item is, as written, for a report. */
+static sxml_schema_written_name element_of(sxml_item node_item) {
+    sxml_node_reference node;
+    sxml_node_description description;
+    if (sxml_item_get_node(node_item, &node) != SXML_STATUS_OK ||
+        sxml_node_describe(node, &description) != SXML_STATUS_OK) {
+        return (sxml_schema_written_name){.name = {.index = 0}, .namespace_prefix = {.index = 0}};
+    }
+    return (sxml_schema_written_name){.name = description.node_name,
+                                      .namespace_prefix = description.namespace_prefix};
 }
 
 /* The assertions of a complex type on the element of its recorded subtree
@@ -970,7 +990,14 @@ static sxml_status check_element(const assertion_run *run,
                 run->validator,
                 &(sxml_schema_validation_error){
                     .constraint_name = TEXT("cvc-assertion"),
-                    .description = TEXT("An assertion of the element's type is false"),
+                    .message = {.text = TEXT("%e breaks the assertion %v of %t"),
+                                .element = element_of(request->node),
+                                .value = sxml_schema_get_text(
+                                    &run->schema->components,
+                                    sxml_schema_get_xpath_record(&run->schema->components,
+                                                                 assertion->test)
+                                        ->expression),
+                                .type_definition = request->type_definition},
                     .location = location_of(request->node)});
         }
     }

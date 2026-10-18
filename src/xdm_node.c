@@ -368,12 +368,21 @@ sxml_node_derive_typed_value(sxml_item_heap *item_heap,
             break;
         }
     }
+    /* xs:string itself: every string is in its lexical space and maps to
+       itself (whiteSpace preserve, no other facet; XSD 1.1 Part 2,
+       3.3.1), so the cast would give the string value as xs:string. */
+    const bool is_string = simple_type.index == (uint32_t)SXML_TYPE_XS_STRING;
     sxml_item string_value = {.representation = SXML_ITEM_REPRESENTATION_NONE};
     status = sxml_node_make_string_value_as(
         item_heap,
         &(sxml_string_value_request){.node = node,
-                                     .type = SXML_TYPE_XS_UNTYPED_ATOMIC},
+                                     .type = is_string ? SXML_TYPE_XS_STRING
+                                                       : SXML_TYPE_XS_UNTYPED_ATOMIC},
         &string_value);
+    if (status == SXML_STATUS_OK && is_string) {
+        *typed_value = sxml_sequence_from_item(string_value);
+        return SXML_STATUS_OK;
+    }
     if (status != SXML_STATUS_OK) {
         return status;
     }

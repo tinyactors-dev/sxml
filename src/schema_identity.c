@@ -186,53 +186,10 @@ typedef struct identity_stage {
     sxml_schema_compilation *compilation;
     sxml_schema_components *components;
     sxml_processor *processor;
-    sxml_namespace_prefix_identifier xml_prefix;
-    /* sxml_namespace_binding: the static context of one record. */
-    sxml_schema_scratch_array bindings;
 } identity_stage;
 
 static sxml_status report(identity_stage *stage, const sxml_schema_report_request *request) {
     return sxml_schema_compilation_report(stage->compilation, request);
-}
-
-/* The statically known namespaces of a record (3.13.6.2): its in-scope
-   namespaces without the default namespace and xml (predeclared), and
-   xpathDefaultNamespace as the binding of prefix 0. */
-static sxml_status gather_bindings(identity_stage *stage,
-                                   const sxml_schema_namespace_context *context,
-                                   sxml_namespace_binding_view *view) {
-    stage->bindings.entry_count = 0;
-    const sxml_namespace_binding_view bindings =
-        sxml_schema_get_namespace_bindings(stage->components, context->namespace_bindings);
-    sxml_status status = SXML_STATUS_OK;
-    for (size_t binding_index = 0;
-         status == SXML_STATUS_OK && binding_index < bindings.namespace_binding_count;
-         binding_index += 1) {
-        const sxml_namespace_binding *binding = &bindings.namespace_bindings[binding_index];
-        bool is_skipped = binding->namespace_prefix.index == 0 ||
-                          binding->namespace_prefix.index == stage->xml_prefix.index ||
-                          binding->namespace_uri.index == SXML_NAMESPACE_NONE;
-        for (size_t earlier = 0; !is_skipped && earlier < stage->bindings.entry_count;
-             earlier += 1) {
-            const sxml_namespace_binding *kept =
-                sxml_schema_scratch_array_at(&stage->bindings, earlier);
-            is_skipped = kept->namespace_prefix.index == binding->namespace_prefix.index;
-        }
-        if (!is_skipped) {
-            status = sxml_schema_scratch_array_append(stage->components->allocator,
-                                                      &stage->bindings, binding);
-        }
-    }
-    if (status == SXML_STATUS_OK && context->default_namespace.index != SXML_NAMESPACE_NONE) {
-        const sxml_namespace_binding default_binding = {
-            .namespace_prefix = {.index = 0}, .namespace_uri = context->default_namespace};
-        status = sxml_schema_scratch_array_append(stage->components->allocator, &stage->bindings,
-                                                  &default_binding);
-    }
-    *view = (sxml_namespace_binding_view){.namespace_bindings =
-                                              sxml_schema_scratch_array_at(&stage->bindings, 0),
-                                          .namespace_binding_count = stage->bindings.entry_count};
-    return status;
 }
 
 /* One selector or field to check and compile. */
@@ -302,46 +259,13 @@ static sxml_status compile_record(identity_stage *stage, record_compilation requ
                                  .detailed_description = {.bytes = NULL, .byte_count = 0},
                                  .position = position});
     }
-    const sxml_schema_namespace_context *context =
-        sxml_schema_get_namespace_context(stage->components, record->namespace_context);
-    sxml_namespace_binding_view bindings = {.namespace_bindings = NULL,
-                                            .namespace_binding_count = 0};
-    status = gather_bindings(stage, context, &bindings);
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    sxml_error_record error_record;
-    memset(&error_record, 0, sizeof(error_record));
-    sxml_xpath_expression *expression = NULL;
-    status = sxml_xpath_expression_create(
-        stage->components->allocator,
-        &(sxml_xpath_expression_configuration){
-            .processor = stage->processor,
-            .expression_text = sxml_schema_get_text(stage->components, record->expression),
-            .source_name = {.bytes = NULL, .byte_count = 0},
-            .static_context = {.namespace_bindings = bindings},
-            .error_record = &error_record},
-        &expression);
-    if (status == SXML_STATUS_STATIC_ERROR || status == SXML_STATUS_TYPE_ERROR) {
-        /* 3.13.6.2 XPath Valid (an undeclared prefix, say). */
-        return report(stage, &(sxml_schema_report_request){
-                                 .constraint_name = constraint_name,
-                                 .description = TEXT("The expression is not valid XPath"),
-                                 .detailed_description = error_record.diagnostic.description,
-                                 .position = position});
-    }
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    sxml_schema_xpath_record *edited = sxml_schema_components_edit_entry(
-        stage->components, (sxml_schema_entry_key){.table = SXML_SCHEMA_TABLE_XPATH_RECORD,
-                                                   .index = request.record.value});
-    if (edited == NULL) {
-        sxml_xpath_expression_destroy(expression);
-        return SXML_STATUS_INVALID_ARGUMENT;
-    }
-    edited->compiled_expression = expression;
-    return SXML_STATUS_OK;
+    /* 3.13.6.2 XPath Valid (an undeclared prefix, say). */
+    return sxml_schema_compile_xpath_record(
+        stage->compilation,
+        &(sxml_schema_xpath_compilation){.record = request.record,
+                                         .declares_value = false,
+                                         .constraint_name = constraint_name,
+                                         .description = TEXT("The expression is not valid XPath")});
 }
 
 /* 3.11.6.1 c-props-correct: a keyref refers to a key or unique with as
@@ -401,24 +325,14 @@ sxml_status sxml_schema_compile_identity_constraints(sxml_schema_compilation *co
     sxml_schema_components *components = compilation->components;
     identity_stage stage = {.compilation = compilation,
                             .components = components,
-                            .processor = components->processor,
-                            .xml_prefix = {.index = 0},
-                            .bindings = {.bytes = NULL,
-                                         .entry_byte_count = sizeof(sxml_namespace_binding),
-                                         .entry_count = 0,
-                                         .entry_capacity = 0}};
+                            .processor = components->processor};
     const uint32_t constraint_count =
         components->tables[SXML_SCHEMA_TABLE_IDENTITY_CONSTRAINT].entry_count;
     sxml_status status = SXML_STATUS_OK;
-    if (constraint_count > 1) {
-        status = sxml_name_pool_intern_namespace_prefix(
-            sxml_processor_get_name_pool(components->processor), TEXT("xml"), &stage.xml_prefix);
-    }
     for (uint32_t constraint_index = 1;
          status == SXML_STATUS_OK && constraint_index < constraint_count; constraint_index += 1) {
         status = compile_constraint(&stage, constraint_index);
     }
-    sxml_schema_scratch_array_release(components->allocator, &stage.bindings);
     return status;
 }
 
@@ -528,14 +442,31 @@ typedef struct identity_error {
     const char *constraint_name;
     const char *description;
     uint32_t node_index;
+    /* The identity constraint broken, named in the report. */
+    const sxml_schema_identity_constraint *constraint;
 } identity_error;
 
+/* "element 'E': DESCRIPTION (key 'K')". */
 static sxml_status report_error(const identity_check *check, identity_error error) {
+    sxml_node_description description;
+    sxml_schema_written_name element = {.name = {.index = 0}, .namespace_prefix = {.index = 0}};
+    if (sxml_node_describe(node_at(check, error.node_index), &description) == SXML_STATUS_OK) {
+        element = (sxml_schema_written_name){.name = description.node_name,
+                                             .namespace_prefix = description.namespace_prefix};
+    }
+    static const sxml_byte_view templates[] = {
+        [SXML_SCHEMA_IDENTITY_CONSTRAINT_UNIQUE] = SXML_BYTE_VIEW_INITIALIZER("%e: %r (unique %n)"),
+        [SXML_SCHEMA_IDENTITY_CONSTRAINT_KEY] = SXML_BYTE_VIEW_INITIALIZER("%e: %r (key %n)"),
+        [SXML_SCHEMA_IDENTITY_CONSTRAINT_KEYREF] = SXML_BYTE_VIEW_INITIALIZER("%e: %r (keyref %n)"),
+    };
     return sxml_schema_validator_report_error(
         check->validator,
         &(sxml_schema_validation_error){
             .constraint_name = sxml_byte_view_from_c_string(error.constraint_name),
-            .description = sxml_byte_view_from_c_string(error.description),
+            .message = {.text = templates[error.constraint->category],
+                        .element = element,
+                        .reason = sxml_byte_view_from_c_string(error.description),
+                        .name = error.constraint->constraint_name},
             .location = location_of(check, error.node_index)});
 }
 
@@ -839,9 +770,10 @@ static sxml_status collect_member(const identity_check *check, member_request me
                 has_reported = true;
                 status = report_error(
                     check, (identity_error){.constraint_name = "cvc-identity-constraint.3",
-                                            .description = "A field selects more than one node, "
+                                            .description = "a field selects more than one node, "
                                                            "or a node without a simple type",
-                                            .node_index = member.node_index});
+                                            .node_index = member.node_index,
+                                            .constraint = constraint});
             }
         } else if (status == SXML_STATUS_OK &&
                    (!field.has_node ||
@@ -859,9 +791,10 @@ static sxml_status collect_member(const identity_check *check, member_request me
                 has_reported = true;
                 status = report_error(
                     check, (identity_error){.constraint_name = "cvc-identity-constraint.4.2.3",
-                                            .description = "A key field is an element whose "
+                                            .description = "a key field is an element whose "
                                                            "declaration is nillable",
-                                            .node_index = field.node_index});
+                                            .node_index = field.node_index,
+                                            .constraint = constraint});
             }
         }
         sxml_sequence_release(result);
@@ -877,8 +810,9 @@ static sxml_status collect_member(const identity_check *check, member_request me
                qualified. */
             return report_error(check,
                                 (identity_error){.constraint_name = "cvc-identity-constraint.4.2.1",
-                                                 .description = "A key field has no value",
-                                                 .node_index = member.node_index});
+                                                 .description = "a key field has no value",
+                                                 .node_index = member.node_index,
+                                                 .constraint = constraint});
         }
         return SXML_STATUS_OK;
     }
@@ -971,8 +905,8 @@ static void insert_entry(key_table *table, uint32_t entry_index) {
 /* 3.11.4 clauses 4.1 and 4.2.2: no two members of the qualified node set
    have equal key sequences. */
 static sxml_status check_unique(const identity_check *check, key_table *table,
-                                sxml_schema_identity_constraint_category category) {
-    const bool is_key = category == SXML_SCHEMA_IDENTITY_CONSTRAINT_KEY;
+                                const sxml_schema_identity_constraint *constraint) {
+    const bool is_key = constraint->category == SXML_SCHEMA_IDENTITY_CONSTRAINT_KEY;
     sxml_status status = prepare_slots(check->validator->allocator, table);
     for (uint32_t entry_index = 0;
          status == SXML_STATUS_OK && entry_index < table->entries.entry_count; entry_index += 1) {
@@ -998,11 +932,9 @@ static sxml_status check_unique(const identity_check *check, key_table *table,
                 check,
                 (identity_error){.constraint_name = is_key ? "cvc-identity-constraint.4.2.2"
                                                            : "cvc-identity-constraint.4.1",
-                                 .description = is_key ? "Two members of a key have equal key "
-                                                         "sequences"
-                                                       : "Two members of a unique have equal key "
-                                                         "sequences",
-                                 .node_index = entry->node_index});
+                                 .description = "its key sequence is that of an earlier member",
+                                 .node_index = entry->node_index,
+                                 .constraint = constraint});
         } else {
             insert_entry(table, entry_index);
         }
@@ -1262,9 +1194,10 @@ static sxml_status check_keyref(const identity_check *check, keyref_check reques
         if (status == SXML_STATUS_OK && !found.is_found) {
             status = report_error(
                 check, (identity_error){.constraint_name = "cvc-identity-constraint.4.3",
-                                        .description = "A keyref's key sequence is not a key "
-                                                       "sequence of its referenced key",
-                                        .node_index = member->node_index});
+                                        .description = "its key sequence is no key sequence of "
+                                                       "the referenced key",
+                                        .node_index = member->node_index,
+                                        .constraint = request.keyref});
         }
     }
     sxml_schema_scratch_array_release(check->validator->allocator, &bindings);
@@ -1288,7 +1221,7 @@ static sxml_status check_constraint(const identity_check *check,
                 check,
                 (keyref_check){.keyref = constraint, .element = element, .members = &members});
         } else {
-            status = check_unique(check, &members, constraint->category);
+            status = check_unique(check, &members, constraint);
         }
     }
     release_table(check->validator->allocator, &members);

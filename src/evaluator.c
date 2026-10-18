@@ -3556,6 +3556,72 @@ static sxml_status sxml_filter_by_constant(sxml_dynamic_context *context,
     return sxml_machine_finish(context, value);
 }
 
+static sxml_status sxml_make_leaf_value(sxml_dynamic_context *context,
+                                        const sxml_ir_expression *expression,
+                                        sxml_sequence *result);
+
+/* The predicate of a FILTER when it is computed in the FILTER's own task,
+   without a task of its own: a comparison, arithmetic or other leaf over
+   atoms (sxml_make_leaf_value) that no subtask computes and that has no
+   effect but its value, and that reads the focus (one that does not is
+   computed once). NULL otherwise. */
+static const sxml_ir_expression *sxml_filter_inline_predicate(const sxml_evaluator_task *task,
+                                                              const sxml_ir_filter *filter) {
+    if (filter->focus.context_value.value == 0 && filter->focus.context_position.value == 0 &&
+        filter->focus.context_size.value == 0) {
+        return NULL;
+    }
+    const sxml_ir_expression *predicate =
+        sxml_ir_unit_get_expression(task->function->unit, filter->predicate);
+    const sxml_ir_expression_kind kind = predicate->expression_kind;
+    const bool is_leaf =
+        kind == SXML_IR_EXPRESSION_KIND_BINARY || kind == SXML_IR_EXPRESSION_KIND_UNARY ||
+        kind == SXML_IR_EXPRESSION_KIND_CAST || kind == SXML_IR_EXPRESSION_KIND_CASTABLE ||
+        kind == SXML_IR_EXPRESSION_KIND_INSTANCE_OF;
+    return is_leaf ? predicate : NULL;
+}
+
+/* One item of a FILTER whose predicate is computed inline: the focus moves
+   to the next item, the predicate's value decides it (as
+   sxml_predicate_selects does for a value a task returned), and the task
+   stays on top for the next item, one step each (D89). */
+static sxml_status sxml_filter_select_inline(sxml_dynamic_context *context,
+                                             const sxml_ir_filter *filter,
+                                             const sxml_ir_expression *predicate) {
+    sxml_evaluator_task *task = sxml_machine_top(context);
+    sxml_loop_state *loop = &task->details.loop;
+    sxml_iteration_step step;
+    sxml_status status = sxml_sequence_iterator_next(&loop->iterator, context->error_record, &step);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (!step.has_item) {
+        return sxml_loop_finish(context);
+    }
+    loop->position += 1;
+    loop->current_item = step.item;
+    sxml_machine_bind_focus(context,
+                            &(sxml_focus_binding){.frame_base = task->frame_base,
+                                                  .focus = filter->focus,
+                                                  .value = sxml_sequence_from_item(step.item),
+                                                  .position = loop->position,
+                                                  .size = loop->size});
+    sxml_sequence value = sxml_sequence_empty();
+    status = sxml_make_leaf_value(context, predicate, &value);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_predicate_outcome outcome = {.selects = false};
+    status = sxml_predicate_selects(
+        context, (sxml_predicate_test){.value = value, .position = loop->position}, &outcome);
+    sxml_sequence_release(value);
+    if (status == SXML_STATUS_OK && outcome.selects) {
+        sxml_item_retain(loop->current_item);
+        status = sxml_loop_append(context, loop, sxml_sequence_from_item(loop->current_item));
+    }
+    return status;
+}
+
 /* A bit of the task phase of a FILTER beyond bit 0 (sxml_loop_start):
    the value now computed is of a predicate that reads no focus slot. */
 enum {
@@ -3565,11 +3631,16 @@ enum {
 /* FILTER (XPath 4.0, section 4.4.1). A predicate whose focus slots are
    all unused (it does not depend on the focus) has the same value for
    every item, so it is computed once and applied as a constant one is:
-   $sequence[$k] takes one item instead of testing every position. */
+   $sequence[$k] takes one item instead of testing every position. A leaf
+   predicate is computed in this task (sxml_filter_inline_predicate). */
 static sxml_status sxml_machine_step_filter(sxml_dynamic_context *context,
                                             const sxml_ir_filter *filter) {
     sxml_evaluator_task *task = sxml_machine_top(context);
     sxml_status status = SXML_STATUS_OK;
+    const sxml_ir_expression *inline_predicate = sxml_filter_inline_predicate(task, filter);
+    if (inline_predicate != NULL && task->phase == 1) {
+        return sxml_filter_select_inline(context, filter, inline_predicate);
+    }
     if ((task->phase & SXML_FILTER_PHASE_ONCE) != 0) {
         task->phase &= ~(uint32_t)SXML_FILTER_PHASE_ONCE;
         const sxml_sequence value = sxml_machine_take_value(context);
@@ -3618,6 +3689,8 @@ static sxml_status sxml_machine_step_filter(sxml_dynamic_context *context,
             const sxml_evaluator_task predicate_task =
                 sxml_expression_task(task->function, task->frame_base, filter->predicate);
             return sxml_machine_push(context, &predicate_task);
+        } else if (inline_predicate != NULL) {
+            return sxml_filter_select_inline(context, filter, inline_predicate);
         }
     } else {
         const sxml_sequence value = sxml_machine_take_value(context);

@@ -3314,12 +3314,15 @@ static bool sxml_type_registry_normalize_schema_type(
     }
     switch (description->variety) {
     case SXML_TYPE_VARIETY_COMPLEX: {
-        /* A complex type's base is complex (XSD 1.1 Part 1, 3.4.1). */
+        /* A complex type's base is complex, or simple for simple content
+           (XSD 1.1 Part 1, 3.4.1: <simpleContent><extension
+           base="xs:decimal">). */
         const sxml_complex_type *complex_type =
             &description->variety_details.complex_type;
         bool is_simple = complex_type->content_type_variety ==
                          SXML_CONTENT_TYPE_VARIETY_SIMPLE;
-        return !has_facets && base->variety == SXML_TYPE_VARIETY_COMPLEX &&
+        return !has_facets &&
+               (base->variety == SXML_TYPE_VARIETY_COMPLEX || is_simple) &&
                (is_simple ? sxml_type_registry_issued(
                                 registry, complex_type->simple_content_type)
                           : complex_type->simple_content_type.index ==

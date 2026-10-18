@@ -1,1 +1,1 @@
-xsd/negative-price.xml:2:37: cvc-minInclusive-valid: the value is below the minInclusive facet (XSD 1.1 Part 2, 4.3.10.4)
+xsd/negative-price.xml:2:37: cvc-minInclusive-valid: element 'price' has the value '-1.005', which is not valid for type 'price': the value is below the minInclusive facet (XSD 1.1 Part 2, 4.3.10.4); the minInclusive facet is '0'
