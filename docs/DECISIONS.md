@@ -6127,6 +6127,9 @@ sxml-xslt-test that links `sxml_qt4_driver_library`.
   (one process per test set; NIST, 23,170 tests in one file, is the
   longest).
 
+### D169. Phase 4 gate review (packet 4.18)
+Reserved 2026-10-19.
+
 ## Proposed
 
 - **Matching package versions for host resolvers** (packet 4.16, D160;
