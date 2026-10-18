@@ -4,6 +4,15 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- Docs pass (owner's request): `README.md` is the project's front page
+  (what sxml does, where it runs, quick start, a C and a JavaScript
+  example, conformance, design, status); `docs/CLI.md` is a user
+  reference with one section per command, true outputs and exit codes,
+  the D44 rules kept under "Design". `sxml` help: plain one-line
+  summaries, short paragraphs ending in the exit status, examples on the
+  same sample files; the program help gains a description and examples.
+  Every example was run on a release build. No LICENSE file exists yet.
+
 - 3.15 done (D161): Phase 3 gate review (D11). **XQuery works**: XQ40 in
   scope 97.2 %, XQ-only 98.8 %, method-* 433 of 508, 0 errors, no crash
   or leak; XP40 30,646 passed (unchanged), in scope 97.1 %; slices

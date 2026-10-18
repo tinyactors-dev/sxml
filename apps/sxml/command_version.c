@@ -77,9 +77,9 @@ const sxml_cli_command sxml_version_command = {
     .name = SXML_BYTE_VIEW_INITIALIZER("version"),
     .summary = SXML_BYTE_VIEW_INITIALIZER("Print the sxml version"),
     .description = SXML_BYTE_VIEW_INITIALIZER(
-        "Prints the version of the sxml library, the same line as 'sxml\n"
-        "--version'. With --format=json, prints one JSON object with the fields\n"
-        "\"name\" and \"version\"."),
+        "Prints the version of the sxml library, the same line as\n"
+        "'sxml --version'. With --format=json, prints one JSON object with\n"
+        "the fields \"name\" and \"version\"."),
     .options = sxml_version_options,
     .option_count = sizeof sxml_version_options / sizeof sxml_version_options[0],
     .positionals = NULL,
