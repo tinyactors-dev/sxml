@@ -110,6 +110,9 @@ typedef struct sxml_qt4_assertion_request {
     sxml_allocator allocator;
     /* Receives the reasons and resolved paths; must outlive the verdict. */
     sxml_arena *arena;
+    /* assert-string-value without normalize-space normalizes: the XSLT 4.0
+       catalog's default (catalog-schema.xsd), false for QT4's. */
+    bool normalizes_string_values_by_default;
 } sxml_qt4_assertion_request;
 
 /*

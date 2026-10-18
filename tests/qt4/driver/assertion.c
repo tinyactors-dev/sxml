@@ -1251,8 +1251,12 @@ static sxml_status sxml_qt4_check_on_value(sxml_qt4_assertion_state *state,
             if (status != SXML_STATUS_OK) {
                 return status;
             }
+            /* The QT4 catalog's default is false, the XSLT 4.0 catalog's
+               true (D157). */
             if (sxml_byte_view_equals(normalize.value, SXML_TEXT("true")) ||
-                sxml_byte_view_equals(normalize.value, SXML_TEXT("1"))) {
+                sxml_byte_view_equals(normalize.value, SXML_TEXT("1")) ||
+                (!normalize.is_present &&
+                 state->request->normalizes_string_values_by_default)) {
                 check_text = sxml_qt4_normalized_string_check;
             }
         }

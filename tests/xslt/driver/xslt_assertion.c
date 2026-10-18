@@ -328,14 +328,14 @@ typedef struct sxml_xslt_test_serialized_check {
 } sxml_xslt_test_serialized_check;
 
 /* assert-serialization (catalog-schema.xsd): the serialization equals the
-   expected text, or both are XML that is deep-equal once parsed (a
-   difference a conformant serializer may make, such as attribute order or
-   quotes). */
+   expected text up to whitespace, or both are XML that is deep-equal once
+   parsed (a difference a conformant serializer may make, such as attribute
+   order or quotes); text that does not parse is a difference. */
 static const sxml_byte_view sxml_xslt_test_serialization_check =
     SXML_BYTE_VIEW_INITIALIZER(
-        "normalize-space($result) eq normalize-space($expected) or "
-        "(try { deep-equal(parse-xml-fragment($result), "
-        "parse-xml-fragment($expected)) } catch * { false() })");
+        "if (normalize-space($result) eq normalize-space($expected)) "
+        "then true() else deep-equal(parse-xml-fragment($result), "
+        "parse-xml-fragment($expected))");
 
 /* The expected text of assert-serialization: its file= or its text. */
 static sxml_status
@@ -490,6 +490,13 @@ sxml_xslt_test_check_serialized(const sxml_xslt_test_check_request *request,
     sxml_sequence serialized = sxml_sequence_empty();
     sxml_status status = sxml_xslt_test_make_string(
         processor, request->serialized_bytes, &serialized);
+    if (status == SXML_STATUS_INVALID_UTF8) {
+        /* As the QT4 driver: output in another encoding is not compared. */
+        *verdict = sxml_xslt_test_verdict(
+            SXML_QT4_VERDICT_FAIL,
+            SXML_TEXT("the serialization is not UTF-8 (an encoding parameter)"));
+        return SXML_STATUS_OK;
+    }
     if (status != SXML_STATUS_OK) {
         return status;
     }
