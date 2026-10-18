@@ -4,7 +4,7 @@
 
 Results of the W3C QT4 test suite (`third_party/qt4tests`, D13) under `sxml-qt4 run` (D92), a release build, one process per test set. *Passed* counts passes and wrong errors (a wrong error code counts as a pass, catalog-schema.xsd); *not run* means not applicable to sxml or using an unsupported feature; *run* is test cases minus not run.
 
-- Code under test: commit `7a53c735c7e4` of 2026-10-18
+- Code under test: commit `7c2f3cef8630` of 2026-10-18
 - Regenerate: `cmake --preset release && cmake --build --preset release && tools/run-qt4.sh --program build/release/tests/qt4/driver/sxml-qt4 && tools/run-qt4.sh --program build/release/tests/qt4/driver/sxml-qt4 --spec XQ40 && tools/conformance-report.py build/qt4-run` (XQ40 is reported when its run is in the directory; XT40 and XSD11 when `tools/run-xslt.sh` and `tools/run-xsd.sh` ran into it too)
 
 ## Torture slice
@@ -1811,9 +1811,9 @@ Not run, by the first dependency that is not met:
 
 | Specification | Test cases | Run | Passed | of which wrong error | Failed | Errors | Not run | Passed of run |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|
-| XT40 | 13,867 | 8,484 | 7,986 | 138 | 497 | 1 | 5,383 | 94.1 % |
+| XT40 | 13,867 | 8,484 | 7,987 | 138 | 497 | 0 | 5,383 | 94.1 % |
 
-Gate rate (D95): 7,986 of 8,728 in-scope test cases passed, **91.5 %** (in scope: the spec matches and no non-goal is needed; not-run cases count as not passed).
+Gate rate (D95): 7,987 of 8,728 in-scope test cases passed, **91.5 %** (in scope: the spec matches and no non-goal is needed; not-run cases count as not passed).
 
 ### XT40 core test sets (Phase 4 gate: 80 % each)
 
@@ -1841,7 +1841,7 @@ XSLT slice (`tests/xslt/slice.txt`): **147/154 passed**.
 | Attributes: `tests/attr/` | 1,634 | 1,042 | 953 | 10 | 89 | 0 | 592 | 91.5 % |
 | Declarations: `tests/decl/` | 1,497 | 1,168 | 1,100 | 23 | 68 | 0 | 329 | 94.2 % |
 | Expressions: `tests/expr/` | 739 | 650 | 645 | 0 | 5 | 0 | 89 | 99.2 % |
-| Functions: `tests/fn/` | 1,339 | 1,184 | 1,082 | 12 | 101 | 1 | 155 | 91.4 % |
+| Functions: `tests/fn/` | 1,339 | 1,184 | 1,083 | 12 | 101 | 0 | 155 | 91.5 % |
 | Instructions: `tests/insn/` | 1,996 | 1,692 | 1,567 | 26 | 125 | 0 | 304 | 92.6 % |
 | Miscellaneous: `tests/misc/` | 3,123 | 1,871 | 1,822 | 44 | 49 | 0 | 1,252 | 97.4 % |
 | Streaming (out of scope, D95): `tests/strm/` | 2,564 | 0 | 0 | 0 | 0 | 0 | 2,564 | – |
@@ -1853,11 +1853,11 @@ Failed and error test cases by the error code the query raised (or the status th
 
 | Error code | Test cases |
 |---|--:|
-| (no error: wrong result) | 295 |
+| (no error: wrong result) | 294 |
 | XTSE0340 | 49 |
-| XPST0051 | 30 |
+| XPST0051 | 31 |
 | XTDE1450 | 25 |
-| XPST0017 | 20 |
+| XPST0017 | 19 |
 | FODC0002 | 13 |
 | XTSE3000 | 7 |
 | XPDY0002 | 6 |
@@ -1886,9 +1886,9 @@ The 25 most frequent reasons:
 | wrong result (assert-xml) | 103 |
 | wrong result (assert) | 67 |
 | XTSE0340: the text is not a pattern (XSLT 4.0, 6.3.1) | 49 |
-| XPST0051: the type name is not defined | 30 |
+| XPST0051: the type name is not defined | 31 |
 | XTDE1450: an extension instruction is evaluated that the processor does not implement, and it has n… | 25 |
-| XPST0017: no function with this name and arity is known | 20 |
+| XPST0017: no function with this name and arity is known | 19 |
 | FODC0002: No such collection | 10 |
 | the serialization is not UTF-8 (an encoding parameter) | 10 |
 | wrong result (serialization-matches) | 9 |
@@ -2058,7 +2058,7 @@ Not run, by the first dependency that is not met:
 | function-lookup | 8 | 5 | 0 | 3 | 0 | 0 |
 | id | 43 | 0 | 0 | 0 | 0 | 43 |
 | innermost | 2 | 2 | 0 | 0 | 0 | 0 |
-| json-to-xml | 61 | 53 | 1 | 0 | 1 | 7 |
+| json-to-xml | 61 | 54 | 1 | 0 | 0 | 7 |
 | key | 104 | 100 | 0 | 3 | 0 | 1 |
 | load-xquery-module | 4 | 4 | 4 | 0 | 0 | 0 |
 | map-for-key | 8 | 6 | 0 | 2 | 0 | 0 |

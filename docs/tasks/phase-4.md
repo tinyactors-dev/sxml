@@ -342,6 +342,12 @@ run time, declarations local to a package, XTDE0160, XTSE1650, XTSE1660.
 Open: json-to-xml-013 (memory, Proposed: streaming constructor content),
 XTDE3052 when an abstract variable is read, call-template-ext, host
 collations.
+**Sweep 3 done** 2026-10-18 (D166): content streams into constructors
+(receiving and delivering tasks, content LETs, building into the
+receiver's tree), 56-byte arena nodes; json-to-xml-013 passes, XT40 in
+scope 7,987 of 8,728, errors 1 to 0. Open: XTDE3052 when an abstract
+variable is read (globals computed on first read, Proposed),
+call-template-ext, host collations.
 
 ### 4.18 Phase 4 review (review)
 After everything. Owns the gate boxes. A separate agent (D11) runs the

@@ -4,6 +4,21 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 4.17 sweep 3 done (D166): content streams into constructors. A
+  document or element constructor evaluates its content as a delivering
+  task, so values are added as they are made, and a constructor in
+  content builds into its receiver's tree instead of making a tree to
+  copy; content LETs let every instruction of a sequence constructor
+  stream; XSLT literal result elements, xsl:element, xsl:document,
+  temporary trees and XQuery computed and direct constructors compute
+  their content inside the constructor. Arena nodes 72 to 56 bytes. The
+  XSLT driver keeps result documents only for assert-result-document and
+  allows 4 x the QT4 step budget. json-to-xml-013 passes (about 410 MB,
+  was 2.1 GB): XT40 7,987 of 8,728 in scope, **0 errors** (gate item "no
+  error outcome" met), no set lost a case; XP40 30,647, XQ40 40,034, 0
+  errors; slices 198, 147. Open: XTDE3052 on reading an abstract variable
+  needs globals computed on first read (Proposed).
+
 - 5.2 done (D167): the schema components and compile stages in
   `src/schema_internal.h`: one index-addressed store (a table per
   component kind of XSD 1.1 Part 1, 2.2, plus references, lists, texts,
