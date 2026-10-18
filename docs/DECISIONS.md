@@ -5318,12 +5318,39 @@ Recorded 2026-10-18, after D112, D117, D139, D144, D145, D149, D150, D156.
   `src/xslt_lower_template.c` (`allocate_zeroed` leaves NULL on failure);
   the reader passes the XML parser's diagnostic of a module that is not
   well-formed.
+- Measured (release, `tools/run-xslt.sh`, whole suite): in scope 7,585 of
+  8,728 passed (86.9 %; D95 gate 70 %), 785 failed, 7 errors (memory and
+  step limits: array-022, error-0640a/g, function-1031, json-to-xml-013,
+  result-document-1501/1502), all 274 test sets finished. Core sets:
+  apply-templates 97.4, mode 87.3, match 92.8, for-each-group 90.7,
+  sort 100, key 97.1, number 57.5 (114 in-scope cases need
+  combinations_for_numbering, such as circled digits, which format-integer
+  lacks), choose 95.4, copy 88.4, value-of 53.3, result-document 94.0,
+  function 89.5 %. Top causes: wrong results 460 (assert-xml 148, assert
+  78), XPST0017 70 (packages, fn:transform, fn:apply-templates,
+  map:for-key, stream-available), XTSE0340 49 (priority patterns),
+  XPST0008/XTSE0650/XTSE0710 around packages (4.16), XPST0051 26
+  (record and type aliases), XTDE1450 25 (call-template-ext). Not done:
+  function-available and fn:function-lookup of key, accumulator-before/
+  after and stylesheet functions at run time (they are unit functions of
+  the lowering, not library rows), per-expression namespaces for names
+  given as strings, collation bindings of the host, an implicit package
+  (an xsl:stylesheet) as RESOLVED_PACKAGE (Proposed).
 
 ### D158. XQuery conformance sweep 2 (packet 3.14)
 Recorded 2026-10-18, after D135, D148, D154.
 Reserved here; the record is completed when the packet is ticked.
 
 ## Proposed
+
+- **An xsl:stylesheet as the principal package** (packet 4.15, D157; for
+  the owner of `include/sxml/xslt.h`): the header asks XTSE3000 for a
+  RESOLVED_PACKAGE principal module whose top element is not
+  xsl:package, but XSLT 4.0, 3.5 makes an xsl:stylesheet an implicit
+  package, and the suite gives such principal modules as <package>
+  (package-001g, -001h, -001r, -001s, override-f-028, -029, -v-015,
+  -m-021). Proposed: accept xsl:stylesheet and xsl:transform there
+  (XTSE3000 stays for xsl:use-package).
 
 - **The CLI's WebAssembly budget after sxml transform** (packet 4.15,
   D157; for the owner, with the budget items below): linking XSLT (its
