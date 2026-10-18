@@ -11,24 +11,24 @@
 #define SXML_TEXT(literal) SXML_BYTE_VIEW_FROM_LITERAL(literal)
 
 static const sxml_byte_view sxml_qt4_selection_empty_text = {.bytes = NULL,
-                                                         .byte_count = 0};
+                                                             .byte_count = 0};
 
 /* The entries of a test list: a few kilobytes per thousand lines. */
 enum { SXML_QT4_SELECTION_ARENA_BLOCK_BYTE_COUNT = 16 * 1024 };
 
 sxml_qt4_problem sxml_qt4_selection_no_problem(void) {
-    return (sxml_qt4_problem){.description = sxml_qt4_selection_empty_text,
-                              .subject = sxml_qt4_selection_empty_text,
-                              .location = {.source_name =
-                                               sxml_qt4_selection_empty_text,
-                                           .line_number = 0,
-                                           .column_number = 0,
-                                           .byte_offset = 0}};
+    return (sxml_qt4_problem){
+        .description = sxml_qt4_selection_empty_text,
+        .subject = sxml_qt4_selection_empty_text,
+        .location = {.source_name = sxml_qt4_selection_empty_text,
+                     .line_number = 0,
+                     .column_number = 0,
+                     .byte_offset = 0}};
 }
 
 static void
 sxml_qt4_selection_write_problem(const sxml_qt4_selection *selection,
-                             const sxml_qt4_problem *problem) {
+                                 const sxml_qt4_problem *problem) {
     sxml_cli_writer *error = selection->invocation->standard_error;
     sxml_cli_writer_write(error, selection->invocation->program->name);
     sxml_cli_writer_write_byte(error, ' ');
@@ -56,8 +56,8 @@ sxml_qt4_selection_write_problem(const sxml_qt4_selection *selection,
 }
 
 void sxml_qt4_selection_report_failure(sxml_qt4_selection *selection,
-                                             sxml_status status,
-                                             sxml_qt4_problem *problem) {
+                                       sxml_status status,
+                                       sxml_qt4_problem *problem) {
     if (status == SXML_STATUS_INPUT_OUTPUT_FAILED) {
         selection->has_unreadable_file = true;
     } else if (status == SXML_STATUS_MALFORMED_INPUT ||
@@ -81,8 +81,9 @@ typedef struct sxml_qt4_selection_unknown_name {
     uint32_t line_number;
 } sxml_qt4_selection_unknown_name;
 
-static void sxml_qt4_selection_report_unknown(sxml_qt4_selection *selection,
-                                          sxml_qt4_selection_unknown_name unknown) {
+static void
+sxml_qt4_selection_report_unknown(sxml_qt4_selection *selection,
+                                  sxml_qt4_selection_unknown_name unknown) {
     selection->has_problem = true;
     sxml_qt4_selection_write_problem(
         selection,
@@ -97,7 +98,7 @@ static void sxml_qt4_selection_report_unknown(sxml_qt4_selection *selection,
 /* Opens test set test_set_index unless it is open already. Returns true
    when it is open. */
 static bool sxml_qt4_selection_open_test_set(sxml_qt4_selection *selection,
-                                         size_t test_set_index) {
+                                             size_t test_set_index) {
     size_t open_index = 0;
     const sxml_qt4_test_catalog catalog = selection->catalog;
     if (catalog.operations->get_open_test_set(catalog.state, &open_index) &&
@@ -116,9 +117,10 @@ static bool sxml_qt4_selection_open_test_set(sxml_qt4_selection *selection,
     return true;
 }
 
-static void sxml_qt4_selection_walk_test_set(sxml_qt4_selection *selection,
-                                         size_t test_set_index,
-                                         sxml_qt4_selection_visitor visitor) {
+static void
+sxml_qt4_selection_walk_test_set(sxml_qt4_selection *selection,
+                                 size_t test_set_index,
+                                 sxml_qt4_selection_visitor visitor) {
     if (!sxml_qt4_selection_open_test_set(selection, test_set_index)) {
         return;
     }
@@ -141,7 +143,7 @@ typedef struct sxml_qt4_selection_list_walk {
 
 static void
 sxml_qt4_selection_walk_list_entries(sxml_qt4_selection *selection,
-                                 const sxml_qt4_selection_list_walk *walk) {
+                                     const sxml_qt4_selection_list_walk *walk) {
     for (size_t entry_index = 0;
          entry_index < walk->test_list.entry_count && !selection->has_failed;
          entry_index += 1) {
@@ -178,9 +180,10 @@ sxml_qt4_selection_walk_list_entries(sxml_qt4_selection *selection,
     }
 }
 
-static void sxml_qt4_selection_walk_test_list(sxml_qt4_selection *selection,
-                                          sxml_byte_view list_path,
-                                          sxml_qt4_selection_visitor visitor) {
+static void
+sxml_qt4_selection_walk_test_list(sxml_qt4_selection *selection,
+                                  sxml_byte_view list_path,
+                                  sxml_qt4_selection_visitor visitor) {
     const sxml_allocator allocator = selection->invocation->allocator;
     sxml_byte_view text = sxml_qt4_selection_empty_text;
     sxml_status status = sxml_cli_file_reader_read(
@@ -225,13 +228,13 @@ static void sxml_qt4_selection_walk_test_list(sxml_qt4_selection *selection,
     sxml_allocator_release(allocator, (void *)text.bytes);
 }
 
-void sxml_qt4_selection_walk(
-    sxml_qt4_selection *selection,
-    const sxml_qt4_selection_request *request) {
+void sxml_qt4_selection_walk(sxml_qt4_selection *selection,
+                             const sxml_qt4_selection_request *request) {
     sxml_byte_view list_path = sxml_qt4_selection_empty_text;
     if (sxml_cli_arguments_get_positional(selection->invocation->arguments, 0,
                                           &list_path) == SXML_STATUS_OK) {
-        sxml_qt4_selection_walk_test_list(selection, list_path, request->visitor);
+        sxml_qt4_selection_walk_test_list(selection, list_path,
+                                          request->visitor);
         return;
     }
     if (request->has_test_set_name) {
@@ -240,16 +243,15 @@ void sxml_qt4_selection_walk(
                 selection->catalog.state, request->test_set_name,
                 &test_set_index)) {
             sxml_qt4_selection_report_unknown(
-                selection,
-                (sxml_qt4_selection_unknown_name){
-                    .description = SXML_TEXT("unknown test set"),
-                    .name = request->test_set_name,
-                    .source_name = sxml_qt4_selection_empty_text,
-                    .line_number = 0});
+                selection, (sxml_qt4_selection_unknown_name){
+                               .description = SXML_TEXT("unknown test set"),
+                               .name = request->test_set_name,
+                               .source_name = sxml_qt4_selection_empty_text,
+                               .line_number = 0});
             return;
         }
         sxml_qt4_selection_walk_test_set(selection, test_set_index,
-                                     request->visitor);
+                                         request->visitor);
         return;
     }
     const size_t test_set_count =
@@ -259,7 +261,7 @@ void sxml_qt4_selection_walk(
          test_set_index < test_set_count && !selection->has_failed;
          test_set_index += 1) {
         sxml_qt4_selection_walk_test_set(selection, test_set_index,
-                                     request->visitor);
+                                         request->visitor);
     }
 }
 

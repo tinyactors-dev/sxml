@@ -33,8 +33,8 @@ static sxml_status sxml_qt4_budget_allocate(void *state,
     size_t total_byte_count = 0;
     if (sxml_size_add(request.byte_count, alignment, &total_byte_count) !=
             SXML_STATUS_OK ||
-        total_byte_count > SXML_QT4_TEST_MAXIMUM_BYTE_COUNT -
-                               budget->live_byte_count) {
+        total_byte_count >
+            SXML_QT4_TEST_MAXIMUM_BYTE_COUNT - budget->live_byte_count) {
         budget->was_exceeded = true;
         return SXML_STATUS_OUT_OF_MEMORY;
     }
