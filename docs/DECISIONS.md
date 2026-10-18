@@ -5244,6 +5244,10 @@ No IR kind, no evaluator change, no public header.
 Recorded 2026-10-18, after D112, D117, D139, D144, D145, D149, D150, D156.
 Reserved here; the record is completed when the packet is ticked.
 
+### D158. XQuery conformance sweep 2 (packet 3.14)
+Recorded 2026-10-18, after D135, D148, D154.
+Reserved here; the record is completed when the packet is ticked.
+
 ## Proposed
 
 - **The XSLT functions at run time** (packet 4.10, D149; for 4.15, the
