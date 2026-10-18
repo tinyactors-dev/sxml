@@ -195,25 +195,16 @@ static sxml_status sxml_facet_read_value(sxml_item_heap *item_heap,
 
 /* ----------------------------------------------------------------- Order */
 
-/* The order relation of XSD 1.1 Part 2, 2.2.3: partial for dates, times
-   and durations, and NaN is incomparable. */
-typedef enum sxml_facet_order {
-    SXML_FACET_ORDER_LESS,
-    SXML_FACET_ORDER_EQUAL,
-    SXML_FACET_ORDER_GREATER,
-    SXML_FACET_ORDER_INCOMPARABLE,
-} sxml_facet_order;
-
-static sxml_facet_order sxml_facet_order_of(sxml_ordering ordering) {
+static sxml_value_order sxml_value_order_of(sxml_ordering ordering) {
     switch (ordering) {
     case SXML_ORDERING_LESS:
-        return SXML_FACET_ORDER_LESS;
+        return SXML_VALUE_ORDER_LESS;
     case SXML_ORDERING_EQUAL:
-        return SXML_FACET_ORDER_EQUAL;
+        return SXML_VALUE_ORDER_EQUAL;
     case SXML_ORDERING_GREATER:
-        return SXML_FACET_ORDER_GREATER;
+        return SXML_VALUE_ORDER_GREATER;
     }
-    return SXML_FACET_ORDER_INCOMPARABLE;
+    return SXML_VALUE_ORDER_INCOMPARABLE;
 }
 
 static bool sxml_item_is_nan(sxml_item item) {
@@ -265,17 +256,17 @@ sxml_facet_add_duration(sxml_facet_reference_date reference,
         .nanoseconds = duration->nanoseconds};
 }
 
-static sxml_facet_order sxml_facet_instants_order(sxml_facet_instant first,
+static sxml_value_order sxml_facet_instants_order(sxml_facet_instant first,
                                                   sxml_facet_instant second) {
     if (first.seconds != second.seconds) {
-        return first.seconds < second.seconds ? SXML_FACET_ORDER_LESS
-                                              : SXML_FACET_ORDER_GREATER;
+        return first.seconds < second.seconds ? SXML_VALUE_ORDER_LESS
+                                              : SXML_VALUE_ORDER_GREATER;
     }
     if (first.nanoseconds != second.nanoseconds) {
-        return first.nanoseconds < second.nanoseconds ? SXML_FACET_ORDER_LESS
-                                                      : SXML_FACET_ORDER_GREATER;
+        return first.nanoseconds < second.nanoseconds ? SXML_VALUE_ORDER_LESS
+                                                      : SXML_VALUE_ORDER_GREATER;
     }
-    return SXML_FACET_ORDER_EQUAL;
+    return SXML_VALUE_ORDER_EQUAL;
 }
 
 /* Beyond these the reference dates would overflow; such durations order
@@ -292,7 +283,7 @@ static bool sxml_duration_is_huge(const sxml_duration *duration) {
 
 /* XSD 1.1 Part 2, 3.3.7.3 and E.3.3: one duration is less than another
    when it is at each of the four reference dateTimes. */
-static sxml_facet_order sxml_durations_order(const sxml_duration *first,
+static sxml_value_order sxml_durations_order(const sxml_duration *first,
                                              const sxml_duration *second) {
     static const sxml_facet_reference_date references[] = {
         {.year = 1696, .month = 9},
@@ -302,8 +293,8 @@ static sxml_facet_order sxml_durations_order(const sxml_duration *first,
     };
     if (sxml_duration_is_huge(first) || sxml_duration_is_huge(second)) {
         if (first->months != second->months) {
-            return first->months < second->months ? SXML_FACET_ORDER_LESS
-                                                  : SXML_FACET_ORDER_GREATER;
+            return first->months < second->months ? SXML_VALUE_ORDER_LESS
+                                                  : SXML_VALUE_ORDER_GREATER;
         }
         return sxml_facet_instants_order(
             (sxml_facet_instant){.seconds = first->seconds,
@@ -311,27 +302,26 @@ static sxml_facet_order sxml_durations_order(const sxml_duration *first,
             (sxml_facet_instant){.seconds = second->seconds,
                                  .nanoseconds = second->nanoseconds});
     }
-    sxml_facet_order order = SXML_FACET_ORDER_EQUAL;
+    sxml_value_order order = SXML_VALUE_ORDER_EQUAL;
     for (size_t reference_index = 0;
          reference_index < sizeof(references) / sizeof(references[0]);
          reference_index += 1) {
-        sxml_facet_order reference_order = sxml_facet_instants_order(
+        sxml_value_order reference_order = sxml_facet_instants_order(
             sxml_facet_add_duration(references[reference_index], first),
             sxml_facet_add_duration(references[reference_index], second));
         if (reference_index != 0 && reference_order != order) {
-            return SXML_FACET_ORDER_INCOMPARABLE;
+            return SXML_VALUE_ORDER_INCOMPARABLE;
         }
         order = reference_order;
     }
     return order;
 }
 
-/* Orders two items of one primitive type. */
-static sxml_status sxml_facet_order_items(sxml_item_heap *item_heap,
-                                          sxml_item_pair pair,
-                                          sxml_facet_order *order) {
+sxml_status sxml_cast_order_values(sxml_item_heap *item_heap,
+                                   sxml_item_pair pair,
+                                   sxml_value_order *order) {
     if (sxml_item_is_nan(pair.first) || sxml_item_is_nan(pair.second)) {
-        *order = SXML_FACET_ORDER_INCOMPARABLE;
+        *order = SXML_VALUE_ORDER_INCOMPARABLE;
         return SXML_STATUS_OK;
     }
     sxml_atomic_datum first;
@@ -384,15 +374,15 @@ static sxml_status sxml_facet_order_items(sxml_item_heap *item_heap,
             &second_ordering);
     }
     if (status == SXML_STATUS_TYPE_ERROR) {
-        *order = SXML_FACET_ORDER_INCOMPARABLE;
+        *order = SXML_VALUE_ORDER_INCOMPARABLE;
         return SXML_STATUS_OK;
     }
     if (status != SXML_STATUS_OK) {
         return status;
     }
     *order = first_ordering == second_ordering
-                 ? sxml_facet_order_of(first_ordering)
-                 : SXML_FACET_ORDER_INCOMPARABLE;
+                 ? sxml_value_order_of(first_ordering)
+                 : SXML_VALUE_ORDER_INCOMPARABLE;
     return SXML_STATUS_OK;
 }
 
@@ -732,8 +722,8 @@ static sxml_status sxml_facet_check_one(sxml_item_heap *item_heap,
         if (status != SXML_STATUS_OK) {
             return status;
         }
-        sxml_facet_order order = SXML_FACET_ORDER_INCOMPARABLE;
-        status = sxml_facet_order_items(
+        sxml_value_order order = SXML_VALUE_ORDER_INCOMPARABLE;
+        status = sxml_cast_order_values(
             item_heap,
             (sxml_item_pair){.first = subject.items.items[0], .second = bound},
             &order);
@@ -741,9 +731,9 @@ static sxml_status sxml_facet_check_one(sxml_item_heap *item_heap,
         if (status != SXML_STATUS_OK) {
             return status;
         }
-        bool is_less = order == SXML_FACET_ORDER_LESS;
-        bool is_equal = order == SXML_FACET_ORDER_EQUAL;
-        bool is_greater = order == SXML_FACET_ORDER_GREATER;
+        bool is_less = order == SXML_VALUE_ORDER_LESS;
+        bool is_equal = order == SXML_VALUE_ORDER_EQUAL;
+        bool is_greater = order == SXML_VALUE_ORDER_GREATER;
         if (facet->facet_kind == SXML_FACET_KIND_MAX_INCLUSIVE) {
             *holds = is_less || is_equal;
         } else if (facet->facet_kind == SXML_FACET_KIND_MAX_EXCLUSIVE) {

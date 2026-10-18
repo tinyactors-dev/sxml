@@ -244,6 +244,28 @@ sxml_whitespace_facet sxml_cast_find_whitespace_facet(
 bool sxml_cast_list_allows_no_items(const sxml_type_registry *registry,
                                     sxml_type_identifier list_type);
 
+/* The order relation of XSD 1.1 Part 2, 2.2.3: partial for dates and
+   times (3.3.6.2: a value without a timezone is compared at -14:00 and
+   +14:00, and is less only when it is at both) and for durations (3.3.7.3:
+   at the four reference dateTimes of E.3.3), NaN incomparable (3.3.4). */
+typedef enum sxml_value_order {
+    SXML_VALUE_ORDER_LESS,
+    SXML_VALUE_ORDER_EQUAL,
+    SXML_VALUE_ORDER_GREATER,
+    SXML_VALUE_ORDER_INCOMPARABLE,
+} sxml_value_order;
+
+/*
+ * Orders two atomic items of one primitive type in XSD's order and writes
+ * the order of pair.first to pair.second to *order; items of different
+ * type families are incomparable. Used for the bound facets here and for
+ * their consistency in schema compilation (src/schema_simple_type.c).
+ * Returns the heap's failures.
+ */
+SXML_NODISCARD sxml_status sxml_cast_order_values(sxml_item_heap *item_heap,
+                                                  sxml_item_pair pair,
+                                                  sxml_value_order *order);
+
 /* A value whose facets to check. */
 typedef struct sxml_facet_check_request {
     /* A registered atomic, list or union type (from
