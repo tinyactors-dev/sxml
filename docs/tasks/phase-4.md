@@ -328,6 +328,12 @@ package_version_resolution, 1 streaming).
 After 4.15. As 2.19, over in-scope XSLT sets (misc-regex-syntax 987 and
 misc-error 500 first: they measure the regex engine and error codes
 cheaply). Each sweep claims its files in `docs/LOG.md`.
+**Sweep 1 done** 2026-10-19 (D159): XT40 in scope 7,585 to 7,737 of
+8,728 by this sweep (86.9 % to 88.6 %; 7,879, 90.3 %, with 4.16's
+packages), errors 7 to 3; number 57.5 to 97.4 %. Open: value-of (empty
+text nodes and cdata, Proposed), the call's static context at run time
+(Proposed), memory of many small trees (json-to-xml-013, array-022),
+xsl:function cache (function-1031), call-template-ext, host collations.
 
 ### 4.18 Phase 4 review (review)
 After everything. Owns the gate boxes. A separate agent (D11) runs the
