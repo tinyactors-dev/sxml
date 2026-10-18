@@ -7,6 +7,35 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Before
 decision record (`docs/DECISIONS.md`) always says so. The steps for a
 release are in `docs/RELEASE.md`.
 
+## [Unreleased]
+
+XQuery 4.0 (Phase 3, D161). The owner decides whether this goes into
+0.2.0, which is not tagged yet, or into the next minor release.
+
+### Added
+
+- **XQuery 4.0** (`xquery.h`): main and library modules with their
+  prologs (namespaces, defaults, variables, functions, options, decimal
+  formats, context value declarations), module import through the
+  processor's resolver, cyclic imports, fn:load-xquery-module, FLWOR with
+  group by, order by and window clauses, direct and computed node
+  constructors, try/catch, switch and typeswitch, output declarations and
+  output:parameter-document. Queries compile once and evaluate many
+  times on the shared IR and evaluator, as XPath does (D106, D146).
+- **Serialization 4.0** for queries: `sxml_xquery_query_get_serialization_parameters`
+  gives the parameters the prolog declares.
+- **`sxml xquery`** runs a query file or `--expression` with
+  `--context-item`, `--param` and `--method`; library modules are read
+  from local files (`docs/CLI.md`).
+- Conformance (`docs/CONFORMANCE.md`): XQ40 in scope 97.2 %, XQ-only
+  98.8 %, serialization methods 433 of 508; XP40 in scope 97.1 %.
+
+### Changed
+
+- `xquery.h` is no longer provisional (D161): it changes only as the
+  other public headers do. XQuery's default for omit-xml-declaration is
+  still the owner's choice (D146) and may change with a record.
+
 ## [0.2.0] - unreleased
 
 The first public release (D47, D104, D138). From this version, the public
@@ -54,7 +83,7 @@ and `xslt.h` (D151). `SXML_API_VERSION` is 0.2.0.
 - XQuery 4.0 (Phase 3): `xquery.h` compiles and runs main modules, and
   `sxml xquery` uses it; library modules, module import and
   fn:load-xquery-module are in progress. `xquery.h` is provisional until
-  the Phase 3 gate (D151).
+  the Phase 3 gate (D151). (Done since: see Unreleased, D161.)
 - XSLT 4.0 (Phase 4): `xslt.h` is declared and partly implemented; it is
   provisional until the Phase 4 gate (D151). Schema validation is
   Phase 5.

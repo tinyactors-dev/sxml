@@ -4,6 +4,22 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 3.15 done (D161): Phase 3 gate review (D11). **XQuery works**: XQ40 in
+  scope 97.2 %, XQ-only 98.8 %, method-* 433 of 508, 0 errors, no crash
+  or leak; XP40 30,646 passed (unchanged), in scope 97.1 %; slices
+  198/198 and 186/186 under every preset, run locally (D123). Fuzzed six
+  targets 300 s each, the new `tests/fuzz/xquery_fuzz.c` among them;
+  nothing found. Fixed: the lowering machine refuses to run inside one of
+  its own steps (D71, D151's follow-up); one heapsort
+  (`src/sort_internal.h`) for four copies; one parameter document reader
+  for XQuery and XSLT; fn:load-xquery-module in the run-time function
+  table (fn:function-lookup, supports-dynamic-xquery: XQ40 +5, 40,030).
+  `xquery.h` is stable. D162 check: the delayed features are each in one
+  place except three XSLT ones (two capability tables, XTSE1650/XTSE1660,
+  XTDE0160), listed in D161 for Phase 4. Left at HEAD for Phase 4 code:
+  three lint findings (`src/xslt.c`, `src/xslt_read.c`,
+  `tests/xslt/driver/xslt_assertion.c`), being fixed separately.
+
 - 4.17 sweep 1 done (D159): XSLT conformance. Numbering alphabets and
   symbol sequences (circled, parenthesized, full-stop digits, dingbats,
   ideographs, historic numbers, Greek letters) in the shared picture
@@ -1440,3 +1456,21 @@ For the owner. Only the first is a gate box.
    stable now.
 5. **CI** (D123): still local only; macOS, Windows and MSVC have not been
    built since the Phase 0 gate.
+
+## Open questions at the Phase 3 gate (packet 3.15)
+
+For the owner. Every gate box is ticked (D161).
+
+1. **0.2.0 and XQuery.** 0.2.0 is still untagged; `CHANGELOG.md` lists
+   XQuery under "Unreleased". Tag 0.2.0 at the Phase 2 commit, or fold
+   XQuery into 0.2.0.
+2. **WebAssembly budgets** (Proposed): `sxml.wasm` is 1,900,448 bytes
+   stripped and 659,284 gzipped against 2,000,000 / 700,000 (5 % left);
+   the CLI with XQuery and XSLT 4,624,576 / 1,032,045 against 5,000,000 /
+   1,100,000. `compileQuery()` is still not in the JavaScript package.
+   Confirm the budgets, or ask for optional modules.
+3. **XQuery's omit-xml-declaration default** (Proposed, D146): no (write
+   the declaration, as QT4 expects) or keep yes. The only behaviour of
+   the now stable `xquery.h` still open.
+4. **CI** (D123): still local only; macOS, Windows and MSVC unbuilt since
+   the Phase 0 gate.

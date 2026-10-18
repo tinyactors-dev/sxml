@@ -308,14 +308,23 @@ errors 1 to 0; XP40 97.1 %. Open: D158's "Not done".
 ### 3.15 Phase 3 review (review)
 After everything. Owns the gate boxes. A separate agent (D11) runs the
 rubric and re-checks each "done when"; open items go under "Proposed".
+**Done** 2026-10-19 (D161): numbers at 50a3651, fuzzing with a new
+XQuery target, the lowering machine's guard (D71), one heapsort and one
+parameter document reader, fn:load-xquery-module in the run-time
+function table, `xquery.h` stable, the D162 check of delayed features.
 
 ## Gate
 
-- [ ] XQ40 (D95 denominator) ≥ 85% pass, XQ-only cases ≥ 75%, method-*
-  ≥ 80%, under `release`; XP40 still ≥ 90%.
-- [ ] `qt4/slice` and `qt4/xquery-slice` at their baselines in CI
-  (`debug`, `debug-gcc`, `wasm`).
-- [ ] No XQ40 case crashes, leaks or ends in an "error" outcome.
-- [ ] `sxml xquery` and `sxml serialize` match docs/CLI.md.
-- [ ] Review agent pass (D11), findings fixed; the owner is told XQuery
-  works (D11 goal).
+- [x] XQ40 (D95 denominator) ≥ 85% pass, XQ-only cases ≥ 75%, method-*
+  ≥ 80%, under `release`; XP40 still ≥ 90%. (agent review, D161: XQ40
+  97.2 %, XQ-only 98.8 %, method-* 433 of 508; XP40 97.1 %)
+- [x] `qt4/slice` and `qt4/xquery-slice` at their baselines in CI
+  (`debug`, `debug-gcc`, `wasm`). (agent review, D161: 198/198 and
+  186/186 under every preset, run locally as D123 says)
+- [x] No XQ40 case crashes, leaks or ends in an "error" outcome.
+  (agent review, D161)
+- [x] `sxml xquery` and `sxml serialize` match docs/CLI.md. (agent
+  review, D161; `--output` stays planned)
+- [x] Review agent pass (D11), findings fixed; the owner is told XQuery
+  works (D11 goal). (agent review, D161; the larger follow-ups are
+  listed there, the owner's questions in docs/LOG.md)
