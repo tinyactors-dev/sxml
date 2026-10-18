@@ -817,3 +817,9 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `expected_term` | A term a content model cursor would accept next, for error messages ("expected 'shipTo'") |
 | `recorded_subtree` | The validated copy of an element and its descendants that the schema validator keeps while the element is open, for the XPath of assertions and identity constraints |
 | `id_table` | The IDs and IDREFs a schema validator has met under one validation root, checked at its end (cvc-id) |
+| `schema_element_role` | The part an element of a schema document plays where it appears (a global or a local element declaration, a group reference, a facet, ...): it decides the element's attributes, its children and the component it is read into (`src/schema_read.c`, D170) |
+| `child_slot` | One place in the content of a schema element role: the roles allowed there, once or any number of times, required or not; the children of an element fill its role's slots in order, as the schema for schema documents allows |
+| `conditional_inclusion` | Ignoring an element of a schema document with its attributes and descendants, as its vc: attributes say (vc:minVersion, vc:maxVersion, vc:typeAvailable, ...), before it is read (XSD 1.1 Part 1, 4.2.2) |
+| `chameleon_inclusion` | Including (or redefining, overriding) a schema document without a targetNamespace from one with a target namespace: its components take the includer's namespace (XSD 1.1 Part 1, 4.2.3) |
+| `schema_assembly` | The read stage's work list of schema documents: each one, known by its absolute URI and target namespace, is read once; xs:include, xs:import, xs:redefine and xs:override add to it (XSD 1.1 Part 1, 4.2; D170) |
+| `redefinition` | A component that an xs:redefine or xs:override child gives in place of the component of its name in the document it refers to (XSD 1.1 Part 1, 4.2.4 and 4.2.5) |
