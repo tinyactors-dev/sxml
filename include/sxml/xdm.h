@@ -839,8 +839,10 @@ typedef struct sxml_node_value_request {
  * Makes dm:typed-value of request->node as an owned sequence (XDM 4.0,
  * section 7.6.14): the string value as xs:untypedAtomic for untyped
  * elements and attributes, as xs:string for comments, processing
- * instructions and namespace nodes, through the tree's get_typed_value for
- * validated nodes.
+ * instructions and namespace nodes; for validated nodes through the
+ * tree's get_typed_value, or, when the tree has none, derived from the
+ * string value and the type annotation as include/sxml/tree.h describes
+ * (D165).
  *
  * Returns SXML_STATUS_TYPE_ERROR (FOTY0012) when the node has no typed
  * value, and the heap's and the tree's failures.

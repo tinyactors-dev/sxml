@@ -25,8 +25,8 @@
     {.item_type = SXML_TYPE_REFERENCE(SXML_TYPE_ITEM),                         \
      .occurrence = SXML_OCCURRENCE_ZERO_OR_MORE}
 
-/* A schema type that is not atomic: complex, the simple ur-type, list or
-   union. */
+/* A schema type without variety details: the simple ur-type, and the
+   placeholder at SXML_TYPE_NONE. */
 #define SXML_TYPE_SCHEMA_TYPE(type_variety, base)                              \
     {.variety = (type_variety),                                                \
      .type_name = {.index = 0},                                                \
@@ -35,6 +35,21 @@
      .is_builtin = true,                                                       \
      .variety_details = {.list_item_type =                                     \
                              SXML_TYPE_REFERENCE(SXML_TYPE_NONE)}}
+
+/* A built-in complex type: xs:anyType and xs:untyped allow any content,
+   so their content type is mixed (XSD 1.1 Part 1, 3.4.7; XDM 4.0,
+   section 4.1.2; D165). */
+#define SXML_TYPE_COMPLEX(base)                                                \
+    {.variety = SXML_TYPE_VARIETY_COMPLEX,                                     \
+     .type_name = {.index = 0},                                                \
+     .base_type = SXML_TYPE_REFERENCE(base),                                   \
+     .primitive_type = SXML_TYPE_REFERENCE(SXML_TYPE_NONE),                    \
+     .is_builtin = true,                                                       \
+     .variety_details = {                                                      \
+         .complex_type = {.content_type_variety =                              \
+                              SXML_CONTENT_TYPE_VARIETY_MIXED,                 \
+                          .simple_content_type =                               \
+                              SXML_TYPE_REFERENCE(SXML_TYPE_NONE)}}}
 
 /* An atomic type with its base type and primitive type. */
 #define SXML_TYPE_ATOMIC(base, primitive)                                      \
@@ -113,10 +128,8 @@ static const sxml_type_description
         [SXML_TYPE_NONE] = SXML_TYPE_SCHEMA_TYPE(SXML_TYPE_VARIETY_COMPLEX,
                                                  SXML_TYPE_NONE),
 
-        [SXML_TYPE_XS_ANY_TYPE] = SXML_TYPE_SCHEMA_TYPE(
-            SXML_TYPE_VARIETY_COMPLEX, SXML_TYPE_NONE),
-        [SXML_TYPE_XS_UNTYPED] = SXML_TYPE_SCHEMA_TYPE(
-            SXML_TYPE_VARIETY_COMPLEX, SXML_TYPE_XS_ANY_TYPE),
+        [SXML_TYPE_XS_ANY_TYPE] = SXML_TYPE_COMPLEX(SXML_TYPE_NONE),
+        [SXML_TYPE_XS_UNTYPED] = SXML_TYPE_COMPLEX(SXML_TYPE_XS_ANY_TYPE),
         [SXML_TYPE_XS_ANY_SIMPLE_TYPE] = SXML_TYPE_SCHEMA_TYPE(
             SXML_TYPE_VARIETY_ANY_SIMPLE, SXML_TYPE_XS_ANY_TYPE),
         [SXML_TYPE_XS_ANY_ATOMIC_TYPE] = SXML_TYPE_ATOMIC(

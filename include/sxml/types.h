@@ -25,10 +25,16 @@
  *   SXML_TYPE_FIRST_REGISTERED up: item types written in a query or
  *   stylesheet (element(a), map(xs:string, item()), record(x, y),
  *   enum("a"), function(item()) as item(), (A | B)), nominative record
- *   types, and, from Phase 5, the types of imported schemas.
- *   Structural item types are interned: registering an equal description
- *   twice gives the same identifier, so item type equality is identifier
- *   equality. Nominative record types are never merged.
+ *   types, and the simple and complex type definitions of compiled schemas
+ *   (include/sxml/schema.h). Structural item types are interned:
+ *   registering an equal description twice gives the same identifier, so
+ *   item type equality is identifier equality. Nominative record types
+ *   and schema types are never merged.
+ * - Schema types are registered only by schema compilation, which checks
+ *   XSD's constraints on them first (D165), and without their names: a
+ *   schema type is found by name through its schema
+ *   (sxml_schema_find_type), so two schemas of one processor may each
+ *   define a type of one name. Their descriptions carry their names.
  *
  * A type identifier is what an atomic item, a node or a record carries as
  * its type annotation, and what the type checker reasons about. Schema types
@@ -242,6 +248,73 @@ typedef enum sxml_type_variety {
     SXML_TYPE_VARIETY_CHOICE,
 } sxml_type_variety;
 
+/*
+ * What the content of a complex type may be (XSD 1.1 Part 1, 3.4.1, the
+ * {variety} of the {content type}). It decides the typed value of an
+ * element annotated with the type (XDM 4.0, 7.6.14 and 3.3.1.2): the empty
+ * sequence for EMPTY, the content cast to the simple content type for
+ * SIMPLE, xs:untypedAtomic of the string value for MIXED, none (FOTY0012)
+ * for ELEMENT_ONLY.
+ */
+typedef enum sxml_content_type_variety {
+    SXML_CONTENT_TYPE_VARIETY_EMPTY,
+    SXML_CONTENT_TYPE_VARIETY_SIMPLE,
+    SXML_CONTENT_TYPE_VARIETY_ELEMENT_ONLY,
+    SXML_CONTENT_TYPE_VARIETY_MIXED,
+} sxml_content_type_variety;
+
+/* The content type of a complex type (D165). xs:anyType and xs:untyped
+   are MIXED. */
+typedef struct sxml_complex_type {
+    sxml_content_type_variety content_type_variety;
+    /* SIMPLE: the simple type of the content (glossary
+       simple_content_type); SXML_TYPE_NONE otherwise. */
+    sxml_type_identifier simple_content_type;
+} sxml_complex_type;
+
+/*
+ * The constraining facets of XSD 1.1 Part 2, 4.3, which a value of a
+ * simple type derived by restriction must satisfy. Assertions (4.3.13)
+ * are not among them: they are XPath expressions, which the schema keeps
+ * and validation and casting evaluate (D165).
+ */
+typedef enum sxml_facet_kind {
+    SXML_FACET_KIND_LENGTH,
+    SXML_FACET_KIND_MIN_LENGTH,
+    SXML_FACET_KIND_MAX_LENGTH,
+    SXML_FACET_KIND_PATTERN,
+    SXML_FACET_KIND_ENUMERATION,
+    SXML_FACET_KIND_WHITESPACE,
+    SXML_FACET_KIND_MAX_INCLUSIVE,
+    SXML_FACET_KIND_MAX_EXCLUSIVE,
+    SXML_FACET_KIND_MIN_EXCLUSIVE,
+    SXML_FACET_KIND_MIN_INCLUSIVE,
+    SXML_FACET_KIND_TOTAL_DIGITS,
+    SXML_FACET_KIND_FRACTION_DIGITS,
+    SXML_FACET_KIND_EXPLICIT_TIMEZONE,
+} sxml_facet_kind;
+
+/*
+ * One facet of a restriction step (glossary facet). value is the facet's
+ * {value} as text: a non-negative integer for the length and digits
+ * facets; preserve, replace or collapse for WHITESPACE; required,
+ * prohibited or optional for EXPLICIT_TIMEZONE; a regular expression of
+ * the XSD dialect (Part 2, appendix G) for PATTERN; for ENUMERATION and
+ * the four bounds, the canonical lexical form of the value in the base
+ * type (in the member type that accepts it, for a union), with xs:QName
+ * and xs:NOTATION values written as EQNames, Q{uri}local, so that no
+ * namespace context is needed to read it back.
+ */
+typedef struct sxml_facet {
+    sxml_facet_kind facet_kind;
+    sxml_byte_view value;
+} sxml_facet;
+
+typedef struct sxml_facet_view {
+    const sxml_facet *facets;
+    size_t facet_count;
+} sxml_facet_view;
+
 /* A read-only list of type identifiers. */
 typedef struct sxml_type_identifier_view {
     const sxml_type_identifier *type_identifiers;
@@ -448,7 +521,17 @@ typedef struct sxml_type_description {
         /* SXML_TYPE_VARIETY_ENUMERATION: the strings, in the order written,
            without duplicates. */
         sxml_byte_view_list enumeration_values;
+        /* SXML_TYPE_VARIETY_COMPLEX: the content type (D165). */
+        sxml_complex_type complex_type;
     } variety_details;
+    /* For atomic, list and union types a schema registered: the facets of
+       the type's own restriction step, in the order of the schema
+       document; the facets of its base types apply too. Several PATTERN
+       facets of one step are alternatives (a value matches one of them);
+       steps combine by conjunction (Part 2, 4.3.4.3). Empty for built-in
+       types, whose facets are implicit in their identifiers, for types
+       derived by list or union, and for item types (D165). */
+    sxml_facet_view facets;
 } sxml_type_description;
 
 /* ------------------------------------------------------------- Registry */
@@ -526,12 +609,14 @@ SXML_NODISCARD SXML_EXPORT sxml_status sxml_type_registry_describe_type(
     sxml_type_description *description);
 
 /*
- * Finds the named schema type or nominative record type type_name and
- * writes its identifier to *type. Returns false, leaving *type untouched,
- * when there is none. O(1) average. Named item types (XQuery 4.0 "declare
- * type", XSLT 4.0 xsl:item-type) are not registered under their names:
- * they are aliases in the static context of their module, which maps the
- * name to the identifier of the aliased item type (D98).
+ * Finds the built-in schema type or nominative record type named
+ * type_name and writes its identifier to *type. Returns false, leaving
+ * *type untouched, when there is none. O(1) average. Named item types
+ * (XQuery 4.0 "declare type", XSLT 4.0 xsl:item-type) are not registered
+ * under their names: they are aliases in the static context of their
+ * module, which maps the name to the identifier of the aliased item type
+ * (D98). Nor are the types of compiled schemas: sxml_schema_find_type
+ * finds those (include/sxml/schema.h, D165).
  */
 SXML_EXPORT bool sxml_type_registry_find_type(
     const sxml_type_registry *registry, sxml_name_identifier type_name,

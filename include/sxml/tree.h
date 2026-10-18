@@ -229,9 +229,14 @@ typedef struct sxml_tree_operations {
     sxml_status (*get_in_scope_namespaces)(
         void *state, sxml_node_index element,
         sxml_namespace_binding_view *namespace_bindings);
-    /* Optional. dm:typed-value of a validated node (Phase 5). NULL means
-       the tree holds only untyped nodes, whose typed value sxml derives
-       from the string value (XDM 4.0, section 7.6.14). */
+    /* Optional. dm:typed-value of a validated node. NULL means sxml
+       derives it from the string value and the type annotation (XDM 4.0,
+       section 7.6.14; D165): xs:untypedAtomic for an untyped node, the
+       string value cast to a simple type annotation (with the element's
+       in-scope namespaces, the parent's for an attribute), and for an
+       element of a complex type as its content type variety says
+       (include/sxml/types.h); a nilled element has none. Every tree that
+       holds only untyped nodes gets what it got before. */
     sxml_status (*get_typed_value)(void *state,
                                    const sxml_typed_value_request *request,
                                    sxml_sequence *typed_value);

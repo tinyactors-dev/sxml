@@ -231,10 +231,11 @@ sxml_qt4_resolve_from_table(void *state, const sxml_resource_request *request,
         return sxml_qt4_serve_module(&table_request, resource);
     case SXML_RESOURCE_KIND_XSLT_MODULE:
     case SXML_RESOURCE_KIND_XSLT_PACKAGE:
+    case SXML_RESOURCE_KIND_SCHEMA_DOCUMENT:
         break;
     }
-    resource->description =
-        SXML_TEXT("The QT4 driver serves no XSLT modules or packages");
+    resource->description = SXML_TEXT(
+        "The QT4 driver serves no XSLT modules, packages or schema documents");
     return SXML_STATUS_OK;
 }
 

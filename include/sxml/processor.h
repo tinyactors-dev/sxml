@@ -153,6 +153,13 @@ typedef enum sxml_resource_kind {
        package_version the versions accepted. Form: BYTES, the text of
        the module whose top element is xsl:package. */
     SXML_RESOURCE_KIND_XSLT_PACKAGE,
+    /* An XSD schema document for schema compilation (include/sxml/
+       schema.h): xs:include, xs:import, xs:redefine and xs:override,
+       XQuery's "import schema", XSLT's xsl:import-schema. uri_reference
+       is the schemaLocation or location hint, empty when there is none;
+       target_namespace_uri the namespace (D165). Forms: BYTES,
+       DOCUMENT_NODE (a document the host has parsed). */
+    SXML_RESOURCE_KIND_SCHEMA_DOCUMENT,
 } sxml_resource_kind;
 
 /* What sxml asks a resolver for. Views are borrowed for the call. */
@@ -179,7 +186,10 @@ typedef struct sxml_resource_request {
        uri_reference and absolute_uri are then empty. */
     bool is_default_collection;
     /* XQUERY_MODULE: the target namespace of the imported module, never
-       empty. */
+       empty. SCHEMA_DOCUMENT: the namespace imported (xs:import, import
+       schema, xsl:import-schema; empty for no namespace), or for
+       xs:include, xs:redefine and xs:override the referring document's
+       target namespace. */
     sxml_byte_view target_namespace_uri;
     /* XSLT_PACKAGE: the package-version attribute of xsl:use-package, "*"
        when it has none (XSLT 4.0, "Versions of a Package"). */

@@ -2876,6 +2876,8 @@ static bool sxml_type_registry_normalize(const sxml_type_registry *registry,
     description->base_type = sxml_type_of_builtin(SXML_TYPE_NONE);
     description->primitive_type = sxml_type_of_builtin(SXML_TYPE_NONE);
     description->is_builtin = false;
+    /* Item types have no facets (include/sxml/types.h, D165). */
+    description->facets = (sxml_facet_view){.facets = NULL, .facet_count = 0};
     switch (description->variety) {
     case SXML_TYPE_VARIETY_NODE_TEST:
         return sxml_type_registry_normalize_node_test(
