@@ -5728,6 +5728,9 @@ year one" list of PLAN.md.
   Size-driven choices (UCA tables, a timezone database, HTML5) are
   revisited against the wasm budget then; a feature may be a build option.
 
+### D163. XSLT conformance sweep 2 (packet 4.17)
+Reserved 2026-10-19; completed when the packet is ticked.
+
 ## Proposed
 
 - **Empty parentless text nodes** (packet 4.17, D159; for the owner of
