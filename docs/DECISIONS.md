@@ -5954,6 +5954,9 @@ the Phase 5 notes of D32, D53, D58, D97 and D162.
 ### D166. Content that streams into a constructor; XSLT sweep 3 (packet 4.17)
 Reserved 2026-10-18; completed when the sweep is logged.
 
+### D167. Schema components and compile stages (packet 5.2)
+Reserved 2026-10-18.
+
 ## Proposed
 
 - **Matching package versions for host resolvers** (packet 4.16, D160;
