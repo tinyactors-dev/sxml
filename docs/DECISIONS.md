@@ -6451,6 +6451,9 @@ D167 (`src/schema_complex_type.c`, `src/schema_content_model.c`).
   openContent mode="none" with a wildcard, xs:redefine of a group) or
   disputed by the versions (particlesK006).
 
+### D173. Validation and the typed tree (packet 5.7)
+Reserved 2026-10-18; the record follows when the packet lands.
+
 ## Proposed
 
 - **Schema documents the resolver does not deliver** (packet 5.4, D170;
