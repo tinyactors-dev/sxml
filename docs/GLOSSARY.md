@@ -553,6 +553,9 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `evaluator_part` | One `src/evaluator_<part>.c` file defining `sxml_evaluator_part_<part>`: the IR expression kinds it evaluates and their step functions (D101) |
 | `part_task` | An evaluator task whose step function an evaluator part supplies, with state the part owns (D101) |
 | `catching_task` | An evaluator task marked to receive the dynamic or type errors raised above it: the machine unwinds to it instead of ending the evaluation (`try`/`catch`, D101) |
+| `receiving_task` | A node constructor's part task while its content is evaluated: the values of the delivering tasks above it go into its construction as they are made (D166) |
+| `delivering_task` | An evaluator task in content position: when it finishes, its value is added to the construction of the receiving task below instead of being handed to the task below, and a loop's body or a call's body in it delivers each value at once (D166) |
+| `content_let` | A LET whose variable only the content of its block reads, in order: in a delivering task its bound expression delivers too, and the variable holds the empty sequence (D166) |
 | `error_details` | What a caught error binds in a catch clause, copied out of the error record: code, description, value, module, line and column number; bound as the map `$err:map` (XQuery 4.0, "Try/Catch Expressions"; D109) |
 | `pending_error` | An error of a try or catch clause that a finally clause raises again once it has run without error (D109) |
 | `tail_call` | A call whose value is the value of the function making it; the evaluator reuses that function's frame |
