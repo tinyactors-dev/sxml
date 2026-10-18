@@ -1803,7 +1803,15 @@ SXML_NODISCARD sxml_status sxml_schema_read_documents(
 /* RESOLVE: src/schema_resolve.c (5.4). */
 SXML_NODISCARD sxml_status sxml_schema_resolve_references(
     sxml_schema_compilation *compilation);
-/* SIMPLE_TYPES: src/schema_simple_type.c (5.5). */
+/* SIMPLE_TYPES: src/schema_simple_type.c (5.5). What it reads (D171): a
+   simple type definition is one whose variety is not COMPLEX; READ writes
+   LIST or UNION for xs:list and xs:union, and for xs:restriction any
+   simple variety (ANY_SIMPLE, say), which SIMPLE_TYPES replaces with the
+   base's; base_type, else anonymous_base_type, is the base; item_type,
+   else anonymous_item_type, and member_types, else
+   anonymous_member_types, what a list or union is made of. It writes
+   variety, primitive_type, registered_type, {assertions} and, for a
+   restriction of a list or union, item_type and member_types. */
 SXML_NODISCARD sxml_status sxml_schema_compile_simple_types(
     sxml_schema_compilation *compilation);
 /* COMPLEX_TYPES: src/schema_complex_type.c (5.6). */
