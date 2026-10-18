@@ -12,7 +12,9 @@
  * rule found, or the mode's built-in template (6.10) when none matches, is
  * then called on the machine with the item, its position, the size, and
  * the parameter maps; its value is appended to the result, after the
- * separator from the second item on (6.7). A mode with
+ * separator from the second item on (6.7); a delivering task's template
+ * calls deliver their values and the task delivers the separators (D166).
+ * A mode with
  * on-multiple-match="fail" keeps looking after the first match among the
  * rules of the same import precedence and priority (XTDE0540).
  *
@@ -339,6 +341,10 @@ static sxml_status sxml_template_push_call(sxml_dynamic_context *dynamic_context
                                            sxml_template_call call) {
     sxml_evaluator_task *task = sxml_evaluator_machine_top(dynamic_context);
     task->phase = (uint32_t)call.phase;
+    /* A template of a delivering task delivers its value (D166); a match
+       function's value is read here. */
+    const bool delivers_content =
+        task->delivers_content && call.phase == SXML_TEMPLATE_PHASE_CALLED;
     /* The task pointer is invalid after the push. */
     const sxml_status status =
         sxml_evaluator_machine_push_expression(dynamic_context, task->expression);
@@ -353,6 +359,7 @@ static sxml_status sxml_template_push_call(sxml_dynamic_context *dynamic_context
     sxml_evaluator_task *call_task = sxml_evaluator_machine_top(dynamic_context);
     call_task->task_kind = SXML_EVALUATOR_TASK_KIND_CALL;
     call_task->phase = 0;
+    call_task->delivers_content = delivers_content;
     call_task->details.call = (sxml_call_state){.function_item = {.representation = 0},
                                                 .callee = call.function,
                                                 .native_function = NULL,
@@ -513,9 +520,13 @@ static sxml_status sxml_template_take_match(sxml_dynamic_context *dynamic_contex
 
 /* ---------------------------------------------------------------- Items */
 
-/* Appends value (owned) to the result. */
+/* Appends value (owned) to the result, or delivers it when the task
+   delivers (D166: the templates' values were delivered already). */
 static sxml_status sxml_template_append(sxml_dynamic_context *dynamic_context,
                                         sxml_template_state *state, sxml_sequence value) {
+    if (sxml_evaluator_machine_top(dynamic_context)->delivers_content) {
+        return sxml_evaluator_machine_deliver(dynamic_context, value);
+    }
     sxml_status status = SXML_STATUS_OK;
     if (sxml_sequence_get_representation(value) != SXML_SEQUENCE_REPRESENTATION_EMPTY) {
         if (state->builder == NULL) {

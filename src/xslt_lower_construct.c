@@ -360,6 +360,9 @@ typedef struct value_request {
     /* "XTSE0940 description" for a select attribute with content; NULL
        when the instruction has no select attribute. */
     const char *conflict_error;
+    /* The block of a node constructor's content, which ends with atom
+       (D166: its LETs are content LETs); NULL for the frame's block. */
+    sxml_xpath_lowering_block *content_block;
 } value_request;
 
 /* Lowers the select attribute or the sequence constructor to *atom;
@@ -371,6 +374,8 @@ typedef struct value_source {
 static sxml_status start_value(sxml_xpath_lowering_machine *machine, value_request request,
                                value_source *source) {
     const sxml_xslt_lowering *lowering = request.head->lowering;
+    sxml_xpath_lowering_block *block =
+        request.content_block != NULL ? request.content_block : request.frame->block;
     const sxml_xslt_ast_attribute *select =
         find_attribute(lowering, (attribute_lookup){.node = request.head->node,
                                                     .kind = SXML_XSLT_AST_ATTRIBUTE_SELECT});
@@ -387,7 +392,7 @@ static sxml_status start_value(sxml_xpath_lowering_machine *machine, value_reque
         return sxml_xslt_lowering_call_expression(
             machine, &(sxml_xslt_expression_call){.lowering = lowering,
                                                   .expression = select->value.payload.expression,
-                                                  .block = request.frame->block,
+                                                  .block = block,
                                                   .atom = request.atom,
                                                   .focus = NULL});
     }
@@ -395,11 +400,12 @@ static sxml_status start_value(sxml_xpath_lowering_machine *machine, value_reque
         machine, &(sxml_xslt_sequence_constructor_call){
                      .lowering = lowering,
                      .first = node_of(lowering, request.head->node)->first_child,
-                     .block = request.frame->block,
+                     .block = block,
                      .is_body = false,
+                     .is_content = request.content_block != NULL,
                      .destination = {.expression = NULL,
                                      .atom = request.atom,
-                                     .atom_block = request.frame->block,
+                                     .atom_block = block,
                                      .focused = NULL},
                      .focus = NULL});
 }
@@ -1135,7 +1141,30 @@ typedef struct named_constructor_locals {
     bool is_name_fixed;
     bool has_select;
     sxml_ir_namespace_binding_list name_namespaces;
+    /* xsl:element: the block its content is computed in, inside the
+       element constructor (D166). */
+    sxml_xpath_lowering_block content_block;
 } named_constructor_locals;
+
+/* An ATOM of value at the end of content_block: a node constructor's
+   content expression (D166). */
+typedef struct block_content {
+    const sxml_xpath_lowering_block *content_block;
+    sxml_ir_atom value;
+} block_content;
+
+static sxml_status add_block_content(sxml_xpath_lowerer *lowerer, block_content request,
+                                     sxml_ir_expression_index *content) {
+    sxml_ir_expression_index result = {0};
+    const sxml_status status = add_atom_content(lowerer, request.value, &result);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_xpath_lowerer_finish_block(
+        lowerer,
+        (sxml_xpath_lowering_block_result){.block = *request.content_block, .result = result},
+        content);
+}
 
 static bool is_attribute_instruction(const named_constructor_locals *locals) {
     return node_of(locals->head.lowering, locals->head.node)->kind == SXML_XSLT_AST_KIND_ATTRIBUTE;
@@ -1297,7 +1326,10 @@ static sxml_status finish_named_constructor(sxml_xpath_lowering_machine *machine
                 .name = locals->name, .value = text, .name_namespaces = locals->name_namespaces}};
     } else if (status == SXML_STATUS_OK) {
         sxml_ir_expression_index content = {0};
-        status = add_atom_content(lowerer, locals->value, &content);
+        status = add_block_content(
+            lowerer,
+            (block_content){.content_block = &locals->content_block, .value = locals->value},
+            &content);
         if (status == SXML_STATUS_OK) {
             /* 11.2: the attribute sets' attributes come first. */
             status = prepend_attribute_sets(
@@ -1384,7 +1416,10 @@ static sxml_status continue_named_constructor(sxml_xpath_lowering_machine *machi
                             .conflict_error = is_attribute_instruction(locals)
                                                   ? "XTSE0840 xsl:attribute has both a select "
                                                     "attribute and content (XSLT 4.0, 11.3)"
-                                                  : NULL},
+                                                  : NULL,
+                            .content_block = is_attribute_instruction(locals)
+                                                 ? NULL
+                                                 : &locals->content_block},
             &source);
         locals->has_select = source.has_select;
         return status;
@@ -1421,6 +1456,9 @@ static const sxml_xpath_lowering_procedure named_constructor_procedure = {
 typedef struct document_locals {
     sxml_xslt_instruction_locals head;
     sxml_ir_atom value;
+    /* The block the content is computed in, inside the constructor
+       (D166). */
+    sxml_xpath_lowering_block content_block;
 } document_locals;
 
 static sxml_status continue_document(sxml_xpath_lowering_machine *machine,
@@ -1433,11 +1471,16 @@ static sxml_status continue_document(sxml_xpath_lowering_machine *machine,
                            (value_request){.head = &locals->head,
                                            .frame = frame,
                                            .atom = &locals->value,
-                                           .conflict_error = NULL},
+                                           .conflict_error = NULL,
+                                           .content_block = &locals->content_block},
                            &source);
     }
     sxml_ir_expression_index content = {0};
-    const sxml_status status = add_atom_content(machine->state, locals->value, &content);
+    const sxml_status status =
+        add_block_content(
+        machine->state,
+        (block_content){.content_block = &locals->content_block, .value = locals->value},
+        &content);
     if (status != SXML_STATUS_OK) {
         return status;
     }

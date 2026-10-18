@@ -520,6 +520,13 @@ typedef struct sxml_ir_let {
     sxml_ir_slot variable;
     sxml_ir_expression_index bound_expression;
     sxml_ir_expression_index body;
+    /* True for a content LET (glossary `content_let`, D166): only the
+       result its block ends with reads variable, after the variables of
+       the content LETs before it and before every other atom it reads.
+       In a delivering task the bound expression delivers its value into
+       the construction and variable holds the empty sequence; elsewhere
+       it is an ordinary LET. */
+    bool is_content;
 } sxml_ir_let;
 
 /* CONDITIONAL. */

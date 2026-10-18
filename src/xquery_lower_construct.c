@@ -19,7 +19,12 @@
  *   atomic items are joined by spaces only within one atom, so
  *   `<c>{1}{2}</c>` is "12"). Literal text and CDATA sections are xs:string
  *   constants; boundary whitespace (4.12.1.4) is dropped unless the prolog
- *   declares boundary-space preserve. Its name is an xs:QName constant
+ *   declares boundary-space preserve. Unless two enclosed expressions are
+ *   adjacent, the parts are computed in a block of the content instead,
+ *   inside the constructor, literal text as text constructors (the same
+ *   content: a text node is never joined to an atomic item), and the LETs
+ *   of the parts are content LETs, so the content streams into the new
+ *   node (D166). Its name is an xs:QName constant
  *   resolved while lowering (XPST0081), with its prefix.
  * - Namespace declaration attributes (4.12.1.2) make no attribute: they
  *   are the element's namespace bindings, and they extend the statically
@@ -44,8 +49,11 @@
  *   element and attribute names, an xs:string for a PI target or a
  *   namespace prefix) or the atom of the name expression, and the atom of
  *   the content expression: the value of attribute, namespace, text,
- *   comment and PI constructors, an ATOM content expression of element and
- *   document constructors (one enclosed expression, D110).
+ *   comment and PI constructors; element and document constructors take
+ *   the content expression lowered in a block of its own, ending in the
+ *   ATOM of its value (one enclosed expression, D110), so its value is
+ *   computed inside the constructor and streams into the new node
+ *   (D166).
  * - Direct comments and PIs (4.12.2) are constructors of constants.
  *
  * The prolog's boundary-space, construction and copy-namespaces
@@ -354,7 +362,55 @@ typedef struct direct_element_locals {
        declares namespaces (owned memory 2); NULL otherwise. */
     sxml_xpath_static_context *own_context;
     bool preserves_boundary_space;
+    /* True when the parts are computed inside the element constructor,
+       in content_block, so that they stream into it (D166): unless two
+       enclosed expressions are adjacent, whose atomic items must not be
+       joined (D110). Literal text is then a text constructor. */
+    bool streams;
+    sxml_xpath_lowering_block content_block;
+    /* The part whose LET is marked as a content LET next, and the content
+       block's open LET before it; marking stops at a part without a LET
+       of its own. */
+    bool has_pending_part;
+    sxml_ir_expression_index open_let_before;
+    bool stops_marking;
 } direct_element_locals;
+
+/* True for a content child that is an enclosed expression, whose atomic
+   items are joined with spaces (4.12.1.3, step 1e). */
+static bool is_enclosed_expression(sxml_ast_kind kind) {
+    return kind != SXML_AST_KIND_DIRECT_ELEMENT_TEXT && kind != SXML_AST_KIND_CDATA_SECTION &&
+           kind != SXML_AST_KIND_DIRECT_ELEMENT_CONSTRUCTOR &&
+           kind != SXML_AST_KIND_DIRECT_COMMENT_CONSTRUCTOR &&
+           kind != SXML_AST_KIND_DIRECT_PROCESSING_INSTRUCTION_CONSTRUCTOR;
+}
+
+/* The block a part of the element is lowered in. */
+static sxml_xpath_lowering_block *part_block(sxml_xpath_lowering_frame *frame) {
+    direct_element_locals *locals = frame->locals;
+    return locals->streams ? &locals->content_block : frame->block;
+}
+
+/* Marks the LET of the part lowered last (atoms[atom_count - 1]) as a
+   content LET while every part before it was marked (D166). */
+static sxml_status mark_pending_part(sxml_xpath_lowerer *state, direct_element_locals *locals) {
+    if (!locals->has_pending_part) {
+        return SXML_STATUS_OK;
+    }
+    locals->has_pending_part = false;
+    if (!locals->streams || locals->stops_marking) {
+        return SXML_STATUS_OK;
+    }
+    sxml_xpath_lowering_content_mark mark = {.goes_on = true};
+    const sxml_status status = sxml_xpath_lowerer_mark_content_let(
+        state,
+        (sxml_xpath_lowering_content_item){.block = &locals->content_block,
+                                           .open_let_before = locals->open_let_before,
+                                           .atom = locals->atoms[locals->atom_count - 1]},
+        &mark);
+    locals->stops_marking = !mark.goes_on;
+    return status;
+}
 
 static sxml_status continue_direct_element(sxml_xpath_lowering_machine *machine,
                                            sxml_xpath_lowering_frame *frame);
@@ -568,9 +624,21 @@ static sxml_status start_direct_element(sxml_xpath_lowering_machine *machine,
         status = check_attribute_names(machine, frame, attribute_count - declaration_count);
     }
     size_t content_count = 0;
+    bool follows_enclosed_expression = false;
+    locals->streams = true;
     for (sxml_ast_node_index content = child_of(state, element, SXML_AST_FIELD_CONTENT);
          content.value != 0; content = next_of(state, content)) {
         content_count += 1;
+        const sxml_ast_kind kind = node_of(state, content)->kind;
+        if (kind == SXML_AST_KIND_DIRECT_ELEMENT_TEXT &&
+            has_flag(state, content, SXML_AST_FLAG_BOUNDARY_WHITESPACE) &&
+            !locals->preserves_boundary_space) {
+            continue;
+        }
+        if (is_enclosed_expression(kind) && follows_enclosed_expression) {
+            locals->streams = false;
+        }
+        follows_enclosed_expression = is_enclosed_expression(kind);
     }
     locals->atom_capacity = attribute_count - declaration_count + content_count;
     if (status == SXML_STATUS_OK && locals->atom_capacity > 0) {
@@ -588,11 +656,49 @@ static sxml_status start_direct_element(sxml_xpath_lowering_machine *machine,
     return status;
 }
 
+/* Literal text: a constant, or, when the element streams, a text node
+   made in the content block (the same content, 4.12.1.3). */
+static sxml_status add_literal_text(sxml_xpath_lowerer *state, direct_element_locals *locals,
+                                    sxml_ast_node_index content) {
+    sxml_ir_atom *atom = &locals->atoms[locals->atom_count];
+    locals->atom_count += 1;
+    sxml_status status = sxml_xpath_lowerer_add_string_constant(state, text_of(state, content), atom);
+    if (status != SXML_STATUS_OK || !locals->streams) {
+        return status;
+    }
+    sxml_ir_expression_index text = {0};
+    status = sxml_xpath_lowerer_add_expression(
+        state, (sxml_xpath_lowering_expression_to_add){
+                   .node = content,
+                   .expression = (sxml_ir_expression){
+                       .expression_kind = SXML_IR_EXPRESSION_KIND_TEXT_CONSTRUCTOR,
+                       .node_construction = {.value = *atom}}},
+        &text);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    locals->open_let_before = locals->content_block.open_let;
+    status = sxml_xpath_lowerer_bind_expression(
+        state,
+        (sxml_xpath_lowering_expression_in_block){.block = &locals->content_block,
+                                                  .expression = text},
+        atom);
+    locals->has_pending_part = true;
+    if (status == SXML_STATUS_OK) {
+        status = mark_pending_part(state, locals);
+    }
+    return status;
+}
+
 /* The next attribute or piece of content to lower to an atom; 0 when all
-   are done. Literal text is made a constant at once. */
+   are done. Literal text is added at once. */
 static sxml_status next_element_part(sxml_xpath_lowerer *state, direct_element_locals *locals,
                                      sxml_ast_node_index *part) {
     *part = (sxml_ast_node_index){.value = 0};
+    const sxml_status mark_status = mark_pending_part(state, locals);
+    if (mark_status != SXML_STATUS_OK) {
+        return mark_status;
+    }
     while (locals->attribute.value != 0) {
         const sxml_ast_node_index attribute = locals->attribute;
         locals->attribute = next_of(state, attribute);
@@ -611,12 +717,10 @@ static sxml_status next_element_part(sxml_xpath_lowerer *state, direct_element_l
             continue;
         }
         if (kind == SXML_AST_KIND_DIRECT_ELEMENT_TEXT || kind == SXML_AST_KIND_CDATA_SECTION) {
-            const sxml_status status = sxml_xpath_lowerer_add_string_constant(
-                state, text_of(state, content), &locals->atoms[locals->atom_count]);
+            const sxml_status status = add_literal_text(state, locals, content);
             if (status != SXML_STATUS_OK) {
                 return status;
             }
-            locals->atom_count += 1;
             continue;
         }
         *part = content;
@@ -633,10 +737,12 @@ static sxml_status lower_element_part(sxml_xpath_lowering_machine *machine,
     direct_element_locals *locals = frame->locals;
     sxml_ir_atom *atom = &locals->atoms[locals->atom_count];
     locals->atom_count += 1;
+    sxml_xpath_lowering_block *block = part_block(frame);
+    locals->open_let_before = block->open_let;
+    locals->has_pending_part = true;
     if (locals->own_context == NULL) {
         return sxml_xpath_lowering_call_atom(
-            machine,
-            (sxml_xpath_lowering_atom_call){.node = part, .block = frame->block, .atom = atom});
+            machine, (sxml_xpath_lowering_atom_call){.node = part, .block = block, .atom = atom});
     }
     return sxml_xpath_lowering_call_embedded(
         machine,
@@ -645,20 +751,24 @@ static sxml_status lower_element_part(sxml_xpath_lowering_machine *machine,
                           .node = part,
                           .static_context = locals->own_context,
                           .focus = NULL},
-            .block = frame->block,
+            .block = block,
             .is_body = false,
             .destination = {
-                .expression = NULL, .atom = atom, .atom_block = frame->block, .focused = NULL}});
+                .expression = NULL, .atom = atom, .atom_block = block, .focused = NULL}});
 }
 
 static sxml_status finish_direct_element(sxml_xpath_lowering_machine *machine,
                                          sxml_xpath_lowering_frame *frame) {
     sxml_xpath_lowerer *state = machine->state;
-    const direct_element_locals *locals = frame->locals;
+    direct_element_locals *locals = frame->locals;
+    sxml_status status = mark_pending_part(state, locals);
     sxml_ir_atom_list atoms = {0};
-    sxml_status status = sxml_ir_unit_add_atoms(
-        state->unit, (sxml_ir_atom_view){.atoms = locals->atoms, .atom_count = locals->atom_count},
-        &atoms);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ir_unit_add_atoms(
+            state->unit,
+            (sxml_ir_atom_view){.atoms = locals->atoms, .atom_count = locals->atom_count},
+            &atoms);
+    }
     sxml_ir_expression_index content = {0};
     if (status == SXML_STATUS_OK) {
         status = sxml_xpath_lowerer_add_expression(
@@ -668,6 +778,14 @@ static sxml_status finish_direct_element(sxml_xpath_lowering_machine *machine,
                 .expression =
                     (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_SEQUENCE,
                                          .sequence = atoms}},
+            &content);
+    }
+    if (status == SXML_STATUS_OK && locals->streams) {
+        /* Without a LET the content stays an enclosed list of constants
+           and variables. */
+        status = sxml_xpath_lowerer_finish_block(
+            state,
+            (sxml_xpath_lowering_block_result){.block = locals->content_block, .result = content},
             &content);
     }
     sxml_ir_expression_index element = {0};
@@ -896,7 +1014,17 @@ static sxml_status lower_direct_processing_instruction(sxml_xpath_lowerer *state
 typedef struct computed_locals {
     sxml_ir_atom name;
     sxml_ir_atom content;
+    /* Element and document constructors: the block the content is
+       computed in, inside the constructor, so its value streams into the
+       new node (D166). */
+    sxml_xpath_lowering_block content_block;
 } computed_locals;
+
+/* True for the kinds whose content is a content sequence. */
+static bool takes_content_sequence(sxml_ir_expression_kind kind) {
+    return kind == SXML_IR_EXPRESSION_KIND_ELEMENT_CONSTRUCTOR ||
+           kind == SXML_IR_EXPRESSION_KIND_DOCUMENT_CONSTRUCTOR;
+}
 
 static sxml_ir_expression_kind constructor_kind(sxml_ast_kind kind) {
     switch ((uint32_t)kind) {
@@ -965,15 +1093,22 @@ static sxml_status finish_computed(sxml_xpath_lowering_machine *machine,
     const sxml_ir_expression_kind kind = constructor_kind(node_of(state, frame->node)->kind);
     sxml_ir_node_construction construction = {.name = locals->name};
     sxml_status status = SXML_STATUS_OK;
-    if (kind == SXML_IR_EXPRESSION_KIND_ELEMENT_CONSTRUCTOR ||
-        kind == SXML_IR_EXPRESSION_KIND_DOCUMENT_CONSTRUCTOR) {
+    if (takes_content_sequence(kind)) {
+        sxml_ir_expression_index result = {0};
         status = sxml_xpath_lowerer_add_expression(
             state,
             (sxml_xpath_lowering_expression_to_add){
                 .node = frame->node,
                 .expression = (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_ATOM,
                                                    .atom = locals->content}},
-            &construction.content);
+            &result);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xpath_lowerer_finish_block(
+                state,
+                (sxml_xpath_lowering_block_result){.block = locals->content_block,
+                                                   .result = result},
+                &construction.content);
+        }
         construction.construction_flags = construction_flags_of(state);
     } else {
         construction.value = locals->content;
@@ -1014,9 +1149,13 @@ static sxml_status lower_computed_content(sxml_xpath_lowering_machine *machine,
     if (content.value == 0) {
         return finish_computed(machine, frame);
     }
+    const bool is_content_sequence =
+        takes_content_sequence(constructor_kind(node_of(state, frame->node)->kind));
     return sxml_xpath_lowering_call_atom(
         machine, (sxml_xpath_lowering_atom_call){
-                     .node = content, .block = frame->block, .atom = &locals->content});
+                     .node = content,
+                     .block = is_content_sequence ? &locals->content_block : frame->block,
+                     .atom = &locals->content});
 }
 
 static sxml_status continue_computed(sxml_xpath_lowering_machine *machine,

@@ -303,6 +303,37 @@ SXML_NODISCARD sxml_status sxml_xpath_lowerer_finish_block(
     sxml_xpath_lowerer *lowerer, sxml_xpath_lowering_block_result request,
     sxml_ir_expression_index *expression);
 
+/* One item of content just lowered into block (D166): the block's open
+   LET before its lowering began, and the item's atom. */
+typedef struct sxml_xpath_lowering_content_item {
+    sxml_xpath_lowering_block *block;
+    sxml_ir_expression_index open_let_before;
+    sxml_ir_atom atom;
+} sxml_xpath_lowering_content_item;
+
+/* Whether marking content LETs may go on after an item. */
+typedef struct sxml_xpath_lowering_content_mark {
+    /* False for an item that has no LET of its own (a constant, a
+       variable bound before) and is not the empty sequence: the items
+       after it must not be marked, as their values would be delivered
+       before its value. */
+    bool goes_on;
+} sxml_xpath_lowering_content_mark;
+
+/*
+ * Marks the LET made for item as a content LET (glossary `content_let`,
+ * sxml_ir_let.is_content): the block's open LET when it was made after
+ * open_let_before and binds item.atom. The caller marks the items of a
+ * content in order, from the first, while mark->goes_on stays true, and
+ * only when its block ends with a result that reads them (directly or
+ * through LETs of SEQUENCEs of them) before any other atom and nowhere
+ * else (a sequence constructor's atoms, a literal result element's
+ * content).
+ */
+SXML_NODISCARD sxml_status sxml_xpath_lowerer_mark_content_let(
+    sxml_xpath_lowerer *lowerer, sxml_xpath_lowering_content_item item,
+    sxml_xpath_lowering_content_mark *mark);
+
 /* "()" at node. */
 SXML_NODISCARD sxml_status sxml_xpath_lowerer_add_empty_sequence(
     sxml_xpath_lowerer *lowerer, sxml_ast_node_index node,

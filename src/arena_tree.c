@@ -93,10 +93,15 @@
 
 /* One stored node. */
 typedef struct sxml_arena_node {
-    /* Text, comment, processing-instruction data, attribute value. */
-    sxml_byte_view content;
-    /* Elements: the in-scope namespaces, possibly the parent's array. */
-    sxml_namespace_binding_view namespace_bindings;
+    /* By node_kind (one or the other, so a node is 16 bytes smaller). */
+    union {
+        /* Text, comment, processing-instruction data, attribute value,
+           namespace URI. */
+        sxml_byte_view content;
+        /* Elements: the in-scope namespaces, possibly the parent's
+           array. */
+        sxml_namespace_binding_view namespace_bindings;
+    };
     sxml_name_identifier node_name;
     sxml_namespace_prefix_identifier namespace_prefix;
     sxml_type_identifier type_annotation;
@@ -752,8 +757,6 @@ static sxml_status sxml_arena_tree_add_node(sxml_arena_tree *arena_tree,
     sxml_arena_node *node = sxml_arena_tree_get_node(arena_tree, number);
     *node = (sxml_arena_node){
         .content = new_node->content,
-        .namespace_bindings = {.namespace_bindings = NULL,
-                               .namespace_binding_count = 0},
         .node_name = new_node->node_name,
         .namespace_prefix = new_node->namespace_prefix,
         .type_annotation = new_node->type_annotation,

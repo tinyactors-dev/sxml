@@ -224,6 +224,10 @@ typedef struct sxml_xslt_sequence_constructor_call {
     /* The block its atoms are bound in, or NULL with is_body. */
     sxml_xpath_lowering_block *block;
     bool is_body;
+    /* True when destination.atom is content of the result block ends with,
+       read first and nowhere else (a literal result element's content):
+       its children's LETs are content LETs then, as in a body (D166). */
+    bool is_content;
     sxml_xpath_lowering_destination destination;
     /* The focus while it is lowered, restored afterwards (the selected
        item of xsl:copy select); NULL keeps the current one. Must stay

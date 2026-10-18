@@ -956,16 +956,53 @@ static void sxml_machine_release_task(sxml_dynamic_context *context,
     }
 }
 
-/* Pops the top task and hands value (owned) to the task below. */
+/* The receiving task nearest below the task at task_index, or NULL
+   (src/evaluator_machine_internal.h, "Delivering", D166). */
+static sxml_evaluator_part_task_state *sxml_machine_find_receiver(sxml_dynamic_context *context,
+                                                                  size_t task_index) {
+    size_t index = task_index;
+    while (index > 0) {
+        index -= 1;
+        sxml_evaluator_task *task = &context->task_stack.tasks[index];
+        if (task->task_kind == SXML_EVALUATOR_TASK_KIND_PART &&
+            task->details.part.receive != NULL) {
+            return &task->details.part;
+        }
+    }
+    return NULL;
+}
+
+/* Gives value (owned) to the receiver of the task at task_index. */
+static sxml_status sxml_machine_deliver(sxml_dynamic_context *context, size_t task_index,
+                                        sxml_sequence value) {
+    sxml_evaluator_part_task_state *receiver = sxml_machine_find_receiver(context, task_index);
+    if (receiver == NULL) {
+        sxml_sequence_release(value);
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    if (sxml_sequence_get_representation(value) == SXML_SEQUENCE_REPRESENTATION_EMPTY) {
+        return SXML_STATUS_OK;
+    }
+    return receiver->receive(context, receiver->state, value);
+}
+
+/* Pops the top task and hands value (owned) to the task below, or, for a
+   delivering task, to its receiver (the task below then gets ()). */
 static sxml_status sxml_machine_finish(sxml_dynamic_context *context,
                                        sxml_sequence value) {
     sxml_evaluator_task *task = sxml_machine_top(context);
+    const bool delivers_content = task->delivers_content;
     sxml_machine_release_task(context, task);
     context->task_stack.task_count -= 1;
+    sxml_status status = SXML_STATUS_OK;
+    if (delivers_content) {
+        status = sxml_machine_deliver(context, context->task_stack.task_count, value);
+        value = sxml_sequence_empty();
+    }
     sxml_sequence_release(context->task_value);
     context->task_value = value;
     context->has_task_value = true;
-    return SXML_STATUS_OK;
+    return status;
 }
 
 /* Takes the value the task above finished with, owned. */
@@ -1233,8 +1270,10 @@ static sxml_status sxml_machine_enter_ir_function(sxml_dynamic_context *context,
     }
     if (status == SXML_STATUS_OK) {
         sxml_machine_fill_frame(context, frame_base, call);
-        const sxml_evaluator_task body =
-            sxml_expression_task(callee, frame_base, callee->body);
+        sxml_evaluator_task body = sxml_expression_task(callee, frame_base, callee->body);
+        /* The body of a delivering call delivers (D166): its value would
+           reach the receiver unchanged. */
+        body.delivers_content = sxml_machine_top(context)->delivers_content;
         status = sxml_machine_push(context, &body);
     } else {
         for (size_t argument_index = 0; argument_index < call->argument_count;
@@ -1462,6 +1501,8 @@ static sxml_status sxml_machine_step_call(sxml_dynamic_context *context) {
         }
         sxml_evaluator_task inner_call = *task;
         inner_call.counts_depth = false;
+        /* Its value is coerced first: the COERCE_RESULT task delivers. */
+        inner_call.delivers_content = false;
         sxml_item_retain(inner);
         inner_call.details.call.function_item = inner;
         task->task_kind = SXML_EVALUATOR_TASK_KIND_COERCE_RESULT;
@@ -3111,6 +3152,8 @@ typedef struct sxml_loop_advance {
        may select by the value of body (see "Selectors over JNodes");
        NULL for other loops. */
     const sxml_ir_map *path_map;
+    /* True for the body of a delivering MAP (D166). */
+    bool delivers_content;
 } sxml_loop_advance;
 
 static sxml_status sxml_loop_advance_focus(sxml_dynamic_context *context,
@@ -3161,8 +3204,9 @@ static sxml_status sxml_loop_advance_focus(sxml_dynamic_context *context,
                                                   .value = sxml_sequence_from_item(step.item),
                                                   .position = loop->position,
                                                   .size = loop->size});
-    const sxml_evaluator_task body =
+    sxml_evaluator_task body =
         sxml_expression_task(task->function, task->frame_base, advance.body);
+    body.delivers_content = advance.delivers_content;
     return sxml_machine_push(context, &body);
 }
 
@@ -3237,6 +3281,12 @@ static sxml_status sxml_loop_convert_to_json_nodes(sxml_dynamic_context *context
 }
 
 /* MAP (XPath 4.0, editor's draft of 13 October 2026, sections 4.7.3 and 4.21). */
+/* Whether the body of the MAP task delivers (D166): when the MAP does,
+   except for a path's MAP, whose body's value may select JNodes. */
+static bool sxml_map_body_delivers(const sxml_evaluator_task *task, const sxml_ir_map *map) {
+    return task->delivers_content && (map->flags & SXML_IR_MAP_REQUIRES_NODES) == 0;
+}
+
 static sxml_status sxml_machine_step_map(sxml_dynamic_context *context,
                                          const sxml_ir_map *map) {
     sxml_evaluator_task *task = sxml_machine_top(context);
@@ -3266,8 +3316,9 @@ static sxml_status sxml_machine_step_map(sxml_dynamic_context *context,
                                                .value = sxml_sequence_empty(),
                                                .position = 0,
                                                .size = 0});
-            const sxml_evaluator_task body =
+            sxml_evaluator_task body =
                 sxml_expression_task(task->function, task->frame_base, map->body);
+            body.delivers_content = sxml_map_body_delivers(task, map);
             return sxml_machine_push(context, &body);
         }
     } else {
@@ -3297,7 +3348,8 @@ static sxml_status sxml_machine_step_map(sxml_dynamic_context *context,
                             .body = map->body,
                             .path_map = (map->flags & SXML_IR_MAP_REQUIRES_NODES) != 0
                                             ? map
-                                            : NULL},
+                                            : NULL,
+                            .delivers_content = sxml_map_body_delivers(task, map)},
         &progress);
     if (status == SXML_STATUS_OK && progress.is_done) {
         status = sxml_loop_finish(context);
@@ -4668,9 +4720,21 @@ static sxml_status sxml_machine_step_expression(sxml_dynamic_context *context) {
     switch (expression->expression_kind) {
     case SXML_IR_EXPRESSION_KIND_LET:
         if (task->phase == 0) {
+            const sxml_ir_expression *body =
+                sxml_ir_unit_get_expression(task->function->unit, expression->let.body);
+            if (body->expression_kind == SXML_IR_EXPRESSION_KIND_ATOM &&
+                body->atom.atom_kind == SXML_IR_ATOM_KIND_SLOT &&
+                body->atom.slot.value == expression->let.variable.value) {
+                /* "let $v := E return $v" is E, which replaces the LET
+                   (tail; so a delivering E delivers, D166). */
+                task->expression = expression->let.bound_expression;
+                return SXML_STATUS_OK;
+            }
             task->phase = 1;
-            const sxml_evaluator_task bound = sxml_expression_task(
+            sxml_evaluator_task bound = sxml_expression_task(
                 task->function, task->frame_base, expression->let.bound_expression);
+            /* A content LET's value goes into the construction (D166). */
+            bound.delivers_content = task->delivers_content && expression->let.is_content;
             return sxml_machine_push(context, &bound);
         }
         /* The body replaces the LET: no task waits for it (tail). */
@@ -4893,6 +4957,34 @@ sxml_status sxml_evaluator_machine_push_expression(
     const sxml_evaluator_task task =
         sxml_expression_task(top->function, top->frame_base, expression);
     return sxml_machine_push(dynamic_context, &task);
+}
+
+sxml_status sxml_evaluator_machine_push_content(sxml_dynamic_context *dynamic_context,
+                                                sxml_ir_expression_index expression) {
+    const sxml_evaluator_task *top = sxml_machine_top(dynamic_context);
+    sxml_evaluator_task task = sxml_expression_task(top->function, top->frame_base, expression);
+    task.delivers_content = true;
+    return sxml_machine_push(dynamic_context, &task);
+}
+
+void *sxml_evaluator_machine_find_receiver(sxml_dynamic_context *dynamic_context) {
+    const size_t top_index = dynamic_context->task_stack.task_count - 1;
+    if (!dynamic_context->task_stack.tasks[top_index].delivers_content) {
+        return NULL;
+    }
+    sxml_evaluator_part_task_state *receiver =
+        sxml_machine_find_receiver(dynamic_context, top_index);
+    return receiver != NULL ? receiver->state : NULL;
+}
+
+sxml_status sxml_evaluator_machine_deliver(sxml_dynamic_context *dynamic_context,
+                                           sxml_sequence value) {
+    const size_t top_index = dynamic_context->task_stack.task_count - 1;
+    if (!dynamic_context->task_stack.tasks[top_index].delivers_content) {
+        sxml_sequence_release(value);
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    return sxml_machine_deliver(dynamic_context, top_index, value);
 }
 
 sxml_status sxml_evaluator_machine_push_part_task(

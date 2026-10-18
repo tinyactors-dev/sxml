@@ -189,13 +189,15 @@ typedef struct golden_case {
    values, computed names. */
 static const golden_case golden_cases[] = {
     {"<p:a xmlns:p=\"urn:p\" xmlns=\"urn:d\" b=\"{1 + 1}\">x<c/></p:a>",
-     "(function 1 main (parameters 0) (captures) (slots 3)\n"
-     "  (let $1 (binary add 1 1)\n"
-     "    (let $2 (attribute-constructor #b $1)\n"
-     "      (let $3 (element-constructor #Q{urn:d}c _ (namespaces p=\"urn:p\" \"\"=\"urn:d\")\n"
-     "                (sequence))\n"
-     "        (element-constructor #Q{urn:p}a _ (namespaces p=\"urn:p\" \"\"=\"urn:d\")\n"
-     "          (sequence $2 \"x\" $3))))))\n"},
+     "(function 1 main (parameters 0) (captures) (slots 4)\n"
+     "  (element-constructor #Q{urn:p}a _ (namespaces p=\"urn:p\" \"\"=\"urn:d\")\n"
+     "    (let $1 (binary add 1 1)\n"
+     "      (let $2 content (attribute-constructor #b $1)\n"
+     "        (let $3 content (text-constructor _ \"x\")\n"
+     "          (let $4 content (element-constructor #Q{urn:d}c _ (namespaces p=\"urn:p\" "
+     "\"\"=\"urn:d\")\n"
+     "                            (sequence))\n"
+     "            (sequence $2 $3 $4)))))))\n"},
     {"<a b=\"x{1, 2}y\">{1}{2} <![CDATA[ ]]></a>",
      "(function 1 main (parameters 0) (captures) (slots 5)\n"
      "  (let $1 (sequence 1 2)\n"
@@ -207,26 +209,26 @@ static const golden_case golden_cases[] = {
      "              (sequence $5 1 2 \" \" \" \"))))))))\n"},
     {"element {'e'} {attribute a {1}, text {'t'}}, document {<a/>}",
      "(function 1 main (parameters 0) (captures) (slots 6)\n"
-     "  (let $1 (attribute-constructor #a 1)\n"
-     "    (let $2 (text-constructor _ \"t\")\n"
-     "      (let $3 (sequence $1 $2)\n"
-     "        (let $4 (element-constructor \"e\" _\n"
-     "                  $3)\n"
-     "          (let $5 (element-constructor #a _\n"
-     "                    (sequence))\n"
-     "            (let $6 (document-constructor _ _\n"
-     "                      $5)\n"
-     "              (sequence $4 $6))))))))\n"},
+     "  (let $4 (element-constructor \"e\" _\n"
+     "            (let $1 (attribute-constructor #a 1)\n"
+     "              (let $2 (text-constructor _ \"t\")\n"
+     "                (let $3 (sequence $1 $2)\n"
+     "                  $3))))\n"
+     "    (let $6 (document-constructor _ _\n"
+     "              (let $5 (element-constructor #a _\n"
+     "                        (sequence))\n"
+     "                $5))\n"
+     "      (sequence $4 $6))))\n"},
     {"<a xmlns:p=\"urn:p\">{element {'p:b'} {}}</a>",
      "(function 1 main (parameters 0) (captures) (slots 2)\n"
-     "  (let $1 (sequence)\n"
-     "    (let $2 (element-constructor \"p:b\" _ (namespaces p=\"urn:p\") (name-namespaces "
+     "  (element-constructor #a _ (namespaces p=\"urn:p\")\n"
+     "    (let $2 content (element-constructor \"p:b\" _ (namespaces p=\"urn:p\") (name-namespaces "
      "p=\"urn:p\" local=\"http://www.w3.org/2005/xquery-local-functions\" "
      "output=\"http://www.w3.org/2010/xslt-xquery-serialization\" "
      "xq=\"http://www.w3.org/2012/xquery\")\n"
-     "              $1)\n"
-     "      (element-constructor #a _ (namespaces p=\"urn:p\")\n"
-     "        (sequence $2)))))\n"},
+     "                      (let $1 (sequence)\n"
+     "                        $1))\n"
+     "      (sequence $2))))\n"},
     {"namespace p {'urn:p'}, processing-instruction #t {'v'}, comment {'c'}, "
      "<!--d-->, <?t c?>",
      "(function 1 main (parameters 0) (captures) (slots 5)\n"

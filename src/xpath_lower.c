@@ -268,6 +268,27 @@ static sxml_status add_atom_expression(sxml_xpath_lowerer *state, atom_at reques
         expression);
 }
 
+sxml_status sxml_xpath_lowerer_mark_content_let(sxml_xpath_lowerer *state,
+                                                sxml_xpath_lowering_content_item item,
+                                                sxml_xpath_lowering_content_mark *mark) {
+    const sxml_ir_expression_index let = item.block->open_let;
+    if (let.value != 0 && let.value > item.open_let_before.value &&
+        item.atom.atom_kind == SXML_IR_ATOM_KIND_SLOT) {
+        sxml_ir_expression_replacement replacement = {
+            .index = let, .expression = *sxml_ir_unit_get_expression(state->unit, let)};
+        if (replacement.expression.let.variable.value == item.atom.slot.value) {
+            replacement.expression.let.is_content = true;
+            mark->goes_on = true;
+            return sxml_ir_unit_replace_expression(state->unit, &replacement);
+        }
+    }
+    /* The empty sequence delivers nothing, wherever it is. */
+    mark->goes_on = item.atom.atom_kind == SXML_IR_ATOM_KIND_CONSTANT &&
+                    sxml_sequence_get_representation(sxml_ir_unit_get_constant(
+                        state->unit, item.atom.constant)) == SXML_SEQUENCE_REPRESENTATION_EMPTY;
+    return SXML_STATUS_OK;
+}
+
 sxml_status
 sxml_xpath_lowerer_add_empty_sequence(sxml_xpath_lowerer *state,
                                       sxml_ast_node_index node,

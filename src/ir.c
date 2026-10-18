@@ -2496,7 +2496,7 @@ static sxml_status print_expression(text_writer *writer, print_stack *stack,
     case SXML_IR_EXPRESSION_KIND_LET:
         write_text(writer, " ");
         write_slot(writer, expression->let.variable);
-        write_text(writer, " ");
+        write_text(writer, expression->let.is_content ? " content " : " ");
         status = push_nested_operand(
             stack, (nested_operand){.expression = expression->let.body,
                                     .indent = indent});

@@ -516,6 +516,9 @@ typedef struct value_request {
     sxml_xpath_lowering_block *block;
     sxml_ir_atom *atom;
     value_options options;
+    /* True when atom is the content its block ends with (D166:
+       sxml_xslt_sequence_constructor_call.is_content). */
+    bool is_content;
 } value_request;
 
 static sxml_status start_value(sxml_xpath_lowering_machine *machine, value_request request,
@@ -550,6 +553,7 @@ static sxml_status start_value(sxml_xpath_lowering_machine *machine, value_reque
             .first = sxml_xslt_lowering_first_constructor_child(lowering->ast, request.node),
             .block = request.block,
             .is_body = false,
+            .is_content = request.is_content,
             .destination = {.expression = NULL,
                             .atom = request.atom,
                             .atom_block = request.block,
@@ -593,6 +597,10 @@ typedef struct binding_value_locals {
     sxml_sequence_type required_type;
     value_source source;
     sxml_ir_atom value;
+    /* For an implicit document node (9.4): the block its content is
+       computed in, inside the document constructor (D166). */
+    bool makes_document;
+    sxml_xpath_lowering_block content_block;
 } binding_value_locals;
 
 static bool has_disqualifying_child(const sxml_xslt_lowering *lowering,
@@ -629,11 +637,18 @@ static sxml_status finish_binding_value(sxml_xpath_lowering_machine *machine,
             type.has_type
                 ? add_empty_atom(lowerer, &value)
                 : add_string(lowerer, (sxml_byte_view){.bytes = NULL, .byte_count = 0}, &value);
-    } else if (!locals->source.has_select && !type.has_type &&
-               !has_disqualifying_child(lowering, locals->node)) {
+    } else if (locals->makes_document) {
         /* 9.4: an implicit document node. */
+        sxml_ir_expression_index result = {0};
+        status = add_expression(lowerer, atom_expression(value), &result);
         sxml_ir_expression_index content = {0};
-        status = add_expression(lowerer, atom_expression(value), &content);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xpath_lowerer_finish_block(
+                lowerer,
+                (sxml_xpath_lowering_block_result){.block = locals->content_block,
+                                                   .result = result},
+                &content);
+        }
         if (status == SXML_STATUS_OK) {
             status = bind(
                 lowerer,
@@ -676,11 +691,27 @@ static sxml_status continue_binding_value(sxml_xpath_lowering_machine *machine,
     binding_value_locals *locals = frame->locals;
     if (frame->step == 0) {
         frame->step = 1;
-        const sxml_status status = start_value(
+        sxml_xslt_declared_type type = {.has_type = false};
+        sxml_status status =
+            sxml_xslt_lowering_resolve_declared_type(locals->lowering, locals->node, &type);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        const bool has_select =
+            find_attribute(locals->lowering,
+                           (attribute_lookup){.node = locals->node,
+                                              .kind = SXML_XSLT_AST_ATTRIBUTE_SELECT})
+                ->kind != SXML_XSLT_AST_ATTRIBUTE_NONE;
+        locals->makes_document = !has_select && !type.has_type &&
+                                 has_content(locals->lowering, locals->node) &&
+                                 !has_disqualifying_child(locals->lowering, locals->node);
+        status = start_value(
             machine,
             (value_request){.lowering = locals->lowering,
                             .node = locals->node,
-                            .block = frame->block,
+                            .block = locals->makes_document ? &locals->content_block
+                                                            : frame->block,
+                            .is_content = locals->makes_document,
                             .atom = &locals->value,
                             .options = {.conflict_error = "XTSE0620 a variable-binding element "
                                                           "has both a select attribute and "

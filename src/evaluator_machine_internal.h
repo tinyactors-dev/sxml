@@ -64,6 +64,24 @@
  * errors only). Catching tasks are looked for only above the base of the
  * running machine loop.
  *
+ * Delivering. A node constructor whose content is one expression makes
+ * its part task a receiving task (glossary `receiving_task`, D166): it
+ * opens its construction, sets its receive function and pushes the
+ * content as a delivering task (glossary `delivering_task`). When a
+ * delivering task finishes, its value goes to the receive function of
+ * the nearest receiving task below it, and the task below gets the empty
+ * sequence. Delivering passes on only where a value would reach the
+ * receiver unchanged: a LET's body and a conditional's branch (which
+ * replace their task), the bound expression of a content LET
+ * (sxml_ir_let.is_content), a MAP's body (each iteration's value is
+ * delivered as it is made; not for a path's MAP, whose body may select
+ * JNodes), the body of a function a delivering call enters, and the
+ * template calls of a delivering APPLY_TEMPLATES. So content is added
+ * as it is made, and a constructor in a delivering task builds into the
+ * construction of its receiver instead of making a tree that would be
+ * copied (src/evaluator_construct.c). A try/catch body never delivers, so
+ * no caught error leaves part of its content behind.
+ *
  * Thread safety: as the dynamic context (D35).
  */
 
@@ -151,11 +169,19 @@ typedef sxml_status (*sxml_evaluator_part_step_function)(
 typedef void (*sxml_evaluator_part_release_function)(
     sxml_dynamic_context *dynamic_context, void *state);
 
+/* Adds value (owned, released on every path) to the construction in
+   state, the part state of a receiving task (see "Delivering"). Never
+   pushes a task or runs the machine. */
+typedef sxml_status (*sxml_evaluator_part_receive_function)(
+    sxml_dynamic_context *dynamic_context, void *state, sxml_sequence value);
+
 /* PART: the step function and the part's state, owned by the task. */
 typedef struct sxml_evaluator_part_task_state {
     sxml_evaluator_part_step_function step;
     /* NULL when state needs no release. */
     sxml_evaluator_part_release_function release_state;
+    /* Set while the task is a receiving task; NULL otherwise. */
+    sxml_evaluator_part_receive_function receive;
     /* The part's, in allocator memory or NULL. */
     void *state;
 } sxml_evaluator_part_task_state;
@@ -175,6 +201,8 @@ struct sxml_evaluator_task {
     bool counts_depth;
     /* True for a catching task (see "Catching"). */
     bool catches_errors;
+    /* True for a delivering task (see "Delivering"). */
+    bool delivers_content;
     union {
         sxml_loop_state loop;
         sxml_call_state call;
@@ -235,6 +263,21 @@ sxml_evaluator_task *sxml_evaluator_machine_top(
 SXML_NODISCARD sxml_status sxml_evaluator_machine_push_expression(
     sxml_dynamic_context *dynamic_context, sxml_ir_expression_index expression);
 
+/* As sxml_evaluator_machine_push_expression, as a delivering task: the
+   top task must be a receiving task or a delivering one. */
+SXML_NODISCARD sxml_status sxml_evaluator_machine_push_content(
+    sxml_dynamic_context *dynamic_context, sxml_ir_expression_index expression);
+
+/* The part state of the receiving task the top task delivers into, or
+   NULL when the top task is not a delivering task. */
+void *sxml_evaluator_machine_find_receiver(sxml_dynamic_context *dynamic_context);
+
+/* Adds value (owned) to the construction the top task delivers into: for
+   a delivering part task that adds values of its own (a separator).
+   SXML_STATUS_INVALID_ARGUMENT when the top task does not deliver. */
+SXML_NODISCARD sxml_status sxml_evaluator_machine_deliver(
+    sxml_dynamic_context *dynamic_context, sxml_sequence value);
+
 /*
  * Pushes a PART task in the top task's function and frame: part_state's
  * step runs it, phase 0. The task owns part_state->state from the call on:
@@ -247,7 +290,10 @@ SXML_NODISCARD sxml_status sxml_evaluator_machine_push_part_task(
 /*
  * Ends the top task: releases what it holds (its frame for RETURN, its
  * part state for PART) and hands value, owned, to the task below, which
- * takes it with sxml_evaluator_machine_take_value. Always SXML_STATUS_OK.
+ * takes it with sxml_evaluator_machine_take_value; the value of a
+ * delivering task goes to its receiver instead, and the task below gets
+ * the empty sequence (see "Delivering"). Returns the receiver's failures
+ * (a content error such as XQTY0024, the allocator's).
  */
 SXML_NODISCARD sxml_status sxml_evaluator_machine_finish(
     sxml_dynamic_context *dynamic_context, sxml_sequence value);

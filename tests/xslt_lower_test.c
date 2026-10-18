@@ -428,14 +428,14 @@ static void test_golden_ir(sxml_test_state *state) {
         "                (static-call function:3#5 $5 0 0 map-item() map-item())))\n"
         "      $6)))\n"
         "(function 2 anonymous (parameters 5) (captures) (slots 11) (focus $1 $2 $3)\n"
-        "  (let $6 (static-call Q{}merge-text-nodes#1 $1)\n"
-        "    (let $7 (coerce $6 xs:anyAtomicType* function-argument)\n"
-        "      (let $8 (static-call fn:string-join#2 $7 \" \")\n"
-        "        (let $9 (attribute-constructor #b $8)\n"
-        "          (let $10 (text-constructor _ \"t\")\n"
-        "            (let $11 (element-constructor #a _ xslt-rules\n"
-        "                       (sequence $9 $10))\n"
-        "              $11)))))))\n";
+        "  (let $11 (element-constructor #a _ xslt-rules\n"
+        "             (let $6 (static-call Q{}merge-text-nodes#1 $1)\n"
+        "               (let $7 (coerce $6 xs:anyAtomicType* function-argument)\n"
+        "                 (let $8 (static-call fn:string-join#2 $7 \" \")\n"
+        "                   (let $9 content (attribute-constructor #b $8)\n"
+        "                     (let $10 content (text-constructor _ \"t\")\n"
+        "                       (sequence $9 $10)))))))\n"
+        "    $11))\n";
     const bool matches = strncmp(outcome.text, expected, sizeof(expected) - 1) == 0;
     if (!matches) {
         printf("got:\n%s\n", outcome.text);

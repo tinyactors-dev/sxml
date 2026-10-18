@@ -6,18 +6,23 @@
  * builder and destroyed with its last reference; its memory comes from the
  * item heap, so the node outlives the evaluation that made it.
  *
- * - DOCUMENT and ELEMENT evaluate their content expression in one nested
- *   task, or read its atoms when it is a SEQUENCE (one atom per enclosed
- *   expression of a direct constructor, D110), then add the values to the
- *   new node as its content sequence (glossary `content_sequence`; XQuery
- *   4.0, "Content"): arrays are
- *   flattened (a stack of content frames in allocator memory, D71), each
- *   run of adjacent atomic items becomes text with one space between items,
- *   nodes are copied (sxml_tree_builder_copy_node), a document node by its
- *   children. The builder merges adjacent text, drops empty text, rejects
- *   duplicate attributes (XQDY0025) and does namespace fixup. A nested
- *   constructor makes a tree of its own that the enclosing one copies, so
- *   no constructor waits on another inside one step.
+ * - DOCUMENT and ELEMENT (and SHALLOW_COPY of an element or document)
+ *   open their node, then read the atoms of the content expression when it
+ *   is a SEQUENCE (one atom per enclosed expression of a direct
+ *   constructor, D110), or else become a receiving task and evaluate it as
+ *   a delivering task (D166, src/evaluator_machine_internal.h,
+ *   "Delivering"), so each value is added as it is made. Values become the
+ *   new node's content sequence (glossary `content_sequence`; XQuery 4.0,
+ *   "Content"): arrays are flattened (a stack of content frames in
+ *   allocator memory, D71), each run of adjacent atomic items becomes text
+ *   with one space between items, nodes are copied
+ *   (sxml_tree_builder_copy_node), a document node by its children. The
+ *   builder merges adjacent text, drops empty text, rejects duplicate
+ *   attributes (XQDY0025) and does namespace fixup. A constructor in a
+ *   delivering task builds its node into the receiver's tree when that
+ *   gives what copying a tree of its own would (sxml_construction_open):
+ *   nothing is copied, and a document's children are the content. Leaves
+ *   are added to the receiver's tree likewise.
  * - ATTRIBUTE, TEXT, COMMENT, PROCESSING_INSTRUCTION and NAMESPACE read
  *   their value atom, atomize it and join the strings with spaces.
  * - Names: an xs:QName is used as it is; an xs:string, xs:untypedAtomic or
@@ -865,11 +870,25 @@ typedef struct sxml_construct_content_frame {
     sxml_sequence_iterator member_iterator;
 } sxml_construct_content_frame;
 
-/* A tree being built and the state of the content being added to it. */
+/*
+ * A tree being built and the state of the content being added to it. A
+ * constructor in a delivering task builds into the construction of its
+ * receiving task instead (D166, src/evaluator_machine_internal.h,
+ * "Delivering"): its node becomes the next content of the enclosing
+ * construction's node, as the copy of a tree of its own would, so it
+ * shares the enclosing builder and keeps a content state of its own. The
+ * state of a receiving task is always an sxml_construction (only this
+ * part receives).
+ */
 typedef struct sxml_construction {
     sxml_dynamic_context *dynamic_context;
+    /* Owned; NULL for a construction built into enclosing. */
     sxml_arena_tree *arena_tree;
     sxml_tree_builder builder;
+    /* The construction of the receiving task this one builds into; NULL
+       for one with a tree of its own. Borrowed: the receiving task stays
+       below this one's task. */
+    struct sxml_construction *enclosing;
     sxml_construct_rules rules;
     /* The constructor's construction_flags (sxml_ir_construction_flag). */
     uint32_t construction_flags;
@@ -904,26 +923,38 @@ typedef struct sxml_construction_request {
     sxml_byte_view base_uri;
 } sxml_construction_request;
 
-/* Starts a construction for the constructor on top of the task stack;
-   its XSLT_RULES flag selects XSLT's rules too. */
+/* The rules of the constructor on top of the task stack: its XSLT_RULES
+   flag selects XSLT's, else those of the request. */
+static sxml_construct_rules sxml_construct_top_rules(sxml_dynamic_context *context,
+                                                     sxml_construct_rules rules) {
+    return (sxml_construct_top_flags(context) & (uint32_t)SXML_IR_CONSTRUCTION_XSLT_RULES) != 0
+               ? SXML_CONSTRUCT_RULES_XSLT
+               : rules;
+}
+
+/* A construction with no tree and no content yet. */
+static sxml_construction sxml_construction_empty(sxml_dynamic_context *context,
+                                                 sxml_construct_rules rules) {
+    return (sxml_construction){.dynamic_context = context,
+                               .arena_tree = NULL,
+                               .builder = {.state = NULL, .operations = NULL},
+                               .enclosing = NULL,
+                               .rules = sxml_construct_top_rules(context, rules),
+                               .construction_flags = sxml_construct_top_flags(context),
+                               .is_document = false,
+                               .has_children = false,
+                               .follows_atomic_item = false,
+                               .frames = NULL,
+                               .frame_count = 0,
+                               .frame_capacity = 0};
+}
+
+/* Starts a construction with a tree of its own for the constructor on top
+   of the task stack. */
 static sxml_status sxml_construction_start(sxml_dynamic_context *context,
                                            const sxml_construction_request *request,
                                            sxml_construction *construction) {
-    const uint32_t flags = sxml_construct_top_flags(context);
-    const sxml_construct_rules rules =
-        (flags & (uint32_t)SXML_IR_CONSTRUCTION_XSLT_RULES) != 0 ? SXML_CONSTRUCT_RULES_XSLT
-                                                                 : request->rules;
-    *construction = (sxml_construction){.dynamic_context = context,
-                                        .arena_tree = NULL,
-                                        .builder = {.state = NULL, .operations = NULL},
-                                        .rules = rules,
-                                        .construction_flags = flags,
-                                        .is_document = false,
-                                        .has_children = false,
-                                        .follows_atomic_item = false,
-                                        .frames = NULL,
-                                        .frame_count = 0,
-                                        .frame_capacity = 0};
+    *construction = sxml_construction_empty(context, request->rules);
     /* The tree outlives the evaluation, so its memory is the heap's. The
        error record is used only while events are sent, in this step. */
     const sxml_allocator tree_allocator = sxml_item_heap_as_allocator(context->item_heap);
@@ -937,7 +968,7 @@ static sxml_status sxml_construction_start(sxml_dynamic_context *context,
             .maximum_depth = 0,
             .maximum_text_byte_count = 0,
             .keeps_locations = false,
-            .duplicate_attribute_policy = rules == SXML_CONSTRUCT_RULES_XSLT
+            .duplicate_attribute_policy = construction->rules == SXML_CONSTRUCT_RULES_XSLT
                                               ? SXML_DUPLICATE_ATTRIBUTE_POLICY_REPLACE
                                               : SXML_DUPLICATE_ATTRIBUTE_POLICY_REJECT,
             .is_destroyed_when_unreferenced = true,
@@ -950,6 +981,40 @@ static sxml_status sxml_construction_start(sxml_dynamic_context *context,
     return status;
 }
 
+/* The construction the top task delivers into (D166), or NULL. */
+static sxml_construction *sxml_construct_find_receiver(sxml_dynamic_context *context) {
+    return sxml_evaluator_machine_find_receiver(context);
+}
+
+/*
+ * Starts a document or element construction for the constructor on top
+ * of the task stack in the construction it delivers into (D166), when the
+ * node made there is the copy that a tree of its own would give: the same
+ * rules and construction flags, so its content is built alike, and copies
+ * that keep their namespaces (copy-namespaces preserve), so nothing would
+ * be dropped; inherit or no-inherit is the element start's
+ * ignores_parent_namespaces, its type annotation is the copy's under
+ * either construction mode, and the copy has no base URI of its own. Its
+ * own tree otherwise.
+ */
+static sxml_status sxml_construction_open(sxml_dynamic_context *context,
+                                          const sxml_construction_request *request,
+                                          sxml_construction *construction) {
+    sxml_construction *enclosing = sxml_construct_find_receiver(context);
+    const sxml_construction empty = sxml_construction_empty(context, request->rules);
+    if (enclosing == NULL || enclosing->rules != empty.rules ||
+        enclosing->construction_flags != empty.construction_flags ||
+        (empty.construction_flags & (uint32_t)SXML_IR_CONSTRUCTION_NO_PRESERVE_NAMESPACES) != 0) {
+        return sxml_construction_start(context, request, construction);
+    }
+    *construction = empty;
+    construction->builder = enclosing->builder;
+    construction->enclosing = enclosing;
+    /* A node of the content: the next atomic item starts a new text. */
+    enclosing->follows_atomic_item = false;
+    return SXML_STATUS_OK;
+}
+
 /* Releases what an unfinished construction holds. */
 static void sxml_construction_abandon(sxml_construction *construction) {
     sxml_arena_tree_destroy(construction->arena_tree);
@@ -960,8 +1025,8 @@ static void sxml_construction_abandon(sxml_construction *construction) {
     }
 }
 
-/* Ends a construction: its root as an owned node item in *result. On
-   failure everything is released. */
+/* Ends a construction with a tree of its own: its root as an owned node
+   item in *result. On failure everything is released. */
 static sxml_status sxml_construction_finish(sxml_construction *construction,
                                             sxml_sequence *result) {
     sxml_tree *tree = NULL;
@@ -1248,13 +1313,9 @@ static sxml_status sxml_construction_next_frame_item(sxml_construction *construc
     return SXML_STATUS_OK;
 }
 
-/* Adds the items of the value of one enclosed expression, arrays
-   flattened, as content. */
-static sxml_status sxml_construction_add_enclosed(sxml_construction *construction,
-                                                  sxml_sequence value) {
-    /* Only atomic items of one enclosed expression are joined by spaces
-       (XQuery 4.0, section 4.12.1.3: <c>{1}{2}</c> is "12"). */
-    construction->follows_atomic_item = false;
+/* Adds the items of value, arrays flattened, as content. */
+static sxml_status sxml_construction_add_items(sxml_construction *construction,
+                                               sxml_sequence value) {
     sxml_sequence_iterator iterator = sxml_sequence_iterator_start(value);
     for (;;) {
         sxml_iteration_step step;
@@ -1273,22 +1334,23 @@ static sxml_status sxml_construction_add_enclosed(sxml_construction *constructio
     }
 }
 
+/* Adds the items of the value of one enclosed expression as content. */
+static sxml_status sxml_construction_add_enclosed(sxml_construction *construction,
+                                                  sxml_sequence value) {
+    /* Only atomic items of one enclosed expression are joined by spaces
+       (XQuery 4.0, section 4.12.1.3: <c>{1}{2}</c> is "12"). */
+    construction->follows_atomic_item = false;
+    return sxml_construction_add_items(construction, value);
+}
+
 /* ------------------------------------------------------ Kind helpers */
 
 static const sxml_ir_expression *sxml_construct_expression(const sxml_evaluator_task *task) {
     return sxml_ir_unit_get_expression(task->function->unit, task->expression);
 }
 
-/* The content of a constructor: its content expression and, unless that
-   is a SEQUENCE, its value. */
-typedef struct sxml_construct_content {
-    sxml_ir_expression_index expression;
-    /* Owned; empty for a SEQUENCE or no content. */
-    sxml_sequence value;
-} sxml_construct_content;
-
 /* True for a content expression whose atoms are the enclosed
-   expressions (see the convention in sxml_construction_add_content). */
+   expressions (see the convention in sxml_construction_add_atom_list). */
 static bool sxml_construct_content_is_enclosed_list(const sxml_evaluator_task *task,
                                                     sxml_ir_expression_index content) {
     return content.value != 0 &&
@@ -1297,24 +1359,21 @@ static bool sxml_construct_content_is_enclosed_list(const sxml_evaluator_task *t
 }
 
 /*
- * Adds the content of the constructor on top of the task stack. The IR
- * convention (D110): a content expression of kind SEQUENCE lists the
- * enclosed expressions and literal text of a direct constructor, one atom
- * each, which are not evaluated as one value: atomic items are joined by
- * spaces only within one atom. Any other content expression is one
- * enclosed expression (a computed constructor, xsl:copy) whose value was
- * taken into content->value.
+ * Adds the atoms of an enclosed-list content expression of the
+ * constructor on top of the task stack. The IR convention (D110): a
+ * content expression of kind SEQUENCE lists the enclosed expressions and
+ * literal text of a direct constructor, one atom each, which are not
+ * evaluated as one value: atomic items are joined by spaces only within
+ * one atom. Any other content expression is one enclosed expression (a
+ * computed constructor, xsl:copy, a literal result element whose block
+ * has LETs), whose value is delivered (D166).
  */
-static sxml_status sxml_construction_add_content(sxml_construction *construction,
-                                                 const sxml_construct_content *content) {
+static sxml_status sxml_construction_add_atom_list(sxml_construction *construction,
+                                                   sxml_ir_expression_index content) {
     sxml_dynamic_context *context = construction->dynamic_context;
     const sxml_evaluator_task *task = sxml_evaluator_machine_top(context);
-    if (!sxml_construct_content_is_enclosed_list(task, content->expression)) {
-        return sxml_construction_add_enclosed(construction, content->value);
-    }
     const sxml_ir_atom_view atoms = sxml_ir_unit_get_atoms(
-        task->function->unit,
-        sxml_ir_unit_get_expression(task->function->unit, content->expression)->sequence);
+        task->function->unit, sxml_ir_unit_get_expression(task->function->unit, content)->sequence);
     for (size_t atom_index = 0; atom_index < atoms.atom_count; atom_index += 1) {
         sxml_sequence value = sxml_sequence_empty();
         sxml_status status =
@@ -1327,42 +1386,6 @@ static sxml_status sxml_construction_add_content(sxml_construction *construction
         }
     }
     return SXML_STATUS_OK;
-}
-
-/* Takes the content of the constructor on top of the task stack after
-   sxml_construct_start_content. */
-static sxml_construct_content sxml_construct_take_content(sxml_dynamic_context *context) {
-    const sxml_evaluator_task *task = sxml_evaluator_machine_top(context);
-    return (sxml_construct_content){
-        .expression = sxml_construct_expression(task)->node_construction.content,
-        .value = sxml_evaluator_machine_take_value(context)};
-}
-
-/* Whether the content expression was pushed. */
-typedef struct sxml_construct_content_start {
-    bool has_pushed;
-} sxml_construct_content_start;
-
-/*
- * Phase 0 of a kind with a content expression: pushes it, unless it is 0
- * (no content) or a SEQUENCE (read atom by atom). Writes has_pushed true to *start when the step must return to
- * wait for the value.
- */
-static sxml_status sxml_construct_start_content(sxml_dynamic_context *context,
-                                                sxml_evaluator_task *task,
-                                                sxml_construct_content_start *start) {
-    start->has_pushed = false;
-    if (task->phase != 0) {
-        return SXML_STATUS_OK;
-    }
-    task->phase = 1;
-    const sxml_ir_expression_index content =
-        sxml_construct_expression(task)->node_construction.content;
-    if (content.value == 0 || sxml_construct_content_is_enclosed_list(task, content)) {
-        return SXML_STATUS_OK;
-    }
-    start->has_pushed = true;
-    return sxml_evaluator_machine_push_expression(context, content);
 }
 
 static sxml_status sxml_construction_send_bindings(sxml_construction *construction,
@@ -1395,48 +1418,162 @@ static sxml_status sxml_construct_end(sxml_dynamic_context *context,
     return sxml_evaluator_machine_finish(context, result);
 }
 
+/* ------------------------------------------------- Receiving content */
+
+/* The release function of a construction that is a part task's state. */
+static void sxml_construction_release_state(sxml_dynamic_context *dynamic_context, void *state) {
+    sxml_construction_abandon(state);
+    sxml_allocator_release(dynamic_context->allocator, state);
+}
+
+/* The receive function of a receiving task (D166): the delivered value
+   is more of one enclosed expression, so atomic items stay joined across
+   deliveries (`element a {for $i in 1 to 3 return $i}` is "1 2 3"). */
+static sxml_status sxml_construction_receive(sxml_dynamic_context *dynamic_context, void *state,
+                                             sxml_sequence value) {
+    (void)dynamic_context;
+    const sxml_status status = sxml_construction_add_items(state, value);
+    sxml_sequence_release(value);
+    return status;
+}
+
+/* A construction in allocator memory as the state of the part task on
+   top, released with it. */
+static sxml_status sxml_construct_allocate(sxml_dynamic_context *context,
+                                           sxml_construction **construction) {
+    void *memory = NULL;
+    const sxml_status status = sxml_allocator_allocate(
+        context->allocator,
+        (sxml_allocation_request){.byte_count = sizeof(sxml_construction),
+                                  .alignment = alignof(sxml_construction)},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    *construction = memory;
+    **construction = sxml_construction_empty(context, SXML_CONSTRUCT_RULES_XQUERY);
+    sxml_evaluator_task *task = sxml_evaluator_machine_top(context);
+    task->details.part.state = memory;
+    task->details.part.release_state = sxml_construction_release_state;
+    return SXML_STATUS_OK;
+}
+
+/* Whether the content was pushed: the step returns and goes on in phase
+   1 when its value has been delivered. */
+typedef struct sxml_construct_content_start {
+    bool has_pushed;
+} sxml_construct_content_start;
+
+/*
+ * Adds the content of the constructor on top of the task stack to its
+ * construction, the task's state: none for content 0, the atoms of an
+ * enclosed list at once, otherwise by making the task a receiving task
+ * and pushing the content expression as a delivering task (D166), so
+ * every value is added as it is made.
+ */
+static sxml_status sxml_construct_start_content(sxml_construction *construction,
+                                                sxml_ir_expression_index content,
+                                                sxml_construct_content_start *start) {
+    sxml_dynamic_context *context = construction->dynamic_context;
+    sxml_evaluator_task *task = sxml_evaluator_machine_top(context);
+    start->has_pushed = false;
+    if (content.value == 0) {
+        return SXML_STATUS_OK;
+    }
+    if (sxml_construct_content_is_enclosed_list(task, content)) {
+        return sxml_construction_add_atom_list(construction, content);
+    }
+    task->phase = 1;
+    task->details.part.receive = sxml_construction_receive;
+    start->has_pushed = true;
+    return sxml_evaluator_machine_push_content(context, content);
+}
+
+/* The end of a document or element construction: its end event, then its
+   root as an owned node item in *result, or, built into the enclosing
+   construction, the empty sequence. Releases what the tree holds. */
+static sxml_status sxml_construction_end(sxml_construction *construction,
+                                         sxml_sequence *result) {
+    *result = sxml_sequence_empty();
+    sxml_evaluator_machine_top(construction->dynamic_context)->details.part.receive = NULL;
+    sxml_status status = SXML_STATUS_OK;
+    if (!construction->is_document) {
+        status = construction->builder.operations->end_element(construction->builder.state);
+    } else if (construction->enclosing == NULL) {
+        status = construction->builder.operations->end_document(construction->builder.state);
+    } else if (construction->has_children) {
+        /* The children of a document node are the content (XQuery 4.0,
+           section 4.12.1.3, step 2). */
+        construction->enclosing->has_children = true;
+    }
+    if (status != SXML_STATUS_OK || construction->enclosing != NULL) {
+        sxml_construction_abandon(construction);
+        return status;
+    }
+    return sxml_construction_finish(construction, result);
+}
+
+/* Phase 1 of a document or element constructor: its content was
+   delivered; ends the node and the task. */
+static sxml_status sxml_construct_finish_content(sxml_dynamic_context *context) {
+    sxml_sequence_release(sxml_evaluator_machine_take_value(context));
+    sxml_construction *construction = sxml_evaluator_machine_top(context)->details.part.state;
+    sxml_sequence result = sxml_sequence_empty();
+    const sxml_status status = sxml_construction_end(construction, &result);
+    return sxml_construct_end(context, status, result);
+}
+
+/* After start: ends the node unless its content was pushed. */
+static sxml_status sxml_construct_continue(sxml_construction *construction, sxml_status status,
+                                           sxml_construct_content_start start) {
+    if (status != SXML_STATUS_OK || start.has_pushed) {
+        return status;
+    }
+    return sxml_construct_finish_content(construction->dynamic_context);
+}
+
 /* ------------------------------------------- Document and element */
+
+/* Starts a document node: in the enclosing construction its children
+   become the enclosing node's content. */
+static sxml_status sxml_construction_start_document(sxml_construction *construction) {
+    construction->is_document = true;
+    if (construction->enclosing != NULL) {
+        return SXML_STATUS_OK;
+    }
+    return construction->builder.operations->start_document(
+        construction->builder.state,
+        &(sxml_document_start_event){
+            .document_uri = {.bytes = NULL, .byte_count = 0},
+            .base_uri = sxml_dynamic_context_get_static_base_uri(construction->dynamic_context),
+            .location = sxml_construct_no_location});
+}
 
 /* DOCUMENT (XQuery 4.0, section 4.12.3.3). */
 static sxml_status sxml_construct_step_document(sxml_dynamic_context *dynamic_context,
                                                 sxml_evaluator_task *task) {
+    if (task->phase != 0) {
+        return sxml_construct_finish_content(dynamic_context);
+    }
+    const sxml_ir_expression_index content =
+        sxml_construct_expression(task)->node_construction.content;
+    sxml_construction *construction = NULL;
+    sxml_status status = sxml_construct_allocate(dynamic_context, &construction);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_construction_open(
+            dynamic_context,
+            &(sxml_construction_request){.rules = SXML_CONSTRUCT_RULES_XQUERY,
+                                         .base_uri = {.bytes = NULL, .byte_count = 0}},
+            construction);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_construction_start_document(construction);
+    }
     sxml_construct_content_start start = {.has_pushed = false};
-    sxml_status status = sxml_construct_start_content(dynamic_context, task, &start);
-    if (status != SXML_STATUS_OK || start.has_pushed) {
-        return status;
-    }
-    sxml_construct_content content = sxml_construct_take_content(dynamic_context);
-    sxml_construction construction;
-    status = sxml_construction_start(
-        dynamic_context,
-        &(sxml_construction_request){.rules = SXML_CONSTRUCT_RULES_XQUERY,
-                                     .base_uri = {.bytes = NULL, .byte_count = 0}},
-        &construction);
-    if (status != SXML_STATUS_OK) {
-        sxml_sequence_release(content.value);
-        return status;
-    }
-    construction.is_document = true;
-    status = construction.builder.operations->start_document(
-        construction.builder.state,
-        &(sxml_document_start_event){
-            .document_uri = {.bytes = NULL, .byte_count = 0},
-            .base_uri = sxml_dynamic_context_get_static_base_uri(dynamic_context),
-            .location = sxml_construct_no_location});
     if (status == SXML_STATUS_OK) {
-        status = sxml_construction_add_content(&construction, &content);
+        status = sxml_construct_start_content(construction, content, &start);
     }
-    if (status == SXML_STATUS_OK) {
-        status = construction.builder.operations->end_document(construction.builder.state);
-    }
-    sxml_sequence_release(content.value);
-    sxml_sequence result = sxml_sequence_empty();
-    if (status == SXML_STATUS_OK) {
-        status = sxml_construction_finish(&construction, &result);
-    } else {
-        sxml_construction_abandon(&construction);
-    }
-    return sxml_construct_end(dynamic_context, status, result);
+    return sxml_construct_continue(construction, status, start);
 }
 
 /* What starts a new element. */
@@ -1459,8 +1596,15 @@ static sxml_type_identifier sxml_construct_element_type(
     return (sxml_type_identifier){.index = SXML_TYPE_NONE};
 }
 
+/* Starts an element; in the enclosing construction it is a child of the
+   enclosing node, which inherits its namespaces unless the flags say
+   no-inherit (as its copy would, D69). */
 static sxml_status sxml_construction_start_element(sxml_construction *construction,
                                                    const sxml_construct_element_start *start) {
+    const bool is_enclosed = construction->enclosing != NULL;
+    if (is_enclosed) {
+        construction->enclosing->has_children = true;
+    }
     sxml_status status = construction->builder.operations->start_element(
         construction->builder.state,
         &(sxml_element_start_event){
@@ -1470,7 +1614,9 @@ static sxml_status sxml_construction_start_element(sxml_construction *constructi
             .is_id = false,
             .is_idrefs = false,
             .is_nilled = false,
-            .ignores_parent_namespaces = false,
+            .ignores_parent_namespaces =
+                is_enclosed && (construction->construction_flags &
+                                (uint32_t)SXML_IR_CONSTRUCTION_NO_INHERIT_NAMESPACES) != 0,
             .location = sxml_construct_no_location});
     if (status == SXML_STATUS_OK) {
         status = sxml_construction_send_bindings(construction, start->bindings);
@@ -1478,60 +1624,55 @@ static sxml_status sxml_construction_start_element(sxml_construction *constructi
     return status;
 }
 
-/* Builds an element from its start and content, as rules say. */
+/* Opens the element of the constructor on top of the task stack, as rules
+   say, and starts its content. */
 typedef struct sxml_construct_element_request {
     sxml_construct_element_start start;
-    const sxml_construct_content *content;
+    sxml_ir_expression_index content;
     sxml_construct_rules rules;
 } sxml_construct_element_request;
 
-static sxml_status sxml_construct_build_element(sxml_dynamic_context *context,
-                                                const sxml_construct_element_request *request,
-                                                sxml_sequence *result) {
-    sxml_construction construction;
-    sxml_status status = sxml_construction_start(
-        context,
-        &(sxml_construction_request){
-            .rules = request->rules,
-            .base_uri = sxml_dynamic_context_get_static_base_uri(context)},
-        &construction);
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    status = sxml_construction_start_element(&construction, &request->start);
+static sxml_status sxml_construct_open_element(sxml_dynamic_context *context,
+                                               const sxml_construct_element_request *request) {
+    sxml_construction *construction = NULL;
+    sxml_status status = sxml_construct_allocate(context, &construction);
     if (status == SXML_STATUS_OK) {
-        status = sxml_construction_add_content(&construction, request->content);
+        status = sxml_construction_open(
+            context,
+            &(sxml_construction_request){
+                .rules = request->rules,
+                .base_uri = sxml_dynamic_context_get_static_base_uri(context)},
+            construction);
     }
     if (status == SXML_STATUS_OK) {
-        status = construction.builder.operations->end_element(construction.builder.state);
+        status = sxml_construction_start_element(construction, &request->start);
     }
-    if (status != SXML_STATUS_OK) {
-        sxml_construction_abandon(&construction);
+    sxml_construct_content_start start = {.has_pushed = false};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_construct_start_content(construction, request->content, &start);
+    }
+    if (construction == NULL) {
         return status;
     }
-    return sxml_construction_finish(&construction, result);
+    return sxml_construct_continue(construction, status, start);
 }
 
 /* ELEMENT (XQuery 4.0, sections 4.12.1 and 4.12.3.1). */
 static sxml_status sxml_construct_step_element(sxml_dynamic_context *dynamic_context,
                                                sxml_evaluator_task *task) {
-    sxml_construct_content_start start = {.has_pushed = false};
-    sxml_status status = sxml_construct_start_content(dynamic_context, task, &start);
-    if (status != SXML_STATUS_OK || start.has_pushed) {
-        return status;
+    if (task->phase != 0) {
+        return sxml_construct_finish_content(dynamic_context);
     }
-    sxml_construct_content content = sxml_construct_take_content(dynamic_context);
-    const sxml_evaluator_task *top = sxml_evaluator_machine_top(dynamic_context);
     const sxml_ir_node_construction *construction =
-        &sxml_construct_expression(top)->node_construction;
+        &sxml_construct_expression(task)->node_construction;
     sxml_construct_element_request request = {
         .start = {.name = {.expanded_name = {.index = 0}, .namespace_prefix = {.index = 0}},
                   .bindings = sxml_ir_unit_get_namespace_bindings(
-                      top->function->unit, construction->namespace_bindings),
+                      task->function->unit, construction->namespace_bindings),
                   .type_annotation = sxml_construct_element_type(construction)},
-        .content = &content,
+        .content = construction->content,
         .rules = SXML_CONSTRUCT_RULES_XQUERY};
-    status = sxml_construct_read_name(
+    sxml_status status = sxml_construct_read_name(
         dynamic_context,
         &(sxml_construct_name_request){.atom = construction->name,
                                        .rule = SXML_CONSTRUCT_NAME_RULE_ELEMENT},
@@ -1539,12 +1680,10 @@ static sxml_status sxml_construct_step_element(sxml_dynamic_context *dynamic_con
     if (status == SXML_STATUS_OK) {
         status = sxml_construct_check_element_name(dynamic_context, &request.start.name);
     }
-    sxml_sequence result = sxml_sequence_empty();
-    if (status == SXML_STATUS_OK) {
-        status = sxml_construct_build_element(dynamic_context, &request, &result);
+    if (status != SXML_STATUS_OK) {
+        return status;
     }
-    sxml_sequence_release(content.value);
-    return sxml_construct_end(dynamic_context, status, result);
+    return sxml_construct_open_element(dynamic_context, &request);
 }
 
 /* --------------------------------------------- Leaf kinds and nodes */
@@ -1624,9 +1763,58 @@ static sxml_status sxml_construct_send_leaf(sxml_dynamic_context *context,
     return SXML_STATUS_INVALID_ARGUMENT;
 }
 
+/* Adds leaf to construction as its copy would be added
+   (sxml_construction_add_node), without a tree of its own (D166). */
+static sxml_status sxml_construction_add_leaf(sxml_construction *construction,
+                                              const sxml_construct_leaf *leaf) {
+    construction->follows_atomic_item = false;
+    switch (leaf->leaf_kind) {
+    case SXML_CONSTRUCT_LEAF_KIND_ATTRIBUTE:
+        if (construction->is_document) {
+            return sxml_construction_raise(
+                construction,
+                (sxml_construct_rule_errors){
+                    .xquery_error = &sxml_construct_document_attribute_error,
+                    .xslt_error = &sxml_construct_xslt_document_attribute_error});
+        }
+        if (construction->has_children) {
+            return sxml_construction_raise(
+                construction,
+                (sxml_construct_rule_errors){
+                    .xquery_error = &sxml_construct_late_attribute_error,
+                    .xslt_error = &sxml_construct_xslt_late_attribute_error});
+        }
+        break;
+    case SXML_CONSTRUCT_LEAF_KIND_TEXT:
+        /* A zero-length text node disappears in content (D163). */
+        if (leaf->text.byte_count == 0) {
+            return SXML_STATUS_OK;
+        }
+        construction->has_children = true;
+        break;
+    case SXML_CONSTRUCT_LEAF_KIND_COMMENT:
+    case SXML_CONSTRUCT_LEAF_KIND_PROCESSING_INSTRUCTION:
+        construction->has_children = true;
+        break;
+    case SXML_CONSTRUCT_LEAF_KIND_NAMESPACE:
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    return sxml_construct_send_leaf(construction->dynamic_context, construction->builder, leaf);
+}
+
+/* A parentless leaf in a tree of its own, or, in a delivering task, the
+   leaf added to the receiver's construction and () (D166). A namespace
+   node always gets its tree: building it checks its binding (XQDY0101 for
+   an empty URI, 4.12.3.7), which an element's builder would read as an
+   undeclaration. */
 static sxml_status sxml_construct_build_leaf(sxml_dynamic_context *context,
                                              const sxml_construct_leaf *leaf,
                                              sxml_sequence *result) {
+    sxml_construction *enclosing = sxml_construct_find_receiver(context);
+    if (enclosing != NULL && leaf->leaf_kind != SXML_CONSTRUCT_LEAF_KIND_NAMESPACE) {
+        *result = sxml_sequence_empty();
+        return sxml_construction_add_leaf(enclosing, leaf);
+    }
     sxml_construction construction;
     sxml_status status = sxml_construction_start(
         context,
@@ -1961,10 +2149,20 @@ static bool sxml_construct_copy_takes_content(const sxml_construct_copied_item *
 }
 
 /* A node that is not an element or document: copied whole, its content
-   not evaluated (XSLT 4.0, section 11.9.1). */
+   not evaluated (XSLT 4.0, section 11.9.1). In a delivering task whose
+   receiver has the same rules and flags the node itself is delivered, as
+   the receiver copies it in the same way (D166). */
 static sxml_status sxml_construct_copy_whole(sxml_dynamic_context *context,
                                              const sxml_construct_copied_item *copied,
                                              sxml_sequence *result) {
+    const sxml_construction *enclosing = sxml_construct_find_receiver(context);
+    const sxml_construction empty = sxml_construction_empty(context, SXML_CONSTRUCT_RULES_XSLT);
+    if (enclosing != NULL && enclosing->rules == empty.rules &&
+        enclosing->construction_flags == empty.construction_flags) {
+        sxml_item_retain(copied->item);
+        *result = sxml_sequence_from_item(copied->item);
+        return SXML_STATUS_OK;
+    }
     sxml_construction construction;
     sxml_status status = sxml_construction_start(
         context,
@@ -1985,16 +2183,12 @@ static sxml_status sxml_construct_copy_whole(sxml_dynamic_context *context,
 /* An element or document node with new content (XSLT 4.0, section
    11.9.1: the element's namespace nodes are copied unless the
    NO_PRESERVE_NAMESPACES flag says copy-namespaces "no"; its type
-   annotation is kept only with PRESERVES_TYPES, validation "preserve"). */
-typedef struct sxml_construct_copy_request {
-    const sxml_construct_copied_item *copied;
-    const sxml_construct_content *content;
-} sxml_construct_copy_request;
-
+   annotation is kept only with PRESERVES_TYPES, validation "preserve"):
+   opens it and starts its content. */
 static sxml_status sxml_construct_copy_with_content(sxml_dynamic_context *context,
-                                                    const sxml_construct_copy_request *request,
-                                                    sxml_sequence *result) {
-    const sxml_construct_copied_item *copied = request->copied;
+                                                    const sxml_construct_copied_item *copied) {
+    const sxml_ir_expression_index content =
+        sxml_construct_expression(sxml_evaluator_machine_top(context))->node_construction.content;
     if (copied->description.node_kind == SXML_NODE_KIND_ELEMENT) {
         const uint32_t flags = sxml_construct_top_flags(context);
         sxml_namespace_binding_view bindings = {.namespace_bindings = NULL,
@@ -2006,7 +2200,7 @@ static sxml_status sxml_construct_copy_with_content(sxml_dynamic_context *contex
                 return status;
             }
         }
-        return sxml_construct_build_element(
+        return sxml_construct_open_element(
             context,
             &(sxml_construct_element_request){
                 .start = {.name = {.expanded_name = copied->description.node_name,
@@ -2016,79 +2210,57 @@ static sxml_status sxml_construct_copy_with_content(sxml_dynamic_context *contex
                               (flags & (uint32_t)SXML_IR_CONSTRUCTION_PRESERVES_TYPES) != 0
                                   ? copied->description.type_annotation
                                   : (sxml_type_identifier){.index = SXML_TYPE_NONE}},
-                .content = request->content,
-                .rules = SXML_CONSTRUCT_RULES_XSLT},
-            result);
+                .content = content,
+                .rules = SXML_CONSTRUCT_RULES_XSLT});
     }
-    sxml_construction construction;
-    sxml_status status = sxml_construction_start(
+    sxml_construction *construction = NULL;
+    sxml_status status = sxml_construct_allocate(context, &construction);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    status = sxml_construction_open(
         context,
         &(sxml_construction_request){.rules = SXML_CONSTRUCT_RULES_XSLT,
                                      .base_uri = {.bytes = NULL, .byte_count = 0}},
-        &construction);
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    construction.is_document = true;
-    status = construction.builder.operations->start_document(
-        construction.builder.state,
-        &(sxml_document_start_event){
-            .document_uri = {.bytes = NULL, .byte_count = 0},
-            .base_uri = sxml_dynamic_context_get_static_base_uri(context),
-            .location = sxml_construct_no_location});
+        construction);
     if (status == SXML_STATUS_OK) {
-        status = sxml_construction_add_content(&construction, request->content);
+        status = sxml_construction_start_document(construction);
     }
+    sxml_construct_content_start start = {.has_pushed = false};
     if (status == SXML_STATUS_OK) {
-        status = construction.builder.operations->end_document(construction.builder.state);
+        status = sxml_construct_start_content(construction, content, &start);
     }
-    if (status != SXML_STATUS_OK) {
-        sxml_construction_abandon(&construction);
-        return status;
-    }
-    return sxml_construction_finish(&construction, result);
+    return sxml_construct_continue(construction, status, start);
 }
 
 /* SHALLOW_COPY (XSLT 4.0, section 11.9.1). */
 static sxml_status sxml_construct_step_shallow_copy(sxml_dynamic_context *dynamic_context,
                                                     sxml_evaluator_task *task) {
-    sxml_construct_copied_item copied;
-    sxml_status status = SXML_STATUS_OK;
-    if (task->phase == 0) {
-        status = sxml_construct_read_copied_item(dynamic_context, &copied);
-        if (status != SXML_STATUS_OK) {
-            return status;
-        }
-        const bool takes_content = sxml_construct_copy_takes_content(&copied);
-        sxml_sequence_release(copied.value);
-        if (takes_content) {
-            sxml_construct_content_start start = {.has_pushed = false};
-            status = sxml_construct_start_content(dynamic_context, task, &start);
-            if (status != SXML_STATUS_OK || start.has_pushed) {
-                return status;
-            }
-        }
+    if (task->phase != 0) {
+        return sxml_construct_finish_content(dynamic_context);
     }
-    sxml_construct_content content = sxml_construct_take_content(dynamic_context);
-    status = sxml_construct_read_copied_item(dynamic_context, &copied);
+    sxml_construct_copied_item copied;
+    sxml_status status = sxml_construct_read_copied_item(dynamic_context, &copied);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (sxml_construct_copy_takes_content(&copied)) {
+        /* The copied node stays alive in the atom's slot while the content
+           is evaluated; the start reads what it needs at once. */
+        status = sxml_construct_copy_with_content(dynamic_context, &copied);
+        sxml_sequence_release(copied.value);
+        return status;
+    }
     sxml_sequence result = sxml_sequence_empty();
-    if (status == SXML_STATUS_OK && copied.has_item) {
-        if (!copied.is_node) {
-            /* Atomic items, function items and JNodes are returned as they
-               are. */
-            sxml_item_retain(copied.item);
-            result = sxml_sequence_from_item(copied.item);
-        } else if (sxml_construct_copy_takes_content(&copied)) {
-            status = sxml_construct_copy_with_content(
-                dynamic_context,
-                &(sxml_construct_copy_request){.copied = &copied, .content = &content},
-                &result);
-        } else {
-            status = sxml_construct_copy_whole(dynamic_context, &copied, &result);
-        }
+    if (copied.has_item && !copied.is_node) {
+        /* Atomic items, function items and JNodes are returned as they
+           are. */
+        sxml_item_retain(copied.item);
+        result = sxml_sequence_from_item(copied.item);
+    } else if (copied.has_item) {
+        status = sxml_construct_copy_whole(dynamic_context, &copied, &result);
     }
     sxml_sequence_release(copied.value);
-    sxml_sequence_release(content.value);
     return sxml_construct_end(dynamic_context, status, result);
 }
 
