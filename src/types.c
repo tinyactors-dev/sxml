@@ -3283,3 +3283,164 @@ sxml_status sxml_type_registry_define_record_fields(
     *entry = defined;
     return SXML_STATUS_OK;
 }
+
+/* ---------------------------------------------------------- Schema types */
+
+/*
+ * Schema type registration (src/types_internal.h, D165): the registry
+ * checks only what it relies on, schema compilation everything XSD
+ * requires (src/schema_simple_type.c, src/schema_complex_type.c).
+ */
+
+/* The checks of sxml_type_registry_register_schema_type on a description,
+   whose primitive type it computes for an atomic type. */
+static bool sxml_type_registry_normalize_schema_type(
+    const sxml_type_registry *registry, sxml_type_description *description) {
+    description->is_builtin = false;
+    description->primitive_type = sxml_type_of_builtin(SXML_TYPE_NONE);
+    if (description->type_name.index != 0 &&
+        description->type_name.index >=
+            sxml_name_pool_name_limit(registry->configuration.name_pool)) {
+        return false;
+    }
+    const sxml_type_description *base =
+        sxml_type_registry_lookup(registry, description->base_type);
+    if (base == NULL) {
+        return false;
+    }
+    bool has_facets = description->facets.facet_count != 0;
+    if (has_facets && description->facets.facets == NULL) {
+        return false;
+    }
+    switch (description->variety) {
+    case SXML_TYPE_VARIETY_COMPLEX: {
+        /* A complex type's base is complex (XSD 1.1 Part 1, 3.4.1). */
+        const sxml_complex_type *complex_type =
+            &description->variety_details.complex_type;
+        bool is_simple = complex_type->content_type_variety ==
+                         SXML_CONTENT_TYPE_VARIETY_SIMPLE;
+        return !has_facets && base->variety == SXML_TYPE_VARIETY_COMPLEX &&
+               (is_simple ? sxml_type_registry_issued(
+                                registry, complex_type->simple_content_type)
+                          : complex_type->simple_content_type.index ==
+                                SXML_TYPE_NONE);
+    }
+    case SXML_TYPE_VARIETY_ATOMIC:
+        /* XSD 1.1 Part 2, 4.1.2.1: {primitive type definition} is the
+           base's; xs:anyAtomicType has none and is no base here. */
+        if (base->variety != SXML_TYPE_VARIETY_ATOMIC ||
+            base->primitive_type.index == SXML_TYPE_NONE) {
+            return false;
+        }
+        description->primitive_type = base->primitive_type;
+        return true;
+    case SXML_TYPE_VARIETY_LIST:
+        return sxml_type_registry_issued(
+            registry, description->variety_details.list_item_type);
+    case SXML_TYPE_VARIETY_UNION: {
+        sxml_type_identifier_view members =
+            description->variety_details.member_types;
+        if (members.type_identifier_count != 0 &&
+            members.type_identifiers == NULL) {
+            return false;
+        }
+        for (size_t member_index = 0;
+             member_index < members.type_identifier_count; member_index += 1) {
+            if (!sxml_type_registry_issued(
+                    registry, members.type_identifiers[member_index])) {
+                return false;
+            }
+        }
+        return true;
+    }
+    case SXML_TYPE_VARIETY_ANY_SIMPLE:
+    case SXML_TYPE_VARIETY_ANY_ITEM:
+    case SXML_TYPE_VARIETY_NODE_TEST:
+    case SXML_TYPE_VARIETY_JSON_NODE_TEST:
+    case SXML_TYPE_VARIETY_FUNCTION:
+    case SXML_TYPE_VARIETY_MAP:
+    case SXML_TYPE_VARIETY_ARRAY:
+    case SXML_TYPE_VARIETY_RECORD:
+    case SXML_TYPE_VARIETY_ENUMERATION:
+    case SXML_TYPE_VARIETY_CHOICE:
+        return false;
+    }
+    return false;
+}
+
+/* Replaces the facets of a normalized schema type description, and their
+   values, with arena copies. */
+static sxml_status sxml_type_registry_copy_facets(
+    sxml_type_registry *registry, sxml_facet_view *facets) {
+    void *memory = NULL;
+    sxml_status status = sxml_type_registry_copy_plain(
+        registry,
+        (sxml_type_plain_copy){
+            .source = facets->facets,
+            .request = {.element_count = facets->facet_count,
+                        .element_byte_count = sizeof(sxml_facet),
+                        .alignment = alignof(sxml_facet)}},
+        &memory);
+    sxml_facet *copies = memory;
+    for (size_t facet_index = 0;
+         status == SXML_STATUS_OK && facet_index < facets->facet_count;
+         facet_index += 1) {
+        status = sxml_type_registry_copy_string(
+            registry, copies[facet_index].value, &copies[facet_index].value);
+    }
+    if (status == SXML_STATUS_OK) {
+        *facets = (sxml_facet_view){.facets = copies,
+                                    .facet_count = facets->facet_count};
+    }
+    return status;
+}
+
+sxml_status sxml_type_registry_register_schema_type(
+    sxml_type_registry *registry, const sxml_type_description *description,
+    sxml_type_identifier *type) {
+    if (registry == NULL || description == NULL || type == NULL) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    sxml_type_description normal = *description;
+    if (!sxml_type_registry_normalize_schema_type(registry, &normal)) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    /* Schema types enter no index: growing the structure index here is a
+       no-op unless it is full anyway. */
+    sxml_status status = sxml_type_registry_prepare_entry(
+        registry,
+        (sxml_type_index_growth){
+            .index = &registry->structure_index,
+            .indexed_count = registry->structural_count});
+    if (status == SXML_STATUS_OK &&
+        normal.variety == SXML_TYPE_VARIETY_UNION) {
+        sxml_type_identifier_view *members =
+            &normal.variety_details.member_types;
+        void *memory = NULL;
+        status = sxml_type_registry_copy_plain(
+            registry,
+            (sxml_type_plain_copy){
+                .source = members->type_identifiers,
+                .request = {.element_count = members->type_identifier_count,
+                            .element_byte_count = sizeof(sxml_type_identifier),
+                            .alignment = alignof(sxml_type_identifier)}},
+            &memory);
+        members->type_identifiers = memory;
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_type_registry_copy_facets(registry, &normal.facets);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    size_t position = registry->entry_count;
+    registry->entries[position] = (sxml_type_entry){
+        .description = normal,
+        .hash = 0,
+        .is_defined = true,
+        .string_index = {.slots = NULL, .slot_count = 0},
+    };
+    registry->entry_count += 1;
+    *type = sxml_type_identifier_at(position);
+    return SXML_STATUS_OK;
+}

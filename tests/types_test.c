@@ -10,6 +10,7 @@
 #include "sxml/name.h"
 #include "sxml/types.h"
 #include "test_runner.h"
+#include "types_internal.h"
 
 #include <stdalign.h>
 
@@ -1917,7 +1918,174 @@ static void test_choice_map_keys(sxml_test_state *state) {
     types_fixture_destroy(&fixture);
 }
 
+/* ------------------------------------------------------- Schema types */
+
+/* sxml_type_registry_register_schema_type (src/types_internal.h, D165):
+   copies, no interning, no name index, base chains. */
+static void test_schema_types_register_in_derivation_order(
+    sxml_test_state *state) {
+    types_fixture fixture;
+    SXML_TEST_REQUIRE(state, types_fixture_create(&fixture));
+    sxml_name_identifier percent_name = {.index = 0};
+    SXML_TEST_REQUIRE(state,
+                      sxml_name_pool_intern_name(
+                          fixture.name_pool,
+                          &(sxml_name_request){
+                              .namespace_uri = {.index = 0},
+                              .local_name = sxml_byte_view_from_c_string("Percent")},
+                          &percent_name) == SXML_STATUS_OK);
+    char maximum_text[] = "100";
+    sxml_facet facets[] = {
+        {.facet_kind = SXML_FACET_KIND_MIN_INCLUSIVE,
+         .value = sxml_byte_view_from_c_string("0")},
+        {.facet_kind = SXML_FACET_KIND_MAX_INCLUSIVE,
+         .value = {.bytes = (const uint8_t *)maximum_text, .byte_count = 3}},
+    };
+    sxml_type_description percent = {
+        .variety = SXML_TYPE_VARIETY_ATOMIC,
+        .type_name = percent_name,
+        .base_type = builtin(SXML_TYPE_XS_INTEGER),
+        .facets = {.facets = facets, .facet_count = 2},
+    };
+    sxml_type_identifier percent_type = no_type;
+    SXML_TEST_REQUIRE(state, sxml_type_registry_register_schema_type(
+                                 fixture.registry, &percent,
+                                 &percent_type) == SXML_STATUS_OK);
+    /* Never interned: the same description gives a new identifier. */
+    sxml_type_identifier second_type = no_type;
+    SXML_TEST_REQUIRE(state, sxml_type_registry_register_schema_type(
+                                 fixture.registry, &percent,
+                                 &second_type) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, second_type.index != percent_type.index);
+    /* Views are copied. */
+    maximum_text[0] = '9';
+    facets[0].facet_kind = SXML_FACET_KIND_LENGTH;
+    sxml_type_description described;
+    SXML_TEST_REQUIRE(state, sxml_type_registry_describe_type(
+                                 fixture.registry, percent_type,
+                                 &described) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, described.type_name.index == percent_name.index);
+    SXML_TEST_EXPECT(state, described.primitive_type.index == SXML_TYPE_XS_DECIMAL);
+    SXML_TEST_EXPECT(state, !described.is_builtin);
+    SXML_TEST_REQUIRE(state, described.facets.facet_count == 2);
+    SXML_TEST_EXPECT(state, described.facets.facets[0].facet_kind ==
+                                SXML_FACET_KIND_MIN_INCLUSIVE);
+    SXML_TEST_EXPECT(state, sxml_byte_view_equals(
+                                described.facets.facets[1].value,
+                                sxml_byte_view_from_c_string("100")));
+    /* Names belong to the schema, not the registry. */
+    sxml_type_identifier found = no_type;
+    SXML_TEST_EXPECT(state, !sxml_type_registry_find_type(fixture.registry,
+                                                          percent_name, &found));
+    SXML_TEST_EXPECT(state,
+                     sxml_type_registry_is_derived_from(
+                         fixture.registry,
+                         (sxml_type_pair){.derived_type = percent_type,
+                                          .base_type = builtin(SXML_TYPE_XS_DECIMAL)}));
+    SXML_TEST_EXPECT(state, sxml_type_registry_is_subtype(
+                                fixture.registry,
+                                (sxml_type_pair){
+                                    .derived_type = percent_type,
+                                    .base_type = builtin(SXML_TYPE_XS_INTEGER)}));
+    /* A restriction of it, a list of it and a union with it. */
+    sxml_type_identifier small_type = no_type;
+    SXML_TEST_REQUIRE(state,
+                      sxml_type_registry_register_schema_type(
+                          fixture.registry,
+                          &(sxml_type_description){.variety = SXML_TYPE_VARIETY_ATOMIC,
+                                                   .base_type = percent_type},
+                          &small_type) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state,
+                     sxml_type_registry_is_derived_from(
+                         fixture.registry,
+                         (sxml_type_pair){.derived_type = small_type,
+                                          .base_type = percent_type}));
+    sxml_type_identifier list_type = no_type;
+    SXML_TEST_REQUIRE(state,
+                      sxml_type_registry_register_schema_type(
+                          fixture.registry,
+                          &(sxml_type_description){
+                              .variety = SXML_TYPE_VARIETY_LIST,
+                              .base_type = builtin(SXML_TYPE_XS_ANY_SIMPLE_TYPE),
+                              .variety_details = {.list_item_type = small_type}},
+                          &list_type) == SXML_STATUS_OK);
+    sxml_type_identifier members[] = {small_type, builtin(SXML_TYPE_XS_DATE)};
+    sxml_type_identifier union_type = no_type;
+    SXML_TEST_REQUIRE(state,
+                      sxml_type_registry_register_schema_type(
+                          fixture.registry,
+                          &(sxml_type_description){
+                              .variety = SXML_TYPE_VARIETY_UNION,
+                              .base_type = builtin(SXML_TYPE_XS_ANY_SIMPLE_TYPE),
+                              .variety_details = {.member_types = {.type_identifiers = members,
+                                                                   .type_identifier_count = 2}}},
+                          &union_type) == SXML_STATUS_OK);
+    members[0] = builtin(SXML_TYPE_XS_STRING);
+    SXML_TEST_REQUIRE(state, sxml_type_registry_describe_type(
+                                 fixture.registry, union_type,
+                                 &described) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, described.variety_details.member_types.type_identifiers[0].index ==
+                                small_type.index);
+    SXML_TEST_EXPECT(state,
+                     sxml_type_registry_is_derived_from(
+                         fixture.registry,
+                         (sxml_type_pair){.derived_type = small_type,
+                                          .base_type = union_type}));
+    /* A complex type with simple content. */
+    sxml_type_identifier complex_type = no_type;
+    SXML_TEST_EXPECT(state,
+                     sxml_type_registry_register_schema_type(
+                         fixture.registry,
+                         &(sxml_type_description){
+                             .variety = SXML_TYPE_VARIETY_COMPLEX,
+                             .base_type = builtin(SXML_TYPE_XS_ANY_TYPE),
+                             .variety_details = {.complex_type = {
+                                                     .content_type_variety =
+                                                         SXML_CONTENT_TYPE_VARIETY_SIMPLE,
+                                                     .simple_content_type = list_type}}},
+                         &complex_type) == SXML_STATUS_OK);
+    types_fixture_destroy(&fixture);
+}
+
+static void test_schema_types_are_checked(sxml_test_state *state) {
+    types_fixture fixture;
+    SXML_TEST_REQUIRE(state, types_fixture_create(&fixture));
+    const sxml_facet length_facet = {.facet_kind = SXML_FACET_KIND_LENGTH,
+                                     .value = sxml_byte_view_from_c_string("1")};
+    const sxml_type_description invalid[] = {
+        /* xs:anyAtomicType has no primitive type. */
+        {.variety = SXML_TYPE_VARIETY_ATOMIC,
+         .base_type = builtin(SXML_TYPE_XS_ANY_ATOMIC_TYPE)},
+        /* An atomic type's base is atomic. */
+        {.variety = SXML_TYPE_VARIETY_ATOMIC, .base_type = builtin(SXML_TYPE_XS_NMTOKENS)},
+        {.variety = SXML_TYPE_VARIETY_ATOMIC, .base_type = {.index = 9999}},
+        {.variety = SXML_TYPE_VARIETY_LIST,
+         .base_type = builtin(SXML_TYPE_XS_ANY_SIMPLE_TYPE),
+         .variety_details = {.list_item_type = {.index = 9999}}},
+        /* Facets only on simple types. */
+        {.variety = SXML_TYPE_VARIETY_COMPLEX,
+         .base_type = builtin(SXML_TYPE_XS_ANY_TYPE),
+         .facets = {.facets = &length_facet, .facet_count = 1}},
+        {.variety = SXML_TYPE_VARIETY_COMPLEX, .base_type = builtin(SXML_TYPE_XS_STRING)},
+        /* Not a schema type variety. */
+        {.variety = SXML_TYPE_VARIETY_MAP, .base_type = builtin(SXML_TYPE_XS_ANY_TYPE)},
+        {.variety = SXML_TYPE_VARIETY_ANY_SIMPLE,
+         .base_type = builtin(SXML_TYPE_XS_ANY_TYPE)},
+    };
+    for (size_t case_index = 0; case_index < SXML_TEST_COUNT(invalid); case_index++) {
+        sxml_type_identifier type = no_type;
+        SXML_TEST_EXPECT(state, sxml_type_registry_register_schema_type(
+                                    fixture.registry, &invalid[case_index],
+                                    &type) == SXML_STATUS_INVALID_ARGUMENT);
+        SXML_TEST_EXPECT(state, type.index == SXML_TYPE_NONE);
+    }
+    types_fixture_destroy(&fixture);
+}
+
 static const sxml_test_case types_test_cases[] = {
+    {.name = "schema_types_register_in_derivation_order",
+     .function = test_schema_types_register_in_derivation_order},
+    {.name = "schema_types_are_checked", .function = test_schema_types_are_checked},
     {.name = "memory_requirements_need_a_name_pool",
      .function = test_memory_requirements_need_a_name_pool},
     {.name = "initialize_checks_memory",
