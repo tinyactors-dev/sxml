@@ -5,7 +5,7 @@
 Results of the W3C QT4 test suite (`third_party/qt4tests`, D13) under `sxml-qt4 run` (D92), a release build, one process per test set. *Passed* counts passes and wrong errors (a wrong error code counts as a pass, catalog-schema.xsd); *not run* means not applicable to sxml or using an unsupported feature; *run* is test cases minus not run.
 
 - Code under test: commit `7a53c735c7e4` of 2026-10-18
-- Regenerate: `cmake --preset release && cmake --build --preset release && tools/run-qt4.sh --program build/release/tests/qt4/driver/sxml-qt4 && tools/run-qt4.sh --program build/release/tests/qt4/driver/sxml-qt4 --spec XQ40 && tools/conformance-report.py build/qt4-run` (XQ40 is reported when its run is in the directory)
+- Regenerate: `cmake --preset release && cmake --build --preset release && tools/run-qt4.sh --program build/release/tests/qt4/driver/sxml-qt4 && tools/run-qt4.sh --program build/release/tests/qt4/driver/sxml-qt4 --spec XQ40 && tools/conformance-report.py build/qt4-run` (XQ40 is reported when its run is in the directory; XT40 and XSD11 when `tools/run-xslt.sh` and `tools/run-xsd.sh` ran into it too)
 
 ## Torture slice
 
@@ -2231,5 +2231,177 @@ Not run, by the first dependency that is not met:
 | string | 136 | 134 | 0 | 0 | 0 | 2 |
 | type | 82 | 55 | 0 | 2 | 0 | 25 |
 | type-alias | 32 | 13 | 5 | 18 | 0 | 1 |
+
+</details>
+
+## XSD11
+
+93 test sets with test cases, all finished.
+
+| Specification | Test cases | Run | Passed | of which wrong error | Failed | Errors | Not run | Passed of run |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|
+| XSD11 | 41,735 | 0 | 0 | 0 | 0 | 0 | 41,735 | – |
+
+Gate rate (D95): 0 of 41,518 in-scope test cases passed, **0.0 %** (in scope: the spec matches and no non-goal is needed; not-run cases count as not passed).
+
+### XSD11 gate groups (proposed Phase 5 gate, D165)
+
+| Group | Target | In scope | Passed | Rate |
+|---|--:|--:|--:|--:|
+| Datatypes (NIST, MS DataTypes and Regex) | 95 % | 30,598 | 0 | 0.0 % |
+| Structures (Microsoft, Sun, W3C WG, Oracle, Boeing) | 80 % | 8,626 | 0 | 0.0 % |
+| XSD 1.1 (Saxonica, IBM) | 70 % | 2,294 | 0 | 0.0 % |
+
+XSD slice (`tests/xsd/slice.txt`): **0/147 passed**.
+
+### XSD11 by area
+
+| Area (contributor: the test-set prefix) | Test cases | Run | Passed | of which wrong error | Failed | Errors | Not run | Passed of run |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|
+| NIST (datatypes): `nist-*` | 23,170 | 0 | 0 | 0 | 0 | 0 | 23,170 | – |
+| Microsoft: `ms-*` | 14,450 | 0 | 0 | 0 | 0 | 0 | 14,450 | – |
+| Sun: `sun-*` | 1,610 | 0 | 0 | 0 | 0 | 0 | 1,610 | – |
+| Saxonica (XSD 1.1): `saxon-*` | 1,390 | 0 | 0 | 0 | 0 | 0 | 1,390 | – |
+| IBM (XSD 1.1): `ibm-*` | 919 | 0 | 0 | 0 | 0 | 0 | 919 | – |
+| W3C XML Schema WG: `wg-*` | 60 | 0 | 0 | 0 | 0 | 0 | 60 | – |
+| Oracle: `oracle-*` | 26 | 0 | 0 | 0 | 0 | 0 | 26 | – |
+| Boeing: `boeing-*` | 18 | 0 | 0 | 0 | 0 | 0 | 18 | – |
+| Suite metadata (not run, D165): `common-*` | 92 | 0 | 0 | 0 | 0 | 0 | 92 | – |
+
+### XSD11 failure causes
+
+Failed and error test cases by the error code the query raised (or the status the driver got):
+
+| Error code | Test cases |
+|---|--:|
+
+The 25 most frequent reasons:
+
+| Cause | Test cases |
+|---|--:|
+
+Wrong errors (counted as passed) by the error raised:
+
+| Raised instead | Test cases |
+|---|--:|
+
+Not run, by the first dependency that is not met:
+
+| Reason | Test cases |
+|---|--:|
+| XSD not implemented | 41,518 |
+| test set introspection (the suite's metadata) | 92 |
+| status queried | 57 |
+| version 1.0 | 50 |
+| expected indeterminate | 14 |
+| expected (none applies) | 2 |
+| status disputed-test | 1 |
+| version Unicode_4.0.0 | 1 |
+
+### XSD11 test sets with the most failures
+
+| Test set | Test cases | Passed | Failed | Errors | Not run |
+|---|--:|--:|--:|--:|--:|
+
+### Every XSD11 test set
+
+<details>
+<summary>93 test sets</summary>
+
+| Test set | Test cases | Passed | of which wrong error | Failed | Errors | Not run |
+|---|--:|--:|--:|--:|--:|--:|
+| common-introspection | 92 | 0 | 0 | 0 | 0 | 92 |
+| nist-NISTXMLSchemaDatatypes | 23,170 | 0 | 0 | 0 | 0 | 23,170 |
+| sun-suntest | 263 | 0 | 0 | 0 | 0 | 263 |
+| sun-AGroupDef | 19 | 0 | 0 | 0 | 0 | 19 |
+| sun-AttrDecl | 178 | 0 | 0 | 0 | 0 | 178 |
+| sun-AttrUse | 9 | 0 | 0 | 0 | 0 | 9 |
+| sun-CType | 85 | 0 | 0 | 0 | 0 | 85 |
+| sun-ElemDecl | 464 | 0 | 0 | 0 | 0 | 464 |
+| sun-IdConstrDefs | 48 | 0 | 0 | 0 | 0 | 48 |
+| sun-MGroup | 79 | 0 | 0 | 0 | 0 | 79 |
+| sun-MGroupDef | 33 | 0 | 0 | 0 | 0 | 33 |
+| sun-Notation | 21 | 0 | 0 | 0 | 0 | 21 |
+| sun-SType | 338 | 0 | 0 | 0 | 0 | 338 |
+| sun-Schema | 12 | 0 | 0 | 0 | 0 | 12 |
+| sun-Wildcard | 61 | 0 | 0 | 0 | 0 | 61 |
+| ms-Additional_w3c | 445 | 0 | 0 | 0 | 0 | 445 |
+| ms-Annotations_w3c | 80 | 0 | 0 | 0 | 0 | 80 |
+| ms-AttributeGroup_w3c | 149 | 0 | 0 | 0 | 0 | 149 |
+| ms-Attribute_w3c | 403 | 0 | 0 | 0 | 0 | 403 |
+| ms-ComplexType_w3c | 812 | 0 | 0 | 0 | 0 | 812 |
+| ms-DataTypes_w3c | 3,434 | 0 | 0 | 0 | 0 | 3,434 |
+| ms-Element_w3c | 527 | 0 | 0 | 0 | 0 | 527 |
+| ms-Errata10_w3c | 31 | 0 | 0 | 0 | 0 | 31 |
+| ms-Group_w3c | 344 | 0 | 0 | 0 | 0 | 344 |
+| ms-IdentityConstraint_w3c | 1,072 | 0 | 0 | 0 | 0 | 1,072 |
+| ms-ModelGroups_w3c | 598 | 0 | 0 | 0 | 0 | 598 |
+| ms-Notations_w3c | 119 | 0 | 0 | 0 | 0 | 119 |
+| ms-Particles_w3c | 1,372 | 0 | 0 | 0 | 0 | 1,372 |
+| ms-Regex_w3c | 4,022 | 0 | 0 | 0 | 0 | 4,022 |
+| ms-Schema_w3c | 165 | 0 | 0 | 0 | 0 | 165 |
+| ms-SimpleType_w3c | 443 | 0 | 0 | 0 | 0 | 443 |
+| ms-Wildcards_w3c | 434 | 0 | 0 | 0 | 0 | 434 |
+| boeing-BoeingXSDTestSet | 18 | 0 | 0 | 0 | 0 | 18 |
+| saxon-All | 110 | 0 | 0 | 0 | 0 | 110 |
+| saxon-Assert | 101 | 0 | 0 | 0 | 0 | 101 |
+| saxon-Complex | 92 | 0 | 0 | 0 | 0 | 92 |
+| saxon-CTA | 113 | 0 | 0 | 0 | 0 | 113 |
+| saxon-Id | 121 | 0 | 0 | 0 | 0 | 121 |
+| saxon-Missing | 14 | 0 | 0 | 0 | 0 | 14 |
+| saxon-Open | 165 | 0 | 0 | 0 | 0 | 165 |
+| saxon-Override | 86 | 0 | 0 | 0 | 0 | 86 |
+| saxon-Simple | 108 | 0 | 0 | 0 | 0 | 108 |
+| saxon-Subsgroup | 11 | 0 | 0 | 0 | 0 | 11 |
+| saxon-TargetNS | 10 | 0 | 0 | 0 | 0 | 10 |
+| saxon-VC | 50 | 0 | 0 | 0 | 0 | 50 |
+| saxon-Wild | 284 | 0 | 0 | 0 | 0 | 284 |
+| saxon-XmlVersions | 51 | 0 | 0 | 0 | 0 | 51 |
+| saxon-Zone | 74 | 0 | 0 | 0 | 0 | 74 |
+| oracle-Zone | 26 | 0 | 0 | 0 | 0 | 26 |
+| wg-substitution-groups | 47 | 0 | 0 | 0 | 0 | 47 |
+| wg-IRI | 13 | 0 | 0 | 0 | 0 | 13 |
+| ibm-allGroup | 15 | 0 | 0 | 0 | 0 | 15 |
+| ibm-anyAttribute | 16 | 0 | 0 | 0 | 0 | 16 |
+| ibm-assert | 79 | 0 | 0 | 0 | 0 | 79 |
+| ibm-assertion | 101 | 0 | 0 | 0 | 0 | 101 |
+| ibm-conditionalInclusion | 5 | 0 | 0 | 0 | 0 | 5 |
+| ibm-constraintsOnAttribute | 22 | 0 | 0 | 0 | 0 | 22 |
+| ibm-cyclicRedefineIncludeImportOverride | 5 | 0 | 0 | 0 | 0 | 5 |
+| ibm-date | 2 | 0 | 0 | 0 | 0 | 2 |
+| ibm-dateTimeStamp | 43 | 0 | 0 | 0 | 0 | 43 |
+| ibm-dayTimeDuration | 36 | 0 | 0 | 0 | 0 | 36 |
+| ibm-defaultAttributesApply | 31 | 0 | 0 | 0 | 0 | 31 |
+| ibm-defaultFixed | 10 | 0 | 0 | 0 | 0 | 10 |
+| ibm-double | 4 | 0 | 0 | 0 | 0 | 4 |
+| ibm-edcWildcard | 4 | 0 | 0 | 0 | 0 | 4 |
+| ibm-explicitTimezone | 32 | 0 | 0 | 0 | 0 | 32 |
+| ibm-float | 4 | 0 | 0 | 0 | 0 | 4 |
+| ibm-gYearMonth | 2 | 0 | 0 | 0 | 0 | 2 |
+| ibm-gYear | 2 | 0 | 0 | 0 | 0 | 2 |
+| ibm-gMonthDay | 2 | 0 | 0 | 0 | 0 | 2 |
+| ibm-gDay | 2 | 0 | 0 | 0 | 0 | 2 |
+| ibm-gMonth | 1 | 0 | 0 | 0 | 0 | 1 |
+| ibm-idIDREF | 134 | 0 | 0 | 0 | 0 | 134 |
+| ibm-identityConstraint | 18 | 0 | 0 | 0 | 0 | 18 |
+| ibm-list | 3 | 0 | 0 | 0 | 0 | 3 |
+| ibm-openContent | 40 | 0 | 0 | 0 | 0 | 40 |
+| ibm-regularExpression | 16 | 0 | 0 | 0 | 0 | 16 |
+| ibm-restrictionOfComplexTypes | 19 | 0 | 0 | 0 | 0 | 19 |
+| ibm-rf_whiteSpace | 4 | 0 | 0 | 0 | 0 | 4 |
+| ibm-substitutionGroup | 8 | 0 | 0 | 0 | 0 | 8 |
+| ibm-targetNamespace | 4 | 0 | 0 | 0 | 0 | 4 |
+| ibm-time | 5 | 0 | 0 | 0 | 0 | 5 |
+| ibm-typeAlternatives | 39 | 0 | 0 | 0 | 0 | 39 |
+| ibm-typeAlternativesMixed | 15 | 0 | 0 | 0 | 0 | 15 |
+| ibm-union | 33 | 0 | 0 | 0 | 0 | 33 |
+| ibm-unitsLength | 14 | 0 | 0 | 0 | 0 | 14 |
+| ibm-unsignedInteger | 16 | 0 | 0 | 0 | 0 | 16 |
+| ibm-vc | 14 | 0 | 0 | 0 | 0 | 14 |
+| ibm-wildcard | 32 | 0 | 0 | 0 | 0 | 32 |
+| ibm-xml11Support | 22 | 0 | 0 | 0 | 0 | 22 |
+| ibm-xpathDefaultNSonKeyKeyRefUnique | 26 | 0 | 0 | 0 | 0 | 26 |
+| ibm-xsImportReference | 1 | 0 | 0 | 0 | 0 | 1 |
+| ibm-yearMonthDuration | 38 | 0 | 0 | 0 | 0 | 38 |
 
 </details>

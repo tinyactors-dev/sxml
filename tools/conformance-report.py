@@ -5,7 +5,9 @@ Input is the directory tools/run-qt4.sh writes: one JSON report per test
 set (the layout of tests/qt4/driver/report.h, version 1) under a directory
 per specification (XP40, XQ40; XT40 from tools/run-xslt.sh, with its
 areas the suite's groups, the core sets of the Phase 4 gate and the XSLT
-slice), the torture slice's report and the commit of the code under test.
+slice; XSD11 from tools/run-xsd.sh, with its areas the contributors, the
+groups of the proposed Phase 5 gate and the XSD slice), the torture
+slice's report and the commit of the code under test.
 Output:
 
 - the Markdown dashboard (--output, default docs/CONFORMANCE.md): the
@@ -38,7 +40,7 @@ import sys
 OUTCOMES = ("pass", "wrong_error", "fail", "error", "not_run")
 # Members of report.h added by packet 2.16 (D108): the D95 denominator.
 SCOPE_COUNTS = ("in_scope", "in_scope_passed")
-SPECS = ("XP40", "XQ40", "XT40")
+SPECS = ("XP40", "XQ40", "XT40", "XSD11")
 # XSLT 4.0 (tools/run-xslt.sh, D157): areas are the groups of the suite,
 # the directory under tests/ of each test set's file in catalog.xml.
 XSLT_AREAS = (
@@ -56,6 +58,28 @@ XSLT_AREAS = (
 XSLT_CORE_SETS = ("apply-templates", "mode", "match", "for-each-group", "sort",
                   "key", "number", "choose", "copy", "value-of",
                   "result-document", "function")
+# XSD 1.1 (tools/run-xsd.sh, D168): areas are the contributors, the
+# test-set name prefix (tests/xsd/driver/xsd_catalog.h, "Names").
+XSD_AREAS = (
+    ("nist", "NIST (datatypes)"),
+    ("ms", "Microsoft"),
+    ("sun", "Sun"),
+    ("saxon", "Saxonica (XSD 1.1)"),
+    ("ibm", "IBM (XSD 1.1)"),
+    ("wg", "W3C XML Schema WG"),
+    ("oracle", "Oracle"),
+    ("boeing", "Boeing"),
+    ("common", "Suite metadata (not run, D165)"),
+    ("other", "Other"),
+)
+# The groups of the proposed Phase 5 gate (D165): datatypes 95 %,
+# structures 80 %, XSD 1.1 70 %; every in-scope test 90 %.
+XSD_DATATYPE_SETS = ("ms-DataTypes_w3c", "ms-Regex_w3c")
+XSD_GATE_GROUPS = (
+    ("Datatypes (NIST, MS DataTypes and Regex)", 95),
+    ("Structures (Microsoft, Sun, W3C WG, Oracle, Boeing)", 80),
+    ("XSD 1.1 (Saxonica, IBM)", 70),
+)
 XSLT_CATALOG = (pathlib.Path(__file__).resolve().parent.parent / "third_party"
                 / "xslt40-test" / "catalog.xml")
 # Areas in the order of the table; a test set belongs to the area of its
@@ -206,6 +230,43 @@ def read_xslt_groups():
     return groups
 
 
+def xsd_gate_group(test_set_name):
+    """The index in XSD_GATE_GROUPS of an XSD test set's gate group, or
+    None for the suite's metadata."""
+    prefix = test_set_name.split("-", 1)[0]
+    if prefix == "common":
+        return None
+    if prefix == "nist" or test_set_name in XSD_DATATYPE_SETS:
+        return 0
+    if prefix in ("saxon", "ibm"):
+        return 2
+    return 1
+
+
+def render_xsd_gate(lines, result):
+    """The in-scope pass rate of each group of the proposed Phase 5 gate."""
+    groups = [{"in_scope": 0, "in_scope_passed": 0} for _ in XSD_GATE_GROUPS]
+    for entry in result["test_sets"]:
+        index = xsd_gate_group(entry["name"])
+        if index is not None:
+            add_counts(groups[index], entry)
+    lines += ["### XSD11 gate groups (proposed Phase 5 gate, D165)", "",
+              "| Group | Target | In scope | Passed | Rate |",
+              "|---|--:|--:|--:|--:|"]
+    for (title, target), counts in zip(XSD_GATE_GROUPS, groups):
+        lines.append(f"| {title} | {target} % | {counts['in_scope']:,} "
+                     f"| {counts['in_scope_passed']:,} "
+                     f"| {percent(counts['in_scope_passed'], counts['in_scope'])} |")
+    lines.append("")
+    xsd_slice = result.get("slice")
+    if xsd_slice is not None:
+        totals = xsd_slice["totals"]
+        lines += [(f"XSD slice (`tests/xsd/slice.txt`): "
+                   f"**{passed(totals)}/{totals['total']} passed**"
+                   if xsd_slice["finished"] else
+                   "**The XSD slice run did not finish**") + ".", ""]
+
+
 def failure_cause(reason):
     """Groups a fail or error reason: the error code and message when the
     query raised an error, else the assertion that did not hold."""
@@ -316,6 +377,15 @@ def render_spec(lines, result):
             group = groups.get(name, "other")
             return group if group in names else "other"
         heading = "Area (group: tests/GROUP/)"
+    elif spec == "XSD11":
+        render_xsd_gate(lines, result)
+        areas = XSD_AREAS
+        names = {prefix for prefix, _ in XSD_AREAS}
+
+        def area(name):
+            prefix = name.split("-", 1)[0]
+            return prefix if prefix in names else "other"
+        heading = "Area (contributor: the test-set prefix)"
     else:
         areas = AREAS
         area = area_of
@@ -437,7 +507,8 @@ def render(information, slice_result, baseline, spec_results):
         "build/release/tests/qt4/driver/sxml-qt4 && tools/run-qt4.sh "
         "--program build/release/tests/qt4/driver/sxml-qt4 --spec XQ40 && "
         "tools/conformance-report.py build/qt4-run` (XQ40 is reported "
-        "when its run is in the directory)",
+        "when its run is in the directory; XT40 and XSD11 when "
+        "`tools/run-xslt.sh` and `tools/run-xsd.sh` ran into it too)",
         "",
         "## Torture slice",
         "",
@@ -495,8 +566,11 @@ def main():
     if "XT40" in by_spec:
         xslt_slice = read_slice(run_directory, "xslt-slice")
         by_spec["XT40"]["slice"] = xslt_slice
+    if "XSD11" in by_spec:
+        by_spec["XSD11"]["slice"] = read_slice(run_directory, "xsd-slice")
     if not spec_results:
-        print(f"{run_directory}: no XP40, XQ40 or XT40 reports", file=sys.stderr)
+        print(f"{run_directory}: no XP40, XQ40, XT40 or XSD11 reports",
+              file=sys.stderr)
         return 2
     baseline = int(arguments.slice_baseline.read_text().strip())
 

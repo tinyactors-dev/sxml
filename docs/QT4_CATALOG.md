@@ -196,3 +196,47 @@ describes as it reads the suite.
   6; `assert-posture-and-sweep` occurs only in `sandp`.
 - `admin/catalog-schema.xsd` defines the format. `runner/` holds an XSLT-based
   reference runner.
+
+## XSTS layout (the W3C XSD test suite)
+
+Read by `sxml-xsd-test` (`tests/xsd/driver/`, D168), which this section
+describes as it reads the suite (`third_party/xsdtests`, D165).
+
+- Every element is in namespace
+  `http://www.w3.org/XML/2004/xml-schema-test-suite/`, every reference an
+  `xlink:href` (`http://www.w3.org/1999/xlink`) relative to its file.
+  `common/xsts.xsd` defines the format.
+- `suite.xml` is a `testSuite` of 93 `testSetRef`s (two more, the
+  precisionDecimal sets, are commented out and listed in
+  `extra-suite.xml`). The first, `common/introspection.testSet`, validates
+  the suite's own files and is not run (D165).
+- A `testSet` (`name`, `contributor`, `version?`) holds `testGroup`s
+  (`name`, `version?`), each with at most one `schemaTest` and any number
+  of `instanceTest`s (`name`, `version?`). A schema test lists its
+  `schemaDocument`s (loaded one by one, in order, into one schema; valid
+  means it compiles); an instance test has one `instanceDocument`,
+  validated against the schema of its group's schema test, or against the
+  built-in components alone when the group has none (55 groups). Each test
+  has `expected validity version?` elements and a `current status`
+  (submitted, accepted, stable, queried, disputed-test, disputed-spec).
+  `testSet/@name` repeats across contributors (Assert, CTA, TargetNS, VC,
+  Zone), so the driver names a set after its file: `saxonMeta/Assert.testSet`
+  is `saxon-Assert`; a test is `GROUP/TEST`.
+- Version tokens (xsts.xsd, `version-info`): on testSet, testGroup and
+  tests they are or-ed per element ("supports any of them"), on `expected`
+  and-ed. Tokens fall into classes (XSD version, 1.0 edition, XML
+  substrate, Unicode version, CTR-all behaviour, XPath in CTA, XDM
+  filtering). In the suite: `1.1` 1,042 times, `1.0` 144,
+  `full-xpath-in-CTA` 30, `restricted-xpath-in-CTA` 10, `Unicode_4.0.0` 9,
+  `Unicode_6.0.0` 8; no other token occurs.
+- Counts: 41,643 tests in the 92 test sets besides the introspection one
+  (92 more there);
+  statuses accepted 40,635, stable 850, queried 57, submitted 12,
+  disputed-spec 5, disputed-test 1; expected elements valid 26,515, invalid 15,312,
+  indeterminate 16. In scope for an XSD 1.1 processor (each level's version
+  applies, status not queried or disputed, valid or invalid expected):
+  41,518 (15,329 schema tests, 26,189 instance tests). D165 counted 41,538
+  by or-ing the three levels' tokens together; D168 applies each level, as
+  xsts.xsd says, which leaves out 19 XSD 1.0 instance tests of
+  `wgMeta/substitution-groups.testSet` (five of them name files that do
+  not exist) and one 1.0 test group of Saxonica.
