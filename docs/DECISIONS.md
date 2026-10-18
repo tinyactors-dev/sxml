@@ -5338,8 +5338,76 @@ Recorded 2026-10-18, after D112, D117, D139, D144, D145, D149, D150, D156.
   (an xsl:stylesheet) as RESOLVED_PACKAGE (Proposed).
 
 ### D158. XQuery conformance sweep 2 (packet 3.14)
-Recorded 2026-10-18, after D135, D148, D154.
-Reserved here; the record is completed when the packet is ticked.
+Recorded 2026-10-18, after D135, D148, D154. Closes D135 (b) to (g) and
+D154's "Not done" but where said. No public header changed; no IR kind.
+- **Default functions** (glossary `default_function`, D135 (b), (g)): a
+  declared function's optional parameter whose default is not `:= .` is
+  `SXML_PARAMETER_DEFAULT_EXPRESSION` with a `default_function_number`
+  (`sxml_function_parameter`): an IR function of three parameters, the
+  caller's context value, position and size, whose body is the default
+  coerced to the parameter's type, lowered with those slots as its focus;
+  its IR function's `focus` names the parts it reads (the lowering focus
+  records `parts_read`). Static calls go to the full arity and call the
+  default functions of the omitted parameters with their own focus
+  (`sxml_xpath_lowerer_call_default_function`), so keyword arguments
+  after omitted parameters work (modules-40) and `$x := string()` sees
+  the caller's context value (5.18.3). A reference F#N whose omitted
+  defaults read the focus is a closure that captures those parts and
+  calls the defaults when called (so `$x := (., local:f#0)` ends); a
+  reference made without a focus is the shorter arity's IR function,
+  which calls the defaults with its absent focus. Defaults are lowered
+  first in every module; one that calls a default not lowered yet passes
+  all parts without reading them, and a fixpoint over the default
+  functions' calls adds the parts they pass on.
+- **Closures of XQuery globals** (D135 (c)): `find_free_variables`
+  captures no global in XQuery (the unit's global table is read at call
+  time, D154); the dependency walk ignores a variable's edge to itself
+  (a read while it is computed is BEING_COMPUTED, XQDY0054). XPath and
+  XSLT still capture (function items outlive their evaluation there).
+- **fn:function-lookup** (D135 (d)): `sxml_evaluator_find_unit_function`
+  finds a top-level named IR function of the calling task's unit (XQuery
+  declared functions, XSLT stylesheet functions) before the host's
+  table.
+- **"##any"** (D135 (e)): `has_any_default_element_namespace` in the
+  XPath static context; prefix 0 is bound to no namespace (constructed
+  elements); an unprefixed name test or element test is `*:local`, an
+  unprefixed type name is in xs (`sxml_xpath_resolved_name`'s
+  `is_any_namespace`).
+- **QT4 driver** (D135 (f)): assert-eq atomizes a single node.
+- **IR modules** (glossary `ir_module`; D148's Proposed): a unit keeps
+  one (source name, static base URI) per library module
+  (`sxml_ir_unit_add_module`); every IR function a library module's
+  lowering makes carries its `module_number`; the evaluator's static base
+  URI and error locations read the function's module.
+- **Trust** (F&O 4.0, 18.2): `trusted` (default false) marks the loaded
+  unit untrusted (`sxml_ir_unit_set_untrusted`), as is every unit an
+  untrusted call loads; fn:doc, unparsed-text(-lines), unparsed-binary,
+  collection and uri-collection raise FODC0016 when the running unit is
+  untrusted (`sxml_dynamic_context_check_trust`).
+- **A library module's context value type** (D148): without a main
+  module declaration, the first library module's type is the context
+  global's (fn:load-xquery-module checks it, FOQM0005).
+- **Function annotations**: IR functions carry their %annotations,
+  copied into the unit (`sxml_ir_unit_add_function_annotations`,
+  `sxml_xpath_lowerer_read_annotations`) for inline and declared
+  functions; partial applications keep them (static and fn:partial-apply).
+- Also: keyword placeholders take their written order (FunctionCall-416);
+  an xs:untypedAtomic array lookup key is cast to xs:integer (4.7.3).
+- **Not done**: hintless imports of a namespace split over modules (needs
+  a resolver contract in `include/sxml/xquery.h`, kept as D148 says); a
+  fixed default's one value for every call (function-decl-40-060); the
+  focus of fn:function-lookup (XP and XQ, 47 cases); static-base-uri#0
+  made in a library module and called elsewhere (xqhof16, 18); "fixed"
+  default element namespaces; both main and library context value types
+  at once (contextDecl-050, -051).
+- **Measured** (release, all 737 sets of each spec; before at 01cf728,
+  after at 5611dd2): XQ40 39,928 to 40,025 passed, in scope 96.9 % to
+  97.2 %, XQ-only 9,325 to 9,404 of 9,523 (97.9 % to 98.8 %), failed 518
+  to 422, "error" outcomes 1 to 0 (the Phase 3 gate's last open count);
+  none lost; prod-FunctionDecl 211 to 227, fn-function-annotations 14 to
+  23, fn-load-xquery-module 103 to 111, prod-DefaultNamespaceDecl 71 to
+  78, app-Demos 4 to 11; method-* 97.5 %. XP40 30,630 to 30,646, in scope
+  97.0 % to 97.1 %, 0 errors, none lost. Slice 198/198.
 
 ### D159. XSLT conformance sweep 1 (packet 4.17)
 Recorded 2026-10-19, after D153, D155, D157.
@@ -5376,16 +5444,6 @@ Reserved here; the record is completed when the packet is ticked.
   (the initial template's): an additive STATIC_CALL field with the call's
   static namespaces, or resolving literal arguments while lowering.
 
-- **A library module's static context at run time** (packet 3.11, D148;
-  for the owners of `src/ir_internal.h` and the evaluator): the unit has
-  one static base URI and one source name, the main module's, so nodes a
-  library module constructs, fn:static-base-uri in it, and the module and
-  line of an error it raises name the main module (cbcl-module-002,
-  base-URI-modules-001, xqhof16, xqhof18, try-catch-map3). Proposed: an
-  IR function's optional module index into a unit table of (source name,
-  static base URI), set by lowering for library functions and read by
-  the evaluator where it reads the unit's.
-
 - **Hintless imports of a namespace with several modules** (packet 3.11,
   D148; for the owner of `include/sxml/xquery.h` and the QT4 driver): one
   request with an empty uri_reference gets one module, so a namespace
@@ -5412,34 +5470,14 @@ Reserved here; the record is completed when the packet is ticked.
   package yet. Choose: confirm, or split the XQuery grammar into an
   optional module (then compileQuery() and a lower CLI budget follow).
 
-- **Prolog follow-ups** (packet 3.10, D135). (a) For the owner of the
-  evaluator's SORT (`src/evaluator.c`): "empty greatest" with
-  "descending" puts empty keys last (and "empty least" first); XQuery
-  4.0, 4.13.9 orders empty as least/greatest before the direction
-  applies (QT4 emptyorderdecl-10, -11, -18, -19). (b) Parameter defaults
-  that read the focus (`$x := string()`) must see the caller's focus, and
-  fixed defaults (`$x := <a/>`) are one value for every call (5.18.3;
-  function-decl-40-040 to -060): proposed, lower a default at the call
-  site when it reads the focus, and a fixed one as a hidden global.
-  (c) A global whose own closure reads it (`declare variable $f := fn {
-  ... $f(...) }`) fails with XQDY0054, because closures capture globals
-  when made (D55); reading a global from an IR function of the same unit
-  at call time would fix it (vardeclerr-3a, K-InternalVariablesWith-50,
-  -52). Since D154 the evaluator reads any unit's global table while its
-  evaluation runs, so for the owner of `src/xpath_lower.c` the change is
-  to treat a GLOBAL_VARIABLE atom as a constant in `find_free_variables`
-  (no capture); the price is that such a closure called after its
-  evaluation ended reads no global (INVALID_ARGUMENT), which a QT4 run
-  should confirm no case does. (g) For the owner of `src/xpath_lower.c`:
-  a keyword argument after an omitted parameter of a declared function
-  whose default is an expression is SXML_STATUS_UNSUPPORTED_FEATURE
-  (modules-40, XQ40's last "error" outcome); proposed, one IR function
-  per such default (no parameters, as defaults see none) that the call
-  site calls for each omitted parameter. (d) `fn:function-lookup` does not see declared functions (the
-  dynamic context's table is the processor's). (e) `declare default
-  element namespace "##any"` (5.14.1) is not supported. (f) For the QT4
-  driver (3.13): `assert-eq` should atomize the result (default_namespace-023,
-  -024, namespaceDecl-26).
+- **Prolog follow-ups** (packet 3.10, D135; D158 did (b) to (g) but
+  these). (b') A fixed default (`$x := <a/>`) is one value for every
+  call (5.18.3, function-decl-40-060): each call computes it; proposed,
+  for the owner of the evaluator, a default function without focus parts
+  whose value the evaluation memo keeps. (h) fn:function-lookup does not
+  give a function it finds the focus of its call (XP40 and XQ40, 47
+  cases: fn-function-lookup, contextDecl-055, xqhof19); it would need
+  the call's focus as hidden arguments that may be absent.
 
 - **The WebAssembly size budget** (packet 2.18, D138; for the owner):
   Phase 2 grew the stripped `sxml` CLI module from 1.21 MB to 1.82 MB
