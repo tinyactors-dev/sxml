@@ -90,6 +90,12 @@ typedef enum sxml_parameter_default {
        expression started with, which lowering reads from the embedding's
        focus (SXML_XPATH_LOWERING_FOCUS_PART_CURRENT_ITEM, D149). */
     SXML_PARAMETER_DEFAULT_CURRENT_ITEM,
+    /* The value an enclosing XSLT instruction sets for a context function
+       (glossary `context_function`, D153): the caller passes the variable
+       Q{http://www.w3.org/1999/XSL/Transform}N, N the parameter's name,
+       that is lexically in scope, or the empty sequence when none is (a
+       function item of the shorter arity captures it when it is made). */
+    SXML_PARAMETER_DEFAULT_CONTEXT_VARIABLE,
 } sxml_parameter_default;
 
 /*
