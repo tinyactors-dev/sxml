@@ -1093,6 +1093,12 @@ static sxml_status sxml_regex_compiler_parse_group_part(
         return SXML_REGEX_INVALID(compiler,
                                   "\"[\" must be escaped in a character class");
     }
+    if (compiler->flags.is_xsd_pattern && codepoint == '-' &&
+        sxml_regex_compiler_is_at_range_separator(compiler)) {
+        /* XSD 1.1 Part 2, G.4.2.2: an unescaped "-" is a character only
+           at the start or end of a group, never a range's start. */
+        return SXML_REGEX_INVALID(compiler, "a range cannot start with \"-\"");
+    }
     if (codepoint == '\\') {
         uint32_t escaped_codepoint = 0;
         if (!sxml_regex_compiler_next_raw(compiler, &escaped_codepoint)) {

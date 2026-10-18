@@ -878,7 +878,7 @@ static void test_xsd_patterns_match_the_whole_value(sxml_test_state *state) {
 /* What the XSD grammar lacks is FORX0002 in the dialect. */
 static void test_xsd_patterns_reject_fo_extensions(sxml_test_state *state) {
     static const char *const invalid_patterns[] = {
-        "(a)\\1", "a*?", "a+?", "a??", "a{2}?", "(?:a)", "(?=a)",
+        "[--z]", "(a)\\1", "a*?", "a+?", "a??", "a{2}?", "(?:a)", "(?=a)",
         "(?<n>a)", "(*positive_lookahead:a)", "\\b", "\\B", "\\k<n>",
     };
     for (size_t pattern_index = 0;
