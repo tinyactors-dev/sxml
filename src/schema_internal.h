@@ -1865,7 +1865,9 @@ SXML_NODISCARD sxml_status sxml_schema_check_derivation(
 /*
  * Compiles the particle of complex_type (element-only or mixed content,
  * properties written) into a content model and writes it to the type's
- * content_model, checking cos-nonambig and the state limit
+ * content_model, checking cos-nonambig, cos-element-consistent,
+ * cos-all-limited and, for a restriction whose base's content model is
+ * compiled, cos-content-act-restrict, and the state limit
  * (maximum_content_model_state_count; SXML_STATUS_LIMIT_EXCEEDED).
  * Called by COMPLEX_TYPES. src/schema_content_model.c (5.6).
  */
@@ -1960,6 +1962,57 @@ typedef struct sxml_schema_wildcard_test {
  */
 bool sxml_schema_wildcard_allows_name(const sxml_schema_components *components,
                                       const sxml_schema_wildcard_test *test);
+
+/* A content model to print in the text form (see the top of this
+   header). */
+typedef struct sxml_schema_content_model_text_request {
+    const sxml_schema_content_model *content_model;
+    sxml_memory_view output;
+} sxml_schema_content_model_text_request;
+
+/*
+ * Writes the text form of a content model ("content-model of type 57
+ * states 4 counters 1" and its lines, each ending in a newline) into
+ * request->output and the bytes it needs to *byte_count, as
+ * sxml_schema_components_write_text does (CAPACITY_EXCEEDED leaves a
+ * prefix). Names print with the first prefix the components' namespace
+ * bindings give their namespace. src/schema_content_model.c (5.6).
+ */
+SXML_NODISCARD sxml_status sxml_schema_content_model_write_text(
+    const sxml_schema_components *components,
+    const sxml_schema_content_model_text_request *request, size_t *byte_count);
+
+/* A growable array of entries of one size in allocator memory: the work
+   lists and temporary tables of the compile stages (glossary
+   scratch_array). All zero but entry_byte_count is empty. */
+typedef struct sxml_schema_scratch_array {
+    uint8_t *bytes;
+    size_t entry_byte_count;
+    size_t entry_count;
+    size_t entry_capacity;
+} sxml_schema_scratch_array;
+
+/* The entry at index (below entry_count; NULL for an array without
+   entries); valid until the next append. */
+static inline void *sxml_schema_scratch_array_at(const sxml_schema_scratch_array *array,
+                                                 size_t index) {
+    if (array->bytes == NULL) {
+        return NULL;
+    }
+    return array->bytes + index * array->entry_byte_count;
+}
+
+/* Copies entry (entry_byte_count bytes) to the end, doubling the
+   capacity through allocator when full. Returns the allocator's
+   failures and SXML_STATUS_LIMIT_EXCEEDED on size overflow. Defined in
+   src/schema_content_model.c (5.6). */
+SXML_NODISCARD sxml_status sxml_schema_scratch_array_append(
+    sxml_allocator allocator, sxml_schema_scratch_array *array, const void *entry);
+
+/* Releases the entries (the array is then empty); accepts an empty
+   array. */
+void sxml_schema_scratch_array_release(sxml_allocator allocator,
+                                       sxml_schema_scratch_array *array);
 
 /* ------------------------------------------------- Validator seams (5.7) */
 
