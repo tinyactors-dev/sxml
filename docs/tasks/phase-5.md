@@ -415,6 +415,12 @@ element-available for schema types, the system property is-schema-aware.
 Done when the in-scope XSLT 4.0 cases with feature schema_aware (about
 690, mostly attr- and decl- sets) pass ≥ 60% and the XT40 count has not
 dropped.
+**Done** 2026-10-19 (D179): `src/xslt_schema.c` (xsl:import-schema),
+the validate row with XSLT's rules for every validation and type
+attribute, default-validation, input-type-annotations, typed modes,
+fn:document's xsd-validation, is-schema-aware, the driver's schema
+environments. 615 of the 679 in-scope schema_aware cases (90.6 %); XT40
+8,642 passed (was 7,990).
 
 ### 5.13 Conformance sweeps (implementation, repeatable)
 After 5.7. As 2.19 and 4.17, over the XSD contributor groups and then the

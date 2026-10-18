@@ -4,6 +4,23 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 5.12 done (D179): schema-aware XSLT. xsl:import-schema (inline
+  xs:schema, schema-location, namespace; XTSE0215, XTSE0220) compiles in
+  `src/xslt_schema.c` into one kept schema after the host's in-scope
+  schemas (xslt.h now reads them); the validation and type attributes of
+  xsl:element, xsl:attribute, xsl:copy, xsl:copy-of, xsl:document,
+  xsl:result-document, xsl:source-document and literal result elements go
+  through D174's validate row with XSLT's error codes; default-validation,
+  temporary trees as preserve, input-type-annotations="strip" (the
+  whitespace-stripping copy), typed modes (XTTE3100), fn:document's
+  xsd-validation, is-schema-aware. The XSLT driver validates sources and
+  counts the "schema-aware" area. Schema-aware XT40 621/971; 615 of the
+  679 schema_aware cases without another non-goal (90.6 %). XT40 8,642
+  passed (was 7,990), 6 errors (invalid sources and XMLSchema.xsd, D179);
+  XP40 30,924, XQ40 41,261, 0 errors; slices 198 and 147. Not done:
+  ID/IDREF only for documents, xs:untypedAtomic types, xml:lang
+  declarations, schema roles.
+
 - 5.13 sweep 1 done (D178, amends D174): the QT4 driver's D174 rules
   (limits as "fail", UNSUPPORTED_FEATURE as "not run") are gone; their two
   cases are fixed at the cause: a group by keeps only the variables read

@@ -6876,10 +6876,117 @@ documents, a simple base for a complex type).
   (was 7,990); QT4 slice 198.
 
 ### D179. Schema-aware XSLT (packet 5.12)
-Reserved 2026-10-18; the record follows when the packet lands.
+Recorded 2026-10-18. Replaces D162's two XSLT rejection places
+(`reject_schema_awareness`'s XTSE1660 and XTSE1650 in `src/xslt_read.c`,
+D163, D169) with D174's mechanisms; golden `src/xquery_static.c` (import
+schema), `tests/xquery_schema_test.c`.
+- **xsl:import-schema** (3.13) is a new module, `src/xslt_schema.c`
+  (glossary schema_import), run after reading: the declarations of the
+  sealed AST become the documents of one `sxml_schema_create` (the
+  synthetic schema document): an inline xs:schema as a NODE document of
+  the module's tree (base URI the declaration's), a schema-location as a
+  RESOLVED document resolved against the declaration's static base URI
+  with its namespace checked, a namespace alone as a RESOLVED document
+  by namespace. Of one namespace only the declarations of the highest
+  import precedence count; a namespace a host schema defines (or XSD's)
+  is taken from there; a location or namespace the resolver does not
+  deliver is dropped (3.13: not an error by itself), probed with
+  `sxml_schema_scope_probe_document`, now shared with XQuery's import
+  schema (one probe, `src/schema_scope.c`). The processor keeps the
+  schema (`sxml_processor_keep_schema`, D174). XTSE0215 (inline schema
+  with a schema-location or another namespace), XTSE0220 (any schema
+  error, its constraint and description in the message). Schema roles
+  (4.0) are not read: one unnamed role.
+- **In-scope schemas**: the host's (`static_context.in_scope_schemas` of
+  the stylesheet configuration, now read, `xslt.h` comment, additive),
+  then the imported schema; neither gives the processor's built-in
+  schema. They live in the AST (`sxml_xslt_ast_set_in_scope_schemas`),
+  the lowering's base static context carries them into every module's
+  XPath static context and IR module and the unit (D174's one field), so
+  `as` types, schema-element(), casts, constructor functions and
+  type-available see them. The host's schemas are what makes a source
+  the host validated and the stylesheet's types the same types (schema
+  types are never interned).
+- **Validation is D174's validate row with XSLT's rules**: mode
+  `SXML_SCHEMA_VALIDATE_MODE_XSLT_RULES` (+4) and the descriptor
+  `validate-items` (item()*): every item validated (documents, elements,
+  attributes) or kept; XTTE1550, XTTE1512, XTTE1510, XTTE1515, XTTE1540,
+  XTTE1555 (a document's cvc-id), XTTE1535. One lowering helper
+  (`sxml_xslt_lowering_bind_validation`, `src/xslt_lower_construct.c`)
+  reads [xsl:]validation, [xsl:]type or the default-validation in force
+  and wraps the constructed nodes of xsl:element, xsl:attribute,
+  xsl:copy, xsl:copy-of, xsl:document, xsl:result-document (the result
+  tree's document node), xsl:source-document and literal result
+  elements; preserve is the PRESERVES_TYPES construction flag (XQuery's
+  construction mode), strip the default; XTSE1505 in the reader,
+  XTSE1520 and XTSE1530 at lowering; an unprefixed [xsl:]type is in the
+  default namespace for elements and types. Temporary trees (9.4) are
+  built as preserve (25.2). The evaluator delivers a constructed node
+  into a receiver that preserves types also when the node itself strips
+  (the same tree either way), so variables keep the D166 streaming.
+- **input-type-annotations="strip"** (4.1) is the document preparation
+  of whitespace stripping (`src/xslt_whitespace.c`): the same copy,
+  without annotations, for the global context item and documents fn:doc
+  and document() load.
+- **Typed modes** (6.9.4): a mode with typed="yes", "strict" or "lax"
+  (or "no") tries one rule before all its template rules, of the
+  highest precedence and priority, made from two XPath snippets: it
+  matches an item that is not an XNode or an untyped (typed) element or
+  attribute, and its template raises XTTE3100. Name tests are not read as
+  schema-element() (strict, lax; XTSE3105 not raised).
+- **fn:document**'s xsd-validation option (4.0) validates each document
+  with fn:parse-xml's `sxml_schema_scope_validate_document` (D174).
+- **is-schema-aware** is true; default-validation strict or lax is
+  XTSE0020 (only preserve and strip are allowed). A schema error whose
+  description already starts with its constraint name is raised without
+  naming it twice (`sxml_schema_scope_raise`).
+- **XSLT driver**: schema_aware is supported but stays a non-goal for
+  scope (outside the D95 denominator, as QT4's schema features, D174);
+  a test case requiring it, or whose environment has a schema or a
+  validated source, is counted in the area "schema-aware". The
+  environment's schemas compile into one schema that validates sources
+  (strict, lax) and is the stylesheet's host schema; schema documents
+  are served by suite file and namespace (`resource_table.h`). Assertions
+  see the namespaces declared inside `<result>` too (an all-of may
+  declare a prefix).
+- **Not done**: typed modes' schema-element() reading of name tests
+  (XTSE3105) and typed="~ItemType"; ID/IDREF
+  is checked when an element (not a document) is validated, where XSLT
+  leaves it to documents (the validator has no switch for it; validation
+  1601, accumulator-073); xs:untypedAtomic as [xsl:]type; declarations
+  of xml:lang and xml:space (no xml.xsd built in); xsl:copy of an element
+  under preserve keeps its annotation instead of xs:anyType; the fn
+  namespace schema (json-to-xml typed, D174); XTSE0265; schema roles.
+- **Measured** (release, HEAD 8d6cad4 plus this packet): the schema-aware
+  XT40 area 621 of 971 (64.0 %; feature schema_aware, a schema or a
+  validated source); of the 946 that require schema_aware, the 679 that
+  need no other non-goal (streaming 247, dynamic_evaluation 15, XSD_1.1,
+  dtd, XML_1.1) pass 615 (90.6 %; the proposed gate is 60 %). XT40 8,642
+  passed (was 7,990; gate rate 8,027 of 8,728 in scope, was 7,990), 560
+  failed, no test case that passed before fails; XSLT slice 147 of 154;
+  XP40 30,924 and XQ40 41,261 passed, 0 errors; slice 198. Six test cases
+  that asked for schema_aware to be absent no longer run.
+- **Six XT40 errors**, all in the schema-aware area and all a source the
+  environment asks to validate that does not validate, reported rather
+  than reclassified: as-3301, as-3401, match-208, match-209 give xs:ENTITY
+  attributes the names of parsed entities (XSD 1.1 Part 2, 3.4.11: an
+  ENTITY names an unparsed entity, so the sources are invalid);
+  catalog-005b and catalog-009 compile XMLSchema.xsd, the schema for
+  schemas, with the catalog's schema, which sxml rejects as
+  sch-props-correct.2 against the built-in components (for 5.13's XSD
+  sweep: whether a schema document for the XSD namespace may restate
+  them).
 
 ## Proposed
 
+- **xslt.h reads the host's in-scope schemas** (packet 5.12, D179; for
+  the owner to confirm): the comment of
+  `sxml_xslt_stylesheet_configuration.static_context` now lists
+  `in_scope_schemas` among the fields read (in every module, before the
+  stylesheet's own imports; an xsl:import-schema of a namespace they
+  define takes it from there). A documentation change of a stable header
+  for D174's existing field, needed so that a host-validated source and
+  the stylesheet share one schema's types.
 - **The CLI's WebAssembly budget after sxml validate** (packet 5.10,
   D176; for the owner, with the 4.15 item below): linking schema
   compilation and validation makes the stripped `sxml` CLI module
