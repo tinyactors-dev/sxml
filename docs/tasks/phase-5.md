@@ -246,6 +246,10 @@ MS-ComplexType, MS-Wildcards, Sun MGroup and CType, Saxon All and Open,
 IBM allGroup and openContent ≥ 80% once 5.7 runs them; unit tests of the
 automaton first. Golden: `src/regex.c` (compiled program, explicit
 stacks), `src/types.c`.
+**Done** 2026-10-18 (D172): COMPLEX_TYPES and content models with unit
+tests; the groups' schema tests pass 96 % or more with 5.4's reader
+(MS-Particles 851 of 853); their instance tests are measured once 5.7
+validates.
 
 ### 5.7 Validation and the post-schema-validation infoset (implementation)
 After 5.4, 5.5, 5.6. Owns `src/schema_validate.c`, new

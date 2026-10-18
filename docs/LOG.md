@@ -4,6 +4,25 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 5.6 done (D172): complex types and content models. COMPLEX_TYPES
+  (`src/schema_complex_type.c`) derives content types, attribute uses and
+  wildcards (union, intersection, cyclic attribute groups) and assertions
+  base first, checks cos-ct-extends, derivation-ok-restriction,
+  ct-props-correct, p-props-correct and e-props-correct 2, 4, 6, 7,
+  registers each type and answers derivation questions. Content models
+  (`src/schema_content_model.c`): Glushkov positions plus subset
+  construction, small repetitions expanded, large ones counted (counter
+  ambiguity expanded and recompiled), UPA as determinism, all groups as
+  counted transitions, open content and substitution groups in the
+  matcher, restriction of content as a walk over configuration pairs, a
+  text form. Unit tests: D167's three schemas and own cases. Schema tests
+  of its groups with 5.4's reader (instance tests wait for 5.7): MS
+  Particles 851/853, ModelGroups 377/391, Group 215/218, ComplexType
+  546/550, Wildcards 313/315, Sun MGroup 40/40, CType 31/31, Saxon All
+  62/62, Open 49/51, IBM allGroup 9/9, openContent 24/24 (the rest
+  mostly the reader's). Proposed: a simple base for complex types in the
+  registry.
+
 - 4.18 done (D169): Phase 4 gate review (D11). **XSLT works**: XT40 in
   scope 7,990 of 8,728, **91.5 %** (gate 70 %), every core set 88.5 % or
   more (gate 80 %); XP40 30,647 (97.1 %) and XQ40 40,034 (97.2 %), no
