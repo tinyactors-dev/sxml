@@ -4,6 +4,23 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 4.17 sweep 1 done (D159): XSLT conformance. Numbering alphabets and
+  symbol sequences (circled, parenthesized, full-stop digits, dingbats,
+  ideographs, historic numbers, Greek letters) in the shared picture
+  engine, for fn:format-integer and xsl:number; key and accumulator
+  builds share one kept-build step (a self-dependent key is XTDE0640, it
+  ran out of memory); one guarded-match helper replaces four copies and
+  lets circularities through (6.5); a focus-independent predicate is
+  computed once (`$s[$k]` was quadratic); xsl:analyze-string takes its
+  gaps from the regex search (internal row analyze-segments) instead of
+  fn:substring; fn:map-for-key; function-available sees stylesheet
+  functions; one snippet-text module for keys and accumulators. Release,
+  whole XT40: in scope 7,585 to 7,737 of 8,728 (86.9 % to 88.6 %), errors
+  7 to 3; number 57.5 to 97.4 %, result-document 94.0 to 95.3 %. XP40
+  30,646 and XQ40 40,025 passed (unchanged), qt4 slice 198. Proposed:
+  empty parentless text nodes (value-of, seqtor), the static context of a
+  call at run time (base URIs, names given as strings).
+
 - 3.15 claimed (D161): the Phase 3 gate review (D11). Gate numbers in
   `docs/CONFORMANCE.md`, review fixes in small hunks of Phase 3 files,
   the ledgers, `CHANGELOG.md`, the gate boxes of `docs/tasks/phase-3.md`.

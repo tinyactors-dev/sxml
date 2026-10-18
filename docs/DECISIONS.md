@@ -5410,8 +5410,61 @@ D154's "Not done" but where said. No public header changed; no IR kind.
   97.0 % to 97.1 %, 0 errors, none lost. Slice 198/198.
 
 ### D159. XSLT conformance sweep 1 (packet 4.17)
-Recorded 2026-10-19, after D153, D155, D157.
-Reserved here; the record is completed when the packet is ticked.
+Recorded 2026-10-19, after D119, D149, D153, D155, D157.
+- **Numbering sequences** in the shared picture engine (`src/format.c`,
+  so fn:format-integer and xsl:number both have them): a token of one
+  codepoint names an alphabet (glossary: a, A, Greek alpha with final
+  sigma, Alpha without U+03A2), counted as before by bijective
+  numeration, or a symbol sequence (glossary): one symbol per number over
+  runs of codepoints, decimal outside them: circled digits 0 to 50,
+  parenthesized and full-stop digits to 20 (DIGIT ZERO FULL STOP for 0),
+  digit-comma 0 to 9, dingbat and double circled digits, circled and
+  parenthesized ideographs, Aegean, Coptic epact, Rumi, Brahmi, Sinhala
+  archaic, counting rod and Mende Kikakui numbers. The kinds
+  LOWER_/UPPER_ALPHABETIC became ALPHABETIC and SYMBOLS with a
+  `sequence_index`. The XSLT driver declares the 19 combinations.
+- **Kept builds** (`src/function_library_xslt.c`): key-index and
+  accumulator-values share one step (`step_kept_build`): the memo entry
+  is the empty sequence while the build runs, so a key whose pattern or
+  use calls fn:key for itself raises XTDE0640 (it ran out of memory),
+  as accumulators raise XTDE3400.
+- **Guarded matches**: the four copies of "an error while matching is no
+  match" (keys, accumulators, group-starting-with/ending-with, xsl:number
+  count/from) are `sxml_xslt_lowering_make_guarded_match`, whose clauses
+  raise XTDE0640 and XTDE3400 again (6.5: circularity overrides).
+- **Filters** (`src/evaluator.c`): a FILTER whose focus slots are all
+  unused (the predicate does not depend on the focus) computes the
+  predicate once and, for a single item or (), applies it as a constant
+  predicate: `$s[$k]` takes one item instead of testing every position
+  (it was quadratic: 20,000 accesses took 26 s, now 0.02 s).
+- **xsl:analyze-string** takes its segments from the internal row
+  analyze-segments (`src/xslt_number_internal.h`, defined in
+  `src/function_library_regex.c`: fn:matching-segments with the gaps as
+  strings) instead of fn:substring per gap, which is linear per call on
+  non-ASCII text (result-document-1501/1502 ran out of steps).
+- **fn:map-for-key** (20.2.3) as two stylesheet functions over the key
+  index (XTDE1262 for composite or collated keys, XTDE1270);
+  function-available sees the running unit's named functions and the fn
+  functions lowering implements (key, map-for-key, copy-of, snapshot,
+  accumulator-before/-after).
+- The snippet-text helpers of `src/xslt_key.c` and
+  `src/xslt_accumulator.c` are one module, `src/xslt_snippet_text.c`.
+- **Measured** (release, whole XT40): in scope 7,585 (b67c93f) to 7,737
+  of 8,728 with this packet alone (86.9 % to 88.6 %), and 7,879 (90.3 %)
+  at 4cb75fd with packet 4.16's packages; errors 7 to 3; number 57.5 to
+  97.4 %, result-document 94.0 to 95.3 %, map-for-key 0 to 6 of 8, error
+  447 to 449. XP40 30,646 and XQ40 40,025 passed, unchanged; slice 198.
+- **Not done** (causes found): value-of (53.3 %) needs zero-length text
+  nodes (Proposed) and the cdata attribute; the "~T" type patterns of
+  priority and type-alias (XTSE0340) are not in the 13 October 2026
+  draft, which has atomic(), so they were left; the remaining errors are
+  memory (json-to-xml-013, array-022: about 9 KB per small tree, each
+  element constructor builds a tree of its own, and about 1.5 KB per JSON
+  object) and xsl:function cache="yes" (function-1031); static-base-uri,
+  base URIs of constructed nodes and names given as strings still read the
+  unit's static context, not the expression's (Proposed); call-template-ext
+  (extension instructions as template calls, 10.1.3) needs the reader to
+  keep extension attributes as expressions; host collation bindings.
 
 ### D160. Packages (packet 4.16)
 Recorded 2026-10-19, after D112, D117, D139, D148, D157. `src/xslt_package.c`
@@ -5526,6 +5579,28 @@ year one" list of PLAN.md.
   revisited against the wasm budget then; a feature may be a build option.
 
 ## Proposed
+
+- **Empty parentless text nodes** (packet 4.17, D159; for the owner of
+  `include/sxml/tree.h`, frozen, D99): the builder contract says "empty
+  text makes no node", so `text {""}` and an xsl:value-of of "" give no
+  node (D110's deviation). XQuery 4.0, 4.12.3.4 and XSLT 4.0, 5.7.2 make
+  a zero-length text node there; it separates atomic values in a
+  sequence (no space between them) and counts. Affected: QT4
+  Constr-text-count-1, XT40 value-of-001/002, text-001/002, seqtor-008
+  to -026, -030, -032 (about 25 cases). Proposed: a parentless text event
+  with empty text makes an empty text node; inside a parent it still
+  makes none.
+
+- **The static context of a call at run time** (packet 4.17, D159; for
+  the owners of `src/ir_internal.h`, `src/xpath_lower.c` and the
+  evaluator): natives read the unit's static base URI and namespaces, so
+  fn:static-base-uri, fn:resolve-uri#1 and the base URI of constructed
+  nodes ignore xml:base on stylesheet elements (base-uri, resolve-uri:
+  about 25 cases), and EQNames given as strings ignore the expression's
+  namespaces (D157, accepted item of 4.17). Proposed, one mechanism: the
+  unit keeps a table of static contexts (base URI, namespaces, default
+  collation); a STATIC_CALL of a context-dependent row and a node
+  constructor name an entry; the evaluator gives it to the call.
 
 - **Matching package versions for host resolvers** (packet 4.16, D160;
   for the owner of `include/sxml/xslt.h`): a resolver that serves
