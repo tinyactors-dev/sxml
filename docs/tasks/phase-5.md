@@ -329,6 +329,12 @@ validation; casting to a type with assertions in a schema-aware
 expression evaluates them as a second step of the cast (5.11), never
 from inside `src/cast.c`. Done when Saxon Assert and CTA, IBM assert,
 assertion, CTA, typeAlternatives, typeAlternativesMixed ≥ 80%.
+**Done** 2026-10-18 (D175): tests compiled with `xpath.h` in XPath
+Valid's static context; assertions on an assertion copy of the recorded
+subtree, assertion facets with `$value` (list items, union members),
+simpleContent assertion facets on the simple content type, type
+alternatives with inherited attributes, type table equivalence. The six
+test sets 448 of 448 (100 %); XSD in scope 41,037 of 41,518.
 
 ### 5.10 `sxml validate` (implementation)
 After 5.7. Owns new `apps/sxml/command_validate.c`, `apps/sxml/program.c`

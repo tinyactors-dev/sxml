@@ -6614,7 +6614,70 @@ of fn:parse-xml, the driver's non-goal features); golden
   fn:element-to-map layouts by type annotation.
 
 ### D175. Assertions and type alternatives (packet 5.9)
-Reserved 2026-10-18; the record follows when the packet lands.
+Recorded 2026-10-18. Fills ASSERTIONS and the seams of D167 for XSD 1.1
+assertions and conditional type assignment (`src/schema_assertion.c`);
+golden `src/schema_simple_type.c`.
+- **One engine.** Tests are compiled with `xpath.h` (the XPath 4.0 front
+  end reads XSD 1.1's XPath 2.0, a superset 3.13.6.2 allows) in the
+  static context of XPath Valid: the record's namespace bindings (prefix 0
+  and xml left out), its {default namespace} (xpathDefaultNamespace) as
+  the default element namespace, its base URI when absolute, the
+  codepoint collation; assertions declare `$value` as
+  xs:anyAtomicType*, type alternatives nothing. A static or type error is
+  as-props-correct.2 or ta-props-correct.2. Evaluation gives no available
+  documents and collections and the empty default collection (a resolver
+  of the file, 3.13.4.2); a dynamic or type error makes a test false; the
+  result is taken as fn:boolean takes it
+  (`sxml_evaluator_compute_effective_boolean_value`).
+- **Assertions of complex types** run when the outermost recorded element
+  ends, on an assertion copy (glossary assertion_copy): the element's
+  recorded subtree copied into a tree of its own whose root is
+  xs:anyType (3.13.4.1 clauses 1.2 and 1.3: partially validated, nothing
+  outside it); `$value` is the typed value of simple content, else empty.
+  The recorder drops comments and processing instructions (clause 1.2,
+  the suite's comments-and-PIs-excluded). Each false one is
+  cvc-assertion.
+- **Assertion facets** (Part 2, 4.3.13.3) run with `$value` and no context
+  item, for the type's {assertions}, a list's items against their item
+  type, and a union value against its active basic member (glossary
+  basic_member): the member the cast engine chose, which knows no
+  assertions, and when its assertions fail each later basic member whose
+  cast of the text succeeds (union items of a list: the chosen member
+  only). One report, cvc-assertions-valid, and the value is invalid. The
+  xs:assertion facets of a simpleContent restriction are now the
+  synthesized simple content type's (`facet_assertions`, as read; 5.6
+  gave them to the complex type).
+- **Type alternatives** (3.12.4) are tested on the parentless element copy
+  of D173 with the element's inherited attributes added (glossary
+  inherited_attribute, 3.3.5.6): the validator keeps the inheritable
+  attributes of the open elements (a use's {inheritable}, else the
+  declaration's), with their values as they appeared, and the copy gets
+  the innermost of each name the element does not have. The copies have
+  the document's base URI. The first test that holds selects, else the
+  default alternative, else the declared type.
+- **Type tables compared** (3.8.6.3 equivalence, the minimum it requires:
+  same expression, namespace bindings, default namespace, base URI and
+  type, same default type), for cos-element-consistent and clause 4.6 of
+  3.4.6.4 (`sxml_schema_type_tables_are_equivalent`).
+- **Fixes in earlier stages**: an attribute reference without
+  inheritable= takes its declaration's {inheritable} (`has_inheritable`,
+  as read; RESOLVE took the declaration's when the reference said
+  false); a restricted attribute use keeps its {inheritable} (3.4.6.4
+  clause 5.4); xpathDefaultNamespace="##defaultNamespace" on xs:schema
+  is resolved on each host element (3.13.2).
+- **Not done**: namespace fixup of an inherited attribute whose prefix an
+  inner element rebinds; xml:base of ancestors in the copies' base URI;
+  value constraints and enumerations checked against assertions at
+  compile time; casting to a type with assertions in schema-aware
+  expressions (5.11).
+- **Measured** (release): Saxon Assert 101 of 101, CTA 113 of 113, IBM
+  assert 79 of 79, assertion 101 of 101, typeAlternatives 39 of 39,
+  typeAlternativesMixed 15 of 15 (before: 188 of 448). XSD in scope
+  41,037 of 41,518 (98.8 %, from 40,755); gate groups datatypes 100 %,
+  structures 95.6 %, XSD 1.1 95.6 % (from 83.3 %); slice 147 of 147. No
+  test set lost a test (ibm-vc, ibm-idIDREF, saxon-VC, saxon-Override and
+  saxon-Wild gained some). Only schema code changed: XP40, XQ40 and XT40
+  are not affected.
 
 ### D176. sxml validate (packet 5.10)
 Recorded 2026-10-18. The command of the 5.10 design

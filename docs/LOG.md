@@ -4,6 +4,23 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 5.9 done (D175): XSD 1.1 assertions and type alternatives
+  (`src/schema_assertion.c`). Tests compiled with `xpath.h` in XPath
+  Valid's static context and run by the one evaluator; complex type
+  assertions on an assertion copy of the recorded subtree (root
+  xs:anyType, no comments or processing instructions, `$value` of simple
+  content); assertion facets with `$value`, also for list items and a
+  union's active basic member; simpleContent assertion facets on the
+  simple content type; type alternatives with inherited attributes and
+  the document's base URI; type tables compared (cos-element-consistent,
+  restriction). Fixes: inheritable= of attribute references and
+  restrictions, ##defaultNamespace per host element. Saxon Assert and
+  CTA, IBM assert, assertion, typeAlternatives, typeAlternativesMixed 448
+  of 448 (from 188); XSD in scope 41,037 of 41,518 (from 40,755), XSD 1.1
+  gate group 95.6 %, slice 147/147. Not done: namespace fixup of
+  inherited attributes, xml:base in the copies, value constraints against
+  assertions at compile time.
+
 - 5.10 done (D176): `sxml validate --schema=SCHEMA [--schema=SCHEMA]...
   [--mode=strict|lax] [--format=text|json] FILE...` validates documents
   against the XSD 1.1 schema the SCHEMA documents form (includes and
