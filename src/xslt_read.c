@@ -3705,6 +3705,10 @@ typedef struct context_request {
     bool is_module_root;
     /* The outermost element of a simplified module (3.7). */
     bool is_simplified_root;
+    /* A child of xsl:override gets a static context of its own, even with
+       nothing changed, so lowering can tell where xsl:original refers to
+       (3.4.5.4; src/xslt_package.c). */
+    bool is_overriding_declaration;
 } context_request;
 
 /* True when the bindings of the scratch array equal those of context. */
@@ -3734,7 +3738,7 @@ static sxml_status compute_static_context(stylesheet_reader *reader, const conte
     const sxml_xslt_ast_static_context *parent =
         sxml_xslt_ast_get_static_context(reader->ast, request->parent_context);
     const bool has_parent = request->parent_context.value != 0;
-    bool is_changed = !has_parent;
+    bool is_changed = !has_parent || request->is_overriding_declaration;
     sxml_status status = SXML_STATUS_OK;
 
     /* Namespaces: the fixed bindings, else the native ones. */
@@ -5140,6 +5144,197 @@ static sxml_status read_module_reference(stylesheet_reader *reader, const module
     return status;
 }
 
+/* --------------------------------------------- Used packages (3.4.2) */
+
+/* The text of attribute kind on node (TEXT values), empty without. */
+static sxml_byte_view node_text_of(const stylesheet_reader *reader, sxml_xslt_ast_node_index node,
+                                   sxml_xslt_ast_attribute_kind kind) {
+    const sxml_xslt_ast_attribute *attribute = sxml_xslt_ast_get_attribute(
+        reader->ast,
+        sxml_xslt_ast_find_attribute(reader->ast,
+                                     (sxml_xslt_ast_attribute_query){.node = node, .kind = kind}));
+    if (attribute->value.kind != SXML_XSLT_AST_VALUE_KIND_TEXT) {
+        return (sxml_byte_view){.bytes = NULL, .byte_count = 0};
+    }
+    return trim_spaces(sxml_xslt_ast_get_text(reader->ast, attribute->value.payload.text));
+}
+
+/* The package a use-package asks for: its name and version range. */
+typedef struct package_identity {
+    sxml_byte_view package_name;
+    sxml_byte_view version_range;
+} package_identity;
+
+/* A used package already read with the same name and version range: its
+   document (3.4.2: a package used twice is read once per compilation);
+   {0} when none. */
+static sxml_item find_read_package(const stylesheet_reader *reader, package_identity identity) {
+    const sxml_xslt_ast *ast = reader->ast;
+    for (uint32_t module_index = 1; module_index < ast->module_count; module_index += 1) {
+        const sxml_xslt_ast_module *module =
+            sxml_xslt_ast_get_module(ast, (sxml_xslt_ast_module_index){.value = module_index});
+        if (module->relation != SXML_XSLT_AST_MODULE_RELATION_USED_PACKAGE ||
+            module->document.representation == 0) {
+            continue;
+        }
+        if (sxml_byte_view_equals(
+                node_text_of(reader, module->referencing_node, SXML_XSLT_AST_ATTRIBUTE_NAME),
+                identity.package_name) &&
+            sxml_byte_view_equals(node_text_of(reader, module->referencing_node,
+                                               SXML_XSLT_AST_ATTRIBUTE_PACKAGE_VERSION),
+                                  identity.version_range)) {
+            return module->document;
+        }
+    }
+    return (sxml_item){.representation = 0};
+}
+
+/* XTSE3005 (3.4.2): a package that depends on itself, directly or not: a
+   package of the same name on the path of modules being read. */
+static bool is_package_on_path(const stylesheet_reader *reader, sxml_xslt_ast_module_index module,
+                               sxml_byte_view package_name) {
+    const sxml_xslt_ast *ast = reader->ast;
+    uint32_t current = module.value;
+    while (current != 0) {
+        const sxml_xslt_ast_module *entry =
+            sxml_xslt_ast_get_module(ast, (sxml_xslt_ast_module_index){.value = current});
+        if (entry->relation != SXML_XSLT_AST_MODULE_RELATION_INCLUDED &&
+            sxml_xslt_ast_get_node(ast, entry->root)->kind == SXML_XSLT_AST_KIND_PACKAGE &&
+            sxml_byte_view_equals(node_text_of(reader, entry->root, SXML_XSLT_AST_ATTRIBUTE_NAME),
+                                  package_name)) {
+            return true;
+        }
+        current = entry->parent_module.value;
+    }
+    return false;
+}
+
+/*
+ * An xsl:use-package (3.4.2, 3.4.3): the package is asked from the
+ * resolver by name and version range (XSLT_PACKAGE, "*" without
+ * package-version) and its principal module read in place as a module of
+ * relation USED_PACKAGE, the top of a package of its own; a package read
+ * before with the same name and range is not asked again. The used
+ * package's name and version are checked by src/xslt_package.c.
+ * XTSE3008 for a use-package outside the package's top stylesheet level,
+ * XTSE3005 for a package that uses itself, XTSE3000 when the resolver
+ * delivers nothing.
+ */
+static sxml_status read_used_package(stylesheet_reader *reader, const module_reference *reference) {
+    const sxml_xslt_ast_module_index module = reference->parent->module;
+    const sxml_xslt_ast_module_relation level_relation =
+        sxml_xslt_ast_get_module(reader->ast,
+                                 (sxml_xslt_ast_module_index){
+                                     .value = level_of_module(reader, module.value)})
+            ->relation;
+    if (level_relation == SXML_XSLT_AST_MODULE_RELATION_IMPORTED) {
+        return raise_error(reader, (reader_error){.error_code = "XTSE3008",
+                                                  .description = "An xsl:use-package is in a "
+                                                                 "module the package imports "
+                                                                 "(XSLT 4.0, 3.4.2)",
+                                                  .module = module,
+                                                  .source_span = reference->facts->source_span});
+    }
+    const package_identity identity = {
+        .package_name = node_text_of(reader, reference->node, SXML_XSLT_AST_ATTRIBUTE_NAME),
+        .version_range =
+            node_text_of(reader, reference->node, SXML_XSLT_AST_ATTRIBUTE_PACKAGE_VERSION)};
+    if (is_package_on_path(reader, module, identity.package_name)) {
+        return raise_error(reader, (reader_error){.error_code = "XTSE3005",
+                                                  .description = "A package depends on itself "
+                                                                 "(XSLT 4.0, 3.4.2)",
+                                                  .module = module,
+                                                  .source_span = reference->facts->source_span});
+    }
+    const sxml_item read_before = find_read_package(reader, identity);
+    if (read_before.representation != 0) {
+        const sxml_xslt_ast_module *other = NULL;
+        for (uint32_t module_index = 1; module_index < reader->ast->module_count;
+             module_index += 1) {
+            const sxml_xslt_ast_module *entry = sxml_xslt_ast_get_module(
+                reader->ast, (sxml_xslt_ast_module_index){.value = module_index});
+            if (entry->document.representation == read_before.representation) {
+                other = entry;
+                break;
+            }
+        }
+        /* The URI is copied: the module array may move below. */
+        reader->context_text.count = 0;
+        sxml_status status = append_text_bytes(reader, &reader->context_text,
+                                               other == NULL ? identity.package_name
+                                                             : other->module_uri);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        return start_module(reader, &(module_start){.relation = reference->relation,
+                                                    .parent_module = module,
+                                                    .referencing_node = reference->node,
+                                                    .document = read_before,
+                                                    .module_uri = {.bytes = reader->context_text.elements,
+                                                                   .byte_count = reader->context_text.count}});
+    }
+    const sxml_resource_resolver resolver = reader->resource_resolver.operations == NULL
+                                                ? reader->processor->resource_resolver
+                                                : reader->resource_resolver;
+    sxml_resource resource;
+    memset(&resource, 0, sizeof(resource));
+    bool is_resolved = false;
+    sxml_status status = SXML_STATUS_OK;
+    if (resolver.operations != NULL && resolver.operations->resolve != NULL) {
+        status = resolver.operations->resolve(
+            resolver.state,
+            &(sxml_resource_request){
+                .resource_kind = SXML_RESOURCE_KIND_XSLT_PACKAGE,
+                .uri_reference = identity.package_name,
+                .absolute_uri = identity.package_name,
+                .processor = reader->processor,
+                .encoding_name = {.bytes = NULL, .byte_count = 0},
+                .is_default_collection = false,
+                .target_namespace_uri = {.bytes = NULL, .byte_count = 0},
+                .package_version = identity.version_range.byte_count == 0
+                                       ? SXML_BYTE_VIEW_FROM_LITERAL("*")
+                                       : identity.version_range},
+            &resource);
+        is_resolved = status == SXML_STATUS_OK;
+    }
+    sxml_item document = {.representation = 0};
+    bool has_document = false;
+    if (status == SXML_STATUS_OK && resource.resource_form == SXML_RESOURCE_FORM_BYTES) {
+        const sxml_byte_view module_uri =
+            resource.resource_uri.byte_count > 0 ? resource.resource_uri : identity.package_name;
+        status = parse_module(reader,
+                              (module_text){.content = resource.content,
+                                            .encoding_name = resource.encoding_name,
+                                            .module_uri = module_uri},
+                              &document);
+        has_document = status == SXML_STATUS_OK;
+        if (has_document) {
+            status = start_module(reader, &(module_start){.relation = reference->relation,
+                                                          .parent_module = module,
+                                                          .referencing_node = reference->node,
+                                                          .document = document,
+                                                          .module_uri = module_uri});
+        }
+    } else if (status == SXML_STATUS_OK && resource.resource_form != SXML_RESOURCE_FORM_NONE) {
+        status = SXML_STATUS_INVALID_ARGUMENT;
+    } else if (status == SXML_STATUS_OK) {
+        status = raise_error(reader, (reader_error){.error_code = "XTSE3000",
+                                                    .description = "No package of the name and "
+                                                                   "version an xsl:use-package "
+                                                                   "asks for is found (XSLT 4.0, "
+                                                                   "3.4.3)",
+                                                    .module = module,
+                                                    .source_span = reference->facts->source_span});
+    }
+    if (has_document) {
+        sxml_item_release(document);
+    }
+    if (is_resolved && resolver.operations->release != NULL) {
+        resolver.operations->release(resolver.state, &resource);
+    }
+    return status;
+}
+
 /* ------------------------------------------------------------ Text */
 
 static sxml_status append_text_piece(stylesheet_reader *reader, sxml_tree *tree, sxml_node_index text_node) {
@@ -5591,6 +5786,10 @@ static sxml_status read_element(stylesheet_reader *reader, element_input input) 
         return status;
     }
     const bool is_document_child = parent.child_context == SXML_CHILD_CONTEXT_DOCUMENT;
+    /* 3.4.5.3: the children of xsl:override are declarations of the using
+       package. */
+    const bool is_overriding_declaration =
+        parent.rule != NULL && parent.rule->kind == SXML_XSLT_AST_KIND_OVERRIDE;
     const bool is_module_root = is_document_child && is_xslt && facts.rule != NULL &&
                                 (facts.rule->element_flags & SXML_ELEMENT_FLAG_MODULE_ROOT) != 0;
     sxml_xslt_ast_static_context_index context = {.value = 0};
@@ -5601,7 +5800,8 @@ static sxml_status read_element(stylesheet_reader *reader, element_input input) 
                            .parent_context = parent.static_context,
                            .is_xslt_element = has_unprefixed_standard_attributes,
                            .is_module_root = is_module_root,
-                           .is_simplified_root = is_document_child && !is_module_root},
+                           .is_simplified_root = is_document_child && !is_module_root,
+                           .is_overriding_declaration = is_overriding_declaration},
         &context);
     if (status != SXML_STATUS_OK) {
         return status;
@@ -5702,7 +5902,8 @@ static sxml_status read_element(stylesheet_reader *reader, element_input input) 
         reader->ast,
         &(sxml_xslt_ast_node_request){
             .kind = kind,
-            .flags = parent.child_context == SXML_CHILD_CONTEXT_DECLARATIONS
+            .flags = parent.child_context == SXML_CHILD_CONTEXT_DECLARATIONS ||
+                             is_overriding_declaration
                          ? (uint32_t)SXML_XSLT_AST_NODE_FLAG_DECLARATION
                          : 0U,
             .module = parent.module,
@@ -5824,6 +6025,14 @@ static sxml_status read_element(stylesheet_reader *reader, element_input input) 
                                             .relation = kind == SXML_XSLT_AST_KIND_INCLUDE
                                                             ? SXML_XSLT_AST_MODULE_RELATION_INCLUDED
                                                             : SXML_XSLT_AST_MODULE_RELATION_IMPORTED});
+        }
+        if (status == SXML_STATUS_OK && kind == SXML_XSLT_AST_KIND_USE_PACKAGE) {
+            status = read_used_package(
+                reader, &(module_reference){.parent = &parent,
+                                            .facts = &facts,
+                                            .node = node,
+                                            .static_context = context,
+                                            .relation = SXML_XSLT_AST_MODULE_RELATION_USED_PACKAGE});
         }
         break;
     }

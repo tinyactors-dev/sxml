@@ -38,6 +38,16 @@
  * stylesheet level, is ignored (3.10.2: a duplicate include adds nothing,
  * so include-only cycles end there).
  *
+ * Packages (3.4.2, 3.4.3): an xsl:use-package asks the resolver for kind
+ * SXML_RESOURCE_KIND_XSLT_PACKAGE with the package name as uri_reference
+ * and absolute_uri and its package-version (or "*") as package_version;
+ * the package's principal module is read in place with relation
+ * USED_PACKAGE, once per xsl:use-package, and the children of
+ * xsl:override are declarations. A package asked for twice with the same
+ * name and range is parsed once. XTSE3000 when the resolver delivers
+ * nothing, XTSE3005 for a package that uses itself, XTSE3008 for an
+ * xsl:use-package in an imported module.
+ *
  * Thread safety: the thread of the processor (D35).
  */
 

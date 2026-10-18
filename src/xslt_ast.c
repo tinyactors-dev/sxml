@@ -303,7 +303,8 @@ static bool is_module_request_valid(const sxml_xslt_ast *ast,
                request->parent_module.value == 0 && request->referencing_node.value == 0;
     }
     if (request->relation != SXML_XSLT_AST_MODULE_RELATION_INCLUDED &&
-        request->relation != SXML_XSLT_AST_MODULE_RELATION_IMPORTED) {
+        request->relation != SXML_XSLT_AST_MODULE_RELATION_IMPORTED &&
+        request->relation != SXML_XSLT_AST_MODULE_RELATION_USED_PACKAGE) {
         return false;
     }
     if (!is_on_last_module_path(ast, request->parent_module)) {
@@ -311,9 +312,10 @@ static bool is_module_request_valid(const sxml_xslt_ast *ast,
     }
     const sxml_xslt_ast_node *referencing = sxml_xslt_ast_get_node(ast, request->referencing_node);
     const sxml_xslt_ast_kind expected_kind =
-        request->relation == SXML_XSLT_AST_MODULE_RELATION_INCLUDED
-            ? SXML_XSLT_AST_KIND_INCLUDE
-            : SXML_XSLT_AST_KIND_IMPORT;
+        request->relation == SXML_XSLT_AST_MODULE_RELATION_INCLUDED ? SXML_XSLT_AST_KIND_INCLUDE
+        : request->relation == SXML_XSLT_AST_MODULE_RELATION_IMPORTED
+            ? SXML_XSLT_AST_KIND_IMPORT
+            : SXML_XSLT_AST_KIND_USE_PACKAGE;
     return referencing->kind == expected_kind &&
            referencing->module.value == request->parent_module.value;
 }
@@ -1640,6 +1642,9 @@ static void write_module(text_writer *writer, uint32_t module_number) {
     case SXML_XSLT_AST_MODULE_RELATION_IMPORTED:
         write_text(writer, " imported");
         break;
+    case SXML_XSLT_AST_MODULE_RELATION_USED_PACKAGE:
+        write_text(writer, " used-package");
+        break;
     }
     if (module->parent_module.value != 0) {
         write_text(writer, " parent ");
@@ -1782,9 +1787,11 @@ static void write_module_tree(text_writer *writer, sxml_xslt_ast_node_index root
             write_text(writer, " declaration ");
             write_unsigned(writer, node->declaration_order);
         }
-        if (node->kind == SXML_XSLT_AST_KIND_IMPORT || node->kind == SXML_XSLT_AST_KIND_INCLUDE) {
-            write_text(writer, node->kind == SXML_XSLT_AST_KIND_IMPORT ? " imports module "
-                                                                       : " includes module ");
+        if (node->kind == SXML_XSLT_AST_KIND_IMPORT || node->kind == SXML_XSLT_AST_KIND_INCLUDE ||
+            node->kind == SXML_XSLT_AST_KIND_USE_PACKAGE) {
+            write_text(writer, node->kind == SXML_XSLT_AST_KIND_IMPORT    ? " imports module "
+                               : node->kind == SXML_XSLT_AST_KIND_INCLUDE ? " includes module "
+                                                                          : " uses module ");
             write_unsigned(writer, node->included_module.value);
         }
         const sxml_xslt_ast_node *parent = sxml_xslt_ast_get_node(ast, node->parent);

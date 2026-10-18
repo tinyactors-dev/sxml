@@ -24,7 +24,10 @@
  * whitespace stripping. XSLT lowering (packets 4.6 to 4.14, the XSLT
  * lowering parts of src/xpath_lower_internal.h) reads the AST and writes
  * IR (src/ir_internal.h); the AST is never evaluated. A used package
- * (xsl:use-package, packet 4.16) is an AST of its own.
+ * (xsl:use-package, packet 4.16) is read into the same AST: its principal
+ * module has relation USED_PACKAGE and is the top of a package of its own
+ * (src/xslt_package_internal.h), read again for every xsl:use-package
+ * that names it, so each use has components of its own (3.4.5).
  *
  * What the reader has done before a node exists
  * ----------------------------------------------
@@ -1099,7 +1102,8 @@ typedef enum sxml_xslt_ast_node_flag {
     /* Made by the reader, not read from an element: the root and template
        of a simplified module. source_node is the outermost element. */
     SXML_XSLT_AST_NODE_FLAG_SYNTHESIZED = 1U << 0U,
-    /* A child of a module root, listed in the declaration list. */
+    /* A child of a module root or of xsl:override (3.4.5.3), listed in
+       the declaration list. */
     SXML_XSLT_AST_NODE_FLAG_DECLARATION = 1U << 1U,
 } sxml_xslt_ast_node_flag;
 
@@ -1140,8 +1144,8 @@ typedef struct sxml_xslt_ast_node {
     /* TEXT_NODE: TEXT or VALUE_TEMPLATE. SELECT: EXPRESSION. NONE for
        every other kind. */
     sxml_xslt_ast_value content;
-    /* INCLUDE and IMPORT: the module read for them (0 for an ignored
-       xsl:include). */
+    /* INCLUDE, IMPORT and USE_PACKAGE: the module read for them (0 for an
+       ignored xsl:include). */
     sxml_xslt_ast_module_index included_module;
     /* For a declaration, its position in the declaration list, from 1;
        0 for every other node. */
@@ -1237,14 +1241,20 @@ typedef enum sxml_xslt_ast_module_relation {
     SXML_XSLT_AST_MODULE_RELATION_PRINCIPAL,
     SXML_XSLT_AST_MODULE_RELATION_INCLUDED,
     SXML_XSLT_AST_MODULE_RELATION_IMPORTED,
+    /* The principal module of a used package (3.4.2), read for an
+       xsl:use-package: the top of a package of its own (src/xslt_package.c,
+       packet 4.16). For precedence it counts as an imported module, so the
+       using module's template rules come first (3.4.6). */
+    SXML_XSLT_AST_MODULE_RELATION_USED_PACKAGE,
 } sxml_xslt_ast_module_relation;
 
 typedef struct sxml_xslt_ast_module {
     sxml_xslt_ast_module_relation relation;
-    /* The module whose xsl:include or xsl:import read this one; 0 for the
-       principal module. */
+    /* The module whose xsl:include, xsl:import or xsl:use-package read
+       this one; 0 for the principal module. */
     sxml_xslt_ast_module_index parent_module;
-    /* That xsl:include or xsl:import; 0 for the principal module. */
+    /* That xsl:include, xsl:import or xsl:use-package; 0 for the principal
+       module. */
     sxml_xslt_ast_node_index referencing_node;
     /* STYLESHEET or PACKAGE; synthesized for a simplified module. */
     sxml_xslt_ast_node_index root;
@@ -1394,8 +1404,8 @@ typedef struct sxml_xslt_ast_module_request {
     /* The module last added or one of its ancestors (pre-order); 0 for
        the principal module. */
     sxml_xslt_ast_module_index parent_module;
-    /* The INCLUDE or IMPORT node of parent_module; its included_module is
-       set to the new module. */
+    /* The INCLUDE, IMPORT or USE_PACKAGE node of parent_module; its
+       included_module is set to the new module. */
     sxml_xslt_ast_node_index referencing_node;
     /* A document node; the AST retains it. */
     sxml_item document;
