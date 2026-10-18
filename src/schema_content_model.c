@@ -2274,8 +2274,10 @@ static sxml_status check_element_consistency(content_compiler *compiler) {
     return status;
 }
 
-/* The names of the model's element particles, sorted and unique, for
-   ##definedSibling (3.10.4.2). */
+/* The names of the model's element particles and of the members of their
+   substitution groups, sorted and unique, for ##definedSibling (3.10.4.2:
+   "the elements explicitly mentioned in the content model, and all
+   elements substitutable for those elements"). */
 static sxml_status collect_sibling_names(content_compiler *compiler) {
     compiler->keys.entry_count = 0;
     sxml_status status = SXML_STATUS_OK;
@@ -2283,13 +2285,24 @@ static sxml_status collect_sibling_names(content_compiler *compiler) {
          status == SXML_STATUS_OK && local_index < compiler->local_particles.entry_count;
          local_index += 1) {
         const local_particle *particle = local_particle_at(compiler, local_index);
-        if (particle->term_kind == SXML_SCHEMA_TERM_ELEMENT_DECLARATION) {
-            const uint64_t key =
+        if (particle->term_kind != SXML_SCHEMA_TERM_ELEMENT_DECLARATION) {
+            continue;
+        }
+        const sxml_schema_element_declaration *declaration = sxml_schema_get_element_declaration(
+            compiler->components, (sxml_schema_element_declaration_index){.value = particle->term});
+        const uint64_t key = declaration->element_name.index;
+        status = sxml_schema_scratch_array_append(compiler->allocator, &compiler->keys, &key);
+        const sxml_schema_index_view members =
+            sxml_schema_get_list(compiler->components, declaration->substitution_group_members);
+        for (size_t member = 0; status == SXML_STATUS_OK && member < members.index_count;
+             member += 1) {
+            const uint64_t member_key =
                 sxml_schema_get_element_declaration(
                     compiler->components,
-                    (sxml_schema_element_declaration_index){.value = particle->term})
+                    (sxml_schema_element_declaration_index){.value = members.indexes[member]})
                     ->element_name.index;
-            status = sxml_schema_scratch_array_append(compiler->allocator, &compiler->keys, &key);
+            status =
+                sxml_schema_scratch_array_append(compiler->allocator, &compiler->keys, &member_key);
         }
     }
     uint64_t *keys = sxml_schema_scratch_array_at(&compiler->keys, 0);

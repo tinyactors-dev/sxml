@@ -78,7 +78,8 @@ static const char misc_schema[] =
     "</xs:complexType></xs:element>"
     "<xs:element name='ids'><xs:complexType><xs:sequence>"
     "<xs:element name='i' maxOccurs='unbounded'><xs:complexType>"
-    "<xs:attribute name='id' type='xs:ID'/><xs:attribute name='ref' type='xs:IDREFS'/>"
+    "<xs:attribute name='id' type='xs:ID'/><xs:attribute name='id2' type='xs:ID'/>"
+    "<xs:attribute name='ref' type='xs:IDREFS'/>"
     "</xs:complexType></xs:element></xs:sequence></xs:complexType></xs:element>"
     "<xs:element name='empty'><xs:complexType/></xs:element>"
     "</xs:schema>";
@@ -383,6 +384,10 @@ static void test_declarations_and_xsi(sxml_test_state *state) {
          .first_code = "cvc-datatype-valid.1.2.1"},
         /* ID and IDREF (cvc-id). */
         {.document = "<ids><i id='a'/><i id='b' ref='a b'/></ids>",
+         .validity = SXML_VALIDITY_VALID,
+         .first_code = NULL},
+        /* XSD 1.1, cvc-id.2: one value may identify one element twice. */
+        {.document = "<ids><i id='a' id2='a'/></ids>",
          .validity = SXML_VALIDITY_VALID,
          .first_code = NULL},
         {.document = "<ids><i id='a'/><i id='a'/></ids>",

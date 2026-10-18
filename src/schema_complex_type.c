@@ -1344,7 +1344,11 @@ static sxml_status check_simple_value_constraint(complex_type_stage *stage,
         }
         type_definition = get_type(components, type_definition->simple_content_type.value);
     }
-    if (type_definition->registered_type.index == SXML_TYPE_NONE) {
+    /* xs:anySimpleType and xs:anyAtomicType take every value (Part 2,
+       3.2.1, 3.2.2); no cast targets them. */
+    if (type_definition->registered_type.index == SXML_TYPE_NONE ||
+        type_definition->registered_type.index == (uint32_t)SXML_TYPE_XS_ANY_SIMPLE_TYPE ||
+        type_definition->registered_type.index == (uint32_t)SXML_TYPE_XS_ANY_ATOMIC_TYPE) {
         return SXML_STATUS_OK;
     }
     const sxml_schema_namespace_context *context = sxml_schema_get_namespace_context(

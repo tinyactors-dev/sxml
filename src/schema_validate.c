@@ -43,6 +43,31 @@ static sxml_tree_builder result_of(const sxml_schema_validator *validator) {
     return validator->configuration.result_builder;
 }
 
+/* The builders the annotated events of the open elements go to: the
+   result builder and, while a subtree is recorded, the recorder
+   (src/schema_validate_record.c). */
+typedef struct event_targets {
+    sxml_tree_builder builders[2];
+    size_t builder_count;
+} event_targets;
+
+static event_targets targets_of(sxml_schema_validator *validator) {
+    event_targets targets = {.builder_count = 0};
+    if (has_result_builder(validator)) {
+        targets.builders[targets.builder_count] = result_of(validator);
+        targets.builder_count += 1;
+    }
+    if (validator->recorder.arena_tree != NULL) {
+        targets.builders[targets.builder_count] = sxml_schema_recorder_as_tree_builder(validator);
+        targets.builder_count += 1;
+    }
+    return targets;
+}
+
+static bool is_recording(const sxml_schema_validator *validator) {
+    return validator->recorder.arena_tree != NULL;
+}
+
 /* ----------------------------------------------------------- Components */
 
 static const sxml_schema_type_definition *type_at(const sxml_schema_validator *validator,
@@ -208,9 +233,7 @@ static sxml_status equals_fixed_value(sxml_schema_validator *validator,
         components, comparison->value_constraint.namespace_context);
     const sxml_byte_view lexical_form =
         sxml_schema_get_text(components, comparison->value_constraint.lexical_form);
-    if (definition->registered_type.index == SXML_TYPE_NONE ||
-        definition->registered_type.index == (uint32_t)SXML_TYPE_XS_ANY_SIMPLE_TYPE ||
-        definition->registered_type.index == (uint32_t)SXML_TYPE_XS_ANY_ATOMIC_TYPE) {
+    if (definition->registered_type.index == SXML_TYPE_NONE) {
         outcome->is_equal = true;
         return SXML_STATUS_OK;
     }
@@ -218,11 +241,12 @@ static sxml_status equals_fixed_value(sxml_schema_validator *validator,
     sxml_sequence fixed_value = sxml_sequence_empty();
     sxml_status status = sxml_cast_make_value_from_text(
         validator->item_heap,
-        &(sxml_text_cast_request){.text = lexical_form,
-                                  .target_type = definition->registered_type,
-                                  .namespace_bindings = sxml_schema_get_namespace_bindings(
-                                      components, context->namespace_bindings),
-                                  .error_record = &ignored},
+        &(sxml_text_cast_request){
+            .text = lexical_form,
+            .target_type = sxml_schema_cast_target_of(definition->registered_type),
+            .namespace_bindings =
+                sxml_schema_get_namespace_bindings(components, context->namespace_bindings),
+            .error_record = &ignored},
         &fixed_value);
     if (status != SXML_STATUS_OK) {
         return status == SXML_STATUS_DYNAMIC_ERROR || status == SXML_STATUS_TYPE_ERROR ||
@@ -253,13 +277,16 @@ static sxml_status equals_fixed_value(sxml_schema_validator *validator,
 
 /* ------------------------------------------------------------ Attributes */
 
-static sxml_status send_attribute(const sxml_schema_validator *validator,
+static sxml_status send_attribute(sxml_schema_validator *validator,
                                   const sxml_attribute_event *event) {
-    if (!has_result_builder(validator)) {
-        return SXML_STATUS_OK;
+    const event_targets targets = targets_of(validator);
+    sxml_status status = SXML_STATUS_OK;
+    for (size_t target = 0; status == SXML_STATUS_OK && target < targets.builder_count;
+         target += 1) {
+        status = targets.builders[target].operations->add_attribute(targets.builders[target].state,
+                                                                    event);
     }
-    const sxml_tree_builder result = result_of(validator);
-    return result.operations->add_attribute(result.state, event);
+    return status;
 }
 
 /* An attribute to assess against a declaration. */
@@ -284,7 +311,8 @@ static sxml_status assess_declared_attribute(sxml_schema_validator *validator,
         validator,
         &(sxml_schema_value_request){.simple_type = simple_type,
                                      .text = declared->value,
-                                     .location = declared->attribute->location},
+                                     .location = declared->attribute->location,
+                                     .element_number = validator->attribute_element_number},
         &outcome);
     if (status != SXML_STATUS_OK) {
         return status;
@@ -329,7 +357,7 @@ static sxml_status assess_declared_attribute(sxml_schema_validator *validator,
 
 /* Sends an attribute that is not assessed (lax without a declaration, a
    skip wildcard, a skipped element): xs:untypedAtomic (XDM 4.0, 3.3.1.1). */
-static sxml_status send_unassessed_attribute(const sxml_schema_validator *validator,
+static sxml_status send_unassessed_attribute(sxml_schema_validator *validator,
                                              const sxml_schema_pending_attribute *attribute,
                                              sxml_byte_view value) {
     return send_attribute(validator, &(sxml_attribute_event){
@@ -565,9 +593,18 @@ static sxml_status assess_attributes(sxml_schema_validator *validator,
             sxml_schema_scratch_array_at(&validator->pending_attributes, attribute_index);
         const sxml_byte_view value = pending_value(validator, attribute);
         const uint32_t xsi_declaration = xsi_declaration_of(validator, attribute->attribute_name);
+        /* An attribute use of an xsi: attribute's name governs it (an
+           xsi:type use="required", say); otherwise its built-in
+           declaration does. */
+        const bool has_use =
+            is_complex &&
+            find_use(validator,
+                     (use_lookup){.uses = sxml_schema_get_list(validator->components,
+                                                               type_definition->attribute_uses),
+                                  .attribute_name = attribute->attribute_name}) != 0;
         if (frame->assessment == SXML_SCHEMA_ASSESSMENT_SKIP) {
             status = send_unassessed_attribute(validator, attribute, value);
-        } else if (xsi_declaration != 0) {
+        } else if (xsi_declaration != 0 && !has_use) {
             status = assess_declared_attribute(
                 validator, &(declared_attribute){.attribute = attribute,
                                                  .value = value,
@@ -844,13 +881,7 @@ static sxml_status choose_type(sxml_schema_validator *validator,
         }
         if (status == SXML_STATUS_OK) {
             /* 3.3.4.1: the type table selects the type (packet 5.9). */
-            status = sxml_schema_select_type_alternative(
-                validator,
-                &(sxml_schema_type_alternative_request){
-                    .schema = validator->configuration.schema,
-                    .element_declaration = frame->element_declaration,
-                    .element_node = {.representation = SXML_ITEM_REPRESENTATION_NONE}},
-                &type);
+            status = sxml_schema_select_type(validator, frame->element_declaration, &type);
         }
     }
     const sxml_schema_pending_attribute *xsi_type =
@@ -891,12 +922,11 @@ static sxml_status choose_type(sxml_schema_validator *validator,
     return status;
 }
 
-/* Sends the start of the element of frame and its namespace bindings. */
-static sxml_status send_start(const sxml_schema_validator *validator,
+/* Sends the start of the element of frame and its namespace bindings: its
+   own to the result builder, every one in scope to the recorder when the
+   element is the root of the recorded tree. */
+static sxml_status send_start(sxml_schema_validator *validator,
                               const sxml_schema_validation_frame *frame) {
-    if (!has_result_builder(validator)) {
-        return SXML_STATUS_OK;
-    }
     sxml_element_start_event event = validator->pending.event;
     event.type_annotation = frame->assessment == SXML_SCHEMA_ASSESSMENT_STRICT
                                 ? annotation_of(validator, frame->type_definition)
@@ -909,16 +939,76 @@ static sxml_status send_start(const sxml_schema_validator *validator,
     event.is_id = marks.is_id;
     event.is_idrefs = marks.is_idrefs;
     event.is_nilled = frame->is_nilled;
-    const sxml_tree_builder result = result_of(validator);
-    sxml_status status = result.operations->start_element(result.state, &event);
-    const sxml_namespace_binding_view bindings = bindings_from(validator, frame->binding_start);
-    for (size_t binding_index = 0;
-         status == SXML_STATUS_OK && binding_index < bindings.namespace_binding_count;
-         binding_index += 1) {
-        status = result.operations->add_namespace_binding(
-            result.state, &bindings.namespace_bindings[binding_index]);
+    const event_targets targets = targets_of(validator);
+    const bool is_recorded_root =
+        is_recording(validator) && validator->recorder.root_frame == validator->frames.entry_count;
+    sxml_status status = SXML_STATUS_OK;
+    for (size_t target = 0; status == SXML_STATUS_OK && target < targets.builder_count;
+         target += 1) {
+        const sxml_tree_builder builder = targets.builders[target];
+        status = builder.operations->start_element(builder.state, &event);
+        if (status == SXML_STATUS_OK && is_recorded_root && target + 1U == targets.builder_count) {
+            status = sxml_schema_send_in_scope_bindings(validator, builder);
+            continue;
+        }
+        const sxml_namespace_binding_view bindings = bindings_from(validator, frame->binding_start);
+        for (size_t binding_index = 0;
+             status == SXML_STATUS_OK && binding_index < bindings.namespace_binding_count;
+             binding_index += 1) {
+            status = builder.operations->add_namespace_binding(
+                builder.state, &bindings.namespace_bindings[binding_index]);
+        }
     }
     return status;
+}
+
+/* Whether an element needs its subtree recorded (src/schema_internal.h,
+   the validator's seams): its declaration has identity constraints, or
+   its type has assertions. */
+static bool needs_subtree(const sxml_schema_validator *validator,
+                          const sxml_schema_validation_frame *frame) {
+    if (frame->assessment != SXML_SCHEMA_ASSESSMENT_STRICT) {
+        return false;
+    }
+    const sxml_schema_type_definition *definition = type_at(validator, frame->type_definition);
+    return element_at(validator, frame->element_declaration)->identity_constraints.entry_count !=
+               0 ||
+           (definition->variety == SXML_TYPE_VARIETY_COMPLEX &&
+            definition->assertions.entry_count != 0);
+}
+
+/* Element Declarations Consistent at validation (XSD 1.1, 3.4.4.2
+   clause 5): an element a strict or lax wildcard matched whose name a
+   declaration of the parent's content model has must be governed by a type
+   derived from that declaration's type (xs:anyType when assessed laxly
+   without one); a skipped element has no governing type to check. */
+static sxml_status check_consistent_type(sxml_schema_validator *validator,
+                                         const sxml_schema_validation_frame *frame) {
+    if (frame->assessment == SXML_SCHEMA_ASSESSMENT_SKIP) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_schema_type_definition_index governing_type =
+        frame->assessment == SXML_SCHEMA_ASSESSMENT_STRICT
+            ? frame->type_definition
+            : (sxml_schema_type_definition_index){.value = SXML_TYPE_XS_ANY_TYPE};
+    const sxml_schema_element_declaration *declaration =
+        element_at(validator, validator->pending.consistent_declaration);
+    sxml_schema_derivation_outcome outcome = {.is_derived = false};
+    const sxml_status status = sxml_schema_check_derivation(
+        validator->components,
+        &(sxml_schema_derivation_request){.derived_type = governing_type,
+                                          .base_type = declaration->type_definition,
+                                          .blocked_derivations = SXML_SCHEMA_DERIVATION_NONE},
+        &outcome);
+    if (status != SXML_STATUS_OK || outcome.is_derived) {
+        return status;
+    }
+    return report_at(validator,
+                     (located_error){.constraint_name = TEXT("cvc-complex-type.5"),
+                                     .description = TEXT("An element a wildcard matched is not of "
+                                                         "a type derived from the content model's "
+                                                         "declaration of its name"),
+                                     .location = frame->location});
 }
 
 /* Ends the attribute phase of the held-back element: its type, xsi:nil,
@@ -946,7 +1036,9 @@ static sxml_status flush_pending(sxml_schema_validator *validator) {
                                           .text_start = validator->text_bytes.entry_count,
                                           .binding_start = pending->binding_start,
                                           .is_id = false,
+                                          .element_number = validator->element_count + 1U,
                                           .location = pending->event.location};
+    validator->element_count += 1;
     sxml_status status = SXML_STATUS_OK;
     if (frame.assessment != SXML_SCHEMA_ASSESSMENT_SKIP) {
         status = choose_type(validator, &frame);
@@ -956,13 +1048,27 @@ static sxml_status flush_pending(sxml_schema_validator *validator) {
         frame.assessment == SXML_SCHEMA_ASSESSMENT_STRICT) {
         status = apply_xsi_nil(validator, (nil_check){.frame = &frame, .xsi_nil = xsi_nil});
     }
+    if (status == SXML_STATUS_OK && pending->consistent_declaration.value != 0) {
+        status = check_consistent_type(validator, &frame);
+    }
     if (validator->frames.entry_count == 0 && frame.assessment != SXML_SCHEMA_ASSESSMENT_STRICT) {
         validator->is_root_not_known = true;
+    }
+    if (status == SXML_STATUS_OK && !is_recording(validator) && needs_subtree(validator, &frame)) {
+        status = sxml_schema_recorder_start(validator);
+    }
+    if (status == SXML_STATUS_OK && is_recording(validator)) {
+        frame.recorded_node = validator->recorder.node_count;
+        validator->recorder.next_declaration =
+            frame.assessment == SXML_SCHEMA_ASSESSMENT_STRICT
+                ? frame.element_declaration
+                : (sxml_schema_element_declaration_index){.value = 0};
     }
     if (status == SXML_STATUS_OK) {
         status = send_start(validator, &frame);
     }
     if (status == SXML_STATUS_OK) {
+        validator->attribute_element_number = frame.element_number;
         status = assess_attributes(validator, &frame);
     }
     if (status == SXML_STATUS_OK) {
@@ -980,6 +1086,8 @@ typedef struct child_assessment {
     sxml_schema_assessment assessment;
     sxml_schema_element_declaration_index element_declaration;
     sxml_byte_view missing_declaration_constraint;
+    /* As sxml_schema_pending_element.consistent_declaration. */
+    sxml_schema_element_declaration_index consistent_declaration;
 } child_assessment;
 
 /* Laxly: by the global declaration of its name where there is one
@@ -1034,6 +1142,81 @@ static child_assessment wildcard_child(const sxml_schema_validator *validator,
         child.missing_declaration_constraint = TEXT("cvc-complex-type.2.4");
     }
     return child;
+}
+
+/* A name to look for among the element particles of a type's content. */
+typedef struct particle_search {
+    sxml_schema_type_definition_index type_definition;
+    sxml_name_identifier element_name;
+} particle_search;
+
+/* Writes the declaration of an element particle of the content of the
+   type or a base type (or a member of its substitution group) that has
+   the name to
+   *declaration; 0 when none. The particle tree is walked with an explicit
+   stack (D71); it has no cycles (mg-props-correct.2). */
+static sxml_status find_particle_declaration(sxml_schema_validator *validator,
+                                             particle_search search,
+                                             sxml_schema_element_declaration_index *declaration) {
+    const sxml_schema_components *components = validator->components;
+    sxml_schema_scratch_array *stack = &validator->particle_stack;
+    declaration->value = 0;
+    stack->entry_count = 0;
+    /* The type's particle and its base types' (XSD 1.1, 3.8.6.3: the
+       declarations of the type hierarchy count). */
+    sxml_status status = SXML_STATUS_OK;
+    sxml_schema_type_definition_index type = search.type_definition;
+    for (uint32_t depth = 0; status == SXML_STATUS_OK && depth < UINT16_MAX; depth += 1) {
+        const sxml_schema_type_definition *definition = type_at(validator, type);
+        if (definition->variety != SXML_TYPE_VARIETY_COMPLEX ||
+            type.value == SXML_TYPE_XS_ANY_TYPE) {
+            break;
+        }
+        if (definition->particle.value != 0) {
+            status = sxml_schema_scratch_array_append(validator->allocator, stack,
+                                                      &definition->particle.value);
+        }
+        type = definition->base_type;
+    }
+    while (status == SXML_STATUS_OK && stack->entry_count > 0 && declaration->value == 0) {
+        stack->entry_count -= 1;
+        const uint32_t particle_index =
+            *(const uint32_t *)sxml_schema_scratch_array_at(stack, stack->entry_count);
+        const sxml_schema_particle *particle = sxml_schema_get_particle(
+            components, (sxml_schema_particle_index){.value = particle_index});
+        if (particle->term_kind == SXML_SCHEMA_TERM_MODEL_GROUP) {
+            const sxml_schema_index_view particles = sxml_schema_get_list(
+                components,
+                sxml_schema_get_model_group(
+                    components, (sxml_schema_model_group_index){.value = particle->term})
+                    ->particles);
+            for (size_t entry = 0; status == SXML_STATUS_OK && entry < particles.index_count;
+                 entry += 1) {
+                status = sxml_schema_scratch_array_append(validator->allocator, stack,
+                                                          &particles.indexes[entry]);
+            }
+            continue;
+        }
+        if (particle->term_kind != SXML_SCHEMA_TERM_ELEMENT_DECLARATION) {
+            continue;
+        }
+        const sxml_schema_element_declaration_index candidate = {.value = particle->term};
+        const sxml_schema_element_declaration *element = element_at(validator, candidate);
+        if (element->element_name.index == search.element_name.index) {
+            *declaration = candidate;
+            break;
+        }
+        const sxml_schema_index_view members =
+            sxml_schema_get_list(components, element->substitution_group_members);
+        for (size_t entry = 0; entry < members.index_count; entry += 1) {
+            const sxml_schema_element_declaration_index member = {.value = members.indexes[entry]};
+            if (element_at(validator, member)->element_name.index == search.element_name.index) {
+                *declaration = member;
+                break;
+            }
+        }
+    }
+    return status;
 }
 
 /* The child of a strictly assessed parent: through the content model. */
@@ -1110,7 +1293,11 @@ static sxml_status match_child(sxml_schema_validator *validator, child_request r
         return SXML_STATUS_OK;
     case SXML_SCHEMA_MATCH_WILDCARD:
         *child = wildcard_child(validator, match.wildcard, request.element_name);
-        return SXML_STATUS_OK;
+        return find_particle_declaration(
+            validator,
+            (particle_search){.type_definition = parent->type_definition,
+                              .element_name = request.element_name},
+            &child->consistent_declaration);
     }
     return SXML_STATUS_OK;
 }
@@ -1134,14 +1321,24 @@ static child_assessment root_assessment(const sxml_schema_validator *validator,
 
 /* ------------------------------------------------------------ Element ends */
 
-static sxml_status send_text(const sxml_schema_validator *validator, sxml_byte_view text,
+static sxml_status send_text_event(sxml_schema_validator *validator, const sxml_text_event *event) {
+    const event_targets targets = targets_of(validator);
+    sxml_status status = SXML_STATUS_OK;
+    for (size_t target = 0; status == SXML_STATUS_OK && target < targets.builder_count;
+         target += 1) {
+        status =
+            targets.builders[target].operations->add_text(targets.builders[target].state, event);
+    }
+    return status;
+}
+
+static sxml_status send_text(sxml_schema_validator *validator, sxml_byte_view text,
                              sxml_source_location location) {
-    if (!has_result_builder(validator) || text.byte_count == 0) {
+    if (text.byte_count == 0) {
         return SXML_STATUS_OK;
     }
-    const sxml_tree_builder result = result_of(validator);
-    return result.operations->add_text(
-        result.state,
+    return send_text_event(
+        validator,
         &(sxml_text_event){.text = text, .location = location, .is_cdata_section = false});
 }
 
@@ -1161,6 +1358,17 @@ static bool is_empty_element(const sxml_schema_validation_frame *frame) {
     return !frame->has_character_children && !frame->has_element_children;
 }
 
+/* The number of the parent of the element that ends (the top frame); 0
+   for the validation root. */
+static uint64_t parent_number_of(const sxml_schema_validator *validator) {
+    if (validator->frames.entry_count < 2) {
+        return 0;
+    }
+    const sxml_schema_validation_frame *parent =
+        sxml_schema_scratch_array_at(&validator->frames, validator->frames.entry_count - 2);
+    return parent->element_number;
+}
+
 /* Simple content at the end (cvc-type.3.1.3, cvc-complex-type.2.2): the
    value, or the value constraint of an empty element, against the simple
    type; fixed values compared; the schema normalized value goes on as
@@ -1178,8 +1386,10 @@ static sxml_status end_simple_content(sxml_schema_validator *validator,
     sxml_schema_value_outcome outcome;
     sxml_status status = sxml_schema_validate_simple_value(
         validator,
-        &(sxml_schema_value_request){
-            .simple_type = frame->simple_type, .text = text, .location = frame->location},
+        &(sxml_schema_value_request){.simple_type = frame->simple_type,
+                                     .text = text,
+                                     .location = frame->location,
+                                     .element_number = parent_number_of(validator)},
         &outcome);
     if (status != SXML_STATUS_OK) {
         return status;
@@ -1273,15 +1483,26 @@ static sxml_status end_strict_element(sxml_schema_validator *validator,
             }
         }
     }
-    const sxml_schema_type_definition *definition = type_at(validator, frame->type_definition);
-    if (status == SXML_STATUS_OK && definition->variety == SXML_TYPE_VARIETY_COMPLEX) {
-        /* 3.13.4.1: the type's assertions (packet 5.9). */
-        status = sxml_schema_check_assertions(
-            validator, &(sxml_schema_assertion_request){
-                           .schema = validator->configuration.schema,
-                           .type_definition = frame->type_definition,
-                           .node = {.representation = SXML_ITEM_REPRESENTATION_NONE},
-                           .value = sxml_sequence_empty()});
+    if (status == SXML_STATUS_OK && needs_subtree(validator, frame)) {
+        /* 3.13.4.1 (packet 5.9) and 3.11.4 (packet 5.8) read the
+           element's recorded subtree: they run once the outermost
+           recorded element has ended. */
+        const sxml_schema_type_definition *definition = type_at(validator, frame->type_definition);
+        const bool has_assertions = definition->variety == SXML_TYPE_VARIETY_COMPLEX &&
+                                    definition->assertions.entry_count != 0;
+        const bool has_identity_constraints =
+            element_at(validator, frame->element_declaration)->identity_constraints.entry_count !=
+            0;
+        status = sxml_schema_recorder_defer_check(
+            validator,
+            &(sxml_schema_deferred_check){
+                .node_index = frame->recorded_node,
+                .element_declaration = has_identity_constraints
+                                           ? frame->element_declaration
+                                           : (sxml_schema_element_declaration_index){.value = 0},
+                .type_definition = has_assertions
+                                       ? frame->type_definition
+                                       : (sxml_schema_type_definition_index){.value = 0}});
     }
     return status;
 }
@@ -1373,6 +1594,7 @@ static sxml_status validator_start_element(void *state, const sxml_element_start
         .governing_type = parent == NULL ? validator->pending.governing_type
                                          : (sxml_schema_type_definition_index){.value = 0},
         .missing_declaration_constraint = child.missing_declaration_constraint,
+        .consistent_declaration = child.consistent_declaration,
         .binding_start = validator->namespace_bindings.entry_count};
     validator->pending.event.location = event->location;
     validator->pending_attributes.entry_count = 0;
@@ -1404,6 +1626,7 @@ validator_add_namespace_binding(void *state, const sxml_namespace_binding *names
 static sxml_status validate_root_attribute(sxml_schema_validator *validator,
                                            const sxml_attribute_event *event) {
     validator->has_root = true;
+    validator->attribute_element_number = 0;
     const sxml_schema_pending_attribute attribute = {.attribute_name = event->attribute_name,
                                                      .namespace_prefix = event->namespace_prefix,
                                                      .value_offset = 0,
@@ -1417,7 +1640,8 @@ static sxml_status validate_root_attribute(sxml_schema_validator *validator,
             validator,
             &(sxml_schema_value_request){.simple_type = governing_type,
                                          .text = event->attribute_value,
-                                         .location = event->location},
+                                         .location = event->location,
+                                         .element_number = 0},
             &outcome);
         if (status == SXML_STATUS_OK) {
             status = send_attribute(
@@ -1500,22 +1724,19 @@ static sxml_status validator_end_element(void *state) {
     if (frame.assessment == SXML_SCHEMA_ASSESSMENT_STRICT) {
         status = end_strict_element(validator, &frame);
     }
-    if (status == SXML_STATUS_OK && frame.element_declaration.value != 0 &&
-        frame.assessment == SXML_SCHEMA_ASSESSMENT_STRICT) {
-        /* 3.11.4: the declaration's identity constraints (packet 5.8). */
-        status = sxml_schema_check_identity_constraints(
-            validator,
-            &(sxml_schema_identity_request){.schema = validator->configuration.schema,
-                                            .element_declaration = frame.element_declaration,
-                                            .subtree = NULL});
+    const event_targets targets = targets_of(validator);
+    for (size_t target = 0; status == SXML_STATUS_OK && target < targets.builder_count;
+         target += 1) {
+        status = targets.builders[target].operations->end_element(targets.builders[target].state);
     }
     validator->frames.entry_count -= 1;
     validator->namespace_bindings.entry_count = frame.binding_start;
     validator->counter_values.entry_count = frame.first_counter;
     validator->text_bytes.entry_count = frame.text_start;
-    if (status == SXML_STATUS_OK && has_result_builder(validator)) {
-        const sxml_tree_builder result = result_of(validator);
-        status = result.operations->end_element(result.state);
+    if (status == SXML_STATUS_OK && is_recording(validator) &&
+        validator->recorder.root_frame == validator->frames.entry_count) {
+        /* The outermost recorded element has ended. */
+        status = sxml_schema_recorder_finish(validator);
     }
     if (status == SXML_STATUS_OK && validator->frames.entry_count == 0) {
         status = end_validation_root(validator);
@@ -1620,11 +1841,10 @@ static sxml_status validator_add_text(void *state, const sxml_text_event *event)
         /* A parentless text passes on (include/sxml/schema.h). */
         validator->is_complete = true;
     }
-    if (status != SXML_STATUS_OK || !outcome.keeps || !has_result_builder(validator)) {
+    if (status != SXML_STATUS_OK || !outcome.keeps) {
         return status;
     }
-    const sxml_tree_builder result = result_of(validator);
-    return result.operations->add_text(result.state, event);
+    return send_text_event(validator, event);
 }
 
 static sxml_status validator_add_comment(void *state, const sxml_comment_event *event) {
@@ -1636,11 +1856,13 @@ static sxml_status validator_add_comment(void *state, const sxml_comment_event *
     if (validator->frames.entry_count == 0 && !validator->is_document) {
         validator->is_complete = true;
     }
-    if (!has_result_builder(validator)) {
-        return SXML_STATUS_OK;
+    const event_targets targets = targets_of(validator);
+    sxml_status sent = SXML_STATUS_OK;
+    for (size_t target = 0; sent == SXML_STATUS_OK && target < targets.builder_count; target += 1) {
+        sent =
+            targets.builders[target].operations->add_comment(targets.builders[target].state, event);
     }
-    const sxml_tree_builder result = result_of(validator);
-    return result.operations->add_comment(result.state, event);
+    return sent;
 }
 
 static sxml_status
@@ -1653,11 +1875,13 @@ validator_add_processing_instruction(void *state, const sxml_processing_instruct
     if (validator->frames.entry_count == 0 && !validator->is_document) {
         validator->is_complete = true;
     }
-    if (!has_result_builder(validator)) {
-        return SXML_STATUS_OK;
+    const event_targets targets = targets_of(validator);
+    sxml_status sent = SXML_STATUS_OK;
+    for (size_t target = 0; sent == SXML_STATUS_OK && target < targets.builder_count; target += 1) {
+        sent = targets.builders[target].operations->add_processing_instruction(
+            targets.builders[target].state, event);
     }
-    const sxml_tree_builder result = result_of(validator);
-    return result.operations->add_processing_instruction(result.state, event);
+    return sent;
 }
 
 static sxml_status validator_add_unparsed_entity(void *state, const sxml_unparsed_entity *entity) {
@@ -1781,6 +2005,7 @@ sxml_schema_validator_initialize(sxml_memory_view memory,
         .attribute_uses_met = scratch_of(1),
         .namespace_bindings = scratch_of(sizeof(sxml_namespace_binding)),
         .cast_bindings = scratch_of(sizeof(sxml_namespace_binding)),
+        .particle_stack = scratch_of(sizeof(uint32_t)),
         .counter_values = scratch_of(sizeof(uint64_t)),
         .text_bytes = scratch_of(1),
         .value_bytes = scratch_of(1),
@@ -1791,6 +2016,7 @@ sxml_schema_validator_initialize(sxml_memory_view memory,
         .is_root_not_known = false,
         .error_count = 0};
     sxml_schema_id_table_initialize(&placed->id_table, processor->allocator);
+    sxml_schema_recorder_initialize(&placed->recorder, processor->allocator);
     *validator = placed;
     return SXML_STATUS_OK;
 }
@@ -1806,11 +2032,13 @@ void sxml_schema_validator_finalize(sxml_schema_validator *validator) {
     sxml_schema_scratch_array_release(allocator, &validator->attribute_uses_met);
     sxml_schema_scratch_array_release(allocator, &validator->namespace_bindings);
     sxml_schema_scratch_array_release(allocator, &validator->cast_bindings);
+    sxml_schema_scratch_array_release(allocator, &validator->particle_stack);
     sxml_schema_scratch_array_release(allocator, &validator->counter_values);
     sxml_schema_scratch_array_release(allocator, &validator->text_bytes);
     sxml_schema_scratch_array_release(allocator, &validator->value_bytes);
     sxml_schema_scratch_array_release(allocator, &validator->entity_names);
     sxml_schema_id_table_release(&validator->id_table);
+    sxml_schema_recorder_release(&validator->recorder, allocator);
 }
 
 sxml_status sxml_schema_validator_create(sxml_allocator allocator,

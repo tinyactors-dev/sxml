@@ -1753,15 +1753,23 @@ typedef struct sxml_value_constraint_check {
     const char *constraint_name;
 } sxml_value_constraint_check;
 
-/* Casts a value constraint to its type; *value owned on success. */
+/* Casts a value constraint to its type; *value owned on success. The
+   special types xs:anySimpleType and xs:anyAtomicType, which no cast
+   targets, take every string as it is (Part 2, 3.2.1 and 3.2.2): their
+   values are compared as xs:untypedAtomic. */
 static sxml_status sxml_cast_value_constraint(const sxml_simple_type_compiler *compiler,
                                               sxml_value_constraint_check check,
                                               sxml_simple_cast_outcome *outcome) {
+    sxml_type_identifier target = sxml_simple_type_get(compiler, check.type_index)->registered_type;
+    if (target.index == (uint32_t)SXML_TYPE_XS_ANY_SIMPLE_TYPE ||
+        target.index == (uint32_t)SXML_TYPE_XS_ANY_ATOMIC_TYPE) {
+        target.index = (uint32_t)SXML_TYPE_XS_UNTYPED_ATOMIC;
+    }
     return sxml_simple_type_cast(
         compiler,
         (sxml_simple_cast){
             .text = sxml_schema_get_text(compiler->components, check.value_constraint.lexical_form),
-            .target_type = sxml_simple_type_get(compiler, check.type_index)->registered_type,
+            .target_type = target,
             .namespace_context = check.value_constraint.namespace_context},
         outcome);
 }

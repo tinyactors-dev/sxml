@@ -124,6 +124,8 @@ sxml_status sxml_schema_validator_get_cast_bindings(sxml_schema_validator *valid
 typedef struct sxml_schema_id_entry {
     size_t value_offset;
     size_t value_byte_count;
+    /* The element it identifies. */
+    uint64_t element_number;
 } sxml_schema_id_entry;
 
 /* An IDREF met, checked at the end of the validation root. */
@@ -235,11 +237,16 @@ sxml_status sxml_schema_id_table_add_id(sxml_schema_id_table *id_table,
     }
     const size_t slot = find_slot(id_table, request->value);
     if (id_table->slots[slot] != 0) {
-        outcome->is_duplicate = true;
+        /* XSD 1.1, cvc-id.2: a value identifies one element, perhaps more
+           than once. */
+        const sxml_schema_id_entry *existing =
+            sxml_schema_scratch_array_at(&id_table->identifiers, id_table->slots[slot] - 1U);
+        outcome->is_duplicate = existing->element_number != request->element_number;
         return SXML_STATUS_OK;
     }
     const sxml_schema_id_entry entry = {.value_offset = id_table->value_bytes.entry_count,
-                                        .value_byte_count = request->value.byte_count};
+                                        .value_byte_count = request->value.byte_count,
+                                        .element_number = request->element_number};
     sxml_status status = sxml_schema_scratch_array_append_bytes(
         id_table->allocator, &id_table->value_bytes, request->value);
     if (status == SXML_STATUS_OK) {
@@ -456,6 +463,7 @@ static sxml_byte_view string_of(sxml_item item) {
 typedef struct value_items {
     sxml_schema_value_outcome *outcome;
     sxml_source_location location;
+    uint64_t element_number;
 } value_items;
 
 static sxml_status examine_items(sxml_schema_validator *validator, value_items items) {
@@ -471,10 +479,16 @@ static sxml_status examine_items(sxml_schema_validator *validator, value_items i
         if (is_derived(validator, item, SXML_TYPE_XS_ID)) {
             id_count += 1;
             sxml_schema_id_outcome id_outcome = {.is_duplicate = false};
-            status = sxml_schema_id_table_add_id(
-                &validator->id_table,
-                &(sxml_schema_id_request){.value = string_of(item), .location = items.location},
-                &id_outcome);
+            /* An ID that identifies no element (the content of the
+               validation root) binds nothing (3.17.5.2). */
+            if (items.element_number != 0) {
+                status = sxml_schema_id_table_add_id(
+                    &validator->id_table,
+                    &(sxml_schema_id_request){.value = string_of(item),
+                                              .location = items.location,
+                                              .element_number = items.element_number},
+                    &id_outcome);
+            }
             if (status == SXML_STATUS_OK && id_outcome.is_duplicate) {
                 /* 3.17.4.2, clause 2: no two IDs are equal. */
                 status = sxml_schema_validator_report_error(
@@ -486,8 +500,9 @@ static sxml_status examine_items(sxml_schema_validator *validator, value_items i
         } else if (is_derived(validator, item, SXML_TYPE_XS_IDREF)) {
             outcome->is_idrefs = true;
             status = sxml_schema_id_table_add_idref(
-                &validator->id_table,
-                &(sxml_schema_id_request){.value = string_of(item), .location = items.location});
+                &validator->id_table, &(sxml_schema_id_request){.value = string_of(item),
+                                                                .location = items.location,
+                                                                .element_number = 0});
         } else if (is_derived(validator, item, SXML_TYPE_XS_ENTITY) &&
                    !is_unparsed_entity(validator, string_of(item))) {
             /* 3.16.4 String Valid, clause 2: an ENTITY value names an
@@ -525,12 +540,8 @@ sxml_status sxml_schema_validate_simple_value(sxml_schema_validator *validator,
                                            .is_id = false,
                                            .is_idrefs = false};
     const sxml_type_identifier registered = definition->registered_type;
-    /* xs:anySimpleType and xs:anyAtomicType accept every value (Part 2,
-       3.2.1, 3.2.2); a type that did not register was reported by
-       compilation. */
-    if (registered.index == SXML_TYPE_NONE ||
-        registered.index == (uint32_t)SXML_TYPE_XS_ANY_SIMPLE_TYPE ||
-        registered.index == (uint32_t)SXML_TYPE_XS_ANY_ATOMIC_TYPE) {
+    /* A type that did not register was reported by compilation. */
+    if (registered.index == SXML_TYPE_NONE) {
         return SXML_STATUS_OK;
     }
     sxml_namespace_binding_view bindings = {.namespace_bindings = NULL,
@@ -545,7 +556,7 @@ sxml_status sxml_schema_validate_simple_value(sxml_schema_validator *validator,
     status =
         sxml_cast_make_value_from_text(validator->item_heap,
                                        &(sxml_text_cast_request){.text = request->text,
-                                                                 .target_type = registered,
+                                                                 .target_type = sxml_schema_cast_target_of(registered),
                                                                  .namespace_bindings = bindings,
                                                                  .error_record = &error_record},
                                        &value);
@@ -568,8 +579,9 @@ sxml_status sxml_schema_validate_simple_value(sxml_schema_validator *validator,
         (whitespace_request){.facet = whitespace_of(validator, definition), .text = request->text},
         &outcome->normalized_value);
     if (status == SXML_STATUS_OK) {
-        status = examine_items(validator,
-                               (value_items){.outcome = outcome, .location = request->location});
+        status = examine_items(validator, (value_items){.outcome = outcome,
+                                                        .location = request->location,
+                                                        .element_number = request->element_number});
     }
     if (status == SXML_STATUS_OK) {
         /* Part 2, 4.3.13: assertion facets, evaluated with $value
