@@ -47,7 +47,7 @@ sxml_qt4_report_start(const sxml_qt4_report_configuration *configuration,
              test_set_index < configuration->test_set_count;
              test_set_index += 1) {
             counts[test_set_index] = (sxml_qt4_outcome_counts){
-                .counts = {0}, .in_scope_count = 0, .in_scope_passed_count = 0};
+                .counts = {0}};
         }
     }
     *report = (sxml_qt4_report){.output = configuration->output,
@@ -56,9 +56,7 @@ sxml_qt4_report_start(const sxml_qt4_report_configuration *configuration,
                                 .test_set_counts = memory,
                                 .test_set_count = configuration->test_set_count,
                                 .area_names = configuration->area_names,
-                                .totals = {.counts = {0},
-                                           .in_scope_count = 0,
-                                           .in_scope_passed_count = 0},
+                                .totals = {.counts = {0}},
                                 .added_count = 0};
     if (report->format == SXML_QT4_REPORT_FORMAT_JSON) {
         /* "report": "PROGRAM run" (D157: the XSLT driver's runs). */
@@ -79,11 +77,19 @@ sxml_qt4_report_start(const sxml_qt4_report_configuration *configuration,
 static void sxml_qt4_count(sxml_qt4_outcome_counts *counts,
                            const sxml_qt4_test_result *result) {
     counts->counts[result->outcome] += 1;
+    const bool is_passed =
+        result->outcome == SXML_QT4_TEST_OUTCOME_PASS ||
+        result->outcome == SXML_QT4_TEST_OUTCOME_WRONG_ERROR;
     if (result->is_in_scope) {
         counts->in_scope_count += 1;
-        if (result->outcome == SXML_QT4_TEST_OUTCOME_PASS ||
-            result->outcome == SXML_QT4_TEST_OUTCOME_WRONG_ERROR) {
+        if (is_passed) {
             counts->in_scope_passed_count += 1;
+        }
+    }
+    if (result->is_schema_aware) {
+        counts->schema_aware_count += 1;
+        if (is_passed) {
+            counts->schema_aware_passed_count += 1;
         }
     }
 }
@@ -97,6 +103,8 @@ static void sxml_qt4_add_counts(sxml_qt4_outcome_counts *into,
     }
     into->in_scope_count += counts->in_scope_count;
     into->in_scope_passed_count += counts->in_scope_passed_count;
+    into->schema_aware_count += counts->schema_aware_count;
+    into->schema_aware_passed_count += counts->schema_aware_passed_count;
 }
 
 void sxml_qt4_report_add(sxml_qt4_report *report,
@@ -186,6 +194,10 @@ static void sxml_qt4_write_counts_json(sxml_cli_writer *output,
     sxml_cli_writer_write_decimal(output, counts->in_scope_count);
     sxml_cli_writer_write(output, SXML_TEXT(", \"in_scope_passed\": "));
     sxml_cli_writer_write_decimal(output, counts->in_scope_passed_count);
+    sxml_cli_writer_write(output, SXML_TEXT(", \"schema_aware\": "));
+    sxml_cli_writer_write_decimal(output, counts->schema_aware_count);
+    sxml_cli_writer_write(output, SXML_TEXT(", \"schema_aware_passed\": "));
+    sxml_cli_writer_write_decimal(output, counts->schema_aware_passed_count);
 }
 
 /* The areas of D94, in the order of the dashboard; a test set of none
@@ -244,7 +256,7 @@ static void sxml_qt4_write_areas_json(const sxml_qt4_report *report,
     for (size_t area_index = 0; area_index <= areas.area_name_count;
          area_index += 1) {
         area_counts[area_index] = (sxml_qt4_outcome_counts){
-            .counts = {0}, .in_scope_count = 0, .in_scope_passed_count = 0};
+            .counts = {0}};
     }
     for (size_t test_set_index = 0; test_set_index < report->test_set_count;
          test_set_index += 1) {

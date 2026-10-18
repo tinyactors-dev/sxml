@@ -284,7 +284,7 @@ typedef struct error_case {
 } error_case;
 
 static const error_case error_cases[] = {
-    {"validate { <a/> }", SXML_STATUS_STATIC_ERROR, "XQST0075"},
+    {"validate type xs:no-such-type { <a/> }", SXML_STATUS_STATIC_ERROR, "XQST0104"},
     {"for $x in 1 order by $x collation 'urn:unknown' return $x",
      SXML_STATUS_STATIC_ERROR, "XQST0076"},
     {"(# Q{urn:x}p #) { }", SXML_STATUS_STATIC_ERROR, "XQST0079"},

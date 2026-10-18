@@ -10,6 +10,8 @@
  */
 #include "xpath_static_internal.h"
 
+#include "schema_scope_internal.h"
+
 #include "xml_internal.h"
 
 #include <stdalign.h>
@@ -610,8 +612,20 @@ bool sxml_xpath_find_named_type(const sxml_xpath_static_context *static_context,
             return true;
         }
     }
-    return sxml_type_registry_find_type(sxml_item_heap_get_type_registry(static_context->item_heap),
-                                        type_name, type);
+    /* The built-in types, then the in-scope schema definitions: the first
+       schema that defines the name (include/sxml/xpath.h,
+       in_scope_schemas; D174). */
+    if (sxml_type_registry_find_type(sxml_item_heap_get_type_registry(static_context->item_heap),
+                                     type_name, type)) {
+        return true;
+    }
+    const sxml_schema_view schemas = static_context->unit_static_context.in_scope_schemas;
+    for (size_t schema_index = 0; schema_index < schemas.schema_count; schema_index += 1) {
+        if (sxml_schema_find_type(schemas.schemas[schema_index], type_name, type)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /* What a type name names: found without interning, so an unknown name
@@ -652,6 +666,44 @@ static sxml_status find_named_type(const type_resolver *resolver,
     return SXML_STATUS_OK;
 }
 
+/* Unions of unions nest at most this deep before is_pure_union gives
+   up (and accepts the type). */
+#define PURE_UNION_STACK_CAPACITY 32U
+
+/* True when a union type's transitive members are all atomic: a pure
+   union, a generalized atomic type (XPath 4.0, section 3.2.3; a union with
+   a list member is not one). Walks the members with an explicit stack
+   (D71). */
+static bool is_pure_union(const type_resolver *resolver, sxml_type_identifier type) {
+    sxml_type_identifier stack[PURE_UNION_STACK_CAPACITY];
+    size_t depth = 1;
+    stack[0] = type;
+    while (depth > 0) {
+        depth -= 1;
+        sxml_type_description description;
+        if (sxml_type_registry_describe_type(resolver->type_registry, stack[depth],
+                                             &description) != SXML_STATUS_OK) {
+            return false;
+        }
+        if (description.variety == SXML_TYPE_VARIETY_ATOMIC) {
+            continue;
+        }
+        if (description.variety != SXML_TYPE_VARIETY_UNION) {
+            return false;
+        }
+        const sxml_type_identifier_view members = description.variety_details.member_types;
+        for (size_t member_index = 0; member_index < members.type_identifier_count;
+             member_index += 1) {
+            if (depth == PURE_UNION_STACK_CAPACITY) {
+                return true;
+            }
+            stack[depth] = members.type_identifiers[member_index];
+            depth += 1;
+        }
+    }
+    return true;
+}
+
 /* A type name used as an item type (XPath 4.0, section 3.2.3 and 3.2.10):
    a generalized atomic type or a named item type; XPST0051 otherwise. */
 static sxml_status resolve_type_name(const type_resolver *resolver,
@@ -668,6 +720,12 @@ static sxml_status resolve_type_name(const type_resolver *resolver,
                                          &description) != SXML_STATUS_OK) {
         return report_at(site_of(resolver, name_node), SXML_BYTE_VIEW_FROM_LITERAL("XPST0051"),
                          SXML_BYTE_VIEW_FROM_LITERAL("the type name is not defined"));
+    }
+    if (description.variety == SXML_TYPE_VARIETY_UNION && !is_pure_union(resolver, type)) {
+        return report_at(site_of(resolver, name_node), SXML_BYTE_VIEW_FROM_LITERAL("XPST0051"),
+                         SXML_BYTE_VIEW_FROM_LITERAL(
+                             "the union type has a list member, so it is not a generalized "
+                             "atomic type"));
     }
     switch (description.variety) {
     case SXML_TYPE_VARIETY_ATOMIC:
@@ -879,6 +937,131 @@ static sxml_status resolve_element_or_attribute_test(
             resolver,
             (sxml_type_identifier_view){.type_identifiers = members,
                                         .type_identifier_count = member_count},
+            item_type);
+    }
+    release_scratch(resolver, memory);
+    return status;
+}
+
+/* One element(M, T) or attribute(N, T) test of a schema declaration
+   test. */
+typedef struct declaration_test {
+    sxml_node_kind node_kind;
+    sxml_name_identifier name;
+    sxml_type_identifier declared_type;
+    bool is_nillable;
+} declaration_test;
+
+static sxml_status register_declaration_test(type_resolver *resolver, declaration_test test,
+                                             sxml_type_identifier *item_type) {
+    return register_type(
+        resolver,
+        &(sxml_type_description){
+            .variety = SXML_TYPE_VARIETY_NODE_TEST,
+            .variety_details = {.node_test = {.node_kind = test.node_kind,
+                                              .name_test = {.name_test_kind =
+                                                                SXML_NAME_TEST_KIND_EXPANDED_NAME,
+                                                            .expanded_name = test.name},
+                                              .type_annotation = test.declared_type,
+                                              .allows_nilled = test.is_nillable}}},
+        item_type);
+}
+
+/*
+ * schema-element(N) and schema-attribute(N) (XPath 4.0, 3.2.7.3 and
+ * 3.2.7.5), resolved statically against the in-scope schema definitions
+ * (D165, D174): schema-attribute(N) is attribute(N, T) with N's declared
+ * type T; schema-element(N) is the choice of element(M, T) over N and the
+ * members of its substitution group that may stand for it (not abstract,
+ * not blocked), T each one's declared type, with "?" (nilled elements
+ * allowed) when M is nillable. The registry's node tests and subtype rules
+ * then decide matching and subtyping. XPST0008 when no declaration of N
+ * is in scope.
+ */
+static sxml_status resolve_schema_declaration_test(type_resolver *resolver,
+                                                   element_test_request request,
+                                                   sxml_type_identifier *item_type) {
+    const sxml_ast_node_index name_node = find_field(resolver, request.node, SXML_AST_FIELD_NAME);
+    sxml_name_identifier name = {0};
+    sxml_status status = intern_resolved_name(
+        resolver,
+        (name_to_intern){.node = name_node,
+                         .name_role = request.node_kind == SXML_NODE_KIND_ELEMENT
+                                          ? SXML_XPATH_NAME_ROLE_ELEMENT_OR_TYPE
+                                          : SXML_XPATH_NAME_ROLE_NO_NAMESPACE},
+        &name);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    const sxml_schema_view schemas = resolver->static_context->unit_static_context.in_scope_schemas;
+    if (request.node_kind == SXML_NODE_KIND_ATTRIBUTE) {
+        sxml_schema_scope_attribute attribute;
+        if (!sxml_schema_scope_find_attribute(schemas, name, &attribute)) {
+            return report_at(site_of(resolver, request.node), SXML_BYTE_VIEW_FROM_LITERAL("XPST0008"),
+                             SXML_BYTE_VIEW_FROM_LITERAL(
+                                 "no attribute declaration of this name is in scope"));
+        }
+        return register_declaration_test(
+            resolver,
+            (declaration_test){.node_kind = SXML_NODE_KIND_ATTRIBUTE,
+                               .name = name,
+                               .declared_type = attribute.description.declared_type,
+                               .is_nillable = false},
+            item_type);
+    }
+    sxml_schema_scope_element head;
+    if (!sxml_schema_scope_find_element(schemas, name, &head)) {
+        return report_at(site_of(resolver, request.node), SXML_BYTE_VIEW_FROM_LITERAL("XPST0008"),
+                         SXML_BYTE_VIEW_FROM_LITERAL(
+                             "no element declaration of this name is in scope"));
+    }
+    const size_t member_count = sxml_schema_scope_member_count(&head);
+    void *memory = NULL;
+    status = allocate_scratch(
+        resolver,
+        (scratch_request){.element_count = member_count == 0 ? 1 : member_count,
+                          .element_size = sizeof(sxml_type_identifier),
+                          .element_alignment = alignof(sxml_type_identifier)},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_type_identifier *members = memory;
+    size_t test_count = 0;
+    for (size_t member_index = 0; status == SXML_STATUS_OK && member_index < member_count;
+         member_index += 1) {
+        sxml_element_declaration_description member;
+        if (!sxml_schema_scope_get_member(
+                &(sxml_schema_scope_member_request){.head = head, .member_index = member_index},
+                &member)) {
+            continue;
+        }
+        status = register_declaration_test(
+            resolver,
+            (declaration_test){.node_kind = SXML_NODE_KIND_ELEMENT,
+                               .name = member.element_name,
+                               .declared_type = member.declared_type,
+                               .is_nillable = member.is_nillable},
+            &members[test_count]);
+        test_count += 1;
+    }
+    if (status == SXML_STATUS_OK && test_count == 0) {
+        /* An abstract or blocked head without members: element(N, T),
+           which a valid element never matches (cvc-elt.2). */
+        status = register_declaration_test(
+            resolver,
+            (declaration_test){.node_kind = SXML_NODE_KIND_ELEMENT,
+                               .name = name,
+                               .declared_type = head.description.declared_type,
+                               .is_nillable = false},
+            &members[0]);
+        test_count = 1;
+    }
+    if (status == SXML_STATUS_OK) {
+        status = register_choice(
+            resolver,
+            (sxml_type_identifier_view){.type_identifiers = members,
+                                        .type_identifier_count = test_count},
             item_type);
     }
     release_scratch(resolver, memory);
@@ -1308,10 +1491,13 @@ static bool resolve_leaf_type(type_resolver *resolver,
         return true;
     case SXML_AST_KIND_SCHEMA_ELEMENT_NODE_TYPE:
     case SXML_AST_KIND_SCHEMA_ATTRIBUTE_NODE_TYPE:
-        /* No schema is imported in Phase 1, so no declaration is in scope
-           (XPath 4.0, 3.2.7.3). */
-        *status = report_at(site_of(resolver, node), SXML_BYTE_VIEW_FROM_LITERAL("XPST0008"),
-                            SXML_BYTE_VIEW_FROM_LITERAL("no schema declaration of this name is in scope"));
+        *status = resolve_schema_declaration_test(
+            resolver,
+            (element_test_request){.node = node,
+                                   .node_kind = kind == SXML_AST_KIND_SCHEMA_ELEMENT_NODE_TYPE
+                                                    ? SXML_NODE_KIND_ELEMENT
+                                                    : SXML_NODE_KIND_ATTRIBUTE},
+            item_type);
         return true;
     case SXML_AST_KIND_PROCESSING_INSTRUCTION_NODE_TYPE:
         *status = resolve_processing_instruction_test(resolver, node, item_type);

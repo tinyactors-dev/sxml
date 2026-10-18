@@ -1,0 +1,173 @@
+#pragma once
+
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+
+#include "sxml/memory.h"
+#include "sxml/name.h"
+#include "sxml/schema.h"
+#include "sxml/status.h"
+#include "sxml/types.h"
+#include "sxml/view.h"
+#include "sxml/xdm.h"
+#include "sxml/xpath.h"
+
+#include "function_library_internal.h"
+
+/*
+ * The in-scope schema definitions of a static context (XPath 4.0, section
+ * 2.2.1; D174): what XPath, XQuery and XSLT ask of the compiled schemas
+ * of a static context (include/sxml/xpath.h, in_scope_schemas), and the
+ * one way schema errors become errors of those languages. Internal to
+ * sxml; src/schema_scope.c.
+ *
+ * Lookups go through the schemas in order and stop at the first that
+ * has the name (the built-in types are every schema's, so a caller that
+ * looks for a built-in type looks in the type registry first).
+ *
+ * Thread safety: the thread of the processor (D35).
+ */
+
+/* A global declaration found in the in-scope schemas, and its schema. */
+typedef struct sxml_schema_scope_element {
+    const sxml_schema *schema;
+    sxml_element_declaration_description description;
+} sxml_schema_scope_element;
+
+typedef struct sxml_schema_scope_attribute {
+    const sxml_schema *schema;
+    sxml_attribute_declaration_description description;
+} sxml_schema_scope_attribute;
+
+/* A type found in the in-scope schemas, and its schema. */
+typedef struct sxml_schema_scope_type {
+    const sxml_schema *schema;
+    sxml_type_identifier type;
+} sxml_schema_scope_type;
+
+/* The first schema of schemas with a global element declaration named
+   element_name. Returns false, leaving *found untouched, when none has. */
+bool sxml_schema_scope_find_element(sxml_schema_view schemas, sxml_name_identifier element_name,
+                                    sxml_schema_scope_element *found);
+
+/* As sxml_schema_scope_find_element for attribute declarations. */
+bool sxml_schema_scope_find_attribute(sxml_schema_view schemas,
+                                      sxml_name_identifier attribute_name,
+                                      sxml_schema_scope_attribute *found);
+
+/* As sxml_schema_scope_find_element for type definitions. */
+bool sxml_schema_scope_find_type(sxml_schema_view schemas, sxml_name_identifier type_name,
+                                 sxml_schema_scope_type *found);
+
+/* The first schema of schemas that registered type (a type annotation),
+   so that validating against it finds it; NULL when none did. */
+const sxml_schema *sxml_schema_scope_find_type_owner(sxml_schema_view schemas,
+                                                     sxml_type_identifier type);
+
+/*
+ * The constructor function of a simple type of the in-scope schemas
+ * (XPath 4.0, section 4.5.1.3, "Constructor Functions"): when
+ * query->arity is 1 and query->function_name names an atomic, list or
+ * union type of schemas that is not built-in (the function library makes
+ * those), *entry becomes the CONSTRUCTOR entry the function library makes
+ * for a built-in type: xs:anyAtomicType? to T? (T's item type * for a
+ * list type), its signature registered in registry. Otherwise *entry is
+ * left untouched. Returns the registry's failures.
+ */
+typedef struct sxml_schema_scope_constructor_request {
+    sxml_schema_view schemas;
+    sxml_type_registry *type_registry;
+    const sxml_function_query *query;
+} sxml_schema_scope_constructor_request;
+
+SXML_NODISCARD sxml_status sxml_schema_scope_find_constructor(
+    const sxml_schema_scope_constructor_request *request, sxml_function_entry *entry);
+
+/* True when a document schema was assembled from has the target
+   namespace namespace_uri (SXML_NAMESPACE_NONE for none). */
+bool sxml_schema_scope_defines_namespace(const sxml_schema *schema,
+                                         sxml_namespace_uri_identifier namespace_uri);
+
+/*
+ * The members of the substitution group of a global element declaration
+ * (XSD 1.1 Part 1, 3.3.6.2, transitively), the head first, that an
+ * element may stand for (XPath 4.0, 3.2.7.3, schema-element(N)): not
+ * abstract, and none when the head's {disallowed substitutions} has
+ * substitution. member_index 0 is the head itself.
+ */
+typedef struct sxml_schema_scope_member_request {
+    sxml_schema_scope_element head;
+    size_t member_index;
+} sxml_schema_scope_member_request;
+
+/* The number of member_index values (the head and its members, abstract
+   ones included: sxml_schema_scope_get_member skips them). */
+size_t sxml_schema_scope_member_count(const sxml_schema_scope_element *head);
+
+/* Writes member request->member_index to *member and returns true; false
+   when that member is abstract or blocked. */
+bool sxml_schema_scope_get_member(const sxml_schema_scope_member_request *request,
+                                  sxml_element_declaration_description *member);
+
+/*
+ * An error a schema raised (its code a constraint name in no namespace,
+ * include/sxml/schema.h) raised again as an error of the language
+ * around it: error_code in the err namespace, its description the
+ * constraint name, ": " and the schema's description, its location the
+ * schema's unless location is given (line_number not 0). Keeps the text
+ * in the item heap (sxml_item_heap_raise_error).
+ */
+typedef struct sxml_schema_scope_error {
+    sxml_item_heap *item_heap;
+    /* For the description's text while it is raised. */
+    sxml_allocator allocator;
+    /* The status the schema returned, which has an error record. */
+    sxml_status error_status;
+    /* ASCII, such as "XQST0059"; static. */
+    sxml_byte_view error_code;
+    /* The schema's error. */
+    const sxml_error_record *schema_error;
+    /* Receives the language's error; may be NULL. */
+    sxml_error_record *error_record;
+    sxml_source_location location;
+} sxml_schema_scope_error;
+
+/* Returns request->error_status, or the heap's failure. */
+SXML_NODISCARD sxml_status sxml_schema_scope_raise(const sxml_schema_scope_error *request);
+
+/* ------------------------------------------------------------ Validate */
+
+/* The $mode of the validate row. */
+typedef enum sxml_schema_validate_mode {
+    SXML_SCHEMA_VALIDATE_MODE_STRICT = 0,
+    SXML_SCHEMA_VALIDATE_MODE_LAX = 1,
+    /* "validate type T": $type names T. */
+    SXML_SCHEMA_VALIDATE_MODE_TYPE = 2,
+} sxml_schema_validate_mode;
+
+/*
+ * validate($node as item()*, $mode as xs:integer, $type as xs:QName?) as
+ * node(), the internal native row (in no function table) XQuery's validate
+ * expression lowers to (XQuery 4.0, 4.25; D174; src/function_library_schema.c):
+ * $node must be one document or element node (XQTY0030), a document with
+ * one element child and no text children (XQDY0061); its validated copy
+ * (sxml_schema_validate_node) against the in-scope schema that declares
+ * the validation root's name (strict: XQDY0084 when none does; lax: the
+ * first schema then) or, for $mode TYPE, that defines $type. An invalid
+ * node is XQDY0027 with the constraint name in the description.
+ */
+extern const sxml_native_function sxml_schema_validate_function;
+
+/*
+ * The xsd-validation option of fn:parse-xml and fn:doc (F&O 4.0, 17.2.1;
+ * D174), xsd_validation its value: "skip" leaves *document_node as it is;
+ * "strict", "lax" and "type Q{uri}local" replace it, owned, by its
+ * validated copy against the in-scope schemas of call's static context
+ * (FODC0008 for another value or a type not in the static context,
+ * FODC0014 for invalid content or, strict, an element without a
+ * declaration); on failure *document_node is released.
+ */
+SXML_NODISCARD sxml_status sxml_schema_scope_validate_document(const sxml_function_call *call,
+                                                               sxml_byte_view xsd_validation,
+                                                               sxml_item *document_node);

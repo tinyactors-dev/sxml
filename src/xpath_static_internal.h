@@ -79,6 +79,10 @@ typedef struct sxml_xpath_static_context {
     /* Its name pool interns names; its type registry registers item
        types; constants are made in it. */
     sxml_item_heap *item_heap;
+    /* The processor of item_heap, whose resource resolver reads the
+       schema documents a prolog imports (XQuery 4.0, 5.11; D174); NULL
+       where nothing is imported (unit tests). */
+    sxml_processor *processor;
     /* Memory for units and for scratch arrays. Not the null allocator. */
     sxml_allocator allocator;
     /* Added to the predeclared prefixes xml, xs, xsi, fn, map, array,

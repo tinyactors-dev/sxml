@@ -8,6 +8,7 @@
 #include "sxml/memory.h"
 #include "sxml/name.h"
 #include "sxml/processor.h"
+#include "sxml/schema.h"
 #include "sxml/status.h"
 #include "sxml/tree.h"
 #include "sxml/types.h"
@@ -183,6 +184,21 @@ typedef struct sxml_collation_binding_view {
  */
 SXML_EXPORT bool sxml_collation_is_supported(sxml_byte_view collation_uri);
 
+/* ------------------------------------------------------------- Schemas */
+
+/*
+ * Compiled schemas (include/sxml/schema.h) whose components are in-scope
+ * schema definitions (XPath 4.0, section 2.2.1; D174). Each schema must be
+ * one of the processor's and must outlive what is compiled with it: types,
+ * element and attribute declarations are read when it is compiled, and
+ * validation (XQuery's validate, fn:xsd-validator) uses the schema when it
+ * is evaluated.
+ */
+typedef struct sxml_schema_view {
+    const sxml_schema *const *schemas;
+    size_t schema_count;
+} sxml_schema_view;
+
 /* -------------------------------------------------------- Static context */
 
 /*
@@ -230,6 +246,21 @@ typedef struct sxml_static_context_configuration {
     /* Collation URIs added to the statically known collations. URIs must
        be distinct. */
     sxml_collation_binding_view collation_bindings;
+    /*
+     * The in-scope schema definitions beyond the built-in types (XPath
+     * 4.0, section 2.2.1; D174): the global type definitions, element
+     * declarations and attribute declarations of these schemas. Empty
+     * (the default) is not schema-aware: only the built-in types, and
+     * schema-element() and schema-attribute() name no declaration
+     * (XPST0008). A type name resolves to a built-in type first, then to
+     * the type of that name in the first schema that defines one
+     * (XPST0051 or XPST0008 when none does); element and attribute
+     * declarations likewise. XQuery's "import schema" of a namespace one
+     * of these schemas defines takes it from here instead of reading it
+     * again. The view is copied; the schemas are kept by reference (see
+     * sxml_schema_view).
+     */
+    sxml_schema_view in_scope_schemas;
 } sxml_static_context_configuration;
 
 /* ------------------------------------------------------- Dynamic context */

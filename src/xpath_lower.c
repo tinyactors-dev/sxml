@@ -55,6 +55,7 @@
 #include "decimal_internal.h"
 #include "operator_internal.h"
 #include "ir_pass_internal.h"
+#include "schema_scope_internal.h"
 
 #include <math.h>
 #include <stdalign.h>
@@ -1982,6 +1983,26 @@ static sxml_status make_focus_constructor_entry(sxml_xpath_lowerer *state,
     return status;
 }
 
+/* The function table's function, else a constructor function of an
+   in-scope schema type. */
+static sxml_status find_function_or_constructor(sxml_xpath_lowerer *state,
+                                                const sxml_function_query *query,
+                                                sxml_function_entry *entry) {
+    sxml_status status =
+        sxml_xpath_find_function(state->static_context->function_table, query, entry);
+    if (status == SXML_STATUS_OK && entry->entry_kind == SXML_FUNCTION_ENTRY_KIND_NONE) {
+        /* XPath 4.0, 4.5.1.3: the constructor functions of the in-scope
+           schema types (D174). */
+        status = sxml_schema_scope_find_constructor(
+            &(sxml_schema_scope_constructor_request){
+                .schemas = state->static_context->unit_static_context.in_scope_schemas,
+                .type_registry = state->type_registry,
+                .query = query},
+            entry);
+    }
+    return status;
+}
+
 static sxml_status find_function(sxml_xpath_lowerer *state, function_lookup lookup,
                                  sxml_function_entry *entry) {
     if (lookup.function_name.index == 0) {
@@ -1989,8 +2010,8 @@ static sxml_status find_function(sxml_xpath_lowerer *state, function_lookup look
             .entry_kind = SXML_FUNCTION_ENTRY_KIND_NONE};
         return SXML_STATUS_OK;
     }
-    sxml_status status = sxml_xpath_find_function(
-        state->static_context->function_table,
+    sxml_status status = find_function_or_constructor(
+        state,
         &(sxml_function_query){.function_name = lookup.function_name,
                                .arity = lookup.arity},
         entry);
@@ -1998,8 +2019,8 @@ static sxml_status find_function(sxml_xpath_lowerer *state, function_lookup look
         entry->entry_kind == SXML_FUNCTION_ENTRY_KIND_NONE && lookup.arity == 0) {
         /* XPath 4.0, section 4.5.1.3: a constructor function's argument
            defaults to the context value, so xs:T() is a call too. */
-        status = sxml_xpath_find_function(
-            state->static_context->function_table,
+        status = find_function_or_constructor(
+            state,
             &(sxml_function_query){.function_name = lookup.function_name,
                                    .arity = 1},
             entry);

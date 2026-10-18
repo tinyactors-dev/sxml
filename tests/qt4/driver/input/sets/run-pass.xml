@@ -109,7 +109,7 @@
       <result><assert-eq>'a b3http://example.com/base/'</assert-eq></result>
    </test-case>
    <test-case name="not-run-dependency">
-      <dependency type="feature" value="schemaImport"/>
+      <dependency type="feature" value="staticTyping"/>
       <test>1</test>
       <result><assert-eq>1</assert-eq></result>
    </test-case>

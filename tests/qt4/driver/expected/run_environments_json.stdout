@@ -9,7 +9,7 @@
 {"test_set": "run-environments", "test_case": "other-collation", "outcome": "not-run", "reason": "skip: environment collation"},
 {"test_set": "run-environments", "test_case": "without-schema-import", "outcome": "pass", "reason": ""}],
 "test_sets": [
-{"name": "run-environments", "total": 8, "pass": 7, "wrong_error": 0, "fail": 0, "error": 0, "not_run": 1, "in_scope": 8, "in_scope_passed": 7}],
+{"name": "run-environments", "total": 8, "pass": 7, "wrong_error": 0, "fail": 0, "error": 0, "not_run": 1, "in_scope": 8, "in_scope_passed": 7, "schema_aware": 0, "schema_aware_passed": 0}],
 "areas": [
-{"area": "other", "total": 8, "pass": 7, "wrong_error": 0, "fail": 0, "error": 0, "not_run": 1, "in_scope": 8, "in_scope_passed": 7}],
-"totals": {"total": 8, "pass": 7, "wrong_error": 0, "fail": 0, "error": 0, "not_run": 1, "in_scope": 8, "in_scope_passed": 7}}
+{"area": "other", "total": 8, "pass": 7, "wrong_error": 0, "fail": 0, "error": 0, "not_run": 1, "in_scope": 8, "in_scope_passed": 7, "schema_aware": 0, "schema_aware_passed": 0}],
+"totals": {"total": 8, "pass": 7, "wrong_error": 0, "fail": 0, "error": 0, "not_run": 1, "in_scope": 8, "in_scope_passed": 7, "schema_aware": 0, "schema_aware_passed": 0}}

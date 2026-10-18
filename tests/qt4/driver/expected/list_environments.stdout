@@ -30,5 +30,5 @@ run-environments other-collation
   collation http://example.com/collation
   skip: environment collation
 run-environments without-schema-import
-  dependency feature schemaImport unsatisfied
+  dependency feature staticTyping unsatisfied
 8 test cases: 7 applicable, 1 skipped; 8 in scope

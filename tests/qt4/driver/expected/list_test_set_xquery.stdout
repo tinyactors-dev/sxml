@@ -37,9 +37,9 @@ set-basic xquery-spec
   dependency feature higherOrderFunctions
 set-basic schema-feature
   dependency feature higherOrderFunctions
-  dependency feature schemaImport
-  skip: feature schemaImport
-  out of scope: feature schemaImport
+  dependency feature staticTyping
+  skip: feature staticTyping
+  out of scope: feature staticTyping
 set-basic not-serialization
   dependency feature higherOrderFunctions
   dependency feature serialization unsatisfied
@@ -76,15 +76,13 @@ set-basic schema-import
   source . docs/a.xml validation strict
   schema urn:s docs/s.xsd
   dependency feature higherOrderFunctions
-  skip: environment source validation
 set-basic validated-source
   environment (inline)
   source . docs/a.xml validation lax
   dependency feature higherOrderFunctions
-  skip: environment source validation
 set-basic library-module
   module urn:m queries/m.xqm location m.xqm
   dependency feature higherOrderFunctions
 set-basic split-text
   dependency feature higherOrderFunctions
-21 test cases: 16 applicable, 5 skipped; 20 in scope
+21 test cases: 18 applicable, 3 skipped; 20 in scope

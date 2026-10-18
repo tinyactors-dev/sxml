@@ -27,6 +27,7 @@
 #include "format_internal.h"
 #include "name_internal.h"
 #include "processor_internal.h"
+#include "schema_internal.h"
 #include "xdm_internal.h"
 #include "xpath_ast_internal.h"
 #include "xpath_static_internal.h"
@@ -205,6 +206,18 @@ bool sxml_static_context_configuration_is_valid(
             return false;
         }
     }
+    /* The in-scope schemas are the processor's (include/sxml/xpath.h,
+       sxml_schema_view). */
+    const sxml_schema_view schemas = context->in_scope_schemas;
+    if (schemas.schema_count > 0 && schemas.schemas == NULL) {
+        return false;
+    }
+    for (size_t schema_index = 0; schema_index < schemas.schema_count; schema_index += 1) {
+        if (schemas.schemas[schema_index] == NULL ||
+            schemas.schemas[schema_index]->processor != processor) {
+            return false;
+        }
+    }
     /* XPath 4.0, section 2.2.1: the static base URI is an absolute URI. */
     return (context->static_base_uri.byte_count == 0 ||
             sxml_uri_has_scheme(context->static_base_uri)) &&
@@ -216,6 +229,7 @@ sxml_xpath_static_context sxml_processor_static_context(
     sxml_processor *processor, const sxml_static_context_configuration *context) {
     return (sxml_xpath_static_context){
         .item_heap = processor->item_heap,
+        .processor = processor,
         .allocator = processor->allocator,
         .namespace_bindings = context->namespace_bindings,
         .variable_declarations = context->variable_declarations,
@@ -223,7 +237,8 @@ sxml_xpath_static_context sxml_processor_static_context(
         .static_base_uri = context->static_base_uri,
         .unit_static_context = {.decimal_formats = context->decimal_formats,
                                 .default_collation_uri = context->default_collation_uri,
-                                .collation_bindings = context->collation_bindings}};
+                                .collation_bindings = context->collation_bindings,
+                                .in_scope_schemas = context->in_scope_schemas}};
 }
 
 /* ------------------------------------------------------------ Expressions */

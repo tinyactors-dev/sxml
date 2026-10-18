@@ -49,7 +49,14 @@
  *   nominative record types (5.20) declared in the type registry (a
  *   record of the same name declared before, by an earlier compilation
  *   for the same item heap, is reused), with a constructor function for
- *   %constructor records.
+ *   %constructor records;
+ * - the in-scope schema definitions (5.11; D174): the host's schemas,
+ *   then one schema compiled from the schema imports of the namespaces
+ *   no host schema defines (RESOLVED documents: the location hints, or
+ *   the namespace alone, the target namespace checked), owned by the
+ *   unit; a main module without schemas gets the schema of the built-in
+ *   components; a schema import also binds its prefix like a namespace
+ *   declaration, or sets the default element namespace.
  *
  * Checked here (static errors in the error record): XQST0033, XQST0066,
  * XQST0070 (namespaces), XQST0068, XQST0038, XQST0032, XQST0067,
@@ -57,7 +64,8 @@
  * declaration twice), XQST0038 (an unknown default collation), XQST0049
  * (a variable twice, also against the host's), XQST0034 (arity ranges of
  * one name overlap), XQST0039, XQST0045, XQST0106, XQST0116, XQST0148,
- * XQST0009 (schema import, D97), XQST0111, XQST0114, XQST0097 and
+ * XQST0057, XQST0058, XQST0059, XQST0035 and XQST0012 (schema imports,
+ * D174), XQST0111, XQST0114, XQST0097 and
  * XQST0098 (decimal formats), XQST0109 and XQST0110 (output
  * declarations, whose values the serializer reads), XPST0081 and the
  * type errors of sxml_xpath_resolve_sequence_type. Annotations in a reserved namespace
@@ -215,6 +223,11 @@ struct sxml_xquery_static_context {
     sxml_namespace_uri_identifier target_namespace;
     /* The imported modules (after sxml_xquery_link_static_context). */
     sxml_xquery_static_context_view imported_modules;
+    /* The in-scope schemas when the prolog imports schemas (5.11): the
+       host's, then the one schema the imports compile, which the unit
+       owns (sxml_ir_unit_keep_schema); xpath's unit_static_context views
+       it. NULL otherwise. */
+    const sxml_schema **in_scope_schemas;
 };
 
 /*

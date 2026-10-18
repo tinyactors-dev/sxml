@@ -347,8 +347,8 @@ typedef struct sxml_option_definition_view {
      .option_type = {.item_type = {.index = (type_index)},                    \
                      .occurrence = (occurrence_value)}}
 
-/* The most options one function defines. */
-#define SXML_FUNCTION_OPTION_LIMIT ((size_t)10)
+/* The most options one function defines (fn:xsd-validator has 11). */
+#define SXML_FUNCTION_OPTION_LIMIT ((size_t)12)
 
 /* Which options of argument argument_index (map(*)? after coercion) to
    read. */

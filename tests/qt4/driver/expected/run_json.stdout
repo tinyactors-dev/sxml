@@ -23,14 +23,14 @@
 {"test_set": "run-pass", "test_case": "all-of", "outcome": "pass", "reason": ""},
 {"test_set": "run-pass", "test_case": "variables-and-documents", "outcome": "pass", "reason": ""},
 {"test_set": "run-pass", "test_case": "parameters", "outcome": "pass", "reason": ""},
-{"test_set": "run-pass", "test_case": "not-run-dependency", "outcome": "not-run", "reason": "skip: feature schemaImport"},
+{"test_set": "run-pass", "test_case": "not-run-dependency", "outcome": "not-run", "reason": "skip: feature staticTyping"},
 {"test_set": "run-pass", "test_case": "serialization-matches", "outcome": "pass", "reason": ""},
 {"test_set": "run-pass", "test_case": "serialization-matches-flags", "outcome": "pass", "reason": ""},
 {"test_set": "run-pass", "test_case": "serialization-error", "outcome": "pass", "reason": ""},
 {"test_set": "run-pass", "test_case": "serialization-error-raised-by-evaluation", "outcome": "pass", "reason": ""},
 {"test_set": "run-pass", "test_case": "not-run-serialization", "outcome": "not-run", "reason": "assert-serialization: not checked by the driver"}],
 "test_sets": [
-{"name": "run-pass", "total": 29, "pass": 26, "wrong_error": 1, "fail": 0, "error": 0, "not_run": 2, "in_scope": 28, "in_scope_passed": 27}],
+{"name": "run-pass", "total": 29, "pass": 26, "wrong_error": 1, "fail": 0, "error": 0, "not_run": 2, "in_scope": 28, "in_scope_passed": 27, "schema_aware": 0, "schema_aware_passed": 0}],
 "areas": [
-{"area": "other", "total": 29, "pass": 26, "wrong_error": 1, "fail": 0, "error": 0, "not_run": 2, "in_scope": 28, "in_scope_passed": 27}],
-"totals": {"total": 29, "pass": 26, "wrong_error": 1, "fail": 0, "error": 0, "not_run": 2, "in_scope": 28, "in_scope_passed": 27}}
+{"area": "other", "total": 29, "pass": 26, "wrong_error": 1, "fail": 0, "error": 0, "not_run": 2, "in_scope": 28, "in_scope_passed": 27, "schema_aware": 0, "schema_aware_passed": 0}],
+"totals": {"total": 29, "pass": 26, "wrong_error": 1, "fail": 0, "error": 0, "not_run": 2, "in_scope": 28, "in_scope_passed": 27, "schema_aware": 0, "schema_aware_passed": 0}}

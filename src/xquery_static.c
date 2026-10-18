@@ -13,6 +13,9 @@
  */
 #include "xquery_static_internal.h"
 
+#include "processor_internal.h"
+#include "schema_scope_internal.h"
+
 #include "format_internal.h"
 #include "sort_internal.h"
 #include "sxml/memory.h"
@@ -318,6 +321,7 @@ static const single_declaration_rule single_declaration_rules[] = {
 typedef struct prolog_survey {
     size_t namespace_declaration_count;
     size_t module_import_count;
+    size_t schema_import_count;
     size_t variable_declaration_count;
     size_t function_declaration_count;
     size_t parameter_count;
@@ -413,11 +417,21 @@ static sxml_status survey_declaration(const static_reader *reader,
         return survey_parameters(reader, declaration, survey);
     case SXML_AST_KIND_FUNCTION_DECLARATION:
         return survey_parameters(reader, declaration, survey);
-    case SXML_AST_KIND_SCHEMA_IMPORT:
-        /* D97: no schema awareness; 5.11. */
-        return report(reader, declaration,
-                      SXML_BYTE_VIEW_FROM_LITERAL(
-                          "XQST0009 schema import is not supported (no schema awareness)"));
+    case SXML_AST_KIND_SCHEMA_IMPORT: {
+        /* 5.11 (D174): "default element namespace" is a default element
+           namespace declaration too (5.14.1: XQST0066 twice). */
+        survey->schema_import_count += 1;
+        const sxml_ast_node_index prefix = child_of(ast, declaration, SXML_AST_FIELD_PREFIX);
+        if (prefix.value != 0 && child_of(ast, prefix, SXML_AST_FIELD_PREFIX).value == 0) {
+            if (survey->default_element_namespace.value != 0) {
+                return report(reader, declaration,
+                              SXML_BYTE_VIEW_FROM_LITERAL(
+                                  "XQST0066 the prolog declares a default namespace twice"));
+            }
+            survey->default_element_namespace = declaration;
+        }
+        return SXML_STATUS_OK;
+    }
     case SXML_AST_KIND_MODULE_IMPORT:
         /* The module set loaded the modules (D148); the prefix is bound
            here. */
@@ -482,11 +496,21 @@ typedef struct binding_list {
     size_t binding_count;
 } binding_list;
 
+/* The NCNAME a namespace declaration, module import or schema import
+   binds (a schema import's through its SCHEMA_PREFIX); 0 for none. */
+static sxml_ast_node_index declared_prefix(const sxml_ast *ast, sxml_ast_node_index declaration) {
+    const sxml_ast_node_index prefix = child_of(ast, declaration, SXML_AST_FIELD_PREFIX);
+    if (prefix.value != 0 && node_of(ast, declaration)->kind == SXML_AST_KIND_SCHEMA_IMPORT) {
+        return child_of(ast, prefix, SXML_AST_FIELD_PREFIX);
+    }
+    return prefix;
+}
+
 static sxml_status read_namespace_declaration(const static_reader *reader,
                                               sxml_ast_node_index declaration,
                                               binding_list *list) {
     const sxml_ast *ast = reader->ast;
-    const sxml_ast_node_index prefix_node = child_of(ast, declaration, SXML_AST_FIELD_PREFIX);
+    const sxml_ast_node_index prefix_node = declared_prefix(ast, declaration);
     const sxml_byte_view prefix_text =
         sxml_ast_get_text(ast, node_of(ast, prefix_node)->payload.name.local_name);
     if (sxml_byte_view_equals(prefix_text, SXML_BYTE_VIEW_FROM_LITERAL("xml")) ||
@@ -502,6 +526,12 @@ static sxml_status read_namespace_declaration(const static_reader *reader,
         return status;
     }
     const sxml_ast_kind kind = node_of(ast, declaration)->kind;
+    if (kind == SXML_AST_KIND_SCHEMA_IMPORT && uri.index == SXML_NAMESPACE_NONE) {
+        /* 5.11. */
+        return report(reader, declaration,
+                      SXML_BYTE_VIEW_FROM_LITERAL(
+                          "XQST0057 a schema import binds a prefix to no namespace"));
+    }
     if (kind != SXML_AST_KIND_NAMESPACE_DECLARATION && uri.index == SXML_NAMESPACE_NONE) {
         /* 5.2, 5.12: a target namespace is never empty. */
         return report(reader, declaration,
@@ -594,7 +624,7 @@ static sxml_status read_namespaces(const static_reader *reader, const prolog_sur
     /* Prolog declarations, the default element namespace, the host's,
        local, output and xq. */
     const size_t capacity = survey->namespace_declaration_count + survey->module_import_count +
-                            2 + host.namespace_binding_count + 3;
+                            survey->schema_import_count + 2 + host.namespace_binding_count + 3;
     void *memory = NULL;
     sxml_status status = allocate_array(
         reader,
@@ -629,8 +659,8 @@ static sxml_status read_namespaces(const static_reader *reader, const prolog_sur
          declaration = next_of(ast, declaration)) {
         const sxml_ast_kind kind = node_of(ast, declaration)->kind;
         if (kind == SXML_AST_KIND_NAMESPACE_DECLARATION ||
-            (kind == SXML_AST_KIND_MODULE_IMPORT &&
-             child_of(ast, declaration, SXML_AST_FIELD_PREFIX).value != 0)) {
+            ((kind == SXML_AST_KIND_MODULE_IMPORT || kind == SXML_AST_KIND_SCHEMA_IMPORT) &&
+             declared_prefix(ast, declaration).value != 0)) {
             declarations[list.binding_count] = declaration;
             status = read_namespace_declaration(reader, declaration, &list);
         }
@@ -812,6 +842,319 @@ static sxml_status read_base_uri_and_collation(const static_reader *reader,
         context->xpath.unit_static_context.default_collation_uri = resolution.uri;
     }
     return status;
+}
+
+/* ---------------------------------------------------- Schema imports */
+
+/* The location hints of a SCHEMA_IMPORT, as STRING_LITERAL nodes. */
+static size_t count_locations(const sxml_ast *ast, sxml_ast_node_index declaration) {
+    size_t location_count = 0;
+    for (sxml_ast_node_index location = child_of(ast, declaration, SXML_AST_FIELD_LOCATION);
+         location.value != 0; location = sxml_ast_find_next_with_same_field(ast, location)) {
+        location_count += 1;
+    }
+    return location_count;
+}
+
+/* True when a host schema defines namespace_uri: its import is taken from
+   there, not read again (D174). The XML Schema namespace is every
+   schema's (Part 1, 3.4.7, 3.16.7). */
+static bool is_in_host_schemas(const static_reader *reader,
+                               sxml_namespace_uri_identifier namespace_uri) {
+    if (is_well_known(namespace_uri, SXML_NAMESPACE_XML_SCHEMA)) {
+        return true;
+    }
+    const sxml_schema_view host =
+        reader->request->host_static_context->unit_static_context.in_scope_schemas;
+    for (size_t schema_index = 0; schema_index < host.schema_count; schema_index += 1) {
+        if (sxml_schema_scope_defines_namespace(host.schemas[schema_index], namespace_uri)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* The error code a schema error of the imports is raised with (5.11):
+   XQST0059 when a document cannot be read or has another target
+   namespace (src-import, schema_reference), XQST0035 for two components
+   of one name (sch-props-correct.2), XQST0012 for any other breach of
+   XSD's constraints. */
+static sxml_byte_view schema_import_error_code(const sxml_error_record *record) {
+    const sxml_byte_view constraint = record->code.local_name;
+    if (sxml_byte_view_equals(constraint, SXML_BYTE_VIEW_FROM_LITERAL("src-import")) ||
+        sxml_byte_view_equals(constraint, SXML_BYTE_VIEW_FROM_LITERAL("schema_reference"))) {
+        return SXML_BYTE_VIEW_FROM_LITERAL("XQST0059");
+    }
+    if (sxml_byte_view_equals(constraint, SXML_BYTE_VIEW_FROM_LITERAL("sch-props-correct.2"))) {
+        return SXML_BYTE_VIEW_FROM_LITERAL("XQST0035");
+    }
+    return SXML_BYTE_VIEW_FROM_LITERAL("XQST0012");
+}
+
+/* Fills documents[0 ..) with the documents of the imports of namespaces
+   no host schema defines, after XQST0058 (one namespace imported twice);
+   *document_count is how many. */
+typedef struct schema_documents {
+    sxml_schema_document *documents;
+    size_t document_count;
+    /* The first import that has documents, for errors. */
+    sxml_ast_node_index first_import;
+    /* Location hints the resolver does not deliver are left out, and an
+       import none of whose hints it delivers asks by namespace alone
+       (5.11: hints may be ignored); set after a first compilation found a
+       document missing. */
+    bool probes_hints;
+} schema_documents;
+
+/* True when the resolver delivers the schema document hint names,
+   resolved against the static base URI. Reads it once and releases it. */
+static sxml_status probe_hint(const static_reader *reader, sxml_schema_document document,
+                              bool *is_delivered) {
+    *is_delivered = false;
+    sxml_processor *processor = reader->context->xpath.processor;
+    const sxml_resource_resolver resolver = processor->resource_resolver;
+    if (resolver.operations == NULL || resolver.operations->resolve == NULL) {
+        return SXML_STATUS_OK;
+    }
+    sxml_uri_resolution resolution = {0};
+    sxml_status status = sxml_uri_resolve(
+        &(sxml_uri_resolution_request){.reference = document.document_uri,
+                                       .base_uri = reader->context->xpath.static_base_uri,
+                                       .allocator = reader->allocator},
+        &resolution);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_resource resource;
+    memset(&resource, 0, sizeof resource);
+    status = resolver.operations->resolve(
+        resolver.state,
+        &(sxml_resource_request){.resource_kind = SXML_RESOURCE_KIND_SCHEMA_DOCUMENT,
+                                 .uri_reference = document.document_uri,
+                                 .absolute_uri = resolution.uri,
+                                 .processor = processor,
+                                 .target_namespace_uri = document.target_namespace_uri},
+        &resource);
+    if (status == SXML_STATUS_OK) {
+        *is_delivered = resource.resource_form != SXML_RESOURCE_FORM_NONE;
+        if (resource.resource_form == SXML_RESOURCE_FORM_DOCUMENT_NODE) {
+            sxml_item_release(resource.document_node);
+        }
+        if (resolver.operations->release != NULL) {
+            resolver.operations->release(resolver.state, &resource);
+        }
+    }
+    sxml_allocator_release(reader->allocator, resolution.memory);
+    return status;
+}
+
+/* Adds the documents of one import: one per location hint (those the
+   resolver delivers, when probing), or one by namespace alone. */
+static sxml_status add_import_documents(const static_reader *reader,
+                                        sxml_ast_node_index declaration,
+                                        sxml_byte_view namespace_text,
+                                        schema_documents *collected) {
+    const sxml_ast *ast = reader->ast;
+    const sxml_schema_document document = {
+        .document_source = SXML_SCHEMA_DOCUMENT_SOURCE_RESOLVED,
+        .document_uri = {.bytes = NULL, .byte_count = 0},
+        .checks_target_namespace = true,
+        .target_namespace_uri = namespace_text};
+    const size_t first_document = collected->document_count;
+    sxml_status status = SXML_STATUS_OK;
+    for (sxml_ast_node_index location = child_of(ast, declaration, SXML_AST_FIELD_LOCATION);
+         status == SXML_STATUS_OK && location.value != 0;
+         location = sxml_ast_find_next_with_same_field(ast, location)) {
+        sxml_schema_document hinted = document;
+        status = normalize_uri_text(reader, text_of(ast, location), &hinted.document_uri);
+        bool is_delivered = true;
+        if (status == SXML_STATUS_OK && collected->probes_hints) {
+            status = probe_hint(reader, hinted, &is_delivered);
+        }
+        if (status == SXML_STATUS_OK && is_delivered) {
+            collected->documents[collected->document_count] = hinted;
+            collected->document_count += 1;
+        }
+    }
+    if (status == SXML_STATUS_OK && collected->document_count == first_document) {
+        /* No hint, or none delivered: the resolver chooses by namespace. */
+        collected->documents[collected->document_count] = document;
+        collected->document_count += 1;
+    }
+    return status;
+}
+
+static sxml_status collect_schema_documents(const static_reader *reader,
+                                            schema_documents *collected) {
+    const sxml_ast *ast = reader->ast;
+    collected->document_count = 0;
+    sxml_status status = SXML_STATUS_OK;
+    for (sxml_ast_node_index declaration = first_declaration(ast);
+         status == SXML_STATUS_OK && declaration.value != 0;
+         declaration = next_of(ast, declaration)) {
+        if (node_of(ast, declaration)->kind != SXML_AST_KIND_SCHEMA_IMPORT) {
+            continue;
+        }
+        sxml_namespace_uri_identifier namespace_uri = {0};
+        status = intern_uri(reader, text_of(ast, child_of(ast, declaration, SXML_AST_FIELD_URI)),
+                            &namespace_uri);
+        for (sxml_ast_node_index earlier = first_declaration(ast);
+             status == SXML_STATUS_OK && earlier.value != declaration.value;
+             earlier = next_of(ast, earlier)) {
+            sxml_namespace_uri_identifier earlier_uri = {0};
+            if (node_of(ast, earlier)->kind != SXML_AST_KIND_SCHEMA_IMPORT) {
+                continue;
+            }
+            status = intern_uri(reader, text_of(ast, child_of(ast, earlier, SXML_AST_FIELD_URI)),
+                                &earlier_uri);
+            if (status == SXML_STATUS_OK && earlier_uri.index == namespace_uri.index) {
+                status = report(reader, declaration,
+                                SXML_BYTE_VIEW_FROM_LITERAL(
+                                    "XQST0058 two schema imports name one target namespace"));
+            }
+        }
+        if (status != SXML_STATUS_OK || is_in_host_schemas(reader, namespace_uri)) {
+            continue;
+        }
+        sxml_byte_view namespace_text = {0};
+        status = sxml_name_pool_get_namespace_uri(reader->name_pool, namespace_uri,
+                                                  &namespace_text);
+        if (collected->first_import.value == 0) {
+            collected->first_import = declaration;
+        }
+        if (status == SXML_STATUS_OK) {
+            status = add_import_documents(reader, declaration, namespace_text, collected);
+        }
+    }
+    return status;
+}
+
+/* Compiles collected's documents into *schema, the schema's first error
+   in *schema_error. */
+static sxml_status compile_imported_schema(const static_reader *reader,
+                                           const schema_documents *collected,
+                                           sxml_error_record *schema_error,
+                                           sxml_schema **schema) {
+    memset(schema_error, 0, sizeof *schema_error);
+    return sxml_schema_create(
+        reader->allocator,
+        &(sxml_schema_configuration){
+            .processor = reader->context->xpath.processor,
+            .schema_documents = {.schema_documents = collected->documents,
+                                 .schema_document_count = collected->document_count},
+            .base_uri = reader->context->xpath.static_base_uri,
+            .report_sink = {.state = NULL, .operations = NULL},
+            .maximum_content_model_state_count = 0,
+            .error_record = schema_error},
+        schema);
+}
+
+/* Adds schema, which the unit then owns, after the host's in-scope
+   schemas. */
+static sxml_status add_in_scope_schema(const static_reader *reader, sxml_schema *schema,
+                                       sxml_xquery_static_context *context) {
+    sxml_status status = sxml_ir_unit_keep_schema(reader->request->unit, schema);
+    if (status != SXML_STATUS_OK) {
+        sxml_schema_destroy(schema);
+        return status;
+    }
+    const sxml_schema_view host = context->xpath.unit_static_context.in_scope_schemas;
+    void *schema_memory = NULL;
+    status = allocate_array(reader,
+                            (array_request){.element_count = host.schema_count + 1,
+                                            .element_size = sizeof(const sxml_schema *),
+                                            .element_alignment = alignof(const sxml_schema *)},
+                            &schema_memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    const sxml_schema **schemas = schema_memory;
+    for (size_t schema_index = 0; schema_index < host.schema_count; schema_index += 1) {
+        schemas[schema_index] = host.schemas[schema_index];
+    }
+    schemas[host.schema_count] = schema;
+    context->in_scope_schemas = schemas;
+    context->xpath.unit_static_context.in_scope_schemas =
+        (sxml_schema_view){.schemas = schemas, .schema_count = host.schema_count + 1};
+    return SXML_STATUS_OK;
+}
+
+/*
+ * The in-scope schema definitions (5.11; D174): the host's schemas, then
+ * one schema compiled from the imports of the namespaces the host's do
+ * not define, against the static base URI; or, for a main module
+ * without schemas, the schema of the built-in components alone (XPath
+ * 4.0, 2.2.1: the in-scope schema types include the built-in types), so
+ * that validation (lax, xsi:type, by a built-in type) always has a schema.
+ * The unit owns the schema.
+ */
+static sxml_status read_schema_imports(const static_reader *reader, const prolog_survey *survey,
+                                       sxml_xquery_static_context *context) {
+    const sxml_ast *ast = reader->ast;
+    const bool needs_builtin_schema =
+        survey->schema_import_count == 0 && reader->request->target_namespace.index == 0 &&
+        context->xpath.unit_static_context.in_scope_schemas.schema_count == 0 &&
+        context->xpath.processor != NULL;
+    if (survey->schema_import_count == 0 && !needs_builtin_schema) {
+        return SXML_STATUS_OK;
+    }
+    size_t capacity = 0;
+    for (sxml_ast_node_index declaration = first_declaration(ast); declaration.value != 0;
+         declaration = next_of(ast, declaration)) {
+        if (node_of(ast, declaration)->kind == SXML_AST_KIND_SCHEMA_IMPORT) {
+            const size_t location_count = count_locations(ast, declaration);
+            capacity += location_count == 0 ? 1 : location_count;
+        }
+    }
+    void *memory = NULL;
+    sxml_status status = allocate_array(
+        reader,
+        (array_request){.element_count = capacity,
+                        .element_size = sizeof(sxml_schema_document),
+                        .element_alignment = alignof(sxml_schema_document)},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    schema_documents collected = {.documents = memory, .document_count = 0};
+    status = collect_schema_documents(reader, &collected);
+    sxml_schema *schema = NULL;
+    sxml_error_record schema_error;
+    const bool compiles = collected.document_count > 0 || needs_builtin_schema;
+    if (status == SXML_STATUS_OK && compiles && context->xpath.processor == NULL) {
+        status = report(reader, collected.first_import,
+                        SXML_BYTE_VIEW_FROM_LITERAL(
+                            "XQST0059 schema documents cannot be read here"));
+    } else if (status == SXML_STATUS_OK && compiles) {
+        status = compile_imported_schema(reader, &collected, &schema_error, &schema);
+        if (status == SXML_STATUS_STATIC_ERROR &&
+            sxml_byte_view_equals(schema_error.code.local_name,
+                                  SXML_BYTE_VIEW_FROM_LITERAL("src-import"))) {
+            /* A location hint that is not delivered (5.11): again without
+               the hints the resolver does not deliver. */
+            sxml_item_heap_clear_raised_error(context->xpath.item_heap);
+            collected.probes_hints = true;
+            status = collect_schema_documents(reader, &collected);
+            if (status == SXML_STATUS_OK) {
+                status = compile_imported_schema(reader, &collected, &schema_error, &schema);
+            }
+        }
+        if (status == SXML_STATUS_STATIC_ERROR && schema_error.code.local_name.byte_count != 0) {
+            status = sxml_schema_scope_raise(&(sxml_schema_scope_error){
+                .item_heap = context->xpath.item_heap,
+                .allocator = reader->allocator,
+                .error_status = SXML_STATUS_STATIC_ERROR,
+                .error_code = schema_import_error_code(&schema_error),
+                .schema_error = &schema_error,
+                .error_record = reader->request->error_record,
+                .location = sxml_ast_get_source_location(ast, collected.first_import)});
+        }
+    }
+    sxml_allocator_release(reader->allocator, memory);
+    if (status != SXML_STATUS_OK || schema == NULL) {
+        return status;
+    }
+    return add_in_scope_schema(reader, schema, context);
 }
 
 /* ---------------------------------------------------- Decimal formats */
@@ -2801,6 +3144,7 @@ void sxml_xquery_release_static_context(sxml_xquery_static_context *context) {
     sxml_allocator_release(allocator, context->decimal_format_properties);
     sxml_allocator_release(allocator, context->named_item_types);
     sxml_allocator_release(allocator, context->declared_records);
+    sxml_allocator_release(allocator, (void *)context->in_scope_schemas);
     *context = (sxml_xquery_static_context){.xpath = {.allocator = allocator}};
 }
 
@@ -2829,6 +3173,9 @@ sxml_status sxml_xquery_read_static_context(const sxml_xquery_static_request *re
     }
     if (status == SXML_STATUS_OK) {
         status = read_base_uri_and_collation(&reader, &survey, &built);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = read_schema_imports(&reader, &survey, &built);
     }
     if (status == SXML_STATUS_OK) {
         status = read_decimal_formats(&reader, &survey, &built);

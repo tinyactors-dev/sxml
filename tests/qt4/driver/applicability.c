@@ -39,6 +39,10 @@ typedef struct sxml_qt4_supported_dependency {
  *   serialization assertions use (packet 3.13).
  * - fn-load-xquery-module, for XQuery only: the function is XQuery's
  *   (src/xquery_load_module.c, D154).
+ * - schemaImport, schemaValidation and typedData: schema awareness
+ *   (packet 5.11, D174); they stay non-goals of the D95 denominators
+ *   below, so the Phase 2 to 4 gate rates keep their meaning, and the
+ *   report counts them as the area "schema-aware".
  */
 static const sxml_qt4_supported_dependency sxml_qt4_supported_dependencies[] = {
     {SXML_BYTE_VIEW_INITIALIZER("feature"),
@@ -76,6 +80,20 @@ static const sxml_qt4_supported_dependency sxml_qt4_supported_dependencies[] = {
      SXML_BYTE_VIEW_INITIALIZER("FULLY-NORMALIZED")},
     {SXML_BYTE_VIEW_INITIALIZER("feature"),
      SXML_BYTE_VIEW_INITIALIZER("serialization")},
+    {SXML_BYTE_VIEW_INITIALIZER("feature"),
+     SXML_BYTE_VIEW_INITIALIZER("schemaImport")},
+    {SXML_BYTE_VIEW_INITIALIZER("feature"),
+     SXML_BYTE_VIEW_INITIALIZER("schemaValidation")},
+    {SXML_BYTE_VIEW_INITIALIZER("feature"),
+     SXML_BYTE_VIEW_INITIALIZER("typedData")},
+};
+
+/* The features of schema awareness (the area "schema-aware",
+   applicability.h). */
+static const sxml_byte_view sxml_qt4_schema_aware_features[] = {
+    SXML_BYTE_VIEW_INITIALIZER("schemaImport"),
+    SXML_BYTE_VIEW_INITIALIZER("schemaValidation"),
+    SXML_BYTE_VIEW_INITIALIZER("typedData"),
 };
 
 /* Supported only when the run targets XQuery. */
@@ -390,16 +408,8 @@ static bool sxml_qt4_collation_is_provided(sxml_byte_view uri) {
    provide, or an empty view. */
 static sxml_byte_view
 sxml_qt4_unsupported_environment_part(const sxml_qt4_environment *environment) {
-    for (size_t source_index = 0;
-         source_index < environment->sources.source_count; source_index += 1) {
-        if (environment->sources.sources[source_index].validation.byte_count !=
-            0) {
-            return SXML_TEXT("source validation");
-        }
-    }
-    if (environment->schemas.schema_count != 0) {
-        return SXML_TEXT("schema");
-    }
+    /* Schemas and validated sources are served (test_run.c, D174);
+       sources of collections are not validated. */
     for (size_t collection_index = 0;
          collection_index < environment->collections.collection_count;
          collection_index += 1) {
@@ -465,6 +475,51 @@ sxml_qt4_decide_scope(const sxml_qt4_applicability_request *request,
     }
 }
 
+/* True when a required feature dependency names schema awareness, or
+   the environment has a schema or a validated source. */
+static bool
+sxml_qt4_is_schema_aware(const sxml_qt4_applicability_request *request) {
+    const sxml_qt4_name_table table = {
+        .names = sxml_qt4_schema_aware_features,
+        .name_count = sizeof sxml_qt4_schema_aware_features /
+                      sizeof sxml_qt4_schema_aware_features[0]};
+    const sxml_qt4_dependency_view lists[2] = {request->test_set_dependencies,
+                                               request->test_case_dependencies};
+    for (size_t list_index = 0; list_index < 2; list_index += 1) {
+        for (size_t dependency_index = 0;
+             dependency_index < lists[list_index].dependency_count;
+             dependency_index += 1) {
+            const sxml_qt4_dependency *dependency =
+                &lists[list_index].dependencies[dependency_index];
+            if (!dependency->requires_satisfaction ||
+                !sxml_byte_view_equals(dependency->dependency_type,
+                                       SXML_TEXT("feature"))) {
+                continue;
+            }
+            sxml_qt4_token_cursor cursor = {.text = dependency->value,
+                                            .byte_index = 0};
+            sxml_byte_view token = sxml_qt4_empty_text;
+            while (sxml_qt4_next_token(&cursor, &token)) {
+                if (sxml_qt4_name_table_contains(table, token)) {
+                    return true;
+                }
+            }
+        }
+    }
+    const sxml_qt4_environment *environment = request->environment;
+    if (environment->schemas.schema_count != 0) {
+        return true;
+    }
+    for (size_t source_index = 0;
+         source_index < environment->sources.source_count; source_index += 1) {
+        if (environment->sources.sources[source_index].validation.byte_count !=
+            0) {
+            return true;
+        }
+    }
+    return false;
+}
+
 void sxml_qt4_decide_applicability(
     const sxml_qt4_applicability_request *request,
     sxml_qt4_applicability *applicability) {
@@ -473,6 +528,7 @@ void sxml_qt4_decide_applicability(
                                               .detail = sxml_qt4_empty_text,
                                               .is_inverted = false,
                                               .is_in_scope = false,
+                                              .is_schema_aware = false,
                                               .non_goal_kind =
                                                   sxml_qt4_empty_text,
                                               .non_goal = sxml_qt4_empty_text};
@@ -480,6 +536,7 @@ void sxml_qt4_decide_applicability(
         return;
     }
     sxml_qt4_decide_scope(request, applicability);
+    applicability->is_schema_aware = sxml_qt4_is_schema_aware(request);
     if (!sxml_qt4_decide_dependencies(request->test_set_dependencies,
                                       request->target, applicability) ||
         !sxml_qt4_decide_dependencies(request->test_case_dependencies,

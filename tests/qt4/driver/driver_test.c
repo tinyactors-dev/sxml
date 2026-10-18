@@ -94,7 +94,7 @@ static const memory_file suite_files[] = {
          "<test-case name='a-4'><environment><param name='x' select='1'"
          " as='xs:integer'/><namespace prefix='p' uri='urn:p'/>"
          "<static-base-uri uri='#UNDEFINED'/></environment>"
-         "<dependency type='feature' value='schemaImport'/>"
+         "<dependency type='feature' value='staticTyping'/>"
          "<test>$x</test><result><assert-eq>1</assert-eq></result></test-case>"
          "<test-case name='a-5'><environment ref='nowhere'/><test>1</test>"
          "</test-case>"
@@ -267,7 +267,10 @@ test_dependency_table_lists_what_sxml_supports(sxml_test_state *state) {
     SXML_TEST_EXPECT(
         state, is_supported(TEXT("feature"), TEXT("higherOrderFunctions")));
     SXML_TEST_EXPECT(state,
-                     !is_supported(TEXT("feature"), TEXT("schemaImport")));
+                     !is_supported(TEXT("feature"), TEXT("staticTyping")));
+    /* Schema awareness (D174). */
+    SXML_TEST_EXPECT(state,
+                     is_supported(TEXT("feature"), TEXT("schemaImport")));
     SXML_TEST_EXPECT(state, !is_supported(TEXT("spec"), TEXT("XP40")));
     SXML_TEST_EXPECT(state, is_supported(TEXT("xml-version"), TEXT("1.1 1.0")));
     SXML_TEST_EXPECT(state, !is_supported(TEXT("xml-version"), TEXT("1.1")));
@@ -456,16 +459,21 @@ static void test_scope_follows_the_non_goals_of_d95(sxml_test_state *state) {
     request.test_case_dependencies = (sxml_qt4_dependency_view){
         .dependencies = schema, .dependency_count = 1};
     sxml_qt4_decide_applicability(&request, &applicability);
-    SXML_TEST_EXPECT(state, !applicability.is_applicable);
+    /* Schema awareness runs (D174), outside the D95 denominators, and is
+       counted as schema-aware. */
+    SXML_TEST_EXPECT(state, applicability.is_applicable);
     SXML_TEST_EXPECT(state, !applicability.is_in_scope);
+    SXML_TEST_EXPECT(state, applicability.is_schema_aware);
     SXML_TEST_EXPECT(state, sxml_byte_view_equals(applicability.non_goal,
                                                   TEXT("schemaImport")));
 
-    /* Asking for a non-goal to be absent is in scope. */
+    /* Asking for a non-goal to be absent is in scope; sxml now has this
+       one, so the test case does not run. */
     request.test_case_dependencies.dependencies = no_schema;
     sxml_qt4_decide_applicability(&request, &applicability);
-    SXML_TEST_EXPECT(state, applicability.is_applicable);
+    SXML_TEST_EXPECT(state, !applicability.is_applicable);
     SXML_TEST_EXPECT(state, applicability.is_in_scope);
+    SXML_TEST_EXPECT(state, !applicability.is_schema_aware);
 }
 
 /* ---------------------------------------------------------- Resource table */
@@ -961,7 +969,7 @@ test_catalog_resolves_test_cases_and_environments(sxml_test_state *state) {
         &applicability);
     SXML_TEST_EXPECT(state, !applicability.is_applicable);
     SXML_TEST_EXPECT(state, sxml_byte_view_equals(applicability.detail,
-                                                  TEXT("schemaImport")));
+                                                  TEXT("staticTyping")));
 
     sxml_qt4_problem problem = empty_problem();
     size_t test_case_index = 0;

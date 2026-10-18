@@ -206,6 +206,44 @@ sxml_qt4_serve_module(const sxml_qt4_table_request *table_request,
     return status;
 }
 
+/* SCHEMA_DOCUMENT: a suite file, else the environment's schema of the
+   target namespace. */
+static sxml_status
+sxml_qt4_serve_schema(const sxml_qt4_table_request *table_request,
+                      sxml_resource *resource) {
+    const sxml_qt4_resource_table *table = table_request->table;
+    sxml_status status =
+        sxml_qt4_serve_suite_file(table, table_request->uri, resource);
+    if (status != SXML_STATUS_OK ||
+        resource->resource_form != SXML_RESOURCE_FORM_NONE) {
+        return status;
+    }
+    const sxml_qt4_served_schema_view schemas = table->served_schemas;
+    for (size_t schema_index = 0; schema_index < schemas.served_schema_count;
+         schema_index += 1) {
+        const sxml_qt4_served_schema *schema =
+            &schemas.served_schemas[schema_index];
+        if (!sxml_byte_view_equals(
+                schema->namespace_uri,
+                table_request->request->target_namespace_uri)) {
+            continue;
+        }
+        status = sxml_qt4_serve_file(
+            table,
+            (sxml_qt4_served_file){.file_path = schema->file_path,
+                                   .encoding = sxml_qt4_empty_text},
+            resource);
+        if (status == SXML_STATUS_OK &&
+            resource->resource_form == SXML_RESOURCE_FORM_BYTES) {
+            resource->resource_uri = schema->file_uri;
+        }
+        return status;
+    }
+    resource->description =
+        SXML_TEXT("The environment has no schema of that namespace");
+    return SXML_STATUS_OK;
+}
+
 static sxml_status
 sxml_qt4_resolve_from_table(void *state, const sxml_resource_request *request,
                             sxml_resource *resource) {
@@ -229,13 +267,14 @@ sxml_qt4_resolve_from_table(void *state, const sxml_resource_request *request,
         return SXML_STATUS_OK;
     case SXML_RESOURCE_KIND_XQUERY_MODULE:
         return sxml_qt4_serve_module(&table_request, resource);
+    case SXML_RESOURCE_KIND_SCHEMA_DOCUMENT:
+        return sxml_qt4_serve_schema(&table_request, resource);
     case SXML_RESOURCE_KIND_XSLT_MODULE:
     case SXML_RESOURCE_KIND_XSLT_PACKAGE:
-    case SXML_RESOURCE_KIND_SCHEMA_DOCUMENT:
         break;
     }
-    resource->description = SXML_TEXT(
-        "The QT4 driver serves no XSLT modules, packages or schema documents");
+    resource->description =
+        SXML_TEXT("The QT4 driver serves no XSLT modules or packages");
     return SXML_STATUS_OK;
 }
 

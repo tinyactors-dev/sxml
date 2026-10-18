@@ -68,7 +68,7 @@
       <result><assert-true/></result>
    </test-case>
    <test-case name="without-schema-import">
-      <dependency type="feature" value="schemaImport" satisfied="false"/>
+      <dependency type="feature" value="staticTyping" satisfied="false"/>
       <test>1</test>
       <result><assert-eq>1</assert-eq></result>
    </test-case>

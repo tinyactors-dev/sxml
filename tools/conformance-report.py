@@ -40,6 +40,8 @@ import sys
 OUTCOMES = ("pass", "wrong_error", "fail", "error", "not_run")
 # Members of report.h added by packet 2.16 (D108): the D95 denominator.
 SCOPE_COUNTS = ("in_scope", "in_scope_passed")
+# Members added by packet 5.11 (D174): the schema-aware test cases.
+SCHEMA_AWARE_COUNTS = ("schema_aware", "schema_aware_passed")
 SPECS = ("XP40", "XQ40", "XT40", "XSD11")
 # XSLT 4.0 (tools/run-xslt.sh, D157): areas are the groups of the suite,
 # the directory under tests/ of each test set's file in catalog.xml.
@@ -124,7 +126,7 @@ def empty_counts():
 
 
 def empty_scope_counts():
-    return {key: 0 for key in SCOPE_COUNTS}
+    return {key: 0 for key in (*SCOPE_COUNTS, *SCHEMA_AWARE_COUNTS)}
 
 
 def add_counts(into, counts):
@@ -163,7 +165,7 @@ def read_spec(spec_directory):
         for entry in report["test_sets"]:
             test_sets.append({key: entry.get(key, 0)
                               for key in ("name", "total", *OUTCOMES,
-                                          *SCOPE_COUNTS)})
+                                          *SCOPE_COUNTS, *SCHEMA_AWARE_COUNTS)})
         tests.extend(report["tests"])
     totals = empty_counts()
     scope = empty_scope_counts()
@@ -360,6 +362,15 @@ def render_spec(lines, result):
                   f"**{percent(scope['in_scope_passed'], scope['in_scope'])}**"
                   " (in scope: the spec matches and no non-goal is needed; "
                   "not-run cases count as not passed).", ""]
+    if scope["schema_aware"]:
+        lines += [f"Schema-aware (D174, area \"schema-aware\"): "
+                  f"{scope['schema_aware_passed']:,} of {scope['schema_aware']:,} "
+                  f"test cases passed, "
+                  f"**{percent(scope['schema_aware_passed'], scope['schema_aware'])}**"
+                  " (the test cases that need schemaImport, schemaValidation or "
+                  "typedData, or whose environment has a schema or a validated source; "
+                  "outside the D95 denominator unless only their environment is "
+                  "schema-aware; not-run cases count as not passed).", ""]
     xquery_only = result.get("xquery_only")
     if xquery_only:
         lines += [f"XQ-only (run, the spec does not admit XP40): "

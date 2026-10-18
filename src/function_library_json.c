@@ -26,6 +26,7 @@
 #include "sxml/version.h"
 #include "xdm_internal.h"
 #include "system_property_internal.h"
+#include "schema_scope_internal.h"
 
 #include <stdalign.h>
 #include <string.h>
@@ -784,6 +785,10 @@ static const sxml_option_definition parse_xml_options[] = {
    whether whitespace-only text nodes are stripped. */
 typedef struct xml_space_handling {
     bool strips_space;
+    /* In: the caller validates (fn:parse-xml); fn:doc's loader keeps one
+       tree per URI, which sxml does not validate yet, so it keeps
+       FODC0009 (D162). */
+    bool can_validate;
 } xml_space_handling;
 
 static sxml_status xml_check_options(const sxml_function_call *call,
@@ -803,7 +808,7 @@ static sxml_status xml_check_options(const sxml_function_call *call,
             return sxml_error_record_report(call->error_record, &json_unknown_option_error);
         }
     }
-    if (values->is_present[SXML_XML_OPTION_XSD_VALIDATION] &&
+    if (!handling->can_validate && values->is_present[SXML_XML_OPTION_XSD_VALIDATION] &&
         !json_text_is(json_option_text(values, SXML_XML_OPTION_XSD_VALIDATION),
                       SXML_BYTE_VIEW_FROM_LITERAL("skip"))) {
         return sxml_error_record_report(call->error_record, &xml_schema_validation_error);
@@ -1052,7 +1057,7 @@ sxml_status sxml_function_library_read_document_options(const sxml_function_call
                                                sizeof(parse_xml_options) /
                                                    sizeof(parse_xml_options[0])}},
         &values);
-    xml_space_handling handling = {.strips_space = false};
+    xml_space_handling handling = {.strips_space = false, .can_validate = false};
     if (status == SXML_STATUS_OK) {
         status = xml_check_options(call, &values, &handling);
     }
@@ -1087,6 +1092,8 @@ typedef struct xml_input {
     sxml_byte_view xml_bytes;
     sxml_byte_view base_uri;
     bool strips_space;
+    /* The xsd-validation option; empty for "skip". */
+    sxml_byte_view xsd_validation;
 } xml_input;
 
 /* Reads the input and the options of fn:parse-xml or
@@ -1108,12 +1115,15 @@ static sxml_status xml_read_input(const sxml_function_call *call, sxml_option_va
         &(sxml_option_request){.argument_index = 1,
                                .definitions = {parse_xml_options, SXML_PARSE_XML_OPTION_COUNT}},
         values);
-    xml_space_handling handling = {.strips_space = false};
+    xml_space_handling handling = {.strips_space = false, .can_validate = true};
     if (status == SXML_STATUS_OK) {
         status = xml_check_options(call, values, &handling);
     }
     if (status == SXML_STATUS_OK) {
         *input = (xml_input){
+            .xsd_validation = values->is_present[SXML_XML_OPTION_XSD_VALIDATION]
+                                  ? json_option_text(values, SXML_XML_OPTION_XSD_VALIDATION)
+                                  : (sxml_byte_view){.bytes = NULL, .byte_count = 0},
             .xml_bytes = datum.datum_kind == SXML_DATUM_KIND_STRING ? datum.datum_details.string.utf8
                                                                     : datum.datum_details.binary,
             /* The base-uri option, else the static base URI (F&O 4.0,
@@ -1137,6 +1147,11 @@ static sxml_status xml_parse_document(const sxml_function_call *call, const xml_
                                        .base_uri = input->base_uri,
                                        .error_record = call->error_record},
         &document_node);
+    if (status == SXML_STATUS_OK && input->xsd_validation.byte_count != 0) {
+        /* F&O 4.0, 17.2.1: validated as by a validate expression (D174). */
+        status =
+            sxml_schema_scope_validate_document(call, input->xsd_validation, &document_node);
+    }
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -1264,6 +1279,12 @@ static sxml_status call_parse_xml_fragment(const sxml_function_call *call,
                        .strips_space = false};
     sxml_status status = xml_read_input(call, &values, &input);
     sxml_byte_view content = input.xml_bytes;
+    if (status == SXML_STATUS_OK && input.xsd_validation.byte_count != 0 &&
+        !json_text_is(input.xsd_validation, SXML_BYTE_VIEW_FROM_LITERAL("skip"))) {
+        /* A fragment has no validation root; sxml does not validate its
+           elements one by one (D162). */
+        status = sxml_error_record_report(call->error_record, &xml_schema_validation_error);
+    }
     if (status == SXML_STATUS_OK) {
         status = skip_text_declaration(call, &content);
     }

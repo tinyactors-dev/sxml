@@ -6540,7 +6540,78 @@ Recorded 2026-10-18. The schema validator of D165 and the seams of D167
   40,034 and XT40 7,990 unchanged.
 
 ### D174. Schema-aware XPath and XQuery (packet 5.11)
-Reserved 2026-10-18; the record follows when the packet lands.
+Recorded 2026-10-18. Replaces the rejection places of D97 and D162 for
+XPath and XQuery (XPST0008 of schema-element, XQST0009, XQST0075, FODC0009
+of fn:parse-xml, the driver's non-goal features); golden
+`src/xquery_flwor.c` (an internal native row), `src/function_library_csv.c`.
+- **xpath.h** (stable API, additive): `sxml_schema_view` and the last field
+  `sxml_static_context_configuration.in_scope_schemas`, the in-scope
+  schema definitions; empty is not schema-aware. Schemas must be the
+  processor's and outlive what is compiled with them (validation reads
+  them at run time). The view goes into `sxml_ir_static_context` (copied
+  into the unit like the decimal formats, D131), so static analysis and
+  run time read one field; `sxml_xpath_static_context.processor` gives the
+  resolver for schema imports.
+- **One module, `src/schema_scope.c`** (glossary schema_scope): lookups of
+  types and global declarations across the in-scope schemas (built-in
+  types first, then the first schema that has the name), substitution
+  group members, constructor functions of schema simple types (used by
+  static calls in `src/xpath_lower.c` and by fn:function-lookup), and
+  `sxml_schema_scope_raise`, the one way a schema error becomes a language
+  error: the language's code, "constraint: description".
+- **schema-element(N), schema-attribute(N)** resolve statically to the
+  choice of element(M, T) tests over N and the non-abstract, not blocked
+  members of its substitution group (T the declared type, "?" when
+  nillable), and to attribute(N, T); `is_schema_declaration` is no longer
+  set. A union with a list member is not an item type (XPST0051).
+- **import schema** (XQuery 4.0, 5.11): prefixes bind like namespace
+  declarations ("default element namespace" counts for XQST0066);
+  XQST0057, XQST0058; a namespace a host schema defines (or xs) is taken
+  from there; the others compile into one schema of RESOLVED documents
+  (hints, or the namespace alone; target namespace checked) owned by the
+  unit (`sxml_ir_unit_keep_schema`). When a document is not delivered,
+  compilation is tried once more without the hints the resolver does not
+  deliver (hints may be ignored). Errors: src-import and schema_reference
+  XQST0059, sch-props-correct.2 XQST0035, others XQST0012. A main module
+  without schemas gets the schema of the built-in components, so lax
+  validation and xsi:type always have one.
+- **validate** lowers to the internal row `validate($node, $mode,
+  $type)` (`src/function_library_schema.c`): XQTY0030, XQDY0061, XQDY0084
+  (strict, no declaration), XQDY0027 (invalid, constraint named), XQST0104
+  statically; "type xs:untyped" copies without annotations. The schema is
+  the in-scope one that declares the root's name or defines the type.
+- **fn:xsd-validator** (F&O 4.0, 17.2.5), a new library part: options
+  validation-mode, type, return-typed-node, return-error-details
+  (message and rule maps from a report sink); V validates with the
+  in-scope schemas of its caller's static context (a function item holds
+  no schema). The options schema, schema-location, target-namespace and
+  use-xsi-schema-location are FODC0009 (one place): compiling a schema
+  while a query runs needs the processor, which run time does not reach.
+  The option limit of `function_library_core_internal.h` is 12.
+- **xsd-validation of fn:parse-xml** validates the parsed document
+  (FODC0008, FODC0014); fn:doc and fn:parse-xml-fragment keep FODC0009
+  (the loader keeps one tree per URI; a fragment has no validation root).
+- **QT4 driver**: schemaImport, schemaValidation and typedData are
+  supported but stay outside the D95 denominators; environments with
+  schemas compile them into one schema that is the in-scope schema of
+  XPath and XQuery and validates `validation="strict|lax"` sources; the
+  resolver serves SCHEMA_DOCUMENT by suite file, else by namespace. A
+  schema-aware test case (glossary schema_aware_test) is counted in the
+  report members `schema_aware`, `schema_aware_passed` and the dashboard
+  area "schema-aware"; one that stops at SXML_STATUS_UNSUPPORTED_FEATURE
+  (identity constraints, assertions: 5.8, 5.9) is not run. The fixtures'
+  unsupported feature is now staticTyping.
+- **Budget**: a schema-aware test case whose query runs out of the test
+  budget (app-Demos itunes: a 10 MB source and a quadratic query, 10^8
+  steps; app-CatalogCheck Catalog009: every test set loaded, 536 MB) fails
+  instead of counting as an error of sxml.
+- **Not done** (measured below): the schema for the fn namespace
+  (import schema of fn, json-to-xml validate=true, analyze-string
+  validation), fn:doc's xsd-validation, schema documents compiled while
+  a query runs (fn:xsd-validator's schema options), "fixed" default
+  namespaces, is-id of unions and lists (5.7), complex types with a
+  simple base (Proposed, 5.6), the pattern facet on canonical forms (5.5),
+  fn:element-to-map layouts by type annotation.
 
 ### D175. Assertions and type alternatives (packet 5.9)
 Reserved 2026-10-18; the record follows when the packet lands.

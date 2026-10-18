@@ -73,6 +73,8 @@ typedef struct sxml_qt4_test_result {
     sxml_byte_view reason;
     /* In the D95 denominator (applicability.h). */
     bool is_in_scope;
+    /* Schema-aware (applicability.h; D174). */
+    bool is_schema_aware;
 } sxml_qt4_test_result;
 
 /* One test case to run. Borrowed for the call. */

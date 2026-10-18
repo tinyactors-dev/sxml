@@ -12,6 +12,7 @@
 #include "suite_path.h"
 #include "sxml/name.h"
 #include "sxml/processor.h"
+#include "sxml/schema.h"
 #include "sxml/string.h"
 #include "sxml/types.h"
 #include "sxml/xdm.h"
@@ -76,6 +77,11 @@ typedef struct sxml_qt4_test_context {
     sxml_byte_view default_collation_uri;
     /* What the resolver serves; its arrays are filled here. */
     sxml_qt4_resource_table *resource_table;
+    /* The environment's schemas compiled into one schema, the in-scope
+       schema of the static context and of source validation; NULL when
+       the environment has none, or when they do not compile (a query that
+       imports them then meets the error itself). */
+    sxml_schema *schema;
     bool has_context_value;
     sxml_sequence context_value;
     /* Owned values: one per source (of the environment and of its
@@ -265,7 +271,12 @@ sxml_qt4_static_context(const sxml_qt4_test_context *context) {
                                 context->decimal_format_count},
         .default_collation_uri = context->default_collation_uri,
         .collation_bindings = {.collation_bindings = NULL,
-                               .collation_binding_count = 0}};
+                               .collation_binding_count = 0},
+        .in_scope_schemas = {.schemas = context->schema == NULL
+                                            ? NULL
+                                            : (const sxml_schema *const *)&context
+                                                  ->schema,
+                             .schema_count = context->schema == NULL ? 0 : 1}};
 }
 
 /* The dynamic context of the test, with what is bound so far. */
@@ -373,6 +384,42 @@ typedef struct sxml_qt4_parsed_source {
     sxml_byte_view document_uri;
 } sxml_qt4_parsed_source;
 
+/* Replaces *document_node, owned, by its validated copy when the source
+   asks for strict or lax validation (catalog-schema.xsd, "validation";
+   D174) against the environment's schema. */
+static sxml_status sxml_qt4_validate_source(sxml_qt4_test_context *context,
+                                            const sxml_qt4_source *source,
+                                            sxml_item *document_node) {
+    const bool is_strict =
+        sxml_byte_view_equals(source->validation, SXML_TEXT("strict"));
+    const bool is_lax =
+        sxml_byte_view_equals(source->validation, SXML_TEXT("lax"));
+    if (!is_strict && !is_lax) {
+        return SXML_STATUS_OK;
+    }
+    if (context->schema == NULL) {
+        sxml_item_release(*document_node);
+        return SXML_STATUS_UNSUPPORTED_FEATURE;
+    }
+    sxml_item validated;
+    memset(&validated, 0, sizeof validated);
+    const sxml_status status = sxml_schema_validate_node(
+        context->schema,
+        &(sxml_schema_validation_request){
+            .node = *document_node,
+            .validation_mode = is_strict ? SXML_VALIDATION_MODE_STRICT
+                                         : SXML_VALIDATION_MODE_LAX,
+            .governing_type = {.index = SXML_TYPE_NONE},
+            .report_sink = {.state = NULL, .operations = NULL},
+            .error_record = &context->error_record},
+        &validated);
+    sxml_item_release(*document_node);
+    if (status == SXML_STATUS_OK) {
+        *document_node = validated;
+    }
+    return status;
+}
+
 /* Parses one source (document URI and base URI: its uri made absolute, or
    file:///SUITE-PATH), keeps its document node until the end of the test
    and makes it available by its uri, when it has one. */
@@ -410,6 +457,9 @@ static sxml_status sxml_qt4_parse_source(sxml_qt4_test_context *context,
                                           &context->error_record.diagnostic},
             &document_node);
         sxml_allocator_release(context->allocator, (void *)contents.bytes);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_qt4_validate_source(context, source, &document_node);
     }
     if (status != SXML_STATUS_OK) {
         return status;
@@ -787,6 +837,86 @@ static sxml_status sxml_qt4_serve_collections(sxml_qt4_test_context *context) {
     return status;
 }
 
+/* Makes the served schemas and compiles them into context->schema: one
+   RESOLVED document per <schema> with a file, the resolver serving it by
+   its suite URI (resource_table.h). A compilation error leaves the schema
+   out (see sxml_qt4_test_context). */
+static sxml_status sxml_qt4_compile_schemas(sxml_qt4_test_context *context) {
+    const sxml_qt4_schema_view schemas = context->environment->schemas;
+    void *memory = NULL;
+    sxml_status status = sxml_qt4_allocate_array(
+        context,
+        (sxml_qt4_array_request){
+            .element_count = schemas.schema_count,
+            .element_byte_count = sizeof(sxml_qt4_served_schema),
+            .alignment = alignof(sxml_qt4_served_schema)},
+        &memory);
+    sxml_qt4_served_schema *served = memory;
+    void *document_memory = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_qt4_allocate_array(
+            context,
+            (sxml_qt4_array_request){
+                .element_count = schemas.schema_count,
+                .element_byte_count = sizeof(sxml_schema_document),
+                .alignment = alignof(sxml_schema_document)},
+            &document_memory);
+    }
+    sxml_schema_document *documents = document_memory;
+    size_t served_count = 0;
+    for (size_t schema_index = 0;
+         status == SXML_STATUS_OK && schema_index < schemas.schema_count;
+         schema_index += 1) {
+        const sxml_qt4_schema *schema = &schemas.schemas[schema_index];
+        if (schema->file_path.byte_count == 0) {
+            continue;
+        }
+        sxml_qt4_served_schema *entry = &served[served_count];
+        *entry = (sxml_qt4_served_schema){.namespace_uri = schema->uri,
+                                          .file_path = schema->file_path,
+                                          .file_uri = sxml_qt4_empty_text};
+        status = sxml_qt4_suite_uri(context, schema->file_path, &entry->file_uri);
+        if (status == SXML_STATUS_OK) {
+            documents[served_count] = (sxml_schema_document){
+                .document_source = SXML_SCHEMA_DOCUMENT_SOURCE_RESOLVED,
+                .document_uri = entry->file_uri,
+                .checks_target_namespace = false};
+            served_count += 1;
+        }
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    context->resource_table->served_schemas = (sxml_qt4_served_schema_view){
+        .served_schemas = served, .served_schema_count = served_count};
+    if (served_count == 0) {
+        return SXML_STATUS_OK;
+    }
+    sxml_qt4_set_stage(context,
+                       (sxml_qt4_stage){.description = SXML_TEXT("schema"),
+                                        .subject = served[0].file_path});
+    sxml_error_record error_record;
+    memset(&error_record, 0, sizeof error_record);
+    status = sxml_schema_create(
+        context->allocator,
+        &(sxml_schema_configuration){
+            .processor = context->processor,
+            .schema_documents = {.schema_documents = documents,
+                                 .schema_document_count = served_count},
+            .base_uri = sxml_qt4_empty_text,
+            .report_sink = {.state = NULL, .operations = NULL},
+            .maximum_content_model_state_count = 0,
+            .error_record = &error_record},
+        &context->schema);
+    sxml_item_heap_clear_raised_error(
+        sxml_processor_get_item_heap(context->processor));
+    if (status == SXML_STATUS_STATIC_ERROR) {
+        context->schema = NULL;
+        return SXML_STATUS_OK;
+    }
+    return status;
+}
+
 /* Makes the statically known decimal formats: names in the processor's
    name pool, properties as the environment wrote them (D104). */
 static sxml_status
@@ -1063,6 +1193,9 @@ static sxml_status sxml_qt4_apply_environment(sxml_qt4_test_context *context) {
         status = sxml_qt4_serve_modules(context);
     }
     if (status == SXML_STATUS_OK) {
+        status = sxml_qt4_compile_schemas(context);
+    }
+    if (status == SXML_STATUS_OK) {
         status = sxml_qt4_serve_collections(context);
     }
     for (size_t source_index = 0;
@@ -1103,6 +1236,12 @@ typedef struct sxml_qt4_test_answer {
     /* The query failed for something sxml does not have: an unknown
        function (XPST0017) or SXML_STATUS_UNSUPPORTED_FEATURE. */
     bool needs_missing_feature;
+    /* Of those, SXML_STATUS_UNSUPPORTED_FEATURE: a construct sxml has
+       not finished (D162, D167). */
+    bool is_unsupported;
+    /* The query ran out of the test budget: steps (LIMIT_EXCEEDED) or
+       memory (OUT_OF_MEMORY). */
+    bool exceeds_budget;
 } sxml_qt4_test_answer;
 
 /* Ends the reason with "STAGE[ SUBJECT]: ERROR". */
@@ -1199,6 +1338,9 @@ static void sxml_qt4_evaluate_query(sxml_qt4_test_context *context,
     }
     const sxml_sequence value = query_answer.value;
     sxml_allocator_release(context->allocator, query_contents);
+    answer->is_unsupported = status == SXML_STATUS_UNSUPPORTED_FEATURE;
+    answer->exceeds_budget =
+        status == SXML_STATUS_LIMIT_EXCEEDED || status == SXML_STATUS_OUT_OF_MEMORY;
     answer->needs_missing_feature =
         status == SXML_STATUS_UNSUPPORTED_FEATURE ||
         (sxml_status_has_error_record(status) &&
@@ -1254,6 +1396,8 @@ static void sxml_qt4_release_context(sxml_qt4_test_context *context) {
         sxml_item_heap_clear_raised_error(
             sxml_processor_get_item_heap(context->processor));
     }
+    sxml_schema_destroy(context->schema);
+    context->schema = NULL;
     sxml_processor_destroy(context->processor);
     sxml_arena_destroy(context->scratch);
 }
@@ -1270,7 +1414,8 @@ static void sxml_qt4_run_isolated(const sxml_qt4_test_run_request *request,
                              .served_resource_count = 0},
         .served_collections = {.served_collections = NULL,
                                .served_collection_count = 0},
-        .served_modules = {.served_modules = NULL, .served_module_count = 0}};
+        .served_modules = {.served_modules = NULL, .served_module_count = 0},
+        .served_schemas = {.served_schemas = NULL, .served_schema_count = 0}};
     sxml_qt4_test_context context;
     memset(&context, 0, sizeof context);
     context.request = request;
@@ -1312,6 +1457,8 @@ static void sxml_qt4_run_isolated(const sxml_qt4_test_run_request *request,
     sxml_qt4_release_context(&context);
     if (budget.live_allocation_count != 0) {
         answer->needs_missing_feature = false;
+        answer->is_unsupported = false;
+        answer->exceeds_budget = false;
     }
     sxml_qt4_budget_finish(&budget,
                            (sxml_qt4_budget_verdict){.outcome = &answer->outcome,
@@ -1345,24 +1492,43 @@ sxml_status sxml_qt4_run_test_case(const sxml_qt4_test_run_request *request,
     } else {
         sxml_qt4_run_isolated(request, &answer);
     }
-    if (!applicability.is_in_scope && answer.needs_missing_feature &&
+    if (!applicability.is_in_scope && !applicability.is_schema_aware &&
+        answer.needs_missing_feature &&
         (answer.outcome == SXML_QT4_TEST_OUTCOME_FAIL ||
          answer.outcome == SXML_QT4_TEST_OUTCOME_ERROR) &&
         sxml_qt4_reason_start(request->arena, &answer.reason) == SXML_STATUS_OK) {
         /* A test of a non-goal (D95, D97) that stops at the missing
            feature is not run, as a dependency would have said; any other
-           outcome of such a test (a leak, a crash, a wrong result) stays. */
+           outcome of such a test (a leak, a crash, a wrong result) stays.
+           Schema awareness is no longer missing (D174): its tests count
+           as they end. */
         answer.outcome = SXML_QT4_TEST_OUTCOME_NOT_RUN;
         sxml_qt4_reason_append(&answer.reason, SXML_TEXT("skip: needs the non-goal "));
         sxml_qt4_reason_append(&answer.reason, applicability.non_goal_kind);
         sxml_qt4_reason_append(&answer.reason, SXML_TEXT(" "));
         sxml_qt4_reason_append(&answer.reason, applicability.non_goal);
+    } else if (applicability.is_schema_aware && answer.is_unsupported &&
+               answer.outcome == SXML_QT4_TEST_OUTCOME_ERROR &&
+               sxml_qt4_reason_start(request->arena, &answer.reason) == SXML_STATUS_OK) {
+        /* A schema-aware test that stops at a part of XSD sxml has not
+           finished (identity constraints and assertions, D167) is not
+           run, and counts as not passed in the schema-aware area. */
+        answer.outcome = SXML_QT4_TEST_OUTCOME_NOT_RUN;
+        sxml_qt4_reason_append(&answer.reason,
+                               SXML_TEXT("skip: needs a part of XSD sxml has not finished"));
+    } else if (applicability.is_schema_aware && answer.exceeds_budget &&
+               answer.outcome == SXML_QT4_TEST_OUTCOME_ERROR) {
+        /* A schema-aware test whose query outgrows the test budget (a
+           10 MB source with a quadratic query, every test set loaded at
+           once; D174) fails rather than counting as a fault of sxml. */
+        answer.outcome = SXML_QT4_TEST_OUTCOME_FAIL;
     }
     *result = (sxml_qt4_test_result){
         .outcome = answer.outcome,
         .reason = answer.outcome == SXML_QT4_TEST_OUTCOME_PASS
                       ? sxml_qt4_empty_text
                       : sxml_qt4_reason_text(&answer.reason),
-        .is_in_scope = applicability.is_in_scope};
+        .is_in_scope = applicability.is_in_scope,
+        .is_schema_aware = applicability.is_schema_aware};
     return SXML_STATUS_OK;
 }

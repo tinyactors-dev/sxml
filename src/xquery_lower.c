@@ -19,6 +19,7 @@
 #include "xdm_internal.h"
 #include "xpath_lower_internal.h"
 #include "xquery_flwor_internal.h"
+#include "schema_scope_internal.h"
 
 #include <stdalign.h>
 #include <stdbool.h>
@@ -2335,15 +2336,127 @@ static sxml_status continue_content(sxml_xpath_lowering_machine *machine,
                                                                   &locals->result}});
 }
 
-/* validate (4.25): sxml is not schema-aware (D97). */
-static sxml_status lower_validate(sxml_xpath_lowerer *state,
-                                  sxml_xpath_lowering_node_in_block request,
-                                  sxml_ir_expression_index *expression) {
-    (void)expression;
-    return sxml_xpath_lowerer_report_static_error(
-        state, request.node,
-        SXML_BYTE_VIEW_FROM_LITERAL(
-            "XQST0075 validate is not supported: sxml is not schema-aware"));
+/* ========================================================== validate */
+
+/*
+ * validate (4.25; D174): the validate row of src/schema_scope_internal.h
+ * over the operand, the mode and, for "validate type T", T as an xs:QName
+ * constant; T must be a type of the in-scope schema definitions
+ * (XQST0104). The row finds the schema at run time through the static
+ * context's in-scope schemas.
+ */
+typedef struct validate_locals {
+    sxml_ir_atom operand;
+} validate_locals;
+
+/* The xs:QName constant of "validate type T"'s T, after XQST0104. */
+static sxml_status add_validation_type(sxml_xpath_lowerer *state, sxml_ast_node_index type_node,
+                                       sxml_ir_atom *atom) {
+    sxml_xpath_resolved_name resolved = {0};
+    sxml_status status = sxml_xpath_resolve_name(
+        &(sxml_xpath_name_request){.ast = state->ast,
+                                   .name_node = type_node,
+                                   .name_role = SXML_XPATH_NAME_ROLE_ELEMENT_OR_TYPE,
+                                   .static_context = state->static_context,
+                                   .error_record = state->error_record},
+        &resolved);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (resolved.is_any_namespace) {
+        resolved.namespace_uri = sxml_well_known_namespace_identifier(SXML_NAMESPACE_XML_SCHEMA);
+    }
+    sxml_name_identifier type_name = {0};
+    sxml_type_identifier type = {0};
+    status = sxml_name_pool_intern_name(
+        state->name_pool,
+        &(sxml_name_request){.namespace_uri = resolved.namespace_uri,
+                             .local_name = resolved.local_name},
+        &type_name);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (!sxml_xpath_find_named_type(state->static_context, type_name, &type)) {
+        return sxml_xpath_lowerer_report_static_error(
+            state, type_node,
+            SXML_BYTE_VIEW_FROM_LITERAL(
+                "XQST0104 the type of a validate expression is not an in-scope schema type"));
+    }
+    sxml_item item = {.representation = SXML_ITEM_REPRESENTATION_NONE};
+    status = sxml_atomic_item_make(
+        state->item_heap,
+        &(sxml_atomic_item_request){
+            .type = {.index = SXML_TYPE_XS_QNAME},
+            .datum = {.datum_kind = SXML_DATUM_KIND_QNAME,
+                      .datum_details = {.qname = {.expanded_name = type_name,
+                                                  .namespace_prefix = {.index = 0}}}}},
+        &item);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_xpath_lowerer_add_item_constant(state, item, atom);
+}
+
+static sxml_status continue_validate(sxml_xpath_lowering_machine *machine,
+                                     sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *state = machine->state;
+    validate_locals *locals = frame->locals;
+    if (frame->step == 0) {
+        frame->step = 1;
+        return sxml_xpath_lowering_call_atom(
+            machine,
+            (sxml_xpath_lowering_atom_call){
+                .node = child_of(state, frame->node, SXML_AST_FIELD_EXPRESSION),
+                .block = frame->block,
+                .atom = &locals->operand});
+    }
+    const sxml_ast_node_index type_node = child_of(state, frame->node, SXML_AST_FIELD_TYPE);
+    sxml_schema_validate_mode mode = SXML_SCHEMA_VALIDATE_MODE_STRICT;
+    if (type_node.value != 0) {
+        mode = SXML_SCHEMA_VALIDATE_MODE_TYPE;
+    } else if (node_of(state, frame->node)->detail.keyword == SXML_AST_KEYWORD_LAX) {
+        mode = SXML_SCHEMA_VALIDATE_MODE_LAX;
+    }
+    sxml_ir_atom arguments[3] = {locals->operand, {0}, {0}};
+    sxml_status status = sxml_xpath_lowerer_add_item_constant(
+        state, sxml_atomic_item_from_integer((int64_t)mode), &arguments[1]);
+    if (status == SXML_STATUS_OK && type_node.value != 0) {
+        status = add_validation_type(state, type_node, &arguments[2]);
+    } else if (status == SXML_STATUS_OK) {
+        sxml_ir_expression_index empty = {0};
+        status = sxml_xpath_lowerer_add_empty_sequence(state, frame->node, &empty);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xpath_lowerer_bind_expression(
+                state,
+                (sxml_xpath_lowering_expression_in_block){.block = frame->block,
+                                                          .expression = empty},
+                &arguments[2]);
+        }
+    }
+    sxml_ir_atom_list argument_list = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ir_unit_add_atoms(
+            state->unit, (sxml_ir_atom_view){.atoms = arguments, .atom_count = 3},
+            &argument_list);
+    }
+    sxml_ir_expression_index call = {0};
+    if (status == SXML_STATUS_OK) {
+        status = add_new_expression(
+            state,
+            (expression_at){
+                .node = frame->node,
+                .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_STATIC_CALL,
+                               .static_call = {.target = {.target_kind =
+                                                              SXML_IR_FUNCTION_TARGET_KIND_NATIVE,
+                                                          .native_function =
+                                                              &sxml_schema_validate_function},
+                                               .arguments = argument_list}}},
+            &call);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_xpath_lowering_finish_frame(machine, frame, call);
 }
 
 /* String constructors (4.9.3): each run of characters a string, each
@@ -2791,6 +2904,11 @@ static const sxml_xpath_lowering_procedure string_constructor_procedure = {
     .step = continue_string_constructor,
     .locals_size = sizeof(string_constructor_locals)};
 
+static const sxml_xpath_lowering_procedure validate_procedure = {
+    .procedure_name = SXML_BYTE_VIEW_INITIALIZER("xquery validate"),
+    .step = continue_validate,
+    .locals_size = sizeof(validate_locals)};
+
 static const sxml_xpath_lowering_procedure try_catch_procedure = {
     .procedure_name = SXML_BYTE_VIEW_INITIALIZER("xquery try catch"),
     .step = continue_try_catch,
@@ -2806,7 +2924,7 @@ static const sxml_xpath_lowering_rule xquery_rules[] = {
     {.kind = SXML_AST_KIND_EXTENSION_EXPRESSION, .procedure = &content_procedure},
     {.kind = SXML_AST_KIND_STRING_CONSTRUCTOR,
      .procedure = &string_constructor_procedure},
-    {.kind = SXML_AST_KIND_VALIDATE_EXPRESSION, .leaf = lower_validate},
+    {.kind = SXML_AST_KIND_VALIDATE_EXPRESSION, .procedure = &validate_procedure},
 };
 
 const sxml_xpath_lowering_part sxml_xpath_lowering_part_xquery = {

@@ -36,6 +36,11 @@
  * schema-location-hint). Scope does not decide whether a test runs: a
  * non-goal test case that is applicable still runs, so that the pass
  * count of earlier runs stays comparable.
+ *
+ * A test case is schema-aware (the area "schema-aware" of the report,
+ * D174) when its spec matches and it requires the feature schemaImport,
+ * schemaValidation or typedData, or its environment has a schema or a
+ * validated source.
  */
 
 typedef enum sxml_qt4_language {
@@ -111,6 +116,8 @@ typedef struct sxml_qt4_applicability {
     bool is_inverted;
     /* In the D95 denominator (see the top of this header). */
     bool is_in_scope;
+    /* Schema-aware (see the top of this header). */
+    bool is_schema_aware;
     /* When the spec matches but the test case is out of scope: the
        non-goal, "test-set" or "feature", and the test set's name or the
        feature. Empty otherwise. */

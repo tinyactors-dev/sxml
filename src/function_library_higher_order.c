@@ -17,6 +17,7 @@
 #include "evaluator_internal.h"
 #include "function_library_core_internal.h"
 #include "operator_internal.h"
+#include "schema_scope_internal.h"
 #include "xdm_internal.h"
 #include "sxml/name.h"
 #include "sxml/string.h"
@@ -2807,6 +2808,19 @@ static sxml_status call_function_lookup(const sxml_function_call *call,
     }
     sxml_function_entry entry = {.entry_kind = SXML_FUNCTION_ENTRY_KIND_NONE};
     status = table.operations->find_function(table.state, &query, &entry);
+    const sxml_ir_static_context *static_context =
+        sxml_dynamic_context_get_static_context(call->dynamic_context);
+    if (status == SXML_STATUS_OK && entry.entry_kind == SXML_FUNCTION_ENTRY_KIND_NONE &&
+        static_context != NULL) {
+        /* The constructor functions of the in-scope schema types, as
+           static analysis finds them (D174). */
+        status = sxml_schema_scope_find_constructor(
+            &(sxml_schema_scope_constructor_request){
+                .schemas = static_context->in_scope_schemas,
+                .type_registry = sxml_item_heap_get_type_registry(call->item_heap),
+                .query = &query},
+            &entry);
+    }
     if (status != SXML_STATUS_OK) {
         return status;
     }

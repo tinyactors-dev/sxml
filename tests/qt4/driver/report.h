@@ -57,7 +57,9 @@
  * passed or raised a wrong error, so in_scope_passed / in_scope is the
  * pass rate the phase gates measure. "passed" in the text is pass +
  * wrong_error. The members after "not_run" were added by packet 2.16
- * (D108); readers of version 1 ignore them.
+ * (D108); readers of version 1 ignore them. "schema_aware" and
+ * "schema_aware_passed", after them (packet 5.11, D174), count the
+ * schema-aware test cases (applicability.h) and those that passed.
  */
 
 /* The areas test sets are summed into (see "areas" above), in their
@@ -81,6 +83,8 @@ typedef struct sxml_qt4_outcome_counts {
     size_t counts[SXML_QT4_TEST_OUTCOME_COUNT];
     size_t in_scope_count;
     size_t in_scope_passed_count;
+    size_t schema_aware_count;
+    size_t schema_aware_passed_count;
 } sxml_qt4_outcome_counts;
 
 /* A report. A plain value: start it, add test cases, finish it, release

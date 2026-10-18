@@ -1139,14 +1139,17 @@ typedef struct sxml_ir_unit_configuration {
 /*
  * The parts of a static context that functions read while they run
  * (XPath 4.0, section 2.2.1): the statically known decimal formats
- * (fn:format-number) and collations (every collation argument). Views are
- * borrowed where a caller hands it in; a unit holds its own copy.
+ * (fn:format-number), collations (every collation argument) and the
+ * in-scope schemas (validate, fn:xsd-validator; D174). Views are borrowed
+ * where a caller hands it in; a unit holds its own copy (of the schema
+ * pointers, not of the schemas, which outlive the unit).
  */
 typedef struct sxml_ir_static_context {
     sxml_decimal_format_view decimal_formats;
     /* Empty for the Unicode codepoint collation. */
     sxml_byte_view default_collation_uri;
     sxml_collation_binding_view collation_bindings;
+    sxml_schema_view in_scope_schemas;
 } sxml_ir_static_context;
 
 /*
@@ -1271,6 +1274,11 @@ struct sxml_ir_unit {
     sxml_ir_module *modules;
     uint32_t module_count;
     uint32_t module_capacity;
+    /* Schemas the unit owns (sxml_ir_unit_keep_schema), from entry 1,
+       destroyed when it is finalized. */
+    sxml_schema **owned_schemas;
+    uint32_t owned_schema_count;
+    uint32_t owned_schema_capacity;
 
     /* All zero: what the accessors return for index 0 or an index out of
        range, so they need no array (arrays are allocated on first add). */
@@ -1425,6 +1433,12 @@ SXML_NODISCARD sxml_status sxml_ir_unit_add_function_annotations(
 /* Marks the unit untrusted (is_untrusted). Also after sealing, before the
    unit's first evaluation. */
 void sxml_ir_unit_set_untrusted(sxml_ir_unit *unit);
+
+/* The unit takes schema, which it destroys when it is finalized: a schema
+   an XQuery prolog imports (D174), which the unit's static contexts name
+   and its validate expressions use. On failure the caller still owns
+   schema. */
+SXML_NODISCARD sxml_status sxml_ir_unit_keep_schema(sxml_ir_unit *unit, sxml_schema *schema);
 
 /* Adds a function (its body may still be 0) and sets its unit field. The
    first function added is the main function. */
