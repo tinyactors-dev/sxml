@@ -24,6 +24,7 @@
 #include "sxml/tree.h"
 #include "sxml/types.h"
 #include "xdm_internal.h"
+#include "xml_internal.h"
 
 #include <stdalign.h>
 #include <stddef.h>
@@ -348,22 +349,6 @@ static sxml_status sxml_parameter_copy_text(sxml_parameter_reading *reading, sxm
     return status;
 }
 
-/* text without leading and trailing XML whitespace (the whitespace
-   collapse of xs:token, Serialization 4.0, appendix B). */
-static sxml_byte_view sxml_parameter_trim(sxml_byte_view text) {
-    while (text.byte_count > 0 && (text.bytes[0] == ' ' || text.bytes[0] == '\t' ||
-                                   text.bytes[0] == '\n' || text.bytes[0] == '\r')) {
-        text.bytes += 1;
-        text.byte_count -= 1;
-    }
-    while (text.byte_count > 0 &&
-           (text.bytes[text.byte_count - 1] == ' ' || text.bytes[text.byte_count - 1] == '\t' ||
-            text.bytes[text.byte_count - 1] == '\n' || text.bytes[text.byte_count - 1] == '\r')) {
-        text.byte_count -= 1;
-    }
-    return text;
-}
-
 /* The number of characters of well-formed UTF-8 text, and its first. */
 typedef struct sxml_character_count {
     size_t count;
@@ -523,7 +508,7 @@ static sxml_status sxml_parameter_assign_normalization(sxml_parameter_reading *r
         {"NFKD", SXML_NORMALIZATION_FORM_NFKD},
         {"fully-normalized", SXML_NORMALIZATION_FORM_FULLY_NORMALIZED},
     };
-    const sxml_byte_view trimmed = sxml_parameter_trim(text);
+    const sxml_byte_view trimmed = sxml_xml_text_trim_whitespace(text);
     for (size_t form_index = 0; form_index < sizeof(forms) / sizeof(forms[0]); form_index += 1) {
         if (sxml_byte_view_equals(trimmed, sxml_byte_view_from_c_string(forms[form_index].name))) {
             reading->parameters.normalization_form = forms[form_index].form;
@@ -715,7 +700,7 @@ static sxml_status sxml_parameter_assign(sxml_parameter_reading *reading,
         return sxml_parameter_assign_method(reading, name, value);
     }
     if (name == SXML_PARAMETER_ENCODING) {
-        return sxml_parameter_assign_encoding(reading, sxml_parameter_trim(value->text));
+        return sxml_parameter_assign_encoding(reading, sxml_xml_text_trim_whitespace(value->text));
     }
     if (name == SXML_PARAMETER_NORMALIZATION_FORM) {
         return sxml_parameter_assign_normalization(reading, value->text);
@@ -779,7 +764,7 @@ typedef struct sxml_boolean_reading {
 } sxml_boolean_reading;
 
 static sxml_boolean_reading sxml_parameter_read_boolean(sxml_byte_view text) {
-    const sxml_byte_view trimmed = sxml_parameter_trim(text);
+    const sxml_byte_view trimmed = sxml_xml_text_trim_whitespace(text);
     if (sxml_byte_view_equals(trimmed, SXML_BYTE_VIEW_FROM_LITERAL("true")) ||
         sxml_byte_view_equals(trimmed, SXML_BYTE_VIEW_FROM_LITERAL("1"))) {
         return (sxml_boolean_reading){.is_valid = true, .flag = true};
@@ -1060,7 +1045,7 @@ static sxml_status sxml_parameter_decode_option(sxml_parameter_reading *reading,
             sxml_byte_view text = {.bytes = NULL, .byte_count = 0};
             uint8_t digits[32];
             if (primitive == SXML_TYPE_XS_UNTYPED_ATOMIC) {
-                text = sxml_parameter_trim(datum.datum_details.string.utf8);
+                text = sxml_xml_text_trim_whitespace(datum.datum_details.string.utf8);
                 if (!sxml_parameter_is_decimal(text)) {
                     return sxml_parameter_raise_type(reading);
                 }
@@ -1466,7 +1451,7 @@ static sxml_status sxml_parameter_decode_text(sxml_parameter_reading *reading,
                                               sxml_parameter_value *value) {
     const sxml_parameter_kind kind = sxml_parameter_definitions[decoding->name].kind;
     const sxml_byte_view text = decoding->text;
-    const sxml_byte_view trimmed = sxml_parameter_trim(text);
+    const sxml_byte_view trimmed = sxml_xml_text_trim_whitespace(text);
     switch (kind) {
     case SXML_PARAMETER_KIND_FLAG:
     case SXML_PARAMETER_KIND_STANDALONE: {
@@ -1617,7 +1602,7 @@ static sxml_status sxml_parameter_read_document(sxml_parameter_reading *reading,
         if (child_description.node_kind == SXML_NODE_KIND_TEXT) {
             sxml_byte_view content = {.bytes = NULL, .byte_count = 0};
             status = sxml_node_get_content(child_node, &content);
-            if (status == SXML_STATUS_OK && sxml_parameter_trim(content).byte_count > 0) {
+            if (status == SXML_STATUS_OK && sxml_xml_text_trim_whitespace(content).byte_count > 0) {
                 status = sxml_parameter_raise_document(reading, SXML_DOCUMENT_ERROR_SEPM0017);
             }
             continue;

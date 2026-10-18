@@ -923,21 +923,6 @@ static bool text_is_ncname(sxml_byte_view text) {
     return true;
 }
 
-/* The text without leading and trailing XML whitespace. */
-static sxml_byte_view trim_text(sxml_byte_view text) {
-    token_cursor cursor = {.text = text, .byte_offset = 0};
-    sxml_byte_view token = {.bytes = NULL, .byte_count = 0};
-    if (!next_token(&cursor, &token)) {
-        return token;
-    }
-    size_t end = text.byte_count;
-    while (end > 0 && is_xml_whitespace_byte(text.bytes[end - 1])) {
-        end -= 1;
-    }
-    return (sxml_byte_view){.bytes = token.bytes,
-                            .byte_count = (size_t)(text.bytes + end - token.bytes)};
-}
-
 /* The string value of a node into *item (owned), and its text. */
 typedef struct node_text {
     sxml_item item;
@@ -1035,7 +1020,7 @@ static sxml_status find_element_with_id(const sxml_function_call *call, const id
         node_text text;
         status = read_node_text(call, node, &text);
         const bool is_match =
-            status == SXML_STATUS_OK && sxml_byte_view_equals(trim_text(text.text), search->token);
+            status == SXML_STATUS_OK && sxml_byte_view_equals(sxml_xml_text_trim_whitespace(text.text), search->token);
         sxml_item_release(text.item);
         if (!is_match) {
             continue;
@@ -1150,7 +1135,7 @@ static sxml_status match_candidate(const sxml_function_call *call, sxml_byte_vie
         sxml_atomic_datum datum;
         status = sxml_atomic_item_get_datum(step.item, &datum);
         if (status == SXML_STATUS_OK && datum.datum_kind == SXML_DATUM_KIND_STRING) {
-            const sxml_byte_view candidate = trim_text(datum.datum_details.string.utf8);
+            const sxml_byte_view candidate = sxml_xml_text_trim_whitespace(datum.datum_details.string.utf8);
             match->is_match = text_is_ncname(candidate) && sxml_byte_view_equals(candidate, token);
         }
     }

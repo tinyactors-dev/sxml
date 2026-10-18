@@ -720,21 +720,6 @@ static bool element_map_is_whitespace(sxml_byte_view text) {
     return true;
 }
 
-static sxml_byte_view element_map_trim(sxml_byte_view text) {
-    if (text.byte_count == 0) {
-        return text;
-    }
-    size_t first = 0;
-    size_t end = text.byte_count;
-    while (first < end && element_map_byte_is_whitespace(text.bytes[first])) {
-        first += 1;
-    }
-    while (end > first && element_map_byte_is_whitespace(text.bytes[end - 1])) {
-        end -= 1;
-    }
-    return (sxml_byte_view){.bytes = text.bytes + first, .byte_count = end - first};
-}
-
 /* -------------------------------------------------- Inferring a type */
 
 /* What the strings seen so far say about their type (F&O 4.0, section
@@ -806,7 +791,7 @@ static element_map_number_shape element_map_scan_number(sxml_byte_view text) {
 }
 
 static void element_map_add_evidence(element_map_type_evidence *evidence, sxml_byte_view text) {
-    const sxml_byte_view trimmed = element_map_trim(text);
+    const sxml_byte_view trimmed = sxml_xml_text_trim_whitespace(text);
     const element_map_number_shape shape = element_map_scan_number(trimmed);
     evidence->has_strings = true;
     if (!shape.is_number) {
@@ -2531,7 +2516,7 @@ static sxml_status element_map_is_nilled(const element_map_context *context,
             parts.namespace_uri.index == SXML_NAMESPACE_XML_SCHEMA_INSTANCE &&
             sxml_byte_view_equals(parts.local_name, SXML_BYTE_VIEW_FROM_LITERAL("nil"))) {
             status = sxml_node_get_content(attribute, &value);
-            value = element_map_trim(value);
+            value = sxml_xml_text_trim_whitespace(value);
             is_nilled->is_true = sxml_byte_view_equals(value, SXML_BYTE_VIEW_FROM_LITERAL("true")) ||
                          sxml_byte_view_equals(value, SXML_BYTE_VIEW_FROM_LITERAL("1"));
         }

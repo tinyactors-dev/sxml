@@ -1768,7 +1768,8 @@ static sxml_ir_expression_index write_qname_target(program *writer) {
 }
 
 static const construct_case leaf_cases[] = {
-    {"texts", write_texts, SXML_TEST_RENDER_NONE, "1 b | end"},
+    /* text {()} is (); text {""} a zero-length text node (D163). */
+    {"texts", write_texts, SXML_TEST_RENDER_NONE, "1 b |  | end"},
     {"attribute_value", write_attribute_value, SXML_TEST_RENDER_TYPES, "@x=\"1 b\"#untyped"},
     {"xml_id", write_xml_id, SXML_TEST_RENDER_IDS, "@xml:id=\"a b\"#id"},
     {"comment", write_comment, SXML_TEST_RENDER_NONE, "<!--a - b-->"},

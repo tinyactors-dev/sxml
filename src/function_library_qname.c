@@ -19,6 +19,7 @@
 #include "function_library_core_internal.h"
 #include "ir_internal.h"
 #include "xdm_internal.h"
+#include "xml_internal.h"
 
 #include <stdalign.h>
 
@@ -491,21 +492,6 @@ static sxml_status make_qname(sxml_item_heap *item_heap, const qname_texts *text
     return status;
 }
 
-static bool is_xml_whitespace(uint8_t byte) {
-    return byte == ' ' || byte == '\t' || byte == '\n' || byte == '\r';
-}
-
-static sxml_byte_view trim_whitespace(sxml_byte_view text) {
-    while (text.byte_count > 0 && is_xml_whitespace(text.bytes[0])) {
-        text.bytes += 1;
-        text.byte_count -= 1;
-    }
-    while (text.byte_count > 0 && is_xml_whitespace(text.bytes[text.byte_count - 1])) {
-        text.byte_count -= 1;
-    }
-    return text;
-}
-
 /* "prefix:local" resolved with the statically known namespaces of the
    running code, as xs:QName($value) does (F&O 4.0, section 19.1.9; D84):
    an unbound prefix is the cast's FONS0004. */
@@ -555,7 +541,7 @@ static sxml_status call_parse_qname(const sxml_function_call *call, sxml_sequenc
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    const sxml_byte_view text = trim_whitespace(value.utf8);
+    const sxml_byte_view text = sxml_xml_text_trim_whitespace(value.utf8);
     sxml_byte_view namespace_uri = {.bytes = NULL, .byte_count = 0};
     sxml_byte_view name = text;
     const bool is_uri_qualified =

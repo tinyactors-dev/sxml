@@ -575,23 +575,70 @@ static void test_parentless_nodes_are_roots(sxml_test_state *state) {
         }
         built_tree_destroy(&built);
     }
-    /* Only empty text makes no root. */
+    /* Only empty text makes a parentless zero-length text node (XDM 4.0,
+       section 7.5.7.1; D163). */
     built_tree built;
     SXML_TEST_REQUIRE(state, built_tree_create(&configuration, &built) ==
                                  SXML_STATUS_OK);
     event_writer writer = writer_for(&fixture, &built);
     write_text(&writer, "");
+    write_text(&writer, "");
     SXML_TEST_EXPECT(state, writer.status == SXML_STATUS_OK);
     SXML_TEST_EXPECT(state, sxml_arena_tree_finish(built.arena_tree,
-                                                   &built.tree) ==
-                                SXML_STATUS_INVALID_ARGUMENT);
-    SXML_TEST_EXPECT(state, built.tree == NULL);
+                                                   &built.tree) == SXML_STATUS_OK);
+    SXML_TEST_REQUIRE(state, built.tree != NULL);
+    sxml_node_description empty_text;
+    const sxml_node_reference root = {
+        .tree = built.tree, .node_index = {.index = 0}, .namespace_number = 0};
+    SXML_TEST_EXPECT(state, sxml_node_describe(root, &empty_text) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, empty_text.node_kind == SXML_NODE_KIND_TEXT &&
+                                !empty_text.has_parent);
+    sxml_byte_view content = {.bytes = NULL, .byte_count = 1};
+    SXML_TEST_EXPECT(state, sxml_node_get_content(root, &content) == SXML_STATUS_OK &&
+                                content.byte_count == 0);
     built_tree_destroy(&built);
     tree_fixture_destroy(&fixture);
 }
 
 /* A parentless root takes the configured base URI (D98); a document keeps
    the one of its start event. */
+/* A text node made of events of which one asks for CDATA sections keeps
+   the request (glossary cdata_section; D163); others do not have it. */
+static void test_text_keeps_cdata_requests(sxml_test_state *state) {
+    tree_fixture fixture;
+    SXML_TEST_REQUIRE(state, tree_fixture_create(&fixture) == SXML_STATUS_OK);
+    sxml_arena_tree_configuration configuration = arena_configuration(&fixture);
+    built_tree built;
+    SXML_TEST_REQUIRE(state, built_tree_create(&configuration, &built) == SXML_STATUS_OK);
+    event_writer writer = writer_for(&fixture, &built);
+    write_element(&writer, "a");
+    write_text(&writer, "plain ");
+    if (writer.status == SXML_STATUS_OK) {
+        writer.status = writer.builder.operations->add_text(
+            writer.builder.state, &(sxml_text_event){.text = text_view("<cdata>"),
+                                                     .location = no_location,
+                                                     .is_cdata_section = true});
+    }
+    write_element(&writer, "b");
+    write_text(&writer, "other");
+    write_end_element(&writer);
+    write_end_element(&writer);
+    SXML_TEST_EXPECT(state, writer.status == SXML_STATUS_OK);
+    SXML_TEST_REQUIRE(state,
+                      sxml_arena_tree_finish(built.arena_tree, &built.tree) == SXML_STATUS_OK);
+    /* a, its text, b, b's text. */
+    const bool expected[4] = {false, true, false, false};
+    for (uint32_t node_index = 0; node_index < 4; node_index += 1) {
+        sxml_node_description description;
+        const sxml_node_reference node = {
+            .tree = built.tree, .node_index = {.index = node_index}, .namespace_number = 0};
+        SXML_TEST_EXPECT(state, sxml_node_describe(node, &description) == SXML_STATUS_OK &&
+                                    description.is_cdata_section == expected[node_index]);
+    }
+    built_tree_destroy(&built);
+    tree_fixture_destroy(&fixture);
+}
+
 static void test_roots_take_the_configured_base_uri(sxml_test_state *state) {
     tree_fixture fixture;
     SXML_TEST_REQUIRE(state, tree_fixture_create(&fixture) == SXML_STATUS_OK);
@@ -1299,6 +1346,7 @@ static const sxml_test_case arena_tree_test_cases[] = {
      .function = test_adjacent_text_merges_and_empty_text_vanishes},
     {.name = "parentless_nodes_are_roots",
      .function = test_parentless_nodes_are_roots},
+    {.name = "text_keeps_cdata_requests", .function = test_text_keeps_cdata_requests},
     {.name = "roots_take_the_configured_base_uri",
      .function = test_roots_take_the_configured_base_uri},
     {.name = "parentless_namespace_nodes_are_stored",

@@ -66,6 +66,7 @@
 #include "function_library_core_internal.h"
 #include "ir_internal.h"
 #include "unicode_internal.h"
+#include "xml_internal.h"
 
 #include <stdalign.h>
 #include <string.h>
@@ -296,22 +297,6 @@ static bool is_whitespace_byte(uint8_t byte) {
     return byte == ' ' || byte == '\t' || byte == '\n' || byte == '\r';
 }
 
-/* text without leading and trailing whitespace. */
-static sxml_byte_view trim_text(sxml_byte_view text) {
-    size_t first = 0;
-    size_t end = text.byte_count;
-    while (first < end && is_whitespace_byte(text.bytes[first])) {
-        first += 1;
-    }
-    while (end > first && is_whitespace_byte(text.bytes[end - 1])) {
-        end -= 1;
-    }
-    if (first == end) {
-        return (sxml_byte_view){.bytes = NULL, .byte_count = 0};
-    }
-    return (sxml_byte_view){.bytes = text.bytes + first, .byte_count = end - first};
-}
-
 /* A boolean option's value after coercion. */
 typedef struct boolean_value {
     bool is_true;
@@ -344,7 +329,7 @@ static sxml_status read_boolean_value(const sxml_function_call *call, sxml_seque
     } else if (is_valid && datum.datum_kind == SXML_DATUM_KIND_STRING &&
                sxml_item_get_type_annotation(item).index ==
                    sxml_builtin_type_identifier(SXML_TYPE_XS_UNTYPED_ATOMIC).index) {
-        const sxml_byte_view text = trim_text(datum.datum_details.string.utf8);
+        const sxml_byte_view text = sxml_xml_text_trim_whitespace(datum.datum_details.string.utf8);
         coerced->is_true = sxml_byte_view_equals(text, SXML_BYTE_VIEW_FROM_LITERAL("true")) ||
                            sxml_byte_view_equals(text, SXML_BYTE_VIEW_FROM_LITERAL("1"));
         is_valid = coerced->is_true || sxml_byte_view_equals(text, SXML_BYTE_VIEW_FROM_LITERAL("false")) ||
@@ -424,7 +409,7 @@ static sxml_status read_text_options(const sxml_function_call *call, sxml_item o
             &option);
     }
     if (status == SXML_STATUS_OK && option.is_present && option.text.utf8.byte_count > 0) {
-        const sxml_byte_view form = trim_text(option.text.utf8);
+        const sxml_byte_view form = sxml_xml_text_trim_whitespace(option.text.utf8);
         bool is_found = false;
         for (size_t row_index = 0; row_index < sizeof(normalization_forms) / sizeof(normalization_forms[0]);
              row_index += 1) {
@@ -1071,7 +1056,7 @@ static sxml_status find_preserved_space(const deep_comparison *comparison,
                 status = sxml_node_get_content(attribute, &value);
                 rule->preserves_space =
                     status == SXML_STATUS_OK &&
-                    sxml_byte_view_equals(trim_text(value), SXML_BYTE_VIEW_FROM_LITERAL("preserve"));
+                    sxml_byte_view_equals(sxml_xml_text_trim_whitespace(value), SXML_BYTE_VIEW_FROM_LITERAL("preserve"));
                 return status;
             }
         }

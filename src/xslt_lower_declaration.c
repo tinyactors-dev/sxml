@@ -45,6 +45,7 @@
 #include "xslt_whitespace_internal.h"
 #include "sxml/types.h"
 #include "sxml/xdm.h"
+#include "sort_internal.h"
 
 #include <stdalign.h>
 #include <stdbool.h>
@@ -78,6 +79,12 @@ typedef struct declared_function {
     size_t first_signature;
     sxml_sequence_type result_type;
     bool has_result_type;
+    /* cache="yes" without new-each-time="yes" (10.3.7, memoization): the
+       full arity calls the cached-call row, which calls cached_body (the
+       IR function of the sequence constructor) once per argument values
+       (D163). */
+    bool is_cached;
+    sxml_ir_function_index cached_body;
 } declared_function;
 
 /* One attribute set: every xsl:attribute-set of one name in one package
@@ -181,50 +188,6 @@ static uint32_t precedence_of(const sxml_xslt_lowering *lowering, sxml_xslt_ast_
         ->import_precedence;
 }
 
-/* The XPath static context of an expression of the AST; NULL for none. */
-static const sxml_xpath_static_context *
-expression_context(const sxml_xslt_lowering *lowering, sxml_xslt_ast_expression_index expression) {
-    const uint32_t context =
-        sxml_xslt_ast_get_expression(lowering->ast, expression)->static_context.value;
-    if (context == 0 || context >= lowering->static_context_count) {
-        return NULL;
-    }
-    return &lowering->static_contexts[context];
-}
-
-/* The sequence type of node's as attribute; item()* (has_type false)
-   without one. */
-typedef struct declared_type {
-    bool has_type;
-    sxml_sequence_type sequence_type;
-} declared_type;
-
-static sxml_status resolve_declared_type(const sxml_xslt_lowering *lowering,
-                                         sxml_xslt_ast_node_index node, declared_type *type) {
-    type->has_type = false;
-    type->sequence_type = (sxml_sequence_type){.item_type = sxml_builtin_type_identifier(SXML_TYPE_ITEM),
-                                               .occurrence = SXML_OCCURRENCE_ZERO_OR_MORE};
-    const sxml_xslt_ast_attribute *as_attribute =
-        find_attribute(lowering, node, SXML_XSLT_AST_ATTRIBUTE_AS);
-    if (as_attribute->value.kind != SXML_XSLT_AST_VALUE_KIND_SEQUENCE_TYPE) {
-        return SXML_STATUS_OK;
-    }
-    const sxml_xslt_ast_expression *expression =
-        sxml_xslt_ast_get_expression(lowering->ast, as_attribute->value.payload.expression);
-    const sxml_xpath_static_context *context =
-        expression_context(lowering, as_attribute->value.payload.expression);
-    if (expression->ast == NULL || context == NULL) {
-        return SXML_STATUS_INVALID_ARGUMENT;
-    }
-    type->has_type = true;
-    return sxml_xpath_resolve_sequence_type(
-        &(sxml_xpath_type_request){.ast = expression->ast,
-                                   .type_node = expression->ast->root,
-                                   .static_context = context,
-                                   .error_record = lowering->error_record},
-        &type->sequence_type);
-}
-
 static sxml_status report_static_error(const sxml_xslt_lowering *lowering,
                                        sxml_xslt_ast_node_index node,
                                        sxml_byte_view code_and_description) {
@@ -252,12 +215,6 @@ static bool is_in_no_namespace(const sxml_name_pool *name_pool, sxml_name_identi
                              .local_name = {.bytes = NULL, .byte_count = 0}};
     return sxml_name_pool_get_name_parts(name_pool, name, &parts) == SXML_STATUS_OK &&
            parts.namespace_uri.index == (uint32_t)SXML_NAMESPACE_NONE;
-}
-
-/* ---------------------------------------------------------- IR helpers */
-
-static sxml_ir_atom slot_atom(sxml_ir_slot slot) {
-    return (sxml_ir_atom){.atom_kind = SXML_IR_ATOM_KIND_SLOT, .slot = slot};
 }
 
 static sxml_ir_expression atom_expression(sxml_ir_atom atom) {
@@ -344,7 +301,7 @@ static sxml_status allocate_array(const sxml_xslt_lowering *lowering, array_requ
 
 /* ------------------------------------------------------------- Sorting */
 
-/* An order over indices 0 to count - 1 (a heapsort: no recursion). */
+/* An order over indices 0 to count - 1. */
 typedef struct index_order {
     const void *state;
     bool (*comes_before)(const void *state, size_t first, size_t second);
@@ -356,42 +313,19 @@ typedef struct index_heap {
     size_t index_count;
 } index_heap;
 
-static void sift_down(index_heap heap, size_t root) {
-    size_t parent = root;
-    for (;;) {
-        size_t largest = parent;
-        const size_t left = 2 * parent + 1;
-        if (left < heap.index_count &&
-            heap.order.comes_before(heap.order.state, heap.indices[largest], heap.indices[left])) {
-            largest = left;
-        }
-        if (left + 1 < heap.index_count &&
-            heap.order.comes_before(heap.order.state, heap.indices[largest],
-                                    heap.indices[left + 1])) {
-            largest = left + 1;
-        }
-        if (largest == parent) {
-            return;
-        }
-        const size_t moved = heap.indices[parent];
-        heap.indices[parent] = heap.indices[largest];
-        heap.indices[largest] = moved;
-        parent = largest;
-    }
+static bool index_is_before(const void *state, sxml_sort_pair pair) {
+    const index_order *order = state;
+    return order->comes_before(order->state, *(const size_t *)pair.first,
+                               *(const size_t *)pair.second);
 }
 
+/* Sorts the indices (src/sort.c: a heapsort, no recursion). */
 static void sort_indices(index_heap heap) {
-    for (size_t heap_root = heap.index_count / 2; heap_root > 0; heap_root -= 1) {
-        sift_down(heap, heap_root - 1);
-    }
-    for (size_t heap_end = heap.index_count; heap_end > 1; heap_end -= 1) {
-        const size_t largest = heap.indices[0];
-        heap.indices[0] = heap.indices[heap_end - 1];
-        heap.indices[heap_end - 1] = largest;
-        sift_down(
-            (index_heap){.order = heap.order, .indices = heap.indices, .index_count = heap_end - 1},
-            0);
-    }
+    sxml_sort_in_place(&(sxml_sort_request){.elements = heap.indices,
+                                            .element_count = heap.index_count,
+                                            .element_size = sizeof(size_t),
+                                            .is_before = index_is_before,
+                                            .state = &heap.order});
 }
 
 /* ------------------------------------------------------- Function table */
@@ -558,8 +492,8 @@ static sxml_status read_parameters(const sxml_xslt_lowering *lowering,
                                             "optional one (XSLT 4.0, 10.3.2)"));
         }
         has_optional = has_optional || !is_required;
-        declared_type type = {.has_type = false};
-        status = resolve_declared_type(lowering, child, &type);
+        sxml_xslt_declared_type type = {.has_type = false};
+        status = sxml_xslt_lowering_resolve_declared_type(lowering, child, &type);
         if (status != SXML_STATUS_OK) {
             return status;
         }
@@ -867,12 +801,23 @@ static sxml_status read_functions(const sxml_xslt_lowering *lowering,
             components->has_no_namespace_function || is_in_no_function_namespace;
         status = read_parameters(lowering, components, function);
         next_parameter += function->parameter_count;
-        declared_type type = {.has_type = false};
+        sxml_xslt_declared_type type = {.has_type = false};
         if (status == SXML_STATUS_OK) {
-            status = resolve_declared_type(lowering, declaration, &type);
+            status = sxml_xslt_lowering_resolve_declared_type(lowering, declaration, &type);
         }
         function->result_type = type.sequence_type;
         function->has_result_type = type.has_type;
+        const sxml_xslt_ast_attribute *cache =
+            find_attribute(lowering, declaration, SXML_XSLT_AST_ATTRIBUTE_CACHE);
+        const sxml_xslt_ast_attribute *new_each_time =
+            find_attribute(lowering, declaration, SXML_XSLT_AST_ATTRIBUTE_NEW_EACH_TIME);
+        /* 10.3.7: a proactive function's results may not be reused (its
+           nodes must be new each time), so its cache request is not
+           honoured. */
+        function->is_cached = cache->value.kind == SXML_XSLT_AST_VALUE_KIND_BOOLEAN &&
+                              cache->value.payload.is_true &&
+                              !(new_each_time->value.kind == SXML_XSLT_AST_VALUE_KIND_KEYWORD &&
+                                new_each_time->value.payload.keyword == SXML_XSLT_AST_KEYWORD_YES);
     }
     return status;
 }
@@ -925,6 +870,15 @@ static sxml_status add_function_shells(const sxml_xslt_lowering *lowering,
                 &function_index);
             if (arity == function->required_count) {
                 function->first_function = function_index;
+            }
+            if (status == SXML_STATUS_OK && function->is_cached &&
+                arity == function->parameter_count) {
+                status = sxml_ir_unit_add_function(
+                    lowering->lowerer->unit,
+                    &(sxml_ir_function){.function_name = function->function_name,
+                                        .signature = *signature,
+                                        .parameter_count = arity},
+                    &function->cached_body);
             }
         }
     }
@@ -1451,6 +1405,9 @@ typedef struct function_body_locals {
     sxml_ir_atom *arguments;
     sxml_ir_expression_index default_value;
     sxml_ir_atom value;
+    /* The full arity of a cached function: the call of the cached-call row
+       (10.3.7); its sequence constructor is lowered into cached_body. */
+    bool is_cache_call;
 } function_body_locals;
 
 /* Starts the default of the parameter at parameter_offset (9.2.2): select,
@@ -1481,7 +1438,7 @@ static sxml_status start_default(sxml_xpath_lowering_machine *machine,
                                          ->ast,
                               .node = {.value = 0},
                               .static_context =
-                                  expression_context(lowering, select->value.payload.expression),
+                                  sxml_xslt_lowering_expression_context(lowering, select->value.payload.expression),
                               .focus = NULL},
                 .block = NULL,
                 .is_body = true,
@@ -1625,7 +1582,7 @@ static sxml_status start_full_arity(sxml_xpath_lowering_machine *machine,
             lowerer,
             (sxml_xpath_lowering_scope_entry){.variable_name = name_of(lowering, parameter),
                                               .function_level = lowerer->function->function_level,
-                                              .atom = slot_atom((sxml_ir_slot){.value = offset + 1})});
+                                              .atom = sxml_ir_slot_atom((sxml_ir_slot){.value = offset + 1})});
     }
     if (status != SXML_STATUS_OK) {
         return status;
@@ -1645,6 +1602,91 @@ static sxml_status start_full_arity(sxml_xpath_lowering_machine *machine,
                      .focus = NULL});
 }
 
+/* A cached function's full arity (10.3.7): cached-call(n, [$p1, ...,
+   $pn], body#n), n the number of cached_body, so equal arguments give the
+   value the first call computed. */
+static sxml_status finish_cache_call(sxml_xpath_lowering_machine *machine,
+                                     sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *lowerer = machine->state;
+    function_body_locals *locals = frame->locals;
+    const declared_function *function = locals->function;
+    sxml_status status = SXML_STATUS_OK;
+    if (function->parameter_count > 0) {
+        status = sxml_xpath_lowering_allocate_owned(
+            machine, frame,
+            (sxml_xpath_lowering_owned_request){
+                .memory_index = 0,
+                .scratch = {.element_count = function->parameter_count,
+                            .element_size = sizeof(sxml_ir_atom),
+                            .element_alignment = alignof(sxml_ir_atom)}});
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_ir_atom *members = function->parameter_count > 0 ? frame->owned_memory[0] : NULL;
+    for (uint32_t offset = 0; offset < function->parameter_count; offset += 1) {
+        members[offset] = sxml_ir_slot_atom((sxml_ir_slot){.value = offset + 1});
+    }
+    sxml_ir_atom_list member_list = {0};
+    status = sxml_ir_unit_add_atoms(
+        lowerer->unit,
+        (sxml_ir_atom_view){.atoms = members, .atom_count = function->parameter_count},
+        &member_list);
+    sxml_ir_atom arguments[3] = {{0}, {0}, {0}};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_add_item_constant(
+            lowerer, sxml_atomic_item_from_integer((int64_t)function->cached_body.value),
+            &arguments[0]);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = bind_expression(
+            lowerer,
+            (sxml_xslt_expression_to_bind){
+                .block = frame->block,
+                .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_ARRAY_CONSTRUCTOR,
+                               .array_constructor = {.array_form = SXML_IR_ARRAY_FORM_SQUARE,
+                                                     .members = member_list}}},
+            &arguments[1]);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = bind_expression(
+            lowerer,
+            (sxml_xslt_expression_to_bind){
+                .block = frame->block,
+                .expression = {
+                    .expression_kind = SXML_IR_EXPRESSION_KIND_FUNCTION_REFERENCE,
+                    .function_reference = {
+                        .target = {.target_kind = SXML_IR_FUNCTION_TARGET_KIND_IR_FUNCTION,
+                                   .function = function->cached_body},
+                        .arity = function->parameter_count,
+                        .signature = sxml_ir_unit_get_function(lowerer->unit,
+                                                               function->cached_body)
+                                         ->signature}}},
+            &arguments[2]);
+    }
+    sxml_ir_atom_list argument_list = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ir_unit_add_atoms(lowerer->unit,
+                                        (sxml_ir_atom_view){.atoms = arguments, .atom_count = 3},
+                                        &argument_list);
+    }
+    sxml_ir_expression_index call = {0};
+    if (status == SXML_STATUS_OK) {
+        status = add_expression(
+            lowerer,
+            (sxml_ir_expression){
+                .expression_kind = SXML_IR_EXPRESSION_KIND_STATIC_CALL,
+                .static_call = {.target = {.target_kind = SXML_IR_FUNCTION_TARGET_KIND_NATIVE,
+                                           .native_function = &sxml_xslt_cached_call_function},
+                                .arguments = argument_list}},
+            &call);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_xpath_lowering_finish_frame(machine, frame, call);
+}
+
 static sxml_status continue_function_body(sxml_xpath_lowering_machine *machine,
                                           sxml_xpath_lowering_frame *frame) {
     sxml_xpath_lowerer *lowerer = machine->state;
@@ -1653,6 +1695,9 @@ static sxml_status continue_function_body(sxml_xpath_lowering_machine *machine,
     sxml_status status = SXML_STATUS_OK;
     switch ((function_body_step)frame->step) {
     case SXML_FUNCTION_BODY_STEP_START:
+        if (locals->is_cache_call) {
+            return finish_cache_call(machine, frame);
+        }
         if (locals->arity == function->parameter_count) {
             return start_full_arity(machine, frame);
         }
@@ -1668,7 +1713,7 @@ static sxml_status continue_function_body(sxml_xpath_lowering_machine *machine,
         }
         locals->arguments = frame->owned_memory[0];
         for (uint32_t offset = 0; offset < locals->arity; offset += 1) {
-            locals->arguments[offset] = slot_atom((sxml_ir_slot){.value = offset + 1});
+            locals->arguments[offset] = sxml_ir_slot_atom((sxml_ir_slot){.value = offset + 1});
         }
         locals->parameter_offset = locals->arity;
         break;
@@ -2017,22 +2062,33 @@ static sxml_status lower_functions(const sxml_xslt_lowering *lowering) {
              function->is_component && status == SXML_STATUS_OK &&
              arity <= function->parameter_count;
              arity += 1) {
-            const function_body_locals initial = {
-                .head = {.lowering = lowering, .node = function->node},
-                .function = function,
-                .components = components,
-                .arity = arity};
-            status = lower_component_function(
-                lowering,
-                &(component_function){
-                    .function = {.value = function->first_function.value +
-                                          (arity - function->required_count)},
-                    .parameter_count = arity,
-                    .is_abstract = sxml_xslt_package_is_abstract(lowering, function->node),
-                    .focus = {.kind = SXML_XPATH_LOWERING_FOCUS_KIND_ABSENT},
-                    .procedure = &function_body_procedure,
-                    .initial_locals = {.bytes = (const uint8_t *)&initial,
-                                       .byte_count = sizeof(initial)}});
+            const bool is_cache_call = function->is_cached && arity == function->parameter_count;
+            const sxml_ir_function_index full_function = {
+                .value = function->first_function.value + (arity - function->required_count)};
+            /* A cached function's sequence constructor goes to cached_body;
+               the full arity then becomes its cache call. */
+            for (uint32_t pass_number = 0;
+                 status == SXML_STATUS_OK && pass_number < (is_cache_call ? 2U : 1U);
+                 pass_number += 1) {
+                const bool lowers_cache_call = is_cache_call && pass_number == 1;
+                const function_body_locals initial = {
+                    .head = {.lowering = lowering, .node = function->node},
+                    .function = function,
+                    .components = components,
+                    .arity = arity,
+                    .is_cache_call = lowers_cache_call};
+                status = lower_component_function(
+                    lowering,
+                    &(component_function){
+                        .function = is_cache_call && !lowers_cache_call ? function->cached_body
+                                                                         : full_function,
+                        .parameter_count = arity,
+                        .is_abstract = sxml_xslt_package_is_abstract(lowering, function->node),
+                        .focus = {.kind = SXML_XPATH_LOWERING_FOCUS_KIND_ABSENT},
+                        .procedure = &function_body_procedure,
+                        .initial_locals = {.bytes = (const uint8_t *)&initial,
+                                           .byte_count = sizeof(initial)}});
+            }
         }
     }
     return status;
@@ -2314,7 +2370,7 @@ static sxml_status resolve_item_type(const sxml_xslt_lowering *lowering,
     const sxml_xslt_ast_expression *expression =
         sxml_xslt_ast_get_expression(lowering->ast, as_attribute->value.payload.expression);
     const sxml_xpath_static_context *context =
-        expression_context(lowering, as_attribute->value.payload.expression);
+        sxml_xslt_lowering_expression_context(lowering, as_attribute->value.payload.expression);
     if (expression->ast == NULL || context == NULL) {
         return SXML_STATUS_INVALID_ARGUMENT;
     }

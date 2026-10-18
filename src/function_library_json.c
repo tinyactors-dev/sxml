@@ -25,6 +25,7 @@
 #include "sxml/types.h"
 #include "sxml/version.h"
 #include "xdm_internal.h"
+#include "system_property_internal.h"
 
 #include <stdalign.h>
 #include <string.h>
@@ -1314,60 +1315,9 @@ static sxml_status call_parse_xml_fragment(const sxml_function_call *call,
 
 /* ------------------------------------------------- fn:system-properties */
 
-/* One built-in system property (F&O 4.0, section 17.1.9): a no-namespace
-   name and its value. */
-typedef struct system_property {
-    const char *property_name;
-    sxml_atomic_datum value;
-    sxml_builtin_type value_type;
-} system_property;
-
-/* sxml is not schema-aware, reads no typed data, has neither XInclude, DTD
-   validation, invisible XML, dynamic XQuery or XSLT (yet) nor the EXPath
-   modules. */
-#define SXML_BOOLEAN_PROPERTY(name_text, truth)                               \
-    {name_text,                                                               \
-     {.datum_kind = SXML_DATUM_KIND_BOOLEAN, .datum_details = {.boolean = (truth)}}, \
-     SXML_TYPE_XS_BOOLEAN}
-
-static const system_property system_properties[] = {
-    {"xpath-version",
-     {.datum_kind = SXML_DATUM_KIND_DECIMAL,
-      .datum_details = {.decimal_text = SXML_BYTE_VIEW_INITIALIZER("4.0")}},
-     SXML_TYPE_XS_DECIMAL},
-    {"xsd-version",
-     {.datum_kind = SXML_DATUM_KIND_DECIMAL,
-      .datum_details = {.decimal_text = SXML_BYTE_VIEW_INITIALIZER("1.1")}},
-     SXML_TYPE_XS_DECIMAL},
-    {"product-name",
-     {.datum_kind = SXML_DATUM_KIND_STRING,
-      .datum_details = {.string = {.utf8 = SXML_BYTE_VIEW_INITIALIZER("sxml"),
-                                   .codepoint_count = 4,
-                                   .is_ascii = true}}},
-     SXML_TYPE_XS_STRING},
-    /* The text is sxml_version_text(), filled in by the body. */
-    {"product-version",
-     {.datum_kind = SXML_DATUM_KIND_STRING,
-      .datum_details = {.string = {.utf8 = {.bytes = NULL, .byte_count = 0},
-                                   .codepoint_count = 0,
-                                   .is_ascii = true}}},
-     SXML_TYPE_XS_STRING},
-    SXML_BOOLEAN_PROPERTY("schema-aware", false),
-    SXML_BOOLEAN_PROPERTY("accepts-typed-data", false),
-    SXML_BOOLEAN_PROPERTY("supports-xinclude", false),
-    SXML_BOOLEAN_PROPERTY("supports-dtd-validation", false),
-    SXML_BOOLEAN_PROPERTY("supports-dtd-attribute-typing", false),
-    SXML_BOOLEAN_PROPERTY("supports-invisible-xml", false),
-    /* True where fn:load-xquery-module is a known function: the body
-       asks the dynamic context's function table (XQuery has it, XPath
-       not; D154, D161). */
-    SXML_BOOLEAN_PROPERTY("supports-dynamic-xquery", false),
-    SXML_BOOLEAN_PROPERTY("supports-dynamic-xslt", false),
-    SXML_BOOLEAN_PROPERTY("supports-binary-library", false),
-    SXML_BOOLEAN_PROPERTY("supports-file-library", false),
-};
-
-#define SXML_SYSTEM_PROPERTY_COUNT (sizeof(system_properties) / sizeof(system_properties[0]))
+/* The properties fn:system-properties reports (src/system_property.c):
+   those with an F&O name. */
+#define SXML_SYSTEM_PROPERTY_CAPACITY 32U
 
 /* Whether fn:load-xquery-module#1 is in the function table of call's
    dynamic context: what supports-dynamic-xquery says (F&O 4.0, 17.1.9). */
@@ -1406,26 +1356,33 @@ static sxml_status find_dynamic_xquery_support(const sxml_function_call *call,
    section 17.1.9): the built-in properties, keyed by no-namespace QNames. */
 static sxml_status call_system_properties(const sxml_function_call *call,
                                           sxml_sequence *result) {
-    sxml_map_entry entries[SXML_SYSTEM_PROPERTY_COUNT];
+    sxml_map_entry entries[SXML_SYSTEM_PROPERTY_CAPACITY];
     size_t entry_count = 0;
     sxml_name_pool *name_pool = sxml_item_heap_get_name_pool(call->item_heap);
     dynamic_xquery_support support = {.is_supported = false};
     sxml_status status = find_dynamic_xquery_support(call, &support);
-    while (status == SXML_STATUS_OK && entry_count < SXML_SYSTEM_PROPERTY_COUNT) {
-        const system_property *property = &system_properties[entry_count];
-        sxml_atomic_datum datum = property->value;
-        if (strcmp(property->property_name, "supports-dynamic-xquery") == 0) {
-            datum.datum_details.boolean = support.is_supported;
+    const sxml_system_property_view properties = sxml_system_properties();
+    for (size_t property_index = 0;
+         status == SXML_STATUS_OK && property_index < properties.property_count;
+         property_index += 1) {
+        const sxml_system_property *property = &properties.properties[property_index];
+        if (property->function_name.byte_count == 0 ||
+            entry_count == SXML_SYSTEM_PROPERTY_CAPACITY) {
+            continue;
         }
-        if (datum.datum_kind == SXML_DATUM_KIND_STRING && datum.datum_details.string.utf8.bytes == NULL) {
+        sxml_atomic_datum datum = property->value;
+        if (property->value_kind == SXML_SYSTEM_PROPERTY_VALUE_DYNAMIC_XQUERY) {
+            datum.datum_details.boolean = support.is_supported;
+        } else if (property->value_kind == SXML_SYSTEM_PROPERTY_VALUE_PRODUCT_VERSION) {
             datum.datum_details.string.utf8 = sxml_byte_view_from_c_string(sxml_version_text());
             datum.datum_details.string.codepoint_count = datum.datum_details.string.utf8.byte_count;
+            datum.datum_details.string.is_ascii = true;
         }
         sxml_name_identifier name = {.index = 0};
         status = sxml_name_pool_intern_name(
             name_pool,
             &(sxml_name_request){.namespace_uri = {.index = SXML_NAMESPACE_NONE},
-                                 .local_name = sxml_byte_view_from_c_string(property->property_name)},
+                                 .local_name = property->function_name},
             &name);
         sxml_item key = {.representation = 0};
         sxml_item value = {.representation = 0};

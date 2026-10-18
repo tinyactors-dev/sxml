@@ -250,6 +250,8 @@ sxml_status sxml_dynamic_context_initialize(
         .memo_entries = NULL,
         .memo_entry_count = 0,
         .memo_entry_capacity = 0,
+        .memo_index = NULL,
+        .memo_index_capacity = 0,
     };
     *dynamic_context = context;
     return SXML_STATUS_OK;
@@ -267,41 +269,198 @@ static void sxml_release_memo(sxml_dynamic_context *context) {
     context->memo_entries = NULL;
     context->memo_entry_count = 0;
     context->memo_entry_capacity = 0;
+    if (context->memo_index != NULL) {
+        sxml_allocator_release(context->allocator, context->memo_index);
+    }
+    context->memo_index = NULL;
+    context->memo_index_capacity = 0;
+}
+
+/* One item: the same representation and payload (a function item, map or
+   array by identity). */
+static bool sxml_memo_items_are_identical(sxml_item first, sxml_item second) {
+    return first.representation == second.representation && first.flags == second.flags &&
+           first.namespace_number == second.namespace_number &&
+           first.type_or_node_index == second.type_or_node_index &&
+           first.payload.bits == second.payload.bits;
+}
+
+/* Two items of a memo subject, or of the members of subject arrays: one
+   item, the same node, or atomic-equal atomic items of one type. */
+static bool sxml_memo_items_are_same(sxml_item first, sxml_item second) {
+    const sxml_item_kind kind = sxml_item_get_kind(first);
+    if (kind != sxml_item_get_kind(second)) {
+        return false;
+    }
+    switch (kind) {
+    case SXML_ITEM_KIND_ATOMIC:
+        return sxml_item_get_type_annotation(first).index ==
+                   sxml_item_get_type_annotation(second).index &&
+               sxml_atomic_item_is_atomic_equal(first, second);
+    case SXML_ITEM_KIND_NODE:
+    case SXML_ITEM_KIND_JSON_NODE:
+        return sxml_generic_node_is_same_node(
+            (sxml_item_pair){.first = first, .second = second});
+    case SXML_ITEM_KIND_FUNCTION:
+    case SXML_ITEM_KIND_MAP:
+    case SXML_ITEM_KIND_ARRAY:
+        break;
+    }
+    return sxml_memo_items_are_identical(first, second);
+}
+
+/* Consistent with sxml_memo_items_are_same: equal for the same item. */
+static uint64_t sxml_memo_item_hash(sxml_item item) {
+    switch (sxml_item_get_kind(item)) {
+    case SXML_ITEM_KIND_ATOMIC:
+        return sxml_atomic_item_hash(item);
+    case SXML_ITEM_KIND_NODE:
+        /* An XTree node is its tree and node number (D39). */
+        return ((uint64_t)item.type_or_node_index * 0x9E3779B97F4A7C15U) ^ item.payload.bits ^
+               ((uint64_t)item.namespace_number << 48U);
+    case SXML_ITEM_KIND_JSON_NODE:
+        return (uint64_t)item.representation;
+    case SXML_ITEM_KIND_FUNCTION:
+    case SXML_ITEM_KIND_MAP:
+    case SXML_ITEM_KIND_ARRAY:
+        break;
+    }
+    return item.payload.bits ^ (uint64_t)item.type_or_node_index;
+}
+
+/* The items of one array member, or false when it cannot be read. */
+typedef struct sxml_memo_member {
+    sxml_sequence sequence;
+    uint64_t item_count;
+} sxml_memo_member;
+
+static bool sxml_memo_read_member(sxml_item array, size_t member_index,
+                                  sxml_memo_member *member) {
+    return sxml_array_get_member(array, member_index, &member->sequence) == SXML_STATUS_OK &&
+           sxml_sequence_count(member->sequence, NULL, &member->item_count) == SXML_STATUS_OK;
+}
+
+static bool sxml_memo_item_at(sxml_sequence sequence, uint64_t item_index, sxml_item *item) {
+    return sxml_sequence_get_item(
+               sequence, (sxml_item_request){.item_index = item_index, .error_record = NULL},
+               item) == SXML_STATUS_OK;
+}
+
+/* Two arrays whose members have the same items, pairwise. */
+static bool sxml_memo_arrays_are_same(sxml_item first, sxml_item second) {
+    size_t first_count = 0;
+    size_t second_count = 0;
+    if (sxml_array_get_size(first, &first_count) != SXML_STATUS_OK ||
+        sxml_array_get_size(second, &second_count) != SXML_STATUS_OK ||
+        first_count != second_count) {
+        return false;
+    }
+    for (size_t member_index = 0; member_index < first_count; member_index += 1) {
+        sxml_memo_member first_member = {.item_count = 0};
+        sxml_memo_member second_member = {.item_count = 0};
+        if (!sxml_memo_read_member(first, member_index, &first_member) ||
+            !sxml_memo_read_member(second, member_index, &second_member) ||
+            first_member.item_count != second_member.item_count) {
+            return false;
+        }
+        for (uint64_t item_index = 0; item_index < first_member.item_count; item_index += 1) {
+            sxml_item first_item = {.representation = 0};
+            sxml_item second_item = {.representation = 0};
+            if (!sxml_memo_item_at(first_member.sequence, item_index, &first_item) ||
+                !sxml_memo_item_at(second_member.sequence, item_index, &second_item) ||
+                !sxml_memo_items_are_same(first_item, second_item)) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+static uint64_t sxml_memo_subject_hash(sxml_item subject) {
+    if (sxml_item_get_kind(subject) != SXML_ITEM_KIND_ARRAY) {
+        return sxml_memo_item_hash(subject);
+    }
+    size_t member_count = 0;
+    uint64_t hash = 0x9E3779B97F4A7C15U;
+    if (sxml_array_get_size(subject, &member_count) != SXML_STATUS_OK) {
+        return hash;
+    }
+    for (size_t member_index = 0; member_index < member_count; member_index += 1) {
+        sxml_memo_member member = {.item_count = 0};
+        if (!sxml_memo_read_member(subject, member_index, &member)) {
+            return hash;
+        }
+        hash = (hash ^ member.item_count) * 0x100000001B3U;
+        for (uint64_t item_index = 0; item_index < member.item_count; item_index += 1) {
+            sxml_item item = {.representation = 0};
+            if (sxml_memo_item_at(member.sequence, item_index, &item)) {
+                hash = (hash ^ sxml_memo_item_hash(item)) * 0x100000001B3U;
+            }
+        }
+    }
+    return hash;
+}
+
+static uint64_t sxml_memo_key_hash(const sxml_evaluation_memo_key *key) {
+    uint64_t hash = (uint64_t)(uintptr_t)key->computation * 0x9E3779B97F4A7C15U;
+    hash = (hash ^ key->computation_number) * 0x100000001B3U;
+    return (hash ^ sxml_memo_subject_hash(key->subject)) * 0x100000001B3U;
 }
 
 static bool sxml_memo_keys_are_equal(const sxml_evaluation_memo_key *first,
                                      const sxml_evaluation_memo_key *second) {
-    return first->computation == second->computation &&
-           first->computation_number == second->computation_number &&
-           sxml_generic_node_is_same_node(
-               (sxml_item_pair){.first = first->subject, .second = second->subject});
+    if (first->computation != second->computation ||
+        first->computation_number != second->computation_number) {
+        return false;
+    }
+    if (sxml_item_get_kind(first->subject) == SXML_ITEM_KIND_ARRAY &&
+        sxml_item_get_kind(second->subject) == SXML_ITEM_KIND_ARRAY) {
+        return sxml_memo_arrays_are_same(first->subject, second->subject);
+    }
+    return sxml_memo_items_are_same(first->subject, second->subject);
+}
+
+/* The place of key in the index: its entry's, or the free one where it
+   would go. */
+typedef struct sxml_memo_place {
+    size_t place_index;
+    bool is_found;
+} sxml_memo_place;
+
+static sxml_memo_place sxml_memo_find_place(const sxml_dynamic_context *dynamic_context,
+                                            const sxml_evaluation_memo_key *key) {
+    const size_t mask = dynamic_context->memo_index_capacity - 1;
+    size_t place_index = (size_t)sxml_memo_key_hash(key) & mask;
+    for (;;) {
+        const size_t entry_number = dynamic_context->memo_index[place_index];
+        if (entry_number == 0) {
+            return (sxml_memo_place){.place_index = place_index, .is_found = false};
+        }
+        if (sxml_memo_keys_are_equal(&dynamic_context->memo_entries[entry_number - 1].key, key)) {
+            return (sxml_memo_place){.place_index = place_index, .is_found = true};
+        }
+        place_index = (place_index + 1) & mask;
+    }
 }
 
 bool sxml_dynamic_context_find_memo(const sxml_dynamic_context *dynamic_context,
                                     const sxml_evaluation_memo_key *key, sxml_sequence *value) {
-    for (size_t entry_index = 0; entry_index < dynamic_context->memo_entry_count;
-         entry_index += 1) {
-        const sxml_evaluation_memo_entry *entry = &dynamic_context->memo_entries[entry_index];
-        if (sxml_memo_keys_are_equal(&entry->key, key)) {
-            *value = entry->value;
-            return true;
-        }
+    if (dynamic_context->memo_index_capacity == 0) {
+        return false;
     }
-    return false;
+    const sxml_memo_place place = sxml_memo_find_place(dynamic_context, key);
+    if (!place.is_found) {
+        return false;
+    }
+    *value = dynamic_context
+                 ->memo_entries[dynamic_context->memo_index[place.place_index] - 1]
+                 .value;
+    return true;
 }
 
-sxml_status sxml_dynamic_context_store_memo(sxml_dynamic_context *dynamic_context,
-                                            const sxml_evaluation_memo_entry *entry) {
-    for (size_t entry_index = 0; entry_index < dynamic_context->memo_entry_count;
-         entry_index += 1) {
-        sxml_evaluation_memo_entry *stored = &dynamic_context->memo_entries[entry_index];
-        if (sxml_memo_keys_are_equal(&stored->key, &entry->key)) {
-            sxml_sequence_retain(entry->value);
-            sxml_sequence_release(stored->value);
-            stored->value = entry->value;
-            return SXML_STATUS_OK;
-        }
-    }
+/* Makes room for one more entry: the entry array and an index at least
+   twice as large, rebuilt when it grows. */
+static sxml_status sxml_memo_reserve(sxml_dynamic_context *dynamic_context) {
     if (dynamic_context->memo_entry_count == dynamic_context->memo_entry_capacity) {
         const size_t capacity =
             dynamic_context->memo_entry_capacity == 0 ? 8 : dynamic_context->memo_entry_capacity * 2;
@@ -327,10 +486,61 @@ sxml_status sxml_dynamic_context_store_memo(sxml_dynamic_context *dynamic_contex
         dynamic_context->memo_entries = memory;
         dynamic_context->memo_entry_capacity = capacity;
     }
+    if ((dynamic_context->memo_entry_count + 1) * 2 <= dynamic_context->memo_index_capacity) {
+        return SXML_STATUS_OK;
+    }
+    const size_t index_capacity =
+        dynamic_context->memo_index_capacity == 0 ? 16 : dynamic_context->memo_index_capacity * 2;
+    size_t byte_count = 0;
+    sxml_status status = sxml_size_multiply(index_capacity, sizeof(size_t), &byte_count);
+    void *memory = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_allocator_allocate(
+            dynamic_context->allocator,
+            (sxml_allocation_request){.byte_count = byte_count, .alignment = alignof(size_t)},
+            &memory);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    memset(memory, 0, byte_count);
+    if (dynamic_context->memo_index != NULL) {
+        sxml_allocator_release(dynamic_context->allocator, dynamic_context->memo_index);
+    }
+    dynamic_context->memo_index = memory;
+    dynamic_context->memo_index_capacity = index_capacity;
+    for (size_t entry_index = 0; entry_index < dynamic_context->memo_entry_count;
+         entry_index += 1) {
+        const sxml_memo_place place = sxml_memo_find_place(
+            dynamic_context, &dynamic_context->memo_entries[entry_index].key);
+        dynamic_context->memo_index[place.place_index] = entry_index + 1;
+    }
+    return SXML_STATUS_OK;
+}
+
+sxml_status sxml_dynamic_context_store_memo(sxml_dynamic_context *dynamic_context,
+                                            const sxml_evaluation_memo_entry *entry) {
+    if (dynamic_context->memo_index_capacity > 0) {
+        const sxml_memo_place place = sxml_memo_find_place(dynamic_context, &entry->key);
+        if (place.is_found) {
+            sxml_evaluation_memo_entry *stored =
+                &dynamic_context->memo_entries[dynamic_context->memo_index[place.place_index] - 1];
+            sxml_sequence_retain(entry->value);
+            sxml_sequence_release(stored->value);
+            stored->value = entry->value;
+            return SXML_STATUS_OK;
+        }
+    }
+    const sxml_status status = sxml_memo_reserve(dynamic_context);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    const sxml_memo_place place = sxml_memo_find_place(dynamic_context, &entry->key);
     sxml_item_retain(entry->key.subject);
     sxml_sequence_retain(entry->value);
     dynamic_context->memo_entries[dynamic_context->memo_entry_count] = *entry;
     dynamic_context->memo_entry_count += 1;
+    dynamic_context->memo_index[place.place_index] = dynamic_context->memo_entry_count;
     return SXML_STATUS_OK;
 }
 

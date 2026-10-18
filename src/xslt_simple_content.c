@@ -4,7 +4,8 @@
  * lowering calls it before fn:string-join, so a value whose adjacent text
  * nodes would otherwise be joined with the separator gives their text
  * unseparated: `{text{'a'}, text{'b'}}` in a value template is "ab"
- * (D120's deviation, fixed).
+ * (D120's deviation, fixed), and zero-length text nodes are dropped first
+ * (step 1, D163).
  *
  * Golden file: src/xquery_flwor.c (an internal row in no function table).
  */
@@ -44,7 +45,8 @@ static sxml_status read_text_item(sxml_item item, text_item *text) {
     return sxml_node_get_content(node, &text->content);
 }
 
-/* True when two text nodes are adjacent in value. */
+/* True when two text nodes are adjacent in value, or value has a
+   zero-length text node: either needs merge_runs. */
 typedef struct adjacency {
     bool has_adjacent_text;
 } adjacency;
@@ -65,7 +67,7 @@ static sxml_status find_adjacent_text(const sxml_function_call *call, sxml_seque
         if (status != SXML_STATUS_OK) {
             return status;
         }
-        if (text.is_text && previous_is_text) {
+        if (text.is_text && (previous_is_text || text.content.byte_count == 0)) {
             found->has_adjacent_text = true;
             return SXML_STATUS_OK;
         }
@@ -163,6 +165,10 @@ static sxml_status merge_runs(const sxml_function_call *call, sxml_sequence valu
         }
         text_item text = {.is_text = false};
         status = read_text_item(step.item, &text);
+        if (status == SXML_STATUS_OK && text.is_text && text.content.byte_count == 0) {
+            /* 5.7.2, step 1: zero-length text nodes are discarded (D163). */
+            continue;
+        }
         if (status == SXML_STATUS_OK && text.is_text) {
             if (run.node_count == 0) {
                 run.first_node = step.item;

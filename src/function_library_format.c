@@ -25,6 +25,7 @@
 #include "function_library_core_internal.h"
 #include "sxml/types.h"
 #include "xslt_number_internal.h"
+#include "xml_internal.h"
 
 #include <math.h>
 #include <string.h>
@@ -794,20 +795,6 @@ static const sxml_static_error invalid_number_attribute_error = {
         "not allowed (XSLT 4.0, 12.4)"),
 };
 
-static bool is_number_space(uint8_t byte) {
-    return byte == ' ' || byte == '\t' || byte == '\n' || byte == '\r';
-}
-
-static sxml_byte_view trim_number_spaces(sxml_byte_view text) {
-    while (text.byte_count > 0 && is_number_space(text.bytes[0])) {
-        text = (sxml_byte_view){.bytes = text.bytes + 1, .byte_count = text.byte_count - 1};
-    }
-    while (text.byte_count > 0 && is_number_space(text.bytes[text.byte_count - 1])) {
-        text.byte_count -= 1;
-    }
-    return text;
-}
-
 /* An optional xs:string argument: has_text false for the empty sequence. */
 typedef struct optional_text {
     bool has_text;
@@ -833,7 +820,7 @@ static sxml_status read_optional_text(const sxml_function_call *call, size_t arg
 /* grouping-size: the lexical space of xs:integer (12.4); a size of zero
    or less (and an absurdly large one) inserts no separators. */
 static bool read_grouping_size(sxml_byte_view text, size_t *grouping_size) {
-    sxml_byte_view digits = trim_number_spaces(text);
+    sxml_byte_view digits = sxml_xml_text_trim_whitespace(text);
     bool is_negative = false;
     if (digits.byte_count > 0 && (digits.bytes[0] == '-' || digits.bytes[0] == '+')) {
         is_negative = digits.bytes[0] == '-';
@@ -864,7 +851,7 @@ static bool is_ascii_letter_or_digit(uint8_t byte) {
 
 /* lang: an xs:language ([a-zA-Z]{1,8}(-[a-zA-Z0-9]{1,8})*) or "" (12.4). */
 static bool is_language_or_empty(sxml_byte_view text) {
-    const sxml_byte_view language = trim_number_spaces(text);
+    const sxml_byte_view language = sxml_xml_text_trim_whitespace(text);
     size_t part_length = 0;
     size_t part_count = 0;
     for (size_t byte_index = 0; byte_index <= language.byte_count; byte_index += 1) {
@@ -950,9 +937,9 @@ static sxml_status read_place_marker_settings(const sxml_function_call *call,
     }
     if ((language.has_text && !is_language_or_empty(language.text)) ||
         (letter_value.has_text &&
-         !sxml_byte_view_equals(trim_number_spaces(letter_value.text),
+         !sxml_byte_view_equals(sxml_xml_text_trim_whitespace(letter_value.text),
                                 SXML_BYTE_VIEW_FROM_LITERAL("alphabetic")) &&
-         !sxml_byte_view_equals(trim_number_spaces(letter_value.text),
+         !sxml_byte_view_equals(sxml_xml_text_trim_whitespace(letter_value.text),
                                 SXML_BYTE_VIEW_FROM_LITERAL("traditional")))) {
         return sxml_function_library_report(call, &invalid_number_attribute_error);
     }
@@ -963,7 +950,7 @@ static sxml_status read_place_marker_settings(const sxml_function_call *call,
     }
     /* Cardinal for absent, "", "no", "0" and "false"; any other value asks
        for the English ordinal (the only language, D97). */
-    const sxml_byte_view ordinal_text = trim_number_spaces(ordinal.text);
+    const sxml_byte_view ordinal_text = sxml_xml_text_trim_whitespace(ordinal.text);
     settings->is_ordinal =
         ordinal.has_text && ordinal_text.byte_count > 0 &&
         !sxml_byte_view_equals(ordinal_text, SXML_BYTE_VIEW_FROM_LITERAL("no")) &&

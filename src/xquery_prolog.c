@@ -86,11 +86,6 @@ static sxml_ir_source_span span_of(const sxml_ast *ast, sxml_ast_node_index node
                                  .column_number = span.column_number};
 }
 
-static sxml_ir_atom slot_atom(uint32_t slot_number) {
-    return (sxml_ir_atom){.atom_kind = SXML_IR_ATOM_KIND_SLOT,
-                          .slot = {.value = slot_number}};
-}
-
 static sxml_ir_atom global_atom(uint32_t global_number) {
     return (sxml_ir_atom){.atom_kind = SXML_IR_ATOM_KIND_GLOBAL_VARIABLE,
                           .global_variable = {.value = global_number}};
@@ -217,7 +212,7 @@ static sxml_status push_parameters(module_lowering *module, parameter_scope scop
             status = sxml_xpath_lowerer_push_variable(
                 state, (sxml_xpath_lowering_scope_entry){.variable_name = name,
                                                          .function_level = 0,
-                                                         .atom = slot_atom(parameter_number)});
+                                                         .atom = sxml_ir_slot_atom((sxml_ir_slot){.value = parameter_number})});
         }
         parameter_number += 1;
     }
@@ -363,7 +358,7 @@ static sxml_status lower_defaults(module_lowering *module, default_request reque
          parameter = sxml_xquery_next_parameter(module->ast, parameter)) {
         parameter_number += 1;
         if (parameter_number <= request.arity) {
-            arguments[parameter_number - 1] = slot_atom(parameter_number);
+            arguments[parameter_number - 1] = sxml_ir_slot_atom((sxml_ir_slot){.value = parameter_number});
             continue;
         }
         const sxml_ast_node_index default_value =
@@ -492,7 +487,7 @@ static sxml_status lower_constructor(module_lowering *module,
         }
         if ((node_of(ast, field)->flags & SXML_AST_FLAG_STATIC) == 0) {
             parameter_number += 1;
-            entries[entry_index].value = slot_atom(parameter_number);
+            entries[entry_index].value = sxml_ir_slot_atom((sxml_ir_slot){.value = parameter_number});
         } else {
             const sxml_ast_node_index default_value = child_of(ast, field, SXML_AST_FIELD_DEFAULT);
             sxml_ir_expression_index lowered = {0};

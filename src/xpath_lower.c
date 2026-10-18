@@ -173,10 +173,6 @@ sxml_status sxml_xpath_lowerer_add_slot(sxml_xpath_lowerer *state, sxml_ir_slot 
     return SXML_STATUS_OK;
 }
 
-static sxml_ir_atom slot_atom(sxml_ir_slot slot) {
-    return (sxml_ir_atom){.atom_kind = SXML_IR_ATOM_KIND_SLOT, .slot = slot};
-}
-
 static sxml_ir_atom constant_atom(sxml_ir_constant_index constant) {
     return (sxml_ir_atom){.atom_kind = SXML_IR_ATOM_KIND_CONSTANT,
                           .constant = constant};
@@ -235,7 +231,7 @@ static sxml_status bind_in_block(sxml_xpath_lowerer *state, binding_request requ
         block->first = let;
     }
     block->open_let = let;
-    *atom = slot_atom(slot);
+    *atom = sxml_ir_slot_atom(slot);
     return SXML_STATUS_OK;
 }
 
@@ -921,7 +917,7 @@ sxml_xpath_lowerer_read_focus(sxml_xpath_lowerer *state,
     } else {
         focus->parts_read.context_size = *slot;
     }
-    *atom = slot_atom(*slot);
+    *atom = sxml_ir_slot_atom(*slot);
     return SXML_STATUS_OK;
 }
 
@@ -1371,7 +1367,7 @@ static sxml_status find_free_variables(sxml_xpath_lowerer *state,
                 .variable_name = name,
                 .atom = is_constant
                             ? lookup.atom
-                            : slot_atom((sxml_ir_slot){
+                            : sxml_ir_slot_atom((sxml_ir_slot){
                                   .value = request.first_slot +
                                            (uint32_t)variables->captured_count})});
         if (status == SXML_STATUS_OK && !is_constant) {
@@ -2206,7 +2202,7 @@ static sxml_status emit_partial_application(sxml_xpath_lowerer *state,
                                         : (uint32_t)placeholder_index + 1U;
             placeholder_types[number - 1U] = parameter_type;
             placeholder_index += 1;
-            body_arguments[argument_index] = slot_atom((sxml_ir_slot){.value = number});
+            body_arguments[argument_index] = sxml_ir_slot_atom((sxml_ir_slot){.value = number});
             continue;
         }
         sxml_ir_atom supplied = {0};
@@ -2225,7 +2221,7 @@ static sxml_status emit_partial_application(sxml_xpath_lowerer *state,
         }
         captured_atoms[supplied_index] = supplied;
         supplied_index += 1;
-        body_arguments[argument_index] = slot_atom((sxml_ir_slot){
+        body_arguments[argument_index] = sxml_ir_slot_atom((sxml_ir_slot){
             .value = (uint32_t)(call->placeholder_count + supplied_index)});
     }
     sxml_type_identifier signature = {0};
@@ -2548,7 +2544,7 @@ static sxml_status lower_context_function_reference(sxml_xpath_lowerer *state,
                        .body = is_present
                                    ? (sxml_ir_expression){.expression_kind =
                                                               SXML_IR_EXPRESSION_KIND_ATOM,
-                                                          .atom = slot_atom((sxml_ir_slot){
+                                                          .atom = sxml_ir_slot_atom((sxml_ir_slot){
                                                               .value = 1})}
                                    : absent_context_raise(reference.function),
                        .node = reference.node},
@@ -2634,7 +2630,7 @@ static sxml_status lower_focused_body(sxml_xpath_lowerer *state, focused_body_re
             &request.full->parameters.function_parameters[parameter_index];
         arguments[parameter_index] = (call_argument){
             .is_placeholder = false,
-            .atom = slot_atom((sxml_ir_slot){.value = (uint32_t)parameter_index + 1U})};
+            .atom = sxml_ir_slot_atom((sxml_ir_slot){.value = (uint32_t)parameter_index + 1U})};
         if (parameter_index < request.arity) {
             continue;
         }
@@ -2949,7 +2945,7 @@ lower_named_function_reference(sxml_xpath_lowerer *state,
             (closure_body){
                 .function = function,
                 .body = {.expression_kind = SXML_IR_EXPRESSION_KIND_ATOM,
-                         .atom = slot_atom((sxml_ir_slot){.value = 1})},
+                         .atom = sxml_ir_slot_atom((sxml_ir_slot){.value = 1})},
                 .node = node},
             expression);
     }
@@ -2961,7 +2957,7 @@ lower_named_function_reference(sxml_xpath_lowerer *state,
             (closure_body){
                 .function = function,
                 .body = {.expression_kind = SXML_IR_EXPRESSION_KIND_CAST,
-                         .cast = {.value = slot_atom((sxml_ir_slot){
+                         .cast = {.value = sxml_ir_slot_atom((sxml_ir_slot){
                                       .value = (uint32_t)arity + 1U}),
                                   .target_type = call_entry.constructor_type,
                                   .allows_empty = true}},
@@ -2982,7 +2978,7 @@ lower_named_function_reference(sxml_xpath_lowerer *state,
     for (uint32_t parameter_number = 1; parameter_number <= arity + 1U;
          parameter_number += 1) {
         atoms[parameter_number - 1] =
-            slot_atom((sxml_ir_slot){.value = parameter_number});
+            sxml_ir_slot_atom((sxml_ir_slot){.value = parameter_number});
     }
     sxml_ir_atom_list arguments = {0};
     status = sxml_ir_unit_add_atoms(
@@ -3312,7 +3308,7 @@ static sxml_status add_descendants(sxml_xpath_lowerer *state, descendant_request
             (step_request){
                 .block = request.block,
                 .node = request.node,
-                .origin = slot_atom(item),
+                .origin = sxml_ir_slot_atom(item),
                 .axis = SXML_AXIS_DESCENDANT_OR_SELF,
                 .node_test = sxml_builtin_type_identifier(SXML_TYPE_GENERIC_NODE)},
             &step);
@@ -4493,7 +4489,7 @@ static sxml_status add_item_axis_step(sxml_xpath_lowerer *state, step_request re
     sxml_ir_slot origin = {0};
     sxml_status status = sxml_xpath_lowerer_add_slot(state, &origin);
     sxml_xpath_lowering_block body_block = {{0}, {0}};
-    const sxml_ir_atom origin_atom = slot_atom(origin);
+    const sxml_ir_atom origin_atom = sxml_ir_slot_atom(origin);
     sxml_ir_atom value = {0};
     if (status == SXML_STATUS_OK) {
         status = bind_builtin_call(
@@ -4802,13 +4798,13 @@ static sxml_status add_dynamic_test_filter(sxml_xpath_lowerer *state,
         status = bind_node_keys(state,
                                 (step_request){.block = &predicate_block,
                                                .node = request.node,
-                                               .origin = slot_atom(node)},
+                                               .origin = sxml_ir_slot_atom(node)},
                                 &keys);
     }
     sxml_xpath_lowering_block condition_block = {{0}, {0}};
     sxml_ir_atom is_equal = {0};
     if (status == SXML_STATUS_OK) {
-        const sxml_ir_atom arguments[2] = {slot_atom(wanted), slot_atom(key)};
+        const sxml_ir_atom arguments[2] = {sxml_ir_slot_atom(wanted), sxml_ir_slot_atom(key)};
         status = bind_builtin_call(
             state,
             &(builtin_call_request){
@@ -5546,7 +5542,7 @@ static sxml_status continue_arrow_map(sxml_xpath_lowering_machine *machine,
                                         .preparation_block = frame->block,
                                         .emission_block = &locals->body_block,
                                         .has_leading_argument = true,
-                                        .leading_argument = slot_atom(locals->item)},
+                                        .leading_argument = sxml_ir_slot_atom(locals->item)},
                 &locals->result);
         }
         /* The arguments are lowered in the body, but with the outer focus:
@@ -5561,7 +5557,7 @@ static sxml_status continue_arrow_map(sxml_xpath_lowering_machine *machine,
                 .function_block = frame->block,
                 .list = child_of(state, target, SXML_AST_FIELD_ARGUMENTS),
                 .has_leading_argument = true,
-                .leading_argument = slot_atom(locals->item)},
+                .leading_argument = sxml_ir_slot_atom(locals->item)},
             &locals->result);
     }
     sxml_ir_expression_index body = {0};
@@ -5750,7 +5746,7 @@ static sxml_status begin_method_call(sxml_xpath_lowering_machine *machine,
             (sxml_xpath_lowering_coercion_request){
                 .block = &locals->body_block,
                 .node = frame->node,
-                .value = slot_atom(locals->item),
+                .value = sxml_ir_slot_atom(locals->item),
                 .sequence_type = {.item_type =
                                       sxml_builtin_type_identifier(SXML_TYPE_MAP),
                                   .occurrence = SXML_OCCURRENCE_EXACTLY_ONE},
@@ -6616,7 +6612,7 @@ static sxml_status finish_dynamic_call(sxml_xpath_lowering_machine *machine,
         status = sxml_xpath_lowerer_add_slot(state, &function_slot);
     }
     call_argument call_arguments[2] = {
-        {.is_placeholder = false, .atom = slot_atom(function_slot)},
+        {.is_placeholder = false, .atom = sxml_ir_slot_atom(function_slot)},
         {.is_placeholder = false, .atom = {0}}};
     if (status == SXML_STATUS_OK) {
         status = sxml_xpath_lowerer_bind_expression(
@@ -6849,7 +6845,7 @@ static sxml_status begin_inline_function(sxml_xpath_lowering_machine *machine,
                      .capture_count = variables.capture_count},
         .focus = {.kind = has_signature ? SXML_XPATH_LOWERING_FOCUS_KIND_ABSENT
                                         : SXML_XPATH_LOWERING_FOCUS_KIND_FIXED,
-                  .fixed_value = slot_atom((sxml_ir_slot){.value = 1})},
+                  .fixed_value = sxml_ir_slot_atom((sxml_ir_slot){.value = 1})},
     };
     sxml_xpath_lowerer_enter_function(state, &locals->function_frame);
     for (size_t name_index = 0;
@@ -6860,7 +6856,7 @@ static sxml_status begin_inline_function(sxml_xpath_lowering_machine *machine,
             (sxml_xpath_lowering_scope_entry){
                 .variable_name = parameter_names[name_index],
                 .function_level = locals->function_frame.function.function_level,
-                .atom = slot_atom((sxml_ir_slot){.value = (uint32_t)name_index + 1U})});
+                .atom = sxml_ir_slot_atom((sxml_ir_slot){.value = (uint32_t)name_index + 1U})});
     }
     if (status != SXML_STATUS_OK) {
         return status;
@@ -7072,7 +7068,7 @@ static sxml_status expand_binding_collection(sxml_xpath_lowerer *state,
     sxml_xpath_lowering_block body_block = {{0}, {0}};
     sxml_ir_atom parts = {0};
     if (status == SXML_STATUS_OK) {
-        const sxml_ir_atom container_atom = slot_atom(container);
+        const sxml_ir_atom container_atom = sxml_ir_slot_atom(container);
         status = bind_builtin_call(
             state,
             &(builtin_call_request){
@@ -7136,7 +7132,7 @@ static sxml_status push_part_variable(sxml_xpath_lowerer *state,
                                       sxml_xpath_lowering_frame *frame,
                                       part_variable request) {
     binding_locals *locals = frame->locals;
-    const sxml_ir_atom item = slot_atom(locals->item);
+    const sxml_ir_atom item = sxml_ir_slot_atom(locals->item);
     sxml_ir_atom value = {0};
     sxml_status status = bind_builtin_call(
         state,
@@ -7175,7 +7171,7 @@ static sxml_status bind_split_member(sxml_xpath_lowerer *state,
             .block = &locals->body_block,
             .node = locals->cursor.binding,
             .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_LOOKUP,
-                           .lookup = {.value = slot_atom(locals->item), .key = one}}},
+                           .lookup = {.value = sxml_ir_slot_atom(locals->item), .key = one}}},
         member);
 }
 
@@ -7251,7 +7247,7 @@ static sxml_status push_range_variables(sxml_xpath_lowerer *state,
             (sxml_xpath_lowering_typed_variable){
                 .block = &locals->body_block,
                 .variable = child_of(state, binding, SXML_AST_FIELD_VARIABLE),
-                .value = slot_atom(locals->item)});
+                .value = sxml_ir_slot_atom(locals->item)});
     }
 }
 
@@ -7324,7 +7320,7 @@ static sxml_status continue_iterating_binding(sxml_xpath_lowering_machine *machi
                     state,
                     (sxml_xpath_lowering_scope_entry){.variable_name = position_name,
                                   .function_level = state->function->function_level,
-                                  .atom = slot_atom(locals->position)});
+                                  .atom = sxml_ir_slot_atom(locals->position)});
             }
         }
         if (status != SXML_STATUS_OK) {

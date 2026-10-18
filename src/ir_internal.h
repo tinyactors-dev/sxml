@@ -346,6 +346,11 @@ typedef struct sxml_ir_atom {
     };
 } sxml_ir_atom;
 
+/* The SLOT atom of slot. */
+static inline sxml_ir_atom sxml_ir_slot_atom(sxml_ir_slot slot) {
+    return (sxml_ir_atom){.atom_kind = SXML_IR_ATOM_KIND_SLOT, .slot = slot};
+}
+
 typedef struct sxml_ir_atom_view {
     const sxml_ir_atom *atoms;
     size_t atom_count;
@@ -851,6 +856,10 @@ typedef enum sxml_ir_construction_flag {
        xsl:element, xsl:document): later duplicate attributes replace
        earlier ones, XTDE and XTTE codes. SHALLOW_COPY always has them. */
     SXML_IR_CONSTRUCTION_XSLT_RULES = 1U << 3U,
+    /* TEXT only: the text node asks to be serialized as CDATA sections
+       (glossary cdata_section; XSLT 4.0, section 11.4.3, the cdata
+       attribute; D163). */
+    SXML_IR_CONSTRUCTION_CDATA_SECTION = 1U << 4U,
 } sxml_ir_construction_flag;
 
 /* Every bit of sxml_ir_construction_flag. */
@@ -858,14 +867,16 @@ typedef enum sxml_ir_construction_flag {
     ((uint32_t)SXML_IR_CONSTRUCTION_NO_PRESERVE_NAMESPACES |                  \
      (uint32_t)SXML_IR_CONSTRUCTION_NO_INHERIT_NAMESPACES |                   \
      (uint32_t)SXML_IR_CONSTRUCTION_PRESERVES_TYPES |                         \
-     (uint32_t)SXML_IR_CONSTRUCTION_XSLT_RULES)
+     (uint32_t)SXML_IR_CONSTRUCTION_XSLT_RULES |                              \
+     (uint32_t)SXML_IR_CONSTRUCTION_CDATA_SECTION)
 
 /*
  * The node constructor kinds and SHALLOW_COPY. Which fields apply:
  * DOCUMENT content, construction_flags; ELEMENT name, namespace_bindings,
  * name_namespaces, content, construction_flags; ATTRIBUTE name,
  * name_namespaces, value; NAMESPACE name (the prefix), value (the URI);
- * TEXT, COMMENT value; PROCESSING_INSTRUCTION name (the target), value;
+ * TEXT value, construction_flags (CDATA_SECTION only); COMMENT value;
+ * PROCESSING_INSTRUCTION name (the target), value;
  * SHALLOW_COPY value (the item), content, construction_flags.
  * The others are empty (the verifier checks). A NONE name or value is the
  * empty sequence. content is a nested expression whose items are

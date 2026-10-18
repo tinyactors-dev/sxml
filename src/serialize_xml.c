@@ -1538,7 +1538,14 @@ static sxml_status sxml_xml_writer_write_leaf(sxml_xml_writer *writer, sxml_node
     if (description->node_kind == SXML_NODE_KIND_TEXT) {
         const sxml_xml_open_element *parent = sxml_xml_writer_top(writer);
         sxml_character_context character_context = SXML_CHARACTER_CONTEXT_TEXT;
-        if (parent != NULL && parent->is_cdata_parent) {
+        /* XSLT 4.0, section 11.4.3: a text node that asks for CDATA
+           sections is written as if its parent were listed in
+           cdata-section-elements; sxml honours it with the XML and XHTML
+           methods (it is implementation-defined, D163). */
+        const bool asks_cdata_section =
+            description->is_cdata_section && !writer->is_canonical && !writer->is_html;
+        if ((parent != NULL && parent->is_cdata_parent) ||
+            (asks_cdata_section && (parent == NULL || !parent->is_raw_text))) {
             character_context = SXML_CHARACTER_CONTEXT_CDATA_SECTION;
         } else if (parent != NULL && parent->is_raw_text) {
             character_context = SXML_CHARACTER_CONTEXT_RAW_TEXT;

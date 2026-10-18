@@ -236,7 +236,11 @@ typedef struct sxml_evaluator_task_stack {
  * What an evaluation memo entry was computed for (D148): a computation the
  * caller names (an address of its static data, so callers cannot collide,
  * plus a number of its own, such as the key of an xsl:key) and a subject
- * item, a node compared by identity (sxml_generic_node_is_same_node).
+ * item. Subjects are the same when they are one item, the same node
+ * (sxml_generic_node_is_same_node), atomic items of one type annotation
+ * that are atomic-equal, or arrays of as many members whose items are the
+ * same in that sense, nested functions by identity (the arguments of a
+ * cached xsl:function call, D163).
  */
 typedef struct sxml_evaluation_memo_key {
     const void *computation;
@@ -313,6 +317,11 @@ struct sxml_dynamic_context {
     sxml_evaluation_memo_entry *memo_entries;
     size_t memo_entry_count;
     size_t memo_entry_capacity;
+    /* An open-addressing index of the entries by key hash: entry number
+       plus one, 0 for a free place; a power of two, at least twice the
+       entries (D163). */
+    size_t *memo_index;
+    size_t memo_index_capacity;
 };
 
 /* Writes sizeof(sxml_dynamic_context) and its alignment. */

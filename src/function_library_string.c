@@ -29,6 +29,7 @@
 #include "evaluator_internal.h"
 #include "function_library_core_internal.h"
 #include "operator_internal.h"
+#include "xml_internal.h"
 
 #include <math.h>
 #include <stdalign.h>
@@ -1288,19 +1289,6 @@ static sxml_status call_codepoint_equal(const sxml_function_call *call,
     return status;
 }
 
-/* text without leading and trailing whitespace. */
-static sxml_byte_view trim_whitespace(sxml_byte_view text) {
-    size_t first = 0;
-    size_t end = text.byte_count;
-    while (first < end && is_xml_whitespace(text.bytes[first])) {
-        first += 1;
-    }
-    while (end > first && is_xml_whitespace(text.bytes[end - 1])) {
-        end -= 1;
-    }
-    return slice_of(text, (byte_part){.byte_offset = first, .byte_count = end - first});
-}
-
 /* A token to look for and the collation to compare under. */
 typedef struct token_search {
     const sxml_function_call *call;
@@ -1376,7 +1364,7 @@ static sxml_status call_contains_token(const sxml_function_call *call,
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    const sxml_byte_view trimmed = trim_whitespace(token.utf8);
+    const sxml_byte_view trimmed = sxml_xml_text_trim_whitespace(token.utf8);
     token_finding finding = {.is_found = false};
     sxml_sequence_iterator iterator =
         sxml_sequence_iterator_start(sxml_function_library_get_argument(call, 0));

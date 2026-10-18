@@ -26,6 +26,7 @@
 #include "sxml/name.h"
 #include "sxml/types.h"
 #include "xslt_lower_internal.h"
+#include "xml_internal.h"
 
 #include <stdalign.h>
 #include <stdbool.h>
@@ -132,17 +133,6 @@ static bool is_space(uint8_t byte) {
     return byte == ' ' || byte == '\t' || byte == '\n' || byte == '\r';
 }
 
-static sxml_byte_view trim(sxml_byte_view text) {
-    while (text.byte_count > 0 && is_space(text.bytes[0])) {
-        text.bytes += 1;
-        text.byte_count -= 1;
-    }
-    while (text.byte_count > 0 && is_space(text.bytes[text.byte_count - 1])) {
-        text.byte_count -= 1;
-    }
-    return text;
-}
-
 /* A TEXT attribute's value, trimmed; empty without. */
 static sxml_byte_view text_of(const sxml_xslt_lowering *lowering, sxml_xslt_ast_node_index node,
                               sxml_xslt_ast_attribute_kind kind) {
@@ -150,7 +140,7 @@ static sxml_byte_view text_of(const sxml_xslt_lowering *lowering, sxml_xslt_ast_
     if (attribute->value.kind != SXML_XSLT_AST_VALUE_KIND_TEXT) {
         return (sxml_byte_view){.bytes = NULL, .byte_count = 0};
     }
-    return trim(sxml_xslt_ast_get_text(lowering->ast, attribute->value.payload.text));
+    return sxml_xml_text_trim_whitespace(sxml_xslt_ast_get_text(lowering->ast, attribute->value.payload.text));
 }
 
 static bool has_attribute(const sxml_xslt_lowering *lowering, sxml_xslt_ast_node_index node,
@@ -1150,11 +1140,11 @@ typedef struct range_outcome {
 
 static range_outcome matches_range(range_test test) {
     const range_outcome invalid = {.is_valid = false, .matches = false};
-    sxml_byte_view range = trim(test.range);
+    sxml_byte_view range = sxml_xml_text_trim_whitespace(test.range);
     /* VersionTo: "to" S (PackageVersion | VersionPrefix). */
     if (range.byte_count > 3 && memcmp(range.bytes, "to", 2) == 0 && is_space(range.bytes[2])) {
         range_end end;
-        if (!parse_range_end(trim((sxml_byte_view){.bytes = range.bytes + 2,
+        if (!parse_range_end(sxml_xml_text_trim_whitespace((sxml_byte_view){.bytes = range.bytes + 2,
                                                    .byte_count = range.byte_count - 2}),
                              &end)) {
             return invalid;
@@ -1167,10 +1157,10 @@ static range_outcome matches_range(range_test test) {
             range.bytes[position + 1U] == 'o' && is_space(range.bytes[position + 2U])) {
             parsed_version from;
             range_end end;
-            if (!parse_version(trim((sxml_byte_view){.bytes = range.bytes, .byte_count = position}),
+            if (!parse_version(sxml_xml_text_trim_whitespace((sxml_byte_view){.bytes = range.bytes, .byte_count = position}),
                                &from) ||
                 !parse_range_end(
-                    trim((sxml_byte_view){.bytes = range.bytes + position + 2U,
+                    sxml_xml_text_trim_whitespace((sxml_byte_view){.bytes = range.bytes + position + 2U,
                                           .byte_count = range.byte_count - position - 2U}),
                     &end)) {
                 return invalid;
@@ -1213,10 +1203,10 @@ static range_outcome matches_range(range_test test) {
 sxml_status sxml_xslt_package_version_matches(sxml_xslt_package_version_query query,
                                               sxml_xslt_package_version_match *match) {
     parsed_version version;
-    if (!parse_version(trim(query.package_version), &version)) {
+    if (!parse_version(sxml_xml_text_trim_whitespace(query.package_version), &version)) {
         return SXML_STATUS_INVALID_ARGUMENT;
     }
-    const sxml_byte_view range = trim(query.version_range);
+    const sxml_byte_view range = sxml_xml_text_trim_whitespace(query.version_range);
     if (range.byte_count == 1 && range.bytes[0] == '*') {
         match->matches = true;
         return SXML_STATUS_OK;

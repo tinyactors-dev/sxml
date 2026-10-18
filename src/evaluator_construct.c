@@ -53,6 +53,7 @@
 #include "sxml/name.h"
 #include "sxml/tree.h"
 #include "sxml/types.h"
+#include "xml_internal.h"
 
 #include <stdalign.h>
 #include <string.h>
@@ -349,15 +350,6 @@ static sxml_byte_view sxml_construct_trim_leading(sxml_byte_view text) {
     return text;
 }
 
-static sxml_byte_view sxml_construct_trim(sxml_byte_view text) {
-    text = sxml_construct_trim_leading(text);
-    while (text.byte_count > 0 &&
-           sxml_construct_is_whitespace(text.bytes[text.byte_count - 1])) {
-        text.byte_count -= 1;
-    }
-    return text;
-}
-
 /* True when text contains needle. */
 static bool sxml_construct_text_contains(sxml_byte_view text, sxml_byte_view needle) {
     if (needle.byte_count == 0 || text.byte_count < needle.byte_count) {
@@ -602,7 +594,7 @@ static sxml_status sxml_construct_name_from_eqname(sxml_dynamic_context *context
     sxml_name_parts name_parts = {.namespace_uri = {.index = 0},
                                   .local_name = parts.local_name};
     status = sxml_name_pool_intern_namespace_uri(
-        name_pool, sxml_construct_trim(namespace_uri), &name_parts.namespace_uri);
+        name_pool, sxml_xml_text_trim_whitespace(namespace_uri), &name_parts.namespace_uri);
     if (status == SXML_STATUS_OK) {
         status = sxml_name_pool_intern_namespace_prefix(name_pool, parts.namespace_prefix,
                                                         &name->namespace_prefix);
@@ -711,7 +703,7 @@ static sxml_status sxml_construct_read_name(sxml_dynamic_context *context,
                                       .namespace_prefix =
                                           datum.datum_details.qname.namespace_prefix};
     } else if (single.has_item && sxml_construct_get_string_text(single.item, &text)) {
-        text = sxml_construct_trim(text);
+        text = sxml_xml_text_trim_whitespace(text);
         if (text.byte_count > 2 && text.bytes[0] == 'Q' && text.bytes[1] == '{') {
             status = sxml_construct_name_from_eqname(context, text, name);
         } else {
@@ -836,7 +828,7 @@ static sxml_status sxml_construct_read_ncname(sxml_dynamic_context *context,
                         : !request->allows_empty) {
         status = sxml_evaluator_machine_raise(context, &sxml_construct_name_type_error);
     }
-    text = sxml_construct_trim(text);
+    text = sxml_xml_text_trim_whitespace(text);
     if (status == SXML_STATUS_OK && (text.byte_count > 0 || !request->allows_empty)) {
         sxml_construct_ncname_test test = {.is_ncname = false};
         status = sxml_construct_test_ncname(context, text, &test);
@@ -1573,6 +1565,8 @@ typedef struct sxml_construct_leaf {
     sxml_construct_name name;
     /* ATTRIBUTE: true for xml:id. */
     bool is_id;
+    /* TEXT: asks for CDATA sections (glossary cdata_section). */
+    bool is_cdata_section;
     /* PROCESSING_INSTRUCTION: the target; NAMESPACE: the prefix. */
     sxml_byte_view target;
     /* The value, content or namespace URI. */
@@ -1596,7 +1590,9 @@ static sxml_status sxml_construct_send_leaf(sxml_dynamic_context *context,
     case SXML_CONSTRUCT_LEAF_KIND_TEXT:
         return builder.operations->add_text(
             builder.state,
-            &(sxml_text_event){.text = leaf->text, .location = sxml_construct_no_location});
+            &(sxml_text_event){.text = leaf->text,
+                               .location = sxml_construct_no_location,
+                               .is_cdata_section = leaf->is_cdata_section});
     case SXML_CONSTRUCT_LEAF_KIND_COMMENT:
         return builder.operations->add_comment(
             builder.state,
@@ -1739,26 +1735,31 @@ static sxml_status sxml_construct_step_attribute(sxml_dynamic_context *dynamic_c
     return sxml_construct_end(dynamic_context, status, result);
 }
 
-/* TEXT (XQuery 4.0, section 4.12.3.4): no node for an empty value. A
-   value whose text is empty would make a text node with empty content,
-   which the arena tree cannot hold (it drops empty text, D40); sxml gives
-   the empty sequence, which differs only where the node is not added to
-   another one (D110). */
+/* TEXT (XQuery 4.0, section 4.12.3.4; XSLT 4.0, section 11.4.2): no node
+   for an empty value; a value whose text is empty makes a zero-length text
+   node, which has no parent (XDM 4.0, section 7.5.7.1) and disappears when
+   it is added to content (D163). */
 static sxml_status sxml_construct_step_text(sxml_dynamic_context *dynamic_context,
                                             sxml_evaluator_task *task) {
     (void)task;
+    const uint32_t construction_flags =
+        sxml_construct_expression(sxml_evaluator_machine_top(dynamic_context))
+            ->node_construction.construction_flags;
     sxml_construct_text_buffer buffer =
         sxml_construct_text_buffer_start(dynamic_context->allocator);
     sxml_construct_join_result joined = {.has_items = false};
     sxml_status status = sxml_construct_read_joined_value(dynamic_context, &buffer, &joined);
     sxml_sequence result = sxml_sequence_empty();
-    if (status == SXML_STATUS_OK && joined.has_items && buffer.byte_count > 0) {
+    if (status == SXML_STATUS_OK && joined.has_items) {
         status = sxml_construct_build_leaf(
             dynamic_context,
             &(sxml_construct_leaf){.leaf_kind = SXML_CONSTRUCT_LEAF_KIND_TEXT,
                                    .name = {.expanded_name = {.index = 0},
                                             .namespace_prefix = {.index = 0}},
                                    .is_id = false,
+                                   .is_cdata_section =
+                                       (construction_flags &
+                                        (uint32_t)SXML_IR_CONSTRUCTION_CDATA_SECTION) != 0,
                                    .target = {.bytes = NULL, .byte_count = 0},
                                    .text = sxml_construct_text_buffer_view(&buffer)},
             &result);

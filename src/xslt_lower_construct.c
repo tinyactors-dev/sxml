@@ -516,6 +516,11 @@ typedef struct text_instruction_locals {
     sxml_ir_atom value;
     sxml_ir_atom separator;
     bool has_select;
+    /* xsl:value-of and xsl:text: the cdata attribute (11.4.3), a constant
+       answer, or computed into cdata when has_computed_cdata. */
+    bool is_cdata_section;
+    bool has_computed_cdata;
+    sxml_ir_atom cdata;
 } text_instruction_locals;
 
 static text_instruction_kind text_instruction_kind_of(sxml_xslt_ast_kind kind) {
@@ -681,6 +686,83 @@ static sxml_status bind_checked_namespace_uri(sxml_xpath_lowerer *lowerer,
                 value);
 }
 
+/* The text node of xsl:value-of or xsl:text: one asking for CDATA
+   sections when the cdata attribute is yes (11.4.3), chosen at run time
+   when the attribute is computed. */
+static sxml_status finish_text_node(sxml_xpath_lowering_machine *machine,
+                                    sxml_xpath_lowering_frame *frame, sxml_ir_atom text) {
+    sxml_xpath_lowerer *lowerer = machine->state;
+    const text_instruction_locals *locals = frame->locals;
+    const sxml_ir_expression plain = {.expression_kind = SXML_IR_EXPRESSION_KIND_TEXT_CONSTRUCTOR,
+                                      .node_construction = {.value = text}};
+    sxml_ir_expression cdata_section = plain;
+    cdata_section.node_construction.construction_flags =
+        (uint32_t)SXML_IR_CONSTRUCTION_CDATA_SECTION;
+    if (!locals->has_computed_cdata) {
+        return finish_with_expression(machine, frame,
+                                      locals->is_cdata_section ? cdata_section : plain);
+    }
+    sxml_ir_atom is_yes = {0};
+    sxml_status status = sxml_xslt_lowering_bind_boolean_value(
+        lowerer, (sxml_xslt_boolean_value){.block = frame->block, .value = locals->cdata},
+        &is_yes);
+    sxml_ir_expression_index then_branch = {0};
+    sxml_ir_expression_index else_branch = {0};
+    if (status == SXML_STATUS_OK) {
+        status = add_expression(lowerer, cdata_section, &then_branch);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = add_expression(lowerer, plain, &else_branch);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return finish_with_expression(
+        machine, frame,
+        (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_CONDITIONAL,
+                             .conditional = {.condition = is_yes,
+                                             .then_branch = then_branch,
+                                             .else_branch = else_branch}});
+}
+
+/* The cdata attribute of xsl:value-of and xsl:text (11.4.3): a fixed yes
+   or no is decided here; a computed one is lowered to locals->cdata
+   (*has_called true). */
+static sxml_status start_cdata(sxml_xpath_lowering_machine *machine,
+                               sxml_xpath_lowering_frame *frame, template_call *call) {
+    text_instruction_locals *locals = frame->locals;
+    const sxml_xslt_lowering *lowering = locals->head.lowering;
+    const sxml_xslt_ast_attribute *attribute = find_attribute(
+        lowering,
+        (attribute_lookup){.node = locals->head.node, .kind = SXML_XSLT_AST_ATTRIBUTE_CDATA});
+    call->has_called = false;
+    if (attribute->value.kind != SXML_XSLT_AST_VALUE_KIND_VALUE_TEMPLATE) {
+        return SXML_STATUS_OK;
+    }
+    const fixed_text fixed = read_fixed_text(lowering, attribute);
+    if (fixed.is_fixed) {
+        const sxml_xslt_boolean_text answer = sxml_xslt_lowering_read_boolean_text(fixed.text);
+        if (!answer.is_valid) {
+            return sxml_xslt_lowering_report_static_error(
+                lowering, (sxml_xslt_static_error){
+                              .node = locals->head.node,
+                              .code_and_description = SXML_BYTE_VIEW_FROM_LITERAL(
+                                  "XTSE0020 the cdata attribute is not yes or no (XSLT 4.0, "
+                                  "11.4.3)")});
+        }
+        locals->is_cdata_section = answer.is_yes;
+        return SXML_STATUS_OK;
+    }
+    call->has_called = true;
+    locals->has_computed_cdata = true;
+    return sxml_xslt_lowering_call_value_template(
+        machine, &(sxml_xslt_expression_call){.lowering = lowering,
+                                              .expression = attribute->value.payload.expression,
+                                              .block = frame->block,
+                                              .atom = &locals->cdata,
+                                              .focus = NULL});
+}
+
 /* The constructor of the instruction's string, as the frame's result. */
 static sxml_status finish_text_instruction(sxml_xpath_lowering_machine *machine,
                                            sxml_xpath_lowering_frame *frame) {
@@ -699,10 +781,7 @@ static sxml_status finish_text_instruction(sxml_xpath_lowering_machine *machine,
     }
     switch (kind) {
     case SXML_TEXT_INSTRUCTION_VALUE_OF:
-        return finish_with_expression(
-            machine, frame,
-            (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_TEXT_CONSTRUCTOR,
-                                 .node_construction = {.value = text}});
+        return finish_text_node(machine, frame, text);
     case SXML_TEXT_INSTRUCTION_COMMENT:
         status = fix_comment_text(lowerer, frame->block, &text);
         if (status != SXML_STATUS_OK) {
@@ -798,6 +877,15 @@ static sxml_status continue_text_instruction(sxml_xpath_lowering_machine *machin
             return status;
         }
     }
+    if (frame->step == 3) {
+        frame->step = 4;
+        if (kind == SXML_TEXT_INSTRUCTION_VALUE_OF) {
+            status = start_cdata(machine, frame, &call);
+            if (status != SXML_STATUS_OK || call.has_called) {
+                return status;
+            }
+        }
+    }
     return finish_text_instruction(machine, frame);
 }
 
@@ -832,26 +920,10 @@ static bool is_ncname(sxml_byte_view text) {
            memchr(text.bytes, ':', text.byte_count) == NULL;
 }
 
-static bool is_xml_space(uint8_t byte) {
-    return byte == ' ' || byte == '\t' || byte == '\n' || byte == '\r';
-}
-
-/* Removes leading and trailing whitespace (a QName's lexical form). */
-static sxml_byte_view trim_whitespace(sxml_byte_view text) {
-    while (text.byte_count > 0 && is_xml_space(text.bytes[0])) {
-        text.bytes += 1;
-        text.byte_count -= 1;
-    }
-    while (text.byte_count > 0 && is_xml_space(text.bytes[text.byte_count - 1])) {
-        text.byte_count -= 1;
-    }
-    return text;
-}
-
 static sxml_status resolve_fixed_name(sxml_xpath_lowerer *lowerer, const name_resolution *request,
                                       resolved_name *name) {
     const char *const invalid_code = request->is_attribute ? "XTDE0850" : "XTDE0820";
-    const sxml_byte_view lexical = trim_whitespace(request->lexical_name);
+    const sxml_byte_view lexical = sxml_xml_text_trim_whitespace(request->lexical_name);
     sxml_byte_view prefix = {.bytes = NULL, .byte_count = 0};
     sxml_byte_view local = lexical;
     const uint8_t *colon =
@@ -871,7 +943,7 @@ static sxml_status resolve_fixed_name(sxml_xpath_lowerer *lowerer, const name_re
     sxml_status status = SXML_STATUS_OK;
     if (request->has_namespace) {
         status = sxml_name_pool_intern_namespace_uri(
-            lowerer->name_pool, trim_whitespace(request->namespace_text), &uri);
+            lowerer->name_pool, sxml_xml_text_trim_whitespace(request->namespace_text), &uri);
         if (uri.index == SXML_NAMESPACE_NONE) {
             /* A zero-length namespace: no namespace, the prefix dropped. */
             prefix = (sxml_byte_view){.bytes = NULL, .byte_count = 0};

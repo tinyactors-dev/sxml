@@ -2346,6 +2346,7 @@ static void write_construction_flags(text_writer *writer, uint32_t flags) {
          " no-inherit-namespaces"},
         {(uint32_t)SXML_IR_CONSTRUCTION_PRESERVES_TYPES, " preserves-types"},
         {(uint32_t)SXML_IR_CONSTRUCTION_XSLT_RULES, " xslt-rules"},
+        {(uint32_t)SXML_IR_CONSTRUCTION_CDATA_SECTION, " cdata-section"},
     };
     for (size_t flag_index = 0;
          flag_index < sizeof(flag_names) / sizeof(flag_names[0]);

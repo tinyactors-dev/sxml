@@ -36,7 +36,11 @@
 #include "ir_internal.h"
 #include "xdm_internal.h"
 #include "xslt_accumulator_internal.h"
+#include "xslt_lower_internal.h"
+#include "system_property_internal.h"
+#include "sxml/version.h"
 #include "xslt_static_internal.h"
+#include "xml_internal.h"
 
 #include <stdalign.h>
 #include <stdbool.h>
@@ -65,16 +69,6 @@ typedef struct name_argument_request {
 
 static bool is_space_byte(uint8_t byte) {
     return byte == ' ' || byte == '\t' || byte == '\n' || byte == '\r';
-}
-
-static sxml_byte_view trim_spaces(sxml_byte_view text) {
-    while (text.byte_count > 0 && is_space_byte(text.bytes[0])) {
-        text = (sxml_byte_view){.bytes = text.bytes + 1, .byte_count = text.byte_count - 1};
-    }
-    while (text.byte_count > 0 && is_space_byte(text.bytes[text.byte_count - 1])) {
-        text.byte_count -= 1;
-    }
-    return text;
 }
 
 /* The namespace a prefix has in the running unit: its static namespaces,
@@ -167,7 +161,7 @@ static sxml_status read_name_argument(name_argument_request request, sxml_name_i
     if (datum.datum_kind != SXML_DATUM_KIND_STRING) {
         return sxml_function_library_report(call, request.error);
     }
-    const sxml_byte_view text = trim_spaces(datum.datum_details.string.utf8);
+    const sxml_byte_view text = sxml_xml_text_trim_whitespace(datum.datum_details.string.utf8);
     sxml_byte_view local_name = text;
     sxml_namespace_uri_identifier namespace_uri = {.index = SXML_NAMESPACE_NONE};
     if (text.byte_count > 2 && text.bytes[0] == 'Q' && text.bytes[1] == '{') {
@@ -242,32 +236,25 @@ static const sxml_static_error type_name_error = {
     .description = SXML_BYTE_VIEW_INITIALIZER(
         "The argument of type-available is not a valid EQName (XSLT 4.0, 20.4)")};
 
-/* The system properties of the XSLT namespace (XSLT 4.0, 24.2.1). */
-typedef struct system_property {
-    sxml_byte_view local_name;
-    sxml_byte_view value;
-} system_property;
+/* The system properties of the XSLT namespace (XSLT 4.0, 24.2.1) are those
+   of the shared table (src/system_property.c) with an XSLT name. */
+#define XSLT_SYSTEM_PROPERTY_CAPACITY 32U
 
-static const system_property system_properties[] = {
-    {SXML_BYTE_VIEW_INITIALIZER("version"), SXML_BYTE_VIEW_INITIALIZER("4.0")},
-    {SXML_BYTE_VIEW_INITIALIZER("vendor"), SXML_BYTE_VIEW_INITIALIZER("sxml")},
-    {SXML_BYTE_VIEW_INITIALIZER("vendor-url"), SXML_BYTE_VIEW_INITIALIZER("")},
-    {SXML_BYTE_VIEW_INITIALIZER("product-name"), SXML_BYTE_VIEW_INITIALIZER("sxml")},
-    {SXML_BYTE_VIEW_INITIALIZER("product-version"), SXML_BYTE_VIEW_INITIALIZER("0.2.0")},
-    {SXML_BYTE_VIEW_INITIALIZER("is-schema-aware"), SXML_BYTE_VIEW_INITIALIZER("no")},
-    {SXML_BYTE_VIEW_INITIALIZER("supports-serialization"), SXML_BYTE_VIEW_INITIALIZER("yes")},
-    {SXML_BYTE_VIEW_INITIALIZER("supports-backwards-compatibility"),
-     SXML_BYTE_VIEW_INITIALIZER("no")},
-    {SXML_BYTE_VIEW_INITIALIZER("supports-namespace-axis"), SXML_BYTE_VIEW_INITIALIZER("yes")},
-    {SXML_BYTE_VIEW_INITIALIZER("supports-streaming"), SXML_BYTE_VIEW_INITIALIZER("no")},
-    {SXML_BYTE_VIEW_INITIALIZER("supports-dynamic-evaluation"), SXML_BYTE_VIEW_INITIALIZER("no")},
-    {SXML_BYTE_VIEW_INITIALIZER("supports-higher-order-functions"),
-     SXML_BYTE_VIEW_INITIALIZER("yes")},
-    {SXML_BYTE_VIEW_INITIALIZER("xpath-version"), SXML_BYTE_VIEW_INITIALIZER("4.0")},
-    {SXML_BYTE_VIEW_INITIALIZER("xsd-version"), SXML_BYTE_VIEW_INITIALIZER("1.1")},
-};
-
-#define STATIC_SYSTEM_PROPERTY_COUNT (sizeof(system_properties) / sizeof(system_properties[0]))
+/* A property's value as fn:system-property gives it: an xs:boolean is yes
+   or no, a decimal its text (24.2.1). */
+static sxml_byte_view system_property_text(const sxml_system_property *property) {
+    if (property->value_kind == SXML_SYSTEM_PROPERTY_VALUE_PRODUCT_VERSION) {
+        return sxml_byte_view_from_c_string(sxml_version_text());
+    }
+    if (property->value.datum_kind == SXML_DATUM_KIND_BOOLEAN) {
+        return property->value.datum_details.boolean ? SXML_BYTE_VIEW_FROM_LITERAL("yes")
+                                                     : SXML_BYTE_VIEW_FROM_LITERAL("no");
+    }
+    if (property->value.datum_kind == SXML_DATUM_KIND_DECIMAL) {
+        return property->value.datum_details.decimal_text;
+    }
+    return property->value.datum_details.string.utf8;
+}
 
 /* fn:system-property($name) (XSLT 4.0, 24.2.1): the zero-length string
    for a property sxml does not have. */
@@ -288,14 +275,14 @@ static sxml_status call_system_property(const sxml_function_call *call, sxml_seq
         return status;
     }
     sxml_byte_view value = {.bytes = NULL, .byte_count = 0};
-    if (parts.namespace_uri.index == SXML_NAMESPACE_XSLT) {
-        for (size_t property_index = 0;
-             property_index < sizeof(system_properties) / sizeof(system_properties[0]);
-             property_index += 1) {
-            if (sxml_byte_view_equals(system_properties[property_index].local_name,
-                                      parts.local_name)) {
-                value = system_properties[property_index].value;
-            }
+    const sxml_system_property_view properties = sxml_system_properties();
+    for (size_t property_index = 0; parts.namespace_uri.index == SXML_NAMESPACE_XSLT &&
+                                    property_index < properties.property_count;
+         property_index += 1) {
+        const sxml_system_property *property = &properties.properties[property_index];
+        if (property->xslt_name.byte_count > 0 &&
+            sxml_byte_view_equals(property->xslt_name, parts.local_name)) {
+            value = system_property_text(property);
         }
     }
     return sxml_function_library_make_string(call->item_heap, value, result);
@@ -304,18 +291,26 @@ static sxml_status call_system_property(const sxml_function_call *call, sxml_seq
 /* fn:available-system-properties() (XSLT 4.0, 24.2.2). */
 static sxml_status call_available_system_properties(const sxml_function_call *call,
                                                     sxml_sequence *result) {
-    sxml_item items[STATIC_SYSTEM_PROPERTY_COUNT];
+    sxml_item items[XSLT_SYSTEM_PROPERTY_CAPACITY];
     size_t made_count = 0;
     sxml_name_pool *name_pool = sxml_item_heap_get_name_pool(call->item_heap);
     sxml_namespace_prefix_identifier prefix = {.index = 0};
     sxml_status status = sxml_name_pool_intern_namespace_prefix(
         name_pool, SXML_BYTE_VIEW_FROM_LITERAL("xsl"), &prefix);
-    while (status == SXML_STATUS_OK && made_count < STATIC_SYSTEM_PROPERTY_COUNT) {
+    const sxml_system_property_view properties = sxml_system_properties();
+    for (size_t property_index = 0; status == SXML_STATUS_OK &&
+                                    property_index < properties.property_count &&
+                                    made_count < XSLT_SYSTEM_PROPERTY_CAPACITY;
+         property_index += 1) {
+        const sxml_system_property *property = &properties.properties[property_index];
+        if (property->xslt_name.byte_count == 0) {
+            continue;
+        }
         sxml_name_identifier name = {.index = 0};
         status = sxml_name_pool_intern_name(
             name_pool,
             &(sxml_name_request){.namespace_uri = {.index = SXML_NAMESPACE_XSLT},
-                                 .local_name = system_properties[made_count].local_name},
+                                 .local_name = property->xslt_name},
             &name);
         sxml_atomic_datum datum;
         memset(&datum, 0, sizeof(datum));
@@ -1249,6 +1244,109 @@ static const sxml_resumable_native_body key_index_body = {
     .state_byte_count = sizeof(kept_build_state),
     .state_alignment = alignof(kept_build_state),
 };
+
+/*
+ * cached-call($number, $arguments, $body) (src/xslt_lower_internal.h): the
+ * value of $body called with the members of the array $arguments, kept in
+ * the evaluation memo under $number and the arguments, so a second call
+ * with the same arguments gives the first call's value (XSLT 4.0, 10.3.7,
+ * memoization; D163). A call that fails keeps nothing.
+ */
+typedef struct cached_call_state {
+    sxml_allocator allocator;
+    /* The members of $arguments, borrowed from it, while $body runs. */
+    sxml_sequence *arguments;
+} cached_call_state;
+
+static sxml_status step_cached_call(const sxml_native_step_request *request,
+                                    sxml_native_step *step) {
+    cached_call_state *state = request->state;
+    const sxml_function_call *call = request->call;
+    if (call->dynamic_context == NULL) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    const sxml_evaluation_memo_key key = {
+        .computation = &sxml_xslt_cached_call_function,
+        .computation_number = read_number(sxml_function_library_get_argument(call, 0).content),
+        .subject = sxml_function_library_get_argument(call, 1).content};
+    if (request->step_number > 0) {
+        const sxml_sequence value = request->call_result;
+        const sxml_status status = sxml_dynamic_context_store_memo(
+            call->dynamic_context, &(sxml_evaluation_memo_entry){.key = key, .value = value});
+        if (status != SXML_STATUS_OK) {
+            sxml_sequence_release(value);
+            return status;
+        }
+        *step = (sxml_native_step){.step_kind = SXML_NATIVE_STEP_KIND_FINISH, .result = value};
+        return SXML_STATUS_OK;
+    }
+    sxml_sequence value = sxml_sequence_empty();
+    if (sxml_dynamic_context_find_memo(call->dynamic_context, &key, &value)) {
+        sxml_sequence_retain(value);
+        *step = (sxml_native_step){.step_kind = SXML_NATIVE_STEP_KIND_FINISH, .result = value};
+        return SXML_STATUS_OK;
+    }
+    size_t member_count = 0;
+    sxml_status status = sxml_array_get_size(key.subject, &member_count);
+    state->allocator = sxml_item_heap_as_allocator(call->item_heap);
+    if (status == SXML_STATUS_OK && member_count > 0) {
+        size_t byte_count = 0;
+        status = sxml_size_multiply(member_count, sizeof(sxml_sequence), &byte_count);
+        void *memory = NULL;
+        if (status == SXML_STATUS_OK) {
+            status = sxml_allocator_allocate(
+                state->allocator,
+                (sxml_allocation_request){.byte_count = byte_count,
+                                          .alignment = alignof(sxml_sequence)},
+                &memory);
+        }
+        state->arguments = memory;
+    }
+    for (size_t member_index = 0; status == SXML_STATUS_OK && member_index < member_count;
+         member_index += 1) {
+        status = sxml_array_get_member(key.subject, member_index, &state->arguments[member_index]);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    *step = (sxml_native_step){
+        .step_kind = SXML_NATIVE_STEP_KIND_CALL,
+        .result = sxml_sequence_empty(),
+        .function_item = sxml_function_library_get_argument(call, 2).content,
+        .arguments = {.sequences = state->arguments, .sequence_count = member_count}};
+    return SXML_STATUS_OK;
+}
+
+static void release_cached_call_state(void *state) {
+    cached_call_state *call_state = state;
+    if (call_state->arguments != NULL) {
+        sxml_allocator_release(call_state->allocator, call_state->arguments);
+        call_state->arguments = NULL;
+    }
+}
+
+static const sxml_resumable_native_body cached_call_body = {
+    .step = step_cached_call,
+    .release_state = release_cached_call_state,
+    .state_byte_count = sizeof(cached_call_state),
+    .state_alignment = alignof(cached_call_state),
+};
+
+static const sxml_function_parameter cached_call_parameters[] = {
+    SXML_REQUIRED_PARAMETER("number", "xs:integer"),
+    SXML_REQUIRED_PARAMETER("arguments", "array(*)"),
+    SXML_REQUIRED_PARAMETER("body", "function(*)"),
+};
+
+const sxml_native_function sxml_xslt_cached_call_function = {
+    .function_namespace = SXML_NAMESPACE_NONE,
+    .properties =
+        SXML_NATIVE_FUNCTION_USES_DYNAMIC_CONTEXT | SXML_NATIVE_FUNCTION_CALLS_FUNCTION_ITEMS,
+    .local_name = SXML_BYTE_VIEW_INITIALIZER("cached-call"),
+    .parameters = {cached_call_parameters, 3},
+    .result_type = SXML_BYTE_VIEW_INITIALIZER("item()*"),
+    .call = NULL,
+    .resumable_body = &cached_call_body};
 
 /* The separator of the parts of a composite key value: U+E000, which no
    tag uses. */

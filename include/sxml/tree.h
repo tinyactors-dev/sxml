@@ -137,6 +137,10 @@ typedef struct sxml_node_description {
     bool is_id;
     bool is_idrefs;
     bool is_nilled;
+    /* A text node to serialize as CDATA sections (glossary cdata_section;
+       XSLT 4.0, section 11.4.3); false for other kinds and for trees that
+       do not keep it. Not part of XDM. */
+    bool is_cdata_section;
 } sxml_node_description;
 
 /* A namespace binding: a prefix (0 for the default namespace) bound to a
@@ -507,6 +511,10 @@ typedef struct sxml_attribute_event {
 typedef struct sxml_text_event {
     sxml_byte_view text;
     sxml_source_location location;
+    /* Asks that the text be serialized as CDATA sections (glossary
+       cdata_section; XSLT 4.0, section 11.4.3). A text node made of
+       several events keeps the request when any of them has it (D163). */
+    bool is_cdata_section;
 } sxml_text_event;
 
 typedef struct sxml_comment_event {
@@ -535,7 +543,9 @@ typedef struct sxml_processing_instruction_event {
  * before any content.
  *
  * Builders keep XDM's constraints: adjacent text events form one text node
- * and empty text makes no node (XDM 4.0, section 7.5.7.1); a second
+ * and empty text makes no node (XDM 4.0, section 7.5.7.1), except that a
+ * parentless text whose events are all empty is a zero-length text node
+ * (text nodes may be empty only if they have no parent; D163); a second
  * attribute with the same name is handled by the builder's
  * sxml_duplicate_attribute_policy; element and attribute names whose prefix
  * is not bound, or bound to another URI, get a binding through namespace

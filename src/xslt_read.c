@@ -28,6 +28,7 @@
 #include "xslt_value_template_internal.h"
 
 #include "sxml/xml.h"
+#include "xml_internal.h"
 
 #include <stdalign.h>
 #include <string.h>
@@ -2093,16 +2094,6 @@ static bool is_whitespace_text(sxml_byte_view text) {
     return true;
 }
 
-static sxml_byte_view trim_spaces(sxml_byte_view text) {
-    while (text.byte_count > 0 && is_space_byte(text.bytes[0])) {
-        text = (sxml_byte_view){.bytes = text.bytes + 1, .byte_count = text.byte_count - 1};
-    }
-    while (text.byte_count > 0 && is_space_byte(text.bytes[text.byte_count - 1])) {
-        text.byte_count -= 1;
-    }
-    return text;
-}
-
 /* Splits *rest at its first whitespace-separated token: *token gets it,
    *rest what follows. False when no token is left. */
 static bool next_token(sxml_byte_view *rest, sxml_byte_view *token) {
@@ -2157,7 +2148,7 @@ static size_t count_characters(sxml_byte_view text) {
 /* An xs:decimal (XSD 1.1 Part 2, 3.3.3): optional sign, digits, an
    optional "." with digits; at least one digit. */
 static bool read_decimal(sxml_byte_view text, double *number) {
-    text = trim_spaces(text);
+    text = sxml_xml_text_trim_whitespace(text);
     size_t index = 0;
     bool is_negative = false;
     if (index < text.byte_count && (text.bytes[index] == '+' || text.bytes[index] == '-')) {
@@ -3090,7 +3081,7 @@ static sxml_status lookup_prefix(stylesheet_reader *reader, prefix_lookup lookup
 static sxml_status resolve_eqname(stylesheet_reader *reader, const eqname_request *request,
                                   eqname_result *result) {
     *result = (eqname_result){.name = {.index = 0}, .is_malformed = false, .is_unbound = false};
-    const sxml_byte_view text = trim_spaces(request->text);
+    const sxml_byte_view text = sxml_xml_text_trim_whitespace(request->text);
     sxml_namespace_uri_identifier namespace_uri = request->unprefixed_namespace;
     sxml_byte_view local_name = text;
     sxml_status status = SXML_STATUS_OK;
@@ -3487,7 +3478,7 @@ static bool find_keyword(sxml_byte_view text, sxml_xslt_ast_keyword *keyword) {
 static sxml_status read_value(stylesheet_reader *reader, const value_request *request,
                               sxml_xslt_ast_value *value) {
     const sxml_byte_view text = request->attribute->value;
-    const sxml_byte_view trimmed = trim_spaces(text);
+    const sxml_byte_view trimmed = sxml_xml_text_trim_whitespace(text);
     sxml_xslt_ast_value_kind expression_kind = SXML_XSLT_AST_VALUE_KIND_NONE;
     switch (request->rule->value_syntax) {
     case SXML_VALUE_SYNTAX_EXPRESSION:
@@ -3826,7 +3817,7 @@ static sxml_status compute_static_context(stylesheet_reader *reader, const conte
         (standard_query){.is_xslt_element = is_xslt, .local_name = "xpath-default-namespace"});
     if (default_namespace_attribute != NULL) {
         is_changed = true;
-        const sxml_byte_view uri = trim_spaces(default_namespace_attribute->value);
+        const sxml_byte_view uri = sxml_xml_text_trim_whitespace(default_namespace_attribute->value);
         is_any_namespace = sxml_byte_view_equals(uri, SXML_BYTE_VIEW_FROM_LITERAL("##any"));
         xpath_default_namespace = (sxml_namespace_uri_identifier){.index = SXML_NAMESPACE_NONE};
         if (!is_any_namespace) {
@@ -3844,7 +3835,7 @@ static sxml_status compute_static_context(stylesheet_reader *reader, const conte
         reader, (standard_query){.is_xslt_element = is_xslt, .local_name = "expand-text"});
     if (expand_attribute != NULL) {
         is_changed = true;
-        const sxml_byte_view word = trim_spaces(expand_attribute->value);
+        const sxml_byte_view word = sxml_xml_text_trim_whitespace(expand_attribute->value);
         if (sxml_byte_view_equals(word, SXML_BYTE_VIEW_FROM_LITERAL("yes")) ||
             sxml_byte_view_equals(word, SXML_BYTE_VIEW_FROM_LITERAL("true")) ||
             sxml_byte_view_equals(word, SXML_BYTE_VIEW_FROM_LITERAL("1"))) {
@@ -3869,7 +3860,7 @@ static sxml_status compute_static_context(stylesheet_reader *reader, const conte
         reader, (standard_query){.is_xslt_element = is_xslt, .local_name = "default-validation"});
     if (validation_attribute != NULL) {
         is_changed = true;
-        const sxml_byte_view word = trim_spaces(validation_attribute->value);
+        const sxml_byte_view word = sxml_xml_text_trim_whitespace(validation_attribute->value);
         if (sxml_byte_view_equals(word, SXML_BYTE_VIEW_FROM_LITERAL("strip"))) {
             default_validation = SXML_XSLT_AST_KEYWORD_STRIP;
         } else if (sxml_byte_view_equals(word, SXML_BYTE_VIEW_FROM_LITERAL("preserve"))) {
@@ -3879,8 +3870,8 @@ static sxml_status compute_static_context(stylesheet_reader *reader, const conte
             return raise_error(reader, (reader_error){.error_code = "XTSE1660",
                                                       .description = "default-validation strict "
                                                                      "or lax needs a schema-aware "
-                                                                     "processor (XSLT 4.0, 25; "
-                                                                     "D97)",
+                                                                     "processor (XSLT 4.0, 27.2; "
+                                                                     "D97, D162)",
                                                       .module = request->module,
                                                       .source_span =
                                                           validation_attribute->source_span});
@@ -4025,7 +4016,7 @@ static sxml_status compute_static_context(stylesheet_reader *reader, const conte
         reader, (standard_query){.is_xslt_element = is_xslt, .local_name = "default-mode"});
     if (mode_attribute != NULL) {
         is_changed = true;
-        const sxml_byte_view word = trim_spaces(mode_attribute->value);
+        const sxml_byte_view word = sxml_xml_text_trim_whitespace(mode_attribute->value);
         if (sxml_byte_view_equals(word, SXML_BYTE_VIEW_FROM_LITERAL("#unnamed"))) {
             default_mode.kind = SXML_XSLT_AST_NAME_TOKEN_KIND_UNNAMED;
             default_mode.name = (sxml_name_identifier){.index = 0};
@@ -4569,7 +4560,7 @@ static bool preserves_space_of(const stylesheet_reader *reader, space_inheritanc
     if (space == NULL) {
         return inherited;
     }
-    const sxml_byte_view word = trim_spaces(space->value);
+    const sxml_byte_view word = sxml_xml_text_trim_whitespace(space->value);
     if (sxml_byte_view_equals(word, SXML_BYTE_VIEW_FROM_LITERAL("preserve"))) {
         return true;
     }
@@ -4657,10 +4648,52 @@ static sxml_status classify_record_attribute(stylesheet_reader *reader,
                                               .source_span = attribute->source_span});
 }
 
+/* What a non-schema-aware processor rejects (XSLT 4.0, 27.2; sxml is not
+   schema-aware yet: D97, a delay, D162). This is the one place: the
+   schema-aware feature replaces it. */
+typedef struct schema_awareness_check {
+    const sxml_xslt_ast_attribute_request *attribute;
+    sxml_xslt_ast_module_index module;
+} schema_awareness_check;
+
+static sxml_status reject_schema_awareness(stylesheet_reader *reader,
+                                           schema_awareness_check check) {
+    const sxml_xslt_ast_attribute_request *attribute = check.attribute;
+    const bool is_typed_mode = attribute->kind == SXML_XSLT_AST_ATTRIBUTE_TYPED &&
+                               attribute->value.kind == SXML_XSLT_AST_VALUE_KIND_KEYWORD &&
+                               (attribute->value.payload.keyword == SXML_XSLT_AST_KEYWORD_YES ||
+                                attribute->value.payload.keyword == SXML_XSLT_AST_KEYWORD_STRICT);
+    const bool is_strict = attribute->kind == SXML_XSLT_AST_ATTRIBUTE_VALIDATION &&
+                           attribute->value.kind == SXML_XSLT_AST_VALUE_KIND_KEYWORD &&
+                           attribute->value.payload.keyword == SXML_XSLT_AST_KEYWORD_STRICT;
+    if (attribute->kind != SXML_XSLT_AST_ATTRIBUTE_TYPE && !is_strict && !is_typed_mode) {
+        return SXML_STATUS_OK;
+    }
+    /* XTSE1660: [xsl:]type, [xsl:]validation="strict", typed="yes" or
+       "strict" on xsl:mode; lax and preserve are taken as strip. */
+    return raise_error(reader, (reader_error){.error_code = "XTSE1660",
+                                              .description = "A type attribute, strict validation "
+                                                             "or a typed mode needs a "
+                                                             "schema-aware processor (XSLT 4.0, "
+                                                             "27.2)",
+                                              .module = check.module,
+                                              .source_span = attribute->source_span});
+}
+
 static sxml_status add_node_attributes(stylesheet_reader *reader, const node_attributes_request *request) {
     const element_facts *facts = request->facts;
     const bool is_rule_element = request->role == SXML_ELEMENT_ROLE_XSLT ||
                                  request->role == SXML_ELEMENT_ROLE_MODULE_ROOT;
+    if (is_rule_element && facts->rule->kind == SXML_XSLT_AST_KIND_IMPORT_SCHEMA) {
+        /* XTSE1650 (27.2), with reject_schema_awareness's XTSE1660 the
+           schema-aware feature's one place (D162). */
+        return raise_error(reader, (reader_error){.error_code = "XTSE1650",
+                                                  .description = "xsl:import-schema needs a "
+                                                                 "schema-aware processor (XSLT "
+                                                                 "4.0, 27.2)",
+                                                  .module = request->parent->module,
+                                                  .source_span = facts->source_span});
+    }
     for (size_t index = 0; index < reader->attributes.count; index += 1) {
         const element_attribute attribute = *attribute_at(reader, index);
         if (attribute.is_ignored) {
@@ -4772,6 +4805,11 @@ static sxml_status add_node_attributes(stylesheet_reader *reader, const node_att
                                                  .source = facts->source},
                                 &partial.value);
 
+        }
+        if (status == SXML_STATUS_OK) {
+            status = reject_schema_awareness(
+                reader, (schema_awareness_check){.attribute = &partial,
+                                                 .module = request->parent->module});
         }
         if (status == SXML_STATUS_OK) {
             sxml_xslt_ast_attribute_index added = {.value = 0};
@@ -5057,7 +5095,7 @@ static sxml_status read_module_reference(stylesheet_reader *reader, const module
     if (href == NULL) {
         return SXML_STATUS_OK;
     }
-    const sxml_byte_view reference_text = trim_spaces(href->value);
+    const sxml_byte_view reference_text = sxml_xml_text_trim_whitespace(href->value);
     const sxml_xslt_ast_static_context *context =
         sxml_xslt_ast_get_static_context(reader->ast, reference->static_context);
     /* The base URI is copied: the AST's text store may move below. */
@@ -5161,7 +5199,7 @@ static sxml_byte_view node_text_of(const stylesheet_reader *reader, sxml_xslt_as
     if (attribute->value.kind != SXML_XSLT_AST_VALUE_KIND_TEXT) {
         return (sxml_byte_view){.bytes = NULL, .byte_count = 0};
     }
-    return trim_spaces(sxml_xslt_ast_get_text(reader->ast, attribute->value.payload.text));
+    return sxml_xml_text_trim_whitespace(sxml_xslt_ast_get_text(reader->ast, attribute->value.payload.text));
 }
 
 /* The package a use-package asks for: its name and version range. */

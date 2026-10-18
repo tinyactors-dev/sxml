@@ -79,12 +79,6 @@ static size_t count_children(const sxml_xpath_lowerer *state,
     return child_count;
 }
 
-/* ----------------------------------------------------------- IR helpers */
-
-static sxml_ir_atom slot_atom(sxml_ir_slot slot) {
-    return (sxml_ir_atom){.atom_kind = SXML_IR_ATOM_KIND_SLOT, .slot = slot};
-}
-
 /* An expression of the unit at node. */
 typedef struct expression_at {
     sxml_ast_node_index node;
@@ -702,7 +696,7 @@ static sxml_status expand_binding_collection(sxml_xpath_lowerer *state,
                 .local_name = is_member ? SXML_BYTE_VIEW_FROM_LITERAL("split")
                                         : SXML_BYTE_VIEW_FROM_LITERAL("entries"),
                 .block = &body_block,
-                .argument = slot_atom(container)},
+                .argument = sxml_ir_slot_atom(container)},
             &parts);
     }
     sxml_ir_expression_index body = {0};
@@ -755,7 +749,7 @@ static sxml_status push_range_variables(sxml_xpath_lowerer *state,
                                         sxml_xpath_lowering_frame *frame) {
     clause_locals *locals = frame->locals;
     const sxml_ast_node_index binding = locals->position.binding;
-    const sxml_ir_atom item = slot_atom(locals->item);
+    const sxml_ir_atom item = sxml_ir_slot_atom(locals->item);
     switch ((uint32_t)node_of(state, binding)->kind) {
     case SXML_AST_KIND_FOR_MEMBER_BINDING: {
         sxml_ir_atom one = {0};
@@ -874,7 +868,7 @@ static sxml_status push_position_variable(sxml_xpath_lowerer *state,
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    return push_scope_variable(state, position_name, slot_atom(locals->position_slot));
+    return push_scope_variable(state, position_name, sxml_ir_slot_atom(locals->position_slot));
 }
 
 /* A for binding, its sequence lowered: the range and position variables
@@ -1377,7 +1371,7 @@ static sxml_status open_unpacking(sxml_xpath_lowering_machine *machine,
             state, &(sxml_xquery_tuple_unpacking){
                        .block = &locals->unpacking_block,
                        .node = locals->stream_clause,
-                       .tuple = slot_atom(locals->unpacking_item),
+                       .tuple = sxml_ir_slot_atom(locals->unpacking_item),
                        .layout = {.members = locals->members,
                                   .member_count = locals->member_count}});
     }
@@ -1387,7 +1381,7 @@ static sxml_status open_unpacking(sxml_xpath_lowering_machine *machine,
         status = sxml_xpath_lowerer_resolve_variable_name(state, count_name, &name);
         if (status == SXML_STATUS_OK) {
             status = push_scope_variable(state, name,
-                                         slot_atom(locals->unpacking_position));
+                                         sxml_ir_slot_atom(locals->unpacking_position));
         }
     }
     if (status != SXML_STATUS_OK) {
@@ -1483,7 +1477,7 @@ static sxml_status lower_next_sort_key(sxml_xpath_lowering_machine *machine,
         state, &(sxml_xquery_tuple_unpacking){
                    .block = &locals->key_block,
                    .node = locals->specification,
-                   .tuple = slot_atom(locals->sort_item),
+                   .tuple = sxml_ir_slot_atom(locals->sort_item),
                    .layout = {.members = locals->members, .member_count = locals->member_count}});
     if (status != SXML_STATUS_OK) {
         return status;
@@ -2025,7 +2019,7 @@ static sxml_status add_operand_test(sxml_xpath_lowerer *state, operand_test requ
     sxml_xpath_lowering_block condition_block = {{0}, {0}};
     sxml_ir_atom is_equal = {0};
     if (status == SXML_STATUS_OK) {
-        const sxml_ir_atom arguments[2] = {request.switch_value, slot_atom(item)};
+        const sxml_ir_atom arguments[2] = {request.switch_value, sxml_ir_slot_atom(item)};
         status = bind_library_call(
             state,
             &(library_call){.node = request.node,
@@ -2631,7 +2625,7 @@ static sxml_status push_error_variables(sxml_xpath_lowerer *state,
         }
         sxml_ir_atom value = {.atom_kind = SXML_IR_ATOM_KIND_NONE};
         if (variable_index == SXML_XQUERY_ERROR_VARIABLE_MAP) {
-            value = slot_atom(details);
+            value = sxml_ir_slot_atom(details);
         } else if (variable_index == SXML_XQUERY_ERROR_VARIABLE_STACK_TRACE ||
                    variable_index == SXML_XQUERY_ERROR_VARIABLE_ADDITIONAL) {
             sxml_ir_expression_index empty = {0};
@@ -2654,7 +2648,7 @@ static sxml_status push_error_variables(sxml_xpath_lowerer *state,
                         .block = &locals->handler_block,
                         .node = handler,
                         .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_LOOKUP,
-                                       .lookup = {.value = slot_atom(details), .key = key}}},
+                                       .lookup = {.value = sxml_ir_slot_atom(details), .key = key}}},
                     &value);
             }
         }

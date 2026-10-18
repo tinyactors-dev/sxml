@@ -312,13 +312,15 @@ static void test_number_position(sxml_test_state *state) {
          "1.1 1.2.1 1.2.2 1.3.1 2.1.1"},
         {STYLESHEET("<xsl:for-each select='//title'><xsl:number count='section'/>,"
                     "</xsl:for-each>"),
-         ", , 1 , 2 , , 1 ,"},
+         /* An uncounted title's number is a zero-length text node (D163). */
+         " ,  , 1 , 2 ,  , 1 ,"},
         {STYLESHEET("<xsl:number select='(//note)[3]' count='note|section' level='single'/>"),
          "2"},
         {STYLESHEET("<xsl:number select='//chapter[2]' count='*'/>"), "3"},
         {STYLESHEET("<xsl:for-each select='//note'><xsl:number count='note[. ne \"n2\"]'/>"
                     "</xsl:for-each>"),
-         "1 1 1 1"},
+         /* n2 is not counted: its number is "", a zero-length text node (D163). */
+         "1  1 1 1"},
         /* An error while matching is no match (6.5). */
         {STYLESHEET("<xsl:for-each select='//note'><xsl:number level='any' "
                     "count='note[xs:integer(.) gt 0]' format='[1]'/></xsl:for-each>"),

@@ -31,6 +31,7 @@
 #include "sxml/tree.h"
 #include "sxml/types.h"
 #include "sxml/xdm.h"
+#include "xml_internal.h"
 
 #include <stdalign.h>
 #include <stdbool.h>
@@ -145,24 +146,6 @@ static fixed_text read_fixed_text(const sxml_xslt_lowering *lowering,
     return (fixed_text){.is_fixed = true, .text = sxml_ast_get_text(ast, part_node->payload.text)};
 }
 
-/* text without leading and trailing XML whitespace. */
-static sxml_byte_view trim_whitespace(sxml_byte_view text) {
-    if (text.byte_count == 0) {
-        return text;
-    }
-    size_t start = 0;
-    size_t end = text.byte_count;
-    while (start < end && (text.bytes[start] == ' ' || text.bytes[start] == '\t' ||
-                           text.bytes[start] == '\n' || text.bytes[start] == '\r')) {
-        start += 1;
-    }
-    while (end > start && (text.bytes[end - 1] == ' ' || text.bytes[end - 1] == '\t' ||
-                           text.bytes[end - 1] == '\n' || text.bytes[end - 1] == '\r')) {
-        end -= 1;
-    }
-    return (sxml_byte_view){.bytes = text.bytes + start, .byte_count = end - start};
-}
-
 static bool text_equals(sxml_byte_view text, sxml_byte_view literal) {
     return text.byte_count == literal.byte_count &&
            (literal.byte_count == 0 || memcmp(text.bytes, literal.bytes, literal.byte_count) == 0);
@@ -203,10 +186,6 @@ static sxml_status bind(sxml_xpath_lowerer *lowerer, binding request, sxml_ir_at
 
 static sxml_ir_expression atom_expression(sxml_ir_atom atom) {
     return (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_ATOM, .atom = atom};
-}
-
-static sxml_ir_atom slot_atom(sxml_ir_slot slot) {
-    return (sxml_ir_atom){.atom_kind = SXML_IR_ATOM_KIND_SLOT, .slot = slot};
 }
 
 /* Ends frame with expression. */
@@ -453,39 +432,6 @@ static sxml_status report_static(const sxml_xslt_lowering *lowering, sxml_xslt_a
 
 /* ======================================================== Types */
 
-/* The sequence type of the AS attribute of node; item()* without one. */
-typedef struct declared_type {
-    bool has_type;
-    sxml_sequence_type sequence_type;
-} declared_type;
-
-static sxml_status resolve_declared_type(const sxml_xslt_lowering *lowering,
-                                         sxml_xslt_ast_node_index node, declared_type *type) {
-    *type =
-        (declared_type){.has_type = false,
-                        .sequence_type = {.item_type = sxml_builtin_type_identifier(SXML_TYPE_ITEM),
-                                          .occurrence = SXML_OCCURRENCE_ZERO_OR_MORE}};
-    const sxml_xslt_ast_attribute *as_attribute = find_attribute(
-        lowering, (attribute_lookup){.node = node, .kind = SXML_XSLT_AST_ATTRIBUTE_AS});
-    if (as_attribute->value.kind != SXML_XSLT_AST_VALUE_KIND_SEQUENCE_TYPE) {
-        return SXML_STATUS_OK;
-    }
-    const sxml_xslt_ast_expression *expression =
-        sxml_xslt_ast_get_expression(lowering->ast, as_attribute->value.payload.expression);
-    if (expression->ast == NULL || expression->static_context.value == 0 ||
-        expression->static_context.value >= lowering->static_context_count) {
-        return SXML_STATUS_INVALID_ARGUMENT;
-    }
-    type->has_type = true;
-    return sxml_xpath_resolve_sequence_type(
-        &(sxml_xpath_type_request){.ast = expression->ast,
-                                   .type_node = expression->ast->root,
-                                   .static_context =
-                                       &lowering->static_contexts[expression->static_context.value],
-                                   .error_record = lowering->error_record},
-        &type->sequence_type);
-}
-
 /* The XSLT code of a variable's coercion error (9.3): XTTE0570 where the
    evaluator raises XPTY0004. */
 static const sxml_xslt_error_mapping variable_type_mapping[] = {
@@ -672,8 +618,8 @@ static sxml_status finish_binding_value(sxml_xpath_lowering_machine *machine,
     sxml_xpath_lowerer *lowerer = machine->state;
     binding_value_locals *locals = frame->locals;
     const sxml_xslt_lowering *lowering = locals->lowering;
-    declared_type type = {.has_type = false};
-    sxml_status status = resolve_declared_type(lowering, locals->node, &type);
+    sxml_xslt_declared_type type = {.has_type = false};
+    sxml_status status = sxml_xslt_lowering_resolve_declared_type(lowering, locals->node, &type);
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -1571,7 +1517,7 @@ static sxml_status add_error_tests(sxml_xpath_lowering_machine *machine,
 
 /* The $err: variables of a catch clause, bound in its block and pushed. */
 static sxml_status push_catch_variables(sxml_xpath_lowerer *lowerer, catch_branch *branch) {
-    const sxml_ir_atom details = slot_atom(branch->clause.error_details);
+    const sxml_ir_atom details = sxml_ir_slot_atom(branch->clause.error_details);
     sxml_status status = SXML_STATUS_OK;
     for (size_t variable_index = 0;
          status == SXML_STATUS_OK && variable_index < CATCH_VARIABLE_COUNT; variable_index += 1) {
@@ -2471,7 +2417,7 @@ static bool is_name_text(sxml_byte_view text) {
 }
 
 static error_code_text parse_error_code(sxml_byte_view text) {
-    const sxml_byte_view trimmed = trim_whitespace(text);
+    const sxml_byte_view trimmed = sxml_xml_text_trim_whitespace(text);
     error_code_text parsed = {.is_valid = false};
     if (trimmed.byte_count > 2 && trimmed.bytes[0] == 'Q' && trimmed.bytes[1] == '{') {
         size_t close = 2;
@@ -2967,13 +2913,9 @@ static sxml_status start_terminate(sxml_xpath_lowering_machine *machine,
                                                   .atom = &locals->terminate,
                                                   .focus = NULL});
     }
-    const sxml_byte_view text = trim_whitespace(fixed.text);
-    const bool is_yes = !is_absent && (text_equals(text, SXML_BYTE_VIEW_FROM_LITERAL("yes")) ||
-                                       text_equals(text, SXML_BYTE_VIEW_FROM_LITERAL("true")) ||
-                                       text_equals(text, SXML_BYTE_VIEW_FROM_LITERAL("1")));
-    const bool is_no = is_absent || text_equals(text, SXML_BYTE_VIEW_FROM_LITERAL("no")) ||
-                       text_equals(text, SXML_BYTE_VIEW_FROM_LITERAL("false")) ||
-                       text_equals(text, SXML_BYTE_VIEW_FROM_LITERAL("0"));
+    const sxml_xslt_boolean_text answer = sxml_xslt_lowering_read_boolean_text(fixed.text);
+    const bool is_yes = !is_absent && answer.is_yes;
+    const bool is_no = is_absent || (answer.is_valid && !answer.is_yes);
     if (!is_yes && !is_no) {
         return report_static(lowering, locals->head.node,
                              SXML_BYTE_VIEW_FROM_LITERAL(
@@ -2988,42 +2930,8 @@ static sxml_status start_terminate(sxml_xpath_lowering_machine *machine,
 static sxml_status compare_terminate(sxml_xpath_lowerer *lowerer,
                                      sxml_xpath_lowering_frame *frame) {
     message_locals *locals = frame->locals;
-    sxml_ir_atom normalized = {0};
-    sxml_status status =
-        bind_call(lowerer,
-                  (call_request){.block = frame->block,
-                                 .function_namespace = SXML_NAMESPACE_FUNCTIONS,
-                                 .local_name = SXML_BYTE_VIEW_FROM_LITERAL("normalize-space"),
-                                 .arguments = {.atoms = &locals->terminate, .atom_count = 1}},
-                  &normalized);
-    const char *const words[3] = {"yes", "true", "1"};
-    sxml_ir_atom word_atoms[3] = {{0}, {0}, {0}};
-    for (size_t word_index = 0; status == SXML_STATUS_OK && word_index < 3; word_index += 1) {
-        status = add_string(lowerer,
-                            (sxml_byte_view){.bytes = (const uint8_t *)words[word_index],
-                                             .byte_count = strlen(words[word_index])},
-                            &word_atoms[word_index]);
-    }
-    sxml_ir_expression sequence = {0};
-    sxml_ir_atom yes_words = {0};
-    if (status == SXML_STATUS_OK) {
-        status = make_sequence(lowerer, (sxml_ir_atom_view){.atoms = word_atoms, .atom_count = 3},
-                               &sequence);
-    }
-    if (status == SXML_STATUS_OK) {
-        status =
-            bind(lowerer, (binding){.block = frame->block, .expression = sequence}, &yes_words);
-    }
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    return bind(
-        lowerer,
-        (binding){.block = frame->block,
-                  .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_BINARY,
-                                 .binary = {.operator= SXML_IR_BINARY_OPERATOR_GENERAL_EQUAL,
-                                            .left_operand = normalized,
-                                            .right_operand = yes_words}}},
+    return sxml_xslt_lowering_bind_boolean_value(
+        lowerer, (sxml_xslt_boolean_value){.block = frame->block, .value = locals->terminate},
         &locals->terminate);
 }
 
@@ -3607,7 +3515,7 @@ static sxml_status find_iterate_captures(sxml_xpath_lowering_machine *machine,
         } else {
             captures[capture_count] = (sxml_xpath_lowering_capture_entry){
                 .variable_name = entry.variable_name,
-                .atom = slot_atom((sxml_ir_slot){.value = ITERATE_PARAMETER_COUNT +
+                .atom = sxml_ir_slot_atom((sxml_ir_slot){.value = ITERATE_PARAMETER_COUNT +
                                                           (uint32_t)captured_count + 1U})};
             locals->outer_atoms[captured_count] = outer;
             captured_count += 1;
@@ -3663,8 +3571,8 @@ static sxml_status start_iterate(sxml_xpath_lowering_machine *machine,
                         "(XSLT 4.0, 9.2)"));
             }
         }
-        declared_type type = {.has_type = false};
-        const sxml_status status = resolve_declared_type(lowering, child, &type);
+        sxml_xslt_declared_type type = {.has_type = false};
+        const sxml_status status = sxml_xslt_lowering_resolve_declared_type(lowering, child, &type);
         if (status != SXML_STATUS_OK) {
             return status;
         }
@@ -3794,7 +3702,7 @@ static sxml_status start_closure(sxml_xpath_lowering_machine *machine,
     locals->function_frame.focus =
         (sxml_xpath_lowering_focus){.kind = SXML_XPATH_LOWERING_FOCUS_KIND_ABSENT};
     sxml_xpath_lowerer_enter_function(lowerer, &locals->function_frame);
-    const sxml_ir_atom state = slot_atom((sxml_ir_slot){.value = ITERATE_STATE_SLOT});
+    const sxml_ir_atom state = sxml_ir_slot_atom((sxml_ir_slot){.value = ITERATE_STATE_SLOT});
     locals->closure_block = (sxml_xpath_lowering_block){.first = {0}, .open_let = {0}};
     locals->running_block = (sxml_xpath_lowering_block){.first = {0}, .open_let = {0}};
     status = bind_member(
@@ -3831,7 +3739,7 @@ static sxml_status start_closure(sxml_xpath_lowering_machine *machine,
 static sxml_status bind_next_state(sxml_xpath_lowerer *lowerer, iterate_locals *locals,
                                    sxml_ir_atom *next_state) {
     sxml_xpath_lowering_block *block = &locals->running_block;
-    const sxml_ir_atom state = slot_atom((sxml_ir_slot){.value = ITERATE_STATE_SLOT});
+    const sxml_ir_atom state = sxml_ir_slot_atom((sxml_ir_slot){.value = ITERATE_STATE_SLOT});
     sxml_ir_atom key = {0};
     sxml_status status = add_marker_key(lowerer, &key);
     sxml_ir_atom last = {0};
@@ -3972,7 +3880,7 @@ static sxml_status finish_closure(sxml_xpath_lowering_machine *machine,
                                   sxml_xpath_lowering_frame *frame) {
     sxml_xpath_lowerer *lowerer = machine->state;
     iterate_locals *locals = frame->locals;
-    const sxml_ir_atom state = slot_atom((sxml_ir_slot){.value = ITERATE_STATE_SLOT});
+    const sxml_ir_atom state = sxml_ir_slot_atom((sxml_ir_slot){.value = ITERATE_STATE_SLOT});
     sxml_ir_atom next_state = {0};
     sxml_status status = bind_next_state(lowerer, locals, &next_state);
     conditional_parts choice = {.condition = locals->control};
@@ -4019,7 +3927,7 @@ static sxml_status finish_closure(sxml_xpath_lowering_machine *machine,
     if (status == SXML_STATUS_OK && read_size.value != 0) {
         /* last(): the size, captured, copied to the slot the body reads. */
         sxml_ir_expression_index captured = {0};
-        status = add_expression(lowerer, atom_expression(slot_atom(size_capture_slot(locals))),
+        status = add_expression(lowerer, atom_expression(sxml_ir_slot_atom(size_capture_slot(locals))),
                                 &captured);
         if (status == SXML_STATUS_OK) {
             status = add_expression(
@@ -4094,7 +4002,7 @@ static sxml_status bind_outputs(sxml_xpath_lowerer *lowerer, sxml_xpath_lowering
     sxml_ir_atom state = {0};
     if (status == SXML_STATUS_OK) {
         status = bind_member(
-            lowerer, (member_request){.block = &map_block, .array = slot_atom(item), .position = 1},
+            lowerer, (member_request){.block = &map_block, .array = sxml_ir_slot_atom(item), .position = 1},
             &state);
     }
     sxml_ir_atom output = {0};

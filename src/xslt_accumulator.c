@@ -899,12 +899,6 @@ void sxml_xslt_release_accumulators(sxml_xslt_accumulator_table *table) {
     sxml_allocator_release(table->allocator, table);
 }
 
-/* ------------------------------------------------------------- Lowering */
-
-static sxml_ir_atom slot_atom(uint32_t slot) {
-    return (sxml_ir_atom){.atom_kind = SXML_IR_ATOM_KIND_SLOT, .slot = {.value = slot}};
-}
-
 /* Parses text and keeps the AST until release. */
 static sxml_status parse_snippet(sxml_xslt_accumulator_table *table, sxml_byte_view text,
                                  sxml_ast **ast) {
@@ -977,7 +971,7 @@ static sxml_status push_parameters(const sxml_xslt_accumulator_table *table,
             (sxml_xpath_lowering_scope_entry){
                 .variable_name = table->variable_names[parameters.variables[parameter]],
                 .function_level = 0,
-                .atom = slot_atom((uint32_t)parameter + 1)});
+                .atom = sxml_ir_slot_atom((sxml_ir_slot){.value = (uint32_t)parameter + 1})});
     }
     return status;
 }
@@ -1071,7 +1065,7 @@ static sxml_status lower_match_wrapper(sxml_xslt_accumulator_table *table,
         .focus = {.kind = SXML_XPATH_LOWERING_FOCUS_KIND_ABSENT},
     };
     sxml_xpath_lowerer_enter_function(lowerer, &frame);
-    const sxml_ir_atom item = slot_atom(1);
+    const sxml_ir_atom item = sxml_ir_slot_atom((sxml_ir_slot){.value = 1});
     sxml_ir_atom_list arguments = {0};
     status = sxml_ir_unit_add_atoms(
         lowerer->unit, (sxml_ir_atom_view){.atoms = &item, .atom_count = 1}, &arguments);
@@ -1203,7 +1197,7 @@ static sxml_status lower_value_function(sxml_xslt_accumulator_table *table,
                      .slot_count = parameter_count,
                      .captures = NULL,
                      .capture_count = 0},
-        .focus = {.kind = SXML_XPATH_LOWERING_FOCUS_KIND_FIXED, .fixed_value = slot_atom(1)},
+        .focus = {.kind = SXML_XPATH_LOWERING_FOCUS_KIND_FIXED, .fixed_value = sxml_ir_slot_atom((sxml_ir_slot){.value = 1})},
     };
     sxml_xpath_lowerer_enter_function(lowerer, &frame);
     if (parameter_count == 2) {
@@ -1213,7 +1207,7 @@ static sxml_status lower_value_function(sxml_xslt_accumulator_table *table,
             (sxml_xpath_lowering_scope_entry){
                 .variable_name = table->variable_names[SXML_SNIPPET_VARIABLE_VALUE],
                 .function_level = 0,
-                .atom = slot_atom(2)});
+                .atom = sxml_ir_slot_atom((sxml_ir_slot){.value = 2})});
     }
     const sxml_xslt_ast_attribute *attribute =
         find_attribute(lowering, request.node, request.attribute);

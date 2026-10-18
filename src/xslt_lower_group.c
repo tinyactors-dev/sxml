@@ -38,6 +38,7 @@
 #include "sxml/xdm.h"
 #include "xslt_group_internal.h"
 #include "xslt_pattern_internal.h"
+#include "xml_internal.h"
 
 #include <stdalign.h>
 #include <stdbool.h>
@@ -149,26 +150,8 @@ static fixed_text read_fixed_text(const sxml_xslt_lowering *lowering,
     return (fixed_text){.is_fixed = true, .text = sxml_ast_get_text(ast, part_node->payload.text)};
 }
 
-static bool is_xml_whitespace(uint8_t byte) {
-    return byte == ' ' || byte == '\t' || byte == '\n' || byte == '\r';
-}
-
-/* text without leading and trailing XML whitespace. */
-static sxml_byte_view trim_whitespace(sxml_byte_view text) {
-    size_t start = 0;
-    size_t end = text.byte_count;
-    while (start < end && is_xml_whitespace(text.bytes[start])) {
-        start += 1;
-    }
-    while (end > start && is_xml_whitespace(text.bytes[end - 1])) {
-        end -= 1;
-    }
-    return (sxml_byte_view){.bytes = text.bytes == NULL ? NULL : text.bytes + start,
-                            .byte_count = end - start};
-}
-
 static bool text_equals(sxml_byte_view text, sxml_byte_view literal) {
-    return sxml_byte_view_equals(trim_whitespace(text), literal);
+    return sxml_byte_view_equals(sxml_xml_text_trim_whitespace(text), literal);
 }
 
 /* Whether text, trimmed, is the string literal. */
@@ -185,7 +168,7 @@ static bool is_ascii_digit(uint8_t byte) {
 /* Whether text is an xs:language or empty: [a-zA-Z]{1,8}(-[a-zA-Z0-9]{1,8})*
    (XSD 1.1 Part 2, 3.4.3; xsl:sort lang, 13.1.3). */
 static bool is_language(sxml_byte_view text) {
-    text = trim_whitespace(text);
+    text = sxml_xml_text_trim_whitespace(text);
     size_t run = 0;
     bool is_first_run = true;
     for (size_t byte_index = 0; byte_index < text.byte_count; byte_index += 1) {
@@ -218,7 +201,7 @@ static bool is_boolean_text(sxml_byte_view text) {
 /* Whether text names a data type other than text and number: an EQName
    with a namespace (13.1.2: implementation-defined, here no conversion). */
 static bool is_data_type_name(sxml_byte_view text) {
-    text = trim_whitespace(text);
+    text = sxml_xml_text_trim_whitespace(text);
     if (text.byte_count > 2 && text.bytes[0] == 'Q' && text.bytes[1] == '{') {
         return true;
     }
@@ -250,10 +233,6 @@ static sxml_status bind(sxml_xpath_lowerer *lowerer, binding request, sxml_ir_at
 
 static sxml_ir_expression atom_expression(sxml_ir_atom atom) {
     return (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_ATOM, .atom = atom};
-}
-
-static sxml_ir_atom slot_atom(sxml_ir_slot slot) {
-    return (sxml_ir_atom){.atom_kind = SXML_IR_ATOM_KIND_SLOT, .slot = slot};
 }
 
 /* Ends frame with atom as its value. */
@@ -580,7 +559,7 @@ typedef struct group_view_request {
 static sxml_status bind_group_view(const sxml_xslt_lowering *lowering, group_view_request request,
                                    group_view *view) {
     sxml_xpath_lowerer *lowerer = lowering->lowerer;
-    const sxml_ir_atom group_array = slot_atom(request.slots.context_value);
+    const sxml_ir_atom group_array = sxml_ir_slot_atom(request.slots.context_value);
     sxml_status status = bind_member(
         lowerer, (member_read){.block = request.block, .array = group_array, .member_number = 1},
         &view->group);
@@ -897,7 +876,7 @@ static sxml_status add_fixed_collation(const sort_locals *locals, collation_fixi
         return SXML_STATUS_OK;
     }
     const sxml_byte_view language =
-        locals->has_attributes[SXML_XSLT_SORT_ATTRIBUTE_LANG] ? trim_whitespace(lang.text)
+        locals->has_attributes[SXML_XSLT_SORT_ATTRIBUTE_LANG] ? sxml_xml_text_trim_whitespace(lang.text)
                                                     : (sxml_byte_view){.bytes = NULL, .byte_count = 0};
     const bool is_upper_first = locals->has_attributes[SXML_XSLT_SORT_ATTRIBUTE_CASE_ORDER] &&
                                 TEXT_IS(case_order.text, "upper-first");
@@ -2339,7 +2318,7 @@ static sxml_status step_merge(sxml_xpath_lowering_machine *machine,
             status = add_focus_slots(lowerer, &locals->group_slots);
         }
         locals->body_block = (sxml_xpath_lowering_block){.first = {0}, .open_let = {0}};
-        const sxml_ir_atom group_array = slot_atom(locals->group_slots.context_value);
+        const sxml_ir_atom group_array = sxml_ir_slot_atom(locals->group_slots.context_value);
         if (status == SXML_STATUS_OK) {
             status = bind_member(
                 lowerer,

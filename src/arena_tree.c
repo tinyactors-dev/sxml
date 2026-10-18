@@ -7,14 +7,17 @@
  *
  * Specification: XDM 4.0, section 6 and 7.5 (node kinds and their
  * properties), section 7.5.7.1 (adjacent text merges, empty text makes no
- * node); XSLT 4.0, section 5.7.3 "Namespace Fixup"; XQuery 4.0, "Element
+ * node, except a parentless one, D163); XSLT 4.0, section 5.7.3 "Namespace Fixup"; XQuery 4.0, "Element
  * Constructors" (XQDY0025, XQDY0102, XQDY0101, XQDY0044).
  *
  * Layout
  * ------
  * All memory comes from one sxml_arena over initial_memory and the
- * configured allocator (D24), released together at finalize.
- * - Nodes live in node segments: segment k holds 16 * 2^k nodes, allocated
+ * configured allocator (D24), released together at finalize. A growable
+ * tree without initial memory gets a small region with its own allocation
+ * as the arena's first memory, so a tree of a few nodes needs no block
+ * (sized arenas, D163).
+ * - Nodes live in node segments: segment k holds 2 * 2^k nodes, allocated
  *   when the first of them is added, so nodes never move and no array is
  *   copied as the tree grows. Locations, when kept, use a second set of
  *   segments with the same layout.
@@ -48,19 +51,25 @@
 /* ------------------------------------------------------------ Constants */
 
 /* Nodes in segment 0; segment k holds this times 2^k. A power of two. */
-#define SXML_ARENA_TREE_FIRST_SEGMENT_NODE_COUNT 16U
+#define SXML_ARENA_TREE_FIRST_SEGMENT_NODE_COUNT 2U
 /* log2 of SXML_ARENA_TREE_FIRST_SEGMENT_NODE_COUNT. */
-#define SXML_ARENA_TREE_FIRST_SEGMENT_SHIFT 4U
+#define SXML_ARENA_TREE_FIRST_SEGMENT_SHIFT 1U
 /* Enough segments for every node index below UINT32_MAX. */
-#define SXML_ARENA_TREE_SEGMENT_COUNT 29U
+#define SXML_ARENA_TREE_SEGMENT_COUNT 32U
 /* The arena's block size when it can grow. Small: evaluation builds
    many one-element trees (each XQuery element constructor makes one), and
    the node segments, which double, outgrow it and get blocks of their
    own. */
 #define SXML_ARENA_TREE_BLOCK_BYTE_COUNT 4096U
+/* Memory placed right after a growable arena tree that has no initial
+   memory of its own, used before the first block: a tree of a few nodes,
+   the most common constructed tree, then takes one allocation of about
+   one and a half kilobytes instead of a four-kilobyte block more (sized
+   arenas, D163). */
+#define SXML_ARENA_TREE_INLINE_BYTE_COUNT 768U
 /* Text store blocks start at the minimum and double up to the maximum,
    unless one pending run needs more. */
-#define SXML_ARENA_TREE_MINIMUM_TEXT_BLOCK_BYTE_COUNT 256U
+#define SXML_ARENA_TREE_MINIMUM_TEXT_BLOCK_BYTE_COUNT 64U
 #define SXML_ARENA_TREE_MAXIMUM_TEXT_BLOCK_BYTE_COUNT 1048576U
 /* Above this many attributes an element's duplicate check uses a hash
    index instead of a scan. */
@@ -77,6 +86,8 @@
 #define SXML_ARENA_NODE_IS_ID 0x10U
 #define SXML_ARENA_NODE_IS_IDREFS 0x20U
 #define SXML_ARENA_NODE_IS_NILLED 0x40U
+/* A text node to serialize as CDATA sections (glossary cdata_section). */
+#define SXML_ARENA_NODE_IS_CDATA_SECTION 0x80U
 
 /* --------------------------------------------------------------- Types */
 
@@ -131,7 +142,9 @@ struct sxml_arena_tree {
 
     /* Nodes and their locations. */
     sxml_arena_node *node_segments[SXML_ARENA_TREE_SEGMENT_COUNT];
-    sxml_source_location *location_segments[SXML_ARENA_TREE_SEGMENT_COUNT];
+    /* SXML_ARENA_TREE_SEGMENT_COUNT pointers, made at the first node when
+       keeps_locations; NULL otherwise. */
+    sxml_source_location **location_segments;
     uint32_t node_count;
 
     /* The innermost open document or element, and how many elements are
@@ -154,6 +167,8 @@ struct sxml_arena_tree {
     size_t attribute_slot_capacity;
     size_t active_attribute_slot_count;
     bool has_attribute_index;
+    /* Some event of the pending text asked for CDATA sections (D163). */
+    bool pending_text_is_cdata_section;
 
     /* The text store. */
     uint8_t *text_block;
@@ -240,7 +255,19 @@ static sxml_arena_configuration sxml_arena_tree_arena_configuration(
 typedef struct sxml_arena_tree_layout {
     sxml_memory_requirements requirements;
     size_t arena_offset;
+    /* SXML_ARENA_TREE_INLINE_BYTE_COUNT bytes for the arena's initial
+       memory, when the tree can grow and has none of its own; else 0. */
+    size_t inline_offset;
+    size_t inline_byte_count;
 } sxml_arena_tree_layout;
+
+/* Whether the tree takes SXML_ARENA_TREE_INLINE_BYTE_COUNT bytes of
+   initial memory with itself. */
+static bool sxml_arena_tree_has_inline_memory(
+    const sxml_arena_tree_configuration *configuration) {
+    return !sxml_allocator_is_null(configuration->allocator) &&
+           configuration->initial_memory.byte_count == 0;
+}
 
 static sxml_status sxml_arena_tree_compute_layout(
     const sxml_arena_tree_configuration *configuration,
@@ -269,19 +296,34 @@ static sxml_status sxml_arena_tree_compute_layout(
         status = sxml_memory_requirements_append(
             &requirements, arena_requirements, &arena_offset);
     }
+    size_t inline_offset = 0;
+    const size_t inline_byte_count = sxml_arena_tree_has_inline_memory(configuration)
+                                         ? SXML_ARENA_TREE_INLINE_BYTE_COUNT
+                                         : 0;
+    if (status == SXML_STATUS_OK && inline_byte_count > 0) {
+        status = sxml_memory_requirements_append(
+            &requirements,
+            (sxml_memory_requirements){.byte_count = inline_byte_count,
+                                       .alignment = alignof(max_align_t)},
+            &inline_offset);
+    }
     if (status != SXML_STATUS_OK) {
         return status;
     }
     *layout = (sxml_arena_tree_layout){.requirements = requirements,
-                                       .arena_offset = arena_offset};
+                                       .arena_offset = arena_offset,
+                                       .inline_offset = inline_offset,
+                                       .inline_byte_count = inline_byte_count};
     return SXML_STATUS_OK;
 }
 
 sxml_status sxml_arena_tree_memory_requirements(
     const sxml_arena_tree_configuration *configuration,
     sxml_memory_requirements *requirements) {
-    sxml_arena_tree_layout layout = {
-        .requirements = {.byte_count = 0, .alignment = 1}, .arena_offset = 0};
+    sxml_arena_tree_layout layout = {.requirements = {.byte_count = 0, .alignment = 1},
+                                     .arena_offset = 0,
+                                     .inline_offset = 0,
+                                     .inline_byte_count = 0};
     sxml_status status = sxml_arena_tree_compute_layout(configuration, &layout);
     if (status != SXML_STATUS_OK) {
         return status;
@@ -295,8 +337,10 @@ static sxml_status sxml_arena_tree_place(
     sxml_memory_view memory,
     const sxml_arena_tree_configuration *configuration,
     sxml_arena_tree **arena_tree) {
-    sxml_arena_tree_layout layout = {
-        .requirements = {.byte_count = 0, .alignment = 1}, .arena_offset = 0};
+    sxml_arena_tree_layout layout = {.requirements = {.byte_count = 0, .alignment = 1},
+                                     .arena_offset = 0,
+                                     .inline_offset = 0,
+                                     .inline_byte_count = 0};
     sxml_status status = sxml_arena_tree_compute_layout(configuration, &layout);
     if (status != SXML_STATUS_OK) {
         return status;
@@ -309,14 +353,26 @@ static sxml_status sxml_arena_tree_place(
     status = sxml_memory_view_slice(
         memory,
         (sxml_byte_range){.byte_offset = layout.arena_offset,
-                          .byte_count = memory.byte_count -
+                          .byte_count = (layout.inline_byte_count > 0 ? layout.inline_offset
+                                                                     : memory.byte_count) -
                                         layout.arena_offset},
         &arena_memory);
+    sxml_memory_view inline_memory = {.bytes = NULL, .byte_count = 0};
+    if (status == SXML_STATUS_OK && layout.inline_byte_count > 0) {
+        status = sxml_memory_view_slice(
+            memory,
+            (sxml_byte_range){.byte_offset = layout.inline_offset,
+                              .byte_count = layout.inline_byte_count},
+            &inline_memory);
+    }
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    const sxml_arena_configuration arena_configuration =
+    sxml_arena_configuration arena_configuration =
         sxml_arena_tree_arena_configuration(configuration);
+    if (layout.inline_byte_count > 0) {
+        arena_configuration.initial_memory = inline_memory;
+    }
     sxml_arena *arena = NULL;
     status = sxml_arena_initialize(arena_memory, &arena_configuration, &arena);
     if (status != SXML_STATUS_OK) {
@@ -421,8 +477,8 @@ static unsigned sxml_arena_tree_highest_bit(uint64_t value) {
 }
 
 /*
- * Segment k covers node numbers 16 * (2^k - 1) to 16 * (2^(k+1) - 1) - 1,
- * so node_number + 16 has its highest bit at k + 4 and the bits below it
+ * Segment k covers node numbers 2 * (2^k - 1) to 2 * (2^(k+1) - 1) - 1,
+ * so node_number + 2 has its highest bit at k + 1 and the bits below it
  * are the offset.
  */
 static sxml_segment_position sxml_arena_tree_locate(uint32_t node_number) {
@@ -499,6 +555,20 @@ static sxml_status sxml_arena_tree_reserve_node(sxml_arena_tree *arena_tree) {
             return status;
         }
         arena_tree->node_segments[segment_index] = memory;
+    }
+    if (arena_tree->configuration.keeps_locations && arena_tree->location_segments == NULL) {
+        void *memory = NULL;
+        sxml_status status = sxml_arena_tree_allocate_array(
+            arena_tree,
+            (sxml_array_request){.element_count = SXML_ARENA_TREE_SEGMENT_COUNT,
+                                 .element_byte_count = sizeof(sxml_source_location *),
+                                 .alignment = alignof(sxml_source_location *)},
+            &memory);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        memset(memory, 0, SXML_ARENA_TREE_SEGMENT_COUNT * sizeof(sxml_source_location *));
+        arena_tree->location_segments = (sxml_source_location **)memory;
     }
     if (arena_tree->configuration.keeps_locations &&
         arena_tree->location_segments[segment_index] == NULL) {
@@ -744,7 +814,7 @@ static sxml_status sxml_arena_tree_flush_text(sxml_arena_tree *arena_tree) {
         .node_name = {.index = 0},
         .namespace_prefix = {.index = 0},
         .type_annotation = {.index = SXML_TYPE_NONE},
-        .flags = 0,
+        .flags = arena_tree->pending_text_is_cdata_section ? SXML_ARENA_NODE_IS_CDATA_SECTION : 0,
         .content = sxml_arena_tree_take_text(arena_tree),
         .location = arena_tree->pending_text_location,
     };
@@ -752,8 +822,34 @@ static sxml_status sxml_arena_tree_flush_text(sxml_arena_tree *arena_tree) {
     status = sxml_arena_tree_add_node(arena_tree, &text_node, &node_number);
     if (status != SXML_STATUS_OK) {
         arena_tree->pending_text_offset = pending_offset;
+    } else {
+        arena_tree->pending_text_is_cdata_section = false;
     }
     return status;
+}
+
+/* The parentless zero-length text node of a tree whose only events were
+   empty text (XDM 4.0, section 7.5.7.1: text nodes may be empty only if
+   they have no parent; D163). */
+static sxml_status sxml_arena_tree_add_empty_text(sxml_arena_tree *arena_tree) {
+    sxml_status status = sxml_arena_tree_reserve_node(arena_tree);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    const sxml_new_node text_node = {
+        .node_kind = SXML_NODE_KIND_TEXT,
+        .node_name = {.index = 0},
+        .namespace_prefix = {.index = 0},
+        .type_annotation = {.index = SXML_TYPE_NONE},
+        .flags = 0,
+        .content = {.bytes = NULL, .byte_count = 0},
+        .location = {.source_name = {.bytes = NULL, .byte_count = 0},
+                     .line_number = 0,
+                     .column_number = 0,
+                     .byte_offset = 0},
+    };
+    uint32_t node_number = 0;
+    return sxml_arena_tree_add_node(arena_tree, &text_node, &node_number);
 }
 
 /* ------------------------------------------------- Namespace bindings */
@@ -1812,7 +1908,11 @@ static sxml_status sxml_arena_tree_add_text(void *state,
             return status;
         }
     }
-    return sxml_arena_tree_append_text(arena_tree, event->text);
+    status = sxml_arena_tree_append_text(arena_tree, event->text);
+    if (status == SXML_STATUS_OK && event->is_cdata_section) {
+        arena_tree->pending_text_is_cdata_section = true;
+    }
+    return status;
 }
 
 /* Adds a comment or processing-instruction node as root or child. */
@@ -2001,6 +2101,7 @@ static sxml_status sxml_arena_tree_describe_node(
         .is_id = sxml_arena_node_has_flag(node, SXML_ARENA_NODE_IS_ID),
         .is_idrefs = sxml_arena_node_has_flag(node, SXML_ARENA_NODE_IS_IDREFS),
         .is_nilled = sxml_arena_node_has_flag(node, SXML_ARENA_NODE_IS_NILLED),
+        .is_cdata_section = sxml_arena_node_has_flag(node, SXML_ARENA_NODE_IS_CDATA_SECTION),
     };
     return SXML_STATUS_OK;
 }
@@ -2092,8 +2193,13 @@ sxml_status sxml_arena_tree_finish(sxml_arena_tree *arena_tree,
             return status;
         }
         if (arena_tree->node_count == 0) {
-            /* Only empty text: no root. */
-            return SXML_STATUS_INVALID_ARGUMENT;
+            /* Only empty text: a zero-length text node, which XDM allows
+               for a text node without a parent (XDM 4.0, section 7.5.7.1;
+               D163). */
+            status = sxml_arena_tree_add_empty_text(arena_tree);
+            if (status != SXML_STATUS_OK) {
+                return status;
+            }
         }
         arena_tree->phase = SXML_ARENA_TREE_PHASE_COMPLETE;
     }
@@ -2107,13 +2213,22 @@ sxml_status sxml_arena_tree_finish(sxml_arena_tree *arena_tree,
             SXML_NODE_KIND_DOCUMENT &&
         arena_tree->base_uri.byte_count == 0 &&
         arena_tree->configuration.base_uri.byte_count > 0) {
-        sxml_byte_view base_uri = {.bytes = NULL, .byte_count = 0};
-        sxml_status status = sxml_arena_tree_copy_text(
-            arena_tree, arena_tree->configuration.base_uri, &base_uri);
+        /* An allocation of its own, not the text store: the store's block
+           would grow (doubling) for these bytes alone, which every small
+           constructed tree would pay (D163). */
+        void *memory = NULL;
+        sxml_status status = sxml_arena_tree_allocate(
+            arena_tree,
+            (sxml_allocation_request){
+                .byte_count = arena_tree->configuration.base_uri.byte_count, .alignment = 1},
+            &memory);
         if (status != SXML_STATUS_OK) {
             return status;
         }
-        arena_tree->base_uri = base_uri;
+        memcpy(memory, arena_tree->configuration.base_uri.bytes,
+               arena_tree->configuration.base_uri.byte_count);
+        arena_tree->base_uri = (sxml_byte_view){
+            .bytes = memory, .byte_count = arena_tree->configuration.base_uri.byte_count};
     }
     bool is_self_destroying =
         arena_tree->configuration.is_destroyed_when_unreferenced;

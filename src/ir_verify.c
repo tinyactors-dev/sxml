@@ -460,7 +460,10 @@ static construction_fields fields_of_kind(sxml_ir_expression_kind kind) {
         return (construction_fields){
             .has_value = true, .has_content = true, .has_flags = true};
     }
-    /* TEXT and COMMENT. */
+    if (kind == SXML_IR_EXPRESSION_KIND_TEXT_CONSTRUCTOR) {
+        return (construction_fields){.has_value = true, .has_flags = true};
+    }
+    /* COMMENT. */
     return (construction_fields){.has_value = true};
 }
 

@@ -441,6 +441,111 @@ sxml_status sxml_xslt_lowering_bind_simple_content(sxml_xpath_lowerer *lowerer,
         atom);
 }
 
+/* ------------------------------------------------- Declared types */
+
+const sxml_xpath_static_context *
+sxml_xslt_lowering_expression_context(const sxml_xslt_lowering *lowering,
+                                      sxml_xslt_ast_expression_index expression) {
+    const uint32_t context =
+        sxml_xslt_ast_get_expression(lowering->ast, expression)->static_context.value;
+    if (context == 0 || context >= lowering->static_context_count) {
+        return NULL;
+    }
+    return &lowering->static_contexts[context];
+}
+
+sxml_status sxml_xslt_lowering_resolve_declared_type(const sxml_xslt_lowering *lowering,
+                                                     sxml_xslt_ast_node_index node,
+                                                     sxml_xslt_declared_type *type) {
+    *type = (sxml_xslt_declared_type){
+        .has_type = false,
+        .sequence_type = {.item_type = sxml_builtin_type_identifier(SXML_TYPE_ITEM),
+                          .occurrence = SXML_OCCURRENCE_ZERO_OR_MORE}};
+    const sxml_xslt_ast_attribute *as_attribute = sxml_xslt_ast_get_attribute(
+        lowering->ast,
+        sxml_xslt_ast_find_attribute(lowering->ast, (sxml_xslt_ast_attribute_query){
+                                                        .node = node,
+                                                        .kind = SXML_XSLT_AST_ATTRIBUTE_AS}));
+    if (as_attribute->value.kind != SXML_XSLT_AST_VALUE_KIND_SEQUENCE_TYPE) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_xslt_ast_expression *expression =
+        sxml_xslt_ast_get_expression(lowering->ast, as_attribute->value.payload.expression);
+    const sxml_xpath_static_context *context =
+        sxml_xslt_lowering_expression_context(lowering, as_attribute->value.payload.expression);
+    if (expression->ast == NULL || context == NULL) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    type->has_type = true;
+    return sxml_xpath_resolve_sequence_type(
+        &(sxml_xpath_type_request){.ast = expression->ast,
+                                   .type_node = expression->ast->root,
+                                   .static_context = context,
+                                   .error_record = lowering->error_record},
+        &type->sequence_type);
+}
+
+/* ------------------------------------------------ Boolean attributes */
+
+sxml_xslt_boolean_text sxml_xslt_lowering_read_boolean_text(sxml_byte_view text) {
+    const sxml_byte_view trimmed = sxml_xml_text_trim_whitespace(text);
+    const bool is_yes = sxml_byte_view_equals(trimmed, SXML_BYTE_VIEW_FROM_LITERAL("yes")) ||
+                        sxml_byte_view_equals(trimmed, SXML_BYTE_VIEW_FROM_LITERAL("true")) ||
+                        sxml_byte_view_equals(trimmed, SXML_BYTE_VIEW_FROM_LITERAL("1"));
+    const bool is_no = sxml_byte_view_equals(trimmed, SXML_BYTE_VIEW_FROM_LITERAL("no")) ||
+                       sxml_byte_view_equals(trimmed, SXML_BYTE_VIEW_FROM_LITERAL("false")) ||
+                       sxml_byte_view_equals(trimmed, SXML_BYTE_VIEW_FROM_LITERAL("0"));
+    return (sxml_xslt_boolean_text){.is_valid = is_yes || is_no, .is_yes = is_yes};
+}
+
+sxml_status sxml_xslt_lowering_bind_boolean_value(sxml_xpath_lowerer *lowerer,
+                                                  sxml_xslt_boolean_value request,
+                                                  sxml_ir_atom *atom) {
+    sxml_ir_atom normalized = {0};
+    sxml_status status = sxml_xslt_lowering_bind_library_call(
+        lowerer,
+        &(sxml_xslt_library_call){.block = request.block,
+                                  .function_namespace = SXML_NAMESPACE_FUNCTIONS,
+                                  .local_name = SXML_BYTE_VIEW_FROM_LITERAL("normalize-space"),
+                                  .arguments = {.atoms = &request.value, .atom_count = 1}},
+        &normalized);
+    static const sxml_byte_view words[3] = {SXML_BYTE_VIEW_INITIALIZER("yes"),
+                                            SXML_BYTE_VIEW_INITIALIZER("true"),
+                                            SXML_BYTE_VIEW_INITIALIZER("1")};
+    sxml_ir_atom word_atoms[3] = {{0}, {0}, {0}};
+    for (size_t word_index = 0; status == SXML_STATUS_OK && word_index < 3; word_index += 1) {
+        status =
+            sxml_xpath_lowerer_add_string_constant(lowerer, words[word_index], &word_atoms[word_index]);
+    }
+    sxml_ir_atom_list word_list = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ir_unit_add_atoms(
+            lowerer->unit, (sxml_ir_atom_view){.atoms = word_atoms, .atom_count = 3}, &word_list);
+    }
+    sxml_ir_atom yes_words = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xslt_lowering_bind_expression(
+            lowerer,
+            &(sxml_xslt_expression_to_bind){
+                .block = request.block,
+                .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_SEQUENCE,
+                               .sequence = word_list}},
+            &yes_words);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_xslt_lowering_bind_expression(
+        lowerer,
+        &(sxml_xslt_expression_to_bind){
+            .block = request.block,
+            .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_BINARY,
+                           .binary = {.operator= SXML_IR_BINARY_OPERATOR_GENERAL_EQUAL,
+                                      .left_operand = normalized,
+                                      .right_operand = yes_words}}},
+        atom);
+}
+
 /* ------------------------------------------------- Namespaces and aliases */
 
 sxml_status
@@ -1202,6 +1307,42 @@ static const sxml_xpath_lowering_procedure fallback_procedure = {
     .step = continue_fallback,
     .locals_size = sizeof(fallback_locals)};
 
+/* ------------------------------------------- Backwards compatibility */
+
+/* An instruction whose effective version is below 2.0 (3.8, 27.4): sxml
+   has no XSLT 1.0 behaviour (D97, a delay, D162), so evaluating it raises
+   XTDE0160; this is the one place that rejects it. XSLT 2.0 and 3.0
+   compatibility modes are processed as 4.0. */
+static bool asks_xslt_1_behaviour(const sxml_xslt_lowering *lowering,
+                                  sxml_xslt_ast_node_index node) {
+    return sxml_xslt_ast_get_static_context(lowering->ast, node_of(lowering, node)->static_context)
+               ->version < 2.0;
+}
+
+static sxml_status continue_xslt_1_instruction(sxml_xpath_lowering_machine *machine,
+                                               sxml_xpath_lowering_frame *frame) {
+    sxml_ir_expression_index raise = {0};
+    const sxml_status status = sxml_xpath_lowerer_add_raise(
+        machine->state,
+        (sxml_xpath_lowering_raise_request){
+            .node = no_ast_node,
+            .error_status = SXML_STATUS_DYNAMIC_ERROR,
+            .code_local_name = SXML_BYTE_VIEW_FROM_LITERAL("XTDE0160"),
+            .description = SXML_BYTE_VIEW_FROM_LITERAL(
+                "an instruction with an effective version of 1.0 is evaluated, and sxml has no "
+                "backwards compatible behaviour (XSLT 4.0, 3.8)")},
+        &raise);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_xpath_lowering_finish_frame(machine, frame, raise);
+}
+
+static const sxml_xpath_lowering_procedure xslt_1_instruction_procedure = {
+    .procedure_name = SXML_BYTE_VIEW_INITIALIZER("xslt 1.0 instruction"),
+    .step = continue_xslt_1_instruction,
+    .locals_size = sizeof(sxml_xslt_instruction_locals)};
+
 /* ------------------------------------------------- Sequence constructors */
 
 typedef struct sequence_constructor_locals {
@@ -1303,6 +1444,12 @@ static sxml_status lower_child(sxml_xpath_lowering_machine *machine, child_lower
     default:
         procedure = find_instruction_procedure(child->kind);
         break;
+    }
+    /* A local xsl:variable stays: the instructions after it see it, and
+       those raise the error themselves. */
+    if (procedure != NULL && child->kind != SXML_XSLT_AST_KIND_VARIABLE &&
+        asks_xslt_1_behaviour(lowering, request.child)) {
+        procedure = &xslt_1_instruction_procedure;
     }
     if (procedure == NULL) {
         *outcome = (child_outcome){.has_atom = false, .has_pushed_frame = false};

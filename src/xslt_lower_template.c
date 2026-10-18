@@ -49,6 +49,7 @@
 #include "sxml/types.h"
 #include "sxml/xdm.h"
 #include "xslt_pattern_internal.h"
+#include "sort_internal.h"
 
 #include <stdalign.h>
 #include <stdbool.h>
@@ -236,50 +237,6 @@ static int32_t precedence_of(const sxml_xslt_lowering *lowering, sxml_xslt_ast_n
         ->import_precedence;
 }
 
-/* The XPath static context of an expression of the AST. */
-static const sxml_xpath_static_context *
-expression_context(const sxml_xslt_lowering *lowering, sxml_xslt_ast_expression_index expression) {
-    const uint32_t context = sxml_xslt_ast_get_expression(lowering->ast, expression)
-                                 ->static_context.value;
-    if (context == 0 || context >= lowering->static_context_count) {
-        return NULL;
-    }
-    return &lowering->static_contexts[context];
-}
-
-/* The sequence type of the `as` attribute of node; item()* when absent.
-   *has_type tells which. */
-typedef struct declared_type {
-    bool has_type;
-    sxml_sequence_type sequence_type;
-} declared_type;
-
-static sxml_status resolve_declared_type(const sxml_xslt_lowering *lowering,
-                                         sxml_xslt_ast_node_index node, declared_type *type) {
-    type->has_type = false;
-    type->sequence_type = (sxml_sequence_type){
-        .item_type = sxml_builtin_type_identifier(SXML_TYPE_ITEM),
-        .occurrence = SXML_OCCURRENCE_ZERO_OR_MORE};
-    const sxml_xslt_ast_attribute *as_attribute = find_attribute(lowering, node, SXML_XSLT_AST_ATTRIBUTE_AS);
-    if (as_attribute->value.kind != SXML_XSLT_AST_VALUE_KIND_SEQUENCE_TYPE) {
-        return SXML_STATUS_OK;
-    }
-    const sxml_xslt_ast_expression *expression =
-        sxml_xslt_ast_get_expression(lowering->ast, as_attribute->value.payload.expression);
-    const sxml_xpath_static_context *context =
-        expression_context(lowering, as_attribute->value.payload.expression);
-    if (expression->ast == NULL || context == NULL) {
-        return SXML_STATUS_INVALID_ARGUMENT;
-    }
-    type->has_type = true;
-    return sxml_xpath_resolve_sequence_type(
-        &(sxml_xpath_type_request){.ast = expression->ast,
-                                   .type_node = expression->ast->root,
-                                   .static_context = context,
-                                   .error_record = lowering->error_record},
-        &type->sequence_type);
-}
-
 static bool allows_empty(sxml_sequence_type sequence_type) {
     return sequence_type.occurrence == SXML_OCCURRENCE_ZERO_OR_ONE ||
            sequence_type.occurrence == SXML_OCCURRENCE_ZERO_OR_MORE ||
@@ -302,10 +259,6 @@ typedef sxml_xslt_expression_to_bind expression_binding;
 static sxml_status bind_expression(sxml_xpath_lowerer *lowerer, expression_binding binding,
                                    sxml_ir_atom *atom) {
     return sxml_xslt_lowering_bind_expression(lowerer, &binding, atom);
-}
-
-static sxml_ir_atom slot_atom(sxml_ir_slot slot) {
-    return (sxml_ir_atom){.atom_kind = SXML_IR_ATOM_KIND_SLOT, .slot = slot};
 }
 
 static sxml_ir_expression atom_expression(sxml_ir_atom atom) {
@@ -586,7 +539,7 @@ static bool is_in_template_function(const sxml_xslt_lowering *lowering) {
 typedef struct parameter_plan {
     sxml_name_identifier parameter_name;
     bool is_tunnel;
-    declared_type type;
+    sxml_xslt_declared_type type;
     bool has_select;
     bool has_content;
     /* Explicitly or implicitly mandatory (9.2.2). */
@@ -610,7 +563,7 @@ static sxml_status plan_parameter(const sxml_xslt_lowering *lowering,
                                                          .is_template_name = false})) {
         return report_reserved_name(lowering, parameter);
     }
-    const sxml_status status = resolve_declared_type(lowering, parameter, &plan->type);
+    const sxml_status status = sxml_xslt_lowering_resolve_declared_type(lowering, parameter, &plan->type);
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -668,7 +621,7 @@ static sxml_status bind_context_item_checks(sxml_xpath_lowering_machine *machine
                            (library_call){.block = frame->block,
                                           .function_namespace = SXML_NAMESPACE_FUNCTIONS,
                                           .local_name = "empty",
-                                          .arguments = (const sxml_ir_atom[]){slot_atom(item_slot)},
+                                          .arguments = (const sxml_ir_atom[]){sxml_ir_slot_atom(item_slot)},
                                           .argument_count = 1},
                            &is_absent);
         sxml_ir_expression_index raise = {0};
@@ -700,7 +653,7 @@ static sxml_status bind_context_item_checks(sxml_xpath_lowering_machine *machine
     const sxml_xslt_ast_expression *expression =
         sxml_xslt_ast_get_expression(lowering->ast, as_attribute->value.payload.expression);
     const sxml_xpath_static_context *context =
-        expression_context(lowering, as_attribute->value.payload.expression);
+        sxml_xslt_lowering_expression_context(lowering, as_attribute->value.payload.expression);
     if (expression->ast == NULL || context == NULL) {
         return SXML_STATUS_INVALID_ARGUMENT;
     }
@@ -717,7 +670,7 @@ static sxml_status bind_context_item_checks(sxml_xpath_lowering_machine *machine
     sxml_ir_atom matches = {0};
     if (status == SXML_STATUS_OK) {
         status = bind_expression(lowerer, (expression_binding){.block = frame->block, .expression = (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_INSTANCE_OF,
-                                 .type_test = {.value = slot_atom(item_slot),
+                                 .type_test = {.value = sxml_ir_slot_atom(item_slot),
                                                .sequence_type = {.item_type = item_type,
                                                                  .occurrence =
                                                                      SXML_OCCURRENCE_ZERO_OR_ONE}}}}, &matches);
@@ -752,7 +705,7 @@ static sxml_status lower_supplied_branch(sxml_xpath_lowerer *lowerer, template_b
                                          sxml_ir_atom name) {
     sxml_xpath_lowering_block block = {.first = {0}, .open_let = {0}};
     const sxml_ir_atom arguments[2] = {
-        slot_atom(locals->plan.is_tunnel ? tunnel_parameters_slot : parameters_slot), name};
+        sxml_ir_slot_atom(locals->plan.is_tunnel ? tunnel_parameters_slot : parameters_slot), name};
     sxml_ir_atom value = {0};
     sxml_status status = bind_call(lowerer,
                                    (library_call){.block = &block,
@@ -815,7 +768,7 @@ static sxml_status start_default_branch(sxml_xpath_lowering_machine *machine,
                 .embedding = {.ast = expression->ast,
                               .node = {.value = 0},
                               .static_context =
-                                  expression_context(lowering, select->value.payload.expression),
+                                  sxml_xslt_lowering_expression_context(lowering, select->value.payload.expression),
                               .focus = NULL},
                 .block = NULL,
                 .is_body = true,
@@ -934,7 +887,7 @@ static sxml_status start_parameter(sxml_xpath_lowering_machine *machine,
     }
     if (status == SXML_STATUS_OK) {
         const sxml_ir_atom arguments[2] = {
-            slot_atom(locals->plan.is_tunnel ? tunnel_parameters_slot : parameters_slot), name};
+            sxml_ir_slot_atom(locals->plan.is_tunnel ? tunnel_parameters_slot : parameters_slot), name};
         status = bind_call(lowerer,
                            (library_call){.block = frame->block,
                                           .function_namespace = SXML_NAMESPACE_MAP_FUNCTIONS,
@@ -962,14 +915,14 @@ static sxml_status finish_template_body(sxml_xpath_lowering_machine *machine,
     sxml_xpath_lowerer *lowerer = machine->state;
     template_body_locals *locals = frame->locals;
     const sxml_xslt_lowering *lowering = locals->head.lowering;
-    declared_type type = {.has_type = false};
-    sxml_status status = resolve_declared_type(lowering, locals->head.node, &type);
+    sxml_xslt_declared_type type = {.has_type = false};
+    sxml_status status = sxml_xslt_lowering_resolve_declared_type(lowering, locals->head.node, &type);
     if (status == SXML_STATUS_OK && !type.has_type) {
         /* 6.9.5: a rule without as takes the as of its mode. */
         const sxml_xslt_ast_node_index mode_declaration =
             mode_type_declaration_of(lowering, locals->head.node);
         if (mode_declaration.value != 0) {
-            status = resolve_declared_type(lowering, mode_declaration, &type);
+            status = sxml_xslt_lowering_resolve_declared_type(lowering, mode_declaration, &type);
         }
     }
     sxml_ir_atom value = locals->value;
@@ -1173,7 +1126,7 @@ typedef struct parameter_maps_locals {
     /* The with-param being lowered and its type. */
     sxml_xslt_ast_node_index next_child;
     sxml_xslt_ast_node_index current;
-    declared_type type;
+    sxml_xslt_declared_type type;
     bool has_content;
     /* Owned memory 0. */
     with_parameter *values;
@@ -1203,7 +1156,7 @@ static sxml_status start_with_parameter(sxml_xpath_lowering_machine *machine,
                                        "have the same name (XSLT 4.0, 9.10)"));
         }
     }
-    sxml_status status = resolve_declared_type(lowering, current, &locals->type);
+    sxml_status status = sxml_xslt_lowering_resolve_declared_type(lowering, current, &locals->type);
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -1398,8 +1351,8 @@ static inherited_maps inherited_maps_of(const sxml_xslt_lowering *lowering) {
     if (!is_in_template_function(lowering)) {
         return (inherited_maps){.parameters = empty_map, .tunnel_parameters = empty_map};
     }
-    return (inherited_maps){.parameters = slot_atom(parameters_slot),
-                            .tunnel_parameters = slot_atom(tunnel_parameters_slot)};
+    return (inherited_maps){.parameters = sxml_ir_slot_atom(parameters_slot),
+                            .tunnel_parameters = sxml_ir_slot_atom(tunnel_parameters_slot)};
 }
 
 bool sxml_xslt_lowering_received_tunnel_parameters(const sxml_xslt_lowering *lowering,
@@ -1407,7 +1360,7 @@ bool sxml_xslt_lowering_received_tunnel_parameters(const sxml_xslt_lowering *low
     if (!is_in_template_function(lowering)) {
         return false;
     }
-    *tunnel_parameters = slot_atom(tunnel_parameters_slot);
+    *tunnel_parameters = sxml_ir_slot_atom(tunnel_parameters_slot);
     return true;
 }
 
@@ -1655,10 +1608,10 @@ static sxml_status continue_overriding(sxml_xpath_lowering_machine *machine,
                                                .frame = frame,
                                                .base_parameters =
                                                    version >= 4.0
-                                                       ? slot_atom(parameters_slot)
+                                                       ? sxml_ir_slot_atom(parameters_slot)
                                                        : lowering->templates->empty_map,
                                                .base_tunnel_parameters =
-                                                   slot_atom(tunnel_parameters_slot),
+                                                   sxml_ir_slot_atom(tunnel_parameters_slot),
                                                .parameters = &locals->parameters,
                                                .tunnel_parameters = &locals->tunnel_parameters});
     }
@@ -2580,8 +2533,8 @@ static sxml_status bind_built_in_apply(sxml_xpath_lowerer *lowerer, snippet_bind
             .apply_templates = {.select = select,
                                 .mode = {.value = 0},
                                 .rule_search = SXML_IR_RULE_SEARCH_FROM_START,
-                                .parameters = slot_atom(parameters_slot),
-                                .tunnel_parameters = slot_atom(tunnel_parameters_slot),
+                                .parameters = sxml_ir_slot_atom(parameters_slot),
+                                .tunnel_parameters = sxml_ir_slot_atom(tunnel_parameters_slot),
                                 .separator = {.atom_kind = SXML_IR_ATOM_KIND_NONE}}}}, atom);
 }
 
@@ -2628,7 +2581,7 @@ static sxml_status bind_copy(sxml_xpath_lowerer *lowerer, copy_request request,
         return status;
     }
     return bind_expression(lowerer, (expression_binding){.block = request.block, .expression = (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_SHALLOW_COPY,
-                             .node_construction = {.value = slot_atom(item_slot),
+                             .node_construction = {.value = sxml_ir_slot_atom(item_slot),
                                                    .content = content,
                                                    .construction_flags =
                                                        request.construction_flags}}}, atom);
@@ -2646,7 +2599,7 @@ static sxml_status lower_built_in_action(sxml_xpath_lowerer *lowerer,
     const snippet_binding attributes = {
         .lowering = lowering.lowering, .kind = SXML_SNIPPET_ATTRIBUTES, .block = &block};
     sxml_ir_atom atoms[2] = {{0}, {0}};
-    sxml_ir_atom result = slot_atom(item_slot);
+    sxml_ir_atom result = sxml_ir_slot_atom(item_slot);
     sxml_status status = SXML_STATUS_OK;
     switch (action) {
     case SXML_BUILT_IN_ACTION_NOTHING:
@@ -2895,44 +2848,18 @@ static bool comes_before(const pending_rule *first, const pending_rule *second) 
     return first->node_number > second->node_number;
 }
 
-/* A heap of pending rules (heapsort: no recursion, O(n log n)). */
-typedef struct rule_heap {
-    pending_rule *rules;
-    size_t rule_count;
-} rule_heap;
-
-static void sift_down(rule_heap heap, size_t root) {
-    size_t parent = root;
-    for (;;) {
-        size_t last = parent;
-        const size_t left = 2 * parent + 1;
-        if (left < heap.rule_count && comes_before(&heap.rules[last], &heap.rules[left])) {
-            last = left;
-        }
-        if (left + 1 < heap.rule_count &&
-            comes_before(&heap.rules[last], &heap.rules[left + 1])) {
-            last = left + 1;
-        }
-        if (last == parent) {
-            return;
-        }
-        const pending_rule moved = heap.rules[parent];
-        heap.rules[parent] = heap.rules[last];
-        heap.rules[last] = moved;
-        parent = last;
-    }
+static bool rule_is_before(const void *state, sxml_sort_pair pair) {
+    (void)state;
+    return comes_before(pair.first, pair.second);
 }
 
+/* Into the unit's rule order (src/sort.c: a heapsort, no recursion). */
 static void sort_rules(pending_rule *rules, size_t rule_count) {
-    for (size_t heap_root = rule_count / 2; heap_root > 0; heap_root -= 1) {
-        sift_down((rule_heap){.rules = rules, .rule_count = rule_count}, heap_root - 1);
-    }
-    for (size_t heap_end = rule_count; heap_end > 1; heap_end -= 1) {
-        const pending_rule last = rules[0];
-        rules[0] = rules[heap_end - 1];
-        rules[heap_end - 1] = last;
-        sift_down((rule_heap){.rules = rules, .rule_count = heap_end - 1}, 0);
-    }
+    sxml_sort_in_place(&(sxml_sort_request){.elements = rules,
+                                            .element_count = rule_count,
+                                            .element_size = sizeof(pending_rule),
+                                            .is_before = rule_is_before,
+                                            .state = NULL});
 }
 
 /* The modes entry applies to (6.9.2), as positions in templates->modes:
@@ -2999,7 +2926,7 @@ static sxml_status priority_of(const sxml_xslt_lowering *lowering, const templat
     return sxml_xslt_pattern_compute_default_priority(
         &(sxml_xslt_pattern_priority_request){.pattern_ast = pattern->ast,
                                               .static_context =
-                                                  expression_context(lowering, entry->pattern),
+                                                  sxml_xslt_lowering_expression_context(lowering, entry->pattern),
                                               .is_any_namespace = context->is_any_namespace,
                                               .error_record = lowering->error_record},
         priority);
@@ -3048,7 +2975,7 @@ static sxml_status add_rules_and_modes(const sxml_xslt_lowering *lowering) {
             lowerer,
             &(sxml_xslt_pattern_match_function_request){
                 .pattern_ast = pattern->ast,
-                .static_context = expression_context(lowering, entry->pattern)},
+                .static_context = sxml_xslt_lowering_expression_context(lowering, entry->pattern)},
             &entry->match_function);
         double priority = 0;
         if (status == SXML_STATUS_OK) {

@@ -226,6 +226,10 @@ sxml_xml_decoded_codepoint sxml_xml_decode_codepoint(sxml_byte_view utf8,
 /* True when name matches [5] Name. */
 bool sxml_xml_text_is_name(sxml_byte_view name);
 
+/* text without its leading and trailing [3] S characters (the
+   whitespace-trimmed value of an attribute, XSLT 4.0, 2.4). */
+sxml_byte_view sxml_xml_text_trim_whitespace(sxml_byte_view text);
+
 /* ---------------------------------------------------- Positions */
 
 /*

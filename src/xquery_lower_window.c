@@ -51,12 +51,6 @@ static sxml_ir_source_span span_of(const sxml_xpath_lowerer *state, sxml_ast_nod
                                  .column_number = span.column_number};
 }
 
-/* ----------------------------------------------------------- IR helpers */
-
-static sxml_ir_atom slot_atom(sxml_ir_slot slot) {
-    return (sxml_ir_atom){.atom_kind = SXML_IR_ATOM_KIND_SLOT, .slot = slot};
-}
-
 typedef struct expression_in_block {
     sxml_xpath_lowering_block *block;
     sxml_ast_node_index node;
@@ -566,7 +560,7 @@ static sxml_status find_captures(sxml_xpath_lowering_machine *machine,
         } else {
             captures[capture_count] = (sxml_xpath_lowering_capture_entry){
                 .variable_name = name,
-                .atom = slot_atom((sxml_ir_slot){
+                .atom = sxml_ir_slot_atom((sxml_ir_slot){
                     .value = locals->parameter_count + (uint32_t)captured_count + 1U})};
             locals->outer_atoms[captured_count] = outer;
             captured_count += 1;
@@ -632,7 +626,7 @@ static sxml_status begin_closure(sxml_xpath_lowering_machine *machine,
                 state, (sxml_xpath_lowering_scope_entry){
                            .variable_name = name,
                            .function_level = state->function->function_level,
-                           .atom = slot_atom((sxml_ir_slot){.value = parameter_index + 1U})});
+                           .atom = sxml_ir_slot_atom((sxml_ir_slot){.value = parameter_index + 1U})});
         }
     }
     if (status != SXML_STATUS_OK) {
@@ -642,7 +636,7 @@ static sxml_status begin_closure(sxml_xpath_lowering_machine *machine,
     status = sxml_xquery_unpack_tuple(
         state, &(sxml_xquery_tuple_unpacking){.block = &locals->closure_block,
                                               .node = locals->clause,
-                                              .tuple = slot_atom((sxml_ir_slot){.value = 1}),
+                                              .tuple = sxml_ir_slot_atom((sxml_ir_slot){.value = 1}),
                                               .layout = locals->tuple_layout});
     if (status != SXML_STATUS_OK) {
         return status;
@@ -710,7 +704,7 @@ static sxml_status finish_closure_body(sxml_xpath_lowerer *state, closure_locals
             (sxml_xpath_lowering_expression_to_add){
                 .node = locals->clause,
                 .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_ATOM,
-                               .atom = slot_atom((sxml_ir_slot){
+                               .atom = sxml_ir_slot_atom((sxml_ir_slot){
                                    .value = locals->parameter_count +
                                             (uint32_t)locals->captured_count +
                                             captured_part_count})}},
@@ -1018,7 +1012,7 @@ static sxml_status begin_window_body(sxml_xpath_lowering_machine *machine,
                     .block = &locals->body_block,
                     .node = name_node,
                     .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_LOOKUP,
-                                   .lookup = {.value = slot_atom(locals->item), .key = key}}},
+                                   .lookup = {.value = sxml_ir_slot_atom(locals->item), .key = key}}},
                 &value);
         }
         if (status != SXML_STATUS_OK) {

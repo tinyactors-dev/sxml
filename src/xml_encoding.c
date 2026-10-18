@@ -519,6 +519,17 @@ sxml_xml_decoded_codepoint sxml_xml_decode_codepoint(sxml_byte_view utf8,
         .codepoint = codepoint, .encoded_byte_count = encoded_byte_count};
 }
 
+sxml_byte_view sxml_xml_text_trim_whitespace(sxml_byte_view text) {
+    while (text.byte_count > 0 && sxml_xml_byte_is_whitespace(text.bytes[0])) {
+        text.bytes += 1;
+        text.byte_count -= 1;
+    }
+    while (text.byte_count > 0 && sxml_xml_byte_is_whitespace(text.bytes[text.byte_count - 1])) {
+        text.byte_count -= 1;
+    }
+    return text;
+}
+
 bool sxml_xml_text_is_name(sxml_byte_view name) {
     if (name.byte_count == 0) {
         return false;

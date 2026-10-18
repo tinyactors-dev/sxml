@@ -218,6 +218,7 @@ static sxml_node_description sxml_node_description_empty(void) {
         .is_id = false,
         .is_idrefs = false,
         .is_nilled = false,
+        .is_cdata_section = false,
     };
 }
 
@@ -648,7 +649,9 @@ static sxml_status sxml_node_copy_send_leaf(
     case SXML_NODE_KIND_TEXT:
         return operations->add_text(
             copy->builder.state,
-            &(sxml_text_event){.text = content, .location = location});
+            &(sxml_text_event){.text = content,
+                               .location = location,
+                               .is_cdata_section = description->is_cdata_section});
     case SXML_NODE_KIND_COMMENT:
         return operations->add_comment(
             copy->builder.state,

@@ -21,6 +21,7 @@
 #include "sxml/name.h"
 #include "sxml/string.h"
 #include "xdm_internal.h"
+#include "xml_internal.h"
 
 #include <stdalign.h>
 #include <string.h>
@@ -1150,9 +1151,17 @@ typedef struct sxml_json_value_frame {
 
 /* Makes XDM values from events (fn:parse-json). Every value on its stacks
    is owned. */
+/* Keys an object of a parse reuses: the items of the first distinct keys
+   (retained), so the keys that every object of an array repeats are one
+   item each, not one per object (D163). Bounded, so a lookup stays cheap. */
+#define SXML_JSON_KEY_CACHE_SIZE 32U
+
 typedef struct sxml_json_value_sink {
     sxml_item_heap *item_heap;
     const sxml_json_text_request *request;
+    sxml_item cached_keys[SXML_JSON_KEY_CACHE_SIZE];
+    sxml_byte_view cached_key_texts[SXML_JSON_KEY_CACHE_SIZE];
+    size_t cached_key_count;
     sxml_json_list frames;
     /* The entries of the open objects (sxml_map_entry). */
     sxml_json_list entries;
@@ -1350,8 +1359,28 @@ static sxml_status sxml_json_value_sink_add_key(sxml_json_value_sink *sink,
     void *entry = NULL;
     sxml_status status = sxml_json_list_reserve(&sink->entries, &entry);
     sxml_item key = {.representation = 0};
-    if (status == SXML_STATUS_OK) {
+    bool is_cached = false;
+    for (size_t key_index = 0; status == SXML_STATUS_OK && key_index < sink->cached_key_count;
+         key_index += 1) {
+        if (sxml_byte_view_equals(sink->cached_key_texts[key_index], key_text)) {
+            key = sink->cached_keys[key_index];
+            sxml_item_retain(key);
+            is_cached = true;
+            break;
+        }
+    }
+    if (status == SXML_STATUS_OK && !is_cached) {
         status = sxml_json_make_string_item(sink->item_heap, key_text, &key);
+        sxml_atomic_datum datum;
+        memset(&datum, 0, sizeof(datum));
+        if (status == SXML_STATUS_OK && sink->cached_key_count < SXML_JSON_KEY_CACHE_SIZE &&
+            sxml_atomic_item_get_datum(key, &datum) == SXML_STATUS_OK) {
+            /* The text is the item's own, valid while the item lives. */
+            sxml_item_retain(key);
+            sink->cached_keys[sink->cached_key_count] = key;
+            sink->cached_key_texts[sink->cached_key_count] = datum.datum_details.string.utf8;
+            sink->cached_key_count += 1;
+        }
     }
     if (status == SXML_STATUS_OK) {
         *(sxml_map_entry *)entry =
@@ -1421,6 +1450,7 @@ sxml_status sxml_json_make_value(sxml_item_heap *item_heap,
         .members = SXML_JSON_LIST(request->allocator, sxml_sequence),
         .has_value = false,
         .value = sxml_sequence_empty(),
+        .cached_key_count = 0,
     };
     const sxml_status status = sxml_json_parse(
         item_heap, request,
@@ -1434,6 +1464,9 @@ sxml_status sxml_json_make_value(sxml_item_heap *item_heap,
          member_index += 1) {
         sxml_sequence_release(
             *(const sxml_sequence *)sxml_json_list_at(&sink.members, member_index));
+    }
+    for (size_t key_index = 0; key_index < sink.cached_key_count; key_index += 1) {
+        sxml_item_release(sink.cached_keys[key_index]);
     }
     sxml_json_list_release(&sink.frames);
     sxml_json_list_release(&sink.entries);
@@ -1807,21 +1840,6 @@ static sxml_status sxml_json_report_invalid(const sxml_json_writer *writer) {
                                     &sxml_json_invalid_representation_error);
 }
 
-static bool sxml_json_is_whitespace(uint8_t byte) {
-    return byte == ' ' || byte == '\t' || byte == '\n' || byte == '\r';
-}
-
-static sxml_byte_view sxml_json_trim(sxml_byte_view text) {
-    while (text.byte_count > 0 && sxml_json_is_whitespace(text.bytes[0])) {
-        text.bytes += 1;
-        text.byte_count -= 1;
-    }
-    while (text.byte_count > 0 && sxml_json_is_whitespace(text.bytes[text.byte_count - 1])) {
-        text.byte_count -= 1;
-    }
-    return text;
-}
-
 /* The xs:boolean lexical form after whitespace collapsing (XSD 1.1 Part
    2, section 3.3.2): writes the value, or returns false when text is not
    one. */
@@ -1831,7 +1849,7 @@ typedef struct sxml_json_boolean_reading {
 } sxml_json_boolean_reading;
 
 static sxml_json_boolean_reading sxml_json_read_boolean(sxml_byte_view text) {
-    text = sxml_json_trim(text);
+    text = sxml_xml_text_trim_whitespace(text);
     const bool is_true = sxml_byte_view_equals(text, SXML_BYTE_VIEW_FROM_LITERAL("true")) ||
                          sxml_byte_view_equals(text, SXML_BYTE_VIEW_FROM_LITERAL("1"));
     const bool is_false = sxml_byte_view_equals(text, SXML_BYTE_VIEW_FROM_LITERAL("false")) ||
@@ -1974,7 +1992,7 @@ static sxml_status sxml_json_read_leaf_content(sxml_json_writer *writer,
         has_child = child_description.has_next_sibling;
         child_index = child_description.next_sibling;
     }
-    if (!allows_text && sxml_json_trim(sxml_json_bytes_view(&writer->content)).byte_count > 0) {
+    if (!allows_text && sxml_xml_text_trim_whitespace(sxml_json_bytes_view(&writer->content)).byte_count > 0) {
         return sxml_json_report_invalid(writer);
     }
     return SXML_STATUS_OK;
@@ -1992,7 +2010,7 @@ static bool sxml_json_is_digit(uint8_t byte) {
  * point that has no digit.
  */
 static sxml_status sxml_json_write_number(sxml_json_writer *writer, sxml_byte_view text) {
-    text = sxml_json_trim(text);
+    text = sxml_xml_text_trim_whitespace(text);
     size_t offset = 0;
     bool is_negative = false;
     if (offset < text.byte_count && (text.bytes[offset] == '+' || text.bytes[offset] == '-')) {
@@ -2346,7 +2364,7 @@ static sxml_status sxml_json_write_next_child(sxml_json_writer *writer) {
         if (description.node_kind == SXML_NODE_KIND_TEXT) {
             sxml_byte_view text = {.bytes = NULL, .byte_count = 0};
             status = sxml_node_get_content(child, &text);
-            if (status == SXML_STATUS_OK && sxml_json_trim(text).byte_count > 0) {
+            if (status == SXML_STATUS_OK && sxml_xml_text_trim_whitespace(text).byte_count > 0) {
                 status = sxml_json_report_invalid(writer);
             }
             if (status != SXML_STATUS_OK) {

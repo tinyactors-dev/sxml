@@ -825,12 +825,6 @@ void sxml_xslt_release_functions(sxml_xslt_function_table *table) {
     sxml_allocator_release(table->allocator, table);
 }
 
-/* ------------------------------------------------------------- Lowering */
-
-static sxml_ir_atom slot_atom(uint32_t slot) {
-    return (sxml_ir_atom){.atom_kind = SXML_IR_ATOM_KIND_SLOT, .slot = {.value = slot}};
-}
-
 /* Parses text and keeps the AST until release. */
 static sxml_status parse_snippet(sxml_xslt_function_table *table, sxml_byte_view text,
                                  sxml_ast **ast) {
@@ -927,7 +921,7 @@ static sxml_status lower_snippet_function(sxml_xslt_function_table *table,
             lowerer, (sxml_xpath_lowering_scope_entry){
                          .variable_name = table->variable_names[request.variables[parameter]],
                          .function_level = 0,
-                         .atom = slot_atom(parameter + 1)});
+                         .atom = sxml_ir_slot_atom((sxml_ir_slot){.value = parameter + 1})});
     }
     sxml_ir_expression_index body = {0};
     if (status == SXML_STATUS_OK) {
@@ -950,7 +944,7 @@ static sxml_status lower_snippet_function(sxml_xslt_function_table *table,
             status = sxml_xslt_bind_accumulator_link(
                 lowerer,
                 (sxml_xslt_accumulator_link_request){
-                    .block = &block, .copies = copies, .originals = slot_atom(1)},
+                    .block = &block, .copies = copies, .originals = sxml_ir_slot_atom((sxml_ir_slot){.value = 1})},
                 &copies);
         }
         sxml_ir_expression_index result = {0};
@@ -1009,7 +1003,7 @@ static sxml_status lower_match_wrapper(sxml_xslt_function_table *table,
         .focus = {.kind = SXML_XPATH_LOWERING_FOCUS_KIND_ABSENT},
     };
     sxml_xpath_lowerer_enter_function(lowerer, &frame);
-    const sxml_ir_atom item = slot_atom(1);
+    const sxml_ir_atom item = sxml_ir_slot_atom((sxml_ir_slot){.value = 1});
     sxml_ir_atom_list arguments = {0};
     status = sxml_ir_unit_add_atoms(
         lowerer->unit, (sxml_ir_atom_view){.atoms = &item, .atom_count = 1}, &arguments);
@@ -1100,7 +1094,7 @@ static sxml_status lower_use_function(sxml_xslt_function_table *table,
                      .slot_count = 1,
                      .captures = NULL,
                      .capture_count = 0},
-        .focus = {.kind = SXML_XPATH_LOWERING_FOCUS_KIND_FIXED, .fixed_value = slot_atom(1)},
+        .focus = {.kind = SXML_XPATH_LOWERING_FOCUS_KIND_FIXED, .fixed_value = sxml_ir_slot_atom((sxml_ir_slot){.value = 1})},
     };
     sxml_xpath_lowerer_enter_function(lowerer, &frame);
     const sxml_xslt_ast_attribute *use =
@@ -1378,7 +1372,7 @@ static sxml_status lower_copy_of(sxml_xslt_function_table *table) {
     sxml_status status = sxml_xslt_lowering_bind_copy_of(
         lowerer,
         (sxml_xslt_copy_request){.block = &block,
-                                 .value = slot_atom(1),
+                                 .value = sxml_ir_slot_atom((sxml_ir_slot){.value = 1}),
                                  .construction_flags = (uint32_t)SXML_IR_CONSTRUCTION_XSLT_RULES},
         &copies);
     if (status == SXML_STATUS_OK && sxml_xslt_has_accumulators(table->lowering)) {
@@ -1387,7 +1381,7 @@ static sxml_status lower_copy_of(sxml_xslt_function_table *table) {
         status = sxml_xslt_bind_accumulator_link(
             lowerer,
             (sxml_xslt_accumulator_link_request){
-                .block = &block, .copies = copies, .originals = slot_atom(1)},
+                .block = &block, .copies = copies, .originals = sxml_ir_slot_atom((sxml_ir_slot){.value = 1})},
             &copies);
     }
     sxml_ir_expression_index result = {0};

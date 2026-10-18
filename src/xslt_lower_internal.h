@@ -325,16 +325,63 @@ typedef struct sxml_xslt_simple_content_request {
 SXML_NODISCARD sxml_status sxml_xslt_lowering_bind_simple_content(
     sxml_xpath_lowerer *lowerer, sxml_xslt_simple_content_request request, sxml_ir_atom *atom);
 
+/* The XPath static context of an expression of the AST; NULL for none. */
+const sxml_xpath_static_context *
+sxml_xslt_lowering_expression_context(const sxml_xslt_lowering *lowering,
+                                      sxml_xslt_ast_expression_index expression);
+
+/* The sequence type of node's as attribute; item()* (has_type false)
+   without one. */
+typedef struct sxml_xslt_declared_type {
+    bool has_type;
+    sxml_sequence_type sequence_type;
+} sxml_xslt_declared_type;
+
+SXML_NODISCARD sxml_status sxml_xslt_lowering_resolve_declared_type(
+    const sxml_xslt_lowering *lowering, sxml_xslt_ast_node_index node,
+    sxml_xslt_declared_type *type);
+
+/* A boolean attribute's fixed text (XSLT 4.0, 2.4 and 3.3: yes, true or
+   1; no, false or 0; whitespace trimmed): is_valid false for another. */
+typedef struct sxml_xslt_boolean_text {
+    bool is_valid;
+    bool is_yes;
+} sxml_xslt_boolean_text;
+
+sxml_xslt_boolean_text sxml_xslt_lowering_read_boolean_text(sxml_byte_view text);
+
+/* A boolean attribute value template computed at run time: binds in block
+   whether normalize-space(value) is yes, true or 1 (xsl:message
+   terminate, the cdata attribute). */
+typedef struct sxml_xslt_boolean_value {
+    sxml_xpath_lowering_block *block;
+    sxml_ir_atom value;
+} sxml_xslt_boolean_value;
+
+SXML_NODISCARD sxml_status sxml_xslt_lowering_bind_boolean_value(sxml_xpath_lowerer *lowerer,
+                                                                 sxml_xslt_boolean_value request,
+                                                                 sxml_ir_atom *atom);
+
 /*
  * The internal native row behind simple content (in no function table,
  * called by STATIC_CALL with arguments of its types, as group by's rows
  * are): merge-text-nodes($value as item()*) as item()* returns $value with
- * each run of two or more adjacent text nodes replaced by one
- * xs:untypedAtomic of their concatenated string values (5.7.2, steps 1
- * and 2; sxml has no zero-length text nodes, D40). Defined in
+ * zero-length text nodes removed and each run of two or more adjacent
+ * text nodes replaced by one xs:untypedAtomic of their concatenated
+ * string values (5.7.2, steps 1 and 2; D163). Defined in
  * src/xslt_simple_content.c.
  */
 extern const sxml_native_function sxml_xslt_merge_text_nodes_function;
+
+/*
+ * The internal native row of xsl:function cache="yes" (10.3.7, D163),
+ * called by STATIC_CALL from a cached function's full arity:
+ * cached-call($number as xs:integer, $arguments as array(*), $body as
+ * function(*)) as item()* calls $body with the members of $arguments once
+ * per evaluation and per arguments ($number names the function) and keeps
+ * the value in the evaluation memo. Defined in src/function_library_xslt.c.
+ */
+extern const sxml_native_function sxml_xslt_cached_call_function;
 
 /* -------------------------------------------------------------- Copies */
 

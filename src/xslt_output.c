@@ -29,6 +29,7 @@
 #include "sxml/tree.h"
 #include "xdm_internal.h"
 #include "xslt_lower_internal.h"
+#include "xml_internal.h"
 
 #include <stdalign.h>
 #include <stdbool.h>
@@ -271,22 +272,8 @@ static sxml_status append_eqname(text_builder *builder, eqname_append request) {
     return status;
 }
 
-static bool is_space_byte(uint8_t byte) {
-    return byte == ' ' || byte == '\t' || byte == '\n' || byte == '\r';
-}
-
-static sxml_byte_view trim_spaces(sxml_byte_view text) {
-    while (text.byte_count > 0 && is_space_byte(text.bytes[0])) {
-        text = (sxml_byte_view){.bytes = text.bytes + 1, .byte_count = text.byte_count - 1};
-    }
-    while (text.byte_count > 0 && is_space_byte(text.bytes[text.byte_count - 1])) {
-        text.byte_count -= 1;
-    }
-    return text;
-}
-
 static bool is_whitespace_text(sxml_byte_view text) {
-    return trim_spaces(text).byte_count == 0;
+    return sxml_xml_text_trim_whitespace(text).byte_count == 0;
 }
 
 /* yes, true, 1 or no, false, 0 (XSLT 4.0, 26.1.4), spaces trimmed. */
@@ -296,7 +283,7 @@ typedef struct boolean_text {
 } boolean_text;
 
 static boolean_text read_boolean_text(sxml_byte_view text) {
-    const sxml_byte_view trimmed = trim_spaces(text);
+    const sxml_byte_view trimmed = sxml_xml_text_trim_whitespace(text);
     static const char *const true_texts[] = {"yes", "true", "1"};
     static const char *const false_texts[] = {"no", "false", "0"};
     for (size_t text_index = 0; text_index < 3; text_index += 1) {
@@ -2554,7 +2541,7 @@ typedef struct format_lookup {
 
 static const compiled_definition *find_format(format_lookup lookup) {
     const sxml_name_pool *name_pool = lookup.writer->processor->name_pool;
-    const sxml_byte_view text = trim_spaces(lookup.text);
+    const sxml_byte_view text = sxml_xml_text_trim_whitespace(lookup.text);
     sxml_namespace_uri_identifier namespace_uri = {.index = SXML_NAMESPACE_NONE};
     sxml_byte_view local_name = text;
     if (text.byte_count > 2 && text.bytes[0] == 'Q' && text.bytes[1] == '{') {
@@ -2888,7 +2875,7 @@ static sxml_status open_result_document_of(sxml_xslt_result_writer *writer, cons
     /* 26.2.2: href resolved against the base output URI. */
     sxml_uri_resolution resolution = {.uri = {.bytes = NULL, .byte_count = 0}, .memory = NULL};
     status = sxml_uri_resolve(&(sxml_uri_resolution_request){.base_uri = writer->base_output_uri,
-                                                             .reference = trim_spaces(href),
+                                                             .reference = sxml_xml_text_trim_whitespace(href),
                                                              .allocator = writer->processor->allocator},
                               &resolution);
     if (status != SXML_STATUS_OK) {
