@@ -8,6 +8,7 @@
 static const sxml_cli_command *const sxml_program_commands[] = {
     &sxml_check_command,
     &sxml_serialize_command,
+    &sxml_transform_command,
     &sxml_version_command,
     &sxml_xpath_command,
     &sxml_xquery_command,

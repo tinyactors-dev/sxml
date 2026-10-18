@@ -37,15 +37,23 @@ static const sxml_serialization_method sxml_query_method_values[SXML_QUERY_METHO
 /* --------------------------------------------------------------- Files */
 
 /* fn:doc reads local files: a URI reference without a scheme is a path
-   relative to the working directory, a "file:" URI its path. */
+   relative to the working directory, a "file://" URI its path, and a
+   "file:" URI without an authority (sxml transform's base URI for a
+   relative stylesheet path) its relative path. */
 static sxml_byte_view sxml_query_local_path(const sxml_resource_request *request) {
     const sxml_byte_view file_scheme = SXML_TEXT("file://");
+    const sxml_byte_view relative_scheme = SXML_TEXT("file:");
     sxml_byte_view uri = request->absolute_uri.byte_count > 0 ? request->absolute_uri
                                                               : request->uri_reference;
     if (uri.byte_count > file_scheme.byte_count &&
         memcmp(uri.bytes, file_scheme.bytes, file_scheme.byte_count) == 0) {
         return (sxml_byte_view){.bytes = uri.bytes + file_scheme.byte_count,
                                 .byte_count = uri.byte_count - file_scheme.byte_count};
+    }
+    if (uri.byte_count > relative_scheme.byte_count &&
+        memcmp(uri.bytes, relative_scheme.bytes, relative_scheme.byte_count) == 0) {
+        return (sxml_byte_view){.bytes = uri.bytes + relative_scheme.byte_count,
+                                .byte_count = uri.byte_count - relative_scheme.byte_count};
     }
     for (size_t byte_index = 0; byte_index < uri.byte_count; byte_index += 1) {
         const uint8_t byte = uri.bytes[byte_index];
@@ -395,11 +403,15 @@ sxml_cli_exit_code sxml_query_run_parse_document(sxml_query_run *run, sxml_byte_
    on. */
 static sxml_cli_exit_code sxml_query_read_context_item(sxml_query_run *run) {
     sxml_cli_option_match match = {.is_present = false, .occurrence_count = 0};
-    if (sxml_cli_arguments_find_option(run->invocation->arguments,
-                                       (sxml_cli_option_lookup){.long_name =
-                                                                    SXML_TEXT("context-item"),
-                                                                .occurrence_index = 0},
-                                       &match) != SXML_STATUS_OK) {
+    const sxml_status status = sxml_cli_arguments_find_option(
+        run->invocation->arguments,
+        (sxml_cli_option_lookup){.long_name = SXML_TEXT("context-item"), .occurrence_index = 0},
+        &match);
+    if (status == SXML_STATUS_INVALID_ARGUMENT) {
+        /* The command has no --context-item (sxml transform: INPUT). */
+        return SXML_CLI_EXIT_SUCCESS;
+    }
+    if (status != SXML_STATUS_OK) {
         return SXML_CLI_EXIT_INTERNAL_ERROR;
     }
     if (!match.is_present) {

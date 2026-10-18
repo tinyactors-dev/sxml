@@ -6,6 +6,7 @@ Commands:
   help       Show help for the program or for one command
   check      Check that XML documents are namespace-well-formed
   serialize  Write an XML document by a serialization method
+  transform  Run an XSLT 4.0 transformation
   version    Print the sxml library version
   xpath      Evaluate an XPath 4.0 expression
   xquery     Evaluate an XQuery 4.0 query
