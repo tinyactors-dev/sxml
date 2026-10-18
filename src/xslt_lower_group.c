@@ -167,9 +167,12 @@ static sxml_byte_view trim_whitespace(sxml_byte_view text) {
                             .byte_count = end - start};
 }
 
-static bool text_equals(sxml_byte_view text, const char *literal) {
-    return sxml_byte_view_equals(trim_whitespace(text), sxml_byte_view_from_c_string(literal));
+static bool text_equals(sxml_byte_view text, sxml_byte_view literal) {
+    return sxml_byte_view_equals(trim_whitespace(text), literal);
 }
+
+/* Whether text, trimmed, is the string literal. */
+#define TEXT_IS(text, literal) text_equals((text), SXML_BYTE_VIEW_FROM_LITERAL(literal))
 
 static bool is_ascii_letter(uint8_t byte) {
     return (byte >= 'a' && byte <= 'z') || (byte >= 'A' && byte <= 'Z');
@@ -208,8 +211,8 @@ static bool is_language(sxml_byte_view text) {
 
 /* Whether text is an xs:boolean's lexical form (stable, 13.1). */
 static bool is_boolean_text(sxml_byte_view text) {
-    return text_equals(text, "yes") || text_equals(text, "no") || text_equals(text, "true") ||
-           text_equals(text, "false") || text_equals(text, "1") || text_equals(text, "0");
+    return TEXT_IS(text, "yes") || TEXT_IS(text, "no") || TEXT_IS(text, "true") ||
+           TEXT_IS(text, "false") || TEXT_IS(text, "1") || TEXT_IS(text, "0");
 }
 
 /* Whether text names a data type other than text and number: an EQName
@@ -345,16 +348,26 @@ static const sxml_xslt_error_mapping grouping_mappings[] = {
          "The collation of xsl:for-each-group is not one sxml recognizes (XSLT 4.0, 14.1)")},
 };
 
+/* Written by a step that may push a part: whether it did. */
+typedef struct step_outcome {
+    bool is_pushed;
+} step_outcome;
+
+/* Written by add_fixed_collation: whether the collation is a constant. */
+typedef struct collation_fixing {
+    bool is_fixed;
+} collation_fixing;
+
 /* =============================================================== Scope */
 
 /* Puts the variable Q{XSLT}local_name in scope with atom's value. */
-static sxml_status push_xslt_variable(sxml_xpath_lowerer *lowerer, const char *local_name,
+static sxml_status push_xslt_variable(sxml_xpath_lowerer *lowerer, sxml_byte_view local_name,
                                       sxml_ir_atom atom) {
     sxml_name_identifier name = {0};
     const sxml_status status = sxml_name_pool_intern_name(
         lowerer->name_pool,
         &(sxml_name_request){.namespace_uri = {.index = SXML_NAMESPACE_XSLT},
-                             .local_name = sxml_byte_view_from_c_string(local_name)},
+                             .local_name = local_name},
         &name);
     if (status != SXML_STATUS_OK) {
         return status;
@@ -369,11 +382,11 @@ static sxml_status push_xslt_variable(sxml_xpath_lowerer *lowerer, const char *l
 /* =============================================================== Texts */
 
 /* Parses text (kept until the lowering ends). */
-static sxml_status parse_kept(const sxml_xslt_lowering *lowering, const char *text,
+static sxml_status parse_kept(const sxml_xslt_lowering *lowering, sxml_byte_view text,
                               sxml_ast **ast) {
     sxml_ast *made = NULL;
     const sxml_status status = sxml_xpath_build_ast(
-        &(sxml_ast_build_request){.expression_text = sxml_byte_view_from_c_string(text),
+        &(sxml_ast_build_request){.expression_text = text,
                                   .source_name = {.bytes = NULL, .byte_count = 0},
                                   .allocator = lowering->lowerer->allocator,
                                   .maximum_expression_depth = 0,
@@ -415,7 +428,8 @@ static sxml_status continue_text(sxml_xpath_lowering_machine *machine,
     }
     frame->step = 1;
     sxml_ast *ast = NULL;
-    sxml_status status = parse_kept(locals->lowering, locals->text, &ast);
+    sxml_status status =
+        parse_kept(locals->lowering, sxml_byte_view_from_c_string(locals->text), &ast);
     sxml_namespace_uri_identifier namespace_uri = {0};
     if (status == SXML_STATUS_OK) {
         status = sxml_name_pool_intern_namespace_uri(
@@ -607,10 +621,11 @@ typedef struct group_scope {
 } group_scope;
 
 static sxml_status push_group_scope(sxml_xpath_lowerer *lowerer, group_scope scope) {
-    sxml_status status = push_xslt_variable(lowerer, "current-group", scope.view->group);
+    sxml_status status = push_xslt_variable(
+        lowerer, SXML_BYTE_VIEW_FROM_LITERAL("current-group"), scope.view->group);
     if (status == SXML_STATUS_OK) {
         status = push_xslt_variable(
-            lowerer, "current-grouping-key",
+            lowerer, SXML_BYTE_VIEW_FROM_LITERAL("current-grouping-key"),
             scope.has_key ? scope.view->key : (sxml_ir_atom){.atom_kind = SXML_IR_ATOM_KIND_NONE});
     }
     return status;
@@ -740,13 +755,13 @@ static sxml_status check_sorts(const sxml_xslt_lowering *lowering, sxml_xslt_ast
             lowering, find_attribute(lowering, sort_node, SXML_XSLT_AST_ATTRIBUTE_DATA_TYPE));
         const bool is_invalid =
             (stable_text.is_fixed && !is_boolean_text(stable_text.text)) ||
-            (order.is_fixed && !text_equals(order.text, "ascending") &&
-             !text_equals(order.text, "descending")) ||
+            (order.is_fixed && !TEXT_IS(order.text, "ascending") &&
+             !TEXT_IS(order.text, "descending")) ||
             (lang.is_fixed && !is_language(lang.text)) ||
-            (case_order.is_fixed && !text_equals(case_order.text, "upper-first") &&
-             !text_equals(case_order.text, "lower-first")) ||
-            (data_type.is_fixed && !text_equals(data_type.text, "text") &&
-             !text_equals(data_type.text, "number") && !is_data_type_name(data_type.text));
+            (case_order.is_fixed && !TEXT_IS(case_order.text, "upper-first") &&
+             !TEXT_IS(case_order.text, "lower-first")) ||
+            (data_type.is_fixed && !TEXT_IS(data_type.text, "text") &&
+             !TEXT_IS(data_type.text, "number") && !is_data_type_name(data_type.text));
         if (is_invalid) {
             /* 5.6.1: an attribute value template without enclosed
                expressions is checked statically. */
@@ -801,10 +816,11 @@ static sxml_status start_sort(sxml_xpath_lowering_machine *machine,
 /* Lowers the next present attribute value template; false when none is
    left. */
 static sxml_status lower_next_sort_attribute(sxml_xpath_lowering_machine *machine,
-                                             sxml_xpath_lowering_frame *frame, bool *is_pushed) {
+                                             sxml_xpath_lowering_frame *frame,
+                                             step_outcome *outcome) {
     sort_locals *locals = frame->locals;
     const sxml_xslt_lowering *lowering = locals->head.lowering;
-    *is_pushed = false;
+    outcome->is_pushed = false;
     while (locals->attribute_index < SXML_XSLT_SORT_ATTRIBUTE_COUNT) {
         const uint32_t attribute_index = locals->attribute_index;
         locals->attribute_index += 1;
@@ -813,7 +829,7 @@ static sxml_status lower_next_sort_attribute(sxml_xpath_lowering_machine *machin
         locals->has_attributes[attribute_index] =
             attribute->value.kind == SXML_XSLT_AST_VALUE_KIND_VALUE_TEMPLATE;
         if (locals->has_attributes[attribute_index]) {
-            *is_pushed = true;
+            outcome->is_pushed = true;
             return sxml_xslt_lowering_call_value_template(
                 machine,
                 &(sxml_xslt_expression_call){.lowering = lowering,
@@ -833,14 +849,14 @@ static void read_fixed_sort_attributes(sort_locals *locals) {
         read_fixed_text(lowering, find_attribute(lowering, locals->sort, SXML_XSLT_AST_ATTRIBUTE_ORDER));
     const fixed_text data_type = read_fixed_text(
         lowering, find_attribute(lowering, locals->sort, SXML_XSLT_AST_ATTRIBUTE_DATA_TYPE));
-    locals->direction = order.is_fixed && text_equals(order.text, "descending")
+    locals->direction = order.is_fixed && TEXT_IS(order.text, "descending")
                             ? SXML_IR_SORT_DIRECTION_DESCENDING
                             : SXML_IR_SORT_DIRECTION_ASCENDING;
     locals->conversion = SXML_XSLT_DATA_TYPE_CONVERSION_NONE;
     if (locals->has_attributes[SXML_XSLT_SORT_ATTRIBUTE_DATA_TYPE]) {
         locals->conversion = !data_type.is_fixed                  ? SXML_XSLT_DATA_TYPE_CONVERSION_COMPUTED
-                             : text_equals(data_type.text, "number") ? SXML_XSLT_DATA_TYPE_CONVERSION_NUMBER
-                             : text_equals(data_type.text, "text")   ? SXML_XSLT_DATA_TYPE_CONVERSION_TEXT
+                             : TEXT_IS(data_type.text, "number") ? SXML_XSLT_DATA_TYPE_CONVERSION_NUMBER
+                             : TEXT_IS(data_type.text, "text")   ? SXML_XSLT_DATA_TYPE_CONVERSION_TEXT
                                                                      : SXML_XSLT_DATA_TYPE_CONVERSION_NONE;
     }
 }
@@ -865,27 +881,28 @@ static void append_text(collation_uri_text *text, sxml_byte_view part) {
 }
 
 /* The collation lang and case-order fix while lowering, as a constant;
-   false in *is_fixed when one is computed. */
-static sxml_status add_fixed_collation(const sort_locals *locals, bool *is_fixed,
+   fixing->is_fixed false when one is computed. */
+static sxml_status add_fixed_collation(const sort_locals *locals, collation_fixing *fixing,
                                        sxml_ir_atom *atom) {
     const sxml_xslt_lowering *lowering = locals->head.lowering;
     const fixed_text lang =
         read_fixed_text(lowering, find_attribute(lowering, locals->sort, SXML_XSLT_AST_ATTRIBUTE_LANG));
     const fixed_text case_order = read_fixed_text(
         lowering, find_attribute(lowering, locals->sort, SXML_XSLT_AST_ATTRIBUTE_CASE_ORDER));
-    *is_fixed = (!locals->has_attributes[SXML_XSLT_SORT_ATTRIBUTE_LANG] || lang.is_fixed) &&
-                (!locals->has_attributes[SXML_XSLT_SORT_ATTRIBUTE_CASE_ORDER] || case_order.is_fixed);
+    fixing->is_fixed =
+        (!locals->has_attributes[SXML_XSLT_SORT_ATTRIBUTE_LANG] || lang.is_fixed) &&
+        (!locals->has_attributes[SXML_XSLT_SORT_ATTRIBUTE_CASE_ORDER] || case_order.is_fixed);
     *atom = (sxml_ir_atom){.atom_kind = SXML_IR_ATOM_KIND_NONE};
-    if (!*is_fixed) {
+    if (!fixing->is_fixed) {
         return SXML_STATUS_OK;
     }
     const sxml_byte_view language =
         locals->has_attributes[SXML_XSLT_SORT_ATTRIBUTE_LANG] ? trim_whitespace(lang.text)
                                                     : (sxml_byte_view){.bytes = NULL, .byte_count = 0};
     const bool is_upper_first = locals->has_attributes[SXML_XSLT_SORT_ATTRIBUTE_CASE_ORDER] &&
-                                text_equals(case_order.text, "upper-first");
+                                TEXT_IS(case_order.text, "upper-first");
     const bool is_lower_first = locals->has_attributes[SXML_XSLT_SORT_ATTRIBUTE_CASE_ORDER] &&
-                                text_equals(case_order.text, "lower-first");
+                                TEXT_IS(case_order.text, "lower-first");
     if (language.byte_count == 0 && !is_upper_first && !is_lower_first) {
         /* 13.1.3: the implementation-defined default, the codepoint
            collation. */
@@ -915,11 +932,11 @@ static sxml_status add_fixed_collation(const sort_locals *locals, bool *is_fixed
 /* Starts the key's block and lowers its value: select, content or "."
    (13.1.1). */
 static sxml_status lower_sort_key(sxml_xpath_lowering_machine *machine,
-                                  sxml_xpath_lowering_frame *frame, bool *is_pushed) {
+                                  sxml_xpath_lowering_frame *frame, step_outcome *outcome) {
     sxml_xpath_lowerer *lowerer = machine->state;
     sort_locals *locals = frame->locals;
     const sxml_xslt_lowering *lowering = locals->head.lowering;
-    *is_pushed = false;
+    outcome->is_pushed = false;
     locals->key_block = (sxml_xpath_lowering_block){.first = {0}, .open_let = {0}};
     locals->scope_mark = lowerer->scope_entry_count;
     sxml_xpath_lowering_focus *focus = &locals->item_focus;
@@ -961,7 +978,7 @@ static sxml_status lower_sort_key(sxml_xpath_lowering_machine *machine,
     const sxml_xslt_ast_attribute *select =
         find_attribute(lowering, locals->sort, SXML_XSLT_AST_ATTRIBUTE_SELECT);
     if (select->value.kind == SXML_XSLT_AST_VALUE_KIND_EXPRESSION) {
-        *is_pushed = true;
+        outcome->is_pushed = true;
         return sxml_xslt_lowering_call_expression(
             machine, &(sxml_xslt_expression_call){.lowering = lowering,
                                                   .expression = select->value.payload.expression,
@@ -971,7 +988,7 @@ static sxml_status lower_sort_key(sxml_xpath_lowering_machine *machine,
     }
     const sxml_xslt_ast_node_index content = node_of(lowering, locals->sort)->first_child;
     if (content.value != 0) {
-        *is_pushed = true;
+        outcome->is_pushed = true;
         return sxml_xslt_lowering_call_sequence_constructor(
             machine, &(sxml_xslt_sequence_constructor_call){
                          .lowering = lowering,
@@ -990,10 +1007,11 @@ static sxml_status lower_sort_key(sxml_xpath_lowering_machine *machine,
 
 /* Converts the key as data-type says. */
 static sxml_status convert_sort_key(sxml_xpath_lowering_machine *machine,
-                                    sxml_xpath_lowering_frame *frame, bool *is_pushed) {
+                                    sxml_xpath_lowering_frame *frame, step_outcome *outcome) {
     sort_locals *locals = frame->locals;
-    *is_pushed = locals->conversion != SXML_XSLT_DATA_TYPE_CONVERSION_NONE && locals->tuple_key_offset == 0;
-    if (!*is_pushed) {
+    outcome->is_pushed = locals->conversion != SXML_XSLT_DATA_TYPE_CONVERSION_NONE &&
+                         locals->tuple_key_offset == 0;
+    if (!outcome->is_pushed) {
         return SXML_STATUS_OK;
     }
     const text_variable variables[2] = {
@@ -1079,7 +1097,7 @@ static sxml_status continue_sort(sxml_xpath_lowering_machine *machine,
     const sxml_xslt_lowering *lowering = locals->head.lowering;
     sxml_status status = SXML_STATUS_OK;
     for (;;) {
-        bool is_pushed = false;
+        step_outcome pushed = {.is_pushed = false};
         switch (locals->phase) {
         case SXML_XSLT_SORT_PHASE_START:
             status = start_sort(machine, frame);
@@ -1088,8 +1106,8 @@ static sxml_status continue_sort(sxml_xpath_lowering_machine *machine,
             if (locals->sort.value == 0) {
                 return finish_sort(machine, frame);
             }
-            status = lower_next_sort_attribute(machine, frame, &is_pushed);
-            if (status == SXML_STATUS_OK && !is_pushed) {
+            status = lower_next_sort_attribute(machine, frame, &pushed);
+            if (status == SXML_STATUS_OK && !pushed.is_pushed) {
                 read_fixed_sort_attributes(locals);
                 locals->phase = SXML_XSLT_SORT_PHASE_ORDER;
             }
@@ -1102,7 +1120,7 @@ static sxml_status continue_sort(sxml_xpath_lowering_machine *machine,
                 const text_variable variable = {
                     .local_name = "order",
                     .atom = locals->attribute_values[SXML_XSLT_SORT_ATTRIBUTE_ORDER]};
-                is_pushed = true;
+                pushed.is_pushed = true;
                 status = call_text(machine, &(text_call){.lowering = lowering,
                                                          .text = order_text,
                                                          .variables = &variable,
@@ -1119,9 +1137,9 @@ static sxml_status continue_sort(sxml_xpath_lowering_machine *machine,
                 locals->collation = locals->attribute_values[SXML_XSLT_SORT_ATTRIBUTE_COLLATION];
                 break;
             }
-            bool is_fixed = false;
-            status = add_fixed_collation(locals, &is_fixed, &locals->collation);
-            if (status == SXML_STATUS_OK && !is_fixed) {
+            collation_fixing fixing = {.is_fixed = false};
+            status = add_fixed_collation(locals, &fixing, &locals->collation);
+            if (status == SXML_STATUS_OK && !fixing.is_fixed) {
                 sxml_ir_atom empty_text = {0};
                 status = sxml_xpath_lowerer_add_string_constant(
                     machine->state, (sxml_byte_view){.bytes = NULL, .byte_count = 0}, &empty_text);
@@ -1135,7 +1153,7 @@ static sxml_status continue_sort(sxml_xpath_lowering_machine *machine,
                                  ? locals->attribute_values[SXML_XSLT_SORT_ATTRIBUTE_CASE_ORDER]
                                  : empty_text}};
                 if (status == SXML_STATUS_OK) {
-                    is_pushed = true;
+                    pushed.is_pushed = true;
                     status = call_text(machine, &(text_call){.lowering = lowering,
                                                              .text = collation_text,
                                                              .variables = variables,
@@ -1148,17 +1166,17 @@ static sxml_status continue_sort(sxml_xpath_lowering_machine *machine,
         }
         case SXML_XSLT_SORT_PHASE_KEY:
             locals->phase = SXML_XSLT_SORT_PHASE_CONVERSION;
-            status = lower_sort_key(machine, frame, &is_pushed);
+            status = lower_sort_key(machine, frame, &pushed);
             break;
         case SXML_XSLT_SORT_PHASE_CONVERSION:
             locals->phase = SXML_XSLT_SORT_PHASE_KEY_DONE;
-            status = convert_sort_key(machine, frame, &is_pushed);
+            status = convert_sort_key(machine, frame, &pushed);
             break;
         case SXML_XSLT_SORT_PHASE_KEY_DONE:
             status = finish_sort_key(machine, frame);
             break;
         }
-        if (status != SXML_STATUS_OK || is_pushed) {
+        if (status != SXML_STATUS_OK || pushed.is_pushed) {
             return status;
         }
     }
@@ -1599,15 +1617,15 @@ typedef enum group_step {
     SXML_XSLT_GROUP_STEP_FINISH,
 } group_step;
 
-/* One step of xsl:for-each-group; *is_pushed when it asked for a part. */
+/* One step of xsl:for-each-group; outcome->is_pushed when it asked for a part. */
 static sxml_status step_group(sxml_xpath_lowering_machine *machine,
-                              sxml_xpath_lowering_frame *frame, bool *is_pushed) {
+                              sxml_xpath_lowering_frame *frame, step_outcome *outcome) {
     sxml_xpath_lowerer *lowerer = machine->state;
     group_locals *locals = frame->locals;
     const sxml_xslt_lowering *lowering = locals->head.lowering;
     const sxml_xslt_ast_node_index node = locals->head.node;
     sxml_status status = SXML_STATUS_OK;
-    *is_pushed = true;
+    outcome->is_pushed = true;
     switch ((group_step)frame->step) {
     case SXML_XSLT_GROUP_STEP_SELECT: {
         frame->step = SXML_XSLT_GROUP_STEP_COLLATION;
@@ -1638,7 +1656,7 @@ static sxml_status step_group(sxml_xpath_lowering_machine *machine,
                                                       .focus = NULL});
         }
         /* 14.1: the default collation. */
-        *is_pushed = false;
+        outcome->is_pushed = false;
         return sxml_xpath_lowerer_add_string_constant(
             lowerer, (sxml_byte_view){.bytes = NULL, .byte_count = 0}, &locals->collation);
     }
@@ -1662,7 +1680,7 @@ static sxml_status step_group(sxml_xpath_lowering_machine *machine,
     case SXML_XSLT_GROUP_STEP_KEY_VALUE: {
         frame->step = SXML_XSLT_GROUP_STEP_GROUPS;
         if (!is_keyed_method(locals->method)) {
-            *is_pushed = false;
+            outcome->is_pushed = false;
             return bind_guarded_match(lowerer, locals);
         }
         const text_variable variables[2] = {{.local_name = "key", .atom = locals->key},
@@ -1680,7 +1698,7 @@ static sxml_status step_group(sxml_xpath_lowering_machine *machine,
         frame->step = SXML_XSLT_GROUP_STEP_BODY;
         status = bind_groups(lowerer, locals, frame->block);
         if (status != SXML_STATUS_OK || !sxml_xslt_lowering_has_sort(lowering, node)) {
-            *is_pushed = false;
+            outcome->is_pushed = false;
             return status;
         }
         /* 14.3: the order of first appearance unless sorted. */
@@ -1703,9 +1721,9 @@ static sxml_status step_group(sxml_xpath_lowering_machine *machine,
 static sxml_status continue_group(sxml_xpath_lowering_machine *machine,
                                   sxml_xpath_lowering_frame *frame) {
     for (;;) {
-        bool is_pushed = true;
-        const sxml_status status = step_group(machine, frame, &is_pushed);
-        if (status != SXML_STATUS_OK || is_pushed) {
+        step_outcome pushed = {.is_pushed = true};
+        const sxml_status status = step_group(machine, frame, &pushed);
+        if (status != SXML_STATUS_OK || pushed.is_pushed) {
             return status;
         }
     }
@@ -1912,10 +1930,11 @@ static sxml_status start_merge(sxml_xpath_lowering_machine *machine,
 /* Lowers the next data-type attribute value template of the source's
    keys (with the instruction's focus, 15.4). */
 static sxml_status lower_merge_key_attribute(sxml_xpath_lowering_machine *machine,
-                                             sxml_xpath_lowering_frame *frame, bool *is_pushed) {
+                                             sxml_xpath_lowering_frame *frame,
+                                             step_outcome *outcome) {
     merge_locals *locals = frame->locals;
     const sxml_xslt_lowering *lowering = locals->head.lowering;
-    *is_pushed = false;
+    outcome->is_pushed = false;
     while (locals->key.value != 0) {
         const sxml_xslt_ast_attribute *data_type =
             find_attribute(lowering, locals->key, SXML_XSLT_AST_ATTRIBUTE_DATA_TYPE);
@@ -1924,7 +1943,7 @@ static sxml_status lower_merge_key_attribute(sxml_xpath_lowering_machine *machin
         locals->key = next_like(lowering, locals->key);
         locals->key_index += 1;
         if (data_type->value.kind == SXML_XSLT_AST_VALUE_KIND_VALUE_TEMPLATE) {
-            *is_pushed = true;
+            outcome->is_pushed = true;
             return sxml_xslt_lowering_call_value_template(
                 machine, &(sxml_xslt_expression_call){.lowering = lowering,
                                                       .expression =
@@ -1947,15 +1966,15 @@ static sxml_xpath_lowering_block *source_block(sxml_xpath_lowering_frame *frame)
 /* The key of key_index for the item: select, content or "." with a
    singleton focus (15.4). */
 static sxml_status lower_merge_key(sxml_xpath_lowering_machine *machine,
-                                   sxml_xpath_lowering_frame *frame, bool *is_pushed) {
+                                   sxml_xpath_lowering_frame *frame, step_outcome *outcome) {
     sxml_xpath_lowerer *lowerer = machine->state;
     merge_locals *locals = frame->locals;
     const sxml_xslt_lowering *lowering = locals->head.lowering;
-    *is_pushed = false;
+    outcome->is_pushed = false;
     const sxml_xslt_ast_attribute *select =
         find_attribute(lowering, locals->key, SXML_XSLT_AST_ATTRIBUTE_SELECT);
     if (select->value.kind == SXML_XSLT_AST_VALUE_KIND_EXPRESSION) {
-        *is_pushed = true;
+        outcome->is_pushed = true;
         return sxml_xslt_lowering_call_expression(
             machine, &(sxml_xslt_expression_call){.lowering = lowering,
                                                   .expression = select->value.payload.expression,
@@ -1965,7 +1984,7 @@ static sxml_status lower_merge_key(sxml_xpath_lowering_machine *machine,
     }
     const sxml_xslt_ast_node_index content = node_of(lowering, locals->key)->first_child;
     if (content.value != 0) {
-        *is_pushed = true;
+        outcome->is_pushed = true;
         return sxml_xslt_lowering_call_sequence_constructor(
             machine, &(sxml_xslt_sequence_constructor_call){
                          .lowering = lowering,
@@ -1995,8 +2014,8 @@ static sxml_status convert_merge_key(sxml_xpath_lowering_machine *machine,
         locals->data_types[locals->key_index].atom_kind != SXML_IR_ATOM_KIND_NONE;
     const char *text = !has_data_type ? grouping_key_text
                        : !data_type.is_fixed                  ? data_type_key_text
-                       : text_equals(data_type.text, "number") ? number_key_text
-                       : text_equals(data_type.text, "text")   ? string_key_text
+                       : TEXT_IS(data_type.text, "number") ? number_key_text
+                       : TEXT_IS(data_type.text, "text")   ? string_key_text
                                                                : grouping_key_text;
     const text_variable variables[2] = {
         {.local_name = "key", .atom = locals->value},
@@ -2161,14 +2180,14 @@ static sxml_status bind_merge_groups(sxml_xpath_lowerer *lowerer, sxml_xpath_low
                 &locals->groups);
 }
 
-/* One step of xsl:merge; *is_pushed when it asked for a part. */
+/* One step of xsl:merge; outcome->is_pushed when it asked for a part. */
 static sxml_status step_merge(sxml_xpath_lowering_machine *machine,
-                              sxml_xpath_lowering_frame *frame, bool *is_pushed) {
+                              sxml_xpath_lowering_frame *frame, step_outcome *outcome) {
     sxml_xpath_lowerer *lowerer = machine->state;
     merge_locals *locals = frame->locals;
     const sxml_xslt_lowering *lowering = locals->head.lowering;
     sxml_status status = SXML_STATUS_OK;
-    *is_pushed = false;
+    outcome->is_pushed = false;
     switch (locals->phase) {
     case SXML_XSLT_MERGE_PHASE_START:
         locals->phase = SXML_XSLT_MERGE_PHASE_KEY_ATTRIBUTES;
@@ -2178,8 +2197,8 @@ static sxml_status step_merge(sxml_xpath_lowering_machine *machine,
         locals->key_index = 0;
         return status;
     case SXML_XSLT_MERGE_PHASE_KEY_ATTRIBUTES:
-        status = lower_merge_key_attribute(machine, frame, is_pushed);
-        if (status == SXML_STATUS_OK && !*is_pushed) {
+        status = lower_merge_key_attribute(machine, frame, outcome);
+        if (status == SXML_STATUS_OK && !outcome->is_pushed) {
             locals->phase = SXML_XSLT_MERGE_PHASE_ANCHORS;
             locals->key_index = 0;
         }
@@ -2196,7 +2215,7 @@ static sxml_status step_merge(sxml_xpath_lowering_machine *machine,
         if (!locals->has_anchors) {
             return SXML_STATUS_OK;
         }
-        *is_pushed = true;
+        outcome->is_pushed = true;
         return sxml_xslt_lowering_call_expression(
             machine, &(sxml_xslt_expression_call){.lowering = lowering,
                                                   .expression = anchors->value.payload.expression,
@@ -2220,7 +2239,7 @@ static sxml_status step_merge(sxml_xpath_lowering_machine *machine,
         const text_variable variables[2] = {{.local_name = "uris", .atom = locals->anchors},
                                             {.local_name = "base", .atom = base}};
         if (status == SXML_STATUS_OK) {
-            *is_pushed = true;
+            outcome->is_pushed = true;
             status = call_text(machine, &(text_call){.lowering = lowering,
                                                      .text = merge_documents_text,
                                                      .variables = variables,
@@ -2237,7 +2256,7 @@ static sxml_status step_merge(sxml_xpath_lowering_machine *machine,
         locals->anchor_block = (sxml_xpath_lowering_block){.first = {0}, .open_let = {0}};
         const sxml_xslt_ast_attribute *select =
             find_attribute(lowering, locals->source, SXML_XSLT_AST_ATTRIBUTE_SELECT);
-        *is_pushed = true;
+        outcome->is_pushed = true;
         return sxml_xslt_lowering_call_expression(
             machine,
             &(sxml_xslt_expression_call){.lowering = lowering,
@@ -2269,10 +2288,10 @@ static sxml_status step_merge(sxml_xpath_lowering_machine *machine,
             return SXML_STATUS_OK;
         }
         locals->phase = SXML_XSLT_MERGE_PHASE_KEY_VALUE;
-        return lower_merge_key(machine, frame, is_pushed);
+        return lower_merge_key(machine, frame, outcome);
     case SXML_XSLT_MERGE_PHASE_KEY_VALUE:
         locals->phase = SXML_XSLT_MERGE_PHASE_KEY;
-        *is_pushed = true;
+        outcome->is_pushed = true;
         status = convert_merge_key(machine, frame);
         locals->key = next_like(lowering, locals->key);
         locals->key_index += 1;
@@ -2306,7 +2325,7 @@ static sxml_status step_merge(sxml_xpath_lowering_machine *machine,
         }
         /* 15.6: the groups in key order; the tuples in source, anchor and
            input order (a stable sort). */
-        *is_pushed = true;
+        outcome->is_pushed = true;
         return sxml_xslt_lowering_call_sort(
             machine, &(sxml_xslt_sort_call){.lowering = lowering,
                                             .node = locals->first_source,
@@ -2328,7 +2347,7 @@ static sxml_status step_merge(sxml_xpath_lowering_machine *machine,
             /* Equal keys under the first key's collation. */
             locals->phase = SXML_XSLT_MERGE_PHASE_GROUPS;
             locals->has_collation = true;
-            *is_pushed = true;
+            outcome->is_pushed = true;
             return sxml_xslt_lowering_call_value_template(
                 machine, &(sxml_xslt_expression_call){.lowering = lowering,
                                                       .expression =
@@ -2366,7 +2385,7 @@ static sxml_status step_merge(sxml_xpath_lowering_machine *machine,
     case SXML_XSLT_MERGE_PHASE_ITEMS: {
         locals->phase = SXML_XSLT_MERGE_PHASE_KEY_ARRAY;
         const text_variable variable = {.local_name = "tuples", .atom = locals->tuples};
-        *is_pushed = true;
+        outcome->is_pushed = true;
         return call_text(machine, &(text_call){.lowering = lowering,
                                                .text = merge_items_text,
                                                .variables = &variable,
@@ -2377,7 +2396,7 @@ static sxml_status step_merge(sxml_xpath_lowering_machine *machine,
     case SXML_XSLT_MERGE_PHASE_KEY_ARRAY: {
         locals->phase = SXML_XSLT_MERGE_PHASE_SOURCES;
         const text_variable variable = {.local_name = "tuples", .atom = locals->tuples};
-        *is_pushed = true;
+        outcome->is_pushed = true;
         return call_text(machine, &(text_call){.lowering = lowering,
                                                .text = merge_key_array_text,
                                                .variables = &variable,
@@ -2404,7 +2423,7 @@ static sxml_status step_merge(sxml_xpath_lowering_machine *machine,
         const text_variable variables[2] = {{.local_name = "tuples", .atom = locals->tuples},
                                             {.local_name = "names", .atom = names}};
         if (status == SXML_STATUS_OK) {
-            *is_pushed = true;
+            outcome->is_pushed = true;
             status = call_text(machine, &(text_call){.lowering = lowering,
                                                      .text = merge_sources_text,
                                                      .variables = variables,
@@ -2428,16 +2447,20 @@ static sxml_status step_merge(sxml_xpath_lowering_machine *machine,
         }
         locals->scope_mark = lowerer->scope_entry_count;
         if (status == SXML_STATUS_OK) {
-            status = push_xslt_variable(lowerer, "current-merge-group", locals->items);
+            status = push_xslt_variable(lowerer, SXML_BYTE_VIEW_FROM_LITERAL("current-merge-group"),
+                                         locals->items);
         }
         if (status == SXML_STATUS_OK) {
-            status = push_xslt_variable(lowerer, "current-merge-key", locals->merge_key);
+            status = push_xslt_variable(lowerer, SXML_BYTE_VIEW_FROM_LITERAL("current-merge-key"),
+                                         locals->merge_key);
         }
         if (status == SXML_STATUS_OK) {
-            status = push_xslt_variable(lowerer, "current-merge-key-array", locals->key_array);
+            status = push_xslt_variable(
+                lowerer, SXML_BYTE_VIEW_FROM_LITERAL("current-merge-key-array"), locals->key_array);
         }
         if (status == SXML_STATUS_OK) {
-            status = push_xslt_variable(lowerer, "current-merge-sources", locals->sources);
+            status = push_xslt_variable(
+                lowerer, SXML_BYTE_VIEW_FROM_LITERAL("current-merge-sources"), locals->sources);
         }
         if (status != SXML_STATUS_OK) {
             return status;
@@ -2452,7 +2475,7 @@ static sxml_status step_merge(sxml_xpath_lowering_machine *machine,
         const sxml_xslt_ast_node_index action = first_child_of(
             lowering,
             (child_query){.node = locals->head.node, .kind = SXML_XSLT_AST_KIND_MERGE_ACTION});
-        *is_pushed = true;
+        outcome->is_pushed = true;
         return sxml_xslt_lowering_call_sequence_constructor(
             machine, &(sxml_xslt_sequence_constructor_call){
                          .lowering = lowering,
@@ -2466,7 +2489,7 @@ static sxml_status step_merge(sxml_xpath_lowering_machine *machine,
                          .focus = &locals->body_focus});
     }
     case SXML_XSLT_MERGE_PHASE_FINISH: {
-        *is_pushed = true;
+        outcome->is_pushed = true;
         sxml_xpath_lowerer_pop_variables(lowerer, locals->scope_mark);
         sxml_ir_expression_index body = {0};
         status = finish_branch(
@@ -2493,9 +2516,9 @@ static sxml_status step_merge(sxml_xpath_lowering_machine *machine,
 static sxml_status continue_merge(sxml_xpath_lowering_machine *machine,
                                   sxml_xpath_lowering_frame *frame) {
     for (;;) {
-        bool is_pushed = false;
-        const sxml_status status = step_merge(machine, frame, &is_pushed);
-        if (status != SXML_STATUS_OK || is_pushed) {
+        step_outcome pushed = {.is_pushed = false};
+        const sxml_status status = step_merge(machine, frame, &pushed);
+        if (status != SXML_STATUS_OK || pushed.is_pushed) {
             return status;
         }
     }
