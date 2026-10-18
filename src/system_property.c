@@ -1,8 +1,8 @@
 /*
  * The system properties (src/system_property_internal.h, D163): one table
  * for fn:system-properties (F&O 4.0, 17.1.9) and the XSLT fn:system-property
- * (XSLT 4.0, 24.2.1). sxml is not schema-aware, reads no typed data, has
- * neither XInclude, DTD validation, invisible XML, streaming, dynamic XSLT,
+ * (XSLT 4.0, 24.2.1). sxml's XPath and XQuery are schema-aware and read
+ * typed data (D174), XSLT not yet; sxml has neither XInclude, DTD validation, invisible XML, streaming, dynamic XSLT,
  * xsl:evaluate nor the EXPath modules, and no backwards-compatible
  * behaviour (D97, delayed by D162).
  *
@@ -48,7 +48,10 @@ static const sxml_system_property sxml_system_property_table[] = {
     SXML_DECIMAL_PROPERTY("", "version", "4.0"),
     SXML_TEXT_PROPERTY("", "vendor", "sxml"),
     SXML_TEXT_PROPERTY("", "vendor-url", ""),
-    SXML_BOOLEAN_PROPERTY("schema-aware", "is-schema-aware", false),
+    /* XQuery and XPath are schema-aware (D174); XSLT's validation
+       attributes are packet 5.12's. */
+    SXML_BOOLEAN_PROPERTY("schema-aware", "", true),
+    SXML_BOOLEAN_PROPERTY("", "is-schema-aware", false),
     SXML_BOOLEAN_PROPERTY("", "supports-serialization", true),
     SXML_BOOLEAN_PROPERTY("", "supports-backwards-compatibility", false),
     SXML_BOOLEAN_PROPERTY("", "supports-namespace-axis", true),
@@ -56,7 +59,7 @@ static const sxml_system_property sxml_system_property_table[] = {
     SXML_BOOLEAN_PROPERTY("", "supports-dynamic-evaluation", false),
     SXML_BOOLEAN_PROPERTY("", "supports-higher-order-functions", true),
     /* F&O only (17.1.9). */
-    SXML_BOOLEAN_PROPERTY("accepts-typed-data", "", false),
+    SXML_BOOLEAN_PROPERTY("accepts-typed-data", "", true),
     SXML_BOOLEAN_PROPERTY("supports-xinclude", "", false),
     SXML_BOOLEAN_PROPERTY("supports-dtd-validation", "", false),
     SXML_BOOLEAN_PROPERTY("supports-dtd-attribute-typing", "", false),

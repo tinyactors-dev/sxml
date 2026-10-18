@@ -1523,7 +1523,7 @@ static void test_xml_fragments_and_properties(sxml_test_state *state) {
         {"let $p := system-properties() return ($p?#xpath-version, $p?#product-name, "
          "$p?#schema-aware, map:size($p), $p?#unknown, "
          "every $k in map:keys($p) satisfies $k instance of xs:QName)",
-         "4 \"sxml\" false 14 true"},
+         "4 \"sxml\" true 14 true"},
     };
     expect_all(state, cases, SXML_TEST_COUNT(cases));
 }

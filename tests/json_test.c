@@ -1012,7 +1012,7 @@ static const expression_case function_cases[] = {
     /* F&O 4.0, fn:parse-xml: strip-space="all" drops whitespace-only text. */
     {"parse-xml('<a> <b/> </a>', {'strip-space': 'all'})", "<a><b/></a>"},
     {"parse-xml('<a/>', {'strip-space': 'some'})", "!XPTY0004"},
-    {"parse-xml('<a/>', {'xsd-validation': 'strict'})", "!FODC0009"},
+    {"parse-xml('<a/>', {'xsd-validation': 'strict'})", "!FODC0014"},
     {"parse-xml('<a/>', {'base-uri': 'http://example.com/', 'retain-location': true()})",
      "<a/>"},
     {"parse-xml(xs:hexBinary('3C612F3E'))", "<a/>"},
