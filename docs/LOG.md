@@ -4,10 +4,23 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
-- 5.13 sweep 1 claimed (D178): owns tests/qt4/driver/test_run.c (the D174
-  outcome rules), src/schema_*.c except schema_scope.c, src/types.c (the
-  Proposed simple base), apps/sxml/command_validate.c, the validate CLI
-  goldens, docs/CLI.md's validate section and docs/CONFORMANCE.md.
+- 5.13 sweep 1 done (D178, amends D174): the QT4 driver's D174 rules
+  (limits as "fail", UNSUPPORTED_FEATURE as "not run") are gone; their two
+  cases are fixed at the cause: a group by keeps only the variables read
+  after it (Catalog009, 536 MB to 147 MB), a FILTER computes a leaf
+  predicate in its own task and xs:string nodes skip the cast for their
+  typed value (itunes, 367 to 287 million steps; the QT4 step budget is
+  4 x 10^8 as XSLT's). Validation errors name the element or attribute,
+  the value, the type, the facet and the expected elements (message
+  templates); configured schema documents that are not well-formed or not
+  schema documents are located by the library. One XPath record compiler
+  for assertions and identity constraints. XSD: src-redefine 6.2.2 and
+  7.2.2, default open content and empty content, override defaults, simple
+  bases of complex types in the registry, year "-0000", src-ct, wildcard
+  subset with disallowed names. XSD in scope 41,483 of 41,518 (was
+  41,452), XP40 30,931, XQ40 41,273 (0 errors), XT40 7,992. Not
+  done: is-id of union and list elements, src-include for an unreadable
+  include, D175's assertion leftovers.
 
 - 5.11 done (D174): schema-aware XPath and XQuery. xpath.h gained
   `in_scope_schemas` (the in-scope schema definitions, carried into the

@@ -6788,7 +6788,92 @@ Recorded 2026-10-18. IDENTITY_CONSTRAINTS and the identity seam of D167
   slice 147 of 147. No shared code changed: XP40, XQ40 and XT40 hold.
 
 ### D178. XSD and schema-aware conformance sweep 1 (packet 5.13)
-Reserved 2026-10-18; the record follows when the sweep lands.
+Recorded 2026-10-18. Amends D174 (its QT4 outcome rules); resolves three
+Proposed items (validation descriptions, locations of configured schema
+documents, a simple base for a complex type).
+- **Honest outcomes (amends D174).** The QT4 driver no longer counts a
+  schema-aware test case that ends at the step or memory limit as "fail",
+  nor one that stops at SXML_STATUS_UNSUPPORTED_FEATURE as "not run": D95's
+  zero errors must not be met by reclassification. Identity constraints
+  (D177) and assertions (D175) run. The two cases D174 moved are fixed at
+  their causes:
+  - app-CatalogCheck Catalog009 (536 MB): a group by packed every
+    variable of the FLWOR into its tuples and concatenated each per group
+    (XQuery 4.0, 4.13.8), here `$testsets`, 737 documents, once per
+    dependency (18,564 tuples). A variable that no variable reference or
+    grouping specification from the group by clause on names (the later
+    clauses and the return clause; any reference of the name counts) is
+    left out of the tuples: its grouped value is never read
+    (`src/xquery_lower.c`). 147 MB; passes.
+  - app-Demos itunes (10^8 steps): the query compares the keys of 6,597
+    tracks of a 10 MB library once per artist, 367 million steps by D89's
+    accounting. A FILTER whose predicate is a leaf (BINARY, UNARY, CAST,
+    CASTABLE, INSTANCE_OF over atoms) that reads the focus computes it in
+    the filter's own task, one step per item instead of two
+    (`src/evaluator.c`), and the typed value of an xs:string node is its
+    string value without a cast (`src/xdm_node.c`): 287 million steps.
+    The QT4 driver's budget per evaluation is four times
+    SXML_QT4_TEST_MAXIMUM_STEP_COUNT, as the XSLT driver's (D166, for a
+    whole large input); itunes passes in 85 s (release).
+- **Validation descriptions name what failed.** A description is a
+  message template (glossary message_template,
+  `src/schema_validate_value.c`): static text with placeholders for the element or attribute as written,
+  a value (quoted, shortened past 60 bytes, one line), a type ("type
+  'xs:decimal'", or "an anonymous type derived from ..."), the expected
+  terms of the content model cursor (list_expected), and the facet the
+  cast names with its value from the type or its nearest registered
+  base. Every cvc-* report uses one: "element 'price' is not allowed
+  here; expected 'title'", "element 'p:price' lacks the required
+  attribute 'currency'", "element 'price' has the value '-1.005', which
+  is not valid for type 'price': the value is below the minInclusive
+  facet (...); the minInclusive facet is '0'", identity constraints with
+  their element and constraint, assertions with their test. A template
+  per site keeps the WebAssembly module in its budget (pieces built at
+  run time did not: sxml.wasm 1,997,902 of 2,000,000 bytes). The
+  description is made per report, so the first one goes to the error
+  record through the item heap (sxml_item_heap_raise_error, D41).
+- **Configured schema documents are located by the library**: one that is
+  not well-formed is reported at the parser's line and column, one that is
+  not a schema document at its document element, both with its URI as
+  source name (`sxml_schema_report_request.document_uri`); `sxml validate`
+  maps URIs to names only (standard input stays "-").
+- **One XPath record compiler**: `sxml_schema_compile_xpath_record`
+  (`src/schema_assertion.c`, XPath Valid, 3.13.6.2) for assertions, type
+  alternatives, selectors and fields (D177's open item); selectors and
+  fields now get the record's base URI too.
+- **XSD**: src-redefine 6.2.2 and 7.2.2: a group or attribute group
+  redefined without a self-reference gets two unnamed complex types, one
+  of the original's content or attributes and a restriction of it of the
+  redefinition's, so COMPLEX_TYPES checks the restriction with its own
+  rules (cos-content-act-restrict; derivation-ok-restriction 2 to 4, as
+  7.2.2 says) at the redefinition; a default open content with
+  appliesToEmpty false is dropped when the explicit content type is empty
+  (3.4.2.3.3 clause 6.1, `open_content_skips_empty`); the children of
+  xs:override are read with the overridden document's defaults (4.2.5:
+  they stand in D2'); a complex type with simple content is registered
+  with its simple base (types.c accepts it, 3.4.1); "-0000" is year zero
+  (Part 2, D.3.1; also QT4 cbcl-cast-gYearMonth-004a).
+- **Not done**: is-id of union and list elements (the start event is sent
+  before the value is known; it needs the start held back to the end of
+  simple content); src-include for an include that cannot be read (XSD
+  1.1, 4.2.3 makes it no error; D176's deviation stays); the assertion
+  leftovers of D175 (no test of the suite needs them); the pattern facet
+  on canonical forms was already done (`sxml_cast_check_item_facets`).
+  Remaining XSD failures: XSD 1.0 rules XSD 1.1 dropped or changed
+  (prohibited uses with fixed values, annotations), xs:NOTATION as a union
+  member (D171), XML 1.1 instances, Element Declarations Consistent with
+  wildcards and type tables (saxon wild078, 079, 081).
+- **Also**: src-ct for mixed attributes of xs:complexType and
+  xs:complexContent that disagree and for xs:openContent in a restriction
+  without a particle (the schema for schema documents, XSD 1.1 bug
+  16786); Wildcard Subset with its disallowed-names clauses (3.10.6.2
+  clauses 2 to 4) in one function, `sxml_schema_wildcard_is_subset`, for
+  content and attribute wildcards (two copies merged).
+- **Measured** (release, every suite run with this code): XSD in scope
+  41,483 of 41,518 (was 41,452; gate groups 100 %, 99.7 %, 99.6 %; no test
+  set lost a test; slice 147); XP40 30,931 (was 30,924), XQ40 41,273 (was
+  41,261), both 0 errors, schema-aware XQ40 1,236 of 1,516; XT40 7,992
+  (was 7,990); QT4 slice 198.
 
 ### D179. Schema-aware XSLT (packet 5.12)
 Reserved 2026-10-18; the record follows when the packet lands.
@@ -6802,35 +6887,6 @@ Reserved 2026-10-18; the record follows when the packet lands.
   5.10 set the ctest budget to 5,500,000 / 1,250,000, leaving room for
   5.8 and 5.9. `sxml.wasm` is unchanged (1,916,341 / 663,954). Choose:
   confirm, or split the optional front ends into modules.
-
-- **Locations of errors about a configured schema document** (packet
-  5.10, D176; for the owner of `src/schema_assemble.c`): a SCHEMA that is
-  not well-formed or whose document element is not xs:schema is reported
-  with an empty source name and no line (`schema_reference`), and the
-  parser's line and column are lost; the "not a schema document" text
-  ends with the absolute URI. `sxml validate` names the one SCHEMA, or
-  none when there are several. Proposed: such reports carry the
-  document's URI as source name and, when it is not well-formed, the
-  parser's location.
-
-- **Validation descriptions that say what failed** (packet 5.10, D176;
-  for the owner of `src/schema_validate.c` and
-  `src/schema_validate_value.c`): "The element is not allowed here", "A
-  required attribute is missing" and "the value is not in the lexical
-  space or value space of the target type" name neither the element, the
-  attribute, the value nor the type, so `sxml validate` users must look
-  them up by line and column. Proposed: name them, as the 5.10 design's
-  example does ("element 'comment' is not allowed here; expected
-  'shipTo'").
-
-- **A simple base for a complex type in the registry** (packet 5.6, D172;
-  for the owner of `src/types.c`): XSD 1.1, 3.4.1 lets a complex type with
-  simple content have a simple type as {base type definition}
-  (xs:decimal for `<simpleContent><extension base="xs:decimal">`), but
-  `sxml_type_registry_register_schema_type` takes only complex bases for
-  COMPLEX, so such types are registered with base xs:anyType and
-  derives-from in XPath misses the simple base. Proposed: accept a simple
-  base when the content type is SIMPLE.
 
 - **Membership of a pattern rooted at a variable** (packet 4.18, D169;
   for a later sweep): match="$nodes" (XSLT 4.0, 6.3.1) scans the

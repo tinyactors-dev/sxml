@@ -420,6 +420,13 @@ dropped.
 After 5.7. As 2.19 and 4.17, over the XSD contributor groups and then the
 schema-aware QT4 and XSLT sets. Each sweep claims its files in
 `docs/LOG.md`.
+**Sweep 1** done 2026-10-18 (D178): D174's QT4 outcome rules removed and
+their cases fixed (group by tuples, leaf predicates in the filter task);
+validation descriptions that name what failed; configured schema
+documents located by the library; one XPath record compiler; src-redefine
+6.2.2 and 7.2.2, open content and empty content, override defaults,
+simple bases in the registry, year -0000, src-ct, wildcard subset. XSD in
+scope 41,483 of 41,518, XP40 30,931, XQ40 41,273 (0 errors), XT40 7,992.
 
 ### 5.14 Phase 5 review (review)
 After everything. Owns the gate boxes. A separate agent (D11) runs the
