@@ -1593,6 +1593,15 @@ static sxml_status make_partial_application(const sxml_function_call *call,
                                         .result_type = signature->result_type}}},
             &partial_signature);
     }
+    /* "the annotations of $function" (F&O 4.0, 2.5.13), borrowed from it:
+       the new item captures it. */
+    sxml_function_item_description description = {.function_annotations = {
+                                                       .function_annotations = NULL,
+                                                       .function_annotation_count = 0}};
+    if (status == SXML_STATUS_OK &&
+        sxml_item_get_kind(function_item) == SXML_ITEM_KIND_FUNCTION) {
+        status = sxml_function_item_describe(function_item, &description);
+    }
     sxml_item item = {.representation = 0};
     if (status == SXML_STATUS_OK) {
         status = sxml_function_item_make(
@@ -1600,8 +1609,7 @@ static sxml_status make_partial_application(const sxml_function_call *call,
             &(sxml_function_item_request){
                 .function_name = {.index = 0},
                 .signature = partial_signature,
-                .function_annotations = {.function_annotations = NULL,
-                                         .function_annotation_count = 0},
+                .function_annotations = description.function_annotations,
                 .captured_values = {.sequences = captured, .sequence_count = captured_count},
                 .body = {.state = (void *)&partial_application_row,
                          .operations = &sxml_native_function_body_operations}},

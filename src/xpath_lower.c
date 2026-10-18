@@ -53,6 +53,7 @@
 #include "xpath_lower_internal.h"
 
 #include "decimal_internal.h"
+#include "operator_internal.h"
 #include "ir_pass_internal.h"
 
 #include <math.h>
@@ -1506,6 +1507,145 @@ static sxml_status lower_atom_node(sxml_xpath_lowerer *state, sxml_ast_node_inde
     }
 }
 
+/* ------------------------------------------------------ Annotations */
+
+/* The item of one annotation value (5.15: a literal, a negated numeric
+   literal, a QName literal, true() or false()), borrowed from the unit's
+   constants. */
+static sxml_status annotation_value(sxml_xpath_lowerer *state, sxml_ast_node_index node,
+                                    sxml_item *item) {
+    const sxml_ast_kind kind = node_of(state, node)->kind;
+    sxml_ir_atom atom = {0};
+    sxml_status status = SXML_STATUS_OK;
+    if (kind == SXML_AST_KIND_BOOLEAN_CONSTANT) {
+        status = get_shared_constant(state,
+                                     (node_of(state, node)->flags & SXML_AST_FLAG_TRUE) != 0
+                                         ? SXML_LOWERING_SHARED_CONSTANT_TRUE
+                                         : SXML_LOWERING_SHARED_CONSTANT_FALSE,
+                                     &atom);
+    } else if (kind == SXML_AST_KIND_NEGATIVE_NUMERIC_LITERAL) {
+        status = lower_atom_node(state, child_of(state, node, SXML_AST_FIELD_VALUE), &atom);
+        sxml_sequence negated = sxml_sequence_empty();
+        if (status == SXML_STATUS_OK) {
+            status = sxml_operator_make_unary_minus_value(
+                state->static_context->item_heap,
+                &(sxml_unary_arithmetic_request){
+                    .operand = sxml_ir_unit_get_constant(state->unit, atom.constant),
+                    .error_record = state->error_record},
+                &negated);
+        }
+        if (status == SXML_STATUS_OK) {
+            sxml_ir_constant_index constant = {0};
+            status = sxml_ir_unit_add_constant(state->unit, negated, &constant);
+            atom = constant_atom(constant);
+        }
+        sxml_sequence_release(negated);
+    } else if (is_atom_kind(kind) && kind != SXML_AST_KIND_VARIABLE_REFERENCE) {
+        status = lower_atom_node(state, node, &atom);
+    } else {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_sequence_get_item(sxml_ir_unit_get_constant(state->unit, atom.constant),
+                                  (sxml_item_request){.item_index = 0, .error_record = NULL},
+                                  item);
+}
+
+/* The expanded name of an annotation (the annotation namespace rule:
+   unprefixed names are in http://www.w3.org/2012/xquery). */
+static sxml_status annotation_name(sxml_xpath_lowerer *state, sxml_ast_node_index name_node,
+                                   sxml_name_identifier *name) {
+    sxml_xpath_resolved_name resolved = {0};
+    sxml_status status = sxml_xpath_resolve_name(
+        &(sxml_xpath_name_request){.ast = state->ast,
+                                   .name_node = name_node,
+                                   .name_role = SXML_XPATH_NAME_ROLE_NO_NAMESPACE,
+                                   .static_context = state->static_context,
+                                   .error_record = state->error_record},
+        &resolved);
+    if (status == SXML_STATUS_OK && node_of(state, name_node)->kind == SXML_AST_KIND_NCNAME) {
+        status = sxml_name_pool_intern_namespace_uri(
+            state->name_pool, SXML_BYTE_VIEW_FROM_LITERAL("http://www.w3.org/2012/xquery"),
+            &resolved.namespace_uri);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_name_pool_intern_name(
+        state->name_pool,
+        &(sxml_name_request){.namespace_uri = resolved.namespace_uri,
+                             .local_name = resolved.local_name},
+        name);
+}
+
+sxml_status sxml_xpath_lowerer_read_annotations(sxml_xpath_lowerer *state,
+                                                sxml_ast_node_index owner,
+                                                sxml_function_annotation_view *annotations) {
+    *annotations = (sxml_function_annotation_view){.function_annotations = NULL,
+                                                   .function_annotation_count = 0};
+    size_t annotation_count = 0;
+    size_t value_count = 0;
+    for (sxml_ast_node_index annotation = child_of(state, owner, SXML_AST_FIELD_ANNOTATION);
+         annotation.value != 0; annotation = next_of(state, annotation)) {
+        annotation_count += 1;
+        for (sxml_ast_node_index value = child_of(state, annotation, SXML_AST_FIELD_VALUE);
+             value.value != 0; value = next_of(state, value)) {
+            value_count += 1;
+        }
+    }
+    if (annotation_count == 0) {
+        return SXML_STATUS_OK;
+    }
+    sxml_function_annotation *read = NULL;
+    sxml_item *values = NULL;
+    sxml_status status = sxml_xpath_lowerer_allocate_scratch(
+        state,
+        (sxml_xpath_lowering_scratch_request){.element_count = annotation_count,
+                                              .element_size = sizeof(sxml_function_annotation),
+                                              .element_alignment =
+                                                  alignof(sxml_function_annotation)},
+        (void **)&read);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_allocate_scratch(
+            state,
+            (sxml_xpath_lowering_scratch_request){.element_count = value_count,
+                                                  .element_size = sizeof(sxml_item),
+                                                  .element_alignment = alignof(sxml_item)},
+            (void **)&values);
+    }
+    size_t annotation_index = 0;
+    size_t next_value = 0;
+    for (sxml_ast_node_index annotation = child_of(state, owner, SXML_AST_FIELD_ANNOTATION);
+         status == SXML_STATUS_OK && annotation.value != 0;
+         annotation = next_of(state, annotation)) {
+        const size_t first_value = next_value;
+        sxml_name_identifier name = {0};
+        status = annotation_name(state, child_of(state, annotation, SXML_AST_FIELD_NAME), &name);
+        for (sxml_ast_node_index value = child_of(state, annotation, SXML_AST_FIELD_VALUE);
+             status == SXML_STATUS_OK && value.value != 0; value = next_of(state, value)) {
+            status = annotation_value(state, value, &values[next_value]);
+            next_value += 1;
+        }
+        read[annotation_index] = (sxml_function_annotation){
+            .annotation_name = name,
+            .annotation_values = {.items = &values[first_value],
+                                  .item_count = next_value - first_value}};
+        annotation_index += 1;
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ir_unit_add_function_annotations(
+            state->unit,
+            (sxml_function_annotation_view){.function_annotations = read,
+                                            .function_annotation_count = annotation_count},
+            annotations);
+    }
+    sxml_xpath_lowerer_release_scratch(state, values);
+    sxml_xpath_lowerer_release_scratch(state, read);
+    return status;
+}
+
 /* ------------------------------------------------------------ Types */
 
 sxml_status sxml_xpath_lowerer_resolve_sequence_type(sxml_xpath_lowerer *state,
@@ -1728,6 +1868,11 @@ static sxml_status finish_closure(sxml_xpath_lowerer *state, closure_body reques
 typedef struct call_argument {
     bool is_placeholder;
     sxml_ir_atom atom;
+    /* For a placeholder: its place among the call's placeholders as
+       written (from 1), the parameter of the partial application it
+       becomes (XPath 4.0, 4.5.2.5: "in the order of the placeholders";
+       keyword placeholders need not follow parameter order). */
+    uint32_t placeholder_number;
 } call_argument;
 
 /* A static call or partial application, resolved, with its arguments as
@@ -2056,10 +2201,12 @@ static sxml_status emit_partial_application(sxml_xpath_lowerer *state,
         const sxml_sequence_type parameter_type =
             parameter_type_of(&call->entry, argument_index);
         if (call->arguments[argument_index].is_placeholder) {
-            placeholder_types[placeholder_index] = parameter_type;
+            const uint32_t number = call->arguments[argument_index].placeholder_number != 0
+                                        ? call->arguments[argument_index].placeholder_number
+                                        : (uint32_t)placeholder_index + 1U;
+            placeholder_types[number - 1U] = parameter_type;
             placeholder_index += 1;
-            body_arguments[argument_index] =
-                slot_atom((sxml_ir_slot){.value = (uint32_t)placeholder_index});
+            body_arguments[argument_index] = slot_atom((sxml_ir_slot){.value = number});
             continue;
         }
         sxml_ir_atom supplied = {0};
@@ -2103,6 +2250,18 @@ static sxml_status emit_partial_application(sxml_xpath_lowerer *state,
                 .captured_atoms = {.atoms = captured_atoms,
                                    .atom_count = supplied_index}},
             &function);
+    }
+    if (status == SXML_STATUS_OK &&
+        call->entry.entry_kind == SXML_FUNCTION_ENTRY_KIND_IR_FUNCTION) {
+        /* The partial application keeps the function's annotations (F&O
+           4.0, 2.5.13); both are the unit's. */
+        sxml_ir_function_replacement replacement = {
+            .index = function, .function = *sxml_ir_unit_get_function(state->unit, function)};
+        replacement.function.function_annotations =
+            sxml_ir_unit_get_function(
+                state->unit, (sxml_ir_function_index){.value = call->entry.ir_function_number})
+                ->function_annotations;
+        status = sxml_ir_unit_replace_function(state->unit, &replacement);
     }
     sxml_ir_expression body = {0};
     if (status == SXML_STATUS_OK) {
@@ -6131,6 +6290,7 @@ static bool next_call_argument(sxml_xpath_lowering_machine *machine,
         if (node_of(state, value)->kind == SXML_AST_KIND_ARGUMENT_PLACEHOLDER) {
             locals->arguments[target].is_placeholder = true;
             locals->placeholder_count += 1;
+            locals->arguments[target].placeholder_number = (uint32_t)locals->placeholder_count;
             continue;
         }
         *status = sxml_xpath_lowering_call_atom(machine,
@@ -6757,7 +6917,12 @@ static sxml_status finish_inline_function(sxml_xpath_lowering_machine *machine,
         replacement.function.body = body;
         replacement.function.slot_count =
             locals->function_frame.function.slot_count;
-        status = sxml_ir_unit_replace_function(state->unit, &replacement);
+        /* XQuery 4.0, 4.5.6: an inline function's %annotations. */
+        status = sxml_xpath_lowerer_read_annotations(state, frame->node,
+                                                     &replacement.function.function_annotations);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_ir_unit_replace_function(state->unit, &replacement);
+        }
     }
     sxml_ir_expression_index definition = {0};
     if (status == SXML_STATUS_OK) {

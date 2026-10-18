@@ -382,6 +382,14 @@ SXML_NODISCARD sxml_status sxml_xpath_lowerer_read_focus(
     sxml_xpath_lowerer *lowerer, sxml_xpath_lowering_focus_read request,
     sxml_ir_atom *atom);
 
+/* The %annotations of owner (an inline function, a function declaration;
+   XQuery 4.0, 5.15): names by the annotation namespace rule, values the
+   literals' items, copied into the unit (what an IR function's
+   function_annotations borrows). Returns the unit's failures. */
+SXML_NODISCARD sxml_status sxml_xpath_lowerer_read_annotations(
+    sxml_xpath_lowerer *lowerer, sxml_ast_node_index owner,
+    sxml_function_annotation_view *annotations);
+
 /* A call of a default function (glossary `default_function`) at node
    with the parts of the current focus its IR function's focus names,
    the empty sequence for the others, bound in block. */

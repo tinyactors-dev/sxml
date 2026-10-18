@@ -2044,9 +2044,38 @@ static sxml_status sxml_lookup_array_member(sxml_dynamic_context *context,
                                             sxml_array_key array_key,
                                             sxml_sequence_builder *builder) {
     const sxml_item array = array_key.array;
-    const sxml_item key = array_key.key;
+    sxml_item key = array_key.key;
     const sxml_type_registry *registry =
         sxml_item_heap_get_type_registry(context->item_heap);
+    if (sxml_item_is_atomic(key) &&
+        sxml_item_get_type_annotation(key).index == SXML_TYPE_XS_UNTYPED_ATOMIC) {
+        /* data($K) ! array:get($V, .) (XPath 4.0, 4.7.3): an untyped key is
+           cast to xs:integer by the coercion rules. An integer is never
+           heap-allocated, so the coerced key needs no release. */
+        sxml_sequence coerced = sxml_sequence_empty();
+        sxml_status status = sxml_evaluator_coerce(
+            context,
+            &(sxml_coercion_request){
+                .value = sxml_sequence_from_item(key),
+                .sequence_type = {.item_type = sxml_builtin_type_identifier(SXML_TYPE_XS_INTEGER),
+                                  .occurrence = SXML_OCCURRENCE_EXACTLY_ONE},
+                .role = SXML_IR_COERCION_ROLE_FUNCTION_ARGUMENT,
+                .error_record = context->error_record},
+            &coerced);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_sequence_get_item(
+                coerced, (sxml_item_request){.item_index = 0, .error_record = NULL}, &key);
+        }
+        if (status == SXML_STATUS_OK &&
+            sxml_item_get_representation(key) != SXML_ITEM_REPRESENTATION_INTEGER) {
+            /* An xs:integer beyond int64_t: beyond every array. */
+            status = sxml_error_record_report(context->error_record, &sxml_array_bounds_error);
+        }
+        sxml_sequence_release(coerced);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+    }
     if (!sxml_item_is_atomic(key) ||
         !sxml_type_registry_is_derived_from(
             registry,

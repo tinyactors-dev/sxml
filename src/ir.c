@@ -158,6 +158,15 @@ void sxml_ir_unit_finalize(sxml_ir_unit *unit) {
     sxml_allocator_release(allocator, unit->template_rules);
     sxml_allocator_release(allocator, unit->static_base_uri_memory);
     sxml_allocator_release(allocator, unit->static_context_memory);
+    for (uint32_t copy_index = 1; copy_index < unit->annotation_copy_count; copy_index += 1) {
+        const sxml_ir_annotation_copy *copy = &unit->annotation_copies[copy_index];
+        for (size_t value_index = 0; value_index < copy->value_count; value_index += 1) {
+            sxml_item_release(copy->values[value_index]);
+        }
+        sxml_allocator_release(allocator, copy->values);
+        sxml_allocator_release(allocator, copy->annotations);
+    }
+    sxml_allocator_release(allocator, unit->annotation_copies);
     for (uint32_t module_number = 1; module_number < unit->module_count; module_number += 1) {
         sxml_allocator_release(allocator, unit->modules[module_number].text_memory);
     }
@@ -976,6 +985,96 @@ sxml_status sxml_ir_unit_set_static_base_uri(sxml_ir_unit *unit,
 }
 
 void sxml_ir_unit_set_untrusted(sxml_ir_unit *unit) { unit->is_untrusted = true; }
+
+sxml_status sxml_ir_unit_add_function_annotations(sxml_ir_unit *unit,
+                                                  sxml_function_annotation_view annotations,
+                                                  sxml_function_annotation_view *copy) {
+    *copy = (sxml_function_annotation_view){.function_annotations = NULL,
+                                            .function_annotation_count = 0};
+    if (unit->is_sealed) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    if (annotations.function_annotation_count == 0) {
+        return SXML_STATUS_OK;
+    }
+    size_t value_count = 0;
+    for (size_t annotation_index = 0; annotation_index < annotations.function_annotation_count;
+         annotation_index += 1) {
+        value_count += annotations.function_annotations[annotation_index]
+                           .annotation_values.item_count;
+    }
+    size_t annotation_bytes = 0;
+    size_t value_bytes = 0;
+    sxml_status status = sxml_size_multiply(annotations.function_annotation_count,
+                                            sizeof(sxml_function_annotation), &annotation_bytes);
+    if (status == SXML_STATUS_OK) {
+        /* At least one, so the values are never NULL. */
+        status = sxml_size_multiply(value_count == 0 ? 1 : value_count, sizeof(sxml_item),
+                                    &value_bytes);
+    }
+    array_room room = {0};
+    if (status == SXML_STATUS_OK) {
+        status = make_array_room(
+            unit,
+            &(array_room_request){.elements = unit->annotation_copies,
+                                  .element_count = unit->annotation_copy_count,
+                                  .element_capacity = unit->annotation_copy_capacity,
+                                  .element_size = sizeof(sxml_ir_annotation_copy),
+                                  .element_alignment = alignof(sxml_ir_annotation_copy),
+                                  .added_count = 1},
+            &room);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    unit->annotation_copies = room.elements;
+    unit->annotation_copy_capacity = room.element_capacity;
+    void *annotation_memory = NULL;
+    void *value_memory = NULL;
+    status = sxml_allocator_allocate(
+        unit->allocator,
+        (sxml_allocation_request){.byte_count = annotation_bytes,
+                                  .alignment = alignof(sxml_function_annotation)},
+        &annotation_memory);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_allocator_allocate(
+            unit->allocator,
+            (sxml_allocation_request){.byte_count = value_bytes, .alignment = alignof(sxml_item)},
+            &value_memory);
+    }
+    if (status != SXML_STATUS_OK) {
+        sxml_allocator_release(unit->allocator, annotation_memory);
+        return status;
+    }
+    sxml_function_annotation *copied = annotation_memory;
+    sxml_item *values = value_memory;
+    size_t next_value = 0;
+    for (size_t annotation_index = 0; annotation_index < annotations.function_annotation_count;
+         annotation_index += 1) {
+        const sxml_function_annotation *annotation =
+            &annotations.function_annotations[annotation_index];
+        const size_t count = annotation->annotation_values.item_count;
+        for (size_t value_index = 0; value_index < count; value_index += 1) {
+            values[next_value + value_index] = annotation->annotation_values.items[value_index];
+            sxml_item_retain(values[next_value + value_index]);
+        }
+        copied[annotation_index] = (sxml_function_annotation){
+            .annotation_name = annotation->annotation_name,
+            .annotation_values = {.items = count == 0 ? NULL : &values[next_value],
+                                  .item_count = count}};
+        next_value += count;
+    }
+    unit->annotation_copies[room.element_count] = (sxml_ir_annotation_copy){
+        .annotations = copied,
+        .annotation_count = annotations.function_annotation_count,
+        .values = values,
+        .value_count = value_count};
+    unit->annotation_copy_count = room.element_count + 1U;
+    *copy = (sxml_function_annotation_view){
+        .function_annotations = copied,
+        .function_annotation_count = annotations.function_annotation_count};
+    return SXML_STATUS_OK;
+}
 
 sxml_status sxml_ir_unit_add_module(sxml_ir_unit *unit, const sxml_ir_module *module,
                                     uint32_t *module_number) {

@@ -1138,6 +1138,15 @@ typedef struct sxml_ir_module {
     void *text_memory;
 } sxml_ir_module;
 
+/* One copy of sxml_ir_unit_add_function_annotations: the annotations and
+   the values they view, both unit memory, the values retained. */
+typedef struct sxml_ir_annotation_copy {
+    sxml_function_annotation *annotations;
+    size_t annotation_count;
+    sxml_item *values;
+    size_t value_count;
+} sxml_ir_annotation_copy;
+
 struct sxml_ir_unit {
     uint32_t reference_count;
     bool is_sealed;
@@ -1214,6 +1223,11 @@ struct sxml_ir_unit {
        the trusted option): its functions cannot access external
        resources (FODC0016). Set by sxml_ir_unit_set_untrusted. */
     bool is_untrusted;
+    /* Function annotations the unit owns (each copy of
+       sxml_ir_unit_add_function_annotations, values retained). */
+    sxml_ir_annotation_copy *annotation_copies;
+    uint32_t annotation_copy_count;
+    uint32_t annotation_copy_capacity;
     /* Library modules (sxml_ir_unit_add_module), from module 1. */
     sxml_ir_module *modules;
     uint32_t module_count;
@@ -1357,6 +1371,15 @@ SXML_NODISCARD sxml_status sxml_ir_unit_set_static_base_uri(
 SXML_NODISCARD sxml_status sxml_ir_unit_add_module(sxml_ir_unit *unit,
                                                    const sxml_ir_module *module,
                                                    uint32_t *module_number);
+
+/* Copies annotations (their names, and their values retained) into the
+   unit and writes a view of the copy, which lives as long as the unit:
+   what sxml_ir_function's function_annotations borrows (XDM 4.0, 8.1).
+   An empty view for none. Before sealing. Returns the allocator's
+   failures. */
+SXML_NODISCARD sxml_status sxml_ir_unit_add_function_annotations(
+    sxml_ir_unit *unit, sxml_function_annotation_view annotations,
+    sxml_function_annotation_view *copy);
 
 /* Marks the unit untrusted (is_untrusted). Also after sealing, before the
    unit's first evaluation. */

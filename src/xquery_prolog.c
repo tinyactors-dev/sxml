@@ -730,10 +730,27 @@ static sxml_status lower_declared_functions(module_lowering *module) {
          function_index += 1) {
         const sxml_xquery_declared_function *function =
             &context->declared_functions[function_index];
+        /* 5.18: the function's %annotations, which its function items
+           carry (F&O 4.0, fn:function-annotations). */
+        sxml_function_annotation_view annotations = {.function_annotations = NULL,
+                                                     .function_annotation_count = 0};
+        if (function->record_type.index == 0) {
+            status = sxml_xpath_lowerer_read_annotations(module->lowerer, function->declaration,
+                                                         &annotations);
+        }
         for (uint32_t arity = function->required_count;
              status == SXML_STATUS_OK && arity <= function->parameter_count; arity += 1) {
             const sxml_ir_function_index index = {
                 .value = function->first_function.value + (arity - function->required_count)};
+            if (annotations.function_annotation_count != 0) {
+                sxml_ir_function_replacement replacement = {
+                    .index = index, .function = *sxml_ir_unit_get_function(module->unit, index)};
+                replacement.function.function_annotations = annotations;
+                status = sxml_ir_unit_replace_function(module->unit, &replacement);
+                if (status != SXML_STATUS_OK) {
+                    break;
+                }
+            }
             lowered_region *region = &module->regions[function_node(module, index)];
             *region = begin_region(module->unit);
             if (arity < function->parameter_count) {
