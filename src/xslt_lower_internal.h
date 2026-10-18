@@ -82,6 +82,9 @@ typedef struct sxml_xslt_namespace_alias {
     sxml_namespace_binding result_binding;
     /* The import precedence of the declaration that won. */
     uint32_t import_precedence;
+    /* The package whose literal result elements it applies to (3.4.8:
+       namespace aliases are local to a package; D163). */
+    uint32_t package;
 } sxml_xslt_namespace_alias;
 
 /* ---------------------------------------------------- The lowering */
@@ -488,9 +491,11 @@ SXML_NODISCARD sxml_status sxml_xslt_lowering_get_element_namespaces(
     const sxml_xslt_lowering *lowering, sxml_xslt_ast_node_index node,
     sxml_namespace_binding_view *namespace_bindings);
 
-/* The alias whose stylesheet URI is uri; NULL when none. */
+/* The alias of node's package whose stylesheet URI is uri; NULL when
+   none. */
 const sxml_xslt_namespace_alias *sxml_xslt_lowering_find_alias(const sxml_xslt_lowering *lowering,
-                                                               sxml_namespace_uri_identifier uri);
+                                                               sxml_namespace_uri_identifier uri,
+                                                               sxml_xslt_ast_node_index node);
 
 /* ------------------------------------------------- Templates and modes */
 

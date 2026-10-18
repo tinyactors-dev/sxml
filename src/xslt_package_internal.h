@@ -101,6 +101,13 @@ SXML_NODISCARD sxml_status sxml_xslt_declare_packages(struct sxml_xslt_lowering 
 /* Releases lowering->packages and sets it NULL; NULL is allowed. */
 void sxml_xslt_release_packages(struct sxml_xslt_lowering *lowering);
 
+/* The top module (an xsl:package, or the principal module) of node's
+   package, from the AST alone: the identity of a package for the parts
+   compiled without the package table (output definitions and character
+   maps, 3.4.8; D163). Module 1 for node 0. */
+sxml_xslt_ast_module_index sxml_xslt_package_top_module(const sxml_xslt_ast *ast,
+                                                        sxml_xslt_ast_node_index node);
+
 /* The package of node (1 without a table or for node 0). */
 uint32_t sxml_xslt_package_of_node(const struct sxml_xslt_lowering *lowering,
                                    sxml_xslt_ast_node_index node);

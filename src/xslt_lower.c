@@ -577,9 +577,12 @@ sxml_xslt_lowering_get_element_namespaces(const sxml_xslt_lowering *lowering,
 }
 
 const sxml_xslt_namespace_alias *sxml_xslt_lowering_find_alias(const sxml_xslt_lowering *lowering,
-                                                               sxml_namespace_uri_identifier uri) {
+                                                               sxml_namespace_uri_identifier uri,
+                                                               sxml_xslt_ast_node_index node) {
+    const uint32_t package = sxml_xslt_package_of_node(lowering, node);
     for (size_t alias_index = 0; alias_index < lowering->namespace_alias_count; alias_index += 1) {
-        if (lowering->namespace_aliases[alias_index].stylesheet_uri.index == uri.index) {
+        if (lowering->namespace_aliases[alias_index].stylesheet_uri.index == uri.index &&
+            lowering->namespace_aliases[alias_index].package == package) {
             return &lowering->namespace_aliases[alias_index];
         }
     }
@@ -871,6 +874,8 @@ static sxml_status add_qname_constant(sxml_xpath_lowerer *lowerer, qname_parts p
    (11.1.4). Attributes in no namespace are never aliased. */
 typedef struct result_name_request {
     const sxml_xslt_lowering *lowering;
+    /* The literal result element (its package's aliases apply). */
+    sxml_xslt_ast_node_index node;
     qname_parts written;
     bool is_attribute;
 } result_name_request;
@@ -889,7 +894,7 @@ static sxml_status make_result_name(sxml_xpath_lowerer *lowerer, const result_na
         return SXML_STATUS_OK;
     }
     const sxml_xslt_namespace_alias *alias =
-        sxml_xslt_lowering_find_alias(request->lowering, parts.namespace_uri);
+        sxml_xslt_lowering_find_alias(request->lowering, parts.namespace_uri, request->node);
     if (alias == NULL) {
         return SXML_STATUS_OK;
     }
@@ -917,10 +922,12 @@ static bool uri_is_listed(sxml_xslt_ast_namespace_uri_view uris,
 }
 
 static bool uri_is_alias_result(const sxml_xslt_lowering *lowering,
-                                sxml_namespace_uri_identifier uri) {
+                                sxml_namespace_uri_identifier uri, sxml_xslt_ast_node_index node) {
+    const uint32_t package = sxml_xslt_package_of_node(lowering, node);
     for (size_t alias_index = 0; alias_index < lowering->namespace_alias_count; alias_index += 1) {
         if (lowering->namespace_aliases[alias_index].result_binding.namespace_uri.index ==
-            uri.index) {
+                uri.index &&
+            lowering->namespace_aliases[alias_index].package == package) {
             return true;
         }
     }
@@ -981,12 +988,14 @@ static sxml_status add_element_namespaces(sxml_xpath_lowering_machine *machine,
          binding_index += 1) {
         const sxml_namespace_binding binding = in_scope.namespace_bindings[binding_index];
         if (binding.namespace_uri.index == SXML_NAMESPACE_XML ||
-            sxml_xslt_lowering_find_alias(lowering, binding.namespace_uri) != NULL) {
+            sxml_xslt_lowering_find_alias(lowering, binding.namespace_uri, locals->head.node) !=
+                NULL) {
             continue;
         }
         const bool is_excluded = binding.namespace_uri.index == SXML_NAMESPACE_XSLT ||
                                  uri_is_listed(excluded, binding.namespace_uri);
-        if (is_excluded && !uri_is_alias_result(lowering, binding.namespace_uri)) {
+        if (is_excluded &&
+            !uri_is_alias_result(lowering, binding.namespace_uri, locals->head.node)) {
             continue;
         }
         kept[kept_count] = binding;
@@ -1013,6 +1022,7 @@ static sxml_status start_literal_result(sxml_xpath_lowering_machine *machine,
     sxml_status status = make_result_name(
         lowerer,
         &(result_name_request){.lowering = lowering,
+                               .node = locals->head.node,
                                .written = {.expanded_name = element->element_name,
                                            .namespace_prefix = element->namespace_prefix},
                                .is_attribute = false},
@@ -1112,6 +1122,7 @@ static sxml_status start_next_attribute(sxml_xpath_lowering_machine *machine,
         sxml_status status = make_result_name(
             lowerer,
             &(result_name_request){.lowering = lowering,
+                                   .node = locals->head.node,
                                    .written = {.expanded_name = attribute->attribute_name,
                                                .namespace_prefix = attribute->namespace_prefix},
                                    .is_attribute = true},
@@ -1792,12 +1803,14 @@ static sxml_status collect_aliases(const sxml_xslt_lowering *source_lowering,
         const sxml_xslt_namespace_alias alias = {
             .stylesheet_uri = stylesheet_prefix->value.payload.namespace_binding.namespace_uri,
             .result_binding = result_prefix->value.payload.namespace_binding,
-            .import_precedence = sxml_xslt_ast_get_module(ast, node->module)->import_precedence};
+            .import_precedence = sxml_xslt_ast_get_module(ast, node->module)->import_precedence,
+            .package = sxml_xslt_package_of_node(source_lowering, declaration)};
         sxml_xslt_namespace_alias *existing = NULL;
         for (size_t alias_index = 0; alias_index < lowering->namespace_alias_count;
              alias_index += 1) {
             if (lowering->namespace_aliases[alias_index].stylesheet_uri.index ==
-                alias.stylesheet_uri.index) {
+                    alias.stylesheet_uri.index &&
+                lowering->namespace_aliases[alias_index].package == alias.package) {
                 existing = &lowering->namespace_aliases[alias_index];
             }
         }
@@ -2255,13 +2268,13 @@ static sxml_status lower_into_unit(const unit_lowering *work) {
     lowering.kept_asts = &kept_asts;
     status = make_static_contexts((context_source){.ast = request->ast, .base = work->base_context},
                                   &memory, &lowering);
-    if (status == SXML_STATUS_OK) {
-        status = collect_aliases(&lowering, &memory, &lowering);
-    }
     /* Packages first: every lookup below binds through them (packet
-       4.16). */
+       4.16), the namespace aliases too (D163). */
     if (status == SXML_STATUS_OK) {
         status = sxml_xslt_declare_packages(&lowering);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = collect_aliases(&lowering, &memory, &lowering);
     }
     /* Function 1 is the main function, whose body comes last. */
     sxml_ir_function_index main_function = {0};

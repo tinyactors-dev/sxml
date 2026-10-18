@@ -277,6 +277,24 @@ uint32_t sxml_xslt_package_count(const sxml_xslt_lowering *lowering) {
     return table == NULL || table->package_count < 2U ? 1U : table->package_count - 1U;
 }
 
+sxml_xslt_ast_module_index sxml_xslt_package_top_module(const sxml_xslt_ast *ast,
+                                                        sxml_xslt_ast_node_index node) {
+    sxml_xslt_ast_module_index module =
+        node.value == 0 ? (sxml_xslt_ast_module_index){.value = 1}
+                        : sxml_xslt_ast_get_node(ast, node)->module;
+    /* Up the module tree (each module's parent comes first, so the walk
+       ends) to the top of the package, as the table's module_packages. */
+    while (module.value != 0) {
+        const sxml_xslt_ast_module *entry = sxml_xslt_ast_get_module(ast, module);
+        if (entry->relation == SXML_XSLT_AST_MODULE_RELATION_PRINCIPAL ||
+            entry->relation == SXML_XSLT_AST_MODULE_RELATION_USED_PACKAGE) {
+            return module;
+        }
+        module = entry->parent_module;
+    }
+    return (sxml_xslt_ast_module_index){.value = 1};
+}
+
 uint32_t sxml_xslt_package_of_node(const sxml_xslt_lowering *lowering,
                                    sxml_xslt_ast_node_index node) {
     const sxml_xslt_package_table *table = lowering->packages;

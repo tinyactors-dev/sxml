@@ -29,6 +29,7 @@
 #include "sxml/tree.h"
 #include "xdm_internal.h"
 #include "xslt_lower_internal.h"
+#include "xslt_package_internal.h"
 #include "xml_internal.h"
 
 #include <stdalign.h>
@@ -402,6 +403,9 @@ static sxml_status merge_mappings(const mapping_merge *merge, sxml_character_map
 /* One named character map (glossary `named_character_map`). */
 typedef struct named_character_map {
     sxml_name_identifier name;
+    /* The top module of its package (3.4.8: character maps are local to a
+       package; D163). */
+    uint32_t package_module;
     /* The declaration of highest import precedence. */
     sxml_xslt_ast_node_index node;
     uint32_t precedence;
@@ -413,6 +417,9 @@ typedef struct named_character_map {
 /* One output definition. */
 typedef struct compiled_definition {
     sxml_name_identifier name;
+    /* The top module of its package (3.4.8: output definitions are local
+       to a package; D163). */
+    uint32_t package_module;
     /* A declaration of the definition, where its errors are reported. */
     sxml_xslt_ast_node_index node;
     /* The attributes as parameter texts (QNames as EQNames), without
@@ -437,6 +444,8 @@ typedef struct compiled_definition {
 /* One result document instruction (glossary). */
 typedef struct compiled_instruction {
     sxml_xslt_ast_node_index node;
+    /* The top module of its package, whose output definitions it uses. */
+    uint32_t package_module;
     /* The serialization_attributes entries it has, in order. */
     uint8_t attribute_numbers[SERIALIZATION_ATTRIBUTE_COUNT];
     uint32_t attribute_count;
@@ -522,14 +531,29 @@ static sxml_status report_as_static(const output_compilation *compilation,
 
 /* --------------------------------------------------------- Character maps */
 
+/* A character map's name and the package it is looked up in. */
+typedef struct character_map_query {
+    sxml_name_identifier name;
+    uint32_t package_module;
+} character_map_query;
+
 static named_character_map *find_character_map(const sxml_xslt_stylesheet_outputs *outputs,
-                                               sxml_name_identifier name) {
+                                               character_map_query query) {
     for (size_t map_index = 0; map_index < outputs->character_map_count; map_index += 1) {
-        if (outputs->character_maps[map_index].name.index == name.index) {
+        if (outputs->character_maps[map_index].name.index == query.name.index &&
+            outputs->character_maps[map_index].package_module == query.package_module) {
             return &outputs->character_maps[map_index];
         }
     }
     return NULL;
+}
+
+/* The query for name used at node: in node's package. */
+static character_map_query map_query_at(const output_compilation *compilation,
+                                        sxml_xslt_ast_node_index node, sxml_name_identifier name) {
+    return (character_map_query){
+        .name = name,
+        .package_module = sxml_xslt_package_top_module(compilation->ast, node).value};
 }
 
 static sxml_xslt_ast_name_token_view use_character_maps_of(const output_compilation *compilation,
@@ -549,8 +573,9 @@ static sxml_status check_used_maps(const output_compilation *compilation,
                                    sxml_xslt_ast_node_index node) {
     const sxml_xslt_ast_name_token_view tokens = use_character_maps_of(compilation, node);
     for (size_t token_index = 0; token_index < tokens.name_token_count; token_index += 1) {
-        if (find_character_map(compilation->outputs, tokens.name_tokens[token_index].name) ==
-            NULL) {
+        if (find_character_map(compilation->outputs,
+                               map_query_at(compilation, node,
+                                            tokens.name_tokens[token_index].name)) == NULL) {
             return report_error(
                 compilation,
                 (output_error){.node = node,
@@ -661,7 +686,8 @@ static sxml_status expand_character_map(const output_compilation *compilation,
         if (top->next_token < tokens.name_token_count) {
             const sxml_name_identifier used = tokens.name_tokens[top->next_token].name;
             top->next_token += 1;
-            named_character_map *child = find_character_map(outputs, used);
+            named_character_map *child =
+                find_character_map(outputs, map_query_at(compilation, top->map->node, used));
             if (child == NULL) {
                 status = check_used_maps(compilation, top->map->node);
             } else if (child->expansion_state == 1) {
@@ -694,7 +720,10 @@ static sxml_status expand_character_map(const output_compilation *compilation,
             sxml_character_map_view *parts = parts_memory;
             for (size_t token_index = 0; token_index < tokens.name_token_count; token_index += 1) {
                 parts[token_index] =
-                    find_character_map(outputs, tokens.name_tokens[token_index].name)->mappings;
+                    find_character_map(outputs,
+                                       map_query_at(compilation, top->map->node,
+                                                    tokens.name_tokens[token_index].name))
+                        ->mappings;
             }
             parts[tokens.name_token_count] = own;
             status = merge_mappings(
@@ -745,10 +774,13 @@ static sxml_status compile_character_maps(const output_compilation *compilation)
                                           .node = declaration, .kind = SXML_XSLT_AST_ATTRIBUTE_NAME})
                 ->value.payload.name;
         const uint32_t precedence = precedence_of(compilation, declaration);
-        named_character_map *existing = find_character_map(outputs, name);
+        named_character_map *existing =
+            find_character_map(outputs, map_query_at(compilation, declaration, name));
         if (existing == NULL) {
             outputs->character_maps[outputs->character_map_count] =
                 (named_character_map){.name = name,
+                                      .package_module =
+                                          sxml_xslt_package_top_module(ast, declaration).value,
                                       .node = declaration,
                                       .precedence = precedence,
                                       .expansion_state = 0,
@@ -770,6 +802,7 @@ static sxml_status compile_character_maps(const output_compilation *compilation)
                 attribute_of(compilation, (sxml_xslt_ast_attribute_query){
                                               .node = tie, .kind = SXML_XSLT_AST_ATTRIBUTE_NAME})
                     ->value.payload.name.index &&
+            map->package_module == sxml_xslt_package_top_module(ast, tie).value &&
             map->precedence == precedence_of(compilation, tie)) {
             status = report_error(
                 compilation,
@@ -814,7 +847,9 @@ static sxml_status merge_used_maps(const output_compilation *compilation,
     sxml_character_map_view *parts = memory;
     for (size_t token_index = 0; token_index < tokens.name_token_count; token_index += 1) {
         parts[token_index] =
-            find_character_map(compilation->outputs, tokens.name_tokens[token_index].name)
+            find_character_map(compilation->outputs,
+                               map_query_at(compilation, request.node,
+                                            tokens.name_tokens[token_index].name))
                 ->mappings;
     }
     parts[tokens.name_token_count] = request.after;
@@ -1021,12 +1056,19 @@ static bool names_contain(const sxml_byte_view *names, size_t name_count, sxml_b
 
 /* ------------------------------------------------- Output definitions */
 
-/* The definition named name, or NULL. */
+/* The definition of a package named name (0: the unnamed one), or NULL. */
+typedef struct definition_query {
+    sxml_name_identifier name;
+    uint32_t package_module;
+} definition_query;
+
 static compiled_definition *find_definition(const sxml_xslt_stylesheet_outputs *outputs,
-                                            sxml_name_identifier name) {
+                                            definition_query query) {
     for (size_t definition_index = 0; definition_index < outputs->definition_count;
          definition_index += 1) {
-        if (outputs->definitions[definition_index].name.index == name.index) {
+        const compiled_definition *definition = &outputs->definitions[definition_index];
+        if (definition->name.index == query.name.index &&
+            definition->package_module == query.package_module) {
             return &outputs->definitions[definition_index];
         }
     }
@@ -1041,6 +1083,15 @@ static sxml_name_identifier output_name_of(const output_compilation *compilation
     return name->value.kind == SXML_XSLT_AST_VALUE_KIND_NAME
                ? name->value.payload.name
                : (sxml_name_identifier){.index = 0};
+}
+
+/* True when declaration (an xsl:output) is one of definition's: its name
+   in its package. */
+static bool declares(const output_compilation *compilation, sxml_xslt_ast_node_index declaration,
+                     const compiled_definition *definition) {
+    return output_name_of(compilation, declaration).index == definition->name.index &&
+           sxml_xslt_package_top_module(compilation->ast, declaration).value ==
+               definition->package_module;
 }
 
 /* The xsl:output of definition that gives attribute: the one of highest
@@ -1073,7 +1124,7 @@ static sxml_status merge_attribute(const output_compilation *compilation,
          order += 1) {
         const sxml_xslt_ast_node_index declaration = sxml_xslt_ast_get_declaration(ast, order);
         if (node_of(compilation, declaration)->kind != SXML_XSLT_AST_KIND_OUTPUT ||
-            output_name_of(compilation, declaration).index != merge->definition->name.index) {
+            !declares(compilation, declaration, merge->definition)) {
             continue;
         }
         const sxml_xslt_ast_attribute *attribute = attribute_of(
@@ -1107,7 +1158,7 @@ static sxml_status merge_attribute(const output_compilation *compilation,
                  later += 1) {
                 const sxml_xslt_ast_node_index other = sxml_xslt_ast_get_declaration(ast, later);
                 if (node_of(compilation, other)->kind == SXML_XSLT_AST_KIND_OUTPUT &&
-                    output_name_of(compilation, other).index == merge->definition->name.index &&
+                    declares(compilation, other, merge->definition) &&
                     precedence_of(compilation, other) > precedence &&
                     attribute_of(compilation,
                                  (sxml_xslt_ast_attribute_query){
@@ -1161,7 +1212,7 @@ static sxml_status merge_definition_maps(const output_compilation *compilation,
          order += 1) {
         const sxml_xslt_ast_node_index declaration = sxml_xslt_ast_get_declaration(ast, order);
         if (node_of(compilation, declaration)->kind == SXML_XSLT_AST_KIND_OUTPUT &&
-            output_name_of(compilation, declaration).index == definition->name.index) {
+            declares(compilation, declaration, definition)) {
             status = check_used_maps(compilation, declaration);
             part_count += use_character_maps_of(compilation, declaration).name_token_count;
         }
@@ -1190,7 +1241,7 @@ static sxml_status merge_definition_maps(const output_compilation *compilation,
              order += 1) {
             const sxml_xslt_ast_node_index declaration = sxml_xslt_ast_get_declaration(ast, order);
             if (node_of(compilation, declaration)->kind == SXML_XSLT_AST_KIND_OUTPUT &&
-                output_name_of(compilation, declaration).index == definition->name.index) {
+                declares(compilation, declaration, definition)) {
                 const uint32_t precedence = precedence_of(compilation, declaration);
                 if (precedence > floor && precedence < next) {
                     next = precedence;
@@ -1205,7 +1256,7 @@ static sxml_status merge_definition_maps(const output_compilation *compilation,
              order += 1) {
             const sxml_xslt_ast_node_index declaration = sxml_xslt_ast_get_declaration(ast, order);
             if (node_of(compilation, declaration)->kind != SXML_XSLT_AST_KIND_OUTPUT ||
-                output_name_of(compilation, declaration).index != definition->name.index ||
+                !declares(compilation, declaration, definition) ||
                 precedence_of(compilation, declaration) != next) {
                 continue;
             }
@@ -1213,7 +1264,9 @@ static sxml_status merge_definition_maps(const output_compilation *compilation,
                 use_character_maps_of(compilation, declaration);
             for (size_t token_index = 0; token_index < tokens.name_token_count; token_index += 1) {
                 parts[filled] =
-                    find_character_map(compilation->outputs, tokens.name_tokens[token_index].name)
+                    find_character_map(compilation->outputs,
+                                       map_query_at(compilation, declaration,
+                                                    tokens.name_tokens[token_index].name))
                         ->mappings;
                 filled += 1;
             }
@@ -1433,29 +1486,51 @@ static sxml_status compile_definitions(const output_compilation *compilation) {
                 : 0U;
     }
     void *memory = NULL;
-    sxml_status status = allocate_array(outputs->arena,
-                                        (array_request){.element_count = declaration_count + 1,
-                                                        .element_size = sizeof(compiled_definition),
-                                                        .alignment = alignof(compiled_definition)},
-                                        &memory);
+    /* One unnamed definition per package (26.1.1; 3.4.8), the top-level
+       package's first. */
+    size_t package_count = 0;
+    for (uint32_t module = 1; module < ast->module_count; module += 1) {
+        const sxml_xslt_ast_module *entry =
+            sxml_xslt_ast_get_module(ast, (sxml_xslt_ast_module_index){.value = module});
+        package_count += entry->relation == SXML_XSLT_AST_MODULE_RELATION_USED_PACKAGE ? 1U : 0U;
+    }
+    sxml_status status = allocate_array(
+        outputs->arena,
+        (array_request){.element_count = declaration_count + package_count + 1,
+                        .element_size = sizeof(compiled_definition),
+                        .alignment = alignof(compiled_definition)},
+        &memory);
     if (status != SXML_STATUS_OK) {
         return status;
     }
     outputs->definitions = memory;
-    memset(memory, 0, (declaration_count + 1) * sizeof(compiled_definition));
-    /* The unnamed definition always exists (26.1.1). */
+    memset(memory, 0, (declaration_count + package_count + 1) * sizeof(compiled_definition));
     outputs->definition_count = 1;
     outputs->definitions[0].node = sxml_xslt_ast_get_module(ast, (sxml_xslt_ast_module_index){.value = 1})->root;
+    outputs->definitions[0].package_module = 1;
+    for (uint32_t module = 2; module < ast->module_count; module += 1) {
+        const sxml_xslt_ast_module *entry =
+            sxml_xslt_ast_get_module(ast, (sxml_xslt_ast_module_index){.value = module});
+        if (entry->relation == SXML_XSLT_AST_MODULE_RELATION_USED_PACKAGE) {
+            compiled_definition *definition = &outputs->definitions[outputs->definition_count];
+            definition->node = entry->root;
+            definition->package_module = module;
+            outputs->definition_count += 1;
+        }
+    }
     for (uint32_t order = 1; sxml_xslt_ast_get_declaration(ast, order).value != 0; order += 1) {
         const sxml_xslt_ast_node_index declaration = sxml_xslt_ast_get_declaration(ast, order);
         if (node_of(compilation, declaration)->kind != SXML_XSLT_AST_KIND_OUTPUT) {
             continue;
         }
-        const sxml_name_identifier name = output_name_of(compilation, declaration);
-        compiled_definition *definition = find_definition(outputs, name);
+        const definition_query query = {
+            .name = output_name_of(compilation, declaration),
+            .package_module = sxml_xslt_package_top_module(ast, declaration).value};
+        compiled_definition *definition = find_definition(outputs, query);
         if (definition == NULL) {
             definition = &outputs->definitions[outputs->definition_count];
-            definition->name = name;
+            definition->name = query.name;
+            definition->package_module = query.package_module;
             outputs->definition_count += 1;
         }
         definition->node = declaration;
@@ -1557,6 +1632,7 @@ static sxml_status compile_instructions(const output_compilation *compilation) {
         compiled_instruction *instruction = &outputs->instructions[outputs->instruction_count];
         memset(instruction, 0, sizeof(*instruction));
         instruction->node = node;
+        instruction->package_module = sxml_xslt_package_top_module(compilation->ast, node).value;
         outputs->instruction_count += 1;
         status = compile_instruction(compilation, instruction);
     }
@@ -1710,7 +1786,9 @@ sxml_status sxml_xslt_stylesheet_outputs_get_definition(
     if (outputs == NULL || output_definition == NULL) {
         return SXML_STATUS_INVALID_ARGUMENT;
     }
-    const compiled_definition *definition = find_definition(outputs, output_definition_name);
+    /* The top-level package's (module 1). */
+    const compiled_definition *definition = find_definition(
+        outputs, (definition_query){.name = output_definition_name, .package_module = 1});
     if (definition == NULL) {
         return SXML_STATUS_INVALID_ARGUMENT;
     }
@@ -1720,8 +1798,12 @@ sxml_status sxml_xslt_stylesheet_outputs_get_definition(
 
 sxml_xslt_character_map_answer sxml_xslt_stylesheet_outputs_find_character_map(
     const sxml_xslt_stylesheet_outputs *outputs, sxml_name_identifier character_map_name) {
+    /* The top-level package's (module 1), the one of the principal result. */
     const named_character_map *map =
-        outputs == NULL ? NULL : find_character_map(outputs, character_map_name);
+        outputs == NULL ? NULL
+                        : find_character_map(outputs, (character_map_query){
+                                                          .name = character_map_name,
+                                                          .package_module = 1});
     if (map == NULL) {
         return (sxml_xslt_character_map_answer){
             .is_found = false,
@@ -2580,7 +2662,10 @@ static const compiled_definition *find_format(format_lookup lookup) {
             &name)) {
         return NULL;
     }
-    return find_definition(lookup.writer->outputs, name);
+    return find_definition(lookup.writer->outputs,
+                           (definition_query){.name = name,
+                                              .package_module =
+                                                  lookup.instruction->package_module});
 }
 
 /* The texts of an effective definition while it is made. */
@@ -2858,7 +2943,13 @@ static sxml_status open_result_document_of(sxml_xslt_result_writer *writer, cons
     }
     const size_t format_number = attribute_number_of(SXML_ATTRIBUTE_ROLE_FORMAT);
     const size_t href_number = attribute_number_of(SXML_ATTRIBUTE_ROLE_HREF);
-    const compiled_definition *base = &writer->outputs->definitions[0];
+    const compiled_definition *base = find_definition(
+        writer->outputs,
+        (definition_query){.name = {.index = 0},
+                           .package_module = request->instruction->package_module});
+    if (base == NULL) {
+        base = &writer->outputs->definitions[0];
+    }
     if (values.has_value[format_number]) {
         base = find_format((format_lookup){.writer = writer,
                                            .instruction = request->instruction,
