@@ -180,6 +180,21 @@ typedef struct sxml_atomic_target {
     sxml_builtin_type primitive_type;
 } sxml_atomic_target;
 
+/*
+ * Resolves an atomic type to its nearest built-in ancestor and primitive
+ * type. Returns SXML_STATUS_INVALID_ARGUMENT when type is not atomic.
+ */
+SXML_NODISCARD sxml_status sxml_cast_resolve_atomic_target(
+    const sxml_type_registry *registry, sxml_type_identifier type,
+    sxml_atomic_target *target);
+
+/* The whiteSpace facet (XSD 1.1 Part 2, section 4.3.6). */
+typedef enum sxml_whitespace_facet {
+    SXML_WHITESPACE_FACET_PRESERVE,
+    SXML_WHITESPACE_FACET_REPLACE,
+    SXML_WHITESPACE_FACET_COLLAPSE,
+} sxml_whitespace_facet;
+
 /* A lexical form to turn into an item of an atomic type. */
 typedef struct sxml_lexical_form_request {
     /* Well-formed UTF-8 after the whitespace processing of the target's
@@ -200,6 +215,67 @@ typedef struct sxml_lexical_form_request {
 SXML_NODISCARD sxml_status sxml_cast_make_item_from_lexical_form(
     sxml_item_heap *item_heap, const sxml_lexical_form_request *request,
     sxml_item *item);
+
+/* -------------------------------------------- Facets: src/cast_facet.c */
+
+/*
+ * The constraining facets of the types a schema registers (XSD 1.1 Part
+ * 2, 4.3; include/sxml/types.h, sxml_facet; D165). Casting to such a type
+ * is the whiteSpace facet, the lexical mapping of the built-in type it is
+ * derived from (src/cast_lexical.c), then every facet of the type and of
+ * its registered base types (src/cast_facet.c): one lexical-space engine
+ * for XSD validation and XPath casting alike.
+ */
+
+/*
+ * The whiteSpace facet of type, a registered atomic type: the nearest one
+ * on its chain of registered base types, else builtin_facet, that of the
+ * built-in type it is derived from (Part 2, 4.3.6).
+ */
+sxml_whitespace_facet sxml_cast_find_whitespace_facet(
+    const sxml_type_registry *registry, sxml_type_identifier type,
+    sxml_whitespace_facet builtin_facet);
+
+/*
+ * True when a value of the registered list type may have no items: no
+ * built-in list type (xs:NMTOKENS, xs:IDREFS, xs:ENTITIES, minLength 1)
+ * is on its chain of base types.
+ */
+bool sxml_cast_list_allows_no_items(const sxml_type_registry *registry,
+                                    sxml_type_identifier list_type);
+
+/* A value whose facets to check. */
+typedef struct sxml_facet_check_request {
+    /* A registered atomic, list or union type (from
+       SXML_TYPE_FIRST_REGISTERED); built-in types have no facets here. */
+    sxml_type_identifier type;
+    /* The value's lexical form after whitespace processing, what pattern
+       facets match (Part 2, 4.3.4.4): the text cast from, or the
+       canonical text of a value cast from another type. Borrowed. */
+    sxml_byte_view lexical_form;
+    /* The value: one atomic item, or a list's items. Borrowed. */
+    sxml_item_view items;
+    sxml_error_record *error_record;
+} sxml_facet_check_request;
+
+/*
+ * Checks the facets of request->type and of each registered base type
+ * (facets of steps combine by conjunction, the pattern facets of one step
+ * by disjunction; Part 2, 4.3.4.3). A value that fails one is FORG0001
+ * (F&O 4.0, section 19.3.1), with the constraint name of the facet first
+ * in the description: cvc-length-valid, cvc-minLength-valid,
+ * cvc-maxLength-valid, cvc-pattern-valid, cvc-enumeration-valid,
+ * cvc-maxInclusive-valid, cvc-maxExclusive-valid, cvc-minInclusive-valid,
+ * cvc-minExclusive-valid, cvc-totalDigits-valid, cvc-fractionDigits-valid
+ * or cvc-explicitTimezone-valid (Part 2, appendix C.1).
+ *
+ * Returns SXML_STATUS_DYNAMIC_ERROR with the error record filled,
+ * SXML_STATUS_INVALID_ARGUMENT for a facet value the type cannot read
+ * (schema compilation checks them before it registers a type), and the
+ * heap's and the regex engine's failures (limits included).
+ */
+SXML_NODISCARD sxml_status sxml_cast_check_facets(
+    sxml_item_heap *item_heap, const sxml_facet_check_request *request);
 
 /* ------------------------------------------------------------ Calendar */
 

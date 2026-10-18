@@ -132,13 +132,6 @@ static void sxml_scratch_text_release(sxml_item_heap *item_heap,
 
 /* ----------------------------------------------------------- Whitespace */
 
-/* The whiteSpace facet (XSD 1.1 Part 2, section 4.3.6). */
-typedef enum sxml_whitespace_facet {
-    SXML_WHITESPACE_FACET_PRESERVE,
-    SXML_WHITESPACE_FACET_REPLACE,
-    SXML_WHITESPACE_FACET_COLLAPSE,
-} sxml_whitespace_facet;
-
 /* xs:string and xs:untypedAtomic preserve, xs:normalizedString replaces,
    every other atomic type collapses. */
 static sxml_whitespace_facet
@@ -235,14 +228,15 @@ static sxml_status sxml_apply_whitespace_facet(sxml_item_heap *item_heap,
    registry. */
 enum { SXML_CAST_MAXIMUM_DERIVATION_STEP_COUNT = 1024 };
 
-/*
- * Resolves an atomic type to its nearest built-in ancestor and primitive
- * type. Returns SXML_STATUS_INVALID_ARGUMENT when type is not atomic.
- */
-static sxml_status
-sxml_resolve_atomic_target(const sxml_type_registry *registry,
-                           sxml_type_identifier type,
-                           sxml_atomic_target *target) {
+/* Types a schema registered may have facets; built-in types have theirs
+   in their identifiers (include/sxml/types.h, D165). */
+static bool sxml_type_is_registered(sxml_type_identifier type) {
+    return type.index >= SXML_TYPE_FIRST_REGISTERED;
+}
+
+sxml_status sxml_cast_resolve_atomic_target(const sxml_type_registry *registry,
+                                            sxml_type_identifier type,
+                                            sxml_atomic_target *target) {
     sxml_type_description description;
     sxml_status status =
         sxml_type_registry_describe_type(registry, type, &description);
@@ -811,16 +805,21 @@ sxml_write_canonical_scratch(sxml_item_heap *item_heap, sxml_item item,
 static sxml_status sxml_cast_text(const sxml_atomic_cast *cast,
                                   sxml_byte_view text, sxml_item *result) {
     sxml_item_heap *item_heap = cast->item_heap;
+    sxml_whitespace_facet facet =
+        sxml_whitespace_facet_of(cast->target.builtin_type);
+    if (sxml_type_is_registered(cast->target.type)) {
+        facet = sxml_cast_find_whitespace_facet(
+            sxml_item_heap_get_type_registry(item_heap), cast->target.type,
+            facet);
+    }
     sxml_scratch_text processed;
     sxml_status status = sxml_apply_whitespace_facet(
-        item_heap,
-        (sxml_whitespace_request){
-            .text = text,
-            .facet = sxml_whitespace_facet_of(cast->target.builtin_type)},
+        item_heap, (sxml_whitespace_request){.text = text, .facet = facet},
         &processed);
     if (status != SXML_STATUS_OK) {
         return status;
     }
+    sxml_item item = {.representation = 0};
     status = sxml_cast_make_item_from_lexical_form(
         item_heap,
         &(sxml_lexical_form_request){.lexical_form = processed.text,
@@ -828,8 +827,43 @@ static sxml_status sxml_cast_text(const sxml_atomic_cast *cast,
                                      .namespace_bindings =
                                          cast->namespace_bindings,
                                      .error_record = cast->error_record},
-        result);
+        &item);
+    if (status == SXML_STATUS_OK && sxml_type_is_registered(cast->target.type)) {
+        /* The facets of a schema type (F&O 4.0, section 19.3.1). */
+        status = sxml_cast_check_facets(
+            item_heap, &(sxml_facet_check_request){
+                           .type = cast->target.type,
+                           .lexical_form = processed.text,
+                           .items = {.items = &item, .item_count = 1},
+                           .error_record = cast->error_record});
+        if (status != SXML_STATUS_OK) {
+            sxml_item_release(item);
+        }
+    }
     sxml_scratch_text_release(item_heap, &processed);
+    if (status == SXML_STATUS_OK) {
+        *result = item;
+    }
+    return status;
+}
+
+/* Checks the facets of a schema type against an item cast from another
+   type than the string types, matching patterns against its canonical
+   text; releases the item on failure. */
+static sxml_status sxml_cast_check_item_facets(sxml_item_heap *item_heap,
+                                               const sxml_facet_check_request *request) {
+    sxml_canonical_scratch canonical;
+    sxml_status status =
+        sxml_write_canonical_scratch(item_heap, request->items.items[0], &canonical);
+    if (status == SXML_STATUS_OK) {
+        sxml_facet_check_request check = *request;
+        check.lexical_form = canonical.scratch.text;
+        status = sxml_cast_check_facets(item_heap, &check);
+        sxml_scratch_text_release(item_heap, &canonical.scratch);
+    }
+    if (status != SXML_STATUS_OK) {
+        sxml_item_release(request->items.items[0]);
+    }
     return status;
 }
 
@@ -877,7 +911,20 @@ static sxml_status sxml_cast_to_atomic_target(const sxml_atomic_cast *cast,
         sxml_scratch_text_release(item_heap, &canonical.scratch);
         return status;
     }
-    return sxml_cast_datum(cast, result);
+    sxml_item item = {.representation = 0};
+    sxml_status status = sxml_cast_datum(cast, &item);
+    if (status == SXML_STATUS_OK && sxml_type_is_registered(cast->target.type)) {
+        status = sxml_cast_check_item_facets(
+            item_heap, &(sxml_facet_check_request){
+                           .type = cast->target.type,
+                           .lexical_form = {.bytes = NULL, .byte_count = 0},
+                           .items = {.items = &item, .item_count = 1},
+                           .error_record = cast->error_record});
+    }
+    if (status == SXML_STATUS_OK) {
+        *result = item;
+    }
+    return status;
 }
 
 /* ---------------------------------------------------------- Any target */
@@ -1012,6 +1059,8 @@ typedef enum sxml_cast_frame_kind {
    member or token. */
 typedef struct sxml_cast_frame {
     sxml_cast_frame_kind kind;
+    /* The union, choice or list target type. */
+    sxml_type_identifier target_type;
     sxml_cast_source source;
     /* The frame whose member_error this cast reports to, or
        SXML_CAST_CALLER_ERROR_RECORD. */
@@ -1121,6 +1170,47 @@ static void sxml_cast_machine_pop(sxml_cast_machine *machine) {
 }
 
 /*
+ * The facets of a union type a schema derived by restriction (pattern
+ * and enumeration, XSD 1.1 Part 2, 4.1.5) on the value a member gave:
+ * patterns match the collapsed text cast from, or the canonical text of
+ * the value. Releases the value on failure.
+ */
+static sxml_status sxml_cast_check_union_facets(const sxml_cast_machine *machine,
+                                                const sxml_cast_frame *frame,
+                                                sxml_item value) {
+    sxml_item_heap *item_heap = machine->cast->item_heap;
+    sxml_facet_check_request request = {
+        .type = frame->target_type,
+        .lexical_form = {.bytes = NULL, .byte_count = 0},
+        .items = {.items = &value, .item_count = 1},
+        .error_record =
+            sxml_cast_machine_error_record(machine, frame->error_frame_index)};
+    if (!sxml_primitive_is_string_source(sxml_source_primitive_type(frame->source))) {
+        return sxml_cast_check_item_facets(item_heap, &request);
+    }
+    sxml_byte_view text = {.bytes = NULL, .byte_count = 0};
+    sxml_scratch_text collapsed = {.text = {.bytes = NULL, .byte_count = 0},
+                                   .bytes = {.memory = NULL, .byte_count = 0}};
+    sxml_status status = sxml_source_text(frame->source, &text);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_apply_whitespace_facet(
+            item_heap,
+            (sxml_whitespace_request){.text = text,
+                                      .facet = SXML_WHITESPACE_FACET_COLLAPSE},
+            &collapsed);
+    }
+    if (status == SXML_STATUS_OK) {
+        request.lexical_form = collapsed.text;
+        status = sxml_cast_check_facets(item_heap, &request);
+        sxml_scratch_text_release(item_heap, &collapsed);
+    }
+    if (status != SXML_STATUS_OK) {
+        sxml_item_release(value);
+    }
+    return status;
+}
+
+/*
  * A union or a choice (F&O 4.0, section 19.3.5 "Casting to union types";
  * XPath 4.0, section 4.17.1): a source that is already an instance of an
  * atomic member is returned unchanged; otherwise the first member the cast
@@ -1146,6 +1236,13 @@ static bool sxml_cast_begin_members(sxml_cast_machine *machine,
             description.variety == SXML_TYPE_VARIETY_ATOMIC &&
             sxml_source_is_derived_from(item_heap, frame->source, member)) {
             sxml_item_retain(frame->source.item);
+            if (sxml_type_is_registered(frame->target_type)) {
+                outcome->status = sxml_cast_check_union_facets(
+                    machine, frame, frame->source.item);
+                if (outcome->status != SXML_STATUS_OK) {
+                    return false;
+                }
+            }
             outcome->value = sxml_sequence_from_item(frame->source.item);
             return false;
         }
@@ -1194,9 +1291,23 @@ static bool sxml_cast_begin_list(sxml_cast_machine *machine,
     }
     size_t token_count = sxml_count_tokens(frame->collapsed.text);
     if (token_count == 0) {
+        /* A list type a schema made from xs:list may be empty (XSD 1.1
+           Part 2, 4.1.4), with the facets of its restrictions. */
+        if (sxml_type_is_registered(frame->target_type) &&
+            sxml_cast_list_allows_no_items(
+                sxml_item_heap_get_type_registry(item_heap),
+                frame->target_type)) {
+            outcome->status = sxml_cast_check_facets(
+                item_heap, &(sxml_facet_check_request){
+                               .type = frame->target_type,
+                               .lexical_form = frame->collapsed.text,
+                               .items = {.items = NULL, .item_count = 0},
+                               .error_record = error_record});
+        } else {
+            outcome->status =
+                sxml_error_record_report(error_record, &sxml_cast_value_error);
+        }
         sxml_scratch_text_release(item_heap, &frame->collapsed);
-        outcome->status =
-            sxml_error_record_report(error_record, &sxml_cast_value_error);
         return false;
     }
     size_t byte_count = 0;
@@ -1256,13 +1367,14 @@ static bool sxml_cast_begin(sxml_cast_machine *machine, sxml_cast_step step,
     }
     sxml_cast_frame frame;
     memset(&frame, 0, sizeof(frame));
+    frame.target_type = step.target_type;
     frame.source = step.source;
     frame.error_frame_index = step.error_frame_index;
     switch (description.variety) {
     case SXML_TYPE_VARIETY_ATOMIC: {
         sxml_atomic_target target;
         outcome->status =
-            sxml_resolve_atomic_target(registry, cast.target_type, &target);
+            sxml_cast_resolve_atomic_target(registry, cast.target_type, &target);
         if (outcome->status != SXML_STATUS_OK) {
             return false;
         }
@@ -1347,6 +1459,22 @@ static bool sxml_cast_advance(sxml_cast_machine *machine,
         if (token_offset > text.byte_count) {
             *outcome = (sxml_cast_outcome){.status = SXML_STATUS_OK,
                                            .value = sxml_sequence_empty()};
+            if (sxml_type_is_registered(top->target_type)) {
+                /* The facets of a list type (XSD 1.1 Part 2, 4.1.4). */
+                outcome->status = sxml_cast_check_facets(
+                    machine->cast->item_heap,
+                    &(sxml_facet_check_request){
+                        .type = top->target_type,
+                        .lexical_form = text,
+                        .items = {.items = top->list.items,
+                                  .item_count = top->list.item_count},
+                        .error_record = sxml_cast_machine_error_record(
+                            machine, top->error_frame_index)});
+                if (outcome->status != SXML_STATUS_OK) {
+                    sxml_cast_machine_pop(machine);
+                    return true;
+                }
+            }
             outcome->status = sxml_sequence_make_vector(
                 machine->cast->item_heap,
                 (sxml_item_view){.items = top->list.items,
@@ -1380,6 +1508,20 @@ static bool sxml_cast_deliver(sxml_cast_machine *machine,
                               sxml_cast_outcome *outcome) {
     sxml_cast_frame *top = &machine->frames[machine->frame_count - 1];
     if (top->kind == SXML_CAST_FRAME_MEMBERS) {
+        if (outcome->status == SXML_STATUS_OK &&
+            sxml_type_is_registered(top->target_type) &&
+            sxml_sequence_get_representation(outcome->value) ==
+                SXML_SEQUENCE_REPRESENTATION_SINGLE_ITEM) {
+            /* A member's value is the union's when the union's own facets
+               hold; no other member is tried. */
+            outcome->status = sxml_cast_check_union_facets(
+                machine, top, outcome->value.content);
+            if (outcome->status != SXML_STATUS_OK) {
+                outcome->value = sxml_sequence_empty();
+            }
+            sxml_cast_machine_pop(machine);
+            return true;
+        }
         if (!sxml_status_is_cast_error(outcome->status)) {
             sxml_cast_machine_pop(machine);
             return true;

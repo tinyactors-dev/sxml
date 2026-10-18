@@ -13,6 +13,7 @@
 #include "sxml/types.h"
 #include "sxml/xdm.h"
 #include "test_runner.h"
+#include "types_internal.h"
 #include "xdm_internal.h"
 
 #include <string.h>
@@ -1507,7 +1508,353 @@ static void test_empty_text_without_bytes(sxml_test_state *state) {
     cast_fixture_destroy(&fixture);
 }
 
+/* ------------------------------------------- Schema types and facets */
+
+/* Registers a restriction of base with facets (D165), as schema
+   compilation does; SXML_TYPE_NONE on failure. */
+typedef struct restriction_request {
+    sxml_type_variety variety;
+    sxml_type_identifier base_type;
+    const sxml_facet *facets;
+    size_t facet_count;
+    /* LIST: the item type; UNION: the members. */
+    sxml_type_identifier list_item_type;
+    sxml_type_identifier_view member_types;
+} restriction_request;
+
+static sxml_type_identifier register_restriction(const cast_fixture *fixture,
+                                                 restriction_request request) {
+    sxml_type_description description = {
+        .variety = request.variety,
+        .base_type = request.base_type,
+        .facets = {.facets = request.facets, .facet_count = request.facet_count},
+    };
+    if (request.variety == SXML_TYPE_VARIETY_LIST) {
+        description.variety_details.list_item_type = request.list_item_type;
+    } else if (request.variety == SXML_TYPE_VARIETY_UNION) {
+        description.variety_details.member_types = request.member_types;
+    }
+    sxml_type_identifier type = {.index = SXML_TYPE_NONE};
+    if (sxml_type_registry_register_schema_type(fixture->registry, &description,
+                                                &type) != SXML_STATUS_OK) {
+        return (sxml_type_identifier){.index = SXML_TYPE_NONE};
+    }
+    return type;
+}
+
+static sxml_type_identifier register_atomic(const cast_fixture *fixture,
+                                            sxml_type_identifier base,
+                                            sxml_facet facet) {
+    return register_restriction(
+        fixture, (restriction_request){.variety = SXML_TYPE_VARIETY_ATOMIC,
+                                       .base_type = base,
+                                       .facets = &facet,
+                                       .facet_count = 1});
+}
+
+static sxml_facet facet_of(sxml_facet_kind facet_kind, const char *value) {
+    return (sxml_facet){.facet_kind = facet_kind, .value = text_view(value)};
+}
+
+static cast_case text_to(const char *text, sxml_type_identifier target) {
+    return (cast_case){.source_text = text,
+                       .source_type = SXML_TYPE_NONE,
+                       .target_type = target};
+}
+
+/* Whether casting text to target fails with FORG0001 whose description
+   starts with constraint_name. */
+typedef struct facet_failure {
+    const char *text;
+    sxml_type_identifier target;
+    const char *constraint_name;
+} facet_failure;
+
+static bool fails_facet(const cast_fixture *fixture, facet_failure failure) {
+    sxml_error_record error_record;
+    sxml_sequence result = sxml_sequence_empty();
+    sxml_status status = sxml_cast_make_value_from_text(
+        fixture->item_heap,
+        &(sxml_text_cast_request){.text = text_view(failure.text),
+                                  .target_type = failure.target,
+                                  .namespace_bindings = fixture->namespace_bindings,
+                                  .error_record = &error_record},
+        &result);
+    if (status == SXML_STATUS_OK) {
+        sxml_sequence_release(result);
+        return false;
+    }
+    size_t name_length = strlen(failure.constraint_name);
+    sxml_byte_view description = error_record.diagnostic.description;
+    return status == SXML_STATUS_DYNAMIC_ERROR &&
+           sxml_byte_view_equals(error_record.code.local_name, text_view("FORG0001")) &&
+           description.byte_count > name_length &&
+           memcmp(description.bytes, failure.constraint_name, name_length) == 0;
+}
+
+/* The unit test the packet names: "5" to a restriction of xs:integer
+   with minInclusive 10 (XSD 1.1 Part 2, 4.3.10.4). */
+static void test_facets_of_schema_types_raise_forg0001(sxml_test_state *state) {
+    cast_fixture fixture;
+    SXML_TEST_REQUIRE(state, cast_fixture_create(&fixture) == SXML_STATUS_OK);
+    sxml_type_identifier at_least_ten =
+        register_atomic(&fixture, builtin(SXML_TYPE_XS_INTEGER),
+                        facet_of(SXML_FACET_KIND_MIN_INCLUSIVE, "10"));
+    SXML_TEST_REQUIRE(state, at_least_ten.index != SXML_TYPE_NONE);
+    SXML_TEST_EXPECT(state, fails_facet(&fixture, (facet_failure){"5", at_least_ten,
+                                                                  "cvc-minInclusive-valid"}));
+    SXML_TEST_EXPECT(state, casts_to_text(&fixture, (text_expectation){
+                                                        text_to(" 10 ", at_least_ten), "10"}));
+    cast_outcome outcome = run_cast(&fixture, text_to("12", at_least_ten));
+    SXML_TEST_EXPECT(state, outcome.result_type.index == at_least_ten.index);
+    /* From another type than a string: an xs:double source. */
+    SXML_TEST_EXPECT(state,
+                     fails_with(&fixture, (error_expectation){
+                                              {"9.5", SXML_TYPE_XS_DOUBLE, at_least_ten},
+                                              "FORG0001"}));
+    SXML_TEST_EXPECT(state, castable(&fixture, (cast_case){"11.5", SXML_TYPE_XS_DOUBLE,
+                                                           at_least_ten}) == 1);
+    SXML_TEST_EXPECT(state, castable(&fixture, (cast_case){"1", SXML_TYPE_XS_DOUBLE,
+                                                           at_least_ten}) == 0);
+    /* A restriction of the restriction keeps the base's facets. */
+    sxml_type_identifier ten_to_twenty = register_atomic(
+        &fixture, at_least_ten, facet_of(SXML_FACET_KIND_MAX_EXCLUSIVE, "20"));
+    SXML_TEST_EXPECT(state, fails_facet(&fixture, (facet_failure){"20", ten_to_twenty,
+                                                                  "cvc-maxExclusive-valid"}));
+    SXML_TEST_EXPECT(state, fails_facet(&fixture, (facet_failure){"9", ten_to_twenty,
+                                                                  "cvc-minInclusive-valid"}));
+    SXML_TEST_EXPECT(state, casts_to_text(&fixture, (text_expectation){
+                                                        text_to("019", ten_to_twenty), "19"}));
+    /* The built-in type's own value space still applies. */
+    sxml_type_identifier small_byte = register_atomic(
+        &fixture, builtin(SXML_TYPE_XS_BYTE), facet_of(SXML_FACET_KIND_MIN_INCLUSIVE, "0"));
+    SXML_TEST_EXPECT(state, fails_with(&fixture, (error_expectation){
+                                                     text_to("300", small_byte), "FORG0001"}));
+    SXML_TEST_EXPECT(state, live_cell_count(&fixture) == 0);
+    cast_fixture_destroy(&fixture);
+}
+
+static void test_string_facets(sxml_test_state *state) {
+    cast_fixture fixture;
+    SXML_TEST_REQUIRE(state, cast_fixture_create(&fixture) == SXML_STATUS_OK);
+    /* SKU of the purchase order (XML Schema Part 0, 2.1). */
+    sxml_type_identifier sku = register_atomic(
+        &fixture, builtin(SXML_TYPE_XS_STRING),
+        facet_of(SXML_FACET_KIND_PATTERN, "\\d{3}-[A-Z]{2}"));
+    SXML_TEST_EXPECT(state, casts_to_text(&fixture, (text_expectation){
+                                                        text_to("926-AA", sku), "926-AA"}));
+    SXML_TEST_EXPECT(state, fails_facet(&fixture, (facet_failure){"926-AAA", sku,
+                                                                  "cvc-pattern-valid"}));
+    /* Two patterns of one step are alternatives; steps are conjunctions. */
+    const sxml_facet patterns[] = {facet_of(SXML_FACET_KIND_PATTERN, "a+"),
+                                   facet_of(SXML_FACET_KIND_PATTERN, "b+")};
+    sxml_type_identifier a_or_b = register_restriction(
+        &fixture, (restriction_request){.variety = SXML_TYPE_VARIETY_ATOMIC,
+                                        .base_type = builtin(SXML_TYPE_XS_STRING),
+                                        .facets = patterns,
+                                        .facet_count = 2});
+    SXML_TEST_EXPECT(state, casts_to_text(&fixture, (text_expectation){
+                                                        text_to("bb", a_or_b), "bb"}));
+    sxml_type_identifier short_a_or_b = register_atomic(
+        &fixture, a_or_b, facet_of(SXML_FACET_KIND_PATTERN, ".{1,2}"));
+    SXML_TEST_EXPECT(state, fails_facet(&fixture, (facet_failure){"aaa", short_a_or_b,
+                                                                  "cvc-pattern-valid"}));
+    SXML_TEST_EXPECT(state, fails_facet(&fixture, (facet_failure){"ab", short_a_or_b,
+                                                                  "cvc-pattern-valid"}));
+    /* Lengths in characters. */
+    sxml_type_identifier three = register_atomic(&fixture, builtin(SXML_TYPE_XS_STRING),
+                                                 facet_of(SXML_FACET_KIND_LENGTH, "3"));
+    SXML_TEST_EXPECT(state, casts_to_text(&fixture, (text_expectation){
+                                                        text_to("\xC3\xA9t\xC3\xA9", three),
+                                                        "\xC3\xA9t\xC3\xA9"}));
+    SXML_TEST_EXPECT(state,
+                     fails_facet(&fixture, (facet_failure){"ab", three, "cvc-length-valid"}));
+    sxml_type_identifier at_most_two = register_atomic(
+        &fixture, builtin(SXML_TYPE_XS_TOKEN), facet_of(SXML_FACET_KIND_MAX_LENGTH, "2"));
+    SXML_TEST_EXPECT(state, casts_to_text(&fixture, (text_expectation){
+                                                        text_to("  ab  ", at_most_two), "ab"}));
+    SXML_TEST_EXPECT(state, fails_facet(&fixture, (facet_failure){"abc", at_most_two,
+                                                                  "cvc-maxLength-valid"}));
+    sxml_type_identifier two_octets = register_atomic(
+        &fixture, builtin(SXML_TYPE_XS_HEX_BINARY), facet_of(SXML_FACET_KIND_MIN_LENGTH, "2"));
+    SXML_TEST_EXPECT(state, casts_to_text(&fixture, (text_expectation){
+                                                        text_to("0aFF", two_octets), "0AFF"}));
+    SXML_TEST_EXPECT(state, fails_facet(&fixture, (facet_failure){"0a", two_octets,
+                                                                  "cvc-minLength-valid"}));
+    /* Enumeration and whiteSpace: a collapsed string. */
+    const sxml_facet colours[] = {facet_of(SXML_FACET_KIND_WHITESPACE, "collapse"),
+                                  facet_of(SXML_FACET_KIND_ENUMERATION, "red"),
+                                  facet_of(SXML_FACET_KIND_ENUMERATION, "dark blue")};
+    sxml_type_identifier colour = register_restriction(
+        &fixture, (restriction_request){.variety = SXML_TYPE_VARIETY_ATOMIC,
+                                        .base_type = builtin(SXML_TYPE_XS_STRING),
+                                        .facets = colours,
+                                        .facet_count = 3});
+    SXML_TEST_EXPECT(state, casts_to_text(&fixture, (text_expectation){
+                                                        text_to(" dark \n blue ", colour),
+                                                        "dark blue"}));
+    SXML_TEST_EXPECT(state, fails_facet(&fixture, (facet_failure){"green", colour,
+                                                                  "cvc-enumeration-valid"}));
+    /* A QName enumeration value is an EQName. */
+    sxml_type_identifier qname_choice = register_atomic(
+        &fixture, builtin(SXML_TYPE_XS_QNAME),
+        facet_of(SXML_FACET_KIND_ENUMERATION, "Q{http://example.com/p}a"));
+    SXML_TEST_EXPECT(state, casts_to_text(&fixture, (text_expectation){
+                                                        text_to("p:a", qname_choice), "p:a"}));
+    SXML_TEST_EXPECT(state, fails_facet(&fixture, (facet_failure){"p:b", qname_choice,
+                                                                  "cvc-enumeration-valid"}));
+    SXML_TEST_EXPECT(state, live_cell_count(&fixture) == 0);
+    cast_fixture_destroy(&fixture);
+}
+
+static void test_number_and_time_facets(sxml_test_state *state) {
+    cast_fixture fixture;
+    SXML_TEST_REQUIRE(state, cast_fixture_create(&fixture) == SXML_STATUS_OK);
+    const sxml_facet money_facets[] = {facet_of(SXML_FACET_KIND_TOTAL_DIGITS, "5"),
+                                       facet_of(SXML_FACET_KIND_FRACTION_DIGITS, "2")};
+    sxml_type_identifier money = register_restriction(
+        &fixture, (restriction_request){.variety = SXML_TYPE_VARIETY_ATOMIC,
+                                        .base_type = builtin(SXML_TYPE_XS_DECIMAL),
+                                        .facets = money_facets,
+                                        .facet_count = 2});
+    SXML_TEST_EXPECT(state, casts_to_text(&fixture, (text_expectation){
+                                                        text_to("00123.4500", money), "123.45"}));
+    SXML_TEST_EXPECT(state, fails_facet(&fixture, (facet_failure){"1234.56", money,
+                                                                  "cvc-totalDigits-valid"}));
+    SXML_TEST_EXPECT(state, fails_facet(&fixture, (facet_failure){"1.234", money,
+                                                                  "cvc-fractionDigits-valid"}));
+    /* NaN is incomparable: no bound holds for it (XSD 1.1 Part 2, 3.3.4). */
+    sxml_type_identifier small_double = register_atomic(
+        &fixture, builtin(SXML_TYPE_XS_DOUBLE), facet_of(SXML_FACET_KIND_MAX_INCLUSIVE, "1.0E2"));
+    SXML_TEST_EXPECT(state, casts_to_text(&fixture, (text_expectation){
+                                                        text_to("-INF", small_double), "-INF"}));
+    SXML_TEST_EXPECT(state, fails_facet(&fixture, (facet_failure){"NaN", small_double,
+                                                                  "cvc-maxInclusive-valid"}));
+    /* Dates: a value without a timezone is less only if it is so at
+       -14:00 and +14:00 (3.3.6.2). */
+    sxml_type_identifier before_noon = register_atomic(
+        &fixture, builtin(SXML_TYPE_XS_DATE_TIME),
+        facet_of(SXML_FACET_KIND_MAX_EXCLUSIVE, "2000-01-01T12:00:00Z"));
+    SXML_TEST_EXPECT(state, casts_to_text(&fixture, (text_expectation){
+                                                        text_to("1999-12-31T12:00:00", before_noon),
+                                                        "1999-12-31T12:00:00"}));
+    SXML_TEST_EXPECT(state, fails_facet(&fixture, (facet_failure){"2000-01-01T06:00:00",
+                                                                  before_noon,
+                                                                  "cvc-maxExclusive-valid"}));
+    SXML_TEST_EXPECT(state, casts_to_text(&fixture, (text_expectation){
+                                                        text_to("2000-01-01T13:00:00+02:00",
+                                                                before_noon),
+                                                        "2000-01-01T13:00:00+02:00"}));
+    sxml_type_identifier stamped = register_atomic(
+        &fixture, builtin(SXML_TYPE_XS_DATE),
+        facet_of(SXML_FACET_KIND_EXPLICIT_TIMEZONE, "required"));
+    SXML_TEST_EXPECT(state, fails_facet(&fixture, (facet_failure){"2000-01-01", stamped,
+                                                                  "cvc-explicitTimezone-valid"}));
+    SXML_TEST_EXPECT(state, casts_to_text(&fixture, (text_expectation){
+                                                        text_to("2000-01-01Z", stamped),
+                                                        "2000-01-01Z"}));
+    /* Durations order partially: P1M and P30D are incomparable (3.3.7). */
+    sxml_type_identifier under_a_month = register_atomic(
+        &fixture, builtin(SXML_TYPE_XS_DURATION), facet_of(SXML_FACET_KIND_MAX_EXCLUSIVE, "P1M"));
+    SXML_TEST_EXPECT(state, casts_to_text(&fixture, (text_expectation){
+                                                        text_to("P27D", under_a_month), "P27D"}));
+    SXML_TEST_EXPECT(state, fails_facet(&fixture, (facet_failure){"P30D", under_a_month,
+                                                                  "cvc-maxExclusive-valid"}));
+    SXML_TEST_EXPECT(state, fails_facet(&fixture, (facet_failure){"P32D", under_a_month,
+                                                                  "cvc-maxExclusive-valid"}));
+    sxml_type_identifier over_a_month = register_atomic(
+        &fixture, builtin(SXML_TYPE_XS_DURATION), facet_of(SXML_FACET_KIND_MIN_INCLUSIVE, "P1M"));
+    SXML_TEST_EXPECT(state, casts_to_text(&fixture, (text_expectation){
+                                                        text_to("P32D", over_a_month), "P32D"}));
+    SXML_TEST_EXPECT(state, live_cell_count(&fixture) == 0);
+    cast_fixture_destroy(&fixture);
+}
+
+static void test_list_and_union_facets(sxml_test_state *state) {
+    cast_fixture fixture;
+    SXML_TEST_REQUIRE(state, cast_fixture_create(&fixture) == SXML_STATUS_OK);
+    sxml_type_identifier positive = register_atomic(
+        &fixture, builtin(SXML_TYPE_XS_INTEGER), facet_of(SXML_FACET_KIND_MIN_INCLUSIVE, "1"));
+    /* A list made by xs:list may be empty; its items keep their facets. */
+    sxml_type_identifier numbers = register_restriction(
+        &fixture, (restriction_request){.variety = SXML_TYPE_VARIETY_LIST,
+                                        .base_type = builtin(SXML_TYPE_XS_ANY_SIMPLE_TYPE),
+                                        .list_item_type = positive});
+    SXML_TEST_EXPECT(state, casts_to_text(&fixture, (text_expectation){
+                                                        text_to(" 1  02 3 ", numbers), "1 2 3"}));
+    cast_outcome empty = run_cast(&fixture, text_to("  ", numbers));
+    SXML_TEST_EXPECT(state, empty.status == SXML_STATUS_OK && empty.item_count == 0);
+    SXML_TEST_EXPECT(state, fails_facet(&fixture, (facet_failure){"1 0", numbers,
+                                                                  "cvc-minInclusive-valid"}));
+    /* Its restriction counts items. */
+    const sxml_facet pair_facets[] = {facet_of(SXML_FACET_KIND_LENGTH, "2"),
+                                      facet_of(SXML_FACET_KIND_ENUMERATION, "1 2"),
+                                      facet_of(SXML_FACET_KIND_ENUMERATION, "3 4")};
+    sxml_type_identifier pair = register_restriction(
+        &fixture, (restriction_request){.variety = SXML_TYPE_VARIETY_LIST,
+                                        .base_type = numbers,
+                                        .facets = pair_facets,
+                                        .facet_count = 3,
+                                        .list_item_type = positive});
+    SXML_TEST_EXPECT(state, casts_to_text(&fixture, (text_expectation){
+                                                        text_to("03 4", pair), "3 4"}));
+    SXML_TEST_EXPECT(state,
+                     fails_facet(&fixture, (facet_failure){"1 2 3", pair, "cvc-length-valid"}));
+    SXML_TEST_EXPECT(state, fails_facet(&fixture, (facet_failure){"2 1", pair,
+                                                                  "cvc-enumeration-valid"}));
+    SXML_TEST_EXPECT(state,
+                     fails_facet(&fixture, (facet_failure){"", pair, "cvc-length-valid"}));
+    /* A union restricted by a pattern on its lexical form. */
+    sxml_type_identifier members[] = {builtin(SXML_TYPE_XS_INTEGER),
+                                      builtin(SXML_TYPE_XS_DATE)};
+    sxml_type_identifier number_or_date = register_restriction(
+        &fixture,
+        (restriction_request){.variety = SXML_TYPE_VARIETY_UNION,
+                              .base_type = builtin(SXML_TYPE_XS_ANY_SIMPLE_TYPE),
+                              .member_types = {.type_identifiers = members,
+                                               .type_identifier_count = 2}});
+    const sxml_facet short_facet = facet_of(SXML_FACET_KIND_PATTERN, "[0-9]{1,3}|.{10}");
+    sxml_type_identifier short_number_or_date = register_restriction(
+        &fixture,
+        (restriction_request){.variety = SXML_TYPE_VARIETY_UNION,
+                              .base_type = number_or_date,
+                              .facets = &short_facet,
+                              .facet_count = 1,
+                              .member_types = {.type_identifiers = members,
+                                               .type_identifier_count = 2}});
+    cast_outcome as_date = run_cast(&fixture, text_to("2000-01-02", short_number_or_date));
+    SXML_TEST_EXPECT(state, as_date.status == SXML_STATUS_OK &&
+                                as_date.result_type.index == SXML_TYPE_XS_DATE);
+    SXML_TEST_EXPECT(state, casts_to_text(&fixture, (text_expectation){
+                                                        text_to("007", short_number_or_date),
+                                                        "7"}));
+    SXML_TEST_EXPECT(state, fails_facet(&fixture, (facet_failure){"1234", short_number_or_date,
+                                                                  "cvc-pattern-valid"}));
+    const sxml_facet one_facet = facet_of(SXML_FACET_KIND_ENUMERATION, "1");
+    sxml_type_identifier just_one = register_restriction(
+        &fixture,
+        (restriction_request){.variety = SXML_TYPE_VARIETY_UNION,
+                              .base_type = number_or_date,
+                              .facets = &one_facet,
+                              .facet_count = 1,
+                              .member_types = {.type_identifiers = members,
+                                               .type_identifier_count = 2}});
+    SXML_TEST_EXPECT(state, castable(&fixture, (cast_case){"1", SXML_TYPE_XS_INTEGER,
+                                                           just_one}) == 1);
+    SXML_TEST_EXPECT(state, castable(&fixture, (cast_case){"2", SXML_TYPE_XS_INTEGER,
+                                                           just_one}) == 0);
+    SXML_TEST_EXPECT(state, fails_facet(&fixture, (facet_failure){"2000-01-02", just_one,
+                                                                  "cvc-enumeration-valid"}));
+    SXML_TEST_EXPECT(state, live_cell_count(&fixture) == 0);
+    cast_fixture_destroy(&fixture);
+}
+
 static const sxml_test_case cast_test_cases[] = {
+    {.name = "facets_of_schema_types_raise_forg0001",
+     .function = test_facets_of_schema_types_raise_forg0001},
+    {.name = "string_facets", .function = test_string_facets},
+    {.name = "number_and_time_facets", .function = test_number_and_time_facets},
+    {.name = "list_and_union_facets", .function = test_list_and_union_facets},
     {.name = "slice_cast_lines", .function = test_slice_cast_lines},
     {.name = "duration_cast_to_itself_is_equal",
      .function = test_duration_cast_to_itself_is_equal},
