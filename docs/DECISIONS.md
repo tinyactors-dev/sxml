@@ -5242,7 +5242,82 @@ No IR kind, no evaluator change, no public header.
 
 ### D157. The XSLT API, the XSLT driver's runs and sxml transform (packet 4.15)
 Recorded 2026-10-18, after D112, D117, D139, D144, D145, D149, D150, D156.
-Reserved here; the record is completed when the packet is ticked.
+`src/xslt.c` implements `include/sxml/xslt.h` (unchanged), imitating
+`src/xquery.c`; no IR kind, no evaluator change, no public header.
+- **Compile**: the principal module is the text or one resolver request
+  (XSLT_MODULE: the reference resolved against the static base URI;
+  XSLT_PACKAGE: name and package-version, "*" for none; XTSE0165 and
+  XTSE3000 when not delivered, XTSE3000 for a principal package that is
+  no xsl:package), read with the static parameters and the default
+  collation (D139), lowered once as apply-templates in the default mode
+  (every static error of the lowering is found here), its outputs
+  compiled (D156), a function library over the XSLT parts made, the
+  static parameters retained. The AST is kept: any other invocation
+  (call-template, an initial mode, an initial match selection, a function
+  call) lowers its own unit when a transformation asks (the main function
+  is the invocation, D144). On failure an error location names the
+  caller's name for the principal module (the AST that its module URIs
+  borrowed from is gone); collation bindings of the host are not passed
+  (the reader takes only a default collation).
+- **Shared evaluation** (accepts 4.10's Proposed item, D149):
+  `sxml_unit_evaluation` gains `extension` (`src/xpath_api_internal.h`):
+  a function table for the dynamic context (the XSLT library parts, so
+  function-available and fn:function-lookup see the XSLT functions), the
+  document preparation (strip-space for fn:doc and document(), D150) and
+  the result writer; XPath and XQuery pass NULL. Names given as strings
+  still resolve against the unit's static namespaces (per-expression
+  namespaces are left open).
+- **Invocation globals** (glossary): the run-time values of an
+  invocation are globals of the unit after the stylesheet's globals and
+  the context global, named `Q{urn:x-sxml:invocation}template-parameters`,
+  `tunnel-parameters` (maps from xs:QName, default the empty map; only
+  when the lowering request sets `reads_invocation_parameters`, which
+  src/xslt.c always does), `initial-match-selection` and
+  `function-arguments` (an array; members coerced to the parameter types).
+  src/xslt.c binds them by name like stylesheet parameters, so one
+  mechanism carries everything the host supplies. Apply-templates
+  without a selection or focus is XTDE0044; an initial function that is
+  not visibility="public"/"final" (2.4.5: xsl:stylesheet functions are
+  private) or has no IR function of that arity is XTDE0041.
+- **Prime and run**: the global context item is stripped
+  (`sxml_xslt_strip_document`); static parameters, then the request's
+  stylesheet parameters, then the invocation values are bound by name
+  (XTDE0050 is the initializer's, computed eagerly); a result writer per
+  transformation (temporary output state for a function call) delivers
+  the raw result. Changed in D156: a result document whose absolute URI
+  is the base output URI (no href) is the principal result, delivered as
+  the request asks (CLI stdout), not to the handler; XTDE1490 when the
+  raw principal result is not empty.
+- **Driver** (`tests/xslt/driver/xslt_execution.c`, D117's plan): a
+  budgeted processor per case; the resolver is the QT4 resource table
+  over a never-loaded QT4 "file catalog" with XSLT_MODULE served as
+  XML_DOCUMENT and XSLT_PACKAGE as the matching <package>; params by
+  XPath; no source, initial template or mode means call-template
+  (xsl:initial-template); a serialization assertion without <output>
+  serializes (the bytes parsed back for the other assertions); result
+  documents to the collector, messages to a trace sink. Assertions
+  (`sxml_xslt_test_check_assertions`): all-of/any-of/not on an explicit
+  stack, assert-message (best over messages) and assert-result-document
+  call the new `sxml_qt4_check_assertion_element` (the QT4 checks of one
+  element), serialization-matches and assert-serialization on the
+  serialized bytes as an xs:string (assert-serialization: equal after
+  normalize-space, or deep-equal once parsed). Embedded stylesheets are
+  not run. `tools/run-xslt.sh` (one process per test set, XT40/) and
+  `tools/conformance-report.py` (XT40: areas by suite group, the twelve
+  core sets, the XSLT slice; the QT4 report's JSON names its program,
+  accepts 4.1's Proposed item).
+- **CLI**: `sxml transform [--param]... [--initial-template] [--initial-mode]
+  [--method] STYLESHEET [INPUT]` (docs/CLI.md); the stylesheet's base URI
+  is `file:PATH` (the local resolver reads `file:` relative paths), so
+  includes and fn:doc resolve against the stylesheet; --param values are
+  passed as static parameters too; result documents with an href are
+  not written; messages to stderr. The WebAssembly CLI's size budget is
+  raised to 5,000,000 / 1,100,000 bytes (Proposed).
+- Fixed on the way: allocation-failure paths in `src/xslt_lower_control.c`
+  (a double release of the global arrays, arithmetic on NULL) and
+  `src/xslt_lower_template.c` (`allocate_zeroed` leaves NULL on failure);
+  the reader passes the XML parser's diagnostic of a module that is not
+  well-formed.
 
 ### D158. XQuery conformance sweep 2 (packet 3.14)
 Recorded 2026-10-18, after D135, D148, D154.
@@ -5250,17 +5325,21 @@ Reserved here; the record is completed when the packet is ticked.
 
 ## Proposed
 
-- **The XSLT functions at run time** (packet 4.10, D149; for 4.15, the
-  owner of `src/xslt.c`): function-available, fn:function-lookup and
-  type-available read the dynamic context's function table, which the
-  lowering's XSLT function table no longer is. Proposed: 4.15 evaluates a
-  transformation with a table over the XSLT parts
-  (`sxml_function_library_parts_for_language(SXML_LANGUAGE_XSLT)`) and the
-  unit's stylesheet functions. Also: EQNames given as strings (fn:key,
-  system-property, function-available) resolve against the unit's static
-  namespaces (the initial template's); per-expression namespaces would need
-  the call's static namespaces in the IR (an additive STATIC_CALL field or
-  resolving literal arguments while lowering).
+- **The CLI's WebAssembly budget after sxml transform** (packet 4.15,
+  D157; for the owner, with the budget items below): linking XSLT (its
+  lowering and the pattern and value template grammars) makes the
+  stripped `sxml` CLI module 4,609,397 bytes (1,026,010 gzipped); 4.15 set
+  its ctest budget to 5,000,000 / 1,100,000. `sxml.wasm` is unchanged
+  (no XSLT in the JavaScript package yet). Choose: confirm, or split the
+  XSLT front ends into an optional module.
+
+- **The XSLT functions at run time** (packet 4.10, D149): the table over
+  the XSLT parts is done (D157); still open: the unit's stylesheet
+  functions in that table (fn:function-lookup of an xsl:function), and
+  EQNames given as strings (fn:key, system-property, function-available)
+  resolving against each expression's namespaces rather than the unit's
+  (the initial template's): an additive STATIC_CALL field with the call's
+  static namespaces, or resolving literal arguments while lowering.
 
 - **A library module's static context at run time** (packet 3.11, D148;
   for the owners of `src/ir_internal.h` and the evaluator): the unit has
