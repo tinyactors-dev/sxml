@@ -4,6 +4,23 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 5.11 done (D174): schema-aware XPath and XQuery. xpath.h gained
+  `in_scope_schemas` (the in-scope schema definitions, carried into the
+  unit's IR static context); `src/schema_scope.c` looks types,
+  declarations, substitution groups and schema-type constructor functions
+  up across them and raises schema errors with the language's codes.
+  schema-element/schema-attribute resolve to element(M, T)/attribute(N,
+  T) choices; `import schema` compiles one schema the processor keeps
+  (host schemas reused, unreadable hints dropped); `validate` lowers to an
+  internal row over sxml_schema_validate_node; fn:xsd-validator (in-scope
+  schemas only); fn:parse-xml's xsd-validation. The QT4 driver serves and
+  compiles environment schemas, validates sources and counts the
+  "schema-aware" area. Schema-aware XQ40 1,231/1,516 (81.2 %), XP40
+  279/315; XP40 30,924, XQ40 41,261, 0 errors; XT40, XSD11 unchanged.
+  Not done: the fn-namespace schema (json-to-xml validate, analyze-string),
+  fn:doc validation, run-time schema compilation for fn:xsd-validator's
+  schema options, fixed default namespaces.
+
 - 5.8 done (D177): identity constraints (`src/schema_identity.c`).
   Selectors and fields are checked against XSD's XPath subsets on the
   XPath front end's AST (c-selector-xpath, c-fields-xpath), compiled with

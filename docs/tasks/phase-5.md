@@ -393,6 +393,11 @@ Each delayed feature replaces its one rejection point (D162):
   dashboard counts them as a new area "schema-aware".
 Done when the schema-aware XQ40 cases (about 1,100, 160 of them XP40)
 pass ≥ 70% and XP40 and XQ40 have not dropped.
+**Done** 2026-10-19 (D174): in-scope schemas, import schema, validate,
+schema-element and schema-attribute, schema-type casts and constructors,
+fn:xsd-validator, fn:parse-xml's xsd-validation, the driver's schema
+environments. Schema-aware XQ40 1,231 of 1,516 (81.2 %), XP40 279 of 315;
+XP40 30,924 and XQ40 41,261 passed, 0 errors.
 
 ### 5.12 Schema-aware XSLT (implementation)
 After 5.11. Owns `src/xslt_read.c` (the XTSE1650 and XTSE1660 places),

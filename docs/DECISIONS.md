@@ -6568,18 +6568,26 @@ of fn:parse-xml, the driver's non-goal features); golden
   declarations ("default element namespace" counts for XQST0066);
   XQST0057, XQST0058; a namespace a host schema defines (or xs) is taken
   from there; the others compile into one schema of RESOLVED documents
-  (hints, or the namespace alone; target namespace checked) owned by the
-  unit (`sxml_ir_unit_keep_schema`). When a document is not delivered,
+  (hints, or the namespace alone; target namespace checked) kept by the
+  processor until it is finalized (`sxml_processor_keep_schema`), as it
+  keeps registered types: a unit owning schemas would make finalization
+  a cycle (D71), since a schema's assertions and identity constraints are
+  XPath units. When a document is not delivered,
   compilation is tried once more without the hints the resolver does not
   deliver (hints may be ignored). Errors: src-import and schema_reference
   XQST0059, sch-props-correct.2 XQST0035, others XQST0012. A main module
-  without schemas gets the schema of the built-in components, so lax
-  validation and xsi:type always have one.
+  without schemas gets the processor's one schema of the built-in
+  components (`sxml_processor_get_builtin_schema`), so lax validation,
+  xsi:type and validation by a built-in type always have one. A
+  long-lived processor that compiles many importing queries keeps their
+  schemas; caching them by documents is a later step.
 - **validate** lowers to the internal row `validate($node, $mode,
   $type)` (`src/function_library_schema.c`): XQTY0030, XQDY0061, XQDY0084
   (strict, no declaration), XQDY0027 (invalid, constraint named), XQST0104
   statically; "type xs:untyped" copies without annotations. The schema is
   the in-scope one that declares the root's name or defines the type.
+- **System properties**: fn:system-properties gives schema-aware and
+  accepts-typed-data true; XSLT's is-schema-aware stays false (5.12).
 - **fn:xsd-validator** (F&O 4.0, 17.2.5), a new library part: options
   validation-mode, type, return-typed-node, return-error-details
   (message and rule maps from a report sink); V validates with the
@@ -6605,7 +6613,14 @@ of fn:parse-xml, the driver's non-goal features); golden
   budget (app-Demos itunes: a 10 MB source and a quadratic query, 10^8
   steps; app-CatalogCheck Catalog009: every test set loaded, 536 MB) fails
   instead of counting as an error of sxml.
-- **Not done** (measured below): the schema for the fn namespace
+- **Measured** (release, commit f43f747): schema-aware XQ40 1,231 of
+  1,516 (81.2 %; the proposed gate is 70 %), XP40 279 of 315 (88.6 %);
+  XP40 30,924 passed (was 30,647), XQ40 41,261 (was 40,034), both 0
+  errors; D95 gate rates XP40 97.6 %, XQ40 97.9 %; slice 198; XT40 7,990
+  and XSD11 41,452 unchanged. Six test cases that asked for these
+  features to be absent no longer run (fn-system-properties,
+  K2-ExternalVariablesWith-22a, ...), their satisfied twins do.
+- **Not done**: the schema for the fn namespace
   (import schema of fn, json-to-xml validate=true, analyze-string
   validation), fn:doc's xsd-validation, schema documents compiled while
   a query runs (fn:xsd-validator's schema options), "fixed" default
