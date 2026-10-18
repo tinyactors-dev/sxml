@@ -6978,18 +6978,76 @@ schema), `tests/xquery_schema_test.c`.
   them).
 
 ### D180. Conformance sweep 2 (packet 5.13)
-Reserved 2026-10-18; the record follows when the sweep lands.
+Recorded 2026-10-18. Clears D179's six XT40 errors at their causes;
+resolves the Proposed item "xslt.h reads the host's in-scope schemas".
+- **The schema for schema documents compiles beside the built-ins**
+  (catalog-005b, catalog-009). XSD 1.1 Part 1 puts the built-in
+  components in every schema (4.2.1, schema(D)), has every processor
+  know them without reading (C.2.1, hard-coded schemas) and counts two
+  top-level type definitions of one name as one component (3.4.6.5,
+  the note on component identity); XMLSchema.xsd calls its xs:anyType
+  "not the real urType, but as close an approximation as we can get".
+  So a global type definition whose name a built-in type already has is
+  that built-in component: the document's own definition is left
+  unnamed, and sch-props-correct.2 does not hold against it. One place:
+  `enter_global` (`src/schema_read.c`); other duplicates in the XSD
+  namespace still conflict, and an xs:import of it was already ignored.
+  With it, the built-in xml.xsd that stands in for an import of the xml:
+  namespace the resolver does not deliver is used only when no document
+  of that namespace is there (4.2.6.2: a processor may keep the first
+  import of a namespace; `src/schema_assemble.c`): XMLSchema.xsd imports
+  it from www.w3.org beside the environment's xml.xsd. catalog-009
+  passes; catalog-005b fails on its own data (29 of the suite's
+  stylesheets use XSLT 4.0 instructions and attributes, xsl:item-type,
+  method="csv", line-ending, that the catalog's schema-for-xslt40.xsd
+  does not have yet).
+- **A source that does not validate is sxml's answer, not an error of
+  the environment** (as-3301, as-3401, match-208, match-209). Their
+  sources give xs:ENTITY attributes the names of parsed entities
+  (`<!ENTITY eac "&#xE9;">`). XSD 1.1 Part 1, 3.16.4 String Valid clause
+  2 requires a declared entity name, an unparsed entity of the document
+  (Part 2, 3.4.11; Saxon's own XSD test saxonData/Id id017.n01 expects
+  invalid without one). sxml's parser reads the internal subset and
+  passes unparsed entities on (`src/xml.c`), so nothing of the DTD is
+  missing: the right outcome needs no DTD support, and the test cases
+  declare no dtd dependency, so "not run" has no ground in the catalog.
+  The expected results are Saxon's, which does not make the check
+  (report/results_XSLT3.0: pass; no other submission is schema-aware).
+  Validation is part of the processor under test (the validator of
+  xsl:import-schema and the validation attributes), so the XSLT driver
+  judges an invalid source like any dynamic error of the transformation:
+  the assertions decide (an expected error could pass), here "fail"
+  (`sxml_xslt_test_judge_invalid_source`, `tests/xslt/driver/
+  xslt_execution.c`). An environment schema that does not compile stays
+  an error. The QT4 driver has no such case.
+- **validate-items is a row of its own** (`call_validate_items`,
+  `src/function_library_schema.c`): XSLT's rules are no longer a branch
+  of XQuery's validate, so what links only XQuery's (the JavaScript
+  module) does not carry them. sxml.wasm was 2,001,084 bytes stripped
+  after 5.12, over its 2,000,000 budget; now 1,998,723 (696,023
+  gzipped of 700,000).
+- **xslt.h's in_scope_schemas comment is accepted** (D179's Proposed
+  item): it documents what the stylesheet does with an existing field of
+  xpath.h's static context (D174), is additive (a host that passed
+  schemas before had them ignored), matches `src/xslt.c` and the
+  lowering, and XSLT 4.0 allows it (F.2: an implementation may make
+  schema components available beyond xsl:import-schema). It is what lets
+  a host-validated source and the stylesheet share one schema's types.
+- **Not done**: is-id of union and list elements (D178) is not cheap:
+  the element's start event goes to the builders, with its attributes
+  and namespace bindings, before its content; holding it to the end of
+  simple content means holding those and any comments and processing
+  instructions too, and tree.h is frozen (D99), so no later mark is
+  possible. Left for a sweep that needs it (no test of the suites does).
+- **Measured** (release, all four suites with this code at ae616ca):
+  XT40 8,650 passed (was 8,649), 558 failed, 0 errors (was 6), gate rate
+  8,029 of 8,728; schema-aware XT40 627 of 971; only the test sets as,
+  catalog and match changed, none lost a test; XP40 30,931 and XQ40
+  41,273, 0 errors; XSD in scope 41,483 of 41,518; slices 198, 147
+  (XSLT, of 154) and 147 (XSD).
 
 ## Proposed
 
-- **xslt.h reads the host's in-scope schemas** (packet 5.12, D179; for
-  the owner to confirm): the comment of
-  `sxml_xslt_stylesheet_configuration.static_context` now lists
-  `in_scope_schemas` among the fields read (in every module, before the
-  stylesheet's own imports; an xsl:import-schema of a namespace they
-  define takes it from there). A documentation change of a stable header
-  for D174's existing field, needed so that a host-validated source and
-  the stylesheet share one schema's types.
 - **The CLI's WebAssembly budget after sxml validate** (packet 5.10,
   D176; for the owner, with the 4.15 item below): linking schema
   compilation and validation makes the stripped `sxml` CLI module

@@ -4,9 +4,20 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
-- 5.13 sweep 2 claimed (D180): owns src/schema_read.c,
-  src/schema_assemble.c, tests/xslt/driver/xslt_execution.c, README.md's
-  status lines and docs/CONFORMANCE.md.
+- 5.13 sweep 2 done (D180): XT40 has 0 errors (was 6). The schema for
+  schema documents compiles beside the built-in types (a restated
+  built-in type is the built-in component), and the stand-in xml.xsd is
+  used only when no document of the xml: namespace is there (catalog-009
+  passes; catalog-005b fails on the catalog's outdated XSLT 4.0 schema).
+  The XSLT driver judges a source that does not validate as the
+  transformation's error: as-3301, as-3401, match-208 and match-209 name
+  parsed entities in xs:ENTITY attributes (XSD 1.1 Part 1, 3.16.4) and
+  fail. validate-items has its own row, which brings sxml.wasm back under
+  its budget (1,998,723 bytes; 5.12 left it at 2,001,084). xslt.h's
+  in_scope_schemas comment accepted; README status lines updated. XT40
+  8,650 passed, schema-aware 627/971; XP40 30,931, XQ40 41,273, XSD
+  41,483, all 0 errors; slices 198, 147, 147. Not done: is-id of union
+  and list elements (not cheap, D180).
 
 - 5.12 done (D179): schema-aware XSLT. xsl:import-schema (inline
   xs:schema, schema-location, namespace; XTSE0215, XTSE0220) compiles in

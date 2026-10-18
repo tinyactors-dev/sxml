@@ -9,8 +9,12 @@ XML, validates it against XSD 1.1 schemas, evaluates XPath 4.0 and XQuery
 - **XML 1.0** with namespaces: parsing into a tree, from UTF-8, UTF-16,
   ISO-8859-1 and US-ASCII.
 - **XSD 1.1** schema validation: every XSD 1.0 structure, the XSD 1.1
-  additions such as open content and conditional inclusion, and all
-  built-in datatypes and facets.
+  additions such as open content, conditional inclusion, assertions and
+  type alternatives, identity constraints, and all built-in datatypes and
+  facets.
+- **Schema awareness**: XPath, XQuery and XSLT see the types of imported
+  or host-supplied schemas; XQuery's `import schema` and `validate`, and
+  XSLT's `xsl:import-schema` and validation attributes.
 - **XPath 4.0** with the full F&O 4.0 function library: maps, arrays,
   higher-order functions, regular expressions, dates and times, decimal
   arithmetic.
@@ -321,17 +325,19 @@ The package's [README](bindings/javascript/README.md) describes its API.
 
 ## Standards conformance
 
-sxml is tested against the W3C test suites for XPath, XQuery and XSLT 4.0.
-Pass rates of the test cases that apply to sxml:
+sxml is tested against the W3C test suites for XPath, XQuery and XSLT 4.0
+and XSD 1.1. Pass rates of the test cases that apply to sxml:
 
 | Test suite | Test cases run | Passed | Rate |
 | --- | --: | --: | --: |
-| QT4, XPath 4.0 and F&O 4.0 (XP40) | 30,960 | 30,646 | 99.0 % |
-| QT4, XQuery 4.0 (XQ40) | 40,447 | 40,025 | 99.0 % |
-| XSLT 4.0 (XT40) | 8,484 | 7,879 | 92.9 % |
+| QT4, XPath 4.0 and F&O 4.0 (XP40) | 31,267 | 30,931 | 98.9 % |
+| QT4, XQuery 4.0 (XQ40) | 41,808 | 41,273 | 98.7 % |
+| XSLT 4.0 (XT40) | 9,208 | 8,650 | 93.9 % |
+| XSD 1.1 (W3C XSD test suite) | 41,518 | 41,483 | 99.9 % |
 
-Test cases that need a feature sxml does not have (schema awareness,
-XQuery Update, Full Text, EXPath modules) are not run.
+The schema-aware test cases are run too. Test cases that need a feature
+sxml does not have (XQuery Update, Full Text, EXPath modules, streaming)
+are not run.
 [docs/CONFORMANCE.md](docs/CONFORMANCE.md) has the full results, by test
 set and by failure cause.
 
@@ -355,12 +361,11 @@ set and by failure cause.
 ## Status
 
 sxml is under active development and has no tagged release yet. XML
-parsing, XPath 4.0, XQuery 4.0 and serialization are implemented, and
-their C headers are stable. XSLT 4.0 is still being finished: `xslt.h` may change.
-Schema validation (XSD 1.1) is available in the library (`schema.h`, still
-provisional) and as `sxml validate`, assertions and type alternatives
-included; identity constraints (`xs:unique`, `xs:key`, `xs:keyref`) are in
-progress. Schema-aware XSLT is not available yet.
+parsing, XPath 4.0, XQuery 4.0, XSLT 4.0 and serialization are
+implemented, and their C headers are stable. Schema validation (XSD 1.1)
+is available in the library (`schema.h`, still provisional) and as
+`sxml validate`, with assertions, type alternatives and identity
+constraints. XPath, XQuery and XSLT are schema-aware.
 
 ## License
 
