@@ -358,9 +358,9 @@ sxml is under active development and has no tagged release yet. XML
 parsing, XPath 4.0, XQuery 4.0 and serialization are implemented, and
 their C headers are stable. XSLT 4.0 is still being finished: `xslt.h` may change.
 Schema validation (XSD 1.1) is available in the library (`schema.h`, still
-provisional) and as `sxml validate`; identity constraints (`xs:unique`,
-`xs:key`, `xs:keyref`) and assertions are in progress. Schema-aware XPath,
-XQuery and XSLT are not available yet.
+provisional) and as `sxml validate`, assertions and type alternatives
+included; identity constraints (`xs:unique`, `xs:key`, `xs:keyref`) are in
+progress. Schema-aware XSLT is not available yet.
 
 ## License
 
