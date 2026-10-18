@@ -2050,6 +2050,11 @@ typedef struct sxml_schema_id_request {
     sxml_byte_view value;
     /* Where it was met, for cvc-id.1 and cvc-id.2 reports. */
     sxml_source_location location;
+    /* ID: the element it identifies, numbered by the validator from 1 (an
+       attribute's element; the parent of an element of type xs:ID, XSD
+       1.1, 3.17.5.2): one value may identify one element more than once
+       (XSD 1.1, cvc-id.2). */
+    uint64_t element_number;
 } sxml_schema_id_request;
 
 /* What recording an ID found. */
