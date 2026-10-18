@@ -98,15 +98,21 @@ sxml_status sxml_xslt_lowering_report_unsupported(const sxml_xslt_lowering *lowe
 
 static const sxml_ast_node_index no_ast_node = {.value = 0};
 
+sxml_status sxml_xslt_lowering_add_expression(sxml_xpath_lowerer *lowerer,
+                                              sxml_ir_expression expression,
+                                              sxml_ir_expression_index *index) {
+    return sxml_xpath_lowerer_add_expression(
+        lowerer,
+        (sxml_xpath_lowering_expression_to_add){.node = no_ast_node, .expression = expression},
+        index);
+}
+
 sxml_status sxml_xslt_lowering_bind_expression(sxml_xpath_lowerer *lowerer,
                                                const sxml_xslt_expression_to_bind *request,
                                                sxml_ir_atom *atom) {
     sxml_ir_expression_index index = {0};
-    const sxml_status status = sxml_xpath_lowerer_add_expression(
-        lowerer,
-        (sxml_xpath_lowering_expression_to_add){.node = no_ast_node,
-                                                .expression = request->expression},
-        &index);
+    const sxml_status status =
+        sxml_xslt_lowering_add_expression(lowerer, request->expression, &index);
     if (status != SXML_STATUS_OK) {
         return status;
     }

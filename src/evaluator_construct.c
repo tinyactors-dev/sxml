@@ -342,13 +342,8 @@ static sxml_status sxml_construct_join_atomized(sxml_dynamic_context *context,
 
 /* --------------------------------------------------------------- Text */
 
-/* S of XML 1.0, section 2.3. */
-static bool sxml_construct_is_whitespace(uint8_t byte) {
-    return byte == ' ' || byte == '\t' || byte == '\r' || byte == '\n';
-}
-
 static sxml_byte_view sxml_construct_trim_leading(sxml_byte_view text) {
-    while (text.byte_count > 0 && sxml_construct_is_whitespace(text.bytes[0])) {
+    while (text.byte_count > 0 && sxml_xml_byte_is_whitespace(text.bytes[0])) {
         text.bytes += 1;
         text.byte_count -= 1;
     }
@@ -421,7 +416,7 @@ static sxml_status sxml_construct_test_ncname(sxml_dynamic_context *context,
     /* The whitespace facet of xs:NCName collapses, so " a" casts; an
        NCName has no whitespace at all. */
     for (size_t byte_index = 0; byte_index < text.byte_count; byte_index += 1) {
-        if (sxml_construct_is_whitespace(text.bytes[byte_index])) {
+        if (sxml_xml_byte_is_whitespace(text.bytes[byte_index])) {
             return status;
         }
     }
@@ -1855,7 +1850,7 @@ static sxml_status sxml_construct_collapse_whitespace(sxml_construct_text_buffer
     bool pending_space = false;
     for (size_t byte_index = 0; byte_index < buffer->byte_count; byte_index += 1) {
         const uint8_t byte = buffer->bytes[byte_index];
-        if (sxml_construct_is_whitespace(byte)) {
+        if (sxml_xml_byte_is_whitespace(byte)) {
             pending_space = written > 0;
             continue;
         }

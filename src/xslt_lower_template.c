@@ -245,14 +245,6 @@ static bool allows_empty(sxml_sequence_type sequence_type) {
 
 /* ---------------------------------------------------------- IR helpers */
 
-static sxml_status add_expression(sxml_xpath_lowerer *lowerer, sxml_ir_expression expression,
-                                  sxml_ir_expression_index *index) {
-    return sxml_xpath_lowerer_add_expression(
-        lowerer,
-        (sxml_xpath_lowering_expression_to_add){.node = no_ast_node, .expression = expression},
-        index);
-}
-
 /* An expression to bind in a block. */
 typedef sxml_xslt_expression_to_bind expression_binding;
 
@@ -726,7 +718,7 @@ static sxml_status lower_supplied_branch(sxml_xpath_lowerer *lowerer, template_b
     }
     sxml_ir_expression_index result = {0};
     if (status == SXML_STATUS_OK) {
-        status = add_expression(lowerer, atom_expression(value), &result);
+        status = sxml_xslt_lowering_add_expression(lowerer, atom_expression(value), &result);
     }
     if (status != SXML_STATUS_OK) {
         return status;
@@ -802,7 +794,7 @@ static sxml_status start_default_branch(sxml_xpath_lowering_machine *machine,
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    return add_expression(lowerer, atom_expression(text), &locals->default_branch);
+    return sxml_xslt_lowering_add_expression(lowerer, atom_expression(text), &locals->default_branch);
 }
 
 /* After the default: content without as is a temporary tree (9.4); with
@@ -811,7 +803,7 @@ static sxml_status finish_default_branch(sxml_xpath_lowerer *lowerer,
                                          template_body_locals *locals) {
     sxml_status status = SXML_STATUS_OK;
     if (locals->plan.has_content && !locals->plan.type.has_type) {
-        status = add_expression(
+        status = sxml_xslt_lowering_add_expression(
             lowerer,
             (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_DOCUMENT_CONSTRUCTOR,
                                  .node_construction = {.content = locals->default_branch,
@@ -841,7 +833,7 @@ static sxml_status finish_default_branch(sxml_xpath_lowerer *lowerer,
     }
     sxml_ir_expression_index result = {0};
     if (status == SXML_STATUS_OK) {
-        status = add_expression(lowerer, atom_expression(value), &result);
+        status = sxml_xslt_lowering_add_expression(lowerer, atom_expression(value), &result);
     }
     if (status != SXML_STATUS_OK) {
         return status;
@@ -950,7 +942,7 @@ static sxml_status finish_template_body(sxml_xpath_lowering_machine *machine,
     }
     sxml_ir_expression_index result = {0};
     if (status == SXML_STATUS_OK) {
-        status = add_expression(lowerer, atom_expression(value), &result);
+        status = sxml_xslt_lowering_add_expression(lowerer, atom_expression(value), &result);
     }
     if (status != SXML_STATUS_OK) {
         return status;
@@ -1206,7 +1198,7 @@ static sxml_status finish_with_parameter(sxml_xpath_lowerer *lowerer,
     sxml_status status = SXML_STATUS_OK;
     if (locals->has_content && !locals->type.has_type) {
         sxml_ir_expression_index content = {0};
-        status = add_expression(lowerer, atom_expression(value->value), &content);
+        status = sxml_xslt_lowering_add_expression(lowerer, atom_expression(value->value), &content);
         if (status == SXML_STATUS_OK) {
             status = bind_expression(lowerer, (expression_binding){.block = frame->block, .expression = (sxml_ir_expression){
                     .expression_kind = SXML_IR_EXPRESSION_KIND_DOCUMENT_CONSTRUCTOR,
@@ -1540,7 +1532,7 @@ static sxml_status continue_apply_templates(sxml_xpath_lowering_machine *machine
     }
     sxml_ir_expression_index apply = {0};
     if (status == SXML_STATUS_OK) {
-        status = add_expression(
+        status = sxml_xslt_lowering_add_expression(
             lowerer,
             (sxml_ir_expression){
                 .expression_kind = SXML_IR_EXPRESSION_KIND_APPLY_TEMPLATES,
@@ -1618,7 +1610,7 @@ static sxml_status continue_overriding(sxml_xpath_lowering_machine *machine,
     const bool is_next_match =
         node_of(lowering, locals->head.node)->kind == SXML_XSLT_AST_KIND_NEXT_MATCH;
     sxml_ir_expression_index apply = {0};
-    const sxml_status status = add_expression(
+    const sxml_status status = sxml_xslt_lowering_add_expression(
         lowerer,
         (sxml_ir_expression){
             .expression_kind = SXML_IR_EXPRESSION_KIND_APPLY_TEMPLATES,
@@ -1766,7 +1758,7 @@ static sxml_status add_template_call(sxml_xpath_lowerer *lowerer, const template
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    return add_expression(
+    return sxml_xslt_lowering_add_expression(
         lowerer,
         (sxml_ir_expression){
             .expression_kind = SXML_IR_EXPRESSION_KIND_STATIC_CALL,
@@ -2570,7 +2562,7 @@ static sxml_status bind_copy(sxml_xpath_lowerer *lowerer, copy_request request,
             (sxml_ir_atom_view){.atoms = request.content, .atom_count = request.content_count},
             &list);
         if (status == SXML_STATUS_OK) {
-            status = add_expression(
+            status = sxml_xslt_lowering_add_expression(
                 lowerer,
                 (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_SEQUENCE,
                                      .sequence = list},
@@ -2694,7 +2686,7 @@ static sxml_status lower_built_in_action(sxml_xpath_lowerer *lowerer,
     }
     sxml_ir_expression_index last = {0};
     if (status == SXML_STATUS_OK) {
-        status = add_expression(lowerer, atom_expression(result), &last);
+        status = sxml_xslt_lowering_add_expression(lowerer, atom_expression(result), &last);
     }
     if (status != SXML_STATUS_OK) {
         return status;
@@ -2734,7 +2726,7 @@ static sxml_status lower_built_in_body(sxml_xpath_lowerer *lowerer, built_in_bod
         }
         sxml_ir_expression_index conditional = {0};
         if (status == SXML_STATUS_OK) {
-            status = add_expression(
+            status = sxml_xslt_lowering_add_expression(
                 lowerer,
                 (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_CONDITIONAL,
                                      .conditional = {.condition = condition,
@@ -3225,7 +3217,7 @@ sxml_status sxml_xslt_lowering_bind_has_focus(sxml_xpath_lowerer *lowerer,
     }
     sxml_ir_expression_index body = {0};
     if (status == SXML_STATUS_OK) {
-        status = add_expression(lowerer, atom_expression(exists), &body);
+        status = sxml_xslt_lowering_add_expression(lowerer, atom_expression(exists), &body);
     }
     if (status == SXML_STATUS_OK) {
         status = sxml_xpath_lowerer_finish_block(
@@ -3260,7 +3252,7 @@ sxml_status sxml_xslt_lowering_bind_has_focus(sxml_xpath_lowerer *lowerer,
         status = sxml_xpath_lowerer_add_item_constant(lowerer, false_item, &false_atom);
     }
     if (status == SXML_STATUS_OK) {
-        status = add_expression(lowerer, atom_expression(false_atom), &clause.handler);
+        status = sxml_xslt_lowering_add_expression(lowerer, atom_expression(false_atom), &clause.handler);
     }
     sxml_ir_catch_clause_list clauses = {0};
     if (status == SXML_STATUS_OK) {

@@ -21,6 +21,7 @@
 #include "cast_internal.h"
 
 #include "sxml/string.h"
+#include "xml_internal.h"
 
 #include <math.h>
 #include <stdalign.h>
@@ -153,10 +154,6 @@ sxml_whitespace_facet_of(sxml_builtin_type builtin_type) {
     }
 }
 
-static bool sxml_is_whitespace(uint8_t byte) {
-    return byte == ' ' || byte == '\t' || byte == '\n' || byte == '\r';
-}
-
 /* Text and the facet to apply to it. */
 typedef struct sxml_whitespace_request {
     sxml_byte_view text;
@@ -210,11 +207,11 @@ static sxml_status sxml_apply_whitespace_facet(sxml_item_heap *item_heap,
          byte_index += 1) {
         uint8_t byte = request.text.bytes[byte_index];
         if (request.facet == SXML_WHITESPACE_FACET_REPLACE) {
-            bytes[byte_count] = sxml_is_whitespace(byte) ? ' ' : byte;
+            bytes[byte_count] = sxml_xml_byte_is_whitespace(byte) ? ' ' : byte;
             byte_count += 1;
             continue;
         }
-        if (sxml_is_whitespace(byte)) {
+        if (sxml_xml_byte_is_whitespace(byte)) {
             is_pending_space = byte_count != 0;
             continue;
         }

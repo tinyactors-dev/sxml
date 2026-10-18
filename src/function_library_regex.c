@@ -22,6 +22,7 @@
 #include "function_library_core_internal.h"
 #include "operator_internal.h"
 #include "regex_internal.h"
+#include "xml_internal.h"
 #include "xslt_number_internal.h"
 
 #include <stdalign.h>
@@ -349,10 +350,6 @@ static sxml_status tokenize_with_pattern(const sxml_function_call *call, tokeniz
     return status;
 }
 
-static bool is_xml_whitespace(uint8_t byte) {
-    return byte == ' ' || byte == '\t' || byte == '\n' || byte == '\r';
-}
-
 /* Splits at runs of whitespace after normalizing it: the one-argument
    form, tokenize(normalize-space($value), ' ') (F&O 4.0, section
    6.3.3). */
@@ -362,12 +359,12 @@ static sxml_status tokenize_whitespace(const sxml_function_call *call, sxml_stri
     size_t byte_index = 0;
     while (status == SXML_STATUS_OK && byte_index < value.utf8.byte_count) {
         while (byte_index < value.utf8.byte_count &&
-               is_xml_whitespace(value.utf8.bytes[byte_index])) {
+               sxml_xml_byte_is_whitespace(value.utf8.bytes[byte_index])) {
             byte_index += 1;
         }
         const size_t start = byte_index;
         while (byte_index < value.utf8.byte_count &&
-               !is_xml_whitespace(value.utf8.bytes[byte_index])) {
+               !sxml_xml_byte_is_whitespace(value.utf8.bytes[byte_index])) {
             byte_index += 1;
         }
         if (byte_index > start) {

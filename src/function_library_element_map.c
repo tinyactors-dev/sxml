@@ -707,13 +707,9 @@ static sxml_status element_map_make_text_item(const element_map_context *context
         item);
 }
 
-static bool element_map_byte_is_whitespace(uint8_t byte) {
-    return byte == ' ' || byte == '\t' || byte == '\n' || byte == '\r';
-}
-
 static bool element_map_is_whitespace(sxml_byte_view text) {
     for (size_t byte_index = 0; byte_index < text.byte_count; byte_index += 1) {
-        if (!element_map_byte_is_whitespace(text.bytes[byte_index])) {
+        if (!sxml_xml_byte_is_whitespace(text.bytes[byte_index])) {
             return false;
         }
     }

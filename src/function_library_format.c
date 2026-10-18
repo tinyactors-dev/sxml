@@ -242,11 +242,6 @@ static bool read_item_text(sxml_item item, sxml_byte_view *text) {
     return true;
 }
 
-/* True for an XML whitespace byte ([3] S). */
-static bool byte_is_space(uint8_t byte) {
-    return byte == ' ' || byte == '\t' || byte == '\n' || byte == '\r';
-}
-
 /* A decimal format name as text: a namespace URI and a local name. */
 typedef struct format_name_text {
     sxml_byte_view namespace_uri;
@@ -307,10 +302,10 @@ static bool read_format_name_text(const sxml_function_call *call, sxml_item item
     }
     /* The name is an xs:QName or xs:NCName after whitespace collapsing
        (XSD 1.1 Part 2, section 4.3.6): surrounding spaces are dropped. */
-    while (text.byte_count > 0 && byte_is_space(text.bytes[0])) {
+    while (text.byte_count > 0 && sxml_xml_byte_is_whitespace(text.bytes[0])) {
         text = (sxml_byte_view){.bytes = text.bytes + 1, .byte_count = text.byte_count - 1};
     }
-    while (text.byte_count > 0 && byte_is_space(text.bytes[text.byte_count - 1])) {
+    while (text.byte_count > 0 && sxml_xml_byte_is_whitespace(text.bytes[text.byte_count - 1])) {
         text.byte_count -= 1;
     }
     if (text.byte_count == 0) {

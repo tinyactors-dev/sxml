@@ -221,14 +221,6 @@ static sxml_ir_expression atom_expression(sxml_ir_atom atom) {
     return (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_ATOM, .atom = atom};
 }
 
-static sxml_status add_expression(sxml_xpath_lowerer *lowerer, sxml_ir_expression expression,
-                                  sxml_ir_expression_index *index) {
-    return sxml_xpath_lowerer_add_expression(
-        lowerer,
-        (sxml_xpath_lowering_expression_to_add){.node = no_ast_node, .expression = expression},
-        index);
-}
-
 static sxml_status bind_expression(sxml_xpath_lowerer *lowerer, sxml_xslt_expression_to_bind binding,
                                    sxml_ir_atom *atom) {
     return sxml_xslt_lowering_bind_expression(lowerer, &binding, atom);
@@ -238,14 +230,14 @@ static sxml_status bind_expression(sxml_xpath_lowerer *lowerer, sxml_xslt_expres
 static sxml_status add_sequence(sxml_xpath_lowerer *lowerer, sxml_ir_atom_view atoms,
                                 sxml_ir_expression_index *expression) {
     if (atoms.atom_count == 1) {
-        return add_expression(lowerer, atom_expression(atoms.atoms[0]), expression);
+        return sxml_xslt_lowering_add_expression(lowerer, atom_expression(atoms.atoms[0]), expression);
     }
     sxml_ir_atom_list list = {0};
     const sxml_status status = sxml_ir_unit_add_atoms(lowerer->unit, atoms, &list);
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    return add_expression(
+    return sxml_xslt_lowering_add_expression(
         lowerer,
         (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_SEQUENCE, .sequence = list},
         expression);
@@ -264,7 +256,7 @@ static sxml_status add_ir_call(sxml_xpath_lowerer *lowerer, ir_call call,
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    return add_expression(
+    return sxml_xslt_lowering_add_expression(
         lowerer,
         (sxml_ir_expression){
             .expression_kind = SXML_IR_EXPRESSION_KIND_STATIC_CALL,
@@ -1477,7 +1469,7 @@ static sxml_status bind_default(sxml_xpath_lowerer *lowerer, sxml_xpath_lowering
     if (!has_attribute(lowering, parameter, SXML_XSLT_AST_ATTRIBUTE_SELECT) &&
         node_of(lowering, parameter)->first_child.value != 0 &&
         !has_attribute(lowering, parameter, SXML_XSLT_AST_ATTRIBUTE_AS)) {
-        status = add_expression(
+        status = sxml_xslt_lowering_add_expression(
             lowerer,
             (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_DOCUMENT_CONSTRUCTOR,
                                  .node_construction = {.content = locals->default_value,
@@ -1562,7 +1554,7 @@ static sxml_status finish_function_body(sxml_xpath_lowering_machine *machine,
     }
     sxml_ir_expression_index result = {0};
     if (status == SXML_STATUS_OK) {
-        status = add_expression(lowerer, atom_expression(value), &result);
+        status = sxml_xslt_lowering_add_expression(lowerer, atom_expression(value), &result);
     }
     if (status != SXML_STATUS_OK) {
         return status;
@@ -1675,7 +1667,7 @@ static sxml_status finish_cache_call(sxml_xpath_lowering_machine *machine,
     }
     sxml_ir_expression_index call = {0};
     if (status == SXML_STATUS_OK) {
-        status = add_expression(
+        status = sxml_xslt_lowering_add_expression(
             lowerer,
             (sxml_ir_expression){
                 .expression_kind = SXML_IR_EXPRESSION_KIND_STATIC_CALL,
@@ -2599,7 +2591,7 @@ static sxml_status lower_supplied_item(sxml_xpath_lowerer *lowerer, supplied_ite
     }
     sxml_ir_expression_index result = {0};
     if (status == SXML_STATUS_OK) {
-        status = add_expression(lowerer, atom_expression(checked), &result);
+        status = sxml_xslt_lowering_add_expression(lowerer, atom_expression(checked), &result);
     }
     if (status != SXML_STATUS_OK) {
         return status;

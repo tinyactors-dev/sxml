@@ -70,6 +70,7 @@
 #include "xpath_ast_internal.h"
 #include "xpath_lower_internal.h"
 #include "xpath_static_internal.h"
+#include "xml_internal.h"
 
 #include <stdalign.h>
 #include <stdbool.h>
@@ -264,11 +265,6 @@ static sxml_ast_node_index literal_name_node(const sxml_xpath_lowerer *state,
 
 /* --------------------------------------------- Namespaces of elements */
 
-/* XML whitespace (XML 1.0, production S). */
-static bool is_xml_whitespace(uint8_t byte) {
-    return byte == ' ' || byte == '\t' || byte == '\n' || byte == '\r';
-}
-
 /* The URI of a namespace declaration attribute: its literal text (one
    part, or none for ""), with leading and trailing whitespace removed
    (4.12.1.2: the value is whitespace-normalized as an xs:anyURI). */
@@ -280,11 +276,11 @@ static sxml_byte_view declared_uri_text(const sxml_xpath_lowerer *state,
     if (part.value != 0) {
         text = text_of(state, part);
     }
-    while (text.byte_count > 0 && is_xml_whitespace(text.bytes[0])) {
+    while (text.byte_count > 0 && sxml_xml_byte_is_whitespace(text.bytes[0])) {
         text.bytes += 1;
         text.byte_count -= 1;
     }
-    while (text.byte_count > 0 && is_xml_whitespace(text.bytes[text.byte_count - 1])) {
+    while (text.byte_count > 0 && sxml_xml_byte_is_whitespace(text.bytes[text.byte_count - 1])) {
         text.byte_count -= 1;
     }
     return text;

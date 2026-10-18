@@ -476,10 +476,6 @@ static sxml_status call_string_length(const sxml_function_call *call,
     return status;
 }
 
-static bool is_xml_whitespace(uint8_t byte) {
-    return byte == ' ' || byte == '\t' || byte == '\n' || byte == '\r';
-}
-
 /* fn:normalize-space($value := .) (F&O 4.0, section 5.4.5). */
 static sxml_status call_normalize_space(const sxml_function_call *call,
                                         sxml_sequence *result) {
@@ -497,7 +493,7 @@ static sxml_status call_normalize_space(const sxml_function_call *call,
     for (size_t byte_index = 0;
          status == SXML_STATUS_OK && byte_index < value.utf8.byte_count; byte_index += 1) {
         const uint8_t byte = value.utf8.bytes[byte_index];
-        if (is_xml_whitespace(byte)) {
+        if (sxml_xml_byte_is_whitespace(byte)) {
             is_pending_space = text.byte_count > 0;
             continue;
         }
@@ -1308,11 +1304,11 @@ static sxml_status find_token(token_search search, sxml_byte_view text, token_fi
     size_t offset = 0;
     finding->is_found = false;
     while (offset < text.byte_count && !finding->is_found) {
-        while (offset < text.byte_count && is_xml_whitespace(text.bytes[offset])) {
+        while (offset < text.byte_count && sxml_xml_byte_is_whitespace(text.bytes[offset])) {
             offset += 1;
         }
         size_t end = offset;
-        while (end < text.byte_count && !is_xml_whitespace(text.bytes[end])) {
+        while (end < text.byte_count && !sxml_xml_byte_is_whitespace(text.bytes[end])) {
             end += 1;
         }
         const sxml_byte_view candidate =

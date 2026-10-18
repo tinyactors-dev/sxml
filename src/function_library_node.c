@@ -887,19 +887,15 @@ typedef struct token_cursor {
     size_t byte_offset;
 } token_cursor;
 
-static bool is_xml_whitespace_byte(uint8_t byte) {
-    return byte == ' ' || byte == '\t' || byte == '\n' || byte == '\r';
-}
-
 static bool next_token(token_cursor *cursor, sxml_byte_view *token) {
     const sxml_byte_view text = cursor->text;
     while (cursor->byte_offset < text.byte_count &&
-           is_xml_whitespace_byte(text.bytes[cursor->byte_offset])) {
+           sxml_xml_byte_is_whitespace(text.bytes[cursor->byte_offset])) {
         cursor->byte_offset += 1;
     }
     const size_t start = cursor->byte_offset;
     while (cursor->byte_offset < text.byte_count &&
-           !is_xml_whitespace_byte(text.bytes[cursor->byte_offset])) {
+           !sxml_xml_byte_is_whitespace(text.bytes[cursor->byte_offset])) {
         cursor->byte_offset += 1;
     }
     if (cursor->byte_offset == start) {

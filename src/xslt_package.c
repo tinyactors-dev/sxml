@@ -129,10 +129,6 @@ static sxml_xslt_ast_keyword keyword_of(const sxml_xslt_lowering *lowering,
     return attribute->value.payload.keyword;
 }
 
-static bool is_space(uint8_t byte) {
-    return byte == ' ' || byte == '\t' || byte == '\n' || byte == '\r';
-}
-
 /* A TEXT attribute's value, trimmed; empty without. */
 static sxml_byte_view text_of(const sxml_xslt_lowering *lowering, sxml_xslt_ast_node_index node,
                               sxml_xslt_ast_attribute_kind kind) {
@@ -1160,7 +1156,7 @@ static range_outcome matches_range(range_test test) {
     const range_outcome invalid = {.is_valid = false, .matches = false};
     sxml_byte_view range = sxml_xml_text_trim_whitespace(test.range);
     /* VersionTo: "to" S (PackageVersion | VersionPrefix). */
-    if (range.byte_count > 3 && memcmp(range.bytes, "to", 2) == 0 && is_space(range.bytes[2])) {
+    if (range.byte_count > 3 && memcmp(range.bytes, "to", 2) == 0 && sxml_xml_byte_is_whitespace(range.bytes[2])) {
         range_end end;
         if (!parse_range_end(sxml_xml_text_trim_whitespace((sxml_byte_view){.bytes = range.bytes + 2,
                                                    .byte_count = range.byte_count - 2}),
@@ -1171,8 +1167,8 @@ static range_outcome matches_range(range_test test) {
     }
     /* VersionFromTo: PackageVersion S "to" S (...). */
     for (size_t position = 1; position + 3U < range.byte_count; position += 1) {
-        if (is_space(range.bytes[position - 1U]) && range.bytes[position] == 't' &&
-            range.bytes[position + 1U] == 'o' && is_space(range.bytes[position + 2U])) {
+        if (sxml_xml_byte_is_whitespace(range.bytes[position - 1U]) && range.bytes[position] == 't' &&
+            range.bytes[position + 1U] == 'o' && sxml_xml_byte_is_whitespace(range.bytes[position + 2U])) {
             parsed_version from;
             range_end end;
             if (!parse_version(sxml_xml_text_trim_whitespace((sxml_byte_view){.bytes = range.bytes, .byte_count = position}),

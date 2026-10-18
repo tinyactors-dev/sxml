@@ -10,6 +10,8 @@
  */
 #include "xpath_static_internal.h"
 
+#include "xml_internal.h"
+
 #include <stdalign.h>
 #include <string.h>
 
@@ -80,10 +82,6 @@ static const predeclared_prefix predeclared_prefixes[] = {
     {SXML_BYTE_VIEW_INITIALIZER("err"), SXML_NAMESPACE_ERRORS},
 };
 
-static bool is_xml_whitespace(uint8_t byte) {
-    return byte == ' ' || byte == '\t' || byte == '\n' || byte == '\r';
-}
-
 /*
  * Interns a namespace URI written in the expression. Whitespace is
  * normalized as fn:normalize-space does (XPath 4.0, A.3.1, BracedURILiteral
@@ -102,7 +100,7 @@ static sxml_status intern_uri_text(uri_text request,
     bool needs_normalizing = false;
     for (size_t byte_index = 0; byte_index < text.byte_count;
          byte_index += 1) {
-        if (is_xml_whitespace(text.bytes[byte_index])) {
+        if (sxml_xml_byte_is_whitespace(text.bytes[byte_index])) {
             needs_normalizing = true;
             break;
         }
@@ -125,7 +123,7 @@ static sxml_status intern_uri_text(uri_text request,
     for (size_t byte_index = 0; byte_index < text.byte_count;
          byte_index += 1) {
         const uint8_t byte = text.bytes[byte_index];
-        if (is_xml_whitespace(byte)) {
+        if (sxml_xml_byte_is_whitespace(byte)) {
             if (!is_after_space) {
                 normalized[normalized_count] = ' ';
                 normalized_count += 1;
@@ -904,12 +902,12 @@ static sxml_status resolve_processing_instruction_test(
                            : name->payload.name.local_name);
     /* A string literal target is whitespace-normalized (XPath 4.0,
        3.2.7.4); only surrounding whitespace can remain in an NCName. */
-    while (target.byte_count > 0 && is_xml_whitespace(target.bytes[0])) {
+    while (target.byte_count > 0 && sxml_xml_byte_is_whitespace(target.bytes[0])) {
         target.bytes += 1;
         target.byte_count -= 1;
     }
     while (target.byte_count > 0 &&
-           is_xml_whitespace(target.bytes[target.byte_count - 1])) {
+           sxml_xml_byte_is_whitespace(target.bytes[target.byte_count - 1])) {
         target.byte_count -= 1;
     }
     if (target.byte_count == 0) {

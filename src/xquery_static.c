@@ -18,6 +18,7 @@
 #include "sxml/memory.h"
 #include "sxml/xdm.h"
 #include "xdm_internal.h"
+#include "xml_internal.h"
 
 #include <stdalign.h>
 #include <string.h>
@@ -170,25 +171,21 @@ static sxml_status allocate_array(const static_reader *reader, array_request req
     return SXML_STATUS_OK;
 }
 
-static bool is_xml_whitespace(uint8_t byte) {
-    return byte == ' ' || byte == '\t' || byte == '\n' || byte == '\r';
-}
-
 /* Interns a URILiteral (src/xquery_static_internal.h). */
 sxml_status sxml_xquery_intern_uri_literal(const sxml_xquery_uri_literal *literal,
                                            sxml_namespace_uri_identifier *uri) {
     const sxml_byte_view text = literal->text;
     size_t first = 0;
     size_t end = text.byte_count;
-    while (first < end && is_xml_whitespace(text.bytes[first])) {
+    while (first < end && sxml_xml_byte_is_whitespace(text.bytes[first])) {
         first += 1;
     }
-    while (end > first && is_xml_whitespace(text.bytes[end - 1])) {
+    while (end > first && sxml_xml_byte_is_whitespace(text.bytes[end - 1])) {
         end -= 1;
     }
     bool needs_collapsing = false;
     for (size_t byte_index = first; byte_index < end; byte_index += 1) {
-        if (is_xml_whitespace(text.bytes[byte_index])) {
+        if (sxml_xml_byte_is_whitespace(text.bytes[byte_index])) {
             needs_collapsing = true;
         }
     }
@@ -207,7 +204,7 @@ sxml_status sxml_xquery_intern_uri_literal(const sxml_xquery_uri_literal *litera
     size_t collapsed_count = 0;
     for (size_t byte_index = 0; byte_index < trimmed.byte_count; byte_index += 1) {
         const uint8_t byte = trimmed.bytes[byte_index];
-        if (is_xml_whitespace(byte)) {
+        if (sxml_xml_byte_is_whitespace(byte)) {
             if (collapsed[collapsed_count - 1] != ' ') {
                 collapsed[collapsed_count] = ' ';
                 collapsed_count += 1;

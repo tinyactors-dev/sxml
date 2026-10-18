@@ -67,10 +67,6 @@ typedef struct name_argument_request {
     const sxml_static_error *error;
 } name_argument_request;
 
-static bool is_space_byte(uint8_t byte) {
-    return byte == ' ' || byte == '\t' || byte == '\n' || byte == '\r';
-}
-
 /* The namespace a prefix has in the running unit: its static namespaces,
    then the predeclared ones (XPath 4.0, 2.2.1); prefix empty is the
    unit's default element namespace. False when it is unbound. */
@@ -203,7 +199,7 @@ static sxml_status read_name_argument(name_argument_request request, sxml_name_i
     }
     for (size_t byte_index = 0; byte_index < local_name.byte_count; byte_index += 1) {
         const uint8_t byte = local_name.bytes[byte_index];
-        if (byte == ':' || byte == '{' || byte == '}' || is_space_byte(byte)) {
+        if (byte == ':' || byte == '{' || byte == '}' || sxml_xml_byte_is_whitespace(byte)) {
             return sxml_function_library_report(call, request.error);
         }
     }

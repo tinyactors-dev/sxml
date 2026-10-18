@@ -122,19 +122,11 @@ static sxml_status bind(sxml_xpath_lowerer *lowerer, sxml_xslt_expression_to_bin
     return sxml_xslt_lowering_bind_expression(lowerer, &request, atom);
 }
 
-static sxml_status add_expression(sxml_xpath_lowerer *lowerer, sxml_ir_expression expression,
-                                  sxml_ir_expression_index *index) {
-    return sxml_xpath_lowerer_add_expression(
-        lowerer,
-        (sxml_xpath_lowering_expression_to_add){.node = no_ast_node, .expression = expression},
-        index);
-}
-
 /* Ends frame with atom as its value. */
 static sxml_status finish_with_atom(sxml_xpath_lowering_machine *machine,
                                     sxml_xpath_lowering_frame *frame, sxml_ir_atom atom) {
     sxml_ir_expression_index result = {0};
-    const sxml_status status = add_expression(
+    const sxml_status status = sxml_xslt_lowering_add_expression(
         machine->state,
         (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_ATOM, .atom = atom},
         &result);
@@ -149,7 +141,7 @@ static sxml_status finish_with_expression(sxml_xpath_lowering_machine *machine,
                                           sxml_xpath_lowering_frame *frame,
                                           sxml_ir_expression expression) {
     sxml_ir_expression_index result = {0};
-    const sxml_status status = add_expression(machine->state, expression, &result);
+    const sxml_status status = sxml_xslt_lowering_add_expression(machine->state, expression, &result);
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -265,7 +257,7 @@ static sxml_status add_atom_sequence(sxml_xpath_lowerer *lowerer, sxml_ir_atom_v
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    return add_expression(
+    return sxml_xslt_lowering_add_expression(
         lowerer,
         (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_SEQUENCE, .sequence = list},
         index);
@@ -275,7 +267,7 @@ static sxml_status add_atom_sequence(sxml_xpath_lowerer *lowerer, sxml_ir_atom_v
    enclosed expression). */
 static sxml_status add_atom_content(sxml_xpath_lowerer *lowerer, sxml_ir_atom atom,
                                     sxml_ir_expression_index *index) {
-    return add_expression(
+    return sxml_xslt_lowering_add_expression(
         lowerer,
         (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_ATOM, .atom = atom}, index);
 }
@@ -324,7 +316,7 @@ static sxml_status prepend_attribute_sets(sxml_xpath_lowerer *lowerer,
     }
     sxml_ir_expression_index sequence = {0};
     if (status == SXML_STATUS_OK) {
-        status = add_expression(
+        status = sxml_xslt_lowering_add_expression(
             lowerer,
             (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_SEQUENCE,
                                  .sequence = list},
@@ -715,10 +707,10 @@ static sxml_status finish_text_node(sxml_xpath_lowering_machine *machine,
     sxml_ir_expression_index then_branch = {0};
     sxml_ir_expression_index else_branch = {0};
     if (status == SXML_STATUS_OK) {
-        status = add_expression(lowerer, cdata_section, &then_branch);
+        status = sxml_xslt_lowering_add_expression(lowerer, cdata_section, &then_branch);
     }
     if (status == SXML_STATUS_OK) {
-        status = add_expression(lowerer, plain, &else_branch);
+        status = sxml_xslt_lowering_add_expression(lowerer, plain, &else_branch);
     }
     if (status != SXML_STATUS_OK) {
         return status;
@@ -1565,7 +1557,7 @@ static sxml_status add_parent_copy(sxml_xpath_lowerer *lowerer, deep_copy_reques
                                    &content);
     }
     if (status == SXML_STATUS_OK) {
-        status = add_expression(
+        status = sxml_xslt_lowering_add_expression(
             lowerer,
             (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_SHALLOW_COPY,
                                  .node_construction = {.value = request.item,
@@ -1597,7 +1589,7 @@ static sxml_status add_other_copy(sxml_xpath_lowerer *lowerer, deep_copy_request
     }
     sxml_ir_expression_index copied = {0};
     if (status == SXML_STATUS_OK) {
-        status = add_expression(
+        status = sxml_xslt_lowering_add_expression(
             lowerer,
             (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_SHALLOW_COPY,
                                  .node_construction = {.value = request.item,
@@ -1610,7 +1602,7 @@ static sxml_status add_other_copy(sxml_xpath_lowerer *lowerer, deep_copy_request
         status = add_atom_content(lowerer, request.item, &kept);
     }
     if (status == SXML_STATUS_OK) {
-        status = add_expression(
+        status = sxml_xslt_lowering_add_expression(
             lowerer,
             (sxml_ir_expression){
                 .expression_kind = SXML_IR_EXPRESSION_KIND_CONDITIONAL,
@@ -1673,7 +1665,7 @@ static sxml_status bind_copy_of(sxml_xpath_lowerer *lowerer, copy_of_request req
         status = add_other_copy(lowerer, copy, &other_copy);
     }
     if (status == SXML_STATUS_OK) {
-        status = add_expression(
+        status = sxml_xslt_lowering_add_expression(
             lowerer,
             (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_CONDITIONAL,
                                  .conditional = {.condition = is_document,
@@ -1685,7 +1677,7 @@ static sxml_status bind_copy_of(sxml_xpath_lowerer *lowerer, copy_of_request req
         status = finish_branch(lowerer, &not_element, &else_branch);
     }
     if (status == SXML_STATUS_OK) {
-        status = add_expression(
+        status = sxml_xslt_lowering_add_expression(
             lowerer,
             (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_CONDITIONAL,
                                  .conditional = {.condition = is_element,

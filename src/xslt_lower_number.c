@@ -89,14 +89,6 @@ static sxml_xslt_ast_node_index first_child_of(const sxml_xslt_lowering *lowerin
 
 /* =========================================================== IR pieces */
 
-static sxml_status add_expression(sxml_xpath_lowerer *lowerer, sxml_ir_expression expression,
-                                  sxml_ir_expression_index *index) {
-    return sxml_xpath_lowerer_add_expression(
-        lowerer,
-        (sxml_xpath_lowering_expression_to_add){.node = no_ast_node, .expression = expression},
-        index);
-}
-
 /* Adds expression and binds it in block. */
 typedef struct binding {
     sxml_xpath_lowering_block *block;
@@ -130,7 +122,7 @@ static sxml_status finish_with_expression(sxml_xpath_lowering_machine *machine,
                                           sxml_xpath_lowering_frame *frame,
                                           sxml_ir_expression expression) {
     sxml_ir_expression_index result = {0};
-    const sxml_status status = add_expression(machine->state, expression, &result);
+    const sxml_status status = sxml_xslt_lowering_add_expression(machine->state, expression, &result);
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -146,7 +138,7 @@ typedef struct branch_result {
 static sxml_status finish_branch(sxml_xpath_lowerer *lowerer, branch_result branch,
                                  sxml_ir_expression_index *expression) {
     sxml_ir_expression_index result = {0};
-    const sxml_status status = add_expression(lowerer, atom_expression(branch.value), &result);
+    const sxml_status status = sxml_xslt_lowering_add_expression(lowerer, atom_expression(branch.value), &result);
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -181,11 +173,11 @@ static sxml_status bind_in_slot(sxml_xpath_lowerer *lowerer, binding request, sx
     sxml_status status = sxml_xpath_lowerer_add_slot(lowerer, &made);
     sxml_ir_expression_index bound = {0};
     if (status == SXML_STATUS_OK) {
-        status = add_expression(lowerer, request.expression, &bound);
+        status = sxml_xslt_lowering_add_expression(lowerer, request.expression, &bound);
     }
     sxml_ir_expression_index body = {0};
     if (status == SXML_STATUS_OK) {
-        status = add_expression(
+        status = sxml_xslt_lowering_add_expression(
             lowerer,
             atom_expression((sxml_ir_atom){.atom_kind = SXML_IR_ATOM_KIND_SLOT, .slot = made}),
             &body);
@@ -273,7 +265,7 @@ static sxml_status bind_text_value(sxml_xpath_lowerer *lowerer, text_locals *loc
     status = sxml_xpath_lowerer_add_slot(lowerer, &value);
     sxml_ir_expression_index read = {0};
     if (status == SXML_STATUS_OK) {
-        status = add_expression(
+        status = sxml_xslt_lowering_add_expression(
             lowerer,
             atom_expression((sxml_ir_atom){.atom_kind = SXML_IR_ATOM_KIND_SLOT, .slot = value}),
             &read);

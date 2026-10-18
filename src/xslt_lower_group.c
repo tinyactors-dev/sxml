@@ -210,14 +210,6 @@ static bool is_data_type_name(sxml_byte_view text) {
 
 /* =========================================================== IR pieces */
 
-static sxml_status add_expression(sxml_xpath_lowerer *lowerer, sxml_ir_expression expression,
-                                  sxml_ir_expression_index *index) {
-    return sxml_xpath_lowerer_add_expression(
-        lowerer,
-        (sxml_xpath_lowering_expression_to_add){.node = no_ast_node, .expression = expression},
-        index);
-}
-
 /* Adds expression and binds it in block. */
 typedef struct binding {
     sxml_xpath_lowering_block *block;
@@ -239,7 +231,7 @@ static sxml_ir_expression atom_expression(sxml_ir_atom atom) {
 static sxml_status finish_with_atom(sxml_xpath_lowering_machine *machine,
                                     sxml_xpath_lowering_frame *frame, sxml_ir_atom atom) {
     sxml_ir_expression_index result = {0};
-    const sxml_status status = add_expression(machine->state, atom_expression(atom), &result);
+    const sxml_status status = sxml_xslt_lowering_add_expression(machine->state, atom_expression(atom), &result);
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -255,7 +247,7 @@ typedef struct branch_result {
 static sxml_status finish_branch(sxml_xpath_lowerer *lowerer, branch_result branch,
                                  sxml_ir_expression_index *expression) {
     sxml_ir_expression_index result = {0};
-    const sxml_status status = add_expression(lowerer, atom_expression(branch.value), &result);
+    const sxml_status status = sxml_xslt_lowering_add_expression(lowerer, atom_expression(branch.value), &result);
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -1544,7 +1536,7 @@ static sxml_status finish_group(sxml_xpath_lowering_machine *machine,
         lowerer, (branch_result){.block = &locals->body_block, .value = locals->body}, &body);
     sxml_ir_expression_index map = {0};
     if (status == SXML_STATUS_OK) {
-        status = add_expression(lowerer,
+        status = sxml_xslt_lowering_add_expression(lowerer,
                                 (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_MAP,
                                                      .map = {.input = locals->groups,
                                                              .focus = locals->group_slots,
@@ -2447,7 +2439,7 @@ static sxml_status step_merge(sxml_xpath_lowering_machine *machine,
             lowerer, (branch_result){.block = &locals->body_block, .value = locals->body}, &body);
         sxml_ir_expression_index map = {0};
         if (status == SXML_STATUS_OK) {
-            status = add_expression(lowerer,
+            status = sxml_xslt_lowering_add_expression(lowerer,
                                     (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_MAP,
                                                          .map = {.input = locals->groups,
                                                                  .focus = locals->group_slots,

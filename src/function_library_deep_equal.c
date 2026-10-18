@@ -293,10 +293,6 @@ static bool read_single_item(sxml_sequence value, sxml_item *item) {
     return true;
 }
 
-static bool is_whitespace_byte(uint8_t byte) {
-    return byte == ' ' || byte == '\t' || byte == '\n' || byte == '\r';
-}
-
 /* A boolean option's value after coercion. */
 typedef struct boolean_value {
     bool is_true;
@@ -789,7 +785,7 @@ typedef struct normalized_reader {
 /* The next byte of the normalized text, or -1 at its end. */
 static int32_t next_normalized_byte(normalized_reader *reader) {
     while (reader->byte_index < reader->text.byte_count &&
-           is_whitespace_byte(reader->text.bytes[reader->byte_index])) {
+           sxml_xml_byte_is_whitespace(reader->text.bytes[reader->byte_index])) {
         reader->is_space_pending = true;
         reader->byte_index += 1;
     }
@@ -905,7 +901,7 @@ static sxml_status compare_strings(deep_comparison *comparison, text_pair pair) 
 
 static bool is_all_whitespace(sxml_byte_view text) {
     for (size_t byte_index = 0; byte_index < text.byte_count; byte_index += 1) {
-        if (!is_whitespace_byte(text.bytes[byte_index])) {
+        if (!sxml_xml_byte_is_whitespace(text.bytes[byte_index])) {
             return false;
         }
     }

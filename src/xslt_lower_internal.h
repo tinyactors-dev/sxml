@@ -451,6 +451,12 @@ SXML_NODISCARD sxml_status sxml_xslt_lowering_make_guarded_match(sxml_xpath_lowe
 
 /* ------------------------------------------------------------- Helpers */
 
+/* Adds expression to the unit with no AST node: IR an XSLT instruction
+   or declaration lowers to, which has no XPath text of its own. */
+SXML_NODISCARD sxml_status sxml_xslt_lowering_add_expression(sxml_xpath_lowerer *lowerer,
+                                                             sxml_ir_expression expression,
+                                                             sxml_ir_expression_index *index);
+
 /* Adds expression and binds it in block. */
 typedef struct sxml_xslt_expression_to_bind {
     sxml_xpath_lowering_block *block;
