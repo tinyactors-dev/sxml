@@ -296,7 +296,7 @@ static void test_name_index(sxml_test_state *state) {
                                         (name_request){SXML_NAMESPACE_NONE, "e321"}) == 0);
 
     const sxml_name_identifier seventh_name =
-        intern_name(&fixture, (name_request){SXML_NAMESPACE_NONE, "seventh_name"});
+        intern_name(&fixture, (name_request){SXML_NAMESPACE_NONE, "e7"});
     uint32_t existing_component = 0;
     SXML_TEST_REQUIRE(state, sxml_schema_components_enter_name(
                                  components,
@@ -313,7 +313,7 @@ static void test_name_index(sxml_test_state *state) {
                                      .name = seventh_name,
                                      .component = 1000}) == SXML_STATUS_OK);
     SXML_TEST_EXPECT(state, find_global(&fixture, SXML_SCHEMA_SYMBOL_SPACE_ELEMENT_DECLARATION,
-                                        (name_request){SXML_NAMESPACE_NONE, "seventh_name"}) == 1000);
+                                        (name_request){SXML_NAMESPACE_NONE, "e7"}) == 1000);
     SXML_TEST_EXPECT(state, sxml_schema_components_replace_name(
                                 components,
                                 &(sxml_schema_name_entry){
