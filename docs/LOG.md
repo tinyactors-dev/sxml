@@ -4,6 +4,12 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 3.14 sweep 2 claimed: XQuery conformance (D135 b, c, g; a library
+  module's static context at run time; hintless split namespaces; ##any;
+  function-lookup of declared functions; FODC0016). Files: `src/xpath_lower*.c`,
+  `src/xquery_*.c`, `src/evaluator_global.c`, `src/ir_internal.h` (small
+  hunks), `tests/qt4/driver/`, `docs/CONFORMANCE.md`.
+
 - 4.11 done (D153): numbering and analyze-string. `src/xslt_lower_number.c`:
   xsl:number as 12.3's formal definition in XPath texts (count/from
   patterns as inline match-expression FILTERs, an error is no match),
