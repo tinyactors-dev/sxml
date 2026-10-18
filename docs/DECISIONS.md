@@ -5843,6 +5843,9 @@ validate` command enters the CLI only once it works (D44).
 ### D165. Phase 5 design: schema.h, the substrate additions, the XSD suite (packet 5.1)
 Reserved 2026-10-18; completed when the packet is ticked.
 
+### D166. Content that streams into a constructor; XSLT sweep 3 (packet 4.17)
+Reserved 2026-10-18; completed when the sweep is logged.
+
 ## Proposed
 
 - **Matching package versions for host resolvers** (packet 4.16, D160;
