@@ -4,6 +4,10 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 3.15 claimed (D161): the Phase 3 gate review (D11). Gate numbers in
+  `docs/CONFORMANCE.md`, review fixes in small hunks of Phase 3 files,
+  the ledgers, `CHANGELOG.md`, the gate boxes of `docs/tasks/phase-3.md`.
+
 - 4.16 claimed (D160): packages. `src/xslt_package.c` (new) with small
   hooks in `src/xslt_read.c`, `src/xslt_ast.c`, `src/xslt.c` and the
   XSLT lowering files (coordinated with 4.17 by hunk), the driver's
