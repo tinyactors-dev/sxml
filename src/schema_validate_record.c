@@ -51,10 +51,8 @@ void sxml_schema_recorder_release(sxml_schema_subtree_recorder *recorder,
     sxml_schema_scratch_array_release(allocator, &recorder->checks);
 }
 
-/* A new arena tree for a parentless element, with the processor's tree
-   limits; the recorder destroys it itself (D39). */
-static sxml_status create_tree(const sxml_schema_validator *validator,
-                               sxml_arena_tree **arena_tree) {
+sxml_status sxml_schema_validator_create_tree(const sxml_schema_validator *validator,
+                                             sxml_arena_tree **arena_tree) {
     const sxml_processor *processor = validator->configuration.schema->processor;
     return sxml_arena_tree_create(
         validator->allocator,
@@ -69,13 +67,14 @@ static sxml_status create_tree(const sxml_schema_validator *validator,
             .duplicate_attribute_policy = SXML_DUPLICATE_ATTRIBUTE_POLICY_REJECT,
             .is_destroyed_when_unreferenced = false,
             .error_record = NULL,
-            .base_uri = {.bytes = NULL, .byte_count = 0}},
+            .base_uri = {.bytes = validator->base_uri_bytes.bytes,
+                         .byte_count = validator->base_uri_bytes.entry_count}},
         arena_tree);
 }
 
 sxml_status sxml_schema_recorder_start(sxml_schema_validator *validator) {
     sxml_schema_subtree_recorder *recorder = &validator->recorder;
-    const sxml_status status = create_tree(validator, &recorder->arena_tree);
+    const sxml_status status = sxml_schema_validator_create_tree(validator, &recorder->arena_tree);
     if (status != SXML_STATUS_OK) {
         recorder->arena_tree = NULL;
         return status;
@@ -164,25 +163,22 @@ static sxml_status record_add_text(void *state, const sxml_text_event *event) {
     return status;
 }
 
+/* XSD 1.1, 3.13.4.1 clause 1.2: comments and processing instructions are
+   excluded from the partial post-schema-validation infoset assertions see
+   (the suite's comments-and-PIs-excluded); identity constraints select
+   elements and attributes only, so nothing reads them. A text after one
+   joins the text before it, as in a tree without them. */
 static sxml_status record_add_comment(void *state, const sxml_comment_event *event) {
-    sxml_schema_validator *validator = state;
-    sxml_status status = count_node(validator, 0);
-    if (status == SXML_STATUS_OK) {
-        const sxml_tree_builder arena = arena_of(validator);
-        status = arena.operations->add_comment(arena.state, event);
-    }
-    return status;
+    (void)state;
+    (void)event;
+    return SXML_STATUS_OK;
 }
 
 static sxml_status
 record_add_processing_instruction(void *state, const sxml_processing_instruction_event *event) {
-    sxml_schema_validator *validator = state;
-    sxml_status status = count_node(validator, 0);
-    if (status == SXML_STATUS_OK) {
-        const sxml_tree_builder arena = arena_of(validator);
-        status = arena.operations->add_processing_instruction(arena.state, event);
-    }
-    return status;
+    (void)state;
+    (void)event;
+    return SXML_STATUS_OK;
 }
 
 static sxml_status record_add_unparsed_entity(void *state, const sxml_unparsed_entity *entity) {
@@ -306,8 +302,64 @@ sxml_status sxml_schema_send_in_scope_bindings(sxml_schema_validator *validator,
     return status;
 }
 
-/* Sends the held-back element, its in-scope namespaces and its attributes
-   as they appear to builder. */
+/* Whether the held-back element has an attribute of the name. */
+static bool has_own_attribute(const sxml_schema_validator *validator,
+                              sxml_name_identifier attribute_name) {
+    for (size_t attribute_index = 0; attribute_index < validator->pending_attributes.entry_count;
+         attribute_index += 1) {
+        const sxml_schema_pending_attribute *attribute =
+            sxml_schema_scratch_array_at(&validator->pending_attributes, attribute_index);
+        if (attribute->attribute_name.index == attribute_name.index) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* Sends the attributes the held-back element inherits (3.3.5.6) and does
+   not have itself, as if they were its own (3.12.4 clause 1.1.3): of the
+   inheritable attributes of its ancestors, the innermost one of each
+   name. Their prefixes are bound in the element's in-scope namespaces,
+   which the copy has, unless an inner element rebinds one (no namespace
+   fixup yet). */
+static sxml_status send_inherited_attributes(sxml_schema_validator *validator,
+                                             sxml_tree_builder builder) {
+    const sxml_schema_scratch_array *inherited = &validator->inherited_attributes;
+    sxml_status status = SXML_STATUS_OK;
+    for (size_t remaining = inherited->entry_count; status == SXML_STATUS_OK && remaining > 0;
+         remaining -= 1) {
+        const sxml_schema_inherited_attribute *attribute =
+            sxml_schema_scratch_array_at(inherited, remaining - 1U);
+        bool is_shadowed = has_own_attribute(validator, attribute->attribute_name);
+        for (size_t inner = remaining; !is_shadowed && inner < inherited->entry_count;
+             inner += 1) {
+            const sxml_schema_inherited_attribute *inner_attribute =
+                sxml_schema_scratch_array_at(inherited, inner);
+            is_shadowed = inner_attribute->attribute_name.index == attribute->attribute_name.index;
+        }
+        if (is_shadowed) {
+            continue;
+        }
+        status = builder.operations->add_attribute(
+            builder.state,
+            &(sxml_attribute_event){
+                .attribute_name = attribute->attribute_name,
+                .namespace_prefix = attribute->namespace_prefix,
+                .attribute_value = {.bytes = attribute->value_byte_count == 0
+                                                 ? NULL
+                                                 : validator->inherited_bytes.bytes +
+                                                       attribute->value_offset,
+                                    .byte_count = attribute->value_byte_count},
+                .type_annotation = {.index = SXML_TYPE_NONE},
+                .is_id = false,
+                .is_idrefs = false,
+                .location = validator->pending.event.location});
+    }
+    return status;
+}
+
+/* Sends the held-back element, its in-scope namespaces, its attributes
+   as they appear and the attributes it inherits to builder. */
 static sxml_status send_element_copy(sxml_schema_validator *validator, sxml_tree_builder builder) {
     sxml_element_start_event event = validator->pending.event;
     event.type_annotation.index = SXML_TYPE_NONE;
@@ -339,6 +391,9 @@ static sxml_status send_element_copy(sxml_schema_validator *validator, sxml_tree
                                .location = attribute->location});
     }
     if (status == SXML_STATUS_OK) {
+        status = send_inherited_attributes(validator, builder);
+    }
+    if (status == SXML_STATUS_OK) {
         status = builder.operations->end_element(builder.state);
     }
     return status;
@@ -359,7 +414,7 @@ sxml_status sxml_schema_select_type(sxml_schema_validator *validator,
         return sxml_schema_select_type_alternative(validator, &request, selected_type);
     }
     sxml_arena_tree *arena_tree = NULL;
-    sxml_status status = create_tree(validator, &arena_tree);
+    sxml_status status = sxml_schema_validator_create_tree(validator, &arena_tree);
     if (status == SXML_STATUS_OK) {
         status = send_element_copy(validator, sxml_arena_tree_as_tree_builder(arena_tree));
     }

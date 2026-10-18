@@ -713,12 +713,14 @@ static void resolve_other_references(resolver *state) {
         }
         use->attribute_declaration.value =
             component_of(state, use->attribute_declaration_reference);
-        /* {inheritable}: the declaration's unless the reference says
-           (approximated: a reference's false takes the declaration's). */
-        use->is_inheritable =
-            use->is_inheritable ||
-            sxml_schema_get_attribute_declaration(state->components, use->attribute_declaration)
-                ->is_inheritable;
+        /* {inheritable}: the reference's inheritable=, else the
+           declaration's (3.2.2.2, "the actual value of the inheritable
+           [attribute], if present, otherwise ... {inheritable}"). */
+        if (!use->has_inheritable) {
+            use->is_inheritable = sxml_schema_get_attribute_declaration(
+                                      state->components, use->attribute_declaration)
+                                      ->is_inheritable;
+        }
     }
     const uint32_t particle_count = table_count(state, SXML_SCHEMA_TABLE_PARTICLE);
     for (uint32_t index = 3; index < particle_count; index += 1) {

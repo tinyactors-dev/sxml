@@ -2263,7 +2263,14 @@ static sxml_status check_element_consistency(content_compiler *compiler) {
         const bool is_named =
             sxml_schema_get_type_definition(compiler->components, first->type_definition)
                 ->type_name.index != 0;
-        if (first->type_definition.value != second->type_definition.value || !is_named) {
+        /* 3.8.6.3 clauses 1 to 4: one named type, equivalent type
+           tables. */
+        if (first->type_definition.value != second->type_definition.value || !is_named ||
+            !sxml_schema_type_tables_are_equivalent(
+                compiler->components,
+                &(sxml_schema_type_table_pair){
+                    .first = {.value = (uint32_t)(keys[entry - 1] & UINT32_MAX)},
+                    .second = {.value = (uint32_t)(keys[entry] & UINT32_MAX)}})) {
             status = report_error(
                 compiler, (content_report){.constraint_name = "cos-element-consistent",
                                            .description = "Two element declarations of one name "
@@ -2754,8 +2761,7 @@ typedef struct declaration_pair {
     sxml_schema_element_declaration_index specific;
 } declaration_pair;
 
-/* A declaration subsumes another (3.4.6.4, default bindings, clause 4;
-   type tables are not compared). */
+/* A declaration subsumes another (3.4.6.4, default bindings, clause 4). */
 static bool declaration_subsumes(const sxml_schema_components *components,
                                  declaration_pair pair_index) {
     if (pair_index.general.value == pair_index.specific.value) {
@@ -2781,6 +2787,12 @@ static bool declaration_subsumes(const sxml_schema_components *components,
         }
     }
     if ((general->disallowed_substitutions & ~specific->disallowed_substitutions) != 0) {
+        return false;
+    }
+    /* Clause 4.6: both type tables absent, or present and equivalent. */
+    if (!sxml_schema_type_tables_are_equivalent(
+            components, &(sxml_schema_type_table_pair){.first = pair_index.general,
+                                                       .second = pair_index.specific})) {
         return false;
     }
     const sxml_schema_index_view general_constraints =

@@ -67,8 +67,11 @@ typedef struct sxml_schema_document_defaults {
     /* defaultAttributes, a reference to an attribute group; 0 when
        absent. */
     sxml_schema_reference_index default_attributes;
-    /* xpathDefaultNamespace of xs:schema, resolved. */
+    /* xpathDefaultNamespace of xs:schema, resolved; ##defaultNamespace
+       is resolved on each host element instead (3.13.2: its in-scope
+       default namespace). */
     sxml_namespace_uri_identifier xpath_default_namespace;
+    bool xpath_default_is_default_namespace;
     /* xs:defaultOpenContent: its mode (NONE when absent), wildcard and
        appliesToEmpty. */
     sxml_schema_open_content_mode open_content_mode;

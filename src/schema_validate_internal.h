@@ -100,8 +100,23 @@ typedef struct sxml_schema_validation_frame {
     uint64_t element_number;
     /* While recorded: its node in the recorded tree. */
     uint32_t recorded_node;
+    /* Where the element's own inheritable attributes start in
+       inherited_attributes and inherited_bytes (3.3.5.6). */
+    size_t first_inherited;
+    size_t inherited_byte_start;
     sxml_source_location location;
 } sxml_schema_validation_frame;
+
+/* An attribute the open elements' descendants may inherit (3.3.5.6: one
+   attributed to an attribute use, or governed by a declaration, whose
+   {inheritable} is true); its value, as it appeared, is in
+   inherited_bytes. */
+typedef struct sxml_schema_inherited_attribute {
+    sxml_name_identifier attribute_name;
+    sxml_namespace_prefix_identifier namespace_prefix;
+    size_t value_offset;
+    size_t value_byte_count;
+} sxml_schema_inherited_attribute;
 
 /* An attribute of the held-back start; its value is in attribute_bytes. */
 typedef struct sxml_schema_pending_attribute {
@@ -211,6 +226,11 @@ struct sxml_schema_validator {
        values. */
     sxml_schema_scratch_array pending_attributes;
     sxml_schema_scratch_array attribute_bytes;
+    /* sxml_schema_inherited_attribute: the inheritable attributes of the
+       open elements, outermost first, and their values (type
+       alternatives, 3.12.4 clause 1.1.3). */
+    sxml_schema_scratch_array inherited_attributes;
+    sxml_schema_scratch_array inherited_bytes;
     /* uint8_t per attribute use of the element's type: 1 once an
        attribute matched it (cvc-complex-type.4, defaults). */
     sxml_schema_scratch_array attribute_uses_met;
@@ -228,6 +248,10 @@ struct sxml_schema_validator {
     /* Collected simple content of the open elements, and scratch text. */
     sxml_schema_scratch_array text_bytes;
     sxml_schema_scratch_array value_bytes;
+    /* The document's base URI (its start event's base URI, else its
+       document URI), the base URI of the parentless copies made for
+       assertions and type alternatives (fn:base-uri, XDM 4.0, 5.2). */
+    sxml_schema_scratch_array base_uri_bytes;
     /* The names of the document's unparsed entities, each followed by a
        zero byte (ENTITY values, Part 2, 3.3.20). */
     sxml_schema_scratch_array entity_names;
@@ -297,9 +321,9 @@ typedef struct sxml_schema_value_outcome {
  * in-scope namespaces, then the ENTITY rule (Part 2, 3.3.20), the
  * assertion seam (5.9), and the ID table (cvc-id). An invalid value is
  * reported (cvc-datatype-valid.1.2.1, or the facet's constraint name)
- * and gives is_valid false. Returns the report's status, the seams'
- * (SXML_STATUS_UNSUPPORTED_FEATURE for assertions until 5.9) and the
- * heap's failures.
+ * and gives is_valid false, as does a false assertion
+ * (cvc-assertions-valid). Returns the report's
+ * status, the assertion seam's and the heap's failures.
  */
 SXML_NODISCARD sxml_status sxml_schema_validate_simple_value(
     sxml_schema_validator *validator, const sxml_schema_value_request *request,
@@ -340,6 +364,13 @@ void sxml_schema_recorder_initialize(sxml_schema_subtree_recorder *recorder,
 /* Releases the recorder's tree and memory; it is then idle. */
 void sxml_schema_recorder_release(sxml_schema_subtree_recorder *recorder, sxml_allocator allocator);
 
+/* A new arena tree for a parentless element, with the processor's tree
+   limits, kept by the caller, who destroys it (D39): the recorded
+   subtree, the element copy of type alternatives, the copy assertions
+   evaluate on. Returns the arena tree's failures. */
+SXML_NODISCARD sxml_status sxml_schema_validator_create_tree(
+    const sxml_schema_validator *validator, sxml_arena_tree **arena_tree);
+
 /* Starts recording at the element the next frame is (frames.entry_count):
    a new arena tree with the processor's limits. Returns the arena tree's
    and the allocator's failures. */
@@ -367,8 +398,8 @@ SXML_NODISCARD sxml_status sxml_schema_recorder_finish(sxml_schema_validator *va
 /* The type alternative the declaration's type table selects for the
    held-back element (3.12.4), through the seam of 5.9, which receives a
    parentless copy of the element with its attributes as they appear and
-   its in-scope namespaces; the declared type when the table is empty.
-   Not yet: the attributes it inherits (3.3.5.6), for 5.9. */
+   its in-scope namespaces, and the attributes it inherits (3.3.5.6) that
+   it does not have itself; the declared type when the table is empty. */
 SXML_NODISCARD sxml_status sxml_schema_select_type(
     sxml_schema_validator *validator, sxml_schema_element_declaration_index element_declaration,
     sxml_schema_type_definition_index *selected_type);

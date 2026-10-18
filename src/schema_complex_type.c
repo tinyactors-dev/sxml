@@ -790,8 +790,9 @@ static bool content_is_emptiable(const sxml_schema_type_definition *type_definit
     return sxml_schema_content_model_can_end(&cursor);
 }
 
-/* A simple type restricting base with the type's own facets (3.4.2.2,
-   clauses 1 and 2), or base itself without facets. */
+/* A simple type restricting base with the type's own facets and
+   assertion facets (3.4.2.2, clauses 1 and 2), or base itself without
+   any. */
 typedef struct simple_restriction {
     uint32_t complex_type;
     uint32_t base_simple_type;
@@ -801,17 +802,19 @@ static sxml_status restrict_simple_content(complex_type_stage *stage, simple_res
                                            uint32_t *simple_type) {
     const uint32_t base_simple_type = request.base_simple_type;
     const sxml_schema_type_definition read = *get_type(stage->components, request.complex_type);
-    if (read.facets.entry_count == 0) {
+    if (read.facets.entry_count == 0 && read.facet_assertions.entry_count == 0) {
         *simple_type = base_simple_type;
         return SXML_STATUS_OK;
     }
     const sxml_schema_type_definition *base = get_type(stage->components, base_simple_type);
+    /* The facets and the assertions facet (Part 2, 4.3.13.2). */
     const sxml_schema_type_definition synthesized = {.variety = base->variety,
                                                      .position = read.position,
                                                      .base_type = {.value = base_simple_type},
                                                      .derivation_method =
                                                          SXML_SCHEMA_DERIVATION_RESTRICTION,
-                                                     .facets = read.facets};
+                                                     .facets = read.facets,
+                                                     .assertions = read.facet_assertions};
     uint32_t new_index = 0;
     sxml_status status = sxml_schema_components_add_entries(
         stage->components,
@@ -1062,7 +1065,10 @@ static sxml_status check_attribute_restriction(complex_type_stage *stage, uint32
         }
         const bool keeps_required = base_entry->use_kind != SXML_SCHEMA_ATTRIBUTE_USE_REQUIRED ||
                                     own_entry->use_kind == SXML_SCHEMA_ATTRIBUTE_USE_REQUIRED;
-        if (!outcome.is_derived || !is_value_compatible || !keeps_required) {
+        /* 3.4.6.4 clause 5.4 (Attribute Uses): G.{inheritable} =
+           S.{inheritable}. */
+        if (!outcome.is_derived || !is_value_compatible || !keeps_required ||
+            own_entry->is_inheritable != base_entry->is_inheritable) {
             return report(stage, error);
         }
     }

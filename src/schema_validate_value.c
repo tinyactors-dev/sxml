@@ -585,13 +585,20 @@ sxml_status sxml_schema_validate_simple_value(sxml_schema_validator *validator,
     }
     if (status == SXML_STATUS_OK) {
         /* Part 2, 4.3.13: assertion facets, evaluated with $value
-           (src/schema_assertion.c, packet 5.9). */
+           (src/schema_assertion.c, packet 5.9); a false one makes the
+           value invalid (4.1.4 clause 1: facet-valid). */
+        const size_t error_count = validator->error_count;
         status = sxml_schema_check_assertions(
             validator, &(sxml_schema_assertion_request){
                            .schema = validator->configuration.schema,
                            .type_definition = request->simple_type,
                            .node = {.representation = SXML_ITEM_REPRESENTATION_NONE},
-                           .value = outcome->value});
+                           .value = outcome->value,
+                           .text = outcome->normalized_value,
+                           .location = request->location});
+        if (validator->error_count != error_count) {
+            outcome->is_valid = false;
+        }
     }
     if (status != SXML_STATUS_OK || !outcome->is_valid) {
         sxml_sequence_release(outcome->value);

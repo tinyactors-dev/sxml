@@ -804,6 +804,7 @@ typedef enum list_field {
     SXML_LIST_FIELD_ATTRIBUTE_GROUP_REFERENCES,
     SXML_LIST_FIELD_FACETS,
     SXML_LIST_FIELD_ASSERTIONS,
+    SXML_LIST_FIELD_FACET_ASSERTIONS,
     SXML_LIST_FIELD_MEMBER_TYPES,
     SXML_LIST_FIELD_ALTERNATIVES,
     SXML_LIST_FIELD_IDENTITY_CONSTRAINTS,
@@ -2173,6 +2174,11 @@ static sxml_status current_namespace_context(schema_reader *reader,
         status = read_xpath_default_namespace(
             reader, attribute_value(reader, SXML_READ_ATTRIBUTE_XPATH_DEFAULT_NAMESPACE),
             &default_namespace);
+    } else if (reader->defaults->xpath_default_is_default_namespace) {
+        /* 3.13.2: ##defaultNamespace of xs:schema is the default namespace
+           in scope on the host element. */
+        status = read_xpath_default_namespace(reader, SXML_TEXT("##defaultNamespace"),
+                                              &default_namespace);
     }
     sxml_byte_view base_uri = {.bytes = NULL, .byte_count = 0};
     if (status == SXML_STATUS_OK) {
@@ -2634,6 +2640,9 @@ static sxml_status read_schema_defaults(schema_reader *reader) {
         status = read_xpath_default_namespace(
             reader, attribute_value(reader, SXML_READ_ATTRIBUTE_XPATH_DEFAULT_NAMESPACE),
             &defaults->xpath_default_namespace);
+        defaults->xpath_default_is_default_namespace =
+            views_equal(trimmed(attribute_value(reader, SXML_READ_ATTRIBUTE_XPATH_DEFAULT_NAMESPACE)),
+                        SXML_TEXT("##defaultNamespace"));
     }
     if (status == SXML_STATUS_OK && has_attribute(reader, SXML_READ_ATTRIBUTE_DEFAULT_ATTRIBUTES)) {
         status = add_reference(
@@ -2933,7 +2942,15 @@ static sxml_status read_assertion(schema_reader *reader) {
             &index);
     }
     if (status == SXML_STATUS_OK) {
-        join_list(reader, SXML_LIST_FIELD_ASSERTIONS, index);
+        /* An xs:assertion facet of a simpleContent restriction belongs to
+           the simple content type, xs:assert to the complex type
+           (3.4.2.3.3; Part 2, 4.3.13.2). */
+        join_list(reader,
+                  reader->element.role == SXML_READ_ROLE_ASSERTION &&
+                          reader->element.parent_role == SXML_READ_ROLE_SIMPLE_CONTENT_RESTRICTION
+                      ? SXML_LIST_FIELD_FACET_ASSERTIONS
+                      : SXML_LIST_FIELD_ASSERTIONS,
+                  index);
     }
     return status;
 }
@@ -3843,7 +3860,8 @@ static sxml_status read_local_attribute(schema_reader *reader) {
         .use_kind = SXML_SCHEMA_ATTRIBUTE_USE_OPTIONAL,
         .is_inheritable =
             boolean_value(reader, (boolean_request){.attribute = SXML_READ_ATTRIBUTE_INHERITABLE,
-                                                    .default_value = false})};
+                                                    .default_value = false}),
+        .has_inheritable = has_attribute(reader, SXML_READ_ATTRIBUTE_INHERITABLE)};
     size_t position = 0;
     if (has_attribute(reader, SXML_READ_ATTRIBUTE_USE) &&
         find_keyword(KEYWORDS(use_keywords), attribute_value(reader, SXML_READ_ATTRIBUTE_USE),
@@ -4315,6 +4333,8 @@ static sxml_status store_list(schema_reader *reader, component_key owner, list_f
             definition->facets = list;
         } else if (field == SXML_LIST_FIELD_ASSERTIONS) {
             definition->assertions = list;
+        } else if (field == SXML_LIST_FIELD_FACET_ASSERTIONS) {
+            definition->facet_assertions = list;
         } else if (field == SXML_LIST_FIELD_MEMBER_TYPES) {
             definition->anonymous_member_types = list;
         }

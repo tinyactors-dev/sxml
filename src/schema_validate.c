@@ -298,6 +298,25 @@ typedef struct declared_attribute {
     sxml_schema_attribute_use_index use;
 } declared_attribute;
 
+/* Keeps an inheritable attribute of the element being started for its
+   descendants' type alternatives (3.3.5.6), with its value as it
+   appeared (the base information set's, 3.12.4 clause 1.1). */
+static sxml_status keep_inheritable(sxml_schema_validator *validator,
+                                    const declared_attribute *declared) {
+    const sxml_schema_inherited_attribute inherited = {
+        .attribute_name = declared->attribute->attribute_name,
+        .namespace_prefix = declared->attribute->namespace_prefix,
+        .value_offset = validator->inherited_bytes.entry_count,
+        .value_byte_count = declared->value.byte_count};
+    sxml_status status = sxml_schema_scratch_array_append_bytes(
+        validator->allocator, &validator->inherited_bytes, declared->value);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_schema_scratch_array_append(validator->allocator,
+                                                  &validator->inherited_attributes, &inherited);
+    }
+    return status;
+}
+
 /* Attribute Locally Valid (3.2.4.1) and Attribute Locally Valid (Use)
    (3.5.4.2): the value against the declaration's type and the fixed
    value; then the annotated attribute goes on. */
@@ -318,9 +337,19 @@ static sxml_status assess_declared_attribute(sxml_schema_validator *validator,
         return status;
     }
     sxml_schema_value_constraint value_constraint = declaration->value_constraint;
+    bool is_inheritable = declaration->is_inheritable;
     if (declared->use.value != 0) {
-        value_constraint = use_value_constraint(
-            validator, sxml_schema_get_attribute_use(validator->components, declared->use));
+        const sxml_schema_attribute_use *use =
+            sxml_schema_get_attribute_use(validator->components, declared->use);
+        value_constraint = use_value_constraint(validator, use);
+        is_inheritable = use->is_inheritable;
+    }
+    if (is_inheritable && validator->attribute_element_number != 0) {
+        status = keep_inheritable(validator, declared);
+        if (status != SXML_STATUS_OK) {
+            sxml_sequence_release(outcome.value);
+            return status;
+        }
     }
     /* The normalized value is the validator's scratch text until the next
        value: send the attribute before the fixed value is cast. */
@@ -1037,6 +1066,10 @@ static sxml_status flush_pending(sxml_schema_validator *validator) {
                                           .binding_start = pending->binding_start,
                                           .is_id = false,
                                           .element_number = validator->element_count + 1U,
+                                          .first_inherited =
+                                              validator->inherited_attributes.entry_count,
+                                          .inherited_byte_start =
+                                              validator->inherited_bytes.entry_count,
                                           .location = pending->event.location};
     validator->element_count += 1;
     sxml_status status = SXML_STATUS_OK;
@@ -1524,6 +1557,13 @@ static sxml_status validator_start_document(void *state, const sxml_document_sta
         return SXML_STATUS_INVALID_ARGUMENT;
     }
     validator->is_document = true;
+    const sxml_byte_view base_uri =
+        event->base_uri.byte_count != 0 ? event->base_uri : event->document_uri;
+    const sxml_status status = sxml_schema_scratch_array_append_bytes(
+        validator->allocator, &validator->base_uri_bytes, base_uri);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
     return forward_start_document(validator, event);
 }
 
@@ -1738,6 +1778,8 @@ static sxml_status validator_end_element(void *state) {
     validator->namespace_bindings.entry_count = frame.binding_start;
     validator->counter_values.entry_count = frame.first_counter;
     validator->text_bytes.entry_count = frame.text_start;
+    validator->inherited_attributes.entry_count = frame.first_inherited;
+    validator->inherited_bytes.entry_count = frame.inherited_byte_start;
     if (status == SXML_STATUS_OK && is_recording(validator) &&
         validator->recorder.root_frame == validator->frames.entry_count) {
         /* The outermost recorded element has ended. */
@@ -2007,6 +2049,8 @@ sxml_schema_validator_initialize(sxml_memory_view memory,
                                            &schema->components, configuration->governing_type)}},
         .pending_attributes = scratch_of(sizeof(sxml_schema_pending_attribute)),
         .attribute_bytes = scratch_of(1),
+        .inherited_attributes = scratch_of(sizeof(sxml_schema_inherited_attribute)),
+        .inherited_bytes = scratch_of(1),
         .attribute_uses_met = scratch_of(1),
         .namespace_bindings = scratch_of(sizeof(sxml_namespace_binding)),
         .cast_bindings = scratch_of(sizeof(sxml_namespace_binding)),
@@ -2014,6 +2058,7 @@ sxml_schema_validator_initialize(sxml_memory_view memory,
         .counter_values = scratch_of(sizeof(uint64_t)),
         .text_bytes = scratch_of(1),
         .value_bytes = scratch_of(1),
+        .base_uri_bytes = scratch_of(1),
         .entity_names = scratch_of(1),
         .is_document = false,
         .has_root = false,
@@ -2034,6 +2079,8 @@ void sxml_schema_validator_finalize(sxml_schema_validator *validator) {
     sxml_schema_scratch_array_release(allocator, &validator->frames);
     sxml_schema_scratch_array_release(allocator, &validator->pending_attributes);
     sxml_schema_scratch_array_release(allocator, &validator->attribute_bytes);
+    sxml_schema_scratch_array_release(allocator, &validator->inherited_attributes);
+    sxml_schema_scratch_array_release(allocator, &validator->inherited_bytes);
     sxml_schema_scratch_array_release(allocator, &validator->attribute_uses_met);
     sxml_schema_scratch_array_release(allocator, &validator->namespace_bindings);
     sxml_schema_scratch_array_release(allocator, &validator->cast_bindings);
@@ -2041,6 +2088,7 @@ void sxml_schema_validator_finalize(sxml_schema_validator *validator) {
     sxml_schema_scratch_array_release(allocator, &validator->counter_values);
     sxml_schema_scratch_array_release(allocator, &validator->text_bytes);
     sxml_schema_scratch_array_release(allocator, &validator->value_bytes);
+    sxml_schema_scratch_array_release(allocator, &validator->base_uri_bytes);
     sxml_schema_scratch_array_release(allocator, &validator->entity_names);
     sxml_schema_id_table_release(&validator->id_table);
     sxml_schema_recorder_release(&validator->recorder, allocator);

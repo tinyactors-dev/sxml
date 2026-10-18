@@ -894,6 +894,10 @@ typedef struct sxml_schema_type_definition {
        Property, SIMPLE_TYPES or COMPLEX_TYPES: {assertions}, the base
        type's followed by the own ones (3.4.2.3.3, Part 2 4.3.13). */
     sxml_schema_list assertions;
+    /* As read, complex types: the xs:assertion facets of a simpleContent
+       restriction, which COMPLEX_TYPES gives the simple content type it
+       synthesizes (3.4.2.2), as xs:assert's are the complex type's. */
+    sxml_schema_list facet_assertions;
 
     /* --- Complex type definitions (3.4.1) --- */
     /* As read: {abstract}. */
@@ -1029,6 +1033,9 @@ typedef struct sxml_schema_attribute_use {
        ref, else the declaration's). */
     sxml_schema_value_constraint value_constraint;
     bool is_inheritable;
+    /* As read: inheritable= was given; RESOLVE gives a reference without
+       it its declaration's {inheritable} (3.2.2.2). */
+    bool has_inheritable;
 } sxml_schema_attribute_use;
 
 /* An attribute group definition (3.6.1). */
@@ -2095,13 +2102,30 @@ typedef struct sxml_schema_type_alternative_request {
  * Writes the type definition the declaration's type table selects for
  * the element (its declared type when the table is empty) to
  * *selected_type. A test that raises a dynamic error does not select its
- * type (3.12.4). src/schema_assertion.c (5.9); its stub handles an empty
- * table and returns SXML_STATUS_UNSUPPORTED_FEATURE for any other.
+ * type (3.12.4). src/schema_assertion.c (5.9).
  */
 SXML_NODISCARD sxml_status sxml_schema_select_type_alternative(
     sxml_schema_validator *validator,
     const sxml_schema_type_alternative_request *request,
     sxml_schema_type_definition_index *selected_type);
+
+/* Two element declarations whose type tables are compared. */
+typedef struct sxml_schema_type_table_pair {
+    sxml_schema_element_declaration_index first;
+    sxml_schema_element_declaration_index second;
+} sxml_schema_type_table_pair;
+
+/*
+ * True when the declarations' type tables are both absent, or both
+ * present and equivalent (3.8.6.3 "equivalent type table"): as many
+ * alternatives, each pair one alternative or with the same test
+ * (expression, namespace bindings, default namespace and base URI) and
+ * the same type definition, and the same default type definition. For
+ * COMPLEX_TYPES (cos-element-consistent, 3.4.6.4 clause 4.6).
+ * src/schema_assertion.c (5.9).
+ */
+bool sxml_schema_type_tables_are_equivalent(const sxml_schema_components *components,
+                                            const sxml_schema_type_table_pair *pair);
 
 /* Assertions to check (3.13.4, Part 2 4.3.13). */
 typedef struct sxml_schema_assertion_request {
@@ -2113,13 +2137,21 @@ typedef struct sxml_schema_assertion_request {
     sxml_item node;
     /* Simple types and simple content: the typed value, $value. */
     sxml_sequence value;
+    /* Simple types: the value's text (its schema normalized value), for
+       the members of a union tried after the one the cast chose; borrowed.
+       Where the value is, for the report (complex types: the node's
+       location). */
+    sxml_byte_view text;
+    sxml_source_location location;
 } sxml_schema_assertion_request;
 
 /*
  * Evaluates each assertion of the type and reports each false one or one
- * raising an error (cvc-assertion) through validator.
- * src/schema_assertion.c (5.9); its stub does nothing for a type without
- * assertions and returns SXML_STATUS_UNSUPPORTED_FEATURE otherwise.
+ * raising an error through validator: for a complex type on a copy of
+ * the element of its recorded subtree (cvc-assertion, 3.13.4.1), for a
+ * simple type with $value, also those of a list's item type and of a
+ * union's active basic member (cvc-assertions-valid, Part 2, 4.3.13.3).
+ * src/schema_assertion.c (5.9).
  */
 SXML_NODISCARD sxml_status sxml_schema_check_assertions(
     sxml_schema_validator *validator,
