@@ -4583,8 +4583,39 @@ implemented in `src/xquery.c`; no header changed.
   left out because it would link the same grammar into it.
 
 ### D147. Counted repetition with counters (packet 2.19b)
-Recorded 2026-10-17, after D53, D71, D105.
-Reserved here; the record is completed when the packet is ticked.
+Recorded 2026-10-17, after D53, D71, D105. Closes D105's "Not done".
+(Completed by the Phase 3 review, D161, from the text 2.19b left
+uncommitted.)
+- **When**: a quantifier whose copies would add more than
+  `SXML_REGEX_LARGEST_EXPANSION` (256) instructions, each copy counted as
+  at least one, compiles to a counted loop (glossary): the atom once,
+  between `COUNTED_LOOP_START` (counter := 0), `COUNTED_LOOP_CHOOSE`, a
+  jump out, `COUNTED_LOOP_BODY` (progress := position) and
+  `COUNTED_LOOP_END` (counter + 1, back to CHOOSE). Smaller counts keep
+  D53's copies, which are faster (a loop pays four instructions and
+  three backtrack entries per iteration); x*, x+ and x? are unchanged.
+  `a{2147483647}` is six instructions; `(?:a{1000}){1000}` and
+  `(?:(?:){1000}){1000}` now compile (they were LIMIT_EXCEEDED).
+- **Matching**: CHOOSE iterates below the minimum, offers an iteration
+  as a choice below the maximum (greedy first, reluctant second, section
+  6.1.4) and leaves at it. Counter and progress are register slots (as
+  progress registers are), set with RESTORE_SLOT entries like SAVE, so
+  backtracking into an earlier iteration finds its counter, lookaround
+  keeps working (a positive assertion keeps restoring entries), and
+  nothing recurses (D71). The parameters (minimum, maximum, unbounded,
+  reluctant, the two slots) are in a `counted_loops` table of the
+  compiled regex, shared like classes by the copies of an enclosing
+  atom: copies run one after the other and every slot change is undone
+  in order, so they can share slots.
+- **Empty iterations**: above the minimum an iteration that consumed
+  nothing fails, as CHECK_PROGRESS in D53's unbounded loops; below it,
+  it stands for all the iterations still needed (the counter jumps to
+  the minimum), since each would again match nothing at the same place.
+  This keeps `(a?){2147483647}b` fast and finds the same matching
+  segments; which substring a group inside captures then is
+  implementation-dependent (F&O 4.0, section 6.1.5).
+- **Quantities** above 4294967295 still saturate to it (cbcl-matches-004:
+  `a{99999999999999999999999999}` is false, which the test allows).
 
 ### D148. Library modules and module import (packet 3.11)
 Recorded 2026-10-17, after D106, D134, D135, D146. No header changed; no
@@ -5549,8 +5580,127 @@ kind, no evaluator change; `include/sxml/xslt.h` changes one comment
   (4.17's numbering included). No other test set lost a case.
 
 ### D161. Phase 3 gate review (packet 3.15)
-Recorded 2026-10-19, after D11, D95, D123, D132, D151.
-Reserved here; the record is completed when the packet is ticked.
+Recorded 2026-10-19 by the review agent (D11), after D95, D123, D132,
+D151. Checked locally (D123): `tools/check-main.sh` on a clean HEAD
+(84f3178) builds `release`, `debug` (ASan, UBSan), `debug-gcc` and
+`wasm`; every test passes but two of the XSLT driver
+(`xslt/list_dependencies`, `xslt/run_json`): 4.17's numbering commit
+50a3651 made "CIRCLED DIGIT ONE" a supported combination and the goldens
+still skip it (Phase 4, 4.17's files; told to the orchestrator).
+  The full lint reports three findings, none in Phase 3 code: a bare
+  bool parameter in `tests/xslt/driver/xslt_assertion.c`, a byte pointer
+  without length in `src/xslt.c` (4.15) and a null dereference the
+  analyzer finds in `src/xslt_read.c` (4.16); no call cycle.
+- **Numbers** (code of 50a3651, `release`, tools/run-qt4.sh and
+  tools/run-xslt.sh, every test set finished, 0 crashes, no leak
+  reported by the drivers' budgets): XP40 30,646 of 47,313 passed (as
+  at the Phase 2 gate: no regression), 0 errors, in scope 30,628 of
+  31,543, **97.1 %**. XQ40 40,025 passed, 0 errors, in scope 40,007 of
+  41,174, **97.2 %**; XQ-only 9,404 of 9,523, **98.8 %**; method-* 433 of
+  508 (85.2 %; 97.5 % of the 444 run). Slices: qt4/slice 198/198,
+  qt4/xquery-slice 186/186 (ctest, all presets). XT40 for the record:
+  7,693 of 13,867 passed, in scope 88.1 %, 7 errors (Phase 4).
+- **Fuzzing**, 300 s per target, all six at once on a loaded machine:
+  cast_fuzz 434,140 runs, regex_fuzz 174,843, xml_parse_fuzz 26,453,
+  xpath_compile_fuzz 5,517, xpath_evaluate_fuzz about 2,100 and the new
+  xquery_fuzz about 2,400 (fork mode); no crash, leak or sanitizer
+  report. One xquery_fuzz timeout, a QT4 seed that loops 200,001 times
+  building a map each time: slow by nature under ASan (P9), listed for
+  triage only, as for xpath_evaluate_fuzz.
+- **D71 through function pointers**: the evaluator's guard holds
+  (D151); fn:load-xquery-module runs its module on the same machine
+  (EVALUATE_UNIT, D154), compilation inside a native step runs a lowering
+  machine of its own lowerer, which never evaluates. The lowering
+  machine now refuses to run while one of the same lowerer runs
+  (`is_running` in `sxml_xpath_lowerer`, SXML_STATUS_INVALID_ARGUMENT),
+  D151's follow-up: every test passes, so no step of XQuery or XSLT
+  lowering starts a machine. Serializers and tree builders call no
+  evaluator.
+- **Merged** (conceptual smallness): one in-place heapsort,
+  `sxml_sort_in_place` (`src/sort_internal.h`), instead of the copies in
+  `src/xquery_static.c` (prolog checks), `src/xquery_parse.c` (attribute
+  names of a direct constructor), `src/evaluator_global.c` (initializer
+  order) and `src/xslt_output.c` (character maps); one parameter document
+  reader, `sxml_parameter_document_load` with
+  `sxml_processor_compile_document_loader_initialize`
+  (`src/processor_internal.h`), for XQuery's output:parameter-document and
+  xsl:output's and xsl:result-document's parameter-document (two loaders
+  and two document-element walks removed). With every change of this
+  review, XP40 outcomes are identical case by case (release, every test
+  set) and XQ40 gains five (fn-function-lookup-759, -760, -762, -763 and
+  fn-system-properties-supports-dynamic-xquery, below), losing none:
+  40,030 passed;
+  XT40 differs only in the package sets that 4.16 changed meanwhile
+  (accept, override, use-package, expose, ...), none in the output and
+  serialization sets.
+- **Fuzzing XQuery**: `tests/fuzz/xquery_fuzz.c` compiles, evaluates and
+  serializes a main module through `xquery.h` alone, on a processor with
+  small limits and a resolver table with one library module and one
+  document; seeds are the QT4 queries and `.xq` files
+  (`tools/fuzz-seeds.py`); it runs in fork mode like xpath_evaluate_fuzz
+  (`tools/fuzz.sh`).
+- **xquery.h is stable** (D151's rule): consistent with `xpath.h` and
+  `xslt.h` (memory_requirements, initialize, finalize, create, destroy;
+  configuration and request structs), every declaration documented,
+  every function tested through the public API with an
+  allocation-failure loop (`tests/xquery_test.c`), the CLI on it alone.
+  From now on it changes as every public header does (D47). The one
+  behaviour still open is the owner's: XQuery's omit-xml-declaration
+  default (D146, Proposed); choosing "no" changes the header's comment
+  with a record. `version.h`, `docs/RELEASE.md` and `CHANGELOG.md` say so.
+- **Proposed, resolved here**: hintless imports of a namespace with
+  several modules (D148): the contract is kept (XQuery 4.0, 5.12 leaves
+  the set of modules implementation-defined; two QT4 cases fail). The
+  prolog follow-ups (D135 (b'), (h); D158's "Not done") are accepted as
+  designs for a later sweep, no owner decision: a fixed default is a
+  default function without focus parts whose value the evaluation memo
+  keeps; fn:function-lookup passes the call's focus as hidden arguments
+  that may be absent. Left for the owner: the three WebAssembly budgets,
+  XQuery's omit-xml-declaration default; for Phase 4: the XSLT
+  functions at run time, D159's and D160's items.
+- **Delayed features (D162)**: each is rejected or ignored in one place
+  with the specification's error: XQuery's validate
+  (XQST0075, `src/xquery_lower.c`), schema import (XQST0009,
+  `src/xquery_static.c`), %updating (XQST0045, the reserved-namespace
+  check of `src/xquery_static.c`), update and full-text syntax
+  (XPST0003, the grammar), UCA with fallback=no (FOCH0002,
+  `src/collation.c` alone; the evaluator and xsl:for-each-group pass its
+  error on), named time zones (FODT0004, `src/function_library_temporal.c`),
+  calendars and languages of dates (`src/format_date.c`: "[Calendar:
+  AD]", "[Language: en]") and of numbers (English words and ordinals in
+  `src/function_library_format.c`, for fn:format-integer and xsl:number
+  alike), fn:parse-html, fn:html-doc, invisible XML, fn:transform,
+  xsd-validator and EXPath (not in the library: XPST0017), DTD validation
+  and XInclude options (FODC0013, the shared option reader), streaming
+  (streamable is read only where a non-streaming processor must read it:
+  xsl:mode's properties, accumulator scope; source documents are built
+  whole). Fixed: fn:load-xquery-module was known to static calls only (XQuery's
+  function table lived for one compilation), so fn:function-lookup did
+  not find it and supports-dynamic-xquery of fn:system-properties said
+  false; the query now keeps that table and gives it to its evaluations
+  (the unit evaluation extension), and the property asks the dynamic
+  context's table (XQ40 fn-system-properties-supports-dynamic-xquery
+  passes; XPath still says false, rightly). Scattered or missing
+  (XSLT, files in flight for 4.16 and 4.17, so listed, not merged): the
+  processor's capabilities are two tables, fn:system-properties
+  (`src/function_library_json.c`) and xsl:system-property
+  (`src/function_library_xslt.c`), which should be one; XTSE1660 is
+  raised for default-validation strict or lax in `src/xslt_read.c` but
+  not for validation="strict"/"lax" or type attributes of instructions,
+  and xsl:import-schema is read and ignored instead of raising XTSE1650
+  (XSLT 4.0, 25: a non-schema-aware processor raises both, at the
+  attribute reader, one place); backwards-compatible behaviour
+  (version below 3.0) is not detected at all, where XSLT 4.0, 3.9 asks
+  XTDE0160 of a processor without it.
+- **Follow-ups** (not done here; the files are 4.16's and 4.17's): the
+  XSLT lowering files keep their own copies of small helpers (a heapsort
+  in `src/xslt_lower_declaration.c` and `src/xslt_lower_template.c`,
+  `resolve_declared_type` three times, `slot_atom` nine times across
+  XQuery and XSLT, `add_expression` seven); XML whitespace trimming is
+  written about fifteen times (`trim_whitespace`, `trim_spaces`, ...);
+  grouping keys compare in both `src/xquery_flwor.c` and
+  `src/xslt_group.c`. Each is small; one shared helper each, at the
+  Phase 4 gate at the latest.
 
 ### D162. D97's exclusions are delays, not non-goals (owner)
 Recorded 2026-10-18 on the owner's word: "D97 is accepted only as a delay --
@@ -5632,15 +5782,6 @@ year one" list of PLAN.md.
   (the initial template's): an additive STATIC_CALL field with the call's
   static namespaces, or resolving literal arguments while lowering.
 
-- **Hintless imports of a namespace with several modules** (packet 3.11,
-  D148; for the owner of `include/sxml/xquery.h` and the QT4 driver): one
-  request with an empty uri_reference gets one module, so a namespace
-  split over several hintless modules loads only the first
-  (modules-collide-var-001, modules-collide-fn-001 expect both).
-  Proposed: keep the contract (implementation-defined set, 5.12); or let
-  a resolver answer such a request again with the next module until it
-  answers NONE.
-
 - **XQuery's default for omit-xml-declaration** (packet 3.12, D146; for
   the owner of `include/sxml/xquery.h`): the header gives every
   undeclared parameter serialize.h's default, so omit-xml-declaration is
@@ -5657,15 +5798,6 @@ year one" list of PLAN.md.
   at 2,000,000 / 700,000, so `compileQuery()` is not in the JavaScript
   package yet. Choose: confirm, or split the XQuery grammar into an
   optional module (then compileQuery() and a lower CLI budget follow).
-
-- **Prolog follow-ups** (packet 3.10, D135; D158 did (b) to (g) but
-  these). (b') A fixed default (`$x := <a/>`) is one value for every
-  call (5.18.3, function-decl-40-060): each call computes it; proposed,
-  for the owner of the evaluator, a default function without focus parts
-  whose value the evaluation memo keeps. (h) fn:function-lookup does not
-  give a function it finds the focus of its call (XP40 and XQ40, 47
-  cases: fn-function-lookup, contextDecl-055, xqhof19); it would need
-  the call's focus as hidden arguments that may be absent.
 
 - **The WebAssembly size budget** (packet 2.18, D138; for the owner):
   Phase 2 grew the stripped `sxml` CLI module from 1.21 MB to 1.82 MB
