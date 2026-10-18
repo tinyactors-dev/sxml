@@ -246,6 +246,15 @@ cache), attribute sets (use-attribute-sets, XTSE0720), xsl:decimal-format
 xsl:global-context-item, xsl:context-item, xsl:initial-template. Done
 when decl-function, attribute-set, strip-space, global-context-item,
 context-item, misc-initial-template ≥ 85%.
+**Done** 2026-10-17 (D150): `src/xslt_lower_declaration.c`,
+`src/xslt_whitespace.c`, `tests/xslt_declaration_test.c`; hooks in
+`src/xslt_lower.c`, `src/xslt_lower_construct.c`, the document
+preparation of `src/processor.c`; on 4.7's globals, initializers before
+the templates are released and the order through called components.
+Scratch harness: function 98/124, attribute-set 47/49, strip-space 25/26,
+global-context-item 10/12, context-item 29/32, misc-initial-template 2/4
+(4 skipped: initial-template parameters), param 31/31, variable 90/108.
+Character maps are 4.13's; memoization (cache) not done.
 
 ### 4.13 Output and result documents (implementation)
 After 4.12, 3.4. Owns `src/xslt_output.c`, `tests/xslt_output_test.c`.

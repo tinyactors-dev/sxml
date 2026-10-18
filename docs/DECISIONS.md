@@ -4723,7 +4723,85 @@ Recorded 2026-10-17, after D101, D103, D118, D139, D142, D144.
 
 ### D150. Functions and declarations (packet 4.12)
 Recorded 2026-10-17, after D101, D135, D139, D142, D144, D145.
-Reserved here; the record is completed when the packet is ticked.
+`src/xslt_lower_declaration.c`, `src/xslt_whitespace.c` with
+`src/xslt_whitespace_internal.h`, `tests/xslt_declaration_test.c`; hooks
+in `src/xslt_lower.c`, `src/xslt_lower_construct.c`,
+`src/xslt_lower_template.c`, `src/xslt_lower_control.c`,
+`src/processor.c`. No IR kind, no evaluator change, no public header.
+- **Stylesheet functions** (10.3), as XQuery's declared functions (D135):
+  `sxml_xslt_declare_components` (before templates) adds one IR function
+  per arity of each component's arity range and puts a function table in
+  front of every static context's (so patterns, AVTs, globals and 4.10's
+  table see them); bodies are lowered after the templates (they may call
+  them) with an absent focus, parameters as slots 1.., the result coerced
+  to `as` (TRY_CATCH mapping XPTY0004 to XTTE0780). A shorter arity binds
+  the defaults of the left-out optional parameters (`required="no"`;
+  select, content as a temporary tree without `as`, else ()) and calls
+  the full arity; a default "." is SXML_PARAMETER_DEFAULT_CONTEXT_VALUE
+  (the caller's focus, supplied by the core); other defaults see no focus.
+  Eclipsed functions (higher precedence, containing arity range) and
+  those given up under override-extension-function="no" have no IR
+  function. A function in no namespace switches the static contexts to
+  NO_NAMESPACE_FIRST, the table falls back to fn, and unprefixed call
+  names are interned first (as XQuery). XTSE0080, 0580, 0740, 0760,
+  0761, 0769, 0770, XTSE0020 (override vs override-extension-function).
+  cache, new-each-time, streamability and visibility are ignored.
+- **Attribute sets** (10.2): all declarations of one name (by
+  precedence, then order) are one IR function of the focus (item()?,
+  position, size, as a template function) plus an absent-focus variant;
+  each body is the invocations of every declaration's
+  use-attribute-sets, then its xsl:attribute children.
+  `sxml_xslt_lowering_bind_attribute_sets` calls them with the current
+  focus; literal result elements, xsl:element and xsl:copy (with the
+  selected item's focus) put the result before their own attributes.
+  XTSE0710, XTSE0720 (explicit-stack DFS).
+- **xsl:decimal-format**: merged per name by import precedence (XTSE1290
+  only for a conflict at the winning precedence, XTSE1300 from
+  sxml_decimal_format_apply) into the unit's static context (D131),
+  which XSLT sets here, once; a packet adding collations to the unit's
+  static context must merge with it.
+- **xsl:global-context-item** (3.4.9): checked in the main function before
+  the invocation: XTDE3086 (required, none), XTTE0590 (as), XTSE3088 (a
+  supplied item when use="absent"); XTSE3087, XTSE3089 statically.
+  4.8's `bind_has_focus` is now `sxml_xslt_lowering_bind_has_focus`. Item
+  types of `as` (ITEM_TYPE values) are resolved as sequence types (their
+  AST root is SEQUENCE_TYPE): this also fixes xsl:context-item's `as`
+  (context-item 12 to 29 passed).
+- **Whitespace stripping** (4.2.2): a copy through a filtering tree builder
+  (the specification's "copy of the source tree"), so parsed trees never
+  change and nothing recurses; best match by precedence, default
+  priority, declaration order; xml:space; XTSE0270. The host strips the
+  global context item (`sxml_xslt_strip_document`); fn:doc and
+  document() get stripped documents through a new **document
+  preparation** of the processor's document loader
+  (`sxml_processor_document_loader_configuration.document_preparation`,
+  applied to documents from the resolver, not to available documents),
+  which `sxml_xslt_whitespace_stripping_as_document_preparation` makes.
+  4.15 must install both.
+- **Globals (extends D145)**: initializers are lowered before the
+  templates are released (a global's content may call a template: it
+  crashed before); the computation order also follows the components an
+  initializer reaches: a graph over declarations (globals read, functions
+  named, templates called, every template rule for apply-templates,
+  attribute sets used), whose strongly connected components (Tarjan, on
+  an explicit stack) give the order. Cycles through components are left
+  to the evaluator; D145's direct cycles stay static errors.
+- **Host parameters** (D112): a supplied stylesheet parameter is a BOUND
+  global slot of the unit, found by name (the evaluator coerces it, and
+  its initializer does not run); static parameters also go to the reader.
+  Nothing else was needed for the harness; 4.15 maps
+  `sxml_xslt_stylesheet_transform`'s parameters the same way.
+- Not done: xsl:character-map (4.13 owns serialization), memoization
+  (`cache`, `new-each-time="no"`: function-1025/1026/1031), a parameter
+  left out before a keyword argument gets () not its default (the core's
+  rule for library functions), function-lookup of stylesheet functions
+  at run time (the dynamic context's table is the host's).
+- Measured with a scratch harness (lower, evaluate, serialize; XPath
+  assertions; host parameters): function 13 to 98 of 124, attribute-set 1
+  to 47/49, strip-space 8 to 25/26, global-context-item 0 to 10/12,
+  context-item 11 to 29/32, param 14 to 31/31, variable 16 to 90/108,
+  whitespace 20 to 24/27 (before: HEAD of 4.8, without 4.7),
+  format-number 66/70; 4.8's eleven sets 474 of 614 (D144: 316 of 615).
 
 ### D151. Phase 2 gate review (packet 2.20)
 Recorded 2026-10-17 by the review agent (D11), after D95, D97, D123,

@@ -4,6 +4,22 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 4.12 done (D150): xsl:function as IR functions (one per arity, a
+  function table in front of every static context, optional parameters
+  and their defaults, eclipsing, override-extension-function, functions
+  in no namespace, XTTE0780), attribute sets (one IR function of the
+  focus per name; literal result elements, xsl:element, xsl:copy;
+  XTSE0710/0720), xsl:decimal-format into the unit's static context,
+  xsl:global-context-item, whitespace stripping of source documents (a
+  filtering copy; fn:doc through a new document preparation of the
+  document loader), and on 4.7's globals: initializers may call
+  templates, and the order follows the functions, templates and
+  attribute sets they reach (strongly connected components). Scratch
+  harness: function 98/124, attribute-set 47/49, strip-space 25/26,
+  global-context-item 10/12, context-item 29/32, param 31/31, variable
+  90/108, whitespace 24/27, format-number 66/70; 4.8's sets 474/614
+  (was 316/615). Not done: character maps (4.13), memoization (cache).
+
 - 3.14 sweep 1 claimed (D154): XQ40. Files: `tests/qt4/driver/test_run.c`,
   `environment.c`/`.h`, `applicability.c`; `src/arena_tree.c`;
   `src/evaluator.c`, `src/evaluator_global.c`, `src/evaluator_internal.h`,
