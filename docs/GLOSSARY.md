@@ -153,6 +153,12 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `grouping_method` | How xsl:for-each-group forms groups: by key, by adjacent keys (each composite or not), starting or ending with a pattern (D152) |
 | `kept_ast` | An XPath AST a stylesheet lowering makes (a short text, a pattern's match expression) and keeps until it ends (D152) |
 | `key_index` | The map from key values to nodes of one xsl:key name for one tree, built once per evaluation (XSLT 4.0, 20.2; D149) |
+| `xslt_accumulator` | An `xsl:accumulator`: a value carried through a traversal of a tree, giving every node but attributes and namespaces a pre-descent and a post-descent value (XSLT 4.0, 19). In code always `xslt_accumulator`; a bare `accumulator` is a fold's (D155) |
+| `traversal_event` | A start or an end visit of a node in the traversal of a tree for an xslt accumulator, the start before the node's descendants and the end after them (XSLT 4.0, 19.4) |
+| `pre_descent_value` | The value of an xslt accumulator just after the start event of a node (fn:accumulator-before) |
+| `post_descent_value` | The value of an xslt accumulator just after the end event of a node (fn:accumulator-after) |
+| `accumulator_values` | The map of one xslt accumulator for one tree, from each node's generate-id to its pre- and post-descent values, built once per evaluation and kept in the evaluation memo (D155) |
+| `accumulator_scope` | The xslt accumulators applicable to one tree when they are restricted: for the initial match selection, those use-accumulators of the initial mode names; kept in the evaluation memo (XSLT 4.0, 19.2; D155) |
 | `sort_key` | An expression whose value orders the items of a sort, with direction and empty order |
 | `template_rule` | An XSLT rule: a match function, a template function, priority and import precedence |
 | `mode` | An XSLT mode: its template rules and its built-in rule |
