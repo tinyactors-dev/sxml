@@ -770,3 +770,39 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `validity` | The outcome XSD gives an assessed item (XSD 1.1 Part 1, the [validity] property): valid, invalid or not known |
 | `validation_outcome` | What a schema validator reports once its tree has ended: the validity of the validation root and the count of errors |
 | `in_scope_schemas` | The compiled schemas a static context imports: their types, element and attribute declarations are XPath 4.0's in-scope schema definitions (section 2.2.1) |
+| `schema_components` | The store of one schema's components (`sxml_schema_components`, `src/schema_internal.h`, D167): one array per schema table, addressed by index with entry 0 "none", plus the name index and the blocks compile stages allocate |
+| `schema_table` | One array of the schema components: a component kind (particles, element declarations, ...) or what links them (references, lists, texts, namespace bindings) |
+| `schema_position` | Where a component's XML representation starts: its schema document's index, line and column |
+| `symbol_space` | One of XSD's seven partitions of global component names: type definitions, element declarations, attribute declarations, model group definitions, attribute group definitions, identity-constraint definitions, notation declarations (XSD 1.1 Part 1, 2.6) |
+| `schema_name_index` | The hash table from symbol space and expanded name to the global component of that name |
+| `schema_reference` | A QName attribute of a schema document (`type`, `base`, `ref`, `substitutionGroup`, `refer`, ...) as read: a symbol space and a name, which the resolve stage turns into a component index |
+| `builtin_component` | A component every schema has (XSD 1.1 Part 1, 3.2.7, 3.4.7, 3.16.7): the built-in type definitions, the content of xs:anyType and the four xsi: attribute declarations, added first so their indexes are fixed |
+| `compile_stage` | One step of schema compilation, a function of its own file: read, resolve, simple types, complex types, identity constraints, assertions (D167) |
+| `schema_compilation` | The state one compilation passes from stage to stage: the configuration, the schema components and the count of errors reported |
+| `derivation_set` | A set of derivation methods (extension, restriction, list, union, substitution) as a bit set: XSD's {final}, {prohibited substitutions}, {disallowed substitutions}, {substitution group exclusions} |
+| `explicit_content` | The particle a complex type definition's XML representation gives itself, before the complex types stage combines it with the base type's (XSD 1.1 Part 1, 3.4.2.3.3) |
+| `particle` | The component that says how often a term may occur: minimum and maximum occurrences and the term (XSD 1.1 Part 1, 3.9) |
+| `term` | What a particle contains: an element declaration, a model group or a schema wildcard |
+| `model_group` | A term that combines particles with a compositor (XSD 1.1 Part 1, 3.8) |
+| `compositor` | How a model group combines its particles: sequence, choice or all |
+| `model_group_definition` | A named model group, the target of `<xs:group ref>` (XSD 1.1 Part 1, 3.7) |
+| `attribute_use` | The component that says whether an attribute is required, with which declaration and value constraint, in a complex type or attribute group (XSD 1.1 Part 1, 3.5) |
+| `attribute_group` | A named set of attribute uses and an attribute wildcard (XSD 1.1 Part 1, 3.6, "attribute group definition") |
+| `schema_wildcard` | XSD's wildcard component: a namespace constraint, disallowed names and process contents, matching elements or attributes by name (XSD 1.1 Part 1, 3.10); not the XPath `wildcard` name test |
+| `namespace_constraint` | Which namespaces a schema wildcard allows: any, an enumeration, or all but an enumeration (`not`) |
+| `process_contents` | How an item a schema wildcard matched is assessed: strict, lax or skip |
+| `open_content` | Elements a complex type allows besides its particle, matched by a schema wildcard, anywhere (interleave) or after the content (suffix) (XSD 1.1 Part 1, 3.4.1) |
+| `value_constraint` | The default or fixed value of an element or attribute declaration or an attribute use, as its lexical form (XSD 1.1 Part 1, 3.3.1) |
+| `identity_constraint` | A unique, key or keyref definition: a name, a selector and fields as XPath records, and the referenced key of a keyref (XSD 1.1 Part 1, 3.11) |
+| `type_alternative` | One entry of an element declaration's type table: an XPath test and the type it selects (XSD 1.1 Part 1, 3.12) |
+| `schema_assertion` | An xs:assert of a complex type or an xs:assertion facet of a simple type: an XPath test that must be true (XSD 1.1 Part 1, 3.13) |
+| `notation_declaration` | A named notation with its system and public identifiers (XSD 1.1 Part 1, 3.14) |
+| `namespace_context` | The namespace bindings, XPath default namespace and base URI that QName values and XPath records of a schema document are read with |
+| `xpath_record` | XSD's XPath Expression property record: the expression text with its namespace context, and its compiled form once a stage compiles it (XSD 1.1 Part 1, 3.13.1) |
+| `substitution_group` | The element declarations that may appear where a head declaration is expected: those whose substitution group affiliations reach it (XSD 1.1 Part 1, 3.3.6.2) |
+| `content_model` | The compiled form of a complex type's particle: a deterministic automaton over element names whose transitions are element declarations and schema wildcards, with counters for large maxOccurs (D167) |
+| `content_model_counter` | A counter of a content model that counts the repetitions of one particle between its minimum and maximum occurrences, instead of a copy of states per repetition |
+| `content_model_cursor` | Where matching an element's children has reached in its content model: a state and the counter values |
+| `expected_term` | A term a content model cursor would accept next, for error messages ("expected 'shipTo'") |
+| `recorded_subtree` | The validated copy of an element and its descendants that the schema validator keeps while the element is open, for the XPath of assertions and identity constraints |
+| `id_table` | The IDs and IDREFs a schema validator has met under one validation root, checked at its end (cvc-id) |
