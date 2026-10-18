@@ -686,6 +686,58 @@ static void test_deliveries_documents_and_messages(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
 }
 
+/* The collector on caller memory (initialize, finalize), its argument
+   checks and an empty collector's reads. */
+static void test_collector_lifecycle_checks_its_arguments(sxml_test_state *state) {
+    fixture test_fixture;
+    SXML_TEST_EXPECT(state, fixture_create(0, &test_fixture) == SXML_STATUS_OK);
+    sxml_xslt_result_document_collector_configuration configuration = {
+        .allocator = fixture_allocator(&test_fixture),
+        .maximum_byte_count = 0,
+        .result_delivery = SXML_XSLT_RESULT_DELIVERY_RAW};
+    sxml_memory_requirements requirements = {.byte_count = 0, .alignment = 1};
+    SXML_TEST_EXPECT(state, sxml_xslt_result_document_collector_memory_requirements(
+                                &configuration, &requirements) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, requirements.byte_count > 0 && requirements.byte_count <= 1024 &&
+                                requirements.alignment <= 16);
+    alignas(16) uint8_t storage[1024 + 16];
+    sxml_xslt_result_document_collector *collector = NULL;
+    SXML_TEST_EXPECT(state, sxml_xslt_result_document_collector_initialize(
+                                (sxml_memory_view){.bytes = storage,
+                                                   .byte_count = requirements.byte_count - 1},
+                                &configuration,
+                                &collector) == SXML_STATUS_INSUFFICIENT_MEMORY);
+    if (requirements.alignment > 1) {
+        SXML_TEST_EXPECT(state, sxml_xslt_result_document_collector_initialize(
+                                    (sxml_memory_view){.bytes = storage + 1,
+                                                       .byte_count = requirements.byte_count},
+                                    &configuration,
+                                    &collector) == SXML_STATUS_MISALIGNED_MEMORY);
+    }
+    SXML_TEST_EXPECT(state, collector == NULL);
+    SXML_TEST_EXPECT(state, sxml_xslt_result_document_collector_initialize(
+                                (sxml_memory_view){.bytes = storage,
+                                                   .byte_count = requirements.byte_count},
+                                &configuration, &collector) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state,
+                     sxml_xslt_result_document_collector_get_result_document_count(collector) == 0);
+    sxml_xslt_collected_result_document document;
+    memset(&document, 0, sizeof(document));
+    SXML_TEST_EXPECT(state, sxml_xslt_result_document_collector_get_result_document(
+                                collector, 0, &document) == SXML_STATUS_INDEX_OUT_OF_RANGE);
+    sxml_xslt_result_document_collector_finalize(collector);
+    sxml_xslt_result_document_collector_finalize(NULL);
+    sxml_xslt_result_document_collector_destroy(NULL);
+    /* The null allocator. */
+    configuration.allocator = (sxml_allocator){.state = NULL, .operations = NULL};
+    SXML_TEST_EXPECT(state, sxml_xslt_result_document_collector_memory_requirements(
+                                &configuration, &requirements) == SXML_STATUS_INVALID_ARGUMENT);
+    SXML_TEST_EXPECT(state, sxml_xslt_result_document_collector_create(
+                                fixture_allocator(&test_fixture), &configuration,
+                                &collector) == SXML_STATUS_INVALID_ARGUMENT);
+    SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
+}
+
 static void test_output_definitions_are_read(sxml_test_state *state) {
     fixture test_fixture;
     SXML_TEST_EXPECT(state, fixture_create(0, &test_fixture) == SXML_STATUS_OK);
@@ -933,6 +985,8 @@ static const sxml_test_case xslt_test_cases[] = {
     {.name = "initial_function_and_selection", .function = test_initial_function_and_selection},
     {.name = "deliveries_documents_and_messages",
      .function = test_deliveries_documents_and_messages},
+    {.name = "collector_lifecycle_checks_its_arguments",
+     .function = test_collector_lifecycle_checks_its_arguments},
     {.name = "output_definitions_are_read", .function = test_output_definitions_are_read},
     {.name = "principal_module_from_the_resolver",
      .function = test_principal_module_from_the_resolver},

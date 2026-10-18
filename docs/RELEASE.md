@@ -18,10 +18,8 @@ headers (`include/sxml/`) are stable from 0.2.0 on (D47):
   "Changed" or "Removed".
 - The frozen substrate headers (D99) change only additively, and each change
   has a record.
-- `xslt.h` is provisional until the Phase 4 gate (D151): a minor release
-  may change it, each change with a record and a "Changed" entry.
-  `xquery.h` was provisional until the Phase 3 gate and is stable since
-  (D161).
+- `xquery.h` and `xslt.h` were provisional until the Phase 3 and Phase 4
+  gates (D151) and are stable since (D161, D169).
 
 The JavaScript package (`bindings/javascript/`) has the same version as the
 library. Its API grows only additively within a minor version, as the

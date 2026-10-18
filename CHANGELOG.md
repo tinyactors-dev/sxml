@@ -9,10 +9,35 @@ release are in `docs/RELEASE.md`.
 
 ## [Unreleased]
 
-XQuery 4.0 (Phase 3, D161). The owner decides whether this goes into
-0.2.0, which is not tagged yet, or into the next minor release.
+XQuery 4.0 (Phase 3, D161) and XSLT 4.0 (Phase 4, D169). The owner
+decides whether this goes into 0.2.0, which is not tagged yet, or into
+the next minor release.
 
 ### Added
+
+- **XSLT 4.0** (`xslt.h`): stylesheets compiled once from text or
+  through the resolver, with their included and imported modules, used
+  packages (xsl:use-package, xsl:override, visibility) and static
+  parameters, and run many times on the shared IR and evaluator (D112,
+  D157). Template rules, modes and patterns; sequence constructors,
+  literal result elements and the node instructions; xsl:choose,
+  xsl:iterate, xsl:try, xsl:fork; sorting and grouping
+  (xsl:for-each-group, xsl:merge); keys, xsl:number, xsl:analyze-string;
+  stylesheet functions with caching; accumulators; whitespace stripping;
+  xsl:message and xsl:assert; output definitions, character maps and
+  result documents, delivered raw, as trees or serialized to a result
+  document handler (a collector is built in). The invocation kinds are
+  apply-templates, call-template and call-function. Content streams into
+  the constructor it builds (D166). Schema awareness, streaming and
+  backwards-compatible behaviour are not supported yet (D162: Phase 5 and
+  Phase 7), each refused in one place with the error XSLT 4.0 gives;
+  xsl:evaluate raises XTDE3175 (dynamic evaluation is optional).
+- **`sxml transform`** applies a stylesheet to a document, or calls an
+  initial template, with `--initial-mode`, `--initial-template`,
+  `--param` and `--method`; modules and documents are read from local
+  files relative to the stylesheet (`docs/CLI.md`).
+- XSLT conformance (`docs/CONFORMANCE.md`): XT40 in scope 91.5 %, every
+  core test set 88 % or more.
 
 - **XQuery 4.0** (`xquery.h`): main and library modules with their
   prologs (namespaces, defaults, variables, functions, options, decimal
@@ -35,6 +60,8 @@ XQuery 4.0 (Phase 3, D161). The owner decides whether this goes into
 - `xquery.h` is no longer provisional (D161): it changes only as the
   other public headers do. XQuery's default for omit-xml-declaration is
   still the owner's choice (D146) and may change with a record.
+- `xslt.h` is no longer provisional (D169): it changes only as the other
+  public headers do.
 
 ## [0.2.0] - unreleased
 
