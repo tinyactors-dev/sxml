@@ -502,19 +502,17 @@ static sxml_status cast_to_qname(const sxml_function_call *call, sxml_byte_view 
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    const sxml_ir_unit *unit = call->dynamic_context == NULL
-                                   ? NULL
-                                   : sxml_dynamic_context_get_running_unit(call->dynamic_context);
     status = sxml_cast_make_value(
         call->item_heap,
         &(sxml_cast_request){
             .value = value,
             .target_type = sxml_builtin_type_identifier(SXML_TYPE_XS_QNAME),
             .allows_empty = false,
-            .namespace_bindings = unit == NULL
-                                      ? (sxml_namespace_binding_view){.namespace_bindings = NULL,
-                                                                      .namespace_binding_count = 0}
-                                      : sxml_ir_unit_get_static_namespaces(unit),
+            .namespace_bindings =
+                call->dynamic_context == NULL
+                    ? (sxml_namespace_binding_view){.namespace_bindings = NULL,
+                                                    .namespace_binding_count = 0}
+                    : sxml_dynamic_context_get_static_namespaces(call->dynamic_context),
             .error_record = call->error_record},
         result);
     sxml_sequence_release(value);

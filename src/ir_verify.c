@@ -488,6 +488,10 @@ static sxml_status check_node_construction(verifier *checker,
     if ((construction->construction_flags & ~SXML_IR_CONSTRUCTION_KNOWN_FLAGS) != 0) {
         return report(checker, "a constructor has unknown flags");
     }
+    if (construction->module_number != 0 &&
+        construction->module_number >= checker->unit->module_count) {
+        return report(checker, "a constructor names a module the unit does not have");
+    }
     if (!binding_list_is_in_range(checker, construction->namespace_bindings) ||
         !binding_list_is_in_range(checker, construction->name_namespaces)) {
         return report(checker, "a namespace binding list is out of range");
@@ -625,6 +629,11 @@ static sxml_status visit_expression(verifier *checker,
                 .arity = expression->static_call.arguments.atom_count});
         if (status == SXML_STATUS_OK) {
             status = check_atom_list(checker, expression->static_call.arguments);
+        }
+        if (status == SXML_STATUS_OK &&
+            expression->static_call.module_number >= checker->unit->module_count &&
+            expression->static_call.module_number != 0) {
+            return report(checker, "a call names a module the unit does not have");
         }
         return status;
     case SXML_IR_EXPRESSION_KIND_DYNAMIC_CALL:

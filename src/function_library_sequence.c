@@ -1744,13 +1744,14 @@ static sxml_status call_all_different(const sxml_function_call *call, sxml_seque
    collation when it names none. */
 static sxml_status call_default_collation(const sxml_function_call *call,
                                           sxml_sequence *result) {
-    const sxml_ir_unit *unit = call->dynamic_context == NULL
-                                   ? NULL
-                                   : sxml_dynamic_context_get_running_unit(call->dynamic_context);
+    const sxml_ir_static_context *context =
+        call->dynamic_context == NULL
+            ? NULL
+            : sxml_dynamic_context_get_static_context(call->dynamic_context);
     const sxml_byte_view default_uri =
-        unit == NULL || unit->static_context.default_collation_uri.byte_count == 0
+        context == NULL || context->default_collation_uri.byte_count == 0
             ? sxml_function_library_codepoint_collation_uri()
-            : unit->static_context.default_collation_uri;
+            : context->default_collation_uri;
     return sxml_function_library_make_string(call->item_heap, default_uri, result);
 }
 

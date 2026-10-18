@@ -2146,7 +2146,8 @@ static sxml_status emit_call(sxml_xpath_lowerer *state, call_emission request,
             .expression = {
                 .expression_kind = SXML_IR_EXPRESSION_KIND_STATIC_CALL,
                 .static_call = {.target = target_of(&call->entry),
-                                .arguments = arguments}}},
+                                .arguments = arguments,
+                                .module_number = state->static_context->ir_module_number}}},
         expression);
 }
 
@@ -2277,7 +2278,8 @@ static sxml_status emit_partial_application(sxml_xpath_lowerer *state,
             body = (sxml_ir_expression){
                 .expression_kind = SXML_IR_EXPRESSION_KIND_STATIC_CALL,
                 .static_call = {.target = target_of(&call->entry),
-                                .arguments = arguments}};
+                                .arguments = arguments,
+                                .module_number = state->static_context->ir_module_number}};
         }
     }
     if (status == SXML_STATUS_OK) {

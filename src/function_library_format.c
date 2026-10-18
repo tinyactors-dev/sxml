@@ -258,11 +258,11 @@ typedef struct format_name_text {
 static bool resolve_prefix(const sxml_function_call *call, sxml_byte_view prefix,
                            sxml_byte_view *namespace_uri) {
     const sxml_name_pool *name_pool = sxml_item_heap_get_name_pool(call->item_heap);
-    const sxml_ir_unit *unit = sxml_dynamic_context_get_running_unit(call->dynamic_context);
-    if (unit == NULL) {
+    if (call->dynamic_context == NULL) {
         return false;
     }
-    const sxml_namespace_binding_view bindings = sxml_ir_unit_get_static_namespaces(unit);
+    const sxml_namespace_binding_view bindings =
+        sxml_dynamic_context_get_static_namespaces(call->dynamic_context);
     for (size_t binding_index = 0; binding_index < bindings.namespace_binding_count;
          binding_index += 1) {
         const sxml_namespace_binding *binding = &bindings.namespace_bindings[binding_index];
@@ -371,13 +371,14 @@ static sxml_status find_decimal_format(const sxml_function_call *call,
                                        sxml_decimal_format_property_view *properties) {
     *properties = (sxml_decimal_format_property_view){.decimal_format_properties = NULL,
                                                       .decimal_format_property_count = 0};
-    const sxml_ir_unit *unit = call->dynamic_context == NULL
-                                   ? NULL
-                                   : sxml_dynamic_context_get_running_unit(call->dynamic_context);
+    const sxml_ir_static_context *context =
+        call->dynamic_context == NULL
+            ? NULL
+            : sxml_dynamic_context_get_static_context(call->dynamic_context);
     const sxml_decimal_format_view formats =
-        unit == NULL ? (sxml_decimal_format_view){.decimal_formats = NULL,
-                                                  .decimal_format_count = 0}
-                     : unit->static_context.decimal_formats;
+        context == NULL ? (sxml_decimal_format_view){.decimal_formats = NULL,
+                                                     .decimal_format_count = 0}
+                        : context->decimal_formats;
     format_name_text name;
     if (request.has_name && !read_format_name_text(call, request.name, &name)) {
         return sxml_function_library_report(call, &unknown_decimal_format_error);

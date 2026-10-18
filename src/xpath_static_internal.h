@@ -115,6 +115,10 @@ typedef struct sxml_xpath_static_context {
        an unprefixed type name is in the xs namespace, and prefix 0 is
        bound to no namespace (for constructed elements). */
     bool has_any_default_element_namespace;
+    /* The unit module (glossary ir_module) whose static context the
+       function calls lowered in this context read at run time: an XSLT
+       element's (D163); 0 for the calling function's. */
+    uint32_t ir_module_number;
 } sxml_xpath_static_context;
 
 /* Writes a static error: the error code is err:code_local_name. */

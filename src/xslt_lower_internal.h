@@ -325,6 +325,12 @@ typedef struct sxml_xslt_simple_content_request {
 SXML_NODISCARD sxml_status sxml_xslt_lowering_bind_simple_content(
     sxml_xpath_lowerer *lowerer, sxml_xslt_simple_content_request request, sxml_ir_atom *atom);
 
+/* The unit module (glossary ir_module, D163) of node's static context,
+   which a node the instruction constructs takes its base URI from; 0 for
+   none. */
+uint32_t sxml_xslt_lowering_module_of_node(const sxml_xslt_lowering *lowering,
+                                           sxml_xslt_ast_node_index node);
+
 /* The XPath static context of an expression of the AST; NULL for none. */
 const sxml_xpath_static_context *
 sxml_xslt_lowering_expression_context(const sxml_xslt_lowering *lowering,
@@ -585,6 +591,17 @@ SXML_NODISCARD sxml_status sxml_xslt_lowering_bind_invocation(
  * error record filled, and the failures of lowering and the allocator.
  * Defined in src/xslt_lower_declaration.c.
  */
+/*
+ * One module of the unit per AST static context (glossary ir_module,
+ * D163): its static base URI (xml:base), namespaces, default collation and
+ * its package's decimal formats (3.4.8, 5.5), which the function calls of
+ * its expressions read at run time; writes contexts[n].ir_module_number.
+ * The unit's own static context gets the top-level package's decimal
+ * formats. src/xslt_lower_declaration.c.
+ */
+SXML_NODISCARD sxml_status sxml_xslt_declare_static_context_modules(
+    const sxml_xslt_lowering *lowering, sxml_xpath_static_context *contexts);
+
 SXML_NODISCARD sxml_status sxml_xslt_declare_components(
     sxml_xslt_lowering *lowering, sxml_xpath_static_context *static_contexts);
 

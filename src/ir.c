@@ -169,6 +169,8 @@ void sxml_ir_unit_finalize(sxml_ir_unit *unit) {
     sxml_allocator_release(allocator, unit->annotation_copies);
     for (uint32_t module_number = 1; module_number < unit->module_count; module_number += 1) {
         sxml_allocator_release(allocator, unit->modules[module_number].text_memory);
+        sxml_allocator_release(allocator, unit->modules[module_number].static_context_memory);
+        sxml_allocator_release(allocator, unit->modules[module_number].namespace_memory);
     }
     sxml_allocator_release(allocator, unit->modules);
     memset(unit, 0, sizeof(*unit));
@@ -930,16 +932,20 @@ static void sxml_static_context_fill_block(const sxml_static_context_fill *fill,
             .collation_binding_count = context->collation_bindings.collation_binding_count}};
 }
 
-sxml_status sxml_ir_unit_set_static_context(sxml_ir_unit *unit,
-                                            const sxml_ir_static_context *context) {
-    if (unit->is_sealed || unit->static_context_memory != NULL ||
-        unit->static_context.decimal_formats.decimal_format_count > 0 ||
-        unit->static_context.collation_bindings.collation_binding_count > 0 ||
-        unit->static_context.default_collation_uri.byte_count > 0) {
-        return SXML_STATUS_INVALID_ARGUMENT;
-    }
+/* Copies context into one block of unit allocator memory (*memory, NULL
+   when it is empty) viewed by *copy. */
+typedef struct sxml_static_context_copy {
+    const sxml_ir_static_context *context;
+    sxml_ir_static_context *copy;
+    void **memory;
+} sxml_static_context_copy;
+
+static sxml_status sxml_copy_static_context(sxml_ir_unit *unit, sxml_static_context_copy request) {
+    *request.copy = (sxml_ir_static_context){.default_collation_uri = {.bytes = NULL,
+                                                                       .byte_count = 0}};
+    *request.memory = NULL;
     sxml_static_context_layout layout;
-    sxml_status status = sxml_static_context_compute_layout(context, &layout);
+    sxml_status status = sxml_static_context_compute_layout(request.context, &layout);
     if (status != SXML_STATUS_OK || layout.requirements.byte_count == 0) {
         return status;
     }
@@ -950,12 +956,27 @@ sxml_status sxml_ir_unit_set_static_context(sxml_ir_unit *unit,
                                   .alignment = layout.requirements.alignment},
         &memory);
     if (status == SXML_STATUS_OK) {
-        unit->static_context_memory = memory;
+        *request.memory = memory;
         sxml_static_context_fill_block(
-            &(sxml_static_context_fill){.context = context, .layout = &layout, .block = memory},
-            &unit->static_context);
+            &(sxml_static_context_fill){
+                .context = request.context, .layout = &layout, .block = memory},
+            request.copy);
     }
     return status;
+}
+
+sxml_status sxml_ir_unit_set_static_context(sxml_ir_unit *unit,
+                                            const sxml_ir_static_context *context) {
+    if (unit->is_sealed || unit->static_context_memory != NULL ||
+        unit->static_context.decimal_formats.decimal_format_count > 0 ||
+        unit->static_context.collation_bindings.collation_binding_count > 0 ||
+        unit->static_context.default_collation_uri.byte_count > 0) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    return sxml_copy_static_context(
+        unit, (sxml_static_context_copy){.context = context,
+                                         .copy = &unit->static_context,
+                                         .memory = &unit->static_context_memory});
 }
 
 sxml_status sxml_ir_unit_set_static_base_uri(sxml_ir_unit *unit,
@@ -1118,11 +1139,45 @@ sxml_status sxml_ir_unit_add_module(sxml_ir_unit *unit, const sxml_ir_module *mo
         }
     }
     const uint8_t *copied = memory;
-    unit->modules[room.element_count] = (sxml_ir_module){
+    sxml_ir_module copy = {
         .source_name = {.bytes = copied, .byte_count = source_count},
         .static_base_uri = {.bytes = copied == NULL ? NULL : copied + source_count,
                             .byte_count = base_count},
         .text_memory = memory};
+    if (module->has_static_context) {
+        status = sxml_copy_static_context(
+            unit, (sxml_static_context_copy){.context = &module->static_context,
+                                             .copy = &copy.static_context,
+                                             .memory = &copy.static_context_memory});
+        copy.has_static_context = status == SXML_STATUS_OK;
+    }
+    const size_t namespace_count = module->static_namespaces.namespace_binding_count;
+    if (status == SXML_STATUS_OK && module->has_static_namespaces && namespace_count > 0) {
+        size_t byte_count = 0;
+        status = sxml_size_multiply(namespace_count, sizeof(sxml_namespace_binding), &byte_count);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_allocator_allocate(
+                unit->allocator,
+                (sxml_allocation_request){.byte_count = byte_count,
+                                          .alignment = alignof(sxml_namespace_binding)},
+                &copy.namespace_memory);
+        }
+        if (status == SXML_STATUS_OK) {
+            memcpy(copy.namespace_memory, module->static_namespaces.namespace_bindings,
+                   byte_count);
+            copy.static_namespaces = (sxml_namespace_binding_view){
+                .namespace_bindings = copy.namespace_memory,
+                .namespace_binding_count = namespace_count};
+        }
+    }
+    copy.has_static_namespaces = module->has_static_namespaces;
+    if (status != SXML_STATUS_OK) {
+        sxml_allocator_release(unit->allocator, memory);
+        sxml_allocator_release(unit->allocator, copy.static_context_memory);
+        sxml_allocator_release(unit->allocator, copy.namespace_memory);
+        return status;
+    }
+    unit->modules[room.element_count] = copy;
     unit->module_count = room.element_count + 1U;
     *module_number = room.element_count;
     return SXML_STATUS_OK;

@@ -98,7 +98,7 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `function_parameter` | Name, declared type as text and default of one parameter of a function |
 | `parameter_default` | How an omitted parameter gets its value: required, the context value, or supplied by the body |
 | `default_function` | The IR function that computes the default expression of one optional parameter of a declared XQuery function; its parameters are the caller's context value, position and size, of which it reads those its IR function's focus names (`SXML_PARAMETER_DEFAULT_EXPRESSION`, XQuery 4.0, 5.18.3) |
-| `ir_module` | A library module whose functions a unit holds, with the parts of its own static context they read when they run: its source name and static base URI (`sxml_ir_module`, D148) |
+| `ir_module` | A static context a unit keeps for code that reads it when it runs: an XQuery library module whose functions the unit holds (its source name and static base URI, D148), or an XSLT element's (base URI, namespaces, default collation, its package's decimal formats, D163), named by a function's module_number or by a STATIC_CALL or node constructor (`sxml_ir_module`) |
 | `function_library` | The per-processor index over the native function parts, resolving their types |
 | `function_table` | Interface through which static analysis finds a function by name and arity |
 | `function_entry` | What a function table finds: the target and its signature for one arity |

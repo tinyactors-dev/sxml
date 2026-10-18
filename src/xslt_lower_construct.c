@@ -1319,7 +1319,10 @@ static sxml_status finish_named_constructor(sxml_xpath_lowering_machine *machine
                                  .node_construction = {.name = locals->name,
                                                        .content = content,
                                                        .name_namespaces = locals->name_namespaces,
-                                                       .construction_flags = flags}};
+                                                       .construction_flags = flags,
+                                                       .module_number =
+                                                           sxml_xslt_lowering_module_of_node(
+                                                               lowering, locals->head.node)}};
     }
     if (status != SXML_STATUS_OK) {
         return status;
@@ -1443,7 +1446,11 @@ static sxml_status continue_document(sxml_xpath_lowering_machine *machine,
         (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_DOCUMENT_CONSTRUCTOR,
                              .node_construction = {.content = content,
                                                    .construction_flags =
-                                                       (uint32_t)SXML_IR_CONSTRUCTION_XSLT_RULES}});
+                                                       (uint32_t)SXML_IR_CONSTRUCTION_XSLT_RULES,
+                                                   .module_number =
+                                                       sxml_xslt_lowering_module_of_node(
+                                                           locals->head.lowering,
+                                                           locals->head.node)}});
 }
 
 static const sxml_xpath_lowering_procedure document_procedure = {

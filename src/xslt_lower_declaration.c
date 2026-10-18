@@ -1482,7 +1482,10 @@ static sxml_status bind_default(sxml_xpath_lowerer *lowerer, sxml_xpath_lowering
             (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_DOCUMENT_CONSTRUCTOR,
                                  .node_construction = {.content = locals->default_value,
                                                        .construction_flags = (uint32_t)
-                                                           SXML_IR_CONSTRUCTION_XSLT_RULES}},
+                                                           SXML_IR_CONSTRUCTION_XSLT_RULES,
+                                                       .module_number =
+                                                           sxml_xslt_lowering_module_of_node(
+                                                               lowering, parameter)}},
             &locals->default_value);
     }
     sxml_ir_atom value = {0};
@@ -2253,25 +2256,29 @@ static sxml_status finish_decimal_formats(const sxml_xslt_lowering *lowering,
             return status;
         }
     }
-    return sxml_ir_unit_set_static_context(
-        lowering->lowerer->unit,
-        &(sxml_ir_static_context){
-            .decimal_formats = {.decimal_formats = storage->formats,
-                                .decimal_format_count = format_count},
-            .default_collation_uri = {.bytes = NULL, .byte_count = 0},
-            .collation_bindings = {.collation_bindings = NULL, .collation_binding_count = 0}});
+    return SXML_STATUS_OK;
 }
 
 /* xsl:decimal-format (XSLT 4.0, 5.5): the declarations of one name (none
-   for the unnamed format) merged by import precedence, as the decimal
-   formats of the unit's static context, which fn:format-number reads
-   (D131). */
-static sxml_status set_decimal_formats(const sxml_xslt_lowering *lowering) {
+   for the unnamed format) in package (3.4.8: decimal formats are local to
+   a package) merged by import precedence, into *storage (released by the
+   caller) and *format_count. */
+typedef struct package_decimal_formats {
+    decimal_format_storage storage;
+    size_t format_count;
+} package_decimal_formats;
+
+static sxml_status make_decimal_formats(const sxml_xslt_lowering *lowering, uint32_t package,
+                                        package_decimal_formats *formats) {
     const sxml_xslt_ast *ast = lowering->ast;
     size_t declaration_count = 0;
+    *formats = (package_decimal_formats){
+        .storage = {.formats = NULL, .settings = NULL, .properties = NULL}, .format_count = 0};
     for (uint32_t order = 1; sxml_xslt_ast_get_declaration(ast, order).value != 0; order += 1) {
-        declaration_count += node_of(lowering, sxml_xslt_ast_get_declaration(ast, order))->kind ==
-                                     SXML_XSLT_AST_KIND_DECIMAL_FORMAT
+        const sxml_xslt_ast_node_index declaration = sxml_xslt_ast_get_declaration(ast, order);
+        declaration_count += node_of(lowering, declaration)->kind ==
+                                         SXML_XSLT_AST_KIND_DECIMAL_FORMAT &&
+                                     sxml_xslt_package_of_node(lowering, declaration) == package
                                  ? 1U
                                  : 0U;
     }
@@ -2310,7 +2317,8 @@ static sxml_status set_decimal_formats(const sxml_xslt_lowering *lowering) {
          status == SXML_STATUS_OK && sxml_xslt_ast_get_declaration(ast, order).value != 0;
          order += 1) {
         const sxml_xslt_ast_node_index declaration = sxml_xslt_ast_get_declaration(ast, order);
-        if (node_of(lowering, declaration)->kind != SXML_XSLT_AST_KIND_DECIMAL_FORMAT) {
+        if (node_of(lowering, declaration)->kind != SXML_XSLT_AST_KIND_DECIMAL_FORMAT ||
+            sxml_xslt_package_of_node(lowering, declaration) != package) {
             continue;
         }
         const sxml_name_identifier format_name = name_of(lowering, declaration);
@@ -2330,7 +2338,88 @@ static sxml_status set_decimal_formats(const sxml_xslt_lowering *lowering) {
     if (status == SXML_STATUS_OK) {
         status = finish_decimal_formats(lowering, &storage, format_count);
     }
-    release_decimal_formats(lowering, &storage);
+    *formats = (package_decimal_formats){.storage = storage, .format_count = format_count};
+    return status;
+}
+
+/* The static context a module of the unit keeps for an AST static
+   context: its base URI, namespaces and default collation, its package's
+   decimal formats. */
+typedef struct static_context_module {
+    const sxml_xpath_static_context *context;
+    const sxml_xslt_ast_static_context *ast_context;
+    const package_decimal_formats *formats;
+} static_context_module;
+
+static sxml_status add_static_context_module(const sxml_xslt_lowering *lowering,
+                                             static_context_module request,
+                                             uint32_t *module_number) {
+    return sxml_ir_unit_add_module(
+        lowering->lowerer->unit,
+        &(sxml_ir_module){
+            .source_name = {.bytes = NULL, .byte_count = 0},
+            .static_base_uri = request.context->static_base_uri,
+            .text_memory = NULL,
+            .has_static_context = true,
+            .static_context =
+                {.decimal_formats = {.decimal_formats = request.formats->storage.formats,
+                                     .decimal_format_count = request.formats->format_count},
+                 .default_collation_uri =
+                     sxml_xslt_ast_get_text(lowering->ast, request.ast_context->default_collation),
+                 .collation_bindings = {.collation_bindings = NULL, .collation_binding_count = 0}},
+            .static_context_memory = NULL,
+            .has_static_namespaces = true,
+            .static_namespaces = request.context->namespace_bindings,
+            .namespace_memory = NULL},
+        module_number);
+}
+
+sxml_status sxml_xslt_declare_static_context_modules(const sxml_xslt_lowering *lowering,
+                                                     sxml_xpath_static_context *contexts) {
+    const uint32_t package_count = sxml_xslt_package_count(lowering);
+    void *memory = NULL;
+    sxml_status status = allocate_array(
+        lowering,
+        (array_request){.element_count = (size_t)package_count + 1U,
+                        .element_size = sizeof(package_decimal_formats),
+                        .element_alignment = alignof(package_decimal_formats)},
+        &memory);
+    package_decimal_formats *formats = memory;
+    for (uint32_t package = 1; status == SXML_STATUS_OK && package <= package_count;
+         package += 1) {
+        status = make_decimal_formats(lowering, package, &formats[package]);
+    }
+    /* Code no module names (the main function's, XSLT's own calls) reads
+       the top-level package's formats (package 1). */
+    if (status == SXML_STATUS_OK && formats[1].format_count > 0) {
+        status = sxml_ir_unit_set_static_context(
+            lowering->lowerer->unit,
+            &(sxml_ir_static_context){
+                .decimal_formats = {.decimal_formats = formats[1].storage.formats,
+                                    .decimal_format_count = formats[1].format_count},
+                .default_collation_uri = {.bytes = NULL, .byte_count = 0},
+                .collation_bindings = {.collation_bindings = NULL, .collation_binding_count = 0}});
+    }
+    for (uint32_t context_index = 1;
+         status == SXML_STATUS_OK && context_index < lowering->static_context_count;
+         context_index += 1) {
+        const sxml_xslt_ast_static_context_index index = {.value = context_index};
+        uint32_t package = sxml_xslt_package_of_static_context(lowering, index);
+        if (package == 0 || package > package_count) {
+            package = 1;
+        }
+        status = add_static_context_module(
+            lowering,
+            (static_context_module){
+                .context = &contexts[context_index],
+                .ast_context = sxml_xslt_ast_get_static_context(lowering->ast, index),
+                .formats = &formats[package]},
+            &contexts[context_index].ir_module_number);
+    }
+    for (uint32_t package = 1; formats != NULL && package <= package_count; package += 1) {
+        release_decimal_formats(lowering, &formats[package].storage);
+    }
+    sxml_xpath_lowerer_release_scratch(lowering->lowerer, formats);
     return status;
 }
 
@@ -2341,9 +2430,6 @@ sxml_status sxml_xslt_lower_components(const sxml_xslt_lowering *lowering) {
     sxml_status status = lower_functions(lowering);
     if (status == SXML_STATUS_OK) {
         status = lower_attribute_sets(lowering);
-    }
-    if (status == SXML_STATUS_OK) {
-        status = set_decimal_formats(lowering);
     }
     return status;
 }

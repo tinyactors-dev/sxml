@@ -583,6 +583,9 @@ typedef struct sxml_ir_function_reference {
 typedef struct sxml_ir_static_call {
     sxml_ir_function_target target;
     sxml_ir_atom_list arguments;
+    /* The module (glossary ir_module) whose static context the callee
+       reads while it runs (the expression's, D163); 0 for its function's. */
+    uint32_t module_number;
 } sxml_ir_static_call;
 
 /* DYNAMIC_CALL. */
@@ -897,6 +900,10 @@ typedef struct sxml_ir_node_construction {
     sxml_ir_namespace_binding_list name_namespaces;
     /* Bits of sxml_ir_construction_flag. */
     uint32_t construction_flags;
+    /* As sxml_ir_static_call's: the module whose static base URI the new
+       node takes (an XSLT instruction's, xml:base included); 0 for its
+       function's. */
+    uint32_t module_number;
 } sxml_ir_node_construction;
 
 /* Which template rules APPLY_TEMPLATES considers (XSLT 4.0, section 6.8). */
@@ -1136,9 +1143,12 @@ typedef struct sxml_ir_static_context {
 } sxml_ir_static_context;
 
 /*
- * A library module whose functions the unit holds (XQuery 4.0, 5.2; D148,
- * glossary `ir_module`): the parts of its own static context its functions
- * read when they run, which are not the unit's. Views of unit memory.
+ * A static context the unit keeps for code that reads it while it runs
+ * (glossary `ir_module`): an XQuery library module whose functions the
+ * unit holds (XQuery 4.0, 5.2; D148), or the static context of XSLT
+ * expressions and instructions (an element's xml:base, namespaces, default
+ * collation and its package's decimal formats; D163), which STATIC_CALL
+ * and the node constructors name. Views of unit memory.
  */
 typedef struct sxml_ir_module {
     /* The module's source name, for error locations (err:module). */
@@ -1147,6 +1157,17 @@ typedef struct sxml_ir_module {
     sxml_byte_view static_base_uri;
     /* The memory both view, released when the unit is finalized. */
     void *text_memory;
+    /* True when the module has decimal formats and collations of its own
+       (static_context); false reads the unit's. */
+    bool has_static_context;
+    sxml_ir_static_context static_context;
+    void *static_context_memory;
+    /* True when the module has statically known namespaces of its own
+       (names given as strings, casts to xs:QName); false reads the
+       unit's. */
+    bool has_static_namespaces;
+    sxml_namespace_binding_view static_namespaces;
+    void *namespace_memory;
 } sxml_ir_module;
 
 /* One copy of sxml_ir_unit_add_function_annotations: the annotations and
@@ -1374,9 +1395,11 @@ SXML_NODISCARD sxml_status sxml_ir_unit_set_static_context(
 SXML_NODISCARD sxml_status sxml_ir_unit_set_static_base_uri(
     sxml_ir_unit *unit, sxml_byte_view static_base_uri);
 
-/* Copies module's source name and static base URI into the unit as a new
-   module and writes its number (from 1), which functions of the module
-   carry (sxml_ir_function's module_number). Before sealing. Returns
+/* Copies module's source name, static base URI and, when it has them,
+   its static context and static namespaces into the unit as a new module
+   and writes its number (from 1), which functions of the module carry
+   (sxml_ir_function's module_number), and STATIC_CALL and node
+   constructors name. Before sealing. Returns
    SXML_STATUS_INVALID_ARGUMENT on a sealed unit and the allocator's
    failures. */
 SXML_NODISCARD sxml_status sxml_ir_unit_add_module(sxml_ir_unit *unit,

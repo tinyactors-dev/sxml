@@ -642,7 +642,36 @@ sxml_status sxml_dynamic_context_charge_steps(sxml_dynamic_context *dynamic_cont
     return SXML_STATUS_OK;
 }
 
-sxml_byte_view sxml_dynamic_context_get_static_base_uri(
+/* The module the expression of task names (a STATIC_CALL's or a node
+   constructor's module_number), else its function's; 0 for none. */
+static uint32_t sxml_task_module_number(const sxml_evaluator_task *task) {
+    const sxml_ir_unit *unit = task->function->unit;
+    const sxml_ir_expression *expression = sxml_ir_unit_get_expression(unit, task->expression);
+    const sxml_ir_expression_kind kind = expression->expression_kind;
+    uint32_t module_number = 0;
+    if (kind == SXML_IR_EXPRESSION_KIND_STATIC_CALL) {
+        module_number = expression->static_call.module_number;
+    } else if ((kind >= SXML_IR_EXPRESSION_KIND_DOCUMENT_CONSTRUCTOR &&
+                kind <= SXML_IR_EXPRESSION_KIND_PROCESSING_INSTRUCTION_CONSTRUCTOR) ||
+               kind == SXML_IR_EXPRESSION_KIND_SHALLOW_COPY) {
+        module_number = expression->node_construction.module_number;
+    }
+    if (module_number == 0 || module_number >= unit->module_count) {
+        module_number = task->function->module_number;
+    }
+    return module_number < unit->module_count ? module_number : 0;
+}
+
+/* The innermost task that runs IR, and the module it reads (NULL for its
+   unit's own static context). */
+typedef struct sxml_lexical_context {
+    /* False when no task runs IR (a call from outside an evaluation). */
+    bool is_found;
+    const sxml_ir_unit *unit;
+    const sxml_ir_module *module;
+} sxml_lexical_context;
+
+static sxml_lexical_context sxml_find_lexical_context(
     const sxml_dynamic_context *dynamic_context) {
     /* The static context of a function is that of its definition (XPath
        4.0, section 2.2.1): the unit of the innermost task that runs IR
@@ -651,20 +680,50 @@ sxml_byte_view sxml_dynamic_context_get_static_base_uri(
        outside an evaluation has no function; the tasks below it may. */
     const sxml_evaluator_task_stack *stack = &dynamic_context->task_stack;
     for (size_t task_count = stack->task_count; task_count > 0; task_count -= 1) {
-        const sxml_ir_function *function = stack->tasks[task_count - 1].function;
-        if (function != NULL && function->unit != NULL) {
-            if (function->module_number != 0 &&
-                function->module_number < function->unit->module_count) {
-                /* A library module's function: its module's (D148). */
-                return function->unit->modules[function->module_number].static_base_uri;
-            }
-            if (function->unit->has_static_base_uri) {
-                return function->unit->static_base_uri;
-            }
-            break;
+        const sxml_evaluator_task *task = &stack->tasks[task_count - 1];
+        if (task->function != NULL && task->function->unit != NULL) {
+            const sxml_ir_unit *unit = task->function->unit;
+            const uint32_t module_number = sxml_task_module_number(task);
+            return (sxml_lexical_context){
+                .is_found = true,
+                .unit = unit,
+                .module = module_number != 0 ? &unit->modules[module_number] : NULL};
         }
     }
+    return (sxml_lexical_context){.is_found = false, .unit = dynamic_context->unit, .module = NULL};
+}
+
+sxml_byte_view sxml_dynamic_context_get_static_base_uri(
+    const sxml_dynamic_context *dynamic_context) {
+    const sxml_lexical_context lexical = sxml_find_lexical_context(dynamic_context);
+    if (lexical.module != NULL) {
+        /* A library module's function (D148), or an XSLT element's (D163). */
+        return lexical.module->static_base_uri;
+    }
+    if (lexical.is_found && lexical.unit->has_static_base_uri) {
+        return lexical.unit->static_base_uri;
+    }
     return dynamic_context->static_base_uri;
+}
+
+const sxml_ir_static_context *sxml_dynamic_context_get_static_context(
+    const sxml_dynamic_context *dynamic_context) {
+    const sxml_lexical_context lexical = sxml_find_lexical_context(dynamic_context);
+    if (lexical.module != NULL && lexical.module->has_static_context) {
+        return &lexical.module->static_context;
+    }
+    return lexical.unit == NULL ? NULL : &lexical.unit->static_context;
+}
+
+sxml_namespace_binding_view sxml_dynamic_context_get_static_namespaces(
+    const sxml_dynamic_context *dynamic_context) {
+    const sxml_lexical_context lexical = sxml_find_lexical_context(dynamic_context);
+    if (lexical.module != NULL && lexical.module->has_static_namespaces) {
+        return lexical.module->static_namespaces;
+    }
+    return lexical.unit == NULL ? (sxml_namespace_binding_view){.namespace_bindings = NULL,
+                                                                .namespace_binding_count = 0}
+                                : sxml_ir_unit_get_static_namespaces(lexical.unit);
 }
 
 const sxml_ir_unit *sxml_dynamic_context_get_running_unit(

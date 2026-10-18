@@ -443,6 +443,14 @@ sxml_status sxml_xslt_lowering_bind_simple_content(sxml_xpath_lowerer *lowerer,
 
 /* ------------------------------------------------- Declared types */
 
+uint32_t sxml_xslt_lowering_module_of_node(const sxml_xslt_lowering *lowering,
+                                           sxml_xslt_ast_node_index node) {
+    const uint32_t context = sxml_xslt_ast_get_node(lowering->ast, node)->static_context.value;
+    return context == 0 || context >= lowering->static_context_count
+               ? 0
+               : lowering->static_contexts[context].ir_module_number;
+}
+
 const sxml_xpath_static_context *
 sxml_xslt_lowering_expression_context(const sxml_xslt_lowering *lowering,
                                       sxml_xslt_ast_expression_index expression) {
@@ -1150,7 +1158,11 @@ static sxml_status finish_literal_result(sxml_xpath_lowering_machine *machine,
             (sxml_xpath_lowering_expression_to_add){
                 .node = no_ast_node,
                 .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_ELEMENT_CONSTRUCTOR,
-                               .node_construction = {.name = locals->name,
+                               .node_construction = {.module_number =
+                                                         sxml_xslt_lowering_module_of_node(
+                                                             locals->head.lowering,
+                                                             locals->head.node),
+                                                     .name = locals->name,
                                                      .content = content,
                                                      .namespace_bindings =
                                                          locals->namespace_bindings,
@@ -2277,6 +2289,10 @@ static sxml_status lower_into_unit(const unit_lowering *work) {
         /* Stylesheet functions and attribute sets (packet 4.12): in every
            static context before anything calls them. */
         status = sxml_xslt_declare_components(&lowering, memory.static_contexts);
+    }
+    if (status == SXML_STATUS_OK) {
+        /* Before any expression is lowered: their calls name the modules. */
+        status = sxml_xslt_declare_static_context_modules(&lowering, memory.static_contexts);
     }
     if (status == SXML_STATUS_OK) {
         status = sxml_xslt_lower_templates(&lowering);

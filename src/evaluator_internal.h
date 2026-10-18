@@ -366,13 +366,34 @@ SXML_NODISCARD sxml_status sxml_dynamic_context_read_implicit_timezone(
 /*
  * The static base URI of the code running (fn:static-base-uri,
  * fn:resolve-uri, fn:doc, fn:parse-xml, fn:json-to-xml), borrowed; empty
- * when absent (XPath 4.0, section 2.2.1). Lexical (D91): the static base
- * URI of the unit of the innermost task that runs IR, when that unit has
- * one set (sxml_ir_unit_set_static_base_uri); otherwise the request's.
- * So a function item called after its evaluation ended, or inside another
- * expression, sees the static base URI of its own definition.
+ * when absent (XPath 4.0, section 2.2.1). Lexical (D91): of the innermost
+ * task that runs IR, the module its STATIC_CALL or node constructor names
+ * (D163), else its function's module (D148), else its unit's, when that
+ * unit has one set (sxml_ir_unit_set_static_base_uri); otherwise the
+ * request's. So a function item called after its evaluation ended, or
+ * inside another expression, sees the static base URI of its own
+ * definition.
  */
 sxml_byte_view sxml_dynamic_context_get_static_base_uri(
+    const sxml_dynamic_context *dynamic_context);
+
+/*
+ * The decimal formats and collations (XPath 4.0, section 2.2.1) of the code
+ * running, read lexically as the static base URI is: those of the module
+ * the innermost STATIC_CALL or node constructor names (D163), else the
+ * running unit's (unit->static_context); NULL outside an evaluation.
+ * Borrowed.
+ */
+const sxml_ir_static_context *sxml_dynamic_context_get_static_context(
+    const sxml_dynamic_context *dynamic_context);
+
+/*
+ * The statically known namespaces beyond the predeclared ones of the code
+ * running, which names given as strings and casts to xs:QName resolve
+ * with (D84), found as sxml_dynamic_context_get_static_context finds its
+ * context. Empty outside an evaluation. Borrowed.
+ */
+sxml_namespace_binding_view sxml_dynamic_context_get_static_namespaces(
     const sxml_dynamic_context *dynamic_context);
 
 /*

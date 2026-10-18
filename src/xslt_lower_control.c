@@ -642,7 +642,10 @@ static sxml_status finish_binding_value(sxml_xpath_lowering_machine *machine,
                     .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_DOCUMENT_CONSTRUCTOR,
                                    .node_construction = {.content = content,
                                                          .construction_flags = (uint32_t)
-                                                             SXML_IR_CONSTRUCTION_XSLT_RULES}}},
+                                                             SXML_IR_CONSTRUCTION_XSLT_RULES,
+                                                         .module_number =
+                                                             sxml_xslt_lowering_module_of_node(
+                                                                 lowering, locals->node)}}},
                 &value);
         }
     }

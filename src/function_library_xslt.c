@@ -80,18 +80,15 @@ typedef struct prefix_request {
 } prefix_request;
 
 /* The namespaces names given as strings are resolved against: the static
-   namespaces of the unit running (the expression's for a static
-   expression, D139; the template's of the invocation for a stylesheet,
-   D142), as casts to xs:QName at run time (D84). */
+   namespaces of the code running, the calling expression's (D163; the
+   unit's for a static expression, D139), as casts to xs:QName at run time
+   (D84). */
 static sxml_namespace_binding_view evaluation_bindings_of(const sxml_function_call *call) {
-    const sxml_ir_unit *unit = call->dynamic_context == NULL
-                                   ? NULL
-                                   : sxml_dynamic_context_get_running_unit(call->dynamic_context);
-    if (unit == NULL) {
+    if (call->dynamic_context == NULL) {
         return (sxml_namespace_binding_view){.namespace_bindings = NULL,
                                              .namespace_binding_count = 0};
     }
-    return sxml_ir_unit_get_static_namespaces(unit);
+    return sxml_dynamic_context_get_static_namespaces(call->dynamic_context);
 }
 
 static bool resolve_prefix(prefix_request request, sxml_namespace_uri_identifier *namespace_uri) {
