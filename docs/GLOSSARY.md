@@ -512,6 +512,8 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `digit_family` | Ten consecutive Unicode characters of category Nd with digit values 0 to 9; named by its zero digit |
 | `grouping_position` | The number of digit signs between a grouping separator and the end of the integer part (or the decimal separator) |
 | `numbering_kind` | How a primary format token numbers: digits, letters, Roman numerals or words, or an unsupported token formatted as `1` |
+| `alphabet` | The letters a numbering by letters counts with (`a` to `z`, Greek `α` to `ω`), named by its first letter: 1 is the first letter, after the last come two letters (bijective numeration) |
+| `symbol_sequence` | A numbering sequence with one Unicode symbol per number over a fixed range, named by its symbol for 1 (CIRCLED DIGIT ONE `①`, 0 to 50); numbers outside the range are written in decimal |
 | `ordinal` | Ordinal numbering (`1st`, `second`), asked for by the `o` format modifier |
 | `variable_marker` | A part of a date picture string in square brackets, replaced by a date or time component (F&O 4.0, section 9.9.4.1) |
 | `component_specifier` | The letter that starts a variable marker and names the component: `Y`, `M`, `D`, `d`, `F`, `W`, `w`, `H`, `h`, `P`, `m`, `s`, `f`, `Z`, `z`, `C`, `E` |
