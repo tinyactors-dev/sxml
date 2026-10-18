@@ -952,7 +952,14 @@ static sxml_status sxml_regex_compiler_parse_property(
                 (sxml_byte_view){.bytes = property + 2,
                                  .byte_count = property_byte_count - 2},
                 &range)) {
-            return SXML_REGEX_INVALID(compiler, "unknown block name");
+            if (!compiler->flags.is_xsd_pattern) {
+                return SXML_REGEX_INVALID(compiler, "unknown block name");
+            }
+            /* XSD 1.1 Part 2, G.4.2.4: \p{IsX} and \P{IsX} of an unknown
+               block X both denote all characters. */
+            range = (sxml_regex_codepoint_range){.first_codepoint = 0,
+                                                 .last_codepoint = 0x10FFFFU};
+            item->is_complemented = false;
         }
         item->kind = SXML_REGEX_CLASS_ITEM_KIND_RANGE;
         item->first_codepoint = range.first_codepoint;

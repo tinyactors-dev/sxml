@@ -432,6 +432,25 @@ static void test_registered_restriction_casts(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, cast_gives(&fixture, (cast_expectation){at_least_ten, "5",
                                                                     "cvc-minInclusive-valid"}));
     SXML_TEST_EXPECT(state, cast_gives(&fixture, (cast_expectation){at_least_ten, "10", NULL}));
+    /* length and minLength in one step, the minLength xs:IDREFS has
+       (Part 2, 4.3.1.4, 1.2). */
+    uint32_t five_references = add_simple_type(
+        &fixture,
+        (simple_type_request){
+            .derivation_method = SXML_SCHEMA_DERIVATION_RESTRICTION,
+            .base_or_item = SXML_TYPE_XS_IDREFS,
+            .facets = add_list(
+                &fixture,
+                (index_list){{add_facet(&fixture, (facet_request){SXML_FACET_KIND_LENGTH, "5",
+                                                                  false}),
+                              add_facet(&fixture, (facet_request){SXML_FACET_KIND_MIN_LENGTH, "1",
+                                                                  false})}})});
+    SXML_TEST_REQUIRE(state, compile(&fixture) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, reported(&fixture, ""));
+    SXML_TEST_EXPECT(state, cast_gives(&fixture, (cast_expectation){five_references, "a b c d e",
+                                                                    NULL}));
+    SXML_TEST_EXPECT(state, cast_gives(&fixture, (cast_expectation){five_references, "a b",
+                                                                    "cvc-length-valid"}));
     fixture_close(&fixture);
 }
 
@@ -600,6 +619,17 @@ static void test_facet_constraints(sxml_test_state *state) {
          SXML_TYPE_XS_DECIMAL,
          {{SXML_FACET_KIND_TOTAL_DIGITS, "2", false}, {SXML_FACET_KIND_FRACTION_DIGITS, "3", false}},
          "fractionDigits-totalDigits"},
+        /* The implicit bounds of xs:positiveInteger (Part 2, 3.4.25). */
+        {restriction, SXML_TYPE_XS_POSITIVE_INTEGER, {{SXML_FACET_KIND_MAX_EXCLUSIVE, "1", false}},
+         "maxExclusive-valid-restriction"},
+        /* xs:NOTATION only through an enumeration of declared notations
+           (Part 2, 3.3.19). */
+        {restriction, SXML_TYPE_XS_NOTATION, {{SXML_FACET_KIND_PATTERN, ".*", false}},
+         "enumeration-required-notation"},
+        {restriction, SXML_TYPE_XS_NOTATION, {{SXML_FACET_KIND_ENUMERATION, "png", false}},
+         "enumeration-valid-restriction"},
+        {SXML_SCHEMA_DERIVATION_LIST, SXML_TYPE_XS_NOTATION, {{0}},
+         "enumeration-required-notation"},
         /* Variety and base (Part 1, 3.16.6). */
         {restriction, SXML_TYPE_XS_ANY_SIMPLE_TYPE, {{0}}, "cos-st-restricts.1.1"},
         {restriction, SXML_TYPE_XS_ANY_ATOMIC_TYPE, {{0}}, "cos-st-restricts.1.1"},

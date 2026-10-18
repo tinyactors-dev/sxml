@@ -862,6 +862,8 @@ static void test_xsd_patterns_match_the_whole_value(sxml_test_state *state) {
         {"[^a]b", "cb", true},    {"(ab)+", "abab", true},
         {"(ab)+", "aba", false},  {"\\p{Lu}\\c*", "Ab-c", true},
         {".", "\n", false},      {"x{2,3}", "xxxx", false},
+        /* Unknown blocks are all characters (G.4.2.4). */
+        {"\\p{IsaA0-a9}", "q", true}, {"\\P{IsNoSuchBlock}+", "ab", true},
     };
     for (size_t case_index = 0; case_index < SXML_TEST_COUNT(cases);
          case_index++) {

@@ -345,6 +345,51 @@ static bool sxml_builtin_derives_from(const sxml_simple_type_compiler *compiler,
                                              .base_type = sxml_builtin_type_identifier(base)});
 }
 
+/* The bounds of the built-in integer types (Part 2, 3.4.14 to 3.4.25), the
+   nearest type's first: a type derived from xs:int has xs:int's. */
+typedef struct sxml_integer_bounds_entry {
+    sxml_builtin_type builtin_type;
+    const char *minimum;
+    const char *maximum;
+} sxml_integer_bounds_entry;
+
+static const sxml_integer_bounds_entry sxml_integer_bounds_entries[] = {
+    {SXML_TYPE_XS_NON_POSITIVE_INTEGER, NULL, "0"},
+    {SXML_TYPE_XS_NEGATIVE_INTEGER, NULL, "-1"},
+    {SXML_TYPE_XS_LONG, "-9223372036854775808", "9223372036854775807"},
+    {SXML_TYPE_XS_INT, "-2147483648", "2147483647"},
+    {SXML_TYPE_XS_SHORT, "-32768", "32767"},
+    {SXML_TYPE_XS_BYTE, "-128", "127"},
+    {SXML_TYPE_XS_NON_NEGATIVE_INTEGER, "0", NULL},
+    {SXML_TYPE_XS_UNSIGNED_LONG, "0", "18446744073709551615"},
+    {SXML_TYPE_XS_UNSIGNED_INT, "0", "4294967295"},
+    {SXML_TYPE_XS_UNSIGNED_SHORT, "0", "65535"},
+    {SXML_TYPE_XS_UNSIGNED_BYTE, "0", "255"},
+    {SXML_TYPE_XS_POSITIVE_INTEGER, "1", NULL},
+};
+
+static void sxml_effective_facets_add_integer_bounds(sxml_effective_facets *effective,
+                                                     sxml_builtin_type builtin_type) {
+    for (size_t entry_index = 0; entry_index < sizeof(sxml_integer_bounds_entries) /
+                                                   sizeof(sxml_integer_bounds_entries[0]);
+         entry_index += 1) {
+        const sxml_integer_bounds_entry *entry = &sxml_integer_bounds_entries[entry_index];
+        if (entry->builtin_type != builtin_type) {
+            continue;
+        }
+        if (entry->minimum != NULL) {
+            sxml_effective_facets_put(
+                effective, SXML_FACET_KIND_MIN_INCLUSIVE,
+                sxml_builtin_facet(sxml_byte_view_from_c_string(entry->minimum)));
+        }
+        if (entry->maximum != NULL) {
+            sxml_effective_facets_put(
+                effective, SXML_FACET_KIND_MAX_INCLUSIVE,
+                sxml_builtin_facet(sxml_byte_view_from_c_string(entry->maximum)));
+        }
+    }
+}
+
 /* The facets built-in types have implicitly (Part 2, 3.3 and 3.4; 4.1.6:
    whiteSpace collapse, fixed, but for the string types). */
 static void sxml_effective_facets_add_builtin(const sxml_simple_type_compiler *compiler,
@@ -381,6 +426,7 @@ static void sxml_effective_facets_add_builtin(const sxml_simple_type_compiler *c
     if (sxml_builtin_derives_from(compiler, builtin_type, SXML_TYPE_XS_INTEGER)) {
         sxml_effective_facets_put(effective, SXML_FACET_KIND_FRACTION_DIGITS,
                                   sxml_fixed_builtin_facet(SXML_BYTE_VIEW_FROM_LITERAL("0")));
+        sxml_effective_facets_add_integer_bounds(effective, builtin_type);
     }
     if (builtin_type == SXML_TYPE_XS_DATE_TIME_STAMP) {
         sxml_effective_facets_put(effective, SXML_FACET_KIND_EXPLICIT_TIMEZONE,
@@ -811,6 +857,23 @@ static sxml_status sxml_read_typed_value(const sxml_simple_type_compiler *compil
     if (status != SXML_STATUS_OK || !outcome.is_valid) {
         return status;
     }
+    if (check->primitive_type == SXML_TYPE_XS_NOTATION &&
+        reading.facet->facet_kind == SXML_FACET_KIND_ENUMERATION) {
+        /* A NOTATION value names a notation declaration (Part 2, 3.3.19). */
+        sxml_atomic_datum datum;
+        uint32_t notation = 0;
+        answer->is_valid =
+            sxml_atomic_item_get_datum(outcome.value.content, &datum) == SXML_STATUS_OK &&
+            sxml_schema_components_find_name(
+                compiler->components,
+                (sxml_schema_name_key){.symbol_space = SXML_SCHEMA_SYMBOL_SPACE_NOTATION_DECLARATION,
+                                       .name = datum.datum_details.qname.expanded_name},
+                &notation);
+        if (!answer->is_valid) {
+            sxml_sequence_release(outcome.value);
+            return SXML_STATUS_OK;
+        }
+    }
     status = sxml_canonical_value(compiler, outcome.value, reading.canonical_value);
     sxml_sequence_release(outcome.value);
     return status;
@@ -1086,6 +1149,16 @@ static sxml_status sxml_check_bound_against_base(const sxml_simple_type_compiler
     return SXML_STATUS_OK;
 }
 
+/* Part 2, 4.3.1.4, 1.2 and 2.2: length and minLength (maxLength) in one
+   step are allowed when a base has that minLength (maxLength) and no
+   length. */
+static bool sxml_base_has_same_count(const sxml_simple_type_check *check, sxml_facet_kind kind,
+                                     sxml_step_facet own) {
+    sxml_step_facet base = check->base_facets.facets[kind];
+    return base.is_present && !check->base_facets.facets[SXML_FACET_KIND_LENGTH].is_present &&
+           sxml_step_facet_count(base) == sxml_step_facet_count(own);
+}
+
 /* The own facets against the base's, then the overlaid set's
    consistency. */
 static sxml_status sxml_check_against_base(const sxml_simple_type_compiler *compiler,
@@ -1127,11 +1200,13 @@ static sxml_status sxml_check_against_base(const sxml_simple_type_compiler *comp
     const char *constraint_name = NULL;
     if (length.is_present && minimum_length.is_present &&
         (sxml_step_facet_count(minimum_length) > sxml_step_facet_count(length) ||
-         (length.is_own && minimum_length.is_own))) {
+         (length.is_own && minimum_length.is_own &&
+          !sxml_base_has_same_count(check, SXML_FACET_KIND_MIN_LENGTH, minimum_length)))) {
         constraint_name = "length-minLength-maxLength.1";
     } else if (length.is_present && maximum_length.is_present &&
                (sxml_step_facet_count(length) > sxml_step_facet_count(maximum_length) ||
-                (length.is_own && maximum_length.is_own))) {
+                (length.is_own && maximum_length.is_own &&
+                 !sxml_base_has_same_count(check, SXML_FACET_KIND_MAX_LENGTH, maximum_length)))) {
         constraint_name = "length-minLength-maxLength.2";
     } else if (minimum_length.is_present && maximum_length.is_present &&
                sxml_step_facet_count(minimum_length) > sxml_step_facet_count(maximum_length)) {
@@ -1249,6 +1324,10 @@ static sxml_status sxml_check_made_of(const sxml_simple_type_compiler *compiler,
             error.constraint_name = "cos-st-restricts.2.1";
             error.description = "the item type of a list must be an atomic type or a union "
                                 "without lists (XSD 1.1 Part 1, 3.16.6.2)";
+        } else if (item_index == SXML_TYPE_XS_NOTATION) {
+            error.constraint_name = "enumeration-required-notation";
+            error.description = "xs:NOTATION validates no value itself: only its "
+                                "restrictions by enumeration do (XSD 1.1 Part 2, 3.3.19)";
         } else if ((item->final_derivations & SXML_SCHEMA_DERIVATION_LIST) != 0) {
             error.constraint_name = "cos-st-restricts.2.2.1.1";
             error.description = "the item type's final contains list (XSD 1.1 Part 1, 3.16.6.2)";
@@ -1266,7 +1345,12 @@ static sxml_status sxml_check_made_of(const sxml_simple_type_compiler *compiler,
                 outcome->is_skipped = true;
                 return SXML_STATUS_OK;
             }
-            if (!sxml_type_definition_is_simple(member) || sxml_type_index_is_special(member_type)) {
+            if (member_type == SXML_TYPE_XS_NOTATION) {
+                error.constraint_name = "enumeration-required-notation";
+                error.description = "xs:NOTATION validates no value itself: only its "
+                                    "restrictions by enumeration do (XSD 1.1 Part 2, 3.3.19)";
+            } else if (!sxml_type_definition_is_simple(member) ||
+                       sxml_type_index_is_special(member_type)) {
                 error.constraint_name = "cos-st-restricts.3.1";
                 error.description = "a member type of a union must be a simple type other than "
                                     "a special one (XSD 1.1 Part 1, 3.16.6.2)";
@@ -1492,6 +1576,15 @@ static sxml_status sxml_allocate_step_facets(const sxml_simple_type_compiler *co
     return SXML_STATUS_OK;
 }
 
+static bool sxml_step_has_enumeration(const sxml_simple_type_check *check) {
+    for (size_t facet_index = 0; facet_index < check->facet_count; facet_index += 1) {
+        if (check->facets[facet_index].facet_kind == SXML_FACET_KIND_ENUMERATION) {
+            return true;
+        }
+    }
+    return false;
+}
+
 /* Checks and registers one definition whose dependencies are done. */
 static sxml_status sxml_compile_one(const sxml_simple_type_compiler *compiler,
                                     uint32_t type_index) {
@@ -1528,6 +1621,15 @@ static sxml_status sxml_compile_one(const sxml_simple_type_compiler *compiler,
     }
     if (status == SXML_STATUS_OK && answer.is_valid) {
         status = sxml_read_step_facets(compiler, &check, &answer);
+    }
+    if (status == SXML_STATUS_OK && answer.is_valid && check.base_index == SXML_TYPE_XS_NOTATION &&
+        !sxml_step_has_enumeration(&check)) {
+        answer.is_valid = false;
+        status = sxml_check_report(
+            compiler, &check,
+            (sxml_simple_type_error){.constraint_name = "enumeration-required-notation",
+                                     .description = "a restriction of xs:NOTATION needs an "
+                                                    "enumeration (XSD 1.1 Part 2, 3.3.19)"});
     }
     if (status == SXML_STATUS_OK && answer.is_valid) {
         check.base_facets.variety = check.variety;
@@ -1766,6 +1868,26 @@ static sxml_status sxml_check_attribute_use(const sxml_simple_type_compiler *com
                                  .position = use->position});
 }
 
+/* The type of a declaration, where it is declared. */
+typedef struct sxml_declared_type {
+    uint32_t type_index;
+    sxml_schema_position position;
+} sxml_declared_type;
+
+/* A declaration's type is not xs:NOTATION itself (Part 2, 3.3.19). */
+static sxml_status sxml_check_not_notation(const sxml_simple_type_compiler *compiler,
+                                           sxml_declared_type declared) {
+    if (declared.type_index != SXML_TYPE_XS_NOTATION) {
+        return SXML_STATUS_OK;
+    }
+    return sxml_simple_type_report(
+        compiler, (sxml_simple_type_error){.constraint_name = "enumeration-required-notation",
+                                           .description = "a declaration's type is xs:NOTATION, "
+                                                          "which validates no value itself (XSD "
+                                                          "1.1 Part 2, 3.3.19)",
+                                           .position = declared.position});
+}
+
 static sxml_status sxml_check_attribute_values(const sxml_simple_type_compiler *compiler) {
     const sxml_schema_components *components = compiler->components;
     uint32_t declaration_count = components->tables[SXML_SCHEMA_TABLE_ATTRIBUTE_DECLARATION].entry_count;
@@ -1778,6 +1900,19 @@ static sxml_status sxml_check_attribute_values(const sxml_simple_type_compiler *
                                                     .type_index = declaration->type_definition.value,
                                                     .position = declaration->position,
                                                     .constraint_name = "a-props-correct.2"});
+        if (status == SXML_STATUS_OK) {
+            status = sxml_check_not_notation(
+                compiler, (sxml_declared_type){.type_index = declaration->type_definition.value,
+                                               .position = declaration->position});
+        }
+    }
+    uint32_t element_count = components->tables[SXML_SCHEMA_TABLE_ELEMENT_DECLARATION].entry_count;
+    for (uint32_t index = 1; status == SXML_STATUS_OK && index < element_count; index += 1) {
+        const sxml_schema_element_declaration *declaration = sxml_schema_get_element_declaration(
+            components, (sxml_schema_element_declaration_index){.value = index});
+        status = sxml_check_not_notation(
+            compiler, (sxml_declared_type){.type_index = declaration->type_definition.value,
+                                           .position = declaration->position});
     }
     uint32_t use_count = components->tables[SXML_SCHEMA_TABLE_ATTRIBUTE_USE].entry_count;
     for (uint32_t index = 1; status == SXML_STATUS_OK && index < use_count; index += 1) {
