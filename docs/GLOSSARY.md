@@ -818,7 +818,7 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `content_model_counter` | A counter of a content model that counts the repetitions of one particle between its minimum and maximum occurrences, instead of a copy of states per repetition |
 | `content_model_cursor` | Where matching an element's children has reached in its content model: a state and the counter values |
 | `expected_term` | A term a content model cursor would accept next, for error messages ("expected 'shipTo'") |
-| `message_piece` | One part of a validation error's description, joined in order: static text, an element or attribute name, a value as it appears, a type definition, the expected terms of a content model cursor, or the facet a value breaks |
+| `message_template` | A validation error's description as static text with placeholders (%e an element, %a an attribute, %v a value, %t a type, %x the expected terms of a content model cursor, %f the facet a value breaks, ...) that the error's fields fill |
 | `content_model_position` | One occurrence of an element or wildcard particle in the particle tree as a content model compiles it (small repetitions expanded into copies): a state of the Glushkov automaton before determinization |
 | `content_model_transition` | A move of a content model state on an element declaration (with its substitutable members) or a schema wildcard, with counter tests and counter operations |
 | `counter_test` | A condition of a content model transition or final state: a content model counter's value lies in a range |
