@@ -695,6 +695,14 @@ static sxml_status derive_complex_content(complex_type_stage *stage, uint32_t ty
             const sxml_schema_particle *own_particle = sxml_schema_get_particle(
                 components, (sxml_schema_particle_index){.value = effective_content});
             const uint64_t minimum = own_particle->minimum_occurrences;
+            if (minimum != base_particle->minimum_occurrences) {
+                /* Particle Valid (Extension) (3.9.6.2), clause 3.1. */
+                status =
+                    report(stage, (stage_report){.constraint_name = "cos-ct-extends.1.4.3.2.2.2",
+                                                 .description = "An all group extending an all "
+                                                                "group must have its minOccurs",
+                                                 .position = read.position});
+            }
             const sxml_schema_index_view base_particles = sxml_schema_get_list(
                 components, sxml_schema_get_model_group(
                                 components, (sxml_schema_model_group_index){base_particle->term})

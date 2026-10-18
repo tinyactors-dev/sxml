@@ -478,6 +478,9 @@ typedef struct content_compiler {
     uint32_t root_node;
     /* The values of one configuration of the restriction walk. */
     uint32_t configuration_width;
+    /* Expanding what the counters cannot decide passed the limit: keep
+       the transitions in priority order instead (see mark_counters). */
+    bool allows_counter_ambiguity;
     /* Two transitions of one particle overlap: expand and try again. */
     bool has_conflict;
     bool has_new_expansion;
@@ -1644,6 +1647,14 @@ static sxml_status mark_counter_particle(content_compiler *compiler, uint32_t co
 }
 
 static sxml_status mark_counters(content_compiler *compiler, counter_marks marks) {
+    if (compiler->allows_counter_ambiguity) {
+        /* The last resort when expansion passes the state limit: the
+           matcher takes the first transition whose tests hold, an inner
+           repetition before an outer one (fewer operations first). Exact
+           unless an outer repetition's minimum needs the inner ones spread
+           over more repetitions than taking the inner first gives. */
+        return SXML_STATUS_OK;
+    }
     compiler->has_conflict = true;
     sxml_status status = SXML_STATUS_OK;
     for (uint32_t entry = 0; status == SXML_STATUS_OK && entry < marks.tests.index_count;
@@ -1844,13 +1855,16 @@ static sxml_status make_state_transitions(content_compiler *compiler, uint32_t s
         }
         group->pair_count += 1;
     }
-    /* The order of the groups: (smallest target << 32 | group), after the
-       edge keys. */
+    /* The order of the groups: by smallest target, then fewer
+       operations, then creation, after the edge keys. */
     const size_t edge_key_count = compiler->keys.entry_count;
     for (uint32_t group = 0; status == SXML_STATUS_OK && group < compiler->groups.entry_count;
          group += 1) {
+        const transition_group *entry = group_at(compiler, group);
+        const uint64_t operation_count =
+            entry->operations.index_count < 15U ? entry->operations.index_count : 15U;
         const uint64_t order_key =
-            ((uint64_t)group_at(compiler, group)->smallest_target << 32U) | group;
+            ((uint64_t)entry->smallest_target << 36U) | (operation_count << 32U) | group;
         status = sxml_schema_scratch_array_append(compiler->allocator, &compiler->keys, &order_key);
     }
     if (status != SXML_STATUS_OK) {
@@ -2439,6 +2453,13 @@ sxml_status sxml_schema_compile_content_model(sxml_schema_compilation *compilati
             compiler.expansion_bound = 1;
             continue;
         }
+        if (status == SXML_STATUS_LIMIT_EXCEEDED && compiler.expanded_particles.entry_count != 0 &&
+            !compiler.allows_counter_ambiguity) {
+            /* What expanding the undecided counters needs is too much. */
+            compiler.allows_counter_ambiguity = true;
+            compiler.expanded_particles.entry_count = 0;
+            continue;
+        }
         if (status != SXML_STATUS_OK || compiler.has_reported) {
             break;
         }
@@ -2950,10 +2971,13 @@ static sxml_status check_element_move(restriction_walk *walk, element_move move)
     }
     bool subsumes = false;
     if (general.value == 0) {
-        subsumes = general_strength == SXML_BINDING_SKIP ||
-                   (general_strength == SXML_BINDING_LAX &&
-                    (move.declaration.value != 0 || move.strength != SXML_BINDING_SKIP)) ||
-                   (move.declaration.value == 0 && move.strength == SXML_BINDING_STRICT);
+        /* A base wildcard without a global declaration of the name takes
+           the restriction's declaration, as processors do (XSD 1.0's
+           NSCompat, 3.9.6): read literally, 3.4.6.4 would refuse a
+           strict wildcard restricted to a local element. */
+        subsumes = general_strength == SXML_BINDING_SKIP || move.declaration.value != 0 ||
+                   (general_strength == SXML_BINDING_LAX && move.strength != SXML_BINDING_SKIP) ||
+                   move.strength == SXML_BINDING_STRICT;
     } else if (move.declaration.value != 0) {
         subsumes = declaration_subsumes(
             components, (declaration_pair){.general = general, .specific = move.declaration});
@@ -2963,6 +2987,23 @@ static sxml_status check_element_move(restriction_walk *walk, element_move move)
         return SXML_STATUS_OK;
     }
     return add_configuration(walk);
+}
+
+/* Whether the restriction takes a name by an element transition from
+   its current configuration: its wildcard then never sees it (3.8.6.4). */
+static bool restriction_takes_by_element(const restriction_walk *walk, sxml_name_identifier name) {
+    const sxml_schema_components *components = walk->compiler->components;
+    sxml_name_parts parts = {.namespace_uri = {.index = 0}};
+    if (sxml_name_pool_get_name_parts(components->processor->name_pool, name, &parts) !=
+        SXML_STATUS_OK) {
+        return false;
+    }
+    const wildcard_name test = {.name = name,
+                                .namespace_uri = parts.namespace_uri,
+                                .symbol_space = SXML_SCHEMA_SYMBOL_SPACE_ELEMENT_DECLARATION};
+    const transition_choice choice = choose_transition(components, &walk->restricted, &test);
+    return choice.transition != NULL &&
+           choice.transition->term_kind == SXML_SCHEMA_TERM_ELEMENT_DECLARATION;
 }
 
 /* A wildcard move of the restriction (restricted_next set): every name
@@ -3009,7 +3050,8 @@ static sxml_status check_wildcard_move(restriction_walk *walk,
                     &(sxml_schema_wildcard_test){
                         .wildcard = wildcard,
                         .name = name,
-                        .symbol_space = SXML_SCHEMA_SYMBOL_SPACE_ELEMENT_DECLARATION})) {
+                        .symbol_space = SXML_SCHEMA_SYMBOL_SPACE_ELEMENT_DECLARATION}) ||
+                restriction_takes_by_element(walk, name)) {
                 continue;
             }
             const sxml_schema_element_declaration_index specific =

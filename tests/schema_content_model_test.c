@@ -808,6 +808,23 @@ static void test_all_groups(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, !content_accepts(&fixture, (match_run){type, ""}));
     fixture_close(&fixture);
 
+    /* An absent all group (maxOccurs 0): only the empty content. */
+    SXML_TEST_REQUIRE(state, fixture_open(&fixture));
+    const uint32_t member =
+        add_element(&fixture, (element_request){"a", SXML_TYPE_XS_STRING, true, false});
+    const uint32_t absent_group =
+        add_group(&fixture, (group_request){SXML_SCHEMA_COMPOSITOR_ALL,
+                                            {{add_element_particle(&fixture, member)}, 1}});
+    const uint32_t absent = add_complex_type(
+        &fixture,
+        (complex_type_request){
+            NULL, 0, 0, add_particle(&fixture, (particle_request){0, 0, GROUP, absent_group}),
+            false});
+    SXML_TEST_EXPECT(state, fixture_compile(&fixture) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, content_accepts(&fixture, (match_run){absent, ""}));
+    SXML_TEST_EXPECT(state, !content_accepts(&fixture, (match_run){absent, "a"}));
+    fixture_close(&fixture);
+
     /* An all group inside a sequence (cos-all-limited). */
     SXML_TEST_REQUIRE(state, fixture_open(&fixture));
     const uint32_t element =
