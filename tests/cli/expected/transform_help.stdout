@@ -1,19 +1,28 @@
-sxml transform - Run an XSLT 4.0 transformation
+sxml transform - Transform a document with an XSLT 4.0 stylesheet
 
 Usage: sxml transform [--initial-mode=NAME] [--initial-template=NAME] [--method=METHOD] [--param=NAME=VALUE]... STYLESHEET [INPUT]
 
-Compiles the XSLT 4.0 stylesheet in STYLESHEET and transforms INPUT:
-templates are applied to it in the initial mode (--initial-mode, else
-the default mode), or --initial-template is called with it as the
-focus. Without INPUT the initial template (--initial-template, else
-xsl:initial-template) is called without a focus. The principal result
-is written to standard output as the stylesheet's xsl:output says;
---method replaces the method. --param=NAME=VALUE binds the stylesheet
-parameter $NAME to xs:untypedAtomic(VALUE). xsl:message output goes to
-standard error. Modules and documents are read from local files only;
-result documents with an href are not written. An error is reported
-on standard error as STYLESHEET:LINE:COLUMN: err:CODE: description and
-exits 1; an unreadable file exits 3.
+Compiles the XSLT 4.0 stylesheet STYLESHEET and runs it.
+
+With INPUT, the document becomes the global context item. Templates
+are applied to it in the default mode, or in the mode that
+--initial-mode names; or the template that --initial-template names is
+called with INPUT as the context item. Without INPUT, the template
+that --initial-template names, else xsl:initial-template, is called
+without a context item.
+
+The principal result goes to standard output, serialized as the
+stylesheet's xsl:output says; --method replaces the method. Result
+documents with an href are not written. xsl:message output goes to
+standard error. --param=NAME=VALUE binds the stylesheet parameter
+$NAME to xs:untypedAtomic(VALUE). Included and imported modules and
+documents are read from local files.
+
+An error is reported on standard error as
+  STYLESHEET:LINE:COLUMN: err:CODE: description
+
+Exit status: 0 on success, 1 for an error in the stylesheet or a
+document that is not well-formed, 3 when a file cannot be read.
 
 Options:
   -h, --help                   Show this help and exit
@@ -27,7 +36,7 @@ Arguments:
   INPUT       XML document to transform, the global context item; - reads standard input
 
 Examples:
-  sxml transform style.xsl books.xml
-  sxml transform --param=title=Books style.xsl books.xml
-  sxml transform --initial-template=main report.xsl
-  sxml transform --method=text --initial-mode=index style.xsl -
+  sxml transform list.xsl books.xml
+  sxml transform --param='heading=Reading list' list.xsl books.xml
+  sxml transform hello.xsl
+  sxml transform --method=xml list.xsl - < books.xml

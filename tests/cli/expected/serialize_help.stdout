@@ -1,12 +1,16 @@
-sxml serialize - Write an XML document by a serialization method
+sxml serialize - Parse an XML document and write it out again
 
 Usage: sxml serialize [--indent] [--method=METHOD] FILE
 
-Parses FILE as namespace-well-formed XML 1.0 and writes the document
-to standard output by the Serialization 4.0 method --method names
-(xml by default) with its default parameters; --indent indents. A
-FILE that is not well-formed is reported as FILE:LINE:COLUMN: message
-and exits 1; an unreadable file exits 3.
+Parses FILE and writes the document to standard output with the
+Serialization 4.0 method that --method names (xml by default) and the
+method's default parameters. --indent indents the output.
+
+A FILE that is not well-formed is reported on standard error as
+  FILE:LINE:COLUMN: message
+
+Exit status: 0 on success, 1 when FILE is not well-formed or cannot be
+serialized, 3 when FILE cannot be read.
 
 Options:
   -h, --help           Show this help and exit
@@ -17,5 +21,5 @@ Arguments:
   FILE  XML document to write; - reads standard input
 
 Examples:
-  sxml serialize --indent book.xml
-  sxml serialize --method=html page.xml
+  sxml serialize --indent books.xml
+  sxml serialize --method=json books.xml

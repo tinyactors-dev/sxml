@@ -96,11 +96,18 @@ static const sxml_cli_command test_echo_command = {
 
 static const sxml_cli_command *const test_commands[] = {&test_echo_command};
 
+static const sxml_byte_view test_program_examples[] = {
+    SXML_BYTE_VIEW_INITIALIZER("tool echo hello"),
+};
+
 static const sxml_cli_program test_program = {
     .name = SXML_BYTE_VIEW_INITIALIZER("tool"),
     .summary = SXML_BYTE_VIEW_INITIALIZER("a test program"),
+    .description = SXML_BYTE_VIEW_INITIALIZER("Writes texts."),
     .commands = test_commands,
     .command_count = SXML_TEST_COUNT(test_commands),
+    .examples = {.texts = test_program_examples,
+                 .text_count = SXML_TEST_COUNT(test_program_examples)},
     .bug_report_location = SXML_BYTE_VIEW_INITIALIZER("https://example.org/bugs"),
 };
 
@@ -206,6 +213,8 @@ static const sxml_byte_view expected_program_help = SXML_BYTE_VIEW_INITIALIZER(
     "\n"
     "Usage: tool [--version] COMMAND [ARGUMENT...]\n"
     "\n"
+    "Writes texts.\n"
+    "\n"
     "Commands:\n"
     "  help  Show help for the program or for one command\n"
     "  echo  Write TEXT\n"
@@ -213,6 +222,9 @@ static const sxml_byte_view expected_program_help = SXML_BYTE_VIEW_INITIALIZER(
     "Options:\n"
     "  -h, --help     Show this help and exit\n"
     "      --version  Print the version and exit\n"
+    "\n"
+    "Examples:\n"
+    "  tool echo hello\n"
     "\n"
     "Run 'tool help COMMAND' for help on one command.\n"
     "Report bugs at https://example.org/bugs\n");
@@ -460,8 +472,10 @@ static void test_invalid_table_is_an_internal_error(sxml_test_state *state) {
     const sxml_cli_program broken_program = {
         .name = TEXT("tool"),
         .summary = TEXT("a broken program"),
+        .description = TEXT(""),
         .commands = test_help_named_commands,
         .command_count = 1,
+        .examples = {.texts = NULL, .text_count = 0},
         .bug_report_location = TEXT(""),
     };
     program_run run;
@@ -489,8 +503,10 @@ static sxml_byte_view validation_problem(const sxml_cli_command *command) {
     const sxml_cli_program program = {
         .name = TEXT("tool"),
         .summary = TEXT("a test program"),
+        .description = TEXT(""),
         .commands = commands,
         .command_count = 1,
+        .examples = {.texts = NULL, .text_count = 0},
         .bug_report_location = TEXT(""),
     };
     sxml_cli_table_problem problem = {.description = TEXT(""),

@@ -1,10 +1,10 @@
-sxml version - Print the sxml library version
+sxml version - Print the sxml version
 
 Usage: sxml version [--format=FORMAT]
 
-Prints the version of the sxml library this program runs on, the same
-line as 'sxml --version'. With --format=json, prints one JSON object
-with the fields "name" and "version".
+Prints the version of the sxml library, the same line as 'sxml
+--version'. With --format=json, prints one JSON object with the fields
+"name" and "version".
 
 Options:
   -h, --help           Show this help and exit

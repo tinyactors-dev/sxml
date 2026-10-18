@@ -1,19 +1,36 @@
-sxml - command-line interface to the sxml XML library
+sxml - check, query and transform XML documents
 
 Usage: sxml [--version] COMMAND [ARGUMENT...]
 
+sxml checks XML 1.0 documents, evaluates XPath 4.0 expressions and
+XQuery 4.0 queries, and runs XSLT 4.0 stylesheets. Results go to
+standard output, errors to standard error. Documents and modules
+are read from local files; sxml never uses the network. A FILE
+operand of - reads standard input.
+
+Exit status: 0 on success; 1 when the operation fails (a document
+is not well-formed, a query or stylesheet raises an error); 2 for a
+usage error; 3 when a file cannot be read or written; 4 for an
+internal error or an exceeded limit.
+
 Commands:
   help       Show help for the program or for one command
-  check      Check that XML documents are namespace-well-formed
-  serialize  Write an XML document by a serialization method
-  transform  Run an XSLT 4.0 transformation
-  version    Print the sxml library version
+  check      Check that XML documents are well-formed
+  serialize  Parse an XML document and write it out again
+  transform  Transform a document with an XSLT 4.0 stylesheet
+  version    Print the sxml version
   xpath      Evaluate an XPath 4.0 expression
-  xquery     Evaluate an XQuery 4.0 query
+  xquery     Run an XQuery 4.0 query
 
 Options:
   -h, --help     Show this help and exit
       --version  Print the version and exit
+
+Examples:
+  sxml check books.xml
+  sxml xpath --context-item=books.xml '//title/string()'
+  sxml xquery --context-item=books.xml titles.xq
+  sxml transform list.xsl books.xml
 
 Run 'sxml help COMMAND' for help on one command.
 Report bugs at https://github.com/dhamidi/sxml/issues

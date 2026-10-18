@@ -55,8 +55,8 @@ static const sxml_cli_positional sxml_serialize_positionals[] = {
 };
 
 static const sxml_byte_view sxml_serialize_examples[] = {
-    SXML_BYTE_VIEW_INITIALIZER("sxml serialize --indent book.xml"),
-    SXML_BYTE_VIEW_INITIALIZER("sxml serialize --method=html page.xml"),
+    SXML_BYTE_VIEW_INITIALIZER("sxml serialize --indent books.xml"),
+    SXML_BYTE_VIEW_INITIALIZER("sxml serialize --method=json books.xml"),
 };
 
 /* Parses FILE and writes it. */
@@ -114,13 +114,17 @@ static sxml_cli_exit_code sxml_run_serialize_command(const sxml_cli_invocation *
 
 const sxml_cli_command sxml_serialize_command = {
     .name = SXML_BYTE_VIEW_INITIALIZER("serialize"),
-    .summary = SXML_BYTE_VIEW_INITIALIZER("Write an XML document by a serialization method"),
+    .summary = SXML_BYTE_VIEW_INITIALIZER("Parse an XML document and write it out again"),
     .description = SXML_BYTE_VIEW_INITIALIZER(
-        "Parses FILE as namespace-well-formed XML 1.0 and writes the document\n"
-        "to standard output by the Serialization 4.0 method --method names\n"
-        "(xml by default) with its default parameters; --indent indents. A\n"
-        "FILE that is not well-formed is reported as FILE:LINE:COLUMN: message\n"
-        "and exits 1; an unreadable file exits 3."),
+        "Parses FILE and writes the document to standard output with the\n"
+        "Serialization 4.0 method that --method names (xml by default) and the\n"
+        "method's default parameters. --indent indents the output.\n"
+        "\n"
+        "A FILE that is not well-formed is reported on standard error as\n"
+        "  FILE:LINE:COLUMN: message\n"
+        "\n"
+        "Exit status: 0 on success, 1 when FILE is not well-formed or cannot be\n"
+        "serialized, 3 when FILE cannot be read."),
     .options = sxml_serialize_options,
     .option_count = sizeof sxml_serialize_options / sizeof sxml_serialize_options[0],
     .positionals = sxml_serialize_positionals,

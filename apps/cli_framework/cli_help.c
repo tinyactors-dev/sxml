@@ -296,8 +296,13 @@ static void sxml_cli_write_program_help(sxml_cli_writer *writer,
     sxml_cli_writer_write_line(writer, program->summary);
     sxml_cli_writer_write_byte(writer, '\n');
     sxml_cli_write_usage_line(writer, request);
+    if (program->description.byte_count > 0) {
+        sxml_cli_writer_write_byte(writer, '\n');
+        sxml_cli_writer_write_line(writer, program->description);
+    }
     sxml_cli_write_commands_section(writer, program);
     sxml_cli_write_options_section(writer, sxml_cli_root_command());
+    sxml_cli_write_examples_section(writer, program->examples);
     sxml_cli_writer_write(writer, SXML_TEXT("\nRun '"));
     sxml_cli_writer_write(writer, program->name);
     sxml_cli_writer_write_line(writer,

@@ -76,7 +76,7 @@ static const sxml_cli_positional sxml_xpath_positionals[] = {
 
 static const sxml_byte_view sxml_xpath_examples[] = {
     SXML_BYTE_VIEW_INITIALIZER("sxml xpath '1 to 3'"),
-    SXML_BYTE_VIEW_INITIALIZER("sxml xpath --context-item=book.xml '//title/string()'"),
+    SXML_BYTE_VIEW_INITIALIZER("sxml xpath --context-item=books.xml '//book[@year < 1980]/title/string()'"),
     SXML_BYTE_VIEW_INITIALIZER("sxml xpath --param=n=5 'xs:integer($n) * 2'"),
     SXML_BYTE_VIEW_INITIALIZER("sxml xpath --method=json 'map { \"a\": [1, 2] }'"),
 };
@@ -147,15 +147,21 @@ const sxml_cli_command sxml_xpath_command = {
     .name = SXML_BYTE_VIEW_INITIALIZER("xpath"),
     .summary = SXML_BYTE_VIEW_INITIALIZER("Evaluate an XPath 4.0 expression"),
     .description = SXML_BYTE_VIEW_INITIALIZER(
-        "Compiles EXPRESSION as XPath 4.0 and writes its result to standard\n"
-        "output by the adaptive serialization method, one item per line, or\n"
-        "by the method --method names. --context-item=FILE parses FILE as the\n"
-        "context item; without it the focus is absent. --param=NAME=VALUE binds\n"
-        "$NAME to xs:untypedAtomic(VALUE). fn:doc reads local files only. An\n"
-        "error of the expression is reported on standard error as\n"
-        "expression:LINE:COLUMN: err:CODE: description and exits 1; an\n"
-        "unreadable file exits 3. An EXPRESSION that starts with - must\n"
-        "follow --."),
+        "Evaluates EXPRESSION as XPath 4.0 and writes the result to standard\n"
+        "output, by the adaptive method with one item per line unless --method\n"
+        "names another.\n"
+        "\n"
+        "--context-item=FILE parses FILE and makes it the context item; without\n"
+        "it there is no context item. --param=NAME=VALUE binds $NAME to\n"
+        "xs:untypedAtomic(VALUE). fn:doc reads local files. An EXPRESSION that\n"
+        "starts with - must follow --.\n"
+        "\n"
+        "An error is reported on standard error as\n"
+        "  expression:LINE:COLUMN: err:CODE: description\n"
+        "\n"
+        "Exit status: 0 on success, 1 for an error in the expression or a\n"
+        "context document that is not well-formed, 3 when a file cannot be\n"
+        "read."),
     .options = sxml_xpath_options,
     .option_count = sizeof sxml_xpath_options / sizeof sxml_xpath_options[0],
     .positionals = sxml_xpath_positionals,

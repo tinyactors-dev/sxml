@@ -149,10 +149,16 @@ typedef struct sxml_cli_program {
     sxml_byte_view name;
     /* One line for the top of the help, without a final period. */
     sxml_byte_view summary;
+    /* Paragraphs for the program's help, after the usage line, lines
+       separated by "\n", without a final line feed; empty for none. */
+    sxml_byte_view description;
     /* The commands in the order help lists them, after the built-in
        "help". Pointers, so each command can be defined in its own file. */
     const sxml_cli_command *const *commands;
     size_t command_count;
+    /* Complete command lines for the program's help, after the commands
+       and options; an empty list shows no examples section. */
+    sxml_cli_text_list examples;
     /* Where to report bugs, shown at the end of the help; empty for none. */
     sxml_byte_view bug_report_location;
 } sxml_cli_program;

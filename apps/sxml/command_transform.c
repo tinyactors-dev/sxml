@@ -107,10 +107,10 @@ static const sxml_cli_positional sxml_transform_positionals[] = {
 };
 
 static const sxml_byte_view sxml_transform_examples[] = {
-    SXML_BYTE_VIEW_INITIALIZER("sxml transform style.xsl books.xml"),
-    SXML_BYTE_VIEW_INITIALIZER("sxml transform --param=title=Books style.xsl books.xml"),
-    SXML_BYTE_VIEW_INITIALIZER("sxml transform --initial-template=main report.xsl"),
-    SXML_BYTE_VIEW_INITIALIZER("sxml transform --method=text --initial-mode=index style.xsl -"),
+    SXML_BYTE_VIEW_INITIALIZER("sxml transform list.xsl books.xml"),
+    SXML_BYTE_VIEW_INITIALIZER("sxml transform --param='heading=Reading list' list.xsl books.xml"),
+    SXML_BYTE_VIEW_INITIALIZER("sxml transform hello.xsl"),
+    SXML_BYTE_VIEW_INITIALIZER("sxml transform --method=xml list.xsl - < books.xml"),
 };
 
 /* --------------------------------------------------------------- Output */
@@ -448,20 +448,29 @@ static sxml_cli_exit_code sxml_run_transform_command(const sxml_cli_invocation *
 
 const sxml_cli_command sxml_transform_command = {
     .name = SXML_BYTE_VIEW_INITIALIZER("transform"),
-    .summary = SXML_BYTE_VIEW_INITIALIZER("Run an XSLT 4.0 transformation"),
+    .summary = SXML_BYTE_VIEW_INITIALIZER("Transform a document with an XSLT 4.0 stylesheet"),
     .description = SXML_BYTE_VIEW_INITIALIZER(
-        "Compiles the XSLT 4.0 stylesheet in STYLESHEET and transforms INPUT:\n"
-        "templates are applied to it in the initial mode (--initial-mode, else\n"
-        "the default mode), or --initial-template is called with it as the\n"
-        "focus. Without INPUT the initial template (--initial-template, else\n"
-        "xsl:initial-template) is called without a focus. The principal result\n"
-        "is written to standard output as the stylesheet's xsl:output says;\n"
-        "--method replaces the method. --param=NAME=VALUE binds the stylesheet\n"
-        "parameter $NAME to xs:untypedAtomic(VALUE). xsl:message output goes to\n"
-        "standard error. Modules and documents are read from local files only;\n"
-        "result documents with an href are not written. An error is reported\n"
-        "on standard error as STYLESHEET:LINE:COLUMN: err:CODE: description and\n"
-        "exits 1; an unreadable file exits 3."),
+        "Compiles the XSLT 4.0 stylesheet STYLESHEET and runs it.\n"
+        "\n"
+        "With INPUT, the document becomes the global context item. Templates\n"
+        "are applied to it in the default mode, or in the mode that\n"
+        "--initial-mode names; or the template that --initial-template names is\n"
+        "called with INPUT as the context item. Without INPUT, the template\n"
+        "that --initial-template names, else xsl:initial-template, is called\n"
+        "without a context item.\n"
+        "\n"
+        "The principal result goes to standard output, serialized as the\n"
+        "stylesheet's xsl:output says; --method replaces the method. Result\n"
+        "documents with an href are not written. xsl:message output goes to\n"
+        "standard error. --param=NAME=VALUE binds the stylesheet parameter\n"
+        "$NAME to xs:untypedAtomic(VALUE). Included and imported modules and\n"
+        "documents are read from local files.\n"
+        "\n"
+        "An error is reported on standard error as\n"
+        "  STYLESHEET:LINE:COLUMN: err:CODE: description\n"
+        "\n"
+        "Exit status: 0 on success, 1 for an error in the stylesheet or a\n"
+        "document that is not well-formed, 3 when a file cannot be read."),
     .options = sxml_transform_options,
     .option_count = sizeof sxml_transform_options / sizeof sxml_transform_options[0],
     .positionals = sxml_transform_positionals,

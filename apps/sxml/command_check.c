@@ -60,8 +60,8 @@ static const sxml_cli_positional sxml_check_positionals[] = {
 };
 
 static const sxml_byte_view sxml_check_examples[] = {
-    SXML_BYTE_VIEW_INITIALIZER("sxml check document.xml"),
-    SXML_BYTE_VIEW_INITIALIZER("sxml check --format=json a.xml b.xml"),
+    SXML_BYTE_VIEW_INITIALIZER("sxml check books.xml"),
+    SXML_BYTE_VIEW_INITIALIZER("sxml check --format=json books.xml broken.xml"),
 };
 
 /* What happened to one file. */
@@ -320,16 +320,21 @@ sxml_run_check_command(const sxml_cli_invocation *invocation) {
 
 const sxml_cli_command sxml_check_command = {
     .name = SXML_BYTE_VIEW_INITIALIZER("check"),
-    .summary = SXML_BYTE_VIEW_INITIALIZER(
-        "Check that XML documents are namespace-well-formed"),
+    .summary = SXML_BYTE_VIEW_INITIALIZER("Check that XML documents are well-formed"),
     .description = SXML_BYTE_VIEW_INITIALIZER(
-        "Checks every FILE against XML 1.0 (Fifth Edition) and Namespaces in\n"
-        "XML 1.0, without building it. Encodings: UTF-8, UTF-16, ISO-8859-1\n"
-        "and US-ASCII. The external DTD subset and external entities are not\n"
-        "read. Each problem is reported on standard error as\n"
-        "FILE:LINE:COLUMN: message; with --format=json, one JSON object on\n"
-        "standard output lists every file with its \"status\". Exits 1 when a\n"
-        "file is not well-formed, 3 when a file cannot be read."),
+        "Checks that each FILE is a well-formed XML 1.0 document that also\n"
+        "conforms to Namespaces in XML 1.0. No tree is built. The supported\n"
+        "encodings are UTF-8, UTF-16, ISO-8859-1 and US-ASCII. The external DTD\n"
+        "subset and external entities are not read.\n"
+        "\n"
+        "Prints nothing when every FILE is well-formed. Each problem is\n"
+        "reported on standard error as\n"
+        "  FILE:LINE:COLUMN: message\n"
+        "With --format=json, one JSON object on standard output lists every\n"
+        "FILE with its \"status\".\n"
+        "\n"
+        "Exit status: 0 when every FILE is well-formed, 1 when one is not, 3\n"
+        "when one cannot be read."),
     .options = sxml_check_options,
     .option_count = sizeof sxml_check_options / sizeof sxml_check_options[0],
     .positionals = sxml_check_positionals,

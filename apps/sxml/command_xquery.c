@@ -90,11 +90,9 @@ static const sxml_cli_positional sxml_xquery_positionals[] = {
 };
 
 static const sxml_byte_view sxml_xquery_examples[] = {
-    SXML_BYTE_VIEW_INITIALIZER("sxml xquery report.xq"),
+    SXML_BYTE_VIEW_INITIALIZER("sxml xquery --context-item=books.xml titles.xq"),
     SXML_BYTE_VIEW_INITIALIZER("sxml xquery --expression='for $i in 1 to 3 return <i>{$i}</i>'"),
-    SXML_BYTE_VIEW_INITIALIZER("sxml xquery --context-item=book.xml --method=text titles.xq"),
-    SXML_BYTE_VIEW_INITIALIZER(
-        "sxml xquery --param=n=5 --expression='declare variable $n external; $n * 2'"),
+    SXML_BYTE_VIEW_INITIALIZER("sxml xquery --param=n=5 --expression='declare variable $n external; $n * 2'"),
 };
 
 /* The query text: QUERY-FILE's contents (owned, released by the caller)
@@ -218,17 +216,24 @@ static sxml_cli_exit_code sxml_run_xquery_command(const sxml_cli_invocation *inv
 
 const sxml_cli_command sxml_xquery_command = {
     .name = SXML_BYTE_VIEW_INITIALIZER("xquery"),
-    .summary = SXML_BYTE_VIEW_INITIALIZER("Evaluate an XQuery 4.0 query"),
+    .summary = SXML_BYTE_VIEW_INITIALIZER("Run an XQuery 4.0 query"),
     .description = SXML_BYTE_VIEW_INITIALIZER(
-        "Compiles the XQuery 4.0 main module in QUERY-FILE, or given with\n"
-        "--expression, and writes its result to standard output, serialized as\n"
-        "the query's output declarations say (method xml unless they name\n"
-        "another); --method replaces the method. --context-item=FILE parses\n"
-        "FILE as the context item. --param=NAME=VALUE binds the external\n"
-        "variable $NAME, which the query declares, to xs:untypedAtomic(VALUE).\n"
-        "fn:doc reads local files only. An error of the query is reported on\n"
-        "standard error as QUERY-FILE:LINE:COLUMN: err:CODE: description and\n"
-        "exits 1; an unreadable file exits 3."),
+        "Runs the XQuery 4.0 main module in QUERY-FILE, or the query that\n"
+        "--expression gives, and writes the result to standard output. The\n"
+        "result is serialized as the query's output declarations say (method\n"
+        "xml unless they name another); --method replaces the method.\n"
+        "\n"
+        "--context-item=FILE parses FILE and makes it the context item.\n"
+        "--param=NAME=VALUE binds the external variable $NAME, if the query\n"
+        "declares it, to xs:untypedAtomic(VALUE). Library modules (import\n"
+        "module ... at) are read from local files relative to the working\n"
+        "directory; fn:doc reads local files.\n"
+        "\n"
+        "An error is reported on standard error as\n"
+        "  QUERY-FILE:LINE:COLUMN: err:CODE: description\n"
+        "\n"
+        "Exit status: 0 on success, 1 for an error in the query or a context\n"
+        "document that is not well-formed, 3 when a file cannot be read."),
     .options = sxml_xquery_options,
     .option_count = sizeof sxml_xquery_options / sizeof sxml_xquery_options[0],
     .positionals = sxml_xquery_positionals,
