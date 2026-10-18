@@ -1940,6 +1940,42 @@ static sxml_status add_invocation_globals(sxml_xpath_lowerer *lowerer,
 }
 
 /* Lowers into new_unit with a lowerer in caller memory. */
+/* 2.4.4 with packages (3.4.5): the initial template is the named template
+   the top-level package binds the name to, when it is public or final
+   there (an xsl:stylesheet's named templates are public); otherwise there
+   is none (XTDE0040 for a name the host gave). */
+static void bind_initial_template(const sxml_xslt_lowering *lowering,
+                                  const sxml_xslt_lowering_request *request,
+                                  sxml_xslt_invocation *invocation) {
+    if (request->applies_templates || request->template_node.value != 0 ||
+        invocation->template_node.value == 0) {
+        return;
+    }
+    const sxml_xslt_ast_attribute *name = sxml_xslt_ast_get_attribute(
+        lowering->ast,
+        sxml_xslt_ast_find_attribute(
+            lowering->ast, (sxml_xslt_ast_attribute_query){.node = invocation->template_node,
+                                                           .kind = SXML_XSLT_AST_ATTRIBUTE_NAME}));
+    if (name->value.kind != SXML_XSLT_AST_VALUE_KIND_NAME) {
+        return;
+    }
+    const sxml_xslt_component_reference reference = {
+        .component_kind = SXML_XSLT_COMPONENT_KIND_TEMPLATE,
+        .component_name = name->value.payload.name,
+        .arity = 0,
+        .package = 1};
+    const sxml_xslt_visibility visibility =
+        sxml_xslt_package_get_reference_visibility(lowering, &reference);
+    const sxml_xslt_component_binding binding = sxml_xslt_package_bind(lowering, &reference);
+    if (binding.declaration.value != 0 &&
+        (visibility == SXML_XSLT_VISIBILITY_PUBLIC || visibility == SXML_XSLT_VISIBILITY_FINAL)) {
+        invocation->template_node = binding.declaration;
+        return;
+    }
+    invocation->template_node = (sxml_xslt_ast_node_index){.value = 0};
+    invocation->is_unknown_template = request->initial_template.index != 0;
+}
+
 typedef struct unit_lowering {
     const sxml_xslt_lowering_request *request;
     sxml_xslt_invocation invocation;
@@ -1978,7 +2014,8 @@ static sxml_status lower_into_unit(const unit_lowering *work) {
                                    .error_record = request->error_record,
                                    .templates = NULL,
                                    .components = NULL,
-                                   .kept_asts = NULL};
+                                   .kept_asts = NULL,
+                                   .packages = NULL};
     sxml_xslt_kept_asts kept_asts = {
         .allocator = lowerer->allocator, .asts = NULL, .ast_count = 0, .ast_capacity = 0};
     lowering.kept_asts = &kept_asts;
@@ -1986,6 +2023,11 @@ static sxml_status lower_into_unit(const unit_lowering *work) {
                                   &memory, &lowering);
     if (status == SXML_STATUS_OK) {
         status = collect_aliases(&lowering, &memory, &lowering);
+    }
+    /* Packages first: every lookup below binds through them (packet
+       4.16). */
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xslt_declare_packages(&lowering);
     }
     /* Function 1 is the main function, whose body comes last. */
     sxml_ir_function_index main_function = {0};
@@ -2022,6 +2064,9 @@ static sxml_status lower_into_unit(const unit_lowering *work) {
         status = sxml_xslt_lower_components(&lowering);
     }
     sxml_xslt_invocation invocation = work->invocation;
+    if (status == SXML_STATUS_OK) {
+        bind_initial_template(&lowering, request, &invocation);
+    }
     invocation_globals globals = {.global_count = 0, .first_number = 0};
     if (status == SXML_STATUS_OK) {
         status = plan_invocation_globals(
@@ -2061,8 +2106,8 @@ static sxml_status lower_into_unit(const unit_lowering *work) {
         status = sxml_xslt_lower_accumulators(accumulators);
     }
     const sxml_xslt_ast_node_index context_node =
-        work->invocation.template_node.value != 0
-            ? work->invocation.template_node
+        invocation.template_node.value != 0
+            ? invocation.template_node
             : sxml_xslt_ast_get_module(request->ast, (sxml_xslt_ast_module_index){.value = 1})
                   ->root;
     const sxml_xslt_ast_static_context_index template_context =
@@ -2081,6 +2126,7 @@ static sxml_status lower_into_unit(const unit_lowering *work) {
     sxml_xslt_release_accumulators(accumulators);
     sxml_xslt_release_functions(xslt_functions);
     sxml_xslt_release_components(&lowering);
+    sxml_xslt_release_packages(&lowering);
     release_storage(work->base_context->allocator, &memory);
     sxml_xslt_release_kept_asts(&kept_asts);
     sxml_xpath_lowerer_finalize(lowerer);

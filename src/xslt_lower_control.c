@@ -4549,11 +4549,48 @@ static const sxml_xpath_lowering_procedure break_procedure = {
  * expressions of its declaration); a cycle is XTDE0640 (9.11).
  */
 
-/* The global a name declares; global_count when none. */
-static size_t find_global(const sxml_xslt_lowering *lowering, sxml_name_identifier name) {
+/* A global variable's name in the package that declares it (3.4.5:
+   packages have globals of their own). */
+typedef struct global_key {
+    sxml_name_identifier name;
+    uint32_t package;
+} global_key;
+
+/* The global a name declares in a package; global_count when none. */
+static size_t find_global(const sxml_xslt_lowering *lowering, global_key key) {
     for (size_t global_index = 0; global_index < lowering->global_count; global_index += 1) {
-        if (lowering->global_declarations[global_index].variable_name.index == name.index) {
+        if (lowering->global_declarations[global_index].variable_name.index == key.name.index &&
+            sxml_xslt_package_of_node(lowering, lowering->global_nodes[global_index]) ==
+                key.package) {
             return global_index;
+        }
+    }
+    return lowering->global_count;
+}
+
+/* The global a reference to name reads in an AST static context: the
+   one its XPath static context declares (per package, below);
+   global_count when none. */
+typedef struct global_reference {
+    sxml_xslt_ast_static_context_index static_context;
+    sxml_name_identifier name;
+} global_reference;
+
+static size_t find_referenced_global(const sxml_xslt_lowering *lowering,
+                                     global_reference reference) {
+    if (reference.static_context.value == 0 ||
+        reference.static_context.value >= lowering->static_context_count) {
+        return lowering->global_count;
+    }
+    const sxml_xpath_static_context *context =
+        &lowering->static_contexts[reference.static_context.value];
+    const sxml_variable_declaration_view declarations = context->variable_declarations;
+    for (size_t index = 0; index < declarations.variable_declaration_count; index += 1) {
+        if (declarations.variable_declarations[index].variable_name.index ==
+            reference.name.index) {
+            const uint32_t number = sxml_xpath_global_number(context, index);
+            return number >= 1U && number <= lowering->global_count ? (size_t)number - 1U
+                                                                    : lowering->global_count;
         }
     }
     return lowering->global_count;
@@ -4563,6 +4600,149 @@ static bool is_global_declaration(const sxml_xslt_lowering *lowering,
                                   sxml_xslt_ast_node_index node) {
     const sxml_xslt_ast_kind kind = kind_of(lowering, node);
     return kind == SXML_XSLT_AST_KIND_VARIABLE || kind == SXML_XSLT_AST_KIND_PARAM;
+}
+
+/* An xsl:variable or xsl:param that overrides one of a used package. */
+static bool has_overriding_variable(const sxml_xslt_lowering *lowering) {
+    for (size_t global_index = 0; global_index < lowering->global_count; global_index += 1) {
+        if (sxml_xslt_package_overriding_ancestor_of(lowering, lowering->global_nodes[global_index])
+                .value != 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* The globals one package sees (3.4.5.5): one per variable name it binds,
+   each to the global of the declaration it binds to, plus $xsl:original
+   in an overriding variable (3.4.5.4). */
+typedef struct package_view {
+    uint32_t package;
+    /* 0, or the overriding variable whose xsl:original is added. */
+    sxml_xslt_ast_node_index overriding;
+} package_view;
+
+static sxml_status make_package_view(const sxml_xslt_lowering *lowering, package_view view,
+                                     sxml_xpath_static_context *static_context) {
+    const size_t capacity = lowering->global_count + 1U;
+    void *memory = NULL;
+    sxml_status status = sxml_xslt_package_allocate(
+        lowering,
+        (sxml_xslt_package_memory_request){.element_count = capacity,
+                                           .element_size = sizeof(sxml_variable_declaration),
+                                           .element_alignment = alignof(sxml_variable_declaration)},
+        &memory);
+    sxml_variable_declaration *declarations = memory;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xslt_package_allocate(
+            lowering,
+            (sxml_xslt_package_memory_request){.element_count = capacity,
+                                               .element_size = sizeof(uint32_t),
+                                               .element_alignment = alignof(uint32_t)},
+            &memory);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    uint32_t *numbers = memory;
+    size_t count = 0;
+    for (size_t global_index = 0; global_index < lowering->global_count; global_index += 1) {
+        const sxml_name_identifier name = lowering->global_declarations[global_index].variable_name;
+        bool is_seen = false;
+        for (size_t earlier = 0; earlier < count && !is_seen; earlier += 1) {
+            is_seen = declarations[earlier].variable_name.index == name.index;
+        }
+        if (is_seen) {
+            continue;
+        }
+        const sxml_xslt_component_binding bound = sxml_xslt_package_bind(
+            lowering, &(sxml_xslt_component_reference){
+                          .component_kind = SXML_XSLT_COMPONENT_KIND_VARIABLE,
+                          .component_name = name,
+                          .arity = 0,
+                          .package = view.package});
+        for (size_t target = 0; target < lowering->global_count; target += 1) {
+            if (bound.declaration.value != 0 &&
+                lowering->global_nodes[target].value == bound.declaration.value) {
+                declarations[count] = lowering->global_declarations[target];
+                numbers[count] = (uint32_t)target + 1U;
+                count += 1;
+                break;
+            }
+        }
+    }
+    if (view.overriding.value != 0) {
+        const sxml_xslt_component_binding original =
+            sxml_xslt_package_bind_original(lowering, view.overriding);
+        sxml_name_identifier original_name = {.index = 0};
+        status = sxml_name_pool_intern_name(
+            lowering->lowerer->name_pool,
+            &(sxml_name_request){.namespace_uri =
+                                     sxml_well_known_namespace_identifier(SXML_NAMESPACE_XSLT),
+                                 .local_name = SXML_BYTE_VIEW_FROM_LITERAL("original")},
+            &original_name);
+        for (size_t target = 0; status == SXML_STATUS_OK && target < lowering->global_count;
+             target += 1) {
+            /* XTSE3075 for $xsl:original of an abstract variable: left
+               undeclared, XPST0008 (3.4.5.4). */
+            if (original.declaration.value != 0 && !original.is_abstract &&
+                lowering->global_nodes[target].value == original.declaration.value) {
+                declarations[count] = lowering->global_declarations[target];
+                declarations[count].variable_name = original_name;
+                numbers[count] = (uint32_t)target + 1U;
+                count += 1;
+                break;
+            }
+        }
+    }
+    static_context->variable_declarations = (sxml_variable_declaration_view){
+        .variable_declarations = declarations, .variable_declaration_count = count};
+    static_context->global_numbers = numbers;
+    return status;
+}
+
+static sxml_status declare_package_views(const sxml_xslt_lowering *lowering,
+                                         sxml_xpath_static_context *static_contexts) {
+    sxml_status status = SXML_STATUS_OK;
+    for (uint32_t context_index = 1;
+         status == SXML_STATUS_OK && context_index < lowering->static_context_count;
+         context_index += 1) {
+        const sxml_xslt_ast_static_context_index context = {.value = context_index};
+        const sxml_xslt_ast_node_index overriding =
+            sxml_xslt_package_overriding_declaration_of(lowering, context);
+        const sxml_xslt_ast_kind overriding_kind = node_of(lowering, overriding)->kind;
+        const bool is_variable = overriding_kind == SXML_XSLT_AST_KIND_VARIABLE ||
+                                 overriding_kind == SXML_XSLT_AST_KIND_PARAM;
+        const uint32_t package = sxml_xslt_package_of_static_context(lowering, context);
+        /* Contexts of one package without xsl:original share a view: the
+           first one made. */
+        bool is_shared = false;
+        for (uint32_t earlier = 1; !is_variable && earlier < context_index && !is_shared;
+             earlier += 1) {
+            const sxml_xslt_ast_static_context_index other = {.value = earlier};
+            const sxml_xslt_ast_kind other_kind =
+                node_of(lowering, sxml_xslt_package_overriding_declaration_of(lowering, other))
+                    ->kind;
+            if (sxml_xslt_package_of_static_context(lowering, other) == package &&
+                other_kind != SXML_XSLT_AST_KIND_VARIABLE &&
+                other_kind != SXML_XSLT_AST_KIND_PARAM) {
+                static_contexts[context_index].variable_declarations =
+                    static_contexts[earlier].variable_declarations;
+                static_contexts[context_index].global_numbers =
+                    static_contexts[earlier].global_numbers;
+                is_shared = true;
+            }
+        }
+        if (!is_shared) {
+            status = make_package_view(
+                lowering,
+                (package_view){.package = package,
+                               .overriding = is_variable ? overriding
+                                                         : (sxml_xslt_ast_node_index){.value = 0}},
+                &static_contexts[context_index]);
+        }
+    }
+    return status;
 }
 
 sxml_status
@@ -4610,7 +4790,8 @@ sxml_xslt_lowering_declare_global_variables(sxml_xslt_lowering *lowering,
         const sxml_name_identifier name = binding_name_of(lowering, node);
         const uint32_t precedence =
             sxml_xslt_ast_get_module(ast, node_of(lowering, node)->module)->import_precedence;
-        const size_t existing = find_global(lowering, name);
+        const uint32_t package = sxml_xslt_package_of_node(lowering, node);
+        const size_t existing = find_global(lowering, (global_key){.name = name, .package = package});
         if (existing == lowering->global_count) {
             lowering->global_declarations[existing] = (sxml_variable_declaration){
                 .variable_name = name,
@@ -4636,6 +4817,7 @@ sxml_xslt_lowering_declare_global_variables(sxml_xslt_lowering *lowering,
                 has_higher = has_higher ||
                              (is_global_declaration(lowering, candidate) &&
                               binding_name_of(lowering, candidate).index == name.index &&
+                              sxml_xslt_package_of_node(lowering, candidate) == package &&
                               sxml_xslt_ast_get_module(ast, node_of(lowering, candidate)->module)
                                       ->import_precedence > precedence);
             }
@@ -4647,6 +4829,9 @@ sxml_xslt_lowering_declare_global_variables(sxml_xslt_lowering *lowering,
                         "precedence have the same name (XSLT 4.0, 9.5)"));
             }
         }
+    }
+    if (sxml_xslt_package_count(lowering) > 1U || has_overriding_variable(lowering)) {
+        return declare_package_views(lowering, static_contexts);
     }
     const sxml_variable_declaration_view declarations = {
         .variable_declarations = lowering->global_declarations,
@@ -4738,7 +4923,8 @@ static sxml_status walk_references(reference_walk walk, edge_sink *sink) {
                                       &name)) {
             continue;
         }
-        const size_t target = find_global(lowering, name);
+        const size_t target = find_referenced_global(
+            lowering, (global_reference){.static_context = expression->static_context, .name = name});
         if (target == lowering->global_count) {
             continue;
         }
@@ -4949,6 +5135,12 @@ static sxml_status lower_initializer(initializer_request request,
             .kind = SXML_XPATH_LOWERING_FOCUS_KIND_FIXED,
             .fixed_value = {.atom_kind = SXML_IR_ATOM_KIND_GLOBAL_VARIABLE,
                             .global_variable = {.value = (uint32_t)lowering->global_count + 1U}}}};
+    if (sxml_xslt_package_of_node(lowering, node) != 1U) {
+        /* 2.3.2: a library package's globals have no global context item
+           (XPDY0002 when they read one). */
+        function_frame.focus =
+            (sxml_xpath_lowering_focus){.kind = SXML_XPATH_LOWERING_FOCUS_KIND_ABSENT};
+    }
     sxml_xpath_lowerer_enter_function(lowerer, &function_frame);
     sxml_xpath_lowering_block block = {.first = {0}, .open_let = {0}};
     sxml_ir_atom value = {0};
@@ -4956,7 +5148,15 @@ static sxml_status lower_initializer(initializer_request request,
     const sxml_xslt_ast_attribute *required = find_attribute(
         lowering, (attribute_lookup){.node = node, .kind = SXML_XSLT_AST_ATTRIBUTE_REQUIRED});
     sxml_ir_expression_index result = {0};
-    if (is_parameter && required->value.kind == SXML_XSLT_AST_VALUE_KIND_BOOLEAN &&
+    if (sxml_xslt_package_is_abstract(lowering, node)) {
+        status = add_raise(lowerer,
+                           (raise_request){.error_status = SXML_STATUS_DYNAMIC_ERROR,
+                                           .code = SXML_BYTE_VIEW_FROM_LITERAL("XTDE3052"),
+                                           .description = SXML_BYTE_VIEW_FROM_LITERAL(
+                                               "an abstract variable no package overrides is "
+                                               "read (XSLT 4.0, 3.4.5.2)")},
+                           &result);
+    } else if (is_parameter && required->value.kind == SXML_XSLT_AST_VALUE_KIND_BOOLEAN &&
         required->value.payload.is_true) {
         status = add_raise(lowerer,
                            (raise_request){.error_status = SXML_STATUS_DYNAMIC_ERROR,
@@ -5234,7 +5434,8 @@ static sxml_status add_expression_edges(const sxml_xslt_lowering *lowering, comp
                                                     .name = name});
             continue;
         }
-        const size_t global_index = find_global(lowering, name);
+        const size_t global_index = find_referenced_global(
+            lowering, (global_reference){.static_context = expression->static_context, .name = name});
         if (global_index < lowering->global_count) {
             const uint32_t order =
                 graph->declaration_orders[lowering->global_nodes[global_index].value];
@@ -5501,6 +5702,26 @@ static sxml_status order_through_components(const sxml_xslt_lowering *lowering, 
     return status;
 }
 
+/* A global some static context binds a reference to (3.4.5.5): the
+   others (an overridden or abstract variable no reference reaches) get no
+   initializer and are never computed. Every global with one package. */
+static bool is_bound_global(const sxml_xslt_lowering *lowering, size_t global_index) {
+    for (uint32_t context_index = 1; context_index < lowering->static_context_count;
+         context_index += 1) {
+        const sxml_xpath_static_context *context = &lowering->static_contexts[context_index];
+        if (context->global_numbers == NULL) {
+            return true;
+        }
+        for (size_t index = 0; index < context->variable_declarations.variable_declaration_count;
+             index += 1) {
+            if (context->global_numbers[index] == global_index + 1U) {
+                return true;
+            }
+        }
+    }
+    return lowering->static_context_count < 2U;
+}
+
 sxml_status sxml_xslt_lowering_add_global_variables(const sxml_xslt_lowering *lowering) {
     const size_t global_count = lowering->global_count;
     if (global_count == 0) {
@@ -5542,6 +5763,10 @@ sxml_status sxml_xslt_lowering_add_global_variables(const sxml_xslt_lowering *lo
          order_index += 1) {
         const size_t global_index = order[order_index];
         sxml_ir_function_index wrapper = {0};
+        if (!is_bound_global(lowering, global_index)) {
+            ordered[global_index] = 0;
+            continue;
+        }
         status = add_ordered_initializer(
             lowerer, (sxml_ir_function_index){.value = (uint32_t)initializers[global_index]},
             &wrapper);

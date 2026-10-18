@@ -5,6 +5,7 @@
  * through include/sxml/xslt.h only.
  */
 #include "xslt_execution.h"
+#include "xslt_package_version.h"
 
 #include "resource_table.h"
 #include "suite_path.h"
@@ -282,6 +283,75 @@ static sxml_status sxml_xslt_test_intern(sxml_xslt_test_context *context,
 
 /* ------------------------------------------------------------- Resolver */
 
+/* The name and version of a package (3.4); the texts read from a file
+   are copied into the buffers. */
+typedef struct sxml_package_identity {
+    sxml_byte_view package_name;
+    sxml_byte_view package_version;
+    uint8_t name_bytes[256];
+    uint8_t version_bytes[64];
+} sxml_package_identity;
+
+static sxml_byte_view sxml_copy_into(sxml_byte_view text, uint8_t *buffer, size_t capacity) {
+    if (text.byte_count == 0 || text.byte_count > capacity) {
+        return (sxml_byte_view){.bytes = NULL, .byte_count = 0};
+    }
+    memcpy(buffer, text.bytes, text.byte_count);
+    return (sxml_byte_view){.bytes = buffer, .byte_count = text.byte_count};
+}
+
+/* For a <package> without uri= or package-version=: the name and version
+   its file gives. */
+static sxml_status sxml_xslt_test_read_package_identity(sxml_xslt_test_context *context,
+                                                        const sxml_xslt_test_module *module,
+                                                        sxml_package_identity *identity) {
+    if (identity->package_name.byte_count > 0 && identity->package_version.byte_count > 0) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_resource_resolver table =
+        sxml_qt4_resource_table_resolver(&context->resource_table);
+    sxml_byte_view file_uri = sxml_xslt_test_empty_text;
+    sxml_status status = sxml_xslt_test_suite_uri(context, module->file_path, &file_uri);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_resource resource;
+    memset(&resource, 0, sizeof(resource));
+    status = table.operations->resolve(
+        table.state,
+        &(sxml_resource_request){.resource_kind = SXML_RESOURCE_KIND_XML_DOCUMENT,
+                                 .uri_reference = file_uri,
+                                 .absolute_uri = file_uri,
+                                 .processor = NULL,
+                                 .encoding_name = sxml_xslt_test_empty_text,
+                                 .is_default_collection = false,
+                                 .target_namespace_uri = sxml_xslt_test_empty_text,
+                                 .package_version = sxml_xslt_test_empty_text},
+        &resource);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (resource.resource_form == SXML_RESOURCE_FORM_BYTES) {
+        if (identity->package_name.byte_count == 0) {
+            identity->package_name = sxml_copy_into(
+                sxml_xslt_test_package_attribute((sxml_xslt_test_package_attribute_query){
+                    .module_text = resource.content, .attribute_name = SXML_TEXT("name")}),
+                identity->name_bytes, sizeof(identity->name_bytes));
+        }
+        if (identity->package_version.byte_count == 0) {
+            identity->package_version = sxml_copy_into(
+                sxml_xslt_test_package_attribute((sxml_xslt_test_package_attribute_query){
+                    .module_text = resource.content,
+                    .attribute_name = SXML_TEXT("package-version")}),
+                identity->version_bytes, sizeof(identity->version_bytes));
+        }
+    }
+    if (table.operations->release != NULL) {
+        table.operations->release(table.state, &resource);
+    }
+    return SXML_STATUS_OK;
+}
+
 /* The test's resolver: modules and packages as suite files, the rest as
    the QT4 resource table serves it. */
 static sxml_status sxml_xslt_test_resolve(void *state,
@@ -299,36 +369,90 @@ static sxml_status sxml_xslt_test_resolve(void *state,
         return table.operations->resolve(table.state, request, resource);
     }
     /* 3.4.3: the package of that name among the test's and the
-       environment's modules. */
+       environment's modules whose version the range matches, the highest
+       (package_version_resolution highest_version, D117, D160); a
+       <package> without uri= is known by the name in its file. */
     const sxml_xslt_test_module_view lists[2] = {
         context->test_case->modules, context->test_case->environment.modules};
+    const sxml_xslt_test_module *best = NULL;
+    uint8_t best_version_bytes[64];
+    sxml_byte_view best_version = sxml_xslt_test_empty_text;
     for (size_t list_index = 0; list_index < 2; list_index += 1) {
         for (size_t module_index = 0; module_index < lists[list_index].module_count;
              module_index += 1) {
             const sxml_xslt_test_module *module =
                 &lists[list_index].modules[module_index];
-            if (module->module_kind != SXML_XSLT_TEST_MODULE_KIND_PACKAGE ||
-                (!sxml_byte_view_equals(module->uri, request->uri_reference) &&
-                 !sxml_byte_view_equals(module->package_name, request->uri_reference))) {
+            if (module->module_kind != SXML_XSLT_TEST_MODULE_KIND_PACKAGE) {
                 continue;
             }
-            sxml_byte_view file_uri = sxml_xslt_test_empty_text;
-            sxml_status status =
-                sxml_xslt_test_suite_uri(context, module->file_path, &file_uri);
-            if (status != SXML_STATUS_OK) {
-                return status;
+            const bool is_unnamed =
+                module->uri.byte_count == 0 && module->package_name.byte_count == 0;
+            if (request->uri_reference.byte_count == 0) {
+                /* The principal package without a name: the first such. */
+                if (is_unnamed && best == NULL) {
+                    best = module;
+                }
+                continue;
             }
-            forwarded.resource_kind = SXML_RESOURCE_KIND_XML_DOCUMENT;
-            forwarded.uri_reference = file_uri;
-            forwarded.absolute_uri = file_uri;
-            status = table.operations->resolve(table.state, &forwarded, resource);
-            if (status == SXML_STATUS_OK &&
-                resource->resource_form == SXML_RESOURCE_FORM_BYTES &&
-                resource->resource_uri.byte_count == 0) {
-                resource->resource_uri = file_uri;
+            const bool is_named = sxml_byte_view_equals(module->uri, request->uri_reference) ||
+                                  sxml_byte_view_equals(module->package_name,
+                                                        request->uri_reference);
+            if (!is_named && !is_unnamed) {
+                continue;
             }
+            sxml_package_identity identity_storage;
+            sxml_package_identity *identity = &identity_storage;
+            memset(identity, 0, sizeof(*identity));
+            identity->package_name = is_named ? request->uri_reference : sxml_xslt_test_empty_text;
+            identity->package_version = module->package_version;
+            const sxml_status read_status =
+                sxml_xslt_test_read_package_identity(context, module, identity);
+            if (read_status != SXML_STATUS_OK) {
+                return read_status;
+            }
+            if (!is_named &&
+                !sxml_byte_view_equals(identity->package_name, request->uri_reference)) {
+                continue;
+            }
+            const sxml_byte_view version = identity->package_version.byte_count == 0
+                                               ? SXML_TEXT("1")
+                                               : identity->package_version;
+            sxml_xslt_test_package_version_match match = {.matches = true};
+            if (sxml_xslt_test_package_version_matches(
+                    (sxml_xslt_test_package_version_query){
+                        .package_version = version,
+                        .version_range = request->package_version.byte_count == 0
+                                             ? SXML_TEXT("*")
+                                             : request->package_version},
+                    &match) != SXML_STATUS_OK) {
+                /* A range the package reader rejects (XTSE0020): any. */
+                match.matches = true;
+            }
+            if (match.matches &&
+                (best == NULL ||
+                 sxml_xslt_test_compare_package_versions((sxml_xslt_test_package_version_pair){
+                     .first = version, .second = best_version}) > 0)) {
+                best = module;
+                best_version = sxml_copy_into(version, best_version_bytes,
+                                              sizeof(best_version_bytes));
+            }
+        }
+    }
+    if (best != NULL) {
+        sxml_byte_view file_uri = sxml_xslt_test_empty_text;
+        sxml_status status = sxml_xslt_test_suite_uri(context, best->file_path, &file_uri);
+        if (status != SXML_STATUS_OK) {
             return status;
         }
+        forwarded.resource_kind = SXML_RESOURCE_KIND_XML_DOCUMENT;
+        forwarded.uri_reference = file_uri;
+        forwarded.absolute_uri = file_uri;
+        status = table.operations->resolve(table.state, &forwarded, resource);
+        if (status == SXML_STATUS_OK && resource->resource_form == SXML_RESOURCE_FORM_BYTES &&
+            resource->resource_uri.byte_count == 0) {
+            resource->resource_uri = file_uri;
+        }
+        return status;
     }
     resource->resource_form = SXML_RESOURCE_FORM_NONE;
     resource->description = SXML_TEXT("No package of that name in the test case");

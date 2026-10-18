@@ -80,9 +80,11 @@ typedef struct declared_function {
     bool has_result_type;
 } declared_function;
 
-/* One attribute set: every xsl:attribute-set of one name. */
+/* One attribute set: every xsl:attribute-set of one name in one package
+   (3.4.5: sets of different packages never merge). */
 typedef struct attribute_set {
     sxml_name_identifier set_name;
+    uint32_t package;
     sxml_ir_function_index function;
     sxml_ir_function_index absent_function;
     /* Its declarations in declaration_nodes, in evaluation order. */
@@ -95,10 +97,17 @@ typedef struct attribute_set {
 typedef struct context_table {
     const sxml_xslt_component_lowering *components;
     sxml_function_table inner_table;
+    /* The AST static context: its package binds the calls (3.4.5.5),
+       its overriding declaration xsl:original (3.4.5.4). */
+    sxml_xslt_ast_static_context_index static_context;
 } context_table;
 
 struct sxml_xslt_component_lowering {
     sxml_name_pool *name_pool;
+    /* For binding references through the packages (packet 4.16). */
+    const sxml_xslt_lowering *lowering;
+    /* xsl:original (3.4.5.4); 0 when never interned. */
+    sxml_name_identifier original_name;
     /* Sorted by name, then lowest arity. */
     declared_function *functions;
     size_t function_count;
@@ -387,26 +396,41 @@ static void sort_indices(index_heap heap) {
 
 /* ------------------------------------------------------- Function table */
 
-/* The component of name whose arity range holds arity; NULL for none. */
-static const declared_function *find_declared(const sxml_xslt_component_lowering *components,
-                                              sxml_function_query query) {
-    size_t low = 0;
-    size_t high = components->function_count;
-    while (low < high) {
-        const size_t middle = low + (high - low) / 2;
-        if (components->functions[middle].function_name.index < query.function_name.index) {
-            low = middle + 1;
-        } else {
-            high = middle;
+/* The function a call of query from static context binds to (3.4.5.5):
+   the package's component of that name and arity, or the one its
+   overriding declaration overrides for xsl:original (3.4.5.4); NULL for
+   none. */
+static const declared_function *find_bound(const context_table *table,
+                                           sxml_function_query query) {
+    const sxml_xslt_component_lowering *components = table->components;
+    const sxml_xslt_lowering *lowering = components->lowering;
+    sxml_xslt_component_binding binding = {.declaration = {.value = 0}};
+    if (query.function_name.index != 0 &&
+        query.function_name.index == components->original_name.index) {
+        const sxml_xslt_ast_node_index overriding =
+            sxml_xslt_package_overriding_declaration_of(lowering, table->static_context);
+        if (sxml_xslt_ast_get_node(lowering->ast, overriding)->kind !=
+            SXML_XSLT_AST_KIND_FUNCTION) {
+            return NULL;
         }
+        binding = sxml_xslt_package_bind_original(lowering, overriding);
+    } else {
+        binding = sxml_xslt_package_bind(
+            lowering, &(sxml_xslt_component_reference){
+                          .component_kind = SXML_XSLT_COMPONENT_KIND_FUNCTION,
+                          .component_name = query.function_name,
+                          .arity = (uint32_t)query.arity,
+                          .package = sxml_xslt_package_of_static_context(lowering,
+                                                                         table->static_context)});
     }
-    for (size_t function_index = low; function_index < components->function_count &&
-                                      components->functions[function_index].function_name.index ==
-                                          query.function_name.index;
+    if (binding.declaration.value == 0) {
+        return NULL;
+    }
+    for (size_t function_index = 0; function_index < components->function_count;
          function_index += 1) {
         const declared_function *function = &components->functions[function_index];
-        if (function->is_component && query.arity >= function->required_count &&
-            query.arity <= function->parameter_count) {
+        if (function->node.value == binding.declaration.value && function->is_component &&
+            query.arity >= function->required_count && query.arity <= function->parameter_count) {
             return function;
         }
     }
@@ -455,7 +479,7 @@ static sxml_status find_function(void *state, const sxml_function_query *query,
                                  sxml_function_entry *entry) {
     const context_table *table = state;
     const sxml_xslt_component_lowering *components = table->components;
-    const declared_function *function = find_declared(components, *query);
+    const declared_function *function = find_bound(table, *query);
     if (function != NULL) {
         *entry = entry_of(components, function, query->arity);
         return SXML_STATUS_OK;
@@ -672,7 +696,10 @@ static sxml_status choose_components(const sxml_xslt_lowering *lowering,
         for (size_t index = group; index < group_end; index += 1) {
             functions[index].is_component = true;
             for (size_t other = group; other < group_end; other += 1) {
-                if (functions[other].import_precedence > functions[index].import_precedence &&
+                /* Packages do not eclipse each other's functions (3.4.5). */
+                if (sxml_xslt_package_is_same(lowering, functions[other].node,
+                                              functions[index].node) &&
+                    functions[other].import_precedence > functions[index].import_precedence &&
                     range_contains(&functions[other], &functions[index])) {
                     functions[index].is_component = false;
                 }
@@ -683,7 +710,8 @@ static sxml_status choose_components(const sxml_xslt_lowering *lowering,
                 const declared_function *first = &functions[index];
                 const declared_function *second = &functions[other];
                 if (index == other || !first->is_component || !second->is_component ||
-                    !ranges_overlap(first, second)) {
+                    !ranges_overlap(first, second) ||
+                    !sxml_xslt_package_is_same(lowering, first->node, second->node)) {
                     continue;
                 }
                 if (first->import_precedence == second->import_precedence) {
@@ -919,6 +947,11 @@ static bool declaration_comes_before(const void *state, size_t first, size_t sec
     if (first_name.index != second_name.index) {
         return first_name.index < second_name.index;
     }
+    const uint32_t first_package = sxml_xslt_package_of_node(sort->lowering, sort->nodes[first]);
+    const uint32_t second_package = sxml_xslt_package_of_node(sort->lowering, sort->nodes[second]);
+    if (first_package != second_package) {
+        return first_package < second_package;
+    }
     const uint32_t first_precedence = precedence_of(sort->lowering, sort->nodes[first]);
     const uint32_t second_precedence = precedence_of(sort->lowering, sort->nodes[second]);
     if (first_precedence != second_precedence) {
@@ -927,8 +960,15 @@ static bool declaration_comes_before(const void *state, size_t first, size_t sec
     return first < second;
 }
 
+/* The attribute set of name declared in package. */
+typedef struct attribute_set_key {
+    sxml_name_identifier set_name;
+    uint32_t package;
+} attribute_set_key;
+
 static const attribute_set *find_attribute_set(const sxml_xslt_component_lowering *components,
-                                               sxml_name_identifier name) {
+                                               attribute_set_key key) {
+    const sxml_name_identifier name = key.set_name;
     size_t low = 0;
     size_t high = components->attribute_set_count;
     while (low < high) {
@@ -939,11 +979,54 @@ static const attribute_set *find_attribute_set(const sxml_xslt_component_lowerin
             high = middle;
         }
     }
-    if (low < components->attribute_set_count &&
-        components->attribute_sets[low].set_name.index == name.index) {
-        return &components->attribute_sets[low];
+    for (size_t index = low; index < components->attribute_set_count &&
+                             components->attribute_sets[index].set_name.index == name.index;
+         index += 1) {
+        if (components->attribute_sets[index].package == key.package) {
+            return &components->attribute_sets[index];
+        }
     }
     return NULL;
+}
+
+/* The attribute set an [xsl:]use-attribute-sets token on node binds to
+   (3.4.5.5): its package's set of that name, through the packages, or
+   for xsl:original in an overriding attribute set the overridden one
+   (3.4.5.4); NULL for none. */
+typedef struct attribute_set_reference {
+    sxml_xslt_ast_node_index node;
+    sxml_name_identifier set_name;
+} attribute_set_reference;
+
+static const attribute_set *resolve_attribute_set(const sxml_xslt_lowering *lowering,
+                                                  attribute_set_reference reference) {
+    const sxml_xslt_component_lowering *components = lowering->components;
+    if (components == NULL) {
+        return NULL;
+    }
+    sxml_xslt_component_binding binding = {.declaration = {.value = 0}};
+    if (reference.set_name.index != 0 &&
+        reference.set_name.index == components->original_name.index) {
+        const sxml_xslt_ast_node_index overriding =
+            sxml_xslt_package_overriding_ancestor_of(lowering, reference.node);
+        if (node_of(lowering, overriding)->kind != SXML_XSLT_AST_KIND_ATTRIBUTE_SET) {
+            return NULL;
+        }
+        binding = sxml_xslt_package_bind_original(lowering, overriding);
+    } else {
+        binding = sxml_xslt_package_bind(
+            lowering, &(sxml_xslt_component_reference){
+                          .component_kind = SXML_XSLT_COMPONENT_KIND_ATTRIBUTE_SET,
+                          .component_name = reference.set_name,
+                          .arity = 0,
+                          .package = sxml_xslt_package_of_node(lowering, reference.node)});
+    }
+    if (binding.declaration.value == 0) {
+        return NULL;
+    }
+    return find_attribute_set(components,
+                              (attribute_set_key){.set_name = name_of(lowering, binding.declaration),
+                                                  .package = binding.package});
 }
 
 /* The use-attribute-sets tokens of node; empty without the attribute. */
@@ -1043,6 +1126,8 @@ static sxml_status read_attribute_sets(const sxml_xslt_lowering *lowering,
     sxml_xpath_lowerer_release_scratch(lowering->lowerer, sorted_memory);
     for (size_t index = 0; index < count; index += 1) {
         const sxml_name_identifier set_name = name_of(lowering, components->declaration_nodes[index]);
+        const uint32_t package =
+            sxml_xslt_package_of_node(lowering, components->declaration_nodes[index]);
         if (is_reserved_name(lowering, set_name)) {
             return report_static_error(
                 lowering, components->declaration_nodes[index],
@@ -1051,12 +1136,16 @@ static sxml_status read_attribute_sets(const sxml_xslt_lowering *lowering,
         }
         if (components->attribute_set_count > 0 &&
             components->attribute_sets[components->attribute_set_count - 1].set_name.index ==
-                set_name.index) {
+                set_name.index &&
+            components->attribute_sets[components->attribute_set_count - 1].package == package) {
             components->attribute_sets[components->attribute_set_count - 1].declaration_count += 1;
             continue;
         }
         components->attribute_sets[components->attribute_set_count] =
-            (attribute_set){.set_name = set_name, .first_declaration = index, .declaration_count = 1};
+            (attribute_set){.set_name = set_name,
+                            .package = package,
+                            .first_declaration = index,
+                            .declaration_count = 1};
         components->attribute_set_count += 1;
     }
     return SXML_STATUS_OK;
@@ -1119,7 +1208,8 @@ static sxml_status check_attribute_set_cycles(const sxml_xslt_lowering *lowering
             }
             const sxml_xslt_ast_name_token token = tokens.name_tokens[top->token_index];
             top->token_index += 1;
-            const attribute_set *used = find_attribute_set(components, token.name);
+            const attribute_set *used = resolve_attribute_set(
+                lowering, (attribute_set_reference){.node = declaration, .set_name = token.name});
             if (used == NULL) {
                 status = report_unknown_set(lowering, declaration);
                 break;
@@ -1239,7 +1329,17 @@ sxml_status sxml_xslt_declare_components(sxml_xslt_lowering *lowering,
     }
     sxml_xslt_component_lowering *components = memory;
     components->name_pool = lowering->lowerer->name_pool;
+    components->lowering = lowering;
     lowering->components = components;
+    status = sxml_name_pool_intern_name(
+        components->name_pool,
+        &(sxml_name_request){.namespace_uri = sxml_well_known_namespace_identifier(
+                                 SXML_NAMESPACE_XSLT),
+                             .local_name = SXML_BYTE_VIEW_FROM_LITERAL("original")},
+        &components->original_name);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
     sxml_xslt_ast_node_index conflict = {.value = 0};
     if (sxml_xslt_check_space_declarations(lowering->ast, &conflict) != SXML_STATUS_OK) {
         return report_static_error(
@@ -1296,7 +1396,9 @@ sxml_status sxml_xslt_declare_components(sxml_xslt_lowering *lowering,
     }
     for (uint32_t context = 1; context < context_count; context += 1) {
         components->context_tables[context] = (context_table){
-            .components = components, .inner_table = static_contexts[context].function_table};
+            .components = components,
+            .inner_table = static_contexts[context].function_table,
+            .static_context = {.value = context}};
         static_contexts[context].function_table = (sxml_function_table){
             .state = &components->context_tables[context], .operations = &component_table_operations};
         if (components->has_no_namespace_function) {
@@ -1657,7 +1759,6 @@ typedef struct invocation_request {
 static sxml_status bind_invocations(sxml_xpath_lowerer *lowerer, const invocation_request *request,
                                     size_t *atom_count) {
     const sxml_xslt_lowering *lowering = request->lowering;
-    const sxml_xslt_component_lowering *components = lowering->components;
     const sxml_xslt_ast_name_token_view tokens = used_sets_of(lowering, request->node);
     *atom_count = 0;
     if (tokens.name_token_count == 0) {
@@ -1669,9 +1770,9 @@ static sxml_status bind_invocations(sxml_xpath_lowerer *lowerer, const invocatio
         lowerer->function->focus->kind == SXML_XPATH_LOWERING_FOCUS_KIND_ABSENT;
     for (size_t token_index = 0; status == SXML_STATUS_OK && token_index < tokens.name_token_count;
          token_index += 1) {
-        const attribute_set *set =
-            components == NULL ? NULL
-                               : find_attribute_set(components, tokens.name_tokens[token_index].name);
+        const attribute_set *set = resolve_attribute_set(
+            lowering, (attribute_set_reference){.node = request->node,
+                                                .set_name = tokens.name_tokens[token_index].name});
         if (set == NULL) {
             return report_unknown_set(lowering, request->node);
         }
@@ -1835,6 +1936,8 @@ static const sxml_xpath_lowering_procedure attribute_set_procedure = {
 typedef struct component_function {
     sxml_ir_function_index function;
     uint32_t parameter_count;
+    /* An abstract component's: the body raises XTDE3052 (3.4.5.2). */
+    bool is_abstract;
     sxml_xpath_lowering_focus focus;
     const sxml_xpath_lowering_procedure *procedure;
     /* The procedure's initial locals. */
@@ -1855,6 +1958,25 @@ static sxml_status lower_component_function(const sxml_xslt_lowering *lowering,
     sxml_xpath_lowerer_enter_function(lowerer, &function_frame);
     sxml_xpath_lowering_block block = {.first = {0}, .open_let = {0}};
     sxml_ir_expression_index body = {0};
+    if (request->is_abstract) {
+        sxml_status status = sxml_xpath_lowerer_add_raise(
+            lowerer,
+            (sxml_xpath_lowering_raise_request){
+                .node = no_ast_node,
+                .error_status = SXML_STATUS_DYNAMIC_ERROR,
+                .code_local_name = SXML_BYTE_VIEW_FROM_LITERAL("XTDE3052"),
+                .description = SXML_BYTE_VIEW_FROM_LITERAL(
+                    "An abstract component no package overrides is called (XSLT 4.0, 3.4.5.2)")},
+            &body);
+        sxml_xpath_lowerer_leave_function(lowerer, &function_frame);
+        sxml_ir_function_replacement replacement = {
+            .index = request->function,
+            .function = *sxml_ir_unit_get_function(lowerer->unit, request->function)};
+        replacement.function.body = body;
+        replacement.function.slot_count = function_frame.function.slot_count;
+        return status == SXML_STATUS_OK ? sxml_ir_unit_replace_function(lowerer->unit, &replacement)
+                                        : status;
+    }
     sxml_status status = sxml_xpath_lowerer_run_procedure(
         lowerer, &(sxml_xpath_lowering_procedure_call){
                      .procedure = request->procedure,
@@ -1906,6 +2028,7 @@ static sxml_status lower_functions(const sxml_xslt_lowering *lowering) {
                     .function = {.value = function->first_function.value +
                                           (arity - function->required_count)},
                     .parameter_count = arity,
+                    .is_abstract = sxml_xslt_package_is_abstract(lowering, function->node),
                     .focus = {.kind = SXML_XPATH_LOWERING_FOCUS_KIND_ABSENT},
                     .procedure = &function_body_procedure,
                     .initial_locals = {.bytes = (const uint8_t *)&initial,
@@ -1932,6 +2055,8 @@ static sxml_status lower_attribute_sets(const sxml_xslt_lowering *lowering) {
                 &(component_function){
                     .function = is_focus_absent ? set->absent_function : set->function,
                     .parameter_count = ATTRIBUTE_SET_PARAMETER_COUNT,
+                    .is_abstract = sxml_xslt_package_is_abstract(
+                        lowering, components->declaration_nodes[set->first_declaration]),
                     .focus = {.kind = is_focus_absent ? SXML_XPATH_LOWERING_FOCUS_KIND_ABSENT
                                                       : SXML_XPATH_LOWERING_FOCUS_KIND_SLOTS,
                               .slots = {.context_value = item_slot,

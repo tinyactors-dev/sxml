@@ -15,6 +15,7 @@
 #include "xpath_lower_internal.h"
 #include "xpath_static_internal.h"
 #include "xslt_ast_internal.h"
+#include "xslt_package_internal.h"
 
 /*
  * Lowering XSLT 4.0 (docs/DECISIONS.md D46, D55, D102, D103, D110, D124,
@@ -129,6 +130,9 @@ typedef struct sxml_xslt_lowering {
     /* Made by sxml_xslt_declare_accumulators (src/xslt_accumulator.c,
        packet 4.14, D155); NULL before. */
     struct sxml_xslt_accumulator_table *accumulators;
+    /* Made by sxml_xslt_declare_packages first (src/xslt_package.c,
+       packet 4.16, D160): which declaration each reference binds to. */
+    struct sxml_xslt_package_table *packages;
 } sxml_xslt_lowering;
 
 /* ASTs a lowering keeps until it ends (glossary `kept_ast`). */

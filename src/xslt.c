@@ -336,7 +336,9 @@ static void sxml_stylesheet_release(sxml_xslt_stylesheet *stylesheet) {
     stylesheet->ast = NULL;
 }
 
-/* 3.4.3: a principal module asked for as a package must be one. */
+/* 3.4.3: a principal module asked for as a package must be one: an
+   xsl:package, or an xsl:stylesheet or xsl:transform, which 3.4 makes an
+   implicit package (D160); a simplified module is none. */
 static sxml_status sxml_check_package(const sxml_xslt_stylesheet_configuration *configuration,
                                       const sxml_xslt_ast *ast) {
     if (configuration->principal_module_source !=
@@ -345,7 +347,8 @@ static sxml_status sxml_check_package(const sxml_xslt_stylesheet_configuration *
     }
     const sxml_xslt_ast_module *principal =
         sxml_xslt_ast_get_module(ast, (sxml_xslt_ast_module_index){.value = 1});
-    if (sxml_xslt_ast_get_node(ast, principal->root)->kind == SXML_XSLT_AST_KIND_PACKAGE &&
+    const sxml_xslt_ast_kind root_kind = sxml_xslt_ast_get_node(ast, principal->root)->kind;
+    if ((root_kind == SXML_XSLT_AST_KIND_PACKAGE || root_kind == SXML_XSLT_AST_KIND_STYLESHEET) &&
         !principal->is_simplified) {
         return SXML_STATUS_OK;
     }
@@ -353,7 +356,8 @@ static sxml_status sxml_check_package(const sxml_xslt_stylesheet_configuration *
         &(sxml_xslt_error){.status = SXML_STATUS_STATIC_ERROR,
                            .code_local_name = SXML_BYTE_VIEW_FROM_LITERAL("XTSE3000"),
                            .description = SXML_BYTE_VIEW_FROM_LITERAL(
-                               "the principal package is not an xsl:package (XSLT 4.0, 3.4.3)"),
+                               "the principal package is a simplified stylesheet module, no "
+                               "package (XSLT 4.0, 3.4.3)"),
                            .source_name = configuration->principal_module_uri_reference},
         configuration->error_record);
 }

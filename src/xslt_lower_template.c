@@ -102,6 +102,9 @@ typedef struct mode_property {
 typedef struct mode_entry {
     /* 0 for the unnamed mode. */
     sxml_name_identifier mode_name;
+    /* The package whose mode it is (3.4.6: each package has its own
+       unnamed mode; a used package's public mode is shared). */
+    uint32_t package;
     bool is_declared;
     bool is_enclosing;
     /* sxml_ir_built_in_rule values, bools as 0 and 1. */
@@ -428,12 +431,20 @@ static sxml_status report_reserved_name(const sxml_xslt_lowering *lowering,
 
 /* ------------------------------------------------------------- Lookups */
 
-static const template_entry *find_named_template(const sxml_xslt_template_lowering *templates,
-                                                 sxml_name_identifier name) {
+/* A named template's name in the package that declares it. */
+typedef struct template_key {
+    sxml_name_identifier template_name;
+    uint32_t package;
+} template_key;
+
+static const template_entry *find_named_template(const sxml_xslt_lowering *lowering,
+                                                 template_key key) {
+    const sxml_xslt_template_lowering *templates = lowering->templates;
     const template_entry *found = NULL;
     for (size_t entry_index = 0; entry_index < templates->template_count; entry_index += 1) {
         const template_entry *entry = &templates->templates[entry_index];
-        if (entry->template_name.index == name.index &&
+        if (entry->template_name.index == key.template_name.index &&
+            sxml_xslt_package_of_node(lowering, entry->node) == key.package &&
             (found == NULL || entry->import_precedence > found->import_precedence)) {
             found = entry;
         }
@@ -451,31 +462,64 @@ static const template_entry *find_template_entry(const sxml_xslt_template_loweri
     return NULL;
 }
 
-/* The unit's index of the mode named name (0: unnamed); 0 when unknown. */
+/* The mode a mode token names in node's static context: NAME, UNNAMED,
+   DEFAULT (the default mode, 3.6.3). *is_current for #current. The
+   package is the one whose mode it is (3.4.6). */
+typedef struct mode_reference {
+    bool is_current;
+    bool is_all;
+    sxml_name_identifier mode_name;
+    uint32_t package;
+} mode_reference;
+
+/* The unit's index of a mode (name 0: the package's unnamed mode); 0 when
+   unknown. */
 static sxml_ir_mode_index find_mode(const sxml_xslt_template_lowering *templates,
-                                    sxml_name_identifier name) {
+                                    mode_reference reference) {
     for (size_t mode_index = 0; mode_index < templates->mode_count; mode_index += 1) {
-        if (templates->modes[mode_index].mode_name.index == name.index) {
+        if (templates->modes[mode_index].mode_name.index == reference.mode_name.index &&
+            templates->modes[mode_index].package == reference.package) {
             return (sxml_ir_mode_index){.value = (uint32_t)mode_index + 1U};
         }
     }
     return (sxml_ir_mode_index){.value = 0};
 }
 
-/* The mode a mode token names in node's static context: NAME, UNNAMED,
-   DEFAULT (the default mode, 3.6.3). *is_current for #current. */
-typedef struct mode_reference {
-    bool is_current;
-    bool is_all;
-    sxml_name_identifier mode_name;
-} mode_reference;
+/* The mode name names from node: its package's own, or a used package's
+   it accepts (3.4.5.5, 3.4.6); the unnamed mode is the package's own. */
+static mode_reference named_mode(const sxml_xslt_lowering *lowering, sxml_xslt_ast_node_index node,
+                                 sxml_name_identifier name) {
+    const uint32_t package = sxml_xslt_package_of_node(lowering, node);
+    mode_reference reference = {
+        .is_current = false, .is_all = false, .mode_name = name, .package = package};
+    if (name.index != 0) {
+        const sxml_xslt_component_binding binding = sxml_xslt_package_bind(
+            lowering, &(sxml_xslt_component_reference){.component_kind = SXML_XSLT_COMPONENT_KIND_MODE,
+                                                       .component_name = name,
+                                                       .arity = 0,
+                                                       .package = package});
+        if (binding.declaration.value != 0) {
+            reference.package = binding.package;
+        }
+    }
+    return reference;
+}
+
+/* The mode an xsl:mode declaration declares, in its own package. */
+static mode_reference declared_mode(const sxml_xslt_lowering *lowering,
+                                    sxml_xslt_ast_node_index declaration) {
+    return (mode_reference){.is_current = false,
+                            .is_all = false,
+                            .mode_name = name_of(lowering, declaration),
+                            .package = sxml_xslt_package_of_node(lowering, declaration)};
+}
 
 static mode_reference reference_of(const sxml_xslt_lowering *lowering,
                                    sxml_xslt_ast_node_index node, sxml_xslt_ast_name_token token) {
-    mode_reference reference = {.is_current = false, .is_all = false, .mode_name = {.index = 0}};
+    mode_reference reference = named_mode(lowering, node, (sxml_name_identifier){.index = 0});
     switch ((uint32_t)token.kind) {
     case SXML_XSLT_AST_NAME_TOKEN_KIND_NAME:
-        reference.mode_name = token.name;
+        reference = named_mode(lowering, node, token.name);
         break;
     case SXML_XSLT_AST_NAME_TOKEN_KIND_CURRENT:
         reference.is_current = true;
@@ -487,7 +531,7 @@ static mode_reference reference_of(const sxml_xslt_lowering *lowering,
         const sxml_xslt_ast_static_context *context =
             sxml_xslt_ast_get_static_context(lowering->ast, node_of(lowering, node)->static_context);
         if (context->default_mode.kind == SXML_XSLT_AST_NAME_TOKEN_KIND_NAME) {
-            reference.mode_name = context->default_mode.name;
+            reference = named_mode(lowering, node, context->default_mode.name);
         }
         break;
     }
@@ -1065,21 +1109,33 @@ static sxml_status lower_template_function(sxml_xslt_lowering *lowering,
     sxml_xpath_lowering_block block = {.first = {0}, .open_let = {0}};
     sxml_ir_expression_index body = {0};
     const sxml_xslt_instruction_locals initial = {.lowering = lowering, .node = entry->node};
-    sxml_status status = sxml_xpath_lowerer_run_procedure(
-        lowerer,
-        &(sxml_xpath_lowering_procedure_call){
-            .procedure = &template_body_procedure,
-            .node = no_ast_node,
-            .block = &block,
-            .is_body = false,
-            .destination = {.expression = &body,
-                            .atom = NULL,
-                            .atom_block = NULL,
-                            .focused = NULL},
-            .initial_locals = {.bytes = (const uint8_t *)&initial, .byte_count = sizeof(initial)}});
-    if (status == SXML_STATUS_OK) {
-        status = sxml_xpath_lowerer_finish_block(
-            lowerer, (sxml_xpath_lowering_block_result){.block = block, .result = body}, &body);
+    sxml_status status = SXML_STATUS_OK;
+    if (sxml_xslt_package_is_abstract(lowering, entry->node)) {
+        /* 3.4.5.2: an abstract template no package overrides. */
+        status = add_raise(lowerer,
+                           (raise_text){.error_status = SXML_STATUS_DYNAMIC_ERROR,
+                                        .code = "XTDE3052",
+                                        .description = "an abstract template no package "
+                                                       "overrides is called (XSLT 4.0, 3.4.5.2)"},
+                           &body);
+    } else {
+        status = sxml_xpath_lowerer_run_procedure(
+            lowerer, &(sxml_xpath_lowering_procedure_call){
+                         .procedure = &template_body_procedure,
+                         .node = no_ast_node,
+                         .block = &block,
+                         .is_body = false,
+                         .destination = {.expression = &body,
+                                         .atom = NULL,
+                                         .atom_block = NULL,
+                                         .focused = NULL},
+                         .initial_locals = {.bytes = (const uint8_t *)&initial,
+                                            .byte_count = sizeof(initial)}});
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xpath_lowerer_finish_block(
+                lowerer, (sxml_xpath_lowering_block_result){.block = block, .result = body},
+                &body);
+        }
     }
     templates->current_function = (sxml_ir_function_index){.value = 0};
     templates->current_focus = NULL;
@@ -1420,7 +1476,7 @@ static sxml_status resolve_apply_mode(const sxml_xslt_lowering *lowering,
         *mode = (sxml_ir_mode_index){.value = 0};
         return SXML_STATUS_OK;
     }
-    *mode = find_mode(lowering->templates, reference.mode_name);
+    *mode = find_mode(lowering->templates, reference);
     if (mode->value == 0) {
         return SXML_STATUS_INVALID_ARGUMENT;
     }
@@ -1767,6 +1823,41 @@ static sxml_status add_template_call(sxml_xpath_lowerer *lowerer, const template
         expression);
 }
 
+/* The named template an xsl:call-template binds to (3.4.5.5): its
+   package's, through the packages; xsl:original in an overriding template
+   the overridden one (3.4.5.4). NULL for none. */
+static const template_entry *bound_template(const sxml_xslt_lowering *lowering,
+                                            sxml_xslt_ast_node_index call) {
+    const sxml_name_identifier name = name_of(lowering, call);
+    sxml_name_identifier original = {.index = 0};
+    sxml_xslt_component_binding binding = {.declaration = {.value = 0}};
+    if (sxml_name_pool_find_name(
+            lowering->lowerer->name_pool,
+            &(sxml_name_request){.namespace_uri =
+                                     sxml_well_known_namespace_identifier(SXML_NAMESPACE_XSLT),
+                                 .local_name = SXML_BYTE_VIEW_FROM_LITERAL("original")},
+            &original) &&
+        original.index == name.index) {
+        const sxml_xslt_ast_node_index overriding =
+            sxml_xslt_package_overriding_ancestor_of(lowering, call);
+        if (node_of(lowering, overriding)->kind != SXML_XSLT_AST_KIND_TEMPLATE) {
+            return NULL;
+        }
+        binding = sxml_xslt_package_bind_original(lowering, overriding);
+    } else {
+        binding = sxml_xslt_package_bind(
+            lowering,
+            &(sxml_xslt_component_reference){.component_kind = SXML_XSLT_COMPONENT_KIND_TEMPLATE,
+                                             .component_name = name,
+                                             .arity = 0,
+                                             .package = sxml_xslt_package_of_node(lowering, call)});
+    }
+    if (binding.declaration.value == 0) {
+        return NULL;
+    }
+    return find_template_entry(lowering->templates, binding.declaration);
+}
+
 static sxml_status continue_call_template(sxml_xpath_lowering_machine *machine,
                                           sxml_xpath_lowering_frame *frame) {
     sxml_xpath_lowerer *lowerer = machine->state;
@@ -1774,7 +1865,7 @@ static sxml_status continue_call_template(sxml_xpath_lowering_machine *machine,
     const sxml_xslt_lowering *lowering = locals->head.lowering;
     if (frame->step == 0) {
         frame->step = 1;
-        locals->target = find_named_template(lowering->templates, name_of(lowering, locals->head.node));
+        locals->target = bound_template(lowering, locals->head.node);
         if (locals->target == NULL) {
             return report_static_error(lowering, locals->head.node, SXML_BYTE_VIEW_FROM_LITERAL("XTSE0650 xsl:call-template names no template of the "
                                        "stylesheet (XSLT 4.0, 10.1.2)"));
@@ -1868,10 +1959,10 @@ static sxml_status allocate_zeroed(sxml_allocator allocator, zeroed_request requ
 
 /* The index in templates->modes of the mode named name, added when it is
    not there yet. */
-static sxml_status add_mode(const sxml_xslt_lowering *lowering, sxml_name_identifier name,
+static sxml_status add_mode(const sxml_xslt_lowering *lowering, mode_reference reference,
                             size_t *mode_position) {
     sxml_xslt_template_lowering *templates = lowering->templates;
-    const sxml_ir_mode_index existing = find_mode(templates, name);
+    const sxml_ir_mode_index existing = find_mode(templates, reference);
     if (existing.value != 0) {
         *mode_position = existing.value - 1U;
         return SXML_STATUS_OK;
@@ -1895,7 +1986,8 @@ static sxml_status add_mode(const sxml_xslt_lowering *lowering, sxml_name_identi
         templates->modes = memory;
         templates->mode_capacity = capacity;
     }
-    templates->modes[templates->mode_count] = (mode_entry){.mode_name = name};
+    templates->modes[templates->mode_count] =
+        (mode_entry){.mode_name = reference.mode_name, .package = reference.package};
     *mode_position = templates->mode_count;
     templates->mode_count += 1;
     return SXML_STATUS_OK;
@@ -1943,7 +2035,7 @@ static sxml_status read_mode_declaration(const sxml_xslt_lowering *lowering,
         return report_reserved_name(lowering, declaration);
     }
     size_t position = 0;
-    sxml_status status = add_mode(lowering, name_of(lowering, declaration), &position);
+    sxml_status status = add_mode(lowering, declared_mode(lowering, declaration), &position);
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -2006,12 +2098,13 @@ static sxml_status read_mode_declaration(const sxml_xslt_lowering *lowering,
     return SXML_STATUS_OK;
 }
 
-/* Whether the stylesheet requires its modes to be declared (3.4.6.1): a
-   principal module rooted at xsl:package with declared-modes="yes" (the
-   default there). */
-static bool requires_declared_modes(const sxml_xslt_lowering *lowering) {
+/* Whether node's package requires its modes to be declared (3.4.6.1): an
+   xsl:package with declared-modes="yes" (the default there); a mode
+   accepted from a used package is declared there. */
+static bool requires_declared_modes(const sxml_xslt_lowering *lowering,
+                                    sxml_xslt_ast_node_index node) {
     const sxml_xslt_ast_node_index root =
-        sxml_xslt_ast_get_module(lowering->ast, (sxml_xslt_ast_module_index){.value = 1})->root;
+        sxml_xslt_package_get_root(lowering, sxml_xslt_package_of_node(lowering, node));
     if (node_of(lowering, root)->kind != SXML_XSLT_AST_KIND_PACKAGE) {
         return false;
     }
@@ -2033,11 +2126,12 @@ static sxml_status refer_to_mode(const sxml_xslt_lowering *lowering, mode_refere
         return report_reserved_name(lowering, node);
     }
     size_t position = 0;
-    const sxml_status status = add_mode(lowering, reference.mode_name, &position);
+    const sxml_status status = add_mode(lowering, reference, &position);
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    if (!lowering->templates->modes[position].is_declared && requires_declared_modes(lowering)) {
+    if (!lowering->templates->modes[position].is_declared &&
+        requires_declared_modes(lowering, node)) {
         return report_static_error(lowering, node, SXML_BYTE_VIEW_FROM_LITERAL("XTSE3085 a package with declared-modes=\"yes\" uses a mode it "
                                    "does not declare (XSLT 4.0, 3.4.6.1)"));
     }
@@ -2078,7 +2172,11 @@ static sxml_status collect_mode_references(const sxml_xslt_lowering *lowering) {
             ast, (sxml_xslt_ast_static_context_index){.value = context_number});
         if (context->default_mode.kind == SXML_XSLT_AST_NAME_TOKEN_KIND_NAME) {
             size_t position = 0;
-            status = add_mode(lowering, context->default_mode.name, &position);
+            const uint32_t package = sxml_xslt_package_of_static_context(
+                lowering, (sxml_xslt_ast_static_context_index){.value = context_number});
+            const sxml_xslt_ast_node_index root = sxml_xslt_package_get_root(lowering, package);
+            status = add_mode(lowering, named_mode(lowering, root, context->default_mode.name),
+                              &position);
         }
     }
     return status;
@@ -2125,6 +2223,7 @@ static bool values_differ(const sxml_xslt_lowering *lowering, const sxml_xslt_as
    sets the attribute of kind. */
 typedef struct mode_attribute_query {
     sxml_name_identifier mode_name;
+    uint32_t package;
     uint32_t precedence;
     sxml_xslt_ast_attribute_kind kind;
 } mode_attribute_query;
@@ -2135,6 +2234,7 @@ static bool is_overridden(const sxml_xslt_lowering *lowering, mode_attribute_que
         const sxml_xslt_ast_node_index other = sxml_xslt_ast_get_declaration(lowering->ast, order);
         if (node_of(lowering, other)->kind == SXML_XSLT_AST_KIND_MODE &&
             name_of(lowering, other).index == query.mode_name.index &&
+            sxml_xslt_package_of_node(lowering, other) == query.package &&
             (uint32_t)precedence_of(lowering, other) > query.precedence &&
             find_attribute(lowering, other, query.kind)->kind != SXML_XSLT_AST_ATTRIBUTE_NONE) {
             return true;
@@ -2159,6 +2259,7 @@ static sxml_status check_mode_conflicts(const sxml_xslt_lowering *lowering) {
                 sxml_xslt_ast_get_declaration(ast, second_order);
             if (node_of(lowering, second)->kind != SXML_XSLT_AST_KIND_MODE ||
                 name_of(lowering, second).index != name_of(lowering, first).index ||
+                !sxml_xslt_package_is_same(lowering, first, second) ||
                 precedence_of(lowering, second) != precedence_of(lowering, first)) {
                 continue;
             }
@@ -2175,6 +2276,7 @@ static sxml_status check_mode_conflicts(const sxml_xslt_lowering *lowering) {
                     is_overridden(lowering,
                                   (mode_attribute_query){
                                       .mode_name = name_of(lowering, first),
+                                      .package = sxml_xslt_package_of_node(lowering, first),
                                       .precedence = (uint32_t)precedence_of(lowering, first),
                                       .kind = mode_property_kinds[kind_index]})) {
                     continue;
@@ -2345,14 +2447,17 @@ static sxml_status check_template_names(const sxml_xslt_lowering *lowering) {
         if (entry->template_name.index == 0) {
             continue;
         }
-        const template_entry *winner = find_named_template(templates, entry->template_name);
+        const template_entry *winner = find_named_template(
+            lowering, (template_key){.template_name = entry->template_name,
+                                     .package = sxml_xslt_package_of_node(lowering, entry->node)});
         if (winner->import_precedence != entry->import_precedence) {
             continue;
         }
         for (size_t second = first + 1; second < templates->template_count; second += 1) {
             const template_entry *other = &templates->templates[second];
             if (other->template_name.index == entry->template_name.index &&
-                other->import_precedence == entry->import_precedence) {
+                other->import_precedence == entry->import_precedence &&
+                sxml_xslt_package_is_same(lowering, other->node, entry->node)) {
                 return report_static_error(lowering, other->node, SXML_BYTE_VIEW_FROM_LITERAL("XTSE0660 two templates of the same import precedence "
                                            "have the same name (XSLT 4.0, 10.1.1)"));
             }
@@ -2843,7 +2948,7 @@ static void find_applicable_modes(const sxml_xslt_lowering *lowering, const temp
     modes->count = 0;
     if (entry->enclosing_mode.value != 0) {
         modes->positions[0] =
-            find_mode(templates, name_of(lowering, entry->enclosing_mode)).value - 1U;
+            find_mode(templates, declared_mode(lowering, entry->enclosing_mode)).value - 1U;
         modes->count = 1;
         return;
     }
@@ -2855,15 +2960,17 @@ static void find_applicable_modes(const sxml_xslt_lowering *lowering, const temp
                 ? default_mode_of(lowering, entry->node)
                 : reference_of(lowering, entry->node, tokens.name_tokens[token_index]);
         if (reference.is_all) {
+            /* #all: the modes of the template's package (3.4.6). */
             for (size_t mode_index = 0; mode_index < templates->mode_count; mode_index += 1) {
-                if (!templates->modes[mode_index].is_enclosing) {
+                if (!templates->modes[mode_index].is_enclosing &&
+                    templates->modes[mode_index].package == reference.package) {
                     modes->positions[modes->count] = mode_index;
                     modes->count += 1;
                 }
             }
             return;
         }
-        const sxml_ir_mode_index mode = find_mode(templates, reference.mode_name);
+        const sxml_ir_mode_index mode = find_mode(templates, reference);
         bool is_listed = mode.value == 0;
         for (size_t listed = 0; listed < modes->count; listed += 1) {
             is_listed = is_listed || modes->positions[listed] == mode.value - 1U;
@@ -3100,8 +3207,16 @@ sxml_status sxml_xslt_lower_templates(sxml_xslt_lowering *lowering) {
     if (status == SXML_STATUS_OK) {
         status = make_empty_map(lowering->templates, lowerer);
     }
-    if (status == SXML_STATUS_OK) {
-        status = add_mode(lowering, (sxml_name_identifier){.index = 0}, &unnamed);
+    /* Every package's unnamed mode (3.4.6), the top-level package's
+       first. */
+    for (uint32_t package = 1;
+         status == SXML_STATUS_OK && package <= sxml_xslt_package_count(lowering); package += 1) {
+        status = add_mode(lowering,
+                          (mode_reference){.is_current = false,
+                                           .is_all = false,
+                                           .mode_name = {.index = 0},
+                                           .package = package},
+                          &unnamed);
     }
     for (uint32_t order = 1;
          status == SXML_STATUS_OK && sxml_xslt_ast_get_declaration(lowering->ast, order).value != 0;
@@ -3262,15 +3377,29 @@ static sxml_status lower_initial_call(sxml_xpath_lowerer *lowerer, initial_call 
    the principal module. */
 static sxml_ir_mode_index initial_mode_of(const sxml_xslt_lowering *lowering,
                                           const sxml_xslt_invocation *invocation) {
-    if (invocation->selects_unnamed_mode) {
-        return find_mode(lowering->templates, (sxml_name_identifier){.index = 0});
-    }
-    if (invocation->initial_mode.index != 0) {
-        return find_mode(lowering->templates, invocation->initial_mode);
-    }
     const sxml_xslt_ast_node_index root =
         sxml_xslt_ast_get_module(lowering->ast, (sxml_xslt_ast_module_index){.value = 1})->root;
-    return find_mode(lowering->templates, default_mode_of(lowering, root).mode_name);
+    if (invocation->selects_unnamed_mode) {
+        return find_mode(lowering->templates, named_mode(lowering, root, (sxml_name_identifier){
+                                                                             .index = 0}));
+    }
+    if (invocation->initial_mode.index != 0) {
+        /* 2.4.3: a named initial mode an xsl:package declares is public
+           or final there; an implicitly declared one is eligible. */
+        const sxml_xslt_visibility visibility = sxml_xslt_package_get_reference_visibility(
+            lowering,
+            &(sxml_xslt_component_reference){.component_kind = SXML_XSLT_COMPONENT_KIND_MODE,
+                                             .component_name = invocation->initial_mode,
+                                             .arity = 0,
+                                             .package = 1});
+        if (node_of(lowering, root)->kind == SXML_XSLT_AST_KIND_PACKAGE &&
+            visibility != SXML_XSLT_VISIBILITY_NONE && visibility != SXML_XSLT_VISIBILITY_PUBLIC &&
+            visibility != SXML_XSLT_VISIBILITY_FINAL) {
+            return (sxml_ir_mode_index){.value = 0};
+        }
+        return find_mode(lowering->templates, named_mode(lowering, root, invocation->initial_mode));
+    }
+    return find_mode(lowering->templates, default_mode_of(lowering, root));
 }
 
 /* Templates applied to the focus (the global context item), checked. */
@@ -3467,6 +3596,23 @@ enum { SXML_INITIAL_FUNCTION_MAXIMUM_ARITY = 32 };
 /* True when an xsl:function of the name is public or final (2.4.5: the
    functions of an xsl:stylesheet are private unless they say so). */
 static bool is_public_function(const sxml_xslt_lowering *lowering, sxml_name_identifier name) {
+    if (sxml_xslt_package_count(lowering) > 1U) {
+        /* 3.4.5: the top-level package's own or accepted public or final
+           function. */
+        for (uint32_t arity = 0; arity <= SXML_INITIAL_FUNCTION_MAXIMUM_ARITY; arity += 1) {
+            const sxml_xslt_visibility visibility = sxml_xslt_package_get_reference_visibility(
+                lowering, &(sxml_xslt_component_reference){
+                              .component_kind = SXML_XSLT_COMPONENT_KIND_FUNCTION,
+                              .component_name = name,
+                              .arity = arity,
+                              .package = 1});
+            if (visibility == SXML_XSLT_VISIBILITY_PUBLIC ||
+                visibility == SXML_XSLT_VISIBILITY_FINAL) {
+                return true;
+            }
+        }
+        return false;
+    }
     const sxml_xslt_ast *ast = lowering->ast;
     for (uint32_t order = 1; sxml_xslt_ast_get_declaration(ast, order).value != 0; order += 1) {
         const sxml_xslt_ast_node_index declaration = sxml_xslt_ast_get_declaration(ast, order);
@@ -3643,7 +3789,7 @@ static sxml_xslt_ast_node_index mode_type_declaration_of(const sxml_xslt_lowerin
     }
     if (entry->enclosing_mode.value != 0) {
         const sxml_ir_mode_index mode =
-            find_mode(templates, name_of(lowering, entry->enclosing_mode));
+            find_mode(templates, declared_mode(lowering, entry->enclosing_mode));
         return mode.value == 0 ? (sxml_xslt_ast_node_index){.value = 0}
                                : templates->modes[mode.value - 1U].as_declaration;
     }
@@ -3657,7 +3803,7 @@ static sxml_xslt_ast_node_index mode_type_declaration_of(const sxml_xslt_lowerin
         if (reference.is_all) {
             continue;
         }
-        const sxml_ir_mode_index mode = find_mode(templates, reference.mode_name);
+        const sxml_ir_mode_index mode = find_mode(templates, reference);
         if (mode.value != 0 && templates->modes[mode.value - 1U].as_declaration.value != 0) {
             return templates->modes[mode.value - 1U].as_declaration;
         }

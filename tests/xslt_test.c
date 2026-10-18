@@ -51,6 +51,10 @@ static const char package_text[] =
 
 static const char document_text[] = "<doc><v>1</v><v>2</v></doc>";
 
+/* A simplified stylesheet module: no package, not even an implicit one
+   (XSLT 4.0, 3.4, 3.7). */
+static const char simplified_text[] = "<out xsl:version='3.0' " XSL_NAMESPACE "/>";
+
 static const sxml_resource_entry fixture_resources[] = {
     {.uri = SXML_BYTE_VIEW_INITIALIZER("http://example.com/x/included.xsl"),
      .content = {.bytes = (const uint8_t *)included_text, .byte_count = sizeof(included_text) - 1}},
@@ -61,6 +65,9 @@ static const sxml_resource_entry fixture_resources[] = {
     {.uri = SXML_BYTE_VIEW_INITIALIZER("urn:p"),
      .content = {.bytes = (const uint8_t *)package_text, .byte_count = sizeof(package_text) - 1}},
     {.uri = SXML_BYTE_VIEW_INITIALIZER("urn:not-a-package"),
+     .content = {.bytes = (const uint8_t *)simplified_text,
+                 .byte_count = sizeof(simplified_text) - 1}},
+    {.uri = SXML_BYTE_VIEW_INITIALIZER("urn:implicit-package"),
      .content = {.bytes = (const uint8_t *)resolved_text, .byte_count = sizeof(resolved_text) - 1}},
     {.uri = SXML_BYTE_VIEW_INITIALIZER("http://example.com/x/doc.xml"),
      .content = {.bytes = (const uint8_t *)document_text, .byte_count = sizeof(document_text) - 1}},
@@ -774,6 +781,15 @@ static void test_principal_module_from_the_resolver(sxml_test_state *state) {
                                          &error_record) == SXML_STATUS_OK);
     SXML_TEST_EXPECT(state, output_is(&test_fixture,
                                       TEXT("<?xml version=\"1.0\" encoding=\"UTF-8\"?><package/>")));
+    /* An xsl:stylesheet is an implicit package (XSLT 4.0, 3.4; D160). */
+    SXML_TEST_EXPECT(state, run_resolved(&test_fixture,
+                                         (resolved_principal){
+                                             .principal_module_source =
+                                                 SXML_XSLT_PRINCIPAL_MODULE_SOURCE_RESOLVED_PACKAGE,
+                                             .uri_reference = TEXT("urn:implicit-package")},
+                                         &error_record) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, output_is(&test_fixture,
+                                      TEXT("<?xml version=\"1.0\" encoding=\"UTF-8\"?><resolved/>")));
     SXML_TEST_EXPECT(state, run_resolved(&test_fixture,
                                          (resolved_principal){
                                              .principal_module_source =

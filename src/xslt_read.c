@@ -4457,6 +4457,10 @@ static role_decision decide_role(const stylesheet_reader *reader, const role_req
             return (role_decision){.role = SXML_ELEMENT_ROLE_XSLT, .error_code = NULL,
                                    .description = NULL};
         }
+        /* A RULE frame always has its element's rule. */
+        if (parent->child_context == SXML_CHILD_CONTEXT_RULE && parent->rule == NULL) {
+            return misplaced;
+        }
         const bool has_sequence_constructor =
             parent->child_context == SXML_CHILD_CONTEXT_SEQUENCE_CONSTRUCTOR ||
             parent->rule->content_model == SXML_CONTENT_MODEL_CHILDREN_THEN_SEQUENCE_CONSTRUCTOR ||

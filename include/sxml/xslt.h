@@ -384,8 +384,10 @@ typedef enum sxml_xslt_principal_module_source {
     /* The resource resolver delivers it as a package: one request with
        kind SXML_RESOURCE_KIND_XSLT_PACKAGE, principal_module_uri_reference
        (the package name) as uri_reference and absolute_uri, and
-       package_version. Its top element must be xsl:package (XTSE3000
-       otherwise, as for xsl:use-package). */
+       package_version. Its top element must be xsl:package, or
+       xsl:stylesheet or xsl:transform, which XSLT 4.0, 3.4 makes an
+       implicit package (D160); a simplified stylesheet module is
+       XTSE3000. */
     SXML_XSLT_PRINCIPAL_MODULE_SOURCE_RESOLVED_PACKAGE,
 } sxml_xslt_principal_module_source;
 
