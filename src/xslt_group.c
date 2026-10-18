@@ -454,8 +454,18 @@ typedef struct key_pair {
     sxml_sequence second;
 } key_pair;
 
+/* Written by items_are_equal and keys_are_equal. */
+typedef struct key_equality {
+    bool is_equal;
+} key_equality;
+
+/* Written by starts_group. */
+typedef struct group_start {
+    bool is_start;
+} group_start;
+
 static sxml_status items_are_equal(const grouping_work *work, sxml_item_pair items,
-                                   bool *is_equal) {
+                                   key_equality *equality) {
     sxml_atomic_datum first;
     sxml_atomic_datum second;
     if (!sxml_collation_is_codepoint_order(&work->collation) &&
@@ -470,14 +480,15 @@ static sxml_status items_are_equal(const grouping_work *work, sxml_item_pair ite
                                          .first = first.datum_details.string,
                                          .second = second.datum_details.string},
             &ordering);
-        *is_equal = ordering == SXML_ORDERING_EQUAL;
+        equality->is_equal = ordering == SXML_ORDERING_EQUAL;
         return status;
     }
-    *is_equal = sxml_atomic_item_is_atomic_equal(items.first, items.second);
+    equality->is_equal = sxml_atomic_item_is_atomic_equal(items.first, items.second);
     return SXML_STATUS_OK;
 }
 
-static sxml_status keys_are_equal(const grouping_work *work, key_pair keys, bool *is_equal) {
+static sxml_status keys_are_equal(const grouping_work *work, key_pair keys,
+                                  key_equality *equality) {
     sxml_sequence_iterator first_iterator = sxml_sequence_iterator_start(keys.first);
     sxml_sequence_iterator second_iterator = sxml_sequence_iterator_start(keys.second);
     sxml_error_record *error_record = work->call->error_record;
@@ -492,21 +503,22 @@ static sxml_status keys_are_equal(const grouping_work *work, key_pair keys, bool
             return status;
         }
         if (!first_step.has_item || !second_step.has_item) {
-            *is_equal = first_step.has_item == second_step.has_item;
+            equality->is_equal = first_step.has_item == second_step.has_item;
             return SXML_STATUS_OK;
         }
         status = items_are_equal(
             work, (sxml_item_pair){.first = first_step.item, .second = second_step.item},
-            is_equal);
-        if (status != SXML_STATUS_OK || !*is_equal) {
+            equality);
+        if (status != SXML_STATUS_OK || !equality->is_equal) {
             return status;
         }
     }
 }
 
 /* Whether a new group starts at pair pair_index (> 0). */
-static sxml_status starts_group(const grouping_work *work, size_t pair_index, bool *is_start) {
-    *is_start = false;
+static sxml_status starts_group(const grouping_work *work, size_t pair_index,
+                                group_start *boundary) {
+    boundary->is_start = false;
     if (work->method == SXML_XSLT_GROUPING_METHOD_STARTING_WITH ||
         work->method == SXML_XSLT_GROUPING_METHOD_ENDING_WITH) {
         /* 14.1: a matching item starts a group, or the item after one. */
@@ -520,7 +532,7 @@ static sxml_status starts_group(const grouping_work *work, size_t pair_index, bo
             status = sxml_evaluator_compute_effective_boolean_value(
                 matches, work->call->error_record, &truth);
         }
-        *is_start = truth.is_true;
+        boundary->is_start = truth.is_true;
         return status;
     }
     sxml_sequence previous = sxml_sequence_empty();
@@ -531,11 +543,11 @@ static sxml_status starts_group(const grouping_work *work, size_t pair_index, bo
         status = read_pair_member(work, (pair_member){.pair_index = pair_index, .member_index = 1},
                                   &current);
     }
-    bool is_equal = false;
+    key_equality equality = {.is_equal = false};
     if (status == SXML_STATUS_OK) {
-        status = keys_are_equal(work, (key_pair){.first = previous, .second = current}, &is_equal);
+        status = keys_are_equal(work, (key_pair){.first = previous, .second = current}, &equality);
     }
-    *is_start = !is_equal;
+    boundary->is_start = !equality.is_equal;
     return status;
 }
 
@@ -628,12 +640,12 @@ static sxml_status group_runs(const grouping_work *work, sxml_sequence *result) 
     size_t group_count = 0;
     for (size_t pair_index = 0; status == SXML_STATUS_OK && pair_index < work->pair_count;
          pair_index += 1) {
-        bool is_start = pair_index == 0;
+        group_start boundary = {.is_start = pair_index == 0};
         status = sxml_function_library_charge_steps(work->call, 1);
         if (status == SXML_STATUS_OK && pair_index > 0) {
-            status = starts_group(work, pair_index, &is_start);
+            status = starts_group(work, pair_index, &boundary);
         }
-        if (status == SXML_STATUS_OK && is_start) {
+        if (status == SXML_STATUS_OK && boundary.is_start) {
             starts[group_count] = pair_index;
             group_count += 1;
         }
