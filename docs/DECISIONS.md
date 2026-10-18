@@ -6247,7 +6247,76 @@ dashboard is regenerated at 8d2aa06.
   (D166).
 
 ### D170. The schema document reader and assembly (packet 5.4)
-Reserved 2026-10-18.
+Recorded 2026-10-18. READ and RESOLVE (D167) and `sxml_schema`'s quintet;
+golden `src/xslt_read.c`, `src/xquery_module.c`.
+- **One table of schema element roles** (`src/schema_read.c`): a role is
+  what an element is where it appears (global or local element, group
+  definition or reference, a facet, ...); its rule lists the unqualified
+  attributes and required ones the schema for schema documents allows,
+  the child slots its children fill in order (a slot: roles, required,
+  repeated, ending the content), and its reader. Attributes of other
+  namespaces than XSD's are allowed (openAttrs), `vc:` attributes decide
+  conditional inclusion (4.2.2, src-cip). What breaks the schema for
+  schema documents is reported with the role's representation constraint
+  (src-element, src-ct, src-simple-type, ...), or the component's
+  properties constraint where there is none (mg-props-correct,
+  an-props-correct, n-props-correct, as-props-correct,
+  sch-props-correct); equal `id` values are cvc-id.2.
+- **The walk** is a loop over node indexes from the element read to its
+  last descendant; an element's children get their roles when it is read,
+  so an element without one (ignored, misplaced, in an annotation) is
+  skipped with its subtree. Components are added in document order,
+  linked to the parent's component at once; lists (particles, attribute
+  uses, facets, ...) are written in a second pass, once, whole.
+- **As read, for the later stages**: a simple type restriction has
+  variety ATOMIC until RESOLVE gives it its base's; the xs:assertion
+  facets of a simpleContent restriction join the type's assertions with
+  its xs:assert children, in document order; defaultOpenContent is
+  applied to complex content when appliesToEmpty or the type has a
+  particle or complexContent (clause 6's emptiness needs COMPLEX_TYPES);
+  an attribute use with ref and inheritable="false" takes the
+  declaration's.
+- **Assembly** (`src/schema_assemble.c`): a work list; a document is read
+  once by absolute URI and the namespace its components get (a chameleon
+  document included into two namespaces is read twice from one tree);
+  the children of xs:redefine and xs:override are read after every
+  document, replacing the name index entry of what they name (4.2.4,
+  4.2.5); an override child with nothing to replace is not read; a
+  component replaced twice is src-redefine or src-override; a redefined
+  document that reaches the redefining one is src-redefine; a
+  redefinition's base or self-reference names the original (src-redefine.5,
+  6.1, 7.1; the original must be the redefined document's). Redefines
+  and overrides are read innermost first (a chain replaces the inner
+  redefinition) and a component replaced twice in one document is the
+  error. A document the resolver does not deliver is no error (4.2.3
+  clause 2.4, 4.2.6.2; schema.h says otherwise, Proposed); an unlocated
+  import of the xml: namespace reads its known document (xml.xsd); an
+  import without a location of a namespace already read reads nothing;
+  an xs:schema element that conditional inclusion ignores is empty.
+- **Not done**: src-redefine 6.2.2 and 7.2.2 (a group or attribute group
+  redefined without a self-reference must restrict the original); the
+  original of an override or redefinition stays a component (unnamed)
+  and is compiled.
+- **RESOLVE** (`src/schema_resolve.c`): references through the name index
+  (src-resolve; src-resolve.4.2 for namespaces not imported, at READ),
+  base, item and member types, restriction varieties, substitution group
+  affiliations, element types through heads, members transitively, ref
+  identity constraints; cycles of groups (mg-props-correct.2),
+  derivations (ct-props-correct.3, st-props-correct.2) and substitution
+  groups (e-props-correct.6), each a walk with an explicit stack.
+  Attribute groups may refer to each other in a cycle (XSD 1.1, bug
+  15795).
+- **Text form** (`src/schema_text.c`): D167's lines for every table, the
+  xs:schema element's namespace context always first, content models
+  (5.6's writer) after the components.
+- **Driver**: sxml-xsd-test compiles every schema test and every
+  instance test's schema (resolver over the suite files); instance tests
+  are not run until 5.7 ("XSD validation not implemented").
+- **Measured** at 21c9531 with 5.5 and 5.6: schema tests 15,163 of
+  15,329 in scope pass (98.9 %, gate of the packet 85 %); every schema
+  document reads without a crash, leak or limit (10 particle tests reach
+  the content model state limit in COMPLEX_TYPES); no reader error on a
+  valid schema; the XSD slice 110 of 147.
 
 ### D171. Simple types and facets (packet 5.5)
 Recorded 2026-10-18. Fills SIMPLE_TYPES (D167) and registration (D165).
@@ -6383,6 +6452,14 @@ D167 (`src/schema_complex_type.c`, `src/schema_content_model.c`).
   disputed by the versions (particlesK006).
 
 ## Proposed
+
+- **Schema documents the resolver does not deliver** (packet 5.4, D170;
+  for the owner of `include/sxml/schema.h`): the header says such a
+  document is an error for xs:include, xs:redefine and xs:override; XSD
+  1.1 Part 1, 4.2.3 clause 2.4 makes it none (the components are missing,
+  src-resolve where they are named), and the suite expects valid
+  (ms anyURI_a001 and others). The reader follows the specification.
+  Proposed: the header's comment says so.
 
 - **A simple base for a complex type in the registry** (packet 5.6, D172;
   for the owner of `src/types.c`): XSD 1.1, 3.4.1 lets a complex type with
