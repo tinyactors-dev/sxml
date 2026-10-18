@@ -15,15 +15,14 @@ Windows, iOS and Android, and a WebAssembly module for browsers and Node.js.
 
 ## Current phase
 
-**Phase 4: XSLT 4.0**, with Phase 5 (XSD 1.1 validation) started early on
-the owner's choice (D164). Work on the packets in `docs/tasks/phase-4.md`
-and `docs/tasks/phase-5.md`.
-Phases 0 to 3 were closed by agent review, as the owner chose (D11, D161); CI
-is disabled for now and gates are checked locally (D123). The substrate
-headers are frozen (D99); the public XPath and XQuery APIs are stable, while
-`xslt.h` stays provisional until the Phase 4 gate (D151, D161). Features D97
-left out are delayed, not dropped: Phase 5 (schema awareness) and Phase 7
-(D162). Each phase is closed by its gate review.
+**Phase 5: XSD 1.1 validation and schema-aware typing**, started early on
+the owner's choice (D164). Work on the packets in `docs/tasks/phase-5.md`.
+Phases 0 to 4 were closed by agent review, as the owner chose (D11, D161,
+D169); CI is disabled for now and gates are checked locally (D123). The
+substrate headers are frozen (D99); the public XPath, XQuery and XSLT APIs
+are stable, while `schema.h` stays provisional until the Phase 5 gate.
+Features D97 left out are delayed, not dropped: Phase 7 (D162). Each phase is
+closed by its gate review.
 
 ## Design principle
 
