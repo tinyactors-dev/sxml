@@ -136,6 +136,14 @@ components of three schemas (a purchase order, a recursive substitution
 group, an XSD 1.1 schema with assertions, alternatives and open content)
 are written out in comments, and the stubs build. Golden:
 `src/xslt_ast_internal.h`, `src/evaluator_machine_internal.h`.
+**Done** 2026-10-18 (D167): `src/schema_internal.h` (the component
+tables, references, lists, texts, namespace contexts and XPath records;
+the built-in components; `struct sxml_schema`; the compilation and its
+six stages; the content model matcher, the derivation check, the
+recorded subtree, the ID table and the assertion, alternative and
+identity seams; the three schemas in text form), `src/schema_components.c`
+(the store, the name index, blocks, built-in components, reports) with
+`tests/schema_components_test.c`, and the five stubs.
 
 ### 5.3 XSD test driver (implementation)
 After 5.1. Owns new `tests/xsd/driver/`, `tests/xsd/slice.txt`,
@@ -162,7 +170,8 @@ JSON matches the QT4 driver's shape.
 ### 5.4 Schema document reader and assembly (implementation)
 After 5.2. Owns `src/schema.c` (the `sxml_schema` quintet and the find
 functions), `src/schema_read.c`, `src/schema_assemble.c`,
-`src/schema_resolve.c`, `tests/schema_read_test.c`, `tests/schema_test.c`.
+`src/schema_resolve.c`, new `src/schema_text.c` (the text form of
+D167), `tests/schema_read_test.c`, `tests/schema_test.c`.
 Schema documents through the XML parser into arena trees (D12; the
 reader walks a tree, as `src/xslt_read.c` walks a stylesheet), XML
 representation rules of every xs: element and attribute

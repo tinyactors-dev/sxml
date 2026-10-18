@@ -5955,7 +5955,65 @@ the Phase 5 notes of D32, D53, D58, D97 and D162.
 Reserved 2026-10-18; completed when the sweep is logged.
 
 ### D167. Schema components and compile stages (packet 5.2)
-Reserved 2026-10-18.
+Recorded 2026-10-18. The internal design of Phase 5 (D165), in
+`src/schema_internal.h`; golden `src/xslt_ast_internal.h`.
+- **One store, index-addressed** (D24, D52): `sxml_schema_components`
+  holds one table per component kind of XSD 1.1 Part 1, 2.2 (type
+  definitions simple and complex together, element and attribute
+  declarations, attribute uses, attribute groups, model group
+  definitions, model groups, particles, schema wildcards, identity
+  constraints, type alternatives, assertions, notations, facets) and per
+  linking record (XPath records, namespace contexts, schema references,
+  documents, list entries, namespace bindings, text bytes), entry 0 "none"
+  in each. One generic append (`sxml_schema_components_add_entries`, by
+  table) and edit, typed read accessors. Property records (content type,
+  scope, value constraint, open content, type table) are fields. Built-in
+  components first, with fixed indexes: type definitions 1 to 54 are the
+  registry's built-ins by `sxml_builtin_type` (so a registered built-in
+  and its component share a number), 55 the list type of
+  xsi:schemaLocation, particles 1-2, model group 1, wildcards 1-2 for
+  xs:anyType, attributes 1-4 the xsi: ones. xs:untyped, xs:untypedAtomic
+  and xs:numeric have components but no XSD name.
+- **Fields are "as read" or "property"**: the reader writes what the XML
+  says, QName attributes as schema references (a table of symbol space,
+  name, position); RESOLVE turns them into index fields beside them, and
+  no later stage reads a reference. Children known when read are linked
+  by index directly. Stages write the properties their comments name.
+- **Six stages, one file each**, run in order by `sxml_schema_initialize`
+  (5.4), each reading only what earlier ones wrote: READ (schema_read.c,
+  schema_assemble.c), RESOLVE (schema_resolve.c), SIMPLE_TYPES (5.5),
+  COMPLEX_TYPES (5.6, with schema_content_model.c), IDENTITY_CONSTRAINTS
+  (5.8), ASSERTIONS (5.9); errors go through one function,
+  `sxml_schema_compilation_report` (record gets the static description
+  and the configured URI, the sink a detailed one); a stage that reported
+  stops the pipeline after it. Stubs of compile stages check nothing and
+  return OK (so 5.4 can measure schema tests alone); validation-time
+  seams of unfinished features return UNSUPPORTED_FEATURE where used
+  (D162), and the stubs handle the trivial case (no type table, no
+  assertions, no identity constraints) so ordinary validation is not
+  blocked by them.
+- **`struct sxml_schema` is in the internal header** (processor, creating
+  allocator, embedded components), so every `src/schema*.c` reaches the
+  components; its functions stay 5.4's.
+- **Content models** (5.6's plan): an opaque compiled model per complex
+  type, in a block of the components (blocks never move, freed with the
+  components, so no destroy hook): a deterministic Glushkov automaton,
+  small maxOccurs expanded, large ones counted (as D147), UPA as a
+  determinism check with element-over-wildcard, all groups as counted
+  tables, open content as a matcher fallback, substitution groups as
+  head transitions giving the member. The validator steps a cursor
+  (`state` + caller-owned counter values) with start, step, can_end and
+  list_expected.
+- **Validator seams**, plain calls (D71): type alternatives and assertions
+  (5.9), identity constraints (5.8) over a recorded subtree (an arena
+  copy of the outermost element that needs one, with each element's
+  governing declaration by node index), the ID table and the validator's
+  report function (5.7), the derivation check (5.6) for xsi:type,
+  substitution and type tables.
+- **Sharing the header**: after 5.2, `src/schema_internal.h` is shared
+  like a ledger: a packet adds what its files need as one small insertion
+  in its own section, committed alone; it does not change other packets'
+  fields. The text form writer is 5.4's (`src/schema_text.c`).
 
 ### D168. The XSD 1.1 test driver (packet 5.3)
 Reserved 2026-10-18.

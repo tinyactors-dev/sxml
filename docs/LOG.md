@@ -4,6 +4,23 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 5.2 done (D167): the schema components and compile stages in
+  `src/schema_internal.h`: one index-addressed store (a table per
+  component kind of XSD 1.1 Part 1, 2.2, plus references, lists, texts,
+  namespace contexts and XPath records), "as read" fields with QName
+  references that RESOLVE turns into indexes, built-in components at
+  fixed indexes (types 1-54 = the registry's built-ins), six stages in
+  six files (read, resolve, simple types, complex types, identity
+  constraints, assertions), the content-model automaton plan (Glushkov
+  with counters, UPA as determinism, all groups as counted tables), and
+  the validator's seams; three schemas (purchase order, recursive
+  substitution group, XSD 1.1 with assertions, alternatives, open
+  content) written out in text form. `src/schema_components.c` (store,
+  name index, blocks, built-ins, reports) with
+  `tests/schema_components_test.c`; stubs for 5.5 to 5.9. Nothing
+  validates yet; conformance unchanged (no code path of XPath, XQuery or
+  XSLT touched).
+
 - 5.1 done (D165): Phase 5 planned in `docs/tasks/phase-5.md` (14
   packets, waves, gate proposal, the `sxml validate` design). New
   `include/sxml/schema.h`: compiled schemas, a schema validator that is a
