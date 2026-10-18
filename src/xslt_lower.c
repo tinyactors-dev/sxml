@@ -1758,6 +1758,187 @@ static sxml_status lower_main_function(sxml_xpath_lowerer *lowerer, const main_r
     return sxml_ir_unit_replace_function(lowerer->unit, &replacement);
 }
 
+/* ------------------------------------------------ Invocation globals */
+
+/*
+ * The run-time values of an invocation (packet 4.15, D157) are globals of
+ * the unit after the stylesheet's globals and the context global, so a
+ * host binds them by name as it binds stylesheet parameters: the
+ * parameter maps of an apply-templates or call-template invocation (with
+ * the empty map as their default, so a unit evaluated without them still
+ * runs), and when asked the initial match selection or the arguments of
+ * an initial function (no default).
+ */
+enum { SXML_INVOCATION_GLOBAL_MAXIMUM_COUNT = 3 };
+
+typedef struct invocation_globals {
+    sxml_name_identifier names[SXML_INVOCATION_GLOBAL_MAXIMUM_COUNT];
+    bool has_empty_map_default[SXML_INVOCATION_GLOBAL_MAXIMUM_COUNT];
+    size_t global_count;
+    /* The number of the first one: after the stylesheet's globals and the
+       context global, which sxml_xslt_lowering_add_global_variables adds
+       later. */
+    uint32_t first_number;
+} invocation_globals;
+
+/* Interns Q{urn:x-sxml:invocation}local_name and plans it as the next
+   global, whose atom it writes. */
+typedef struct invocation_global_request {
+    sxml_xpath_lowerer *lowerer;
+    const char *local_name;
+    bool has_empty_map_default;
+} invocation_global_request;
+
+static sxml_status plan_invocation_global(invocation_global_request request,
+                                          invocation_globals *globals, sxml_ir_atom *atom) {
+    sxml_xpath_lowerer *lowerer = request.lowerer;
+    sxml_namespace_uri_identifier namespace_uri = {.index = 0};
+    sxml_status status = sxml_name_pool_intern_namespace_uri(
+        lowerer->name_pool, SXML_BYTE_VIEW_FROM_LITERAL(SXML_XSLT_INVOCATION_NAMESPACE),
+        &namespace_uri);
+    sxml_name_identifier name = {.index = 0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_name_pool_intern_name(
+            lowerer->name_pool,
+            &(sxml_name_request){.namespace_uri = namespace_uri,
+                                 .local_name = sxml_byte_view_from_c_string(request.local_name)},
+            &name);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    globals->names[globals->global_count] = name;
+    globals->has_empty_map_default[globals->global_count] = request.has_empty_map_default;
+    *atom = (sxml_ir_atom){
+        .atom_kind = SXML_IR_ATOM_KIND_GLOBAL_VARIABLE,
+        .global_variable = {.value = globals->first_number + (uint32_t)globals->global_count}};
+    globals->global_count += 1;
+    return SXML_STATUS_OK;
+}
+
+/* Plans the globals the invocation reads and writes their atoms into it. */
+typedef struct invocation_plan {
+    const sxml_xslt_lowering *lowering;
+    const sxml_xslt_lowering_request *request;
+} invocation_plan;
+
+static sxml_status plan_invocation_globals(const invocation_plan *plan,
+                                           sxml_xslt_invocation *invocation,
+                                           invocation_globals *globals) {
+    sxml_xpath_lowerer *lowerer = plan->lowering->lowerer;
+    const size_t stylesheet_global_count = plan->lowering->global_count;
+    globals->global_count = 0;
+    globals->first_number =
+        (uint32_t)(stylesheet_global_count > 0 ? stylesheet_global_count + 2U : 1U);
+    if (plan->request->initial_function.index != 0) {
+        invocation->initial_function = plan->request->initial_function;
+        invocation->function_arity = plan->request->initial_function_arity;
+        return plan_invocation_global(
+            (invocation_global_request){.lowerer = lowerer,
+                                        .local_name = SXML_XSLT_INVOCATION_FUNCTION_ARGUMENTS,
+                                        .has_empty_map_default = false},
+            globals, &invocation->function_arguments);
+    }
+    sxml_status status = SXML_STATUS_OK;
+    if (plan->request->reads_invocation_parameters) {
+        status = plan_invocation_global(
+            (invocation_global_request){.lowerer = lowerer,
+                                        .local_name = SXML_XSLT_INVOCATION_TEMPLATE_PARAMETERS,
+                                        .has_empty_map_default = true},
+            globals, &invocation->template_parameters);
+    }
+    if (status == SXML_STATUS_OK && plan->request->reads_invocation_parameters) {
+        status = plan_invocation_global(
+            (invocation_global_request){.lowerer = lowerer,
+                                        .local_name = SXML_XSLT_INVOCATION_TUNNEL_PARAMETERS,
+                                        .has_empty_map_default = true},
+            globals, &invocation->tunnel_parameters);
+    }
+    if (status == SXML_STATUS_OK && plan->request->has_initial_match_selection &&
+        invocation->template_node.value == 0) {
+        status = plan_invocation_global(
+            (invocation_global_request){.lowerer = lowerer,
+                                        .local_name =
+                                            SXML_XSLT_INVOCATION_INITIAL_MATCH_SELECTION,
+                                        .has_empty_map_default = false},
+            globals, &invocation->initial_match_selection);
+    }
+    return status;
+}
+
+/* An initializer of arity 0 that returns the empty map. */
+static sxml_status add_empty_map_initializer(sxml_xpath_lowerer *lowerer,
+                                             sxml_ir_function_index *initializer) {
+    sxml_type_identifier signature = {0};
+    sxml_status status = sxml_xpath_lowerer_register_signature(
+        lowerer,
+        (sxml_xpath_lowering_signature_request){
+            .parameter_types = {.sequence_types = NULL, .sequence_type_count = 0},
+            .result_type = {.item_type = sxml_builtin_type_identifier(SXML_TYPE_ITEM),
+                            .occurrence = SXML_OCCURRENCE_ZERO_OR_MORE}},
+        &signature);
+    sxml_item map = {.representation = 0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_map_make(
+            lowerer->item_heap,
+            &(sxml_map_request){.map_entries = {.map_entries = NULL, .map_entry_count = 0},
+                                .duplicate_key_policy = SXML_DUPLICATE_KEY_POLICY_REJECT,
+                                .error_record = NULL},
+            &map);
+    }
+    sxml_ir_atom empty_map = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_add_item_constant(lowerer, map, &empty_map);
+    }
+    sxml_ir_expression_index body = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_add_expression(
+            lowerer,
+            (sxml_xpath_lowering_expression_to_add){
+                .node = no_ast_node,
+                .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_ATOM,
+                               .atom = empty_map}},
+            &body);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ir_unit_add_function(
+            lowerer->unit,
+            &(sxml_ir_function){.signature = signature, .parameter_count = 0, .body = body},
+            initializer);
+    }
+    return status;
+}
+
+/* Adds the planned globals, after sxml_xslt_lowering_add_global_variables. */
+static sxml_status add_invocation_globals(sxml_xpath_lowerer *lowerer,
+                                          const invocation_globals *globals) {
+    sxml_status status = SXML_STATUS_OK;
+    for (size_t global_index = 0; status == SXML_STATUS_OK && global_index < globals->global_count;
+         global_index += 1) {
+        sxml_ir_function_index initializer = {0};
+        if (globals->has_empty_map_default[global_index]) {
+            status = add_empty_map_initializer(lowerer, &initializer);
+        }
+        sxml_ir_global_index global = {0};
+        if (status == SXML_STATUS_OK) {
+            status = sxml_ir_unit_add_global_variable(
+                lowerer->unit,
+                &(sxml_ir_global_variable){
+                    .variable_name = globals->names[global_index],
+                    .declared_type = {.item_type = sxml_builtin_type_identifier(SXML_TYPE_ITEM),
+                                      .occurrence = SXML_OCCURRENCE_ZERO_OR_MORE},
+                    .initializer = initializer},
+                &global);
+        }
+        if (status == SXML_STATUS_OK &&
+            global.value != globals->first_number + (uint32_t)global_index) {
+            /* The numbers the main function read were planned wrong. */
+            status = SXML_STATUS_INVALID_ARGUMENT;
+        }
+    }
+    return status;
+}
+
 /* Lowers into new_unit with a lowerer in caller memory. */
 typedef struct unit_lowering {
     const sxml_xslt_lowering_request *request;
@@ -1840,10 +2021,16 @@ static sxml_status lower_into_unit(const unit_lowering *work) {
         /* Their bodies may call templates. */
         status = sxml_xslt_lower_components(&lowering);
     }
+    sxml_xslt_invocation invocation = work->invocation;
+    invocation_globals globals = {.global_count = 0, .first_number = 0};
+    if (status == SXML_STATUS_OK) {
+        status = plan_invocation_globals(
+            &(invocation_plan){.lowering = &lowering, .request = request}, &invocation, &globals);
+    }
     if (status == SXML_STATUS_OK) {
         status = lower_main_function(
             lowerer, &(main_request){.lowering = &lowering,
-                                     .invocation = work->invocation,
+                                     .invocation = invocation,
                                      .builds_result_document = request->builds_result_document});
     }
     if (status == SXML_STATUS_OK) {
@@ -1858,6 +2045,9 @@ static sxml_status lower_into_unit(const unit_lowering *work) {
         /* Initializers may call templates (xsl:call-template in a global
            variable's content): before the templates are released. */
         status = sxml_xslt_lowering_add_global_variables(&lowering);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = add_invocation_globals(lowerer, &globals);
     }
     sxml_xslt_release_templates(&lowering);
     if (status == SXML_STATUS_OK) {

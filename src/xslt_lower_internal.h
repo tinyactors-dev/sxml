@@ -458,7 +458,32 @@ typedef struct sxml_xslt_invocation {
     /* The initial template asked for does not exist: the main function
        raises XTDE0040 (2.4.4). */
     bool is_unknown_template;
+    /* What the host supplies at run time, read from globals of the unit
+       (src/xslt.c binds them by the names below; packet 4.15, D157); an
+       atom of kind NONE is the default: the global context item as the
+       initial match selection (2.4.3; XTDE0044 without one), no
+       parameters. */
+    sxml_ir_atom initial_match_selection;
+    sxml_ir_atom template_parameters;
+    sxml_ir_atom tunnel_parameters;
+    /* A function call invocation (2.4.5) when initial_function is not 0:
+       the stylesheet function of that name and arity function_arity is
+       called with the members of the array function_arguments (XTDE0041
+       for none that is public or final). */
+    sxml_name_identifier initial_function;
+    uint32_t function_arity;
+    sxml_ir_atom function_arguments;
 } sxml_xslt_invocation;
+
+/* The namespace of the globals an invocation reads (sxml_xslt_invocation)
+   and their local names: the initial match selection (item()*), the
+   template and tunnel parameters (two maps from xs:QName, empty when not
+   bound) and the arguments of the initial function (an array). */
+#define SXML_XSLT_INVOCATION_NAMESPACE "urn:x-sxml:invocation"
+#define SXML_XSLT_INVOCATION_INITIAL_MATCH_SELECTION "initial-match-selection"
+#define SXML_XSLT_INVOCATION_TEMPLATE_PARAMETERS "template-parameters"
+#define SXML_XSLT_INVOCATION_TUNNEL_PARAMETERS "tunnel-parameters"
+#define SXML_XSLT_INVOCATION_FUNCTION_ARGUMENTS "function-arguments"
 
 typedef struct sxml_xslt_invocation_request {
     const sxml_xslt_lowering *lowering;
@@ -593,6 +618,17 @@ typedef struct sxml_xslt_lowering_request {
     /* As sxml_xslt_invocation. */
     sxml_name_identifier initial_mode;
     bool selects_unnamed_mode;
+    /* A function call invocation (2.4.5) of the function of this name
+       with initial_function_arity arguments; 0 for none. */
+    sxml_name_identifier initial_function;
+    uint32_t initial_function_arity;
+    /* The initial match selection is the host's (a global of the unit),
+       not the global context item. */
+    bool has_initial_match_selection;
+    /* The parameters of the initial template or of the template rules of
+       the initial mode are the host's (two globals of the unit, empty
+       maps by default); without it the invocation passes none. */
+    bool reads_invocation_parameters;
     /* The main function returns a document node holding the result, as
        the principal result is built (2.4, build-tree): a DOCUMENT
        constructor with XSLT's rules around the value. Otherwise it returns

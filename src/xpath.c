@@ -529,6 +529,12 @@ static sxml_status sxml_evaluation_resources_acquire(const sxml_unit_evaluation 
         sxml_global_binding_fill(&(sxml_global_binding){
             .unit = unit, .bindings = &context->variable_bindings, .slots = memory});
     }
+    const sxml_unit_evaluation_extension no_extension = {
+        .function_table = {.state = NULL, .operations = NULL},
+        .document_preparation = {.state = NULL, .operations = NULL},
+        .result_writer = NULL};
+    const sxml_unit_evaluation_extension *extension =
+        evaluation->extension == NULL ? &no_extension : evaluation->extension;
     status = sxml_processor_document_loader_initialize(
         (sxml_memory_view){.bytes = (uint8_t *)&resources->loader_memory,
                            .byte_count = sizeof(resources->loader_memory)},
@@ -543,8 +549,10 @@ static sxml_status sxml_evaluation_resources_acquire(const sxml_unit_evaluation 
                  .default_language = context->default_language.byte_count == 0
                                          ? SXML_BYTE_VIEW_FROM_LITERAL("en")
                                          : context->default_language,
-                 .environment_variables = context->environment_variables},
-            .available_documents = context->available_documents},
+                 .environment_variables = context->environment_variables,
+                 .result_writer = extension->result_writer},
+            .available_documents = context->available_documents,
+            .document_preparation = extension->document_preparation},
         &resources->loader);
     if (status == SXML_STATUS_OK) {
         status = sxml_dynamic_context_create(
@@ -555,7 +563,9 @@ static sxml_status sxml_evaluation_resources_acquire(const sxml_unit_evaluation 
                 .document_loader =
                     sxml_processor_document_loader_as_document_loader(resources->loader),
                 .clock = context->clock.operations == NULL ? processor->clock : context->clock,
-                .function_table = sxml_processor_get_function_table(processor),
+                .function_table = extension->function_table.operations == NULL
+                                      ? sxml_processor_get_function_table(processor)
+                                      : extension->function_table,
                 .maximum_evaluation_depth =
                     sxml_processor_get_maximum_evaluation_depth(processor),
                 .maximum_frame_slot_count = 0,

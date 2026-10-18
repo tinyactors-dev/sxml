@@ -4587,6 +4587,8 @@ sxml_xslt_lowering_declare_global_variables(sxml_xslt_lowering *lowering,
                                                   alignof(sxml_variable_declaration)},
         &memory);
     lowering->global_declarations = memory;
+    /* A failed allocation leaves memory as it was. */
+    memory = NULL;
     if (status == SXML_STATUS_OK) {
         status = sxml_xpath_lowerer_allocate_scratch(
             lowerer,
@@ -5524,9 +5526,10 @@ sxml_status sxml_xslt_lowering_add_global_variables(const sxml_xslt_lowering *lo
         /* Also the globals the components they call read (packet 4.12). */
         status = order_through_components(lowering, order);
     }
-    /* initializers[i] and ordered[i] after the order (as indices). */
-    size_t *initializers = order + global_count;
-    size_t *ordered = initializers + global_count;
+    /* initializers[i] and ordered[i] after the order (as indices); none
+       when the memory could not be had. */
+    size_t *initializers = order == NULL ? NULL : order + global_count;
+    size_t *ordered = initializers == NULL ? NULL : initializers + global_count;
     for (size_t global_index = 0; status == SXML_STATUS_OK && global_index < global_count;
          global_index += 1) {
         sxml_ir_function_index initializer = {0};

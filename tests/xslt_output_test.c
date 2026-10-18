@@ -421,11 +421,12 @@ static void test_result_documents(sxml_test_state *state) {
         {STYLESHEET("",
                     "<xsl:result-document href='a'/><xsl:result-document href='a'/>"),
          "error:XTDE1490"},
-        /* href="" is the principal result's URI: an empty principal result
-           is discarded (26.2.2), another is XTDE1490. */
+        /* href="" is the principal result's URI: the result document is
+           the principal result, delivered as one (26.2.2, D157); with a
+           principal result that is not empty it is XTDE1490. */
         {STYLESHEET("<xsl:output method='text'/>",
                     "<xsl:result-document method='text'>x</xsl:result-document>"),
-         " | file:///out/principal.xml=x"},
+         "x"},
         {STYLESHEET("<xsl:output method='text'/>",
                     "<xsl:result-document method='text'>x</xsl:result-document>y"),
          "error:XTDE1490"},

@@ -2262,6 +2262,13 @@ struct sxml_xslt_result_writer {
     size_t written_uri_count;
     size_t written_uri_capacity;
     uint64_t next_number;
+    /* 26.2.2: the result document whose URI is the base output URI (an
+       xsl:result-document without href) is the principal result: kept
+       with its raw result (retained) and delivered as the principal
+       result, not to the handler. */
+    bool has_principal_document;
+    open_result_document principal_document;
+    sxml_sequence principal_raw_result;
 };
 
 /* Makes room for one more element of a heap array. */
@@ -2392,6 +2399,11 @@ void sxml_xslt_result_writer_finalize(sxml_xslt_result_writer *writer) {
         return;
     }
     (void)abandon_documents(writer, 0);
+    if (writer->has_principal_document) {
+        release_open_document(writer, &writer->principal_document);
+        sxml_sequence_release(writer->principal_raw_result);
+        writer->has_principal_document = false;
+    }
     const sxml_allocator allocator = writer->processor->allocator;
     for (size_t uri_index = 0; uri_index < writer->written_uri_count; uri_index += 1) {
         sxml_allocator_release(allocator, writer->written_uris[uri_index].memory);
@@ -2500,6 +2512,32 @@ sxml_status sxml_xslt_result_writer_deliver_principal_result(
     sxml_status status = abandon_documents(writer, 0);
     if (status != SXML_STATUS_OK) {
         return status;
+    }
+    if (writer->has_principal_document) {
+        /* 26.2.2: the result document of the base output URI is the
+           principal result; the raw result must then be empty. */
+        sxml_emptiness emptiness;
+        status = sxml_sequence_test_emptiness(request->value, request->error_record, &emptiness);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        if (!emptiness.is_empty) {
+            return raise_dynamic(request->error_record, SXML_BYTE_VIEW_FROM_LITERAL(
+                                 "XTDE1490 a result document has the URI of the principal "
+                                 "result, which is not empty (XSLT 4.0, 26.2.2)"));
+        }
+        return deliver_result(
+            writer->processor->item_heap,
+            &(delivery_request){.result_delivery = request->result_delivery,
+                                .output_stream = request->output_stream,
+                                .result = {.value = writer->principal_raw_result,
+                                           .output_definition =
+                                               &writer->principal_document.definition,
+                                           .result_uri = writer->base_output_uri,
+                                           .prefers_xml_for_xhtml =
+                                               writer->prefers_xml_for_xhtml,
+                                           .error_record = request->error_record}},
+            principal_result);
     }
     if (has_written(writer, writer->base_output_uri)) {
         /* 26.2.2: an empty principal result is discarded. */
@@ -3071,6 +3109,17 @@ typedef struct closing {
 static sxml_status close_result_document(sxml_xslt_result_writer *writer, const closing *request) {
     open_result_document *document = &writer->open_documents[request->document_index];
     sxml_status status = SXML_STATUS_OK;
+    if (!writer->has_principal_document &&
+        sxml_byte_view_equals(document->absolute_uri, writer->base_output_uri)) {
+        /* 26.2.2: the principal result, delivered after the evaluation
+           (sxml_xslt_result_writer_deliver_principal_result). */
+        sxml_sequence_retain(request->raw_result);
+        writer->principal_raw_result = request->raw_result;
+        writer->principal_document = *document;
+        writer->has_principal_document = true;
+        writer->open_document_count -= 1;
+        return SXML_STATUS_OK;
+    }
     if (writer->handler.operations != NULL) {
         /* The handler sees each result document when its raw result is
            complete, so opens and closes alternate (D112). */

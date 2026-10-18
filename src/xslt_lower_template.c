@@ -1845,6 +1845,8 @@ typedef struct zeroed_request {
 
 static sxml_status allocate_zeroed(sxml_allocator allocator, zeroed_request request,
                                    void **memory) {
+    /* NULL after a failure, so a caller's release of it is harmless. */
+    *memory = NULL;
     size_t byte_count = 0;
     sxml_status status =
         sxml_size_multiply(request.element_count, request.element_size, &byte_count);
@@ -3243,9 +3245,15 @@ sxml_status sxml_xslt_lowering_bind_has_focus(sxml_xpath_lowerer *lowerer,
    variant with an empty one. */
 typedef struct initial_call {
     const sxml_xslt_lowering *lowering;
+    const sxml_xslt_invocation *invocation;
     const template_entry *entry;
     bool is_focus_absent;
 } initial_call;
+
+/* An atom of the invocation, or default_atom for one of kind NONE. */
+static sxml_ir_atom atom_or_default(sxml_ir_atom atom, sxml_ir_atom default_atom) {
+    return atom.atom_kind == SXML_IR_ATOM_KIND_NONE ? default_atom : atom;
+}
 
 static sxml_status lower_initial_call(sxml_xpath_lowerer *lowerer, initial_call call,
                                       sxml_ir_expression_index *expression);
@@ -3265,11 +3273,27 @@ static sxml_ir_mode_index initial_mode_of(const sxml_xslt_lowering *lowering,
     return find_mode(lowering->templates, default_mode_of(lowering, root).mode_name);
 }
 
+/* Templates applied to the focus (the global context item), checked. */
+typedef struct focused_apply {
+    const sxml_xslt_invocation_request *request;
+    sxml_ir_expression apply;
+} focused_apply;
+
+static sxml_status bind_focused_apply(sxml_xpath_lowerer *lowerer, const focused_apply *focused,
+                                      sxml_ir_atom *atom);
+
+static sxml_status bind_initial_function(sxml_xpath_lowerer *lowerer,
+                                         const sxml_xslt_invocation_request *request,
+                                         sxml_ir_atom *atom);
+
 sxml_status sxml_xslt_lowering_bind_invocation(sxml_xpath_lowerer *lowerer,
                                                const sxml_xslt_invocation_request *request,
                                                sxml_ir_atom *atom) {
     const sxml_xslt_lowering *lowering = request->lowering;
     const sxml_xslt_template_lowering *templates = lowering->templates;
+    if (request->invocation.initial_function.index != 0) {
+        return bind_initial_function(lowerer, request, atom);
+    }
     if (request->invocation.is_unknown_template) {
         sxml_ir_expression_index raise = {0};
         const sxml_status status = add_raise(
@@ -3302,7 +3326,10 @@ sxml_status sxml_xslt_lowering_bind_invocation(sxml_xpath_lowerer *lowerer,
         if (entry->absent_function.value == 0) {
             /* A template rule without a name: called with the focus. */
             status = lower_initial_call(
-                lowerer, (initial_call){.lowering = lowering, .entry = entry, .is_focus_absent = false},
+                lowerer, (initial_call){.lowering = lowering,
+                                              .invocation = &request->invocation,
+                                              .entry = entry,
+                                              .is_focus_absent = false},
                 &with_focus);
             if (status != SXML_STATUS_OK) {
                 return status;
@@ -3316,12 +3343,18 @@ sxml_status sxml_xslt_lowering_bind_invocation(sxml_xpath_lowerer *lowerer,
         status = sxml_xslt_lowering_bind_has_focus(lowerer, request->block, &has_focus);
         if (status == SXML_STATUS_OK) {
             status = lower_initial_call(lowerer,
-                                        (initial_call){.lowering = lowering, .entry = entry, .is_focus_absent = false},
+                                        (initial_call){.lowering = lowering,
+                                              .invocation = &request->invocation,
+                                              .entry = entry,
+                                              .is_focus_absent = false},
                                         &with_focus);
         }
         if (status == SXML_STATUS_OK) {
             status = lower_initial_call(lowerer,
-                                        (initial_call){.lowering = lowering, .entry = entry, .is_focus_absent = true},
+                                        (initial_call){.lowering = lowering,
+                                              .invocation = &request->invocation,
+                                              .entry = entry,
+                                              .is_focus_absent = true},
                                         &without_focus);
         }
         if (status != SXML_STATUS_OK) {
@@ -3355,25 +3388,206 @@ sxml_status sxml_xslt_lowering_bind_invocation(sxml_xpath_lowerer *lowerer,
             (sxml_xpath_lowering_expression_in_block){.block = request->block, .expression = raise},
             atom);
     }
-    /* 2.4.3: the initial match selection is the global context item. */
-    sxml_ir_atom select = {0};
-    const sxml_status status = sxml_xpath_lowerer_read_focus(
-        lowerer,
-        (sxml_xpath_lowering_focus_read){.block = request->block,
-                                         .node = no_ast_node,
-                                         .part = SXML_XPATH_LOWERING_FOCUS_PART_VALUE},
-        &select);
+    const sxml_ir_expression apply = {
+        .expression_kind = SXML_IR_EXPRESSION_KIND_APPLY_TEMPLATES,
+        .apply_templates = {.select = request->invocation.initial_match_selection,
+                            .mode = mode,
+                            .rule_search = SXML_IR_RULE_SEARCH_FROM_START,
+                            .parameters = atom_or_default(request->invocation.template_parameters,
+                                                          templates->empty_map),
+                            .tunnel_parameters = atom_or_default(
+                                request->invocation.tunnel_parameters, templates->empty_map),
+                            .separator = {.atom_kind = SXML_IR_ATOM_KIND_NONE}}};
+    if (apply.apply_templates.select.atom_kind != SXML_IR_ATOM_KIND_NONE) {
+        /* The host's initial match selection (packet 4.15). */
+        return bind_expression(lowerer, (expression_binding){.block = request->block,
+                                                             .expression = apply},
+                               atom);
+    }
+    return bind_focused_apply(lowerer, &(focused_apply){.request = request, .apply = apply},
+                              atom);
+}
+
+/* 2.4.3: templates applied to the global context item, the initial match
+   selection; XTDE0044 when there is none. */
+static sxml_status bind_focused_apply(sxml_xpath_lowerer *lowerer, const focused_apply *focused,
+                                      sxml_ir_atom *atom) {
+    sxml_ir_atom has_focus = {0};
+    sxml_status status =
+        sxml_xslt_lowering_bind_has_focus(lowerer, focused->request->block, &has_focus);
+    sxml_xpath_lowering_block block = {.first = {0}, .open_let = {0}};
+    sxml_ir_expression apply = focused->apply;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_read_focus(
+            lowerer,
+            (sxml_xpath_lowering_focus_read){.block = &block,
+                                             .node = no_ast_node,
+                                             .part = SXML_XPATH_LOWERING_FOCUS_PART_VALUE},
+            &apply.apply_templates.select);
+    }
+    sxml_ir_expression_index applied = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_add_expression(
+            lowerer, (sxml_xpath_lowering_expression_to_add){.node = no_ast_node,
+                                                             .expression = apply},
+            &applied);
+    }
+    sxml_ir_expression_index with_focus = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_finish_block(
+            lowerer, (sxml_xpath_lowering_block_result){.block = block, .result = applied},
+            &with_focus);
+    }
+    sxml_ir_expression_index raise = {0};
+    if (status == SXML_STATUS_OK) {
+        status = add_raise(lowerer,
+                           (raise_text){.error_status = SXML_STATUS_DYNAMIC_ERROR,
+                                        .code = "XTDE0044",
+                                        .description = "an apply-templates invocation has "
+                                                       "neither an initial match selection nor a "
+                                                       "global context item (XSLT 4.0, 2.4.3)"},
+                           &raise);
+    }
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    return bind_expression(lowerer, (expression_binding){.block = request->block, .expression = (sxml_ir_expression){
-            .expression_kind = SXML_IR_EXPRESSION_KIND_APPLY_TEMPLATES,
-            .apply_templates = {.select = select,
-                                .mode = mode,
-                                .rule_search = SXML_IR_RULE_SEARCH_FROM_START,
-                                .parameters = templates->empty_map,
-                                .tunnel_parameters = templates->empty_map,
-                                .separator = {.atom_kind = SXML_IR_ATOM_KIND_NONE}}}}, atom);
+    return bind_expression(
+        lowerer,
+        (expression_binding){.block = focused->request->block,
+                             .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_CONDITIONAL,
+                                            .conditional = {.condition = has_focus,
+                                                            .then_branch = with_focus,
+                                                            .else_branch = raise}}},
+        atom);
+}
+
+/* The most arguments of an initial function. */
+enum { SXML_INITIAL_FUNCTION_MAXIMUM_ARITY = 32 };
+
+/* True when an xsl:function of the name is public or final (2.4.5: the
+   functions of an xsl:stylesheet are private unless they say so). */
+static bool is_public_function(const sxml_xslt_lowering *lowering, sxml_name_identifier name) {
+    const sxml_xslt_ast *ast = lowering->ast;
+    for (uint32_t order = 1; sxml_xslt_ast_get_declaration(ast, order).value != 0; order += 1) {
+        const sxml_xslt_ast_node_index declaration = sxml_xslt_ast_get_declaration(ast, order);
+        if (sxml_xslt_ast_get_node(ast, declaration)->kind != SXML_XSLT_AST_KIND_FUNCTION) {
+            continue;
+        }
+        const sxml_xslt_ast_attribute *function_name = sxml_xslt_ast_get_attribute(
+            ast, sxml_xslt_ast_find_attribute(
+                     ast, (sxml_xslt_ast_attribute_query){.node = declaration,
+                                                          .kind = SXML_XSLT_AST_ATTRIBUTE_NAME}));
+        const sxml_xslt_ast_attribute *visibility = sxml_xslt_ast_get_attribute(
+            ast,
+            sxml_xslt_ast_find_attribute(
+                ast, (sxml_xslt_ast_attribute_query){.node = declaration,
+                                                     .kind = SXML_XSLT_AST_ATTRIBUTE_VISIBILITY}));
+        if (function_name->value.kind == SXML_XSLT_AST_VALUE_KIND_NAME &&
+            function_name->value.payload.name.index == name.index &&
+            visibility->value.kind == SXML_XSLT_AST_VALUE_KIND_KEYWORD &&
+            (visibility->value.payload.keyword == SXML_XSLT_AST_KEYWORD_PUBLIC ||
+             visibility->value.payload.keyword == SXML_XSLT_AST_KEYWORD_FINAL)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/*
+ * 2.4.5: the initial function called with the members of the arguments
+ * array, each coerced to its parameter's type (XPTY0004); XTDE0041 when
+ * the stylesheet has no public or final function of that name and arity.
+ */
+static sxml_status bind_initial_function(sxml_xpath_lowerer *lowerer,
+                                         const sxml_xslt_invocation_request *request,
+                                         sxml_ir_atom *atom) {
+    const sxml_xslt_lowering *lowering = request->lowering;
+    const sxml_xslt_invocation *invocation = &request->invocation;
+    const sxml_xslt_ast_node *root = sxml_xslt_ast_get_node(
+        lowering->ast,
+        sxml_xslt_ast_get_module(lowering->ast, (sxml_xslt_ast_module_index){.value = 1})->root);
+    sxml_function_entry entry = {.entry_kind = SXML_FUNCTION_ENTRY_KIND_NONE};
+    sxml_status status = SXML_STATUS_OK;
+    if (invocation->function_arity <= SXML_INITIAL_FUNCTION_MAXIMUM_ARITY &&
+        root->static_context.value < lowering->static_context_count &&
+        is_public_function(lowering, invocation->initial_function)) {
+        status = sxml_xpath_find_function(
+            lowering->static_contexts[root->static_context.value].function_table,
+            &(sxml_function_query){.function_name = invocation->initial_function,
+                                   .arity = invocation->function_arity},
+            &entry);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (entry.entry_kind != SXML_FUNCTION_ENTRY_KIND_IR_FUNCTION) {
+        sxml_ir_expression_index raise = {0};
+        status = add_raise(lowerer,
+                           (raise_text){.error_status = SXML_STATUS_DYNAMIC_ERROR,
+                                        .code = "XTDE0041",
+                                        .description = "the stylesheet has no public or final "
+                                                       "function of the initial function's name "
+                                                       "and arity (XSLT 4.0, 2.4.5)"},
+                           &raise);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        return sxml_xpath_lowerer_bind_expression(
+            lowerer,
+            (sxml_xpath_lowering_expression_in_block){.block = request->block, .expression = raise},
+            atom);
+    }
+    sxml_ir_atom arguments[SXML_INITIAL_FUNCTION_MAXIMUM_ARITY];
+    for (uint32_t argument_index = 0;
+         status == SXML_STATUS_OK && argument_index < invocation->function_arity;
+         argument_index += 1) {
+        sxml_ir_atom position = {0};
+        status = add_integer_constant(lowerer, (int64_t)argument_index + 1, &position);
+        const sxml_ir_atom get_arguments[2] = {invocation->function_arguments, position};
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xslt_lowering_bind_library_call(
+                lowerer,
+                &(sxml_xslt_library_call){
+                    .block = request->block,
+                    .function_namespace = SXML_NAMESPACE_ARRAY_FUNCTIONS,
+                    .local_name = SXML_BYTE_VIEW_FROM_LITERAL("get"),
+                    .arguments = {.atoms = get_arguments, .atom_count = 2}},
+                &arguments[argument_index]);
+        }
+        if (status == SXML_STATUS_OK &&
+            argument_index < entry.parameter_types.sequence_type_count) {
+            status = sxml_xpath_lowerer_coerce_atom(
+                lowerer,
+                (sxml_xpath_lowering_coercion_request){
+                    .block = request->block,
+                    .node = no_ast_node,
+                    .value = arguments[argument_index],
+                    .sequence_type = entry.parameter_types.sequence_types[argument_index],
+                    .role = SXML_IR_COERCION_ROLE_FUNCTION_ARGUMENT},
+                &arguments[argument_index]);
+        }
+    }
+    sxml_ir_atom_list argument_list = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ir_unit_add_atoms(
+            lowerer->unit,
+            (sxml_ir_atom_view){.atoms = arguments, .atom_count = invocation->function_arity},
+            &argument_list);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return bind_expression(
+        lowerer,
+        (expression_binding){
+            .block = request->block,
+            .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_STATIC_CALL,
+                           .static_call = {.target = {.target_kind =
+                                                          SXML_IR_FUNCTION_TARGET_KIND_IR_FUNCTION,
+                                                      .function = {.value =
+                                                                       entry.ir_function_number}},
+                                           .arguments = argument_list}}},
+        atom);
 }
 
 static sxml_status lower_initial_call(sxml_xpath_lowerer *lowerer, initial_call call,
@@ -3407,8 +3621,10 @@ static sxml_status lower_initial_call(sxml_xpath_lowerer *lowerer, initial_call 
                              .function = call.is_focus_absent ? call.entry->absent_function
                                                               : call.entry->function,
                              .focus = focus,
-                             .parameters = templates->empty_map,
-                             .tunnel_parameters = templates->empty_map},
+                             .parameters = atom_or_default(call.invocation->template_parameters,
+                                                           templates->empty_map),
+                             .tunnel_parameters = atom_or_default(
+                                 call.invocation->tunnel_parameters, templates->empty_map)},
             &result);
     }
     if (status != SXML_STATUS_OK) {

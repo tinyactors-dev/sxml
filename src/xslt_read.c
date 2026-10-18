@@ -2529,6 +2529,12 @@ static sxml_status parse_module(stylesheet_reader *reader, module_text text, sxm
         status = sxml_arena_tree_finish(arena_tree, &tree);
     }
     if (status != SXML_STATUS_OK) {
+        if (reader->error_record != NULL && diagnostic.description.byte_count > 0) {
+            /* include/sxml/xslt.h: a module that is not well-formed has
+               the diagnostic of the XML parser (packet 4.15). */
+            memset(reader->error_record, 0, sizeof(*reader->error_record));
+            reader->error_record->diagnostic = diagnostic;
+        }
         sxml_arena_tree_destroy(arena_tree);
         return status;
     }

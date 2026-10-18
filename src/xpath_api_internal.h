@@ -2,7 +2,9 @@
 
 #include <stdbool.h>
 
+#include "function_library_internal.h"
 #include "ir_internal.h"
+#include "processor_internal.h"
 #include "sxml/processor.h"
 #include "sxml/status.h"
 #include "sxml/view.h"
@@ -12,10 +14,11 @@
 
 /*
  * What the public XPath API (src/xpath.c) shares with the XQuery API
- * (src/xquery.c; docs/DECISIONS.md, D106, D146): the checks of the host's
- * static and dynamic contexts and the evaluation of a sealed unit, so an
- * XQuery query is compiled against the same static context and evaluated
- * by the same code as an XPath expression. Internal to sxml.
+ * (src/xquery.c) and the XSLT API (src/xslt.c; docs/DECISIONS.md, D106,
+ * D146, D157): the checks of the host's static and dynamic contexts and
+ * the evaluation of a sealed unit, so an XQuery query and an XSLT
+ * transformation are compiled against the same static context and
+ * evaluated by the same code as an XPath expression. Internal to sxml.
  *
  * Thread safety: the thread of the processor (D35).
  */
@@ -47,7 +50,23 @@ typedef struct sxml_unit_evaluation {
     /* Checked by the caller (sxml_dynamic_context_configuration_is_valid). */
     const sxml_dynamic_context_configuration *dynamic_context;
     sxml_error_record *error_record;
+    /* What a language adds to the evaluation; NULL for none (XPath,
+       XQuery). Borrowed for the call. */
+    const struct sxml_unit_evaluation_extension *extension;
 } sxml_unit_evaluation;
+
+/* What XSLT adds to an evaluation (src/xslt.c). Each zero member keeps
+   what XPath and XQuery get. */
+typedef struct sxml_unit_evaluation_extension {
+    /* The dynamic context's function table (fn:function-lookup,
+       function-available); the null table means the processor's. */
+    sxml_function_table function_table;
+    /* Applied to every document the evaluation's loader gets from the
+       resolver (XSLT 4.0, 4.2.2: whitespace stripping). */
+    sxml_document_preparation document_preparation;
+    /* The transformation's result writer (src/xslt_output_internal.h). */
+    struct sxml_xslt_result_writer *result_writer;
+} sxml_unit_evaluation_extension;
 
 /*
  * Evaluates evaluation->unit as sxml_xpath_expression_evaluate does: each
