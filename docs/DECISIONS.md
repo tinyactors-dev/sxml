@@ -5104,7 +5104,86 @@ Reserved here; the record is completed when the packet is ticked.
 
 ### D156. Output and result documents (packet 4.13)
 Recorded 2026-10-18, after D106, D112, D120b, D128, D144, D145, D146, D150.
-Reserved here; the record is completed when the packet is ticked.
+`src/xslt_output.c` with `src/xslt_output_internal.h`, the library part
+`src/function_library_output.c` (XSLT only), `tests/xslt_output_test.c`;
+hooks: one rule view in `src/xslt_lower.c`, declarations in
+`src/xslt_lower_internal.h`, the tunnel mark in `src/xslt_lower_template.c`,
+`result_writer` in the evaluation environment (`src/processor_internal.h`).
+No IR kind, no evaluator change, no public header.
+- **Stylesheet outputs** (glossary), compiled from the sealed AST and
+  keeping nothing of it (4.15 makes them next to the unit): output
+  definitions, named character maps, result document instructions.
+  An xsl:output's attributes become serialization parameter texts (D146;
+  booleans yes/no, names as EQNames, html-version as a decimal) merged
+  over the definition's declarations (highest precedence wins, XTSE1560
+  for two at that precedence unless a higher one follows; the name lists
+  of cdata-section-elements and suppress-indentation are the union) and
+  read by `sxml_serialization_parameter_reader_read_texts` over the
+  parameter document (read at compile time through the resolver; a
+  document that cannot be found is ignored, 26.1.5; its parameters win
+  over the attributes, so texts it gives are dropped). build-tree is read
+  here; omit-xml-declaration defaults to no; has_serialization_method
+  when a text or the document gives method. Reader errors (SEPM0016,
+  SESU0007, ...) become static errors at the declaration.
+  `sxml_xslt_stylesheet_outputs_get_definition` is what
+  `sxml_xslt_stylesheet_get_output_definition` returns.
+- **Character maps** (26.1.6): the declaration of highest precedence per
+  name (XTSE1580 for a tie there), expanded once each in post-order on an
+  explicit stack (XTSE1590, XTSE1600), concatenations merged "later wins"
+  by a heapsort into one sorted map; use-character-maps of an output
+  definition concatenates in increasing precedence, then the parameter
+  document's maps; of xsl:result-document over the definition's (26.2.4).
+  `fn:character-map` (26.1.7) returns one as a map.
+- **xsl:result-document** (26.2) is two internal rows around its content
+  (`let $o := result-document-open(N, (values), temporary) let $raw := ...
+  return result-document-close($o, $raw)`), N the AST node index naming
+  its result document instruction, values its value templates in a fixed
+  order. Open checks XTDE1480, resolves format (XTDE1460) and href against
+  the base output URI, checks XTDE1490, merges the effective definition
+  (the definition's texts with the instruction's over them, "" absent
+  for doctype-*, "#absent" for item-separator, the instruction's
+  parameter document over all, output-version as version) and makes the
+  URI the current output URI. Close calls the handler's open, delivers
+  (DEFAULT by build-tree, RAW, TREE, SERIALIZED) and close: the handler
+  sees each result document when its raw result is complete, so open and
+  close alternate as D112 says and a nested result document comes first.
+  A document whose content failed is dropped (the handler never saw it).
+- **Temporary output state** (26.2.6): lexically inside xsl:variable,
+  param, with-param, function, key, sort, accumulator-rule, merge-key a
+  RAISE of XTDE1480; dynamically, an xsl:apply-templates or
+  call-template there puts Q{urn:x-sxml:output}temporary-output-state
+  into the tunnel parameters it passes, and open tests the received map;
+  a function call invocation sets the writer's flag.
+- **Delivery** (shared by both results): `sxml_xslt_serialize_result`
+  (the method given or chosen from the raw result, 26.1.2; indent DEFAULT
+  is yes for html and xhtml), `sxml_xslt_build_result_tree` (the
+  serializer's sequence normalizer into an arena tree, base URI the
+  result's URI), `sxml_xslt_result_builds_tree`. The **result writer**
+  (glossary) delivers the principal result after the evaluation
+  (`sxml_xslt_result_writer_deliver_principal_result`: XTDE1490, an empty
+  principal result with a result document of its URI discarded).
+- **fn:current-output-uri**: the writer's current output URI (the
+  innermost open result document, else the base output URI); absent in
+  temporary output state (function call invocation) or without a base
+  output URI. Not cleared in functions, global variables and patterns
+  (26.3.1): a context variable (D153) bound by those lowerings would do
+  it (current-output-uri-001, -005, -401).
+- **Collector**: the public `sxml_xslt_result_document_collector_*` of
+  xslt.h is implemented here (values or bytes by URI, the byte bound), so
+  4.15 does not need to.
+- Not done: XTDE1500 (reading a written URI), disable-output-escaping
+  (ignored, as Serialization 4.0 allows), both parameter documents of
+  xsl:output and xsl:result-document at once (the instruction's replaces
+  the definition's), validation and type of xsl:result-document.
+- Measured with a scratch harness (lower, evaluate with a result writer
+  and a test handler, deliver; serialization assertions on the principal
+  result serialized by its definition, assert-result-document by URI, a
+  result document with the base output URI standing for an empty
+  principal result): decl/output 235/244, decl/character-map 32/33,
+  insn/result-document 129/149 (17 need accumulators or xsl:merge),
+  insn/xsl-document 23/25, fn/current-output-uri 6/16 (the clearing
+  above, initial functions, the harness's base output URI). Before: no
+  xsl:result-document was lowered and xsl:output was not read.
 
 ## Proposed
 
