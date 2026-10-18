@@ -12,6 +12,9 @@ seed, named by the SHA-1 of its content (the libFuzzer convention):
   xpath_evaluate_fuzz  the same queries
   xquery_fuzz          the same queries and every .xq file of the QT4
                        test sets
+  xslt_fuzz            every .xsl file of the xslt40-test suite
+                       (third_party/xslt40-test), streaming tests
+                       included
   regex_fuzz           the input, regex and flags of fn:matches,
                        fn:replace, fn:tokenize and fn:analyze-string
                        calls with literal arguments, in the layout of
@@ -141,6 +144,7 @@ def main():
     compile_corpus = corpus("xpath_compile_fuzz")
     evaluate_corpus = corpus("xpath_evaluate_fuzz")
     xquery_corpus = corpus("xquery_fuzz")
+    xslt_corpus = corpus("xslt_fuzz")
     regex_corpus = corpus("regex_fuzz")
     cast_corpus = corpus("cast_fuzz")
     target_numbers = {name: number for number, name in enumerate(cast_target_names())}
@@ -167,8 +171,12 @@ def main():
         with open(path, "rb") as module:
             xquery_corpus.add(module.read())
 
-    for seeds in (xml_corpus, compile_corpus, evaluate_corpus, xquery_corpus, regex_corpus,
-                  cast_corpus):
+    for path in walk_files(os.path.join(third_party, "xslt40-test"), (".xsl",)):
+        with open(path, "rb") as module:
+            xslt_corpus.add(module.read())
+
+    for seeds in (xml_corpus, compile_corpus, evaluate_corpus, xquery_corpus, xslt_corpus,
+                  regex_corpus, cast_corpus):
         written_count, found_count = seeds.write()
         print(f"{seeds.directory}: {written_count} of {found_count} seeds")
 
