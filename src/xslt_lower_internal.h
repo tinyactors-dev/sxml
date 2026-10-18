@@ -537,6 +537,38 @@ typedef struct sxml_xslt_global_context_item_call {
 SXML_NODISCARD sxml_status sxml_xslt_lowering_bind_global_context_item(
     sxml_xpath_lowerer *lowerer, const sxml_xslt_global_context_item_call *call);
 
+/* ------------------------------------------- Output (packet 4.13, D156) */
+
+/* The instructions of src/xslt_output.c: xsl:result-document. */
+extern const sxml_xslt_instruction_rule_view sxml_xslt_instruction_rules_output;
+
+/* Whether node is lexically in temporary output state (XSLT 4.0, 26.2.6):
+   inside xsl:variable, xsl:param, xsl:with-param, xsl:function, xsl:key,
+   xsl:sort, xsl:accumulator-rule or xsl:merge-key of its template or
+   declaration. src/xslt_output.c. */
+bool sxml_xslt_lowering_is_in_temporary_output_state(const sxml_xslt_lowering *lowering,
+                                                     sxml_xslt_ast_node_index node);
+
+/* An instruction that passes tunnel parameters to templates. */
+typedef struct sxml_xslt_output_state_mark {
+    const sxml_xslt_lowering *lowering;
+    sxml_xslt_ast_node_index node;
+    sxml_xpath_lowering_block *block;
+} sxml_xslt_output_state_mark;
+
+/* When mark->node is in temporary output state, binds in mark->block the
+   map *tunnel_parameters (in/out) with the entry that tells the templates
+   it calls so (src/xslt_output_internal.h); otherwise leaves it as it is. */
+SXML_NODISCARD sxml_status sxml_xslt_lowering_mark_temporary_output_state(
+    sxml_xpath_lowerer *lowerer, const sxml_xslt_output_state_mark *mark,
+    sxml_ir_atom *tunnel_parameters);
+
+/* Writes the atom of the tunnel parameters the template function being
+   lowered received to *tunnel_parameters and returns true; false outside a
+   template function. src/xslt_lower_template.c. */
+bool sxml_xslt_lowering_received_tunnel_parameters(const sxml_xslt_lowering *lowering,
+                                                   sxml_ir_atom *tunnel_parameters);
+
 /* ----------------------------------------------------------- The entry */
 
 /* A stylesheet to lower with the invocation that starts it (until packet

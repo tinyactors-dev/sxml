@@ -1306,6 +1306,15 @@ static sxml_status continue_parameter_maps(sxml_xpath_lowering_machine *machine,
             (map_building){.frame = frame, .base = locals->base_tunnel_parameters, .is_tunnel = true},
             locals->tunnel_parameters);
     }
+    if (status == SXML_STATUS_OK) {
+        /* 26.2.6: templates called in temporary output state stay in it
+           (packet 4.13). */
+        status = sxml_xslt_lowering_mark_temporary_output_state(
+            lowerer,
+            &(sxml_xslt_output_state_mark){
+                .lowering = lowering, .node = locals->head.node, .block = frame->block},
+            locals->tunnel_parameters);
+    }
     sxml_ir_expression_index nothing = {0};
     if (status == SXML_STATUS_OK) {
         status = sxml_xpath_lowerer_add_empty_sequence(lowerer, no_ast_node, &nothing);
@@ -1335,6 +1344,15 @@ static inherited_maps inherited_maps_of(const sxml_xslt_lowering *lowering) {
     }
     return (inherited_maps){.parameters = slot_atom(parameters_slot),
                             .tunnel_parameters = slot_atom(tunnel_parameters_slot)};
+}
+
+bool sxml_xslt_lowering_received_tunnel_parameters(const sxml_xslt_lowering *lowering,
+                                                   sxml_ir_atom *tunnel_parameters) {
+    if (!is_in_template_function(lowering)) {
+        return false;
+    }
+    *tunnel_parameters = slot_atom(tunnel_parameters_slot);
+    return true;
 }
 
 /* Pushes the parameter maps frame of instruction (its xsl:with-param

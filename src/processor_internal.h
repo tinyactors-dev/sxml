@@ -102,6 +102,10 @@ typedef struct sxml_evaluation_environment {
     sxml_byte_view default_language;
     /* Names distinct, UTF-8. */
     sxml_environment_variable_view environment_variables;
+    /* The result writer of the XSLT transformation the evaluation runs
+       (src/xslt_output_internal.h, packet 4.13, D156): xsl:result-document
+       and fn:current-output-uri reach it here. NULL outside one. */
+    struct sxml_xslt_result_writer *result_writer;
 } sxml_evaluation_environment;
 
 /* ----------------------------------------------------- Document loader */
