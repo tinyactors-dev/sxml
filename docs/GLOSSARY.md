@@ -97,6 +97,7 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `native_function` | A function written in C, described by one row of static data (name, parameters, result type, properties, body) |
 | `function_parameter` | Name, declared type as text and default of one parameter of a function |
 | `parameter_default` | How an omitted parameter gets its value: required, the context value, or supplied by the body |
+| `default_function` | The IR function that computes the default expression of one optional parameter of a declared XQuery function; its parameters are the caller's context value, position and size, of which it reads those its IR function's focus names (`SXML_PARAMETER_DEFAULT_EXPRESSION`, XQuery 4.0, 5.18.3) |
 | `function_library` | The per-processor index over the native function parts, resolving their types |
 | `function_table` | Interface through which static analysis finds a function by name and arity |
 | `function_entry` | What a function table finds: the target and its signature for one arity |
