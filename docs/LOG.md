@@ -4,6 +4,15 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 4.17 sweep 1 claimed (D159): XSLT conformance. Numbering sequences in
+  the shared picture engine, the run-time function table (key,
+  accumulators, stylesheet functions), names given as strings against
+  each expression's namespaces, host collations, priority patterns,
+  record and type aliases, missing functions, the "error" outcomes.
+  Files: `src/format.c`, `src/xslt*.c` (not `src/xslt_package.c`),
+  `src/function_library_*.c` (small hunks), `tests/xslt*`,
+  `docs/CONFORMANCE.md`.
+
 - 4.15 done (D157): XSLT works through the public API and the CLI.
   `src/xslt.c` implements `include/sxml/xslt.h` on the shared unit
   evaluation (now with an extension: XSLT function table, strip-space

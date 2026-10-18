@@ -5341,6 +5341,10 @@ Recorded 2026-10-18, after D112, D117, D139, D144, D145, D149, D150, D156.
 Recorded 2026-10-18, after D135, D148, D154.
 Reserved here; the record is completed when the packet is ticked.
 
+### D159. XSLT conformance sweep 1 (packet 4.17)
+Recorded 2026-10-19, after D153, D155, D157.
+Reserved here; the record is completed when the packet is ticked.
+
 ## Proposed
 
 - **An xsl:stylesheet as the principal package** (packet 4.15, D157; for
