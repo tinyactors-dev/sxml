@@ -6539,6 +6539,9 @@ Recorded 2026-10-18. The schema validator of D165 and the seams of D167
   95.6 %, XSD 1.1 83.3 %; the XSD slice 147 of 147. XP40 30,647, XQ40
   40,034 and XT40 7,990 unchanged.
 
+### D174. Schema-aware XPath and XQuery (packet 5.11)
+Reserved 2026-10-18; the record follows when the packet lands.
+
 ## Proposed
 
 - **A simple base for a complex type in the registry** (packet 5.6, D172;
