@@ -584,6 +584,7 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `result_tree` | The document node that sequence normalization makes; what the XML, XHTML, HTML and text methods write |
 | `sequence_normalizer` | Gives the children of the result tree one at a time (`normalized_event`: text or a node to copy), without building the tree |
 | `character_pipeline` | What text goes through on its way out: character maps, Unicode normalization, escaping, line endings, encoding (Serialization 4.0, section 4) |
+| `cdata_section` | A text node's request to be serialized as CDATA sections (XSLT 4.0, 11.4.3: the cdata attribute of xsl:text and xsl:value-of); a builder and serializer property, not part of XDM (`is_cdata_section`) |
 | `character_context` | Where characters are written: markup, text, an attribute value, a URI attribute value or CDATA sections; decides escaping and mapping |
 | `escape_style` | How the character pipeline escapes text for a method: XML, Canonical XML, HTML, none (text), JSON strings or CSV fields |
 | `staged_bytes` | Encoded bytes the serializer collects before one write to the output stream |
