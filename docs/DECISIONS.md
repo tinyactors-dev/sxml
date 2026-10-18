@@ -5957,6 +5957,9 @@ Reserved 2026-10-18; completed when the sweep is logged.
 ### D167. Schema components and compile stages (packet 5.2)
 Reserved 2026-10-18.
 
+### D168. The XSD 1.1 test driver (packet 5.3)
+Reserved 2026-10-18.
+
 ## Proposed
 
 - **Matching package versions for host resolvers** (packet 4.16, D160;
