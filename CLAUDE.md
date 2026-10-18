@@ -15,14 +15,13 @@ Windows, iOS and Android, and a WebAssembly module for browsers and Node.js.
 
 ## Current phase
 
-**Phase 3: XQuery 4.0**, with Phase 4 (XSLT 4.0) packets running alongside
-as their dependencies allow (D132). Work on the packets in
-`docs/tasks/phase-3.md` and `docs/tasks/phase-4.md`. Phases 0 to 2 were closed
-by agent review, as the owner chose (D11); CI is disabled for now and gates
-are checked locally (D123). The substrate headers are frozen (D99); the
-public XPath API is stable since 0.2.0, while `xquery.h` and `xslt.h` stay
-provisional until their phase gates (D151). Each phase is closed by its gate
-review.
+**Phase 4: XSLT 4.0.** Work on the packets in `docs/tasks/phase-4.md`.
+Phases 0 to 3 were closed by agent review, as the owner chose (D11, D161); CI
+is disabled for now and gates are checked locally (D123). The substrate
+headers are frozen (D99); the public XPath and XQuery APIs are stable, while
+`xslt.h` stays provisional until the Phase 4 gate (D151, D161). Features D97
+left out are delayed, not dropped: Phase 5 (schema awareness) and Phase 7
+(D162). Each phase is closed by its gate review.
 
 ## Design principle
 
