@@ -1,22 +1,29 @@
-# Runs sxml-qt4 run over a slice (the torture slice, or the XQuery slice of
-# packet 3.13) and fails when fewer test cases pass than its baseline file
-# records (glossary: slice_baseline).
+# Runs a conformance driver's run command over a slice (the torture slice,
+# the XQuery slice of packet 3.13, the XSLT and XSD slices) and fails when
+# fewer test cases pass than its baseline file records (glossary:
+# slice_baseline). Shared by tests/qt4/driver, tests/xslt/driver and
+# tests/xsd/driver (packet 5.3).
 # The baseline only goes up: when more pass, the test says so, and the
 # change that made them pass raises the number in the file. Set by the
-# script tests/qt4/driver/CMakeLists.txt generates:
+# script each driver's CMakeLists.txt generates:
 #
-#   PROGRAM            path of sxml-qt4
+#   PROGRAM            path of the driver (sxml-qt4, sxml-xslt-test, ...)
 #   EMULATOR           command that runs it (Node.js for WASI), may be empty
 #   WORKING_DIRECTORY  the repository root, where the default catalog is
 #   SLICE_FILE         the test list, such as tests/qt4/torture-slice.txt
-#   SPEC               the target, XP40 or XQ40
+#   SPEC               sxml-qt4's target, XP40 or XQ40; empty or unset for
+#                      the other drivers, which have no --spec
 #   BASELINE_FILE      such as tests/qt4/slice-baseline.txt
 #
 # Exit codes 0 and 1 (some test case failed) are a finished run; any other
 # (a crash, a sanitizer report, an unreadable file) fails the test.
 
+set(spec_arguments "")
+if(DEFINED SPEC AND NOT SPEC STREQUAL "")
+    set(spec_arguments "--spec=${SPEC}")
+endif()
 execute_process(
-    COMMAND ${EMULATOR} "${PROGRAM}" run "--spec=${SPEC}" "${SLICE_FILE}"
+    COMMAND ${EMULATOR} "${PROGRAM}" run ${spec_arguments} "${SLICE_FILE}"
     WORKING_DIRECTORY "${WORKING_DIRECTORY}"
     OUTPUT_VARIABLE actual_stdout
     ERROR_VARIABLE actual_stderr
@@ -27,7 +34,7 @@ if(NOT actual_stderr STREQUAL "")
     message("${actual_stderr}")
 endif()
 if(NOT (actual_exit_code STREQUAL "0" OR actual_exit_code STREQUAL "1"))
-    message(FATAL_ERROR "sxml-qt4 run exited with ${actual_exit_code}")
+    message(FATAL_ERROR "${PROGRAM} run exited with ${actual_exit_code}")
 endif()
 if(NOT actual_stdout MATCHES "\ntotal: ([0-9]+) test cases?: ([0-9]+) passed")
     message(FATAL_ERROR "no total line in the report")

@@ -1093,3 +1093,69 @@ sxml_qt4_catalog *
 sxml_xslt_test_catalog_get_file_catalog(const sxml_xslt_test_catalog *catalog) {
     return catalog->file_catalog;
 }
+
+/* ------------------------------------------------------- Test catalog */
+
+static size_t sxml_xslt_test_get_test_set_count(const void *state) {
+    return sxml_xslt_test_catalog_test_set_count(state);
+}
+
+static sxml_byte_view sxml_xslt_test_get_test_set_name(const void *state,
+                                                       size_t test_set_index) {
+    sxml_qt4_test_set_entry entry = {.name = sxml_xslt_test_empty_text,
+                                     .file_path = sxml_xslt_test_empty_text};
+    if (sxml_xslt_test_catalog_get_test_set_entry(state, test_set_index,
+                                                  &entry) != SXML_STATUS_OK) {
+        return sxml_xslt_test_empty_text;
+    }
+    return entry.name;
+}
+
+static bool sxml_xslt_test_find_test_set(const void *state,
+                                         sxml_byte_view name,
+                                         size_t *test_set_index) {
+    return sxml_xslt_test_catalog_find_test_set(state, name, test_set_index);
+}
+
+static sxml_status
+sxml_xslt_test_open_test_set(void *state,
+                             const sxml_qt4_test_set_request *request) {
+    return sxml_xslt_test_catalog_open_test_set(state, request);
+}
+
+static bool sxml_xslt_test_get_open_test_set(const void *state,
+                                             size_t *test_set_index) {
+    return sxml_xslt_test_catalog_get_open_test_set(state, test_set_index);
+}
+
+static size_t sxml_xslt_test_get_test_case_count(const void *state) {
+    return sxml_xslt_test_catalog_test_case_count(state);
+}
+
+static bool sxml_xslt_test_find_test_case(const void *state,
+                                          sxml_byte_view name,
+                                          size_t *test_case_index) {
+    return sxml_xslt_test_catalog_find_test_case(state, name, test_case_index);
+}
+
+static const sxml_qt4_test_catalog_operations
+    sxml_xslt_test_test_catalog_operations = {
+        .get_test_set_count = sxml_xslt_test_get_test_set_count,
+        .get_test_set_name = sxml_xslt_test_get_test_set_name,
+        .find_test_set = sxml_xslt_test_find_test_set,
+        .open_test_set = sxml_xslt_test_open_test_set,
+        .get_open_test_set = sxml_xslt_test_get_open_test_set,
+        .get_test_case_count = sxml_xslt_test_get_test_case_count,
+        .find_test_case = sxml_xslt_test_find_test_case,
+};
+
+sxml_qt4_test_catalog
+sxml_xslt_test_catalog_as_test_catalog(sxml_xslt_test_catalog *catalog) {
+    return (sxml_qt4_test_catalog){
+        .state = catalog, .operations = &sxml_xslt_test_test_catalog_operations};
+}
+
+sxml_xslt_test_catalog *
+sxml_xslt_test_selection_catalog(const sxml_qt4_selection *selection) {
+    return selection->catalog.state;
+}

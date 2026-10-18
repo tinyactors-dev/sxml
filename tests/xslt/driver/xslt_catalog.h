@@ -7,6 +7,7 @@
 #include "catalog.h"
 #include "cli_command.h"
 #include "document.h"
+#include "selection.h"
 #include "sxml/memory.h"
 #include "sxml/status.h"
 #include "sxml/view.h"
@@ -222,3 +223,13 @@ SXML_NODISCARD sxml_status sxml_xslt_test_catalog_read_file(
  */
 sxml_qt4_catalog *
 sxml_xslt_test_catalog_get_file_catalog(const sxml_xslt_test_catalog *catalog);
+
+/* The catalog as a test catalog (selection.h), for the test selection of
+   list and run. The catalog must outlive it. */
+sxml_qt4_test_catalog
+sxml_xslt_test_catalog_as_test_catalog(sxml_xslt_test_catalog *catalog);
+
+/* The XSLT catalog a selection made with
+   sxml_xslt_test_catalog_as_test_catalog walks. */
+sxml_xslt_test_catalog *
+sxml_xslt_test_selection_catalog(const sxml_qt4_selection *selection);

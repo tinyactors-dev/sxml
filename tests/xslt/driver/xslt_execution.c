@@ -1,12 +1,13 @@
 /*
  * Executing one planned XSLT 4.0 test case (xslt_execution.h). Imitates
- * tests/qt4/driver/test_run.c: its budget, its stages and reasons, its
+ * tests/qt4/driver/test_run.c: its budget (budget.h), its stages and reasons, its
  * treatment of a raised error; the stylesheet and the transformation go
  * through include/sxml/xslt.h only.
  */
 #include "xslt_execution.h"
 #include "xslt_package_version.h"
 
+#include "budget.h"
 #include "resource_table.h"
 #include "suite_path.h"
 #include "sxml/name.h"
@@ -28,6 +29,12 @@ static const sxml_byte_view sxml_xslt_test_empty_text = {.bytes = NULL,
 /* As the QT4 driver: entity expansion bounded, nesting not. */
 enum { SXML_XSLT_TEST_MAXIMUM_EXPANSION_BYTE_COUNT = 4 * 1024 * 1024 };
 
+/* Most evaluation steps of one transformation (D89): four times the QT4
+   driver's, as an XSLT case may transform a whole input document
+   (json-to-xml-013 turns 19 MB of JSON into 209,579 cities and takes
+   about 190 million steps, D166). */
+#define SXML_XSLT_TEST_MAXIMUM_STEP_COUNT ((uint64_t)4 * SXML_QT4_TEST_MAXIMUM_STEP_COUNT)
+
 /* The scratch arena's blocks. */
 enum { SXML_XSLT_TEST_SCRATCH_BLOCK_BYTE_COUNT = 8 * 1024 };
 
@@ -36,82 +43,6 @@ enum { SXML_XSLT_TEST_MAXIMUM_OUTPUT_BYTE_COUNT = 64 * 1024 * 1024 };
 
 /* Most messages kept for assert-message; later ones are dropped. */
 enum { SXML_XSLT_TEST_MAXIMUM_MESSAGE_COUNT = 256 };
-
-/* ---------------------------------------------------------------- Budget */
-
-/*
- * The allocator of one test, as the QT4 driver's (test_run.c): passes
- * allocations on, counts live allocations and bytes, and refuses any past
- * SXML_QT4_TEST_MAXIMUM_BYTE_COUNT live bytes. Each block carries a header
- * with its size.
- */
-typedef struct sxml_xslt_test_budget {
-    sxml_allocator backing_allocator;
-    size_t live_byte_count;
-    uint64_t live_allocation_count;
-    bool was_exceeded;
-} sxml_xslt_test_budget;
-
-typedef struct sxml_xslt_test_budget_header {
-    size_t total_byte_count;
-    size_t header_byte_count;
-} sxml_xslt_test_budget_header;
-
-enum { SXML_XSLT_TEST_BUDGET_MINIMUM_ALIGNMENT = 16 };
-
-static sxml_status sxml_xslt_test_budget_allocate(void *state,
-                                                  sxml_allocation_request request,
-                                                  void **memory) {
-    sxml_xslt_test_budget *budget = state;
-    size_t alignment = request.alignment;
-    if (alignment < SXML_XSLT_TEST_BUDGET_MINIMUM_ALIGNMENT) {
-        alignment = SXML_XSLT_TEST_BUDGET_MINIMUM_ALIGNMENT;
-    }
-    _Static_assert(sizeof(sxml_xslt_test_budget_header) <=
-                       SXML_XSLT_TEST_BUDGET_MINIMUM_ALIGNMENT,
-                   "the budget header fits before the block");
-    size_t total_byte_count = 0;
-    if (sxml_size_add(request.byte_count, alignment, &total_byte_count) !=
-            SXML_STATUS_OK ||
-        total_byte_count >
-            SXML_QT4_TEST_MAXIMUM_BYTE_COUNT - budget->live_byte_count) {
-        budget->was_exceeded = true;
-        return SXML_STATUS_OUT_OF_MEMORY;
-    }
-    void *block = NULL;
-    const sxml_status status = sxml_allocator_allocate(
-        budget->backing_allocator,
-        (sxml_allocation_request){.byte_count = total_byte_count,
-                                  .alignment = alignment},
-        &block);
-    if (status != SXML_STATUS_OK) {
-        return SXML_STATUS_OUT_OF_MEMORY;
-    }
-    uint8_t *start = (uint8_t *)block + alignment;
-    const sxml_xslt_test_budget_header header = {
-        .total_byte_count = total_byte_count, .header_byte_count = alignment};
-    memcpy(start - sizeof header, &header, sizeof header);
-    budget->live_byte_count += total_byte_count;
-    budget->live_allocation_count += 1;
-    *memory = start;
-    return SXML_STATUS_OK;
-}
-
-static void sxml_xslt_test_budget_release(void *state, void *memory) {
-    sxml_xslt_test_budget *budget = state;
-    uint8_t *start = memory;
-    sxml_xslt_test_budget_header header;
-    memcpy(&header, start - sizeof header, sizeof header);
-    budget->live_byte_count -= header.total_byte_count;
-    budget->live_allocation_count -= 1;
-    sxml_allocator_release(budget->backing_allocator,
-                           start - header.header_byte_count);
-}
-
-static const sxml_allocator_operations sxml_xslt_test_budget_operations = {
-    .allocate = sxml_xslt_test_budget_allocate,
-    .release = sxml_xslt_test_budget_release,
-};
 
 /* ------------------------------------------------------------ The context */
 
@@ -1131,7 +1062,10 @@ static void sxml_xslt_test_transform(sxml_xslt_test_context *context,
     if (status == SXML_STATUS_OK) {
         status = sxml_xslt_test_base_output_uri(context, &answer->base_output_uri);
     }
-    if (status == SXML_STATUS_OK) {
+    /* Result documents are kept only for assert-result-document; without
+       one they go to the null handler, which still checks them (D166). */
+    if (status == SXML_STATUS_OK &&
+        request->survey->kind_counts[SXML_XSLT_TEST_ASSERTION_KIND_ASSERT_RESULT_DOCUMENT] > 0) {
         status = sxml_xslt_result_document_collector_create(
             context->allocator,
             &(sxml_xslt_result_document_collector_configuration){
@@ -1182,7 +1116,9 @@ static void sxml_xslt_test_transform(sxml_xslt_test_context *context,
                                      ? (sxml_output_stream){.state = NULL, .operations = NULL}
                                      : sxml_output_buffer_as_output_stream(outputs->output_buffer),
                 .result_document_handler =
-                    sxml_xslt_result_document_collector_as_handler(outputs->collector),
+                    outputs->collector == NULL
+                        ? (sxml_xslt_result_document_handler){.state = NULL, .operations = NULL}
+                        : sxml_xslt_result_document_collector_as_handler(outputs->collector),
                 .error_record = &context->error_record,
                 .initial_mode_name = names.initial_mode,
                 .initial_template_name = names.initial_template,
@@ -1356,12 +1292,8 @@ static void sxml_xslt_test_release_context(sxml_xslt_test_context *context) {
 void sxml_xslt_test_execute(const sxml_xslt_test_execution_request *request,
                             sxml_xslt_test_answer *answer) {
     const sxml_xslt_test_run_request *run = request->run;
-    sxml_xslt_test_budget budget = {.backing_allocator = run->allocator,
-                                    .live_byte_count = 0,
-                                    .live_allocation_count = 0,
-                                    .was_exceeded = false};
-    const sxml_allocator allocator = {.state = &budget,
-                                      .operations = &sxml_xslt_test_budget_operations};
+    sxml_qt4_budget budget = sxml_qt4_budget_start(run->allocator);
+    const sxml_allocator allocator = sxml_qt4_budget_allocator(&budget);
     /* Large (messages): in allocator memory, not on the stack. */
     void *memory = NULL;
     sxml_status status = sxml_allocator_allocate(
@@ -1393,7 +1325,7 @@ void sxml_xslt_test_execute(const sxml_xslt_test_execution_request *request,
             .limits = {.xml_limits = {.maximum_depth = 0,
                                       .maximum_entity_expansion_byte_count =
                                           SXML_XSLT_TEST_MAXIMUM_EXPANSION_BYTE_COUNT},
-                       .maximum_evaluation_step_count = SXML_QT4_TEST_MAXIMUM_STEP_COUNT},
+                       .maximum_evaluation_step_count = SXML_XSLT_TEST_MAXIMUM_STEP_COUNT},
             .resource_resolver = {.state = context,
                                   .operations = &sxml_xslt_test_resolver_operations},
             .clock = sxml_system_clock()},
@@ -1417,13 +1349,7 @@ void sxml_xslt_test_execute(const sxml_xslt_test_execution_request *request,
     }
     sxml_xslt_test_release_context(context);
     sxml_allocator_release(allocator, context);
-    if (budget.was_exceeded) {
-        sxml_qt4_reason_append(answer->reason, SXML_TEXT(" (memory limit)"));
-    }
-    if (budget.live_allocation_count != 0) {
-        answer->outcome = SXML_QT4_TEST_OUTCOME_ERROR;
-        sxml_qt4_reason_append(answer->reason, SXML_TEXT(" [leaked "));
-        sxml_qt4_reason_append_decimal(answer->reason, budget.live_allocation_count);
-        sxml_qt4_reason_append(answer->reason, SXML_TEXT(" allocations]"));
-    }
+    sxml_qt4_budget_finish(&budget,
+                           (sxml_qt4_budget_verdict){.outcome = &answer->outcome,
+                                                     .reason = answer->reason});
 }

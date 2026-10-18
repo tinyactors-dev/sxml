@@ -50,15 +50,25 @@
  * "tests" holds every selected test case in run order, passes included;
  * "test_sets" holds the test sets with test cases in catalog order;
  * "areas" sums them by area, the test-set name up to its first "-" when
- * that is one of fn, op, prod, map, array, math, xs, misc, app, method,
- * upd, ft, bin, expath, else "other" (D94's areas), in that order and only
- * areas with test cases; "in_scope" counts the test cases of the D95
+ * that is one of the configured areas (by default D94's: fn, op, prod,
+ * map, array, math, xs, misc, app, method, upd, ft, bin, expath), else
+ * "other", in that order and only areas with test cases; "in_scope" counts the test cases of the D95
  * denominator (applicability.h) and "in_scope_passed" those of them that
  * passed or raised a wrong error, so in_scope_passed / in_scope is the
  * pass rate the phase gates measure. "passed" in the text is pass +
  * wrong_error. The members after "not_run" were added by packet 2.16
  * (D108); readers of version 1 ignore them.
  */
+
+/* The areas test sets are summed into (see "areas" above), in their
+   order; a test set whose name prefix is none of them is in "other". */
+typedef struct sxml_qt4_area_name_view {
+    const sxml_byte_view *area_names;
+    size_t area_name_count;
+} sxml_qt4_area_name_view;
+
+/* The most areas a report may be configured with. */
+enum { SXML_QT4_REPORT_MAXIMUM_AREA_COUNT = 32 };
 
 typedef enum sxml_qt4_report_format {
     SXML_QT4_REPORT_FORMAT_TEXT,
@@ -82,6 +92,8 @@ typedef struct sxml_qt4_report {
     /* One per test set of the catalog; NULL when there are none. */
     sxml_qt4_outcome_counts *test_set_counts;
     size_t test_set_count;
+    /* Empty for D94's areas. */
+    sxml_qt4_area_name_view area_names;
     sxml_qt4_outcome_counts totals;
     size_t added_count;
 } sxml_qt4_report;
@@ -96,12 +108,18 @@ typedef struct sxml_qt4_report_configuration {
     /* For the JSON "report" member, "PROGRAM run": empty means sxml-qt4;
        the XSLT 4.0 driver's is sxml-xslt-test (D157). ASCII. */
     sxml_byte_view program_name;
+    /* The areas of "areas": empty for D94's (fn, op, ...); the XSD 1.1
+       driver's are its contributors (packet 5.3). At most
+       SXML_QT4_REPORT_MAXIMUM_AREA_COUNT; the names are borrowed and must
+       outlive the report. */
+    sxml_qt4_area_name_view area_names;
     sxml_allocator allocator;
 } sxml_qt4_report_configuration;
 
 /*
  * Starts *report: allocates its counts and writes the start of the JSON
- * object. Returns the allocator's failures, leaving *report untouched.
+ * object. Returns SXML_STATUS_INVALID_ARGUMENT for too many areas and the
+ * allocator's failures, leaving *report untouched.
  */
 SXML_NODISCARD sxml_status
 sxml_qt4_report_start(const sxml_qt4_report_configuration *configuration,

@@ -5,7 +5,7 @@
  * Runs every selected XSLT 4.0 test case (xslt_test_run.h) and writes the
  * QT4 driver's run report (report.h, spec "XSLT40") to standard output.
  * Imitates tests/qt4/driver/command_run.c; the selection is
- * xslt_selection.h's. Each applicable test case is executed through
+ * selection.h's. Each applicable test case is executed through
  * include/sxml/xslt.h (xslt_execution.h, packet 4.15).
  *
  * Exit code: 3 when a file cannot be read, else 4 when the driver failed
@@ -16,7 +16,7 @@
 #include "report.h"
 #include "xslt_catalog.h"
 #include "xslt_driver.h"
-#include "xslt_selection.h"
+#include "selection.h"
 #include "xslt_test_run.h"
 
 #define SXML_TEXT(literal) SXML_BYTE_VIEW_FROM_LITERAL(literal)
@@ -93,19 +93,19 @@ typedef struct sxml_xslt_test_run_state {
 } sxml_xslt_test_run_state;
 
 static void sxml_xslt_test_run_one(void *state,
-                                   sxml_xslt_test_selection *selection,
+                                   sxml_qt4_selection *selection,
                                    size_t test_case_index) {
     sxml_xslt_test_run_state *run = state;
     sxml_arena_reset(run->reason_arena);
-    sxml_qt4_problem problem = sxml_xslt_test_no_problem();
+    sxml_qt4_problem problem = sxml_qt4_selection_no_problem();
     sxml_xslt_test_case test_case = {.name = sxml_xslt_test_empty_text};
     sxml_status status = sxml_xslt_test_catalog_read_test_case(
-        selection->catalog,
+        sxml_xslt_test_selection_catalog(selection),
         &(sxml_qt4_test_case_request){.test_case_index = test_case_index,
                                       .problem = &problem},
         &test_case);
     if (status != SXML_STATUS_OK) {
-        sxml_xslt_test_selection_report_failure(selection, status, &problem);
+        sxml_qt4_selection_report_failure(selection, status, &problem);
         return;
     }
     sxml_qt4_test_result result = {.outcome = SXML_QT4_TEST_OUTCOME_ERROR,
@@ -113,7 +113,7 @@ static void sxml_xslt_test_run_one(void *state,
                                    .is_in_scope = false};
     status = sxml_xslt_test_run_test_case(
         &(sxml_xslt_test_run_request){
-            .catalog = selection->catalog,
+            .catalog = sxml_xslt_test_selection_catalog(selection),
             .test_case = &test_case,
             .allocator = selection->invocation->allocator,
             .arena = run->reason_arena},
@@ -121,11 +121,11 @@ static void sxml_xslt_test_run_one(void *state,
     if (status != SXML_STATUS_OK) {
         problem.description = sxml_status_name(status);
         problem.subject = test_case.name;
-        sxml_xslt_test_selection_report_failure(selection, status, &problem);
+        sxml_qt4_selection_report_failure(selection, status, &problem);
         return;
     }
     size_t test_set_index = 0;
-    (void)sxml_xslt_test_catalog_get_open_test_set(selection->catalog,
+    (void)sxml_xslt_test_catalog_get_open_test_set(sxml_xslt_test_selection_catalog(selection),
                                                    &test_set_index);
     sxml_qt4_report_add(&run->report,
                         &(sxml_qt4_report_entry){
@@ -133,17 +133,6 @@ static void sxml_xslt_test_run_one(void *state,
                             .test_set_name = test_case.test_set_name,
                             .test_case_name = test_case.name,
                             .result = result});
-}
-
-static sxml_byte_view sxml_xslt_test_run_test_set_name(const void *state,
-                                                       size_t test_set_index) {
-    sxml_qt4_test_set_entry entry = {.name = sxml_xslt_test_empty_text,
-                                     .file_path = sxml_xslt_test_empty_text};
-    if (sxml_xslt_test_catalog_get_test_set_entry(state, test_set_index,
-                                                  &entry) != SXML_STATUS_OK) {
-        return sxml_xslt_test_empty_text;
-    }
-    return entry.name;
 }
 
 /* The options of one invocation. */
@@ -181,15 +170,15 @@ sxml_xslt_test_run_find_options(const sxml_cli_invocation *invocation,
 }
 
 /* Loads the catalog, runs the selection and writes the report. */
-static void sxml_xslt_test_run_catalog(sxml_xslt_test_selection *selection,
+static void sxml_xslt_test_run_catalog(sxml_qt4_selection *selection,
                                        const sxml_xslt_test_run_options *options,
                                        sxml_xslt_test_run_state *run) {
     const sxml_cli_invocation *invocation = selection->invocation;
-    sxml_qt4_problem problem = sxml_xslt_test_no_problem();
+    sxml_qt4_problem problem = sxml_qt4_selection_no_problem();
     sxml_status status =
-        sxml_xslt_test_catalog_load(selection->catalog, &problem);
+        sxml_xslt_test_catalog_load(sxml_xslt_test_selection_catalog(selection), &problem);
     if (status != SXML_STATUS_OK) {
-        sxml_xslt_test_selection_report_failure(selection, status, &problem);
+        sxml_qt4_selection_report_failure(selection, status, &problem);
         return;
     }
     status = sxml_arena_create(
@@ -209,7 +198,7 @@ static void sxml_xslt_test_run_catalog(sxml_xslt_test_selection *selection,
                               ? SXML_QT4_REPORT_FORMAT_JSON
                               : SXML_QT4_REPORT_FORMAT_TEXT,
                 .test_set_count =
-                    sxml_xslt_test_catalog_test_set_count(selection->catalog),
+                    sxml_xslt_test_catalog_test_set_count(sxml_xslt_test_selection_catalog(selection)),
                 .spec = SXML_TEXT("XSLT40"),
                 .program_name = SXML_TEXT("sxml-xslt-test"),
                 .allocator = invocation->allocator},
@@ -219,23 +208,24 @@ static void sxml_xslt_test_run_catalog(sxml_xslt_test_selection *selection,
         selection->has_failed = true;
         return;
     }
-    sxml_xslt_test_selection_walk(
+    sxml_qt4_selection_walk(
         selection,
-        &(sxml_xslt_test_selection_request){
+        &(sxml_qt4_selection_request){
             .has_test_set_name = options->test_set.is_present,
             .test_set_name = options->test_set.value,
             .visitor = {.state = run, .visit = sxml_xslt_test_run_one}});
     sxml_qt4_report_finish(
         &run->report,
-        (sxml_qt4_test_set_names){.state = selection->catalog,
-                                  .get_name = sxml_xslt_test_run_test_set_name});
+        (sxml_qt4_test_set_names){
+            .state = &selection->catalog,
+            .get_name = sxml_qt4_test_catalog_test_set_name});
 }
 
 static sxml_cli_exit_code
-sxml_xslt_test_run_exit_code(const sxml_xslt_test_selection *selection,
+sxml_xslt_test_run_exit_code(const sxml_qt4_selection *selection,
                              const sxml_xslt_test_run_state *run) {
     const sxml_cli_exit_code exit_code =
-        sxml_xslt_test_selection_exit_code(selection);
+        sxml_qt4_selection_exit_code(selection);
     if (exit_code != SXML_CLI_EXIT_SUCCESS) {
         return exit_code;
     }
@@ -277,9 +267,9 @@ sxml_xslt_test_run_run_command(const sxml_cli_invocation *invocation) {
                          invocation, SXML_TEXT("--catalog must not be empty"))
                    : SXML_CLI_EXIT_INTERNAL_ERROR;
     }
-    sxml_xslt_test_selection selection = {.invocation = invocation,
+    sxml_qt4_selection selection = {.invocation = invocation,
                                           .command_name = SXML_TEXT("run"),
-                                          .catalog = catalog,
+                                          .catalog = sxml_xslt_test_catalog_as_test_catalog(catalog),
                                           .has_problem = false,
                                           .has_unreadable_file = false,
                                           .has_failed = false};

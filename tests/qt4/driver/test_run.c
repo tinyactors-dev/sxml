@@ -1,11 +1,12 @@
 /*
  * Running one QT4 test case (test_run.h). Imitates apps/sxml/command_xpath.c
  * (processor, resolver, external variables, evaluation through the public
- * API) and src/memory.c for the counting allocator below.
+ * API); the test's allocator is the shared test budget (budget.h).
  */
 #include "test_run.h"
 
 #include "assertion.h"
+#include "budget.h"
 #include "reason.h"
 #include "resource_table.h"
 #include "suite_path.h"
@@ -49,85 +50,6 @@ sxml_byte_view sxml_qt4_test_outcome_name(sxml_qt4_test_outcome outcome) {
     }
     return SXML_TEXT("not-run");
 }
-
-/* ------------------------------------------------------- Budget allocator */
-
-/*
- * The allocator of one test: passes allocations on to the driver's,
- * counts live allocations and bytes, and refuses (out of memory) any
- * allocation past SXML_QT4_TEST_MAXIMUM_BYTE_COUNT live bytes. Each block
- * carries a header with its size, as release is not told it.
- */
-typedef struct sxml_qt4_budget {
-    sxml_allocator backing_allocator;
-    size_t live_byte_count;
-    uint64_t live_allocation_count;
-    bool was_exceeded;
-} sxml_qt4_budget;
-
-/* The header before every block: its whole size and its offset. */
-typedef struct sxml_qt4_budget_header {
-    size_t total_byte_count;
-    size_t header_byte_count;
-} sxml_qt4_budget_header;
-
-enum { SXML_QT4_BUDGET_MINIMUM_ALIGNMENT = 16 };
-
-static sxml_status sxml_qt4_budget_allocate(void *state,
-                                            sxml_allocation_request request,
-                                            void **memory) {
-    sxml_qt4_budget *budget = state;
-    size_t alignment = request.alignment;
-    if (alignment < SXML_QT4_BUDGET_MINIMUM_ALIGNMENT) {
-        alignment = SXML_QT4_BUDGET_MINIMUM_ALIGNMENT;
-    }
-    /* The header fits in the first alignment bytes, which keeps the
-       block's own alignment. */
-    _Static_assert(sizeof(sxml_qt4_budget_header) <=
-                       SXML_QT4_BUDGET_MINIMUM_ALIGNMENT,
-                   "the budget header fits before the block");
-    size_t total_byte_count = 0;
-    if (sxml_size_add(request.byte_count, alignment, &total_byte_count) !=
-            SXML_STATUS_OK ||
-        total_byte_count > SXML_QT4_TEST_MAXIMUM_BYTE_COUNT -
-                               budget->live_byte_count) {
-        budget->was_exceeded = true;
-        return SXML_STATUS_OUT_OF_MEMORY;
-    }
-    void *block = NULL;
-    const sxml_status status = sxml_allocator_allocate(
-        budget->backing_allocator,
-        (sxml_allocation_request){.byte_count = total_byte_count,
-                                  .alignment = alignment},
-        &block);
-    if (status != SXML_STATUS_OK) {
-        return SXML_STATUS_OUT_OF_MEMORY;
-    }
-    uint8_t *start = (uint8_t *)block + alignment;
-    const sxml_qt4_budget_header header = {.total_byte_count = total_byte_count,
-                                           .header_byte_count = alignment};
-    memcpy(start - sizeof header, &header, sizeof header);
-    budget->live_byte_count += total_byte_count;
-    budget->live_allocation_count += 1;
-    *memory = start;
-    return SXML_STATUS_OK;
-}
-
-static void sxml_qt4_budget_release(void *state, void *memory) {
-    sxml_qt4_budget *budget = state;
-    uint8_t *start = memory;
-    sxml_qt4_budget_header header;
-    memcpy(&header, start - sizeof header, sizeof header);
-    budget->live_byte_count -= header.total_byte_count;
-    budget->live_allocation_count -= 1;
-    sxml_allocator_release(budget->backing_allocator,
-                           start - header.header_byte_count);
-}
-
-static const sxml_allocator_operations sxml_qt4_budget_operations = {
-    .allocate = sxml_qt4_budget_allocate,
-    .release = sxml_qt4_budget_release,
-};
 
 /* ------------------------------------------------------------ The context */
 
@@ -1339,12 +1261,8 @@ static void sxml_qt4_release_context(sxml_qt4_test_context *context) {
 /* Runs an applicable test in its own processor and budget. */
 static void sxml_qt4_run_isolated(const sxml_qt4_test_run_request *request,
                                   sxml_qt4_test_answer *answer) {
-    sxml_qt4_budget budget = {.backing_allocator = request->allocator,
-                              .live_byte_count = 0,
-                              .live_allocation_count = 0,
-                              .was_exceeded = false};
-    const sxml_allocator allocator = {.state = &budget,
-                                      .operations = &sxml_qt4_budget_operations};
+    sxml_qt4_budget budget = sxml_qt4_budget_start(request->allocator);
+    const sxml_allocator allocator = sxml_qt4_budget_allocator(&budget);
     sxml_qt4_resource_table resource_table = {
         .catalog = request->catalog,
         .allocator = allocator,
@@ -1392,19 +1310,12 @@ static void sxml_qt4_run_isolated(const sxml_qt4_test_run_request *request,
         sxml_qt4_describe_failure(&context, status, answer);
     }
     sxml_qt4_release_context(&context);
-    if (budget.was_exceeded) {
-        sxml_qt4_reason_append(&answer->reason, SXML_TEXT(" (memory limit)"));
-    }
     if (budget.live_allocation_count != 0) {
-        answer->outcome = SXML_QT4_TEST_OUTCOME_ERROR;
         answer->needs_missing_feature = false;
-        sxml_qt4_reason_append(&answer->reason, SXML_TEXT(" [leaked "));
-        sxml_qt4_reason_append_decimal(&answer->reason,
-                                       budget.live_allocation_count);
-        sxml_qt4_reason_append(&answer->reason, SXML_TEXT(" allocations]"));
-        /* The blocks are unreachable to the driver too; they stay with the
-           backing allocator, where the sanitizers report them. */
     }
+    sxml_qt4_budget_finish(&budget,
+                           (sxml_qt4_budget_verdict){.outcome = &answer->outcome,
+                                                     .reason = &answer->reason});
 }
 
 sxml_status sxml_qt4_run_test_case(const sxml_qt4_test_run_request *request,

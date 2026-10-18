@@ -97,7 +97,10 @@ sxml_status sxml_qt4_document_load(const sxml_qt4_document_reader *reader,
     sxml_namespace_uri_identifier catalog_namespace = {.index = 0};
     if (status == SXML_STATUS_OK) {
         status = sxml_name_pool_intern_namespace_uri(
-            description.name_pool, SXML_TEXT(SXML_QT4_CATALOG_NAMESPACE_URI),
+            description.name_pool,
+            request->catalog_namespace_uri.byte_count != 0
+                ? request->catalog_namespace_uri
+                : SXML_TEXT(SXML_QT4_CATALOG_NAMESPACE_URI),
             &catalog_namespace);
     }
     if (status != SXML_STATUS_OK) {
@@ -237,6 +240,16 @@ sxml_status sxml_qt4_document_find_attribute(const sxml_qt4_document *document,
     if (status != SXML_STATUS_OK) {
         return status;
     }
+    *value = (sxml_qt4_attribute_value){.is_present = false,
+                                        .value = sxml_qt4_empty_text};
+    sxml_namespace_uri_identifier namespace_uri = {.index =
+                                                       SXML_NAMESPACE_NONE};
+    if (!sxml_name_pool_find_namespace_uri(document->name_pool,
+                                           lookup.namespace_uri,
+                                           &namespace_uri)) {
+        /* No name of the document is in that namespace. */
+        return SXML_STATUS_OK;
+    }
     /* An element's attributes are the nodes right after it (tree.h). */
     for (uint32_t attribute_number = 1;
          attribute_number <= description.attribute_count;
@@ -257,7 +270,7 @@ sxml_status sxml_qt4_document_find_attribute(const sxml_qt4_document *document,
         if (status != SXML_STATUS_OK) {
             return status;
         }
-        if (parts.namespace_uri.index != SXML_NAMESPACE_NONE ||
+        if (parts.namespace_uri.index != namespace_uri.index ||
             !sxml_byte_view_equals(parts.local_name, lookup.local_name)) {
             continue;
         }

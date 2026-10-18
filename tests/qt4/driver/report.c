@@ -21,6 +21,10 @@ static const sxml_byte_view sxml_qt4_count_names[SXML_QT4_TEST_OUTCOME_COUNT] = 
 sxml_status
 sxml_qt4_report_start(const sxml_qt4_report_configuration *configuration,
                       sxml_qt4_report *report) {
+    if (configuration->area_names.area_name_count >
+        SXML_QT4_REPORT_MAXIMUM_AREA_COUNT) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
     void *memory = NULL;
     if (configuration->test_set_count != 0) {
         size_t byte_count = 0;
@@ -51,6 +55,7 @@ sxml_qt4_report_start(const sxml_qt4_report_configuration *configuration,
                                 .allocator = configuration->allocator,
                                 .test_set_counts = memory,
                                 .test_set_count = configuration->test_set_count,
+                                .area_names = configuration->area_names,
                                 .totals = {.counts = {0},
                                            .in_scope_count = 0,
                                            .in_scope_passed_count = 0},
@@ -183,8 +188,8 @@ static void sxml_qt4_write_counts_json(sxml_cli_writer *output,
     sxml_cli_writer_write_decimal(output, counts->in_scope_passed_count);
 }
 
-/* The areas of D94, in the order of the dashboard; the last is the area
-   of every other test set. */
+/* The areas of D94, in the order of the dashboard; a test set of none
+   of them is in the area "other", which comes last. */
 static const sxml_byte_view sxml_qt4_area_names[] = {
     SXML_BYTE_VIEW_INITIALIZER("fn"),     SXML_BYTE_VIEW_INITIALIZER("op"),
     SXML_BYTE_VIEW_INITIALIZER("prod"),   SXML_BYTE_VIEW_INITIALIZER("map"),
@@ -193,16 +198,27 @@ static const sxml_byte_view sxml_qt4_area_names[] = {
     SXML_BYTE_VIEW_INITIALIZER("app"),    SXML_BYTE_VIEW_INITIALIZER("method"),
     SXML_BYTE_VIEW_INITIALIZER("upd"),    SXML_BYTE_VIEW_INITIALIZER("ft"),
     SXML_BYTE_VIEW_INITIALIZER("bin"),    SXML_BYTE_VIEW_INITIALIZER("expath"),
-    SXML_BYTE_VIEW_INITIALIZER("other"),
 };
 
-enum {
-    SXML_QT4_AREA_COUNT =
-        sizeof sxml_qt4_area_names / sizeof sxml_qt4_area_names[0]
-};
+static const sxml_byte_view sxml_qt4_other_area_name =
+    SXML_BYTE_VIEW_INITIALIZER("other");
 
-/* The index of the area of a test set: its name up to the first "-". */
-static size_t sxml_qt4_area_of(sxml_byte_view test_set_name) {
+/* The areas of a report: the configured ones, else D94's. */
+static sxml_qt4_area_name_view
+sxml_qt4_areas_of(const sxml_qt4_report *report) {
+    if (report->area_names.area_name_count != 0) {
+        return report->area_names;
+    }
+    return (sxml_qt4_area_name_view){
+        .area_names = sxml_qt4_area_names,
+        .area_name_count =
+            sizeof sxml_qt4_area_names / sizeof sxml_qt4_area_names[0]};
+}
+
+/* The index of the area of a test set: its name up to the first "-",
+   when that is an area, else the index past the areas ("other"). */
+static size_t sxml_qt4_area_of(sxml_qt4_area_name_view areas,
+                               sxml_byte_view test_set_name) {
     size_t prefix_byte_count = 0;
     while (prefix_byte_count < test_set_name.byte_count &&
            test_set_name.bytes[prefix_byte_count] != '-') {
@@ -210,22 +226,24 @@ static size_t sxml_qt4_area_of(sxml_byte_view test_set_name) {
     }
     const sxml_byte_view prefix = {.bytes = test_set_name.bytes,
                                    .byte_count = prefix_byte_count};
-    for (size_t area_index = 0; area_index + 1 < SXML_QT4_AREA_COUNT;
+    for (size_t area_index = 0; area_index < areas.area_name_count;
          area_index += 1) {
-        if (sxml_byte_view_equals(prefix, sxml_qt4_area_names[area_index])) {
+        if (sxml_byte_view_equals(prefix, areas.area_names[area_index])) {
             return area_index;
         }
     }
-    return SXML_QT4_AREA_COUNT - 1;
+    return areas.area_name_count;
 }
 
 /* Writes the "areas" member: the test sets' counts summed by area. */
 static void sxml_qt4_write_areas_json(const sxml_qt4_report *report,
                                       sxml_qt4_test_set_names names) {
-    sxml_qt4_outcome_counts areas[SXML_QT4_AREA_COUNT];
-    for (size_t area_index = 0; area_index < SXML_QT4_AREA_COUNT;
+    const sxml_qt4_area_name_view areas = sxml_qt4_areas_of(report);
+    /* One more than the areas: "other". */
+    sxml_qt4_outcome_counts area_counts[SXML_QT4_REPORT_MAXIMUM_AREA_COUNT + 1];
+    for (size_t area_index = 0; area_index <= areas.area_name_count;
          area_index += 1) {
-        areas[area_index] = (sxml_qt4_outcome_counts){
+        area_counts[area_index] = (sxml_qt4_outcome_counts){
             .counts = {0}, .in_scope_count = 0, .in_scope_passed_count = 0};
     }
     for (size_t test_set_index = 0; test_set_index < report->test_set_count;
@@ -234,26 +252,28 @@ static void sxml_qt4_write_areas_json(const sxml_qt4_report *report,
             &report->test_set_counts[test_set_index];
         if (sxml_qt4_counts_total(counts) != 0) {
             sxml_qt4_add_counts(
-                &areas[sxml_qt4_area_of(
-                    names.get_name(names.state, test_set_index))],
+                &area_counts[sxml_qt4_area_of(
+                    areas, names.get_name(names.state, test_set_index))],
                 counts);
         }
     }
     sxml_cli_writer *output = report->output;
     sxml_cli_writer_write(output, SXML_TEXT("],\n\"areas\": ["));
     size_t written_count = 0;
-    for (size_t area_index = 0; area_index < SXML_QT4_AREA_COUNT;
+    for (size_t area_index = 0; area_index <= areas.area_name_count;
          area_index += 1) {
-        if (sxml_qt4_counts_total(&areas[area_index]) == 0) {
+        if (sxml_qt4_counts_total(&area_counts[area_index]) == 0) {
             continue;
         }
         sxml_cli_writer_write(output, written_count == 0
                                           ? SXML_TEXT("\n{\"area\": ")
                                           : SXML_TEXT(",\n{\"area\": "));
-        sxml_cli_writer_write_json_string(output,
-                                          sxml_qt4_area_names[area_index]);
+        sxml_cli_writer_write_json_string(
+            output, area_index < areas.area_name_count
+                        ? areas.area_names[area_index]
+                        : sxml_qt4_other_area_name);
         sxml_cli_writer_write(output, SXML_TEXT(", "));
-        sxml_qt4_write_counts_json(output, &areas[area_index]);
+        sxml_qt4_write_counts_json(output, &area_counts[area_index]);
         sxml_cli_writer_write_byte(output, '}');
         written_count += 1;
     }

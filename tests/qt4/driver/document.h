@@ -18,8 +18,9 @@
  * The driver reads every file of the QT4 catalog with sxml's own XML parser
  * into sxml's arena tree, through the public headers only, and walks the
  * tree with the public node accessors. Only elements in the catalog
- * namespace (http://www.w3.org/2010/09/qt-fots-catalog) are seen; text,
- * comments and elements of other namespaces are skipped.
+ * namespace (http://www.w3.org/2010/09/qt-fots-catalog, or the one the
+ * request names) are seen; text, comments and elements of other
+ * namespaces are skipped.
  *
  * Thread safety: one thread, the thread of the item heap.
  */
@@ -73,6 +74,10 @@ typedef struct sxml_qt4_document_request {
     sxml_byte_view suite_path;
     /* Filled on failure; may be NULL. */
     sxml_qt4_problem *problem;
+    /* The namespace of the elements the cursors see: empty for the QT4
+       catalog's, else another suite's (the XSLT 4.0 catalog's, the XSD
+       test suite's). ASCII; borrowed for the call. */
+    sxml_byte_view catalog_namespace_uri;
 } sxml_qt4_document_request;
 
 /*
@@ -127,10 +132,13 @@ typedef struct sxml_qt4_element_step {
 SXML_NODISCARD sxml_status sxml_qt4_element_cursor_next(
     sxml_qt4_element_cursor *cursor, sxml_qt4_element_step *step);
 
-/* An attribute in no namespace of one element. */
+/* An attribute of one element. */
 typedef struct sxml_qt4_attribute_lookup {
     sxml_node_index element;
     sxml_byte_view local_name;
+    /* Empty for an attribute in no namespace (the catalogs' own), else the
+       attribute's namespace, such as XLink's for xlink:href. */
+    sxml_byte_view namespace_uri;
 } sxml_qt4_attribute_lookup;
 
 /* The value of an attribute, owned by the tree. */

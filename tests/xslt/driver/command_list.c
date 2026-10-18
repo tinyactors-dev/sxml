@@ -21,7 +21,7 @@
  *
  * (the plan on one line), then "N test cases: A applicable, S skipped; D
  * in scope". "-" stands for an empty value. Problems go to standard error
- * (xslt_selection.h) and the listing goes on: an unknown test set, test
+ * (selection.h) and the listing goes on: an unknown test set, test
  * case or environment, a test case without a principal stylesheet, an
  * unknown or malformed assertion, a name with an unbound prefix.
  *
@@ -33,7 +33,7 @@
 #include "xslt_assertion.h"
 #include "xslt_catalog.h"
 #include "xslt_driver.h"
-#include "xslt_selection.h"
+#include "selection.h"
 #include "xslt_test_run.h"
 
 #define SXML_TEXT(literal) SXML_BYTE_VIEW_FROM_LITERAL(literal)
@@ -518,26 +518,26 @@ sxml_xslt_test_write_applicability(sxml_cli_writer *output,
 
 /* Writes the plan and the assertions, or reports why they cannot be
    made. */
-static void sxml_xslt_test_list_plan(sxml_xslt_test_selection *selection,
+static void sxml_xslt_test_list_plan(sxml_qt4_selection *selection,
                                      const sxml_xslt_test_case *test_case) {
     sxml_cli_writer *output = selection->invocation->standard_output;
-    sxml_qt4_problem problem = sxml_xslt_test_no_problem();
+    sxml_qt4_problem problem = sxml_qt4_selection_no_problem();
     sxml_xslt_test_plan plan = {.principal_module = NULL};
     sxml_status status = sxml_xslt_test_make_plan(test_case, &problem, &plan);
     if (status == SXML_STATUS_OK) {
         sxml_xslt_test_write_plan(output, test_case, &plan);
     } else {
-        sxml_xslt_test_selection_report_failure(selection, status, &problem);
+        sxml_qt4_selection_report_failure(selection, status, &problem);
     }
     sxml_xslt_test_assertion_survey survey = {
         .kind_counts = {0},
         .first_unchecked_kind = SXML_XSLT_TEST_ASSERTION_KIND_ASSERT_WARNING,
         .has_unchecked_kind = false};
-    problem = sxml_xslt_test_no_problem();
+    problem = sxml_qt4_selection_no_problem();
     status = sxml_xslt_test_survey_assertions(
         &(sxml_xslt_test_assertion_request){
             .document =
-                sxml_xslt_test_catalog_get_test_set_document(selection->catalog),
+                sxml_xslt_test_catalog_get_test_set_document(sxml_xslt_test_selection_catalog(selection)),
             .result_element = test_case->result,
             .test_set_file_path = test_case->test_set_file_path,
             .problem = &problem},
@@ -545,23 +545,23 @@ static void sxml_xslt_test_list_plan(sxml_xslt_test_selection *selection,
     if (status == SXML_STATUS_OK) {
         sxml_xslt_test_write_survey(output, &survey);
     } else {
-        sxml_xslt_test_selection_report_failure(selection, status, &problem);
+        sxml_qt4_selection_report_failure(selection, status, &problem);
     }
 }
 
 static void sxml_xslt_test_list_one(void *state,
-                                    sxml_xslt_test_selection *selection,
+                                    sxml_qt4_selection *selection,
                                     size_t test_case_index) {
     sxml_xslt_test_list_state *list_state = state;
-    sxml_qt4_problem problem = sxml_xslt_test_no_problem();
+    sxml_qt4_problem problem = sxml_qt4_selection_no_problem();
     sxml_xslt_test_case test_case = {.name = sxml_xslt_test_empty_text};
     const sxml_status status = sxml_xslt_test_catalog_read_test_case(
-        selection->catalog,
+        sxml_xslt_test_selection_catalog(selection),
         &(sxml_qt4_test_case_request){.test_case_index = test_case_index,
                                       .problem = &problem},
         &test_case);
     if (status != SXML_STATUS_OK) {
-        sxml_xslt_test_selection_report_failure(selection, status, &problem);
+        sxml_qt4_selection_report_failure(selection, status, &problem);
         return;
     }
     sxml_qt4_applicability applicability = {.is_applicable = false};
@@ -653,22 +653,22 @@ sxml_xslt_test_run_list_command(const sxml_cli_invocation *invocation) {
                          invocation, SXML_TEXT("--catalog must not be empty"))
                    : SXML_CLI_EXIT_INTERNAL_ERROR;
     }
-    sxml_xslt_test_selection selection = {.invocation = invocation,
+    sxml_qt4_selection selection = {.invocation = invocation,
                                           .command_name = SXML_TEXT("list"),
-                                          .catalog = catalog,
+                                          .catalog = sxml_xslt_test_catalog_as_test_catalog(catalog),
                                           .has_problem = false,
                                           .has_unreadable_file = false,
                                           .has_failed = false};
     sxml_xslt_test_list_state state = {
         .listed_count = 0, .applicable_count = 0, .in_scope_count = 0};
-    sxml_qt4_problem problem = sxml_xslt_test_no_problem();
+    sxml_qt4_problem problem = sxml_qt4_selection_no_problem();
     status = sxml_xslt_test_catalog_load(catalog, &problem);
     if (status != SXML_STATUS_OK) {
-        sxml_xslt_test_selection_report_failure(&selection, status, &problem);
+        sxml_qt4_selection_report_failure(&selection, status, &problem);
     } else {
-        sxml_xslt_test_selection_walk(
+        sxml_qt4_selection_walk(
             &selection,
-            &(sxml_xslt_test_selection_request){
+            &(sxml_qt4_selection_request){
                 .has_test_set_name = test_set_option.is_present,
                 .test_set_name = test_set_option.value,
                 .visitor = {.state = &state,
@@ -676,7 +676,7 @@ sxml_xslt_test_run_list_command(const sxml_cli_invocation *invocation) {
         sxml_xslt_test_write_counts(invocation->standard_output, &state);
     }
     sxml_xslt_test_catalog_destroy(catalog);
-    return sxml_xslt_test_selection_exit_code(&selection);
+    return sxml_qt4_selection_exit_code(&selection);
 }
 
 const sxml_cli_command sxml_xslt_test_list_command = {

@@ -11,7 +11,7 @@
 #                             in-memory files.
 #   xslt/<name>               end-to-end golden tests of sxml-xslt-test.
 #   xslt/slice                the XSLT slice, against a baseline that only
-#                             goes up (run-slice-test.cmake).
+#                             goes up (tests/qt4/driver/run-slice-test.cmake).
 
 file(GLOB SXML_XSLT_DRIVER_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/*.c")
 list(FILTER SXML_XSLT_DRIVER_SOURCES EXCLUDE REGEX "/(main|[a-z_]*_test)\\.c$")
@@ -91,7 +91,7 @@ set(EMULATOR${slice_emulator_text})
 set(WORKING_DIRECTORY [==[${PROJECT_SOURCE_DIR}]==])
 set(SLICE_FILE tests/xslt/slice.txt)
 set(BASELINE_FILE [==[${PROJECT_SOURCE_DIR}/tests/xslt/slice-baseline.txt]==])
-include([==[${CMAKE_CURRENT_SOURCE_DIR}/run-slice-test.cmake]==])
+include([==[${PROJECT_SOURCE_DIR}/tests/qt4/driver/run-slice-test.cmake]==])
 ")
 add_test(NAME xslt/slice COMMAND "${CMAKE_COMMAND}" -P "${slice_script}")
 

@@ -17,23 +17,10 @@ static const sxml_byte_view sxml_xslt_test_empty_text = {.bytes = NULL,
 sxml_status sxml_xslt_test_document_load(
     const sxml_qt4_document_reader *reader,
     const sxml_qt4_document_request *request, sxml_qt4_document *document) {
-    sxml_qt4_document loaded = {.arena_tree = NULL,
-                                .tree = NULL,
-                                .name_pool = NULL,
-                                .catalog_namespace = {.index = 0}};
-    sxml_status status = sxml_qt4_document_load(reader, request, &loaded);
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    status = sxml_name_pool_intern_namespace_uri(
-        loaded.name_pool, SXML_TEXT(SXML_XSLT_TEST_CATALOG_NAMESPACE_URI),
-        &loaded.catalog_namespace);
-    if (status != SXML_STATUS_OK) {
-        sxml_qt4_document_unload(&loaded);
-        return status;
-    }
-    *document = loaded;
-    return SXML_STATUS_OK;
+    sxml_qt4_document_request xslt_request = *request;
+    xslt_request.catalog_namespace_uri =
+        SXML_TEXT(SXML_XSLT_TEST_CATALOG_NAMESPACE_URI);
+    return sxml_qt4_document_load(reader, &xslt_request, document);
 }
 
 sxml_status
