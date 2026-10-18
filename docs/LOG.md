@@ -4,6 +4,11 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 4.16 claimed (D160): packages. `src/xslt_package.c` (new) with small
+  hooks in `src/xslt_read.c`, `src/xslt_ast.c`, `src/xslt.c` and the
+  XSLT lowering files (coordinated with 4.17 by hunk), the driver's
+  package-version choice in `tests/xslt/driver/xslt_execution.c`.
+
 - 4.17 sweep 1 claimed (D159): XSLT conformance. Numbering sequences in
   the shared picture engine, the run-time function table (key,
   accumulators, stylesheet functions), names given as strings against
