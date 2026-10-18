@@ -10,6 +10,8 @@ seed, named by the SHA-1 of its content (the libFuzzer convention):
                        QT4 source documents (third_party/qt4tests)
   xpath_compile_fuzz   the inline query of every QT4 test case
   xpath_evaluate_fuzz  the same queries
+  xquery_fuzz          the same queries and every .xq file of the QT4
+                       test sets
   regex_fuzz           the input, regex and flags of fn:matches,
                        fn:replace, fn:tokenize and fn:analyze-string
                        calls with literal arguments, in the layout of
@@ -138,6 +140,7 @@ def main():
     xml_corpus = corpus("xml_parse_fuzz")
     compile_corpus = corpus("xpath_compile_fuzz")
     evaluate_corpus = corpus("xpath_evaluate_fuzz")
+    xquery_corpus = corpus("xquery_fuzz")
     regex_corpus = corpus("regex_fuzz")
     cast_corpus = corpus("cast_fuzz")
     target_numbers = {name: number for number, name in enumerate(cast_target_names())}
@@ -156,10 +159,16 @@ def main():
         query = text.strip().encode("utf-8")
         compile_corpus.add(query)
         evaluate_corpus.add(query)
+        xquery_corpus.add(query)
         add_regex_seeds(regex_corpus, text)
         add_cast_seeds(cast_corpus, text, target_numbers)
 
-    for seeds in (xml_corpus, compile_corpus, evaluate_corpus, regex_corpus, cast_corpus):
+    for path in walk_files(qt4_directory, (".xq",)):
+        with open(path, "rb") as module:
+            xquery_corpus.add(module.read())
+
+    for seeds in (xml_corpus, compile_corpus, evaluate_corpus, xquery_corpus, regex_corpus,
+                  cast_corpus):
         written_count, found_count = seeds.write()
         print(f"{seeds.directory}: {written_count} of {found_count} seeds")
 

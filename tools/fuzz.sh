@@ -12,13 +12,13 @@
 #                         the build directory); kept between runs
 #   TARGET                the targets to run (default all: cast_fuzz
 #                         regex_fuzz xml_parse_fuzz xpath_compile_fuzz
-#                         xpath_evaluate_fuzz)
+#                         xpath_evaluate_fuzz xquery_fuzz)
 #
 # Seeds come from tools/fuzz-seeds.py once per work directory. Each target
 # runs with a 10 s timeout per input and a 2 GB memory limit; an input
 # that crashes, leaks, trips a sanitizer or times out is written to
 # WORK/artifacts/TARGET/ and the script exits 1 (timeouts of
-# xpath_evaluate_fuzz are listed for triage but do not fail, see P9 in
+# xpath_evaluate_fuzz and xquery_fuzz are listed for triage but do not fail, see P9 in
 # docs/DECISIONS.md). Reproduce one with
 #   BUILD/tests/fuzz/TARGET ARTIFACT
 # Needs Clang with libFuzzer, cmake, ninja and python3.
@@ -41,7 +41,7 @@ while [ $# -gt 0 ]; do
     esac
 done
 targets="$*"
-[ -n "$targets" ] || targets="cast_fuzz regex_fuzz xml_parse_fuzz xpath_compile_fuzz xpath_evaluate_fuzz"
+[ -n "$targets" ] || targets="cast_fuzz regex_fuzz xml_parse_fuzz xpath_compile_fuzz xpath_evaluate_fuzz xquery_fuzz"
 
 if [ -z "$build_directory" ]; then
     build_directory="$repository_root/build/fuzz"
@@ -72,7 +72,7 @@ for target in $targets; do
     # runs in fork mode, keeps going after a timeout and leaves the input
     # in its artifacts for triage.
     mode_options=""
-    [ "$target" = xpath_evaluate_fuzz ] && mode_options="-fork=1 -ignore_timeouts=1"
+    case $target in xpath_evaluate_fuzz | xquery_fuzz) mode_options="-fork=1 -ignore_timeouts=1" ;; esac
     echo "== $target for $seconds s (log: $work_directory/$target.log)"
     (
         # The first run of a work directory merges the seeds into a
@@ -105,7 +105,7 @@ for target in $targets; do
         [ -e "$artifact" ] || continue
         echo "   $artifact"
         case $(basename "$artifact") in
-            timeout-*) [ "$target" = xpath_evaluate_fuzz ] || failed=true ;;
+            timeout-*) case $target in xpath_evaluate_fuzz | xquery_fuzz) ;; *) failed=true ;; esac ;;
             *) failed=true ;;
         esac
     done
