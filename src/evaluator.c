@@ -3235,12 +3235,37 @@ static sxml_status sxml_filter_by_constant(sxml_dynamic_context *context,
     return sxml_machine_finish(context, value);
 }
 
-/* FILTER (XPath 4.0, section 4.4.1). */
+/* A bit of the task phase of a FILTER beyond bit 0 (sxml_loop_start):
+   the value now computed is of a predicate that reads no focus slot. */
+enum {
+    SXML_FILTER_PHASE_ONCE = 1U << 1U,
+};
+
+/* FILTER (XPath 4.0, section 4.4.1). A predicate whose focus slots are
+   all unused (it does not depend on the focus) has the same value for
+   every item, so it is computed once and applied as a constant one is:
+   $sequence[$k] takes one item instead of testing every position. */
 static sxml_status sxml_machine_step_filter(sxml_dynamic_context *context,
                                             const sxml_ir_filter *filter) {
     sxml_evaluator_task *task = sxml_machine_top(context);
     sxml_status status = SXML_STATUS_OK;
-    if (task->phase == 0) {
+    if ((task->phase & SXML_FILTER_PHASE_ONCE) != 0) {
+        task->phase &= ~(uint32_t)SXML_FILTER_PHASE_ONCE;
+        const sxml_sequence value = sxml_machine_take_value(context);
+        sxml_constant_filter once_filter = {.is_handled = false};
+        /* Several items (a sequence of numbers selects several positions,
+           section 4.4.1) go to the loop. */
+        const sxml_sequence_representation representation =
+            sxml_sequence_get_representation(value);
+        if (representation == SXML_SEQUENCE_REPRESENTATION_SINGLE_ITEM ||
+            representation == SXML_SEQUENCE_REPRESENTATION_EMPTY) {
+            status = sxml_filter_by_constant(context, value, &once_filter);
+        }
+        sxml_sequence_release(value);
+        if (status != SXML_STATUS_OK || once_filter.is_handled) {
+            return status;
+        }
+    } else if (task->phase == 0) {
         const sxml_ir_expression *predicate =
             sxml_ir_unit_get_expression(task->function->unit, filter->predicate);
         const bool is_constant =
@@ -3261,6 +3286,17 @@ static sxml_status sxml_machine_step_filter(sxml_dynamic_context *context,
             if (status != SXML_STATUS_OK || constant_filter.is_handled) {
                 return status;
             }
+        } else if (filter->focus.context_value.value == 0 &&
+                   filter->focus.context_position.value == 0 &&
+                   filter->focus.context_size.value == 0) {
+            if (sxml_sequence_get_representation(task->details.loop.input) ==
+                SXML_SEQUENCE_REPRESENTATION_EMPTY) {
+                return sxml_loop_finish(context);
+            }
+            task->phase |= SXML_FILTER_PHASE_ONCE;
+            const sxml_evaluator_task predicate_task =
+                sxml_expression_task(task->function, task->frame_base, filter->predicate);
+            return sxml_machine_push(context, &predicate_task);
         }
     } else {
         const sxml_sequence value = sxml_machine_take_value(context);
