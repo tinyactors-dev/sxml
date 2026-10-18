@@ -4889,6 +4889,10 @@ Reserved here; the record is completed when the packet is ticked.
 Recorded 2026-10-17, after D71, D75, D95, D135, D148.
 Reserved here; the record is completed when the sweep ends.
 
+### D155. Accumulators (packet 4.14)
+Recorded 2026-10-18, after D118, D144, D149, D150.
+Reserved here; the record is completed when the packet is ticked.
+
 ## Proposed
 
 - **The XSLT functions at run time** (packet 4.10, D149; for 4.15, the
