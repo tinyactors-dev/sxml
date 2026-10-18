@@ -277,6 +277,13 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `result_delivery` | How a principal result or result document reaches the host: raw, as a tree, or serialized to an output stream |
 | `result_document_handler` | Host interface that receives result documents: it is opened with a document's URI and output definition and closed with its value |
 | `result_document_collector` | The built-in result document handler: keeps every result document in memory, by URI |
+| `stylesheet_outputs` | The compiled output part of a stylesheet: its output definitions by name, its named character maps, and what each `xsl:result-document` instruction reads when it runs (packet 4.13) |
+| `named_character_map` | The character map an `xsl:character-map` declares: its `xsl:output-character` mappings after those of the maps it uses, expanded, a later mapping of a character replacing an earlier one (XSLT 4.0, 26.1.6) |
+| `result_document_instruction` | What one `xsl:result-document` reads when it runs: its attribute value templates in a fixed order, its namespaces, base URI and character maps |
+| `result_writer` | The object of one transformation that delivers its result documents and principal result: the stylesheet outputs, the result document handler, the base output URI, the URIs written (XTDE1490) and the current output URI |
+| `open_result_document` | A result document between the handler's open and close: its URI, effective output definition and target |
+| `current_output_uri` | The URI of the result being written: the base output URI, or the absolute `href` of the `xsl:result-document` being evaluated (XSLT 4.0, 26.3) |
+| `temporary_output_state` | The output state in which `xsl:result-document` is XTDE1480: inside variables, parameters, functions, keys and sort keys, and during a function call invocation (XSLT 4.0, 26.2.6) |
 | `front_end` | The code that turns the text of one language (XPath, XQuery, an XSLT pattern) into an abstract syntax tree |
 | `abstract_syntax_tree` | What a front end builds from a concrete syntax tree: one node per visible grammar production, children by grammar field, names as written, literals decoded; `ast` allowed as a module name only (`sxml_ast_node`) |
 | `ast_field` | The role of a child in its AST parent: a field name of the grammar (`left`, `predicate`, `argument`) |
