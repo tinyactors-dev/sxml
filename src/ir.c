@@ -173,10 +173,6 @@ void sxml_ir_unit_finalize(sxml_ir_unit *unit) {
         sxml_allocator_release(allocator, unit->modules[module_number].namespace_memory);
     }
     sxml_allocator_release(allocator, unit->modules);
-    for (uint32_t schema_index = 1; schema_index < unit->owned_schema_count; schema_index += 1) {
-        sxml_schema_destroy(unit->owned_schemas[schema_index]);
-    }
-    sxml_allocator_release(allocator, (void *)unit->owned_schemas);
     memset(unit, 0, sizeof(*unit));
 }
 
@@ -906,7 +902,7 @@ static void sxml_static_context_fill_block(const sxml_static_context_fill *fill,
     sxml_decimal_format_property *properties = property_memory;
     sxml_collation_binding *bindings = binding_memory;
     void *schema_memory = fill->block + fill->layout->schema_offset;
-    const sxml_schema **schemas = schema_memory;
+    const sxml_schema **schemas = (const sxml_schema **)schema_memory;
     for (size_t schema_index = 0; schema_index < context->in_scope_schemas.schema_count;
          schema_index += 1) {
         schemas[schema_index] = context->in_scope_schemas.schemas[schema_index];
@@ -1029,30 +1025,6 @@ sxml_status sxml_ir_unit_set_static_base_uri(sxml_ir_unit *unit,
 }
 
 void sxml_ir_unit_set_untrusted(sxml_ir_unit *unit) { unit->is_untrusted = true; }
-
-sxml_status sxml_ir_unit_keep_schema(sxml_ir_unit *unit, sxml_schema *schema) {
-    if (schema == NULL) {
-        return SXML_STATUS_INVALID_ARGUMENT;
-    }
-    array_room room = {0};
-    const sxml_status status = make_array_room(
-        unit,
-        &(array_room_request){.elements = (void *)unit->owned_schemas,
-                              .element_count = unit->owned_schema_count,
-                              .element_capacity = unit->owned_schema_capacity,
-                              .element_size = sizeof(sxml_schema *),
-                              .element_alignment = alignof(sxml_schema *),
-                              .added_count = 1},
-        &room);
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    unit->owned_schemas = room.elements;
-    unit->owned_schema_capacity = room.element_capacity;
-    unit->owned_schemas[room.element_count] = schema;
-    unit->owned_schema_count = room.element_count + 1;
-    return SXML_STATUS_OK;
-}
 
 sxml_status sxml_ir_unit_add_function_annotations(sxml_ir_unit *unit,
                                                   sxml_function_annotation_view annotations,

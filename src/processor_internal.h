@@ -8,6 +8,7 @@
 #include "function_library_internal.h"
 #include "sxml/memory.h"
 #include "sxml/processor.h"
+#include "sxml/schema.h"
 #include "sxml/status.h"
 #include "sxml/view.h"
 #include "sxml/xdm.h"
@@ -56,7 +57,38 @@ struct sxml_processor {
     sxml_type_registry *type_registry;
     sxml_item_heap *item_heap;
     sxml_function_library *function_library;
+    /* The schemas compiled for the processor's own use (XQuery's import
+       schema, D174), destroyed when it is finalized; allocator memory,
+       NULL when there are none. */
+    sxml_schema **kept_schemas;
+    size_t kept_schema_count;
+    size_t kept_schema_capacity;
+    /* The schema of the built-in components alone, made on first use by
+       sxml_processor_get_builtin_schema and kept; NULL until then. */
+    sxml_schema *builtin_schema;
 };
+
+/*
+ * The processor takes schema, which it destroys when it is finalized
+ * (D174): the schema an XQuery prolog imports, which the compiled unit's
+ * static contexts name and its validate expressions use, and which must
+ * live as long as the unit and the trees annotated with its types. The
+ * processor, not the unit, owns it, as it owns the registered types: the
+ * schema's own XPath expressions are units, so a unit owning schemas
+ * would make finalization a cycle (D71). On failure the caller still owns
+ * schema.
+ */
+SXML_NODISCARD sxml_status sxml_processor_keep_schema(sxml_processor *processor,
+                                                      sxml_schema *schema);
+
+/*
+ * The schema of the built-in components alone (XSD 1.1 Part 1, 3.4.7,
+ * 3.16.7), made once per processor and kept (D174): the in-scope schema
+ * of an XQuery main module that has no other, so lax validation and
+ * xsi:type always have a schema. Returns the compilation's failures.
+ */
+SXML_NODISCARD sxml_status sxml_processor_get_builtin_schema(sxml_processor *processor,
+                                                             const sxml_schema **schema);
 
 /* The function table of the processor's library, for compilation and for
    fn:function-lookup. */

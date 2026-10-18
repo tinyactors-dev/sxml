@@ -54,7 +54,7 @@
  *   then one schema compiled from the schema imports of the namespaces
  *   no host schema defines (RESOLVED documents: the location hints, or
  *   the namespace alone, the target namespace checked), owned by the
- *   unit; a main module without schemas gets the schema of the built-in
+ *   processor; a main module without schemas gets the schema of the built-in
  *   components; a schema import also binds its prefix like a namespace
  *   declaration, or sets the default element namespace.
  *
@@ -224,9 +224,9 @@ struct sxml_xquery_static_context {
     /* The imported modules (after sxml_xquery_link_static_context). */
     sxml_xquery_static_context_view imported_modules;
     /* The in-scope schemas when the prolog imports schemas (5.11): the
-       host's, then the one schema the imports compile, which the unit
-       owns (sxml_ir_unit_keep_schema); xpath's unit_static_context views
-       it. NULL otherwise. */
+       host's, then the one schema the imports compile, which the
+       processor owns (sxml_processor_keep_schema); xpath's
+       unit_static_context views it. NULL otherwise. */
     const sxml_schema **in_scope_schemas;
 };
 

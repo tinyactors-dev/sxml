@@ -445,7 +445,11 @@ sxml_status sxml_processor_initialize(sxml_memory_view memory,
         .name_pool = NULL,
         .type_registry = NULL,
         .item_heap = NULL,
-        .function_library = NULL};
+        .function_library = NULL,
+        .kept_schemas = NULL,
+        .kept_schema_count = 0,
+        .kept_schema_capacity = 0,
+        .builtin_schema = NULL};
     status = sxml_processor_place_members(new_processor, &layout, memory);
     if (status != SXML_STATUS_OK) {
         return status;
@@ -458,10 +462,74 @@ void sxml_processor_finalize(sxml_processor *processor) {
     if (processor == NULL) {
         return;
     }
+    for (size_t schema_index = 0; schema_index < processor->kept_schema_count;
+         schema_index += 1) {
+        sxml_schema_destroy(processor->kept_schemas[schema_index]);
+    }
+    sxml_allocator_release(processor->allocator, (void *)processor->kept_schemas);
+    processor->kept_schemas = NULL;
+    processor->kept_schema_count = 0;
+    processor->kept_schema_capacity = 0;
+    sxml_schema_destroy(processor->builtin_schema);
+    processor->builtin_schema = NULL;
     sxml_function_library_finalize(processor->function_library);
     sxml_item_heap_finalize(processor->item_heap);
     sxml_type_registry_finalize(processor->type_registry);
     sxml_name_pool_finalize(processor->name_pool);
+}
+
+sxml_status sxml_processor_keep_schema(sxml_processor *processor, sxml_schema *schema) {
+    if (processor == NULL || schema == NULL) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    if (processor->kept_schema_count == processor->kept_schema_capacity) {
+        const size_t capacity =
+            processor->kept_schema_capacity == 0 ? 4 : processor->kept_schema_capacity * 2;
+        size_t byte_count = 0;
+        sxml_status status = sxml_size_multiply(capacity, sizeof(sxml_schema *), &byte_count);
+        void *memory = NULL;
+        if (status == SXML_STATUS_OK) {
+            status = sxml_allocator_allocate(
+                processor->allocator,
+                (sxml_allocation_request){.byte_count = byte_count,
+                                          .alignment = alignof(sxml_schema *)},
+                &memory);
+        }
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        if (processor->kept_schema_count > 0) {
+            memcpy(memory, (void *)processor->kept_schemas,
+                   processor->kept_schema_count * sizeof(sxml_schema *));
+        }
+        sxml_allocator_release(processor->allocator, (void *)processor->kept_schemas);
+        processor->kept_schemas = (sxml_schema **)memory;
+        processor->kept_schema_capacity = capacity;
+    }
+    processor->kept_schemas[processor->kept_schema_count] = schema;
+    processor->kept_schema_count += 1;
+    return SXML_STATUS_OK;
+}
+
+sxml_status sxml_processor_get_builtin_schema(sxml_processor *processor,
+                                              const sxml_schema **schema) {
+    if (processor->builtin_schema == NULL) {
+        const sxml_status status = sxml_schema_create(
+            processor->allocator,
+            &(sxml_schema_configuration){
+                .processor = processor,
+                .schema_documents = {.schema_documents = NULL, .schema_document_count = 0},
+                .base_uri = {.bytes = NULL, .byte_count = 0},
+                .report_sink = {.state = NULL, .operations = NULL},
+                .maximum_content_model_state_count = 0,
+                .error_record = NULL},
+            &processor->builtin_schema);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+    }
+    *schema = processor->builtin_schema;
+    return SXML_STATUS_OK;
 }
 
 sxml_status sxml_processor_create(sxml_allocator allocator,
