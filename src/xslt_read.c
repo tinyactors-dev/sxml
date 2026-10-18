@@ -2394,15 +2394,18 @@ typedef struct error_relocation {
 static sxml_status relocate_error(stylesheet_reader *reader, error_relocation relocation) {
     if (reader->error_record != NULL && sxml_status_has_error_record(relocation.status)) {
         sxml_source_location *location = &reader->error_record->diagnostic.location;
-        sxml_source_location moved = module_location(reader, relocation.module,
-                                                     relocation.source_span);
-        if (location->line_number > 1) {
-            moved.line_number = relocation.source_span.line_number + location->line_number - 1U;
-            moved.column_number = location->column_number;
-        } else if (location->line_number == 1 && location->column_number > 0) {
-            moved.column_number = relocation.source_span.column_number + location->column_number;
+        sxml_ast_source_span span = relocation.source_span;
+        if (location->line_number != 0 && location->column_number != 0) {
+            span = sxml_ast_moved_source_span(
+                (sxml_ast_source_span){.byte_offset = location->byte_offset > UINT32_MAX
+                                                          ? UINT32_MAX
+                                                          : (uint32_t)location->byte_offset,
+                                       .byte_count = 0,
+                                       .line_number = location->line_number,
+                                       .column_number = location->column_number},
+                relocation.source_span);
         }
-        *location = moved;
+        *location = module_location(reader, relocation.module, span);
     }
     return relocation.status;
 }
@@ -3179,6 +3182,11 @@ static sxml_status parse_expression(stylesheet_reader *reader, const expression_
     case SXML_XSLT_AST_VALUE_KIND_NAME_LIST:
     case SXML_XSLT_AST_VALUE_KIND_NAMESPACE_BINDING:
         break;
+    }
+    if (status == SXML_STATUS_OK) {
+        /* Its nodes are placed in the module, so a dynamic error points
+           where a static one does (D169). */
+        sxml_ast_move_source_spans(*ast, expression->source_span);
     }
     return relocate_error(reader, (error_relocation){.status = status,
                                                      .module = expression->module,

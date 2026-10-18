@@ -163,14 +163,6 @@ typedef struct emptiness_answer {
     bool is_empty;
 } emptiness_answer;
 
-static sxml_status add_expression(sxml_xpath_lowerer *lowerer, sxml_ir_expression expression,
-                                  sxml_ir_expression_index *index) {
-    return sxml_xpath_lowerer_add_expression(
-        lowerer,
-        (sxml_xpath_lowering_expression_to_add){.node = no_ast_node, .expression = expression},
-        index);
-}
-
 /* Adds expression and binds it in block. */
 typedef struct binding {
     sxml_xpath_lowering_block *block;
@@ -193,7 +185,7 @@ static sxml_status finish_with_expression(sxml_xpath_lowering_machine *machine,
                                           sxml_xpath_lowering_frame *frame,
                                           sxml_ir_expression expression) {
     sxml_ir_expression_index result = {0};
-    const sxml_status status = add_expression(machine->state, expression, &result);
+    const sxml_status status = sxml_xslt_lowering_add_expression(machine->state, expression, &result);
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -240,17 +232,47 @@ static sxml_status add_string(sxml_xpath_lowerer *lowerer, sxml_byte_view text,
 }
 
 /* An xs:QName constant of name (no prefix). */
-static sxml_status add_qname(sxml_xpath_lowerer *lowerer, sxml_name_identifier name,
-                             sxml_ir_atom *atom) {
-    sxml_item item = {.representation = 0};
-    const sxml_status status = sxml_atomic_item_make(
-        lowerer->item_heap,
+/* The prefix an xs:QName of name is shown with: err for a name in the
+   namespace of error codes (XTMM9000 is reported as err:XTMM9000, as the
+   errors of the function library are), no prefix otherwise. */
+static sxml_status qname_prefix(sxml_name_pool *name_pool, sxml_name_identifier name,
+                                sxml_namespace_prefix_identifier *prefix) {
+    prefix->index = 0;
+    sxml_name_parts parts = {.namespace_uri = {.index = 0},
+                             .local_name = {.bytes = NULL, .byte_count = 0}};
+    const sxml_status status = sxml_name_pool_get_name_parts(name_pool, name, &parts);
+    if (status != SXML_STATUS_OK ||
+        parts.namespace_uri.index !=
+            sxml_well_known_namespace_identifier(SXML_NAMESPACE_ERRORS).index) {
+        return status;
+    }
+    return sxml_name_pool_intern_namespace_prefix(name_pool, SXML_BYTE_VIEW_FROM_LITERAL("err"),
+                                                  prefix);
+}
+
+/* An xs:QName item of name, owned. */
+static sxml_status make_qname_item(sxml_item_heap *item_heap, sxml_name_identifier name,
+                                   sxml_item *item) {
+    sxml_namespace_prefix_identifier prefix = {.index = 0};
+    const sxml_status status =
+        qname_prefix(sxml_item_heap_get_name_pool(item_heap), name, &prefix);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_atomic_item_make(
+        item_heap,
         &(sxml_atomic_item_request){
             .type = sxml_builtin_type_identifier(SXML_TYPE_XS_QNAME),
             .datum = {.datum_kind = SXML_DATUM_KIND_QNAME,
                       .datum_details = {.qname = {.expanded_name = name,
-                                                  .namespace_prefix = {.index = 0}}}}},
-        &item);
+                                                  .namespace_prefix = prefix}}}},
+        item);
+}
+
+static sxml_status add_qname(sxml_xpath_lowerer *lowerer, sxml_name_identifier name,
+                             sxml_ir_atom *atom) {
+    sxml_item item = {.representation = 0};
+    const sxml_status status = make_qname_item(lowerer->item_heap, name, &item);
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -399,7 +421,7 @@ typedef struct branch_result {
 static sxml_status finish_branch(sxml_xpath_lowerer *lowerer, branch_result branch,
                                  sxml_ir_expression_index *expression) {
     sxml_ir_expression_index result = {0};
-    const sxml_status status = add_expression(lowerer, atom_expression(branch.value), &result);
+    const sxml_status status = sxml_xslt_lowering_add_expression(lowerer, atom_expression(branch.value), &result);
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -640,7 +662,7 @@ static sxml_status finish_binding_value(sxml_xpath_lowering_machine *machine,
     } else if (locals->makes_document) {
         /* 9.4: an implicit document node. */
         sxml_ir_expression_index result = {0};
-        status = add_expression(lowerer, atom_expression(value), &result);
+        status = sxml_xslt_lowering_add_expression(lowerer, atom_expression(value), &result);
         sxml_ir_expression_index content = {0};
         if (status == SXML_STATUS_OK) {
             status = sxml_xpath_lowerer_finish_block(
@@ -1116,7 +1138,7 @@ static sxml_status finish_choose(sxml_xpath_lowering_machine *machine,
             return finish_with_expression(machine, frame, conditional_expression(parts));
         }
         sxml_ir_expression_index conditional = {0};
-        status = add_expression(lowerer, conditional_expression(parts), &conditional);
+        status = sxml_xslt_lowering_add_expression(lowerer, conditional_expression(parts), &conditional);
         if (status == SXML_STATUS_OK) {
             status = sxml_xpath_lowerer_finish_block(
                 lowerer,
@@ -1299,7 +1321,7 @@ static sxml_status add_separator(sxml_xpath_lowerer *lowerer, for_each_locals *l
     }
     conditional_parts parts = {.condition = is_not_last};
     if (status == SXML_STATUS_OK) {
-        status = add_expression(
+        status = sxml_xslt_lowering_add_expression(
             lowerer,
             (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_TEXT_CONSTRUCTOR,
                                  .node_construction = {.value = locals->separator}},
@@ -1311,7 +1333,7 @@ static sxml_status add_separator(sxml_xpath_lowerer *lowerer, for_each_locals *l
             make_sequence(lowerer, (sxml_ir_atom_view){.atoms = NULL, .atom_count = 0}, &empty);
     }
     if (status == SXML_STATUS_OK) {
-        status = add_expression(lowerer, empty, &parts.else_branch);
+        status = sxml_xslt_lowering_add_expression(lowerer, empty, &parts.else_branch);
     }
     sxml_ir_atom separator_node = {0};
     if (status == SXML_STATUS_OK) {
@@ -2557,19 +2579,6 @@ static sxml_status default_error_code(sxml_name_pool *name_pool, const message_l
         name);
 }
 
-/* An xs:QName item of name, owned. */
-static sxml_status make_qname_item(sxml_item_heap *item_heap, sxml_name_identifier name,
-                                   sxml_item *item) {
-    return sxml_atomic_item_make(
-        item_heap,
-        &(sxml_atomic_item_request){
-            .type = sxml_builtin_type_identifier(SXML_TYPE_XS_QNAME),
-            .datum = {.datum_kind = SXML_DATUM_KIND_QNAME,
-                      .datum_details = {.qname = {.expanded_name = name,
-                                                  .namespace_prefix = {.index = 0}}}}},
-        item);
-}
-
 /* The string of an atomic item (an xs:string or xs:QName argument). */
 static sxml_status read_datum(sxml_optional_item argument, sxml_atomic_datum *datum) {
     memset(datum, 0, sizeof(*datum));
@@ -2996,11 +3005,11 @@ static sxml_status bind_message_body(sxml_xpath_lowerer *lowerer, sxml_xpath_low
         lowerer, (sxml_ir_atom_view){.atoms = parts, .atom_count = part_count}, &sequence);
     sxml_ir_expression_index content = {0};
     if (status == SXML_STATUS_OK) {
-        status = add_expression(lowerer, sequence, &content);
+        status = sxml_xslt_lowering_add_expression(lowerer, sequence, &content);
     }
     sxml_ir_expression_index document = {0};
     if (status == SXML_STATUS_OK) {
-        status = add_expression(
+        status = sxml_xslt_lowering_add_expression(
             lowerer,
             (sxml_ir_expression){
                 .expression_kind = SXML_IR_EXPRESSION_KIND_DOCUMENT_CONSTRUCTOR,
@@ -3027,10 +3036,10 @@ static sxml_status bind_message_body(sxml_xpath_lowerer *lowerer, sxml_xpath_low
             make_sequence(lowerer, (sxml_ir_atom_view){.atoms = NULL, .atom_count = 0}, &empty);
     }
     if (status == SXML_STATUS_OK) {
-        status = add_expression(lowerer, empty, &empty_content);
+        status = sxml_xslt_lowering_add_expression(lowerer, empty, &empty_content);
     }
     if (status == SXML_STATUS_OK) {
-        status = add_expression(
+        status = sxml_xslt_lowering_add_expression(
             lowerer,
             (sxml_ir_expression){
                 .expression_kind = SXML_IR_EXPRESSION_KIND_DOCUMENT_CONSTRUCTOR,
@@ -3824,7 +3833,7 @@ static sxml_status bind_next_state(sxml_xpath_lowerer *lowerer, iterate_locals *
             sxml_xpath_lowerer_add_item_constant(lowerer, sxml_atomic_item_false(), &false_atom);
     }
     if (status == SXML_STATUS_OK) {
-        status = add_expression(lowerer, atom_expression(false_atom), &marker_test.else_branch);
+        status = sxml_xslt_lowering_add_expression(lowerer, atom_expression(false_atom), &marker_test.else_branch);
     }
     sxml_ir_atom is_marker = {0};
     if (status == SXML_STATUS_OK) {
@@ -3947,7 +3956,7 @@ static sxml_status finish_closure(sxml_xpath_lowering_machine *machine,
     }
     sxml_ir_expression_index conditional = {0};
     if (status == SXML_STATUS_OK) {
-        status = add_expression(lowerer, conditional_expression(choice), &conditional);
+        status = sxml_xslt_lowering_add_expression(lowerer, conditional_expression(choice), &conditional);
     }
     sxml_ir_expression_index body = {0};
     if (status == SXML_STATUS_OK) {
@@ -3961,10 +3970,10 @@ static sxml_status finish_closure(sxml_xpath_lowering_machine *machine,
     if (status == SXML_STATUS_OK && read_size.value != 0) {
         /* last(): the size, captured, copied to the slot the body reads. */
         sxml_ir_expression_index captured = {0};
-        status = add_expression(lowerer, atom_expression(sxml_ir_slot_atom(size_capture_slot(locals))),
+        status = sxml_xslt_lowering_add_expression(lowerer, atom_expression(sxml_ir_slot_atom(size_capture_slot(locals))),
                                 &captured);
         if (status == SXML_STATUS_OK) {
-            status = add_expression(
+            status = sxml_xslt_lowering_add_expression(
                 lowerer,
                 (sxml_ir_expression){
                     .expression_kind = SXML_IR_EXPRESSION_KIND_LET,
@@ -5126,7 +5135,7 @@ static sxml_status lower_initializer(initializer_request request,
                          .initial_locals = {.bytes = (const uint8_t *)&initial,
                                             .byte_count = sizeof(initial)}});
         if (status == SXML_STATUS_OK) {
-            status = add_expression(lowerer, atom_expression(value), &result);
+            status = sxml_xslt_lowering_add_expression(lowerer, atom_expression(value), &result);
         }
     }
     sxml_ir_expression_index body = {0};
@@ -5153,7 +5162,7 @@ static sxml_status add_ordered_initializer(sxml_xpath_lowerer *lowerer,
     const sxml_ir_function *lowered = sxml_ir_unit_get_function(lowerer->unit, initializer);
     const sxml_type_identifier signature = lowered->signature;
     sxml_ir_expression_index call = {0};
-    const sxml_status status = add_expression(
+    const sxml_status status = sxml_xslt_lowering_add_expression(
         lowerer,
         (sxml_ir_expression){
             .expression_kind = SXML_IR_EXPRESSION_KIND_STATIC_CALL,

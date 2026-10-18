@@ -293,6 +293,35 @@ sxml_status sxml_ast_add_flags(sxml_ast *ast, sxml_ast_flags_request request) {
     return SXML_STATUS_OK;
 }
 
+sxml_ast_source_span sxml_ast_moved_source_span(sxml_ast_source_span span,
+                                                sxml_ast_source_span origin) {
+    if (span.line_number == 0 || origin.line_number == 0) {
+        return span;
+    }
+    sxml_ast_source_span moved = span;
+    moved.byte_offset = span.byte_offset > UINT32_MAX - origin.byte_offset
+                            ? UINT32_MAX
+                            : span.byte_offset + origin.byte_offset;
+    if (span.line_number > 1) {
+        moved.line_number = span.line_number > UINT32_MAX - origin.line_number
+                                ? UINT32_MAX
+                                : origin.line_number + span.line_number - 1U;
+    } else {
+        moved.line_number = origin.line_number;
+        moved.column_number = span.column_number > UINT32_MAX - origin.column_number
+                                  ? UINT32_MAX
+                                  : origin.column_number + span.column_number;
+    }
+    return moved;
+}
+
+void sxml_ast_move_source_spans(sxml_ast *ast, sxml_ast_source_span origin) {
+    for (uint32_t node_index = 1; node_index < ast->node_count; node_index += 1) {
+        ast->nodes[node_index].source_span =
+            sxml_ast_moved_source_span(ast->nodes[node_index].source_span, origin);
+    }
+}
+
 sxml_status sxml_ast_append_text(sxml_ast *ast, sxml_byte_view bytes,
                                  sxml_ast_text *text) {
     const bool extends_text = text->byte_count != 0;

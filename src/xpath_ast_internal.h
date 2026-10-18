@@ -1285,6 +1285,22 @@ typedef struct sxml_ast_flags_request {
 SXML_NODISCARD sxml_status sxml_ast_add_flags(sxml_ast *ast,
                                               sxml_ast_flags_request request);
 
+/*
+ * Moves every node's source span from a place in the expression text to
+ * the place in the document the text came from (an XSLT attribute, D169):
+ * a span on the text's first line moves origin.column_number columns
+ * right, a span on a later line origin.line_number - 1 lines down, and
+ * every byte offset by origin.byte_offset. A span without a line (0)
+ * stays. The rule is that of an error raised inside the text, so a
+ * dynamic error points where a static one does.
+ */
+void sxml_ast_move_source_spans(sxml_ast *ast, sxml_ast_source_span origin);
+
+/* The place of span, a span inside a text whose origin is as for
+   sxml_ast_move_source_spans, in the document the text came from. */
+sxml_ast_source_span sxml_ast_moved_source_span(sxml_ast_source_span span,
+                                                sxml_ast_source_span origin);
+
 /* ------------------------------------------------------------- Accessors */
 
 /*

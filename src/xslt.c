@@ -666,7 +666,39 @@ typedef struct sxml_transformation {
     sxml_xslt_result_writer *writer;
 } sxml_transformation;
 
+/* The source name of an error's location in memory of the stylesheet:
+   a unit lowered for one invocation is released when the transformation
+   ends, and the error record must stay valid until the stylesheet is next
+   used (include/sxml/status.h, D21). Module URIs never move (D102). */
+static void sxml_transformation_keep_error_location(const sxml_transformation *transformation) {
+    sxml_error_record *record = transformation->request->error_record;
+    if (record == NULL || !transformation->is_unit_owned) {
+        return;
+    }
+    sxml_byte_view *source_name = &record->diagnostic.location.source_name;
+    if (source_name->byte_count == 0) {
+        return;
+    }
+    const sxml_xslt_stylesheet *stylesheet = transformation->stylesheet;
+    if (stylesheet->unit != NULL && sxml_byte_view_equals(*source_name, stylesheet->unit->source_name)) {
+        *source_name = stylesheet->unit->source_name;
+        return;
+    }
+    const sxml_xslt_ast *ast = stylesheet->ast;
+    for (uint32_t module_index = 1; module_index < ast->module_count; module_index += 1) {
+        const sxml_byte_view module_uri =
+            sxml_xslt_ast_get_module(ast, (sxml_xslt_ast_module_index){.value = module_index})
+                ->module_uri;
+        if (sxml_byte_view_equals(*source_name, module_uri)) {
+            *source_name = module_uri;
+            return;
+        }
+    }
+    *source_name = (sxml_byte_view){.bytes = NULL, .byte_count = 0};
+}
+
 static void sxml_transformation_release(sxml_transformation *transformation) {
+    sxml_transformation_keep_error_location(transformation);
     sxml_processor *processor = transformation->stylesheet->processor;
     sxml_xslt_result_writer_destroy(transformation->writer);
     transformation->writer = NULL;
