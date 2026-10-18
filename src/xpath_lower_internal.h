@@ -165,6 +165,10 @@ typedef struct sxml_xpath_lowerer {
        one. */
     sxml_xpath_lowering_focus *embedding_focus;
     const sxml_xpath_lowering_function *embedding_function;
+    /* Whether a machine of this lowerer runs (sxml_xpath_lowerer_run_procedure
+       or sxml_xpath_lowerer_lower_embedded): a step may not start another
+       (D71, D161). */
+    bool is_running;
     /* Levels of maximum_expression_depth in use. */
     uint32_t depth;
     uint32_t maximum_depth;
@@ -632,7 +636,8 @@ SXML_NODISCARD sxml_status sxml_xpath_lowering_allocate_owned(
 
 /* Pushes call->procedure's frame (sxml_xpath_lowering_push_procedure) and
    runs the machine until it is finished: for callers outside a machine,
-   never from a step. */
+   never from a step (SXML_STATUS_INVALID_ARGUMENT while a machine of the
+   lowerer runs, D161). */
 SXML_NODISCARD sxml_status sxml_xpath_lowerer_run_procedure(
     sxml_xpath_lowerer *lowerer, const sxml_xpath_lowering_procedure_call *call);
 
@@ -674,7 +679,8 @@ SXML_NODISCARD sxml_status sxml_xpath_lowering_call_embedded(
 
 /* Outside a machine: lowers the embedding as a body of the current
    function and writes it to *expression. Fails as call_embedded and as
-   lowering does. */
+   lowering does, and with SXML_STATUS_INVALID_ARGUMENT while a machine of
+   the lowerer runs (D161). */
 SXML_NODISCARD sxml_status sxml_xpath_lowerer_lower_embedded(
     sxml_xpath_lowerer *lowerer, const sxml_xpath_lowering_embedding *embedding,
     sxml_ir_expression_index *expression);

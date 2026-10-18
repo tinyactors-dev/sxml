@@ -8331,19 +8331,38 @@ static sxml_status run_machine(sxml_xpath_lowering_machine *machine, sxml_status
     return status;
 }
 
+/* Runs a machine of lowerer started by start_status, refusing to run one
+   while another of the same lowerer runs: a step that ran a machine would
+   be C recursion through the step pointers (D71), which the call-cycle
+   check cannot see, so it is an error of the caller (D161). */
+static sxml_status run_outermost_machine(sxml_xpath_lowering_machine *machine,
+                                         sxml_status start_status) {
+    sxml_xpath_lowerer *lowerer = machine->state;
+    lowerer->is_running = true;
+    const sxml_status status = run_machine(machine, start_status);
+    lowerer->is_running = false;
+    return status;
+}
+
 sxml_status sxml_xpath_lowerer_run_procedure(
     sxml_xpath_lowerer *lowerer, const sxml_xpath_lowering_procedure_call *call) {
+    if (lowerer->is_running) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
     sxml_xpath_lowering_machine machine = {.state = lowerer, .top = NULL};
     sxml_xpath_lowering_frame *frame = NULL;
-    return run_machine(&machine,
-                       sxml_xpath_lowering_push_procedure(&machine, call, &frame));
+    return run_outermost_machine(&machine,
+                                 sxml_xpath_lowering_push_procedure(&machine, call, &frame));
 }
 
 sxml_status sxml_xpath_lowerer_lower_embedded(
     sxml_xpath_lowerer *lowerer, const sxml_xpath_lowering_embedding *embedding,
     sxml_ir_expression_index *expression) {
+    if (lowerer->is_running) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
     sxml_xpath_lowering_machine machine = {.state = lowerer, .top = NULL};
-    return run_machine(
+    return run_outermost_machine(
         &machine, sxml_xpath_lowering_call_embedded(
                       &machine, &(sxml_xpath_lowering_embedded_call){
                                     .embedding = *embedding,
@@ -8533,6 +8552,7 @@ sxml_status sxml_xpath_lowerer_initialize(
                      ? sxml_xpath_lowering_registered_parts()
                      : configuration->parts,
         .function = NULL,
+        .is_running = false,
         .depth = 0,
         .maximum_depth = configuration->maximum_expression_depth == 0
                              ? SXML_XPATH_DEFAULT_MAXIMUM_EXPRESSION_DEPTH
