@@ -5185,6 +5185,10 @@ No IR kind, no evaluator change, no public header.
   above, initial functions, the harness's base output URI). Before: no
   xsl:result-document was lowered and xsl:output was not read.
 
+### D157. The XSLT API, the XSLT driver's runs and sxml transform (packet 4.15)
+Recorded 2026-10-18, after D112, D117, D139, D144, D145, D149, D150, D156.
+Reserved here; the record is completed when the packet is ticked.
+
 ## Proposed
 
 - **The XSLT functions at run time** (packet 4.10, D149; for 4.15, the
