@@ -16,6 +16,7 @@
  * XML Base (Second Edition), section 4.2; RFC 3986, sections 5.2 and 5.3
  * (reference resolution).
  */
+#include "cast_internal.h"
 #include "tree_internal.h"
 #include "xdm_internal.h"
 
@@ -307,6 +308,106 @@ sxml_node_get_validated_typed_value(sxml_item_heap *item_heap,
     return SXML_STATUS_OK;
 }
 
+/* FOTY0012: an element of element-only content has no typed value (XDM
+   4.0, 7.5.2.4; F&O 4.0, fn:data). */
+static const sxml_static_error sxml_node_no_typed_value_error = {
+    .error_status = SXML_STATUS_TYPE_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("FOTY0012"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "An element whose type has element-only content has no typed value "
+        "(XDM 4.0, section 7.5.2.4)"),
+};
+
+/* A validated element or attribute of a tree without get_typed_value. */
+typedef struct sxml_derived_value_request {
+    const sxml_node_value_request *node_request;
+    const sxml_node_description *description;
+} sxml_derived_value_request;
+
+/*
+ * The typed value derived from the string value and the type annotation
+ * (include/sxml/tree.h, D165; XDM 4.0, 7.5.2.4 and 7.5.3.4): none for a
+ * nilled element, the empty sequence for empty content, FOTY0012 for
+ * element-only content, xs:untypedAtomic for mixed content and
+ * xs:anySimpleType, and otherwise the string value cast to the simple type
+ * (src/cast.c, with the facets of a registered type) with the element's
+ * in-scope namespaces, its parent's for an attribute.
+ */
+static sxml_status
+sxml_node_derive_typed_value(sxml_item_heap *item_heap,
+                             const sxml_derived_value_request *request,
+                             sxml_sequence *typed_value) {
+    const sxml_node_reference node = request->node_request->node;
+    const sxml_node_description *description = request->description;
+    if (description->node_kind == SXML_NODE_KIND_ELEMENT &&
+        description->is_nilled) {
+        *typed_value = sxml_sequence_empty();
+        return SXML_STATUS_OK;
+    }
+    sxml_type_description type;
+    sxml_status status = sxml_type_registry_describe_type(
+        sxml_item_heap_get_type_registry(item_heap),
+        description->type_annotation, &type);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_type_identifier simple_type = description->type_annotation;
+    if (type.variety == SXML_TYPE_VARIETY_COMPLEX) {
+        switch (type.variety_details.complex_type.content_type_variety) {
+        case SXML_CONTENT_TYPE_VARIETY_EMPTY:
+            *typed_value = sxml_sequence_empty();
+            return SXML_STATUS_OK;
+        case SXML_CONTENT_TYPE_VARIETY_ELEMENT_ONLY:
+            return sxml_error_record_report(request->node_request->error_record,
+                                            &sxml_node_no_typed_value_error);
+        case SXML_CONTENT_TYPE_VARIETY_MIXED:
+            simple_type.index = SXML_TYPE_NONE;
+            break;
+        case SXML_CONTENT_TYPE_VARIETY_SIMPLE:
+            simple_type = type.variety_details.complex_type.simple_content_type;
+            break;
+        }
+    }
+    sxml_item string_value = {.representation = SXML_ITEM_REPRESENTATION_NONE};
+    status = sxml_node_make_string_value_as(
+        item_heap,
+        &(sxml_string_value_request){.node = node,
+                                     .type = SXML_TYPE_XS_UNTYPED_ATOMIC},
+        &string_value);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (simple_type.index == SXML_TYPE_NONE ||
+        simple_type.index == (uint32_t)SXML_TYPE_XS_ANY_SIMPLE_TYPE ||
+        simple_type.index == (uint32_t)SXML_TYPE_XS_ANY_ATOMIC_TYPE) {
+        *typed_value = sxml_sequence_from_item(string_value);
+        return SXML_STATUS_OK;
+    }
+    sxml_node_reference element = node;
+    if (description->node_kind == SXML_NODE_KIND_ATTRIBUTE) {
+        element.node_index = description->parent;
+    }
+    sxml_namespace_binding_view bindings = {.namespace_bindings = NULL,
+                                            .namespace_binding_count = 0};
+    if (description->node_kind == SXML_NODE_KIND_ELEMENT ||
+        description->has_parent) {
+        status = sxml_node_get_in_scope_namespaces(element, &bindings);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_cast_make_value(
+            item_heap,
+            &(sxml_cast_request){.value = sxml_sequence_from_item(string_value),
+                                 .target_type = simple_type,
+                                 .allows_empty = false,
+                                 .namespace_bindings = bindings,
+                                 .error_record =
+                                     request->node_request->error_record},
+            typed_value);
+    }
+    sxml_item_release(string_value);
+    return status;
+}
+
 sxml_status sxml_node_make_typed_value(sxml_item_heap *item_heap,
                                        const sxml_node_value_request *request,
                                        sxml_sequence *typed_value) {
@@ -323,10 +424,16 @@ sxml_status sxml_node_make_typed_value(sxml_item_heap *item_heap,
     switch (description.node_kind) {
     case SXML_NODE_KIND_ELEMENT:
     case SXML_NODE_KIND_ATTRIBUTE:
-        if (!sxml_type_annotation_is_untyped(description.type_annotation) &&
-            request->node.tree->operations->get_typed_value != NULL) {
-            return sxml_node_get_validated_typed_value(item_heap, request,
-                                                       typed_value);
+        if (!sxml_type_annotation_is_untyped(description.type_annotation)) {
+            if (request->node.tree->operations->get_typed_value != NULL) {
+                return sxml_node_get_validated_typed_value(item_heap, request,
+                                                           typed_value);
+            }
+            return sxml_node_derive_typed_value(
+                item_heap,
+                &(sxml_derived_value_request){.node_request = request,
+                                              .description = &description},
+                typed_value);
         }
         break;
     case SXML_NODE_KIND_DOCUMENT:

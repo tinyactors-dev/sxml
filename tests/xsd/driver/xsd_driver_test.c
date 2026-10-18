@@ -391,10 +391,9 @@ static sxml_qt4_test_result run_named(sxml_xsd_test_catalog *catalog,
     return result;
 }
 
-/* Schema tests compile (packet 5.4); instance tests wait for validation
-   (packet 5.7). */
-static void test_runs_compile_schemas_and_wait_for_validation(
-    sxml_test_state *state) {
+/* Schema tests compile (packet 5.4); instance tests validate (packet
+   5.7). */
+static void test_runs_compile_schemas_and_validate(sxml_test_state *state) {
     sxml_xsd_test_catalog *catalog = open_catalog(state, 0);
     SXML_TEST_REQUIRE(state, catalog != NULL);
     sxml_arena *arena = make_arena();
@@ -403,11 +402,8 @@ static void test_runs_compile_schemas_and_wait_for_validation(
     SXML_TEST_EXPECT(state, result.outcome == SXML_QT4_TEST_OUTCOME_PASS);
     SXML_TEST_EXPECT(state, result.is_in_scope);
     result = run_named(catalog, arena, TEXT("g/i"));
-    SXML_TEST_EXPECT(state, result.outcome == SXML_QT4_TEST_OUTCOME_NOT_RUN);
+    SXML_TEST_EXPECT(state, result.outcome == SXML_QT4_TEST_OUTCOME_PASS);
     SXML_TEST_EXPECT(state, result.is_in_scope);
-    SXML_TEST_EXPECT(state,
-                     sxml_byte_view_equals(result.reason,
-                                           TEXT("XSD validation not implemented")));
     result = run_named(catalog, arena, TEXT("g/m"));
     SXML_TEST_EXPECT(state, result.outcome == SXML_QT4_TEST_OUTCOME_ERROR);
     SXML_TEST_EXPECT(
@@ -557,8 +553,8 @@ static const sxml_test_case xsd_driver_test_cases[] = {
     {"catalog_reports_broken_tests", test_catalog_reports_broken_tests},
     {"decisions_follow_versions_status_and_expected",
      test_decisions_follow_versions_status_and_expected},
-    {"runs_compile_schemas_and_wait_for_validation",
-     test_runs_compile_schemas_and_wait_for_validation},
+    {"runs_compile_schemas_and_validate",
+     test_runs_compile_schemas_and_validate},
     {"budget_turns_a_leak_into_an_error",
      test_budget_turns_a_leak_into_an_error},
     {"catalog_lifecycle_on_caller_memory",

@@ -113,9 +113,9 @@ sxml_add_xsd_test(list_missing_catalog EXIT_CODE 3
 sxml_add_xsd_test(list_both_selections EXIT_CODE 2
     ARGUMENTS list --catalog=suite.xml --test-set=one-basic list.txt)
 sxml_add_xsd_test(list_help EXIT_CODE 0 ARGUMENTS list --help)
-# Schema tests compile (packet 5.4); until packet 5.7 instance tests end in
-# "not run" and, for a missing document, an error, hence exit code 1 where
-# there is one.
+# Schema tests compile (packet 5.4) and instance tests validate (packet
+# 5.7); a missing document is an error, hence exit code 1 where there is
+# one.
 sxml_add_xsd_test(run_test_set EXIT_CODE 0
     ARGUMENTS run --catalog=suite.xml --test-set=one-basic)
 sxml_add_xsd_test(run_json EXIT_CODE 0

@@ -96,10 +96,10 @@
  * absolute_uri, and the namespace as target_namespace_uri (the imported
  * one for xs:import, the referring document's for the others). A document
  * met twice (by absolute URI) is read once; include cycles are allowed
- * (4.2.3). A document the resolver does not deliver is an error for
- * include, redefine and override (src-include, src-redefine,
- * src-override) and not by itself for import, whose components are then
- * missing (src-resolve where they are referred to; 4.2.6.2). Schema
+ * (4.2.3). A document the resolver does not deliver is not an error by
+ * itself, for include, redefine and override (4.2.3 clause 2.4) as for
+ * import (4.2.6.2): its components are then missing, and src-resolve is
+ * reported where they are referred to. Schema
  * location hints in instances (xsi:schemaLocation,
  * xsi:noNamespaceSchemaLocation) are not followed (4.3.2 allows it): the
  * schema is the one the configuration names. Nothing else is read.

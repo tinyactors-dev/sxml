@@ -323,12 +323,6 @@ static void sxml_xsd_test_validate(const sxml_xsd_test_instance_request *request
                             .operations = &sxml_xsd_test_report_operations},
             .error_record = &error_record},
         &validator);
-    if (status == SXML_STATUS_UNSUPPORTED_FEATURE) {
-        /* Until packet 5.7 validates. */
-        answer->outcome = SXML_QT4_TEST_OUTCOME_NOT_RUN;
-        sxml_qt4_reason_append(answer->reason, SXML_TEXT("XSD validation not implemented"));
-        return;
-    }
     sxml_xml_parser *parser = NULL;
     if (status == SXML_STATUS_OK) {
         status = sxml_xml_parser_create(

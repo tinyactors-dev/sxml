@@ -42,12 +42,11 @@
  * - a limit, running out of memory, a status that is neither a static
  *   nor a dynamic error, or a leak is an error.
  *
- * Compilation is done (packet 5.4). Until packet 5.7 implements the
- * validator, sxml_schema_validator_create gives
- * SXML_STATUS_UNSUPPORTED_FEATURE and an instance test whose schema
- * compiles is not run, reason "XSD validation not implemented"; a
- * validation that meets a feature not implemented yet is not run either,
- * reason "XSD feature not implemented". Both count in scope.
+ * Compilation (packet 5.4) and validation (packet 5.7) are done. A
+ * validation that meets a feature not implemented yet (identity
+ * constraints, assertions and type alternatives until packets 5.8 and
+ * 5.9: SXML_STATUS_UNSUPPORTED_FEATURE) is not run, reason "XSD feature
+ * not implemented"; it counts in scope.
  */
 
 /* One test to run. Borrowed for the call. */
