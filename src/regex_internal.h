@@ -103,6 +103,14 @@ typedef struct sxml_regex_flags {
     /* c: "#" outside a character class expression starts a comment that
        runs to the next "#" or the end (section 6.1.2). */
     bool has_comments;
+    /* Not a flag of F&O 4.0: the XSD dialect of pattern facets (XSD 1.1
+       Part 2, 4.3.4 and appendix G; D53). The regex matches the whole
+       input (implicitly anchored at both ends, so a search is match_at
+       from 0), "^" and "$" are ordinary characters, and what the XSD
+       grammar lacks is FORX0002: back-references, reluctant quantifiers,
+       "(?" and "(*" groups and assertions, \b and \B. The other flags
+       are ignored with it. */
+    bool is_xsd_pattern;
 } sxml_regex_flags;
 
 typedef struct sxml_regex_flags_request {

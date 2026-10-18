@@ -39,6 +39,8 @@ typedef struct test_compilation {
     /* Optional limits; 0 means the defaults. */
     uint32_t maximum_instruction_count;
     uint64_t maximum_step_count;
+    /* The XSD dialect of pattern facets instead of flags_text's flags. */
+    bool is_xsd_pattern;
     sxml_status status;
     sxml_error_record error_record;
     sxml_counting_allocator *counting_allocator;
@@ -72,6 +74,7 @@ static void test_compile(test_compilation *compilation) {
     if (compilation->status != SXML_STATUS_OK) {
         return;
     }
+    flags.is_xsd_pattern = compilation->is_xsd_pattern;
     compilation->status = sxml_regex_create(
         allocator,
         &(sxml_regex_configuration){
@@ -815,6 +818,82 @@ static void test_invalid_assertions_and_escapes_raise_forx0002(
         SXML_TEST_EXPECT(state, is_raised);
         if (!is_raised) {
             SXML_TEST_EXPECT(state, invalid_regexes[regex_index] == NULL);
+        }
+    }
+}
+
+/* ------------------------------------------------------------ XSD dialect */
+
+/* Whether the XSD pattern regex_text matches all of input; false also
+   when it does not compile or leaks. */
+typedef struct test_xsd_case {
+    const char *regex_text;
+    const char *input;
+    bool is_match;
+} test_xsd_case;
+
+static bool test_xsd_pattern_matches(test_xsd_case xsd_case) {
+    test_compilation compilation = {.regex_text = xsd_case.regex_text,
+                                    .flags_text = "",
+                                    .is_xsd_pattern = true};
+    test_compile(&compilation);
+    sxml_regex_search_result result = {.is_found = false};
+    bool is_run = compilation.status == SXML_STATUS_OK &&
+                  sxml_regex_matcher_match_at(
+                      compilation.matcher,
+                      &(sxml_regex_search_request){
+                          .regex_input = test_string(xsd_case.input),
+                          .start_byte_offset = 0},
+                      &result) == SXML_STATUS_OK;
+    return test_release(&compilation) && is_run &&
+           result.is_found == xsd_case.is_match;
+}
+
+/* XSD 1.1 Part 2, appendix G: anchored at both ends, "^" and "$" plain
+   characters. */
+static void test_xsd_patterns_match_the_whole_value(sxml_test_state *state) {
+    static const test_xsd_case cases[] = {
+        {"a|ab", "ab", true},     {"a|ab", "a", true},
+        {"a|ab", "abc", false},   {"a*", "", true},
+        {"\\d{3}-[A-Z]{2}", "123-AB", true},
+        {"\\d{3}-[A-Z]{2}", "x123-AB", false},
+        {"\\d{3}-[A-Z]{2}", "123-ABC", false},
+        {"^a$", "^a$", true},     {"^a$", "a", false},
+        {"[^a]b", "cb", true},    {"(ab)+", "abab", true},
+        {"(ab)+", "aba", false},  {"\\p{Lu}\\c*", "Ab-c", true},
+        {".", "\n", false},      {"x{2,3}", "xxxx", false},
+    };
+    for (size_t case_index = 0; case_index < SXML_TEST_COUNT(cases);
+         case_index++) {
+        bool is_expected = test_xsd_pattern_matches(cases[case_index]);
+        SXML_TEST_EXPECT(state, is_expected);
+        if (!is_expected) {
+            SXML_TEST_EXPECT(state, cases[case_index].regex_text == NULL);
+        }
+    }
+}
+
+/* What the XSD grammar lacks is FORX0002 in the dialect. */
+static void test_xsd_patterns_reject_fo_extensions(sxml_test_state *state) {
+    static const char *const invalid_patterns[] = {
+        "(a)\\1", "a*?", "a+?", "a??", "a{2}?", "(?:a)", "(?=a)",
+        "(?<n>a)", "(*positive_lookahead:a)", "\\b", "\\B", "\\k<n>",
+    };
+    for (size_t pattern_index = 0;
+         pattern_index < SXML_TEST_COUNT(invalid_patterns); pattern_index++) {
+        test_compilation compilation = {
+            .regex_text = invalid_patterns[pattern_index],
+            .flags_text = "",
+            .is_xsd_pattern = true};
+        test_compile(&compilation);
+        bool is_raised =
+            compilation.status == SXML_STATUS_DYNAMIC_ERROR &&
+            test_view_equals_text(compilation.error_record.code.local_name,
+                                  "FORX0002");
+        is_raised = test_release(&compilation) && is_raised;
+        SXML_TEST_EXPECT(state, is_raised);
+        if (!is_raised) {
+            SXML_TEST_EXPECT(state, invalid_patterns[pattern_index] == NULL);
         }
     }
 }
@@ -1656,6 +1735,10 @@ static const sxml_test_case regex_test_cases[] = {
      .function = test_invalid_regexes_raise_forx0002},
     {.name = "invalid_assertions_and_escapes_raise_forx0002",
      .function = test_invalid_assertions_and_escapes_raise_forx0002},
+    {.name = "xsd_patterns_match_the_whole_value",
+     .function = test_xsd_patterns_match_the_whole_value},
+    {.name = "xsd_patterns_reject_fo_extensions",
+     .function = test_xsd_patterns_reject_fo_extensions},
     {.name = "category_and_block_escapes",
      .function = test_category_and_block_escapes},
     {.name = "name_character_escapes", .function = test_name_character_escapes},

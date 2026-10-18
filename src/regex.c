@@ -1668,6 +1668,13 @@ static sxml_status sxml_regex_compiler_parse_group_opening(
         .name = {.byte_offset = 0, .byte_count = 0},
     };
     uint32_t codepoint = 0;
+    if (compiler->flags.is_xsd_pattern &&
+        sxml_regex_compiler_peek(compiler, &codepoint) &&
+        (codepoint == '*' || codepoint == '?')) {
+        /* XSD 1.1 Part 2, G.1: every group is a plain "(" regExp ")". */
+        return SXML_REGEX_INVALID(
+            compiler, "an XSD pattern has no \"(?\" or \"(*\" groups");
+    }
     if (sxml_regex_compiler_peek(compiler, &codepoint) && codepoint == '*') {
         (void)sxml_regex_compiler_next(compiler, &codepoint);
         opening->is_capturing = false;
@@ -1971,6 +1978,10 @@ static sxml_status sxml_regex_compiler_parse_escape(
         return sxml_regex_compiler_emit_class_instruction(compiler,
                                                           class_index);
     }
+    if (compiler->flags.is_xsd_pattern) {
+        /* XSD 1.1 Part 2, G.4: no \b, \B or back-references. */
+        return SXML_REGEX_INVALID(compiler, "unknown escape in an XSD pattern");
+    }
     bool is_in_lookbehind = sxml_regex_compiler_is_in_lookbehind(compiler);
     if (escaped_codepoint == 'b' || escaped_codepoint == 'B') {
         if (is_in_lookbehind) {
@@ -2112,6 +2123,11 @@ static sxml_status sxml_regex_compiler_parse_quantifier(
         }
     }
     if (sxml_regex_compiler_peek(compiler, &codepoint) && codepoint == '?') {
+        if (compiler->flags.is_xsd_pattern) {
+            /* XSD 1.1 Part 2, G.1: a piece has at most one quantifier. */
+            return SXML_REGEX_INVALID(
+                compiler, "an XSD pattern has no reluctant quantifiers");
+        }
         (void)sxml_regex_compiler_next(compiler, &codepoint);
         quantifier->is_reluctant = true;
     }
@@ -2539,7 +2555,9 @@ static sxml_status sxml_regex_compiler_parse_step(
     if (codepoint == '|') {
         return sxml_regex_compiler_start_next_branch(compiler);
     }
-    if (codepoint == '^' || codepoint == '$') {
+    if ((codepoint == '^' || codepoint == '$') &&
+        !compiler->flags.is_xsd_pattern) {
+        /* XSD 1.1 Part 2, G.1: in a pattern they are normal characters. */
         return sxml_regex_compiler_parse_assertion(compiler);
     }
     return sxml_regex_compiler_parse_atom(compiler);
@@ -2628,6 +2646,9 @@ static sxml_status sxml_regex_compile(
         .stack_allocator = configuration->stack_allocator,
         .error_record = configuration->error_record,
     };
+    if (compiler.flags.is_xsd_pattern) {
+        compiler.flags = (sxml_regex_flags){.is_xsd_pattern = true};
+    }
     sxml_status status = SXML_STATUS_OK;
     if (compiler.flags.is_literal) {
         status = sxml_regex_compiler_parse_literal_text(&compiler);
@@ -2636,6 +2657,11 @@ static sxml_status sxml_regex_compile(
     }
     sxml_regex_compiler_release_frames(&compiler);
     sxml_regex_compiler_release_names(&compiler);
+    if (status == SXML_STATUS_OK && compiler.flags.is_xsd_pattern) {
+        /* XSD 1.1 Part 2, 4.3.4.4: the pattern matches the whole value. */
+        status = sxml_regex_compiler_emit_operation(
+            &compiler, SXML_REGEX_OPERATION_STRING_END, 0);
+    }
     if (status == SXML_STATUS_OK) {
         status = sxml_regex_compiler_emit_operation(
             &compiler, SXML_REGEX_OPERATION_MATCH, 0);
@@ -2814,7 +2840,9 @@ sxml_status sxml_regex_initialize(sxml_memory_view memory,
     void *placement = memory.bytes;
     sxml_regex *new_regex = placement;
     *new_regex = (sxml_regex){
-        .flags = configuration->flags,
+        .flags = configuration->flags.is_xsd_pattern
+                     ? (sxml_regex_flags){.is_xsd_pattern = true}
+                     : configuration->flags,
         .group_count = counts.group_count,
         /* Below 2^31: every group and register has its own instruction,
            and instructions are at most 2^28 (the configuration limit). */
