@@ -181,6 +181,13 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `attribute_set` | All `xsl:attribute-set` declarations of one name: one IR function of the focus that returns their attributes (XSLT 4.0, 10.2; D150) |
 | `attribute_set_invocation` | One name in an `[xsl:]use-attribute-sets` attribute, a call of that attribute set with the current focus (XSLT 4.0, 10.2.1) |
 | `component_lowering` | The stylesheet functions and attribute sets of one stylesheet lowering, with the function table each static context gets (D150) |
+| `package` | An XSLT package: the principal module or the module an `xsl:use-package` read, with the modules it includes and imports; an `xsl:stylesheet` is an implicit package (XSLT 4.0, 3.4; D160) |
+| `used_package` | The package an `xsl:use-package` names, read again for every use, so each use has components of its own (XSLT 4.0, 3.4.2) |
+| `component` | A stylesheet function, named template, attribute set, global variable or parameter, or mode, as packages bind references to it (XSLT 4.0, 3.4.5) |
+| `component_instance` | One component as one package contains it, with its visibility there: declared in the package, accepted from a used package, or overriding one (XSLT 4.0, 3.4.5, the "containing package") |
+| `visibility` | Public, private, final, abstract or hidden: who may refer to or override a component instance (XSLT 4.0, 3.4.5.1) |
+| `overriding_declaration` | A child of `xsl:override`: the using package's replacement of a component of the used package (XSLT 4.0, 3.4.5.3) |
+| `package_table` | The packages and component instances of one stylesheet lowering, which binds every reference to a component (D160) |
 | `whitespace_stripping` | Removing the whitespace text nodes that `xsl:strip-space` names from a copy of a source document (XSLT 4.0, 4.2.2; D150) |
 | `space_rule` | One name test of an `xsl:strip-space` or `xsl:preserve-space`, with its import precedence, default priority and declaration order |
 | `document_preparation` | A step the document loader applies to each document it gets from the resolver before keeping it: XSLT's whitespace stripping (D150) |
