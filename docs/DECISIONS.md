@@ -5345,6 +5345,10 @@ Reserved here; the record is completed when the packet is ticked.
 Recorded 2026-10-19, after D153, D155, D157.
 Reserved here; the record is completed when the packet is ticked.
 
+### D160. Packages (packet 4.16)
+Recorded 2026-10-19, after D112, D117, D139, D148, D157.
+Reserved here; the record is completed when the packet is ticked.
+
 ## Proposed
 
 - **An xsl:stylesheet as the principal package** (packet 4.15, D157; for
