@@ -4,6 +4,13 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 4.13 claimed (D156): output and result documents. Files: new
+  `src/xslt_output.c`, `src/xslt_output_internal.h`,
+  `tests/xslt_output_test.c`; one-line hooks in `src/xslt_lower.c` and
+  `src/xslt_lower_internal.h` (the rule view), `src/processor_internal.h`
+  (the result writer in the evaluation environment),
+  `src/function_library_xslt.c` (current-output-uri, character-map).
+
 - 4.12 done (D150): xsl:function as IR functions (one per arity, a
   function table in front of every static context, optional parameters
   and their defaults, eclipsing, override-extension-function, functions
