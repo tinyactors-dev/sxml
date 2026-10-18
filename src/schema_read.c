@@ -868,8 +868,16 @@ typedef struct redefinition_state {
     uint32_t original;
     /* The component that replaces it, once read. */
     uint32_t replacement;
-    /* The last node of the child's subtree. */
+    /* The last node of the child's subtree, and where it starts. */
     uint32_t last_node;
+    sxml_schema_position position;
+    /* What xs:redefine requires (Part 1, 4.2.4, src-redefine.5 to 7): a
+       type derived from itself; at most one reference of a group or
+       attribute group to itself, a group's with minOccurs and maxOccurs
+       1. */
+    bool has_self_derivation;
+    uint32_t self_reference_count;
+    bool has_counted_self_reference;
 } redefinition_state;
 
 /* A growing array of the reader's (sxml_evaluator_grow). */
@@ -1355,6 +1363,7 @@ static sxml_status add_reference(schema_reader *reader, reference_request reques
         /* Part 1, 4.2.4: the redefinition's reference to its own name is
            the original. */
         entry.component = redefinition->original;
+        reader->redefinition.self_reference_count += 1;
     }
     return add_component(reader,
                          (component_entry){.table = SXML_SCHEMA_TABLE_REFERENCE, .entry = &entry},
@@ -2014,7 +2023,6 @@ static sxml_status assign_child_roles(schema_reader *reader) {
                 node_record *record = record_of(reader, child);
                 record->role = role;
                 record->has_xml_base = element->record->has_xml_base;
-                record->scope = element->record->scope;
             }
             element->child_roles |= role == SXML_READ_ROLE_NONE ? 0 : ROLE_BIT(role);
         }
@@ -2325,6 +2333,75 @@ static const sxml_schema_symbol_space role_symbol_spaces[SXML_READ_ROLE_COUNT] =
     [SXML_READ_ROLE_NOTATION] = SXML_SCHEMA_SYMBOL_SPACE_NOTATION_DECLARATION,
 };
 
+/* The table of a symbol space's components. */
+static sxml_schema_table table_of_symbol_space(sxml_schema_symbol_space symbol_space) {
+    static const sxml_schema_table tables[] = {
+        [SXML_SCHEMA_SYMBOL_SPACE_NONE] = SXML_SCHEMA_TABLE_TYPE_DEFINITION,
+        [SXML_SCHEMA_SYMBOL_SPACE_TYPE_DEFINITION] = SXML_SCHEMA_TABLE_TYPE_DEFINITION,
+        [SXML_SCHEMA_SYMBOL_SPACE_ELEMENT_DECLARATION] = SXML_SCHEMA_TABLE_ELEMENT_DECLARATION,
+        [SXML_SCHEMA_SYMBOL_SPACE_ATTRIBUTE_DECLARATION] = SXML_SCHEMA_TABLE_ATTRIBUTE_DECLARATION,
+        [SXML_SCHEMA_SYMBOL_SPACE_MODEL_GROUP_DEFINITION] =
+            SXML_SCHEMA_TABLE_MODEL_GROUP_DEFINITION,
+        [SXML_SCHEMA_SYMBOL_SPACE_ATTRIBUTE_GROUP] = SXML_SCHEMA_TABLE_ATTRIBUTE_GROUP,
+        [SXML_SCHEMA_SYMBOL_SPACE_IDENTITY_CONSTRAINT] = SXML_SCHEMA_TABLE_IDENTITY_CONSTRAINT,
+        [SXML_SCHEMA_SYMBOL_SPACE_NOTATION_DECLARATION] = SXML_SCHEMA_TABLE_NOTATION_DECLARATION,
+    };
+    return tables[symbol_space];
+}
+
+/* The document a global component was read from (its position). */
+static sxml_schema_document_index component_document(const schema_reader *reader,
+                                                     component_key key) {
+    const sxml_schema_components *components = reader->components;
+    switch (key.table) {
+    case SXML_SCHEMA_TABLE_TYPE_DEFINITION:
+        return sxml_schema_get_type_definition(
+                   components, (sxml_schema_type_definition_index){.value = key.index})
+            ->position.document;
+    case SXML_SCHEMA_TABLE_ELEMENT_DECLARATION:
+        return sxml_schema_get_element_declaration(
+                   components, (sxml_schema_element_declaration_index){.value = key.index})
+            ->position.document;
+    case SXML_SCHEMA_TABLE_ATTRIBUTE_DECLARATION:
+        return sxml_schema_get_attribute_declaration(
+                   components, (sxml_schema_attribute_declaration_index){.value = key.index})
+            ->position.document;
+    case SXML_SCHEMA_TABLE_MODEL_GROUP_DEFINITION:
+        return sxml_schema_get_model_group_definition(
+                   components, (sxml_schema_model_group_definition_index){.value = key.index})
+            ->position.document;
+    case SXML_SCHEMA_TABLE_ATTRIBUTE_GROUP:
+        return sxml_schema_get_attribute_group(
+                   components, (sxml_schema_attribute_group_index){.value = key.index})
+            ->position.document;
+    case SXML_SCHEMA_TABLE_IDENTITY_CONSTRAINT:
+        return sxml_schema_get_identity_constraint(
+                   components, (sxml_schema_identity_constraint_index){.value = key.index})
+            ->position.document;
+    case SXML_SCHEMA_TABLE_NOTATION_DECLARATION:
+        return sxml_schema_get_notation_declaration(
+                   components, (sxml_schema_notation_declaration_index){.value = key.index})
+            ->position.document;
+    case SXML_SCHEMA_TABLE_ATTRIBUTE_USE:
+    case SXML_SCHEMA_TABLE_MODEL_GROUP:
+    case SXML_SCHEMA_TABLE_PARTICLE:
+    case SXML_SCHEMA_TABLE_WILDCARD:
+    case SXML_SCHEMA_TABLE_TYPE_ALTERNATIVE:
+    case SXML_SCHEMA_TABLE_ASSERTION:
+    case SXML_SCHEMA_TABLE_FACET:
+    case SXML_SCHEMA_TABLE_XPATH_RECORD:
+    case SXML_SCHEMA_TABLE_NAMESPACE_CONTEXT:
+    case SXML_SCHEMA_TABLE_REFERENCE:
+    case SXML_SCHEMA_TABLE_DOCUMENT:
+    case SXML_SCHEMA_TABLE_LIST_ENTRY:
+    case SXML_SCHEMA_TABLE_NAMESPACE_BINDING:
+    case SXML_SCHEMA_TABLE_TEXT_BYTE:
+    case SXML_SCHEMA_TABLE_COUNT:
+        break;
+    }
+    return (sxml_schema_document_index){.value = 0};
+}
+
 /* A child of xs:redefine or xs:override: finds the component it replaces
    (Part 1, 4.2.4, src-redefine; 4.2.5: one that replaces nothing is not
    read). */
@@ -2350,14 +2427,84 @@ static sxml_status begin_redefinition(schema_reader *reader) {
                                                           "of the redefined schema document",
                                            .subject = name_parts_of(reader, name).local_name});
     }
+    const bool is_redefine = reader->request->read_kind == SXML_SCHEMA_READ_KIND_REDEFINE;
+    sxml_schema_redefinition_note note = {.is_first = true};
+    status = sxml_schema_assembly_note_redefinition(
+        reader->assembly, (sxml_schema_name_key){.symbol_space = symbol_space, .name = name},
+        &note);
+    if (status == SXML_STATUS_OK && !note.is_first) {
+        reader->element.skips_subtree = true;
+        return report(reader,
+                      (read_error){.constraint_name = is_redefine ? SXML_TEXT("src-redefine")
+                                                                  : SXML_TEXT("src-override"),
+                                   .description = "A component is redefined or "
+                                                  "overridden twice",
+                                   .subject = name_parts_of(reader, name).local_name});
+    }
+    if (status == SXML_STATUS_OK && is_redefine &&
+        component_document(reader, (component_key){.table = table_of_symbol_space(symbol_space),
+                                                   .index = original})
+                .value == reader->request->document.value) {
+        /* The original is the redefining document's own, not the
+           redefined one's (src-redefine.6.2.1, 7.2.1). */
+        reader->element.skips_subtree = true;
+        return report(reader, (read_error){.constraint_name = SXML_TEXT("src-redefine.2"),
+                                           .description = "A redefinition names no component "
+                                                          "of the redefined schema document",
+                                           .subject = name_parts_of(reader, name).local_name});
+    }
     reader->redefinition =
         (redefinition_state){.is_active = true,
                              .symbol_space = symbol_space,
                              .name = name,
                              .original = original,
                              .replacement = 0,
-                             .last_node = reader->element.description.last_descendant.index};
-    return SXML_STATUS_OK;
+                             .last_node = reader->element.description.last_descendant.index,
+                             .position = reader->element.position,
+                             .has_self_derivation = false,
+                             .self_reference_count = 0,
+                             .has_counted_self_reference = false};
+    return status;
+}
+
+/* The end of an xs:redefine child (Part 1, 4.2.4): a type derives from
+   itself (src-redefine.5); a group or attribute group refers to itself at
+   most once (src-redefine.6.1.1, 7.1), a group exactly once (6.1.2). The
+   restriction a group or attribute group without a self-reference must
+   be (6.2.2, 7.2.2) is not checked. */
+static sxml_status end_redefinition(schema_reader *reader) {
+    redefinition_state *redefinition = &reader->redefinition;
+    if (!redefinition->is_active) {
+        return SXML_STATUS_OK;
+    }
+    redefinition->is_active = false;
+    if (reader->request->read_kind != SXML_SCHEMA_READ_KIND_REDEFINE) {
+        return SXML_STATUS_OK;
+    }
+    const char *description = NULL;
+    sxml_byte_view constraint_name = {.bytes = NULL, .byte_count = 0};
+    if (redefinition->symbol_space == SXML_SCHEMA_SYMBOL_SPACE_TYPE_DEFINITION &&
+        !redefinition->has_self_derivation) {
+        constraint_name = SXML_TEXT("src-redefine.5");
+        description = "A redefined type must be derived from itself";
+    } else if (redefinition->symbol_space != SXML_SCHEMA_SYMBOL_SPACE_TYPE_DEFINITION &&
+               redefinition->self_reference_count > 1U) {
+        constraint_name = redefinition->symbol_space == SXML_SCHEMA_SYMBOL_SPACE_ATTRIBUTE_GROUP
+                              ? SXML_TEXT("src-redefine.7.1")
+                              : SXML_TEXT("src-redefine.6.1.1");
+        description = "A redefinition refers to itself more than once";
+    } else if (redefinition->has_counted_self_reference) {
+        constraint_name = SXML_TEXT("src-redefine.6.1.2");
+        description = "A redefined group's reference to itself has minOccurs and maxOccurs 1";
+    }
+    if (description == NULL) {
+        return SXML_STATUS_OK;
+    }
+    return report_at(reader,
+                     (read_error){.constraint_name = constraint_name,
+                                  .description = description,
+                                  .subject = name_parts_of(reader, redefinition->name).local_name},
+                     redefinition->position);
 }
 
 /* --------------------------------------------------------- Attaching */
@@ -2440,6 +2587,18 @@ static void attach_particle(schema_reader *reader, particle_attachment attachmen
 
 static sxml_status read_schema_defaults(schema_reader *reader) {
     sxml_schema_document_defaults *defaults = reader->defaults;
+    if (has_attribute(reader, SXML_READ_ATTRIBUTE_TARGET_NAMESPACE) &&
+        trimmed(attribute_value(reader, SXML_READ_ATTRIBUTE_TARGET_NAMESPACE)).byte_count == 0) {
+        /* Part 1, 3.17.2: an absent target namespace has no attribute;
+           the empty one is not a namespace name. */
+        sxml_status status =
+            report(reader, (read_error){.constraint_name = {.bytes = NULL, .byte_count = 0},
+                                        .description = "targetNamespace is empty",
+                                        .subject = {.bytes = NULL, .byte_count = 0}});
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+    }
     size_t position = 0;
     defaults->qualifies_elements =
         has_attribute(reader, SXML_READ_ATTRIBUTE_ELEMENT_FORM_DEFAULT) &&
@@ -2482,6 +2641,12 @@ static sxml_status read_schema_defaults(schema_reader *reader) {
                                     attribute_value(reader, SXML_READ_ATTRIBUTE_DEFAULT_ATTRIBUTES),
                                 .may_name_original = false},
             &defaults->default_attributes);
+    }
+    /* The namespace context of the xs:schema element, which the text
+       form's names take their prefixes from. */
+    sxml_schema_namespace_context_index context = {.value = 0};
+    if (status == SXML_STATUS_OK) {
+        status = current_namespace_context(reader, &context);
     }
     defaults->is_read = true;
     return status;
@@ -2612,8 +2777,10 @@ static sxml_status read_base(schema_reader *reader, sxml_schema_type_definition_
         return status;
     }
     if (is_redefining && reference.value != 0 &&
-        sxml_schema_get_reference(reader->components, reference)->name.index !=
+        sxml_schema_get_reference(reader->components, reference)->name.index ==
             reader->redefinition.name.index) {
+        reader->redefinition.has_self_derivation = true;
+    } else if (is_redefining && reference.value != 0) {
         status = report(reader,
                         (read_error){.constraint_name = SXML_TEXT("src-redefine.5"),
                                      .description = "A redefined type must be derived "
@@ -2906,6 +3073,15 @@ static sxml_status read_open_content(schema_reader *reader) {
             status = report_attribute_value(reader, SXML_READ_ATTRIBUTE_MODE);
         }
     }
+    if (status == SXML_STATUS_OK && mode == SXML_SCHEMA_OPEN_CONTENT_NONE &&
+        has_child_role(reader, ROLE_BIT(SXML_READ_ROLE_OPEN_CONTENT_ANY))) {
+        /* Part 1, 3.4.3, src-ct.6 (XSD 1.1 bug 7069): mode="none" has no
+           wildcard. */
+        status = report(reader, (read_error){.constraint_name = SXML_TEXT("src-ct.6"),
+                                             .description = "Open content of mode none has no "
+                                                            "xs:any child",
+                                             .subject = {.bytes = NULL, .byte_count = 0}});
+    }
     if (status == SXML_STATUS_OK && mode != SXML_SCHEMA_OPEN_CONTENT_NONE &&
         !has_child_role(reader, ROLE_BIT(SXML_READ_ROLE_OPEN_CONTENT_ANY))) {
         status = report(reader, (read_error){.constraint_name = SXML_TEXT("src-ct.6"),
@@ -3040,6 +3216,40 @@ static sxml_status read_disallowed_names(schema_reader *reader, sxml_schema_wild
     return status;
 }
 
+/* Wildcard Properties Correct clause 4 (Part 1, 3.10.6.1): the namespace
+   of each disallowed name is one the namespace constraint allows
+   (3.10.4.3). */
+static sxml_status check_disallowed_names(schema_reader *reader,
+                                          const sxml_schema_wildcard *wildcard) {
+    const sxml_schema_index_view names =
+        sxml_schema_get_list(reader->components, wildcard->disallowed_names);
+    const sxml_schema_index_view namespaces =
+        sxml_schema_get_list(reader->components, wildcard->namespaces);
+    for (size_t name_index = 0; name_index < names.index_count; name_index += 1) {
+        const sxml_name_parts parts =
+            name_parts_of(reader, (sxml_name_identifier){.index = names.indexes[name_index]});
+        bool is_listed = false;
+        for (size_t namespace_index = 0; namespace_index < namespaces.index_count;
+             namespace_index += 1) {
+            is_listed =
+                is_listed || namespaces.indexes[namespace_index] == parts.namespace_uri.index;
+        }
+        const bool is_allowed =
+            wildcard->namespace_constraint_variety == SXML_SCHEMA_NAMESPACE_CONSTRAINT_ANY ||
+            (wildcard->namespace_constraint_variety == SXML_SCHEMA_NAMESPACE_CONSTRAINT_ENUMERATION
+                 ? is_listed
+                 : !is_listed);
+        if (!is_allowed) {
+            return report(reader, (read_error){.constraint_name = SXML_TEXT("w-props-correct.4"),
+                                               .description = "A disallowed name is in a "
+                                                              "namespace the wildcard does not "
+                                                              "allow",
+                                               .subject = parts.local_name});
+        }
+    }
+    return SXML_STATUS_OK;
+}
+
 static sxml_status add_wildcard(schema_reader *reader, uint32_t *index) {
     sxml_schema_wildcard wildcard = {.position = reader->element.position,
                                      .namespace_constraint_variety =
@@ -3063,6 +3273,9 @@ static sxml_status add_wildcard(schema_reader *reader, uint32_t *index) {
     }
     if (status == SXML_STATUS_OK && has_attribute(reader, SXML_READ_ATTRIBUTE_NOT_QNAME)) {
         status = read_disallowed_names(reader, &wildcard);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = check_disallowed_names(reader, &wildcard);
     }
     size_t position = 0;
     if (has_attribute(reader, SXML_READ_ATTRIBUTE_PROCESS_CONTENTS) &&
@@ -3156,12 +3369,12 @@ static sxml_status read_model_group(schema_reader *reader) {
                               role == SXML_READ_ROLE_SEQUENCE;
     const occurrences counts = occurrences_of(reader);
     sxml_status status = SXML_STATUS_OK;
-    if (role == SXML_READ_ROLE_ALL && (counts.minimum > 1 || counts.maximum != 1)) {
-        /* The schema for schema documents: an all group occurs 0..1 or
-           1..1 (Part 1, 3.8.6.4, cos-all-limited). */
+    if (role == SXML_READ_ROLE_ALL && (counts.minimum > 1 || counts.maximum > 1)) {
+        /* The schema for schema documents: an all group has minOccurs
+           and maxOccurs 0 or 1 (Part 1, 3.8.2, cos-all-limited). */
         status = report(reader, (read_error){.constraint_name = SXML_TEXT("cos-all-limited.1.2"),
                                              .description = "An all group has minOccurs 0 or 1 "
-                                                            "and maxOccurs 1",
+                                                            "and maxOccurs 0 or 1",
                                              .subject = {.bytes = NULL, .byte_count = 0}});
     }
     uint32_t particle_index = 0;
@@ -3240,12 +3453,17 @@ static sxml_status read_group_reference(schema_reader *reader) {
                                      .minimum_occurrences = counts.minimum,
                                      .maximum_occurrences = counts.maximum,
                                      .term_kind = SXML_SCHEMA_TERM_MODEL_GROUP};
+    const uint32_t self_reference_count = reader->redefinition.self_reference_count;
     sxml_status status = add_reference(
         reader,
         (reference_request){.symbol_space = SXML_SCHEMA_SYMBOL_SPACE_MODEL_GROUP_DEFINITION,
                             .text = attribute_value(reader, SXML_READ_ATTRIBUTE_REF),
                             .may_name_original = true},
         &particle.term_reference);
+    if (reader->redefinition.self_reference_count != self_reference_count &&
+        (counts.minimum != 1 || counts.maximum != 1)) {
+        reader->redefinition.has_counted_self_reference = true;
+    }
     uint32_t index = 0;
     if (status == SXML_STATUS_OK) {
         status = add_component(
@@ -3260,6 +3478,51 @@ static sxml_status read_group_reference(schema_reader *reader) {
 }
 
 /* ------------------------------------------------------- Declarations */
+
+/* A local declaration whose targetNamespace is not the document's
+   (Part 1, 3.3.3 clause 4.3 and 3.2.3 clause 6.3): it is inside a
+   restriction of complex content, between it and its nearest complex
+   type, whose base is not xs:anyType. */
+static sxml_status check_foreign_namespace(schema_reader *reader) {
+    uint32_t node = reader->element.node.index;
+    bool is_in_restriction = false;
+    sxml_status status = SXML_STATUS_OK;
+    while (status == SXML_STATUS_OK) {
+        sxml_node_description description;
+        status = describe_node(reader, node, &description);
+        if (status != SXML_STATUS_OK || !description.has_parent ||
+            !is_in_range(reader, description.parent.index)) {
+            break;
+        }
+        node = description.parent.index;
+        const node_record *record = record_of(reader, node);
+        if (record->role == SXML_READ_ROLE_COMPLEX_CONTENT_RESTRICTION) {
+            const sxml_schema_type_definition *definition = sxml_schema_get_type_definition(
+                reader->components,
+                (sxml_schema_type_definition_index){.value = record->owner.index});
+            const sxml_name_parts base =
+                name_parts_of(reader, sxml_schema_get_reference(reader->components,
+                                                                definition->base_type_reference)
+                                          ->name);
+            is_in_restriction = definition->base_type_reference.value != 0 &&
+                                !(is_schema_namespace(base.namespace_uri) &&
+                                  views_equal(base.local_name, SXML_TEXT("anyType")));
+        }
+        if (record->role == SXML_READ_ROLE_GLOBAL_COMPLEX_TYPE ||
+            record->role == SXML_READ_ROLE_LOCAL_COMPLEX_TYPE) {
+            break;
+        }
+    }
+    if (status != SXML_STATUS_OK || is_in_restriction) {
+        return status;
+    }
+    return report(reader, (read_error){.constraint_name = {.bytes = NULL, .byte_count = 0},
+                                       .description = "A local declaration in another "
+                                                      "namespace is allowed only in a "
+                                                      "restriction of a complex type other "
+                                                      "than xs:anyType",
+                                       .subject = {.bytes = NULL, .byte_count = 0}});
+}
 
 /* The {target namespace} of a local declaration (Part 1, 3.3.2.3 and
    3.2.2.2): its targetNamespace, else the document's when form (else the
@@ -3289,6 +3552,10 @@ static sxml_status local_declaration_name(schema_reader *reader, local_name_requ
             status = intern_uri(
                 reader, trimmed(attribute_value(reader, SXML_READ_ATTRIBUTE_TARGET_NAMESPACE)),
                 &namespace_uri);
+        }
+        if (status == SXML_STATUS_OK &&
+            namespace_uri.index != reader->request->target_namespace.index) {
+            status = check_foreign_namespace(reader);
         }
     } else {
         bool qualifies = request.qualifies_by_default;
@@ -3817,6 +4084,15 @@ static sxml_status read_notation(schema_reader *reader) {
         .has_public_identifier = has_attribute(reader, SXML_READ_ATTRIBUTE_PUBLIC),
         .has_system_identifier = has_attribute(reader, SXML_READ_ATTRIBUTE_SYSTEM)};
     sxml_status status = global_name(reader, &notation.notation_name);
+    if (status == SXML_STATUS_OK && !notation.has_public_identifier &&
+        !notation.has_system_identifier) {
+        /* Part 1, 3.14.1: {public identifier} is required when {system
+           identifier} is absent. */
+        status = report(reader, (read_error){.constraint_name = {.bytes = NULL, .byte_count = 0},
+                                             .description = "A notation has a public or a system "
+                                                            "identifier",
+                                             .subject = {.bytes = NULL, .byte_count = 0}});
+    }
     if (status == SXML_STATUS_OK && notation.has_public_identifier) {
         status = sxml_schema_components_add_text(
             reader->components, attribute_value(reader, SXML_READ_ATTRIBUTE_PUBLIC),
@@ -3976,6 +4252,9 @@ static sxml_status read_element(schema_reader *reader, uint32_t node) {
         element->parent_record = record_of(reader, element->description.parent.index);
         element->parent_role = element->parent_record->role;
     }
+    /* Local declarations are in the scope of the nearest complex type or
+       group; the readers of those set their own. */
+    element->record->scope = element->parent_record->scope;
     /* The start element of a redefine's or override's read was checked by
        the document's read. */
     const bool is_checked =
@@ -4169,6 +4448,150 @@ static sxml_status collect_imports(schema_reader *reader) {
     return status;
 }
 
+/* ------------------------------------------------------------ IDs */
+
+/* The id attributes of a schema document are of type xs:ID, so no two are
+   equal (the schema for schema documents; cvc-id.2). A set of the values
+   met, open addressing over a power of two slots. */
+typedef struct identifier_set {
+    sxml_byte_view *slots;
+    size_t slot_count;
+    size_t value_count;
+} identifier_set;
+
+static uint32_t hash_bytes(sxml_byte_view bytes) {
+    uint32_t hash = 2166136261U;
+    for (size_t byte_index = 0; byte_index < bytes.byte_count; byte_index += 1) {
+        hash = (hash ^ bytes.bytes[byte_index]) * 16777619U;
+    }
+    return hash;
+}
+
+/* The slot of value, or the free slot where it would go. */
+static size_t find_identifier_slot(const identifier_set *set, sxml_byte_view value) {
+    size_t slot = hash_bytes(value) & (set->slot_count - 1U);
+    while (set->slots[slot].bytes != NULL && !views_equal(set->slots[slot], value)) {
+        slot = (slot + 1U) & (set->slot_count - 1U);
+    }
+    return slot;
+}
+
+/* Adds value (not empty) and tells whether it was there. */
+typedef struct identifier_insertion {
+    bool was_present;
+} identifier_insertion;
+
+/* A value to add to a set. */
+typedef struct identifier_request {
+    identifier_set *set;
+    sxml_byte_view value;
+} identifier_request;
+
+static sxml_status insert_identifier(schema_reader *reader, identifier_request request,
+                                     identifier_insertion *insertion) {
+    identifier_set *set = request.set;
+    const sxml_byte_view value = request.value;
+    if ((set->value_count + 1U) * 2U > set->slot_count) {
+        const size_t slot_count = set->slot_count == 0 ? 64U : set->slot_count * 2U;
+        void *memory = NULL;
+        sxml_status status = sxml_allocator_allocate(
+            reader->allocator,
+            (sxml_allocation_request){.byte_count = slot_count * sizeof(sxml_byte_view),
+                                      .alignment = alignof(sxml_byte_view)},
+            &memory);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        memset(memory, 0, slot_count * sizeof(sxml_byte_view));
+        identifier_set grown = {.slots = memory, .slot_count = slot_count, .value_count = 0};
+        for (size_t slot_index = 0; slot_index < set->slot_count; slot_index += 1) {
+            if (set->slots[slot_index].bytes != NULL) {
+                grown.slots[find_identifier_slot(&grown, set->slots[slot_index])] =
+                    set->slots[slot_index];
+                grown.value_count += 1;
+            }
+        }
+        sxml_allocator_release(reader->allocator, set->slots);
+        *set = grown;
+    }
+    const size_t slot = find_identifier_slot(set, value);
+    insertion->was_present = set->slots[slot].bytes != NULL;
+    if (!insertion->was_present) {
+        set->slots[slot] = value;
+        set->value_count += 1;
+    }
+    return SXML_STATUS_OK;
+}
+
+/* The unqualified id attribute of an element, if it has one. */
+static sxml_status find_identifier(const schema_reader *reader, uint32_t element,
+                                   sxml_byte_view *value) {
+    sxml_node_description element_description;
+    const sxml_node_description *description = &element_description;
+    sxml_status describe_status = describe_node(reader, element, &element_description);
+    if (describe_status != SXML_STATUS_OK) {
+        return describe_status;
+    }
+    *value = (sxml_byte_view){.bytes = NULL, .byte_count = 0};
+    sxml_status status = SXML_STATUS_OK;
+    for (uint32_t attribute_index = 1;
+         status == SXML_STATUS_OK && attribute_index <= description->attribute_count;
+         attribute_index += 1) {
+        sxml_node_description attribute;
+        status = describe_node(reader, element + attribute_index, &attribute);
+        const sxml_name_parts parts = name_parts_of(reader, attribute.node_name);
+        if (status == SXML_STATUS_OK && parts.namespace_uri.index == SXML_NAMESPACE_NONE &&
+            views_equal(parts.local_name, SXML_TEXT("id"))) {
+            status =
+                sxml_node_get_content(node_reference(reader, element + attribute_index), value);
+            *value = trimmed(*value);
+        }
+    }
+    return status;
+}
+
+/* Reports every id of the document met a second time; the content of
+   appinfo and documentation is not the schema document's. */
+static sxml_status check_identifiers(schema_reader *reader) {
+    identifier_set set = {.slots = NULL, .slot_count = 0, .value_count = 0};
+    sxml_status status = SXML_STATUS_OK;
+    uint32_t node = reader->first_node;
+    while (status == SXML_STATUS_OK && node <= reader->last_node) {
+        sxml_node_description description;
+        status = describe_node(reader, node, &description);
+        if (status != SXML_STATUS_OK || description.node_kind != SXML_NODE_KIND_ELEMENT) {
+            node += 1;
+            continue;
+        }
+        const sxml_name_parts parts = name_parts_of(reader, description.node_name);
+        if (!is_schema_namespace(parts.namespace_uri) ||
+            views_equal(parts.local_name, SXML_TEXT("appinfo")) ||
+            views_equal(parts.local_name, SXML_TEXT("documentation"))) {
+            node = description.last_descendant.index + 1U;
+            continue;
+        }
+        sxml_byte_view value = {.bytes = NULL, .byte_count = 0};
+        status = find_identifier(reader, node, &value);
+        identifier_insertion insertion = {.was_present = false};
+        if (status == SXML_STATUS_OK && value.byte_count != 0) {
+            status = insert_identifier(reader, (identifier_request){.set = &set, .value = value},
+                                       &insertion);
+        }
+        if (status == SXML_STATUS_OK && insertion.was_present) {
+            reader->element.rule = NULL;
+            status = report_at(reader,
+                               (read_error){.constraint_name = SXML_TEXT("cvc-id.2"),
+                                            .description = "Two elements of a schema document "
+                                                           "have the same id",
+                                            .subject = value},
+                               position_of_node(reader, node));
+        }
+        node += 1;
+    }
+    sxml_allocator_release(reader->allocator, set.slots);
+    return status;
+}
+
 /* Prepares the records of the range and the start element's. */
 static sxml_status start_reading(schema_reader *reader) {
     sxml_node_description start;
@@ -4228,7 +4651,10 @@ static sxml_status walk_range(schema_reader *reader) {
     uint32_t node = reader->first_node;
     while (status == SXML_STATUS_OK && node <= reader->last_node) {
         if (reader->redefinition.is_active && node > reader->redefinition.last_node) {
-            reader->redefinition.is_active = false;
+            status = end_redefinition(reader);
+            if (status != SXML_STATUS_OK) {
+                break;
+            }
         }
         sxml_node_description description;
         status = describe_node(reader, node, &description);
@@ -4251,7 +4677,9 @@ static sxml_status walk_range(schema_reader *reader) {
             node += 1;
         }
     }
-    reader->redefinition.is_active = false;
+    if (status == SXML_STATUS_OK) {
+        status = end_redefinition(reader);
+    }
     for (uint32_t list_node = reader->first_node;
          status == SXML_STATUS_OK && list_node <= reader->last_node; list_node += 1) {
         if (record_of(reader, list_node)->role != SXML_READ_ROLE_NONE) {
@@ -4283,6 +4711,9 @@ sxml_status sxml_schema_read_document(sxml_schema_assembly *assembly,
     sxml_status status = start_reading(&reader);
     if (status == SXML_STATUS_OK) {
         status = collect_imports(&reader);
+    }
+    if (status == SXML_STATUS_OK && request->read_kind == SXML_SCHEMA_READ_KIND_DOCUMENT) {
+        status = check_identifiers(&reader);
     }
     if (status == SXML_STATUS_OK) {
         status = walk_range(&reader);

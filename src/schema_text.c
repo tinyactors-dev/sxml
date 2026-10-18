@@ -914,6 +914,33 @@ sxml_status sxml_schema_components_write_text(const sxml_schema_components *comp
             table_lines[line_index].write_line(&writer, index);
         }
     }
+    /* The content models COMPLEX_TYPES compiled (src/schema_content_model.c
+       writes them), after every component. */
+    const uint32_t type_count = components->tables[SXML_SCHEMA_TABLE_TYPE_DEFINITION].entry_count;
+    for (uint32_t index = first_own_index(SXML_SCHEMA_TABLE_TYPE_DEFINITION); index < type_count;
+         index += 1) {
+        const sxml_schema_content_model *content_model =
+            sxml_schema_get_type_definition(components,
+                                            (sxml_schema_type_definition_index){.value = index})
+                ->content_model;
+        if (content_model == NULL) {
+            continue;
+        }
+        const size_t offset = writer.byte_count;
+        size_t model_byte_count = 0;
+        const sxml_status status = sxml_schema_content_model_write_text(
+            components,
+            &(sxml_schema_content_model_text_request){
+                .content_model = content_model,
+                .output = {.bytes = offset < output.byte_count ? output.bytes + offset : NULL,
+                           .byte_count =
+                               offset < output.byte_count ? output.byte_count - offset : 0}},
+            &model_byte_count);
+        if (status != SXML_STATUS_OK && status != SXML_STATUS_CAPACITY_EXCEEDED) {
+            return status;
+        }
+        writer.byte_count += model_byte_count;
+    }
     *byte_count = writer.byte_count;
     return writer.byte_count > output.byte_count ? SXML_STATUS_CAPACITY_EXCEEDED : SXML_STATUS_OK;
 }

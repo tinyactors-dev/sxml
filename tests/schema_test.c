@@ -1,0 +1,288 @@
+/*
+ * Unit tests for src/schema.c: the sxml_schema quintet, the find
+ * functions and compilation through include/sxml/schema.h (D165, D170):
+ * documents given as text, through the resolver and as nodes, the error
+ * record and the report sink.
+ *
+ * Golden file: tests/xslt_test.c (stylesheet_lifecycle_checks_its_arguments:
+ * a public object's lifecycle on caller memory and through an allocator).
+ */
+#include "sxml/processor.h"
+#include "sxml/schema.h"
+#include "sxml/xdm.h"
+#include "sxml/xml.h"
+#include "test_runner.h"
+
+#include <stdalign.h>
+#include <string.h>
+
+#define TEXT(literal) SXML_BYTE_VIEW_FROM_LITERAL(literal)
+
+static const char order_schema[] =
+    "<xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema' targetNamespace='urn:o' "
+    "xmlns:o='urn:o'><xs:element name='order' type='xs:string' nillable='true'/>"
+    "<xs:element name='base' abstract='true'/>"
+    "<xs:attribute name='code' type='xs:int'/></xs:schema>";
+
+static sxml_processor *open_processor(const sxml_resource_entry_view *entries) {
+    const sxml_allocator allocator = sxml_default_allocator();
+    sxml_processor *processor = NULL;
+    if (sxml_processor_create(
+            allocator,
+            &(sxml_processor_configuration){
+                .allocator = allocator,
+                .resource_resolver =
+                    entries == NULL ? (sxml_resource_resolver){.state = NULL, .operations = NULL}
+                                    : sxml_table_resource_resolver(entries)},
+            &processor) != SXML_STATUS_OK) {
+        return NULL;
+    }
+    return processor;
+}
+
+static sxml_name_identifier name_in(sxml_processor *processor, const char *namespace_uri,
+                                    const char *local_name) {
+    sxml_name_pool *name_pool = sxml_processor_get_name_pool(processor);
+    sxml_namespace_uri_identifier uri = {.index = 0};
+    sxml_name_identifier name = {.index = 0};
+    if (sxml_name_pool_intern_namespace_uri(name_pool, sxml_byte_view_from_c_string(namespace_uri),
+                                            &uri) != SXML_STATUS_OK ||
+        sxml_name_pool_intern_name(
+            name_pool,
+            &(sxml_name_request){.namespace_uri = uri,
+                                 .local_name = sxml_byte_view_from_c_string(local_name)},
+            &name) != SXML_STATUS_OK) {
+        return (sxml_name_identifier){.index = 0};
+    }
+    return name;
+}
+
+static sxml_schema_document text_document(const char *text) {
+    return (sxml_schema_document){.document_source = SXML_SCHEMA_DOCUMENT_SOURCE_TEXT,
+                                  .document_text = sxml_byte_view_from_c_string(text),
+                                  .document_uri = TEXT("file:///o.xsd")};
+}
+
+static void test_lifecycle_checks_its_arguments(sxml_test_state *state) {
+    sxml_processor *processor = open_processor(NULL);
+    SXML_TEST_REQUIRE(state, processor != NULL);
+    sxml_memory_requirements requirements = {.byte_count = 0, .alignment = 1};
+    SXML_TEST_EXPECT(
+        state, sxml_schema_memory_requirements(&(sxml_schema_configuration){.processor = NULL},
+                                               &requirements) == SXML_STATUS_INVALID_ARGUMENT);
+    SXML_TEST_EXPECT(
+        state, sxml_schema_memory_requirements(
+                   &(sxml_schema_configuration){
+                       .processor = processor,
+                       .schema_documents = {.schema_documents = NULL, .schema_document_count = 1}},
+                   &requirements) == SXML_STATUS_INVALID_ARGUMENT);
+    const sxml_schema_configuration empty = {.processor = processor};
+    SXML_TEST_REQUIRE(state,
+                      sxml_schema_memory_requirements(&empty, &requirements) == SXML_STATUS_OK);
+    alignas(max_align_t) uint8_t memory[4096];
+    SXML_TEST_REQUIRE(state, requirements.byte_count <= sizeof(memory));
+    sxml_schema *schema = NULL;
+    SXML_TEST_EXPECT(state,
+                     sxml_schema_initialize((sxml_memory_view){.bytes = memory, .byte_count = 1},
+                                            &empty, &schema) == SXML_STATUS_INSUFFICIENT_MEMORY);
+    SXML_TEST_EXPECT(
+        state, sxml_schema_initialize(
+                   (sxml_memory_view){.bytes = memory + 1, .byte_count = requirements.byte_count},
+                   &empty, &schema) == SXML_STATUS_MISALIGNED_MEMORY);
+    SXML_TEST_EXPECT(state, schema == NULL);
+    /* No documents: the schema of the built-in components. */
+    SXML_TEST_REQUIRE(
+        state, sxml_schema_initialize(
+                   (sxml_memory_view){.bytes = memory, .byte_count = requirements.byte_count},
+                   &empty, &schema) == SXML_STATUS_OK);
+    sxml_type_identifier type = {.index = 0};
+    SXML_TEST_EXPECT(
+        state, sxml_schema_find_type(
+                   schema, name_in(processor, "http://www.w3.org/2001/XMLSchema", "int"), &type));
+    SXML_TEST_EXPECT(state, type.index == (uint32_t)SXML_TYPE_XS_INT);
+    SXML_TEST_EXPECT(
+        state,
+        !sxml_schema_find_type(
+            schema, name_in(processor, "http://www.w3.org/2001/XMLSchema", "untyped"), &type));
+    sxml_attribute_declaration_description attribute;
+    SXML_TEST_EXPECT(
+        state, sxml_schema_find_attribute_declaration(
+                   schema, name_in(processor, "http://www.w3.org/2001/XMLSchema-instance", "nil"),
+                   &attribute));
+    SXML_TEST_EXPECT(state, attribute.declared_type.index == (uint32_t)SXML_TYPE_XS_BOOLEAN);
+    sxml_schema_finalize(schema);
+    sxml_schema_finalize(NULL);
+    sxml_schema_destroy(NULL);
+    SXML_TEST_EXPECT(state, sxml_schema_create(sxml_default_allocator(), NULL, &schema) ==
+                                SXML_STATUS_INVALID_ARGUMENT);
+    sxml_processor_destroy(processor);
+}
+
+static void test_declarations_found(sxml_test_state *state) {
+    sxml_processor *processor = open_processor(NULL);
+    SXML_TEST_REQUIRE(state, processor != NULL);
+    const sxml_schema_document document = text_document(order_schema);
+    sxml_schema *schema = NULL;
+    SXML_TEST_REQUIRE(
+        state, sxml_schema_create(
+                   sxml_default_allocator(),
+                   &(sxml_schema_configuration){.processor = processor,
+                                                .schema_documents = {.schema_documents = &document,
+                                                                     .schema_document_count = 1}},
+                   &schema) == SXML_STATUS_OK);
+    sxml_element_declaration_description element;
+    SXML_TEST_EXPECT(state, sxml_schema_find_element_declaration(
+                                schema, name_in(processor, "urn:o", "order"), &element));
+    SXML_TEST_EXPECT(state, element.declared_type.index == (uint32_t)SXML_TYPE_XS_STRING);
+    SXML_TEST_EXPECT(state, element.is_nillable && !element.is_abstract);
+    SXML_TEST_EXPECT(state, sxml_schema_find_element_declaration(
+                                schema, name_in(processor, "urn:o", "base"), &element));
+    SXML_TEST_EXPECT(state, element.is_abstract);
+    SXML_TEST_EXPECT(state, element.declared_type.index == (uint32_t)SXML_TYPE_XS_ANY_TYPE);
+    SXML_TEST_EXPECT(state, !sxml_schema_find_element_declaration(
+                                schema, name_in(processor, "", "order"), &element));
+    sxml_attribute_declaration_description attribute;
+    SXML_TEST_EXPECT(state, sxml_schema_find_attribute_declaration(
+                                schema, name_in(processor, "urn:o", "code"), &attribute));
+    SXML_TEST_EXPECT(state, attribute.declared_type.index == (uint32_t)SXML_TYPE_XS_INT);
+    sxml_schema_destroy(schema);
+    sxml_processor_destroy(processor);
+}
+
+/* RESOLVED documents through the resolver, and the target namespace a
+   caller requires (XQuery import schema). */
+static void test_resolved_documents(sxml_test_state *state) {
+    const sxml_resource_entry entries[] = {
+        {.uri = TEXT("file:///s/o.xsd"), .content = sxml_byte_view_from_c_string(order_schema)}};
+    const sxml_resource_entry_view entry_view = {.resource_entries = entries,
+                                                 .resource_entry_count = 1};
+    sxml_processor *processor = open_processor(&entry_view);
+    SXML_TEST_REQUIRE(state, processor != NULL);
+    sxml_schema_document document = {.document_source = SXML_SCHEMA_DOCUMENT_SOURCE_RESOLVED,
+                                     .document_uri = TEXT("o.xsd"),
+                                     .checks_target_namespace = true,
+                                     .target_namespace_uri = TEXT("urn:o")};
+    sxml_schema_configuration configuration = {
+        .processor = processor,
+        .schema_documents = {.schema_documents = &document, .schema_document_count = 1},
+        .base_uri = TEXT("file:///s/")};
+    sxml_schema *schema = NULL;
+    SXML_TEST_EXPECT(state, sxml_schema_create(sxml_default_allocator(), &configuration, &schema) ==
+                                SXML_STATUS_OK);
+    sxml_schema_destroy(schema);
+    schema = NULL;
+    sxml_error_record record;
+    memset(&record, 0, sizeof(record));
+    configuration.error_record = &record;
+    document.target_namespace_uri = TEXT("urn:other");
+    SXML_TEST_EXPECT(state, sxml_schema_create(sxml_default_allocator(), &configuration, &schema) ==
+                                SXML_STATUS_STATIC_ERROR);
+    SXML_TEST_EXPECT(state, sxml_byte_view_equals(record.code.local_name, TEXT("src-import")));
+    document.document_uri = TEXT("missing.xsd");
+    SXML_TEST_EXPECT(state, sxml_schema_create(sxml_default_allocator(), &configuration, &schema) ==
+                                SXML_STATUS_STATIC_ERROR);
+    SXML_TEST_EXPECT(state, schema == NULL);
+    sxml_processor_destroy(processor);
+}
+
+/* A NODE document: a parsed document node, read where it is. */
+static void test_node_documents(sxml_test_state *state) {
+    sxml_processor *processor = open_processor(NULL);
+    SXML_TEST_REQUIRE(state, processor != NULL);
+    sxml_item document_node = {.representation = 0};
+    SXML_TEST_REQUIRE(
+        state, sxml_processor_parse_document(
+                   processor,
+                   &(sxml_xml_parse_request){.input = sxml_byte_view_from_c_string(order_schema),
+                                             .document_uri = TEXT("file:///o.xsd"),
+                                             .base_uri = TEXT("file:///o.xsd")},
+                   &document_node) == SXML_STATUS_OK);
+    const sxml_schema_document document = {.document_source = SXML_SCHEMA_DOCUMENT_SOURCE_NODE,
+                                           .document_node = document_node,
+                                           .document_uri = TEXT("file:///o.xsd")};
+    sxml_schema *schema = NULL;
+    SXML_TEST_EXPECT(
+        state, sxml_schema_create(
+                   sxml_default_allocator(),
+                   &(sxml_schema_configuration){.processor = processor,
+                                                .schema_documents = {.schema_documents = &document,
+                                                                     .schema_document_count = 1}},
+                   &schema) == SXML_STATUS_OK);
+    sxml_element_declaration_description element;
+    SXML_TEST_EXPECT(state, sxml_schema_find_element_declaration(
+                                schema, name_in(processor, "urn:o", "order"), &element));
+    sxml_schema_destroy(schema);
+    sxml_item_release(document_node);
+    sxml_processor_destroy(processor);
+}
+
+static sxml_status count_report(void *state, const sxml_schema_report *report) {
+    size_t *count = state;
+    *count += report->location.line_number != 0 ? 1U : 0U;
+    return SXML_STATUS_OK;
+}
+
+static const sxml_schema_report_sink_operations counting_sink = {.receive = count_report};
+
+/* The error record has the first error; the sink receives every one, with
+   locations; the null sink stops at the first. */
+static void test_errors_reported(sxml_test_state *state) {
+    sxml_processor *processor = open_processor(NULL);
+    SXML_TEST_REQUIRE(state, processor != NULL);
+    const sxml_schema_document document =
+        text_document("<xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'>\n"
+                      "<xs:element name='a' type='x'/>\n<xs:element name='b' type='y'/>\n"
+                      "</xs:schema>");
+    sxml_error_record record;
+    memset(&record, 0, sizeof(record));
+    size_t error_count = 0;
+    sxml_schema *schema = NULL;
+    SXML_TEST_EXPECT(
+        state,
+        sxml_schema_create(
+            sxml_default_allocator(),
+            &(sxml_schema_configuration){
+                .processor = processor,
+                .schema_documents = {.schema_documents = &document, .schema_document_count = 1},
+                .report_sink = {.state = &error_count, .operations = &counting_sink},
+                .error_record = &record},
+            &schema) == SXML_STATUS_STATIC_ERROR);
+    SXML_TEST_EXPECT(state, error_count == 2);
+    SXML_TEST_EXPECT(state, sxml_byte_view_equals(record.code.local_name, TEXT("src-resolve")));
+    SXML_TEST_EXPECT(state, record.code.namespace_uri.byte_count == 0);
+    SXML_TEST_EXPECT(state, record.diagnostic.location.line_number == 2);
+    SXML_TEST_EXPECT(state, sxml_byte_view_equals(record.diagnostic.location.source_name,
+                                                  TEXT("file:///o.xsd")));
+    const sxml_schema_document broken = text_document("<xs:schema");
+    SXML_TEST_EXPECT(state, sxml_schema_create(sxml_default_allocator(),
+                                               &(sxml_schema_configuration){
+                                                   .processor = processor,
+                                                   .schema_documents = {.schema_documents = &broken,
+                                                                        .schema_document_count = 1},
+                                                   .error_record = &record},
+                                               &schema) == SXML_STATUS_STATIC_ERROR);
+    SXML_TEST_EXPECT(state,
+                     sxml_byte_view_equals(record.code.local_name, TEXT("schema_reference")));
+    sxml_processor_destroy(processor);
+}
+
+static const sxml_test_case schema_test_cases[] = {
+    {.name = "lifecycle_checks_its_arguments", .function = test_lifecycle_checks_its_arguments},
+    {.name = "declarations_found", .function = test_declarations_found},
+    {.name = "resolved_documents", .function = test_resolved_documents},
+    {.name = "node_documents", .function = test_node_documents},
+    {.name = "errors_reported", .function = test_errors_reported},
+};
+
+int main(int argument_count, char **arguments) {
+    return sxml_test_run_suite(
+        &(sxml_test_suite){
+            .name = "schema",
+            .cases = schema_test_cases,
+            .case_count = SXML_TEST_COUNT(schema_test_cases),
+        },
+        (sxml_test_command_line){
+            .argument_count = argument_count,
+            .arguments = arguments,
+        });
+}

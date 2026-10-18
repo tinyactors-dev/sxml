@@ -51,7 +51,15 @@ typedef struct assembly_document {
     sxml_namespace_uri_identifier target_namespace;
     bool is_chameleon;
     sxml_schema_document_defaults defaults;
+    /* Marks the document while reaches_document walks. */
+    bool is_reached;
 } assembly_document;
+
+/* A reference from one document to another. */
+typedef struct document_edge {
+    size_t from_position;
+    size_t to_position;
+} document_edge;
 
 /* A redefine's or override's children to read once every document is. */
 typedef struct pending_read {
@@ -74,11 +82,48 @@ struct sxml_schema_assembly {
     pending_read *pending_reads;
     size_t pending_read_count;
     size_t pending_read_capacity;
+    /* The components replaced by redefine and override children. */
+    sxml_schema_name_key *redefined_names;
+    size_t redefined_name_count;
+    size_t redefined_name_capacity;
+    /* Which document refers to which (by position): xs:redefine must not
+       be part of a cycle (4.2.4). */
+    document_edge *edges;
+    size_t edge_count;
+    size_t edge_capacity;
 };
 
 sxml_schema_compilation *
 sxml_schema_assembly_get_compilation(const sxml_schema_assembly *assembly) {
     return assembly->compilation;
+}
+
+sxml_status sxml_schema_assembly_note_redefinition(sxml_schema_assembly *assembly,
+                                                   sxml_schema_name_key key,
+                                                   sxml_schema_redefinition_note *note) {
+    for (size_t name_index = 0; name_index < assembly->redefined_name_count; name_index += 1) {
+        const sxml_schema_name_key noted = assembly->redefined_names[name_index];
+        if (noted.symbol_space == key.symbol_space && noted.name.index == key.name.index) {
+            note->is_first = false;
+            return SXML_STATUS_OK;
+        }
+    }
+    void *elements = assembly->redefined_names;
+    sxml_status status = sxml_evaluator_grow(
+        assembly->allocator,
+        &(sxml_evaluator_growth){.elements = &elements,
+                                 .element_capacity = &assembly->redefined_name_capacity,
+                                 .element_count = assembly->redefined_name_count,
+                                 .required_count = assembly->redefined_name_count + 1U,
+                                 .element_byte_count = sizeof(sxml_schema_name_key),
+                                 .alignment = alignof(sxml_schema_name_key)});
+    assembly->redefined_names = elements;
+    if (status == SXML_STATUS_OK) {
+        assembly->redefined_names[assembly->redefined_name_count] = key;
+        assembly->redefined_name_count += 1;
+        note->is_first = true;
+    }
+    return status;
 }
 
 static bool views_equal(sxml_byte_view first, sxml_byte_view second) {
@@ -650,6 +695,53 @@ static size_t position_of_document(const sxml_schema_assembly *assembly,
     return SIZE_MAX;
 }
 
+static sxml_status add_edge(sxml_schema_assembly *assembly, document_edge edge) {
+    void *elements = assembly->edges;
+    sxml_status status = sxml_evaluator_grow(
+        assembly->allocator, &(sxml_evaluator_growth){.elements = &elements,
+                                                      .element_capacity = &assembly->edge_capacity,
+                                                      .element_count = assembly->edge_count,
+                                                      .required_count = assembly->edge_count + 1U,
+                                                      .element_byte_count = sizeof(document_edge),
+                                                      .alignment = alignof(document_edge)});
+    assembly->edges = elements;
+    if (status == SXML_STATUS_OK) {
+        assembly->edges[assembly->edge_count] = edge;
+        assembly->edge_count += 1;
+    }
+    return status;
+}
+
+/* True when path.to_position is path.from_position or is reached from it
+   through the references met so far: each round marks the targets of the
+   edges from marked documents, until nothing changes. */
+static bool reaches_document(const sxml_schema_assembly *assembly, document_edge path) {
+    if (path.to_position == SIZE_MAX || path.from_position == SIZE_MAX) {
+        return false;
+    }
+    if (path.from_position == path.to_position) {
+        return true;
+    }
+    assembly->documents[path.from_position]->is_reached = true;
+    bool has_changed = true;
+    while (has_changed) {
+        has_changed = false;
+        for (size_t edge_index = 0; edge_index < assembly->edge_count; edge_index += 1) {
+            const document_edge edge = assembly->edges[edge_index];
+            if (assembly->documents[edge.from_position]->is_reached &&
+                !assembly->documents[edge.to_position]->is_reached) {
+                assembly->documents[edge.to_position]->is_reached = true;
+                has_changed = true;
+            }
+        }
+    }
+    const bool is_reached = assembly->documents[path.to_position]->is_reached;
+    for (size_t position = 0; position < assembly->document_count; position += 1) {
+        assembly->documents[position]->is_reached = false;
+    }
+    return is_reached;
+}
+
 sxml_status sxml_schema_assembly_add_reference(sxml_schema_assembly *assembly,
                                                const sxml_schema_document_reference *reference) {
     const sxml_schema_read_request *referrer = reference->referrer;
@@ -714,6 +806,26 @@ sxml_status sxml_schema_assembly_add_reference(sxml_schema_assembly *assembly,
                                        .position = reference->position});
     }
     sxml_allocator_release(assembly->allocator, resolution.memory);
+    const size_t referrer_position = position_of_document(assembly, referrer->document);
+    if (status == SXML_STATUS_OK && position != SIZE_MAX && referrer_position != SIZE_MAX) {
+        status = add_edge(
+            assembly, (document_edge){.from_position = referrer_position, .to_position = position});
+    }
+    if (status == SXML_STATUS_OK && position != SIZE_MAX &&
+        reference->relation == SXML_SCHEMA_DOCUMENT_RELATION_REDEFINE &&
+        reaches_document(assembly, (document_edge){.from_position = position,
+                                                   .to_position = referrer_position})) {
+        /* Part 1, 4.2.4: the redefined document, with what it includes,
+           is part of the redefining one's schema, so it cannot refer back
+           to it. */
+        status = report_document(
+            assembly, (document_error){.constraint_name = "src-redefine",
+                                       .description = "A redefined schema document refers "
+                                                      "back to the redefining one",
+                                       .subject = reference->schema_location,
+                                       .position = reference->position});
+        position = SIZE_MAX;
+    }
     if (status == SXML_STATUS_OK && position != SIZE_MAX &&
         (reference->relation == SXML_SCHEMA_DOCUMENT_RELATION_REDEFINE ||
          reference->relation == SXML_SCHEMA_DOCUMENT_RELATION_OVERRIDE)) {
@@ -821,6 +933,8 @@ static void release_assembly(sxml_schema_assembly *assembly) {
     }
     sxml_allocator_release(assembly->allocator, (void *)assembly->documents);
     sxml_allocator_release(assembly->allocator, assembly->pending_reads);
+    sxml_allocator_release(assembly->allocator, assembly->redefined_names);
+    sxml_allocator_release(assembly->allocator, assembly->edges);
     sxml_xml_parser_destroy(assembly->parser);
 }
 
