@@ -144,6 +144,14 @@ static bool document_fails_with(const char *document, const char *code) {
     return fails_with(&(read_case){.documents = documents, .document_count = 1}, code);
 }
 
+/* Reads one document, which must give no error. */
+static bool reads_without_error(const char *document) {
+    const sxml_schema_document documents[] = {text_document("test.xsd", document)};
+    static read_outcome outcome;
+    read_documents(&(read_case){.documents = documents, .document_count = 1}, &outcome);
+    return outcome.status == SXML_STATUS_OK;
+}
+
 #define XS_SCHEMA "<xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'"
 
 /* ------------------------------------------------------------ Examples */
@@ -586,12 +594,13 @@ static void test_circular_definitions(sxml_test_state *state) {
                                                           "<xs:choice><xs:group ref='a'/>"
                                                           "</xs:choice></xs:group></xs:schema>",
                                                 "mg-props-correct.2"));
-    SXML_TEST_EXPECT(state, document_fails_with(XS_SCHEMA "><xs:attributeGroup name='a'>"
+    /* XSD 1.1 allows attribute groups to refer to each other in a cycle
+       (bug 15795): their closure is COMPLEX_TYPES'. */
+    SXML_TEST_EXPECT(state, reads_without_error(XS_SCHEMA "><xs:attributeGroup name='a'>"
                                                           "<xs:attributeGroup ref='b'/>"
                                                           "</xs:attributeGroup><xs:attributeGroup "
                                                           "name='b'><xs:attributeGroup ref='a'/>"
-                                                          "</xs:attributeGroup></xs:schema>",
-                                                "src-attribute_group.3"));
+                                                          "</xs:attributeGroup></xs:schema>"));
     SXML_TEST_EXPECT(state, document_fails_with(XS_SCHEMA "><xs:simpleType name='a'>"
                                                           "<xs:restriction base='b'/>"
                                                           "</xs:simpleType><xs:simpleType "
@@ -684,8 +693,8 @@ static void test_chameleon_inclusion(sxml_test_state *state) {
    4.2.6). */
 static void test_document_references(sxml_test_state *state) {
     const sxml_schema_document missing[] = {text_document("file:///s/main.xsd", INCLUDING)};
-    SXML_TEST_EXPECT(state, fails_with(&(read_case){.documents = missing, .document_count = 1},
-                                       "src-include.1"));
+    SXML_TEST_EXPECT(
+        state, fails_with(&(read_case){.documents = missing, .document_count = 1}, "src-resolve"));
     SXML_TEST_EXPECT(state, reads_as(XS_SCHEMA "><xs:import namespace='urn:o' "
                                                "schemaLocation='o.xsd'/></xs:schema>",
                                      "document 1 \"test.xsd\" target-namespace none\n"

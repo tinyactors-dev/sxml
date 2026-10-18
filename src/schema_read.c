@@ -2430,7 +2430,9 @@ static sxml_status begin_redefinition(schema_reader *reader) {
     const bool is_redefine = reader->request->read_kind == SXML_SCHEMA_READ_KIND_REDEFINE;
     sxml_schema_redefinition_note note = {.is_first = true};
     status = sxml_schema_assembly_note_redefinition(
-        reader->assembly, (sxml_schema_name_key){.symbol_space = symbol_space, .name = name},
+        reader->assembly,
+        (sxml_schema_redefinition_key){.name = {.symbol_space = symbol_space, .name = name},
+                                       .redefined_document = reader->request->redefined_document},
         &note);
     if (status == SXML_STATUS_OK && !note.is_first) {
         reader->element.skips_subtree = true;
@@ -3496,7 +3498,8 @@ static sxml_status check_foreign_namespace(schema_reader *reader) {
         }
         node = description.parent.index;
         const node_record *record = record_of(reader, node);
-        if (record->role == SXML_READ_ROLE_COMPLEX_CONTENT_RESTRICTION) {
+        if (record->role == SXML_READ_ROLE_COMPLEX_CONTENT_RESTRICTION ||
+            record->role == SXML_READ_ROLE_SIMPLE_CONTENT_RESTRICTION) {
             const sxml_schema_type_definition *definition = sxml_schema_get_type_definition(
                 reader->components,
                 (sxml_schema_type_definition_index){.value = record->owner.index});
@@ -4711,6 +4714,17 @@ sxml_status sxml_schema_read_document(sxml_schema_assembly *assembly,
     sxml_status status = start_reading(&reader);
     if (status == SXML_STATUS_OK) {
         status = collect_imports(&reader);
+    }
+    /* Part 1, 4.2.2: an xs:schema element that conditional inclusion
+       ignores leaves an empty schema document. */
+    inclusion_decision inclusion = {.is_excluded = false};
+    if (status == SXML_STATUS_OK && request->read_kind == SXML_SCHEMA_READ_KIND_DOCUMENT) {
+        status = decide_inclusion(&reader, request->schema_element.index, &inclusion);
+    }
+    if (inclusion.is_excluded) {
+        reader.defaults->is_read = true;
+        reader.last_node = 0;
+        reader.first_node = 1;
     }
     if (status == SXML_STATUS_OK && request->read_kind == SXML_SCHEMA_READ_KIND_DOCUMENT) {
         status = check_identifiers(&reader);

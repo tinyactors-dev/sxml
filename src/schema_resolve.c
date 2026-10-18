@@ -816,53 +816,6 @@ static sxml_status check_group_cycles(resolver *state) {
     return status;
 }
 
-/* src-attribute_group.3 (3.6.3): no attribute group refers to itself,
-   directly or through others. */
-static sxml_status check_attribute_group_cycles(resolver *state) {
-    const uint32_t count = table_count(state, SXML_SCHEMA_TABLE_ATTRIBUTE_GROUP);
-    sxml_status status = clear_marks(state, count);
-    for (uint32_t root_group = 1; status == SXML_STATUS_OK && root_group < count; root_group += 1) {
-        state->stack_count = 0;
-        bool is_circular = false;
-        status = push(state, root_group);
-        state->marks[root_group] = root_group;
-        while (status == SXML_STATUS_OK && state->stack_count > 0 && !is_circular) {
-            const uint32_t group = state->stack[state->stack_count - 1U];
-            state->stack_count -= 1;
-            const sxml_schema_index_view references = sxml_schema_get_list(
-                state->components,
-                sxml_schema_get_attribute_group(state->components,
-                                                (sxml_schema_attribute_group_index){.value = group})
-                    ->attribute_group_references);
-            for (size_t reference_index = 0;
-                 status == SXML_STATUS_OK && reference_index < references.index_count;
-                 reference_index += 1) {
-                const uint32_t referred = component_of(
-                    state,
-                    (sxml_schema_reference_index){.value = references.indexes[reference_index]});
-                if (referred == root_group) {
-                    is_circular = true;
-                    break;
-                }
-                if (referred != 0 && referred < count && state->marks[referred] != root_group) {
-                    state->marks[referred] = root_group;
-                    status = push(state, referred);
-                }
-            }
-        }
-        if (status == SXML_STATUS_OK && is_circular) {
-            const sxml_schema_attribute_group *entry = sxml_schema_get_attribute_group(
-                state->components, (sxml_schema_attribute_group_index){.value = root_group});
-            status = report(state, (resolve_error){.constraint_name = "src-attribute_group.3",
-                                                   .description = "An attribute group refers to "
-                                                                  "itself",
-                                                   .name = entry->group_name,
-                                                   .position = entry->position});
-        }
-    }
-    return status;
-}
-
 sxml_status sxml_schema_resolve_references(sxml_schema_compilation *compilation) {
     sxml_processor *processor = compilation->configuration->processor;
     resolver state = {.compilation = compilation,
@@ -895,9 +848,6 @@ sxml_status sxml_schema_resolve_references(sxml_schema_compilation *compilation)
     if (status == SXML_STATUS_OK) {
         resolve_other_references(&state);
         status = check_group_cycles(&state);
-    }
-    if (status == SXML_STATUS_OK) {
-        status = check_attribute_group_cycles(&state);
     }
     sxml_allocator_release(state.allocator, state.stack);
     sxml_allocator_release(state.allocator, state.marks);

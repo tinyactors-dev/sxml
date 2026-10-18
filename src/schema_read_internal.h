@@ -100,6 +100,8 @@ typedef struct sxml_schema_read_request {
     sxml_byte_view document_uri;
     /* In/out: the document's defaults, written by the DOCUMENT read. */
     sxml_schema_document_defaults *defaults;
+    /* REDEFINE and OVERRIDE: the document the element refers to. */
+    sxml_schema_document_index redefined_document;
 } sxml_schema_read_request;
 
 /*
@@ -154,6 +156,13 @@ typedef struct sxml_schema_document_reference {
 SXML_NODISCARD sxml_status sxml_schema_assembly_add_reference(
     sxml_schema_assembly *assembly, const sxml_schema_document_reference *reference);
 
+/* A component a redefine's or override's child replaces in the document
+   it refers to. */
+typedef struct sxml_schema_redefinition_key {
+    sxml_schema_name_key name;
+    sxml_schema_document_index redefined_document;
+} sxml_schema_redefinition_key;
+
 /* What noting a redefinition found. */
 typedef struct sxml_schema_redefinition_note {
     /* No xs:redefine or xs:override child replaced the component before. */
@@ -162,12 +171,15 @@ typedef struct sxml_schema_redefinition_note {
 
 /*
  * Notes that a child of xs:redefine or xs:override replaces the global
- * component key names, and writes to note whether one did before (a
- * component redefined twice: src-redefine, src-override). Returns the
+ * component key names in key's document, and writes to note whether one
+ * did before (a component redefined twice in one document: src-redefine,
+ * src-override; a chain of redefinitions of other documents is not).
+ * Returns the
  * allocator's failures. src/schema_assemble.c.
  */
 SXML_NODISCARD sxml_status sxml_schema_assembly_note_redefinition(
-    sxml_schema_assembly *assembly, sxml_schema_name_key key, sxml_schema_redefinition_note *note);
+    sxml_schema_assembly *assembly, sxml_schema_redefinition_key key,
+    sxml_schema_redefinition_note *note);
 
 /* The compilation the assembly reads for. src/schema_assemble.c. */
 sxml_schema_compilation *sxml_schema_assembly_get_compilation(const sxml_schema_assembly *assembly);

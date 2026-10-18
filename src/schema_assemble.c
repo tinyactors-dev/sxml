@@ -50,6 +50,8 @@ typedef struct assembly_document {
        includer. */
     sxml_namespace_uri_identifier target_namespace;
     bool is_chameleon;
+    /* Its own targetNamespace. */
+    sxml_namespace_uri_identifier own_namespace;
     sxml_schema_document_defaults defaults;
     /* Marks the document while reaches_document walks. */
     bool is_reached;
@@ -64,9 +66,11 @@ typedef struct document_edge {
 /* A redefine's or override's children to read once every document is. */
 typedef struct pending_read {
     sxml_schema_read_kind read_kind;
-    /* The document that has the xs:redefine or xs:override element. */
+    /* The document that has the xs:redefine or xs:override element, and
+       the one it refers to. */
     size_t document_position;
     sxml_node_index element;
+    sxml_schema_document_index redefined_document;
 } pending_read;
 
 struct sxml_schema_assembly {
@@ -83,7 +87,7 @@ struct sxml_schema_assembly {
     size_t pending_read_count;
     size_t pending_read_capacity;
     /* The components replaced by redefine and override children. */
-    sxml_schema_name_key *redefined_names;
+    sxml_schema_redefinition_key *redefined_names;
     size_t redefined_name_count;
     size_t redefined_name_capacity;
     /* Which document refers to which (by position): xs:redefine must not
@@ -99,11 +103,13 @@ sxml_schema_assembly_get_compilation(const sxml_schema_assembly *assembly) {
 }
 
 sxml_status sxml_schema_assembly_note_redefinition(sxml_schema_assembly *assembly,
-                                                   sxml_schema_name_key key,
+                                                   sxml_schema_redefinition_key key,
                                                    sxml_schema_redefinition_note *note) {
     for (size_t name_index = 0; name_index < assembly->redefined_name_count; name_index += 1) {
-        const sxml_schema_name_key noted = assembly->redefined_names[name_index];
-        if (noted.symbol_space == key.symbol_space && noted.name.index == key.name.index) {
+        const sxml_schema_redefinition_key noted = assembly->redefined_names[name_index];
+        if (noted.name.symbol_space == key.name.symbol_space &&
+            noted.name.name.index == key.name.name.index &&
+            noted.redefined_document.value == key.redefined_document.value) {
             note->is_first = false;
             return SXML_STATUS_OK;
         }
@@ -115,8 +121,8 @@ sxml_status sxml_schema_assembly_note_redefinition(sxml_schema_assembly *assembl
                                  .element_capacity = &assembly->redefined_name_capacity,
                                  .element_count = assembly->redefined_name_count,
                                  .required_count = assembly->redefined_name_count + 1U,
-                                 .element_byte_count = sizeof(sxml_schema_name_key),
-                                 .alignment = alignof(sxml_schema_name_key)});
+                                 .element_byte_count = sizeof(sxml_schema_redefinition_key),
+                                 .alignment = alignof(sxml_schema_redefinition_key)});
     assembly->redefined_names = elements;
     if (status == SXML_STATUS_OK) {
         assembly->redefined_names[assembly->redefined_name_count] = key;
@@ -411,10 +417,14 @@ static document_match find_document(const sxml_schema_assembly *assembly,
             match.has_same_uri = true;
             match.position = position;
         }
+        /* A document without a targetNamespace is a chameleon when an
+           including document has one (4.2.3): the same document read
+           alone or into another namespace is not the one sought. */
         const bool takes_includer_namespace =
-            document->is_chameleon && (source->relation == SXML_DOCUMENT_RELATION_INCLUDE ||
-                                       source->relation == SXML_DOCUMENT_RELATION_REDEFINE ||
-                                       source->relation == SXML_DOCUMENT_RELATION_OVERRIDE);
+            document->own_namespace.index == SXML_NAMESPACE_NONE &&
+            (source->relation == SXML_DOCUMENT_RELATION_INCLUDE ||
+             source->relation == SXML_DOCUMENT_RELATION_REDEFINE ||
+             source->relation == SXML_DOCUMENT_RELATION_OVERRIDE);
         if (!takes_includer_namespace ||
             document->target_namespace.index == source->includer_namespace.index) {
             match.is_found = true;
@@ -560,6 +570,7 @@ static sxml_status add_document(sxml_schema_assembly *assembly, const document_s
     document->schema_element = search.schema_element;
     document->target_namespace = decision.effective_namespace;
     document->is_chameleon = decision.is_chameleon;
+    document->own_namespace = own_namespace;
     assembly->documents[assembly->document_count] = document;
     assembly->document_count += 1;
     if (source->uri.byte_count != 0) {
@@ -593,6 +604,24 @@ static sxml_status add_document(sxml_schema_assembly *assembly, const document_s
 }
 
 /* ---------------------------------------------------------- References */
+
+/* The schema document of the xml: namespace (http://www.w3.org/2001/xml.xsd,
+   without its documentation), for an xs:import of the namespace that the
+   resolver does not deliver. */
+static const sxml_byte_view xml_namespace_document = SXML_BYTE_VIEW_INITIALIZER(
+    "<xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema' "
+    "targetNamespace='http://www.w3.org/XML/1998/namespace'>"
+    "<xs:attribute name='lang'><xs:simpleType><xs:union memberTypes='xs:language'>"
+    "<xs:simpleType><xs:restriction base='xs:string'><xs:enumeration value=''/>"
+    "</xs:restriction></xs:simpleType></xs:union></xs:simpleType></xs:attribute>"
+    "<xs:attribute name='space'><xs:simpleType><xs:restriction base='xs:NCName'>"
+    "<xs:enumeration value='default'/><xs:enumeration value='preserve'/>"
+    "</xs:restriction></xs:simpleType></xs:attribute>"
+    "<xs:attribute name='base' type='xs:anyURI'/>"
+    "<xs:attribute name='id' type='xs:ID'/>"
+    "<xs:attributeGroup name='specialAttrs'><xs:attribute ref='xml:base'/>"
+    "<xs:attribute ref='xml:lang'/><xs:attribute ref='xml:space'/>"
+    "<xs:attribute ref='xml:id'/></xs:attributeGroup></xs:schema>");
 
 /* Asks the resolver for a referred document (include/sxml/schema.h:
    kind SCHEMA_DOCUMENT, schemaLocation, its absolute form, the
@@ -795,16 +824,21 @@ sxml_status sxml_schema_assembly_add_reference(sxml_schema_assembly *assembly,
                                                        .namespace_text = namespace_value,
                                                        .is_missing = &is_missing,
                                                        .position = &position});
-    if (status == SXML_STATUS_OK && is_missing && !is_import) {
-        /* include/sxml/schema.h (D165): a document an include, redefine or
-           override names must be delivered. */
-        status = report_document(
-            assembly, (document_error){.constraint_name = unreadable_constraints[relation],
-                                       .description = "The schema document a reference names "
-                                                      "cannot be read",
-                                       .subject = reference->schema_location,
-                                       .position = reference->position});
+    if (status == SXML_STATUS_OK && is_missing && is_import &&
+        reference->imported_namespace.index == (uint32_t)SXML_NAMESPACE_XML) {
+        /* The xml: attributes are known to every processor (XML
+           Namespaces; the document of http://www.w3.org/2001/xml.xsd). */
+        source.content = xml_namespace_document;
+        source.uri = SXML_TEXT("http://www.w3.org/2001/xml.xsd");
+        source.is_node = false;
+        status = add_document(assembly, &source, &position);
     }
+    /* A document the resolver does not deliver is no error by itself
+       (Part 1, 4.2.3 clause 2.4, 4.2.6.2): its components are missing,
+       and src-resolve reports what refers to them. include/sxml/schema.h
+       says otherwise for include, redefine and override (D170,
+       Proposed). */
+    (void)is_missing;
     sxml_allocator_release(assembly->allocator, resolution.memory);
     const size_t referrer_position = position_of_document(assembly, referrer->document);
     if (status == SXML_STATUS_OK && position != SIZE_MAX && referrer_position != SIZE_MAX) {
@@ -835,7 +869,8 @@ sxml_status sxml_schema_assembly_add_reference(sxml_schema_assembly *assembly,
                                            ? SXML_SCHEMA_READ_KIND_REDEFINE
                                            : SXML_SCHEMA_READ_KIND_OVERRIDE,
                           .document_position = position_of_document(assembly, referrer->document),
-                          .element = reference->element});
+                          .element = reference->element,
+                          .redefined_document = assembly->documents[position]->index});
     }
     return status;
 }
@@ -920,7 +955,9 @@ static sxml_status read_document(sxml_schema_assembly *assembly, size_t position
         .target_namespace = document->target_namespace,
         .is_chameleon = document->is_chameleon,
         .document_uri = uri_of(document),
-        .defaults = &document->defaults};
+        .defaults = &document->defaults,
+        .redefined_document = pending == NULL ? (sxml_schema_document_index){.value = 0}
+                                              : pending->redefined_document};
     return sxml_schema_read_document(assembly, &request);
 }
 
@@ -963,9 +1000,12 @@ sxml_status sxml_schema_read_documents(sxml_schema_compilation *compilation) {
          position += 1) {
         status = read_document(&assembly, position, NULL);
     }
-    for (size_t read_index = 0;
-         status == SXML_STATUS_OK && read_index < assembly.pending_read_count; read_index += 1) {
-        const pending_read pending = assembly.pending_reads[read_index];
+    /* Redefinitions of documents met later are read first: a document
+       read later is redefined by an earlier one, which must replace its
+       redefinition, not its original (a chain of redefines, 4.2.4). */
+    for (size_t read_index = assembly.pending_read_count;
+         status == SXML_STATUS_OK && read_index > 0; read_index -= 1) {
+        const pending_read pending = assembly.pending_reads[read_index - 1U];
         if (pending.document_position != SIZE_MAX) {
             status = read_document(&assembly, pending.document_position, &pending);
         }
