@@ -6249,6 +6249,46 @@ dashboard is regenerated at 8d2aa06.
 ### D170. The schema document reader and assembly (packet 5.4)
 Reserved 2026-10-18.
 
+### D171. Simple types and facets (packet 5.5)
+Recorded 2026-10-18. Fills SIMPLE_TYPES (D167) and registration (D165).
+- **One lexical engine.** Casting to a registered type is its whiteSpace
+  facet (the nearest on its chain of registered bases, else the built-in
+  one), the lexical mapping of its built-in ancestor (src/cast_lexical.c),
+  then every facet of it and its registered bases (new src/cast_facet.c,
+  part of the cast engine): steps by conjunction, the patterns of a step by
+  disjunction. A failure is FORG0001 whose description starts with the
+  constraint name (cvc-minInclusive-valid, ...), so validation (5.7) can
+  report it with XSD's code. Facet values are read with the lexical mapping
+  of the value's built-in type, never cast back through src/cast.c (D71).
+  Equality is atomic-equal in that type (QNames by EQName); order is XSD's
+  (`sxml_cast_order_values`: NaN incomparable, a date without a timezone
+  compared at -14:00 and +14:00, durations at the four reference dateTimes
+  of Part 2, E.3.3). Lists made by xs:list may be empty; a union's facets
+  apply to the value its first accepting member gives, and no other member
+  is tried after them.
+- **Patterns**: `sxml_regex_flags.is_xsd_pattern` (D53's flag), the
+  regex anchored to the whole value, ^ and $ ordinary, back-references,
+  reluctant quantifiers, (? and (* groups and \b \B FORX0002. A pattern
+  is compiled per check, in heap memory (open: a cache).
+- **Registration** (`sxml_type_registry_register_schema_type`, src/types.c):
+  no interning, no name index; facets copied, in the component's facet
+  order, so a stage can pair registered (canonical) values with the
+  components' fixed flags.
+- **SIMPLE_TYPES** reads "simple" as "variety not COMPLEX" and replaces the
+  variety of a restriction with its base's, so READ may write any simple
+  variety for xs:restriction (comment at the stage's declaration). Order:
+  an explicit stack over the type table; a type met again on it is
+  st-props-correct.2. Facet values are made canonical (counts, keywords,
+  enumeration values cast to the base, bounds read in the built-in type and
+  compared with the base's bounds as Part 2, 4.3.7.4 to 4.3.10.4 say:
+  incomparable values break no rule); the base's effective facets include
+  the implicit ones of built-in types (whiteSpace, fractionDigits 0 of
+  xs:integer, minLength 1 of the built-in lists, explicitTimezone of
+  xs:dateTimeStamp). A failed type is not registered and the types made
+  from it are skipped without a second report. Then value constraints of
+  attribute declarations and uses are cast to their types (a-props-correct.2,
+  au-props-correct.2). NOTATION enumeration values are read as QNames.
+
 ## Proposed
 
 - **Membership of a pattern rooted at a variable** (packet 4.18, D169;
