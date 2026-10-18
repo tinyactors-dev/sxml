@@ -2240,17 +2240,17 @@ Not run, by the first dependency that is not met:
 
 | Specification | Test cases | Run | Passed | of which wrong error | Failed | Errors | Not run | Passed of run |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|
-| XSD11 | 41,735 | 41,153 | 41,037 | 0 | 116 | 0 | 582 | 99.7 % |
+| XSD11 | 41,735 | 41,518 | 41,452 | 0 | 66 | 0 | 217 | 99.8 % |
 
-Gate rate (D95): 41,037 of 41,518 in-scope test cases passed, **98.8 %** (in scope: the spec matches and no non-goal is needed; not-run cases count as not passed).
+Gate rate (D95): 41,452 of 41,518 in-scope test cases passed, **99.8 %** (in scope: the spec matches and no non-goal is needed; not-run cases count as not passed).
 
 ### XSD11 gate groups (proposed Phase 5 gate, D165)
 
 | Group | Target | In scope | Passed | Rate |
 |---|--:|--:|--:|--:|
 | Datatypes (NIST, MS DataTypes and Regex) | 95 % | 30,598 | 30,598 | 100.0 % |
-| Structures (Microsoft, Sun, W3C WG, Oracle, Boeing) | 80 % | 8,626 | 8,246 | 95.6 % |
-| XSD 1.1 (Saxonica, IBM) | 70 % | 2,294 | 2,193 | 95.6 % |
+| Structures (Microsoft, Sun, W3C WG, Oracle, Boeing) | 80 % | 8,626 | 8,585 | 99.5 % |
+| XSD 1.1 (Saxonica, IBM) | 70 % | 2,294 | 2,269 | 98.9 % |
 
 XSD slice (`tests/xsd/slice.txt`): **147/147 passed**.
 
@@ -2259,10 +2259,10 @@ XSD slice (`tests/xsd/slice.txt`): **147/147 passed**.
 | Area (contributor: the test-set prefix) | Test cases | Run | Passed | of which wrong error | Failed | Errors | Not run | Passed of run |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|
 | NIST (datatypes): `nist-*` | 23,170 | 23,170 | 23,170 | 0 | 0 | 0 | 0 | 100.0 % |
-| Microsoft: `ms-*` | 14,450 | 14,131 | 14,042 | 0 | 89 | 0 | 319 | 99.4 % |
-| Sun: `sun-*` | 1,610 | 1,549 | 1,547 | 0 | 2 | 0 | 61 | 99.9 % |
-| Saxonica (XSD 1.1): `saxon-*` | 1,390 | 1,318 | 1,295 | 0 | 23 | 0 | 72 | 98.3 % |
-| IBM (XSD 1.1): `ibm-*` | 919 | 900 | 898 | 0 | 2 | 0 | 19 | 99.8 % |
+| Microsoft: `ms-*` | 14,450 | 14,363 | 14,322 | 0 | 41 | 0 | 87 | 99.7 % |
+| Sun: `sun-*` | 1,610 | 1,606 | 1,606 | 0 | 0 | 0 | 4 | 100.0 % |
+| Saxonica (XSD 1.1): `saxon-*` | 1,390 | 1,375 | 1,352 | 0 | 23 | 0 | 15 | 98.3 % |
+| IBM (XSD 1.1): `ibm-*` | 919 | 919 | 917 | 0 | 2 | 0 | 0 | 99.8 % |
 | W3C XML Schema WG: `wg-*` | 60 | 41 | 41 | 0 | 0 | 0 | 19 | 100.0 % |
 | Oracle: `oracle-*` | 26 | 26 | 26 | 0 | 0 | 0 | 0 | 100.0 % |
 | Boeing: `boeing-*` | 18 | 18 | 18 | 0 | 0 | 0 | 0 | 100.0 % |
@@ -2274,13 +2274,13 @@ Failed and error test cases by the error code the query raised (or the status th
 
 | Error code | Test cases |
 |---|--:|
-| (no error: wrong result) | 116 |
+| (no error: wrong result) | 66 |
 
 The 25 most frequent reasons:
 
 | Cause | Test cases |
 |---|--:|
-| schema: valid, expected invalid | 92 |
+| schema: valid, expected invalid | 42 |
 | schema: invalid enumeration-valid-restriction | 6 |
 | instance: valid, expected invalid | 5 |
 | instance: invalid, expected valid | 3 |
@@ -2301,7 +2301,6 @@ Not run, by the first dependency that is not met:
 
 | Reason | Test cases |
 |---|--:|
-| XSD feature not implemented | 365 |
 | test set introspection (the suite's metadata) | 92 |
 | status queried | 57 |
 | version 1.0 | 50 |
@@ -2314,11 +2313,10 @@ Not run, by the first dependency that is not met:
 
 | Test set | Test cases | Passed | Failed | Errors | Not run |
 |---|--:|--:|--:|--:|--:|
-| ms-IdentityConstraint_w3c | 1,072 | 788 | 48 | 0 | 236 |
 | ms-Schema_w3c | 165 | 136 | 15 | 0 | 14 |
-| saxon-Zone | 74 | 59 | 7 | 0 | 8 |
+| saxon-Zone | 74 | 67 | 7 | 0 | 0 |
 | ms-Attribute_w3c | 403 | 395 | 6 | 0 | 2 |
-| saxon-Wild | 284 | 258 | 6 | 0 | 20 |
+| saxon-Wild | 284 | 278 | 6 | 0 | 0 |
 | ms-ModelGroups_w3c | 598 | 594 | 4 | 0 | 0 |
 | ms-Particles_w3c | 1,372 | 1,364 | 4 | 0 | 4 |
 | ms-SimpleType_w3c | 443 | 432 | 4 | 0 | 7 |
@@ -2327,9 +2325,8 @@ Not run, by the first dependency that is not met:
 | saxon-XmlVersions | 51 | 48 | 3 | 0 | 0 |
 | ibm-defaultAttributesApply | 31 | 29 | 2 | 0 | 0 |
 | ms-Annotations_w3c | 80 | 78 | 2 | 0 | 0 |
-| saxon-Complex | 92 | 83 | 2 | 0 | 7 |
-| sun-suntest | 263 | 234 | 2 | 0 | 27 |
-| ms-Additional_w3c | 445 | 422 | 1 | 0 | 22 |
+| saxon-Complex | 92 | 90 | 2 | 0 | 0 |
+| ms-Additional_w3c | 445 | 431 | 1 | 0 | 13 |
 | ms-ComplexType_w3c | 812 | 811 | 1 | 0 | 0 |
 | ms-Notations_w3c | 119 | 118 | 1 | 0 | 0 |
 | saxon-Override | 86 | 85 | 1 | 0 | 0 |
@@ -2343,29 +2340,29 @@ Not run, by the first dependency that is not met:
 |---|--:|--:|--:|--:|--:|--:|
 | common-introspection | 92 | 0 | 0 | 0 | 0 | 92 |
 | nist-NISTXMLSchemaDatatypes | 23,170 | 23,170 | 0 | 0 | 0 | 0 |
-| sun-suntest | 263 | 234 | 0 | 2 | 0 | 27 |
+| sun-suntest | 263 | 261 | 0 | 0 | 0 | 2 |
 | sun-AGroupDef | 19 | 19 | 0 | 0 | 0 | 0 |
 | sun-AttrDecl | 178 | 178 | 0 | 0 | 0 | 0 |
 | sun-AttrUse | 9 | 9 | 0 | 0 | 0 | 0 |
 | sun-CType | 85 | 85 | 0 | 0 | 0 | 0 |
-| sun-ElemDecl | 464 | 449 | 0 | 0 | 0 | 15 |
-| sun-IdConstrDefs | 48 | 29 | 0 | 0 | 0 | 19 |
+| sun-ElemDecl | 464 | 462 | 0 | 0 | 0 | 2 |
+| sun-IdConstrDefs | 48 | 48 | 0 | 0 | 0 | 0 |
 | sun-MGroup | 79 | 79 | 0 | 0 | 0 | 0 |
 | sun-MGroupDef | 33 | 33 | 0 | 0 | 0 | 0 |
 | sun-Notation | 21 | 21 | 0 | 0 | 0 | 0 |
 | sun-SType | 338 | 338 | 0 | 0 | 0 | 0 |
 | sun-Schema | 12 | 12 | 0 | 0 | 0 | 0 |
 | sun-Wildcard | 61 | 61 | 0 | 0 | 0 | 0 |
-| ms-Additional_w3c | 445 | 422 | 0 | 1 | 0 | 22 |
+| ms-Additional_w3c | 445 | 431 | 0 | 1 | 0 | 13 |
 | ms-Annotations_w3c | 80 | 78 | 0 | 2 | 0 | 0 |
 | ms-AttributeGroup_w3c | 149 | 146 | 0 | 3 | 0 | 0 |
 | ms-Attribute_w3c | 403 | 395 | 0 | 6 | 0 | 2 |
 | ms-ComplexType_w3c | 812 | 811 | 0 | 1 | 0 | 0 |
 | ms-DataTypes_w3c | 3,434 | 3,429 | 0 | 0 | 0 | 5 |
-| ms-Element_w3c | 527 | 522 | 0 | 0 | 0 | 5 |
+| ms-Element_w3c | 527 | 523 | 0 | 0 | 0 | 4 |
 | ms-Errata10_w3c | 31 | 30 | 0 | 0 | 0 | 1 |
 | ms-Group_w3c | 344 | 344 | 0 | 0 | 0 | 0 |
-| ms-IdentityConstraint_w3c | 1,072 | 788 | 0 | 48 | 0 | 236 |
+| ms-IdentityConstraint_w3c | 1,072 | 1,058 | 0 | 0 | 0 | 14 |
 | ms-ModelGroups_w3c | 598 | 594 | 0 | 4 | 0 | 0 |
 | ms-Notations_w3c | 119 | 118 | 0 | 1 | 0 | 0 |
 | ms-Particles_w3c | 1,372 | 1,364 | 0 | 4 | 0 | 4 |
@@ -2376,19 +2373,19 @@ Not run, by the first dependency that is not met:
 | boeing-BoeingXSDTestSet | 18 | 18 | 0 | 0 | 0 | 0 |
 | saxon-All | 110 | 110 | 0 | 0 | 0 | 0 |
 | saxon-Assert | 101 | 101 | 0 | 0 | 0 | 0 |
-| saxon-Complex | 92 | 83 | 0 | 2 | 0 | 7 |
+| saxon-Complex | 92 | 90 | 0 | 2 | 0 | 0 |
 | saxon-CTA | 113 | 113 | 0 | 0 | 0 | 0 |
-| saxon-Id | 121 | 100 | 0 | 0 | 0 | 21 |
+| saxon-Id | 121 | 121 | 0 | 0 | 0 | 0 |
 | saxon-Missing | 14 | 0 | 0 | 0 | 0 | 14 |
 | saxon-Open | 165 | 161 | 0 | 4 | 0 | 0 |
 | saxon-Override | 86 | 85 | 0 | 1 | 0 | 0 |
-| saxon-Simple | 108 | 107 | 0 | 0 | 0 | 1 |
+| saxon-Simple | 108 | 108 | 0 | 0 | 0 | 0 |
 | saxon-Subsgroup | 11 | 11 | 0 | 0 | 0 | 0 |
 | saxon-TargetNS | 10 | 10 | 0 | 0 | 0 | 0 |
 | saxon-VC | 50 | 49 | 0 | 0 | 0 | 1 |
-| saxon-Wild | 284 | 258 | 0 | 6 | 0 | 20 |
+| saxon-Wild | 284 | 278 | 0 | 6 | 0 | 0 |
 | saxon-XmlVersions | 51 | 48 | 0 | 3 | 0 | 0 |
-| saxon-Zone | 74 | 59 | 0 | 7 | 0 | 8 |
+| saxon-Zone | 74 | 67 | 0 | 7 | 0 | 0 |
 | oracle-Zone | 26 | 26 | 0 | 0 | 0 | 0 |
 | wg-substitution-groups | 47 | 28 | 0 | 0 | 0 | 19 |
 | wg-IRI | 13 | 13 | 0 | 0 | 0 | 0 |
@@ -2414,7 +2411,7 @@ Not run, by the first dependency that is not met:
 | ibm-gDay | 2 | 2 | 0 | 0 | 0 | 0 |
 | ibm-gMonth | 1 | 1 | 0 | 0 | 0 | 0 |
 | ibm-idIDREF | 134 | 134 | 0 | 0 | 0 | 0 |
-| ibm-identityConstraint | 18 | 12 | 0 | 0 | 0 | 6 |
+| ibm-identityConstraint | 18 | 18 | 0 | 0 | 0 | 0 |
 | ibm-list | 3 | 3 | 0 | 0 | 0 | 0 |
 | ibm-openContent | 40 | 40 | 0 | 0 | 0 | 0 |
 | ibm-regularExpression | 16 | 16 | 0 | 0 | 0 | 0 |
@@ -2431,7 +2428,7 @@ Not run, by the first dependency that is not met:
 | ibm-vc | 14 | 14 | 0 | 0 | 0 | 0 |
 | ibm-wildcard | 32 | 32 | 0 | 0 | 0 | 0 |
 | ibm-xml11Support | 22 | 22 | 0 | 0 | 0 | 0 |
-| ibm-xpathDefaultNSonKeyKeyRefUnique | 26 | 13 | 0 | 0 | 0 | 13 |
+| ibm-xpathDefaultNSonKeyKeyRefUnique | 26 | 26 | 0 | 0 | 0 | 0 |
 | ibm-xsImportReference | 1 | 1 | 0 | 0 | 0 | 0 |
 | ibm-yearMonthDuration | 38 | 38 | 0 | 0 | 0 | 0 |
 
