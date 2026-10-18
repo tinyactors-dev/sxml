@@ -5841,7 +5841,115 @@ still closes Phase 4; Phase 5 work must not regress its counts. A `sxml
 validate` command enters the CLI only once it works (D44).
 
 ### D165. Phase 5 design: schema.h, the substrate additions, the XSD suite (packet 5.1)
-Reserved 2026-10-18; completed when the packet is ticked.
+Recorded 2026-10-18. Plans Phase 5 (D164) in `docs/tasks/phase-5.md`;
+completes D98's deferred "registering schema-derived atomic types" and
+the Phase 5 notes of D32, D53, D58, D97 and D162.
+- **Suite** (D13): W3C `xsdtests` at `7bc3365c652a322f3d762021b3879eb92dae7e30`
+  in `third_party/xsdtests` (42,174 files, 54 MB), refreshed by
+  `tools/update-test-suites.sh`, excluded from private snapshots and
+  linked (`tools/private-build.sh`, `tools/check-main.sh`). Dropped, as no
+  test reads them: the reports' HTML, CSS and images (`nistMeta/*.html`,
+  25 MB) and CVS backup copies (`.#FILE.REVISION`). In scope: the tests
+  of `suite.xml` applicable to an XSD 1.1 processor (version tokens 1.1,
+  XML-1.0, XML-1.0-5e, Unicode_6.0.0, CTR-all-compile, full-xpath-in-CTA,
+  comments-and-PIs-excluded), not queried or disputed, expecting valid
+  or invalid: 41,538 (15,330 schema tests, 26,208 instance tests; NIST
+  23,170, Microsoft 14,363, Sun 1,606, Saxonica 1,376, IBM 919, others
+  104). The other token choices move the count by at most 47.
+- **schema.h** (new, after `xslt.h`'s pattern): `sxml_schema` (quintet)
+  compiled from `sxml_schema_document`s given as TEXT, NODE (a parsed
+  document or an inline xs:schema element) or RESOLVED through the
+  resolver; `sxml_schema_find_type`, `_find_element_declaration`,
+  `_find_attribute_declaration`; `sxml_schema_validator` (quintet) with
+  `_as_tree_builder` and `_get_outcome`; `sxml_schema_validate_node`;
+  `sxml_schema_report_sink`. XSD 1.1 only (1.0 documents are read as
+  1.1); schema location hints in instances are not followed (Part 1,
+  4.3.2 allows it); an import that cannot be read is not an error by
+  itself (4.2.6.2).
+- **Validation is a tree builder filter**, not a tree walker: the
+  validator receives builder events (from the XML parser while parsing,
+  from `sxml_tree_builder_copy_node`, from construction) and sends them,
+  annotated, to a result builder; the null builder makes it a pure check
+  (`sxml validate` builds nothing). One mechanism serves the CLI, XQuery
+  validate, XSLT validation, fn:doc validation and fn:xsd-validator, and
+  the validated tree is an ordinary arena tree, since the events already
+  carry type annotation, is-id, is-idrefs and nilled (`tree.h`, D39).
+  Defaults and schema normalized attribute values are events too. A
+  failed validation delivers no tree (its events are discarded).
+- **Errors**: codes are XSD constraint names in no namespace
+  (`cvc-complex-type.2.4`, `src-resolve`; Part 1, appendix C), static
+  errors for compilation and dynamic errors for validation; XQuery and
+  XSLT wrap them in their own codes, as XSLT rewrites XQDY0102 to
+  XTDE0430. A report sink receives every error (the CLI shows all of
+  them); the null sink stops at the first.
+- **types.h** (frozen; additive, D99): `sxml_content_type_variety` and
+  `sxml_complex_type` as the new union member `complex_type` of
+  `sxml_type_description` (xs:anyType and xs:untyped MIXED;
+  `src/types_builtin.c` now says so), `sxml_facet_kind`, `sxml_facet`,
+  `sxml_facet_view` and the new last field `facets` of the description
+  (empty for built-in and item types; `src/types.c` clears it when it
+  normalizes an item type). Reason: "everything the registry knows about
+  one type" must include what typed values (content variety, simple
+  content type) and casting (facets) need. Facet values are text (the
+  registry holds no items, as for JNode key constants), canonical in the
+  base type, QNames as EQNames so no namespace context is needed.
+  Assertion facets are not registry facets: they are XPath, kept by the
+  schema, evaluated by validation and, in schema-aware expressions, after
+  the cast, so `src/cast.c` never starts an evaluation (D71).
+  Comments: the top of the header and `sxml_type_registry_find_type`.
+- **Registration is internal**: `sxml_type_registry_register_schema_type`
+  in `src/types_internal.h` (declared now, defined by 5.5), called only by
+  schema compilation, which checks XSD's constraints first; a public
+  function would let hosts register definitions that bypass them, and the
+  registry would need a second copy of those checks. Schema types are
+  never interned and are registered without entering the name index:
+  names belong to a schema (`sxml_schema_find_type`), as D98 made named
+  item types aliases of a module, so two schemas of one processor may
+  define one name. Registered types outlive their schema (trees keep
+  their annotations).
+- **tree.h, xdm.h** (frozen; contract comments): a tree without
+  `get_typed_value` gets typed values derived from string value and type
+  annotation (simple types by casting with the element's namespaces,
+  complex types by content type variety, nilled: none) in
+  `sxml_node_make_typed_value`. The old text said such a tree holds only
+  untyped nodes; for those nothing changes, so no tree that kept the
+  contract changes behaviour. Reason: one derivation for every tree
+  (arena and host trees alike) and nothing stored per node; the arena
+  tree stays as it is.
+- **processor.h** (with a record, D47): `SXML_RESOURCE_KIND_SCHEMA_DOCUMENT`
+  at the end of the kinds (forms BYTES, DOCUMENT_NODE), using
+  `target_namespace_uri` for the namespace; the QT4 driver's resolver
+  lists it (`tests/qt4/driver/resource_table.c`).
+- **Reuse, not parallel machinery**: schema documents through the XML
+  parser and an arena tree (D12); facets and lexical spaces through
+  `src/cast.c` alone; patterns through the regex engine with an XSD
+  dialect flag (D53); assertions, type alternatives and identity
+  constraints compiled with `xpath.h` and evaluated by the one evaluator
+  on subtrees the validator records; schema-element(N) and
+  schema-attribute(N) resolved statically to choices of the existing
+  element(M, T) and attribute(N, T) tests over the substitution group,
+  so matching and subtyping need no schema in the type registry (static
+  analysis then no longer sets the `is_schema_declaration` flag of
+  `sxml_node_test`, D58).
+- **Integration** (5.11, 5.12), each replacing one rejection place
+  (D161, D162): `sxml_static_context_configuration.in_scope_schemas` (a
+  view of compiled schemas, last field, empty = not schema-aware) with a
+  record by 5.11; XQuery import schema (XQST0009, `src/xquery_static.c`)
+  and validate (XQST0075, `src/xquery_lower.c`); XPST0008 of
+  schema-element in `src/xpath_static.c`; FODC0009 of the xsd-validation
+  option (`src/function_library_json.c`); fn:xsd-validator (absent,
+  XPST0017); xsl:import-schema (XTSE1650) and validation and type
+  attributes (XTSE1660, `src/xslt_read.c`); the QT4 and XSLT drivers'
+  feature lists.
+- **Gate (proposed, for the owner)**: in-scope XSD 1.1 tests ≥ 90%, the
+  datatype groups (NIST, MS-DataTypes, MS-Regex: 30,598) ≥ 95%, the
+  structure groups (8,645) ≥ 80%, the XSD 1.1 groups (Saxonica, IBM:
+  2,295) ≥ 70%; schema-aware QT4 XQ40 cases (about 1,100) ≥ 70%;
+  schema-aware XSLT cases (about 690) ≥ 60%; the Phase 2 to 4 gates
+  still held and no count dropped; no crash, leak or error outcome.
+- **`sxml validate`** is designed in `phase-5.md` (synopsis, options,
+  JSON shape, exit codes) and enters `docs/CLI.md` with packet 5.10
+  (D44: only once it works).
 
 ### D166. Content that streams into a constructor; XSLT sweep 3 (packet 4.17)
 Reserved 2026-10-18; completed when the sweep is logged.
