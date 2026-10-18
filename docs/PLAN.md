@@ -45,7 +45,8 @@ In scope:
 - C library builds for Linux, macOS and Windows; a WebAssembly build for
   browsers and Node.js.
 
-Not in year one (each needs a decision record to be pulled in):
+Not in year one (each needs a decision record to be pulled in). These are
+delayed, not dropped: schema awareness is Phase 5 and the rest Phase 7 (D162).
 
 - Schema-aware processing and XSD 1.1 validation.
 - XSLT streaming and the XQuery Update Facility.
@@ -64,6 +65,7 @@ Not in year one (each needs a decision record to be pulled in):
 | 4. XSLT 4.0 | Templates, modes, packages, lowered into the shared IR | Agreed pass rate on XSLT 4.0 test sets |
 | 5. Schema validation | XSD 1.1 validation and schema-aware typing | XSD conformance subset; schema-aware QT4 tests |
 | 6. Platform bindings | Swift and Kotlin bindings, iOS and Android builds | Binding tests on device in CI |
+| 7. Deferred features | What D97 left out of Phases 2–4: full UCA, HTML parsing, invisible XML, streaming, the Update Facility, Full Text, EXPath, compatibility modes, timezone database, other calendars and languages, fn:transform (D162) | Each feature's QT4 or XSLT test sets pass at the agreed rate |
 
 Phases 0 to 3 are year one. Pass-rate targets for Phases 2 and 3 are set at the
 end of Phase 1.

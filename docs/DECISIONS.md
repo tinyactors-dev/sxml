@@ -5421,6 +5421,32 @@ Reserved here; the record is completed when the packet is ticked.
 Recorded 2026-10-19, after D11, D95, D123, D132, D151.
 Reserved here; the record is completed when the packet is ticked.
 
+### D162. D97's exclusions are delays, not non-goals (owner)
+Recorded 2026-10-18 on the owner's word: "D97 is accepted only as a delay --
+these features need to be supported ultimately." Amends D97 and the "Not in
+year one" list of PLAN.md.
+- D97 still fixes what Phases 2 to 4 deliver and what their gates count
+  (D95); nothing in those phases changes.
+- Everything D97 leaves out is owed later, not dropped: full UCA (DUCET,
+  tailoring, numeric and case-order options; advanced-uca-fallback),
+  fn:parse-html and fn:html-doc (an HTML5 tree builder), invisible XML,
+  schema awareness (validate, XSLT validation and type attributes),
+  streaming, the XQuery Update Facility, Full Text, EXPath, XPath 1.0
+  compatibility mode and XSLT backwards-compatible behaviour,
+  civil-timezone and Olson names (a timezone database), calendars other
+  than AD and ISO and languages other than English in the formatting
+  functions, and fn:transform.
+- Schema awareness stays Phase 5. The rest becomes Phase 7 ("Deferred
+  features" in PLAN.md), planned in `docs/tasks/phase-7.md` after the
+  Phase 4 gate, one packet per feature, each with its QT4 or xslt40-test
+  sets counted once it lands.
+- Until then, code that rejects or ignores one of these features does it
+  in one place each, with the error the specification gives a processor
+  without the feature, so that adding it later replaces that place
+  instead of unpicking special cases (the design principle in CLAUDE.md).
+  Size-driven choices (UCA tables, a timezone database, HTML5) are
+  revisited against the wasm budget then; a feature may be a build option.
+
 ## Proposed
 
 - **An xsl:stylesheet as the principal package** (packet 4.15, D157; for
