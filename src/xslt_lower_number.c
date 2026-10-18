@@ -487,41 +487,14 @@ static sxml_status finish_pattern_filter(sxml_xpath_lowerer *lowerer,
     sxml_ir_expression_index body = {0};
     sxml_status status = finish_branch(
         lowerer, (branch_result){.block = &filter->match_block, .value = filter->matched}, &body);
-    const sxml_name_test any_error = {.name_test_kind = SXML_NAME_TEST_KIND_ANY_NAME};
-    sxml_ir_catch_clause clause = {0};
+    sxml_ir_expression guarded_match = {0};
     if (status == SXML_STATUS_OK) {
-        status = sxml_ir_unit_add_name_tests(
-            lowerer->unit, (sxml_ir_name_test_view){.name_tests = &any_error, .name_test_count = 1},
-            &clause.error_tests);
-    }
-    if (status == SXML_STATUS_OK) {
-        status = sxml_xpath_lowerer_add_slot(lowerer, &clause.error_details);
-    }
-    sxml_ir_atom false_atom = {0};
-    if (status == SXML_STATUS_OK) {
-        status = sxml_xpath_lowerer_add_item_constant(
-            lowerer,
-            sxml_function_library_make_boolean((sxml_boolean_result){.is_true = false}).content,
-            &false_atom);
-    }
-    if (status == SXML_STATUS_OK) {
-        status = add_expression(lowerer, atom_expression(false_atom), &clause.handler);
-    }
-    sxml_ir_catch_clause_list clauses = {0};
-    if (status == SXML_STATUS_OK) {
-        status = sxml_ir_unit_add_catch_clauses(
-            lowerer->unit,
-            (sxml_ir_catch_clause_view){.catch_clauses = &clause, .catch_clause_count = 1},
-            &clauses);
+        status = sxml_xslt_lowering_make_guarded_match(lowerer, body, &guarded_match);
     }
     sxml_ir_atom guarded = {0};
     if (status == SXML_STATUS_OK) {
         status = bind(lowerer,
-                      (binding){.block = &filter->predicate_block,
-                                .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_TRY_CATCH,
-                                               .try_catch = {.body = body,
-                                                             .catch_clauses = clauses,
-                                                             .finally_body = {.value = 0}}}},
+                      (binding){.block = &filter->predicate_block, .expression = guarded_match},
                       &guarded);
     }
     sxml_ir_expression_index predicate = {0};
@@ -999,24 +972,14 @@ static const sxml_xpath_lowering_procedure number_procedure = {
 /* ================================================== xsl:analyze-string */
 
 /*
- * 17.1: the select value coerced to xs:string? (() as ""), its segments in
- * order, a non-matching segment as its xs:string and
- * a matching one as its fn:matching-segment-record (substring, position,
- * groups). The regex and flags errors of fn:matching-segments are XSLT's
- * (XTDE1140, XTDE1145).
+ * 17.1: the select value coerced to xs:string? (() as ""); its segments in
+ * order come from the row analyze-segments (src/xslt_number_internal.h):
+ * a non-matching segment as its xs:string and a matching one as its
+ * fn:matching-segment-record (substring, position, groups). The regex and
+ * flags errors of the row are XSLT's (XTDE1140, XTDE1145).
  */
-static const char segments_text[] =
-    "let $value as xs:string? := " NUMBER_VARIABLE "select, $in := string($value), "
-    "$ms := matching-segments($in, " NUMBER_VARIABLE "regex, " NUMBER_VARIABLE "flags), "
-    "$count := count($ms) "
-    "return (for $k in 1 to $count "
-    "let $m := $ms[$k], $start := if ($k eq 1) then 1 else $ms[$k - 1]?position + "
-    "string-length($ms[$k - 1]?substring) "
-    "return (if ($m?position gt $start) then substring($in, $start, $m?position - $start) "
-    "else (), $m), "
-    "let $end := if ($count eq 0) then 1 else $ms[$count]?position + "
-    "string-length($ms[$count]?substring) "
-    "return if ($end le string-length($in)) then substring($in, $end) else ())";
+static const char input_text[] =
+    "string(let $value as xs:string? := " NUMBER_VARIABLE "select return $value)";
 
 static const sxml_xslt_error_mapping regex_mappings[] = {
     {.caught_code = SXML_BYTE_VIEW_INITIALIZER("FORX0002"),
@@ -1064,6 +1027,7 @@ typedef struct analyze_locals {
     sxml_ir_atom select;
     sxml_ir_atom regex;
     sxml_ir_atom flags;
+    sxml_ir_atom input;
     sxml_ir_atom segments;
     /* The MAP's focus (the segment) and the children's: the segment's
        string, with the MAP's position and size. */
@@ -1116,6 +1080,32 @@ static sxml_status check_analyze_string(const sxml_xslt_lowering *lowering,
         lowering, (sxml_xslt_static_error){.node = node,
                                            .code_and_description =
                                                sxml_byte_view_from_c_string(error)});
+}
+
+/* The segments: analyze-segments($input, $regex, $flags), its errors
+   mapped, bound in block. */
+static sxml_status bind_segments(sxml_xpath_lowerer *lowerer, sxml_xpath_lowering_block *block,
+                                 analyze_locals *locals) {
+    const sxml_ir_atom arguments[3] = {locals->input, locals->regex, locals->flags};
+    sxml_ir_atom_list argument_list = {0};
+    const sxml_status status = sxml_ir_unit_add_atoms(
+        lowerer->unit, (sxml_ir_atom_view){.atoms = arguments, .atom_count = 3}, &argument_list);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_xslt_lowering_bind_mapped_expression(
+        lowerer,
+        &(sxml_xslt_mapped_expression){
+            .block = block,
+            .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_STATIC_CALL,
+                           .static_call = {.target = {.target_kind =
+                                                          SXML_IR_FUNCTION_TARGET_KIND_NATIVE,
+                                                      .native_function =
+                                                          &sxml_xslt_analyze_segments_function},
+                                           .arguments = argument_list}},
+            .mappings = {.mappings = regex_mappings,
+                         .mapping_count = sizeof(regex_mappings) / sizeof(regex_mappings[0])}},
+        &locals->segments);
 }
 
 /* Pushes a text with one variable, the segment or the select value. */
@@ -1309,18 +1299,18 @@ static sxml_status continue_analyze_string(sxml_xpath_lowering_machine *machine,
         frame->step = SXML_ANALYZE_STEP_SEGMENT_STRING;
         return call_analyze_text(
             machine, locals,
-            &(analyze_text){
-                .text = segments_text,
-                .variables = {{.local_name = "select", .atom = locals->select},
-                              {.local_name = "regex", .atom = locals->regex},
-                              {.local_name = "flags", .atom = locals->flags}},
-                .variable_count = 3,
-                .mappings = {.mappings = regex_mappings,
-                             .mapping_count = sizeof(regex_mappings) / sizeof(regex_mappings[0])},
-                .block = frame->block,
-                .atom = &locals->segments});
+            &(analyze_text){.text = input_text,
+                            .variables = {{.local_name = "select", .atom = locals->select}},
+                            .variable_count = 1,
+                            .mappings = no_mappings,
+                            .block = frame->block,
+                            .atom = &locals->input});
     case SXML_ANALYZE_STEP_SEGMENT_STRING:
         frame->step = SXML_ANALYZE_STEP_SEGMENT_MATCHES;
+        status = bind_segments(lowerer, frame->block, locals);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
         locals->segment_focus =
             (sxml_xpath_lowering_focus){.kind = SXML_XPATH_LOWERING_FOCUS_KIND_SLOTS};
         locals->body_block = (sxml_xpath_lowering_block){.first = {0}, .open_let = {0}};

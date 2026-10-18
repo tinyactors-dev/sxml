@@ -5,7 +5,7 @@
 {"test_set": "set-dependencies", "test_case": "schema-aware", "outcome": "not-run", "reason": "skip: feature schema_aware"},
 {"test_set": "set-dependencies", "test_case": "basic-processor", "outcome": "fail", "reason": "error: expected XTSE1650, got true"},
 {"test_set": "set-dependencies", "test_case": "inverted", "outcome": "not-run", "reason": "skip: feature higher_order_functions (satisfied)"},
-{"test_set": "set-dependencies", "test_case": "numbering", "outcome": "not-run", "reason": "skip: combinations_for_numbering CIRCLED DIGIT ONE"},
+{"test_set": "set-dependencies", "test_case": "numbering", "outcome": "not-run", "reason": "skip: combinations_for_numbering PARENTHESIZED LATIN SMALL LETTER A"},
 {"test_set": "set-dependencies", "test_case": "validation", "outcome": "not-run", "reason": "skip: environment source validation"},
 {"test_set": "set-dependencies", "test_case": "posture", "outcome": "not-run", "reason": "skip: posture-and-sweep"},
 {"test_set": "set-dependencies", "test_case": "warning", "outcome": "not-run", "reason": "unsupported: assert-warning"}],

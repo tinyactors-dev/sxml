@@ -36,10 +36,10 @@ set-dependencies inverted
 set-dependencies numbering
   stylesheet - tests/misc/dependencies/a.xsl
   invoke apply-templates
-  dependency combinations_for_numbering CIRCLED DIGIT ONE
+  dependency combinations_for_numbering PARENTHESIZED LATIN SMALL LETTER A
   plan stylesheet tests/misc/dependencies/a.xsl, 0 secondary, 0 static, 0 parameters, delivery default
   assertions assert-true 1
-  skip: combinations_for_numbering CIRCLED DIGIT ONE
+  skip: combinations_for_numbering PARENTHESIZED LATIN SMALL LETTER A
 set-dependencies validation
   environment (inline)
   source . tests/misc/dependencies/doc.xml validation strict

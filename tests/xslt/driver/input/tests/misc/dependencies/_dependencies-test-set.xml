@@ -56,7 +56,7 @@
       <description>An implementation-defined dependency sxml lacks.</description>
       <created by="sxml" on="2026-10-17"/>
       <dependencies>
-         <combinations_for_numbering value="CIRCLED DIGIT ONE" range="1 to 20"/>
+         <combinations_for_numbering value="PARENTHESIZED LATIN SMALL LETTER A" range="1 to 20"/>
       </dependencies>
       <test><stylesheet file="a.xsl"/></test>
       <result><assert-true/></result>

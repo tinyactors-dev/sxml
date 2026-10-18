@@ -12,6 +12,7 @@
  */
 #include "xslt_lower_internal.h"
 
+#include "function_library_core_internal.h"
 #include "ir_pass_internal.h"
 #include "xslt_accumulator_internal.h"
 #include "xslt_key_internal.h"
@@ -235,6 +236,80 @@ static sxml_status add_mapping_clause(sxml_xpath_lowerer *lowerer,
                                                 .code_local_name = mapping->raised_code,
                                                 .description = mapping->description},
             &clause->handler);
+    }
+    return status;
+}
+
+/* The circularity errors a guarded match raises again. */
+static const sxml_xslt_error_mapping circularity_mappings[] = {
+    {.caught_code = SXML_BYTE_VIEW_INITIALIZER("XTDE0640"),
+     .raised_status = SXML_STATUS_DYNAMIC_ERROR,
+     .raised_code = SXML_BYTE_VIEW_INITIALIZER("XTDE0640"),
+     .description = SXML_BYTE_VIEW_INITIALIZER(
+         "A pattern depends on itself through a key (XSLT 4.0, 9.11, 6.5)")},
+    {.caught_code = SXML_BYTE_VIEW_INITIALIZER("XTDE3400"),
+     .raised_status = SXML_STATUS_DYNAMIC_ERROR,
+     .raised_code = SXML_BYTE_VIEW_INITIALIZER("XTDE3400"),
+     .description = SXML_BYTE_VIEW_INITIALIZER("A pattern depends on itself through an "
+                                               "accumulator (XSLT 4.0, 19.6, 6.5)")},
+};
+
+#define CIRCULARITY_MAPPING_COUNT (sizeof(circularity_mappings) / sizeof(circularity_mappings[0]))
+
+sxml_status sxml_xslt_lowering_make_guarded_match(sxml_xpath_lowerer *lowerer,
+                                                  sxml_ir_expression_index body,
+                                                  sxml_ir_expression *guarded) {
+    sxml_ir_catch_clause clauses[CIRCULARITY_MAPPING_COUNT + 1];
+    memset(clauses, 0, sizeof(clauses));
+    sxml_status status = SXML_STATUS_OK;
+    for (size_t mapping_index = 0;
+         status == SXML_STATUS_OK && mapping_index < CIRCULARITY_MAPPING_COUNT;
+         mapping_index += 1) {
+        status = add_mapping_clause(lowerer, &circularity_mappings[mapping_index],
+                                    &clauses[mapping_index]);
+    }
+    sxml_ir_catch_clause *any_error = &clauses[CIRCULARITY_MAPPING_COUNT];
+    const sxml_name_test any_name = {.name_test_kind = SXML_NAME_TEST_KIND_ANY_NAME,
+                                     .expanded_name = {.index = 0},
+                                     .namespace_uri = {.index = 0},
+                                     .local_name = {.bytes = NULL, .byte_count = 0}};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ir_unit_add_name_tests(
+            lowerer->unit, (sxml_ir_name_test_view){.name_tests = &any_name, .name_test_count = 1},
+            &any_error->error_tests);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_add_slot(lowerer, &any_error->error_details);
+    }
+    sxml_ir_atom false_atom = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_add_item_constant(
+            lowerer,
+            sxml_function_library_make_boolean((sxml_boolean_result){.is_true = false}).content,
+            &false_atom);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_add_expression(
+            lowerer,
+            (sxml_xpath_lowering_expression_to_add){
+                .node = no_ast_node,
+                .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_ATOM,
+                               .atom = false_atom}},
+            &any_error->handler);
+    }
+    sxml_ir_catch_clause_list clause_list = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ir_unit_add_catch_clauses(
+            lowerer->unit,
+            (sxml_ir_catch_clause_view){.catch_clauses = clauses,
+                                        .catch_clause_count = CIRCULARITY_MAPPING_COUNT + 1},
+            &clause_list);
+    }
+    if (status == SXML_STATUS_OK) {
+        *guarded = (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_TRY_CATCH,
+                                        .try_catch = {.body = body,
+                                                      .catch_clauses = clause_list,
+                                                      .finally_body = {.value = 0}}};
     }
     return status;
 }

@@ -1434,42 +1434,14 @@ static sxml_status bind_guarded_match(sxml_xpath_lowerer *lowerer, group_locals 
     sxml_ir_expression_index body = {0};
     sxml_status status = finish_branch(
         lowerer, (branch_result){.block = &locals->match_block, .value = locals->key}, &body);
-    const sxml_name_test any_error = {.name_test_kind = SXML_NAME_TEST_KIND_ANY_NAME};
-    sxml_ir_catch_clause clause = {0};
+    sxml_ir_expression guarded = {0};
     if (status == SXML_STATUS_OK) {
-        status = sxml_ir_unit_add_name_tests(
-            lowerer->unit, (sxml_ir_name_test_view){.name_tests = &any_error, .name_test_count = 1},
-            &clause.error_tests);
-    }
-    if (status == SXML_STATUS_OK) {
-        status = sxml_xpath_lowerer_add_slot(lowerer, &clause.error_details);
-    }
-    sxml_ir_atom false_atom = {0};
-    if (status == SXML_STATUS_OK) {
-        status = sxml_xpath_lowerer_add_item_constant(
-            lowerer,
-            sxml_function_library_make_boolean((sxml_boolean_result){.is_true = false}).content,
-            &false_atom);
-    }
-    if (status == SXML_STATUS_OK) {
-        status = add_expression(lowerer, atom_expression(false_atom), &clause.handler);
-    }
-    sxml_ir_catch_clause_list clauses = {0};
-    if (status == SXML_STATUS_OK) {
-        status = sxml_ir_unit_add_catch_clauses(
-            lowerer->unit,
-            (sxml_ir_catch_clause_view){.catch_clauses = &clause, .catch_clause_count = 1},
-            &clauses);
+        status = sxml_xslt_lowering_make_guarded_match(lowerer, body, &guarded);
     }
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    return bind(lowerer,
-                (binding){.block = &locals->pair_block,
-                          .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_TRY_CATCH,
-                                         .try_catch = {.body = body,
-                                                       .catch_clauses = clauses,
-                                                       .finally_body = {.value = 0}}}},
+    return bind(lowerer, (binding){.block = &locals->pair_block, .expression = guarded},
                 &locals->key);
 }
 

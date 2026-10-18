@@ -79,6 +79,7 @@
 #include "sxml/xdm.h"
 #include "xpath_ast_internal.h"
 #include "xslt_pattern_internal.h"
+#include "xslt_snippet_text_internal.h"
 
 #include <stdalign.h>
 #include <stdbool.h>
@@ -283,99 +284,8 @@ static sxml_status report_static_error(const sxml_xslt_lowering *lowering,
 
 /* ------------------------------------------------------------------ Text */
 
-/* UTF-8 text being made in the table's allocator. */
-typedef struct snippet_text {
-    sxml_allocator allocator;
-    uint8_t *bytes;
-    size_t byte_count;
-    size_t byte_capacity;
-    /* The first failure; later appends do nothing. */
-    sxml_status status;
-} snippet_text;
-
-static void append_bytes(snippet_text *text, sxml_byte_view bytes) {
-    if (text->status != SXML_STATUS_OK || bytes.byte_count == 0) {
-        return;
-    }
-    size_t needed = 0;
-    text->status = sxml_size_add(text->byte_count, bytes.byte_count, &needed);
-    if (text->status == SXML_STATUS_OK && needed > text->byte_capacity) {
-        size_t capacity = text->byte_capacity == 0 ? 512 : text->byte_capacity;
-        while (capacity < needed && text->status == SXML_STATUS_OK) {
-            text->status = sxml_size_multiply(capacity, 2, &capacity);
-        }
-        void *memory = NULL;
-        if (text->status == SXML_STATUS_OK) {
-            text->status = sxml_allocator_allocate(
-                text->allocator, (sxml_allocation_request){.byte_count = capacity, .alignment = 1},
-                &memory);
-        }
-        if (text->status == SXML_STATUS_OK) {
-            if (text->byte_count > 0) {
-                memcpy(memory, text->bytes, text->byte_count);
-            }
-            sxml_allocator_release(text->allocator, text->bytes);
-            text->bytes = memory;
-            text->byte_capacity = capacity;
-        }
-    }
-    if (text->status == SXML_STATUS_OK && text->bytes != NULL) {
-        memcpy(text->bytes + text->byte_count, bytes.bytes, bytes.byte_count);
-        text->byte_count = needed;
-    }
-}
-
-/* Appends a string literal of C. */
-#define APPEND_TEXT(text, literal) append_bytes((text), SXML_BYTE_VIEW_FROM_LITERAL(literal))
-
 /* Q{ACCUMULATOR_FUNCTION_NAMESPACE_URI}, the start of a private name. */
 #define PRIVATE_PREFIX "Q{" ACCUMULATOR_FUNCTION_NAMESPACE_URI "}"
-
-static void append_number(snippet_text *text, size_t number) {
-    uint8_t digits[24];
-    size_t digit_count = 0;
-    size_t rest = number;
-    do {
-        digits[sizeof(digits) - 1 - digit_count] = (uint8_t)('0' + rest % 10U);
-        digit_count += 1;
-        rest /= 10U;
-    } while (rest > 0 && digit_count < sizeof(digits));
-    append_bytes(text, (sxml_byte_view){.bytes = digits + sizeof(digits) - digit_count,
-                                        .byte_count = digit_count});
-}
-
-/* A string literal: double quotes, an embedded one doubled (XPath 4.0,
-   A.2.1). */
-static void append_string_literal(snippet_text *text, sxml_byte_view value) {
-    APPEND_TEXT(text, "\"");
-    if (value.byte_count == 0) {
-        APPEND_TEXT(text, "\"");
-        return;
-    }
-    size_t start = 0;
-    for (size_t byte_index = 0; byte_index < value.byte_count; byte_index += 1) {
-        if (value.bytes[byte_index] == '"') {
-            append_bytes(text, (sxml_byte_view){.bytes = value.bytes + start,
-                                                .byte_count = byte_index + 1 - start});
-            APPEND_TEXT(text, "\"");
-            start = byte_index + 1;
-        }
-    }
-    append_bytes(text, (sxml_byte_view){.bytes = value.bytes + start,
-                                        .byte_count = value.byte_count - start});
-    APPEND_TEXT(text, "\"");
-}
-
-static void release_text(snippet_text *text) {
-    sxml_allocator_release(text->allocator, text->bytes);
-    text->bytes = NULL;
-    text->byte_count = 0;
-    text->byte_capacity = 0;
-}
-
-static sxml_byte_view text_view(const snippet_text *text) {
-    return (sxml_byte_view){.bytes = text->bytes, .byte_count = text->byte_count};
-}
 
 /* A call of a private function: PRIVATE_PREFIX prefix number "(". */
 typedef struct private_call {
@@ -383,32 +293,11 @@ typedef struct private_call {
     size_t number;
 } private_call;
 
-static void append_private_call(snippet_text *text, private_call call) {
-    APPEND_TEXT(text, PRIVATE_PREFIX);
-    append_bytes(text, sxml_byte_view_from_c_string(call.prefix));
-    append_number(text, call.number);
-    APPEND_TEXT(text, "(");
-}
-
-/* QName("uri", "local") for name. */
-static void append_qname_constructor(const sxml_xslt_accumulator_table *table, snippet_text *text,
-                                     sxml_name_identifier name) {
-    const sxml_name_pool *name_pool = table->lowering->lowerer->name_pool;
-    sxml_name_parts parts = {.namespace_uri = {.index = 0},
-                             .local_name = {.bytes = NULL, .byte_count = 0}};
-    sxml_byte_view namespace_uri = {.bytes = NULL, .byte_count = 0};
-    if (text->status == SXML_STATUS_OK) {
-        text->status = sxml_name_pool_get_name_parts(name_pool, name, &parts);
-    }
-    if (text->status == SXML_STATUS_OK && parts.namespace_uri.index != 0) {
-        text->status =
-            sxml_name_pool_get_namespace_uri(name_pool, parts.namespace_uri, &namespace_uri);
-    }
-    APPEND_TEXT(text, "QName(");
-    append_string_literal(text, namespace_uri);
-    APPEND_TEXT(text, ", ");
-    append_string_literal(text, parts.local_name);
-    APPEND_TEXT(text, ")");
+static void append_private_call(sxml_xslt_snippet_text *text, private_call call) {
+    SXML_XSLT_SNIPPET_APPEND(text, PRIVATE_PREFIX);
+    sxml_xslt_snippet_text_append(text, sxml_byte_view_from_c_string(call.prefix));
+    sxml_xslt_snippet_text_append_number(text, call.number);
+    SXML_XSLT_SNIPPET_APPEND(text, "(");
 }
 
 /* --------------------------------------------------------- Function types */
@@ -598,18 +487,18 @@ typedef struct private_name_request {
 
 static sxml_status make_private_name(sxml_xslt_accumulator_table *table,
                                      private_name_request request, sxml_name_identifier *name) {
-    snippet_text text = {.allocator = table->allocator, .status = SXML_STATUS_OK};
-    append_bytes(&text, sxml_byte_view_from_c_string(request.prefix));
-    append_number(&text, request.number);
+    sxml_xslt_snippet_text text = {.allocator = table->allocator, .status = SXML_STATUS_OK};
+    sxml_xslt_snippet_text_append(&text, sxml_byte_view_from_c_string(request.prefix));
+    sxml_xslt_snippet_text_append_number(&text, request.number);
     sxml_status status = text.status;
     if (status == SXML_STATUS_OK) {
         status = sxml_name_pool_intern_name(
             table->lowering->lowerer->name_pool,
             &(sxml_name_request){.namespace_uri = table->private_namespace,
-                                 .local_name = text_view(&text)},
+                                 .local_name = sxml_xslt_snippet_text_view(&text)},
             name);
     }
-    release_text(&text);
+    sxml_xslt_snippet_text_release(&text);
     return status;
 }
 
@@ -1197,46 +1086,13 @@ static sxml_status lower_match_wrapper(sxml_xslt_accumulator_table *table,
                                 .arguments = arguments}},
             &call);
     }
-    const sxml_name_test any_error = {.name_test_kind = SXML_NAME_TEST_KIND_ANY_NAME};
-    sxml_ir_catch_clause clause = {0};
+    sxml_ir_expression guarded = {0};
     if (status == SXML_STATUS_OK) {
-        status = sxml_ir_unit_add_name_tests(
-            lowerer->unit, (sxml_ir_name_test_view){.name_tests = &any_error, .name_test_count = 1},
-            &clause.error_tests);
-    }
-    if (status == SXML_STATUS_OK) {
-        status = sxml_xpath_lowerer_add_slot(lowerer, &clause.error_details);
-    }
-    sxml_ir_atom false_atom = {0};
-    if (status == SXML_STATUS_OK) {
-        status = sxml_xpath_lowerer_add_item_constant(
-            lowerer,
-            sxml_function_library_make_boolean((sxml_boolean_result){.is_true = false}).content,
-            &false_atom);
-    }
-    if (status == SXML_STATUS_OK) {
-        status = add_expression(
-            lowerer,
-            (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_ATOM,
-                                 .atom = false_atom},
-            &clause.handler);
-    }
-    sxml_ir_catch_clause_list clauses = {0};
-    if (status == SXML_STATUS_OK) {
-        status = sxml_ir_unit_add_catch_clauses(
-            lowerer->unit,
-            (sxml_ir_catch_clause_view){.catch_clauses = &clause, .catch_clause_count = 1},
-            &clauses);
+        status = sxml_xslt_lowering_make_guarded_match(lowerer, call, &guarded);
     }
     sxml_ir_expression_index body = {0};
     if (status == SXML_STATUS_OK) {
-        status = add_expression(
-            lowerer,
-            (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_TRY_CATCH,
-                                 .try_catch = {.body = call,
-                                               .catch_clauses = clauses,
-                                               .finally_body = {.value = 0}}},
-            &body);
+        status = add_expression(lowerer, guarded, &body);
     }
     sxml_xpath_lowerer_leave_function(lowerer, &frame);
     if (status != SXML_STATUS_OK) {
@@ -1441,64 +1297,68 @@ typedef struct phase_text_request {
 } phase_text_request;
 
 static void write_phase_text(const sxml_xslt_accumulator_table *table, phase_text_request request,
-                             snippet_text *text) {
+                             sxml_xslt_snippet_text *text) {
     for (size_t rule_count = table->rule_count; rule_count > 0; rule_count -= 1) {
         const accumulator_rule *rule = &table->rules[rule_count - 1];
         if (rule->accumulator_index != request.accumulator_index ||
             rule->is_end_phase != request.is_end_phase) {
             continue;
         }
-        APPEND_TEXT(text, "if (");
+        SXML_XSLT_SNIPPET_APPEND(text, "if (");
         append_private_call(text, (private_call){.prefix = "match-", .number = rule_count});
-        APPEND_TEXT(text, "$node)) then ");
+        SXML_XSLT_SNIPPET_APPEND(text, "$node)) then ");
         append_private_call(text, (private_call){.prefix = "rule-", .number = rule_count});
         if (rule->captures) {
             /* 19.9: an element is seen as a snapshot of itself. */
-            APPEND_TEXT(text, "if ($node instance of element()) then snapshot($node) else $node");
+            SXML_XSLT_SNIPPET_APPEND(
+                text, "if ($node instance of element()) then snapshot($node) else $node");
         } else {
-            APPEND_TEXT(text, "$node");
+            SXML_XSLT_SNIPPET_APPEND(text, "$node");
         }
-        APPEND_TEXT(text, ", $value) else ");
+        SXML_XSLT_SNIPPET_APPEND(text, ", $value) else ");
     }
-    APPEND_TEXT(text, "$value");
+    SXML_XSLT_SNIPPET_APPEND(text, "$value");
 }
 
-static void write_close_text(size_t number, snippet_text *text) {
-    APPEND_TEXT(text, "fold-left($nodes, $state, fn($inner, $done) { let $value := ");
+static void write_close_text(size_t number, sxml_xslt_snippet_text *text) {
+    SXML_XSLT_SNIPPET_APPEND(text, "fold-left($nodes, $state, fn($inner, $done) { let $value := ");
     append_private_call(text, (private_call){.prefix = "end-", .number = number});
-    APPEND_TEXT(text, "$done, $inner?v) return "
-                      "Q{http://www.w3.org/2005/xpath-functions/map}put("
-                      "Q{http://www.w3.org/2005/xpath-functions/map}put($inner, \"v\", $value), "
-                      "\"a\", Q{http://www.w3.org/2005/xpath-functions/map}put($inner?a, "
-                      "generate-id($done), $value)) })");
+    SXML_XSLT_SNIPPET_APPEND(
+        text, "$done, $inner?v) return "
+              "Q{http://www.w3.org/2005/xpath-functions/map}put("
+              "Q{http://www.w3.org/2005/xpath-functions/map}put($inner, \"v\", $value), "
+              "\"a\", Q{http://www.w3.org/2005/xpath-functions/map}put($inner?a, "
+              "generate-id($done), $value)) })");
 }
 
-static void write_build_text(size_t number, snippet_text *text) {
-    APPEND_TEXT(text, "let $final := fold-left($root/descendant-or-self::node(), "
-                      "map { \"v\": ");
+static void write_build_text(size_t number, sxml_xslt_snippet_text *text) {
+    SXML_XSLT_SNIPPET_APPEND(text, "let $final := fold-left($root/descendant-or-self::node(), "
+                                   "map { \"v\": ");
     append_private_call(text, (private_call){.prefix = "initial-", .number = number});
-    APPEND_TEXT(text, "$root), \"s\": (), \"b\": map { }, \"a\": map { } }, "
-                      "fn($state, $node) { let $stack := $state?s, $count := count($stack), "
-                      "$parent := $node/.., $depth := if (empty($parent)) then 0 "
-                      "else if ($stack[$count] is $parent) then $count "
-                      "else if ($stack[$count - 1] is $parent) then $count - 1 "
-                      "else count($node/ancestor::node()), "
-                      "$closed := ");
+    SXML_XSLT_SNIPPET_APPEND(text,
+                             "$root), \"s\": (), \"b\": map { }, \"a\": map { } }, "
+                             "fn($state, $node) { let $stack := $state?s, $count := count($stack), "
+                             "$parent := $node/.., $depth := if (empty($parent)) then 0 "
+                             "else if ($stack[$count] is $parent) then $count "
+                             "else if ($stack[$count - 1] is $parent) then $count - 1 "
+                             "else count($node/ancestor::node()), "
+                             "$closed := ");
     append_private_call(text, (private_call){.prefix = "close-", .number = number});
-    APPEND_TEXT(text, "$state, reverse(subsequence($stack, $depth + 1))), $value := ");
+    SXML_XSLT_SNIPPET_APPEND(text, "$state, reverse(subsequence($stack, $depth + 1))), $value := ");
     append_private_call(text, (private_call){.prefix = "start-", .number = number});
-    APPEND_TEXT(text, "$node, $closed?v) return map { \"v\": $value, "
-                      "\"s\": (subsequence($closed?s, 1, $depth), $node), "
-                      "\"b\": Q{http://www.w3.org/2005/xpath-functions/map}put($closed?b, "
-                      "generate-id($node), $value), \"a\": $closed?a } }) return ");
+    SXML_XSLT_SNIPPET_APPEND(text,
+                             "$node, $closed?v) return map { \"v\": $value, "
+                             "\"s\": (subsequence($closed?s, 1, $depth), $node), "
+                             "\"b\": Q{http://www.w3.org/2005/xpath-functions/map}put($closed?b, "
+                             "generate-id($node), $value), \"a\": $closed?a } }) return ");
     append_private_call(text, (private_call){.prefix = "close-", .number = number});
-    APPEND_TEXT(text, "$final, reverse($final?s))");
+    SXML_XSLT_SNIPPET_APPEND(text, "$final, reverse($final?s))");
 }
 
 /* A text function of one accumulator. */
 typedef struct accumulator_text {
     const table_function *function;
-    snippet_text *text;
+    sxml_xslt_snippet_text *text;
     parameter_variables parameters;
 } accumulator_text;
 
@@ -1507,10 +1367,10 @@ static sxml_status lower_text(sxml_xslt_accumulator_table *table, accumulator_te
     if (status == SXML_STATUS_OK) {
         status = lower_snippet_function(
             table, (snippet_function){.function = request.function,
-                                      .text = text_view(request.text),
+                                      .text = sxml_xslt_snippet_text_view(request.text),
                                       .parameters = request.parameters});
     }
-    release_text(request.text);
+    sxml_xslt_snippet_text_release(request.text);
     return status;
 }
 
@@ -1530,7 +1390,7 @@ static sxml_status lower_accumulator(sxml_xslt_accumulator_table *table,
                                 .node = accumulator->node,
                                 .attribute = SXML_XSLT_AST_ATTRIBUTE_INITIAL_VALUE});
     for (uint32_t phase = 0; status == SXML_STATUS_OK && phase < 2; phase += 1) {
-        snippet_text text = {.allocator = table->allocator, .status = SXML_STATUS_OK};
+        sxml_xslt_snippet_text text = {.allocator = table->allocator, .status = SXML_STATUS_OK};
         write_phase_text(table,
                          (phase_text_request){.accumulator_index = accumulator_index,
                                               .is_end_phase = phase == 1},
@@ -1541,14 +1401,14 @@ static sxml_status lower_accumulator(sxml_xslt_accumulator_table *table,
                                       .parameters = {node_value, 2}});
     }
     if (status == SXML_STATUS_OK) {
-        snippet_text text = {.allocator = table->allocator, .status = SXML_STATUS_OK};
+        sxml_xslt_snippet_text text = {.allocator = table->allocator, .status = SXML_STATUS_OK};
         write_close_text(number, &text);
         status = lower_text(table, (accumulator_text){.function = &accumulator->close,
                                                       .text = &text,
                                                       .parameters = {state_nodes, 2}});
     }
     if (status == SXML_STATUS_OK) {
-        snippet_text text = {.allocator = table->allocator, .status = SXML_STATUS_OK};
+        sxml_xslt_snippet_text text = {.allocator = table->allocator, .status = SXML_STATUS_OK};
         write_build_text(number, &text);
         status = lower_text(table, (accumulator_text){.function = &accumulator->build,
                                                       .text = &text,
@@ -1607,36 +1467,40 @@ static sxml_status lower_all_accumulators(sxml_xslt_accumulator_table *table) {
 /* The text of fn:accumulator-before or fn:accumulator-after (see the file
    comment). */
 static void write_function_text(const sxml_xslt_accumulator_table *table,
-                                accumulator_function_kind kind, snippet_text *text) {
-    APPEND_TEXT(text, "if (not($context instance of node()) or $context instance of attribute() "
-                      "or $context instance of namespace-node()) then "
-                      "error(QName(\"http://www.w3.org/2005/xqt-errors\", \"XTTE3360\"), "
-                      "\"fn:accumulator-before or fn:accumulator-after is called where the context "
-                      "item is not a node, or is an attribute or namespace node (XSLT 4.0, "
-                      "19.6)\") else let $name := Q{}accumulator-name($name), "
-                      /* 19.10: in a copy, the node it copies. */
-                      "$anchor := ($context/ancestor-or-self::node()"
-                      "[exists(Q{}accumulator-original(.))])[last()], "
-                      "$node := if (empty($anchor)) then $context "
-                      "else (Q{}accumulator-original($anchor)/descendant-or-self::node())"
-                      "[index-where($anchor/descendant-or-self::node(), "
-                      "fn($candidate) { $candidate is $context })], "
-                      "$root := root($node), $id := generate-id($node) return ");
+                                accumulator_function_kind kind, sxml_xslt_snippet_text *text) {
+    SXML_XSLT_SNIPPET_APPEND(
+        text, "if (not($context instance of node()) or $context instance of attribute() "
+              "or $context instance of namespace-node()) then "
+              "error(QName(\"http://www.w3.org/2005/xqt-errors\", \"XTTE3360\"), "
+              "\"fn:accumulator-before or fn:accumulator-after is called where the context "
+              "item is not a node, or is an attribute or namespace node (XSLT 4.0, "
+              "19.6)\") else let $name := Q{}accumulator-name($name), "
+              /* 19.10: in a copy, the node it copies. */
+              "$anchor := ($context/ancestor-or-self::node()"
+              "[exists(Q{}accumulator-original(.))])[last()], "
+              "$node := if (empty($anchor)) then $context "
+              "else (Q{}accumulator-original($anchor)/descendant-or-self::node())"
+              "[index-where($anchor/descendant-or-self::node(), "
+              "fn($candidate) { $candidate is $context })], "
+              "$root := root($node), $id := generate-id($node) return ");
     for (size_t accumulator_index = 0; accumulator_index < table->accumulator_count;
          accumulator_index += 1) {
-        APPEND_TEXT(text, "if ($name eq ");
-        append_qname_constructor(table, text, table->accumulators[accumulator_index].accumulator_name);
-        APPEND_TEXT(text, ") then Q{}accumulator-values(");
-        append_number(text, accumulator_index + 1);
-        APPEND_TEXT(text, ", $root, " PRIVATE_PREFIX "build-");
-        append_number(text, accumulator_index + 1);
-        append_bytes(text, kind == SXML_ACCUMULATOR_FUNCTION_AFTER
-                               ? SXML_BYTE_VIEW_FROM_LITERAL("#1)?a?($id) else ")
-                               : SXML_BYTE_VIEW_FROM_LITERAL("#1)?b?($id) else "));
+        SXML_XSLT_SNIPPET_APPEND(text, "if ($name eq ");
+        sxml_xslt_snippet_text_append_qname(
+            text, table->lowering->lowerer->name_pool,
+            table->accumulators[accumulator_index].accumulator_name);
+        SXML_XSLT_SNIPPET_APPEND(text, ") then Q{}accumulator-values(");
+        sxml_xslt_snippet_text_append_number(text, accumulator_index + 1);
+        SXML_XSLT_SNIPPET_APPEND(text, ", $root, " PRIVATE_PREFIX "build-");
+        sxml_xslt_snippet_text_append_number(text, accumulator_index + 1);
+        sxml_xslt_snippet_text_append(text, kind == SXML_ACCUMULATOR_FUNCTION_AFTER
+                                                ? SXML_BYTE_VIEW_FROM_LITERAL("#1)?a?($id) else ")
+                                                : SXML_BYTE_VIEW_FROM_LITERAL("#1)?b?($id) else "));
     }
-    APPEND_TEXT(text, "error(QName(\"http://www.w3.org/2005/xqt-errors\", \"XTDE3340\"), "
-                      "\"no xsl:accumulator declares the name given to fn:accumulator-before or "
-                      "fn:accumulator-after (XSLT 4.0, 19.6)\")");
+    SXML_XSLT_SNIPPET_APPEND(
+        text, "error(QName(\"http://www.w3.org/2005/xqt-errors\", \"XTDE3340\"), "
+              "\"no xsl:accumulator declares the name given to fn:accumulator-before or "
+              "fn:accumulator-after (XSLT 4.0, 19.6)\")");
 }
 
 static sxml_status lower_accumulator_function(sxml_xslt_accumulator_table *table,
@@ -1647,7 +1511,7 @@ static sxml_status lower_accumulator_function(sxml_xslt_accumulator_table *table
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    snippet_text text = {.allocator = table->allocator, .status = SXML_STATUS_OK};
+    sxml_xslt_snippet_text text = {.allocator = table->allocator, .status = SXML_STATUS_OK};
     write_function_text(table, kind, &text);
     return lower_text(table, (accumulator_text){.function = &table->functions[kind],
                                                 .text = &text,

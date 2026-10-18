@@ -347,6 +347,36 @@ static sxml_status call_available_system_properties(const sxml_function_call *ca
    which have every arity from their required count. */
 #define STATIC_FUNCTION_MAXIMUM_ARITY 32U
 
+/* Whether query names an fn function XSLT lowering implements rather
+   than a library row (src/xslt_key.c, src/xslt_accumulator.c). */
+static bool is_lowered_function(const sxml_function_call *call, sxml_function_query query) {
+    static const struct {
+        const char *local_name;
+        size_t first_arity;
+        size_t last_arity;
+    } lowered[] = {
+        {"key", 2, 3},      {"map-for-key", 1, 2},        {"copy-of", 0, 1},
+        {"snapshot", 0, 1}, {"accumulator-before", 1, 1}, {"accumulator-after", 1, 1},
+    };
+    sxml_name_parts parts = {.namespace_uri = {.index = 0},
+                             .local_name = {.bytes = NULL, .byte_count = 0}};
+    if (sxml_name_pool_get_name_parts(sxml_item_heap_get_name_pool(call->item_heap),
+                                      query.function_name, &parts) != SXML_STATUS_OK ||
+        parts.namespace_uri.index != SXML_NAMESPACE_FUNCTIONS) {
+        return false;
+    }
+    for (size_t entry_index = 0; entry_index < sizeof(lowered) / sizeof(lowered[0]);
+         entry_index += 1) {
+        if (sxml_byte_view_equals(parts.local_name,
+                                  sxml_byte_view_from_c_string(lowered[entry_index].local_name)) &&
+            query.arity >= lowered[entry_index].first_arity &&
+            query.arity <= lowered[entry_index].last_arity) {
+            return true;
+        }
+    }
+    return false;
+}
+
 /* fn:function-available($name, $arity?) (XSLT 4.0, 24.1): through the
    dynamic context's function table, the one static analysis used, so a
    function is available exactly when a static call could bind it. */
@@ -396,6 +426,25 @@ static sxml_status call_function_available(const sxml_function_call *call, sxml_
             return status;
         }
         is_available = entry.entry_kind != SXML_FUNCTION_ENTRY_KIND_NONE;
+    }
+    for (size_t arity = first_arity; arity <= last_arity && !is_available; arity += 1) {
+        is_available = is_lowered_function(call, (sxml_function_query){.function_name = name,
+                                                                       .arity = arity});
+        /* 24.1: stylesheet functions are available too: the running
+           unit's named functions, as fn:function-lookup finds them. */
+        sxml_item found = {.representation = 0};
+        if (!is_available) {
+            status = sxml_evaluator_find_unit_function(
+                call->dynamic_context,
+                (sxml_unit_function_query){.function_name = name, .arity = arity}, &found);
+        }
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        if (found.representation != 0) {
+            is_available = true;
+            sxml_item_release(found);
+        }
     }
     *result = sxml_function_library_make_boolean((sxml_boolean_result){.is_true = is_available});
     return SXML_STATUS_OK;
@@ -1060,45 +1109,83 @@ static sxml_status call_key_name(const sxml_function_call *call, sxml_sequence *
     return make_name_result(call, &key_name_error, result);
 }
 
-/* key-index($number, $root, $build): the index of key $number for the tree
-   of $root, built by calling $build($root) the first time an evaluation
-   asks for it and kept in the evaluation memo (D149) for the rest of it
-   (XSLT 4.0, 20.2.2). */
-typedef struct key_index_state {
-    /* Owned while the build call runs. */
-    sxml_sequence call_argument;
-} key_index_state;
+/* ------------------------------------------- Builds kept per evaluation */
 
-static sxml_evaluation_memo_key key_index_memo_key(const sxml_function_call *call) {
+/* The non-negative xs:integer item, or UINT64_MAX for anything else. */
+static uint64_t read_number(sxml_item item) {
     sxml_atomic_datum datum;
     memset(&datum, 0, sizeof(datum));
-    const sxml_status status =
-        sxml_atomic_item_get_datum(sxml_function_library_get_argument(call, 0).content, &datum);
-    const uint64_t number = status == SXML_STATUS_OK &&
-                                    datum.datum_kind == SXML_DATUM_KIND_INTEGER &&
-                                    datum.datum_details.integer >= 0
-                                ? (uint64_t)datum.datum_details.integer
-                                : 0;
-    return (sxml_evaluation_memo_key){.computation = &sxml_xslt_key_functions,
-                                      .computation_number = number,
-                                      .subject =
-                                          sxml_function_library_get_argument(call, 1).content};
+    if (sxml_atomic_item_get_datum(item, &datum) != SXML_STATUS_OK ||
+        datum.datum_kind != SXML_DATUM_KIND_INTEGER || datum.datum_details.integer < 0) {
+        return UINT64_MAX;
+    }
+    return (uint64_t)datum.datum_details.integer;
 }
 
-static sxml_status step_key_index(const sxml_native_step_request *request, sxml_native_step *step) {
-    key_index_state *state = request->state;
+/*
+ * A build kept per tree: the rows key-index($number, $root, $build) and
+ * accumulator-values($number, $root, $build) give the map $build($root)
+ * returns, computed the first time an evaluation asks for it and kept in
+ * the evaluation memo (D149) for the rest of it (XSLT 4.0, 20.2.2: a key's
+ * index; 19.3: accumulator values, lazily, per tree), under the
+ * computation (the row's part) and $number. While the build runs, the
+ * entry is the empty sequence, so a build that asks for itself raises the
+ * circularity error instead of running forever (XTDE0640 for keys, 9.11;
+ * XTDE3400 for accumulators, 19.6); a build that fails leaves xs:boolean
+ * false, and the next call builds again and raises its error again (19.5).
+ */
+typedef struct kept_build {
+    const sxml_native_function_view *computation;
+    const sxml_static_error *cycle_error;
+} kept_build;
+
+typedef struct kept_build_state {
+    /* Owned while the build call runs. */
+    sxml_sequence call_argument;
+    /* Set while the build runs: release_state then marks the entry for a
+       new build (the build failed). */
+    sxml_dynamic_context *dynamic_context;
+    sxml_evaluation_memo_key key;
+    bool is_building;
+} kept_build_state;
+
+static sxml_evaluation_memo_key kept_build_key(const sxml_function_call *call, kept_build build) {
+    return (sxml_evaluation_memo_key){
+        .computation = build.computation,
+        .computation_number = read_number(sxml_function_library_get_argument(call, 0).content),
+        .subject = sxml_function_library_get_argument(call, 1).content};
+}
+
+static sxml_status step_kept_build(const sxml_native_step_request *request, kept_build build,
+                                   sxml_native_step *step) {
+    kept_build_state *state = request->state;
     const sxml_function_call *call = request->call;
-    if (call->dynamic_context == NULL) {
-        return SXML_STATUS_INVALID_ARGUMENT;
-    }
-    const sxml_evaluation_memo_key key = key_index_memo_key(call);
+    const sxml_evaluation_memo_key key = kept_build_key(call, build);
     if (request->step_number == 0) {
-        sxml_sequence index = sxml_sequence_empty();
-        if (sxml_dynamic_context_find_memo(call->dynamic_context, &key, &index)) {
-            sxml_sequence_retain(index);
-            *step = (sxml_native_step){.step_kind = SXML_NATIVE_STEP_KIND_FINISH, .result = index};
-            return SXML_STATUS_OK;
+        sxml_sequence values = sxml_sequence_empty();
+        if (sxml_dynamic_context_find_memo(call->dynamic_context, &key, &values)) {
+            sxml_item item = {.representation = 0};
+            if (sxml_sequence_get_item(values,
+                                       (sxml_item_request){.item_index = 0, .error_record = NULL},
+                                       &item) != SXML_STATUS_OK) {
+                return sxml_function_library_report(call, build.cycle_error);
+            }
+            if (sxml_item_get_kind(item) == SXML_ITEM_KIND_MAP) {
+                sxml_sequence_retain(values);
+                *step = (sxml_native_step){.step_kind = SXML_NATIVE_STEP_KIND_FINISH,
+                                           .result = values};
+                return SXML_STATUS_OK;
+            }
         }
+        const sxml_status status = sxml_dynamic_context_store_memo(
+            call->dynamic_context,
+            &(sxml_evaluation_memo_entry){.key = key, .value = sxml_sequence_empty()});
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        state->dynamic_context = call->dynamic_context;
+        state->key = key;
+        state->is_building = true;
         state->call_argument = sxml_function_library_get_argument(call, 1);
         sxml_sequence_retain(state->call_argument);
         *step = (sxml_native_step){
@@ -1108,28 +1195,59 @@ static sxml_status step_key_index(const sxml_native_step_request *request, sxml_
             .arguments = {.sequences = &state->call_argument, .sequence_count = 1}};
         return SXML_STATUS_OK;
     }
-    const sxml_sequence index = request->call_result;
+    state->is_building = false;
+    const sxml_sequence values = request->call_result;
     const sxml_status status = sxml_dynamic_context_store_memo(
-        call->dynamic_context, &(sxml_evaluation_memo_entry){.key = key, .value = index});
+        call->dynamic_context, &(sxml_evaluation_memo_entry){.key = key, .value = values});
     if (status != SXML_STATUS_OK) {
-        sxml_sequence_release(index);
+        sxml_sequence_release(values);
         return status;
     }
-    *step = (sxml_native_step){.step_kind = SXML_NATIVE_STEP_KIND_FINISH, .result = index};
+    *step = (sxml_native_step){.step_kind = SXML_NATIVE_STEP_KIND_FINISH, .result = values};
     return SXML_STATUS_OK;
 }
 
-static void release_key_index_state(void *state) {
-    key_index_state *index_state = state;
-    sxml_sequence_release(index_state->call_argument);
-    index_state->call_argument = sxml_sequence_empty();
+static void release_kept_build_state(void *state) {
+    kept_build_state *build_state = state;
+    if (build_state->is_building) {
+        /* The entry exists, so replacing it allocates nothing and cannot
+           fail. */
+        const sxml_status status = sxml_dynamic_context_store_memo(
+            build_state->dynamic_context,
+            &(sxml_evaluation_memo_entry){
+                .key = build_state->key,
+                .value = sxml_function_library_make_boolean((sxml_boolean_result){.is_true = false})});
+        (void)status;
+        build_state->is_building = false;
+    }
+    sxml_sequence_release(build_state->call_argument);
+    build_state->call_argument = sxml_sequence_empty();
+}
+
+static const sxml_static_error key_cycle_error = {
+    .error_status = SXML_STATUS_DYNAMIC_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XTDE0640"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "The index of a key depends on itself: its match pattern or use expression calls "
+        "fn:key for the same key (XSLT 4.0, 9.11, 20.2.1)")};
+
+/* key-index($number, $root, $build): the index of key $number for the
+   tree of $root, a kept build (XSLT 4.0, 20.2.2). */
+static sxml_status step_key_index(const sxml_native_step_request *request, sxml_native_step *step) {
+    if (request->call->dynamic_context == NULL) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    return step_kept_build(
+        request,
+        (kept_build){.computation = &sxml_xslt_key_functions, .cycle_error = &key_cycle_error},
+        step);
 }
 
 static const sxml_resumable_native_body key_index_body = {
     .step = step_key_index,
-    .release_state = release_key_index_state,
-    .state_byte_count = sizeof(key_index_state),
-    .state_alignment = alignof(key_index_state),
+    .release_state = release_kept_build_state,
+    .state_byte_count = sizeof(kept_build_state),
+    .state_alignment = alignof(kept_build_state),
 };
 
 /* The separator of the parts of a composite key value: U+E000, which no
@@ -1434,17 +1552,6 @@ static sxml_status call_accumulator_name(const sxml_function_call *call, sxml_se
    are numbered from 1. */
 #define ACCUMULATOR_SCOPE_NUMBER 0U
 
-/* The non-negative xs:integer item, or UINT64_MAX for anything else. */
-static uint64_t read_number(sxml_item item) {
-    sxml_atomic_datum datum;
-    memset(&datum, 0, sizeof(datum));
-    if (sxml_atomic_item_get_datum(item, &datum) != SXML_STATUS_OK ||
-        datum.datum_kind != SXML_DATUM_KIND_INTEGER || datum.datum_details.integer < 0) {
-        return UINT64_MAX;
-    }
-    return (uint64_t)datum.datum_details.integer;
-}
-
 /* accumulator-scope($root, $numbers): records that only the accumulators
    numbered $numbers are applicable to the tree of $root (XSLT 4.0, 19.2:
    the initial match selection and use-accumulators of the initial mode),
@@ -1466,27 +1573,9 @@ static sxml_status call_accumulator_scope(const sxml_function_call *call, sxml_s
     return status;
 }
 
-/*
- * accumulator-values($number, $root, $build): the values of accumulator
- * $number for the tree of $root, the map $build($root) returns, computed
- * the first time an evaluation asks for them and kept in the evaluation
- * memo (D149) for the rest of it (XSLT 4.0, 19.3: lazily, per tree).
- * XTDE3362 when a scope of the tree leaves the accumulator out. While the
- * build runs, the entry is the empty sequence, so a build that asks for
- * its own accumulator raises XTDE3400 instead of running forever; a build
- * that fails leaves xs:boolean false, and the next call builds again and
- * raises its error again (19.5).
- */
-typedef struct accumulator_values_state {
-    /* Owned while the build call runs. */
-    sxml_sequence call_argument;
-    /* Set while the build runs: release_state then marks the entry for a
-       new build (the build failed). */
-    sxml_dynamic_context *dynamic_context;
-    sxml_evaluation_memo_key key;
-    bool is_building;
-} accumulator_values_state;
-
+/* accumulator-values($number, $root, $build): the values of accumulator
+   $number for the tree of $root, a kept build (XSLT 4.0, 19.3); XTDE3362
+   when a scope of the tree leaves the accumulator out. */
 static sxml_status check_applicable(const sxml_function_call *call, sxml_item root,
                                     uint64_t number) {
     sxml_sequence numbers = sxml_sequence_empty();
@@ -1516,88 +1605,29 @@ static sxml_status check_applicable(const sxml_function_call *call, sxml_item ro
 
 static sxml_status step_accumulator_values(const sxml_native_step_request *request,
                                            sxml_native_step *step) {
-    accumulator_values_state *state = request->state;
     const sxml_function_call *call = request->call;
     if (call->dynamic_context == NULL) {
         return SXML_STATUS_INVALID_ARGUMENT;
     }
-    const sxml_item root = sxml_function_library_get_argument(call, 1).content;
-    const uint64_t number = read_number(sxml_function_library_get_argument(call, 0).content);
-    const sxml_evaluation_memo_key key = {.computation = &sxml_xslt_accumulator_functions,
-                                          .computation_number = number,
-                                          .subject = root};
     if (request->step_number == 0) {
-        sxml_status status = check_applicable(call, root, number);
+        const sxml_status status = check_applicable(
+            call, sxml_function_library_get_argument(call, 1).content,
+            read_number(sxml_function_library_get_argument(call, 0).content));
         if (status != SXML_STATUS_OK) {
             return status;
         }
-        sxml_sequence values = sxml_sequence_empty();
-        if (sxml_dynamic_context_find_memo(call->dynamic_context, &key, &values)) {
-            sxml_item item = {.representation = 0};
-            if (sxml_sequence_get_item(values,
-                                       (sxml_item_request){.item_index = 0, .error_record = NULL},
-                                       &item) != SXML_STATUS_OK) {
-                return sxml_function_library_report(call, &accumulator_cycle_error);
-            }
-            if (sxml_item_get_kind(item) == SXML_ITEM_KIND_MAP) {
-                sxml_sequence_retain(values);
-                *step = (sxml_native_step){.step_kind = SXML_NATIVE_STEP_KIND_FINISH,
-                                           .result = values};
-                return SXML_STATUS_OK;
-            }
-        }
-        status = sxml_dynamic_context_store_memo(
-            call->dynamic_context,
-            &(sxml_evaluation_memo_entry){.key = key, .value = sxml_sequence_empty()});
-        if (status != SXML_STATUS_OK) {
-            return status;
-        }
-        state->dynamic_context = call->dynamic_context;
-        state->key = key;
-        state->is_building = true;
-        state->call_argument = sxml_function_library_get_argument(call, 1);
-        sxml_sequence_retain(state->call_argument);
-        *step = (sxml_native_step){
-            .step_kind = SXML_NATIVE_STEP_KIND_CALL,
-            .result = sxml_sequence_empty(),
-            .function_item = sxml_function_library_get_argument(call, 2).content,
-            .arguments = {.sequences = &state->call_argument, .sequence_count = 1}};
-        return SXML_STATUS_OK;
     }
-    state->is_building = false;
-    const sxml_sequence values = request->call_result;
-    const sxml_status status = sxml_dynamic_context_store_memo(
-        call->dynamic_context, &(sxml_evaluation_memo_entry){.key = key, .value = values});
-    if (status != SXML_STATUS_OK) {
-        sxml_sequence_release(values);
-        return status;
-    }
-    *step = (sxml_native_step){.step_kind = SXML_NATIVE_STEP_KIND_FINISH, .result = values};
-    return SXML_STATUS_OK;
-}
-
-static void release_accumulator_values_state(void *state) {
-    accumulator_values_state *values_state = state;
-    if (values_state->is_building) {
-        /* The entry exists, so replacing it allocates nothing and cannot
-           fail. */
-        const sxml_status status = sxml_dynamic_context_store_memo(
-            values_state->dynamic_context,
-            &(sxml_evaluation_memo_entry){
-                .key = values_state->key,
-                .value = sxml_function_library_make_boolean((sxml_boolean_result){.is_true = false})});
-        (void)status;
-        values_state->is_building = false;
-    }
-    sxml_sequence_release(values_state->call_argument);
-    values_state->call_argument = sxml_sequence_empty();
+    return step_kept_build(request,
+                           (kept_build){.computation = &sxml_xslt_accumulator_functions,
+                                        .cycle_error = &accumulator_cycle_error},
+                           step);
 }
 
 static const sxml_resumable_native_body accumulator_values_body = {
     .step = step_accumulator_values,
-    .release_state = release_accumulator_values_state,
-    .state_byte_count = sizeof(accumulator_values_state),
-    .state_alignment = alignof(accumulator_values_state),
+    .release_state = release_kept_build_state,
+    .state_byte_count = sizeof(kept_build_state),
+    .state_alignment = alignof(kept_build_state),
 };
 
 /* The computation number of the memo entries that link a copy to the node

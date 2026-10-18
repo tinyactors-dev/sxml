@@ -22,6 +22,7 @@
 #include "function_library_core_internal.h"
 #include "operator_internal.h"
 #include "regex_internal.h"
+#include "xslt_number_internal.h"
 
 #include <stdalign.h>
 #include <string.h>
@@ -188,6 +189,9 @@ typedef struct call_shape {
     bool is_record_function;
     /* For a static call: the argument that holds $flags. */
     size_t flags_argument;
+    /* fn:matching-segments only: the non-matching segments are given too,
+       as xs:string items between the records (analyze-segments). */
+    bool includes_gaps;
 } call_shape;
 
 /* The inputs of a call. */
@@ -1275,6 +1279,27 @@ static sxml_status make_segment_record(const sxml_function_call *call, const cur
                          record);
 }
 
+/* A non-matching segment of value: appended as an xs:string unless it
+   is empty. */
+typedef struct gap_request {
+    sxml_sequence_builder *builder;
+    sxml_byte_view value;
+    sxml_byte_range gap;
+} gap_request;
+
+static sxml_status append_gap(const sxml_function_call *call, gap_request request) {
+    if (request.gap.byte_count == 0) {
+        return SXML_STATUS_OK;
+    }
+    sxml_sequence gap = sxml_sequence_empty();
+    sxml_status status = string_sequence(call, slice_of(request.value, request.gap), &gap);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_sequence_builder_append_item(request.builder, gap.content);
+        sxml_sequence_release(gap);
+    }
+    return status;
+}
+
 /* fn:matching-segments($value, $pattern, $flags := "") (F&O 4.0, section
    6.3.5): a record per disjoint matching segment, in order. */
 static sxml_status matching_segments_with(const sxml_function_call *call, call_shape shape,
@@ -1299,13 +1324,23 @@ static sxml_status matching_segments_with(const sxml_function_call *call, call_s
                            .value = inputs.value,
                            .cursor = {.byte_offset = 0, .position = 1},
                            .segment = {.byte_offset = 0, .byte_count = 0}};
+    size_t gap_start = 0;
     while (status == SXML_STATUS_OK && found.is_found) {
         const size_t start = found.matching_segment.byte_offset;
+        if (shape.includes_gaps) {
+            status = append_gap(call, (gap_request){.builder = builder,
+                                                    .value = inputs.value.utf8,
+                                                    .gap = {.byte_offset = gap_start,
+                                                            .byte_count = start - gap_start}});
+            gap_start = start + found.matching_segment.byte_count;
+        }
         match.segment = found.matching_segment;
         match.cursor = (codepoint_cursor){
             .byte_offset = start, .position = position_at(inputs.value, match.cursor, start)};
         sxml_sequence record = sxml_sequence_empty();
-        status = make_segment_record(call, &match, &record);
+        if (status == SXML_STATUS_OK) {
+            status = make_segment_record(call, &match, &record);
+        }
         if (status == SXML_STATUS_OK) {
             status = sxml_sequence_builder_append_item(builder, record.content);
             sxml_sequence_release(record);
@@ -1313,6 +1348,13 @@ static sxml_status matching_segments_with(const sxml_function_call *call, call_s
         if (status == SXML_STATUS_OK) {
             status = find_next(call, &pattern, &found);
         }
+    }
+    if (status == SXML_STATUS_OK && shape.includes_gaps) {
+        status = append_gap(call, (gap_request){.builder = builder,
+                                                .value = inputs.value.utf8,
+                                                .gap = {.byte_offset = gap_start,
+                                                        .byte_count = inputs.value.utf8.byte_count -
+                                                                      gap_start}});
     }
     if (status == SXML_STATUS_OK) {
         status = sxml_sequence_builder_finish(builder, result);
@@ -1326,6 +1368,30 @@ static sxml_status call_matching_segments(const sxml_function_call *call, sxml_s
     return matching_segments_with(
         call, (call_shape){.is_record_function = false, .flags_argument = 2}, result);
 }
+
+/* analyze-segments (src/xslt_number_internal.h): fn:matching-segments
+   with the non-matching segments between the records. */
+static sxml_status call_analyze_segments(const sxml_function_call *call, sxml_sequence *result) {
+    return matching_segments_with(
+        call, (call_shape){.is_record_function = false, .flags_argument = 2, .includes_gaps = true},
+        result);
+}
+
+static const sxml_function_parameter analyze_segments_parameters[] = {
+    SXML_REQUIRED_PARAMETER("value", "xs:string"),
+    SXML_REQUIRED_PARAMETER("pattern", "xs:string"),
+    SXML_REQUIRED_PARAMETER("flags", "xs:string"),
+};
+
+const sxml_native_function sxml_xslt_analyze_segments_function = {
+    .function_namespace = SXML_NAMESPACE_NONE,
+    .properties = 0,
+    .local_name = SXML_BYTE_VIEW_INITIALIZER("analyze-segments"),
+    .parameters = {analyze_segments_parameters,
+                   sizeof(analyze_segments_parameters) / sizeof(analyze_segments_parameters[0])},
+    .result_type = SXML_BYTE_VIEW_INITIALIZER("item()*"),
+    .call = call_analyze_segments,
+    .resumable_body = NULL};
 
 static sxml_status call_record_matching_segments(const sxml_function_call *call,
                                                  sxml_sequence *result) {

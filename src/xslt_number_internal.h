@@ -26,3 +26,19 @@
  * else (English only, D97). Defined in src/function_library_format.c.
  */
 extern const sxml_native_function sxml_xslt_format_place_marker_function;
+
+/*
+ * The internal row of xsl:analyze-string (XSLT 4.0, 17.1), called the same
+ * way:
+ *
+ *     analyze-segments($value as xs:string, $pattern as xs:string,
+ *                      $flags as xs:string) as item()*
+ *
+ * the segments of $value in order, each matching one as the
+ * fn:matching-segment-record fn:matching-segments gives (F&O 4.0, 6.3.5)
+ * and each non-empty non-matching one as an xs:string, taken from the
+ * search itself, so the segments cost time linear in $value. FORX0002 and
+ * FORX0001 as fn:matching-segments. Defined in
+ * src/function_library_regex.c.
+ */
+extern const sxml_native_function sxml_xslt_analyze_segments_function;

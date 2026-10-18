@@ -56,6 +56,7 @@
 #include "xpath_ast_internal.h"
 #include "xslt_accumulator_internal.h"
 #include "xslt_pattern_internal.h"
+#include "xslt_snippet_text_internal.h"
 
 #include <stdalign.h>
 #include <stdbool.h>
@@ -79,6 +80,10 @@ typedef enum stylesheet_function_kind {
     SXML_STYLESHEET_FUNCTION_COPY_OF,
     /* fn:snapshot#1 (and #0). */
     SXML_STYLESHEET_FUNCTION_SNAPSHOT,
+    /* fn:map-for-key#1: (key-name, the caller's context value). */
+    SXML_STYLESHEET_FUNCTION_MAP_FOR_KEY_WITH_CONTEXT,
+    /* fn:map-for-key#2: (key-name, top). */
+    SXML_STYLESHEET_FUNCTION_MAP_FOR_KEY_WITH_TOP,
     SXML_STYLESHEET_FUNCTION_COUNT,
 } stylesheet_function_kind;
 
@@ -91,6 +96,16 @@ static const sxml_function_parameter key_with_context_parameters[] = {
 static const sxml_function_parameter key_with_top_parameters[] = {
     SXML_FUNCTION_PARAMETER("key-name", "xs:anyAtomicType", SXML_PARAMETER_DEFAULT_REQUIRED),
     SXML_FUNCTION_PARAMETER("key-value", "xs:anyAtomicType*", SXML_PARAMETER_DEFAULT_REQUIRED),
+    SXML_FUNCTION_PARAMETER("top", "node()", SXML_PARAMETER_DEFAULT_REQUIRED),
+};
+
+static const sxml_function_parameter map_for_key_with_context_parameters[] = {
+    SXML_FUNCTION_PARAMETER("key-name", "xs:anyAtomicType", SXML_PARAMETER_DEFAULT_REQUIRED),
+    SXML_FUNCTION_PARAMETER("context", "node()", SXML_PARAMETER_DEFAULT_CONTEXT_VALUE),
+};
+
+static const sxml_function_parameter map_for_key_with_top_parameters[] = {
+    SXML_FUNCTION_PARAMETER("key-name", "xs:anyAtomicType", SXML_PARAMETER_DEFAULT_REQUIRED),
     SXML_FUNCTION_PARAMETER("top", "node()", SXML_PARAMETER_DEFAULT_REQUIRED),
 };
 
@@ -127,6 +142,16 @@ static const stylesheet_function_rule stylesheet_function_rules[SXML_STYLESHEET_
                                            .parameters = {copy_of_parameters, 1},
                                            .named_arity = 1,
                                            .result_type = SXML_BYTE_VIEW_INITIALIZER("item()*")},
+    [SXML_STYLESHEET_FUNCTION_MAP_FOR_KEY_WITH_CONTEXT] =
+        {.local_name = SXML_BYTE_VIEW_INITIALIZER("map-for-key"),
+         .parameters = {map_for_key_with_context_parameters, 2},
+         .named_arity = 1,
+         .result_type = SXML_BYTE_VIEW_INITIALIZER("map(xs:anyAtomicType, node()*)")},
+    [SXML_STYLESHEET_FUNCTION_MAP_FOR_KEY_WITH_TOP] =
+        {.local_name = SXML_BYTE_VIEW_INITIALIZER("map-for-key"),
+         .parameters = {map_for_key_with_top_parameters, 2},
+         .named_arity = 2,
+         .result_type = SXML_BYTE_VIEW_INITIALIZER("map(xs:anyAtomicType, node()*)")},
 };
 
 /* The most parameters of a stylesheet or private function. */
@@ -256,118 +281,6 @@ static sxml_status report_static_error(const sxml_xslt_lowering *lowering,
                                        sxml_xslt_ast_node_index node, sxml_byte_view text) {
     return sxml_xslt_lowering_report_static_error(
         lowering, (sxml_xslt_static_error){.node = node, .code_and_description = text});
-}
-
-/* UTF-8 text being made in the table's allocator. */
-typedef struct snippet_text {
-    sxml_allocator allocator;
-    uint8_t *bytes;
-    size_t byte_count;
-    size_t byte_capacity;
-    /* The first failure; later appends do nothing. */
-    sxml_status status;
-} snippet_text;
-
-static void append_bytes(snippet_text *text, sxml_byte_view bytes) {
-    if (text->status != SXML_STATUS_OK || bytes.byte_count == 0) {
-        return;
-    }
-    size_t needed = 0;
-    text->status = sxml_size_add(text->byte_count, bytes.byte_count, &needed);
-    if (text->status == SXML_STATUS_OK && needed > text->byte_capacity) {
-        size_t capacity = text->byte_capacity == 0 ? 256 : text->byte_capacity;
-        while (capacity < needed && text->status == SXML_STATUS_OK) {
-            text->status = sxml_size_multiply(capacity, 2, &capacity);
-        }
-        void *memory = NULL;
-        if (text->status == SXML_STATUS_OK) {
-            text->status = sxml_allocator_allocate(
-                text->allocator, (sxml_allocation_request){.byte_count = capacity, .alignment = 1},
-                &memory);
-        }
-        if (text->status == SXML_STATUS_OK) {
-            if (text->byte_count > 0) {
-                memcpy(memory, text->bytes, text->byte_count);
-            }
-            sxml_allocator_release(text->allocator, text->bytes);
-            text->bytes = memory;
-            text->byte_capacity = capacity;
-        }
-    }
-    if (text->status == SXML_STATUS_OK && text->bytes != NULL) {
-        memcpy(text->bytes + text->byte_count, bytes.bytes, bytes.byte_count);
-        text->byte_count = needed;
-    }
-}
-
-/* Appends a string literal of C. */
-#define APPEND_TEXT(text, literal) append_bytes((text), SXML_BYTE_VIEW_FROM_LITERAL(literal))
-
-static void append_number(snippet_text *text, size_t number) {
-    uint8_t digits[24];
-    size_t digit_count = 0;
-    size_t rest = number;
-    do {
-        digits[sizeof(digits) - 1 - digit_count] = (uint8_t)('0' + rest % 10U);
-        digit_count += 1;
-        rest /= 10U;
-    } while (rest > 0 && digit_count < sizeof(digits));
-    append_bytes(text, (sxml_byte_view){.bytes = digits + sizeof(digits) - digit_count,
-                                        .byte_count = digit_count});
-}
-
-/* A string literal: double quotes, an embedded one doubled (XPath 4.0,
-   A.2.1); ampersands need nothing in XPath. */
-static void append_string_literal(snippet_text *text, sxml_byte_view value) {
-    APPEND_TEXT(text, "\"");
-    if (value.byte_count == 0) {
-        APPEND_TEXT(text, "\"");
-        return;
-    }
-    size_t start = 0;
-    for (size_t byte_index = 0; byte_index < value.byte_count; byte_index += 1) {
-        if (value.bytes[byte_index] == '"') {
-            append_bytes(text, (sxml_byte_view){.bytes = value.bytes + start,
-                                                .byte_count = byte_index + 1 - start});
-            APPEND_TEXT(text, "\"");
-            start = byte_index + 1;
-        }
-    }
-    append_bytes(text, (sxml_byte_view){.bytes = value.bytes + start,
-                                        .byte_count = value.byte_count - start});
-    APPEND_TEXT(text, "\"");
-}
-
-static void release_text(snippet_text *text) {
-    sxml_allocator_release(text->allocator, text->bytes);
-    text->bytes = NULL;
-    text->byte_count = 0;
-    text->byte_capacity = 0;
-}
-
-static sxml_byte_view text_view(const snippet_text *text) {
-    return (sxml_byte_view){.bytes = text->bytes, .byte_count = text->byte_count};
-}
-
-/* QName("uri", "local") for name. */
-static void append_qname_constructor(const sxml_xslt_function_table *table, snippet_text *text,
-                                     sxml_name_identifier name) {
-    const sxml_name_pool *name_pool = table->lowering->lowerer->name_pool;
-    sxml_name_parts parts = {.namespace_uri = {.index = 0},
-                             .local_name = {.bytes = NULL, .byte_count = 0}};
-    sxml_byte_view namespace_uri = {.bytes = NULL, .byte_count = 0};
-    if (text->status == SXML_STATUS_OK) {
-        text->status = sxml_name_pool_get_name_parts(name_pool, name, &parts);
-    }
-    if (text->status == SXML_STATUS_OK && parts.namespace_uri.index != 0) {
-        text->status =
-            sxml_name_pool_get_namespace_uri(name_pool, parts.namespace_uri, &namespace_uri);
-    }
-    APPEND_TEXT(text, "QName(");
-    append_string_literal(text, namespace_uri);
-    APPEND_TEXT(text, ", ");
-    append_string_literal(text, parts.local_name);
-    APPEND_TEXT(text, ")");
 }
 
 /* --------------------------------------------------------- Function types */
@@ -576,18 +489,18 @@ typedef struct private_name_request {
 
 static sxml_status make_private_name(sxml_xslt_function_table *table, private_name_request request,
                                      sxml_name_identifier *name) {
-    snippet_text text = {.allocator = table->allocator, .status = SXML_STATUS_OK};
-    append_bytes(&text, request.prefix);
-    append_number(&text, request.number);
+    sxml_xslt_snippet_text text = {.allocator = table->allocator, .status = SXML_STATUS_OK};
+    sxml_xslt_snippet_text_append(&text, request.prefix);
+    sxml_xslt_snippet_text_append_number(&text, request.number);
     sxml_status status = text.status;
     if (status == SXML_STATUS_OK) {
         status = sxml_name_pool_intern_name(
             table->lowering->lowerer->name_pool,
             &(sxml_name_request){.namespace_uri = table->private_namespace,
-                                 .local_name = text_view(&text)},
+                                 .local_name = sxml_xslt_snippet_text_view(&text)},
             name);
     }
-    release_text(&text);
+    sxml_xslt_snippet_text_release(&text);
     return status;
 }
 
@@ -1114,49 +1027,15 @@ static sxml_status lower_match_wrapper(sxml_xslt_function_table *table,
                                      .arguments = arguments}}},
             &call);
     }
-    const sxml_name_test any_error = {.name_test_kind = SXML_NAME_TEST_KIND_ANY_NAME};
-    sxml_ir_catch_clause clause = {0};
+    sxml_ir_expression guarded = {0};
     if (status == SXML_STATUS_OK) {
-        status = sxml_ir_unit_add_name_tests(
-            lowerer->unit, (sxml_ir_name_test_view){.name_tests = &any_error, .name_test_count = 1},
-            &clause.error_tests);
-    }
-    if (status == SXML_STATUS_OK) {
-        status = sxml_xpath_lowerer_add_slot(lowerer, &clause.error_details);
-    }
-    sxml_ir_atom false_atom = {0};
-    if (status == SXML_STATUS_OK) {
-        status = sxml_xpath_lowerer_add_item_constant(
-            lowerer,
-            sxml_function_library_make_boolean((sxml_boolean_result){.is_true = false}).content,
-            &false_atom);
-    }
-    if (status == SXML_STATUS_OK) {
-        status = sxml_xpath_lowerer_add_expression(
-            lowerer,
-            (sxml_xpath_lowering_expression_to_add){
-                .node = no_ast_node,
-                .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_ATOM,
-                               .atom = false_atom}},
-            &clause.handler);
-    }
-    sxml_ir_catch_clause_list clauses = {0};
-    if (status == SXML_STATUS_OK) {
-        status = sxml_ir_unit_add_catch_clauses(
-            lowerer->unit,
-            (sxml_ir_catch_clause_view){.catch_clauses = &clause, .catch_clause_count = 1},
-            &clauses);
+        status = sxml_xslt_lowering_make_guarded_match(lowerer, call, &guarded);
     }
     sxml_ir_expression_index body = {0};
     if (status == SXML_STATUS_OK) {
         status = sxml_xpath_lowerer_add_expression(
             lowerer,
-            (sxml_xpath_lowering_expression_to_add){
-                .node = no_ast_node,
-                .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_TRY_CATCH,
-                               .try_catch = {.body = call,
-                                             .catch_clauses = clauses,
-                                             .finally_body = {.value = 0}}}},
+            (sxml_xpath_lowering_expression_to_add){.node = no_ast_node, .expression = guarded},
             &body);
     }
     sxml_xpath_lowerer_leave_function(lowerer, &frame);
@@ -1269,27 +1148,30 @@ static sxml_status lower_use_function(sxml_xslt_function_table *table,
 
 /* The text of build-K (see the file comment). */
 static void write_build_text(const sxml_xslt_function_table *table, size_t key_index,
-                             snippet_text *text) {
+                             sxml_xslt_snippet_text *text) {
     const key_definition *key = &table->keys[key_index];
-    APPEND_TEXT(text, "Q{http://www.w3.org/2005/xpath-functions/map}build("
-                      "($root/descendant-or-self::node() | $root/descendant-or-self::*/@*), "
-                      "fn($node) { ()");
+    SXML_XSLT_SNIPPET_APPEND(text,
+                             "Q{http://www.w3.org/2005/xpath-functions/map}build("
+                             "($root/descendant-or-self::node() | $root/descendant-or-self::*/@*), "
+                             "fn($node) { ()");
     for (size_t declaration_index = 0; declaration_index < table->declaration_count;
          declaration_index += 1) {
         if (table->declarations[declaration_index].key_index != key_index) {
             continue;
         }
-        APPEND_TEXT(text, ", (if (Q{" KEY_FUNCTION_NAMESPACE_URI "}match-");
-        append_number(text, declaration_index + 1);
-        APPEND_TEXT(text, "($node)) then Q{}key-normalize(Q{" KEY_FUNCTION_NAMESPACE_URI "}use-");
-        append_number(text, declaration_index + 1);
-        APPEND_TEXT(text, "($node), ");
-        append_string_literal(text, key->collation);
-        append_bytes(text, key->is_composite ? SXML_BYTE_VIEW_FROM_LITERAL(", true())")
-                                             : SXML_BYTE_VIEW_FROM_LITERAL(", false())"));
-        APPEND_TEXT(text, " else ())");
+        SXML_XSLT_SNIPPET_APPEND(text, ", (if (Q{" KEY_FUNCTION_NAMESPACE_URI "}match-");
+        sxml_xslt_snippet_text_append_number(text, declaration_index + 1);
+        SXML_XSLT_SNIPPET_APPEND(
+            text, "($node)) then Q{}key-normalize(Q{" KEY_FUNCTION_NAMESPACE_URI "}use-");
+        sxml_xslt_snippet_text_append_number(text, declaration_index + 1);
+        SXML_XSLT_SNIPPET_APPEND(text, "($node), ");
+        sxml_xslt_snippet_text_append_string_literal(text, key->collation);
+        sxml_xslt_snippet_text_append(text, key->is_composite
+                                                ? SXML_BYTE_VIEW_FROM_LITERAL(", true())")
+                                                : SXML_BYTE_VIEW_FROM_LITERAL(", false())"));
+        SXML_XSLT_SNIPPET_APPEND(text, " else ())");
     }
-    APPEND_TEXT(text, " })");
+    SXML_XSLT_SNIPPET_APPEND(text, " })");
 }
 
 /* The private functions and build functions of every key, once. */
@@ -1323,64 +1205,114 @@ static sxml_status lower_keys(sxml_xslt_function_table *table) {
     static const snippet_variable build_variables[] = {SXML_SNIPPET_VARIABLE_ROOT};
     for (size_t key_index = 0; status == SXML_STATUS_OK && key_index < table->key_count;
          key_index += 1) {
-        snippet_text text = {.allocator = table->allocator, .status = SXML_STATUS_OK};
+        sxml_xslt_snippet_text text = {.allocator = table->allocator, .status = SXML_STATUS_OK};
         write_build_text(table, key_index, &text);
         status = text.status;
         if (status == SXML_STATUS_OK) {
             status = lower_snippet_function(
                 table, (snippet_function){.function = &table->keys[key_index].build,
-                                          .text = text_view(&text),
+                                          .text = sxml_xslt_snippet_text_view(&text),
                                           .variables = build_variables,
                                           .variable_count = 1});
         }
-        release_text(&text);
+        sxml_xslt_snippet_text_release(&text);
     }
     return status;
 }
 
 /* The text of fn:key#2 (KEY_WITH_CONTEXT) or fn:key#3 (see the file
    comment). */
-static void write_key_text(const sxml_xslt_function_table *table, stylesheet_function_kind kind,
-                           snippet_text *text) {
-    const bool with_context = kind == SXML_STYLESHEET_FUNCTION_KEY_WITH_CONTEXT;
-    APPEND_TEXT(text, "let $name := Q{}key-name($key-name), $root := root(");
-    append_bytes(text, with_context ? SXML_BYTE_VIEW_FROM_LITERAL("$context")
-                                    : SXML_BYTE_VIEW_FROM_LITERAL("$top"));
-    APPEND_TEXT(text, ") return ");
-    if (with_context) {
-        /* 20.2.2: XTDE1270 when the root of the context node's tree is not
-           a document node. */
-        APPEND_TEXT(text, "if (not($root instance of document-node())) then "
-                          "error(QName(\"http://www.w3.org/2005/xqt-errors\", \"XTDE1270\"), "
-                          "\"fn:key with two arguments is called where the root of the tree of the "
-                          "context node is not a document node (XSLT 4.0, 20.2.2)\") else ");
+static bool is_map_for_key(stylesheet_function_kind kind) {
+    return kind == SXML_STYLESHEET_FUNCTION_MAP_FOR_KEY_WITH_CONTEXT ||
+           kind == SXML_STYLESHEET_FUNCTION_MAP_FOR_KEY_WITH_TOP;
+}
+
+static bool is_with_context(stylesheet_function_kind kind) {
+    return kind == SXML_STYLESHEET_FUNCTION_KEY_WITH_CONTEXT ||
+           kind == SXML_STYLESHEET_FUNCTION_MAP_FOR_KEY_WITH_CONTEXT;
+}
+
+/* The use of key K's index in the text of fn:key (the nodes of the
+   values) or fn:map-for-key (20.2.3: a map of the index's entries, each
+   value in document order and, with $top, inside its subtree; XTDE1262
+   for a composite key or one with a collation other than the codepoint
+   collation). */
+static void write_index_use(sxml_xslt_snippet_text *text, stylesheet_function_kind kind,
+                            const key_definition *key) {
+    if (!is_map_for_key(kind)) {
+        SXML_XSLT_SNIPPET_APPEND(text, " return for $value in Q{}key-normalize($key-value, ");
+        sxml_xslt_snippet_text_append_string_literal(text, key->collation);
+        sxml_xslt_snippet_text_append(text, key->is_composite
+                                                ? SXML_BYTE_VIEW_FROM_LITERAL(", true())")
+                                                : SXML_BYTE_VIEW_FROM_LITERAL(", false())"));
+        SXML_XSLT_SNIPPET_APPEND(text, " return $index($value)");
+        return;
     }
-    APPEND_TEXT(text, "(");
+    if (key->is_composite || key->collation.byte_count != 0) {
+        SXML_XSLT_SNIPPET_APPEND(
+            text, " return error(QName(\"http://www.w3.org/2005/xqt-errors\", "
+                  "\"XTDE1262\"), \"fn:map-for-key names a composite key or one with a "
+                  "collation other than the codepoint collation (XSLT 4.0, 20.2.3)\")");
+        return;
+    }
+    SXML_XSLT_SNIPPET_APPEND(text,
+                             " return Q{http://www.w3.org/2005/xpath-functions/map}merge("
+                             "for $k in Q{http://www.w3.org/2005/xpath-functions/map}keys($index) "
+                             "let $v := $index($k)");
+    if (!is_with_context(kind)) {
+        SXML_XSLT_SNIPPET_APPEND(text, "[exists(ancestor-or-self::node()[. is $top])]");
+    }
+    SXML_XSLT_SNIPPET_APPEND(text,
+                             "/. return if (exists($v)) then "
+                             "Q{http://www.w3.org/2005/xpath-functions/map}entry($k, $v) else ())");
+}
+
+static void write_key_text(const sxml_xslt_function_table *table, stylesheet_function_kind kind,
+                           sxml_xslt_snippet_text *text) {
+    const bool with_context = is_with_context(kind);
+    SXML_XSLT_SNIPPET_APPEND(text, "let $name := Q{}key-name($key-name), $root := root(");
+    sxml_xslt_snippet_text_append(text, with_context ? SXML_BYTE_VIEW_FROM_LITERAL("$context")
+                                                     : SXML_BYTE_VIEW_FROM_LITERAL("$top"));
+    SXML_XSLT_SNIPPET_APPEND(text, ") return ");
+    if (with_context || is_map_for_key(kind)) {
+        /* 20.2.2, 20.2.3: XTDE1270 when the root of the tree of the
+           context node (or of $top, for fn:map-for-key) is not a document
+           node. */
+        SXML_XSLT_SNIPPET_APPEND(
+            text, "if (not($root instance of document-node())) then "
+                  "error(QName(\"http://www.w3.org/2005/xqt-errors\", \"XTDE1270\"), "
+                  "\"fn:key or fn:map-for-key is called where the root of the tree is not "
+                  "a document node (XSLT 4.0, 20.2.2)\") else ");
+    }
+    SXML_XSLT_SNIPPET_APPEND(text, "(");
     for (size_t key_index = 0; key_index < table->key_count; key_index += 1) {
         const key_definition *key = &table->keys[key_index];
-        APPEND_TEXT(text, "if ($name eq ");
-        append_qname_constructor(table, text, key->key_name);
-        APPEND_TEXT(text, ") then (let $index := Q{}key-index(");
-        append_number(text, key_index + 1);
-        APPEND_TEXT(text, ", $root, Q{" KEY_FUNCTION_NAMESPACE_URI "}build-");
-        append_number(text, key_index + 1);
-        APPEND_TEXT(text, "#1) return for $value in Q{}key-normalize($key-value, ");
-        append_string_literal(text, key->collation);
-        append_bytes(text, key->is_composite ? SXML_BYTE_VIEW_FROM_LITERAL(", true())")
-                                             : SXML_BYTE_VIEW_FROM_LITERAL(", false())"));
-        APPEND_TEXT(text, " return $index($value)) else ");
+        SXML_XSLT_SNIPPET_APPEND(text, "if ($name eq ");
+        sxml_xslt_snippet_text_append_qname(text, table->lowering->lowerer->name_pool,
+                                            key->key_name);
+        SXML_XSLT_SNIPPET_APPEND(text, ") then (let $index := Q{}key-index(");
+        sxml_xslt_snippet_text_append_number(text, key_index + 1);
+        SXML_XSLT_SNIPPET_APPEND(text, ", $root, Q{" KEY_FUNCTION_NAMESPACE_URI "}build-");
+        sxml_xslt_snippet_text_append_number(text, key_index + 1);
+        SXML_XSLT_SNIPPET_APPEND(text, "#1)");
+        write_index_use(text, kind, key);
+        SXML_XSLT_SNIPPET_APPEND(text, ") else ");
     }
-    APPEND_TEXT(text, "error(QName(\"http://www.w3.org/2005/xqt-errors\", \"XTDE1260\"), "
-                      "\"no xsl:key declares the name given to fn:key (XSLT 4.0, 20.2.2)\"))");
+    SXML_XSLT_SNIPPET_APPEND(
+        text, "error(QName(\"http://www.w3.org/2005/xqt-errors\", \"XTDE1260\"), "
+              "\"no xsl:key declares the name given to fn:key or fn:map-for-key (XSLT 4.0, "
+              "20.2.2)\"))");
+    if (is_map_for_key(kind)) {
+        return;
+    }
     if (!with_context) {
-        APPEND_TEXT(text, "[exists(ancestor-or-self::node()[. is $top])]");
+        SXML_XSLT_SNIPPET_APPEND(text, "[exists(ancestor-or-self::node()[. is $top])]");
     }
-    APPEND_TEXT(text, "/.");
+    SXML_XSLT_SNIPPET_APPEND(text, "/.");
 }
 
 static sxml_status lower_key_function(sxml_xslt_function_table *table,
                                       stylesheet_function_kind kind) {
-    const bool with_context = kind == SXML_STYLESHEET_FUNCTION_KEY_WITH_CONTEXT;
     sxml_status status = lower_keys(table);
     if (status != SXML_STATUS_OK) {
         return status;
@@ -1390,21 +1322,40 @@ static sxml_status lower_key_function(sxml_xslt_function_table *table,
                                                          SXML_SNIPPET_VARIABLE_CONTEXT};
     static const snippet_variable top_variables[] = {
         SXML_SNIPPET_VARIABLE_KEY_NAME, SXML_SNIPPET_VARIABLE_KEY_VALUE, SXML_SNIPPET_VARIABLE_TOP};
-    snippet_text text = {.allocator = table->allocator, .status = SXML_STATUS_OK};
+    static const snippet_variable map_context_variables[] = {SXML_SNIPPET_VARIABLE_KEY_NAME,
+                                                             SXML_SNIPPET_VARIABLE_CONTEXT};
+    static const snippet_variable map_top_variables[] = {SXML_SNIPPET_VARIABLE_KEY_NAME,
+                                                         SXML_SNIPPET_VARIABLE_TOP};
+    const snippet_variable *variables = NULL;
+    switch (kind) {
+    case SXML_STYLESHEET_FUNCTION_KEY_WITH_CONTEXT:
+        variables = context_variables;
+        break;
+    case SXML_STYLESHEET_FUNCTION_KEY_WITH_TOP:
+        variables = top_variables;
+        break;
+    case SXML_STYLESHEET_FUNCTION_MAP_FOR_KEY_WITH_CONTEXT:
+        variables = map_context_variables;
+        break;
+    case SXML_STYLESHEET_FUNCTION_MAP_FOR_KEY_WITH_TOP:
+        variables = map_top_variables;
+        break;
+    case SXML_STYLESHEET_FUNCTION_COPY_OF:
+    case SXML_STYLESHEET_FUNCTION_SNAPSHOT:
+    case SXML_STYLESHEET_FUNCTION_COUNT:
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    sxml_xslt_snippet_text text = {.allocator = table->allocator, .status = SXML_STATUS_OK};
     write_key_text(table, kind, &text);
     status = text.status;
     if (status == SXML_STATUS_OK) {
         status = lower_snippet_function(
-            table,
-            (snippet_function){
-                .function =
-                    &table->functions[with_context ? SXML_STYLESHEET_FUNCTION_KEY_WITH_CONTEXT
-                                                   : SXML_STYLESHEET_FUNCTION_KEY_WITH_TOP],
-                .text = text_view(&text),
-                .variables = with_context ? context_variables : top_variables,
-                .variable_count = 3});
+            table, (snippet_function){.function = &table->functions[kind],
+                                      .text = sxml_xslt_snippet_text_view(&text),
+                                      .variables = variables,
+                                      .variable_count = is_map_for_key(kind) ? 2 : 3});
     }
-    release_text(&text);
+    sxml_xslt_snippet_text_release(&text);
     return status;
 }
 
@@ -1511,10 +1462,10 @@ sxml_status sxml_xslt_lower_functions(sxml_xslt_function_table *table) {
             has_lowered = true;
             switch ((stylesheet_function_kind)kind_number) {
             case SXML_STYLESHEET_FUNCTION_KEY_WITH_CONTEXT:
-                status = lower_key_function(table, SXML_STYLESHEET_FUNCTION_KEY_WITH_CONTEXT);
-                break;
             case SXML_STYLESHEET_FUNCTION_KEY_WITH_TOP:
-                status = lower_key_function(table, SXML_STYLESHEET_FUNCTION_KEY_WITH_TOP);
+            case SXML_STYLESHEET_FUNCTION_MAP_FOR_KEY_WITH_CONTEXT:
+            case SXML_STYLESHEET_FUNCTION_MAP_FOR_KEY_WITH_TOP:
+                status = lower_key_function(table, (stylesheet_function_kind)kind_number);
                 break;
             case SXML_STYLESHEET_FUNCTION_COPY_OF:
                 status = lower_copy_of(table);

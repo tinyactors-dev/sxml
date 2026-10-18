@@ -378,6 +378,17 @@ typedef struct sxml_xslt_mapped_expression {
 SXML_NODISCARD sxml_status sxml_xslt_lowering_bind_mapped_expression(
     sxml_xpath_lowerer *lowerer, const sxml_xslt_mapped_expression *request, sxml_ir_atom *atom);
 
+/*
+ * 6.5: a match that an error makes false. Writes to *guarded a TRY_CATCH
+ * of body whose clauses raise a circularity again (XTDE0640, 9.11, and
+ * XTDE3400, 19.6: "The requirement to detect and raise a circularity as a
+ * dynamic error overrides this rule") and give false for any other error.
+ * Its clauses are added to the unit; the caller adds or binds *guarded.
+ */
+SXML_NODISCARD sxml_status sxml_xslt_lowering_make_guarded_match(sxml_xpath_lowerer *lowerer,
+                                                                 sxml_ir_expression_index body,
+                                                                 sxml_ir_expression *guarded);
+
 /* ------------------------------------------------------------- Helpers */
 
 /* Adds expression and binds it in block. */
