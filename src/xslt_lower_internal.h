@@ -89,6 +89,10 @@ typedef struct sxml_xslt_namespace_alias {
    packet 4.8, D144). */
 typedef struct sxml_xslt_template_lowering sxml_xslt_template_lowering;
 
+/* The stylesheet functions and attribute sets of a stylesheet
+   (src/xslt_lower_declaration.c, packet 4.12, D150). */
+typedef struct sxml_xslt_component_lowering sxml_xslt_component_lowering;
+
 /*
  * One stylesheet lowering (glossary `stylesheet_lowering`). Made by
  * sxml_xslt_lower_initial_template; procedures read it through the
@@ -116,6 +120,8 @@ typedef struct sxml_xslt_lowering {
     /* Made by sxml_xslt_lower_templates; NULL before. Its state for the
        template being lowered changes while templates are lowered. */
     sxml_xslt_template_lowering *templates;
+    /* Made by sxml_xslt_declare_components; NULL before. */
+    sxml_xslt_component_lowering *components;
 } sxml_xslt_lowering;
 
 /* What every XSLT lowering procedure's locals start with; it is pushed
@@ -400,10 +406,77 @@ typedef struct sxml_xslt_invocation_request {
     sxml_xpath_lowering_block *block;
 } sxml_xslt_invocation_request;
 
+/* Binds in block whether the current function has a focus: true(), or
+   false() from a TRY_CATCH of the XPDY0002 reading it raises (the main
+   function without a global context item). */
+SXML_NODISCARD sxml_status sxml_xslt_lowering_bind_has_focus(sxml_xpath_lowerer *lowerer,
+                                                             sxml_xpath_lowering_block *block,
+                                                             sxml_ir_atom *atom);
+
 /* Binds the invocation in request->block after sxml_xslt_lower_templates
    and writes its value's atom. */
 SXML_NODISCARD sxml_status sxml_xslt_lowering_bind_invocation(
     sxml_xpath_lowerer *lowerer, const sxml_xslt_invocation_request *request, sxml_ir_atom *atom);
+
+/* ----------------------------------------------- Functions, attribute sets */
+
+/*
+ * Before anything is lowered: every xsl:function that is a component
+ * (10.3.4: not eclipsed, not given up for an extension function under
+ * override-extension-function="no") gets one IR function per arity of its
+ * arity range, and every static context of static_contexts (the
+ * lowering's, writable) a function table that finds them before the table
+ * it had (unprefixed names first in no namespace when a function is,
+ * 10.3.1); every attribute set (all xsl:attribute-set of one name) gets
+ * two IR functions of three parameters, the focus (item()?, position,
+ * size, as a template function) and the same with an absent focus. Makes
+ * lowering->components, which sxml_xslt_release_components releases (also
+ * after a failure). Returns SXML_STATUS_STATIC_ERROR (XTSE0080, XTSE0270,
+ * XTSE0580, XTSE0710, XTSE0720, XTSE0760, XTSE0761, XTSE0769, XTSE0770) with the
+ * error record filled, and the failures of lowering and the allocator.
+ * Defined in src/xslt_lower_declaration.c.
+ */
+SXML_NODISCARD sxml_status sxml_xslt_declare_components(
+    sxml_xslt_lowering *lowering, sxml_xpath_static_context *static_contexts);
+
+/* After sxml_xslt_lower_templates, outside a machine: the bodies of the
+   functions sxml_xslt_declare_components added (XTTE0780 for a result
+   that does not match a function's as type), and the decimal formats of
+   xsl:decimal-format as the unit's (XTSE1290, XTSE1300); the unit's
+   static context is set here, once. */
+SXML_NODISCARD sxml_status sxml_xslt_lower_components(const sxml_xslt_lowering *lowering);
+
+/* Releases lowering->components and sets it NULL; NULL is allowed. */
+void sxml_xslt_release_components(sxml_xslt_lowering *lowering);
+
+/* The [xsl:]use-attribute-sets attribute of node (a literal result
+   element, xsl:element, xsl:copy) to bind in block. */
+typedef struct sxml_xslt_attribute_set_call {
+    const sxml_xslt_lowering *lowering;
+    sxml_xslt_ast_node_index node;
+    sxml_xpath_lowering_block *block;
+} sxml_xslt_attribute_set_call;
+
+/* Binds in call->block the attribute nodes of the attribute sets the
+   attribute names, in order, each called with the current focus (10.2.3),
+   and writes their sequence's atom; XTSE0710 for a name no attribute set
+   has. */
+SXML_NODISCARD sxml_status sxml_xslt_lowering_bind_attribute_sets(
+    sxml_xpath_lowerer *lowerer, const sxml_xslt_attribute_set_call *call, sxml_ir_atom *atom);
+
+/* The xsl:global-context-item check (3.4.9) to bind in block, a block of
+   the main function before the invocation. */
+typedef struct sxml_xslt_global_context_item_call {
+    const sxml_xslt_lowering *lowering;
+    sxml_xpath_lowering_block *block;
+} sxml_xslt_global_context_item_call;
+
+/* Binds, when the stylesheet declares one, the check of the global context
+   item: XTDE3086 for none when required, XTTE0590 for one of another type,
+   XTSE3088 for one when absent is asked for. XTSE3087 and XTSE3089 are
+   reported as static errors. */
+SXML_NODISCARD sxml_status sxml_xslt_lowering_bind_global_context_item(
+    sxml_xpath_lowerer *lowerer, const sxml_xslt_global_context_item_call *call);
 
 /* ----------------------------------------------------------- The entry */
 

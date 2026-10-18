@@ -279,6 +279,63 @@ static sxml_status add_atom_content(sxml_xpath_lowerer *lowerer, sxml_ir_atom at
         (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_ATOM, .atom = atom}, index);
 }
 
+/* The attribute nodes of node's use-attribute-sets in front of *content
+   (10.2.3), bound in a block of their own so they are computed with the
+   content; focus is the focus they see (the selected item of xsl:copy
+   select, 11.9.1), NULL for the current one. */
+typedef struct attribute_set_content {
+    const sxml_xslt_lowering *lowering;
+    sxml_xslt_ast_node_index node;
+    sxml_xpath_lowering_focus *focus;
+} attribute_set_content;
+
+static sxml_status prepend_attribute_sets(sxml_xpath_lowerer *lowerer,
+                                          attribute_set_content request,
+                                          sxml_ir_expression_index *content) {
+    if (find_attribute(request.lowering,
+                       (attribute_lookup){.node = request.node,
+                                          .kind = SXML_XSLT_AST_ATTRIBUTE_USE_ATTRIBUTE_SETS})
+            ->kind == SXML_XSLT_AST_ATTRIBUTE_NONE) {
+        return SXML_STATUS_OK;
+    }
+    sxml_xpath_lowering_focus *outer_focus = lowerer->function->focus;
+    if (request.focus != NULL) {
+        lowerer->function->focus = request.focus;
+    }
+    sxml_xpath_lowering_block block = {.first = {0}, .open_let = {0}};
+    sxml_ir_atom atoms[2] = {{0}, {0}};
+    sxml_status status = sxml_xslt_lowering_bind_attribute_sets(
+        lowerer,
+        &(sxml_xslt_attribute_set_call){
+            .lowering = request.lowering, .node = request.node, .block = &block},
+        &atoms[0]);
+    lowerer->function->focus = outer_focus;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_bind_expression(
+            lowerer,
+            (sxml_xpath_lowering_expression_in_block){.block = &block, .expression = *content},
+            &atoms[1]);
+    }
+    sxml_ir_atom_list list = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ir_unit_add_atoms(lowerer->unit,
+                                        (sxml_ir_atom_view){.atoms = atoms, .atom_count = 2}, &list);
+    }
+    sxml_ir_expression_index sequence = {0};
+    if (status == SXML_STATUS_OK) {
+        status = add_expression(
+            lowerer,
+            (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_SEQUENCE,
+                                 .sequence = list},
+            &sequence);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_xpath_lowerer_finish_block(
+        lowerer, (sxml_xpath_lowering_block_result){.block = block, .result = sequence}, content);
+}
+
 /* An expression of one branch: lowered into a block of its own. */
 typedef struct branch {
     sxml_xpath_lowering_block block;
@@ -1168,6 +1225,14 @@ static sxml_status finish_named_constructor(sxml_xpath_lowering_machine *machine
     } else if (status == SXML_STATUS_OK) {
         sxml_ir_expression_index content = {0};
         status = add_atom_content(lowerer, locals->value, &content);
+        if (status == SXML_STATUS_OK) {
+            /* 11.2: the attribute sets' attributes come first. */
+            status = prepend_attribute_sets(
+                lowerer,
+                (attribute_set_content){
+                    .lowering = lowering, .node = locals->head.node, .focus = NULL},
+                &content);
+        }
         uint32_t flags = (uint32_t)SXML_IR_CONSTRUCTION_XSLT_RULES;
         const sxml_xslt_ast_attribute *inherit = find_attribute(
             lowering, (attribute_lookup){.node = locals->head.node,
@@ -1207,20 +1272,10 @@ static sxml_status finish_named_constructor(sxml_xpath_lowering_machine *machine
 static sxml_status continue_named_constructor(sxml_xpath_lowering_machine *machine,
                                               sxml_xpath_lowering_frame *frame) {
     named_constructor_locals *locals = frame->locals;
-    const sxml_xslt_lowering *lowering = locals->head.lowering;
     template_call call = {.has_called = false};
     sxml_status status = SXML_STATUS_OK;
     if (frame->step == 0) {
         frame->step = 1;
-        if (has_attribute(lowering,
-                          (attribute_lookup){.node = locals->head.node,
-                                             .kind = SXML_XSLT_AST_ATTRIBUTE_USE_ATTRIBUTE_SETS})) {
-            return sxml_xslt_lowering_report_unsupported(
-                lowering,
-                (sxml_xslt_static_error){.node = locals->head.node,
-                                         .code_and_description = SXML_BYTE_VIEW_FROM_LITERAL(
-                                             "attribute sets are not lowered yet (packet 4.12)")});
-        }
         status = start_name(machine, frame, &call);
         if (status != SXML_STATUS_OK || call.has_called) {
             return status;
@@ -1604,15 +1659,6 @@ static sxml_status continue_copy(sxml_xpath_lowering_machine *machine,
     const bool has_select = select->kind != SXML_XSLT_AST_ATTRIBUTE_NONE;
     if (frame->step == 0) {
         frame->step = 1;
-        if (has_attribute(lowering,
-                          (attribute_lookup){.node = locals->head.node,
-                                             .kind = SXML_XSLT_AST_ATTRIBUTE_USE_ATTRIBUTE_SETS})) {
-            return sxml_xslt_lowering_report_unsupported(
-                lowering,
-                (sxml_xslt_static_error){.node = locals->head.node,
-                                         .code_and_description = SXML_BYTE_VIEW_FROM_LITERAL(
-                                             "attribute sets are not lowered yet (packet 4.12)")});
-        }
         if (has_select) {
             return sxml_xslt_lowering_call_expression(
                 machine,
@@ -1648,6 +1694,17 @@ static sxml_status continue_copy(sxml_xpath_lowering_machine *machine,
                                          .atom_block = NULL,
                                          .focused = NULL},
                          .focus = has_select ? &locals->selected_focus : NULL});
+    }
+    /* 11.9.1: the attribute sets' attributes come first, with the focus
+       of the content. */
+    const sxml_status status = prepend_attribute_sets(
+        lowerer,
+        (attribute_set_content){.lowering = lowering,
+                                .node = locals->head.node,
+                                .focus = has_select ? &locals->selected_focus : NULL},
+        &locals->content);
+    if (status != SXML_STATUS_OK) {
+        return status;
     }
     return finish_with_expression(
         machine, frame,

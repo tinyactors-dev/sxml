@@ -783,6 +783,7 @@ static sxml_status start_literal_result(sxml_xpath_lowering_machine *machine,
     }
     locals->construction_flags = (uint32_t)SXML_IR_CONSTRUCTION_XSLT_RULES;
     size_t attribute_count = 0;
+    bool has_attribute_sets = false;
     for (uint32_t offset = 0;
          status == SXML_STATUS_OK && offset < element->attributes.attribute_count; offset += 1) {
         const sxml_xslt_ast_attribute *attribute =
@@ -799,11 +800,9 @@ static sxml_status start_literal_result(sxml_xpath_lowering_machine *machine,
             }
             break;
         case SXML_XSLT_AST_ATTRIBUTE_USE_ATTRIBUTE_SETS:
-            status = sxml_xslt_lowering_report_unsupported(
-                lowering,
-                (sxml_xslt_static_error){.node = locals->head.node,
-                                         .code_and_description = SXML_BYTE_VIEW_FROM_LITERAL(
-                                             "attribute sets are not lowered yet (packet 4.12)")});
+            /* 10.2.3: the attribute sets' attributes come first. */
+            has_attribute_sets = true;
+            attribute_count += 1;
             break;
         default:
             break;
@@ -818,6 +817,14 @@ static sxml_status start_literal_result(sxml_xpath_lowering_machine *machine,
                             .element_size = sizeof(sxml_ir_atom),
                             .element_alignment = alignof(sxml_ir_atom)}});
         locals->atoms = frame->owned_memory[0];
+    }
+    if (status == SXML_STATUS_OK && has_attribute_sets) {
+        status = sxml_xslt_lowering_bind_attribute_sets(
+            lowerer,
+            &(sxml_xslt_attribute_set_call){
+                .lowering = lowering, .node = locals->head.node, .block = frame->block},
+            &locals->atoms[0]);
+        locals->atom_count = 1;
     }
     return status;
 }
@@ -1633,6 +1640,12 @@ static sxml_status lower_main_function(sxml_xpath_lowerer *lowerer, const main_r
     sxml_xpath_lowering_block block = {.first = {0}, .open_let = {0}};
     sxml_ir_atom value = {0};
     if (status == SXML_STATUS_OK) {
+        /* 3.4.9: xsl:global-context-item (packet 4.12). */
+        status = sxml_xslt_lowering_bind_global_context_item(
+            lowerer, &(sxml_xslt_global_context_item_call){.lowering = request->lowering,
+                                                           .block = &block});
+    }
+    if (status == SXML_STATUS_OK) {
         status = sxml_xslt_lowering_bind_invocation(
             lowerer,
             &(sxml_xslt_invocation_request){
@@ -1720,7 +1733,8 @@ static sxml_status lower_into_unit(const unit_lowering *work) {
                                    .namespace_aliases = NULL,
                                    .namespace_alias_count = 0,
                                    .error_record = request->error_record,
-                                   .templates = NULL};
+                                   .templates = NULL,
+                                   .components = NULL};
     status = make_static_contexts((context_source){.ast = request->ast, .base = work->base_context},
                                   &memory, &lowering);
     if (status == SXML_STATUS_OK) {
@@ -1742,7 +1756,16 @@ static sxml_status lower_into_unit(const unit_lowering *work) {
         status = sxml_xslt_lowering_declare_global_variables(&lowering, memory.static_contexts);
     }
     if (status == SXML_STATUS_OK) {
+        /* Stylesheet functions and attribute sets (packet 4.12): in every
+           static context before anything calls them. */
+        status = sxml_xslt_declare_components(&lowering, memory.static_contexts);
+    }
+    if (status == SXML_STATUS_OK) {
         status = sxml_xslt_lower_templates(&lowering);
+    }
+    if (status == SXML_STATUS_OK) {
+        /* Their bodies may call templates. */
+        status = sxml_xslt_lower_components(&lowering);
     }
     if (status == SXML_STATUS_OK) {
         status = lower_main_function(
@@ -1755,10 +1778,12 @@ static sxml_status lower_into_unit(const unit_lowering *work) {
            apply them); again after the global variables. */
         status = sxml_xslt_lower_functions(xslt_functions);
     }
-    sxml_xslt_release_templates(&lowering);
     if (status == SXML_STATUS_OK) {
+        /* Initializers may call templates (xsl:call-template in a global
+           variable's content): before the templates are released. */
         status = sxml_xslt_lowering_add_global_variables(&lowering);
     }
+    sxml_xslt_release_templates(&lowering);
     if (status == SXML_STATUS_OK) {
         status = sxml_xslt_lower_functions(xslt_functions);
     }
@@ -1781,6 +1806,7 @@ static sxml_status lower_into_unit(const unit_lowering *work) {
     }
     sxml_xslt_lowering_release_global_variables(&lowering);
     sxml_xslt_release_functions(xslt_functions);
+    sxml_xslt_release_components(&lowering);
     release_storage(work->base_context->allocator, &memory);
     sxml_xpath_lowerer_finalize(lowerer);
     return status;

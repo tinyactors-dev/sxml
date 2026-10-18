@@ -131,11 +131,29 @@ typedef struct sxml_processor_loaded_collection {
     sxml_sequence items;
 } sxml_processor_loaded_collection;
 
+/* A step every document the loader gets from the resolver goes through
+   before it is kept: XSLT's whitespace stripping of source documents
+   (XSLT 4.0, 4.2; src/xslt_whitespace_internal.h, D150). */
+typedef struct sxml_document_preparation_operations {
+    /* Writes the document to keep, owned, to *prepared; document_node
+       stays the caller's. */
+    sxml_status (*prepare_document)(void *state, sxml_item document_node, sxml_item *prepared);
+} sxml_document_preparation_operations;
+
+typedef struct sxml_document_preparation {
+    void *state;
+    /* NULL: documents are kept as delivered. */
+    const sxml_document_preparation_operations *operations;
+} sxml_document_preparation;
+
 /* What one evaluation's document loader serves. Views are borrowed and must
    outlive the loader. */
 typedef struct sxml_processor_document_loader_configuration {
     sxml_evaluation_environment evaluation_environment;
     sxml_available_document_view available_documents;
+    /* Applied to each document fn:doc gets from the resolver (not to
+       available documents, which the host prepares). */
+    sxml_document_preparation document_preparation;
 } sxml_processor_document_loader_configuration;
 
 /* The loader of one evaluation. Its fields are private to

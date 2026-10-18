@@ -5019,6 +5019,481 @@ static sxml_status add_ordered_initializer(sxml_xpath_lowerer *lowerer,
         lowerer->unit, &(sxml_ir_function){.signature = signature, .body = call}, ordered);
 }
 
+/* ------------------------------------- Dependencies through components */
+
+/*
+ * A global variable's initializer may read other globals through the
+ * components it calls: stylesheet functions, named templates, template
+ * rules (apply-templates), attribute sets (packet 4.12, D150). The order
+ * of computation therefore follows a graph whose nodes are the
+ * declarations (one more node stands for "every template rule") and
+ * whose edges are the references in each declaration's expressions and
+ * instructions: globals read, functions called or referenced by name (by
+ * name: every arity), templates called, rules applied, attribute sets
+ * used. Its strongly connected components (Tarjan's algorithm on an
+ * explicit stack, D71) come out dependencies first, and the globals in
+ * them in that order are the computation order. Only the direct cycles
+ * between globals are static errors (above); a cycle through a component
+ * may never happen, so it is left to the evaluator (BEING_COMPUTED).
+ */
+
+/* The graph over declarations: node n is declaration n + 1, node
+   declaration_count is every template rule. */
+typedef struct component_graph {
+    size_t node_count;
+    /* Edges from node n are targets[first_edges[n] .. first_edges[n + 1]). */
+    size_t *first_edges;
+    size_t *targets;
+    /* Collected edges (sources and targets) before they are grouped. */
+    size_t *edge_sources;
+    size_t *edge_targets;
+    size_t edge_count;
+    size_t edge_capacity;
+    /* For each AST node, the declaration order of the declaration it is
+       (0 for a node that is none). */
+    uint32_t *declaration_orders;
+} component_graph;
+
+static void release_component_graph(const sxml_xslt_lowering *lowering, component_graph *graph) {
+    const sxml_xpath_lowerer *lowerer = lowering->lowerer;
+    sxml_xpath_lowerer_release_scratch(lowerer, graph->first_edges);
+    sxml_xpath_lowerer_release_scratch(lowerer, graph->targets);
+    sxml_xpath_lowerer_release_scratch(lowerer, graph->edge_sources);
+    sxml_xpath_lowerer_release_scratch(lowerer, graph->edge_targets);
+    sxml_xpath_lowerer_release_scratch(lowerer, graph->declaration_orders);
+}
+
+static sxml_status allocate_sizes(const sxml_xslt_lowering *lowering, size_t count, size_t **sizes) {
+    void *memory = NULL;
+    const sxml_status status = sxml_xpath_lowerer_allocate_scratch(
+        lowering->lowerer,
+        (sxml_xpath_lowering_scratch_request){.element_count = count == 0 ? 1 : count,
+                                              .element_size = sizeof(size_t),
+                                              .element_alignment = alignof(size_t)},
+        &memory);
+    *sizes = memory;
+    return status;
+}
+
+/* One edge, from the declaration holding node to target. */
+typedef struct component_edge {
+    size_t source;
+    size_t target;
+} component_edge;
+
+static sxml_status add_component_edge(const sxml_xslt_lowering *lowering, component_graph *graph,
+                                      component_edge edge) {
+    if (graph->edge_count == graph->edge_capacity) {
+        const size_t capacity = graph->edge_capacity == 0 ? 64 : graph->edge_capacity * 2;
+        size_t *sources = NULL;
+        size_t *targets = NULL;
+        sxml_status status = allocate_sizes(lowering, capacity, &sources);
+        if (status == SXML_STATUS_OK) {
+            status = allocate_sizes(lowering, capacity, &targets);
+        }
+        if (status != SXML_STATUS_OK) {
+            sxml_xpath_lowerer_release_scratch(lowering->lowerer, sources);
+            return status;
+        }
+        if (graph->edge_count > 0) {
+            memcpy(sources, graph->edge_sources, graph->edge_count * sizeof(size_t));
+            memcpy(targets, graph->edge_targets, graph->edge_count * sizeof(size_t));
+        }
+        sxml_xpath_lowerer_release_scratch(lowering->lowerer, graph->edge_sources);
+        sxml_xpath_lowerer_release_scratch(lowering->lowerer, graph->edge_targets);
+        graph->edge_sources = sources;
+        graph->edge_targets = targets;
+        graph->edge_capacity = capacity;
+    }
+    graph->edge_sources[graph->edge_count] = edge.source;
+    graph->edge_targets[graph->edge_count] = edge.target;
+    graph->edge_count += 1;
+    return SXML_STATUS_OK;
+}
+
+/* The graph node of the declaration holding node; node_count for none. */
+static size_t holding_declaration(const sxml_xslt_lowering *lowering, const component_graph *graph,
+                                  sxml_xslt_ast_node_index node) {
+    sxml_xslt_ast_node_index current = node;
+    while (current.value != 0 &&
+           (node_of(lowering, current)->flags & SXML_XSLT_AST_NODE_FLAG_DECLARATION) == 0) {
+        current = node_of(lowering, current)->parent;
+    }
+    if (current.value == 0 || current.value >= lowering->ast->node_count ||
+        graph->declaration_orders[current.value] == 0) {
+        return graph->node_count;
+    }
+    return graph->declaration_orders[current.value] - 1U;
+}
+
+/* Edges from source to every declaration of kind named name (every
+   template rule when kind is TEMPLATE and the name is 0). */
+typedef struct named_target {
+    size_t source;
+    sxml_xslt_ast_kind kind;
+    sxml_name_identifier name;
+} named_target;
+
+static sxml_status add_named_edges(const sxml_xslt_lowering *lowering, component_graph *graph,
+                                   named_target target) {
+    const sxml_xslt_ast *ast = lowering->ast;
+    sxml_status status = SXML_STATUS_OK;
+    for (uint32_t order = 1;
+         status == SXML_STATUS_OK && sxml_xslt_ast_get_declaration(ast, order).value != 0;
+         order += 1) {
+        const sxml_xslt_ast_node_index declaration = sxml_xslt_ast_get_declaration(ast, order);
+        if (node_of(lowering, declaration)->kind != target.kind) {
+            continue;
+        }
+        const bool matches =
+            target.name.index == 0
+                ? find_attribute(lowering, (attribute_lookup){.node = declaration, .kind = SXML_XSLT_AST_ATTRIBUTE_MATCH})->kind !=
+                      SXML_XSLT_AST_ATTRIBUTE_NONE
+                : binding_name_of(lowering, declaration).index == target.name.index;
+        if (matches) {
+            status = add_component_edge(lowering, graph,
+                                        (component_edge){.source = target.source, .target = order - 1U});
+        }
+    }
+    return status;
+}
+
+/* A name node of an XPath AST that names a function (a call, a named
+   function reference, an arrow's function). */
+static bool is_function_name(const sxml_ast *ast, const sxml_ast_node *node) {
+    if (node->kind != SXML_AST_KIND_NCNAME && node->kind != SXML_AST_KIND_PREFIXED_NAME &&
+        node->kind != SXML_AST_KIND_URI_QUALIFIED_NAME) {
+        return false;
+    }
+    if (node->field != SXML_AST_FIELD_NAME && node->field != SXML_AST_FIELD_FUNCTION) {
+        return false;
+    }
+    const sxml_ast_kind parent_kind = sxml_ast_get_node(ast, node->parent)->kind;
+    return parent_kind == SXML_AST_KIND_FUNCTION_CALL ||
+           parent_kind == SXML_AST_KIND_NAMED_FUNCTION_REFERENCE ||
+           parent_kind == SXML_AST_KIND_ARROW_EXPRESSION;
+}
+
+/* The edges of one expression: globals read and functions named. */
+static sxml_status add_expression_edges(const sxml_xslt_lowering *lowering, component_graph *graph,
+                                        sxml_xslt_ast_expression_index index) {
+    const sxml_xslt_ast_expression *expression = sxml_xslt_ast_get_expression(lowering->ast, index);
+    const sxml_ast *ast = expression->ast;
+    const size_t source = holding_declaration(lowering, graph, expression->node);
+    if (ast == NULL || source == graph->node_count || expression->static_context.value == 0 ||
+        expression->static_context.value >= lowering->static_context_count) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_xpath_static_context *context =
+        &lowering->static_contexts[expression->static_context.value];
+    sxml_name_pool *name_pool = lowering->lowerer->name_pool;
+    sxml_status status = SXML_STATUS_OK;
+    for (uint32_t node_number = 1; status == SXML_STATUS_OK && node_number < ast->node_count;
+         node_number += 1) {
+        const sxml_ast_node_index node = {.value = node_number};
+        const sxml_ast_node *ast_node = sxml_ast_get_node(ast, node);
+        const bool is_reference = ast_node->kind == SXML_AST_KIND_VARIABLE_REFERENCE;
+        if (!is_reference && !is_function_name(ast, ast_node)) {
+            continue;
+        }
+        sxml_xpath_resolved_name resolved = {.namespace_uri = {.index = 0},
+                                             .local_name = {.bytes = NULL, .byte_count = 0}};
+        if (sxml_xpath_resolve_name(
+                &(sxml_xpath_name_request){
+                    .ast = ast,
+                    .name_node = is_reference
+                                     ? sxml_ast_find_child(ast, (sxml_ast_child_query){
+                                                                    .parent = node,
+                                                                    .field = SXML_AST_FIELD_NAME})
+                                     : node,
+                    .name_role = is_reference ? SXML_XPATH_NAME_ROLE_NO_NAMESPACE
+                                              : SXML_XPATH_NAME_ROLE_FUNCTION,
+                    .static_context = context,
+                    .error_record = NULL},
+                &resolved) != SXML_STATUS_OK) {
+            continue;
+        }
+        sxml_name_identifier name = {.index = 0};
+        if (!sxml_name_pool_find_name(name_pool,
+                                      &(sxml_name_request){.namespace_uri = resolved.namespace_uri,
+                                                           .local_name = resolved.local_name},
+                                      &name)) {
+            continue;
+        }
+        if (!is_reference) {
+            status = add_named_edges(lowering, graph,
+                                     (named_target){.source = source,
+                                                    .kind = SXML_XSLT_AST_KIND_FUNCTION,
+                                                    .name = name});
+            continue;
+        }
+        const size_t global_index = find_global(lowering, name);
+        if (global_index < lowering->global_count) {
+            const uint32_t order =
+                graph->declaration_orders[lowering->global_nodes[global_index].value];
+            status = add_component_edge(
+                lowering, graph, (component_edge){.source = source, .target = order - 1U});
+        }
+    }
+    return status;
+}
+
+/* The edges of the stylesheet's instructions: templates called, rules
+   applied, attribute sets used; and of the rules node to every rule. */
+static sxml_status add_instruction_edges(const sxml_xslt_lowering *lowering,
+                                         component_graph *graph) {
+    const size_t rules_node = graph->node_count - 1U;
+    sxml_status status = add_named_edges(
+        lowering, graph,
+        (named_target){.source = rules_node, .kind = SXML_XSLT_AST_KIND_TEMPLATE, .name = {0}});
+    for (uint32_t node_number = 1;
+         status == SXML_STATUS_OK && node_number < lowering->ast->node_count; node_number += 1) {
+        const sxml_xslt_ast_node_index node = {.value = node_number};
+        const sxml_xslt_ast_kind kind = node_of(lowering, node)->kind;
+        const bool calls = kind == SXML_XSLT_AST_KIND_CALL_TEMPLATE;
+        const bool applies = kind == SXML_XSLT_AST_KIND_APPLY_TEMPLATES ||
+                             kind == SXML_XSLT_AST_KIND_NEXT_MATCH ||
+                             kind == SXML_XSLT_AST_KIND_APPLY_IMPORTS;
+        const sxml_xslt_ast_attribute *sets =
+            find_attribute(lowering, (attribute_lookup){.node = node, .kind = SXML_XSLT_AST_ATTRIBUTE_USE_ATTRIBUTE_SETS});
+        const bool uses_sets = sets->value.kind == SXML_XSLT_AST_VALUE_KIND_NAME_LIST;
+        if (!calls && !applies && !uses_sets) {
+            continue;
+        }
+        const size_t source = holding_declaration(lowering, graph, node);
+        if (source == graph->node_count) {
+            continue;
+        }
+        if (calls) {
+            status = add_named_edges(lowering, graph,
+                                     (named_target){.source = source,
+                                                    .kind = SXML_XSLT_AST_KIND_TEMPLATE,
+                                                    .name = binding_name_of(lowering, node)});
+        } else if (applies) {
+            status = add_component_edge(lowering, graph,
+                                        (component_edge){.source = source, .target = rules_node});
+        }
+        const sxml_xslt_ast_name_token_view tokens =
+            uses_sets ? sxml_xslt_ast_get_name_tokens(lowering->ast, sets->value.payload.name_tokens)
+                      : (sxml_xslt_ast_name_token_view){.name_tokens = NULL, .name_token_count = 0};
+        for (size_t token_index = 0; status == SXML_STATUS_OK && token_index < tokens.name_token_count;
+             token_index += 1) {
+            status = add_named_edges(lowering, graph,
+                                     (named_target){.source = source,
+                                                    .kind = SXML_XSLT_AST_KIND_ATTRIBUTE_SET,
+                                                    .name = tokens.name_tokens[token_index].name});
+        }
+    }
+    return status;
+}
+
+/* Groups the collected edges by source (a counting sort). */
+static sxml_status group_component_edges(const sxml_xslt_lowering *lowering,
+                                         component_graph *graph) {
+    sxml_status status = allocate_sizes(lowering, graph->node_count + 1U, &graph->first_edges);
+    if (status == SXML_STATUS_OK) {
+        status = allocate_sizes(lowering, graph->edge_count, &graph->targets);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    memset(graph->first_edges, 0, (graph->node_count + 1U) * sizeof(size_t));
+    for (size_t edge_index = 0; edge_index < graph->edge_count; edge_index += 1) {
+        graph->first_edges[graph->edge_sources[edge_index] + 1U] += 1;
+    }
+    for (size_t node_index = 0; node_index < graph->node_count; node_index += 1) {
+        graph->first_edges[node_index + 1U] += graph->first_edges[node_index];
+    }
+    for (size_t edge_index = 0; edge_index < graph->edge_count; edge_index += 1) {
+        const size_t source = graph->edge_sources[edge_index];
+        graph->targets[graph->first_edges[source]] = graph->edge_targets[edge_index];
+        graph->first_edges[source] += 1;
+    }
+    for (size_t node_index = graph->node_count; node_index > 0; node_index -= 1) {
+        graph->first_edges[node_index] = graph->first_edges[node_index - 1U];
+    }
+    graph->first_edges[0] = 0;
+    return SXML_STATUS_OK;
+}
+
+static sxml_status build_component_graph(const sxml_xslt_lowering *lowering,
+                                         component_graph *graph) {
+    const sxml_xslt_ast *ast = lowering->ast;
+    size_t declaration_count = 0;
+    while (sxml_xslt_ast_get_declaration(ast, (uint32_t)declaration_count + 1U).value != 0) {
+        declaration_count += 1;
+    }
+    graph->node_count = declaration_count + 1U;
+    void *memory = NULL;
+    sxml_status status = sxml_xpath_lowerer_allocate_scratch(
+        lowering->lowerer,
+        (sxml_xpath_lowering_scratch_request){.element_count = ast->node_count,
+                                              .element_size = sizeof(uint32_t),
+                                              .element_alignment = alignof(uint32_t)},
+        &memory);
+    graph->declaration_orders = memory;
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    memset(graph->declaration_orders, 0, ast->node_count * sizeof(uint32_t));
+    for (uint32_t order = 1; order <= declaration_count; order += 1) {
+        graph->declaration_orders[sxml_xslt_ast_get_declaration(ast, order).value] = order;
+    }
+    for (uint32_t expression = 1; status == SXML_STATUS_OK && expression < ast->expression_count;
+         expression += 1) {
+        status = add_expression_edges(lowering, graph,
+                                      (sxml_xslt_ast_expression_index){.value = expression});
+    }
+    if (status == SXML_STATUS_OK) {
+        status = add_instruction_edges(lowering, graph);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = group_component_edges(lowering, graph);
+    }
+    return status;
+}
+
+/* One frame of the depth-first walk: a node and its next edge. */
+typedef struct component_frame {
+    size_t node;
+    size_t next_edge;
+} component_frame;
+
+/* The walk's arrays, one entry per node (SIZE_MAX: not visited). */
+typedef struct component_walk {
+    const component_graph *graph;
+    /* The globals in order, dependencies first. */
+    size_t *order;
+    size_t order_count;
+    size_t *visit_numbers;
+    size_t *low_links;
+    size_t *component_stack;
+    size_t component_stack_count;
+    component_frame *frames;
+    size_t frame_count;
+    size_t visit_count;
+    /* The global of each node; global_count for a node that is none. */
+    size_t *globals;
+} component_walk;
+
+static void visit_component(component_walk *walk, const component_graph *graph, size_t node) {
+    walk->visit_numbers[node] = walk->visit_count;
+    walk->low_links[node] = walk->visit_count;
+    walk->visit_count += 1;
+    walk->component_stack[walk->component_stack_count] = node;
+    walk->component_stack_count += 1;
+    walk->frames[walk->frame_count] =
+        (component_frame){.node = node, .next_edge = graph->first_edges[node]};
+    walk->frame_count += 1;
+}
+
+/* Tarjan's algorithm from root; each finished component's globals are
+   appended to walk->order. A node is on the component stack while it is
+   visited and not yet assigned to a component (assigned nodes get
+   COMPONENT_ASSIGNED as low link). */
+#define COMPONENT_ASSIGNED (SIZE_MAX - 1U)
+
+static void walk_components(component_walk *walk, size_t root) {
+    const component_graph *graph = walk->graph;
+    visit_component(walk, graph, root);
+    while (walk->frame_count > 0) {
+        component_frame *top = &walk->frames[walk->frame_count - 1U];
+        const size_t node = top->node;
+        if (top->next_edge < graph->first_edges[node + 1U]) {
+            const size_t target = graph->targets[top->next_edge];
+            top->next_edge += 1;
+            if (walk->visit_numbers[target] == SIZE_MAX) {
+                visit_component(walk, graph, target);
+            } else if (walk->low_links[target] != COMPONENT_ASSIGNED &&
+                       walk->visit_numbers[target] < walk->low_links[node]) {
+                walk->low_links[node] = walk->visit_numbers[target];
+            }
+            continue;
+        }
+        walk->frame_count -= 1;
+        if (walk->low_links[node] == walk->visit_numbers[node]) {
+            size_t member = SIZE_MAX;
+            while (member != node) {
+                walk->component_stack_count -= 1;
+                member = walk->component_stack[walk->component_stack_count];
+                walk->low_links[member] = COMPONENT_ASSIGNED;
+                if (walk->globals[member] != SIZE_MAX) {
+                    walk->order[walk->order_count] = walk->globals[member];
+                    walk->order_count += 1;
+                }
+            }
+        }
+        if (walk->frame_count > 0) {
+            /* An assigned node's low link is COMPONENT_ASSIGNED, larger
+               than any visit number: it passes nothing up. */
+            const size_t parent = walk->frames[walk->frame_count - 1U].node;
+            if (walk->low_links[node] < walk->low_links[parent]) {
+                walk->low_links[parent] = walk->low_links[node];
+            }
+        }
+    }
+}
+
+/* Rewrites order (global indices, dependencies first) by the component
+   graph. */
+static sxml_status order_through_components(const sxml_xslt_lowering *lowering, size_t *order) {
+    component_graph graph = {.node_count = 0,
+                             .first_edges = NULL,
+                             .targets = NULL,
+                             .edge_sources = NULL,
+                             .edge_targets = NULL,
+                             .edge_count = 0,
+                             .edge_capacity = 0,
+                             .declaration_orders = NULL};
+    sxml_status status = build_component_graph(lowering, &graph);
+    size_t *arrays = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = allocate_sizes(lowering, graph.node_count * 4U, &arrays);
+    }
+    void *frame_memory = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_allocate_scratch(
+            lowering->lowerer,
+            (sxml_xpath_lowering_scratch_request){.element_count = graph.node_count,
+                                                  .element_size = sizeof(component_frame),
+                                                  .element_alignment = alignof(component_frame)},
+            &frame_memory);
+    }
+    if (status == SXML_STATUS_OK) {
+        component_walk walk = {.graph = &graph,
+                               .order = order,
+                               .order_count = 0,
+                               .visit_numbers = arrays,
+                               .low_links = arrays + graph.node_count,
+                               .component_stack = arrays + 2U * graph.node_count,
+                               .component_stack_count = 0,
+                               .frames = frame_memory,
+                               .frame_count = 0,
+                               .visit_count = 0,
+                               .globals = arrays + 3U * graph.node_count};
+        for (size_t node_index = 0; node_index < graph.node_count; node_index += 1) {
+            walk.visit_numbers[node_index] = SIZE_MAX;
+            walk.low_links[node_index] = SIZE_MAX;
+            walk.globals[node_index] = SIZE_MAX;
+        }
+        for (size_t global_index = 0; global_index < lowering->global_count; global_index += 1) {
+            walk.globals[graph.declaration_orders[lowering->global_nodes[global_index].value] -
+                         1U] = global_index;
+        }
+        for (size_t global_index = 0; global_index < lowering->global_count; global_index += 1) {
+            const size_t node =
+                graph.declaration_orders[lowering->global_nodes[global_index].value] - 1U;
+            if (walk.visit_numbers[node] == SIZE_MAX) {
+                walk_components(&walk, node);
+            }
+        }
+    }
+    sxml_xpath_lowerer_release_scratch(lowering->lowerer, frame_memory);
+    sxml_xpath_lowerer_release_scratch(lowering->lowerer, arrays);
+    release_component_graph(lowering, &graph);
+    return status;
+}
+
 sxml_status sxml_xslt_lowering_add_global_variables(const sxml_xslt_lowering *lowering) {
     const size_t global_count = lowering->global_count;
     if (global_count == 0) {
@@ -5039,6 +5514,10 @@ sxml_status sxml_xslt_lowering_add_global_variables(const sxml_xslt_lowering *lo
     size_t *order = memory;
     if (status == SXML_STATUS_OK) {
         status = order_globals((order_request){.lowering = lowering, .graph = &graph}, order);
+    }
+    if (status == SXML_STATUS_OK) {
+        /* Also the globals the components they call read (packet 4.12). */
+        status = order_through_components(lowering, order);
     }
     /* initializers[i] and ordered[i] after the order (as indices). */
     size_t *initializers = order + global_count;

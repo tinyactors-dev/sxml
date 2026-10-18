@@ -660,13 +660,15 @@ static sxml_status bind_context_item_checks(sxml_xpath_lowering_machine *machine
     if (expression->ast == NULL || context == NULL) {
         return SXML_STATUS_INVALID_ARGUMENT;
     }
-    sxml_type_identifier item_type = {0};
-    status = sxml_xpath_resolve_item_type(
+    /* The AST's root is a SEQUENCE_TYPE (of occurrence one, D139). */
+    sxml_sequence_type context_type = {.item_type = {0}, .occurrence = SXML_OCCURRENCE_EXACTLY_ONE};
+    status = sxml_xpath_resolve_sequence_type(
         &(sxml_xpath_type_request){.ast = expression->ast,
                                    .type_node = expression->ast->root,
                                    .static_context = context,
                                    .error_record = lowering->error_record},
-        &item_type);
+        &context_type);
+    const sxml_type_identifier item_type = context_type.item_type;
     /* 10.1.4: no conversion; the item (when there is one) must match. */
     sxml_ir_atom matches = {0};
     if (status == SXML_STATUS_OK) {
@@ -3135,9 +3137,11 @@ void sxml_xslt_release_templates(sxml_xslt_lowering *lowering) {
 /* ---------------------------------------------------------- Invocation */
 
 /* Whether the main function has a focus (a global context item): true(),
-   or false() from a TRY_CATCH of the XPDY0002 reading it raises. */
-static sxml_status bind_has_focus(sxml_xpath_lowerer *lowerer, sxml_xpath_lowering_block *block,
-                                  sxml_ir_atom *atom) {
+   or false() from a TRY_CATCH of the XPDY0002 reading it raises. Also
+   for xsl:global-context-item (src/xslt_lower_declaration.c). */
+sxml_status sxml_xslt_lowering_bind_has_focus(sxml_xpath_lowerer *lowerer,
+                                              sxml_xpath_lowering_block *block,
+                                              sxml_ir_atom *atom) {
     sxml_ir_atom focus = {0};
     sxml_status status = sxml_xpath_lowerer_read_focus(
         lowerer,
@@ -3289,7 +3293,7 @@ sxml_status sxml_xslt_lowering_bind_invocation(sxml_xpath_lowerer *lowerer,
                                                           .expression = with_focus},
                 atom);
         }
-        status = bind_has_focus(lowerer, request->block, &has_focus);
+        status = sxml_xslt_lowering_bind_has_focus(lowerer, request->block, &has_focus);
         if (status == SXML_STATUS_OK) {
             status = lower_initial_call(lowerer,
                                         (initial_call){.lowering = lowering, .entry = entry, .is_focus_absent = false},

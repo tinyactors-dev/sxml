@@ -944,6 +944,14 @@ static sxml_status sxml_loader_resolve(sxml_processor_document_loader *loader,
     if (resolver.operations->release != NULL) {
         resolver.operations->release(resolver.state, &resource);
     }
+    const sxml_document_preparation preparation = loader->configuration.document_preparation;
+    if (status == SXML_STATUS_OK && preparation.operations != NULL) {
+        sxml_item prepared = {.representation = 0};
+        status = preparation.operations->prepare_document(preparation.state, *document_node,
+                                                          &prepared);
+        sxml_item_release(*document_node);
+        *document_node = prepared;
+    }
     return status;
 }
 
