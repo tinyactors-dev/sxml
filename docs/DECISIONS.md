@@ -5099,8 +5099,63 @@ changed; no IR kind added.
   were editing.
 
 ### D155. Accumulators (packet 4.14)
-Recorded 2026-10-18, after D118, D144, D149, D150.
-Reserved here; the record is completed when the packet is ticked.
+Recorded 2026-10-18, after D118, D144, D149, D150. `src/xslt_accumulator.c`
+with `src/xslt_accumulator_internal.h`, five internal rows in
+`src/function_library_xslt.c`, `tests/xslt_accumulator_test.c`; hooks in
+`src/xslt_lower.c` (declare, lower, scope of the main function, release,
+the rule view; field `accumulators` of `sxml_xslt_lowering`),
+`src/xslt_lower_construct.c` (xsl:copy-of) and `src/xslt_key.c`
+(fn:copy-of, fn:snapshot). No IR kind, no evaluator change, no public
+header.
+- **Lowering** (as templates, D144): each xsl:accumulator-rule is a match
+  function (its pattern, D118, in a TRY_CATCH making every error false,
+  6.5) and a rule function of ($node, $value) with the node as fixed focus
+  and `$value` (no namespace) bound, its select or sequence constructor
+  coerced to `as` (XPTY0004); initial-value the same over the root. One
+  declaration per name, the highest import precedence (XTSE3350 at a tie);
+  XTSE3355, XTSE3185, XTSE3300 (use-accumulators of xsl:mode and
+  xsl:source-document: names of accumulators, none twice, #all alone).
+  streamable is read and ignored.
+- **Traversal** (19.4, no recursion, D71): per accumulator an IR function
+  lowered from an XPath text (as src/xslt_key.c's, D149): a fold-left over
+  `$root/descendant-or-self::node()` (attributes and namespaces are not
+  visited) whose state map holds the value, an explicit stack of nodes
+  whose end event is pending, and two maps from generate-id to the pre-
+  and post-descent values; each node first closes the stack entries that
+  are not its ancestors (end events, innermost first), then has its start
+  event; the last rule in document order of the phase whose pattern
+  matches gives the value. Depth is found in one step for a first child or
+  a sibling, else by the ancestor axis.
+- **Values** (19.3, lazily per tree): fn:accumulator-before/-after are IR
+  functions of a function table put in front of every static context
+  (after the XSLT function table, before 4.12's). Row accumulator-values
+  builds once per evaluation, accumulator and root, through the evaluation
+  memo (D149, reused: no new store); while building, the entry is the
+  empty sequence, so a rule asking for its own accumulator raises
+  XTDE3400; a failed build leaves a retry mark, so every later call raises
+  the error again (19.5). XTDE3340 (accumulator-name: an xs:QName, or an
+  EQName resolved as fn:key's names), XTTE3360.
+- **Applicability** (19.2): row accumulator-scope records the applicable
+  accumulators of a tree in the memo: the main function for the initial
+  match selection (use-accumulators of the initial mode's xsl:mode; none
+  without one), xsl:source-document for its document (with
+  streamable="yes" only accumulators declared streamable); every other
+  tree has all of them; accumulator-values raises XTDE3362 for one left
+  out.
+- **Copies** (19.10): fn:copy-of, fn:snapshot and xsl:copy-of with
+  copy-accumulators="yes" link each copy to its original in the memo (row
+  accumulator-link, only when the stylesheet declares an accumulator);
+  the accumulator functions map a node under a linked copy to the node at
+  its place in the original and read that tree's values.
+- **xsl:source-document** (18.1, no streaming): fn:doc of href, the scope,
+  the content with the document node as singleton focus (no packet owned
+  it).
+- Not done: streaming; XTDE3350 (an absent focus raises XPDY0002);
+  xsl:merge-source use-accumulators (4.9's xsl:merge); a copy of a copy;
+  19.5's functional dependency (one failing rule fails every call on that
+  tree). Costs: a node deeper than a first child or a sibling pays its
+  depth; a call on a linked copy pays the copy's size; memo entries are a
+  list (many linked copies make lookups linear).
 
 ### D156. Output and result documents (packet 4.13)
 Recorded 2026-10-18, after D106, D112, D120b, D128, D144, D145, D146, D150.

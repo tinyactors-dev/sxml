@@ -4,6 +4,22 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 4.14 done (D155): accumulators. xsl:accumulator rules are match
+  functions (D118) and rule functions (as templates, D144); per
+  accumulator a traversal function from an XPath text, a fold-left over
+  the tree with an explicit stack (no recursion), giving maps of pre- and
+  post-descent values; fn:accumulator-before/-after build them lazily per
+  tree through the evaluation memo (D149: XTDE3400 for a cycle, errors
+  raised again on each call). use-accumulators of the initial mode and of
+  xsl:source-document (now lowered, without streaming) restrict a tree
+  (XTDE3362); copies by fn:copy-of, fn:snapshot and xsl:copy-of
+  copy-accumulators="yes" keep the original's values. Scratch harness
+  (release): decl/accumulator 4 to 68 of 69 (accumulator-053 only fails
+  in the harness: a text-method assertion), misc/error 355 to 370,
+  attr/mode 109 to 121, insn/copy 124 to 126, attr/capture 0 to 1; no
+  case went from pass to fail. Not done: streaming, merge-source
+  use-accumulators, XTDE3350.
+
 - 3.14 sweep 2 claimed: XQuery conformance (D135 b, c, g; a library
   module's static context at run time; hintless split namespaces; ##any;
   function-lookup of declared functions; FODC0016). Files: `src/xpath_lower*.c`,

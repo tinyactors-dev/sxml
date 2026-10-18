@@ -287,6 +287,12 @@ result-document 129/149, xsl-document 23/25, current-output-uri 6/16.
 After 4.12. Owns `src/xslt_accumulator.c`, `tests/xslt_accumulator_test.c`.
 xsl:accumulator without streaming, accumulator-before and -after,
 use-accumulators on modes and sources. Done when decl-accumulator ≥ 80%.
+**Done** 2026-10-18 (D155): `src/xslt_accumulator.c`, rows in
+`src/function_library_xslt.c`, `tests/xslt_accumulator_test.c`; hooks in
+`src/xslt_lower.c`, `src/xslt_lower_construct.c` and `src/xslt_key.c`
+(copies keep values); xsl:source-document lowered without streaming.
+Scratch harness: decl-accumulator 68/69 (4 before), misc-error 370/499
+(355), attr-mode 121/147 (109), insn-copy 126/146 (124).
 
 ### 4.15 XSLT API and CLI (implementation)
 After 4.13. Owns `src/xslt.c`, `tests/xslt_test.c`,
