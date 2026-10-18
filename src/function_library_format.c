@@ -854,9 +854,12 @@ static bool read_grouping_size(sxml_byte_view text, size_t *grouping_size) {
     return true;
 }
 
-static bool is_ascii_alphanumeric(uint8_t byte, bool allows_digits) {
-    return (byte >= 'a' && byte <= 'z') || (byte >= 'A' && byte <= 'Z') ||
-           (allows_digits && byte >= '0' && byte <= '9');
+static bool is_ascii_letter(uint8_t byte) {
+    return (byte >= 'a' && byte <= 'z') || (byte >= 'A' && byte <= 'Z');
+}
+
+static bool is_ascii_letter_or_digit(uint8_t byte) {
+    return is_ascii_letter(byte) || (byte >= '0' && byte <= '9');
 }
 
 /* lang: an xs:language ([a-zA-Z]{1,8}(-[a-zA-Z0-9]{1,8})*) or "" (12.4). */
@@ -874,8 +877,9 @@ static bool is_language_or_empty(sxml_byte_view text) {
             continue;
         }
         part_length += 1;
+        const uint8_t byte = language.bytes[byte_index];
         if (part_length > 8 ||
-            !is_ascii_alphanumeric(language.bytes[byte_index], part_count > 0)) {
+            !(part_count > 0 ? is_ascii_letter_or_digit(byte) : is_ascii_letter(byte))) {
             return false;
         }
     }

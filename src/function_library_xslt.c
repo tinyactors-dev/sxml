@@ -7,8 +7,9 @@
  * expressions (system-property, available-system-properties,
  * function-available, element-available, type-available; moved here from
  * src/xslt_static.c, which serves its expressions the first rows,
- * sxml_xslt_static_functions), current, document, unparsed-entity-uri and
- * unparsed-entity-public-id. Names given as strings are resolved against
+ * sxml_xslt_static_functions), current, document, unparsed-entity-uri,
+ * unparsed-entity-public-id, and regex-groups and regex-group (packet
+ * 4.11, D153). Names given as strings are resolved against
  * the namespaces of the unit running (D84, D139).
  *
  * The rows behind fn:key (sxml_xslt_key_functions, in no namespace and in
@@ -706,6 +707,180 @@ static sxml_status call_unparsed_entity_public_id(const sxml_function_call *call
         call->item_heap, (sxml_byte_view){.bytes = NULL, .byte_count = 0}, result);
 }
 
+/* ------------------------------------------------------ Captured groups */
+
+/* The current captured groups (XSLT 4.0, 17.2): the context variable
+   Q{XSLT}regex-groups that xsl:analyze-string puts in scope
+   (src/xslt_lower_number.c, D153): a map from group numbers and names to
+   fn:captured-group-record values, group 0 the match; () outside
+   xsl:matching-substring. */
+static sxml_status read_captured_groups(const sxml_function_call *call, size_t argument_index,
+                                        sxml_optional_item *groups) {
+    return sxml_function_library_read_optional_item(call, argument_index, groups);
+}
+
+/* fn:regex-groups() as map((xs:integer | xs:string), fn:captured-group-record)
+   (17.2.1): the current captured groups, the empty map without. */
+static sxml_status call_regex_groups(const sxml_function_call *call, sxml_sequence *result) {
+    sxml_optional_item groups = {.has_item = false};
+    const sxml_status status = read_captured_groups(call, 0, &groups);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (groups.has_item) {
+        sxml_item_retain(groups.item);
+        *result = sxml_sequence_from_item(groups.item);
+        return SXML_STATUS_OK;
+    }
+    sxml_item empty_map = {.representation = 0};
+    const sxml_status making_status = sxml_map_make(
+        call->item_heap,
+        &(sxml_map_request){.map_entries = {.map_entries = NULL, .map_entry_count = 0},
+                            .duplicate_key_policy = SXML_DUPLICATE_KEY_POLICY_REJECT,
+                            .error_record = call->error_record},
+        &empty_map);
+    if (making_status == SXML_STATUS_OK) {
+        *result = sxml_sequence_from_item(empty_map);
+    }
+    return making_status;
+}
+
+/* The entry key of map, or (is_found false) none. */
+typedef struct map_key_lookup {
+    sxml_item map;
+    sxml_item key;
+} map_key_lookup;
+
+static sxml_status look_up_key(map_key_lookup request, sxml_map_lookup *lookup) {
+    lookup->is_found = false;
+    return sxml_map_find(request.map, request.key, lookup);
+}
+
+/* The field of a record (a map) whose key is the string field_name. */
+typedef struct record_field_read {
+    const sxml_function_call *call;
+    sxml_item record;
+    const char *field_name;
+} record_field_read;
+
+static sxml_status read_record_field(record_field_read request, sxml_map_lookup *field) {
+    sxml_sequence key = sxml_sequence_empty();
+    sxml_status status = sxml_function_library_make_string(
+        request.call->item_heap, sxml_byte_view_from_c_string(request.field_name), &key);
+    sxml_item key_item = {.representation = 0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_sequence_get_item(
+            key, (sxml_item_request){.item_index = 0, .error_record = NULL}, &key_item);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = look_up_key((map_key_lookup){.map = request.record, .key = key_item}, field);
+    }
+    sxml_sequence_release(key);
+    return status;
+}
+
+/* The first entry of a groups map whose record's nr equals an integer
+   key; none for other keys. */
+static sxml_status find_group_by_number(map_key_lookup request, const sxml_function_call *call,
+                                        sxml_map_lookup *found) {
+    sxml_atomic_datum wanted;
+    sxml_status status = sxml_atomic_item_get_datum(request.key, &wanted);
+    if (status != SXML_STATUS_OK || wanted.datum_kind != SXML_DATUM_KIND_INTEGER) {
+        return status;
+    }
+    size_t entry_count = 0;
+    status = sxml_map_get_size(request.map, &entry_count);
+    for (size_t entry_index = 0; status == SXML_STATUS_OK && entry_index < entry_count;
+         entry_index += 1) {
+        sxml_map_entry entry;
+        status = sxml_map_get_entry(request.map, entry_index, &entry);
+        sxml_item record = {.representation = 0};
+        if (status == SXML_STATUS_OK) {
+            status = sxml_sequence_get_item(
+                entry.value, (sxml_item_request){.item_index = 0, .error_record = NULL}, &record);
+        }
+        sxml_map_lookup number = {.is_found = false};
+        if (status == SXML_STATUS_OK) {
+            status = read_record_field(
+                (record_field_read){.call = call, .record = record, .field_name = "nr"}, &number);
+        }
+        sxml_item number_item = {.representation = 0};
+        if (status != SXML_STATUS_OK || !number.is_found ||
+            sxml_sequence_get_item(number.entry.value,
+                                   (sxml_item_request){.item_index = 0, .error_record = NULL},
+                                   &number_item) != SXML_STATUS_OK) {
+            continue;
+        }
+        sxml_atomic_datum datum;
+        if (sxml_atomic_item_get_datum(number_item, &datum) == SXML_STATUS_OK &&
+            datum.datum_kind == SXML_DATUM_KIND_INTEGER &&
+            datum.datum_details.integer == wanted.datum_details.integer) {
+            *found = (sxml_map_lookup){.is_found = true, .entry_index = entry_index, .entry = entry};
+            return SXML_STATUS_OK;
+        }
+    }
+    return status;
+}
+
+/* fn:regex-group($group as (xs:integer | xs:string)) as xs:string
+   (17.2.2): regex-groups()?$group?value, else "". */
+static sxml_status call_regex_group(const sxml_function_call *call, sxml_sequence *result) {
+    sxml_optional_item group = {.has_item = false};
+    sxml_status status = sxml_function_library_read_optional_item(call, 0, &group);
+    sxml_optional_item groups = {.has_item = false};
+    if (status == SXML_STATUS_OK) {
+        status = read_captured_groups(call, 1, &groups);
+    }
+    sxml_map_lookup entry = {.is_found = false};
+    if (status == SXML_STATUS_OK && group.has_item && groups.has_item) {
+        status = look_up_key((map_key_lookup){.map = groups.item, .key = group.item}, &entry);
+    }
+    if (status == SXML_STATUS_OK && !entry.is_found && group.has_item && groups.has_item) {
+        /* A named group by its number too, as XSLT 3.0 had it (QT4
+           analyze-string-406): the entry whose record has that nr. */
+        status = find_group_by_number(
+            (map_key_lookup){.map = groups.item, .key = group.item}, call, &entry);
+    }
+    sxml_map_lookup value = {.is_found = false};
+    if (status == SXML_STATUS_OK && entry.is_found) {
+        /* The fn:captured-group-record's value. */
+        sxml_item record = {.representation = 0};
+        status = sxml_sequence_get_item(
+            entry.entry.value, (sxml_item_request){.item_index = 0, .error_record = NULL},
+            &record);
+        if (status == SXML_STATUS_OK) {
+            status = read_record_field(
+                (record_field_read){.call = call, .record = record, .field_name = "value"},
+                &value);
+        }
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (value.is_found) {
+        sxml_sequence_retain(value.entry.value);
+        *result = value.entry.value;
+        return SXML_STATUS_OK;
+    }
+    return sxml_function_library_make_string(
+        call->item_heap, (sxml_byte_view){.bytes = NULL, .byte_count = 0}, result);
+}
+
+static const sxml_function_parameter regex_groups_parameters[] = {
+    {.parameter_name = SXML_BYTE_VIEW_INITIALIZER("regex-groups"),
+     .parameter_type = SXML_BYTE_VIEW_INITIALIZER("map(*)?"),
+     .parameter_default = SXML_PARAMETER_DEFAULT_CONTEXT_VARIABLE},
+};
+
+static const sxml_function_parameter regex_group_parameters[] = {
+    {.parameter_name = SXML_BYTE_VIEW_INITIALIZER("group"),
+     .parameter_type = SXML_BYTE_VIEW_INITIALIZER("(xs:integer | xs:string)"),
+     .parameter_default = SXML_PARAMETER_DEFAULT_REQUIRED},
+    {.parameter_name = SXML_BYTE_VIEW_INITIALIZER("regex-groups"),
+     .parameter_type = SXML_BYTE_VIEW_INITIALIZER("map(*)?"),
+     .parameter_default = SXML_PARAMETER_DEFAULT_CONTEXT_VARIABLE},
+};
+
 static const sxml_function_parameter current_parameters[] = {
     {.parameter_name = SXML_BYTE_VIEW_INITIALIZER("current-item"),
      .parameter_type = SXML_BYTE_VIEW_INITIALIZER("item()"),
@@ -811,6 +986,22 @@ static const sxml_native_function xslt_functions[] = {
      .parameters = {unparsed_entity_parameters, 2},
      .result_type = SXML_BYTE_VIEW_INITIALIZER("xs:string"),
      .call = call_unparsed_entity_public_id,
+     .resumable_body = NULL},
+    /* Context functions (glossary `context_function`): their values come
+       from the variable xsl:analyze-string puts in scope (D153). */
+    {.function_namespace = SXML_NAMESPACE_FUNCTIONS,
+     .properties = 0,
+     .local_name = SXML_BYTE_VIEW_INITIALIZER("regex-groups"),
+     .parameters = {regex_groups_parameters, 1},
+     .result_type = SXML_BYTE_VIEW_INITIALIZER("map(*)"),
+     .call = call_regex_groups,
+     .resumable_body = NULL},
+    {.function_namespace = SXML_NAMESPACE_FUNCTIONS,
+     .properties = 0,
+     .local_name = SXML_BYTE_VIEW_INITIALIZER("regex-group"),
+     .parameters = {regex_group_parameters, 2},
+     .result_type = SXML_BYTE_VIEW_INITIALIZER("xs:string"),
+     .call = call_regex_group,
      .resumable_body = NULL},
 };
 

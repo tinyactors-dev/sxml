@@ -765,6 +765,63 @@ static sxml_status lower_variable_reference(sxml_xpath_lowerer *state,
     return SXML_STATUS_OK;
 }
 
+/* A context variable (SXML_PARAMETER_DEFAULT_CONTEXT_VARIABLE, D153):
+   Q{XSLT}parameter_name when a variable of that name is in scope in the
+   current function or captured by it, else (), bound in block. */
+typedef struct context_variable_read {
+    sxml_byte_view parameter_name;
+    sxml_xpath_lowering_block *block;
+    sxml_ast_node_index node;
+} context_variable_read;
+
+static sxml_status read_context_variable(sxml_xpath_lowerer *state,
+                                         context_variable_read request,
+                                         sxml_ir_atom *atom) {
+    sxml_name_identifier name = {0};
+    sxml_status status = sxml_name_pool_intern_name(
+        state->name_pool,
+        &(sxml_name_request){.namespace_uri = sxml_well_known_namespace_identifier(
+                                 SXML_NAMESPACE_XSLT),
+                             .local_name = request.parameter_name},
+        &name);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    const sxml_xpath_lowering_function *function = state->function;
+    for (size_t entry_number = state->scope_entry_count; entry_number > 0;
+         entry_number -= 1) {
+        const sxml_xpath_lowering_scope_entry *entry =
+            &state->scope_entries[entry_number - 1];
+        if (entry->variable_name.index != name.index) {
+            continue;
+        }
+        if (entry->function_level == function->function_level) {
+            *atom = entry->atom;
+            return SXML_STATUS_OK;
+        }
+        /* An enclosing function's: only a captured one reaches here. */
+        for (size_t capture_index = 0; capture_index < function->capture_count;
+             capture_index += 1) {
+            if (function->captures[capture_index].variable_name.index ==
+                name.index) {
+                *atom = function->captures[capture_index].atom;
+                return SXML_STATUS_OK;
+            }
+        }
+        break;
+    }
+    sxml_ir_expression_index empty = {0};
+    status = sxml_xpath_lowerer_add_empty_sequence(state, request.node, &empty);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_xpath_lowerer_bind_expression(
+        state,
+        (sxml_xpath_lowering_expression_in_block){.block = request.block,
+                                                  .expression = empty},
+        atom);
+}
+
 /* ----------------------------------------------------------------- Focus */
 
 sxml_status
@@ -2123,11 +2180,18 @@ lower_named_function_reference(sxml_xpath_lowerer *state,
             SXML_PARAMETER_DEFAULT_CURRENT_ITEM;
     /* A reference to fn:current#0 captures nothing: called, it has no
        current item (XTDE1360, raised by the row). */
+    /* regex-group#1 keeps the current captured groups (XSLT 4.0, 17.2.2):
+       a context variable is captured as a context value is. */
+    const bool omits_context_variable =
+        arity < entry.parameters.function_parameter_count &&
+        entry.parameters.function_parameters[arity].parameter_default ==
+            SXML_PARAMETER_DEFAULT_CONTEXT_VARIABLE;
     const bool omits_context_value =
         !omits_current_item &&
         arity < entry.parameters.function_parameter_count &&
-        entry.parameters.function_parameters[arity].parameter_default ==
-            SXML_PARAMETER_DEFAULT_CONTEXT_VALUE;
+        (entry.parameters.function_parameters[arity].parameter_default ==
+             SXML_PARAMETER_DEFAULT_CONTEXT_VALUE ||
+         omits_context_variable);
     if (!reads_position_or_size && !omits_context_value) {
         return sxml_xpath_lowerer_add_expression(
             state,
@@ -2171,7 +2235,16 @@ lower_named_function_reference(sxml_xpath_lowerer *state,
             status = SXML_STATUS_INVALID_ARGUMENT;
         }
         sxml_ir_atom value = {0};
-        if (status == SXML_STATUS_OK) {
+        if (status == SXML_STATUS_OK && omits_context_variable) {
+            status = read_context_variable(
+                state,
+                (context_variable_read){
+                    .parameter_name =
+                        entry.parameters.function_parameters[arity].parameter_name,
+                    .block = request.block,
+                    .node = node},
+                &value);
+        } else if (status == SXML_STATUS_OK) {
             status = sxml_xpath_lowerer_read_focus(
                 state,
                 (sxml_xpath_lowering_focus_read){
@@ -5403,7 +5476,9 @@ static sxml_status begin_function_call(sxml_xpath_lowering_machine *machine,
            (entry.parameters.function_parameters[needed_arity].parameter_default ==
                 SXML_PARAMETER_DEFAULT_CONTEXT_VALUE ||
             entry.parameters.function_parameters[needed_arity].parameter_default ==
-                SXML_PARAMETER_DEFAULT_CURRENT_ITEM)) {
+                SXML_PARAMETER_DEFAULT_CURRENT_ITEM ||
+            entry.parameters.function_parameters[needed_arity].parameter_default ==
+                SXML_PARAMETER_DEFAULT_CONTEXT_VARIABLE)) {
         needed_arity += 1;
     }
     if (needed_arity != arity &&
@@ -5525,7 +5600,16 @@ static sxml_status finish_function_call(sxml_xpath_lowering_machine *machine,
                 ? entry->parameters.function_parameters[argument_index]
                       .parameter_default
                 : SXML_PARAMETER_DEFAULT_REQUIRED;
-        if (parameter_default == SXML_PARAMETER_DEFAULT_CONTEXT_VALUE ||
+        if (parameter_default == SXML_PARAMETER_DEFAULT_CONTEXT_VARIABLE) {
+            status = read_context_variable(
+                state,
+                (context_variable_read){
+                    .parameter_name =
+                        entry->parameters.function_parameters[argument_index].parameter_name,
+                    .block = locals->request.preparation_block,
+                    .node = call_node},
+                &locals->arguments[argument_index].atom);
+        } else if (parameter_default == SXML_PARAMETER_DEFAULT_CONTEXT_VALUE ||
             parameter_default == SXML_PARAMETER_DEFAULT_CURRENT_ITEM) {
             status = sxml_xpath_lowerer_read_focus(
                 state,
