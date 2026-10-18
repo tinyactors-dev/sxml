@@ -815,6 +815,13 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `content_model_counter` | A counter of a content model that counts the repetitions of one particle between its minimum and maximum occurrences, instead of a copy of states per repetition |
 | `content_model_cursor` | Where matching an element's children has reached in its content model: a state and the counter values |
 | `expected_term` | A term a content model cursor would accept next, for error messages ("expected 'shipTo'") |
+| `content_model_position` | One occurrence of an element or wildcard particle in the particle tree as a content model compiles it (small repetitions expanded into copies): a state of the Glushkov automaton before determinization |
+| `content_model_transition` | A move of a content model state on an element declaration (with its substitutable members) or a schema wildcard, with counter tests and counter operations |
+| `counter_test` | A condition of a content model transition or final state: a content model counter's value lies in a range |
+| `counter_operation` | What a content model transition does to a counter: set it to one (entering the counted particle) or add one (repeating it) |
+| `suffix_state` | The content model state that suffix open content moves to once the content may end: it accepts only the open content wildcard |
+| `default_binding` | What an element or attribute is bound to when it is valid: a declaration, an attribute use, or strict, lax or skip; restriction compares them (XSD 1.1 Part 1, 3.4.6.4) |
+| `scratch_array` | A growable array of fixed-size entries in allocator memory for the work lists of a compile stage |
 | `recorded_subtree` | The validated copy of an element and its descendants that the schema validator keeps while the element is open, for the XPath of assertions and identity constraints |
 | `id_table` | The IDs and IDREFs a schema validator has met under one validation root, checked at its end (cvc-id) |
 | `schema_element_role` | The part an element of a schema document plays where it appears (a global or a local element declaration, a group reference, a facet, ...): it decides the element's attributes, its children and the component it is read into (`src/schema_read.c`, D170) |
