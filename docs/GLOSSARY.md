@@ -345,6 +345,17 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `xslt_test_environment` | The environment of an XSLT 4.0 test case: what a QT4 environment holds, plus inline source documents, stylesheets, packages, static parameters and an output element |
 | `xslt_test_plan` | What the transformation of one XSLT 4.0 test case needs, read from the catalog alone: principal module, secondary modules, static and stylesheet parameters, global context item, invocation kind, result delivery |
 | `test_set_group` | The directory under `tests/` of the XSLT 4.0 suite that holds a test set (`attr`, `decl`, `expr`, `fn`, `insn`, `misc`, `strm`, `type`, `sandp`); D95 leaves `strm` and `sandp` out of scope |
+| `test_catalog` | Any conformance driver's catalog as the test selection walks it: named test sets, one open at a time, each with named test cases (an interface over the QT4, XSLT 4.0 and XSD 1.1 catalogs; `tests/qt4/driver/selection.h`) |
+| `test_budget` | The allocator of one conformance test: passes allocations on, counts live allocations and bytes, refuses any past the byte limit, and turns a leak into an error outcome (`tests/qt4/driver/budget.h`) |
+| `xsd_test_driver` | The XSD 1.1 test-suite driver: the developer tool `sxml-xsd-test` under `tests/xsd/driver/`, a sibling of the QT4 and XSLT drivers that links the QT4 driver's library (packet 5.3) |
+| `xsd_test_catalog` | The W3C XSD test suite's `suite.xml` (`third_party/xsdtests/`) as the driver holds it: its test-set references and one open test set |
+| `xsd_test_set` | One `testSet` file of the XSD test suite, named in reports by its directory without `Meta` and its file name without extension (`saxon-Assert`, `ms-DataTypes_w3c`); the directory is its contributor area |
+| `test_group` | A `testGroup` of an XSD test set: at most one schema test and the instance tests validated against that test's schema (or the built-in components alone when there is none) |
+| `schema_test` | An XSD test that compiles the schema documents it names into one schema: valid means it compiles |
+| `instance_test` | An XSD test that validates an instance document against its test group's schema: valid means the validation root is valid |
+| `xsd_test_case` | A schema test or an instance test of an XSD test set, named `GROUP/TEST` in test lists and reports |
+| `version_token` | A token of an XSD test suite `version` attribute (`1.1`, `XML-1.0-5e`, `full-xpath-in-CTA`): a test set, group or test applies when, for each token class it names, it names a token the driver supports; an `expected` applies when the driver supports all its tokens |
+| `expected_validity` | The outcome an XSD test prescribes: `valid` or `invalid` are in scope; `notKnown`, `indeterminate`, `runtime-schema-error` and the implementation-defined values are not |
 | `name_pool` | Per-processor table that interns namespace URIs, prefixes and expanded names into small identifiers |
 | `name_identifier` | Identifier of an interned expanded name (namespace URI plus local name) in a name pool |
 | `namespace_uri_identifier` | Identifier of an interned namespace URI; 0 is "no namespace" |
