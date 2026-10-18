@@ -1,0 +1,29 @@
+one-basic a/a.xsd
+  schema test oneData/a.xsd
+  version 1.1 / - / -
+  status accepted
+  expected valid
+one-basic a/a.v.xml
+  instance test oneData/a.v.xml
+  schema oneData/a.xsd
+  version 1.1 / - / -
+  status accepted
+  expected valid
+one-basic a/a.n.xml
+  instance test oneData/a.n.xml
+  schema oneData/a.xsd
+  version 1.1 / - / -
+  status stable
+  expected invalid
+one-basic b/b
+  schema test oneData/b1.xsd oneData/b2.xsd
+  version 1.1 / - / -
+  status -
+  expected invalid
+one-basic built-in/plain
+  instance test oneData/a.v.xml
+  schema built-in components
+  version 1.1 / - / -
+  status -
+  expected invalid
+5 test cases: 5 applicable, 0 skipped; 5 in scope

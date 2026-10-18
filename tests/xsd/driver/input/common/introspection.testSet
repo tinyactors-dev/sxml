@@ -1,0 +1,8 @@
+<ts:testSet xmlns:ts="http://www.w3.org/XML/2004/xml-schema-test-suite/" xmlns:xlink="http://www.w3.org/1999/xlink" name="introspection" contributor="auto-generated">
+  <ts:testGroup name="introspection">
+    <ts:instanceTest name="introspect-basic">
+      <ts:instanceDocument xlink:href="../oneMeta/basic.testSet"/>
+      <ts:expected validity="valid"/>
+    </ts:instanceTest>
+  </ts:testGroup>
+</ts:testSet>

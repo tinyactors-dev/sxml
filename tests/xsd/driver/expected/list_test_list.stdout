@@ -1,0 +1,20 @@
+one-basic a/a.n.xml
+  instance test oneData/a.n.xml
+  schema oneData/a.xsd
+  version 1.1 / - / -
+  status stable
+  expected invalid
+one-versions both/cta
+  instance test oneData/a.v.xml
+  schema oneData/a.xsd
+  version - / 1.0 1.1 / -
+  status -
+  expected invalid (restricted-xpath-in-CTA)
+  expected valid (full-xpath-in-CTA)
+one-basic built-in/plain
+  instance test oneData/a.v.xml
+  schema built-in components
+  version 1.1 / - / -
+  status -
+  expected invalid
+3 test cases: 3 applicable, 0 skipped; 3 in scope

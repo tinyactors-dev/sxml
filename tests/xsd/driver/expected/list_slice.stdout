@@ -1,0 +1,774 @@
+nist-NISTXMLSchemaDatatypes atomic-decimal-minExclusive/NISTSchema-SV-IV-atomic-decimal-minExclusive-1
+  schema test nistData/atomic/decimal/Schema+Instance/NISTSchema-SV-IV-atomic-decimal-minExclusive-1.xsd
+  version - / - / -
+  status accepted
+  expected valid
+nist-NISTXMLSchemaDatatypes atomic-negativeInteger-minInclusive-2/NISTXML-SV-IV-atomic-negativeInteger-minInclusive-3-1
+  instance test nistData/atomic/negativeInteger/Schema+Instance/NISTXML-SV-IV-atomic-negativeInteger-minInclusive-3-1.xml
+  schema nistData/atomic/negativeInteger/Schema+Instance/NISTSchema-SV-IV-atomic-negativeInteger-minInclusive-3.xsd
+  version - / - / -
+  status accepted
+  expected valid
+nist-NISTXMLSchemaDatatypes atomic-short-maxInclusive-4/NISTXML-SV-IV-atomic-short-maxInclusive-5-4
+  instance test nistData/atomic/short/Schema+Instance/NISTXML-SV-IV-atomic-short-maxInclusive-5-4.xml
+  schema nistData/atomic/short/Schema+Instance/NISTSchema-SV-IV-atomic-short-maxInclusive-5.xsd
+  version - / - / -
+  status accepted
+  expected valid
+nist-NISTXMLSchemaDatatypes atomic-unsignedLong-enumeration-1/NISTXML-SV-IV-atomic-unsignedLong-enumeration-2-2
+  instance test nistData/atomic/unsignedLong/Schema+Instance/NISTXML-SV-IV-atomic-unsignedLong-enumeration-2-2.xml
+  schema nistData/atomic/unsignedLong/Schema+Instance/NISTSchema-SV-IV-atomic-unsignedLong-enumeration-2.xsd
+  version - / - / -
+  status accepted
+  expected valid
+nist-NISTXMLSchemaDatatypes atomic-positiveInteger-minInclusive-3/NISTXML-SV-IV-atomic-positiveInteger-minInclusive-4-3
+  instance test nistData/atomic/positiveInteger/Schema+Instance/NISTXML-SV-IV-atomic-positiveInteger-minInclusive-4-3.xml
+  schema nistData/atomic/positiveInteger/Schema+Instance/NISTSchema-SV-IV-atomic-positiveInteger-minInclusive-4.xsd
+  version - / - / -
+  status accepted
+  expected valid
+nist-NISTXMLSchemaDatatypes atomic-time-minInclusive/NISTXML-SV-IV-atomic-time-minInclusive-1-5
+  instance test nistData/atomic/time/Schema+Instance/NISTXML-SV-IV-atomic-time-minInclusive-1-5.xml
+  schema nistData/atomic/time/Schema+Instance/NISTSchema-SV-IV-atomic-time-minInclusive-1.xsd
+  version - / - / -
+  status accepted
+  expected valid
+nist-NISTXMLSchemaDatatypes atomic-gMonthDay-minInclusive-1/NISTSchema-SV-IV-atomic-gMonthDay-minInclusive-2
+  schema test nistData/atomic/gMonthDay/Schema+Instance/NISTSchema-SV-IV-atomic-gMonthDay-minInclusive-2.xsd
+  version - / - / -
+  status accepted
+  expected valid
+nist-NISTXMLSchemaDatatypes atomic-normalizedString-minLength-2/NISTXML-SV-IV-atomic-normalizedString-minLength-3-2
+  instance test nistData/atomic/normalizedString/Schema+Instance/NISTXML-SV-IV-atomic-normalizedString-minLength-3-2.xml
+  schema nistData/atomic/normalizedString/Schema+Instance/NISTSchema-SV-IV-atomic-normalizedString-minLength-3.xsd
+  version - / - / -
+  status accepted
+  expected valid
+nist-NISTXMLSchemaDatatypes atomic-NCName-pattern/NISTXML-SV-IV-atomic-NCName-pattern-1-5
+  instance test nistData/atomic/NCName/Schema+Instance/NISTXML-SV-IV-atomic-NCName-pattern-1-5.xml
+  schema nistData/atomic/NCName/Schema+Instance/NISTSchema-SV-IV-atomic-NCName-pattern-1.xsd
+  version - / - / -
+  status accepted
+  expected valid
+nist-NISTXMLSchemaDatatypes atomic-QName-whiteSpace/NISTXML-SV-IV-atomic-QName-whiteSpace-1-3
+  instance test nistData/atomic/QName/Schema+Instance/NISTXML-SV-IV-atomic-QName-whiteSpace-1-3.xml
+  schema nistData/atomic/QName/Schema+Instance/NISTSchema-SV-IV-atomic-QName-whiteSpace-1.xsd
+  version - / - / -
+  status accepted
+  expected valid
+nist-NISTXMLSchemaDatatypes atomic-integer-totalDigits-6/NISTSchema-SV-II-atomic-integer-totalDigits-2
+  schema test nistData/atomic/integer/Schema+Instance/NISTSchema-SV-II-atomic-integer-totalDigits-2.xsd
+  version - / - / -
+  status accepted
+  expected valid
+nist-NISTXMLSchemaDatatypes atomic-unsignedLong-maxInclusive-8/NISTXML-SV-II-atomic-unsignedLong-maxInclusive-4-4
+  instance test nistData/atomic/unsignedLong/Schema+Instance/NISTXML-SV-II-atomic-unsignedLong-maxInclusive-4-4.xml
+  schema nistData/atomic/unsignedLong/Schema+Instance/NISTSchema-SV-II-atomic-unsignedLong-maxInclusive-4.xsd
+  version - / - / -
+  status accepted
+  expected invalid
+nist-NISTXMLSchemaDatatypes atomic-gYear-minInclusive-6/NISTXML-SV-II-atomic-gYear-minInclusive-3-1
+  instance test nistData/atomic/gYear/Schema+Instance/NISTXML-SV-II-atomic-gYear-minInclusive-3-1.xml
+  schema nistData/atomic/gYear/Schema+Instance/NISTSchema-SV-II-atomic-gYear-minInclusive-3.xsd
+  version - / - / -
+  status accepted
+  expected invalid
+nist-NISTXMLSchemaDatatypes atomic-long-minExclusive-7/NISTXML-SV-II-atomic-long-minExclusive-3-3
+  instance test nistData/atomic/long/Schema+Instance/NISTXML-SV-II-atomic-long-minExclusive-3-3.xml
+  schema nistData/atomic/long/Schema+Instance/NISTSchema-SV-II-atomic-long-minExclusive-3.xsd
+  version - / - / -
+  status accepted
+  expected invalid
+nist-NISTXMLSchemaDatatypes atomic-unsignedInt-minExclusive-9/NISTSchema-SV-II-atomic-unsignedInt-minExclusive-5
+  schema test nistData/atomic/unsignedInt/Schema+Instance/NISTSchema-SV-II-atomic-unsignedInt-minExclusive-5.xsd
+  version - / - / -
+  status accepted
+  expected valid
+nist-NISTXMLSchemaDatatypes atomic-time-maxExclusive-5/NISTXML-SV-II-atomic-time-maxExclusive-1-4
+  instance test nistData/atomic/time/Schema+Instance/NISTXML-SV-II-atomic-time-maxExclusive-1-4.xml
+  schema nistData/atomic/time/Schema+Instance/NISTSchema-SV-II-atomic-time-maxExclusive-1.xsd
+  version - / - / -
+  status accepted
+  expected invalid
+nist-NISTXMLSchemaDatatypes atomic-gMonth-maxExclusive-7/NISTXML-SV-II-atomic-gMonth-maxExclusive-3-5
+  instance test nistData/atomic/gMonth/Schema+Instance/NISTXML-SV-II-atomic-gMonth-maxExclusive-3-5.xml
+  schema nistData/atomic/gMonth/Schema+Instance/NISTSchema-SV-II-atomic-gMonth-maxExclusive-3.xsd
+  version - / - / -
+  status accepted
+  expected invalid
+nist-NISTXMLSchemaDatatypes atomic-ID-length-7/NISTXML-SV-II-atomic-ID-length-3-1
+  instance test nistData/atomic/ID/Schema+Instance/NISTXML-SV-II-atomic-ID-length-3-1.xml
+  schema nistData/atomic/ID/Schema+Instance/NISTSchema-SV-II-atomic-ID-length-3.xsd
+  version - / - / -
+  status accepted
+  expected invalid
+nist-NISTXMLSchemaDatatypes list-nonPositiveInteger-pattern-4/NISTXML-SV-IV-list-nonPositiveInteger-pattern-5-4
+  instance test nistData/list/nonPositiveInteger/Schema+Instance/NISTXML-SV-IV-list-nonPositiveInteger-pattern-5-4.xml
+  schema nistData/list/nonPositiveInteger/Schema+Instance/NISTSchema-SV-IV-list-nonPositiveInteger-pattern-5.xsd
+  version - / - / -
+  status accepted
+  expected valid
+nist-NISTXMLSchemaDatatypes list-byte-maxLength-3/NISTXML-SV-IV-list-byte-maxLength-4-1
+  instance test nistData/list/byte/Schema+Instance/NISTXML-SV-IV-list-byte-maxLength-4-1.xml
+  schema nistData/list/byte/Schema+Instance/NISTSchema-SV-IV-list-byte-maxLength-4.xsd
+  version - / - / -
+  status accepted
+  expected valid
+nist-NISTXMLSchemaDatatypes list-unsignedShort-length-2/NISTXML-SV-IV-list-unsignedShort-length-3-5
+  instance test nistData/list/unsignedShort/Schema+Instance/NISTXML-SV-IV-list-unsignedShort-length-3-5.xml
+  schema nistData/list/unsignedShort/Schema+Instance/NISTSchema-SV-IV-list-unsignedShort-length-3.xsd
+  version - / - / -
+  status accepted
+  expected valid
+nist-NISTXMLSchemaDatatypes list-float-enumeration-2/NISTXML-SV-IV-list-float-enumeration-3-2
+  instance test nistData/list/float/Schema+Instance/NISTXML-SV-IV-list-float-enumeration-3-2.xml
+  schema nistData/list/float/Schema+Instance/NISTSchema-SV-IV-list-float-enumeration-3.xsd
+  version - / - / -
+  status accepted
+  expected valid
+nist-NISTXMLSchemaDatatypes list-gYearMonth-minLength-1/NISTSchema-SV-IV-list-gYearMonth-minLength-2
+  schema test nistData/list/gYearMonth/Schema+Instance/NISTSchema-SV-IV-list-gYearMonth-minLength-2.xsd
+  version - / - / -
+  status accepted
+  expected valid
+nist-NISTXMLSchemaDatatypes list-gMonth-pattern/NISTXML-SV-IV-list-gMonth-pattern-1-3
+  instance test nistData/list/gMonth/Schema+Instance/NISTXML-SV-IV-list-gMonth-pattern-1-3.xml
+  schema nistData/list/gMonth/Schema+Instance/NISTSchema-SV-IV-list-gMonth-pattern-1.xsd
+  version - / - / -
+  status accepted
+  expected valid
+nist-NISTXMLSchemaDatatypes list-Name-whiteSpace/NISTXML-SV-IV-list-Name-whiteSpace-1-1
+  instance test nistData/list/Name/Schema+Instance/NISTXML-SV-IV-list-Name-whiteSpace-1-1.xml
+  schema nistData/list/Name/Schema+Instance/NISTSchema-SV-IV-list-Name-whiteSpace-1.xsd
+  version - / - / -
+  status accepted
+  expected valid
+nist-NISTXMLSchemaDatatypes list-language-minLength-3/NISTXML-SV-IV-list-language-minLength-4-4
+  instance test nistData/list/language/Schema+Instance/NISTXML-SV-IV-list-language-minLength-4-4.xml
+  schema nistData/list/language/Schema+Instance/NISTSchema-SV-IV-list-language-minLength-4.xsd
+  version - / - / -
+  status accepted
+  expected valid
+nist-NISTXMLSchemaDatatypes list-base64Binary-enumeration-3/NISTXML-SV-IV-list-base64Binary-enumeration-4-2
+  instance test nistData/list/base64Binary/Schema+Instance/NISTXML-SV-IV-list-base64Binary-enumeration-4-2.xml
+  schema nistData/list/base64Binary/Schema+Instance/NISTSchema-SV-IV-list-base64Binary-enumeration-4.xsd
+  version - / - / -
+  status accepted
+  expected valid
+nist-NISTXMLSchemaDatatypes list-negativeInteger-minLength-9/NISTXML-SV-II-list-negativeInteger-minLength-5-5
+  instance test nistData/list/negativeInteger/Schema+Instance/NISTXML-SV-II-list-negativeInteger-minLength-5-5.xml
+  schema nistData/list/negativeInteger/Schema+Instance/NISTSchema-SV-II-list-negativeInteger-minLength-5.xsd
+  version - / - / -
+  status accepted
+  expected invalid
+nist-NISTXMLSchemaDatatypes list-byte-enumeration-8/NISTXML-SV-II-list-byte-enumeration-4-3
+  instance test nistData/list/byte/Schema+Instance/NISTXML-SV-II-list-byte-enumeration-4-3.xml
+  schema nistData/list/byte/Schema+Instance/NISTSchema-SV-II-list-byte-enumeration-4.xsd
+  version - / - / -
+  status accepted
+  expected invalid
+nist-NISTXMLSchemaDatatypes list-unsignedByte-length-7/NISTSchema-SV-II-list-unsignedByte-length-3
+  schema test nistData/list/unsignedByte/Schema+Instance/NISTSchema-SV-II-list-unsignedByte-length-3.xsd
+  version - / - / -
+  status accepted
+  expected valid
+nist-NISTXMLSchemaDatatypes list-dateTime-maxLength-5/NISTXML-SV-II-list-dateTime-maxLength-1-4
+  instance test nistData/list/dateTime/Schema+Instance/NISTXML-SV-II-list-dateTime-maxLength-1-4.xml
+  schema nistData/list/dateTime/Schema+Instance/NISTSchema-SV-II-list-dateTime-maxLength-1.xsd
+  version - / - / -
+  status accepted
+  expected invalid
+nist-NISTXMLSchemaDatatypes list-gYear-length-9/NISTXML-SV-II-list-gYear-length-5-1
+  instance test nistData/list/gYear/Schema+Instance/NISTXML-SV-II-list-gYear-length-5-1.xml
+  schema nistData/list/gYear/Schema+Instance/NISTSchema-SV-II-list-gYear-length-5.xsd
+  version - / - / -
+  status accepted
+  expected invalid
+nist-NISTXMLSchemaDatatypes list-string-maxLength-7/NISTXML-SV-II-list-string-maxLength-3-5
+  instance test nistData/list/string/Schema+Instance/NISTXML-SV-II-list-string-maxLength-3-5.xml
+  schema nistData/list/string/Schema+Instance/NISTSchema-SV-II-list-string-maxLength-3.xsd
+  version - / - / -
+  status accepted
+  expected invalid
+nist-NISTXMLSchemaDatatypes list-ID-length-6/NISTXML-SV-II-list-ID-length-2-2
+  instance test nistData/list/ID/Schema+Instance/NISTXML-SV-II-list-ID-length-2-2.xml
+  schema nistData/list/ID/Schema+Instance/NISTSchema-SV-II-list-ID-length-2.xsd
+  version - / - / -
+  status accepted
+  expected invalid
+sun-suntest test001/test
+  schema test sunData/combined/001/test.xsd
+  version - / - / -
+  status accepted
+  expected valid
+sun-AGroupDef ag_attrusens00101m1_p/AG_attrUseNS00101m1_p
+  schema test sunData/AGroupDef/AG_attrUse/AG_attrUseNS00101m/AG_attrUseNS00101m1_p.xsd
+  version - / - / -
+  status accepted
+  expected valid
+sun-AttrDecl ad_annotation00101m1/AD_annotation00101m1
+  schema test sunData/AttrDecl/AD_annotation/AD_annotation00101m/AD_annotation00101m1.xsd
+  version - / - / -
+  status accepted
+  expected valid
+sun-AttrUse au_attrdecl00101m1_p/AU_attrDecl00101m1_p
+  schema test sunData/AttrUse/AU_attrDecl/AU_attrDecl00101m/AU_attrDecl00101m1_p.xsd
+  version - / - / -
+  status accepted
+  expected valid
+sun-CType abstract00101m1/abstract00101m1
+  schema test sunData/CType/abstract/abstract00101m/abstract00101m1.xsd
+  version - / - / -
+  status accepted
+  expected valid
+sun-ElemDecl abstract00101m/abstract00101m
+  schema test sunData/ElemDecl/abstract/abstract00101m/abstract00101m.xsd
+  version - / - / -
+  status accepted
+  expected valid
+sun-ElemDecl substgrpexcl00303m1/substGrpExcl00303m1
+  schema test sunData/ElemDecl/substGroupExclusions/substGrpExcl00303m/substGrpExcl00303m1.xsd
+  version - / - / -
+  status accepted
+  expected valid
+sun-IdConstrDefs annotation00101m1/annotation00101m1
+  schema test sunData/IdConstrDefs/annotation/annotation00101m/annotation00101m1.xsd
+  version - / - / -
+  status accepted
+  expected valid
+sun-MGroup annotation00101m1/annotation00101m1
+  schema test sunData/MGroup/annotation/annotation00101m/annotation00101m1.xsd
+  version - / - / -
+  status accepted
+  expected valid
+sun-MGroupDef annotation00101m1/annotation00101m1
+  schema test sunData/MGroupDef/annotation/annotation00101m/annotation00101m1.xsd
+  version - / - / -
+  status accepted
+  expected valid
+sun-Notation annotation00101m1/annotation00101m1
+  schema test sunData/Notation/annotation/annotation00101m/annotation00101m1.xsd
+  version - / - / -
+  status accepted
+  expected valid
+sun-SType st_annotation00101m1/ST_annotation00101m1
+  schema test sunData/SType/ST_annotation/ST_annotation00101m/ST_annotation00101m1.xsd
+  version - / - / -
+  status accepted
+  expected valid
+sun-Schema annotations00101m1/annotations00101m1
+  schema test sunData/Schema/annotations/annotations00101m/annotations00101m1.xsd
+  version - / - / -
+  status accepted
+  expected valid
+sun-Wildcard annotation00101m1/annotation00101m1
+  schema test sunData/Wildcard/annotation/annotation00101m/annotation00101m1.xsd
+  version - / - / -
+  status accepted
+  expected valid
+ms-Additional_w3c addA001/addA001
+  schema test msData/additional/adhocAddA001v.xsd
+  version - / - / -
+  status accepted
+  expected valid
+ms-Additional_w3c addB157/addB157.v
+  instance test msData/additional/test93490_3.xml
+  schema built-in components
+  version - / - / -
+  status accepted
+  expected valid
+ms-Annotations_w3c annotA001/annotA001
+  schema test msData/annotations/annotA001.xsd
+  version - / - / -
+  status accepted
+  expected valid
+ms-AttributeGroup_w3c attgA001/attgA001
+  schema test msData/attributeGroup/attgA001.xsd
+  version - / - / -
+  status accepted
+  expected valid
+ms-Attribute_w3c attA001/attA001
+  schema test msData/attribute/attA001.xsd
+  version - / - / -
+  status accepted
+  expected invalid
+ms-Attribute_w3c attO009/attO009.v
+  instance test msData/attribute/attO009.xml
+  schema msData/attribute/attO009.xsd
+  version - / - / -
+  status accepted
+  expected valid
+ms-ComplexType_w3c ctA001/ctA001
+  schema test msData/complexType/ctA001.xsd
+  version - / - / -
+  status accepted
+  expected valid
+ms-ComplexType_w3c ctG022/ctG022
+  schema test msData/complexType/ctG022.xsd
+  version - / - / -
+  status accepted
+  expected valid
+ms-DataTypes_w3c string_length001_0/string_length001_0
+  schema test msData/datatypes/Facets/Schemas/string_length001.xsd
+  version - / - / -
+  status accepted
+  expected invalid
+ms-DataTypes_w3c integer_fractionDigits008_571/integer_fractionDigits008_571
+  schema test msData/datatypes/Facets/Schemas/integer_fractionDigits008.xsd
+  version - / - / -
+  status accepted
+  expected invalid
+ms-DataTypes_w3c float_minExclusive005_1081/float_minExclusive005_1081.v
+  instance test msData/datatypes/Facets/float/float_minExclusive005.xml
+  schema msData/datatypes/Facets/float/float_minExclusive005.xsd
+  version - / - / -
+  status accepted
+  expected valid
+ms-DataTypes_w3c NOTATION_enumeration002_1384/NOTATION_enumeration002_1384.v
+  instance test msData/datatypes/Facets/NOTATION/NOTATION_enumeration002.xml
+  schema msData/datatypes/Facets/NOTATION/NOTATION_enumeration002.xsd
+  version - / - / -
+  status accepted
+  expected valid
+ms-DataTypes_w3c short_minInclusive004_1672/short_minInclusive004_1672
+  schema test msData/datatypes/Facets/short/short_minInclusive004.xsd
+  version - / - / -
+  status accepted
+  expected valid
+ms-DataTypes_w3c double021_1959/double021_1959
+  schema test msData/datatypes/double.xsd
+  version - / - / -
+  status accepted
+  expected valid
+ms-Element_w3c elemA001/elemA001
+  schema test msData/element/elemA001.xsd
+  version - / - / -
+  status accepted
+  expected invalid
+ms-Element_w3c elemT018/elemT018.i
+  instance test msData/element/elemT018.xml
+  schema msData/element/elemT018.xsd
+  version - / - / -
+  status accepted
+  expected invalid
+ms-Errata10_w3c errA001/errA001
+  schema test msData/errata10/errA001.xsd
+  version - / - / -
+  status accepted
+  expected valid
+ms-Group_w3c groupA001/groupA001
+  schema test msData/group/groupA001.xsd
+  version - / - / -
+  status accepted
+  expected valid
+ms-IdentityConstraint_w3c idA001/idA001
+  schema test msData/identityConstraint/idA001.xsd
+  version - / - / -
+  status accepted
+  expected valid
+ms-IdentityConstraint_w3c idG019/idG019
+  schema test msData/identityConstraint/idG019.xsd
+  version - / - / -
+  status accepted
+  expected valid
+ms-IdentityConstraint_w3c idJ122/idJ122
+  schema test msData/identityConstraint/idJ122.xsd
+  version - / - / -
+  status accepted
+  expected valid
+ms-ModelGroups_w3c mgA001/mgA001
+  schema test msData/modelGroups/mgA001.xsd
+  version - / - / -
+  status accepted
+  expected valid
+ms-ModelGroups_w3c mgI017/mgI017
+  schema test msData/modelGroups/mgI017.xsd
+  version - / - / -
+  status accepted
+  expected valid
+ms-Notations_w3c notatA001/notatA001
+  schema test msData/notations/notatA001.xsd
+  version - / - / -
+  status accepted
+  expected valid
+ms-Particles_w3c particlesA001/particlesA001
+  schema test msData/particles/particlesA001.xsd
+  version - / - / -
+  status accepted
+  expected valid
+ms-Particles_w3c particlesHa015/particlesHa015
+  schema test msData/particles/particlesHa015.xsd
+  version - / - / -
+  status accepted
+  expected valid
+ms-Particles_w3c particlesJn010/particlesJn010
+  schema test msData/particles/particlesJn010.xsd
+  version - / - / -
+  status accepted
+  expected valid
+ms-Regex_w3c reA1/reA1
+  schema test msData/regex/reA1.xsd
+  version - / - / -
+  status accepted
+  expected valid
+ms-Regex_w3c reH9/reH9.v
+  instance test msData/regex/reH9.xml
+  schema msData/regex/reH9.xsd
+  version - / - / -
+  status accepted
+  expected valid
+ms-Regex_w3c reL62/reL62.v
+  instance test msData/regex/reL62.xml
+  schema msData/regex/reL62.xsd
+  version - / - / -
+  status accepted
+  expected valid
+ms-Regex_w3c reR18/reR18
+  schema test msData/regex/reR18.xsd
+  version - / - / -
+  status accepted
+  expected valid
+ms-Regex_w3c reDI1/reDI1.v
+  instance test msData/regex/reDI1.xml
+  schema msData/regex/reDI1.xsd
+  version - / - / -
+  status accepted
+  expected valid
+ms-Regex_w3c RegexTest_532/RegexTest_532.i
+  instance test msData/regex/RegexTest_532.xml
+  schema msData/regex/RegexTest_532.xsd
+  version - / - / -
+  status accepted
+  expected invalid
+ms-Regex_w3c RegexTest_1129/RegexTest_1129
+  schema test msData/regex/RegexTest_1129.xsd
+  version - / - / -
+  status accepted
+  expected valid
+ms-Schema_w3c schA1/schA1
+  schema test msData/schema/schA1_a.xsd
+  version - / - / -
+  status accepted
+  expected valid
+ms-SimpleType_w3c stA001/stA001
+  schema test msData/simpleType/stA001.xsd
+  version - / - / -
+  status accepted
+  expected valid
+ms-SimpleType_w3c stF008/stF008
+  schema test msData/simpleType/stF008.xsd
+  version - / - / -
+  status accepted
+  expected invalid
+ms-Wildcards_w3c wildA001/wildA001
+  schema test msData/wildcards/wildA001.xsd
+  version - / - / -
+  status accepted
+  expected valid
+ms-Wildcards_w3c wildI008/wildI008
+  schema test msData/wildcards/wildI008.xsd
+  version - / - / -
+  status accepted
+  expected valid
+boeing-BoeingXSDTestSet ipo1/ipo1
+  schema test boeingData/ipo1/ipo.xsd
+  version - / - / -
+  status -
+  expected valid
+saxon-All all001/all001.xsd
+  schema test saxonData/All/all001.xsd
+  version 1.1 / 1.1 / -
+  status accepted
+  expected valid
+saxon-Assert assert001/assert001.xsd
+  schema test saxonData/Assert/assert001.xsd
+  version 1.1 / 1.1 / -
+  status accepted
+  expected valid
+saxon-Complex complex001/complex001.xsd
+  schema test saxonData/Complex/complex001.bad.xsd
+  version - / 1.1 / -
+  status accepted
+  expected invalid
+saxon-CTA cta0001/cta0001
+  schema test saxonData/CTA/cta0001.xsd
+  version 1.1 / - / -
+  status accepted
+  expected valid
+saxon-Id id001/id001.xsd
+  schema test saxonData/Id/id001.xsd
+  version 1.1 / 1.1 / -
+  status accepted
+  expected valid
+saxon-Open open001/open001.xsd
+  schema test saxonData/Open/open001.xsd
+  version 1.1 / 1.1 / -
+  status accepted
+  expected valid
+saxon-Override over001/over001.xsd
+  schema test saxonData/Override/over001.xsd
+  version 1.1 / 1.1 / -
+  status accepted
+  expected valid
+saxon-Simple simple001/simple001.xsd
+  schema test saxonData/Simple/simple001.xsd
+  version 1.1 / - / -
+  status accepted
+  expected valid
+saxon-Subsgroup subsgroup001/subsgroup001.xsd
+  schema test saxonData/Subsgroup/subsgroup001.xsd
+  version 1.1 / 1.1 / -
+  status accepted
+  expected valid
+saxon-TargetNS target001/target001.xsd
+  schema test saxonData/TargetNS/target001.xsd
+  version 1.1 / - / -
+  status accepted
+  expected valid
+saxon-VC vc001/vc001.xsd
+  schema test saxonData/VC/vc001.xsd
+  version 1.0 1.1 / - / -
+  status accepted
+  expected valid
+saxon-Wild wild001/wild001.xsd
+  schema test saxonData/Wild/wild001.xsd
+  version 1.1 / 1.1 / -
+  status accepted
+  expected valid
+saxon-XmlVersions xv001/xv001.xsd
+  schema test saxonData/XmlVersions/xv001.xsd
+  version - / - / -
+  status accepted
+  expected valid
+saxon-Zone zone001/zone001.xsd
+  schema test saxonData/Zone/zone001.xsd
+  version 1.1 / 1.1 / -
+  status accepted
+  expected valid
+oracle-Zone zone401/zone401.xsd
+  schema test oracleData/Zone/zone401.xsd
+  version 1.1 / 1.1 / -
+  status accepted
+  expected valid
+wg-substitution-groups sg-and-defined-Sibling-1/snneg
+  schema test wgData/sg/snneg.xsd
+  version 1.1 / 1.0 1.1 / -
+  status -
+  expected valid
+  expected invalid (1.0)
+wg-IRI iri-001/iri-001
+  schema test wgData/iri/ElementDeclarations.xsd
+  version 1.1 / - / -
+  status -
+  expected valid
+ibm-allGroup s3_3_6v01/s3_3_6v01s
+  schema test ibmData/valid/S3_3_6/s3_3_6v01.xsd
+  version 1.1 / 1.1 / -
+  status accepted
+  expected valid
+ibm-anyAttribute s3_10_6v01/s3_10_6v01s
+  schema test ibmData/valid/S3_10_6/s3_10_6v01.xsd
+  version - / 1.1 / -
+  status accepted
+  expected valid
+ibm-assert assert_001/assert_001_1
+  schema test ibmData/mixed/assertions/test1.xsd
+  version 1.1 / 1.1 / -
+  status accepted
+  expected valid
+ibm-assertion d4_3_15v01/d4_3_15v01s
+  schema test ibmData/valid/D4_3_15/d4_3_15v01.xsd
+  version - / 1.1 / -
+  status accepted
+  expected valid
+ibm-conditionalInclusion s4_2_2v01/s4_2_2v01s
+  schema test ibmData/valid/S4_2_2/s4_2_2v01.xsd
+  version - / 1.1 / -
+  status accepted
+  expected valid
+ibm-constraintsOnAttribute s3_2_3v01/s3_2_3v01s
+  schema test ibmData/valid/S3_2_3/s3_2_3v01.xsd
+  version - / 1.1 / -
+  status accepted
+  expected valid
+ibm-cyclicRedefineIncludeImportOverride s4_2_4si01/s4_2_4si01s
+  schema test ibmData/schema_invalid/S4_2_4/s4_2_4si01.xsd
+  version - / - / -
+  status accepted
+  expected invalid
+ibm-date d3_3_10v01/d3_3_10v01s
+  schema test ibmData/valid/D3_3_10/d3_3_10v01.xsd
+  version - / 1.1 / -
+  status accepted
+  expected valid
+ibm-dateTimeStamp d3_4_28v01/d3_4_28v01s
+  schema test ibmData/valid/D3_4_28/d3_4_28v01.xsd
+  version - / 1.1 / -
+  status accepted
+  expected valid
+ibm-dayTimeDuration d3_4_27v01/d3_4_27v01s
+  schema test ibmData/valid/D3_4_27/d3_4_27v01.xsd
+  version - / 1.1 / -
+  status accepted
+  expected valid
+ibm-defaultAttributesApply s3_4_2_4v01/s3_4_2_4v01s
+  schema test ibmData/valid/S3_4_2_4/s3_4_2_4v01.xsd
+  version - / 1.1 / -
+  status accepted
+  expected valid
+ibm-defaultFixed s2_7_1v01/s2_7_1v01s
+  schema test ibmData/valid/S2_7_1/s2_7_1v01.xsd
+  version - / 1.1 / -
+  status accepted
+  expected valid
+ibm-double d3_3_6v01/d3_3_6v01s
+  schema test ibmData/valid/D3_3_6/d3_3_6v01.xsd
+  version - / 1.1 / -
+  status accepted
+  expected valid
+ibm-edcWildcard s3_8_6v01/s3_8_6v01s
+  schema test ibmData/valid/S3_8_6/s3_8_6v01.xsd
+  version - / 1.1 / -
+  status accepted
+  expected valid
+ibm-explicitTimezone d4_3_16v01/d4_3_16v01s
+  schema test ibmData/valid/D4_3_16/d4_3_16v01.xsd
+  version - / 1.1 / -
+  status accepted
+  expected valid
+ibm-float d3_3_5v01/d3_3_5v01s
+  schema test ibmData/valid/D3_3_5/d3_3_5v01.xsd
+  version - / 1.1 / -
+  status accepted
+  expected valid
+ibm-gYearMonth d3_3_11v01/d3_3_11v01s
+  schema test ibmData/valid/D3_3_11/d3_3_11v01.xsd
+  version - / 1.1 / -
+  status accepted
+  expected valid
+ibm-gYear d3_3_12v01/d3_3_12v01s
+  schema test ibmData/valid/D3_3_12/d3_3_12v01.xsd
+  version - / 1.1 / -
+  status accepted
+  expected valid
+ibm-gMonthDay d3_3_13v01/d3_3_13v01s
+  schema test ibmData/valid/D3_3_13/d3_3_13v01.xsd
+  version - / 1.1 / -
+  status accepted
+  expected valid
+ibm-gDay d3_3_14v01/d3_3_14v01s
+  schema test ibmData/valid/D3_3_14/d3_3_14v01.xsd
+  version - / 1.1 / -
+  status accepted
+  expected valid
+ibm-gMonth d3_3_15si01/d3_3_15si01s
+  schema test ibmData/schema_invalid/D3_3_15/d3_3_15si01.xsd
+  version - / 1.1 / -
+  status accepted
+  expected invalid
+ibm-idIDREF s3_3_4v01/s3_3_4v01s
+  schema test ibmData/valid/S3_3_4/s3_3_4v01.xsd
+  version - / 1.1 / -
+  status accepted
+  expected valid
+ibm-identityConstraint s2_2_4v01/s2_2_4v01s
+  schema test ibmData/valid/S2_2_4/s2_2_4v01.xsd
+  version - / 1.1 / -
+  status accepted
+  expected valid
+ibm-list d2_4_1_2v01/d2_4_1_2v01s
+  schema test ibmData/valid/D2_4_1_2/d2_4_1_2v01.xsd
+  version - / 1.1 / -
+  status accepted
+  expected valid
+ibm-openContent s3_4_1v01/s3_4_1v01s
+  schema test ibmData/valid/S3_4_1/s3_4_1v01.xsd
+  version - / 1.1 / -
+  status accepted
+  expected valid
+ibm-regularExpression d6_gv01/d6_gv01s
+  schema test ibmData/valid/D6_G/d6_gv01.xsd
+  version - / 1.1 / -
+  status accepted
+  expected valid
+ibm-restrictionOfComplexTypes s3_4_6v01/s3_4_6v01s
+  schema test ibmData/valid/S3_4_6/s3_4_6v01.xsd
+  version - / 1.1 / -
+  status accepted
+  expected valid
+ibm-rf_whiteSpace d4_3_6v01/d4_3_6v01s
+  schema test ibmData/valid/D4_3_6/d4_3_6v01.xsd
+  version - / 1.1 / -
+  status accepted
+  expected valid
+ibm-substitutionGroup s2_2_2v01/s2_2_2v01s
+  schema test ibmData/valid/S2_2_2/s2_2_2v01.xsd
+  version - / 1.1 / -
+  status accepted
+  expected valid
+ibm-targetNamespace targetNamespace_004/targetNamespace_004_1
+  schema test ibmData/mixed/targetNamespace/tns4.xsd
+  version 1.1 / 1.1 / -
+  status accepted
+  expected valid
+ibm-time d3_3_9v01/d3_3_9v01s
+  schema test ibmData/valid/D3_3_9/d3_3_9v01.xsd
+  version - / 1.1 / -
+  status accepted
+  expected valid
+ibm-typeAlternatives s3_12v01/s3_12v01s
+  schema test ibmData/valid/S3_12/s3_12v01.xsd
+  version - / 1.1 / -
+  status accepted
+  expected valid
+ibm-typeAlternativesMixed typeAlternatives_001/typeAlternatives_001_1
+  schema test ibmData/mixed/type-alternatives/test1.xsd
+  version 1.1 / 1.1 / -
+  status accepted
+  expected valid
+ibm-union s3_16_2v01/s3_16_2v01s
+  schema test ibmData/valid/S3_16_2/s3_16_2v01.xsd
+  version - / 1.1 / -
+  status accepted
+  expected valid
+ibm-unitsLength d3_3_16v01/d3_3_16v01s
+  schema test ibmData/valid/D3_3_16/d3_3_16v01.xsd
+  version - / - / -
+  status accepted
+  expected valid
+ibm-unsignedInteger d3_4_21v01/d3_4_21v01s
+  schema test ibmData/valid/D3_4_21/d3_4_21v01.xsd
+  version - / 1.1 / -
+  status accepted
+  expected valid
+ibm-vc vc_001/vc_001_1
+  schema test ibmData/mixed/VC/test1.xsd
+  version 1.0 1.1 / 1.1 / -
+  status accepted
+  expected valid
+ibm-wildcard s3_10_1v01/s3_10_1v01s
+  schema test ibmData/valid/S3_10_1/s3_10_1v01.xsd
+  version - / 1.1 / -
+  status accepted
+  expected valid
+ibm-xml11Support d3_4_6v01/d3_4_6v01s
+  schema test ibmData/valid/D3_4_6/d3_4_6v01.xsd
+  version - / 1.1 / -
+  status accepted
+  expected valid
+ibm-xpathDefaultNSonKeyKeyRefUnique s3_11_2v01/s3_11_2v01s
+  schema test ibmData/valid/S3_11_2/s3_11_2v01.xsd
+  version - / 1.1 / -
+  status accepted
+  expected valid
+ibm-xsImportReference s4_2_6si01/s4_2_6si01s
+  schema test ibmData/schema_invalid/S4_2_6/s4_2_6si01.xsd ibmData/schema_invalid/S4_2_6/s4_2_6si01b.xsd
+  version - / 1.1 / -
+  status accepted
+  expected invalid
+ibm-yearMonthDuration d3_4_26v01/d3_4_26v01s
+  schema test ibmData/valid/D3_4_26/d3_4_26v01.xsd
+  version - / 1.1 / -
+  status accepted
+  expected valid
+147 test cases: 147 applicable, 0 skipped; 147 in scope

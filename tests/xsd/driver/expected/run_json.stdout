@@ -1,0 +1,17 @@
+{"report": "sxml-xsd-test run", "version": 1, "spec": "XSD11",
+"tests": [
+{"test_set": "one-versions", "test_case": "old/s", "outcome": "not-run", "reason": "skip: version 1.0"},
+{"test_set": "one-versions", "test_case": "both/s", "outcome": "not-run", "reason": "XSD not implemented"},
+{"test_set": "one-versions", "test_case": "both/old", "outcome": "not-run", "reason": "skip: version 1.0"},
+{"test_set": "one-versions", "test_case": "both/queried", "outcome": "not-run", "reason": "skip: status queried"},
+{"test_set": "one-versions", "test_case": "both/indeterminate", "outcome": "not-run", "reason": "skip: expected indeterminate"},
+{"test_set": "one-versions", "test_case": "both/none", "outcome": "not-run", "reason": "skip: expected (none applies)"},
+{"test_set": "one-versions", "test_case": "both/cta", "outcome": "not-run", "reason": "XSD not implemented"},
+{"test_set": "one-versions", "test_case": "both/unicode", "outcome": "not-run", "reason": "skip: version Unicode_4.0.0"},
+{"test_set": "one-versions", "test_case": "both/unknown", "outcome": "not-run", "reason": "skip: version 1.1 future-token"},
+{"test_set": "one-versions", "test_case": "both/substrate", "outcome": "not-run", "reason": "XSD not implemented"}],
+"test_sets": [
+{"name": "one-versions", "total": 10, "pass": 0, "wrong_error": 0, "fail": 0, "error": 0, "not_run": 10, "in_scope": 3, "in_scope_passed": 0}],
+"areas": [
+{"area": "other", "total": 10, "pass": 0, "wrong_error": 0, "fail": 0, "error": 0, "not_run": 10, "in_scope": 3, "in_scope_passed": 0}],
+"totals": {"total": 10, "pass": 0, "wrong_error": 0, "fail": 0, "error": 0, "not_run": 10, "in_scope": 3, "in_scope_passed": 0}}

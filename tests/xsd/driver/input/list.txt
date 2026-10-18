@@ -1,0 +1,6 @@
+# Tests of the small suite, and names that do not exist.
+one-basic a/a.n.xml
+one-versions both/cta  # chooses the full-xpath-in-CTA expectation
+no-such-set a/a.xsd
+one-basic a/no-such-test
+one-basic built-in/plain

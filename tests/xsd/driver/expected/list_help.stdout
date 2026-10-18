@@ -1,0 +1,27 @@
+sxml-xsd-test list - List tests with their documents, expected outcomes and applicability
+
+Usage: sxml-xsd-test list [--catalog=FILE] [--test-set=NAME] [TEST-LIST]
+
+Reads the XSD test suite's suite.xml and test sets with sxml's XML
+parser and writes each selected test: whether it is a schema test
+or an instance test, its documents, the schema documents an
+instance test is validated against, the version attributes of
+its test set, test group and test, its status, its expected
+outcomes, and, when it does not apply to an XSD 1.1 processor,
+"skip:" and the reason. The last line counts the tests, those
+that apply, and those in scope. The selection is the tests of
+TEST-LIST, those of the test set --test-set names, or with neither
+every test of the suite. Exits 1 when a test set or test does not
+exist or a test is malformed, 3 when a file cannot be read.
+
+Options:
+  -h, --help           Show this help and exit
+      --catalog=FILE   The suite.xml of the suite (default: third_party/xsdtests/suite.xml)
+      --test-set=NAME  Select every test of one test set, such as saxon-Assert
+
+Arguments:
+  TEST-LIST  File naming tests, one '<test-set> <group>/<test>' per line
+
+Examples:
+  sxml-xsd-test list tests/xsd/slice.txt
+  sxml-xsd-test list --test-set=saxon-Assert

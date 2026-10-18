@@ -1,0 +1,2 @@
+sxml-xsd-test list: twoMeta/problems.testSet: a reference needs xlink:href
+sxml-xsd-test list: twoMeta/problems.testSet: a test needs a document 'p/no-document'

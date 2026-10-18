@@ -1,0 +1,2 @@
+sxml-xsd-test list: list.txt:4: unknown test set 'no-such-set'
+sxml-xsd-test list: list.txt:5: unknown test case 'a/no-such-test'

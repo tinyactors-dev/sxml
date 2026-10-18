@@ -1,0 +1,17 @@
+<testSet xmlns="http://www.w3.org/XML/2004/xml-schema-test-suite/" xmlns:xlink="http://www.w3.org/1999/xlink" name="Problems" contributor="Small" version="1.1">
+  <testGroup name="p">
+    <schemaTest name="no-href">
+      <schemaDocument/>
+      <expected validity="valid"/>
+    </schemaTest>
+    <instanceTest name="no-document">
+      <expected validity="valid"/>
+    </instanceTest>
+  </testGroup>
+  <testGroup name="q">
+    <instanceTest name="missing">
+      <instanceDocument xlink:href="../oneData/missing.xml"/>
+      <expected validity="valid"/>
+    </instanceTest>
+  </testGroup>
+</testSet>

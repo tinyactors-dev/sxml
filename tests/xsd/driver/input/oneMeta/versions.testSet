@@ -1,0 +1,46 @@
+<testSet xmlns="http://www.w3.org/XML/2004/xml-schema-test-suite/" xmlns:xlink="http://www.w3.org/1999/xlink" name="Versions" contributor="Small">
+  <testGroup name="old" version="1.0">
+    <schemaTest name="s"><schemaDocument xlink:href="../oneData/a.xsd"/><expected validity="valid"/></schemaTest>
+  </testGroup>
+  <testGroup name="both" version="1.0 1.1">
+    <schemaTest name="s">
+      <schemaDocument xlink:href="../oneData/a.xsd"/>
+      <expected validity="invalid" version="1.0"/>
+      <expected validity="valid"/>
+    </schemaTest>
+    <instanceTest name="old" version="1.0">
+      <instanceDocument xlink:href="../oneData/missing.xml"/>
+      <expected validity="valid"/>
+    </instanceTest>
+    <instanceTest name="queried">
+      <instanceDocument xlink:href="../oneData/a.v.xml"/>
+      <expected validity="valid"/>
+      <current status="queried" date="2026-10-18"/>
+    </instanceTest>
+    <instanceTest name="indeterminate">
+      <instanceDocument xlink:href="../oneData/a.v.xml"/>
+      <expected validity="indeterminate"/>
+    </instanceTest>
+    <instanceTest name="none">
+      <instanceDocument xlink:href="../oneData/a.v.xml"/>
+      <expected validity="valid" version="1.0"/>
+    </instanceTest>
+    <instanceTest name="cta">
+      <instanceDocument xlink:href="../oneData/a.v.xml"/>
+      <expected validity="invalid" version="restricted-xpath-in-CTA"/>
+      <expected validity="valid" version="full-xpath-in-CTA"/>
+    </instanceTest>
+    <instanceTest name="unicode" version="Unicode_4.0.0">
+      <instanceDocument xlink:href="../oneData/a.v.xml"/>
+      <expected validity="valid"/>
+    </instanceTest>
+    <instanceTest name="unknown" version="1.1 future-token">
+      <instanceDocument xlink:href="../oneData/a.v.xml"/>
+      <expected validity="valid"/>
+    </instanceTest>
+    <instanceTest name="substrate" version="XML-1.1 XML-1.0-5e">
+      <instanceDocument xlink:href="../oneData/a.v.xml"/>
+      <expected validity="valid"/>
+    </instanceTest>
+  </testGroup>
+</testSet>

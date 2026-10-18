@@ -141,4 +141,11 @@ if(SXML_BUILD_TESTS AND SXML_BUILD_APPS
     add_subdirectory(tests/xslt/driver)
 endif()
 
+# The XSD 1.1 test-suite driver (packet 5.3, D168): another sibling that
+# links the QT4 driver's library.
+if(SXML_BUILD_TESTS AND SXML_BUILD_APPS
+   AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/xsd/driver/CMakeLists.txt")
+    add_subdirectory(tests/xsd/driver)
+endif()
+
 include(SxmlLint)

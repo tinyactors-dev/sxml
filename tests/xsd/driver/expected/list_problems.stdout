@@ -1,0 +1,7 @@
+two-problems q/missing
+  instance test oneData/missing.xml
+  schema built-in components
+  version 1.1 / - / -
+  status -
+  expected valid
+1 test case: 1 applicable, 0 skipped; 1 in scope

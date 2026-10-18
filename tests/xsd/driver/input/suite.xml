@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<!-- The small suite of tests/xsd/driver (packet 5.3): test sets named
+     one-basic, one-versions, two-problems, common-introspection. -->
+<testSuite xmlns="http://www.w3.org/XML/2004/xml-schema-test-suite/" xmlns:xlink="http://www.w3.org/1999/xlink" name="small" releaseDate="2026-10-18" schemaVersion="1.1">
+  <annotation><documentation>For the driver's tests.</documentation></annotation>
+  <testSetRef xlink:href="common/introspection.testSet"/>
+  <testSetRef xlink:href="oneMeta/basic.testSet"/>
+  <testSetRef xlink:href="oneMeta/versions.testSet"/>
+  <testSetRef xlink:href="twoMeta/problems.testSet"/>
+</testSuite>

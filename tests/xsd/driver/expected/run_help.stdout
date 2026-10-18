@@ -1,0 +1,31 @@
+sxml-xsd-test run - Run test cases and report them
+
+Usage: sxml-xsd-test run [--catalog=FILE] [--test-set=NAME] [--format=FORMAT] [TEST-LIST]
+
+Runs each selected test that applies to an XSD 1.1 processor in a
+processor of its own: reads its documents and, once sxml compiles
+schemas (packet 5.4) and validates (packet 5.7), compiles the
+schema of a schema test or validates the instance of an instance
+test against its group's schema and compares the outcome with the
+expected one; until then such a test is not run, "XSD not
+implemented". Writes each test that failed or ended in error,
+counts per test set and a "total:" line; --format=json writes
+every test, counts per contributor area and how many are in scope.
+The selection is the tests of TEST-LIST, those of the test set
+--test-set names, or with neither every test of the suite. Exits 1
+when a test failed or ended in error, 3 when a file cannot be
+read.
+
+Options:
+  -h, --help           Show this help and exit
+      --catalog=FILE   The suite.xml of the suite (default: third_party/xsdtests/suite.xml)
+      --test-set=NAME  Run every test of one test set, such as saxon-Assert
+      --format=FORMAT  The form of the report (one of: text, json; default: text)
+
+Arguments:
+  TEST-LIST  File naming tests, one '<test-set> <group>/<test>' per line
+
+Examples:
+  sxml-xsd-test run tests/xsd/slice.txt
+  sxml-xsd-test run --test-set=saxon-Assert
+  sxml-xsd-test run --format=json > report.json

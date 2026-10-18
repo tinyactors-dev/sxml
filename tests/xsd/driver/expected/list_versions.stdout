@@ -1,0 +1,68 @@
+one-versions old/s
+  schema test oneData/a.xsd
+  version - / 1.0 / -
+  status -
+  expected valid
+  skip: version 1.0
+one-versions both/s
+  schema test oneData/a.xsd
+  version - / 1.0 1.1 / -
+  status -
+  expected invalid (1.0)
+  expected valid
+one-versions both/old
+  instance test oneData/missing.xml
+  schema oneData/a.xsd
+  version - / 1.0 1.1 / 1.0
+  status -
+  expected valid
+  skip: version 1.0
+one-versions both/queried
+  instance test oneData/a.v.xml
+  schema oneData/a.xsd
+  version - / 1.0 1.1 / -
+  status queried
+  expected valid
+  skip: status queried
+one-versions both/indeterminate
+  instance test oneData/a.v.xml
+  schema oneData/a.xsd
+  version - / 1.0 1.1 / -
+  status -
+  expected indeterminate
+  skip: expected indeterminate
+one-versions both/none
+  instance test oneData/a.v.xml
+  schema oneData/a.xsd
+  version - / 1.0 1.1 / -
+  status -
+  expected valid (1.0)
+  skip: expected (none applies)
+one-versions both/cta
+  instance test oneData/a.v.xml
+  schema oneData/a.xsd
+  version - / 1.0 1.1 / -
+  status -
+  expected invalid (restricted-xpath-in-CTA)
+  expected valid (full-xpath-in-CTA)
+one-versions both/unicode
+  instance test oneData/a.v.xml
+  schema oneData/a.xsd
+  version - / 1.0 1.1 / Unicode_4.0.0
+  status -
+  expected valid
+  skip: version Unicode_4.0.0
+one-versions both/unknown
+  instance test oneData/a.v.xml
+  schema oneData/a.xsd
+  version - / 1.0 1.1 / 1.1 future-token
+  status -
+  expected valid
+  skip: version 1.1 future-token
+one-versions both/substrate
+  instance test oneData/a.v.xml
+  schema oneData/a.xsd
+  version - / 1.0 1.1 / XML-1.1 XML-1.0-5e
+  status -
+  expected valid
+10 test cases: 3 applicable, 7 skipped; 3 in scope
