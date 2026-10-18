@@ -2,6 +2,7 @@
 third_party/qt4tests/** linguist-vendored
 third_party/xslt40-test/** linguist-vendored
 third_party/xmlconf/** linguist-vendored
+third_party/xsdtests/** linguist-vendored
 
 # Golden output of the sxml program is compared byte for byte: never convert
 # line endings (docs/CLI.md, D44).

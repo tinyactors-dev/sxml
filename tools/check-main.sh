@@ -21,8 +21,8 @@ mkdir -p "$snapshot"
 find "$snapshot" -mindepth 1 -maxdepth 1 ! -name build -exec rm -rf {} +
 git -C "$repository_root" archive HEAD -- . \
     ':(exclude)third_party/qt4tests' ':(exclude)third_party/xslt40-test' \
-    ':(exclude)third_party/xmlconf' | tar -x -C "$snapshot" || exit 1
-for suite in qt4tests xslt40-test xmlconf; do
+    ':(exclude)third_party/xmlconf' ':(exclude)third_party/xsdtests' | tar -x -C "$snapshot" || exit 1
+for suite in qt4tests xslt40-test xmlconf xsdtests; do
     ln -s "$repository_root/third_party/$suite" "$snapshot/third_party/$suite"
 done
 if [ -d "$repository_root/tools/node_modules" ]; then

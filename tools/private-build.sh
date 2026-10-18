@@ -41,7 +41,7 @@ rm -rf "$staging"
 mkdir -p "$staging"
 git -C "$repository_root" archive HEAD -- . \
     ':(exclude)third_party/qt4tests' ':(exclude)third_party/xslt40-test' \
-    ':(exclude)third_party/xmlconf' | tar -x -C "$staging"
+    ':(exclude)third_party/xmlconf' ':(exclude)third_party/xsdtests' | tar -x -C "$staging"
 for file in "$@"; do
     if [ -e "$repository_root/$file" ]; then
         mkdir -p "$staging/$(dirname "$file")"
@@ -83,7 +83,7 @@ for directory, subdirectories, files in os.walk(snapshot):
             os.remove(path)
 PYTHON
 rm -rf "$staging"
-for suite in qt4tests xslt40-test xmlconf; do
+for suite in qt4tests xslt40-test xmlconf xsdtests; do
     [ -e "$snapshot/third_party/$suite" ] || \
         ln -s "$repository_root/third_party/$suite" "$snapshot/third_party/$suite"
 done
