@@ -747,3 +747,23 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `csv_dialect` | The characters that structure a CSV text, each one character: separator, quote character and optional comment marker, and whether unquoted fields are trimmed of whitespace (F&O 4.0, section 17.5) |
 | `csv_token` | What reading a CSV text gives next: a field (its text, quoted or not), the end of a row (a row with no field before it is a blank row) or the end of the input |
 | `csv_cursor` | Where reading a CSV text continues: a byte offset and whether it is at the start of a row, after a field that ended its row, or at the end |
+| `schema` | A compiled XSD 1.1 schema: the schema components assembled from one or more schema documents, with its types registered in the processor's type registry (`sxml_schema`, D165) |
+| `schema_document` | An XML document whose document element is xs:schema (XSD 1.1 Part 1, 3.17.2); read by the XML parser, found through the resource resolver (kind `SCHEMA_DOCUMENT`) |
+| `schema_document_source` | Where the configuration's schema document comes from: its text, or the resource resolver |
+| `schema_component` | One of the building blocks of a schema (XSD 1.1 Part 1, 2.2): a type definition, element or attribute declaration, attribute use, model group, particle, wildcard, identity-constraint definition, type alternative, assertion or notation declaration |
+| `element_declaration` | The schema component that governs elements of one name: type, nillable, abstract, value constraint, substitution group, identity constraints, type alternatives (XSD 1.1 Part 1, 3.3) |
+| `attribute_declaration` | The schema component that governs attributes of one name: simple type and value constraint (XSD 1.1 Part 1, 3.2) |
+| `content_type_variety` | What a complex type allows as content: empty, simple, element-only or mixed (XSD 1.1 Part 1, 3.4.1, {content type} {variety}) |
+| `simple_content_type` | The simple type of the content of a complex type whose content type variety is simple; it gives the typed value |
+| `facet` | One constraining facet of a simple type's restriction step (XSD 1.1 Part 2, 4.3): its `facet_kind` (length, pattern, enumeration, minInclusive, ...) and its value as text |
+| `constraint_name` | The name XSD 1.1 gives a rule an error breaks (`cvc-complex-type.2.4`, `src-resolve`; Part 1, appendix C "Outcome Tabulations"): the local name, in no namespace, of the error code schema errors carry |
+| `schema_report` | One schema or validation error as a report sink receives it: constraint name, description, location |
+| `schema_report_sink` | The interface that receives every schema report of a compilation or validation, so that validation can go on after the first error |
+| `schema_validator` | The tree builder that assesses the events it receives against a schema and passes them on, annotated (type annotation, is-id, is-idrefs, nilled, defaults), to its result builder (D165) |
+| `result_builder` | The tree builder a schema validator sends its annotated events to; the null builder discards them, for validity checks that build nothing |
+| `validation_mode` | How the validation root is assessed when no governing type is given: strict (a declaration must exist) or lax (XSD 1.1 Part 1, 5.2) |
+| `governing_type` | The type a validation root is assessed against when the caller names one (XQuery `validate type`, XSLT `type`); otherwise the declaration of its name decides (XSD 1.1 Part 1, "governing type definition", 3.3.4) |
+| `validation_root` | The element (or attribute) where one validation starts: its subtree is assessed, and IDs and IDREFs are checked within it (XSD 1.1 Part 1, "validation root", cvc-id) |
+| `validity` | The outcome XSD gives an assessed item (XSD 1.1 Part 1, the [validity] property): valid, invalid or not known |
+| `validation_outcome` | What a schema validator reports once its tree has ended: the validity of the validation root and the count of errors |
+| `in_scope_schemas` | The compiled schemas a static context imports: their types, element and attribute declarations are XPath 4.0's in-scope schema definitions (section 2.2.1) |
