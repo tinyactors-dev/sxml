@@ -55,6 +55,7 @@
 #include "sxml/xdm.h"
 #include "xpath_ast_internal.h"
 #include "xslt_accumulator_internal.h"
+#include "xslt_package_internal.h"
 #include "xslt_pattern_internal.h"
 #include "xslt_snippet_text_internal.h"
 
@@ -188,6 +189,8 @@ typedef struct key_declaration {
 /* The xsl:key declarations of one name (20.2.1). */
 typedef struct key_definition {
     sxml_name_identifier key_name;
+    /* Its package (3.4.8: keys are local to a package; D163). */
+    uint32_t package;
     /* The collation URI, borrowed from the AST; empty for the codepoint
        collation. */
     sxml_byte_view collation;
@@ -198,8 +201,17 @@ typedef struct key_definition {
 
 /* ------------------------------------------------------------- The table */
 
+/* The table in front of the static contexts of one package. */
+typedef struct package_function_table {
+    struct sxml_xslt_function_table *table;
+    uint32_t package;
+} package_function_table;
+
 struct sxml_xslt_function_table {
     sxml_xslt_lowering *lowering;
+    /* package_states[p] for package p, from 1 (D163). */
+    package_function_table *package_states;
+    uint32_t package_count;
     sxml_allocator allocator;
     /* What the static contexts had: the processor's table. */
     sxml_function_table inner_table;
@@ -207,8 +219,10 @@ struct sxml_xslt_function_table {
     const sxml_native_function_view **part_views;
     sxml_function_library *library;
     sxml_function_library *key_library;
-    /* The stylesheet functions by kind. */
-    table_function functions[SXML_STYLESHEET_FUNCTION_COUNT];
+    /* The stylesheet functions of each package by kind: package p's kind
+       k is functions[(p - 1) * SXML_STYLESHEET_FUNCTION_COUNT + k] (fn:key
+       sees its package's keys, 3.4.8). */
+    table_function *functions;
     key_declaration *declarations;
     size_t declaration_count;
     key_definition *keys;
@@ -226,6 +240,18 @@ struct sxml_xslt_function_table {
         variable_names[FUNCTION_MAXIMUM_PARAMETER_COUNT * SXML_STYLESHEET_FUNCTION_COUNT];
     sxml_namespace_uri_identifier private_namespace;
 };
+
+/* One stylesheet function: its kind in a package. */
+typedef struct function_identity {
+    stylesheet_function_kind kind;
+    uint32_t package;
+} function_identity;
+
+static table_function *function_of(const struct sxml_xslt_function_table *table,
+                                   function_identity identity) {
+    return &table->functions[(size_t)(identity.package - 1U) * SXML_STYLESHEET_FUNCTION_COUNT +
+                             (size_t)identity.kind];
+}
 
 /* --------------------------------------------------------------- Helpers */
 
@@ -413,10 +439,12 @@ static sxml_status find_in_table(sxml_function_table table, const sxml_function_
    then the table that was there. */
 static sxml_status find_xslt_function(void *state, const sxml_function_query *query,
                                       sxml_function_entry *entry) {
-    sxml_xslt_function_table *table = state;
+    const package_function_table *package_state = state;
+    sxml_xslt_function_table *table = package_state->table;
     const stylesheet_function_kind kind = find_kind(table, query);
     if (kind != SXML_STYLESHEET_FUNCTION_COUNT) {
-        table_function *function = &table->functions[kind];
+        table_function *function = function_of(
+            table, (function_identity){.kind = kind, .package = package_state->package});
         const sxml_status status = declare_function(table, function);
         if (status != SXML_STATUS_OK) {
             return status;
@@ -465,7 +493,8 @@ static sxml_status find_private_function(void *state, const sxml_function_query 
     if (status != SXML_STATUS_OK || entry->entry_kind != SXML_FUNCTION_ENTRY_KIND_NONE) {
         return status;
     }
-    return find_xslt_function(state, query, entry);
+    /* The texts' own calls: the top-level package's functions. */
+    return find_xslt_function(&table->package_states[1], query, entry);
 }
 
 static const sxml_function_table_operations private_function_table_operations = {
@@ -544,15 +573,18 @@ static sxml_status add_key_declaration(sxml_xslt_function_table *table,
     }
     const sxml_byte_view collation = collation_of(lowering, node);
     const bool composite = is_composite(lowering, node);
+    const uint32_t package = sxml_xslt_package_of_node(lowering, node);
     size_t key_index = 0;
     while (key_index < table->key_count &&
-           table->keys[key_index].key_name.index != name->value.payload.name.index) {
+           (table->keys[key_index].key_name.index != name->value.payload.name.index ||
+            table->keys[key_index].package != package)) {
         key_index += 1;
     }
     sxml_status status = SXML_STATUS_OK;
     if (key_index == table->key_count) {
         key_definition *key = &table->keys[key_index];
         *key = (key_definition){.key_name = name->value.payload.name,
+                                .package = package,
                                 .collation = collation,
                                 .is_composite = composite};
         table->key_count += 1;
@@ -714,24 +746,30 @@ static sxml_status make_libraries(sxml_xslt_function_table *table) {
 
 static sxml_status prepare_stylesheet_functions(sxml_xslt_function_table *table) {
     sxml_status status = SXML_STATUS_OK;
-    for (uint32_t kind_number = 0;
-         status == SXML_STATUS_OK && kind_number < (uint32_t)SXML_STYLESHEET_FUNCTION_COUNT;
-         kind_number += 1) {
-        const stylesheet_function_rule *rule = &stylesheet_function_rules[kind_number];
-        sxml_name_identifier name = {.index = 0};
-        status = sxml_name_pool_intern_name(
-            table->lowering->lowerer->name_pool,
-            &(sxml_name_request){.namespace_uri =
-                                     sxml_well_known_namespace_identifier(SXML_NAMESPACE_FUNCTIONS),
-                                 .local_name = rule->local_name},
-            &name);
-        if (status == SXML_STATUS_OK) {
-            status = prepare_function(table,
-                                      (table_function_shape){.function_name = name,
-                                                             .parameters = rule->parameters,
-                                                             .result_type = rule->result_type,
-                                                             .has_short_signature = true},
-                                      &table->functions[kind_number]);
+    for (uint32_t package = 1; status == SXML_STATUS_OK && package <= table->package_count;
+         package += 1) {
+        for (uint32_t kind_number = 0;
+             status == SXML_STATUS_OK && kind_number < (uint32_t)SXML_STYLESHEET_FUNCTION_COUNT;
+             kind_number += 1) {
+            const stylesheet_function_rule *rule = &stylesheet_function_rules[kind_number];
+            sxml_name_identifier name = {.index = 0};
+            status = sxml_name_pool_intern_name(
+                table->lowering->lowerer->name_pool,
+                &(sxml_name_request){.namespace_uri =
+                                         sxml_well_known_namespace_identifier(SXML_NAMESPACE_FUNCTIONS),
+                                     .local_name = rule->local_name},
+                &name);
+            if (status == SXML_STATUS_OK) {
+                status = prepare_function(table,
+                                          (table_function_shape){.function_name = name,
+                                                                 .parameters = rule->parameters,
+                                                                 .result_type = rule->result_type,
+                                                                 .has_short_signature = true},
+                                          function_of(table, (function_identity){
+                                                                 .kind = (stylesheet_function_kind)
+                                                                     kind_number,
+                                                                 .package = package}));
+            }
         }
     }
     static const char *const variable_names[] = {"key-name", "key-value", "context",
@@ -785,9 +823,34 @@ sxml_status sxml_xslt_declare_functions(sxml_xslt_lowering *lowering,
         .variable_declarations = NULL, .variable_declaration_count = 0};
     made->snippet_context.function_table =
         (sxml_function_table){.state = made, .operations = &private_function_table_operations};
-    status = sxml_name_pool_intern_namespace_uri(
-        lowering->lowerer->name_pool, SXML_BYTE_VIEW_FROM_LITERAL(KEY_FUNCTION_NAMESPACE_URI),
-        &made->private_namespace);
+    made->package_count = sxml_xslt_package_count(lowering);
+    status = allocate_zeroed(
+        allocator,
+        (zeroed_request){.element_count = (size_t)made->package_count + 1U,
+                         .element = {.byte_count = sizeof(package_function_table),
+                                     .alignment = alignof(package_function_table)}},
+        &memory);
+    made->package_states = status == SXML_STATUS_OK ? memory : NULL;
+    if (status == SXML_STATUS_OK) {
+        status = allocate_zeroed(
+            allocator,
+            (zeroed_request){.element_count = (size_t)made->package_count *
+                                              SXML_STYLESHEET_FUNCTION_COUNT,
+                             .element = {.byte_count = sizeof(table_function),
+                                         .alignment = alignof(table_function)}},
+            &memory);
+        made->functions = status == SXML_STATUS_OK ? memory : NULL;
+    }
+    for (uint32_t package = 0; status == SXML_STATUS_OK && package <= made->package_count;
+         package += 1) {
+        made->package_states[package] =
+            (package_function_table){.table = made, .package = package == 0 ? 1U : package};
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_name_pool_intern_namespace_uri(
+            lowering->lowerer->name_pool, SXML_BYTE_VIEW_FROM_LITERAL(KEY_FUNCTION_NAMESPACE_URI),
+            &made->private_namespace);
+    }
     if (status == SXML_STATUS_OK) {
         status = make_libraries(made);
     }
@@ -802,8 +865,13 @@ sxml_status sxml_xslt_declare_functions(sxml_xslt_lowering *lowering,
         return status;
     }
     for (uint32_t context = 1; context < lowering->static_context_count; context += 1) {
-        static_contexts[context].function_table =
-            (sxml_function_table){.state = made, .operations = &xslt_function_table_operations};
+        uint32_t package = sxml_xslt_package_of_static_context(
+            lowering, (sxml_xslt_ast_static_context_index){.value = context});
+        if (package == 0 || package > made->package_count) {
+            package = 1;
+        }
+        static_contexts[context].function_table = (sxml_function_table){
+            .state = &made->package_states[package], .operations = &xslt_function_table_operations};
     }
     *table = made;
     return SXML_STATUS_OK;
@@ -822,6 +890,8 @@ void sxml_xslt_release_functions(sxml_xslt_function_table *table) {
     sxml_allocator_release(table->allocator, (void *)table->part_views);
     sxml_allocator_release(table->allocator, table->declarations);
     sxml_allocator_release(table->allocator, table->keys);
+    sxml_allocator_release(table->allocator, table->functions);
+    sxml_allocator_release(table->allocator, table->package_states);
     sxml_allocator_release(table->allocator, table);
 }
 
@@ -1261,8 +1331,9 @@ static void write_index_use(sxml_xslt_snippet_text *text, stylesheet_function_ki
                              "Q{http://www.w3.org/2005/xpath-functions/map}entry($k, $v) else ())");
 }
 
-static void write_key_text(const sxml_xslt_function_table *table, stylesheet_function_kind kind,
+static void write_key_text(const sxml_xslt_function_table *table, function_identity identity,
                            sxml_xslt_snippet_text *text) {
+    const stylesheet_function_kind kind = identity.kind;
     const bool with_context = is_with_context(kind);
     SXML_XSLT_SNIPPET_APPEND(text, "let $name := Q{}key-name($key-name), $root := root(");
     sxml_xslt_snippet_text_append(text, with_context ? SXML_BYTE_VIEW_FROM_LITERAL("$context")
@@ -1281,6 +1352,9 @@ static void write_key_text(const sxml_xslt_function_table *table, stylesheet_fun
     SXML_XSLT_SNIPPET_APPEND(text, "(");
     for (size_t key_index = 0; key_index < table->key_count; key_index += 1) {
         const key_definition *key = &table->keys[key_index];
+        if (key->package != identity.package) {
+            continue;
+        }
         SXML_XSLT_SNIPPET_APPEND(text, "if ($name eq ");
         sxml_xslt_snippet_text_append_qname(text, table->lowering->lowerer->name_pool,
                                             key->key_name);
@@ -1306,7 +1380,8 @@ static void write_key_text(const sxml_xslt_function_table *table, stylesheet_fun
 }
 
 static sxml_status lower_key_function(sxml_xslt_function_table *table,
-                                      stylesheet_function_kind kind) {
+                                      function_identity identity) {
+    const stylesheet_function_kind kind = identity.kind;
     sxml_status status = lower_keys(table);
     if (status != SXML_STATUS_OK) {
         return status;
@@ -1340,11 +1415,11 @@ static sxml_status lower_key_function(sxml_xslt_function_table *table,
         return SXML_STATUS_INVALID_ARGUMENT;
     }
     sxml_xslt_snippet_text text = {.allocator = table->allocator, .status = SXML_STATUS_OK};
-    write_key_text(table, kind, &text);
+    write_key_text(table, identity, &text);
     status = text.status;
     if (status == SXML_STATUS_OK) {
         status = lower_snippet_function(
-            table, (snippet_function){.function = &table->functions[kind],
+            table, (snippet_function){.function = function_of(table, identity),
                                       .text = sxml_xslt_snippet_text_view(&text),
                                       .variables = variables,
                                       .variable_count = is_map_for_key(kind) ? 2 : 3});
@@ -1355,9 +1430,9 @@ static sxml_status lower_key_function(sxml_xslt_function_table *table,
 
 /* fn:copy-of($input) (XSLT 4.0, 20.6.1): the deep copies xsl:copy-of
    makes (11.9.2, copy-namespaces="yes"). */
-static sxml_status lower_copy_of(sxml_xslt_function_table *table) {
+static sxml_status lower_copy_of(sxml_xslt_function_table *table,
+                                 const table_function *function) {
     sxml_xpath_lowerer *lowerer = table->lowering->lowerer;
-    const table_function *function = &table->functions[SXML_STYLESHEET_FUNCTION_COPY_OF];
     sxml_xpath_lowering_function_frame frame = {
         .function = {.function_index = function->function,
                      .function_level = 0,
@@ -1424,10 +1499,10 @@ static const char snapshot_text[] =
     "return if ($item instance of attribute()) "
     "then $parent/@*[node-name(.) eq node-name($item)] else $parent/node()";
 
-static sxml_status lower_snapshot(sxml_xslt_function_table *table) {
+static sxml_status lower_snapshot(sxml_xslt_function_table *table, table_function *function) {
     static const snippet_variable input_variables[] = {SXML_SNIPPET_VARIABLE_INPUT};
     return lower_snippet_function(
-        table, (snippet_function){.function = &table->functions[SXML_STYLESHEET_FUNCTION_SNAPSHOT],
+        table, (snippet_function){.function = function,
                                   .text = {.bytes = (const uint8_t *)snapshot_text,
                                            .byte_count = sizeof(snapshot_text) - 1},
                                   .variables = input_variables,
@@ -1445,27 +1520,31 @@ sxml_status sxml_xslt_lower_functions(sxml_xslt_function_table *table) {
     bool has_lowered = true;
     while (status == SXML_STATUS_OK && has_lowered) {
         has_lowered = false;
-        for (uint32_t kind_number = 0;
-             status == SXML_STATUS_OK && kind_number < (uint32_t)SXML_STYLESHEET_FUNCTION_COUNT;
-             kind_number += 1) {
-            table_function *function = &table->functions[kind_number];
+        for (size_t function_number = 0;
+             status == SXML_STATUS_OK &&
+             function_number < (size_t)table->package_count * SXML_STYLESHEET_FUNCTION_COUNT;
+             function_number += 1) {
+            const function_identity identity = {
+                .kind = (stylesheet_function_kind)(function_number % SXML_STYLESHEET_FUNCTION_COUNT),
+                .package = (uint32_t)(function_number / SXML_STYLESHEET_FUNCTION_COUNT) + 1U};
+            table_function *function = function_of(table, identity);
             if (function->function.value == 0 || function->is_lowered) {
                 continue;
             }
             function->is_lowered = true;
             has_lowered = true;
-            switch ((stylesheet_function_kind)kind_number) {
+            switch (identity.kind) {
             case SXML_STYLESHEET_FUNCTION_KEY_WITH_CONTEXT:
             case SXML_STYLESHEET_FUNCTION_KEY_WITH_TOP:
             case SXML_STYLESHEET_FUNCTION_MAP_FOR_KEY_WITH_CONTEXT:
             case SXML_STYLESHEET_FUNCTION_MAP_FOR_KEY_WITH_TOP:
-                status = lower_key_function(table, (stylesheet_function_kind)kind_number);
+                status = lower_key_function(table, identity);
                 break;
             case SXML_STYLESHEET_FUNCTION_COPY_OF:
-                status = lower_copy_of(table);
+                status = lower_copy_of(table, function);
                 break;
             case SXML_STYLESHEET_FUNCTION_SNAPSHOT:
-                status = lower_snapshot(table);
+                status = lower_snapshot(table, function);
                 break;
             case SXML_STYLESHEET_FUNCTION_COUNT:
                 break;

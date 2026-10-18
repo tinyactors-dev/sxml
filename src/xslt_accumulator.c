@@ -186,11 +186,19 @@ typedef enum snippet_variable {
 static const char *const snippet_variable_names[SXML_SNIPPET_VARIABLE_COUNT] = {
     "name", "context", "root", "node", "value", "state", "nodes"};
 
+/* The accumulator table in front of one static context, and the table
+   that context had (the XSLT function table of its package, D163). */
+typedef struct accumulator_layer {
+    const struct sxml_xslt_accumulator_table *table;
+    sxml_function_table inner_table;
+} accumulator_layer;
+
 struct sxml_xslt_accumulator_table {
     sxml_xslt_lowering *lowering;
     sxml_allocator allocator;
-    /* What the static contexts had: the XSLT function table. */
-    sxml_function_table inner_table;
+    /* One per static context (layers[0] for the snippet texts: the first
+       context's); what each context had. */
+    accumulator_layer *layers;
     /* The internal rows. */
     sxml_function_library *library;
     table_function functions[SXML_ACCUMULATOR_FUNCTION_COUNT];
@@ -412,7 +420,8 @@ static accumulator_function_kind find_kind(const sxml_xslt_accumulator_table *ta
    then the table that was there. */
 static sxml_status find_accumulator_function(void *state, const sxml_function_query *query,
                                              sxml_function_entry *entry) {
-    sxml_xslt_accumulator_table *table = state;
+    const accumulator_layer *layer = state;
+    sxml_xslt_accumulator_table *table = (sxml_xslt_accumulator_table *)layer->table;
     const accumulator_function_kind kind = find_kind(table, query);
     if (kind != SXML_ACCUMULATOR_FUNCTION_COUNT) {
         table_function *function = &table->functions[kind];
@@ -423,7 +432,7 @@ static sxml_status find_accumulator_function(void *state, const sxml_function_qu
         write_entry(function, query->arity, entry);
         return SXML_STATUS_OK;
     }
-    return find_in_table(table->inner_table, query, entry);
+    return find_in_table(layer->inner_table, query, entry);
 }
 
 static const sxml_function_table_operations accumulator_function_table_operations = {
@@ -471,7 +480,7 @@ static sxml_status find_private_function(void *state, const sxml_function_query 
     if (status != SXML_STATUS_OK || entry->entry_kind != SXML_FUNCTION_ENTRY_KIND_NONE) {
         return status;
     }
-    return find_accumulator_function(state, query, entry);
+    return find_accumulator_function(&table->layers[0], query, entry);
 }
 
 static const sxml_function_table_operations private_function_table_operations = {
@@ -856,9 +865,29 @@ sxml_status sxml_xslt_declare_accumulators(sxml_xslt_lowering *lowering,
     sxml_xslt_accumulator_table *made = memory;
     made->lowering = lowering;
     made->allocator = allocator;
-    made->inner_table = lowering->static_context_count > 1
-                            ? static_contexts[1].function_table
-                            : lowering->lowerer->static_context->function_table;
+    const size_t layer_count = lowering->static_context_count > 1
+                                   ? (size_t)lowering->static_context_count
+                                   : 1U;
+    status = allocate_zeroed(
+        allocator,
+        (zeroed_request){.element_count = layer_count,
+                         .element = {.byte_count = sizeof(accumulator_layer),
+                                     .alignment = alignof(accumulator_layer)}},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        sxml_allocator_release(allocator, made);
+        return status;
+    }
+    made->layers = memory;
+    for (size_t context = 0; context < layer_count; context += 1) {
+        sxml_function_table inner_table = lowering->lowerer->static_context->function_table;
+        if (context > 0) {
+            inner_table = static_contexts[context].function_table;
+        } else if (lowering->static_context_count > 1) {
+            inner_table = static_contexts[1].function_table;
+        }
+        made->layers[context] = (accumulator_layer){.table = made, .inner_table = inner_table};
+    }
     made->snippet_context = *lowering->lowerer->static_context;
     made->snippet_context.namespace_bindings =
         (sxml_namespace_binding_view){.namespace_bindings = NULL, .namespace_binding_count = 0};
@@ -878,8 +907,8 @@ sxml_status sxml_xslt_declare_accumulators(sxml_xslt_lowering *lowering,
         return status;
     }
     for (uint32_t context = 1; context < lowering->static_context_count; context += 1) {
-        static_contexts[context].function_table =
-            (sxml_function_table){.state = made, .operations = &accumulator_function_table_operations};
+        static_contexts[context].function_table = (sxml_function_table){
+            .state = &made->layers[context], .operations = &accumulator_function_table_operations};
     }
     *table = made;
     return SXML_STATUS_OK;
@@ -896,6 +925,7 @@ void sxml_xslt_release_accumulators(sxml_xslt_accumulator_table *table) {
     sxml_function_library_destroy(table->library);
     sxml_allocator_release(table->allocator, table->accumulators);
     sxml_allocator_release(table->allocator, table->rules);
+    sxml_allocator_release(table->allocator, table->layers);
     sxml_allocator_release(table->allocator, table);
 }
 
