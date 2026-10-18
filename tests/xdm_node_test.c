@@ -748,6 +748,126 @@ static void test_validated_typed_values_come_from_the_tree(
     node_fixture_destroy(&fixture);
 }
 
+/* An element of a type, nilled or not, in no namespace (typed values
+   derived from annotations, D165). */
+typedef struct typed_element {
+    const char *local_name;
+    sxml_builtin_type type;
+    bool is_nilled;
+} typed_element;
+
+static void write_typed_element(event_writer *writer, typed_element element) {
+    sxml_name_identifier element_name = {.index = 0};
+    if (writer->status == SXML_STATUS_OK) {
+        writer->status = sxml_name_pool_intern_name(
+            writer->fixture->name_pool,
+            &(sxml_name_request){.namespace_uri = {.index = 0},
+                                 .local_name = text_view(element.local_name)},
+            &element_name);
+    }
+    if (writer->status == SXML_STATUS_OK) {
+        writer->status = writer->builder.operations->start_element(
+            writer->builder.state,
+            &(sxml_element_start_event){
+                .element_name = element_name,
+                .namespace_prefix = {.index = 0},
+                .type_annotation = {.index = (uint32_t)element.type},
+                .is_id = false,
+                .is_idrefs = false,
+                .is_nilled = element.is_nilled,
+                .location = no_location});
+    }
+}
+
+/* A tree without get_typed_value derives typed values from the string
+   value and the annotation (include/sxml/tree.h; XDM 4.0, 7.5.2.4):
+   <r xmlns:p="urn:p"><i> 7 </i><q a="p:x"/><n/></r> with r xs:anyType
+   (mixed), i xs:integer, a xs:QName and n a nilled xs:int. */
+static void test_typed_values_derive_from_annotations(sxml_test_state *state) {
+    node_fixture fixture;
+    SXML_TEST_REQUIRE(state, node_fixture_create(&fixture) == SXML_STATUS_OK);
+    built_tree built;
+    event_writer writer;
+    SXML_TEST_REQUIRE(state, built_tree_start(&fixture, &built, &writer) == SXML_STATUS_OK);
+    write_typed_element(&writer, (typed_element){.local_name = "r",
+                                                 .type = SXML_TYPE_XS_ANY_TYPE,
+                                                 .is_nilled = false});
+    write_namespace(&writer, "p", "urn:p");
+    write_typed_element(&writer, (typed_element){.local_name = "i",
+                                                 .type = SXML_TYPE_XS_INTEGER,
+                                                 .is_nilled = false});
+    write_text(&writer, " 7 ");
+    write_end_element(&writer);
+    write_element(&writer, "q");
+    sxml_name_identifier attribute_name = {.index = 0};
+    if (writer.status == SXML_STATUS_OK) {
+        writer.status = sxml_name_pool_intern_name(
+            fixture.name_pool,
+            &(sxml_name_request){.namespace_uri = {.index = 0}, .local_name = text_view("a")},
+            &attribute_name);
+    }
+    if (writer.status == SXML_STATUS_OK) {
+        writer.status = writer.builder.operations->add_attribute(
+            writer.builder.state,
+            &(sxml_attribute_event){.attribute_name = attribute_name,
+                                    .namespace_prefix = {.index = 0},
+                                    .attribute_value = text_view("p:x"),
+                                    .type_annotation = {.index = SXML_TYPE_XS_QNAME},
+                                    .is_id = false,
+                                    .is_idrefs = false,
+                                    .location = no_location});
+    }
+    write_end_element(&writer);
+    write_typed_element(&writer, (typed_element){.local_name = "n",
+                                                 .type = SXML_TYPE_XS_INT,
+                                                 .is_nilled = true});
+    write_end_element(&writer);
+    write_end_element(&writer);
+    SXML_TEST_REQUIRE(state, built_tree_finish(&built, &writer) == SXML_STATUS_OK);
+    /* Nodes: r 0, i 1, its text 2, q 3, a 4, n 5. */
+    sxml_sequence typed_value = sxml_sequence_empty();
+    const sxml_node_reference root_element = {.tree = built.tree, .node_index = {.index = 0}};
+    SXML_TEST_EXPECT(state, sxml_node_make_typed_value(
+                                fixture.item_heap,
+                                &(sxml_node_value_request){.node = root_element, .error_record = NULL},
+                                &typed_value) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, sequence_has_text(typed_value,
+                                              (expected_text){.type = SXML_TYPE_XS_UNTYPED_ATOMIC,
+                                                              .text = " 7 "}));
+    sxml_sequence_release(typed_value);
+    const sxml_node_reference integer_element = {.tree = built.tree, .node_index = {.index = 1}};
+    SXML_TEST_EXPECT(state, sxml_node_make_typed_value(
+                                fixture.item_heap,
+                                &(sxml_node_value_request){.node = integer_element, .error_record = NULL},
+                                &typed_value) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, sxml_atomic_item_is_atomic_equal(typed_value.content,
+                                                             sxml_atomic_item_from_integer(7)));
+    sxml_sequence_release(typed_value);
+    const sxml_node_reference qname_attribute = {.tree = built.tree, .node_index = {.index = 4}};
+    SXML_TEST_EXPECT(state, sxml_node_make_typed_value(
+                                fixture.item_heap,
+                                &(sxml_node_value_request){.node = qname_attribute, .error_record = NULL},
+                                &typed_value) == SXML_STATUS_OK);
+    sxml_atomic_datum datum;
+    sxml_name_parts parts = {.namespace_uri = {.index = 0}};
+    SXML_TEST_EXPECT(state,
+                     sxml_atomic_item_get_datum(typed_value.content, &datum) == SXML_STATUS_OK &&
+                         sxml_name_pool_get_name_parts(fixture.name_pool,
+                                                       datum.datum_details.qname.expanded_name,
+                                                       &parts) == SXML_STATUS_OK &&
+                         sxml_byte_view_equals(parts.local_name, text_view("x")));
+    sxml_sequence_release(typed_value);
+    const sxml_node_reference nilled_element = {.tree = built.tree, .node_index = {.index = 5}};
+    SXML_TEST_EXPECT(state, sxml_node_make_typed_value(
+                                fixture.item_heap,
+                                &(sxml_node_value_request){.node = nilled_element, .error_record = NULL},
+                                &typed_value) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, sequence_is_empty(typed_value));
+    built_tree_destroy(&built);
+    SXML_TEST_EXPECT(state, live_cell_count(&fixture) == 0);
+    node_fixture_destroy(&fixture);
+}
+
 /* ------------------------------------------------------------ Base URIs */
 
 typedef struct base_uri_case {
@@ -1530,6 +1650,8 @@ static const sxml_test_case xdm_node_test_cases[] = {
      .function = test_string_and_typed_values},
     {.name = "validated_typed_values_come_from_the_tree",
      .function = test_validated_typed_values_come_from_the_tree},
+    {.name = "typed_values_derive_from_annotations",
+     .function = test_typed_values_derive_from_annotations},
     {.name = "base_uris_follow_xml_base",
      .function = test_base_uris_follow_xml_base},
     {.name = "reference_resolution_examples",
