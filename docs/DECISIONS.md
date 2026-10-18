@@ -5414,8 +5414,86 @@ Recorded 2026-10-19, after D153, D155, D157.
 Reserved here; the record is completed when the packet is ticked.
 
 ### D160. Packages (packet 4.16)
-Recorded 2026-10-19, after D112, D117, D139, D148, D157.
-Reserved here; the record is completed when the packet is ticked.
+Recorded 2026-10-19, after D112, D117, D139, D148, D157. `src/xslt_package.c`
+with `src/xslt_package_internal.h` (the package table, glossary); no IR
+kind, no evaluator change; `include/sxml/xslt.h` changes one comment
+(provisional, D151).
+- **D148's design for XSLT**: a package is a set of modules whose
+  components have a visibility. One AST holds every package: the reader
+  asks the resolver for each xsl:use-package (kind XSLT_PACKAGE, the name
+  as uri_reference and absolute_uri, the package-version or "*") and reads
+  the package's principal module in place as a module of relation
+  USED_PACKAGE, the top of a package (XTSE3000 when nothing is delivered,
+  XTSE3005 for a package that uses itself, XTSE3008 for a use in an
+  imported module). It is read again for every use, so each use has
+  components of its own (3.4.5: a package used twice may be overridden
+  twice), and parsed once per compilation (same name and range: the
+  document is reused). The children of xsl:override are declarations,
+  each with a static context of its own (where xsl:original is looked up).
+  For precedence a USED_PACKAGE module counts as imported, so an
+  override's template rules come before the used package's (3.4.6). One
+  lowering lowers every package's declarations into one unit.
+- **The table** is made first in the lowering: the package of each module
+  and static context; per package, from the last to the first, one
+  component instance per own winning declaration (visibility from
+  xsl:expose and the visibility attribute, 3.4.5.1; an xsl:stylesheet's
+  named templates and modes are public), per overriding declaration (its
+  visibility, else private) and per accepted component (xsl:accept, else
+  public/final become private; hidden ones are left out), each instance of
+  the used package pointing at its successor in the user. **Binding**
+  (3.4.5.5): the referring package's instance, then the successors; the
+  last one's declaration is called. xsl:original binds to the overridden
+  instance's declaration (3.4.5.4). Stylesheet parameters are public, as
+  in XSLT 3.0 and the suite (4.0's 3.4.5.1 says private; the 3.4.5.2 rule
+  for using packages says public).
+- **Lowering**: functions (each static context's function table binds
+  through its package; xsl:original in an overriding function), attribute
+  sets (one per name and package; xsl:original in use-attribute-sets),
+  global variables (one per name and package; each package's static
+  contexts get a view of the names it binds with D148's `global_numbers`,
+  plus $xsl:original in an overriding variable; a global no view binds, an
+  overridden or hidden abstract one, gets no initializer), named templates
+  (call-template, xsl:original), modes (a mode is a package and a name:
+  each package has its own unnamed mode, a named mode binds like a
+  component, #all is the template's package's modes, XTSE3085 per
+  package), and the invocation: the top-level package's public or final
+  initial template and function, an initial mode it declares public or
+  final or does not declare. Abstract components' bodies raise XTDE3052.
+  The existing checks between declarations (XTSE0630, XTSE0660, XTSE0770,
+  XTSE0545, attribute set merging) apply within a package.
+- **Static errors**: XTSE0020 (package-version of xsl:package or
+  xsl:use-package), XTSE3003 (another name, a version out of range),
+  XTSE3010, XTSE3020, XTSE3022, XTSE3025 (xsl:expose), XTSE3030,
+  XTSE3032, XTSE3040, XTSE3051 (xsl:accept), XTSE3050, XTSE3055,
+  XTSE3058, XTSE3060, XTSE3070 (arity ranges, parameter, result, variable
+  and context item types identical by subtyping both ways, tunnel and
+  required flags), XTSE3080.
+- **Versions** (3.4.1): `sxml_xslt_package_version_matches` (versions,
+  "*", lists, V.*, V+, to V, V to W). The resolver chooses the version;
+  the driver (`tests/xslt/driver/xslt_package_version.c`) serves the
+  highest one the range matches, settling D117's
+  package_version_resolution as highest_version, and reads the name and
+  version of a catalog <package> without uri= from its file.
+- **D157's Proposed item accepted**: a RESOLVED_PACKAGE principal module
+  may be an xsl:stylesheet or xsl:transform (3.4: an implicit package); a
+  simplified module stays XTSE3000 (`src/xslt.c`, the xslt.h comment).
+- **Not done**: keys, accumulators, decimal formats, namespace aliases,
+  strip-space, outputs and named types are still stylesheet-wide, not per
+  package (use-package-101, -104, override-misc-006); xsl:with-param of
+  xsl:use-package and a used package's own static parameters;
+  xsl:package-location (the resolver decides); XTSE3075; an abstract
+  variable a view binds is computed eagerly, so XTDE3052 also when it is
+  never read (accept-042, -043a: XSLT globals are all computed first).
+- Also: a library package's global variables have no global context item
+  (2.3.2, XPDY0002); the reader's `decide_role` no longer dereferences a
+  missing rule (a lint finding).
+- Measured (release, `tools/run-xslt.sh`, in-scope passed before -> after):
+  decl/package 53 -> 68 of 72, override 30 -> 91 of 102, accept 33 -> 48
+  of 50, expose 12 -> 42 of 42, attr/package-version 25 -> 33 of 34,
+  use-package 13 -> 34 of 53 (34 of the 45 run: the 8 others need
+  package_version_resolution lowest_version or unspecified, and one
+  streaming); the six sets +150. Whole suite 7,585 -> 7,864 in scope
+  (4.17's numbering included). No other test set lost a case.
 
 ### D161. Phase 3 gate review (packet 3.15)
 Recorded 2026-10-19, after D11, D95, D123, D132, D151.
@@ -5449,14 +5527,19 @@ year one" list of PLAN.md.
 
 ## Proposed
 
-- **An xsl:stylesheet as the principal package** (packet 4.15, D157; for
-  the owner of `include/sxml/xslt.h`): the header asks XTSE3000 for a
-  RESOLVED_PACKAGE principal module whose top element is not
-  xsl:package, but XSLT 4.0, 3.5 makes an xsl:stylesheet an implicit
-  package, and the suite gives such principal modules as <package>
-  (package-001g, -001h, -001r, -001s, override-f-028, -029, -v-015,
-  -m-021). Proposed: accept xsl:stylesheet and xsl:transform there
-  (XTSE3000 stays for xsl:use-package).
+- **Matching package versions for host resolvers** (packet 4.16, D160;
+  for the owner of `include/sxml/xslt.h`): a resolver that serves
+  XSLT_PACKAGE must pick a version the range matches (XSLT 4.0, 3.4.1);
+  sxml has the function internally (`sxml_xslt_package_version_matches`)
+  and the test driver keeps a copy. Proposed: export it from xslt.h, with
+  the order of two versions, so hosts and the driver share one.
+
+- **Declarations local to a package** (packet 4.16, D160; for a sweep):
+  keys, accumulators, decimal formats, namespace aliases, character maps
+  and output definitions are still stylesheet-wide (3.4.8;
+  use-package-101 to -106, -108b, override-misc-006). Each is a table
+  keyed by name that would take the package as part of its key, as
+  attribute sets and modes now do.
 
 - **The CLI's WebAssembly budget after sxml transform** (packet 4.15,
   D157; for the owner, with the budget items below): linking XSLT (its

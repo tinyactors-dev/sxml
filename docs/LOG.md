@@ -8,10 +8,22 @@ One short entry per week, newest first: what passed, what's next, what is blocke
   `docs/CONFORMANCE.md`, review fixes in small hunks of Phase 3 files,
   the ledgers, `CHANGELOG.md`, the gate boxes of `docs/tasks/phase-3.md`.
 
-- 4.16 claimed (D160): packages. `src/xslt_package.c` (new) with small
-  hooks in `src/xslt_read.c`, `src/xslt_ast.c`, `src/xslt.c` and the
-  XSLT lowering files (coordinated with 4.17 by hunk), the driver's
-  package-version choice in `tests/xslt/driver/xslt_execution.c`.
+- 4.16 done (D160): XSLT packages, with D148's design: one AST holds
+  every package (xsl:use-package reads the used package in place, once
+  per use, parsed once), one lowering lowers them all, and the package
+  table (`src/xslt_package.c`) binds each reference: component instances
+  per package with their visibility (xsl:expose, xsl:accept), overriding
+  instances with xsl:original, successors in the using packages. The
+  lookups of functions, attribute sets, globals (per-package views),
+  named templates and modes (each package its own unnamed mode) bind
+  through it; abstract components raise XTDE3052; the XTSE30xx checks
+  including signatures (XTSE3070); version ranges, the driver serves the
+  highest matching version; an xsl:stylesheet is an implicit principal
+  package (D157's Proposed item). Release, in scope: package 53 -> 68/72,
+  override 30 -> 91/102, accept 33 -> 48/50, expose 12 -> 42/42,
+  package-version 25 -> 33/34, use-package 13 -> 34/53 (34/45 run);
+  XT40 7,585 -> 7,864. Still stylesheet-wide: keys, decimal formats,
+  aliases, character maps, outputs (Proposed).
 
 - 4.17 sweep 1 claimed (D159): XSLT conformance. Numbering sequences in
   the shared picture engine, the run-time function table (key,

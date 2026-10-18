@@ -317,6 +317,12 @@ visibility (public, private, final, abstract, hidden), accept, expose,
 override for functions, templates, variables, attribute sets and modes.
 Done when decl-package, use-package, accept, expose, override,
 attr-package-version ≥ 70%.
+**Done** 2026-10-19 (D160): `src/xslt_package.c` (the package table),
+the reader's USED_PACKAGE modules, binding in the XSLT lowering,
+`tests/xslt_package_test.c`, the driver's version choice. In scope:
+package 94 %, override 89 %, accept 96 %, expose 100 %, package-version
+97 %, use-package 64 % (76 % of the cases run: 8 need another
+package_version_resolution, 1 streaming).
 
 ### 4.17 Conformance sweeps (implementation, repeatable)
 After 4.15. As 2.19, over in-scope XSLT sets (misc-regex-syntax 987 and
