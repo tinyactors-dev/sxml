@@ -5011,8 +5011,8 @@ changed; no IR kind added.
   constructor makes a tree, and 10,000 of them took 655 MB
   (fold-left-021 and slice-185 ended in the driver's memory limit).
 - **Measured** (release, all 737 sets of each spec, code of 00ac981):
-  XQ40 39,698 to 39,924 passed, in scope 96.4 % to 96.9 %, XQ-only
-  85.3 % to 97.9 % (9,321 of 9,523; the non-goal cases no longer run),
+  XQ40 39,698 to 39,928 passed, in scope 96.4 % to 96.9 %, XQ-only
+  85.3 % to 97.9 % (9,325 of 9,523; the non-goal cases no longer run),
   "error" outcomes 5 to 1 (modules-40, below), none lost but
   fn-system-properties-supports-dynamic-xquery-false (now not run, as
   the feature is claimed); fn-load-xquery-module 0 to 103 of 117 run,
