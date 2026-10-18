@@ -4,7 +4,7 @@
 
 Results of the W3C QT4 test suite (`third_party/qt4tests`, D13) under `sxml-qt4 run` (D92), a release build, one process per test set. *Passed* counts passes and wrong errors (a wrong error code counts as a pass, catalog-schema.xsd); *not run* means not applicable to sxml or using an unsupported feature; *run* is test cases minus not run.
 
-- Code under test: commit `f43f747cf962` of 2026-10-18
+- Code under test: commit `b075cd34171b` of 2026-10-18
 - Regenerate: `cmake --preset release && cmake --build --preset release && tools/run-qt4.sh --program build/release/tests/qt4/driver/sxml-qt4 && tools/run-qt4.sh --program build/release/tests/qt4/driver/sxml-qt4 --spec XQ40 && tools/conformance-report.py build/qt4-run` (XQ40 is reported when its run is in the directory; XT40 and XSD11 when `tools/run-xslt.sh` and `tools/run-xsd.sh` ran into it too)
 
 ## Torture slice
@@ -17,9 +17,9 @@ Results of the W3C QT4 test suite (`third_party/qt4tests`, D13) under `sxml-qt4 
 
 | Specification | Test cases | Run | Passed | of which wrong error | Failed | Errors | Not run | Passed of run |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|
-| XP40 | 47,313 | 31,267 | 30,924 | 86 | 343 | 0 | 16,046 | 98.9 % |
+| XP40 | 47,313 | 31,267 | 30,931 | 85 | 336 | 0 | 16,046 | 98.9 % |
 
-Gate rate (D95): 30,776 of 31,543 in-scope test cases passed, **97.6 %** (in scope: the spec matches and no non-goal is needed; not-run cases count as not passed).
+Gate rate (D95): 30,783 of 31,543 in-scope test cases passed, **97.6 %** (in scope: the spec matches and no non-goal is needed; not-run cases count as not passed).
 
 Schema-aware (D174, area "schema-aware"): 279 of 315 test cases passed, **88.6 %** (the test cases that need schemaImport, schemaValidation or typedData, or whose environment has a schema or a validated source; outside the D95 denominator unless only their environment is schema-aware; not-run cases count as not passed).
 
@@ -29,7 +29,7 @@ Schema-aware (D174, area "schema-aware"): 279 of 315 test cases passed, **88.6 %
 |---|--:|--:|--:|--:|--:|--:|--:|--:|
 | Functions (F&O 4.0, fn:): `fn-*` | 17,250 | 14,730 | 14,578 | 36 | 152 | 0 | 2,520 | 99.0 % |
 | Operators (F&O 4.0, op:): `op-*` | 4,789 | 3,811 | 3,807 | 0 | 4 | 0 | 978 | 99.9 % |
-| Grammar productions (XPath/XQuery 4.0): `prod-*` | 14,932 | 8,943 | 8,784 | 47 | 159 | 0 | 5,989 | 98.2 % |
+| Grammar productions (XPath/XQuery 4.0): `prod-*` | 14,932 | 8,943 | 8,791 | 46 | 152 | 0 | 5,989 | 98.3 % |
 | Map functions (map:): `map-*` | 361 | 353 | 352 | 0 | 1 | 0 | 8 | 99.7 % |
 | Array functions (array:): `array-*` | 537 | 495 | 494 | 0 | 1 | 0 | 42 | 99.8 % |
 | Math functions (math:): `math-*` | 181 | 181 | 181 | 0 | 0 | 0 | 0 | 100.0 % |
@@ -48,7 +48,7 @@ Failed and error test cases by the error code the query raised (or the status th
 
 | Error code | Test cases |
 |---|--:|
-| (no error: wrong result) | 119 |
+| (no error: wrong result) | 115 |
 | XPDY0002 | 70 |
 | FOTY0013 | 47 |
 | XPTY0004 | 34 |
@@ -58,7 +58,6 @@ Failed and error test cases by the error code the query raised (or the status th
 | FODC0013 | 6 |
 | FODT0004 | 6 |
 | FOJS0004 | 3 |
-| FORG0001 | 3 |
 | XPST0008 | 3 |
 | XPST0051 | 2 |
 | XPST0080 | 2 |
@@ -72,7 +71,7 @@ The 25 most frequent reasons:
 | FOTY0013: A function item or map cannot be atomized (XPath 4.0, section 2.5.3) | 47 |
 | XPDY0002: A function found by fn:function-lookup needs the focus, which a dynamic lookup does not c… | 45 |
 | XPST0017: no function with this name and arity is known | 32 |
-| wrong result (assert-true) | 32 |
+| wrong result (assert-true) | 28 |
 | XPDY0002: A step that selects from a JNode is evaluated with an absent focus, and this one depends… | 25 |
 | XPTY0004: a cast needs one atomic item, or the empty sequence when the target type allows it (XPath… | 17 |
 | wrong result (assert-xml) | 16 |
@@ -89,11 +88,11 @@ The 25 most frequent reasons:
 | XPTY0004: An operand of "\|\|" has more than one item (XPath 4.0, section 4.10) | 4 |
 | wrong result (assert-string-value) | 4 |
 | FOJS0004: validate=true needs a schema-aware processor, which sxml is not yet | 3 |
-| FORG0001: the value is not in the lexical space or value space of the target type | 3 |
 | XPST0008: no element declaration of this name is in scope | 3 |
 | error: expected XPTY0004, got true() | 3 |
 | error: expected XQST0033, got 1 | 3 |
 | error: expected XQST0070, got "a" | 3 |
+| error: expected XQST0070, got 1 | 3 |
 
 Wrong errors (counted as passed) by the error raised:
 
@@ -147,7 +146,6 @@ Not run, by the first dependency that is not met:
 | fn-doc | 75 | 59 | 9 | 0 | 7 |
 | prod-PathExpr.J | 186 | 166 | 9 | 0 | 11 |
 | fn-parse-xml | 57 | 35 | 7 | 0 | 15 |
-| prod-CastableExpr | 975 | 850 | 6 | 0 | 119 |
 | prod-MapConstructor | 86 | 55 | 6 | 0 | 25 |
 | fn-civil-timezone | 9 | 4 | 5 | 0 | 0 |
 | fn-deep-equal | 587 | 446 | 5 | 0 | 136 |
@@ -155,10 +153,11 @@ Not run, by the first dependency that is not met:
 | prod-ButWithExpr | 26 | 22 | 4 | 0 | 0 |
 | fn-function-name | 30 | 23 | 3 | 0 | 4 |
 | op-concat | 98 | 92 | 3 | 0 | 3 |
-| prod-CastExpr.derived | 170 | 160 | 3 | 0 | 7 |
 | fn-analyze-string | 49 | 30 | 2 | 0 | 17 |
 | fn-element-with-id | 5 | 3 | 2 | 0 | 0 |
 | fn-jkey | 17 | 15 | 2 | 0 | 0 |
+| fn-map-to-element | 233 | 226 | 2 | 0 | 5 |
+| fn-resolve-uri | 50 | 46 | 2 | 0 | 2 |
 
 ### Every XP40 test set
 
@@ -593,11 +592,11 @@ Not run, by the first dependency that is not met:
 | prod-BoundarySpaceDecl | 28 | 0 | 0 | 0 | 0 | 28 |
 | prod-BracedActions | 34 | 25 | 0 | 0 | 0 | 9 |
 | prod-ButWithExpr | 26 | 22 | 0 | 4 | 0 | 0 |
-| prod-CastableExpr | 975 | 850 | 0 | 6 | 0 | 119 |
+| prod-CastableExpr | 975 | 854 | 0 | 2 | 0 | 119 |
 | prod-CastableExpr.composite | 67 | 19 | 1 | 48 | 0 | 0 |
 | prod-CastExpr | 2,837 | 2,764 | 0 | 0 | 0 | 73 |
 | prod-CastExpr.composite | 67 | 33 | 20 | 34 | 0 | 0 |
-| prod-CastExpr.derived | 170 | 160 | 2 | 3 | 0 | 7 |
+| prod-CastExpr.derived | 170 | 163 | 1 | 0 | 0 | 7 |
 | prod-CastExpr.schema | 130 | 11 | 0 | 0 | 0 | 119 |
 | prod-ChoiceItemType | 50 | 35 | 0 | 2 | 0 | 13 |
 | prod-Comment | 45 | 27 | 0 | 0 | 0 | 18 |
@@ -913,27 +912,27 @@ Not run, by the first dependency that is not met:
 
 | Specification | Test cases | Run | Passed | of which wrong error | Failed | Errors | Not run | Passed of run |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|
-| XQ40 | 47,313 | 41,808 | 41,261 | 124 | 547 | 0 | 5,505 | 98.7 % |
+| XQ40 | 47,313 | 41,808 | 41,273 | 123 | 535 | 0 | 5,505 | 98.7 % |
 
-Gate rate (D95): 40,307 of 41,174 in-scope test cases passed, **97.9 %** (in scope: the spec matches and no non-goal is needed; not-run cases count as not passed).
+Gate rate (D95): 40,315 of 41,174 in-scope test cases passed, **97.9 %** (in scope: the spec matches and no non-goal is needed; not-run cases count as not passed).
 
-Schema-aware (D174, area "schema-aware"): 1,231 of 1,516 test cases passed, **81.2 %** (the test cases that need schemaImport, schemaValidation or typedData, or whose environment has a schema or a validated source; outside the D95 denominator unless only their environment is schema-aware; not-run cases count as not passed).
+Schema-aware (D174, area "schema-aware"): 1,236 of 1,516 test cases passed, **81.5 %** (the test cases that need schemaImport, schemaValidation or typedData, or whose environment has a schema or a validated source; outside the D95 denominator unless only their environment is schema-aware; not-run cases count as not passed).
 
-XQ-only (run, the spec does not admit XP40): 10,359 of 10,580 passed, **97.9 %**.
+XQ-only (run, the spec does not admit XP40): 10,364 of 10,580 passed, **98.0 %**.
 
 ### XQ40 by area
 
 | Area (test-set prefix) | Test cases | Run | Passed | of which wrong error | Failed | Errors | Not run | Passed of run |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|
-| Functions (F&O 4.0, fn:): `fn-*` | 17,250 | 16,318 | 16,063 | 41 | 255 | 0 | 932 | 98.4 % |
+| Functions (F&O 4.0, fn:): `fn-*` | 17,250 | 16,318 | 16,065 | 41 | 253 | 0 | 932 | 98.4 % |
 | Operators (F&O 4.0, op:): `op-*` | 4,789 | 4,692 | 4,679 | 0 | 13 | 0 | 97 | 99.7 % |
-| Grammar productions (XPath/XQuery 4.0): `prod-*` | 14,932 | 14,481 | 14,260 | 75 | 221 | 0 | 451 | 98.5 % |
+| Grammar productions (XPath/XQuery 4.0): `prod-*` | 14,932 | 14,481 | 14,268 | 74 | 213 | 0 | 451 | 98.5 % |
 | Map functions (map:): `map-*` | 361 | 358 | 357 | 0 | 1 | 0 | 3 | 99.7 % |
 | Array functions (array:): `array-*` | 537 | 534 | 532 | 0 | 2 | 0 | 3 | 99.6 % |
 | Math functions (math:): `math-*` | 181 | 181 | 181 | 0 | 0 | 0 | 0 | 100.0 % |
 | Constructor functions and types (xs:): `xs-*` | 227 | 215 | 214 | 0 | 1 | 0 | 12 | 99.5 % |
 | Miscellaneous: `misc-*` | 3,042 | 1,554 | 1,537 | 7 | 17 | 0 | 1,488 | 98.9 % |
-| Applications: `app-*` | 3,034 | 3,031 | 3,005 | 1 | 26 | 0 | 3 | 99.1 % |
+| Applications: `app-*` | 3,034 | 3,031 | 3,007 | 1 | 24 | 0 | 3 | 99.2 % |
 | Serialization methods: `method-*` | 508 | 444 | 433 | 0 | 11 | 0 | 64 | 97.5 % |
 | XQuery Update: `upd-*` | 825 | 0 | 0 | 0 | 0 | 0 | 825 | – |
 | XQuery Full Text: `ft-*` | 685 | 0 | 0 | 0 | 0 | 0 | 685 | – |
@@ -946,10 +945,10 @@ Failed and error test cases by the error code the query raised (or the status th
 
 | Error code | Test cases |
 |---|--:|
-| (no error: wrong result) | 269 |
+| (no error: wrong result) | 264 |
 | XPDY0002 | 74 |
 | FOTY0013 | 47 |
-| XPTY0004 | 39 |
+| XPTY0004 | 37 |
 | XPST0017 | 30 |
 | XQST0059 | 19 |
 | FODC0009 | 14 |
@@ -958,7 +957,6 @@ Failed and error test cases by the error code the query raised (or the status th
 | FODT0004 | 6 |
 | FOJS0004 | 3 |
 | FONS0004 | 3 |
-| FORG0001 | 3 |
 | XPST0051 | 3 |
 | XQDY0084 | 3 |
 | FODF1280 | 2 |
@@ -971,6 +969,7 @@ Failed and error test cases by the error code the query raised (or the status th
 | FODF1310 | 1 |
 | FOJS0008 | 1 |
 | FOQM0003 | 1 |
+| FOTY0014 | 1 |
 
 The 25 most frequent reasons:
 
@@ -978,8 +977,8 @@ The 25 most frequent reasons:
 |---|--:|
 | FOTY0013: A function item or map cannot be atomized (XPath 4.0, section 2.5.3) | 47 |
 | XPDY0002: A function found by fn:function-lookup needs the focus, which a dynamic lookup does not c… | 47 |
-| wrong result (assert-true) | 47 |
 | wrong result (assert-deep-eq) | 46 |
+| wrong result (assert-true) | 42 |
 | wrong result (assert-xml) | 32 |
 | XPST0017: no function with this name and arity is known | 30 |
 | wrong result (assert) | 27 |
@@ -1050,18 +1049,18 @@ Not run, by the first dependency that is not met:
 | app-spec-examples | 1,498 | 1,479 | 19 | 0 | 0 |
 | fn-json-to-xml | 104 | 81 | 16 | 0 | 7 |
 | fn-deep-equal | 587 | 561 | 13 | 0 | 13 |
-| fn-xsd-validator | 76 | 63 | 13 | 0 | 0 |
 | fn-analyze-string | 49 | 36 | 12 | 0 | 1 |
+| fn-xsd-validator | 76 | 64 | 12 | 0 | 0 |
 | prod-NamedRecordTypeDecl | 94 | 83 | 11 | 0 | 0 |
 | fn-doc-available | 47 | 34 | 10 | 0 | 3 |
 | misc-BuiltInKeywords | 304 | 294 | 10 | 0 | 0 |
 | op-same-key | 30 | 19 | 10 | 0 | 1 |
-| prod-CastableExpr | 975 | 950 | 10 | 0 | 15 |
 | prod-PathExpr.J | 186 | 176 | 10 | 0 | 0 |
 | fn-doc | 75 | 65 | 9 | 0 | 1 |
 | fn-load-xquery-module | 141 | 116 | 9 | 0 | 16 |
 | fn-parse-xml | 57 | 46 | 8 | 0 | 3 |
 | method-adaptive | 140 | 94 | 6 | 0 | 40 |
+| prod-CastableExpr | 975 | 954 | 6 | 0 | 15 |
 | prod-MapConstructor | 86 | 75 | 6 | 0 | 5 |
 | fn-civil-timezone | 9 | 4 | 5 | 0 | 0 |
 | fn-schema-type | 14 | 9 | 5 | 0 | 0 |
@@ -1107,7 +1106,7 @@ Not run, by the first dependency that is not met:
 | fn-contains-token | 48 | 46 | 0 | 0 | 0 | 2 |
 | fn-count | 316 | 316 | 0 | 0 | 0 | 0 |
 | fn-csv-doc | 20 | 20 | 0 | 0 | 0 | 0 |
-| fn-csv-to-xml | 70 | 69 | 0 | 1 | 0 | 0 |
+| fn-csv-to-xml | 70 | 70 | 0 | 0 | 0 | 0 |
 | fn-current-date | 26 | 26 | 0 | 0 | 0 | 0 |
 | fn-current-dateTime | 27 | 27 | 0 | 0 | 0 | 0 |
 | fn-current-time | 24 | 24 | 0 | 0 | 0 | 0 |
@@ -1309,7 +1308,7 @@ Not run, by the first dependency that is not met:
 | fn-void | 5 | 5 | 0 | 0 | 0 | 0 |
 | fn-while-do | 30 | 30 | 0 | 0 | 0 | 0 |
 | fn-xml-to-json | 170 | 156 | 2 | 5 | 0 | 9 |
-| fn-xsd-validator | 76 | 63 | 1 | 13 | 0 | 0 |
+| fn-xsd-validator | 76 | 64 | 1 | 12 | 0 | 0 |
 | fn-year-from-date | 29 | 29 | 0 | 0 | 0 | 0 |
 | fn-years-from-duration | 33 | 33 | 0 | 0 | 0 | 0 |
 | fn-year-from-dateTime | 35 | 35 | 0 | 0 | 0 | 0 |
@@ -1500,11 +1499,11 @@ Not run, by the first dependency that is not met:
 | prod-BoundarySpaceDecl | 28 | 28 | 0 | 0 | 0 | 0 |
 | prod-BracedActions | 34 | 34 | 0 | 0 | 0 | 0 |
 | prod-ButWithExpr | 26 | 22 | 0 | 4 | 0 | 0 |
-| prod-CastableExpr | 975 | 950 | 1 | 10 | 0 | 15 |
+| prod-CastableExpr | 975 | 954 | 1 | 6 | 0 | 15 |
 | prod-CastableExpr.composite | 67 | 19 | 1 | 48 | 0 | 0 |
 | prod-CastExpr | 2,837 | 2,788 | 2 | 1 | 0 | 48 |
 | prod-CastExpr.composite | 67 | 33 | 20 | 34 | 0 | 0 |
-| prod-CastExpr.derived | 170 | 161 | 2 | 3 | 0 | 6 |
+| prod-CastExpr.derived | 170 | 164 | 1 | 0 | 0 | 6 |
 | prod-CastExpr.schema | 130 | 128 | 0 | 2 | 0 | 0 |
 | prod-ChoiceItemType | 50 | 48 | 0 | 2 | 0 | 0 |
 | prod-Comment | 45 | 45 | 0 | 0 | 0 | 0 |
@@ -1601,7 +1600,7 @@ Not run, by the first dependency that is not met:
 | prod-UnorderedExpr | 31 | 29 | 0 | 0 | 0 | 2 |
 | prod-UnaryLookup | 37 | 32 | 0 | 2 | 0 | 3 |
 | prod-UnionNodeTest | 12 | 12 | 0 | 0 | 0 | 0 |
-| prod-ValidateExpr | 92 | 88 | 0 | 2 | 0 | 2 |
+| prod-ValidateExpr | 92 | 89 | 0 | 1 | 0 | 2 |
 | prod-ValueComp | 125 | 125 | 0 | 0 | 0 | 0 |
 | prod-VarDecl | 167 | 141 | 2 | 1 | 0 | 25 |
 | prod-VarDecl.external | 107 | 96 | 0 | 1 | 0 | 10 |
@@ -1632,8 +1631,8 @@ Not run, by the first dependency that is not met:
 | method-text | 23 | 19 | 0 | 0 | 0 | 4 |
 | method-xhtml | 61 | 57 | 0 | 0 | 0 | 4 |
 | method-xml | 74 | 62 | 0 | 4 | 0 | 8 |
-| app-CatalogCheck | 18 | 16 | 0 | 2 | 0 | 0 |
-| app-Demos | 13 | 11 | 0 | 2 | 0 | 0 |
+| app-CatalogCheck | 18 | 17 | 0 | 1 | 0 | 0 |
+| app-Demos | 13 | 12 | 0 | 1 | 0 | 0 |
 | app-Duplicates | 14 | 14 | 0 | 0 | 0 | 0 |
 | app-FunctxFn | 502 | 502 | 0 | 0 | 0 | 0 |
 | app-FunctxFunctx | 627 | 626 | 0 | 0 | 0 | 1 |
@@ -1820,9 +1819,9 @@ Not run, by the first dependency that is not met:
 
 | Specification | Test cases | Run | Passed | of which wrong error | Failed | Errors | Not run | Passed of run |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|
-| XT40 | 13,867 | 8,484 | 7,990 | 138 | 494 | 0 | 5,383 | 94.2 % |
+| XT40 | 13,867 | 8,484 | 7,992 | 138 | 492 | 0 | 5,383 | 94.2 % |
 
-Gate rate (D95): 7,990 of 8,728 in-scope test cases passed, **91.5 %** (in scope: the spec matches and no non-goal is needed; not-run cases count as not passed).
+Gate rate (D95): 7,992 of 8,728 in-scope test cases passed, **91.6 %** (in scope: the spec matches and no non-goal is needed; not-run cases count as not passed).
 
 ### XT40 core test sets (Phase 4 gate: 80 % each)
 
@@ -1854,7 +1853,7 @@ XSLT slice (`tests/xslt/slice.txt`): **147/154 passed**.
 | Instructions: `tests/insn/` | 1,996 | 1,692 | 1,570 | 26 | 122 | 0 | 304 | 92.8 % |
 | Miscellaneous: `tests/misc/` | 3,123 | 1,871 | 1,822 | 44 | 49 | 0 | 1,252 | 97.4 % |
 | Streaming (out of scope, D95): `tests/strm/` | 2,564 | 0 | 0 | 0 | 0 | 0 | 2,564 | – |
-| Other | 975 | 877 | 817 | 23 | 60 | 0 | 98 | 93.2 % |
+| Other | 975 | 877 | 819 | 23 | 58 | 0 | 98 | 93.4 % |
 
 ### XT40 failure causes
 
@@ -1874,7 +1873,6 @@ Failed and error test cases by the error code the query raised (or the status th
 | FONS0004 | 4 |
 | XPDY0050 | 4 |
 | XPST0008 | 3 |
-| FORG0001 | 2 |
 | SERE0008 | 2 |
 | XPST0003 | 2 |
 | XTDE0040 | 2 |
@@ -1887,6 +1885,7 @@ Failed and error test cases by the error code the query raised (or the status th
 | FODC0013 | 1 |
 | SERE0023 | 1 |
 | XPST0081 | 1 |
+| XQDY0044 | 1 |
 
 The 25 most frequent reasons:
 
@@ -1907,7 +1906,6 @@ The 25 most frequent reasons:
 | XPTY0004: The value does not match the required type (XPath 4.0, section 3.4, coercion rules) | 3 |
 | assert: the expected value raised err:XPDY0050: The value of a treat expression does not match its… | 3 |
 | error: expected FORX0002, got <true/> | 3 |
-| FORG0001: the value is not in the lexical space or value space of the target type | 2 |
 | SERE0008: a character the output encoding cannot represent is not in text or an attribute value | 2 |
 | XPDY0002: A function found by fn:function-lookup needs the focus, which a dynamic lookup does not c… | 2 |
 | XPST0008: a global variable refers to itself (XSLT 4.0, 9.9) | 2 |
@@ -1917,6 +1915,7 @@ The 25 most frequent reasons:
 | XTDE3052: an abstract variable no package overrides is read (XSLT 4.0, 3.4.5.2) | 2 |
 | XTSE0020: A name-valued attribute holds no EQName (XSLT 4.0, 5.1.1) | 2 |
 | XTSE0165: The stylesheet module an xsl:include or xsl:import names cannot be read (XSLT 4.0, 3.10.1) | 2 |
+| assert-serialization: the serialization differs | 2 |
 
 Wrong errors (counted as passed) by the error raised:
 
@@ -1979,9 +1978,9 @@ Not run, by the first dependency that is not met:
 | static | 49 | 40 | 8 | 0 | 1 |
 | use-when | 105 | 94 | 8 | 0 | 3 |
 | array | 37 | 22 | 7 | 0 | 8 |
-| date | 139 | 123 | 7 | 0 | 9 |
 | seqtor | 92 | 85 | 7 | 0 | 0 |
 | analyze-string | 68 | 56 | 6 | 0 | 6 |
+| arrays | 87 | 69 | 6 | 0 | 12 |
 
 ### Every XT40 test set
 
@@ -2231,7 +2230,7 @@ Not run, by the first dependency that is not met:
 | sx-UnionExpr | 56 | 0 | 0 | 0 | 0 | 56 |
 | arrays | 87 | 69 | 0 | 6 | 0 | 12 |
 | boolean | 112 | 105 | 0 | 0 | 0 | 7 |
-| date | 139 | 123 | 0 | 7 | 0 | 9 |
+| date | 139 | 125 | 0 | 5 | 0 | 9 |
 | maps | 61 | 60 | 2 | 1 | 0 | 0 |
 | namespace | 224 | 205 | 12 | 2 | 0 | 17 |
 | node | 32 | 31 | 0 | 1 | 0 | 0 |
@@ -2249,17 +2248,17 @@ Not run, by the first dependency that is not met:
 
 | Specification | Test cases | Run | Passed | of which wrong error | Failed | Errors | Not run | Passed of run |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|
-| XSD11 | 41,735 | 41,518 | 41,452 | 0 | 66 | 0 | 217 | 99.8 % |
+| XSD11 | 41,735 | 41,518 | 41,483 | 0 | 35 | 0 | 217 | 99.9 % |
 
-Gate rate (D95): 41,452 of 41,518 in-scope test cases passed, **99.8 %** (in scope: the spec matches and no non-goal is needed; not-run cases count as not passed).
+Gate rate (D95): 41,483 of 41,518 in-scope test cases passed, **99.9 %** (in scope: the spec matches and no non-goal is needed; not-run cases count as not passed).
 
 ### XSD11 gate groups (proposed Phase 5 gate, D165)
 
 | Group | Target | In scope | Passed | Rate |
 |---|--:|--:|--:|--:|
 | Datatypes (NIST, MS DataTypes and Regex) | 95 % | 30,598 | 30,598 | 100.0 % |
-| Structures (Microsoft, Sun, W3C WG, Oracle, Boeing) | 80 % | 8,626 | 8,585 | 99.5 % |
-| XSD 1.1 (Saxonica, IBM) | 70 % | 2,294 | 2,269 | 98.9 % |
+| Structures (Microsoft, Sun, W3C WG, Oracle, Boeing) | 80 % | 8,626 | 8,600 | 99.7 % |
+| XSD 1.1 (Saxonica, IBM) | 70 % | 2,294 | 2,285 | 99.6 % |
 
 XSD slice (`tests/xsd/slice.txt`): **147/147 passed**.
 
@@ -2268,10 +2267,10 @@ XSD slice (`tests/xsd/slice.txt`): **147/147 passed**.
 | Area (contributor: the test-set prefix) | Test cases | Run | Passed | of which wrong error | Failed | Errors | Not run | Passed of run |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|
 | NIST (datatypes): `nist-*` | 23,170 | 23,170 | 23,170 | 0 | 0 | 0 | 0 | 100.0 % |
-| Microsoft: `ms-*` | 14,450 | 14,363 | 14,322 | 0 | 41 | 0 | 87 | 99.7 % |
+| Microsoft: `ms-*` | 14,450 | 14,363 | 14,337 | 0 | 26 | 0 | 87 | 99.8 % |
 | Sun: `sun-*` | 1,610 | 1,606 | 1,606 | 0 | 0 | 0 | 4 | 100.0 % |
-| Saxonica (XSD 1.1): `saxon-*` | 1,390 | 1,375 | 1,352 | 0 | 23 | 0 | 15 | 98.3 % |
-| IBM (XSD 1.1): `ibm-*` | 919 | 919 | 917 | 0 | 2 | 0 | 0 | 99.8 % |
+| Saxonica (XSD 1.1): `saxon-*` | 1,390 | 1,375 | 1,367 | 0 | 8 | 0 | 15 | 99.4 % |
+| IBM (XSD 1.1): `ibm-*` | 919 | 919 | 918 | 0 | 1 | 0 | 0 | 99.9 % |
 | W3C XML Schema WG: `wg-*` | 60 | 41 | 41 | 0 | 0 | 0 | 19 | 100.0 % |
 | Oracle: `oracle-*` | 26 | 26 | 26 | 0 | 0 | 0 | 0 | 100.0 % |
 | Boeing: `boeing-*` | 18 | 18 | 18 | 0 | 0 | 0 | 0 | 100.0 % |
@@ -2283,15 +2282,13 @@ Failed and error test cases by the error code the query raised (or the status th
 
 | Error code | Test cases |
 |---|--:|
-| (no error: wrong result) | 66 |
+| (no error: wrong result) | 35 |
 
 The 25 most frequent reasons:
 
 | Cause | Test cases |
 |---|--:|
-| schema: valid, expected invalid | 42 |
-| schema: invalid enumeration-valid-restriction | 6 |
-| instance: valid, expected invalid | 5 |
+| schema: valid, expected invalid | 23 |
 | instance: invalid, expected valid | 3 |
 | schema: invalid src-redefine | 3 |
 | schema: invalid enumeration-required-notation | 2 |
@@ -2299,7 +2296,6 @@ The 25 most frequent reasons:
 | schema: invalid, expected valid cos-content-act-restrict | 1 |
 | schema: invalid, expected valid derivation-ok-restriction.3 | 1 |
 | schema: invalid, expected valid enumeration-required-notation | 1 |
-| schema: invalid, expected valid enumeration-valid-restriction | 1 |
 
 Wrong errors (counted as passed) by the error raised:
 
@@ -2322,20 +2318,17 @@ Not run, by the first dependency that is not met:
 
 | Test set | Test cases | Passed | Failed | Errors | Not run |
 |---|--:|--:|--:|--:|--:|
-| ms-Schema_w3c | 165 | 136 | 15 | 0 | 14 |
-| saxon-Zone | 74 | 67 | 7 | 0 | 0 |
 | ms-Attribute_w3c | 403 | 395 | 6 | 0 | 2 |
-| saxon-Wild | 284 | 278 | 6 | 0 | 0 |
-| ms-ModelGroups_w3c | 598 | 594 | 4 | 0 | 0 |
 | ms-Particles_w3c | 1,372 | 1,364 | 4 | 0 | 4 |
 | ms-SimpleType_w3c | 443 | 432 | 4 | 0 | 7 |
-| saxon-Open | 165 | 161 | 4 | 0 | 0 |
-| ms-AttributeGroup_w3c | 149 | 146 | 3 | 0 | 0 |
+| saxon-Wild | 284 | 280 | 4 | 0 | 0 |
+| ms-ModelGroups_w3c | 598 | 595 | 3 | 0 | 0 |
+| ms-Schema_w3c | 165 | 148 | 3 | 0 | 14 |
 | saxon-XmlVersions | 51 | 48 | 3 | 0 | 0 |
-| ibm-defaultAttributesApply | 31 | 29 | 2 | 0 | 0 |
 | ms-Annotations_w3c | 80 | 78 | 2 | 0 | 0 |
-| saxon-Complex | 92 | 90 | 2 | 0 | 0 |
+| ibm-defaultAttributesApply | 31 | 30 | 1 | 0 | 0 |
 | ms-Additional_w3c | 445 | 431 | 1 | 0 | 13 |
+| ms-AttributeGroup_w3c | 149 | 148 | 1 | 0 | 0 |
 | ms-ComplexType_w3c | 812 | 811 | 1 | 0 | 0 |
 | ms-Notations_w3c | 119 | 118 | 1 | 0 | 0 |
 | saxon-Override | 86 | 85 | 1 | 0 | 0 |
@@ -2364,7 +2357,7 @@ Not run, by the first dependency that is not met:
 | sun-Wildcard | 61 | 61 | 0 | 0 | 0 | 0 |
 | ms-Additional_w3c | 445 | 431 | 0 | 1 | 0 | 13 |
 | ms-Annotations_w3c | 80 | 78 | 0 | 2 | 0 | 0 |
-| ms-AttributeGroup_w3c | 149 | 146 | 0 | 3 | 0 | 0 |
+| ms-AttributeGroup_w3c | 149 | 148 | 0 | 1 | 0 | 0 |
 | ms-Attribute_w3c | 403 | 395 | 0 | 6 | 0 | 2 |
 | ms-ComplexType_w3c | 812 | 811 | 0 | 1 | 0 | 0 |
 | ms-DataTypes_w3c | 3,434 | 3,429 | 0 | 0 | 0 | 5 |
@@ -2372,29 +2365,29 @@ Not run, by the first dependency that is not met:
 | ms-Errata10_w3c | 31 | 30 | 0 | 0 | 0 | 1 |
 | ms-Group_w3c | 344 | 344 | 0 | 0 | 0 | 0 |
 | ms-IdentityConstraint_w3c | 1,072 | 1,058 | 0 | 0 | 0 | 14 |
-| ms-ModelGroups_w3c | 598 | 594 | 0 | 4 | 0 | 0 |
+| ms-ModelGroups_w3c | 598 | 595 | 0 | 3 | 0 | 0 |
 | ms-Notations_w3c | 119 | 118 | 0 | 1 | 0 | 0 |
 | ms-Particles_w3c | 1,372 | 1,364 | 0 | 4 | 0 | 4 |
 | ms-Regex_w3c | 4,022 | 3,999 | 0 | 0 | 0 | 23 |
-| ms-Schema_w3c | 165 | 136 | 0 | 15 | 0 | 14 |
+| ms-Schema_w3c | 165 | 148 | 0 | 3 | 0 | 14 |
 | ms-SimpleType_w3c | 443 | 432 | 0 | 4 | 0 | 7 |
 | ms-Wildcards_w3c | 434 | 434 | 0 | 0 | 0 | 0 |
 | boeing-BoeingXSDTestSet | 18 | 18 | 0 | 0 | 0 | 0 |
 | saxon-All | 110 | 110 | 0 | 0 | 0 | 0 |
 | saxon-Assert | 101 | 101 | 0 | 0 | 0 | 0 |
-| saxon-Complex | 92 | 90 | 0 | 2 | 0 | 0 |
+| saxon-Complex | 92 | 92 | 0 | 0 | 0 | 0 |
 | saxon-CTA | 113 | 113 | 0 | 0 | 0 | 0 |
 | saxon-Id | 121 | 121 | 0 | 0 | 0 | 0 |
 | saxon-Missing | 14 | 0 | 0 | 0 | 0 | 14 |
-| saxon-Open | 165 | 161 | 0 | 4 | 0 | 0 |
+| saxon-Open | 165 | 165 | 0 | 0 | 0 | 0 |
 | saxon-Override | 86 | 85 | 0 | 1 | 0 | 0 |
 | saxon-Simple | 108 | 108 | 0 | 0 | 0 | 0 |
 | saxon-Subsgroup | 11 | 11 | 0 | 0 | 0 | 0 |
 | saxon-TargetNS | 10 | 10 | 0 | 0 | 0 | 0 |
 | saxon-VC | 50 | 49 | 0 | 0 | 0 | 1 |
-| saxon-Wild | 284 | 278 | 0 | 6 | 0 | 0 |
+| saxon-Wild | 284 | 280 | 0 | 4 | 0 | 0 |
 | saxon-XmlVersions | 51 | 48 | 0 | 3 | 0 | 0 |
-| saxon-Zone | 74 | 67 | 0 | 7 | 0 | 0 |
+| saxon-Zone | 74 | 74 | 0 | 0 | 0 | 0 |
 | oracle-Zone | 26 | 26 | 0 | 0 | 0 | 0 |
 | wg-substitution-groups | 47 | 28 | 0 | 0 | 0 | 19 |
 | wg-IRI | 13 | 13 | 0 | 0 | 0 | 0 |
@@ -2408,7 +2401,7 @@ Not run, by the first dependency that is not met:
 | ibm-date | 2 | 2 | 0 | 0 | 0 | 0 |
 | ibm-dateTimeStamp | 43 | 43 | 0 | 0 | 0 | 0 |
 | ibm-dayTimeDuration | 36 | 36 | 0 | 0 | 0 | 0 |
-| ibm-defaultAttributesApply | 31 | 29 | 0 | 2 | 0 | 0 |
+| ibm-defaultAttributesApply | 31 | 30 | 0 | 1 | 0 | 0 |
 | ibm-defaultFixed | 10 | 10 | 0 | 0 | 0 | 0 |
 | ibm-double | 4 | 4 | 0 | 0 | 0 | 0 |
 | ibm-edcWildcard | 4 | 4 | 0 | 0 | 0 | 0 |
