@@ -781,6 +781,8 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `validity` | The outcome XSD gives an assessed item (XSD 1.1 Part 1, the [validity] property): valid, invalid or not known |
 | `validation_outcome` | What a schema validator reports once its tree has ended: the validity of the validation root and the count of errors |
 | `in_scope_schemas` | The compiled schemas a static context imports: their types, element and attribute declarations are XPath 4.0's in-scope schema definitions (section 2.2.1) |
+| `schema_scope` | What the languages ask of a static context's in-scope schemas: lookups of types and declarations across them, substitution group members, and schema errors raised again with the language's codes (`src/schema_scope.c`, D174) |
+| `schema_aware_test` | A QT4 test case that needs schema awareness: it requires schemaImport, schemaValidation or typedData, or its environment has a schema or a validated source; the dashboard's area "schema-aware" (D174) |
 | `schema_components` | The store of one schema's components (`sxml_schema_components`, `src/schema_internal.h`, D167): one array per schema table, addressed by index with entry 0 "none", plus the name index and the blocks compile stages allocate |
 | `schema_table` | One array of the schema components: a component kind (particles, element declarations, ...) or what links them (references, lists, texts, namespace bindings) |
 | `schema_position` | Where a component's XML representation starts: its schema document's index, line and column |
