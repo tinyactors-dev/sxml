@@ -6546,12 +6546,80 @@ Reserved 2026-10-18; the record follows when the packet lands.
 Reserved 2026-10-18; the record follows when the packet lands.
 
 ### D176. sxml validate (packet 5.10)
-Reserved 2026-10-18; the record follows when the packet lands.
+Recorded 2026-10-18. The command of the 5.10 design
+(`docs/tasks/phase-5.md`), in `apps/sxml/command_validate.c`; golden
+`apps/sxml/command_check.c`. Public API only (`schema.h`, `xml.h`).
+- **One pass per FILE**: the XML parser feeds a validator whose result
+  builder is the null builder; the processor and its local-file resolver
+  are `query_command.h`'s (`SXML_PARAMETER_BINDING_NONE`). SCHEMA
+  documents are TEXT documents with file URIs, so includes and imports
+  resolve relative to the referring document; report locations are named
+  back by `sxml_query_file_of_uri`, moved with `sxml_query_make_file_uri`
+  from `command_transform.c` to `query_command.c` (one helper for both
+  commands).
+- **Schema location hints are not followed, and there is no flag for
+  them.** The schema is what the command line names (D44: the command
+  line fully determines behaviour; XSD 1.1 Part 1, 4.3.2 leaves hints to
+  the processor; `schema.h` does not follow them either). A hinted
+  document is named with another `--schema`. An explicit flag can be
+  added later if the owner wants one; it would be a second, visible way
+  to name schema documents, never a default.
+- **Required options in the CLI framework**: `SXML_CLI_OPTION_AT_LEAST_ONCE`
+  (`cli_command.h`) is a repeatable option the parser requires
+  (`SXML_CLI_USAGE_ERROR_MISSING_OPTION`, "missing option '--schema'");
+  help shows `--schema=SCHEMA [--schema=SCHEMA]...` and "(required;
+  repeatable)", so the usage line and docs/CLI.md agree.
+- **Reports**: text errors go to standard error as they arrive; JSON keeps
+  a file's errors in an arena until its object is written, so `status`
+  comes before `errors`. A description that starts with its constraint
+  name (the facet errors of D173) is shown without it. In text, a file
+  whose validity is not known gets one line on standard error. A FILE
+  the parser rejects is reported as `sxml check` does; a failure of the
+  validator (a limit, UNSUPPORTED_FEATURE of the 5.8 and 5.9 seams) is
+  `failed`, exit 4.
+- **Deviation from the design**: a document an include names that cannot
+  be read is reported as src-resolve where its components are used, not
+  src-include (D173, XSD 1.1 4.2.3 clause 2.4); docs/CLI.md says so.
+- **WebAssembly**: the CLI module grows to 4,877,565 bytes stripped
+  (1,126,567 gzipped); its ctest budget is raised to 5,500,000 /
+  1,250,000 and the growth reported under "Proposed".
+- **Measured**: the instance tests of `msData/particles`
+  (ms-Particles_w3c, 514 run by both) give the same validity through
+  `sxml validate` as through sxml-xsd-test, the 16 that need location
+  hints with the hinted documents passed as `--schema`.
 
 ### D177. Identity constraints (packet 5.8)
 Reserved 2026-10-18; the record follows when the packet lands.
 
 ## Proposed
+
+- **The CLI's WebAssembly budget after sxml validate** (packet 5.10,
+  D176; for the owner, with the 4.15 item below): linking schema
+  compilation and validation makes the stripped `sxml` CLI module
+  4,877,565 bytes (1,126,567 gzipped), over 4.15's 1,100,000 gzipped;
+  5.10 set the ctest budget to 5,500,000 / 1,250,000, leaving room for
+  5.8 and 5.9. `sxml.wasm` is unchanged (1,916,341 / 663,954). Choose:
+  confirm, or split the optional front ends into modules.
+
+- **Locations of errors about a configured schema document** (packet
+  5.10, D176; for the owner of `src/schema_assemble.c`): a SCHEMA that is
+  not well-formed or whose document element is not xs:schema is reported
+  with an empty source name and no line (`schema_reference`), and the
+  parser's line and column are lost; the "not a schema document" text
+  ends with the absolute URI. `sxml validate` names the one SCHEMA, or
+  none when there are several. Proposed: such reports carry the
+  document's URI as source name and, when it is not well-formed, the
+  parser's location.
+
+- **Validation descriptions that say what failed** (packet 5.10, D176;
+  for the owner of `src/schema_validate.c` and
+  `src/schema_validate_value.c`): "The element is not allowed here", "A
+  required attribute is missing" and "the value is not in the lexical
+  space or value space of the target type" name neither the element, the
+  attribute, the value nor the type, so `sxml validate` users must look
+  them up by line and column. Proposed: name them, as the 5.10 design's
+  example does ("element 'comment' is not allowed here; expected
+  'shipTo'").
 
 - **A simple base for a complex type in the registry** (packet 5.6, D172;
   for the owner of `src/types.c`): XSD 1.1, 3.4.1 lets a complex type with

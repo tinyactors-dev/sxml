@@ -338,6 +338,12 @@ Done when its golden tests pass under `debug`, `debug-gcc` and `wasm`,
 the WebAssembly budget holds or its growth is reported under "Proposed",
 and validating the suite's `msData/particles` instances through the CLI
 agrees with the driver.
+**Done** 2026-10-18 (D176): `apps/sxml/command_validate.c` on the public
+API, the framework's required options, 26 golden tests, the docs/CLI.md
+section; debug, debug-gcc and wasm pass; the CLI's WebAssembly budget
+raised and reported under "Proposed"; the 514 particles instance tests
+agree with sxml-xsd-test (hinted documents given as `--schema`, since
+neither follows hints).
 
 ### 5.11 Schema-aware XPath and XQuery (design and implementation)
 After 5.7. Owns `include/sxml/xpath.h` (one field, with a record),

@@ -4,6 +4,22 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 5.10 done (D176): `sxml validate --schema=SCHEMA [--schema=SCHEMA]...
+  [--mode=strict|lax] [--format=text|json] FILE...` validates documents
+  against the XSD 1.1 schema the SCHEMA documents form (includes and
+  imports as local files relative to the referring document), each FILE
+  in one pass with the parser feeding the validator; every error as
+  `FILE:LINE:COLUMN: CONSTRAINT: description`, JSON reports as the 5.10
+  design gives them, exit codes as `sxml check`. Location hints are not
+  followed (no flag). The CLI framework gained required repeatable
+  options (`SXML_CLI_OPTION_AT_LEAST_ONCE`); the file URI helpers of
+  `sxml transform` moved to `query_command.c`. 26 golden tests, docs/CLI.md
+  section and README example. msData/particles: the 514 instance tests
+  give the same validity as sxml-xsd-test (hinted documents passed as
+  `--schema`). No library change: XP40, XQ40, XT40 and XSD counts
+  unchanged. Proposed: locations of errors about a SCHEMA itself, and
+  validation descriptions that name what failed.
+
 - 5.7 done (D173): validation and the typed tree. The schema validator
   is a filtering tree builder (`src/schema_validate.c`): an element's
   start is held back until its attributes are known (xsi:type, xsi:nil,
