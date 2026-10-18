@@ -242,6 +242,12 @@ format, lang, letter-value, ordinal, grouping, start-at (4.0) on the 2.9
 engine. xsl:analyze-string with matching-substring,
 non-matching-substring and regex-group. Done when insn-number (268) and
 analyze-string ≥ 85%. Spec: XSLT 4.0 "Numbering", "Regular Expressions".
+**Done** 2026-10-18 (D153): `src/xslt_lower_number.c`,
+`tests/xslt_number_test.c`; format-place-marker beside fn:format-integer,
+format strings and grouping in `src/format.c`, fn:regex-group(s) in the
+`xslt` part, the context-variable parameter default in `src/xpath_lower.c`.
+Scratch harness, in-scope cases: insn/number 152/161 (94%),
+analyze-string 56/62 (90%), misc/regex 64/65, format-number 67/70.
 
 ### 4.12 Functions and declarations (implementation)
 After 4.8. Owns `src/xslt_lower_declaration.c`,

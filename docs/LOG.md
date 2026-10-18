@@ -4,6 +4,20 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 4.11 done (D153): numbering and analyze-string. `src/xslt_lower_number.c`:
+  xsl:number as 12.3's formal definition in XPath texts (count/from
+  patterns as inline match-expression FILTERs, an error is no match),
+  value (XTDE0980), start-at, formatted by one internal row
+  (format-place-marker) over fn:format-integer's engine (format tokens,
+  separators, prefix/suffix and grouping added to `src/format.c`);
+  xsl:analyze-string over fn:matching-segments with the gaps put in,
+  XTDE1140/1145 mapped. fn:regex-group and fn:regex-groups read the
+  current captured groups as a context variable: a new parameter default
+  `SXML_PARAMETER_DEFAULT_CONTEXT_VARIABLE` (lexical; templates called from
+  matching-substring see none). Harness (in scope): insn/number 0 to
+  152/161, analyze-string 0 to 56/62, misc/regex 64/65, format-number
+  27 to 67/70 (with 4.12). XP40 30,630 unchanged, slice 198/198.
+
 - 4.9 done (D152): sorting, grouping, merging. xsl:sort is one SORT key
   per xsl:sort (composite keys, order and collation computed when
   evaluated; data-type, lang/case-order as a UCA collation) under
