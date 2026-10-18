@@ -812,20 +812,28 @@ static bool reaches_document(const sxml_schema_assembly *assembly, document_edge
     return is_reached;
 }
 
+/* True when a document of the assembly has the namespace as its target
+   namespace. */
+static bool has_namespace_document(const sxml_schema_assembly *assembly,
+                                   sxml_namespace_uri_identifier namespace_uri) {
+    for (size_t position = 0; position < assembly->document_count; position += 1) {
+        if (assembly->documents[position]->target_namespace.index == namespace_uri.index) {
+            return true;
+        }
+    }
+    return false;
+}
+
 sxml_status sxml_schema_assembly_add_reference(sxml_schema_assembly *assembly,
                                                const sxml_schema_document_reference *reference) {
     const sxml_schema_read_request *referrer = reference->referrer;
     const document_relation relation = relation_of_reference(reference->relation);
     const bool is_import = reference->relation == SXML_SCHEMA_DOCUMENT_RELATION_IMPORT;
-    if (is_import && reference->schema_location.byte_count == 0) {
+    if (is_import && reference->schema_location.byte_count == 0 &&
+        has_namespace_document(assembly, reference->imported_namespace)) {
         /* An import without a location: its namespace may be known
            already (4.2.6.2); else the resolver may know it. */
-        for (size_t position = 0; position < assembly->document_count; position += 1) {
-            if (assembly->documents[position]->target_namespace.index ==
-                reference->imported_namespace.index) {
-                return SXML_STATUS_OK;
-            }
-        }
+        return SXML_STATUS_OK;
     }
     if (is_import && reference->imported_namespace.index == (uint32_t)SXML_NAMESPACE_XML_SCHEMA) {
         /* The built-in components are every schema's (3.16.7). */
@@ -866,9 +874,12 @@ sxml_status sxml_schema_assembly_add_reference(sxml_schema_assembly *assembly,
                                                        .is_missing = &is_missing,
                                                        .position = &position});
     if (status == SXML_STATUS_OK && is_missing && is_import &&
-        reference->imported_namespace.index == (uint32_t)SXML_NAMESPACE_XML) {
+        reference->imported_namespace.index == (uint32_t)SXML_NAMESPACE_XML &&
+        !has_namespace_document(assembly, reference->imported_namespace)) {
         /* The xml: attributes are known to every processor (XML
-           Namespaces; the document of http://www.w3.org/2001/xml.xsd). */
+           Namespaces; the document of http://www.w3.org/2001/xml.xsd),
+           unless a document of the namespace is there already (4.2.6.2:
+           a processor may keep the first import of a namespace). */
         source.content = xml_namespace_document;
         source.uri = SXML_TEXT("http://www.w3.org/2001/xml.xsd");
         source.is_node = false;

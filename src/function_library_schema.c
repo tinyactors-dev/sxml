@@ -540,36 +540,43 @@ static sxml_status validate_xslt_items(const sxml_function_call *call, xslt_item
     return status;
 }
 
+/* validate-items($node, $mode, $type), the mode XSLT_RULES plus a
+   validation mode: every item of $node under XSLT's rules
+   (src/schema_scope_internal.h). A row of its own, so that what links
+   only XQuery's validate does not carry XSLT's rules. */
+static sxml_status call_validate_items(const sxml_function_call *call, sxml_sequence *result) {
+    sxml_atomic_datum mode_datum;
+    sxml_atomic_datum type_datum;
+    bool has_mode = false;
+    bool has_type = false;
+    sxml_status status =
+        read_datum_argument(call, 1, (datum_answer){.datum = &mode_datum, .has_datum = &has_mode});
+    if (status == SXML_STATUS_OK) {
+        status =
+            read_datum_argument(call, 2, (datum_answer){.datum = &type_datum, .has_datum = &has_type});
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (!has_mode || mode_datum.datum_kind != SXML_DATUM_KIND_INTEGER ||
+        mode_datum.datum_details.integer < SXML_SCHEMA_VALIDATE_MODE_XSLT_RULES ||
+        mode_datum.datum_details.integer >
+            SXML_SCHEMA_VALIDATE_MODE_XSLT_RULES + SXML_SCHEMA_VALIDATE_MODE_TYPE ||
+        (has_type && type_datum.datum_kind != SXML_DATUM_KIND_QNAME)) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    return validate_xslt_items(
+        call,
+        (xslt_item){.item = {.representation = SXML_ITEM_REPRESENTATION_NONE},
+                    .mode = (sxml_schema_validate_mode)(mode_datum.datum_details.integer -
+                                                        SXML_SCHEMA_VALIDATE_MODE_XSLT_RULES),
+                    .type_name = has_type ? type_datum.datum_details.qname.expanded_name
+                                          : (sxml_name_identifier){.index = 0}},
+        result);
+}
+
 /* validate($node, $mode, $type) (src/schema_scope_internal.h). */
 static sxml_status call_validate(const sxml_function_call *call, sxml_sequence *result) {
-    sxml_atomic_datum xslt_mode_datum;
-    sxml_atomic_datum xslt_type_datum;
-    bool has_xslt_mode = false;
-    bool has_xslt_type = false;
-    sxml_status read_status = read_datum_argument(
-        call, 1, (datum_answer){.datum = &xslt_mode_datum, .has_datum = &has_xslt_mode});
-    if (read_status == SXML_STATUS_OK) {
-        read_status = read_datum_argument(
-            call, 2, (datum_answer){.datum = &xslt_type_datum, .has_datum = &has_xslt_type});
-    }
-    if (read_status != SXML_STATUS_OK) {
-        return read_status;
-    }
-    if (has_xslt_mode && xslt_mode_datum.datum_kind == SXML_DATUM_KIND_INTEGER &&
-        xslt_mode_datum.datum_details.integer >= SXML_SCHEMA_VALIDATE_MODE_XSLT_RULES &&
-        xslt_mode_datum.datum_details.integer <=
-            SXML_SCHEMA_VALIDATE_MODE_XSLT_RULES + SXML_SCHEMA_VALIDATE_MODE_TYPE &&
-        (!has_xslt_type || xslt_type_datum.datum_kind == SXML_DATUM_KIND_QNAME)) {
-        return validate_xslt_items(
-            call,
-            (xslt_item){.item = {.representation = SXML_ITEM_REPRESENTATION_NONE},
-                        .mode = (sxml_schema_validate_mode)(xslt_mode_datum.datum_details.integer -
-                                                            SXML_SCHEMA_VALIDATE_MODE_XSLT_RULES),
-                        .type_name = has_xslt_type
-                                         ? xslt_type_datum.datum_details.qname.expanded_name
-                                         : (sxml_name_identifier){.index = 0}},
-            result);
-    }
     single_node single = {.node = {.tree = NULL}};
     bool is_single = false;
     sxml_status status =
@@ -666,7 +673,7 @@ const sxml_native_function sxml_schema_validate_items_function = {
     .local_name = SXML_BYTE_VIEW_INITIALIZER("validate-items"),
     .parameters = {validate_parameters, 3},
     .result_type = SXML_BYTE_VIEW_INITIALIZER("item()*"),
-    .call = call_validate,
+    .call = call_validate_items,
     .resumable_body = NULL};
 
 /* ----------------------------------------------- The xsd-validation option */

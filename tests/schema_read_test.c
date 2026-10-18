@@ -584,6 +584,29 @@ static void test_names_and_references(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, document_fails_with(XS_SCHEMA "><xs:element name='e' "
                                                           "type='xs:untyped'/></xs:schema>",
                                                 "src-resolve"));
+    /* A schema document for the XSD namespace (the schema for schema
+       documents) restates built-in types: they are the built-in
+       components (D180); its other duplicates still conflict. */
+    SXML_TEST_EXPECT(state,
+                     reads_without_error(XS_SCHEMA " targetNamespace='http://www.w3.org/2001/"
+                                                   "XMLSchema'><xs:complexType name='anyType' "
+                                                   "mixed='true'><xs:sequence><xs:any "
+                                                   "minOccurs='0' maxOccurs='unbounded' "
+                                                   "processContents='lax'/></xs:sequence>"
+                                                   "<xs:anyAttribute processContents='lax'/>"
+                                                   "</xs:complexType><xs:simpleType "
+                                                   "name='string'><xs:restriction "
+                                                   "base='xs:anySimpleType'/></xs:simpleType>"
+                                                   "<xs:element name='schema'/></xs:schema>"));
+    SXML_TEST_EXPECT(state,
+                     document_fails_with(XS_SCHEMA " targetNamespace='http://www.w3.org/2001/"
+                                                   "XMLSchema'><xs:simpleType name='formChoice'>"
+                                                   "<xs:restriction base='xs:NMTOKEN'/>"
+                                                   "</xs:simpleType><xs:simpleType "
+                                                   "name='formChoice'><xs:restriction "
+                                                   "base='xs:NMTOKEN'/></xs:simpleType>"
+                                                   "</xs:schema>",
+                                         "sch-props-correct.2"));
 }
 
 /* Circular definitions RESOLVE finds. */

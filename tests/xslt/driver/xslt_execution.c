@@ -96,6 +96,10 @@ typedef struct sxml_xslt_test_context {
     sxml_byte_view stage;
     sxml_byte_view stage_subject;
     sxml_error_record error_record;
+    /* A source the environment asks to validate is not valid: sxml's
+       answer for the test, judged as the transformation's error (D180),
+       not a failure of the environment. */
+    bool is_source_invalid;
 } sxml_xslt_test_context;
 
 typedef struct sxml_xslt_test_stage {
@@ -719,6 +723,7 @@ static sxml_status sxml_xslt_test_validate_source(sxml_xslt_test_context *contex
     if (status == SXML_STATUS_OK) {
         *document_node = validated;
     }
+    context->is_source_invalid = status != SXML_STATUS_OK && sxml_status_has_error_record(status);
     return status;
 }
 
@@ -1438,6 +1443,32 @@ static void sxml_xslt_test_judge(sxml_xslt_test_context *context,
     sxml_qt4_reason_append(answer->reason, verdict.reason);
 }
 
+/* Judges a source that does not validate as the transformation's error:
+   validation is sxml's (the validator xsl:import-schema and the
+   validation attributes use), so the expected result decides, as for any
+   dynamic error (D180). */
+static void sxml_xslt_test_judge_invalid_source(sxml_xslt_test_context *context,
+                                                sxml_status status,
+                                                sxml_xslt_test_answer *answer) {
+    sxml_xslt_test_transformation_answer transformation = {
+        .status = status,
+        .value = sxml_sequence_empty(),
+        .serialized_bytes = sxml_xslt_test_empty_text,
+        .is_serialized = false,
+        .base_output_uri = sxml_xslt_test_empty_text};
+    memset(&transformation.serialization_parameters, 0,
+           sizeof transformation.serialization_parameters);
+    const sxml_xslt_test_outputs outputs = {
+        .stylesheet = NULL, .collector = NULL, .output_buffer = NULL};
+    sxml_qt4_reason_append(answer->reason, SXML_TEXT("source "));
+    sxml_qt4_reason_append(answer->reason, context->stage_subject);
+    sxml_qt4_reason_append(answer->reason, SXML_TEXT(" not valid: "));
+    sxml_xslt_test_judge(
+        context,
+        (sxml_xslt_test_outcome_view){.transformation = &transformation, .outputs = &outputs},
+        answer);
+}
+
 /* Runs the stylesheet and judges, or describes why it could not run. */
 static void sxml_xslt_test_run_transformation(sxml_xslt_test_context *context,
                                               sxml_xslt_test_answer *answer) {
@@ -1542,6 +1573,8 @@ void sxml_xslt_test_execute(const sxml_xslt_test_execution_request *request,
     }
     if (status == SXML_STATUS_OK) {
         sxml_xslt_test_run_transformation(context, answer);
+    } else if (context->is_source_invalid) {
+        sxml_xslt_test_judge_invalid_source(context, status, answer);
     } else {
         sxml_xslt_test_describe_failure(context, status, answer);
     }

@@ -185,6 +185,39 @@ static void test_resolved_documents(sxml_test_state *state) {
     sxml_processor_destroy(processor);
 }
 
+/* An import of the xml: namespace that the resolver does not deliver
+   takes the document of the namespace already there, not the built-in
+   one as well (Part 1, 4.2.6.2; D180). */
+static void test_xml_namespace_document_kept(sxml_test_state *state) {
+    sxml_processor *processor = open_processor(NULL);
+    SXML_TEST_REQUIRE(state, processor != NULL);
+    const sxml_schema_document documents[] = {
+        {.document_source = SXML_SCHEMA_DOCUMENT_SOURCE_TEXT,
+         .document_text = TEXT("<xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema' "
+                               "targetNamespace='http://www.w3.org/XML/1998/namespace'>"
+                               "<xs:attribute name='lang' type='xs:language'/></xs:schema>"),
+         .document_uri = TEXT("file:///xml.xsd")},
+        {.document_source = SXML_SCHEMA_DOCUMENT_SOURCE_TEXT,
+         .document_text = TEXT("<xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'>"
+                               "<xs:import namespace='http://www.w3.org/XML/1998/namespace' "
+                               "schemaLocation='http://www.w3.org/2001/xml.xsd'/>"
+                               "<xs:element name='e'><xs:complexType>"
+                               "<xs:attribute ref='xml:lang'/></xs:complexType></xs:element>"
+                               "</xs:schema>"),
+         .document_uri = TEXT("file:///e.xsd")}};
+    sxml_error_record record;
+    memset(&record, 0, sizeof(record));
+    const sxml_schema_configuration configuration = {
+        .processor = processor,
+        .schema_documents = {.schema_documents = documents, .schema_document_count = 2},
+        .error_record = &record};
+    sxml_schema *schema = NULL;
+    SXML_TEST_EXPECT(state, sxml_schema_create(sxml_default_allocator(), &configuration, &schema) ==
+                                SXML_STATUS_OK);
+    sxml_schema_destroy(schema);
+    sxml_processor_destroy(processor);
+}
+
 /* A NODE document: a parsed document node, read where it is. */
 static void test_node_documents(sxml_test_state *state) {
     sxml_processor *processor = open_processor(NULL);
@@ -270,6 +303,7 @@ static const sxml_test_case schema_test_cases[] = {
     {.name = "lifecycle_checks_its_arguments", .function = test_lifecycle_checks_its_arguments},
     {.name = "declarations_found", .function = test_declarations_found},
     {.name = "resolved_documents", .function = test_resolved_documents},
+    {.name = "xml_namespace_document_kept", .function = test_xml_namespace_document_kept},
     {.name = "node_documents", .function = test_node_documents},
     {.name = "errors_reported", .function = test_errors_reported},
 };

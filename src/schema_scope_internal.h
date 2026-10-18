@@ -183,8 +183,10 @@ typedef enum sxml_schema_validate_mode {
  * first schema then) or, for $mode TYPE, that defines $type. An invalid
  * node is XQDY0027 with the constraint name in the description.
  *
- * With SXML_SCHEMA_VALIDATE_MODE_XSLT_RULES added to $mode, the rules of
- * XSLT's [xsl:]validation and [xsl:]type attributes (XSLT 4.0, 25; D179):
+ * validate-items($node, $mode, $type) as item()*, a row of its own (D180),
+ * takes SXML_SCHEMA_VALIDATE_MODE_XSLT_RULES added to $mode and has the
+ * rules of XSLT's [xsl:]validation and [xsl:]type attributes (XSLT 4.0,
+ * 25; D179):
  * every item of $node is validated in turn, documents, elements and
  * attributes (each a validation root, its in-scope schema found as
  * above), other items kept as they are; a document whose children are
@@ -196,8 +198,7 @@ typedef enum sxml_schema_validate_mode {
  */
 extern const sxml_native_function sxml_schema_validate_function;
 
-/* The same row as validate-items($node, $mode, $type) as item()*, for
-   XSLT's rules, whose result is any number of items. */
+/* validate-items($node, $mode, $type) as item()*, XSLT's rules (above). */
 extern const sxml_native_function sxml_schema_validate_items_function;
 
 /*

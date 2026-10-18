@@ -2310,6 +2310,19 @@ static sxml_status enter_global(schema_reader *reader, global_entry entry) {
            original's. */
         return sxml_schema_components_replace_name(reader->components, &name_entry);
     }
+    if (entry.symbol_space == SXML_SCHEMA_SYMBOL_SPACE_TYPE_DEFINITION &&
+        sxml_schema_get_type_definition(reader->components,
+                                        (sxml_schema_type_definition_index){.value = existing})
+            ->is_builtin) {
+        /* A schema document for the XSD namespace (the schema for schema
+           documents, say) restating a built-in type: every schema has the
+           built-in components (4.2.1, "schema(D)"), which a processor
+           knows without reading (C.2.1, hard-coded schemas), and two
+           top-level type definitions of one name are one component (3.4.6.5,
+           the note on component identity); its own definition is left
+           unnamed, so sch-props-correct.2 does not hold against it. */
+        return SXML_STATUS_OK;
+    }
     return report(reader, (read_error){.constraint_name = SXML_TEXT("sch-props-correct.2"),
                                        .description = "Two global components of one kind have "
                                                       "the same name",
