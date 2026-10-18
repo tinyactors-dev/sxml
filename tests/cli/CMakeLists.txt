@@ -160,6 +160,8 @@ sxml_add_cli_test(transform_required_param EXIT_CODE 0 ARGUMENTS transform --par
 sxml_add_cli_test(transform_missing_param EXIT_CODE 1 ARGUMENTS transform xslt/required.xsl)
 sxml_add_cli_test(transform_static_error EXIT_CODE 1 ARGUMENTS transform xslt/broken.xsl books.xml)
 sxml_add_cli_test(transform_terminate EXIT_CODE 1 ARGUMENTS transform xslt/terminate.xsl)
+sxml_add_cli_test(transform_parent_document EXIT_CODE 0 ARGUMENTS transform xslt/parent-document.xsl)
+sxml_add_cli_test(transform_dynamic_error EXIT_CODE 1 ARGUMENTS transform xslt/dynamic-error.xsl)
 sxml_add_cli_test(transform_no_initial_template EXIT_CODE 1 ARGUMENTS transform xslt/books.xsl)
 sxml_add_cli_test(transform_unknown_mode EXIT_CODE 1 ARGUMENTS transform --initial-mode=nothing xslt/books.xsl books.xml)
 sxml_add_cli_test(transform_not_well_formed EXIT_CODE 1 ARGUMENTS transform xslt/books.xsl mismatched-tag.xml)

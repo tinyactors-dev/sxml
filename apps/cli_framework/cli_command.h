@@ -227,6 +227,9 @@ struct sxml_cli_invocation {
     sxml_byte_view version_text;
     /* Reads the files named on the command line. */
     sxml_cli_file_reader file_reader;
+    /* The working directory, which relative file names are in: an
+       absolute path with '/' between its parts; empty when unknown. */
+    sxml_byte_view working_directory;
 };
 
 /*

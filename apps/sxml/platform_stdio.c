@@ -7,12 +7,16 @@
 
 #include <stdalign.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
 #if defined(_WIN32)
+#include <direct.h>
 #include <fcntl.h>
 #include <io.h>
+#else
+#include <unistd.h>
 #endif
 
 sxml_status sxml_platform_prepare_streams(void) {
@@ -158,4 +162,28 @@ sxml_cli_file_reader sxml_platform_file_reader(void) {
         .state = NULL,
         .operations = &sxml_platform_file_reader_operations,
     };
+}
+
+void sxml_platform_read_working_directory(sxml_memory_view memory, sxml_byte_view *path) {
+    *path = (sxml_byte_view){.bytes = NULL, .byte_count = 0};
+    if (memory.byte_count < 2 || memory.byte_count > (size_t)INT32_MAX) {
+        return;
+    }
+    char *text = (char *)memory.bytes;
+#if defined(_WIN32)
+    if (_getcwd(text, (int)memory.byte_count) == NULL) {
+        return;
+    }
+#else
+    if (getcwd(text, memory.byte_count) == NULL) {
+        return;
+    }
+#endif
+    size_t byte_count = strlen(text);
+    for (size_t byte_index = 0; byte_index < byte_count; byte_index += 1) {
+        if (text[byte_index] == '\\') {
+            text[byte_index] = '/';
+        }
+    }
+    *path = (sxml_byte_view){.bytes = memory.bytes, .byte_count = byte_count};
 }

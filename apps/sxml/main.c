@@ -5,6 +5,7 @@
  * platform layer (platform.h).
  */
 #include <stdalign.h>
+#include <stdint.h>
 
 #include "cli_run.h"
 #include "platform.h"
@@ -47,6 +48,13 @@ int main(int argument_count, char **arguments) {
                 sxml_byte_view_from_c_string(arguments[view_index + 1]);
         }
     }
+    /* PATH_MAX of Linux; a longer working directory is unknown. */
+    uint8_t working_directory_bytes[4096];
+    sxml_byte_view working_directory = {.bytes = NULL, .byte_count = 0};
+    sxml_platform_read_working_directory(
+        (sxml_memory_view){.bytes = working_directory_bytes,
+                           .byte_count = sizeof(working_directory_bytes)},
+        &working_directory);
     sxml_cli_exit_code exit_code = sxml_cli_run(
         sxml_program(),
         &(sxml_cli_run_request){
@@ -57,6 +65,7 @@ int main(int argument_count, char **arguments) {
             .allocator = allocator,
             .version_text = sxml_byte_view_from_c_string(sxml_version_text()),
             .file_reader = sxml_platform_file_reader(),
+            .working_directory = working_directory,
         });
     sxml_allocator_release(allocator, argument_views);
     if (sxml_platform_flush_streams() != SXML_STATUS_OK &&

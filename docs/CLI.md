@@ -501,7 +501,8 @@ developer tools under `tests/` built with the same framework (D44).
   opens files: all I/O goes through `sxml_cli_output_stream`.
 - `apps/sxml/`: the program table with the program's description and
   examples (`program.c`), the command handlers (`command_<name>.c`),
-  `main.c`, and the only file that touches stdio, `platform_stdio.c`. The
+  `main.c`, and the only file that touches stdio and the working
+  directory (for the URIs of relative file names), `platform_stdio.c`. The
   query commands `xpath`, `xquery` and `serialize` share (and `transform`
   reuses) their processor, the local-file resolver, `--param`,
   `--context-item`, the `--method` choices, error reports and result

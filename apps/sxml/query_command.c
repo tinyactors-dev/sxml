@@ -37,9 +37,10 @@ static const sxml_serialization_method sxml_query_method_values[SXML_QUERY_METHO
 /* --------------------------------------------------------------- Files */
 
 /* fn:doc reads local files: a URI reference without a scheme is a path
-   relative to the working directory, a "file://" URI its path, and a
-   "file:" URI without an authority (sxml transform's base URI for a
-   relative stylesheet path) its relative path. */
+   relative to the working directory, a "file://" URI its path (on
+   Windows, file:///C:/work its C:/work), and a "file:" URI without an
+   authority (sxml transform's base URI for a relative stylesheet path
+   when the working directory is unknown) its relative path. */
 static sxml_byte_view sxml_query_local_path(const sxml_resource_request *request) {
     const sxml_byte_view file_scheme = SXML_TEXT("file://");
     const sxml_byte_view relative_scheme = SXML_TEXT("file:");
@@ -47,8 +48,16 @@ static sxml_byte_view sxml_query_local_path(const sxml_resource_request *request
                                                               : request->uri_reference;
     if (uri.byte_count > file_scheme.byte_count &&
         memcmp(uri.bytes, file_scheme.bytes, file_scheme.byte_count) == 0) {
-        return (sxml_byte_view){.bytes = uri.bytes + file_scheme.byte_count,
-                                .byte_count = uri.byte_count - file_scheme.byte_count};
+        sxml_byte_view path = {.bytes = uri.bytes + file_scheme.byte_count,
+                               .byte_count = uri.byte_count - file_scheme.byte_count};
+        if (path.byte_count >= 3 && path.bytes[0] == '/' && path.bytes[2] == ':' &&
+            ((path.bytes[1] >= 'A' && path.bytes[1] <= 'Z') ||
+             (path.bytes[1] >= 'a' && path.bytes[1] <= 'z'))) {
+            /* /C:/work: a drive letter (RFC 8089, appendix E.2). */
+            path.bytes += 1;
+            path.byte_count -= 1;
+        }
+        return path;
     }
     if (uri.byte_count > relative_scheme.byte_count &&
         memcmp(uri.bytes, relative_scheme.bytes, relative_scheme.byte_count) == 0) {
