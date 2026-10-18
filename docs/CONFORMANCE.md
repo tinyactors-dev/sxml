@@ -4,7 +4,7 @@
 
 Results of the W3C QT4 test suite (`third_party/qt4tests`, D13) under `sxml-qt4 run` (D92), a release build, one process per test set. *Passed* counts passes and wrong errors (a wrong error code counts as a pass, catalog-schema.xsd); *not run* means not applicable to sxml or using an unsupported feature; *run* is test cases minus not run.
 
-- Code under test: commit `50a365175782` of 2026-10-18
+- Code under test: commit `4cb75fd232f9` of 2026-10-18
 - Regenerate: `cmake --preset release && cmake --build --preset release && tools/run-qt4.sh --program build/release/tests/qt4/driver/sxml-qt4 && tools/run-qt4.sh --program build/release/tests/qt4/driver/sxml-qt4 --spec XQ40 && tools/conformance-report.py build/qt4-run` (XQ40 is reported when its run is in the directory)
 
 ## Torture slice
@@ -1811,16 +1811,16 @@ Not run, by the first dependency that is not met:
 
 | Specification | Test cases | Run | Passed | of which wrong error | Failed | Errors | Not run | Passed of run |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|
-| XT40 | 13,867 | 8,484 | 7,693 | 189 | 784 | 7 | 5,383 | 90.7 % |
+| XT40 | 13,867 | 8,484 | 7,879 | 140 | 602 | 3 | 5,383 | 92.9 % |
 
-Gate rate (D95): 7,693 of 8,728 in-scope test cases passed, **88.1 %** (in scope: the spec matches and no non-goal is needed; not-run cases count as not passed).
+Gate rate (D95): 7,879 of 8,728 in-scope test cases passed, **90.3 %** (in scope: the spec matches and no non-goal is needed; not-run cases count as not passed).
 
 ### XT40 core test sets (Phase 4 gate: 80 % each)
 
 | Test set | In scope | Passed | Rate |
 |---|--:|--:|--:|
 | apply-templates | 39 | 38 | 97.4 % |
-| mode | 165 | 144 | 87.3 % |
+| mode | 165 | 145 | 87.9 % |
 | match | 194 | 180 | 92.8 % |
 | for-each-group | 86 | 78 | 90.7 % |
 | sort | 82 | 82 | 100.0 % |
@@ -1829,23 +1829,23 @@ Gate rate (D95): 7,693 of 8,728 in-scope test cases passed, **88.1 %** (in scope
 | choose | 65 | 62 | 95.4 % |
 | copy | 146 | 129 | 88.4 % |
 | value-of | 15 | 8 | 53.3 % |
-| result-document | 150 | 141 | 94.0 % |
+| result-document | 150 | 143 | 95.3 % |
 | function | 124 | 111 | 89.5 % |
 
-XSLT slice (`tests/xslt/slice.txt`): **140/154 passed**.
+XSLT slice (`tests/xslt/slice.txt`): **141/154 passed**.
 
 ### XT40 by area
 
 | Area (group: tests/GROUP/) | Test cases | Run | Passed | of which wrong error | Failed | Errors | Not run | Passed of run |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|
-| Attributes: `tests/attr/` | 1,634 | 1,042 | 939 | 9 | 103 | 0 | 592 | 90.1 % |
-| Declarations: `tests/decl/` | 1,497 | 1,168 | 945 | 75 | 222 | 1 | 329 | 80.9 % |
+| Attributes: `tests/attr/` | 1,634 | 1,042 | 948 | 10 | 94 | 0 | 592 | 91.0 % |
+| Declarations: `tests/decl/` | 1,497 | 1,168 | 1,088 | 23 | 79 | 1 | 329 | 93.2 % |
 | Expressions: `tests/expr/` | 739 | 650 | 645 | 0 | 5 | 0 | 89 | 99.2 % |
-| Functions: `tests/fn/` | 1,339 | 1,184 | 1,042 | 12 | 141 | 1 | 155 | 88.0 % |
-| Instructions: `tests/insn/` | 1,996 | 1,692 | 1,542 | 26 | 147 | 3 | 304 | 91.1 % |
-| Miscellaneous: `tests/misc/` | 3,123 | 1,871 | 1,763 | 43 | 106 | 2 | 1,252 | 94.2 % |
+| Functions: `tests/fn/` | 1,339 | 1,184 | 1,053 | 12 | 130 | 1 | 155 | 88.9 % |
+| Instructions: `tests/insn/` | 1,996 | 1,692 | 1,547 | 26 | 144 | 1 | 304 | 91.4 % |
+| Miscellaneous: `tests/misc/` | 3,123 | 1,871 | 1,781 | 46 | 90 | 0 | 1,252 | 95.2 % |
 | Streaming (out of scope, D95): `tests/strm/` | 2,564 | 0 | 0 | 0 | 0 | 0 | 2,564 | – |
-| Other | 975 | 877 | 817 | 24 | 60 | 0 | 98 | 93.2 % |
+| Other | 975 | 877 | 817 | 23 | 60 | 0 | 98 | 93.2 % |
 
 ### XT40 failure causes
 
@@ -1853,76 +1853,76 @@ Failed and error test cases by the error code the query raised (or the status th
 
 | Error code | Test cases |
 |---|--:|
-| (no error: wrong result) | 459 |
-| XPST0017 | 70 |
+| (no error: wrong result) | 382 |
 | XTSE0340 | 49 |
-| XPST0008 | 33 |
-| XPST0051 | 26 |
+| XPST0051 | 30 |
 | XTDE1450 | 25 |
-| XTSE0650 | 21 |
-| FODC0002 | 14 |
-| XTSE0710 | 14 |
+| XPST0017 | 20 |
+| FODC0002 | 15 |
 | XTTE0570 | 13 |
-| XTSE3000 | 8 |
+| XTSE3000 | 7 |
 | XPDY0002 | 6 |
+| XPTY0004 | 5 |
 | FOAR0001 | 4 |
 | FONS0004 | 4 |
 | XPDY0050 | 4 |
-| XPTY0004 | 4 |
-| XTSE3085 | 4 |
-| FORG0001 | 3 |
-| XTDE0040 | 3 |
+| XPST0008 | 3 |
+| FODF1310 | 2 |
+| FORG0001 | 2 |
 | SERE0008 | 2 |
 | XPST0003 | 2 |
+| XTDE0040 | 2 |
 | XTDE0560 | 2 |
+| XTDE3052 | 2 |
 | XTSE0020 | 2 |
 | XTSE0165 | 2 |
+| XTTE0780 | 2 |
 | FODC0006 | 1 |
 
 The 25 most frequent reasons:
 
 | Cause | Test cases |
 |---|--:|
-| wrong result (assert-xml) | 148 |
-| wrong result (assert) | 77 |
-| XPST0017: no function with this name and arity is known | 70 |
+| wrong result (assert-xml) | 136 |
+| wrong result (assert) | 78 |
 | XTSE0340: the text is not a pattern (XSLT 4.0, 6.3.1) | 49 |
-| XPST0008: the variable is not declared | 31 |
-| XPST0051: the type name is not defined | 26 |
+| XPST0051: the type name is not defined | 30 |
 | XTDE1450: an extension instruction is evaluated that the processor does not implement, and it has n… | 25 |
-| XTSE0650: xsl:call-template names no template of the stylesheet (XSLT 4.0, 10.1.2) | 21 |
 | wrong result (assert-string-value) | 21 |
-| wrong result (serialization-matches) | 17 |
-| XTSE0710: use-attribute-sets names no attribute set of the stylesheet (XSLT 4.0, 10.2.1) | 14 |
+| XPST0017: no function with this name and arity is known | 20 |
+| wrong result (serialization-matches) | 18 |
 | XTTE0570: the value of the variable does not match its required type (XSLT 4.0, 9.3) | 13 |
+| FODC0002: No such collection | 10 |
 | the serialization is not UTF-8 (an encoding parameter) | 10 |
-| FODC0002: No such collection | 9 |
-| XTSE3000: the principal package is not an xsl:package (XSLT 4.0, 3.4.3) | 8 |
-| error: expected XTSE0020, got SHOULD NOT FIRE | 8 |
-| error: expected XTSE3010, got <ok/> | 6 |
-| error: expected XTSE3020, got <ok/> | 5 |
+| XTSE3000: No package of the name and version an xsl:use-package asks for is found (XSLT 4.0, 3.4.3) | 7 |
 | FONS0004: no namespace is bound to the prefix | 4 |
-| XTSE3085: a package with declared-modes="yes" uses a mode it does not declare (XSLT 4.0, 3.4.6.1) | 4 |
-| error: expected XTSE3010, got <not-ok xmlns:f="urn:myfunc"/> | 4 |
-| error: expected XTSE3440, got <out><x/></out> | 4 |
 | FODC0002: The file cannot be read | 3 |
-| FORG0001: the value is not in the lexical space or value space of the target type | 3 |
 | XPDY0002: the focus is absent in a function body | 3 |
+| XPTY0004: The value does not match the required type (XPath 4.0, section 3.4, coercion rules) | 3 |
+| assert: the expected value raised err:XPDY0050: The value of a treat expression does not match its… | 3 |
+| error: expected FORX0002, got <true/> | 3 |
+| FODF1310: The picture string of fn:format-number is not valid (F&O 4.0, section 4.9.3) | 2 |
+| FORG0001: the value is not in the lexical space or value space of the target type | 2 |
+| SERE0008: a character the output encoding cannot represent is not in text or an attribute value | 2 |
+| XPDY0002: A function found by fn:function-lookup needs the focus, which a dynamic lookup does not c… | 2 |
+| XPST0008: a global variable refers to itself (XSLT 4.0, 9.9) | 2 |
+| XPTY0004: A lookup is applied to an item that is not a map or an array (XPath 4.0, section 4.7.3) | 2 |
+| XTDE0040: the stylesheet has no template of the initial template's name (XSLT 4.0, 2.4.4) | 2 |
 
 Wrong errors (counted as passed) by the error raised:
 
 | Raised instead | Test cases |
 |---|--:|
-| XPST0017: no function with this name and arity is known | 18 |
-| XTSE0650: xsl:call-template names no template of the stylesheet (XSLT 4.0, 10.1.2) | 14 |
-| XTSE0710: use-attribute-sets names no attribute set of the stylesheet (XSLT 4.0, 10.2.1) | 14 |
-| XTDE0040: the stylesheet has no template of the initial template's name (XSLT 4.0, 2.4.4) | 13 |
-| XPST0008: the variable is not declared | 11 |
+| XPST0017: no function with this name and arity is known | 7 |
+| XTDE0040: the stylesheet has no template of the initial template's name (XSLT 4.0, 2.4.4) | 7 |
 | XPDY0002: the focus is absent in a function body | 6 |
 | XTDE0820: the name of xsl:element is not a lexical QName with a declared prefix (XSLT 4.0, 11.2) | 6 |
 | XQDY0102: an element binds one prefix to two namespace URIs | 5 |
 | XTDE1030: Two sort key values are not comparable (XSLT 4.0, 13.1.2) | 5 |
 | XTDE3175: xsl:evaluate is evaluated, and sxml does not support dynamic evaluation (XSLT 4.0, 10.5) | 5 |
+| XTSE0020: A name-valued attribute holds no EQName (XSLT 4.0, 5.1.1) | 5 |
+| XTSE0340: the text is not a pattern (XSLT 4.0, 6.3.1) | 5 |
+| XTDE0925: xsl:namespace binds xml or xmlns, or another prefix to their namespaces (XSLT 4.0, 11.7) | 4 |
 
 Not run, by the first dependency that is not met:
 
@@ -1948,31 +1948,31 @@ Not run, by the first dependency that is not met:
 
 | Test set | Test cases | Passed | Failed | Errors | Not run |
 |---|--:|--:|--:|--:|--:|
-| override | 106 | 30 | 72 | 0 | 4 |
-| error | 580 | 447 | 49 | 2 | 82 |
 | priority | 40 | 6 | 34 | 0 | 0 |
-| use-package | 54 | 13 | 32 | 0 | 9 |
+| error | 580 | 465 | 33 | 0 | 82 |
 | seqtor | 92 | 61 | 31 | 0 | 0 |
-| expose | 42 | 12 | 30 | 0 | 0 |
 | call-template-ext | 32 | 7 | 25 | 0 | 0 |
 | record | 47 | 22 | 23 | 0 | 2 |
 | collations | 43 | 23 | 20 | 0 | 0 |
 | document | 99 | 71 | 20 | 0 | 8 |
 | merge | 120 | 65 | 20 | 0 | 35 |
 | base-uri | 55 | 32 | 19 | 0 | 4 |
-| package | 72 | 53 | 19 | 0 | 0 |
 | snapshot | 35 | 16 | 19 | 0 | 0 |
 | type-alias | 32 | 13 | 18 | 0 | 1 |
-| accept | 50 | 33 | 17 | 0 | 0 |
 | copy | 165 | 129 | 17 | 0 | 19 |
 | function | 148 | 111 | 12 | 1 | 24 |
 | match | 309 | 180 | 13 | 0 | 116 |
-| mode | 196 | 144 | 13 | 0 | 39 |
-| next-match | 58 | 39 | 12 | 0 | 7 |
+| mode | 196 | 145 | 12 | 0 | 39 |
+| override | 106 | 91 | 11 | 0 | 4 |
+| use-package | 54 | 34 | 11 | 0 | 9 |
 | current-output-uri | 20 | 10 | 9 | 0 | 1 |
-| package-version | 37 | 25 | 9 | 0 | 3 |
+| next-match | 58 | 42 | 9 | 0 | 7 |
 | resolve-uri | 24 | 15 | 9 | 0 | 0 |
 | text | 20 | 9 | 9 | 0 | 2 |
+| transform | 12 | 3 | 9 | 0 | 0 |
+| array | 37 | 21 | 7 | 1 | 8 |
+| mode.enclosing | 14 | 6 | 8 | 0 | 0 |
+| normalize-unicode | 18 | 10 | 8 | 0 | 0 |
 
 ### Every XT40 test set
 
@@ -1989,8 +1989,8 @@ Not run, by the first dependency that is not met:
 | expand-text | 64 | 60 | 0 | 1 | 0 | 3 |
 | fixed-namespaces | 16 | 15 | 0 | 1 | 0 | 0 |
 | match | 309 | 180 | 0 | 13 | 0 | 116 |
-| mode | 196 | 144 | 2 | 13 | 0 | 39 |
-| package-version | 37 | 25 | 0 | 9 | 0 | 3 |
+| mode | 196 | 145 | 2 | 12 | 0 | 39 |
+| package-version | 37 | 33 | 1 | 1 | 0 | 3 |
 | priority | 40 | 6 | 0 | 34 | 0 | 0 |
 | select | 158 | 151 | 0 | 3 | 0 | 4 |
 | shadow | 10 | 10 | 0 | 0 | 0 | 0 |
@@ -2002,28 +2002,28 @@ Not run, by the first dependency that is not met:
 | validation | 68 | 5 | 0 | 1 | 0 | 62 |
 | version | 40 | 34 | 2 | 1 | 0 | 5 |
 | xpath-default-namespace | 26 | 16 | 0 | 4 | 0 | 6 |
-| accept | 50 | 33 | 29 | 17 | 0 | 0 |
-| accumulator | 109 | 68 | 0 | 1 | 0 | 40 |
+| accept | 50 | 48 | 2 | 2 | 0 | 0 |
+| accumulator | 109 | 68 | 1 | 1 | 0 | 40 |
 | attribute-set | 50 | 44 | 0 | 5 | 0 | 1 |
 | character-map | 33 | 32 | 0 | 1 | 0 | 0 |
 | context-item | 32 | 30 | 1 | 2 | 0 | 0 |
-| expose | 42 | 12 | 4 | 30 | 0 | 0 |
+| expose | 42 | 42 | 2 | 0 | 0 | 0 |
 | function | 148 | 111 | 1 | 12 | 1 | 24 |
-| global-context-item | 14 | 12 | 2 | 2 | 0 | 0 |
+| global-context-item | 14 | 13 | 2 | 1 | 0 | 0 |
 | import | 46 | 40 | 0 | 1 | 0 | 5 |
 | import-schema | 218 | 0 | 0 | 0 | 0 | 218 |
 | include | 32 | 19 | 0 | 3 | 0 | 10 |
 | mode.enclosing | 14 | 6 | 0 | 8 | 0 | 0 |
 | namespace-alias | 26 | 26 | 0 | 0 | 0 | 0 |
 | output | 254 | 239 | 1 | 6 | 0 | 9 |
-| override | 106 | 30 | 20 | 72 | 0 | 4 |
+| override | 106 | 91 | 5 | 11 | 0 | 4 |
 | note | 11 | 11 | 0 | 0 | 0 | 0 |
-| package | 72 | 53 | 8 | 19 | 0 | 0 |
+| package | 72 | 68 | 5 | 4 | 0 | 0 |
 | package-location | 6 | 1 | 1 | 5 | 0 | 0 |
 | param | 31 | 31 | 0 | 0 | 0 | 0 |
 | strip-space | 30 | 25 | 0 | 1 | 0 | 4 |
 | template | 6 | 6 | 0 | 0 | 0 | 0 |
-| use-package | 54 | 13 | 6 | 32 | 0 | 9 |
+| use-package | 54 | 34 | 0 | 11 | 0 | 9 |
 | variable | 113 | 103 | 2 | 5 | 0 | 5 |
 | axes | 202 | 198 | 0 | 1 | 0 | 3 |
 | castable | 9 | 7 | 0 | 0 | 0 | 2 |
@@ -2054,14 +2054,14 @@ Not run, by the first dependency that is not met:
 | format-date | 40 | 35 | 0 | 2 | 0 | 3 |
 | format-date-en | 33 | 32 | 0 | 1 | 0 | 0 |
 | format-number | 81 | 68 | 1 | 1 | 0 | 12 |
-| function-available | 14 | 7 | 0 | 5 | 0 | 2 |
+| function-available | 14 | 12 | 0 | 0 | 0 | 2 |
 | function-lookup | 8 | 5 | 0 | 3 | 0 | 0 |
 | id | 43 | 0 | 0 | 0 | 0 | 43 |
 | innermost | 2 | 2 | 0 | 0 | 0 | 0 |
 | json-to-xml | 61 | 53 | 1 | 0 | 1 | 7 |
 | key | 104 | 100 | 0 | 3 | 0 | 1 |
 | load-xquery-module | 4 | 4 | 4 | 0 | 0 | 0 |
-| map-for-key | 8 | 0 | 0 | 8 | 0 | 0 |
+| map-for-key | 8 | 6 | 0 | 2 | 0 | 0 |
 | normalize-unicode | 18 | 10 | 0 | 8 | 0 | 0 |
 | outermost | 26 | 26 | 0 | 0 | 0 | 0 |
 | position | 211 | 211 | 0 | 0 | 0 | 0 |
@@ -2095,11 +2095,11 @@ Not run, by the first dependency that is not met:
 | lre | 35 | 35 | 0 | 0 | 0 | 0 |
 | merge | 120 | 65 | 5 | 20 | 0 | 35 |
 | message | 46 | 44 | 1 | 2 | 0 | 0 |
-| next-match | 58 | 39 | 3 | 12 | 0 | 7 |
+| next-match | 58 | 42 | 3 | 9 | 0 | 7 |
 | number | 274 | 261 | 2 | 1 | 0 | 12 |
 | on-empty | 72 | 68 | 0 | 4 | 0 | 0 |
 | on-non-empty | 14 | 12 | 0 | 2 | 0 | 0 |
-| result-document | 163 | 141 | 1 | 3 | 2 | 17 |
+| result-document | 163 | 143 | 1 | 3 | 0 | 17 |
 | sequence | 97 | 87 | 1 | 4 | 0 | 6 |
 | sort | 83 | 82 | 0 | 0 | 0 | 1 |
 | source-document | 60 | 0 | 0 | 0 | 0 | 60 |
@@ -2117,7 +2117,7 @@ Not run, by the first dependency that is not met:
 | collations | 43 | 23 | 2 | 20 | 0 | 0 |
 | docbook | 4 | 0 | 0 | 1 | 0 | 3 |
 | embedded-stylesheet | 23 | 0 | 0 | 0 | 0 | 23 |
-| error | 580 | 447 | 40 | 49 | 2 | 82 |
+| error | 580 | 465 | 43 | 33 | 0 | 82 |
 | forwards | 23 | 23 | 0 | 0 | 0 | 0 |
 | initial-function | 35 | 35 | 0 | 0 | 0 | 0 |
 | initial-mode | 5 | 5 | 0 | 0 | 0 | 0 |
@@ -2230,6 +2230,6 @@ Not run, by the first dependency that is not met:
 | record | 47 | 22 | 4 | 23 | 0 | 2 |
 | string | 136 | 134 | 0 | 0 | 0 | 2 |
 | type | 82 | 55 | 0 | 2 | 0 | 25 |
-| type-alias | 32 | 13 | 6 | 18 | 0 | 1 |
+| type-alias | 32 | 13 | 5 | 18 | 0 | 1 |
 
 </details>
