@@ -6723,7 +6723,54 @@ Recorded 2026-10-18. The command of the 5.10 design
   hints with the hinted documents passed as `--schema`.
 
 ### D177. Identity constraints (packet 5.8)
-Reserved 2026-10-18; the record follows when the packet lands.
+Recorded 2026-10-18. IDENTITY_CONSTRAINTS and the identity seam of D167
+(`src/schema_identity.c`, `tests/schema_identity_test.c`); golden
+`src/schema_resolve.c`, `src/schema_validate_record.c`.
+- **The subsets are checked on the AST, then compiled as XPath; no
+  second path engine.** Each selector and field is parsed by the XPath
+  4.0 front end (`sxml_xpath_build_ast`) and its AST checked against
+  3.11.6.2 and 3.11.6.3: a union of paths of `.` and child NameTest steps
+  (`child::` written or not), `.//` only first, `@` or `attribute::`
+  only as the last step of a field, no predicates, NameTests QName, `*`
+  and `p:*` (not `*:n` or `Q{}n`); otherwise c-selector-xpath or
+  c-fields-xpath. Then it is compiled with `xpath.h` (XPath Valid,
+  3.13.6.2): the record's in-scope namespaces without the default
+  namespace and xml, xpathDefaultNamespace as the default element
+  namespace. c-props-correct.1 (a keyref refers to a key or unique) and
+  .2 (as many fields).
+- **Evaluation on the recorded subtree** (D173), by the one evaluator:
+  the selector with the declaring element as context node; elements
+  without a governing declaration (skipped, or lax without one) are not
+  targets and are ignored as field nodes, as are attributes nothing
+  governed (xs:untypedAtomic); a field gives at most one node of a simple
+  type or simple content (cvc-identity-constraint.3); a nilled element
+  has no value; key sequences are the fields' typed values, derived from
+  the annotations (D165). key 4.2.1 (a field without a value), 4.2.2 and
+  4.2.3 (a nillable field element); unique 4.1; keyref 4.3.
+- **XSD's equality** (Part 2, 2.2.3) is fn:atomic-equal of values of one
+  primitive type, xs:untypedAtomic counted as xs:string: NaN equals
+  itself (identity), 1 and 1.0 are one xs:decimal, xs:float 1 is not
+  xs:decimal 1, xs:string is not xs:anyURI; field values compare item by
+  item, so a value equals a list of one. A hash index over
+  `sxml_atomic_item_hash` finds the candidates.
+- **Node tables without state between calls**: the seam stays one plain
+  call per element. A keyref evaluates its referenced key at its element
+  and at each descendant whose declaration has it (3.11.5); a key
+  sequence met with one node is in the table; one met with several nodes
+  is resolved level by level up to the keyref's element with an explicit
+  work list (D71): an element's own entry wins, children's entries that
+  conflict are dropped. Keys of descendants are evaluated again for each
+  keyref (no cache; measured fast enough on the suite).
+- **Not done**: compiling an XPath record in its namespace context is
+  written here and in `src/schema_assertion.c` (5.9, developed at the
+  same time); one shared function is for a sweep.
+- **Measured** (release): MS-IdentityConstraint 1,058 of 1,058 run (was
+  788; the 48 invalid schemas now rejected), Sun IdConstrDefs 48 of 48,
+  IBM identityConstraint 18 of 18, xpathDefaultNSonKeyKeyRefUnique 26 of
+  26 (packet gate 80 %); 415 more XSD tests pass, none fewer; XSD in
+  scope 41,170 of 41,518 before 5.9 landed, 41,452 (99.8 %) with it;
+  gate groups 100 %, 99.5 %, 98.9 %;
+  slice 147 of 147. No shared code changed: XP40, XQ40 and XT40 hold.
 
 ## Proposed
 

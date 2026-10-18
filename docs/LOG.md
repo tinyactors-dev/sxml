@@ -4,6 +4,19 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 5.8 done (D177): identity constraints (`src/schema_identity.c`).
+  Selectors and fields are checked against XSD's XPath subsets on the
+  XPath front end's AST (c-selector-xpath, c-fields-xpath), compiled with
+  `xpath.h` (xpathDefaultNamespace as default element namespace) and run
+  by the one evaluator on 5.7's recorded subtree; unique, key and keyref
+  (cvc-identity-constraint.3, 4.1, 4.2.1 to 4.2.3, 4.3) with key
+  sequences compared by fn:atomic-equal within one primitive type, and
+  keyrefs against node tables carried up from descendants (3.11.5);
+  c-props-correct for keyrefs. MS-IdentityConstraint 1,058 of 1,058 run
+  (was 788), Sun IdConstrDefs 48/48, IBM identityConstraint 18/18,
+  xpathDefaultNSonKeyKeyRefUnique 26/26; XSD in scope 41,452 of 41,518
+  with 5.9; slice 147/147. No shared code changed.
+
 - 5.9 done (D175): XSD 1.1 assertions and type alternatives
   (`src/schema_assertion.c`). Tests compiled with `xpath.h` in XPath
   Valid's static context and run by the one evaluator; complex type

@@ -312,6 +312,10 @@ with XSD 1.1's identity of values), node tables carried up to ancestors
 for keyref (cvc-identity-constraint). Done when MS-IdentityConstraint,
 Sun IdConstrDefs and IBM identityConstraint and
 xpathDefaultNSonKeyKeyRefUnique ≥ 80%.
+**Done** 2026-10-18 (D177): subsets on the AST, compilation with
+`xpath.h`, unique, key and keyref on the recorded subtree with node
+tables from descendants; the four groups 100 % (MS 1,058, Sun 48, IBM
+18 and 26).
 
 ### 5.9 Assertions and type alternatives (implementation)
 After 5.7. Owns `src/schema_assertion.c`, `tests/schema_assertion_test.c`.
