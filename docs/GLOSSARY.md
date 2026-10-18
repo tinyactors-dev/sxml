@@ -830,3 +830,7 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `chameleon_inclusion` | Including (or redefining, overriding) a schema document without a targetNamespace from one with a target namespace: its components take the includer's namespace (XSD 1.1 Part 1, 4.2.3) |
 | `schema_assembly` | The read stage's work list of schema documents: each one, known by its absolute URI and target namespace, is read once; xs:include, xs:import, xs:redefine and xs:override add to it (XSD 1.1 Part 1, 4.2; D170) |
 | `redefinition` | A component that an xs:redefine or xs:override child gives in place of the component of its name in the document it refers to (XSD 1.1 Part 1, 4.2.4 and 4.2.5) |
+| `xsd_pattern` | A regular expression of XSD's own dialect (XSD 1.1 Part 2, appendix G), the value of a pattern facet: anchored to the whole value, without F&O's additions; the regex engine's `is_xsd_pattern` flag (D53, D171) |
+| `effective_facets` | The facets of a simple type with those of its bases it does not overlay, and those built-in types have implicitly, one per kind; what a restriction's own facets are checked against (XSD 1.1 Part 1, 3.16.6.4; D171) |
+| `value_order` | XSD's order of two values of one primitive type: less, equal, greater or incomparable (partial for dates, times and durations, NaN incomparable; XSD 1.1 Part 2, 2.2.3) |
+| `special_type` | xs:anyType, xs:anySimpleType and xs:anyAtomicType: no list item type, union member or restriction base of a schema's simple type (XSD 1.1 Part 1, 3.16.6.2) |
