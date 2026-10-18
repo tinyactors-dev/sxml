@@ -6290,9 +6290,97 @@ Recorded 2026-10-18. Fills SIMPLE_TYPES (D167) and registration (D165).
   au-props-correct.2). NOTATION enumeration values are read as QNames.
 
 ### D172. Complex types and content models (packet 5.6)
-Reserved 2026-10-18.
+Recorded 2026-10-18. Fills COMPLEX_TYPES and the content model plan of
+D167 (`src/schema_complex_type.c`, `src/schema_content_model.c`).
+- **One automaton format.** A content model is states whose transitions
+  are labelled by an element declaration (with the declarations
+  substitutable for it, 3.3.6.3) or a schema wildcard and carry counter
+  tests (a counter in a range) and counter operations (set to one, add
+  one); final states may need tests. Sequences and choices compile
+  through Glushkov's position automaton and a subset construction; an
+  all group compiles to two states (before and after the first member)
+  whose transitions count each member. The matcher, list_expected and the
+  restriction walk step this one format.
+- **Expansion, counters, determinism.** A particle with maxOccurs (or,
+  unbounded, minOccurs) up to 16 is expanded into copies, a larger one
+  keeps one copy under a counter; a compilation past the state limit is
+  tried again counting every repetition above one. When the counters
+  cannot choose between two transitions of one particle ((a{1,20}){1,20},
+  (a+){1,100}: weakly but not strongly deterministic) the counted
+  particles involved are expanded and the model compiled again, so the
+  matcher never backtracks and needs one state and one value per counter.
+  When that expansion passes the limit too (MS particlesZ035, Z036,
+  maxOccurs in the thousands nested), the counters are kept and the
+  transitions ordered (fewer operations first, so an inner repetition
+  before an outer one); the matcher takes the first whose tests hold,
+  exact unless an outer minimum needs the inner repetitions spread.
+  Bounds: the configured states (and positions), 4 nodes, 32 edges or
+  transitions and 64 list entries per state.
+- **UPA as determinism** (cos-nonambig): two transitions of a state for
+  different element particles sharing a name (also through substitution
+  groups), or for different wildcard particles whose namespaces overlap,
+  whose tests can hold together. An element particle beats a wildcard
+  particle (3.8.6.4). Exclusive counter tests do not compete: (a{2}, a) is
+  valid.
+- **Substitution groups**: a head's transition lists the head and each
+  member substitutable for it (blocking by the head's disallowed
+  substitutions, its type's and the intermediate types' prohibited
+  substitutions). Abstract declarations are listed too (D167 said not):
+  the validator raises cvc-elt.2 for them, as for an abstract head.
+- **Open content** is the matcher's fallback; suffix mode appends a suffix
+  state that only its wildcard enters and keeps.
+- **Restriction of content** (cos-content-act-restrict, 3.4.6.4) is a walk
+  over pairs of configurations (state and counter values) of the two
+  models: each move of the restriction, element by element (and each
+  name a restriction's wildcard shares with the base's element
+  transitions), must be a move of the base whose default binding subsumes
+  the restriction's; names the restriction takes by an element are not
+  its wildcard's. A base wildcard with no global declaration of the name
+  takes the restriction's local element whatever its process contents
+  (XSD 1.0's NSCompat; read literally 3.4.6.4 refuses it, against the
+  suite: MS particlesJ*, ctG*). Past 65,536 configurations the derivation
+  is accepted provisionally, as 3.4.6.3 allows.
+- **The stage**: particles (p-props-correct), attribute groups (closures
+  over cyclic references, 3.6.2.1, then written), complex types base
+  first with an explicit stack (content type of 3.4.2.2 and 3.4.2.3.3 with
+  the synthesized particles, simple content types through
+  `sxml_schema_compile_simple_type`, attribute uses and wildcards with
+  wildcard union and intersection, assertions; cos-ct-extends,
+  derivation-ok-restriction, ct-props-correct; the content model;
+  registration), xs:anyType's and xs:untyped's content models, then
+  element declarations (e-props-correct 2, 4, 6, 7; value constraints cast
+  to the simple type). Attribute restriction is checked with XSD 1.0's
+  clauses (uses allowed, types derived, fixed values, required kept,
+  wildcard subset, not weaker), not against xs:anyType.
+- **Registration**: a complex type with a simple base is registered with
+  base xs:anyType, since `sxml_type_registry_register_schema_type` takes
+  only complex bases for complex types (Proposed).
+- **Text form**: `sxml_schema_content_model_write_text` prints a model in
+  D167's form, for 5.4's `sxml_schema_components_write_text`.
+- **Not done**: type table equivalence (cos-element-consistent clause 4
+  and the wildcard clause), the disallowed-names clauses of Wildcard
+  Subset, cos-ct-extends 1.5 and 1.6 and derivation-ok-restriction.4
+  (locally declared types), xs:assertion facets of simpleContent
+  restrictions.
+- **Measured** (schema tests only, with 5.4's uncommitted reader; the
+  instance tests wait for 5.7): MS-Particles 851 of 853 run, ModelGroups
+  377 of 391, Group 215 of 218, ComplexType 546 of 550, Wildcards 313 of
+  315, Sun MGroup 40 of 40, CType 31 of 31, Saxon All 62 of 62, Open 49 of
+  51, IBM allGroup 9 of 9, openContent 24 of 24. The rest are the reader's
+  (duplicate ids, an all group with maxOccurs 0 accepted by XSD 1.1,
+  openContent mode="none" with a wildcard, xs:redefine of a group) or
+  disputed by the versions (particlesK006).
 
 ## Proposed
+
+- **A simple base for a complex type in the registry** (packet 5.6, D172;
+  for the owner of `src/types.c`): XSD 1.1, 3.4.1 lets a complex type with
+  simple content have a simple type as {base type definition}
+  (xs:decimal for `<simpleContent><extension base="xs:decimal">`), but
+  `sxml_type_registry_register_schema_type` takes only complex bases for
+  COMPLEX, so such types are registered with base xs:anyType and
+  derives-from in XPath misses the simple base. Proposed: accept a simple
+  base when the content type is SIMPLE.
 
 - **Membership of a pattern rooted at a variable** (packet 4.18, D169;
   for a later sweep): match="$nodes" (XSLT 4.0, 6.3.1) scans the
