@@ -5731,6 +5731,16 @@ year one" list of PLAN.md.
 ### D163. XSLT conformance sweep 2 (packet 4.17)
 Reserved 2026-10-19; completed when the packet is ticked.
 
+### D164. Phase 5 starts now, alongside the end of Phase 4 (owner)
+Recorded 2026-10-18 on the owner's choice ("Start Phase 5 now"), after they
+asked for a way to work with XSD schemas in the `sxml` command. Amends D132
+and PLAN.md's order: Phase 5 (XSD 1.1 validation and schema-aware typing)
+no longer waits for the Phase 4 gate. Its packets are planned in
+`docs/tasks/phase-5.md` by a design packet (5.1), which also vendors the
+W3C XSD test suite (D13) and proposes the gate numbers. The Phase 4 gate
+still closes Phase 4; Phase 5 work must not regress its counts. A `sxml
+validate` command enters the CLI only once it works (D44).
+
 ## Proposed
 
 - **Empty parentless text nodes** (packet 4.17, D159; for the owner of

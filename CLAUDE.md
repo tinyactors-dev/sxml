@@ -15,7 +15,9 @@ Windows, iOS and Android, and a WebAssembly module for browsers and Node.js.
 
 ## Current phase
 
-**Phase 4: XSLT 4.0.** Work on the packets in `docs/tasks/phase-4.md`.
+**Phase 4: XSLT 4.0**, with Phase 5 (XSD 1.1 validation) started early on
+the owner's choice (D164). Work on the packets in `docs/tasks/phase-4.md`
+and `docs/tasks/phase-5.md`.
 Phases 0 to 3 were closed by agent review, as the owner chose (D11, D161); CI
 is disabled for now and gates are checked locally (D123). The substrate
 headers are frozen (D99); the public XPath and XQuery APIs are stable, while
