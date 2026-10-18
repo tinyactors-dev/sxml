@@ -195,6 +195,14 @@ document of the suite reads without a crash, leak or limit, and the
 in-scope schema tests pass ≥ 85% under the 5.3 driver (most expect a
 valid schema; the component constraints of 5.5 and 5.6 raise the rest).
 Golden: `src/xslt_read.c`, `src/xquery_module.c` (resolution, read once).
+**Done** 2026-10-18 (D170): one table of schema element roles (the schema
+for schema documents' attributes and child slots, the component each is
+read into), a walk without recursion, conditional inclusion, the
+assembly (read once, chameleon inclusion, redefine and override last and
+innermost first, the xml: namespace known), RESOLVE (references, base,
+item and member types, substitution groups, cycles), the text form with
+content models, sxml-xsd-test compiling schemas; schema tests 15,163 of
+15,329 (98.9 %), slice 110. Not done: src-redefine 6.2.2 and 7.2.2.
 
 ### 5.5 Simple types and facets (implementation)
 After 5.2. Owns `src/schema_simple_type.c`, `src/types.c` (the

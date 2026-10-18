@@ -4,6 +4,21 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 5.4 done (D170): schema documents read and assembled. READ walks each
+  document's arena tree (no recursion) with one table of schema element
+  roles: the schema for schema documents' attributes and child slots and
+  the component each is read into, reported with the src-* constraints;
+  conditional inclusion, duplicate ids, the assembly through the resolver
+  (read once, chameleon inclusion, xs:redefine and xs:override last,
+  innermost first, the xml: namespace known). RESOLVE: references,
+  base/item/member types, substitution groups, element types, cycles.
+  The text form (`src/schema_text.c`) with 5.6's content models;
+  `sxml_schema`'s quintet and find functions. sxml-xsd-test compiles every
+  schema: schema tests 15,163 of 15,329 in scope (98.9 %, packet gate
+  85 %), no crash, leak or limit in READ, slice 0 to 110; instance tests
+  wait for 5.7. Proposed: schema.h on documents the resolver does not
+  deliver (XSD 1.1 makes them no error).
+
 - 5.5 done (D171): simple types and facets. Casting to a registered
   schema type is its whiteSpace facet, the built-in lexical mapping, then
   every facet of it and its registered bases (new `src/cast_facet.c`, part

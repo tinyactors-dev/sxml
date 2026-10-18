@@ -2240,32 +2240,32 @@ Not run, by the first dependency that is not met:
 
 | Specification | Test cases | Run | Passed | of which wrong error | Failed | Errors | Not run | Passed of run |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|
-| XSD11 | 41,735 | 0 | 0 | 0 | 0 | 0 | 41,735 | – |
+| XSD11 | 41,735 | 15,394 | 15,163 | 0 | 231 | 0 | 26,341 | 98.5 % |
 
-Gate rate (D95): 0 of 41,518 in-scope test cases passed, **0.0 %** (in scope: the spec matches and no non-goal is needed; not-run cases count as not passed).
+Gate rate (D95): 15,163 of 41,518 in-scope test cases passed, **36.5 %** (in scope: the spec matches and no non-goal is needed; not-run cases count as not passed).
 
 ### XSD11 gate groups (proposed Phase 5 gate, D165)
 
 | Group | Target | In scope | Passed | Rate |
 |---|--:|--:|--:|--:|
-| Datatypes (NIST, MS DataTypes and Regex) | 95 % | 30,598 | 0 | 0.0 % |
-| Structures (Microsoft, Sun, W3C WG, Oracle, Boeing) | 80 % | 8,626 | 0 | 0.0 % |
-| XSD 1.1 (Saxonica, IBM) | 70 % | 2,294 | 0 | 0.0 % |
+| Datatypes (NIST, MS DataTypes and Regex) | 95 % | 30,598 | 8,788 | 28.7 % |
+| Structures (Microsoft, Sun, W3C WG, Oracle, Boeing) | 80 % | 8,626 | 5,377 | 62.3 % |
+| XSD 1.1 (Saxonica, IBM) | 70 % | 2,294 | 998 | 43.5 % |
 
-XSD slice (`tests/xsd/slice.txt`): **0/147 passed**.
+XSD slice (`tests/xsd/slice.txt`): **110/147 passed**.
 
 ### XSD11 by area
 
 | Area (contributor: the test-set prefix) | Test cases | Run | Passed | of which wrong error | Failed | Errors | Not run | Passed of run |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|
-| NIST (datatypes): `nist-*` | 23,170 | 0 | 0 | 0 | 0 | 0 | 23,170 | – |
-| Microsoft: `ms-*` | 14,450 | 0 | 0 | 0 | 0 | 0 | 14,450 | – |
-| Sun: `sun-*` | 1,610 | 0 | 0 | 0 | 0 | 0 | 1,610 | – |
-| Saxonica (XSD 1.1): `saxon-*` | 1,390 | 0 | 0 | 0 | 0 | 0 | 1,390 | – |
-| IBM (XSD 1.1): `ibm-*` | 919 | 0 | 0 | 0 | 0 | 0 | 919 | – |
-| W3C XML Schema WG: `wg-*` | 60 | 0 | 0 | 0 | 0 | 0 | 60 | – |
-| Oracle: `oracle-*` | 26 | 0 | 0 | 0 | 0 | 0 | 26 | – |
-| Boeing: `boeing-*` | 18 | 0 | 0 | 0 | 0 | 0 | 18 | – |
+| NIST (datatypes): `nist-*` | 23,170 | 3,953 | 3,953 | 0 | 0 | 0 | 19,217 | 100.0 % |
+| Microsoft: `ms-*` | 14,450 | 9,708 | 9,517 | 0 | 191 | 0 | 4,742 | 98.0 % |
+| Sun: `sun-*` | 1,610 | 685 | 673 | 0 | 12 | 0 | 925 | 98.2 % |
+| Saxonica (XSD 1.1): `saxon-*` | 1,390 | 511 | 488 | 0 | 23 | 0 | 879 | 95.5 % |
+| IBM (XSD 1.1): `ibm-*` | 919 | 515 | 510 | 0 | 5 | 0 | 404 | 99.0 % |
+| W3C XML Schema WG: `wg-*` | 60 | 7 | 7 | 0 | 0 | 0 | 53 | 100.0 % |
+| Oracle: `oracle-*` | 26 | 9 | 9 | 0 | 0 | 0 | 17 | 100.0 % |
+| Boeing: `boeing-*` | 18 | 6 | 6 | 0 | 0 | 0 | 12 | 100.0 % |
 | Suite metadata (not run, D165): `common-*` | 92 | 0 | 0 | 0 | 0 | 0 | 92 | – |
 
 ### XSD11 failure causes
@@ -2274,11 +2274,27 @@ Failed and error test cases by the error code the query raised (or the status th
 
 | Error code | Test cases |
 |---|--:|
+| (no error: wrong result) | 231 |
 
 The 25 most frequent reasons:
 
 | Cause | Test cases |
 |---|--:|
+| schema: valid, expected invalid | 99 |
+| schema: invalid, expected valid au-props-correct.2 | 50 |
+| schema: invalid au-props-correct.2 | 40 |
+| schema: invalid, expected valid a-props-correct.2 | 8 |
+| schema: invalid e-props-correct.2 | 7 |
+| schema: invalid a-props-correct.2 | 6 |
+| schema: invalid enumeration-valid-restriction | 6 |
+| schema: invalid, expected valid e-props-correct.2 | 5 |
+| schema: invalid src-redefine | 3 |
+| schema: invalid enumeration-required-notation | 2 |
+| schema: invalid st-props-correct.2 | 1 |
+| schema: invalid, expected valid cos-content-act-restrict | 1 |
+| schema: invalid, expected valid derivation-ok-restriction.3 | 1 |
+| schema: invalid, expected valid enumeration-required-notation | 1 |
+| schema: invalid, expected valid enumeration-valid-restriction | 1 |
 
 Wrong errors (counted as passed) by the error raised:
 
@@ -2289,7 +2305,7 @@ Not run, by the first dependency that is not met:
 
 | Reason | Test cases |
 |---|--:|
-| XSD not implemented | 41,518 |
+| XSD validation not implemented | 26,124 |
 | test set introspection (the suite's metadata) | 92 |
 | status queried | 57 |
 | version 1.0 | 50 |
@@ -2302,6 +2318,28 @@ Not run, by the first dependency that is not met:
 
 | Test set | Test cases | Passed | Failed | Errors | Not run |
 |---|--:|--:|--:|--:|--:|
+| ms-Attribute_w3c | 403 | 232 | 80 | 0 | 91 |
+| ms-IdentityConstraint_w3c | 1,072 | 786 | 48 | 0 | 238 |
+| ms-Schema_w3c | 165 | 104 | 21 | 0 | 40 |
+| ms-Additional_w3c | 445 | 241 | 19 | 0 | 185 |
+| sun-ElemDecl | 464 | 223 | 10 | 0 | 231 |
+| saxon-CTA | 113 | 37 | 7 | 0 | 69 |
+| saxon-Zone | 74 | 19 | 7 | 0 | 48 |
+| saxon-Wild | 284 | 82 | 6 | 0 | 196 |
+| ibm-typeAlternatives | 39 | 19 | 4 | 0 | 16 |
+| ms-ModelGroups_w3c | 598 | 387 | 4 | 0 | 207 |
+| ms-Particles_w3c | 1,372 | 850 | 4 | 0 | 518 |
+| ms-SimpleType_w3c | 443 | 328 | 4 | 0 | 111 |
+| ms-AttributeGroup_w3c | 149 | 111 | 3 | 0 | 35 |
+| ms-Annotations_w3c | 80 | 78 | 2 | 0 | 0 |
+| ms-Element_w3c | 527 | 351 | 2 | 0 | 174 |
+| ms-Errata10_w3c | 31 | 17 | 2 | 0 | 12 |
+| saxon-Complex | 92 | 28 | 2 | 0 | 62 |
+| sun-suntest | 263 | 50 | 2 | 0 | 211 |
+| ibm-defaultAttributesApply | 31 | 16 | 1 | 0 | 14 |
+| ms-ComplexType_w3c | 812 | 549 | 1 | 0 | 262 |
+| ms-Notations_w3c | 119 | 115 | 1 | 0 | 3 |
+| saxon-Override | 86 | 31 | 1 | 0 | 54 |
 
 ### Every XSD11 test set
 
@@ -2311,97 +2349,97 @@ Not run, by the first dependency that is not met:
 | Test set | Test cases | Passed | of which wrong error | Failed | Errors | Not run |
 |---|--:|--:|--:|--:|--:|--:|
 | common-introspection | 92 | 0 | 0 | 0 | 0 | 92 |
-| nist-NISTXMLSchemaDatatypes | 23,170 | 0 | 0 | 0 | 0 | 23,170 |
-| sun-suntest | 263 | 0 | 0 | 0 | 0 | 263 |
-| sun-AGroupDef | 19 | 0 | 0 | 0 | 0 | 19 |
-| sun-AttrDecl | 178 | 0 | 0 | 0 | 0 | 178 |
-| sun-AttrUse | 9 | 0 | 0 | 0 | 0 | 9 |
-| sun-CType | 85 | 0 | 0 | 0 | 0 | 85 |
-| sun-ElemDecl | 464 | 0 | 0 | 0 | 0 | 464 |
-| sun-IdConstrDefs | 48 | 0 | 0 | 0 | 0 | 48 |
-| sun-MGroup | 79 | 0 | 0 | 0 | 0 | 79 |
-| sun-MGroupDef | 33 | 0 | 0 | 0 | 0 | 33 |
-| sun-Notation | 21 | 0 | 0 | 0 | 0 | 21 |
-| sun-SType | 338 | 0 | 0 | 0 | 0 | 338 |
-| sun-Schema | 12 | 0 | 0 | 0 | 0 | 12 |
-| sun-Wildcard | 61 | 0 | 0 | 0 | 0 | 61 |
-| ms-Additional_w3c | 445 | 0 | 0 | 0 | 0 | 445 |
-| ms-Annotations_w3c | 80 | 0 | 0 | 0 | 0 | 80 |
-| ms-AttributeGroup_w3c | 149 | 0 | 0 | 0 | 0 | 149 |
-| ms-Attribute_w3c | 403 | 0 | 0 | 0 | 0 | 403 |
-| ms-ComplexType_w3c | 812 | 0 | 0 | 0 | 0 | 812 |
-| ms-DataTypes_w3c | 3,434 | 0 | 0 | 0 | 0 | 3,434 |
-| ms-Element_w3c | 527 | 0 | 0 | 0 | 0 | 527 |
-| ms-Errata10_w3c | 31 | 0 | 0 | 0 | 0 | 31 |
-| ms-Group_w3c | 344 | 0 | 0 | 0 | 0 | 344 |
-| ms-IdentityConstraint_w3c | 1,072 | 0 | 0 | 0 | 0 | 1,072 |
-| ms-ModelGroups_w3c | 598 | 0 | 0 | 0 | 0 | 598 |
-| ms-Notations_w3c | 119 | 0 | 0 | 0 | 0 | 119 |
-| ms-Particles_w3c | 1,372 | 0 | 0 | 0 | 0 | 1,372 |
-| ms-Regex_w3c | 4,022 | 0 | 0 | 0 | 0 | 4,022 |
-| ms-Schema_w3c | 165 | 0 | 0 | 0 | 0 | 165 |
-| ms-SimpleType_w3c | 443 | 0 | 0 | 0 | 0 | 443 |
-| ms-Wildcards_w3c | 434 | 0 | 0 | 0 | 0 | 434 |
-| boeing-BoeingXSDTestSet | 18 | 0 | 0 | 0 | 0 | 18 |
-| saxon-All | 110 | 0 | 0 | 0 | 0 | 110 |
-| saxon-Assert | 101 | 0 | 0 | 0 | 0 | 101 |
-| saxon-Complex | 92 | 0 | 0 | 0 | 0 | 92 |
-| saxon-CTA | 113 | 0 | 0 | 0 | 0 | 113 |
-| saxon-Id | 121 | 0 | 0 | 0 | 0 | 121 |
+| nist-NISTXMLSchemaDatatypes | 23,170 | 3,953 | 0 | 0 | 0 | 19,217 |
+| sun-suntest | 263 | 50 | 0 | 2 | 0 | 211 |
+| sun-AGroupDef | 19 | 13 | 0 | 0 | 0 | 6 |
+| sun-AttrDecl | 178 | 83 | 0 | 0 | 0 | 95 |
+| sun-AttrUse | 9 | 4 | 0 | 0 | 0 | 5 |
+| sun-CType | 85 | 31 | 0 | 0 | 0 | 54 |
+| sun-ElemDecl | 464 | 223 | 0 | 10 | 0 | 231 |
+| sun-IdConstrDefs | 48 | 27 | 0 | 0 | 0 | 21 |
+| sun-MGroup | 79 | 40 | 0 | 0 | 0 | 39 |
+| sun-MGroupDef | 33 | 19 | 0 | 0 | 0 | 14 |
+| sun-Notation | 21 | 13 | 0 | 0 | 0 | 8 |
+| sun-SType | 338 | 138 | 0 | 0 | 0 | 200 |
+| sun-Schema | 12 | 6 | 0 | 0 | 0 | 6 |
+| sun-Wildcard | 61 | 26 | 0 | 0 | 0 | 35 |
+| ms-Additional_w3c | 445 | 241 | 0 | 19 | 0 | 185 |
+| ms-Annotations_w3c | 80 | 78 | 0 | 2 | 0 | 0 |
+| ms-AttributeGroup_w3c | 149 | 111 | 0 | 3 | 0 | 35 |
+| ms-Attribute_w3c | 403 | 232 | 0 | 80 | 0 | 91 |
+| ms-ComplexType_w3c | 812 | 549 | 0 | 1 | 0 | 262 |
+| ms-DataTypes_w3c | 3,434 | 2,245 | 0 | 0 | 0 | 1,189 |
+| ms-Element_w3c | 527 | 351 | 0 | 2 | 0 | 174 |
+| ms-Errata10_w3c | 31 | 17 | 0 | 2 | 0 | 12 |
+| ms-Group_w3c | 344 | 218 | 0 | 0 | 0 | 126 |
+| ms-IdentityConstraint_w3c | 1,072 | 786 | 0 | 48 | 0 | 238 |
+| ms-ModelGroups_w3c | 598 | 387 | 0 | 4 | 0 | 207 |
+| ms-Notations_w3c | 119 | 115 | 0 | 1 | 0 | 3 |
+| ms-Particles_w3c | 1,372 | 850 | 0 | 4 | 0 | 518 |
+| ms-Regex_w3c | 4,022 | 2,590 | 0 | 0 | 0 | 1,432 |
+| ms-Schema_w3c | 165 | 104 | 0 | 21 | 0 | 40 |
+| ms-SimpleType_w3c | 443 | 328 | 0 | 4 | 0 | 111 |
+| ms-Wildcards_w3c | 434 | 315 | 0 | 0 | 0 | 119 |
+| boeing-BoeingXSDTestSet | 18 | 6 | 0 | 0 | 0 | 12 |
+| saxon-All | 110 | 62 | 0 | 0 | 0 | 48 |
+| saxon-Assert | 101 | 34 | 0 | 0 | 0 | 67 |
+| saxon-Complex | 92 | 28 | 0 | 2 | 0 | 62 |
+| saxon-CTA | 113 | 37 | 0 | 7 | 0 | 69 |
+| saxon-Id | 121 | 32 | 0 | 0 | 0 | 89 |
 | saxon-Missing | 14 | 0 | 0 | 0 | 0 | 14 |
-| saxon-Open | 165 | 0 | 0 | 0 | 0 | 165 |
-| saxon-Override | 86 | 0 | 0 | 0 | 0 | 86 |
-| saxon-Simple | 108 | 0 | 0 | 0 | 0 | 108 |
-| saxon-Subsgroup | 11 | 0 | 0 | 0 | 0 | 11 |
-| saxon-TargetNS | 10 | 0 | 0 | 0 | 0 | 10 |
-| saxon-VC | 50 | 0 | 0 | 0 | 0 | 50 |
-| saxon-Wild | 284 | 0 | 0 | 0 | 0 | 284 |
-| saxon-XmlVersions | 51 | 0 | 0 | 0 | 0 | 51 |
-| saxon-Zone | 74 | 0 | 0 | 0 | 0 | 74 |
-| oracle-Zone | 26 | 0 | 0 | 0 | 0 | 26 |
-| wg-substitution-groups | 47 | 0 | 0 | 0 | 0 | 47 |
-| wg-IRI | 13 | 0 | 0 | 0 | 0 | 13 |
-| ibm-allGroup | 15 | 0 | 0 | 0 | 0 | 15 |
-| ibm-anyAttribute | 16 | 0 | 0 | 0 | 0 | 16 |
-| ibm-assert | 79 | 0 | 0 | 0 | 0 | 79 |
-| ibm-assertion | 101 | 0 | 0 | 0 | 0 | 101 |
-| ibm-conditionalInclusion | 5 | 0 | 0 | 0 | 0 | 5 |
-| ibm-constraintsOnAttribute | 22 | 0 | 0 | 0 | 0 | 22 |
-| ibm-cyclicRedefineIncludeImportOverride | 5 | 0 | 0 | 0 | 0 | 5 |
-| ibm-date | 2 | 0 | 0 | 0 | 0 | 2 |
-| ibm-dateTimeStamp | 43 | 0 | 0 | 0 | 0 | 43 |
-| ibm-dayTimeDuration | 36 | 0 | 0 | 0 | 0 | 36 |
-| ibm-defaultAttributesApply | 31 | 0 | 0 | 0 | 0 | 31 |
-| ibm-defaultFixed | 10 | 0 | 0 | 0 | 0 | 10 |
-| ibm-double | 4 | 0 | 0 | 0 | 0 | 4 |
-| ibm-edcWildcard | 4 | 0 | 0 | 0 | 0 | 4 |
-| ibm-explicitTimezone | 32 | 0 | 0 | 0 | 0 | 32 |
-| ibm-float | 4 | 0 | 0 | 0 | 0 | 4 |
-| ibm-gYearMonth | 2 | 0 | 0 | 0 | 0 | 2 |
-| ibm-gYear | 2 | 0 | 0 | 0 | 0 | 2 |
-| ibm-gMonthDay | 2 | 0 | 0 | 0 | 0 | 2 |
-| ibm-gDay | 2 | 0 | 0 | 0 | 0 | 2 |
-| ibm-gMonth | 1 | 0 | 0 | 0 | 0 | 1 |
-| ibm-idIDREF | 134 | 0 | 0 | 0 | 0 | 134 |
-| ibm-identityConstraint | 18 | 0 | 0 | 0 | 0 | 18 |
-| ibm-list | 3 | 0 | 0 | 0 | 0 | 3 |
-| ibm-openContent | 40 | 0 | 0 | 0 | 0 | 40 |
-| ibm-regularExpression | 16 | 0 | 0 | 0 | 0 | 16 |
-| ibm-restrictionOfComplexTypes | 19 | 0 | 0 | 0 | 0 | 19 |
-| ibm-rf_whiteSpace | 4 | 0 | 0 | 0 | 0 | 4 |
-| ibm-substitutionGroup | 8 | 0 | 0 | 0 | 0 | 8 |
-| ibm-targetNamespace | 4 | 0 | 0 | 0 | 0 | 4 |
-| ibm-time | 5 | 0 | 0 | 0 | 0 | 5 |
-| ibm-typeAlternatives | 39 | 0 | 0 | 0 | 0 | 39 |
-| ibm-typeAlternativesMixed | 15 | 0 | 0 | 0 | 0 | 15 |
-| ibm-union | 33 | 0 | 0 | 0 | 0 | 33 |
-| ibm-unitsLength | 14 | 0 | 0 | 0 | 0 | 14 |
-| ibm-unsignedInteger | 16 | 0 | 0 | 0 | 0 | 16 |
-| ibm-vc | 14 | 0 | 0 | 0 | 0 | 14 |
-| ibm-wildcard | 32 | 0 | 0 | 0 | 0 | 32 |
-| ibm-xml11Support | 22 | 0 | 0 | 0 | 0 | 22 |
-| ibm-xpathDefaultNSonKeyKeyRefUnique | 26 | 0 | 0 | 0 | 0 | 26 |
-| ibm-xsImportReference | 1 | 0 | 0 | 0 | 0 | 1 |
-| ibm-yearMonthDuration | 38 | 0 | 0 | 0 | 0 | 38 |
+| saxon-Open | 165 | 51 | 0 | 0 | 0 | 114 |
+| saxon-Override | 86 | 31 | 0 | 1 | 0 | 54 |
+| saxon-Simple | 108 | 65 | 0 | 0 | 0 | 43 |
+| saxon-Subsgroup | 11 | 6 | 0 | 0 | 0 | 5 |
+| saxon-TargetNS | 10 | 5 | 0 | 0 | 0 | 5 |
+| saxon-VC | 50 | 23 | 0 | 0 | 0 | 27 |
+| saxon-Wild | 284 | 82 | 0 | 6 | 0 | 196 |
+| saxon-XmlVersions | 51 | 13 | 0 | 0 | 0 | 38 |
+| saxon-Zone | 74 | 19 | 0 | 7 | 0 | 48 |
+| oracle-Zone | 26 | 9 | 0 | 0 | 0 | 17 |
+| wg-substitution-groups | 47 | 6 | 0 | 0 | 0 | 41 |
+| wg-IRI | 13 | 1 | 0 | 0 | 0 | 12 |
+| ibm-allGroup | 15 | 9 | 0 | 0 | 0 | 6 |
+| ibm-anyAttribute | 16 | 9 | 0 | 0 | 0 | 7 |
+| ibm-assert | 79 | 35 | 0 | 0 | 0 | 44 |
+| ibm-assertion | 101 | 51 | 0 | 0 | 0 | 50 |
+| ibm-conditionalInclusion | 5 | 3 | 0 | 0 | 0 | 2 |
+| ibm-constraintsOnAttribute | 22 | 16 | 0 | 0 | 0 | 6 |
+| ibm-cyclicRedefineIncludeImportOverride | 5 | 5 | 0 | 0 | 0 | 0 |
+| ibm-date | 2 | 1 | 0 | 0 | 0 | 1 |
+| ibm-dateTimeStamp | 43 | 28 | 0 | 0 | 0 | 15 |
+| ibm-dayTimeDuration | 36 | 24 | 0 | 0 | 0 | 12 |
+| ibm-defaultAttributesApply | 31 | 16 | 0 | 1 | 0 | 14 |
+| ibm-defaultFixed | 10 | 5 | 0 | 0 | 0 | 5 |
+| ibm-double | 4 | 2 | 0 | 0 | 0 | 2 |
+| ibm-edcWildcard | 4 | 2 | 0 | 0 | 0 | 2 |
+| ibm-explicitTimezone | 32 | 18 | 0 | 0 | 0 | 14 |
+| ibm-float | 4 | 2 | 0 | 0 | 0 | 2 |
+| ibm-gYearMonth | 2 | 1 | 0 | 0 | 0 | 1 |
+| ibm-gYear | 2 | 1 | 0 | 0 | 0 | 1 |
+| ibm-gMonthDay | 2 | 1 | 0 | 0 | 0 | 1 |
+| ibm-gDay | 2 | 1 | 0 | 0 | 0 | 1 |
+| ibm-gMonth | 1 | 1 | 0 | 0 | 0 | 0 |
+| ibm-idIDREF | 134 | 77 | 0 | 0 | 0 | 57 |
+| ibm-identityConstraint | 18 | 12 | 0 | 0 | 0 | 6 |
+| ibm-list | 3 | 2 | 0 | 0 | 0 | 1 |
+| ibm-openContent | 40 | 24 | 0 | 0 | 0 | 16 |
+| ibm-regularExpression | 16 | 8 | 0 | 0 | 0 | 8 |
+| ibm-restrictionOfComplexTypes | 19 | 13 | 0 | 0 | 0 | 6 |
+| ibm-rf_whiteSpace | 4 | 2 | 0 | 0 | 0 | 2 |
+| ibm-substitutionGroup | 8 | 5 | 0 | 0 | 0 | 3 |
+| ibm-targetNamespace | 4 | 2 | 0 | 0 | 0 | 2 |
+| ibm-time | 5 | 1 | 0 | 0 | 0 | 4 |
+| ibm-typeAlternatives | 39 | 19 | 0 | 4 | 0 | 16 |
+| ibm-typeAlternativesMixed | 15 | 6 | 0 | 0 | 0 | 9 |
+| ibm-union | 33 | 19 | 0 | 0 | 0 | 14 |
+| ibm-unitsLength | 14 | 8 | 0 | 0 | 0 | 6 |
+| ibm-unsignedInteger | 16 | 8 | 0 | 0 | 0 | 8 |
+| ibm-vc | 14 | 6 | 0 | 0 | 0 | 8 |
+| ibm-wildcard | 32 | 17 | 0 | 0 | 0 | 15 |
+| ibm-xml11Support | 22 | 11 | 0 | 0 | 0 | 11 |
+| ibm-xpathDefaultNSonKeyKeyRefUnique | 26 | 13 | 0 | 0 | 0 | 13 |
+| ibm-xsImportReference | 1 | 1 | 0 | 0 | 0 | 0 |
+| ibm-yearMonthDuration | 38 | 25 | 0 | 0 | 0 | 13 |
 
 </details>
