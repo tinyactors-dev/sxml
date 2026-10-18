@@ -6130,6 +6130,9 @@ sxml-xslt-test that links `sxml_qt4_driver_library`.
 ### D169. Phase 4 gate review (packet 4.18)
 Reserved 2026-10-19.
 
+### D170. The schema document reader and assembly (packet 5.4)
+Reserved 2026-10-18.
+
 ## Proposed
 
 - **Matching package versions for host resolvers** (packet 4.16, D160;
