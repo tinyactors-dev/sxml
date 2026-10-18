@@ -352,14 +352,27 @@ call-template-ext, host collations.
 ### 4.18 Phase 4 review (review)
 After everything. Owns the gate boxes. A separate agent (D11) runs the
 rubric and re-checks each "done when"; open items go under "Proposed".
+**Done** 2026-10-19 (D169): numbers at 77bc5d5 and 8d2aa06, fuzzing
+with a new XSLT target, the step budget judged fair, D71 through
+function pointers, XSLT error locations and err:XTMM9000 fixed, `sxml
+transform`'s relative references fixed, two helpers merged, `xslt.h`
+stable, the D162 check; match="$var" membership and errors in included
+modules Proposed.
 
 ## Gate
 
-- [ ] In-scope XSLT 4.0 cases (D95) ≥ 70% pass under `release`; the core
+- [x] In-scope XSLT 4.0 cases (D95) ≥ 70% pass under `release`; the core
   sets apply-templates, mode, match, for-each-group, sort, key, number,
-  choose, copy, value-of, result-document, function ≥ 80% each.
-- [ ] XQ40 still ≥ 85%, XP40 ≥ 90%; all ctest slices at their baselines.
-- [ ] No in-scope case crashes, leaks or ends in an "error" outcome.
-- [ ] `sxml transform` matches docs/CLI.md.
-- [ ] Review agent pass (D11), findings fixed; the owner is told XSLT
-  works (D11 goal).
+  choose, copy, value-of, result-document, function ≥ 80% each. (agent
+  review, D169: 7,990 of 8,728, 91.5 %; the lowest core set is mode,
+  88.5 %)
+- [x] XQ40 still ≥ 85%, XP40 ≥ 90%; all ctest slices at their baselines.
+  (agent review, D169: XQ40 97.2 %, XP40 97.1 %, no regression; slices
+  198, 186, 147 under every preset)
+- [x] No in-scope case crashes, leaks or ends in an "error" outcome.
+  (agent review, D169: every test set finished, 0 errors)
+- [x] `sxml transform` matches docs/CLI.md. (agent review, D169, after
+  the fix of relative references)
+- [x] Review agent pass (D11), findings fixed; the owner is told XSLT
+  works (D11 goal). (agent review, D169; the larger follow-ups are
+  Proposed or listed)

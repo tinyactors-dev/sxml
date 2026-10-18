@@ -4,7 +4,7 @@
 
 Results of the W3C QT4 test suite (`third_party/qt4tests`, D13) under `sxml-qt4 run` (D92), a release build, one process per test set. *Passed* counts passes and wrong errors (a wrong error code counts as a pass, catalog-schema.xsd); *not run* means not applicable to sxml or using an unsupported feature; *run* is test cases minus not run.
 
-- Code under test: commit `7c2f3cef8630` of 2026-10-18
+- Code under test: commit `8d2aa06ea386` of 2026-10-18
 - Regenerate: `cmake --preset release && cmake --build --preset release && tools/run-qt4.sh --program build/release/tests/qt4/driver/sxml-qt4 && tools/run-qt4.sh --program build/release/tests/qt4/driver/sxml-qt4 --spec XQ40 && tools/conformance-report.py build/qt4-run` (XQ40 is reported when its run is in the directory; XT40 and XSD11 when `tools/run-xslt.sh` and `tools/run-xsd.sh` ran into it too)
 
 ## Torture slice
@@ -1811,9 +1811,9 @@ Not run, by the first dependency that is not met:
 
 | Specification | Test cases | Run | Passed | of which wrong error | Failed | Errors | Not run | Passed of run |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|
-| XT40 | 13,867 | 8,484 | 7,987 | 138 | 497 | 0 | 5,383 | 94.1 % |
+| XT40 | 13,867 | 8,484 | 7,990 | 138 | 494 | 0 | 5,383 | 94.2 % |
 
-Gate rate (D95): 7,987 of 8,728 in-scope test cases passed, **91.5 %** (in scope: the spec matches and no non-goal is needed; not-run cases count as not passed).
+Gate rate (D95): 7,990 of 8,728 in-scope test cases passed, **91.5 %** (in scope: the spec matches and no non-goal is needed; not-run cases count as not passed).
 
 ### XT40 core test sets (Phase 4 gate: 80 % each)
 
@@ -1842,7 +1842,7 @@ XSLT slice (`tests/xslt/slice.txt`): **147/154 passed**.
 | Declarations: `tests/decl/` | 1,497 | 1,168 | 1,100 | 23 | 68 | 0 | 329 | 94.2 % |
 | Expressions: `tests/expr/` | 739 | 650 | 645 | 0 | 5 | 0 | 89 | 99.2 % |
 | Functions: `tests/fn/` | 1,339 | 1,184 | 1,083 | 12 | 101 | 0 | 155 | 91.5 % |
-| Instructions: `tests/insn/` | 1,996 | 1,692 | 1,567 | 26 | 125 | 0 | 304 | 92.6 % |
+| Instructions: `tests/insn/` | 1,996 | 1,692 | 1,570 | 26 | 122 | 0 | 304 | 92.8 % |
 | Miscellaneous: `tests/misc/` | 3,123 | 1,871 | 1,822 | 44 | 49 | 0 | 1,252 | 97.4 % |
 | Streaming (out of scope, D95): `tests/strm/` | 2,564 | 0 | 0 | 0 | 0 | 0 | 2,564 | – |
 | Other | 975 | 877 | 817 | 23 | 60 | 0 | 98 | 93.2 % |
@@ -1862,7 +1862,6 @@ Failed and error test cases by the error code the query raised (or the status th
 | XTSE3000 | 7 |
 | XPDY0002 | 6 |
 | XPTY0004 | 5 |
-| FOAR0001 | 4 |
 | FONS0004 | 4 |
 | XPDY0050 | 4 |
 | XPST0008 | 3 |
@@ -1874,6 +1873,7 @@ Failed and error test cases by the error code the query raised (or the status th
 | XTDE3052 | 2 |
 | XTSE0020 | 2 |
 | XTSE0165 | 2 |
+| FOAR0001 | 1 |
 | FODC0006 | 1 |
 | FODC0013 | 1 |
 | SERE0023 | 1 |
@@ -1884,7 +1884,7 @@ The 25 most frequent reasons:
 | Cause | Test cases |
 |---|--:|
 | wrong result (assert-xml) | 103 |
-| wrong result (assert) | 67 |
+| wrong result (assert) | 64 |
 | XTSE0340: the text is not a pattern (XSLT 4.0, 6.3.1) | 49 |
 | XPST0051: the type name is not defined | 31 |
 | XTDE1450: an extension instruction is evaluated that the processor does not implement, and it has n… | 25 |
@@ -1972,7 +1972,7 @@ Not run, by the first dependency that is not met:
 | array | 37 | 22 | 7 | 0 | 8 |
 | date | 139 | 123 | 7 | 0 | 9 |
 | seqtor | 92 | 85 | 7 | 0 | 0 |
-| try | 48 | 33 | 7 | 0 | 8 |
+| analyze-string | 68 | 56 | 6 | 0 | 6 |
 
 ### Every XT40 test set
 
@@ -2105,7 +2105,7 @@ Not run, by the first dependency that is not met:
 | source-document | 60 | 0 | 0 | 0 | 0 | 60 |
 | switch | 12 | 10 | 0 | 0 | 0 | 2 |
 | text | 20 | 15 | 0 | 3 | 0 | 2 |
-| try | 48 | 33 | 0 | 7 | 0 | 8 |
+| try | 48 | 36 | 0 | 4 | 0 | 8 |
 | value-of | 17 | 14 | 0 | 1 | 0 | 2 |
 | where-populated | 28 | 28 | 0 | 0 | 0 | 0 |
 | xsl-document | 25 | 25 | 0 | 0 | 0 | 0 |

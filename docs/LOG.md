@@ -4,6 +4,21 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 4.18 done (D169): Phase 4 gate review (D11). **XSLT works**: XT40 in
+  scope 7,990 of 8,728, **91.5 %** (gate 70 %), every core set 88.5 % or
+  more (gate 80 %); XP40 30,647 (97.1 %) and XQ40 40,034 (97.2 %), no
+  regression; 0 crashes, leaks or errors; slices 198, 186, 147. Fuzzing
+  300 s per target, seven targets with the new `xslt_fuzz`: no crash,
+  leak or sanitizer report (timeouts of slow suite inputs only). The
+  XSLT driver's 400 M step budget is a fair limit (json-to-xml-013 is
+  linear, about 900 steps a city); match="$var" is quadratic (Proposed).
+  Fixed: XSLT error locations (expression ASTs placed in their module;
+  a dangling source name after call-template and call-function runs),
+  err:XTMM9000's prefix, `sxml transform`'s "../" with a relative
+  stylesheet (the working directory in its base URI); merged thirteen
+  whitespace-byte copies and seven add_expression copies. xslt.h is
+  stable. Every gate box ticked (agent review).
+
 - 5.3 done (D168): the XSD 1.1 test driver `sxml-xsd-test`
   (`tests/xsd/driver/`): reads `third_party/xsdtests/suite.xml` and its
   test sets (named after their files, `saxon-Assert`; tests
@@ -1561,3 +1576,22 @@ For the owner. Every gate box is ticked (D161).
    the now stable `xquery.h` still open.
 4. **CI** (D123): still local only; macOS, Windows and MSVC unbuilt since
    the Phase 0 gate.
+
+## Open questions at the Phase 4 gate (packet 4.18)
+
+For the owner. Every gate box is ticked (D169).
+
+1. **0.2.0, XQuery and XSLT.** 0.2.0 is still untagged; `CHANGELOG.md`
+   lists XQuery and XSLT under "Unreleased". Tag 0.2.0 at the Phase 2
+   commit, or fold both into one release.
+2. **WebAssembly budgets** (Proposed, three items): the CLI with XQuery
+   and XSLT against its 5,000,000 / 1,100,000 budget, `sxml.wasm` against
+   2,000,000 / 700,000, and `compileQuery()` and XSLT still not in the
+   JavaScript package. Confirm the budgets, or ask for optional modules.
+3. **XQuery's omit-xml-declaration default** (Proposed, D146): no (write
+   the declaration, as QT4 expects) or keep yes.
+4. **Phase 7 plan** (D162): `docs/tasks/phase-7.md` is due after this
+   gate, one packet per delayed feature.
+5. **CI** (D123): still local only; macOS, Windows and MSVC have not been
+   built since the Phase 0 gate (the CLI's new working-directory read is
+   `_getcwd` there, untested).

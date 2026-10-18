@@ -6128,15 +6128,147 @@ sxml-xslt-test that links `sxml_qt4_driver_library`.
   longest).
 
 ### D169. Phase 4 gate review (packet 4.18)
-Reserved 2026-10-19.
+Recorded 2026-10-19 by the review agent (D11), after D95, D123, D151,
+D161, D166. Checked locally (D123): `tools/check-main.sh` on clean HEAD
+(77bc5d5 before and 8d2aa06 after this review's changes) builds
+`release`, `debug` (ASan, UBSan), `debug-gcc` and `wasm`, and every
+test passes; the full lint at 8d2aa06 is clean (no call cycle). The
+dashboard is regenerated at 8d2aa06.
+- **Numbers** (release, tools/run-xslt.sh, run-qt4.sh XP40 and XQ40,
+  run-xsd.sh, every test set finished, 0 crashes, no leak reported by
+  the drivers' budgets, 0 "error" outcomes): at 77bc5d5 XT40 7,987 of
+  8,728 in scope, **91.5 %** (gate 70 %); XP40 30,647 passed, in scope
+  30,629 of 31,543, **97.1 %** (gate 90 %); XQ40 40,034 passed, in scope
+  40,016 of 41,174, **97.2 %** (gate 85 %); no regression from 30,647 /
+  40,034. Core sets (gate 80 % each): apply-templates 97.4 %, mode 88.5 %,
+  match 93.8 %, for-each-group 90.7 %, sort 100 %, key 97.1 %, number
+  97.4 %, choose 95.4 %, copy 89.0 %, value-of 93.3 %, result-document
+  95.3 %, function 91.1 %. Slices: qt4/slice 198, qt4/xquery-slice 186,
+  xslt/slice 147 (ctest, every preset). After this review's changes, case
+  by case: XT40 gains try-002, -022 and -045 (7,990, 91.5 %), XP40 and
+  XQ40 identical, nothing lost. The 24 sandp test sets the XSLT runner
+  starts end at once with "unknown test set" (out of scope, D95).
+- **Fuzzing**, 300 s per target, seven at once on a loaded machine (fork
+  mode for the evaluating targets): cast_fuzz 1,068,415 runs, regex_fuzz
+  461,213, xml_parse_fuzz 62,095, xpath_compile_fuzz 10,066,
+  xpath_evaluate_fuzz about 10,000, xquery_fuzz about 9,600 and the new
+  xslt_fuzz about 8,300; no crash, leak or sanitizer report. Timeouts
+  for triage only (P9): one xquery_fuzz input and four xslt_fuzz inputs,
+  all suite stylesheets slow by nature under ASan (a loop of 1,000,000,
+  primes to 1,000, match="$nodes" over 2,000 nodes), each finishing in 5
+  to 12 s alone. **xslt_fuzz** (`tests/fuzz/xslt_fuzz.c`, new): compiles
+  the input through `xslt.h` and transforms it twice (templates applied
+  to a small document, serialized, result documents collected as trees;
+  xsl:initial-template called, raw result), small limits, a resolver
+  table with one module and one document; seeds are the suite's `.xsl`
+  files.
+- **The XSLT driver's step budget** (D166, 4 x QT4, 400 million): a fair
+  test limit, not a mask. json-to-xml-013 costs time linear in its input
+  (13,000 to 209,579 cities: 1.5 s to 25 s, release), about 900 steps a
+  city, 65 a node; a profile is flat (JSON parsing 23 %, coercion 10 %,
+  construction 6 %, template dispatch 4 %), no pattern matching hot spot.
+  What the fuzzing found instead: a pattern rooted at a variable
+  (match="$a-nodes", 6.3.1) tests membership by a scan of the variable's
+  value, so N nodes matched against M is N x M (1,000 nodes 0.6 s, 4,000
+  9.4 s); within the budget for the suite's case, a design for a later
+  sweep (a node set index by document order per global value), Proposed.
+- **D71**: no call cycle (tools/check-call-cycles.py, 163 files); through
+  function pointers: the evaluator's guard (`is_running`, D151) refuses a
+  nested run on one dynamic context and the lowering machine's (D161) a
+  nested lowering; resumable natives (fn:key's index, cached calls,
+  accumulators) return CALL steps to the machine; D166's receive function
+  only adds items to a construction and calls no machine; the result
+  document handler, the trace sink and the resolver are host code, and a
+  transformation one of them starts runs on a dynamic context of its
+  own, as xslt.h allows; whitespace stripping is a tree builder filter.
+- **Fixed**:
+  - Error locations of XSLT: expressions are parsed from attribute text,
+    and their AST spans stayed relative to that text, so a dynamic error
+    or a static error found by lowering (XPST0008, XPST0017) said 1:5
+    for an expression on line 4. The reader now places each AST in its
+    module (`sxml_ast_move_source_spans`, with the rule its own
+    relocate_error used, now shared). An error located in a unit lowered
+    for one invocation (call-template, call-function, another mode) named
+    its module with memory freed when the transformation ended (found by
+    ASan in a new CLI test): the name now points to the stylesheet's
+    module URI (status.h, D21).
+  - err:XTMM9000 and err:XTMM9001, the default codes of xsl:message and
+    xsl:assert, had no prefix and were shown Q{...}XTMM9000.
+  - `sxml transform` with a relative STYLESHEET resolved "../" in an
+    href to the file system's root (file:sub/x.xsl with ../b.xml is
+    file:/b.xml by RFC 3986): the base URI now has the working directory
+    (`sxml_platform_read_working_directory`, the invocation's
+    `working_directory`; file:///C:/ for Windows). Error reports name the
+    module file of a static error's location.
+  - Merged: `sxml_xml_byte_is_whitespace` replaces thirteen private
+    copies (casting, function library, XPath and XQuery static analysis,
+    XQuery and XSLT lowering, constructors); one
+    `sxml_xslt_lowering_add_expression` for seven copies.
+  - `tests/xslt_test.c` covers the collector's caller-memory lifecycle,
+    the last functions of xslt.h without a test.
+- **Larger duplicates, listed** (one shared mechanism each, later): typed
+  array allocation (count x size checked, then allocate) is a private
+  helper in 19 files; group-adjacent and group-starting-with compare keys
+  in `src/xslt_group.c` with their own equality, next to the FLWOR's
+  `keys_are_equal` (group-by itself is shared); the window clause and
+  group-starting-with/ending-with are two run detectors over one
+  sequence. D161's follow-ups are done (sweep 2, D163: slot atoms, trim,
+  declared types, heapsorts).
+- **Delayed features (D162)**, one place each with the specification's
+  error: xsl:import-schema XTSE1650 and validation or type attributes
+  XTSE1660 (`src/xslt_read.c`), backwards-compatible behaviour XTDE0160
+  (`src/xslt_lower.c`), streaming read only where a non-streaming
+  processor must read it (xsl:mode, accumulators), xsl:evaluate XTDE3175
+  (`src/xslt_lower_control.c`; dynamic evaluation is optional),
+  extension instructions XTDE1450 (`src/xslt_lower.c`).
+- **`sxml transform` matches docs/CLI.md**: every example of the page
+  gives its output and exit code; the options, the usage errors, exit 3
+  for a missing file and 1 for a stylesheet or input that is not
+  well-formed behave as written.
+- **xslt.h is stable** (D161's rule): consistent with `xpath.h` and
+  `xquery.h`, every declaration documented, every function tested through
+  the public API with an allocation-failure loop, the CLI on it alone.
+  From now on it changes as every public header does (D47); the
+  package-version function of Proposed would be an addition.
+- **Proposed, resolved here**: matching package versions for host
+  resolvers is accepted as a later addition to xslt.h (additive, no owner
+  decision); the XSLT functions at run time and globals computed on first
+  read are accepted as designs for a later sweep (the evaluator gains
+  lazy globals as machine tasks, which also makes xslt.h's "evaluated
+  when first read" exact for errors). New: membership of a pattern
+  rooted at a variable (above). Left for the owner: the WebAssembly
+  budgets (three items) and XQuery's omit-xml-declaration default.
+- **Not done** (deferred, listed in the LOG): a dynamic error inside an
+  included or imported module names the principal module with the
+  included module's line (XSLT functions and templates carry no IR module
+  number; the static contexts' IR modules have no source name);
+  attribute-value normalization makes columns approximate in an
+  expression that spans lines; XTDE3052 on reading an abstract variable
+  (D166).
 
 ### D170. The schema document reader and assembly (packet 5.4)
 Reserved 2026-10-18.
 
 ## Proposed
 
+- **Membership of a pattern rooted at a variable** (packet 4.18, D169;
+  for a later sweep): match="$nodes" (XSLT 4.0, 6.3.1) scans the
+  variable's value for each node tested, so N nodes tested against M is
+  N x M (1,000 against 2,000: 0.6 s, 4,000: 9.4 s, release). Proposed: a
+  global value used this way keeps an index of its nodes by document
+  order (tree, then position), built once per transformation, and the
+  membership task searches it.
+
+- **Dynamic errors in included modules** (packet 4.18, D169): the
+  location names the principal module with the included module's line,
+  as XSLT templates and functions carry no IR module number and the
+  static contexts' IR modules have no source name. Proposed: each IR
+  module of a static context takes its stylesheet module's URI, and the
+  evaluator locates an error by the module of the expression's static
+  context.
+
 - **Matching package versions for host resolvers** (packet 4.16, D160;
-  for the owner of `include/sxml/xslt.h`): a resolver that serves
+  accepted by D169 as an addition to the now stable xslt.h, not done yet): a resolver that serves
   XSLT_PACKAGE must pick a version the range matches (XSLT 4.0, 3.4.1);
   sxml has the function internally (`sxml_xslt_package_version_matches`)
   and the test driver keeps a copy. Proposed: export it from xslt.h, with
@@ -6151,12 +6283,13 @@ Reserved 2026-10-18.
   XSLT front ends into an optional module.
 
 - **The XSLT functions at run time** (packet 4.10, D149; EQNames given
-  as strings done by D163): still open, the unit's stylesheet functions,
+  as strings done by D163; design accepted by D169, for a later sweep):
+  still open, the unit's stylesheet functions,
   fn:key and the accumulator functions in the run-time function table
   (fn:function-lookup of an xsl:function, of fn:key#2).
 
-- **Globals computed on first read** (packet 4.17, D166; for the owner of
-  the evaluator): XSLT 4.0, 3.4.5.2 raises XTDE3052 only when an
+- **Globals computed on first read** (packet 4.17, D166; design accepted
+  by D169, for a later sweep): XSLT 4.0, 3.4.5.2 raises XTDE3052 only when an
   invocation of an abstract variable is evaluated, but every global is
   computed before the evaluation, so a global that reads one raises too
   (accept-042, -043a). Proposed: a global read while ABSENT is computed
