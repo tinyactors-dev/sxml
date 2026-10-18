@@ -1634,6 +1634,11 @@ static sxml_status validate_root_attribute(sxml_schema_validator *validator,
                                                      .location = event->location};
     sxml_status status = SXML_STATUS_OK;
     const sxml_schema_type_definition_index governing_type = validator->pending.governing_type;
+    if (governing_type.value != 0 &&
+        type_at(validator, governing_type)->variety == SXML_TYPE_VARIETY_COMPLEX) {
+        /* include/sxml/schema.h: an attribute needs a simple type. */
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
     if (governing_type.value != 0) {
         sxml_schema_value_outcome outcome;
         status = sxml_schema_validate_simple_value(
