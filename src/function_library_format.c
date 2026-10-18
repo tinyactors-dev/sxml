@@ -1006,13 +1006,28 @@ static sxml_status append_place_marker_number(place_marker_item request,
         }
     }
     picture.is_ordinal = request.settings->is_ordinal;
-    return sxml_format_integer(
+    const size_t start = text->byte_count;
+    status = sxml_format_integer(
         &(sxml_integer_formatting){.picture = &picture,
                                    .magnitude_digits = number.magnitude_digits,
                                    .is_negative = number.is_negative,
                                    .grouping_separator = request.settings->grouping_separator,
                                    .grouping_size = request.settings->grouping_size},
         text);
+    if (status == SXML_STATUS_OK && picture.numbering_kind == SXML_NUMBERING_KIND_TITLE_WORDS) {
+        /* Title-case words of xsl:number capitalize every word, a hyphen
+           becoming a space ("Twenty Two", as Saxon writes them; QT4
+           number-0105 and number-2506), where fn:format-integer keeps
+           "Twenty-two" (D119). The words are ASCII. */
+        for (size_t byte_index = start; byte_index + 1 < text->byte_count; byte_index += 1) {
+            const uint8_t next = text->bytes[byte_index + 1];
+            if (text->bytes[byte_index] == '-' && next >= 'a' && next <= 'z') {
+                text->bytes[byte_index] = ' ';
+                text->bytes[byte_index + 1] = (uint8_t)(next - 'a' + 'A');
+            }
+        }
+    }
+    return status;
 }
 
 /*
