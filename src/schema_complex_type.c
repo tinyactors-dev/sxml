@@ -24,9 +24,9 @@ sxml_status sxml_schema_compile_complex_types(sxml_schema_compilation *compilati
 
 sxml_status sxml_schema_check_derivation(const sxml_schema_components *components,
                                          const sxml_schema_derivation_request *request,
-                                         bool *is_derived) {
+                                         sxml_schema_derivation_outcome *outcome) {
     (void)components;
     (void)request;
-    (void)is_derived;
+    (void)outcome;
     return SXML_STATUS_UNSUPPORTED_FEATURE;
 }

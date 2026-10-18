@@ -278,8 +278,8 @@ static sxml_status grow_name_index(sxml_schema_components *components) {
     sxml_schema_name_entry *old_entries = components->name_entries;
     components->name_entries = memory;
     components->name_slot_count = new_slot_count;
-    for (uint32_t slot = 0; slot < old_slot_count; slot += 1) {
-        const sxml_schema_name_entry entry = old_entries[slot];
+    for (uint32_t slot_index = 0; slot_index < old_slot_count; slot_index += 1) {
+        const sxml_schema_name_entry entry = old_entries[slot_index];
         if (entry.component != 0) {
             const uint32_t new_slot = find_name_slot(
                 components,
@@ -655,16 +655,18 @@ static bool is_xdm_only_type(sxml_builtin_type builtin_type) {
            builtin_type == SXML_TYPE_XS_NUMERIC;
 }
 
+/* The most member types of a built-in union (xs:numeric has three). */
+#define BUILTIN_MEMBER_CAPACITY 8U
+
 /* The member types of a built-in union, as a list. */
 static sxml_status add_builtin_member_types(sxml_schema_components *components,
                                             const sxml_type_description *description,
                                             sxml_schema_list *member_types) {
-    enum { MAXIMUM_BUILTIN_MEMBER_COUNT = 8 };
     const sxml_type_identifier_view members = description->variety_details.member_types;
-    if (members.type_identifier_count > MAXIMUM_BUILTIN_MEMBER_COUNT) {
+    if (members.type_identifier_count > BUILTIN_MEMBER_CAPACITY) {
         return SXML_STATUS_INVALID_ARGUMENT;
     }
-    uint32_t member_indexes[MAXIMUM_BUILTIN_MEMBER_COUNT] = {0};
+    uint32_t member_indexes[BUILTIN_MEMBER_CAPACITY] = {0};
     for (size_t member_index = 0; member_index < members.type_identifier_count;
          member_index += 1) {
         member_indexes[member_index] = members.type_identifiers[member_index].index;

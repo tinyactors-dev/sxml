@@ -295,14 +295,14 @@ static void test_name_index(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, find_global(&fixture, SXML_SCHEMA_SYMBOL_SPACE_TYPE_DEFINITION,
                                         (name_request){SXML_NAMESPACE_NONE, "e321"}) == 0);
 
-    const sxml_name_identifier e7 =
-        intern_name(&fixture, (name_request){SXML_NAMESPACE_NONE, "e7"});
+    const sxml_name_identifier seventh_name =
+        intern_name(&fixture, (name_request){SXML_NAMESPACE_NONE, "seventh_name"});
     uint32_t existing_component = 0;
     SXML_TEST_REQUIRE(state, sxml_schema_components_enter_name(
                                  components,
                                  &(sxml_schema_name_entry){
                                      .symbol_space = SXML_SCHEMA_SYMBOL_SPACE_ELEMENT_DECLARATION,
-                                     .name = e7,
+                                     .name = seventh_name,
                                      .component = 1000},
                                  &existing_component) == SXML_STATUS_OK);
     SXML_TEST_EXPECT(state, existing_component == 8);
@@ -310,21 +310,21 @@ static void test_name_index(sxml_test_state *state) {
                                  components,
                                  &(sxml_schema_name_entry){
                                      .symbol_space = SXML_SCHEMA_SYMBOL_SPACE_ELEMENT_DECLARATION,
-                                     .name = e7,
+                                     .name = seventh_name,
                                      .component = 1000}) == SXML_STATUS_OK);
     SXML_TEST_EXPECT(state, find_global(&fixture, SXML_SCHEMA_SYMBOL_SPACE_ELEMENT_DECLARATION,
-                                        (name_request){SXML_NAMESPACE_NONE, "e7"}) == 1000);
+                                        (name_request){SXML_NAMESPACE_NONE, "seventh_name"}) == 1000);
     SXML_TEST_EXPECT(state, sxml_schema_components_replace_name(
                                 components,
                                 &(sxml_schema_name_entry){
                                     .symbol_space = SXML_SCHEMA_SYMBOL_SPACE_MODEL_GROUP_DEFINITION,
-                                    .name = e7,
+                                    .name = seventh_name,
                                     .component = 1}) == SXML_STATUS_INVALID_ARGUMENT);
     SXML_TEST_EXPECT(state, sxml_schema_components_enter_name(
                                 components,
                                 &(sxml_schema_name_entry){
                                     .symbol_space = SXML_SCHEMA_SYMBOL_SPACE_NONE,
-                                    .name = e7,
+                                    .name = seventh_name,
                                     .component = 1},
                                 &existing_component) == SXML_STATUS_INVALID_ARGUMENT);
     fixture_close(&fixture);

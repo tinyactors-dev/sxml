@@ -79,10 +79,10 @@ sxml_status sxml_schema_validator_report(sxml_schema_validator *validator,
 
 sxml_status sxml_schema_id_table_add_id(sxml_schema_id_table *id_table,
                                         const sxml_schema_id_request *request,
-                                        bool *is_duplicate) {
+                                        sxml_schema_id_outcome *outcome) {
     (void)id_table;
     (void)request;
-    (void)is_duplicate;
+    (void)outcome;
     return SXML_STATUS_UNSUPPORTED_FEATURE;
 }
 

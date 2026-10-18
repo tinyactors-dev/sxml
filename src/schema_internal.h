@@ -1478,15 +1478,15 @@ SXML_NODISCARD sxml_status sxml_schema_components_write_text(
 
 /* ------------------------------------------------------------- Accessors */
 
-/* The entry at index of table, or NULL for 0 and out of range. */
+/* The entry at key, or NULL for 0 and out of range. */
 static inline const void *sxml_schema_components_find_entry(
-    const sxml_schema_components *components, sxml_schema_table table,
-    uint32_t index, size_t entry_byte_count) {
-    const sxml_schema_table_storage *storage = &components->tables[table];
-    if (index == 0 || index >= storage->entry_count) {
+    const sxml_schema_components *components, sxml_schema_entry_key key,
+    size_t entry_byte_count) {
+    const sxml_schema_table_storage *storage = &components->tables[key.table];
+    if (key.index == 0 || key.index >= storage->entry_count) {
         return NULL;
     }
-    return (const uint8_t *)storage->entries + (size_t)index * entry_byte_count;
+    return (const uint8_t *)storage->entries + (size_t)key.index * entry_byte_count;
 }
 
 /* Each accessor returns the component at index, borrowed (valid until the
@@ -1497,7 +1497,8 @@ static inline const sxml_schema_type_definition *sxml_schema_get_type_definition
     sxml_schema_type_definition_index index) {
     static const sxml_schema_type_definition no_entry;
     const sxml_schema_type_definition *entry = sxml_schema_components_find_entry(
-        components, SXML_SCHEMA_TABLE_TYPE_DEFINITION, index.value,
+        components, (sxml_schema_entry_key){.table = SXML_SCHEMA_TABLE_TYPE_DEFINITION,
+                                             .index = index.value},
         sizeof(sxml_schema_type_definition));
     return entry != NULL ? entry : &no_entry;
 }
@@ -1508,8 +1509,9 @@ sxml_schema_get_element_declaration(const sxml_schema_components *components,
     static const sxml_schema_element_declaration no_entry;
     const sxml_schema_element_declaration *entry =
         sxml_schema_components_find_entry(
-            components, SXML_SCHEMA_TABLE_ELEMENT_DECLARATION, index.value,
-            sizeof(sxml_schema_element_declaration));
+        components, (sxml_schema_entry_key){.table = SXML_SCHEMA_TABLE_ELEMENT_DECLARATION,
+                                             .index = index.value},
+        sizeof(sxml_schema_element_declaration));
     return entry != NULL ? entry : &no_entry;
 }
 
@@ -1520,8 +1522,9 @@ sxml_schema_get_attribute_declaration(
     static const sxml_schema_attribute_declaration no_entry;
     const sxml_schema_attribute_declaration *entry =
         sxml_schema_components_find_entry(
-            components, SXML_SCHEMA_TABLE_ATTRIBUTE_DECLARATION, index.value,
-            sizeof(sxml_schema_attribute_declaration));
+        components, (sxml_schema_entry_key){.table = SXML_SCHEMA_TABLE_ATTRIBUTE_DECLARATION,
+                                             .index = index.value},
+        sizeof(sxml_schema_attribute_declaration));
     return entry != NULL ? entry : &no_entry;
 }
 
@@ -1530,7 +1533,8 @@ static inline const sxml_schema_attribute_use *sxml_schema_get_attribute_use(
     sxml_schema_attribute_use_index index) {
     static const sxml_schema_attribute_use no_entry;
     const sxml_schema_attribute_use *entry = sxml_schema_components_find_entry(
-        components, SXML_SCHEMA_TABLE_ATTRIBUTE_USE, index.value,
+        components, (sxml_schema_entry_key){.table = SXML_SCHEMA_TABLE_ATTRIBUTE_USE,
+                                             .index = index.value},
         sizeof(sxml_schema_attribute_use));
     return entry != NULL ? entry : &no_entry;
 }
@@ -1540,7 +1544,8 @@ static inline const sxml_schema_attribute_group *sxml_schema_get_attribute_group
     sxml_schema_attribute_group_index index) {
     static const sxml_schema_attribute_group no_entry;
     const sxml_schema_attribute_group *entry = sxml_schema_components_find_entry(
-        components, SXML_SCHEMA_TABLE_ATTRIBUTE_GROUP, index.value,
+        components, (sxml_schema_entry_key){.table = SXML_SCHEMA_TABLE_ATTRIBUTE_GROUP,
+                                             .index = index.value},
         sizeof(sxml_schema_attribute_group));
     return entry != NULL ? entry : &no_entry;
 }
@@ -1552,8 +1557,9 @@ sxml_schema_get_model_group_definition(
     static const sxml_schema_model_group_definition no_entry;
     const sxml_schema_model_group_definition *entry =
         sxml_schema_components_find_entry(
-            components, SXML_SCHEMA_TABLE_MODEL_GROUP_DEFINITION, index.value,
-            sizeof(sxml_schema_model_group_definition));
+        components, (sxml_schema_entry_key){.table = SXML_SCHEMA_TABLE_MODEL_GROUP_DEFINITION,
+                                             .index = index.value},
+        sizeof(sxml_schema_model_group_definition));
     return entry != NULL ? entry : &no_entry;
 }
 
@@ -1562,7 +1568,8 @@ static inline const sxml_schema_model_group *sxml_schema_get_model_group(
     sxml_schema_model_group_index index) {
     static const sxml_schema_model_group no_entry;
     const sxml_schema_model_group *entry = sxml_schema_components_find_entry(
-        components, SXML_SCHEMA_TABLE_MODEL_GROUP, index.value,
+        components, (sxml_schema_entry_key){.table = SXML_SCHEMA_TABLE_MODEL_GROUP,
+                                             .index = index.value},
         sizeof(sxml_schema_model_group));
     return entry != NULL ? entry : &no_entry;
 }
@@ -1571,7 +1578,8 @@ static inline const sxml_schema_particle *sxml_schema_get_particle(
     const sxml_schema_components *components, sxml_schema_particle_index index) {
     static const sxml_schema_particle no_entry;
     const sxml_schema_particle *entry = sxml_schema_components_find_entry(
-        components, SXML_SCHEMA_TABLE_PARTICLE, index.value,
+        components, (sxml_schema_entry_key){.table = SXML_SCHEMA_TABLE_PARTICLE,
+                                             .index = index.value},
         sizeof(sxml_schema_particle));
     return entry != NULL ? entry : &no_entry;
 }
@@ -1580,7 +1588,8 @@ static inline const sxml_schema_wildcard *sxml_schema_get_wildcard(
     const sxml_schema_components *components, sxml_schema_wildcard_index index) {
     static const sxml_schema_wildcard no_entry;
     const sxml_schema_wildcard *entry = sxml_schema_components_find_entry(
-        components, SXML_SCHEMA_TABLE_WILDCARD, index.value,
+        components, (sxml_schema_entry_key){.table = SXML_SCHEMA_TABLE_WILDCARD,
+                                             .index = index.value},
         sizeof(sxml_schema_wildcard));
     return entry != NULL ? entry : &no_entry;
 }
@@ -1591,8 +1600,9 @@ sxml_schema_get_identity_constraint(const sxml_schema_components *components,
     static const sxml_schema_identity_constraint no_entry;
     const sxml_schema_identity_constraint *entry =
         sxml_schema_components_find_entry(
-            components, SXML_SCHEMA_TABLE_IDENTITY_CONSTRAINT, index.value,
-            sizeof(sxml_schema_identity_constraint));
+        components, (sxml_schema_entry_key){.table = SXML_SCHEMA_TABLE_IDENTITY_CONSTRAINT,
+                                             .index = index.value},
+        sizeof(sxml_schema_identity_constraint));
     return entry != NULL ? entry : &no_entry;
 }
 
@@ -1601,7 +1611,8 @@ sxml_schema_get_type_alternative(const sxml_schema_components *components,
                                  sxml_schema_type_alternative_index index) {
     static const sxml_schema_type_alternative no_entry;
     const sxml_schema_type_alternative *entry = sxml_schema_components_find_entry(
-        components, SXML_SCHEMA_TABLE_TYPE_ALTERNATIVE, index.value,
+        components, (sxml_schema_entry_key){.table = SXML_SCHEMA_TABLE_TYPE_ALTERNATIVE,
+                                             .index = index.value},
         sizeof(sxml_schema_type_alternative));
     return entry != NULL ? entry : &no_entry;
 }
@@ -1611,7 +1622,8 @@ static inline const sxml_schema_assertion *sxml_schema_get_assertion(
     sxml_schema_assertion_index index) {
     static const sxml_schema_assertion no_entry;
     const sxml_schema_assertion *entry = sxml_schema_components_find_entry(
-        components, SXML_SCHEMA_TABLE_ASSERTION, index.value,
+        components, (sxml_schema_entry_key){.table = SXML_SCHEMA_TABLE_ASSERTION,
+                                             .index = index.value},
         sizeof(sxml_schema_assertion));
     return entry != NULL ? entry : &no_entry;
 }
@@ -1623,8 +1635,9 @@ sxml_schema_get_notation_declaration(
     static const sxml_schema_notation_declaration no_entry;
     const sxml_schema_notation_declaration *entry =
         sxml_schema_components_find_entry(
-            components, SXML_SCHEMA_TABLE_NOTATION_DECLARATION, index.value,
-            sizeof(sxml_schema_notation_declaration));
+        components, (sxml_schema_entry_key){.table = SXML_SCHEMA_TABLE_NOTATION_DECLARATION,
+                                             .index = index.value},
+        sizeof(sxml_schema_notation_declaration));
     return entry != NULL ? entry : &no_entry;
 }
 
@@ -1632,7 +1645,8 @@ static inline const sxml_schema_facet *sxml_schema_get_facet(
     const sxml_schema_components *components, sxml_schema_facet_index index) {
     static const sxml_schema_facet no_entry;
     const sxml_schema_facet *entry = sxml_schema_components_find_entry(
-        components, SXML_SCHEMA_TABLE_FACET, index.value,
+        components, (sxml_schema_entry_key){.table = SXML_SCHEMA_TABLE_FACET,
+                                             .index = index.value},
         sizeof(sxml_schema_facet));
     return entry != NULL ? entry : &no_entry;
 }
@@ -1642,7 +1656,8 @@ static inline const sxml_schema_xpath_record *sxml_schema_get_xpath_record(
     sxml_schema_xpath_record_index index) {
     static const sxml_schema_xpath_record no_entry;
     const sxml_schema_xpath_record *entry = sxml_schema_components_find_entry(
-        components, SXML_SCHEMA_TABLE_XPATH_RECORD, index.value,
+        components, (sxml_schema_entry_key){.table = SXML_SCHEMA_TABLE_XPATH_RECORD,
+                                             .index = index.value},
         sizeof(sxml_schema_xpath_record));
     return entry != NULL ? entry : &no_entry;
 }
@@ -1653,8 +1668,9 @@ sxml_schema_get_namespace_context(const sxml_schema_components *components,
     static const sxml_schema_namespace_context no_entry;
     const sxml_schema_namespace_context *entry =
         sxml_schema_components_find_entry(
-            components, SXML_SCHEMA_TABLE_NAMESPACE_CONTEXT, index.value,
-            sizeof(sxml_schema_namespace_context));
+        components, (sxml_schema_entry_key){.table = SXML_SCHEMA_TABLE_NAMESPACE_CONTEXT,
+                                             .index = index.value},
+        sizeof(sxml_schema_namespace_context));
     return entry != NULL ? entry : &no_entry;
 }
 
@@ -1663,7 +1679,8 @@ static inline const sxml_schema_reference *sxml_schema_get_reference(
     sxml_schema_reference_index index) {
     static const sxml_schema_reference no_entry;
     const sxml_schema_reference *entry = sxml_schema_components_find_entry(
-        components, SXML_SCHEMA_TABLE_REFERENCE, index.value,
+        components, (sxml_schema_entry_key){.table = SXML_SCHEMA_TABLE_REFERENCE,
+                                             .index = index.value},
         sizeof(sxml_schema_reference));
     return entry != NULL ? entry : &no_entry;
 }
@@ -1672,7 +1689,8 @@ static inline const sxml_schema_document_entry *sxml_schema_get_document(
     const sxml_schema_components *components, sxml_schema_document_index index) {
     static const sxml_schema_document_entry no_entry;
     const sxml_schema_document_entry *entry = sxml_schema_components_find_entry(
-        components, SXML_SCHEMA_TABLE_DOCUMENT, index.value,
+        components, (sxml_schema_entry_key){.table = SXML_SCHEMA_TABLE_DOCUMENT,
+                                             .index = index.value},
         sizeof(sxml_schema_document_entry));
     return entry != NULL ? entry : &no_entry;
 }
@@ -1681,7 +1699,8 @@ static inline const sxml_schema_document_entry *sxml_schema_get_document(
 static inline sxml_schema_index_view sxml_schema_get_list(
     const sxml_schema_components *components, sxml_schema_list list) {
     const uint32_t *entries = sxml_schema_components_find_entry(
-        components, SXML_SCHEMA_TABLE_LIST_ENTRY, list.first_entry_index,
+        components, (sxml_schema_entry_key){.table = SXML_SCHEMA_TABLE_LIST_ENTRY,
+                                             .index = list.first_entry_index},
         sizeof(uint32_t));
     if (entries == NULL || list.entry_count == 0) {
         return (sxml_schema_index_view){.indexes = NULL, .index_count = 0};
@@ -1694,7 +1713,9 @@ static inline sxml_schema_index_view sxml_schema_get_list(
 static inline sxml_byte_view sxml_schema_get_text(
     const sxml_schema_components *components, sxml_schema_text text) {
     const uint8_t *bytes = sxml_schema_components_find_entry(
-        components, SXML_SCHEMA_TABLE_TEXT_BYTE, text.byte_offset, 1);
+        components, (sxml_schema_entry_key){.table = SXML_SCHEMA_TABLE_TEXT_BYTE,
+                                             .index = text.byte_offset},
+        1);
     if (bytes == NULL || text.byte_count == 0) {
         return (sxml_byte_view){.bytes = NULL, .byte_count = 0};
     }
@@ -1706,8 +1727,9 @@ static inline sxml_namespace_binding_view sxml_schema_get_namespace_bindings(
     const sxml_schema_components *components,
     sxml_schema_namespace_binding_list list) {
     const sxml_namespace_binding *bindings = sxml_schema_components_find_entry(
-        components, SXML_SCHEMA_TABLE_NAMESPACE_BINDING,
-        list.first_binding_index, sizeof(sxml_namespace_binding));
+        components, (sxml_schema_entry_key){.table = SXML_SCHEMA_TABLE_NAMESPACE_BINDING,
+                                             .index = list.first_binding_index},
+        sizeof(sxml_namespace_binding));
     if (bindings == NULL || list.binding_count == 0) {
         return (sxml_namespace_binding_view){.namespace_bindings = NULL,
                                              .namespace_binding_count = 0};
@@ -1813,8 +1835,13 @@ typedef struct sxml_schema_derivation_request {
     sxml_schema_derivation_set blocked_derivations;
 } sxml_schema_derivation_request;
 
+/* The answer to a derivation question. */
+typedef struct sxml_schema_derivation_outcome {
+    bool is_derived;
+} sxml_schema_derivation_outcome;
+
 /*
- * Writes to *is_derived whether request->derived_type is validly derived
+ * Writes to outcome->is_derived whether request->derived_type is validly derived
  * from request->base_type without a blocked method (for COMPLEX_TYPES'
  * substitution groups and type tables, the validator's xsi:type, and
  * schema-aware XPath). src/schema_complex_type.c (5.6); its stub returns
@@ -1822,7 +1849,8 @@ typedef struct sxml_schema_derivation_request {
  */
 SXML_NODISCARD sxml_status sxml_schema_check_derivation(
     const sxml_schema_components *components,
-    const sxml_schema_derivation_request *request, bool *is_derived);
+    const sxml_schema_derivation_request *request,
+    sxml_schema_derivation_outcome *outcome);
 
 /* ------------------------------------------------------ Content models */
 
@@ -1963,11 +1991,17 @@ typedef struct sxml_schema_id_request {
     sxml_source_location location;
 } sxml_schema_id_request;
 
-/* Records an ID; *is_duplicate tells whether it was met before
-   (cvc-id.2). src/schema_validate.c (5.7). */
+/* What recording an ID found. */
+typedef struct sxml_schema_id_outcome {
+    /* The ID was met before under this validation root (cvc-id.2). */
+    bool is_duplicate;
+} sxml_schema_id_outcome;
+
+/* Records an ID and writes what it found to *outcome.
+   src/schema_validate.c (5.7). */
 SXML_NODISCARD sxml_status sxml_schema_id_table_add_id(
     sxml_schema_id_table *id_table, const sxml_schema_id_request *request,
-    bool *is_duplicate);
+    sxml_schema_id_outcome *outcome);
 
 /* Records an IDREF to check at the end of the validation root.
    src/schema_validate.c (5.7). */
