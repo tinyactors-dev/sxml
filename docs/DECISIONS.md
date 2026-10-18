@@ -5741,6 +5741,9 @@ W3C XSD test suite (D13) and proposes the gate numbers. The Phase 4 gate
 still closes Phase 4; Phase 5 work must not regress its counts. A `sxml
 validate` command enters the CLI only once it works (D44).
 
+### D165. Phase 5 design: schema.h, the substrate additions, the XSD suite (packet 5.1)
+Reserved 2026-10-18; completed when the packet is ticked.
+
 ## Proposed
 
 - **Empty parentless text nodes** (packet 4.17, D159; for the owner of
