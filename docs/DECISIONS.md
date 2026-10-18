@@ -4958,8 +4958,78 @@ Recorded 2026-10-17, after D79, D116, D118, D136, D137, D142, D144, D145.
   (debug, debug-gcc, wasm) and lint pass.
 
 ### D153. Numbering and analyze-string (packet 4.11)
-Recorded 2026-10-17, after D105, D114, D118, D119, D142, D145.
-Reserved here; the record is completed when the packet is ticked.
+Recorded 2026-10-18, after D105, D114, D118, D119, D142, D145, D149, D152.
+`src/xslt_lower_number.c` (rule view `sxml_xslt_instruction_rules_number`,
+one line in `src/xslt_lower.c`), `tests/xslt_number_test.c`; additive
+edits to `src/format.c`, `src/function_library_format.c`,
+`src/function_library_xslt.c`, `src/xpath_lower.c` and
+`src/function_library_internal.h`; no IR kind, no evaluator change, no
+public header.
+- **xsl:number** (12) is 12.3's formal definition as XPath texts with
+  their inputs as variables (D152's way): the selected node (XTTE0990,
+  also for an absent focus, XTTE1000), the nodes count is tried on (the
+  ancestors-or-self and their preceding siblings; for level="any" the
+  preceding nodes and the ancestors-or-self), a FILTER of them by the
+  count pattern's match expression (D118, inline, the item as fixed
+  focus, an error is no match, 6.5; without count, a text for the
+  selected node's kind and name), the same for from (on the
+  ancestors-or-self, or the any-level candidates), then one text per
+  level: matches-from's root case is `(from | root($s))[last()]`, a
+  counted node's preceding siblings are the counted candidates with its
+  parent before it. value (12.2) is `xs:integer(round(number(.)))`, exact
+  for xs:decimal, XTDE0980; start-at (12.1) re-bases in a text
+  (XTDE0030); XTSE0975 statically.
+- **Formatting** is one internal row, format-place-marker
+  (`src/xslt_number_internal.h`, defined beside fn:format-integer), over
+  D119's engine: `src/format.c` splits the format into prefix, format
+  tokens with their separators (". " before a number formatted by the
+  first token) and suffix, and `sxml_integer_formatting` gained
+  grouping-separator/grouping-size (a string every N digits of a decimal
+  representation). An unparsable token is "1" (12.4). Ordinal: any value
+  but "", no, 0, false. lang (xs:language or "") and letter-value
+  (alphabetic, traditional) are checked (XTDE0030) and otherwise ignored:
+  English only (D97). An empty place marker gives prefix and suffix
+  (Saxon's behaviour; QT4 number-0806, -3205 expect it). Title-case words
+  are "Twenty Two" here (Saxon's; number-0105, -2506), "Twenty-two" in
+  fn:format-integer.
+- **xsl:analyze-string** (17.1) is fn:matching-segments (one regex
+  engine, D105, D114) of the select value coerced to `xs:string?`, the
+  non-matching segments put between the matches by an XPath text
+  (strings; matches stay fn:matching-segment-records), inside a TRY_CATCH
+  mapping FORX0002/0001 to XTDE1140/1145; then a MAP over the segments
+  whose body is a CONDITIONAL of the two children (select or sequence
+  constructor) with the segment's string as context item in a slot of
+  its own and the MAP's position and size. XTSE1130, XTSE1132, XTSE3185.
+  compiled-regex is UNSUPPORTED_FEATURE.
+- **Captured groups, a context variable** (glossary): a new parameter
+  default `SXML_PARAMETER_DEFAULT_CONTEXT_VARIABLE` makes the caller pass
+  the variable Q{XSLT}N (N the parameter's name) lexically in scope, or
+  () (captured from an inline function only when captured; a function
+  item of the shorter arity captures it, so regex-group#1 keeps the
+  groups, 17.2.2). xsl:matching-substring has Q{XSLT}regex-groups =
+  the segment's groups map with entry 0 (value, position, nr 0) first;
+  xsl:non-matching-substring has (). fn:regex-groups and fn:regex-group
+  (rows of the `xslt` part) read it; regex-group(N) also finds a named
+  group by its nr (analyze-string-406, as XSLT 3.0 had it). 4.9's context
+  functions (current-group and the others, D152) can use the same
+  default instead of a second mechanism.
+- Measured with a scratch harness (lower, evaluate, serialize; XPath
+  assertions through `sxml xpath`) over the in-scope cases (D95; the
+  combinations_for_numbering ones are not): insn-number 152/161,
+  insn-analyze-string 56/62, misc-regex 64/65, fn-format-number 67/70
+  (with 4.12's decimal formats); before the packet none of the
+  instructions lowered. Of the rest: German words (6), Unicode digit
+  sequences, the four dynamic-scope cases below, xsl:sort under
+  xsl:number's callers, an attribute-set case.
+- Deviations: the captured groups are lexical, so a template called from
+  xsl:matching-substring sees none (17.2 says they pass through
+  apply-templates and call-template; QT4 analyze-string-078 to -081): an
+  implicit tunnel parameter would carry them (src/xslt_lower_template.c).
+  A start-at known statically is checked when evaluated (XTDE0030, not
+  XTSE0020, number-0109). German and other languages, the Unicode
+  numbering sequences (circled digits, number-0819..0821, out of scope by
+  combinations_for_numbering otherwise) and traditional letter values
+  fall back to the token "1" or English.
 
 ### D154. XQuery conformance sweep 1 (packet 3.14)
 Recorded 2026-10-18, after D71, D75, D95, D135, D148. No public header
@@ -5011,8 +5081,8 @@ changed; no IR kind added.
   constructor makes a tree, and 10,000 of them took 655 MB
   (fold-left-021 and slice-185 ended in the driver's memory limit).
 - **Measured** (release, all 737 sets of each spec, code of 00ac981):
-  XQ40 39,698 to 39,928 passed, in scope 96.4 % to 96.9 %, XQ-only
-  85.3 % to 97.9 % (9,325 of 9,523; the non-goal cases no longer run),
+  XQ40 39,698 to 39,924 passed, in scope 96.4 % to 96.9 %, XQ-only
+  85.3 % to 97.9 % (9,321 of 9,523; the non-goal cases no longer run),
   "error" outcomes 5 to 1 (modules-40, below), none lost but
   fn-system-properties-supports-dynamic-xquery-false (now not run, as
   the feature is claimed); fn-load-xquery-module 0 to 103 of 117 run,
