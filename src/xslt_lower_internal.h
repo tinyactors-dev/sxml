@@ -180,6 +180,8 @@ extern const sxml_xslt_instruction_rule_view sxml_xslt_instruction_rules_group;
 extern const sxml_xslt_instruction_rule_view sxml_xslt_instruction_rules_control;
 /* The instructions of src/xslt_lower_template.c (packet 4.8). */
 extern const sxml_xslt_instruction_rule_view sxml_xslt_instruction_rules_template;
+/* The instructions of src/xslt_lower_number.c (packet 4.11). */
+extern const sxml_xslt_instruction_rule_view sxml_xslt_instruction_rules_number;
 
 /* --------------------------------------------------------- Parts to call */
 
