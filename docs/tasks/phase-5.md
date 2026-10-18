@@ -166,6 +166,13 @@ contributor groups as areas. Done when all 41,538 in-scope tests resolve
 (documents found, outcome read), a ctest slice of about 150 tests over
 every contributor is chosen with a baseline file (0), and the report
 JSON matches the QT4 driver's shape.
+**Done** 2026-10-18 (D168): `sxml-xsd-test` list and run; the drivers'
+common mechanisms shared in the QT4 driver's library (test budget, test
+selection, slice script); 41,518 tests in scope (D168 applies the
+version tokens per element; D165's 41,538 or-ed them), every one
+resolves and is not run, "XSD not implemented"; `tests/xsd/slice.txt`,
+147 tests, baseline 0; `tools/run-xsd.sh` (45 s) and the XSD11 dashboard
+section.
 
 ### 5.4 Schema document reader and assembly (implementation)
 After 5.2. Owns `src/schema.c` (the `sxml_schema` quintet and the find

@@ -4,6 +4,22 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 5.3 done (D168): the XSD 1.1 test driver `sxml-xsd-test`
+  (`tests/xsd/driver/`): reads `third_party/xsdtests/suite.xml` and its
+  test sets (named after their files, `saxon-Assert`; tests
+  `GROUP/TEST`), decides each test by its version tokens (per element,
+  per token class), status and expected outcome, and runs it in a
+  processor of its own through the test budget, reading its documents.
+  41,518 tests in scope (D165 counted 41,538 over the union of the three
+  levels' tokens), all resolve, all "not run: XSD not implemented" until
+  5.4 and 5.7. The QT4, XSLT and XSD drivers now share the test budget,
+  the test selection over a test-catalog interface, the slice-test
+  script, catalog namespaces and report areas. `tools/run-xsd.sh` runs
+  the suite in 45 s (release); dashboard section XSD11 with contributor
+  areas and the proposed gate groups (datatypes 30,598, structures
+  8,626, XSD 1.1 2,294). Slice 147 tests, baseline 0. XP40 unchanged
+  (30,647 passed, 0 errors), torture slice 198/198.
+
 - 4.17 sweep 3 done (D166): content streams into constructors. A
   document or element constructor evaluates its content as a delivering
   task, so values are added as they are made, and a constructor in
