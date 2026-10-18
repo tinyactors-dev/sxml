@@ -6287,7 +6287,18 @@ Recorded 2026-10-18. Fills SIMPLE_TYPES (D167) and registration (D165).
   xs:dateTimeStamp). A failed type is not registered and the types made
   from it are skipped without a second report. Then value constraints of
   attribute declarations and uses are cast to their types (a-props-correct.2,
-  au-props-correct.2). NOTATION enumeration values are read as QNames.
+  au-props-correct.2). NOTATION enumeration values are read as QNames and
+  must name notation declarations; xs:NOTATION itself (a declaration's
+  type, a list item, a union member, a restriction without enumeration) is
+  enumeration-required-notation. In the XSD dialect an unknown block name
+  is all characters (Part 2, G.4.2.4) and an unescaped "-" never starts a
+  range.
+- **Measured** (release, schema tests only: instance tests wait for 5.7):
+  NIST 3,953 of 3,953, MS-Regex 2,590 of 2,590, MS-DataTypes 2,240 of
+  2,247, MS-SimpleType 322 of 334, Saxon Simple 65 of 65; the rest are the
+  reader's (duplicate ids, include and redefine order, stZ033's chain of
+  redefinitions) and complex types'. All XSD: 15,073 passed, 335 failed of
+  the 15,408 run. XP40 30,647 and XQ40 40,034 unchanged, slice 198.
 
 ### D172. Complex types and content models (packet 5.6)
 Recorded 2026-10-18. Fills COMPLEX_TYPES and the content model plan of
