@@ -6542,6 +6542,9 @@ Recorded 2026-10-18. The schema validator of D165 and the seams of D167
 ### D174. Schema-aware XPath and XQuery (packet 5.11)
 Reserved 2026-10-18; the record follows when the packet lands.
 
+### D175. Assertions and type alternatives (packet 5.9)
+Reserved 2026-10-18; the record follows when the packet lands.
+
 ## Proposed
 
 - **A simple base for a complex type in the registry** (packet 5.6, D172;
