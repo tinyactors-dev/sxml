@@ -425,6 +425,17 @@ static void test_declarations_and_xsi(sxml_test_state *state) {
     sxml_processor_destroy(processor);
 }
 
+/* The document element of a document node. */
+static sxml_node_reference node_of_child(sxml_item document) {
+    sxml_node_reference node = {.tree = NULL, .node_index = {.index = 0}, .namespace_number = 0};
+    sxml_node_description description;
+    if (sxml_item_get_node(document, &node) == SXML_STATUS_OK &&
+        sxml_node_describe(node, &description) == SXML_STATUS_OK && description.has_children) {
+        node.node_index = description.first_child;
+    }
+    return node;
+}
+
 /* The packet's test (phase-5.md, 5.7): fn:data of a validated <a>12</a>
    of a restriction of xs:integer is an item of that type. */
 static void test_validated_node_has_typed_value(sxml_test_state *state) {
@@ -436,7 +447,8 @@ static void test_validated_node_has_typed_value(sxml_test_state *state) {
     SXML_TEST_REQUIRE(state, sxml_processor_parse_document(
                                  processor,
                                  &(sxml_xml_parse_request){.input = TEXT("<a> 12 </a>"),
-                                                           .source_name = TEXT("a.xml")},
+                                                           .source_name = TEXT("a.xml"),
+                                                           .base_uri = TEXT("file:///a.xml")},
                                  &document) == SXML_STATUS_OK);
     sxml_item validated = {.representation = 0};
     sxml_error_record record;
@@ -482,6 +494,33 @@ static void test_validated_node_has_typed_value(sxml_test_state *state) {
                                 datum.datum_details.integer == 12);
     sxml_sequence_release(typed_value);
     sxml_item_release(validated);
+    /* The element alone: a parentless copy that keeps its base URI. */
+    const sxml_item element = sxml_node_item_make(node_of_child(document));
+    SXML_TEST_REQUIRE(
+        state, sxml_schema_validate_node(
+                   schema,
+                   &(sxml_schema_validation_request){.node = element,
+                                                     .validation_mode = SXML_VALIDATION_MODE_STRICT,
+                                                     .governing_type = {.index = SXML_TYPE_NONE}},
+                   &validated) == SXML_STATUS_OK);
+    SXML_TEST_REQUIRE(state, sxml_item_get_node(validated, &node) == SXML_STATUS_OK);
+    SXML_TEST_REQUIRE(state, sxml_node_describe(node, &description) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, description.node_kind == SXML_NODE_KIND_ELEMENT &&
+                                !description.has_parent &&
+                                description.type_annotation.index == big.index);
+    sxml_sequence base_uri = sxml_sequence_empty();
+    SXML_TEST_REQUIRE(state, sxml_node_make_base_uri(
+                                 sxml_processor_get_item_heap(processor),
+                                 &(sxml_node_value_request){.node = node, .error_record = NULL},
+                                 &base_uri) == SXML_STATUS_OK);
+    SXML_TEST_REQUIRE(state, sxml_sequence_get_item(base_uri, (sxml_item_request){.item_index = 0},
+                                                    &item) == SXML_STATUS_OK);
+    SXML_TEST_REQUIRE(state, sxml_atomic_item_get_datum(item, &datum) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state,
+                     sxml_byte_view_equals(datum.datum_details.string.utf8, TEXT("file:///a.xml")));
+    sxml_sequence_release(base_uri);
+    sxml_item_release(validated);
+    sxml_item_release(element);
     /* An invalid node: the first error's constraint name, no copy. */
     sxml_item invalid = {.representation = 0};
     SXML_TEST_REQUIRE(state, sxml_processor_parse_document(

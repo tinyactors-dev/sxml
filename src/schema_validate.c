@@ -2109,7 +2109,25 @@ sxml_status sxml_schema_validator_get_outcome(const sxml_schema_validator *valid
 typedef struct node_validation {
     sxml_schema_validator *validator;
     sxml_arena_tree *arena_tree;
+    /* The node's base URI (an xs:anyURI, or empty), which the copy of a
+       node that is no document keeps (include/sxml/schema.h); the arena
+       tree reads it until it is finished. */
+    sxml_sequence base_uri;
 } node_validation;
+
+/* The text of the base URI kept for the copy; empty when absent. */
+static sxml_byte_view base_uri_text(const node_validation *validation) {
+    sxml_atomic_datum datum;
+    sxml_item item = {.representation = SXML_ITEM_REPRESENTATION_NONE};
+    if (sxml_sequence_get_item(validation->base_uri,
+                               (sxml_item_request){.item_index = 0, .error_record = NULL},
+                               &item) != SXML_STATUS_OK ||
+        sxml_atomic_item_get_datum(item, &datum) != SXML_STATUS_OK ||
+        datum.datum_kind != SXML_DATUM_KIND_STRING) {
+        return no_text;
+    }
+    return datum.datum_details.string.utf8;
+}
 
 static sxml_status copy_through_validator(const sxml_schema *schema,
                                           const sxml_schema_validation_request *request,
@@ -2119,6 +2137,16 @@ static sxml_status copy_through_validator(const sxml_schema *schema,
     sxml_status status = sxml_item_get_node(request->node, &node);
     if (status != SXML_STATUS_OK) {
         return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    sxml_node_description description;
+    status = sxml_node_describe(node, &description);
+    if (status == SXML_STATUS_OK && description.node_kind != SXML_NODE_KIND_DOCUMENT) {
+        status = sxml_node_make_base_uri(
+            processor->item_heap, &(sxml_node_value_request){.node = node, .error_record = NULL},
+            &validation->base_uri);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
     }
     /* As sxml_processor_parse_document's trees: destroyed with the last
        reference (D39). */
@@ -2134,7 +2162,8 @@ static sxml_status copy_through_validator(const sxml_schema *schema,
             .keeps_locations = false,
             .duplicate_attribute_policy = SXML_DUPLICATE_ATTRIBUTE_POLICY_REJECT,
             .is_destroyed_when_unreferenced = true,
-            .error_record = NULL},
+            .error_record = NULL,
+            .base_uri = base_uri_text(validation)},
         &validation->arena_tree);
     if (status == SXML_STATUS_OK) {
         status = sxml_schema_validator_create(
@@ -2167,7 +2196,8 @@ sxml_status sxml_schema_validate_node(const sxml_schema *schema,
     if (schema == NULL || request == NULL || validated_node == NULL) {
         return SXML_STATUS_INVALID_ARGUMENT;
     }
-    node_validation validation = {.validator = NULL, .arena_tree = NULL};
+    node_validation validation = {
+        .validator = NULL, .arena_tree = NULL, .base_uri = sxml_sequence_empty()};
     sxml_status status = copy_through_validator(schema, request, &validation);
     sxml_validation_outcome outcome = {.validity = SXML_VALIDITY_INVALID, .error_count = 0};
     if (status == SXML_STATUS_OK) {
@@ -2183,6 +2213,7 @@ sxml_status sxml_schema_validate_node(const sxml_schema *schema,
     if (status == SXML_STATUS_OK) {
         status = sxml_arena_tree_finish(validation.arena_tree, &tree);
     }
+    sxml_sequence_release(validation.base_uri);
     if (status != SXML_STATUS_OK) {
         sxml_arena_tree_destroy(validation.arena_tree);
         return status;
