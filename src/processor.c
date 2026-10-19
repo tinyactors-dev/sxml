@@ -14,6 +14,7 @@
 
 #include "dtd_internal.h"
 #include "function_library_parts_internal.h"
+#include "schema_scope_internal.h"
 #include "sxml/tree.h"
 #include "sxml/xml.h"
 #include "xdm_internal.h"
@@ -532,6 +533,7 @@ sxml_status sxml_processor_initialize(sxml_memory_view memory,
         .kept_schema_count = 0,
         .kept_schema_capacity = 0,
         .builtin_schema = NULL,
+        .function_namespace_schema = NULL,
         .optional_features =
             sxml_optional_feature_slots_from_view(configuration->optional_features),
         .file_system = configuration->file_system};
@@ -557,6 +559,8 @@ void sxml_processor_finalize(sxml_processor *processor) {
     processor->kept_schema_capacity = 0;
     sxml_schema_destroy(processor->builtin_schema);
     processor->builtin_schema = NULL;
+    sxml_schema_destroy(processor->function_namespace_schema);
+    processor->function_namespace_schema = NULL;
     sxml_optional_feature_slots_finalize(&processor->optional_features, processor->allocator);
     sxml_function_library_finalize(processor->function_library);
     sxml_item_heap_finalize(processor->item_heap);
@@ -615,6 +619,39 @@ sxml_status sxml_processor_get_builtin_schema(sxml_processor *processor,
         }
     }
     *schema = processor->builtin_schema;
+    return SXML_STATUS_OK;
+}
+
+sxml_status sxml_processor_get_function_namespace_schema(sxml_processor *processor,
+                                                         const sxml_schema **schema) {
+    if (processor->function_namespace_schema == NULL) {
+        sxml_schema_document documents[SXML_FUNCTION_NAMESPACE_DOCUMENT_COUNT];
+        for (size_t document_index = 0; document_index < SXML_FUNCTION_NAMESPACE_DOCUMENT_COUNT;
+             document_index += 1) {
+            documents[document_index] = (sxml_schema_document){
+                .document_source = SXML_SCHEMA_DOCUMENT_SOURCE_TEXT,
+                .document_text = sxml_schema_function_namespace_document(document_index),
+                .document_uri = {.bytes = NULL, .byte_count = 0},
+                .checks_target_namespace = false,
+                .target_namespace_uri = {.bytes = NULL, .byte_count = 0}};
+        }
+        const sxml_status status = sxml_schema_create(
+            processor->allocator,
+            &(sxml_schema_configuration){
+                .processor = processor,
+                .schema_documents = {.schema_documents = documents,
+                                     .schema_document_count =
+                                         SXML_FUNCTION_NAMESPACE_DOCUMENT_COUNT},
+                .base_uri = {.bytes = NULL, .byte_count = 0},
+                .report_sink = {.state = NULL, .operations = NULL},
+                .maximum_content_model_state_count = 0,
+                .error_record = NULL},
+            &processor->function_namespace_schema);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+    }
+    *schema = processor->function_namespace_schema;
     return SXML_STATUS_OK;
 }
 

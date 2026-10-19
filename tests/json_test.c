@@ -994,7 +994,12 @@ static const expression_case function_cases[] = {
     {"parse-json('{\"x\": null}', {'null': #fn:null})", "{\"x\":#fn:null}"},
     {"json-to-xml(())", ""},
     {"json-to-xml('{\"a\":1, \"a\":2}', {'duplicates': 'use-last'})", "!FOJS0005"},
-    {"json-to-xml('[]', {'validate': true()})", "!FOJS0004"},
+    /* validate=true types the result by F&O 4.0, D.2, which needs a
+       processor (this fixture has none: FOJS0004); duplicates are
+       rejected then, and retain is FOJS0005 (17.4.6). */
+    {"json-to-xml('[1]', {'validate': true()})", "!FOJS0004"},
+    {"json-to-xml('{\"a\":1, \"a\":2}', {'validate': true()})", "!FOJS0003"},
+    {"json-to-xml('{}', {'validate': true(), 'duplicates': 'retain'})", "!FOJS0005"},
     {"json-to-xml('{\"a\": [true, null]}')",
      "<map" FN_XMLNS "><array key=\"a\"><boolean>true</boolean><null/></array></map>"},
     {"json-to-xml('[1]')/*/*/string()", "\"1\""},

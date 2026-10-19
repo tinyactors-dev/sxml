@@ -88,6 +88,10 @@ struct sxml_processor {
     /* The schema of the built-in components alone, made on first use by
        sxml_processor_get_builtin_schema and kept; NULL until then. */
     sxml_schema *builtin_schema;
+    /* The schema of the fn: namespace (F&O 4.0, appendix D), made on
+       first use by sxml_processor_get_function_namespace_schema and kept;
+       NULL until then. */
+    sxml_schema *function_namespace_schema;
     /* The optional features the configuration named, by kind, with the
        state each keeps here (src/optional_feature_internal.h, D189). */
     sxml_optional_feature_slots optional_features;
@@ -117,6 +121,18 @@ SXML_NODISCARD sxml_status sxml_processor_keep_schema(sxml_processor *processor,
  */
 SXML_NODISCARD sxml_status sxml_processor_get_builtin_schema(sxml_processor *processor,
                                                              const sxml_schema **schema);
+
+/*
+ * The schema of the fn: namespace (F&O 4.0, appendix D: the results of
+ * fn:analyze-string, fn:json-to-xml and fn:csv-to-xml), made once per
+ * processor from the documents every processor knows
+ * (sxml_schema_function_namespace_document) and kept: what
+ * fn:json-to-xml's validate option and the typed results of
+ * fn:analyze-string are validated against. Returns the compilation's
+ * failures.
+ */
+SXML_NODISCARD sxml_status sxml_processor_get_function_namespace_schema(
+    sxml_processor *processor, const sxml_schema **schema);
 
 /* An instant as seconds and nanoseconds since 1970-01-01T00:00:00Z. */
 typedef struct sxml_unix_time {

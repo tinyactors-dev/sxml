@@ -22,6 +22,7 @@
 #include "function_library_core_internal.h"
 #include "operator_internal.h"
 #include "regex_internal.h"
+#include "schema_scope_internal.h"
 #include "xml_internal.h"
 #include "xslt_number_internal.h"
 
@@ -1842,8 +1843,9 @@ static sxml_status write_analysis(const sxml_function_call *call, const analyze_
 }
 
 /* fn:analyze-string($value, $pattern, $flags := "") (F&O 4.0, section
-   6.3.4): a new untyped parentless fn:analyze-string-result element, its
-   memory from the heap, destroyed when unreferenced. */
+   6.3.4): a new parentless fn:analyze-string-result element, typed by
+   the schema of D.1, its memory from the heap, destroyed when
+   unreferenced. */
 static sxml_status analyze_string_with(const sxml_function_call *call, call_shape shape,
                                        sxml_sequence *result) {
     regex_inputs inputs;
@@ -1888,9 +1890,21 @@ static sxml_status analyze_string_with(const sxml_function_call *call, call_shap
         sxml_arena_tree_destroy(arena_tree);
         return status;
     }
-    *result = sxml_sequence_from_item(sxml_node_item_make(
-        (sxml_node_reference){.tree = tree, .node_index = {.index = 0}, .namespace_number = 0}));
+    sxml_item element = sxml_node_item_make(
+        (sxml_node_reference){.tree = tree, .node_index = {.index = 0}, .namespace_number = 0});
     sxml_tree_release(tree);
+    /* 6.3.4: whether the result is typed is implementation-defined, and a
+       schema-aware processor should type it, as validation against D.1
+       does. It is always valid, so an error here is no rule's. */
+    status = sxml_schema_scope_validate_by_function_namespace(
+        call, &(sxml_function_namespace_validation){
+                  .error_code = SXML_BYTE_VIEW_FROM_LITERAL("FOER0000"),
+                  .is_required = false,
+                  .node = &element});
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    *result = sxml_sequence_from_item(element);
     return SXML_STATUS_OK;
 }
 

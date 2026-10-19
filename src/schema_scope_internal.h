@@ -97,8 +97,10 @@ bool sxml_schema_scope_defines_namespace(const sxml_schema *schema,
  * its document_uri resolved against request->base_uri (empty: asked by
  * its target namespace alone). Asks once with kind SCHEMA_DOCUMENT and
  * releases what is delivered; is_delivered is false when nothing is or
- * the processor has no resolver. Returns the resolver's and the URI
- * resolution's failures.
+ * the processor has no resolver. A document asked by the xml: or fn:
+ * namespace alone is always delivered: the schema assembly knows those
+ * namespaces' documents (src/schema_assemble.c). Returns the resolver's
+ * and the URI resolution's failures.
  */
 typedef struct sxml_schema_scope_probe {
     sxml_processor *processor;
@@ -222,3 +224,23 @@ extern const sxml_native_function sxml_schema_validate_items_function;
 SXML_NODISCARD sxml_status sxml_schema_scope_validate_document(const sxml_function_call *call,
                                                                sxml_byte_view xsd_validation,
                                                                sxml_item *document_node);
+
+/*
+ * Replaces *node, a document or element node owned by the caller, with
+ * its validated copy (strict) against the schema of the fn: namespace
+ * (sxml_processor_get_function_namespace_schema): what fn:json-to-xml
+ * with validate=true and fn:analyze-string return. An in-scope schema
+ * of the namespace is tried first, so that its declarations match. An
+ * invalid node is error_code with the constraint name in the
+ * description; on failure *node is released. Without an evaluation
+ * environment (no processor) *node stays as it is, or, is_required,
+ * error_code is raised.
+ */
+typedef struct sxml_function_namespace_validation {
+    sxml_byte_view error_code;
+    bool is_required;
+    sxml_item *node;
+} sxml_function_namespace_validation;
+
+SXML_NODISCARD sxml_status sxml_schema_scope_validate_by_function_namespace(
+    const sxml_function_call *call, const sxml_function_namespace_validation *validation);

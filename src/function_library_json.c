@@ -56,13 +56,6 @@ static const sxml_static_error json_fallback_type_error = {
         "The fallback option is not a function of one argument (F&O 4.0, section 17.4.4)"),
 };
 
-static const sxml_static_error json_validation_error = {
-    .error_status = SXML_STATUS_DYNAMIC_ERROR,
-    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("FOJS0004"),
-    .description = SXML_BYTE_VIEW_INITIALIZER(
-        "validate=true needs a schema-aware processor, which sxml is not yet"),
-};
-
 static const sxml_static_error xml_unsupported_option_error = {
     .error_status = SXML_STATUS_DYNAMIC_ERROR,
     .code_local_name = SXML_BYTE_VIEW_INITIALIZER("FODC0013"),
@@ -191,8 +184,8 @@ typedef struct json_option_reading {
 /*
  * Turns the coerced options into sxml_json_parse_options (F&O 4.0,
  * sections 17.4.4 and 17.4.6): FOJS0005 for a value not allowed, or for
- * fallback with escape=true; FOJS0004 for validate=true (sxml is not
- * schema-aware); XPTY0004 for a fallback function whose arity is not 1.
+ * fallback with escape=true or duplicates=retain with validate=true;
+ * XPTY0004 for a fallback function whose arity is not 1.
  */
 static sxml_status json_interpret_options(const sxml_function_call *call,
                                           json_option_reading reading,
@@ -205,8 +198,10 @@ static sxml_status json_interpret_options(const sxml_function_call *call,
         .number_format = SXML_JSON_NUMBER_FORMAT_DOUBLE,
         .null_value = values->is_present[SXML_JSON_OPTION_NULL] ? values->values[SXML_JSON_OPTION_NULL]
                                                            : sxml_sequence_empty()};
-    if (reading.is_xml && json_option_is_true(values, SXML_JSON_OPTION_VALIDATE)) {
-        return sxml_error_record_report(call->error_record, &json_validation_error);
+    const bool validates = reading.is_xml && json_option_is_true(values, SXML_JSON_OPTION_VALIDATE);
+    if (validates) {
+        /* "duplicates": reject by default when validating (17.4.6). */
+        options->duplicates_policy = SXML_JSON_DUPLICATES_POLICY_REJECT;
     }
     if (values->is_present[SXML_JSON_OPTION_DUPLICATES]) {
         const sxml_byte_view duplicates = json_option_text(values, SXML_JSON_OPTION_DUPLICATES);
@@ -216,7 +211,9 @@ static sxml_status json_interpret_options(const sxml_function_call *call,
             options->duplicates_policy = SXML_JSON_DUPLICATES_POLICY_USE_FIRST;
         } else if (!reading.is_xml && json_text_is(duplicates, SXML_BYTE_VIEW_FROM_LITERAL("use-last"))) {
             options->duplicates_policy = SXML_JSON_DUPLICATES_POLICY_USE_LAST;
-        } else if (reading.is_xml && json_text_is(duplicates, SXML_BYTE_VIEW_FROM_LITERAL("retain"))) {
+        } else if (reading.is_xml && !validates &&
+                   json_text_is(duplicates, SXML_BYTE_VIEW_FROM_LITERAL("retain"))) {
+            /* retain with validate=true is FOJS0005 (17.4.6). */
             options->duplicates_policy = SXML_JSON_DUPLICATES_POLICY_RETAIN;
         } else {
             return sxml_error_record_report(call->error_record, &json_invalid_option_error);
@@ -316,10 +313,17 @@ static sxml_status json_build_document(const sxml_function_call *call,
 
 /* The value of fn:json-to-xml for text (F&O 4.0, section 17.4.6): a new
    untyped tree that destroys itself when unreferenced, its memory from
-   the heap. */
+   the heap; with validates, its validated copy against the schema of D.2
+   (option "validate"). */
+typedef struct json_document_making {
+    const sxml_json_text_request *request;
+    bool validates;
+} json_document_making;
+
 static sxml_status json_make_document(const sxml_function_call *call,
-                                      const sxml_json_text_request *request,
+                                      const json_document_making *making,
                                       sxml_sequence *result) {
+    const sxml_json_text_request *request = making->request;
     const sxml_allocator tree_allocator = sxml_item_heap_as_allocator(call->item_heap);
     sxml_arena_tree *arena_tree = NULL;
     sxml_status status = sxml_arena_tree_create(
@@ -343,9 +347,22 @@ static sxml_status json_make_document(const sxml_function_call *call,
         sxml_arena_tree_destroy(arena_tree);
         return status;
     }
-    *result = sxml_sequence_from_item(sxml_node_item_make(
-        (sxml_node_reference){.tree = tree, .node_index = {.index = 0}, .namespace_number = 0}));
+    sxml_item document_node = sxml_node_item_make(
+        (sxml_node_reference){.tree = tree, .node_index = {.index = 0}, .namespace_number = 0});
     sxml_tree_release(tree);
+    if (making->validates) {
+        /* "validate": the element and attribute nodes carry the type
+           annotations of validation against D.2 (17.4.6). */
+        status = sxml_schema_scope_validate_by_function_namespace(
+            call, &(sxml_function_namespace_validation){
+                      .error_code = SXML_BYTE_VIEW_FROM_LITERAL("FOJS0004"),
+                      .is_required = true,
+                      .node = &document_node});
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+    }
+    *result = sxml_sequence_from_item(document_node);
     return SXML_STATUS_OK;
 }
 
@@ -572,7 +589,13 @@ static sxml_status finish_json_parse(const sxml_function_call *call, json_parse_
     sxml_sequence result = sxml_sequence_empty();
     if (status == SXML_STATUS_OK) {
         status = parse->function == SXML_JSON_FUNCTION_JSON_TO_XML
-                     ? json_make_document(call, &request, &result)
+                     ? json_make_document(
+                           call,
+                           &(json_document_making){
+                               .request = &request,
+                               .validates = json_option_is_true(&parse->values,
+                                                                SXML_JSON_OPTION_VALIDATE)},
+                           &result)
                      : sxml_json_make_value(call->item_heap, &request, &result);
     }
     if (status == SXML_STATUS_OK) {

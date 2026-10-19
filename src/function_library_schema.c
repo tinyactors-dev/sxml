@@ -808,6 +808,80 @@ sxml_status sxml_schema_scope_validate_document(const sxml_function_call *call,
     return status;
 }
 
+/* Validates node (strict) against schema into *validated; the first
+   error goes to *schema_error. */
+typedef struct function_namespace_run {
+    const sxml_schema *schema;
+    sxml_error_record *schema_error;
+    sxml_item *validated;
+} function_namespace_run;
+
+static sxml_status validate_strictly(sxml_item node, const function_namespace_run *run) {
+    memset(run->schema_error, 0, sizeof *run->schema_error);
+    return sxml_schema_validate_node(
+        run->schema,
+        &(sxml_schema_validation_request){.node = node,
+                                          .validation_mode = SXML_VALIDATION_MODE_STRICT,
+                                          .governing_type = {.index = SXML_TYPE_NONE},
+                                          .report_sink = {.state = NULL, .operations = NULL},
+                                          .error_record = run->schema_error},
+        run->validated);
+}
+
+sxml_status sxml_schema_scope_validate_by_function_namespace(
+    const sxml_function_call *call, const sxml_function_namespace_validation *validation) {
+    const sxml_evaluation_environment *environment =
+        call->dynamic_context == NULL
+            ? NULL
+            : sxml_processor_get_evaluation_environment(call->dynamic_context);
+    if (environment == NULL && validation->is_required) {
+        /* No processor, no schema to validate with. */
+        sxml_item_release(*validation->node);
+        *validation->node = (sxml_item){.representation = SXML_ITEM_REPRESENTATION_NONE};
+        return sxml_error_record_report(
+            call->error_record,
+            &(sxml_static_error){
+                .error_status = SXML_STATUS_DYNAMIC_ERROR,
+                .code_local_name = validation->error_code,
+                .description = SXML_BYTE_VIEW_FROM_LITERAL(
+                    "Validation needs a processor, which this evaluation does not have")});
+    }
+    if (environment == NULL) {
+        return SXML_STATUS_OK;
+    }
+    sxml_error_record schema_error;
+    sxml_item validated = {.representation = SXML_ITEM_REPRESENTATION_NONE};
+    function_namespace_run run = {
+        .schema = NULL, .schema_error = &schema_error, .validated = &validated};
+    /* An in-scope schema of the namespace types the node first, so that
+       its declarations match it (schema-element(fn:map)); the processor's
+       schema when there is none or the node is not valid against it (a
+       schema of an older edition). */
+    const sxml_schema_view schemas = in_scope_schemas(call);
+    sxml_status status = SXML_STATUS_DYNAMIC_ERROR;
+    for (size_t schema_index = 0; schema_index < schemas.schema_count; schema_index += 1) {
+        if (sxml_schema_scope_defines_namespace(
+                schemas.schemas[schema_index],
+                (sxml_namespace_uri_identifier){.index = SXML_NAMESPACE_FUNCTIONS})) {
+            run.schema = schemas.schemas[schema_index];
+            status = validate_strictly(*validation->node, &run);
+            break;
+        }
+    }
+    if (status == SXML_STATUS_DYNAMIC_ERROR) {
+        status = sxml_processor_get_function_namespace_schema(environment->processor, &run.schema);
+        if (status == SXML_STATUS_OK) {
+            status = validate_strictly(*validation->node, &run);
+        }
+        if (status == SXML_STATUS_DYNAMIC_ERROR) {
+            status = raise_schema_error(call, &schema_error, validation->error_code);
+        }
+    }
+    sxml_item_release(*validation->node);
+    *validation->node = validated;
+    return status;
+}
+
 /* -------------------------------------------------- fn:xsd-validator */
 
 /* The captured values of a validator V: the mode (an xs:integer), the

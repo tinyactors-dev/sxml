@@ -147,11 +147,22 @@ sxml_status sxml_schema_scope_probe_document(const sxml_schema_scope_probe *requ
                                              sxml_schema_scope_delivery *delivery) {
     delivery->is_delivered = false;
     sxml_processor *processor = request->processor;
+    const sxml_schema_document *document = &request->document;
+    if (document->document_uri.byte_count == 0 && document->checks_target_namespace &&
+        (sxml_byte_view_equals(document->target_namespace_uri,
+                               SXML_BYTE_VIEW_FROM_LITERAL(
+                                   "http://www.w3.org/XML/1998/namespace")) ||
+         sxml_byte_view_equals(document->target_namespace_uri,
+                               SXML_BYTE_VIEW_FROM_LITERAL(
+                                   "http://www.w3.org/2005/xpath-functions")))) {
+        /* Every processor knows these documents (F&O 4.0, appendix D). */
+        delivery->is_delivered = true;
+        return SXML_STATUS_OK;
+    }
     const sxml_resource_resolver resolver = processor->resource_resolver;
     if (resolver.operations == NULL || resolver.operations->resolve == NULL) {
         return SXML_STATUS_OK;
     }
-    const sxml_schema_document *document = &request->document;
     sxml_uri_resolution resolution = {.uri = {.bytes = NULL, .byte_count = 0}, .memory = NULL};
     sxml_status status = SXML_STATUS_OK;
     if (document->document_uri.byte_count > 0) {
