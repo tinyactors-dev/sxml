@@ -9270,6 +9270,11 @@ Recorded 2026-10-19, after D12, D45, D71, D195, D199, D219. Amends D12's
 "the concrete syntax tree is freed before the parse function returns":
 the parser holds the tree of one document segment at a time. (The
 details and the measurements follow with the implementation.)
+### D223. More streamed shapes: streamed paths and aggregates (packet 7.6c)
+Recorded 2026-10-19, after D71, D212, D219, D222. Extends D219's streamed
+bodies: a path inside the select of an instruction of a streamed body
+streams in place (glossary `streamed_path`, `lowering_override`). (The
+details and the measurements follow with the implementation.)
 
 ## Proposed
 
