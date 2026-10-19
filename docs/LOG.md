@@ -4,6 +4,19 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 7.4b done (D206): the XSLT 1.0 follow-ups. EXSLT common
+  (`src/function_library_exslt.c`, XSLT only): exsl:node-set returns
+  its argument, exsl:object-type; exsl:document in an extension
+  namespace is read as xsl:result-document. name.h gains
+  SXML_NAMESPACE_EXSLT_COMMON (additive, D99). Text value templates in
+  1.0 elements are lowered without XPath 1.0 compatibility mode; an
+  explicit xsl:result-document chooses xhtml also in a 1.0 stylesheet.
+  docbook-002's XPST0003 came from an unread external parameter entity,
+  fixed by 7.14. XT40 8,940 to 8,943 (docbook-001, docbook-002,
+  backwards-019b). `xpath_compatibility.c` is about 7 KB of the core
+  module. Proposed for the owner: fn:number for xs:numeric parameters
+  in 1.0 mode (14 cases).
+
 - 7.7b and 7.7c done (D205): fn:put as XQuery's updating function,
   its documents handed to the update sink's new receive_put_document
   after the changed trees (the library writes nothing; the QT4 driver

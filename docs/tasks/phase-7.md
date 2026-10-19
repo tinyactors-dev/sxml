@@ -283,6 +283,16 @@ fn:number conversion for xs:numeric parameters (fn:format-number,
 fn:round, fn:floor), which XPath 4.0, 3.4.1 gives only to xs:double.
 `xpath_compatibility.c` is in the core module (a few KB).
 
+**7.4b** (D206, follow-ups to 7.4): exsl:node-set and exsl:object-type
+(EXSLT common, a new well-known namespace), exsl:document as
+xsl:result-document, docbook-002's XPST0003, text value templates in 1.0
+elements without the mode (3.8.1), xsl:result-document's xhtml default in
+a 1.0 stylesheet (backwards-019b), the size of `xpath_compatibility.c` in
+`sxml.wasm`; the xs:numeric question put to the owner. **Done**
+2026-10-19: XT40 8,940 to 8,943 (docbook-001, docbook-002 and
+backwards-019b pass); `xpath_compatibility.c` is about 7.2 KB, the EXSLT
+part 1.2 KB of the core module.
+
 ### 7.6 XSLT streaming (design and implementation, two packets)
 - **Specifications**: XSLT 4.0, 18 "Streaming" (xsl:source-document
   streamable="yes", xsl:merge with streamable sources, xsl:fork,

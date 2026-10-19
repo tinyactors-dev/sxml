@@ -8221,6 +8221,20 @@ Recorded 2026-10-19, after D197 and D99. Follows up D197's "Not done".
   reports them. No other EXSLT module: DocBook tests the others
   (dyn:evaluate, set:leading, date:date-time, str:*) with
   function-available first, and no XT40 case needs them.
+- **exsl:document** in an extension namespace (24.2) is read as
+  xsl:result-document (`src/xslt_read.c`): its attributes are a subset of
+  xsl:result-document's (26.2), all attribute value templates; an
+  unprefixed version attribute reads as the standard attribute, as on any
+  XSLT element. element-available('exsl:document') is true. DocBook's
+  chunker writes its secondary files through it (docbook-001 raised
+  XTMM9000 "Can't make chunks" without it). Outside an extension
+  namespace it stays a literal result element.
+- **docbook-002's XPST0003** was fo/autoidx.xsl's xsl:key: its use
+  attribute names entities of the external parameter entity
+  common/entities.ent, which the module reader did not retrieve, so the
+  expression lost its first argument. 7.14 (D199, 7a0c96a) now reads a
+  module's external entities through the resolver; nothing else was
+  needed.
 - **Text value templates** in an element with XSLT 1.0 behaviour are
   lowered without XPath 1.0 compatibility mode (XSLT 4.0, 3.8.1): the
   value template frame lowers its expressions in a copy of the element's
@@ -8228,6 +8242,16 @@ Recorded 2026-10-19, after D197 and D99. Follows up D197's "Not done".
 - **xsl:result-document** whose result is the principal result (no href)
   chooses its default method as an explicit result document: xhtml for an
   XHTML html element, also in a 1.0 stylesheet (XSLT 4.0, 26.1).
+- **Numbers** (release, XT40 whole suite, case by case, against 46cc929):
+  8,940 to 8,943 passed: docbook-001, docbook-002, backwards-019b; no
+  other case changed. Unit tests in `tests/xslt_compatibility_test.c`.
+- **Size** (wasm preset, MinSizeRel objects): `src/xpath_compatibility.c`
+  is 6,024 bytes of code and 1,133 of data before linking, all in
+  `sxml.wasm`, because the XPath lowering calls it; the EXSLT part is 961
+  bytes of code and 285 of data, also linked into the core through the
+  part registry. At 01a3993 `sxml.wasm` is 2,294,051 bytes stripped
+  (801,300 gzipped), over its 2,200,000 / 770,000 budget; these two files
+  are about 8.4 KB of that.
 
 ### D207. JavaScript module budgets raised: core 2,200,000, full 4,000,000 (owner)
 Recorded 2026-10-19 on the owner's choices. Amends D184 and D189.
