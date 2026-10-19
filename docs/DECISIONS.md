@@ -7681,6 +7681,73 @@ part).
   differently from `sxml_function_library_<part>`, so the CMake registry
   (cmake/SxmlParts.cmake) does not take it as a part.
 
+### D199. DTD processing: external subset, external entities, validation (packets 7.14a, 7.14b)
+Recorded 2026-10-19, after D12, D28, D44, D71, D81, D165, D183, D184, D195.
+Replaces D81's "the external subset is not read" and "external parsed
+entities are skipped in content".
+- **Header, additive** (`include/sxml/xml.h`): an entity resolver
+  (`sxml_xml_entity_resolver`: resolve and release over
+  `sxml_xml_external_entity_request` → `sxml_xml_external_entity`), named
+  per parse in `sxml_xml_parse_request.entity_resolver`. The null resolver
+  (a zeroed request) reads nothing outside the input, as before. The
+  request carries the purpose (external subset, parameter entity, general
+  entity), name, system and public identifiers and the system identifier
+  resolved against the base URI of the entity holding the declaration
+  (4.2.2). `xml.h` cannot name `processor.h`'s resource resolver
+  (processor.h includes xml.h), so the parser has its own small interface
+  and the processor adapts its resolver to it.
+- **Grammar** (D12, `grammars/xml`): the start rule also reads the
+  external subset and external parsed entities, each after a marker the
+  builder writes (U+0001 and a letter: no [2] Char, so a document never
+  takes these alternatives, and the builder refuses one without a root).
+  New: `external_subset` ([30], [31]), `external_parsed_entity` ([78]),
+  `text_declaration` ([77]), `include_section` ([62]),
+  `conditional_section` ([63], or a parameter-entity keyword),
+  `ignored_section_contents` ([64], [65], scanner token `ignored_text`),
+  entity values with parameter-entity references in external DTD text.
+  The internal subset stays strict (WFC: PEs in Internal Subset in the
+  grammar).
+- **What the grammar cannot express is a loop with explicit stacks**
+  (D71), as the task allowed: a declaration with a parameter-entity
+  reference outside its literals matches its production only after
+  expansion, so the scanner returns it as one `unexpanded_declaration`
+  token; the builder replaces the references (4.4.8, one space on each
+  side, the replacement texts' own references too, with quote state and an
+  explicit stack of open entities in the parser's expansion array) and
+  parses the result again as the external subset in a frame of its own.
+  The same loop includes a reference in an entity value in the literal
+  (4.4.5: character and parameter-entity references recognized again,
+  general ones kept). A conditional section whose keyword is a reference
+  is read as ignored text by the grammar; the builder reads keyword, '['
+  and contents from the replacement text and the rest of the section (the
+  '[' may come from the entity, a validity matter only) and parses an
+  included section again. A missing '>' that comes from an entity
+  (Proper Declaration/PE Nesting) ends the token at the next markup.
+- **Reading**: the external subset after the internal subset (2.8),
+  through a parameter entity named "[dtd]" (no Name, so unreachable);
+  external parameter entities where referenced; external parsed entities
+  in content (parsed after the entity marker, the tree cached per parse
+  as an internal entity's is, frames of a new kind whose walk root is the
+  entity). Each external entity is asked once per parse, decoded as a
+  document is (Appendix F; its text declaration must agree with the
+  bytes), its byte order mark dropped, U+0000 refused, line ends
+  normalized in the copy (2.11); a 1.1 document's entities follow 1.1
+  (restricted characters, NEL), and an entity of a 1.0 document must not
+  declare 1.1 (XML 1.1, 4.3.4). An entity the resolver does not deliver is
+  not read (4.4.3, 5.1: later entity and attribute-list declarations are
+  skipped as for an unread parameter entity). Every external text counts
+  against `maximum_entity_expansion_byte_count` at each inclusion.
+- **WFC: Entity Declared** where it applies (no DTD, internal subset
+  without references, standalone="yes") also refuses an entity declared
+  in the external subset or in a parameter entity (4.1).
+- **Measured** (`tests/xml_conformance_test.c`, now parsing every case
+  with a file resolver; the 1.0 selection with ENTITIES other than "none"
+  is a third group): standalone 1.0 unchanged 601/175/948; external 1.0
+  0 run before, now valid 127/127, invalid 54/54 (well-formed), not-wf
+  66/66, error 18; XML 1.1 not-wf 140/169 to 169/169 (D195's 29). The
+  remaining parts (the processor's resource kind, trust-external, the
+  drivers, the CLI, DTD validation) follow in this record.
+
 ## Proposed
 
 - **XQuery's XML version** (packet 7.13, D195; for the owner of
