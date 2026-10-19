@@ -100,6 +100,181 @@ typedef struct sxml_javascript_serialize_request {
     const sxml_javascript_value *options;
 } sxml_javascript_serialize_request;
 
+/* ------------------------------------------------- Full module: requests */
+
+/*
+ * The structs of the full module's entry points (the section "Full module"
+ * below): XQuery, XSLT and XSD, linked into sxml-full.wasm only (D189's two
+ * links). Every field is still one 32-bit word on wasm32.
+ */
+
+/* An expanded name: an empty local name means none. */
+typedef struct sxml_javascript_name {
+    sxml_byte_view namespace_uri;
+    sxml_byte_view local_name;
+} sxml_javascript_name;
+
+/* A value bound to a name: an external variable, a stylesheet, template
+   or tunnel parameter. */
+typedef struct sxml_javascript_binding {
+    sxml_javascript_name name;
+    const sxml_javascript_value *value;
+} sxml_javascript_binding;
+
+typedef struct sxml_javascript_binding_list {
+    const sxml_javascript_binding *bindings;
+    size_t binding_count;
+} sxml_javascript_binding_list;
+
+/* What a side result is (docs/GLOSSARY.md, "side_result"). */
+typedef enum sxml_javascript_side_result_kind {
+    /* A tree an updating query changed: first_value its original root,
+       second_value its updated root (include/sxml/xquery.h). */
+    SXML_JAVASCRIPT_SIDE_RESULT_KIND_UPDATED_TREE = 0,
+    /* A document fn:put stores: uri, first_value the node, second_value
+       its serialization parameters or NULL. */
+    SXML_JAVASCRIPT_SIDE_RESULT_KIND_PUT_DOCUMENT = 1,
+    /* An xsl:result-document: uri, and text (serialized) or first_value
+       (a value) as the transformation asked (include/sxml/xslt.h). */
+    SXML_JAVASCRIPT_SIDE_RESULT_KIND_RESULT_DOCUMENT = 2,
+    /* An xsl:message, failed xsl:assert, fn:message or fn:trace: text as
+       the text method writes the value; code and is_terminating for
+       xsl:message; uri the source name, with line and column. */
+    SXML_JAVASCRIPT_SIDE_RESULT_KIND_MESSAGE = 3,
+    /* A schema report (include/sxml/schema.h): code the constraint name,
+       text the description, uri the source name, with line and column. */
+    SXML_JAVASCRIPT_SIDE_RESULT_KIND_SCHEMA_REPORT = 4,
+} sxml_javascript_side_result_kind;
+
+/*
+ * Something a call delivers besides its result, kept by the handle that
+ * made it until that handle's next call. Views are the handle's copies.
+ * The values are handles (NULL when the kind has none) that the package
+ * takes over: it adopts every one after the call, failed or not, and
+ * releases it as any other value.
+ */
+typedef struct sxml_javascript_side_result {
+    uint32_t side_result_kind;
+    sxml_byte_view uri;
+    sxml_byte_view text;
+    sxml_byte_view code;
+    sxml_javascript_value *first_value;
+    sxml_javascript_value *second_value;
+    uint32_t line_number;
+    uint32_t column_number;
+    uint32_t is_terminating;
+} sxml_javascript_side_result;
+
+/* The side results of a call, written by the call into its request. */
+typedef struct sxml_javascript_side_result_list {
+    const sxml_javascript_side_result *side_results;
+    size_t side_result_count;
+} sxml_javascript_side_result_list;
+
+typedef struct sxml_javascript_query sxml_javascript_query;
+typedef struct sxml_javascript_stylesheet sxml_javascript_stylesheet;
+typedef struct sxml_javascript_schema sxml_javascript_schema;
+
+typedef struct sxml_javascript_query_compile_request {
+    /* The main module (XQuery 4.0, 5). */
+    sxml_byte_view query_text;
+    sxml_byte_view static_base_uri;
+    /* Added to XQuery's predeclared prefixes; the prolog may rebind
+       them. */
+    const sxml_javascript_namespace *namespaces;
+    size_t namespace_count;
+} sxml_javascript_query_compile_request;
+
+typedef struct sxml_javascript_query_evaluate_request {
+    /* NULL for an absent context value. */
+    const sxml_javascript_value *context_value;
+    /* The external variables (XQuery 4.0, 5.16); names the query does
+       not declare are ignored. */
+    sxml_javascript_binding_list variables;
+    /* Nonzero when the package takes documents fn:put stores; zero makes
+       fn:put fail with FOUP0002 (include/sxml/xquery.h). */
+    uint32_t accepts_put_documents;
+    /* Written by the call: updated trees, put documents, messages. */
+    sxml_javascript_side_result_list side_results;
+} sxml_javascript_query_evaluate_request;
+
+typedef struct sxml_javascript_stylesheet_compile_request {
+    /* The principal stylesheet module, an XML document. */
+    sxml_byte_view stylesheet_text;
+    /* Its base URI (module URI); may be empty. */
+    sxml_byte_view static_base_uri;
+    /* The static parameters (XSLT 4.0, 9.6). */
+    sxml_javascript_binding_list static_parameters;
+} sxml_javascript_stylesheet_compile_request;
+
+typedef struct sxml_javascript_transform_request {
+    /* The global context item, or NULL (XSLT 4.0, 2.4.2). */
+    const sxml_javascript_value *global_context_item;
+    /* APPLY_TEMPLATES: the initial match selection, or NULL for the
+       global context item. */
+    const sxml_javascript_value *initial_match_selection;
+    sxml_javascript_binding_list stylesheet_parameters;
+    sxml_javascript_binding_list template_parameters;
+    sxml_javascript_binding_list tunnel_parameters;
+    /* CALL_FUNCTION: the arguments, by position. */
+    const sxml_javascript_value *const *function_arguments;
+    size_t function_argument_count;
+    sxml_byte_view base_output_uri;
+    /* The $options of fn:serialize (a map) replacing the parameters of
+       the unnamed output definition, method included; NULL keeps them. */
+    const sxml_javascript_value *serialization_options;
+    /* Empty local names: the default mode, xsl:initial-template. */
+    sxml_javascript_name initial_mode;
+    sxml_javascript_name initial_template;
+    sxml_javascript_name initial_function;
+    /* sxml_xslt_invocation_kind. */
+    uint32_t invocation_kind;
+    /* sxml_xslt_result_delivery of the principal result; SERIALIZED
+       writes it to the processor's output. */
+    uint32_t result_delivery;
+    /* sxml_xslt_result_delivery of the result documents. */
+    uint32_t result_document_delivery;
+    /* Nonzero selects the unnamed mode (initial_mode must be empty). */
+    uint32_t selects_unnamed_mode;
+    /* Written by the call: result documents and messages. */
+    sxml_javascript_side_result_list side_results;
+} sxml_javascript_transform_request;
+
+/* One schema document: its text, or (text.bytes NULL) a URI reference the
+   resolver delivers (include/sxml/schema.h, TEXT and RESOLVED). */
+typedef struct sxml_javascript_schema_document {
+    sxml_byte_view text;
+    /* TEXT: the document's URI; RESOLVED: the reference to resolve. */
+    sxml_byte_view uri;
+} sxml_javascript_schema_document;
+
+typedef struct sxml_javascript_schema_compile_request {
+    const sxml_javascript_schema_document *documents;
+    size_t document_count;
+    sxml_byte_view base_uri;
+    /* Written by the call: every schema report. */
+    sxml_javascript_side_result_list side_results;
+} sxml_javascript_schema_compile_request;
+
+typedef struct sxml_javascript_validate_request {
+    /* A document or element node of the schema's processor, or NULL to
+       validate text, an XML document parsed and validated in one pass, so
+       that reports have its locations. */
+    const sxml_javascript_value *node;
+    sxml_byte_view text;
+    /* The text's document URI, and its reports' source name. */
+    sxml_byte_view document_uri;
+    /* sxml_validation_mode. */
+    uint32_t validation_mode;
+    /* A type of the schema to validate the root against; an empty local
+       name for none. */
+    sxml_javascript_name governing_type;
+    /* Written by the call: sxml_validity. */
+    uint32_t validity;
+    /* Written by the call: every validation report. */
+    sxml_javascript_side_result_list side_results;
+} sxml_javascript_validate_request;
+
 /* --------------------------------------------------------------- Exports */
 
 /*
@@ -189,3 +364,69 @@ sxml_javascript_value *sxml_javascript_evaluate(sxml_javascript_expression *expr
    error set on failure. */
 uint32_t sxml_javascript_serialize(sxml_javascript_processor *processor,
                                    const sxml_javascript_serialize_request *request);
+
+/* ----------------------------------------------------------- Full module */
+
+/*
+ * Linked into sxml-full.wasm only (sxml_javascript_xquery.c,
+ * sxml_javascript_xslt.c, sxml_javascript_schema.c): sxml.wasm does not
+ * export them, which is how the package tells the modules apart. Each
+ * failure returns NULL (or its status) with the processor's error set, as
+ * above. A call that writes side results into its request writes them
+ * also when it fails.
+ */
+
+/* Compiles an XQuery 4.0 main module (include/sxml/xquery.h), with the
+   library modules it imports through the resolver. */
+sxml_javascript_query *sxml_javascript_query_compile(
+    sxml_javascript_processor *processor, const sxml_javascript_query_compile_request *request);
+
+/* Destroys a query and its side results; NULL does nothing. */
+void sxml_javascript_query_destroy(sxml_javascript_query *query);
+
+/* 1 when the query's body is an updating expression (XQUF 3.0, 2.2). */
+uint32_t sxml_javascript_query_is_updating(const sxml_javascript_query *query);
+
+/* Evaluates a query and returns its result (the empty sequence for an
+   updating query, whose changes are side results). */
+sxml_javascript_value *sxml_javascript_query_evaluate(
+    sxml_javascript_query *query, sxml_javascript_query_evaluate_request *request);
+
+/* Serializes value into the processor's output with the serialization
+   parameters the query's output declarations give (XQuery 4.0, 5.22).
+   Returns the status. */
+uint32_t sxml_javascript_query_serialize(sxml_javascript_query *query,
+                                         const sxml_javascript_value *value);
+
+/* Compiles an XSLT 4.0 stylesheet (include/sxml/xslt.h), with the modules
+   and packages it uses through the resolver. */
+sxml_javascript_stylesheet *sxml_javascript_stylesheet_compile(
+    sxml_javascript_processor *processor,
+    const sxml_javascript_stylesheet_compile_request *request);
+
+/* Destroys a stylesheet and its side results; NULL does nothing. */
+void sxml_javascript_stylesheet_destroy(sxml_javascript_stylesheet *stylesheet);
+
+/* Runs one transformation and returns its principal result as a value
+   (the empty sequence when it is serialized to the processor's output). */
+sxml_javascript_value *sxml_javascript_stylesheet_transform(
+    sxml_javascript_stylesheet *stylesheet, sxml_javascript_transform_request *request);
+
+/* Makes an empty schema handle, to compile into; NULL when out of
+   memory. */
+sxml_javascript_schema *sxml_javascript_schema_create(sxml_javascript_processor *processor);
+
+/* Destroys a schema handle and its side results; NULL does nothing. */
+void sxml_javascript_schema_destroy(sxml_javascript_schema *schema);
+
+/* Compiles the schema documents of request into schema (include/sxml/
+   schema.h), every report a side result. Returns the status; a schema
+   compiles once (SXML_STATUS_INVALID_ARGUMENT after). */
+uint32_t sxml_javascript_schema_compile(sxml_javascript_schema *schema,
+                                        sxml_javascript_schema_compile_request *request);
+
+/* Validates request->node (XSD 1.1 Part 1, 5.2) and returns its validated
+   copy, or NULL: with the processor's error set when validation failed,
+   without it when the node is invalid (request->validity). */
+sxml_javascript_value *sxml_javascript_schema_validate(sxml_javascript_schema *schema,
+                                                       sxml_javascript_validate_request *request);

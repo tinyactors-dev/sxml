@@ -5,6 +5,12 @@
  * which drives the same public API for the CLI: one processor, a resource
  * resolver, compile, evaluate, serialize.
  *
+ * The full module links the XQuery, XSLT and schema entry points besides
+ * (sxml_javascript_xquery.c, sxml_javascript_xslt.c,
+ * sxml_javascript_schema.c; D189's two links): the core module has none of
+ * them, and the package finds out which it has by their exports. The
+ * handles and helpers they share are in sxml_javascript_internal.h.
+ *
  * Only the public API (include/sxml/) is used. Every object the package
  * holds is a handle (docs/GLOSSARY.md): the address of one of the structs
  * below, made by a *_create or by an operation that returns a value, and
@@ -31,7 +37,7 @@
  * copied into memory from this processor's allocator; the shim releases
  * them when sxml is done (include/sxml/processor.h, "Resource resolver").
  */
-#include "sxml_javascript.h"
+#include "sxml_javascript_internal.h"
 
 #include "sxml/memory.h"
 #include "sxml/name.h"
@@ -50,35 +56,10 @@
 #include <stdint.h>
 #include <string.h>
 
-#if defined(__wasm__)
-#define SXML_JAVASCRIPT_EXPORT(name) __attribute__((export_name(name), used))
-#else
-#define SXML_JAVASCRIPT_EXPORT(name)
-#endif
-
 /* As sxml xpath: entity expansion is bounded, nesting is not. */
 enum { SXML_JAVASCRIPT_MAXIMUM_EXPANSION_BYTE_COUNT = 4 * 1024 * 1024 };
 
 /* ---------------------------------------------------------------- Handles */
-
-struct sxml_javascript_processor {
-    /* From the default allocator; everything else from allocator. */
-    sxml_counting_allocator *counting_allocator;
-    sxml_allocator allocator;
-    sxml_processor *processor;
-    sxml_output_buffer *output_buffer;
-    sxml_serialization_parameter_reader *parameter_reader;
-    sxml_error_record error_record;
-    sxml_javascript_error error;
-    /* The bytes of the last serialization, in output_buffer. */
-    sxml_byte_view output;
-};
-
-/* A value: an owned sequence in the processor's item heap. */
-struct sxml_javascript_value {
-    sxml_javascript_processor *owner;
-    sxml_sequence sequence;
-};
 
 /* A compiled XPath expression and the bindings of its variables, whose
    names are fixed at compilation and whose values each evaluation sets. */
@@ -151,47 +132,7 @@ static const sxml_resource_resolver_operations sxml_javascript_resolver_operatio
     .release = sxml_javascript_release_resource,
 };
 
-/* ----------------------------------------------------------------- Errors */
-
-static const sxml_byte_view sxml_javascript_no_text = {.bytes = NULL, .byte_count = 0};
-
-/* Starts an operation: forgets the last error and the text it kept. */
-static void sxml_javascript_begin(sxml_javascript_processor *processor) {
-    sxml_item_heap_clear_raised_error(sxml_processor_get_item_heap(processor->processor));
-    memset(&processor->error_record, 0, sizeof(processor->error_record));
-    memset(&processor->error, 0, sizeof(processor->error));
-}
-
-/* Ends a failed operation: copies the error record into the flat error. */
-static void sxml_javascript_fail(sxml_javascript_processor *processor, sxml_status status) {
-    const sxml_error_record *record = &processor->error_record;
-    const bool has_code = sxml_status_has_error_record(status);
-    processor->error = (sxml_javascript_error){
-        .status = (uint32_t)status,
-        .status_name = sxml_status_name(status),
-        .code_namespace_uri = has_code ? record->code.namespace_uri : sxml_javascript_no_text,
-        .code_local_name = has_code ? record->code.local_name : sxml_javascript_no_text,
-        .code_namespace_prefix =
-            has_code ? record->code.namespace_prefix : sxml_javascript_no_text,
-        .description = record->diagnostic.description,
-        .source_name = record->diagnostic.location.source_name,
-        .line_number = record->diagnostic.location.line_number,
-        .column_number = record->diagnostic.location.column_number};
-}
-
 /* --------------------------------------------------------------- Memory */
-
-static void *sxml_javascript_allocate_bytes(sxml_allocator allocator, size_t byte_count,
-                                            size_t alignment) {
-    void *memory = NULL;
-    if (sxml_allocator_allocate(allocator,
-                                (sxml_allocation_request){.byte_count = byte_count,
-                                                          .alignment = alignment},
-                                &memory) != SXML_STATUS_OK) {
-        return NULL;
-    }
-    return memory;
-}
 
 /*
  * Allocates byte_count bytes (at least 1) from the processor's allocator,
@@ -372,21 +313,6 @@ const char *sxml_javascript_version_text(void) {
 
 /* ----------------------------------------------------------------- Values */
 
-/* Wraps sequence, owned, in a value; releases it and returns NULL when out
-   of memory. */
-static sxml_javascript_value *sxml_javascript_value_make(sxml_javascript_processor *processor,
-                                                         sxml_sequence sequence) {
-    sxml_javascript_value *value = sxml_javascript_allocate_bytes(
-        processor->allocator, sizeof(sxml_javascript_value), alignof(sxml_javascript_value));
-    if (value == NULL) {
-        sxml_sequence_release(sequence);
-        sxml_javascript_fail(processor, SXML_STATUS_OUT_OF_MEMORY);
-        return NULL;
-    }
-    *value = (sxml_javascript_value){.owner = processor, .sequence = sequence};
-    return value;
-}
-
 /* Releases a value; NULL does nothing. */
 SXML_JAVASCRIPT_EXPORT("sxml_javascript_value_release")
 void sxml_javascript_value_release(sxml_javascript_value *value) {
@@ -503,35 +429,6 @@ static sxml_status sxml_javascript_intern_static_names(
             .declared_type = {.item_type = sxml_builtin_type_identifier(SXML_TYPE_ITEM),
                               .occurrence = SXML_OCCURRENCE_ZERO_OR_MORE}};
         expression->variable_names[variable_index] = name;
-    }
-    return status;
-}
-
-/* An array to allocate: element_count elements of element's size and
-   alignment. */
-typedef struct sxml_javascript_array_request {
-    sxml_allocation_request element;
-    size_t element_count;
-} sxml_javascript_array_request;
-
-/* Allocates the array request describes, or sets *memory to NULL for no
-   elements. */
-static sxml_status sxml_javascript_allocate_array(sxml_allocator allocator,
-                                                  sxml_javascript_array_request request,
-                                                  void **memory) {
-    *memory = NULL;
-    if (request.element_count == 0) {
-        return SXML_STATUS_OK;
-    }
-    const sxml_allocation_request element = request.element;
-    size_t byte_count = 0;
-    sxml_status status =
-        sxml_size_multiply(request.element_count, element.byte_count, &byte_count);
-    if (status == SXML_STATUS_OK) {
-        status = sxml_allocator_allocate(
-            allocator,
-            (sxml_allocation_request){.byte_count = byte_count, .alignment = element.alignment},
-            memory);
     }
     return status;
 }

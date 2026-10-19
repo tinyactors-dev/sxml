@@ -783,6 +783,7 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `javascript_package` | The hand-written TypeScript package in `bindings/javascript/` (npm name `sxml-js` for now) that loads `sxml.wasm` in Node.js and browsers (D10, D138) |
 | `javascript_shim` | The C entry points `sxml.wasm` exports for the JavaScript package (`bindings/javascript/sxml_javascript.c`), written against the public API only |
 | `handle` | The address of a C object in WebAssembly memory that a JavaScript object owns; released by `dispose()` or, failing that, by a `FinalizationRegistry` |
+| `side_result` | What a call of the JavaScript shim delivers besides its result, kept by the handle that made it until its next call: a tree an updating query changed, a document fn:put stores, a result document, a message, a schema report (D215) |
 | `size_budget` | The most bytes a WebAssembly module may have, stripped and gzipped, checked by a ctest (D93) |
 | `csv_dialect` | The characters that structure a CSV text, each one character: separator, quote character and optional comment marker, and whether unquoted fields are trimmed of whitespace (F&O 4.0, section 17.5) |
 | `csv_token` | What reading a CSV text gives next: a field (its text, quoted or not), the end of a row (a row with no field before it is a blank row) or the end of the input |

@@ -8,8 +8,12 @@
 //     processor.evaluate('//title/string()', { context: book }).toString();
 //     // '"XPath"' (the adaptive method of Serialization 4.0)
 //
+// sxml-full.wasm adds XQuery 4.0 (Processor.compileQuery), XSLT 4.0
+// (Processor.compileStylesheet) and XSD 1.1 validation
+// (Processor.compileSchema).
+//
 // Every object that owns memory in the module (Processor, XPathExpression,
-// Value) has dispose(); one that is never disposed is released when it is
+// XQuery, Stylesheet, Schema, Value) has dispose(); one that is never disposed is released when it is
 // garbage collected (FinalizationRegistry). The C side is the shim in
 // ../sxml_javascript.c; the word offsets below follow its structs.
 
@@ -128,6 +132,188 @@ export interface EvaluateOptions {
  *  booleans. Without options, a value is written by the adaptive method. */
 export type SerializationOptions = Record<string, JsonData>;
 
+/** Trace output (XSLT 4.0, 23.1 and 23.2; F&O 4.0, fn:trace and
+ *  fn:message): an xsl:message or failed xsl:assert as the text method
+ *  writes it, fn:trace and fn:message by the adaptive method. */
+export interface Message {
+  text: string;
+  /** xsl:message: its error code's local name (XTMM9000 by default);
+   *  fn:trace and fn:message: the label. */
+  code: string;
+  /** xsl:message terminate="yes" and xsl:assert: the call then throws. */
+  isTerminating: boolean;
+  sourceName: string;
+  lineNumber: number;
+  columnNumber: number;
+}
+
+// ------------------------------------------------- XQuery (sxml-full.wasm)
+
+export interface QueryCompileOptions extends StaticOptions {}
+
+/** A tree an updating query changed (XQuery Update Facility 3.0,
+ *  upd:applyUpdates): trees never change in sxml, so the update makes a
+ *  new tree; putting it where the original was is the host's. */
+export interface UpdatedTree {
+  /** The root as the query read it: a document node you bound, or a
+   *  parentless node. */
+  original: Value;
+  /** The root of the new tree with every change made. */
+  updated: Value;
+}
+
+/** A document fn:put stores (XQUF 3.0, 6.1): writing it at uri is the
+ *  host's. */
+export interface PutDocument {
+  /** fn:put's $uri resolved against the static base URI. */
+  uri: string;
+  node: Value;
+  /** fn:put's $params, or undefined. */
+  parameters: Value | undefined;
+  /** The node serialized with parameters (method xml without). */
+  serialize(): string;
+}
+
+/** Receives what an updating query changed, after the evaluation and in
+ *  the order of each tree's first update; documents fn:put stores come
+ *  last. Without putDocument, fn:put raises FOUP0002. */
+export interface UpdateSink {
+  updatedTree?(tree: UpdatedTree): void;
+  putDocument?(document: PutDocument): void;
+}
+
+export interface QueryEvaluateOptions {
+  /** The initial context value; absent means none (XPDY0002 when the
+   *  query needs it). */
+  context?: Input;
+  /** The external variables the prolog declares (XQuery 4.0, 5.16), by
+   *  NCName or Q{uri}local; names it does not declare are ignored, and a
+   *  declared one without a value takes its default. */
+  variables?: Record<string, Input>;
+  /** For an updating query: receives the changed trees. Without it, its
+   *  values are disposed at once. */
+  updates?: UpdateSink;
+  /** Receives fn:trace and fn:message output, after the evaluation (also
+   *  when it throws). */
+  messages?: (message: Message) => void;
+}
+
+// --------------------------------------------------- XSLT (sxml-full.wasm)
+
+export interface StylesheetCompileOptions {
+  /** The principal module's URI, against which xsl:include, xsl:import
+   *  and fn:doc resolve. */
+  baseUri?: string;
+  /** Static parameters (XSLT 4.0, 9.6), by NCName or Q{uri}local. */
+  staticParameters?: Record<string, Input>;
+}
+
+/** How a result reaches you (XSLT 4.0, 2.4.6): 'serialized' as a string,
+ *  'raw' as the value the stylesheet made, 'tree' as one document node. */
+export type ResultDelivery = 'serialized' | 'raw' | 'tree';
+
+export interface TransformOptions {
+  /** The global context item (XSLT 4.0, 2.4.2): its document is the
+   *  default initial match selection. */
+  source?: Input;
+  /** The initial match selection, when it is not the source. */
+  initialMatchSelection?: Input;
+  /** The initial mode, by NCName or Q{uri}local; '#unnamed' is the unnamed
+   *  mode. Default: the stylesheet's default mode. */
+  initialMode?: string;
+  /** Calls this named template instead of applying templates (2.4.4).
+   *  Without source and initialMatchSelection, xsl:initial-template is
+   *  called. */
+  initialTemplate?: string;
+  /** Calls this stylesheet function with args instead (2.4.5). */
+  initialFunction?: string;
+  args?: Input[];
+  /** The stylesheet parameters. */
+  parameters?: Record<string, Input>;
+  /** Parameters of the initial template or of the template rules. */
+  templateParameters?: Record<string, Input>;
+  tunnelParameters?: Record<string, Input>;
+  /** Against which relative hrefs of xsl:result-document resolve. */
+  baseOutputUri?: string;
+  /** The principal result's delivery; default 'serialized', by the
+   *  stylesheet's unnamed xsl:output. */
+  delivery?: ResultDelivery;
+  /** The result documents' delivery; default 'serialized'. */
+  resultDocumentDelivery?: ResultDelivery;
+  /** Serialization parameters replacing the unnamed xsl:output's, as
+   *  fn:serialize takes them. */
+  serialization?: SerializationOptions;
+  /** Receives xsl:message and xsl:assert output, after the
+   *  transformation (also when it throws). */
+  messages?: (message: Message) => void;
+}
+
+/** A secondary result: what one xsl:result-document made (26.2). */
+export interface ResultDocument {
+  /** Its href resolved against the base output URI. */
+  uri: string;
+  /** 'serialized': the text. */
+  output: string | undefined;
+  /** 'raw' and 'tree': the value. */
+  value: Value | undefined;
+}
+
+export interface TransformResult {
+  /** The principal result serialized ('serialized'). */
+  output: string | undefined;
+  /** The principal result as a value ('raw', 'tree'). */
+  value: Value | undefined;
+  /** In the order they completed. */
+  resultDocuments: ResultDocument[];
+}
+
+// ---------------------------------------------------- XSD (sxml-full.wasm)
+
+/** A schema document: its text, with its URI, or only a URI, which the
+ *  resolver is asked for (kind 'schema-document'). */
+export interface SchemaDocument {
+  text?: string | Uint8Array;
+  uri?: string;
+}
+
+export interface SchemaCompileOptions {
+  /** Against which relative URIs of documents given by URI resolve. */
+  baseUri?: string;
+}
+
+/** One error of a compilation or validation (XSD 1.1 Part 1, appendix
+ *  C): code is the constraint name, such as 'cvc-complex-type.2.4'. */
+export interface SchemaReport {
+  code: string;
+  description: string;
+  /** The schema document's URI, or the instance's. */
+  sourceName: string;
+  lineNumber: number;
+  columnNumber: number;
+}
+
+export interface ValidateOptions {
+  /** 'strict' (default): the root needs a global declaration; 'lax'. */
+  mode?: 'strict' | 'lax';
+  /** Validate the root against this type of the schema instead, by NCName
+   *  or Q{uri}local. */
+  type?: string;
+  /** The document URI of text input. */
+  uri?: string;
+}
+
+/** The validity of the validation root (Part 1, 3.3.5.1). */
+export type Validity = 'valid' | 'invalid' | 'not-known';
+
+export interface ValidationResult {
+  validity: Validity;
+  /** Every error found, in order; empty when valid. */
+  reports: SchemaReport[];
+  /** Unless invalid: the validated copy, its elements and attributes
+   *  annotated with their types (XDM 4.0, 3.3). */
+  document: Value | undefined;
+}
+
 // ----------------------------------------------------------------- Errors
 
 /** A failure in sxml: a static, dynamic or type error of the expression
@@ -142,6 +328,9 @@ export class SxmlError extends Error {
   readonly codeNamespaceUri: string;
   readonly codeLocalName: string;
   readonly description: string;
+  /** The module or document the location is in: 'expression', 'query',
+   *  a module's URI; '' when unknown. */
+  readonly sourceName: string;
   readonly lineNumber: number;
   readonly columnNumber: number;
 
@@ -151,6 +340,7 @@ export class SxmlError extends Error {
     codeLocalName: string;
     codePrefix: string;
     description: string;
+    sourceName?: string;
     lineNumber: number;
     columnNumber: number;
   }) {
@@ -171,8 +361,22 @@ export class SxmlError extends Error {
     this.codeNamespaceUri = fields.codeNamespaceUri;
     this.codeLocalName = fields.codeLocalName;
     this.description = fields.description;
+    this.sourceName = fields.sourceName ?? '';
     this.lineNumber = fields.lineNumber;
     this.columnNumber = fields.columnNumber;
+  }
+}
+
+/** A schema that does not compile: every error, with the first as the
+ *  SxmlError's own code, description and location. */
+export class SchemaError extends SxmlError {
+  readonly reports: readonly SchemaReport[];
+
+  constructor(error: SxmlError, reports: SchemaReport[]) {
+    const prefix = /^([^:{}]+):/.exec(error.code)?.[1] ?? '';
+    super({ ...error, codePrefix: prefix });
+    this.name = 'SchemaError';
+    this.reports = Object.freeze(reports);
   }
 }
 
@@ -199,7 +403,23 @@ interface Exports {
   sxml_javascript_evaluate(expression: number, request: number): number;
   sxml_javascript_serialize(processor: number, request: number): number;
   sxml_javascript_string(processor: number, text: number): number;
+  // The full module only (sxml_javascript.h, "Full module").
+  sxml_javascript_query_compile?(processor: number, request: number): number;
+  sxml_javascript_query_destroy?(query: number): void;
+  sxml_javascript_query_is_updating?(query: number): number;
+  sxml_javascript_query_evaluate?(query: number, request: number): number;
+  sxml_javascript_query_serialize?(query: number, value: number): number;
+  sxml_javascript_stylesheet_compile?(processor: number, request: number): number;
+  sxml_javascript_stylesheet_destroy?(stylesheet: number): void;
+  sxml_javascript_stylesheet_transform?(stylesheet: number, request: number): number;
+  sxml_javascript_schema_create?(processor: number): number;
+  sxml_javascript_schema_destroy?(schema: number): void;
+  sxml_javascript_schema_compile?(schema: number, request: number): number;
+  sxml_javascript_schema_validate?(schema: number, request: number): number;
 }
+
+/** The exports only the full module has, checked present. */
+type FullExports = Required<Exports>;
 
 // sxml_status values the package itself returns from the resolver import.
 const status_ok = 0;
@@ -227,11 +447,14 @@ const ducet_uri = 'http://www.unicode.org/Public/UCA/16.0.0/allkeys.txt';
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
+/** The kinds of handle a processor makes. */
+type HandleKind = 'value' | 'expression' | 'query' | 'stylesheet' | 'schema';
+
 /** What a handle's finalizer needs: kept apart from the JavaScript object,
  *  which is gone by then. */
 interface Held {
   processor: ProcessorState;
-  kind: 'processor' | 'value' | 'expression';
+  kind: 'processor' | HandleKind;
   address: number;
 }
 
@@ -242,7 +465,7 @@ class ProcessorState {
   address: number;
   readonly resolver: Resolver | undefined;
   /** Handles not yet released: address to kind. */
-  readonly live = new Map<number, 'value' | 'expression'>();
+  readonly live = new Map<number, HandleKind>();
   /** The exception the resolver threw during the current call. */
   pendingException: unknown = undefined;
   isInResolver = false;
@@ -257,14 +480,32 @@ class ProcessorState {
     this.resolver = resolver;
   }
 
-  releaseHandle(kind: 'value' | 'expression', address: number): void {
+  releaseHandle(kind: HandleKind, address: number): void {
     if (this.address === 0 || !this.live.delete(address)) {
       return;
     }
-    if (kind === 'value') {
-      this.module.exports.sxml_javascript_value_release(address);
-    } else {
-      this.module.exports.sxml_javascript_expression_destroy(address);
+    this.destroyHandle(kind, address);
+  }
+
+  /** Releases a handle by its kind's export. */
+  private destroyHandle(kind: HandleKind, address: number): void {
+    const exports = this.module.exports;
+    switch (kind) {
+      case 'value':
+        exports.sxml_javascript_value_release(address);
+        break;
+      case 'expression':
+        exports.sxml_javascript_expression_destroy(address);
+        break;
+      case 'query':
+        exports.sxml_javascript_query_destroy?.(address);
+        break;
+      case 'stylesheet':
+        exports.sxml_javascript_stylesheet_destroy?.(address);
+        break;
+      case 'schema':
+        exports.sxml_javascript_schema_destroy?.(address);
+        break;
     }
   }
 
@@ -273,11 +514,7 @@ class ProcessorState {
       return;
     }
     for (const [address, kind] of this.live) {
-      if (kind === 'value') {
-        this.module.exports.sxml_javascript_value_release(address);
-      } else {
-        this.module.exports.sxml_javascript_expression_destroy(address);
-      }
+      this.destroyHandle(kind, address);
     }
     this.live.clear();
     if (this.jsonExpression !== 0) {
@@ -351,6 +588,44 @@ function outOfMemory(): SxmlError {
 
 function disposed(what: string): Error {
   return new Error(`sxml: this ${what} has been disposed`);
+}
+
+/** sxml_javascript_side_result_kind. */
+const side_result_updated_tree = 0;
+const side_result_put_document = 1;
+const side_result_result_document = 2;
+const side_result_message = 3;
+const side_result_schema_report = 4;
+
+/** sxml_xslt_invocation_kind and sxml_xslt_result_delivery. */
+const invocation_apply_templates = 0;
+const invocation_call_template = 1;
+const invocation_call_function = 2;
+const result_deliveries: Record<ResultDelivery, number> = { raw: 1, tree: 2, serialized: 3 };
+
+/** sxml_validity. */
+const validities: Validity[] = ['valid', 'invalid', 'not-known'];
+
+/** A side result as read from the module (sxml_javascript_side_result). */
+interface SideResult {
+  kind: number;
+  uri: string;
+  text: string;
+  code: string;
+  first: Value | undefined;
+  second: Value | undefined;
+  lineNumber: number;
+  columnNumber: number;
+  isTerminating: boolean;
+}
+
+/** The four words of a name (sxml_javascript_name); '' gives none. */
+function nameWords(scratch: Scratch, name: string | undefined): number[] {
+  if (name === undefined || name === '') {
+    return [0, 0, 0, 0];
+  }
+  const [namespaceUri, localName] = splitName(name);
+  return [...scratch.view(namespaceUri), ...scratch.view(localName)];
 }
 
 /** Splits an NCName or Q{uri}local into namespace URI and local name. */
@@ -630,6 +905,114 @@ export class Processor {
     }
   }
 
+  /** Compiles an XQuery 4.0 main module, with the library modules it
+   *  imports (the resolver is asked for them, kind 'xquery-module'), for
+   *  evaluating it many times. sxml-full.wasm only. */
+  compileQuery(query: string, options: QueryCompileOptions = {}): XQuery {
+    const exports = this.full('XQuery');
+    const state = this.enter();
+    const scratch = new Scratch(state);
+    let address: number;
+    try {
+      const namespaceWords: number[] = [];
+      for (const [prefix, uri] of Object.entries(options.namespaces ?? {})) {
+        namespaceWords.push(...scratch.view(prefix), ...scratch.view(uri));
+      }
+      const request = scratch.words([
+        ...scratch.view(query),
+        ...scratch.view(options.baseUri ?? ''),
+        namespaceWords.length > 0 ? scratch.words(namespaceWords) : 0,
+        namespaceWords.length / 4,
+      ]);
+      address = exports.sxml_javascript_query_compile(state.address, request);
+      if (address === 0) {
+        throw this.failure();
+      }
+    } finally {
+      scratch.release();
+    }
+    const compiled = new XQuery(this, address, exports.sxml_javascript_query_is_updating(address) !== 0);
+    this.track(compiled, 'query', address);
+    return compiled;
+  }
+
+  /** Compiles an XSLT 4.0 stylesheet, with the modules it includes and
+   *  imports (kind 'xslt-module') and the packages it uses (kind
+   *  'xslt-package'), for running it many times. sxml-full.wasm only. */
+  compileStylesheet(stylesheet: string | Uint8Array, options: StylesheetCompileOptions = {}): Stylesheet {
+    const exports = this.full('XSLT');
+    const state = this.enter();
+    const scratch = new Scratch(state);
+    const made: Value[] = [];
+    let address: number;
+    try {
+      const request = scratch.words([
+        ...scratch.view(stylesheet),
+        ...scratch.view(options.baseUri ?? ''),
+        ...this.bindingWords(scratch, options.staticParameters, made),
+      ]);
+      address = exports.sxml_javascript_stylesheet_compile(state.address, request);
+      if (address === 0) {
+        throw this.failure();
+      }
+    } finally {
+      scratch.release();
+      for (const value of made) {
+        value.dispose();
+      }
+    }
+    const compiled = new Stylesheet(this, address);
+    this.track(compiled, 'stylesheet', address);
+    return compiled;
+  }
+
+  /** Compiles an XSD 1.1 schema from one or more schema documents (a
+   *  string is a document's text), with every document they include,
+   *  import, redefine or override (the resolver is asked, kind
+   *  'schema-document'). Throws a SchemaError with every report when the
+   *  schema has errors. sxml-full.wasm only. */
+  compileSchema(
+    documents: string | SchemaDocument | (string | SchemaDocument)[],
+    options: SchemaCompileOptions = {},
+  ): Schema {
+    const exports = this.full('XSD validation');
+    const state = this.enter();
+    const address = exports.sxml_javascript_schema_create(state.address);
+    if (address === 0) {
+      throw outOfMemory();
+    }
+    const schema = new Schema(this, address);
+    this.track(schema, 'schema', address);
+    const scratch = new Scratch(state);
+    try {
+      const documentWords: number[] = [];
+      const list = Array.isArray(documents) ? documents : [documents];
+      for (const document of list) {
+        const { text, uri } = typeof document === 'string' ? { text: document, uri: '' } : document;
+        documentWords.push(...(text === undefined ? [0, 0] : scratch.view(text)), ...scratch.view(uri ?? ''));
+      }
+      const request = scratch.words([
+        documentWords.length > 0 ? scratch.words(documentWords) : 0,
+        list.length,
+        ...scratch.view(options.baseUri ?? ''),
+        0,
+        0,
+      ]);
+      const status = exports.sxml_javascript_schema_compile(address, request);
+      const reports = schemaReports(this.sideResults(request / 4 + 4));
+      if (status !== status_ok) {
+        const failure = this.failure();
+        throw failure instanceof SxmlError ? new SchemaError(failure, reports) : failure;
+      }
+    } catch (exception) {
+      schema.dispose();
+      throw exception;
+    } finally {
+      scratch.release();
+    }
+    return schema;
+  }
+
   /** Converts JSON-like data to a value (see JsonData). */
   value(data: Input): Value {
     if (data instanceof Value) {
@@ -660,27 +1043,12 @@ export class Processor {
   /** Serializes a value: by the adaptive method without options, else as
    *  fn:serialize with them (method xml unless they name another). */
   serialize(value: Value, options?: SerializationOptions): string {
-    const state = this.enter();
+    this.enter();
     this.check(value);
-    let optionsValue: Value | undefined;
-    if (options !== undefined) {
-      const parameters: Record<string, JsonData> = {};
-      for (const [key, parameter] of Object.entries(options)) {
-        parameters[key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)] = parameter;
-      }
-      optionsValue = this.value(parameters);
-    }
-    const scratch = new Scratch(state);
+    const optionsValue = this.serializationOptions(options);
     try {
-      const request = scratch.words([value.address(), optionsValue?.address() ?? 0]);
-      if (state.module.exports.sxml_javascript_serialize(state.address, request) !== status_ok) {
-        throw this.failure();
-      }
-      const output = state.module.exports.sxml_javascript_output_of(state.address) / 4;
-      const words = state.module.words();
-      return state.module.text(words[output] ?? 0, words[output + 1] ?? 0);
+      return this.serializeWith(value, optionsValue);
     } finally {
-      scratch.release();
       optionsValue?.dispose();
     }
   }
@@ -735,7 +1103,7 @@ export class Processor {
   }
 
   /** @internal Releases a value or expression made with this processor. */
-  releaseHandle(owner: object, kind: 'value' | 'expression', address: number): void {
+  releaseHandle(owner: object, kind: HandleKind, address: number): void {
     this.state.module.untrack(owner);
     this.state.releaseHandle(kind, address);
   }
@@ -792,6 +1160,139 @@ export class Processor {
     }
   }
 
+  /** @internal options as the map fn:serialize takes, keys in kebab
+   *  case; undefined for none. */
+  serializationOptions(options: SerializationOptions | undefined): Value | undefined {
+    if (options === undefined) {
+      return undefined;
+    }
+    const parameters: Record<string, JsonData> = {};
+    for (const [key, parameter] of Object.entries(options)) {
+      parameters[key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)] = parameter;
+    }
+    return this.value(parameters);
+  }
+
+  /** @internal Serializes value with a map or element of parameters, or
+   *  by the adaptive method without. */
+  serializeWith(value: Value, options: Value | undefined): string {
+    const state = this.enter();
+    const scratch = new Scratch(state);
+    try {
+      const request = scratch.words([value.address(), options?.address() ?? 0]);
+      if (state.module.exports.sxml_javascript_serialize(state.address, request) !== status_ok) {
+        throw this.failure();
+      }
+      return this.output();
+    } finally {
+      scratch.release();
+    }
+  }
+
+  /** @internal The text of the processor's last serialization. */
+  output(): string {
+    const module = this.state.module;
+    const output = module.exports.sxml_javascript_output_of(this.state.address) / 4;
+    const words = module.words();
+    return module.text(words[output] ?? 0, words[output + 1] ?? 0);
+  }
+
+  /** @internal An input as a value of this processor; values it made are
+   *  pushed to made, for the caller to dispose. */
+  input(data: Input, made: Value[]): Value {
+    if (data instanceof Value) {
+      this.check(data);
+      return data;
+    }
+    const value = this.value(data);
+    made.push(value);
+    return value;
+  }
+
+  /** @internal The words of bindings (sxml_javascript_binding: name,
+   *  value), as a binding list's two words. */
+  bindingWords(scratch: Scratch, bindings: Record<string, Input> | undefined, made: Value[]): number[] {
+    const words: number[] = [];
+    const entries = Object.entries(bindings ?? {});
+    for (const [name, data] of entries) {
+      words.push(...nameWords(scratch, name), this.input(data, made).address());
+    }
+    return [words.length > 0 ? scratch.words(words) : 0, entries.length];
+  }
+
+  /** @internal The module's full-module exports, or an error saying that
+   *  what needs them needs sxml-full.wasm. */
+  full(what: string): FullExports {
+    const exports = this.state.module.exports;
+    if (exports.sxml_javascript_query_compile === undefined) {
+      throw new Error(`sxml: ${what} needs the full module, sxml-full.wasm`);
+    }
+    return exports as FullExports;
+  }
+
+  /** @internal Registers the handle of a compiled object. */
+  track(owner: object, kind: HandleKind, address: number): void {
+    this.state.live.set(address, kind);
+    this.state.module.track(owner, { processor: this.state, kind, address });
+  }
+
+  /** @internal Adopts a value handle that may be 0 (none). */
+  adoptOptional(address: number): Value | undefined {
+    return address === 0 ? undefined : this.adopt(address);
+  }
+
+  /** @internal The side results a call wrote at words[at], [at + 1]
+   *  (sxml_javascript_side_result_list), every value adopted. */
+  sideResults(at: number): SideResult[] {
+    const module = this.state.module;
+    const list = module.words();
+    const first = (list[at] ?? 0) / 4;
+    const count = list[at + 1] ?? 0;
+    const words = module.words().slice(first, first + count * 12);
+    const results: SideResult[] = [];
+    for (let index = 0; index < count; index += 1) {
+      const word = (offset: number): number => words[index * 12 + offset] ?? 0;
+      const text = (offset: number): string => module.text(word(offset), word(offset + 1));
+      results.push({
+        kind: word(0),
+        uri: text(1),
+        text: text(3),
+        code: text(5),
+        // Every value is the package's now (sxml_javascript.h).
+        first: this.adoptOptional(word(7)),
+        second: this.adoptOptional(word(8)),
+        lineNumber: word(9),
+        columnNumber: word(10),
+        isTerminating: word(11) !== 0,
+      });
+    }
+    return results;
+  }
+
+  /** @internal Hands the MESSAGE side results to a callback. */
+  deliverMessages(results: SideResult[], receive: ((message: Message) => void) | undefined): void {
+    for (const result of results) {
+      if (result.kind === side_result_message && receive !== undefined) {
+        receive({
+          text: result.text,
+          code: result.code,
+          isTerminating: result.isTerminating,
+          sourceName: result.uri,
+          lineNumber: result.lineNumber,
+          columnNumber: result.columnNumber,
+        });
+      }
+    }
+  }
+
+  /** @internal Whether the last operation failed: its error has a
+   *  status, or the resolver threw. */
+  hasFailed(): boolean {
+    const state = this.state;
+    const at = state.module.exports.sxml_javascript_error_of(state.address) / 4;
+    return state.pendingException !== undefined || (state.module.words()[at] ?? 0) !== 0;
+  }
+
   /** @internal The last operation's failure, or the resolver's exception. */
   failure(): unknown {
     const state = this.state;
@@ -811,6 +1312,7 @@ export class Processor {
       codeLocalName: text(5),
       codePrefix: text(7),
       description: text(9),
+      sourceName: text(11),
       lineNumber: word(13),
       columnNumber: word(14),
     });
@@ -871,6 +1373,341 @@ export class XPathExpression {
       this.processor.releaseHandle(this, 'expression', this.handle);
       this.handle = 0;
     }
+  }
+}
+
+// ---------------------------------------------------------------- XQuery
+
+/** A compiled XQuery 4.0 main module (include/sxml/xquery.h).
+ *  Processor.compileQuery makes it. */
+export class XQuery {
+  readonly processor: Processor;
+  /** Whether its body is an updating expression (XQUF 3.0, 2.2): its
+   *  result is then empty and its changes go to options.updates. */
+  readonly isUpdating: boolean;
+  private handle: number;
+
+  /** @internal Use Processor.compileQuery(). */
+  constructor(processor: Processor, address: number, isUpdating: boolean) {
+    this.processor = processor;
+    this.handle = address;
+    this.isUpdating = isUpdating;
+  }
+
+  /** Evaluates the query; the result is a new value. */
+  evaluate(options: QueryEvaluateOptions = {}): Value {
+    const processor = this.processor;
+    const exports = processor.full('XQuery');
+    const address = this.address();
+    const state = processor.enter();
+    const scratch = new Scratch(state);
+    const made: Value[] = [];
+    let result = 0;
+    let failure: unknown;
+    let sideResults: SideResult[] = [];
+    try {
+      const request = scratch.words([
+        options.context === undefined ? 0 : processor.input(options.context, made).address(),
+        ...processor.bindingWords(scratch, options.variables, made),
+        options.updates?.putDocument === undefined ? 0 : 1,
+        0,
+        0,
+      ]);
+      result = exports.sxml_javascript_query_evaluate(address, request);
+      // Read before a callback can use the processor.
+      failure = result === 0 ? processor.failure() : undefined;
+      sideResults = processor.sideResults(request / 4 + 4);
+    } finally {
+      scratch.release();
+      for (const value of made) {
+        value.dispose();
+      }
+    }
+    const value = result === 0 ? undefined : processor.adopt(result);
+    processor.deliverMessages(sideResults, options.messages);
+    deliverUpdates(processor, sideResults, options.updates);
+    if (value === undefined) {
+      throw failure;
+    }
+    return value;
+  }
+
+  /** Serializes a value with the serialization parameters the query's
+   *  output declarations give (XQuery 4.0, 5.22: method xml unless they
+   *  name another). Value.serialize(options) uses options instead. */
+  serialize(value: Value): string {
+    const processor = this.processor;
+    const exports = processor.full('XQuery');
+    processor.enter();
+    processor.check(value);
+    if (exports.sxml_javascript_query_serialize(this.address(), value.address()) !== status_ok) {
+      throw processor.failure();
+    }
+    return processor.output();
+  }
+
+  /** Evaluates the query and serializes its result as serialize() does. */
+  run(options: QueryEvaluateOptions = {}): string {
+    const result = this.evaluate(options);
+    try {
+      return this.serialize(result);
+    } finally {
+      result.dispose();
+    }
+  }
+
+  dispose(): void {
+    if (this.handle !== 0) {
+      this.processor.releaseHandle(this, 'query', this.handle);
+      this.handle = 0;
+    }
+  }
+
+  private address(): number {
+    if (this.handle === 0) {
+      throw disposed('query');
+    }
+    return this.handle;
+  }
+}
+
+/** Hands UPDATED_TREE and PUT_DOCUMENT side results to the sink; disposes
+ *  what it does not take. */
+function deliverUpdates(processor: Processor, results: SideResult[], sink: UpdateSink | undefined): void {
+  for (const result of results) {
+    if (result.kind === side_result_updated_tree && result.first !== undefined && result.second !== undefined) {
+      if (sink?.updatedTree !== undefined) {
+        sink.updatedTree({ original: result.first, updated: result.second });
+      } else {
+        result.first.dispose();
+        result.second.dispose();
+      }
+    } else if (result.kind === side_result_put_document && result.first !== undefined) {
+      const node = result.first;
+      const parameters = result.second;
+      if (sink?.putDocument !== undefined) {
+        sink.putDocument({
+          uri: result.uri,
+          node,
+          parameters,
+          serialize: (): string => {
+            if (parameters !== undefined) {
+              return processor.serializeWith(node, parameters);
+            }
+            const options = processor.value({});
+            try {
+              return processor.serializeWith(node, options);
+            } finally {
+              options.dispose();
+            }
+          },
+        });
+      } else {
+        node.dispose();
+        parameters?.dispose();
+      }
+    }
+  }
+}
+
+// ------------------------------------------------------------------ XSLT
+
+/** A compiled XSLT 4.0 stylesheet (include/sxml/xslt.h).
+ *  Processor.compileStylesheet makes it. */
+export class Stylesheet {
+  readonly processor: Processor;
+  private handle: number;
+
+  /** @internal Use Processor.compileStylesheet(). */
+  constructor(processor: Processor, address: number) {
+    this.processor = processor;
+    this.handle = address;
+  }
+
+  /** Runs one transformation (XSLT 4.0, 2.3): applies templates to the
+   *  source, or calls options.initialTemplate or options.initialFunction. */
+  transform(options: TransformOptions = {}): TransformResult {
+    const processor = this.processor;
+    const exports = processor.full('XSLT');
+    const address = this.address();
+    const state = processor.enter();
+    const scratch = new Scratch(state);
+    const made: Value[] = [];
+    const delivery = options.delivery ?? 'serialized';
+    let result = 0;
+    let failure: unknown;
+    let output: string | undefined;
+    let sideResults: SideResult[] = [];
+    try {
+      const input = (data: Input | undefined): number =>
+        data === undefined ? 0 : processor.input(data, made).address();
+      const args = (options.args ?? []).map(input);
+      const serialization = processor.serializationOptions(options.serialization);
+      if (serialization !== undefined) {
+        made.push(serialization);
+      }
+      const invocation =
+        options.initialFunction !== undefined
+          ? invocation_call_function
+          : options.initialTemplate !== undefined ||
+              (options.source === undefined && options.initialMatchSelection === undefined)
+            ? invocation_call_template
+            : invocation_apply_templates;
+      const unnamedMode = options.initialMode === '#unnamed';
+      const request = scratch.words([
+        input(options.source),
+        input(options.initialMatchSelection),
+        ...processor.bindingWords(scratch, options.parameters, made),
+        ...processor.bindingWords(scratch, options.templateParameters, made),
+        ...processor.bindingWords(scratch, options.tunnelParameters, made),
+        args.length > 0 ? scratch.words(args) : 0,
+        args.length,
+        ...scratch.view(options.baseOutputUri ?? ''),
+        serialization?.address() ?? 0,
+        ...nameWords(scratch, unnamedMode ? undefined : options.initialMode),
+        ...nameWords(scratch, options.initialTemplate),
+        ...nameWords(scratch, options.initialFunction),
+        invocation,
+        result_deliveries[delivery],
+        result_deliveries[options.resultDocumentDelivery ?? 'serialized'],
+        unnamedMode ? 1 : 0,
+        0,
+        0,
+      ]);
+      result = exports.sxml_javascript_stylesheet_transform(address, request);
+      // Read before a callback can use the processor.
+      failure = result === 0 ? processor.failure() : undefined;
+      if (result !== 0 && delivery === 'serialized') {
+        output = processor.output();
+      }
+      sideResults = processor.sideResults(request / 4 + 29);
+    } finally {
+      scratch.release();
+      for (const value of made) {
+        value.dispose();
+      }
+    }
+    const value = result === 0 ? undefined : processor.adopt(result);
+    processor.deliverMessages(sideResults, options.messages);
+    const resultDocuments: ResultDocument[] = [];
+    for (const side of sideResults) {
+      if (side.kind === side_result_result_document) {
+        resultDocuments.push({
+          uri: side.uri,
+          output: side.first === undefined ? side.text : undefined,
+          value: side.first,
+        });
+      }
+    }
+    if (value === undefined) {
+      for (const document of resultDocuments) {
+        document.value?.dispose();
+      }
+      throw failure;
+    }
+    if (delivery === 'serialized') {
+      value.dispose();
+      return { output, value: undefined, resultDocuments };
+    }
+    return { output: undefined, value, resultDocuments };
+  }
+
+  dispose(): void {
+    if (this.handle !== 0) {
+      this.processor.releaseHandle(this, 'stylesheet', this.handle);
+      this.handle = 0;
+    }
+  }
+
+  private address(): number {
+    if (this.handle === 0) {
+      throw disposed('stylesheet');
+    }
+    return this.handle;
+  }
+}
+
+// ------------------------------------------------------------------- XSD
+
+/** The SCHEMA_REPORT side results as reports. */
+function schemaReports(results: SideResult[]): SchemaReport[] {
+  return results
+    .filter((result) => result.kind === side_result_schema_report)
+    .map((result) => ({
+      code: result.code,
+      description: result.text,
+      sourceName: result.uri,
+      lineNumber: result.lineNumber,
+      columnNumber: result.columnNumber,
+    }));
+}
+
+/** A compiled XSD 1.1 schema (include/sxml/schema.h).
+ *  Processor.compileSchema makes it. */
+export class Schema {
+  readonly processor: Processor;
+  private handle: number;
+
+  /** @internal Use Processor.compileSchema(). */
+  constructor(processor: Processor, address: number) {
+    this.processor = processor;
+    this.handle = address;
+  }
+
+  /** Validates a document (XSD 1.1 Part 1, 5.2): XML text, parsed and
+   *  validated in one pass so that reports have its lines and columns, or
+   *  a document or element node of this processor. An invalid document is
+   *  not an exception: see the result's validity and reports. Text that
+   *  is not well-formed throws, as Processor.parse does. */
+  validate(input: Value | string | Uint8Array, options: ValidateOptions = {}): ValidationResult {
+    const processor = this.processor;
+    const exports = processor.full('XSD validation');
+    const address = this.address();
+    if (input instanceof Value) {
+      processor.check(input);
+    }
+    const state = processor.enter();
+    const scratch = new Scratch(state);
+    let result = 0;
+    let failure: unknown;
+    let validity: Validity = 'invalid';
+    let reports: SchemaReport[] = [];
+    try {
+      const request = scratch.words([
+        input instanceof Value ? input.address() : 0,
+        ...(input instanceof Value ? [0, 0] : scratch.view(input)),
+        ...scratch.view(options.uri ?? ''),
+        options.mode === 'lax' ? 1 : 0,
+        ...nameWords(scratch, options.type),
+        0,
+        0,
+        0,
+      ]);
+      result = exports.sxml_javascript_schema_validate(address, request);
+      failure = result === 0 && processor.hasFailed() ? processor.failure() : undefined;
+      validity = validities[state.module.words()[request / 4 + 10] ?? 1] ?? 'invalid';
+      reports = schemaReports(processor.sideResults(request / 4 + 11));
+    } finally {
+      scratch.release();
+    }
+    if (failure !== undefined) {
+      throw failure;
+    }
+    return { validity, reports, document: processor.adoptOptional(result) };
+  }
+
+  dispose(): void {
+    if (this.handle !== 0) {
+      this.processor.releaseHandle(this, 'schema', this.handle);
+      this.handle = 0;
+    }
+  }
+
+  private address(): number {
+    if (this.handle === 0) {
+      throw disposed('schema');
+    }
+    return this.handle;
   }
 }
 
