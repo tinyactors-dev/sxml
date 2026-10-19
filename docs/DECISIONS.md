@@ -8179,6 +8179,17 @@ Recorded 2026-10-19, after D197 and D99. Follows up D197's "Not done".
   chooses its default method as an explicit result document: xhtml for an
   XHTML html element, also in a 1.0 stylesheet (XSLT 4.0, 26.1).
 
+### D207. JavaScript module budgets raised: core 2,200,000, full 4,000,000 (owner)
+Recorded 2026-10-19 on the owner's choices. Amends D184 and D189.
+- The core `sxml.wasm` crept to 2,120,223 bytes stripped over D184's
+  2,100,000 (small additions of several packets; XPath 1.0 compatibility
+  mode, D197, added 9,776). The owner chose to raise the budget, not to move
+  schema validation out of the core: 2,200,000 stripped, 770,000 gzipped.
+- fn:transform (packet 7.11) links the XSLT processor into
+  `sxml-full.wasm`, now 3,553,063 bytes. The owner chose to keep it there and
+  raise the full budget to 4,000,000 stripped, 1,400,000 gzipped.
+- The gzipped limits keep D138's ratio of 0.35.
+
 ## Proposed
 
 - **xs:numeric parameters in XPath 1.0 compatibility mode** (packet 7.4b,
