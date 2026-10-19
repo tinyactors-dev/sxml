@@ -8551,12 +8551,12 @@ until 7.6b.
   (Proposed); the feature and the strm group stay outside the D95
   denominator. system-property-013 (streaming satisfied="false") is
   therefore not applicable.
-- **Measured** (release driver, whole XT40, at f12ac89 with and without
-  the analysis): the 2,936 cases that need the feature streaming, not run
-  before, 2,835 passed (2,681 with the feature claimed and no analysis);
-  154 of the 156 that expect XTSE3430 pass; the strm group 2,497 of
-  2,564 (97.4 %); every other case as before (8,870 to 8,875 passed,
-  system-property-013 not applicable). No case that passed fails.
+- **Measured** (release driver, whole XT40, ed905be and 8a8fd58): passed
+  8,952 to 11,792. The 2,936 cases that need the feature streaming, not
+  run before, 2,841 passed (2,681 with the feature claimed and no
+  analysis, at f12ac89); 154 of the 156 that expect XTSE3430 pass; the
+  strm group 2,503 of 2,564 (97.6 %). Every other case as before
+  (system-property-013 now not applicable: 8,952 to 8,951).
 - **Not done, left to 7.6b**: streamed evaluation itself (the receiving
   task fed by the parser, D166); the two XTSE3430 cases the analysis
   misses (sf-filter-001, marked _WRONG in the suite; si-fork-953, sorted
