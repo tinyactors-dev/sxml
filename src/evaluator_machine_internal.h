@@ -338,6 +338,28 @@ typedef struct sxml_predicate_value {
 SXML_NODISCARD sxml_status sxml_evaluator_machine_test_predicate(
     sxml_dynamic_context *dynamic_context, const sxml_predicate_value *predicate, bool *selects);
 
+/* ------------------------------------------------------ Filter indexes */
+
+/* A FILTER with a filter index (D224) and its input. */
+typedef struct sxml_filter_index_request {
+    /* In its unit: the memo keeps the FILTER's index under its address. */
+    const sxml_ir_filter *filter;
+    /* Borrowed; the task retains it. */
+    sxml_sequence input;
+} sxml_filter_index_request;
+
+/*
+ * Pushes the filter index task (src/evaluator_index.c) above the FILTER's
+ * task on top, in its function and frame. The task finishes with the
+ * candidates: the items of the input, in order, whose index key compares
+ * with the index probe's value, which are the only items the predicate
+ * can select; or with the input itself when the index cannot say. Its
+ * task binds the FILTER's focus value slot. Returns the allocator's
+ * failures.
+ */
+SXML_NODISCARD sxml_status sxml_evaluator_start_filter_index(
+    sxml_dynamic_context *dynamic_context, const sxml_filter_index_request *request);
+
 /* --------------------------------------------------- Global variables */
 
 /*

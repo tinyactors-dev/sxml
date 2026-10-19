@@ -101,8 +101,20 @@ typedef struct sxml_ir_pass_view {
 SXML_NODISCARD sxml_status sxml_ir_verify(const sxml_ir_pass_request *request);
 
 /*
- * The passes compile runs, in order (src/ir.c, packet 1.12). Phase 1:
- * {"verify", sxml_ir_verify}.
+ * The filter-index pass (src/ir_loop_passes.c, D224): gives a FILTER
+ * whose predicate needs "key = probe", "key eq probe" or "key is probe"
+ * to be true, with a key that reads only the focus value and a probe that
+ * reads no focus, a filter index (sxml_ir_filter_index): copies of the
+ * expressions of both operands. Changes nothing else. A unit at its
+ * expression limit keeps the filters indexed so far. Returns the
+ * allocator's failures.
+ */
+SXML_NODISCARD sxml_status sxml_ir_index_filters(const sxml_ir_pass_request *request);
+
+/*
+ * The passes compile runs, in order (src/ir.c, packet 1.12):
+ * {"verify", sxml_ir_verify}, {"filter-index", sxml_ir_index_filters}
+ * (D224).
  */
 extern const sxml_ir_pass_view sxml_ir_standard_passes;
 

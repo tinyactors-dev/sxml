@@ -637,11 +637,34 @@ typedef struct sxml_ir_map {
     uint32_t flags;
 } sxml_ir_map;
 
+/*
+ * The filter index of a FILTER (glossary `filter_index`, D224): set by the
+ * filter-index pass (src/ir_loop_passes.c), 0 fields when there is none.
+ * The predicate has a conjunct "key OPERATOR probe" that must be true for
+ * the predicate to be true: key reads only the focus value (with
+ * globals and constants), and probe does not read the focus. The
+ * evaluator may then take as candidates the items whose key compares
+ * with the probe's value, from an index of the input by key kept in the
+ * evaluation memo, and test the predicate on the candidates only
+ * (src/evaluator_index.c); the result is the same.
+ */
+typedef struct sxml_ir_filter_index {
+    /* The index key: copies of the predicate's expressions that compute
+       the key operand, with the FILTER's focus value; 0 for no index. */
+    sxml_ir_expression_index key;
+    /* The index probe: copies of the expressions that compute the other
+       operand, evaluated without the focus. */
+    sxml_ir_expression_index probe;
+    /* SXML_IR_BINARY_OPERATOR_GENERAL_EQUAL, _VALUE_EQUAL or _IS. */
+    sxml_ir_binary_operator key_operator;
+} sxml_ir_filter_index;
+
 /* FILTER. */
 typedef struct sxml_ir_filter {
     sxml_ir_atom input;
     sxml_ir_focus focus;
     sxml_ir_expression_index predicate;
+    sxml_ir_filter_index index;
 } sxml_ir_filter;
 
 typedef enum sxml_ir_quantifier {

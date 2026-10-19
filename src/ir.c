@@ -2294,6 +2294,8 @@ typedef enum print_task_kind {
     /* The static form of function value: header and body (static form
        only). */
     SXML_PRINT_TASK_KIND_FUNCTION_FORM,
+    /* "(index OPERATOR" of the filter index of FILTER value (D224). */
+    SXML_PRINT_TASK_KIND_FILTER_INDEX,
 } print_task_kind;
 
 typedef struct print_task {
@@ -2613,6 +2615,28 @@ static sxml_status print_expression(text_writer *writer, print_stack *stack,
         write_atom(writer, expression->filter.input);
         write_text(writer, " ");
         write_focus(writer, expression->filter.focus);
+        if (expression->filter.index.key.value != 0) {
+            /* (index OPERATOR KEY PROBE) after the predicate. */
+            const print_task tasks[] = {
+                {.task_kind = SXML_PRINT_TASK_KIND_CLOSE},
+                {.task_kind = SXML_PRINT_TASK_KIND_EXPRESSION,
+                 .value = expression->filter.index.probe.value},
+                {.task_kind = SXML_PRINT_TASK_KIND_NEWLINE, .value = indent + 2},
+                {.task_kind = SXML_PRINT_TASK_KIND_EXPRESSION,
+                 .value = expression->filter.index.key.value},
+                {.task_kind = SXML_PRINT_TASK_KIND_NEWLINE, .value = indent + 2},
+                {.task_kind = SXML_PRINT_TASK_KIND_FILTER_INDEX, .value = index.value},
+                {.task_kind = SXML_PRINT_TASK_KIND_NEWLINE, .value = indent},
+            };
+            for (size_t task_index = 0;
+                 status == SXML_STATUS_OK && task_index < sizeof(tasks) / sizeof(tasks[0]);
+                 task_index += 1) {
+                status = push_print_task(stack, tasks[task_index]);
+            }
+            if (status != SXML_STATUS_OK) {
+                return status;
+            }
+        }
         return push_nested_operand(
             stack, (nested_operand){.expression = expression->filter.predicate,
                                     .indent = indent});
@@ -2953,6 +2977,13 @@ static sxml_status run_print_tasks(text_writer *writer, print_stack *stack) {
         case SXML_PRINT_TASK_KIND_FINALLY:
             write_text(writer, "(finally");
             break;
+        case SXML_PRINT_TASK_KIND_FILTER_INDEX: {
+            const sxml_ir_expression *filter = sxml_ir_unit_get_expression(
+                writer->unit, (sxml_ir_expression_index){.value = task.value});
+            write_text(writer, "(index ");
+            write_text(writer, binary_operator_name(filter->filter.index.key_operator));
+            break;
+        }
         case SXML_PRINT_TASK_KIND_FUNCTION_FORM: {
             const sxml_ir_function *function = sxml_ir_unit_get_function(
                 writer->unit, (sxml_ir_function_index){.value = task.value});
@@ -3120,6 +3151,7 @@ sxml_status sxml_ir_function_has_same_static_form(sxml_ir_function_pair pair,
 
 static const sxml_ir_pass standard_passes[] = {
     {.pass_name = SXML_BYTE_VIEW_INITIALIZER("verify"), .run = sxml_ir_verify},
+    {.pass_name = SXML_BYTE_VIEW_INITIALIZER("filter-index"), .run = sxml_ir_index_filters},
 };
 
 const sxml_ir_pass_view sxml_ir_standard_passes = {

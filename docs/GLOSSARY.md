@@ -143,6 +143,9 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `document_loader` | Internal interface through which fn:doc and fn:parse-xml obtain document nodes; the processor implements it |
 | `evaluation_environment` | What the library functions of one evaluation read from the host beyond fn:doc: the resolver for text, binary and collection resources, the trace sink, the default language, environment variables, and the static context's decimal formats and collations; carried by the processor's document loader |
 | `evaluation_memo` | Values a native body computes once per evaluation and subject node (an xsl:key's index for one tree), kept in the dynamic context until the evaluation ends (D149) |
+| `filter_index` | An index of a FILTER's input by the `index_key` of a comparison its predicate needs to be true ("=", "eq", "is"), kept in the evaluation memo, so the predicate is tested only on the items whose key compares with the `index_probe` (D224) |
+| `index_key` | The operand of a filter index's comparison that is computed from the focus value alone; the IR holds copies of its expressions |
+| `index_probe` | The other operand of a filter index's comparison, computed once per evaluation of the FILTER without the focus |
 | `current_item` | XSLT's current item (fn:current, XSLT 4.0, 20.3.1): the context value the outermost expression started with, the focus of its embedding; in a pattern, the item being matched (D149) |
 | `xslt_function_table` | The function table put in front of every static context of a stylesheet: stylesheet functions lowered into the unit (fn:key, fn:copy-of), then the XSLT-only library parts (D149) |
 | `context_function` | An XSLT function whose value an enclosing instruction sets lexically: fn:current-group, fn:current-grouping-key, fn:current-merge-group, fn:current-merge-key; lowering reads a variable of the same local name in the XSLT namespace, absent when none is in scope (D152) |

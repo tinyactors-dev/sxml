@@ -704,7 +704,8 @@ static sxml_status visit_expression(verifier *checker,
                                         .focus = expression->map.focus});
         }
         return status;
-    case SXML_IR_EXPRESSION_KIND_FILTER:
+    case SXML_IR_EXPRESSION_KIND_FILTER: {
+        const sxml_ir_filter_index *filter_index = &expression->filter.index;
         status = check_required_atom(checker, expression->filter.input);
         if (status == SXML_STATUS_OK) {
             status = check_focus_slots(checker, expression->filter.focus);
@@ -715,7 +716,26 @@ static sxml_status visit_expression(verifier *checker,
                 (scoped_visit){.expression = expression->filter.predicate,
                                .focus = expression->filter.focus});
         }
+        if (status != SXML_STATUS_OK || filter_index->key.value == 0) {
+            return status;
+        }
+        /* A filter index (D224): the key with the focus value only, the
+           probe outside the focus. */
+        if (filter_index->probe.value == 0 || expression->filter.focus.context_value.value == 0 ||
+            (filter_index->key_operator != SXML_IR_BINARY_OPERATOR_GENERAL_EQUAL &&
+             filter_index->key_operator != SXML_IR_BINARY_OPERATOR_VALUE_EQUAL &&
+             filter_index->key_operator != SXML_IR_BINARY_OPERATOR_IS)) {
+            return report(checker, "a filter index is incomplete");
+        }
+        status = push_scoped_visit(
+            checker,
+            (scoped_visit){.expression = filter_index->key,
+                           .focus = {.context_value = expression->filter.focus.context_value}});
+        if (status == SXML_STATUS_OK) {
+            status = push_visit(checker, filter_index->probe);
+        }
         return status;
+    }
     case SXML_IR_EXPRESSION_KIND_QUANTIFIED: {
         if (expression->quantified.quantifier != SXML_IR_QUANTIFIER_SOME &&
             expression->quantified.quantifier != SXML_IR_QUANTIFIER_EVERY) {

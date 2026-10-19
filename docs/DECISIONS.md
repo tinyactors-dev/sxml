@@ -9358,6 +9358,29 @@ progress; completed when the packet ends.
   iterator; the step tests the description it has and makes an item
   only for a node that matches. Two XNodes of one tree are ordered and
   compared from their items. Steps are unchanged.
+- **Filter indexes** (glossary `filter_index`, `index_key`,
+  `index_probe`): the filter-index pass (`src/ir_loop_passes.c`, in the
+  optimizer seam of D46) gives a FILTER whose predicate needs
+  "key = probe", "eq" or "is" to be true (through LETs and "and") a
+  filter index, copies of the key's expressions (the focus value, globals
+  and constants only) and of the probe's (no focus); only plain
+  expressions are copied (no constructors, function items, try/catch,
+  nondeterministic or context-reading natives; IR functions by a
+  fixpoint over the call graph). A for clause's where becomes such a
+  FILTER of the for clause's input. At run time
+  (`src/evaluator_index.c`) a FILTER of 16 items or more keeps one memo
+  entry (D149) with the last input it saw: the second time it sees an
+  input it builds the index (key values ordered by codepoints, nodes by
+  document order), later times it binary-searches the probe's values and
+  tests the predicate on the candidates only. The index answers only
+  where its answer is exact: string-like keys and probes for "=" and
+  "eq" under the codepoint collation, one value for "eq" and "is", nodes
+  for "is", no dynamic or type error in a key or the probe (the task
+  catches them); otherwise every item is tested as before, so values and
+  errors are those without the index. Memory: one entry per FILTER
+  expression, the size of its last input. Steps are fewer: the keys'
+  own steps, one per key value built, one per probe value and candidate.
+  itunes 80.6 to 4.1 processor seconds; XQ40 and XT40 unchanged.
 ### D222. Bounded memory for XML parsing: document segments (packet xml-mem)
 Recorded 2026-10-19, after D12, D45, D71, D195, D199, D219. Amends D12's
 "the concrete syntax tree is freed before the parse function returns"

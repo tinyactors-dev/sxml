@@ -3814,22 +3814,125 @@ static sxml_status sxml_filter_select_inline(sxml_dynamic_context *context,
     return status;
 }
 
-/* A bit of the task phase of a FILTER beyond bit 0 (sxml_loop_start):
-   the value now computed is of a predicate that reads no focus slot. */
+/* Bits of the task phase of a FILTER beyond bit 0 (sxml_loop_start). */
 enum {
+    /* The value now computed is of a predicate that reads no focus slot. */
     SXML_FILTER_PHASE_ONCE = 1U << 1U,
+    /* The value now computed is the candidates of the filter index task
+       (src/evaluator_index.c). */
+    SXML_FILTER_PHASE_INDEXING = 1U << 2U,
 };
+
+/* The fewest input items a FILTER looks up in a filter index for (D224):
+   below, testing every item costs less than the memo does. */
+#define SXML_FILTER_INDEX_MINIMUM_ITEM_COUNT 16
+
+/*
+ * A FILTER whose predicate is ". instance of T" over its focus value only
+ * (as $V[. instance of gnode()] of a pattern rooted at a variable, XSLT
+ * 4.0, 6.3.2.2): every item is matched against T in one step of this task,
+ * charged a step per item as the inline predicate would be. When every
+ * item matches, the value is the input itself, so a FILTER over it keeps
+ * one input for its filter index (D224).
+ */
+static sxml_status sxml_filter_by_type(sxml_dynamic_context *context,
+                                       sxml_sequence_type sequence_type) {
+    sxml_loop_state *loop = &sxml_machine_top(context)->details.loop;
+    uint64_t item_count = 0;
+    sxml_status status = sxml_sequence_count(loop->input, context->error_record, &item_count);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_dynamic_context_charge_steps(context, item_count);
+    }
+    /* First pass: whether every item matches. */
+    bool is_every_item = true;
+    sxml_sequence_iterator iterator = sxml_sequence_iterator_start(loop->input);
+    while (status == SXML_STATUS_OK && is_every_item) {
+        sxml_iteration_step step;
+        status = sxml_sequence_iterator_next(&iterator, context->error_record, &step);
+        if (status != SXML_STATUS_OK || !step.has_item) {
+            break;
+        }
+        sxml_type_match match = {.is_match = false};
+        status = sxml_evaluator_match_sequence_type(
+            context,
+            &(sxml_type_match_request){.value = sxml_sequence_from_item(step.item),
+                                       .sequence_type = sequence_type,
+                                       .error_record = context->error_record},
+            &match);
+        is_every_item = match.is_match;
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (is_every_item) {
+        sxml_sequence_retain(loop->input);
+        return sxml_machine_finish(context, loop->input);
+    }
+    iterator = sxml_sequence_iterator_start(loop->input);
+    while (status == SXML_STATUS_OK) {
+        sxml_iteration_step step;
+        status = sxml_sequence_iterator_next(&iterator, context->error_record, &step);
+        if (status != SXML_STATUS_OK || !step.has_item) {
+            break;
+        }
+        sxml_type_match match = {.is_match = false};
+        status = sxml_evaluator_match_sequence_type(
+            context,
+            &(sxml_type_match_request){.value = sxml_sequence_from_item(step.item),
+                                       .sequence_type = sequence_type,
+                                       .error_record = context->error_record},
+            &match);
+        if (status == SXML_STATUS_OK && match.is_match) {
+            sxml_item_retain(step.item);
+            status = sxml_loop_append(context, loop, sxml_sequence_from_item(step.item));
+        }
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_loop_finish(context);
+}
+
+/* Moves a FILTER's focus to the next item and evaluates the predicate,
+   or finishes after the last item. */
+static sxml_status sxml_filter_advance(sxml_dynamic_context *context,
+                                       const sxml_ir_filter *filter) {
+    sxml_loop_progress progress = {.is_done = false};
+    sxml_status status = sxml_loop_advance_focus(
+        context, (sxml_loop_advance){.focus = filter->focus, .body = filter->predicate},
+        &progress);
+    if (status == SXML_STATUS_OK && progress.is_done) {
+        status = sxml_loop_finish(context);
+    }
+    return status;
+}
 
 /* FILTER (XPath 4.0, section 4.4.1). A predicate whose focus slots are
    all unused (it does not depend on the focus) has the same value for
    every item, so it is computed once and applied as a constant one is:
    $sequence[$k] takes one item instead of testing every position. A leaf
-   predicate is computed in this task (sxml_filter_inline_predicate). */
+   predicate is computed in this task (sxml_filter_inline_predicate). A
+   FILTER with a filter index and a long input asks the filter index task
+   for candidates first (src/evaluator_index.c, D224). */
 static sxml_status sxml_machine_step_filter(sxml_dynamic_context *context,
                                             const sxml_ir_filter *filter) {
     sxml_evaluator_task *task = sxml_machine_top(context);
     sxml_status status = SXML_STATUS_OK;
     const sxml_ir_expression *inline_predicate = sxml_filter_inline_predicate(task, filter);
+    if ((task->phase & SXML_FILTER_PHASE_INDEXING) != 0) {
+        /* The predicate is tested on the candidates only (D224): every
+           other item has a key that does not compare with the probe, so
+           the predicate is false for it. */
+        task->phase &= ~(uint32_t)SXML_FILTER_PHASE_INDEXING;
+        sxml_loop_state *loop = &task->details.loop;
+        sxml_sequence_release(loop->input);
+        loop->input = sxml_machine_take_value(context);
+        loop->iterator = sxml_sequence_iterator_start(loop->input);
+        if (inline_predicate != NULL) {
+            return sxml_filter_select_inline(context, filter, inline_predicate);
+        }
+        return sxml_filter_advance(context, filter);
+    }
     if (inline_predicate != NULL && task->phase == 1) {
         return sxml_filter_select_inline(context, filter, inline_predicate);
     }
@@ -3860,6 +3963,26 @@ static sxml_status sxml_machine_step_filter(sxml_dynamic_context *context,
                                        .needs_size = filter->focus.context_size.value != 0});
         if (status != SXML_STATUS_OK) {
             return status;
+        }
+        if (predicate->expression_kind == SXML_IR_EXPRESSION_KIND_INSTANCE_OF &&
+            predicate->type_test.value.atom_kind == SXML_IR_ATOM_KIND_SLOT &&
+            predicate->type_test.value.slot.value == filter->focus.context_value.value &&
+            filter->focus.context_position.value == 0 && filter->focus.context_size.value == 0) {
+            return sxml_filter_by_type(context, predicate->type_test.sequence_type);
+        }
+        if (filter->index.key.value != 0) {
+            uint64_t item_count = 0;
+            status = sxml_sequence_count(task->details.loop.input, context->error_record,
+                                         &item_count);
+            if (status != SXML_STATUS_OK) {
+                return status;
+            }
+            if (item_count >= SXML_FILTER_INDEX_MINIMUM_ITEM_COUNT) {
+                task->phase |= SXML_FILTER_PHASE_INDEXING;
+                return sxml_evaluator_start_filter_index(
+                    context, &(sxml_filter_index_request){.filter = filter,
+                                                          .input = task->details.loop.input});
+            }
         }
         if (is_constant) {
             sxml_constant_filter constant_filter = {.is_handled = false};
@@ -3901,14 +4024,7 @@ static sxml_status sxml_machine_step_filter(sxml_dynamic_context *context,
             return status;
         }
     }
-    sxml_loop_progress progress = {.is_done = false};
-    status = sxml_loop_advance_focus(
-        context, (sxml_loop_advance){.focus = filter->focus, .body = filter->predicate},
-        &progress);
-    if (status == SXML_STATUS_OK && progress.is_done) {
-        status = sxml_loop_finish(context);
-    }
-    return status;
+    return sxml_filter_advance(context, filter);
 }
 
 /* QUANTIFIED (XPath 4.0, section 4.15): stops at the first item that
