@@ -23,13 +23,12 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 
 - 7.12a XQuery/XPath Full Text, part 1.
 - JavaScript bindings for XQuery, XSLT and validation (js-1).
-- 7.6a XSLT streamability analysis.
+- 7.6b XSLT streamed evaluation.
 - 7.15a UCA collations.
 
 ## Next
 
-- Phase 7 (`docs/tasks/phase-7.md`, D183, D184): 7.6b streamed
-  evaluation after 7.6a; 7.10b HTML follow-ups; Full Text, UCA, timezones, calendars and languages, iXML.
+- Phase 7 (`docs/tasks/phase-7.md`, D183, D184): 7.10b HTML follow-ups; Full Text, UCA, timezones, calendars and languages, iXML.
 - `sxml` CLI gaps: `--output`, writing result documents, `--method=csv`,
   "did you mean" for options of a command.
 
@@ -105,6 +104,10 @@ of 130; XT40 transform 9 of 12. Left: fn:transform in static expressions
 scope/loader/available documents/trace sink, XSLT 2.0 behaviour for
 xslt-version 2.0, the QT4 driver's base URI for query files, `~record`
 patterns.
+
+Streaming analysis (7.6a, D212): strm/ 2,503 of 2,564 (evaluation still
+unstreamed); XTSE3430 154 of 156. XT40 8,952 -> 11,792 with the streaming
+feature claimed.
 
 Timezones (7.16, D209): fn-civil-timezone 9 of 9, the 8 olson-timezone
 cases pass; tzdata 2026e vendored, served by the host as TZif. Left: a
