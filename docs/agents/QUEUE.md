@@ -23,7 +23,6 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 - 7.6a XSLT streamability analysis.
 - 7.15a UCA collations.
 - 7.16 timezone database.
-- 7.14c DTD follow-ups: QT4 driver features, `sxml check` flags, XT40 dtd failures.
 
 ## Next
 
@@ -87,7 +86,10 @@ CLI's missing static base URI (relative `html-doc`/`unparsed-text` in
 `sxml xpath`/`xquery`).
 
 DTD (7.14a/b done, D199): xmlconf external-entity cases all pass, XML 1.1
-not-wf 169 of 169; XT40 dtd 68 of 79 (gate 90 %); XT40 8,931.
+not-wf 169 of 169; XT40 dtd 76 of 79 after 7.14c (D210); `sxml check
+--external-entities` and `--validate-dtd`. Left: supports-dtd-validation
+should follow D211's dtd-validation feature (needs the processor's feature
+set in fn:system-properties); error-1370a/1380a expect XSLT 2.0 codes.
 
 XQuery Update (7.7a-c done, D187, D205): upd-* 787 of 825 (98.6 % of 798
 in scope). Left: XUDY0038 for dynamic calls of updating function items (the
