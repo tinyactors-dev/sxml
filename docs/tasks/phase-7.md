@@ -426,7 +426,7 @@ part 1.2 KB of the core module.
     accumulators while streaming, (c) xsl:fork and xsl:merge, and a
     principal result held whole until it is serialized (the identity
     keeps memory proportional to its output).
-- **7.6e The last streamed shapes** (after 7.6d; D230), in order: (a)
+- **7.6e The last streamed shapes** (after 7.6d; D231), in order: (a)
   accumulators computed while streaming: pre-descent and post-descent
   rules, fn:accumulator-before and -after on streamed nodes, the
   streamability of accumulator rules (18.2.9); (b) xsl:fork, then

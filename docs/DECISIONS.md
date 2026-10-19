@@ -10095,74 +10095,6 @@ each change is judged by.
   MAPs (their XPTY0019 and JNode selector rules order errors) and sort
   keys; the machine's task struct is copied whole on each push.
 
-### D230. The last streamed shapes: accumulators while streaming (packet 7.6e)
-Recorded 2026-10-19, after D71, D155, D212, D219, D223, D228. In progress;
-completed when the packet ends. Replaces D223's and D228's "accumulators
-computed while streaming are not done" and their rule that a stylesheet
-reading an accumulator streams nothing.
-- **Accumulators while streaming** (XSLT 4.0, 18.2.9, 19.3, 19.4;
-  glossary `streamed_accumulator_values`): STREAM with OPENS_DOCUMENT gets
-  `sxml_ir_stream_accumulators`, four functions of the unit
-  (`src/xslt_accumulator.c`): stream-initial-N($root), the initial values
-  of the accumulators applicable to the document (19.2: use-accumulators
-  of xsl:source-document, or of the initial mode for a streamed principal
-  source; those declared streamable), and stream-start-0, stream-end-0
-  and stream-descend-0 ($node, $value, $number), start-K, end-K and the
-  new descend-K (build-K's traversal of one subtree) of accumulator
-  $number. Each event a STREAM task takes calls them before the task
-  goes on (the task suspends and resumes, D71): an element's start in a
-  shallow window of its own, which is the window the body then sees, its
-  end, a leaf's start and end, the document's end; skipped content is
-  taken event by event; a full window (a selected subtree, a grounding
-  stream) gets its subtree's values from descend-K at once. Values are
-  maps from accumulator numbers, kept per depth for the nodes the windows
-  hold now (memory bounded by the depth and the windows, as before).
-- **Reading them**: fn:accumulator-before and -after ask the new row
-  accumulator-streamed($number, $node, $id, $after) first when some
-  accumulator is declared streamable; it finds the node among the values
-  the running streamed documents keep (`sxml_evaluator_stream_find_
-  accumulator_values`, `src/evaluator_internal.h`) and otherwise leaves
-  the node to accumulator-values (trees, unchanged). XTDE3362 for an
-  accumulator the document does not apply; XTSE3430 (dynamic) for
-  fn:accumulator-after of a node whose end has not been read.
-- **Order and errors**: the values of one node are computed accumulator
-  by accumulator; a rule that reads a value of the same node not computed
-  yet makes its accumulator wait for a later round (the row raises,
-  the STREAM catches it), and a round without progress raises XTDE3400.
-  A rule's error is caught and kept; reads of the values it left out
-  raise it (19.5: errors surface when a value is asked for), so values
-  computed before it stay readable.
-- **When**: a stylesheet that reads accumulators now streams unless an
-  accumulator declared streamable has an end rule with capture="yes"
-  (19.9: its end event would need the node's subtree) or is not
-  guaranteed-streamable (new `sxml_xslt_assess_accumulators`, 7.6a's
-  check of 18.2.9; with the fallback option of 19.10 such an accumulator
-  compiles, and its rules would read a shallow window); then the document
-  is grounded, as before. `sxml_xslt_reads_accumulators` (now with an
-  allocator and name pool, for `sxml_xslt_stylesheet_streams_source` too)
-  means that; the comments of `xslt.h` say so (no interface change).
-- **Post-descent**: an instruction after the stream point of a streamed
-  body is assessed as following a consuming one (new field
-  `sxml_xslt_sweep_query.follows_consuming`; 19.8.9.1 rule 8), so
-  fn:accumulator-after of the node there is motionless and the body
-  streams.
-- **xsl:fork** (16.1, 18.3; glossary `streamed_prong`): in the body of a
-  streamed xsl:source-document (document focus, also inside literal
-  result elements and xsl:sequence without select, which now wrap their
-  content), an xsl:fork whose children are xsl:sequence (and
-  xsl:fallback) and that reads the document's content gets one pass per
-  prong: each prong is planned as a streamed body of its own and lowered
-  to a STREAM with OPENS_DOCUMENT over the same href, the values
-  concatenated in prong order. The document is so parsed once per prong
-  (and once for the body around the fork), each pass in bounded memory;
-  a processor may evaluate the prongs in any way that gives their
-  results (18.3), and the resolver is asked again for each pass. A fork
-  some prong of which does not stream, or with xsl:for-each-group, is
-  grounded as before.
-- **Not done**: capture="yes" end rules while streaming; an accumulator
-  value of a window node no entry holds any more (a streamed node kept
-  past its body) falls back to the tree of its window.
-
 ### D230. XSLT conformance sweep after the leftovers (packet 4.20)
 Recorded 2026-10-19, after D29, D71, D84, D162, D169, D179, D185, D195,
 D203, D206, D208. Verified as D181 asks: the debug preset, the unit tests
@@ -10243,6 +10175,74 @@ XP40 sets an inline function's module or a QName cast touch unchanged.
   (XQDY0102 in the evaluator); system-property and function-available
   with a non-NCName (`src/function_library_xslt.c`, another packet's
   uncommitted file).
+
+### D231. The last streamed shapes: accumulators while streaming (packet 7.6e)
+Recorded 2026-10-19, after D71, D155, D212, D219, D223, D228. In progress;
+completed when the packet ends. Replaces D223's and D228's "accumulators
+computed while streaming are not done" and their rule that a stylesheet
+reading an accumulator streams nothing.
+- **Accumulators while streaming** (XSLT 4.0, 18.2.9, 19.3, 19.4;
+  glossary `streamed_accumulator_values`): STREAM with OPENS_DOCUMENT gets
+  `sxml_ir_stream_accumulators`, four functions of the unit
+  (`src/xslt_accumulator.c`): stream-initial-N($root), the initial values
+  of the accumulators applicable to the document (19.2: use-accumulators
+  of xsl:source-document, or of the initial mode for a streamed principal
+  source; those declared streamable), and stream-start-0, stream-end-0
+  and stream-descend-0 ($node, $value, $number), start-K, end-K and the
+  new descend-K (build-K's traversal of one subtree) of accumulator
+  $number. Each event a STREAM task takes calls them before the task
+  goes on (the task suspends and resumes, D71): an element's start in a
+  shallow window of its own, which is the window the body then sees, its
+  end, a leaf's start and end, the document's end; skipped content is
+  taken event by event; a full window (a selected subtree, a grounding
+  stream) gets its subtree's values from descend-K at once. Values are
+  maps from accumulator numbers, kept per depth for the nodes the windows
+  hold now (memory bounded by the depth and the windows, as before).
+- **Reading them**: fn:accumulator-before and -after ask the new row
+  accumulator-streamed($number, $node, $id, $after) first when some
+  accumulator is declared streamable; it finds the node among the values
+  the running streamed documents keep (`sxml_evaluator_stream_find_
+  accumulator_values`, `src/evaluator_internal.h`) and otherwise leaves
+  the node to accumulator-values (trees, unchanged). XTDE3362 for an
+  accumulator the document does not apply; XTSE3430 (dynamic) for
+  fn:accumulator-after of a node whose end has not been read.
+- **Order and errors**: the values of one node are computed accumulator
+  by accumulator; a rule that reads a value of the same node not computed
+  yet makes its accumulator wait for a later round (the row raises,
+  the STREAM catches it), and a round without progress raises XTDE3400.
+  A rule's error is caught and kept; reads of the values it left out
+  raise it (19.5: errors surface when a value is asked for), so values
+  computed before it stay readable.
+- **When**: a stylesheet that reads accumulators now streams unless an
+  accumulator declared streamable has an end rule with capture="yes"
+  (19.9: its end event would need the node's subtree) or is not
+  guaranteed-streamable (new `sxml_xslt_assess_accumulators`, 7.6a's
+  check of 18.2.9; with the fallback option of 19.10 such an accumulator
+  compiles, and its rules would read a shallow window); then the document
+  is grounded, as before. `sxml_xslt_reads_accumulators` (now with an
+  allocator and name pool, for `sxml_xslt_stylesheet_streams_source` too)
+  means that; the comments of `xslt.h` say so (no interface change).
+- **Post-descent**: an instruction after the stream point of a streamed
+  body is assessed as following a consuming one (new field
+  `sxml_xslt_sweep_query.follows_consuming`; 19.8.9.1 rule 8), so
+  fn:accumulator-after of the node there is motionless and the body
+  streams.
+- **xsl:fork** (16.1, 18.3; glossary `streamed_prong`): in the body of a
+  streamed xsl:source-document (document focus, also inside literal
+  result elements and xsl:sequence without select, which now wrap their
+  content), an xsl:fork whose children are xsl:sequence (and
+  xsl:fallback) and that reads the document's content gets one pass per
+  prong: each prong is planned as a streamed body of its own and lowered
+  to a STREAM with OPENS_DOCUMENT over the same href, the values
+  concatenated in prong order. The document is so parsed once per prong
+  (and once for the body around the fork), each pass in bounded memory;
+  a processor may evaluate the prongs in any way that gives their
+  results (18.3), and the resolver is asked again for each pass. A fork
+  some prong of which does not stream, or with xsl:for-each-group, is
+  grounded as before.
+- **Not done**: capture="yes" end rules while streaming; an accumulator
+  value of a window node no entry holds any more (a streamed node kept
+  past its body) falls back to the tree of its window.
 
 ## Proposed
 

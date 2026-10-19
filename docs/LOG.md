@@ -21,7 +21,7 @@ One short entry per week, newest first: what passed, what's next, what is blocke
   in D230, needs the evaluator), typed modes, XTDE3490, xml-version-007,
   namespace-2606/-6202, docbook-004.
 
-- 7.6e in progress (D230): accumulators computed while streaming (each
+- 7.6e in progress (D231): accumulators computed while streaming (each
   event a STREAM takes calls the accumulator functions, full windows get
   descend-K; fn:accumulator-before and -after read the values of streamed
   nodes; rules' errors raised when a value is read; dependent rules wait
