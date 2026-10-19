@@ -237,6 +237,17 @@ static const char *const kind_names[] = {
     "array_pattern",
     "jnode_pattern",
     "sequence_pattern",
+    /* XQuery Update Facility 3.0 (D187). */
+    "revalidation_declaration",
+    "compatibility_annotation",
+    "insert_expression",
+    "delete_expression",
+    "replace_expression",
+    "rename_expression",
+    "copy_modify_expression",
+    "copy_binding",
+    "transform_with_expression",
+    "updating_function_call",
 };
 _Static_assert(sizeof kind_names / sizeof kind_names[0] == SXML_AST_KIND_COUNT,
                "one name per AST kind");
@@ -281,6 +292,9 @@ static const char *const field_names[] = {
     "version",
     /* XSLT 4.0 patterns (D118). */
     "pattern",
+    /* XQuery Update Facility 3.0 (D187). */
+    "modify",
+    "source",
 };
 _Static_assert(sizeof field_names / sizeof field_names[0] ==
                    SXML_AST_FIELD_COUNT,

@@ -1,0 +1,186 @@
+============================================================
+Revalidation declaration and updating function (XQUF 3.0, 5.2, 5.4)
+============================================================
+
+declare revalidation lax; declare updating function local:f($a) { delete nodes $a }; 1
+
+---
+
+(module
+  (main_module
+    (prolog
+      (revalidation_declaration)
+      (function_declaration
+        (compatibility_annotation)
+        (prefixed_name)
+        (parameter_with_default
+          (variable_name_and_type
+            (ncname)))
+        (enclosed_expression
+          (delete_expression
+            (variable_reference
+              (ncname))))))
+    (integer_literal)))
+
+============================================================
+Insert positions (XQUF 3.0, 5.4.1)
+============================================================
+
+insert node <a/> as first into $t, insert nodes $s as last into $t, insert node $s into $t, insert node $s after $t, insert node $s before $t
+
+---
+
+(module
+  (main_module
+    (sequence_expression
+      (insert_expression
+        (direct_element_constructor
+          (qname))
+        (variable_reference
+          (ncname)))
+      (insert_expression
+        (variable_reference
+          (ncname))
+        (variable_reference
+          (ncname)))
+      (insert_expression
+        (variable_reference
+          (ncname))
+        (variable_reference
+          (ncname)))
+      (insert_expression
+        (variable_reference
+          (ncname))
+        (variable_reference
+          (ncname)))
+      (insert_expression
+        (variable_reference
+          (ncname))
+        (variable_reference
+          (ncname))))))
+
+============================================================
+Delete, replace and rename (XQUF 3.0, 5.4.2 to 5.4.4)
+============================================================
+
+delete node $t, replace node $t with $v, replace value of node $t with "v", rename node $t as "n"
+
+---
+
+(module
+  (main_module
+    (sequence_expression
+      (delete_expression
+        (variable_reference
+          (ncname)))
+      (replace_expression
+        (variable_reference
+          (ncname))
+        (variable_reference
+          (ncname)))
+      (replace_expression
+        (variable_reference
+          (ncname))
+        (string_literal))
+      (rename_expression
+        (variable_reference
+          (ncname))
+        (string_literal)))))
+
+============================================================
+Copy-modify (XQUF 3.0, 5.4.5)
+============================================================
+
+copy $a := $x, $b := $y modify delete node $a/c return ($a, $b)
+
+---
+
+(module
+  (main_module
+    (copy_modify_expression
+      (copy_binding
+        (ncname)
+        (variable_reference
+          (ncname)))
+      (copy_binding
+        (ncname)
+        (variable_reference
+          (ncname)))
+      (delete_expression
+        (relative_path_expression
+          (variable_reference
+            (ncname))
+          (axis_step
+            (ncname))))
+      (parenthesized_expression
+        (sequence_expression
+          (variable_reference
+            (ncname))
+          (variable_reference
+            (ncname)))))))
+
+============================================================
+Transform-with and an updating function call (XQUF 3.0, 5.3, 5.4.6)
+============================================================
+
+$x transform with { delete node c }, invoke updating $f(1, 2)
+
+---
+
+(module
+  (main_module
+    (sequence_expression
+      (transform_with_expression
+        (variable_reference
+          (ncname))
+        (delete_expression
+          (axis_step
+            (ncname))))
+      (updating_function_call
+        (variable_reference
+          (ncname))
+        (positional_argument_list
+          (integer_literal)
+          (integer_literal))))))
+
+============================================================
+Update keywords as names
+============================================================
+
+/insert/delete/copy/modify/first/last/into/after/before/updating
+
+---
+
+(module
+  (main_module
+    (absolute_path_expression
+      (relative_path_expression
+        (relative_path_expression
+          (relative_path_expression
+            (relative_path_expression
+              (relative_path_expression
+                (relative_path_expression
+                  (relative_path_expression
+                    (relative_path_expression
+                      (relative_path_expression
+                        (axis_step
+                          (ncname))
+                        (axis_step
+                          (ncname)))
+                      (axis_step
+                        (ncname)))
+                    (axis_step
+                      (ncname)))
+                  (axis_step
+                    (ncname)))
+                (axis_step
+                  (ncname)))
+              (axis_step
+                (ncname)))
+            (axis_step
+              (ncname)))
+          (axis_step
+            (ncname)))
+        (axis_step
+          (ncname))))))
+

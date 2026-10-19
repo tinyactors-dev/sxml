@@ -394,7 +394,9 @@ static const error_case error_cases[] = {
     {"declare %private %public function local:f() { 1 }; 1", "XQST0106"},
     {"declare %private %private variable $x := 1; 1", "XQST0116"},
     {"declare %x variable $x := 1; 1", "XQST0045"},
-    {"declare %updating function local:f() { 1 }; 1", "XQST0045"},
+    /* XQuery Update Facility 3.0, 5.4: %updating is known (D187). */
+    {"declare %updating function local:f() { 1 }; 1", "XUST0002"},
+    {"declare %fn:a function local:f() { 1 }; 1", "XQST0045"},
     {"import schema 'urn:s'; 1", "XQST0059"},
     {"import schema 'urn:s'; import schema 'urn:s'; 1", "XQST0058"},
     {"import schema namespace s = ''; 1", "XQST0057"},

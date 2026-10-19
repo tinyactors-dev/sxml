@@ -853,6 +853,36 @@ typedef enum sxml_ast_kind {
        pattern, ZERO_OR_ONE, ZERO_OR_MORE, ONE_OR_MORE. 6.3.5. */
     SXML_AST_KIND_SEQUENCE_PATTERN,
 
+    /* ====== XQuery Update Facility 3.0 (D187; section numbers of XQUF
+       3.0, W3C Recommendation 24 January 2017). Built by the XQuery front
+       end from grammars/xquery. ====== */
+    /* No fields. Detail keyword STRICT, LAX or SKIP. 5.2. */
+    SXML_AST_KIND_REVALIDATION_DECLARATION,
+    /* No fields: "declare updating function", the same as %updating
+       (5.4); field annotation of VARIABLE_DECLARATION or
+       FUNCTION_DECLARATION. */
+    SXML_AST_KIND_COMPATIBILITY_ANNOTATION,
+    /* source, target: expressions. Detail keyword FIRST or LAST ("as
+       first into", "as last into"), INTO, AFTER or BEFORE. 5.4.1. */
+    SXML_AST_KIND_INSERT_EXPRESSION,
+    /* target: an expression. 5.4.2. */
+    SXML_AST_KIND_DELETE_EXPRESSION,
+    /* target, value: expressions. Flag VALUE_OF for "replace value of
+       node". 5.4.3. */
+    SXML_AST_KIND_REPLACE_EXPRESSION,
+    /* target, name_expression: expressions. 5.4.4. */
+    SXML_AST_KIND_RENAME_EXPRESSION,
+    /* binding+: COPY_BINDING; modify, return: expressions. 5.4.5. */
+    SXML_AST_KIND_COPY_MODIFY_EXPRESSION,
+    /* name: Name; value: an expression. "$a := E" of a copy clause. */
+    SXML_AST_KIND_COPY_BINDING,
+    /* value: an expression; modify?: an expression. "E transform with
+       { M }", 5.4.6. */
+    SXML_AST_KIND_TRANSFORM_WITH_EXPRESSION,
+    /* function: a primary expression; arguments:
+       POSITIONAL_ARGUMENT_LIST. "invoke updating $f(1)", 5.3. */
+    SXML_AST_KIND_UPDATING_FUNCTION_CALL,
+
     /* One more than the largest kind; grows with Phases 3 and 4. */
     SXML_AST_KIND_COUNT,
 } sxml_ast_kind;
@@ -938,6 +968,10 @@ typedef enum sxml_ast_field {
 
     /* XSLT 4.0 patterns (D118). */
     SXML_AST_FIELD_PATTERN,
+
+    /* XQuery Update Facility 3.0 (D187). */
+    SXML_AST_FIELD_MODIFY,
+    SXML_AST_FIELD_SOURCE,
 
     /* One more than the largest field; grows with Phases 3 and 4. */
     SXML_AST_FIELD_COUNT,
@@ -1044,9 +1078,18 @@ typedef enum sxml_ast_keyword {
     /* context value declaration: "context value" or "context item". */
     SXML_AST_KEYWORD_VALUE,
     SXML_AST_KEYWORD_ITEM,
-    /* validate expression. */
+    /* validate expression and revalidation declaration. */
     SXML_AST_KEYWORD_LAX,
     SXML_AST_KEYWORD_STRICT,
+    /* XQuery Update Facility 3.0 (D187): revalidation declaration. */
+    SXML_AST_KEYWORD_SKIP,
+    /* insert expression: "as first into", "as last into", "into",
+       "after", "before". */
+    SXML_AST_KEYWORD_FIRST,
+    SXML_AST_KEYWORD_LAST,
+    SXML_AST_KEYWORD_INTO,
+    SXML_AST_KEYWORD_AFTER,
+    SXML_AST_KEYWORD_BEFORE,
 } sxml_ast_keyword;
 
 /*
@@ -1104,6 +1147,9 @@ typedef enum sxml_ast_flag {
     SXML_AST_FLAG_NAMESPACE_DECLARATION_ATTRIBUTE = 1U << 18U,
     /* XSLT patterns (D118). MAP_PATTERN with "*" ("{*}", "{'a', *}"). */
     SXML_AST_FLAG_OPEN = 1U << 19U,
+    /* XQuery Update Facility 3.0 (D187). REPLACE_EXPRESSION written
+       "replace value of node". */
+    SXML_AST_FLAG_VALUE_OF = 1U << 20U,
 } sxml_ast_flag;
 
 /* A name exactly as written; parts that were not written are empty. */

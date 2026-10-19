@@ -35,6 +35,7 @@
 #include "xpath_static_internal.h"
 #include "xquery_load_module_internal.h"
 #include "xquery_lower_internal.h"
+#include "xquery_update_internal.h"
 
 #include <stdalign.h>
 #include <stddef.h>
@@ -533,6 +534,41 @@ void sxml_xquery_query_destroy(sxml_xquery_query *query) {
 
 /* ------------------------------------------------------------ Evaluation */
 
+/* Applies an updating query's pending update list (XQuery Update Facility
+   3.0, 3.2.2; D187) and hands every changed tree to the update sink. */
+static sxml_status apply_pending_updates(const sxml_xquery_query *query,
+                                         const sxml_xquery_evaluation_request *request,
+                                         sxml_sequence pending_updates) {
+    sxml_xquery_updated_trees updated_trees = {.original_roots = sxml_sequence_empty(),
+                                               .updated_roots = sxml_sequence_empty()};
+    sxml_status status = sxml_xquery_apply_updates(
+        &(sxml_xquery_update_application){
+            .item_heap = sxml_processor_get_item_heap(query->processor),
+            .pending_updates = pending_updates,
+            .allowed_roots = sxml_sequence_empty(),
+            .error_record = request->error_record},
+        &updated_trees);
+    const sxml_xquery_update_sink sink = request->update_sink;
+    for (uint64_t tree_index = 0;
+         status == SXML_STATUS_OK && sink.operations != NULL &&
+         sink.operations->receive_updated_tree != NULL;
+         tree_index += 1) {
+        const sxml_item_request item_request = {.item_index = tree_index, .error_record = NULL};
+        sxml_xquery_updated_tree updated_tree;
+        if (sxml_sequence_get_item(updated_trees.original_roots, item_request,
+                                   &updated_tree.original_root) != SXML_STATUS_OK) {
+            break;
+        }
+        status = sxml_sequence_get_item(updated_trees.updated_roots, item_request,
+                                        &updated_tree.updated_root);
+        if (status == SXML_STATUS_OK) {
+            status = sink.operations->receive_updated_tree(sink.state, &updated_tree);
+        }
+    }
+    sxml_xquery_release_updated_trees(&updated_trees);
+    return status;
+}
+
 sxml_status sxml_xquery_query_evaluate(const sxml_xquery_query *query,
                                        const sxml_xquery_evaluation_request *request,
                                        sxml_sequence *result) {
@@ -542,7 +578,8 @@ sxml_status sxml_xquery_query_evaluate(const sxml_xquery_query *query,
     }
     /* The unit holds the static base URI: the host's, or a base URI
        declaration's resolved against it (5.5). */
-    return sxml_evaluate_unit(
+    sxml_sequence value = sxml_sequence_empty();
+    sxml_status status = sxml_evaluate_unit(
         &(sxml_unit_evaluation){.processor = query->processor,
                                 .unit = query->unit,
                                 .static_base_uri = {.bytes = NULL, .byte_count = 0},
@@ -552,7 +589,31 @@ sxml_status sxml_xquery_query_evaluate(const sxml_xquery_query *query,
                                     .function_table = query->function_table,
                                     .document_preparation = {.state = NULL, .operations = NULL},
                                     .result_writer = NULL}},
-        result);
+        &value);
+    if (status != SXML_STATUS_OK || !sxml_xquery_query_is_updating(query)) {
+        if (status == SXML_STATUS_OK) {
+            *result = value;
+        }
+        return status;
+    }
+    status = apply_pending_updates(query, request, value);
+    sxml_sequence_release(value);
+    if (status == SXML_STATUS_OK) {
+        *result = sxml_sequence_empty();
+    }
+    return status;
+}
+
+/* --------------------------------------------------------------- Updates */
+
+bool sxml_xquery_query_is_updating(const sxml_xquery_query *query) {
+    if (query == NULL || query->unit == NULL) {
+        return false;
+    }
+    return sxml_xquery_annotations_are_updating(
+        sxml_processor_get_item_heap(query->processor),
+        sxml_ir_unit_get_function(query->unit, (sxml_ir_function_index){.value = 1})
+            ->function_annotations);
 }
 
 /* --------------------------------------------- Serialization parameters */

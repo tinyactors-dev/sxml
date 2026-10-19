@@ -197,6 +197,51 @@ SXML_NODISCARD SXML_EXPORT sxml_status sxml_xquery_query_create(
  */
 SXML_EXPORT void sxml_xquery_query_destroy(sxml_xquery_query *query);
 
+/* --------------------------------------------------------------- Updates */
+
+/*
+ * The XQuery Update Facility 3.0 (docs/DECISIONS.md, D187). A query whose
+ * body is an updating expression (XQUF 3.0, section 2.2) is an updating
+ * query: evaluating it computes a pending update list over a snapshot of
+ * the documents and nodes it reads, then applies it at once
+ * (upd:applyUpdates). Trees never change (include/sxml/tree.h): every
+ * tree the list changes is rebuilt as a new tree, which the evaluation
+ * hands to the request's update sink. How a change is made persistent is
+ * the host's (XQUF 3.0, 3.2.2: implementation-defined): a host that bound
+ * a document puts the new tree in its place, writes it out, or drops it.
+ */
+
+/* Whether query's body is an updating expression. False for NULL. */
+SXML_EXPORT bool sxml_xquery_query_is_updating(const sxml_xquery_query *query);
+
+/* One tree an updating query changed. */
+typedef struct sxml_xquery_updated_tree {
+    /* The root of the tree as the query read it: a document node, or the
+       root of a parentless tree (a constructed node, a copy). Borrowed
+       for the call. */
+    sxml_item original_root;
+    /* The root of the tree with every change made, a node of a new tree.
+       Borrowed for the call: retain it (sxml_item_retain) to keep it. */
+    sxml_item updated_root;
+} sxml_xquery_updated_tree;
+
+/* Receives the trees an updating query changed. Tables are static
+   const. */
+typedef struct sxml_xquery_update_sink_operations {
+    /* Called once per changed tree, in the order of the tree's first
+       update. A failure ends the evaluation with that status (the trees
+       not yet received are dropped). */
+    sxml_status (*receive_updated_tree)(void *state,
+                                        const sxml_xquery_updated_tree *updated_tree);
+} sxml_xquery_update_sink_operations;
+
+/* An update sink, passed by value. Operations NULL drops every changed
+   tree: the query's updates are then not observable. */
+typedef struct sxml_xquery_update_sink {
+    void *state;
+    const sxml_xquery_update_sink_operations *operations;
+} sxml_xquery_update_sink;
+
 /* ------------------------------------------------------------ Evaluation */
 
 /* One evaluation of a query. */
@@ -220,6 +265,9 @@ typedef struct sxml_xquery_evaluation_request {
     /* Receives a dynamic or type error, or the location of a limit
        reached; may be NULL. Borrowed for the call. */
     sxml_error_record *error_record;
+    /* For an updating query: receives each tree it changed. Borrowed for
+       the call; zero drops them. */
+    sxml_xquery_update_sink update_sink;
 } sxml_xquery_evaluation_request;
 
 /*
@@ -232,9 +280,16 @@ typedef struct sxml_xquery_evaluation_request {
  * evaluated at most once per evaluation, when first read (XQDY0054 for a
  * circular initialization).
  *
+ * An updating query's value is its pending update list: the evaluation
+ * applies it (XQUF 3.0, 3.2.2 upd:applyUpdates), hands each changed tree
+ * to request->update_sink, and writes the empty sequence to *result
+ * (XQUF 3.0, 2.2.3).
+ *
  * Returns the statuses of sxml_xpath_expression_evaluate, with the
- * dynamic and type errors of XQuery 4.0 (XQDY*, XQTY*) besides those of
- * XPath and the function library. On failure *result is untouched.
+ * dynamic and type errors of XQuery 4.0 (XQDY*, XQTY*) and of the XQuery
+ * Update Facility (XUDY*, XUTY*) besides those of XPath and the function
+ * library, and the update sink's failures. On failure *result is
+ * untouched.
  */
 SXML_NODISCARD SXML_EXPORT sxml_status sxml_xquery_query_evaluate(
     const sxml_xquery_query *query,

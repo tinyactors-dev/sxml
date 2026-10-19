@@ -69,8 +69,9 @@
  * XQST0098 (decimal formats), XQST0109 and XQST0110 (output
  * declarations, whose values the serializer reads), XPST0081 and the
  * type errors of sxml_xpath_resolve_sequence_type. Annotations in a reserved namespace
- * other than %public and %private are XQST0045 (5.15), so %updating is
- * rejected (D97).
+ * other than %public, %private, %updating and %simple are XQST0045
+ * (5.15); the XQuery Update Facility adds XUST0003, XUST0026 (revalidation
+ * lax and strict, not supported yet), XUST0032 and XUST0033 (D187).
  *
  * A library module (D148): every module starts from XQuery 4.0's default
  * static context (namespaces, no host variables, the module URI as static

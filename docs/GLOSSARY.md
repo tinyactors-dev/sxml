@@ -866,6 +866,11 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `streamability` | Whether a construct is guaranteed-streamable by the rules of XSLT 4.0, chapter 19, computed from postures and sweeps |
 | `pending_update_list` | The update primitives an updating expression returns, applied together at the end of a snapshot (XQuery Update Facility 3.0, "pending update list"); internal to the evaluator, not an XDM item |
 | `update_primitive` | One change of a pending update list: insert, delete, replace node, replace value, rename, put (XQuery Update Facility 3.0, "update primitives") |
+| `updating_expression` | An expression whose value is a pending update list: insert, delete, replace, rename, an updating function call, and the expressions that pass one on (XQuery Update Facility 3.0, 2.2); its opposite is a `simple_expression` |
+| `vacuous_expression` | `()`, a call of fn:error, or an expression made only of those: allowed where an updating or a simple expression is required (XQuery Update Facility 3.0, 2.2) |
+| `insertion_sequence` | The nodes an insert or replace expression copies in, made from its source as element content: atomic runs become text, documents their children (XQuery Update Facility 3.0, 5.4.1) |
+| `update_sink` | The host interface that receives each tree an updating query changed, as its old and new roots (`sxml_xquery_update_sink`, D187) |
+| `updated_tree` | The new tree that applying a pending update list rebuilt from an old one, with every change made (D187) |
 | `full_text_selection` | The compiled form of an FTSelection: words, connectives, positional filters and match options, run as a match program (XQuery and XPath Full Text 3.0) |
 | `all_matches` | The set of matches a full-text selection gives over the tokens of a node, with their positions (XQuery and XPath Full Text 3.0, "AllMatches") |
 | `html_working_tree` | The HTML parser's mutable node table during tree construction (adoption agency, foster parenting), sent to the tree builder once the document ends |

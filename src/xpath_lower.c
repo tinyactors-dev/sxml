@@ -1572,10 +1572,27 @@ static sxml_status annotation_value(sxml_xpath_lowerer *state, sxml_ast_node_ind
 }
 
 /* The expanded name of an annotation (the annotation namespace rule:
-   unprefixed names are in http://www.w3.org/2012/xquery). */
+   unprefixed names are in http://www.w3.org/2012/xquery), by its NAME
+   child; a COMPATIBILITY_ANNOTATION has none (name_node 0). */
 static sxml_status annotation_name(sxml_xpath_lowerer *state, sxml_ast_node_index name_node,
                                    sxml_name_identifier *name) {
     sxml_xpath_resolved_name resolved = {0};
+    if (name_node.value == 0) {
+        /* "declare updating function" is %updating (XQuery Update
+           Facility 3.0, 5.4; D187). */
+        sxml_namespace_uri_identifier xquery_namespace = {0};
+        const sxml_status status = sxml_name_pool_intern_namespace_uri(
+            state->name_pool, SXML_BYTE_VIEW_FROM_LITERAL("http://www.w3.org/2012/xquery"),
+            &xquery_namespace);
+        return status != SXML_STATUS_OK
+                   ? status
+                   : sxml_name_pool_intern_name(
+                         state->name_pool,
+                         &(sxml_name_request){.namespace_uri = xquery_namespace,
+                                              .local_name =
+                                                  SXML_BYTE_VIEW_FROM_LITERAL("updating")},
+                         name);
+    }
     sxml_status status = sxml_xpath_resolve_name(
         &(sxml_xpath_name_request){.ast = state->ast,
                                    .name_node = name_node,

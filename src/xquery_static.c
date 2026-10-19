@@ -312,6 +312,9 @@ static const single_declaration_rule single_declaration_rules[] = {
      SXML_BYTE_VIEW_INITIALIZER("XQST0055 the prolog declares copy-namespaces twice")},
     {SXML_AST_KIND_CONTEXT_VALUE_DECLARATION,
      SXML_BYTE_VIEW_INITIALIZER("XQST0099 the prolog declares the context value twice")},
+    /* XQuery Update Facility 3.0, 5.2 (D187). */
+    {SXML_AST_KIND_REVALIDATION_DECLARATION,
+     SXML_BYTE_VIEW_INITIALIZER("XUST0003 the prolog declares revalidation twice")},
 };
 
 #define SINGLE_DECLARATION_RULE_COUNT                                          \
@@ -439,6 +442,16 @@ static sxml_status survey_declaration(const static_reader *reader,
         return SXML_STATUS_OK;
     case SXML_AST_KIND_ITEM_TYPE_DECLARATION:
         survey->item_type_declaration_count += 1;
+        return SXML_STATUS_OK;
+    case SXML_AST_KIND_REVALIDATION_DECLARATION:
+        /* XQuery Update Facility 3.0, 5.2: revalidation lax and strict
+           need revalidation after updates, which is packet 7.7c's (D162,
+           D187); skip, the default without a schema, is supported. */
+        if (node->detail.keyword != SXML_AST_KEYWORD_SKIP) {
+            return report(reader, declaration,
+                          SXML_BYTE_VIEW_FROM_LITERAL(
+                              "XUST0026 the revalidation mode is not supported"));
+        }
         return SXML_STATUS_OK;
     case SXML_AST_KIND_DECIMAL_FORMAT_DECLARATION:
         survey->decimal_format_declaration_count += 1;
@@ -1401,7 +1414,9 @@ static sxml_status resolve_xquery_name(const static_reader *reader,
 /* Checks the annotations of a variable or function declaration: none in a
    reserved namespace but %public and %private (XQST0045), and at most one
    of those (duplicate_error: XQST0116 for variables, XQST0106 for
-   functions). */
+   functions). The XQuery Update Facility 3.0 (5.4, D187) adds %updating
+   and %simple, and "declare updating": on a function at most one of them
+   (XUST0033), on a variable none (XUST0032). */
 typedef struct annotation_check {
     sxml_ast_node_index declaration;
     sxml_byte_view duplicate_error;
@@ -1411,16 +1426,56 @@ typedef struct annotation_check {
     bool *is_private;
 } annotation_check;
 
+/* An update annotation (%updating, %simple or "declare updating") of a
+   declaration, counted in *count. */
+typedef struct update_annotation_check {
+    sxml_ast_node_index annotation;
+    sxml_ast_kind declaration_kind;
+    size_t *count;
+} update_annotation_check;
+
+static sxml_status check_update_annotation(const static_reader *reader,
+                                           update_annotation_check check) {
+    if (check.declaration_kind == SXML_AST_KIND_VARIABLE_DECLARATION) {
+        return report(reader, check.annotation,
+                      SXML_BYTE_VIEW_FROM_LITERAL(
+                          "XUST0032 a variable declaration is annotated %updating or %simple"));
+    }
+    if (check.declaration_kind != SXML_AST_KIND_FUNCTION_DECLARATION) {
+        return report(reader, check.annotation,
+                      SXML_BYTE_VIEW_FROM_LITERAL(
+                          "XQST0045 an annotation is in a reserved namespace"));
+    }
+    *check.count += 1;
+    if (*check.count > 1) {
+        return report(reader, check.annotation,
+                      SXML_BYTE_VIEW_FROM_LITERAL(
+                          "XUST0033 a function declaration has two of %updating and %simple"));
+    }
+    return SXML_STATUS_OK;
+}
+
 static sxml_status check_annotations(const static_reader *reader, annotation_check check) {
     sxml_namespace_uri_identifier xquery_namespace = {0};
     sxml_status status = sxml_name_pool_intern_namespace_uri(
         reader->name_pool, xquery_namespace_text, &xquery_namespace);
     size_t visibility_count = 0;
+    size_t update_annotation_count = 0;
+    const sxml_ast_kind declaration_kind = node_of(reader->ast, check.declaration)->kind;
     for (sxml_ast_node_index annotation =
              child_of(reader->ast, check.declaration, SXML_AST_FIELD_ANNOTATION);
          status == SXML_STATUS_OK && annotation.value != 0;
          annotation = next_of(reader->ast, annotation)) {
+        bool is_update_annotation =
+            node_of(reader->ast, annotation)->kind == SXML_AST_KIND_COMPATIBILITY_ANNOTATION;
         expanded_name name = {0};
+        if (is_update_annotation) {
+            status = check_update_annotation(
+                reader, (update_annotation_check){.annotation = annotation,
+                                                  .declaration_kind = declaration_kind,
+                                                  .count = &update_annotation_count});
+            continue;
+        }
         status = resolve_xquery_name(
             reader, child_of(reader->ast, annotation, SXML_AST_FIELD_NAME), &name);
         if (status != SXML_STATUS_OK) {
@@ -1433,10 +1488,21 @@ static sxml_status check_annotations(const static_reader *reader, annotation_che
         const bool is_constructor =
             check.allows_constructor && name.namespace_uri.index == xquery_namespace.index &&
             sxml_byte_view_equals(name.local_name, SXML_BYTE_VIEW_FROM_LITERAL("constructor"));
+        is_update_annotation =
+            name.namespace_uri.index == xquery_namespace.index &&
+            (sxml_byte_view_equals(name.local_name, SXML_BYTE_VIEW_FROM_LITERAL("updating")) ||
+             sxml_byte_view_equals(name.local_name, SXML_BYTE_VIEW_FROM_LITERAL("simple")));
         if (is_constructor) {
             continue;
         }
-        if (is_visibility) {
+        if (is_update_annotation &&
+            (declaration_kind == SXML_AST_KIND_FUNCTION_DECLARATION ||
+             declaration_kind == SXML_AST_KIND_VARIABLE_DECLARATION)) {
+            status = check_update_annotation(
+                reader, (update_annotation_check){.annotation = annotation,
+                                                  .declaration_kind = declaration_kind,
+                                                  .count = &update_annotation_count});
+        } else if (is_visibility) {
             if (check.is_private != NULL &&
                 sxml_byte_view_equals(name.local_name, SXML_BYTE_VIEW_FROM_LITERAL("private"))) {
                 *check.is_private = true;
@@ -1447,7 +1513,6 @@ static sxml_status check_annotations(const static_reader *reader, annotation_che
             }
         } else if (name.namespace_uri.index == xquery_namespace.index ||
                    is_reserved_namespace(name.namespace_uri)) {
-            /* %updating among them: no Update Facility (D97). */
             status = report(reader, annotation,
                             SXML_BYTE_VIEW_FROM_LITERAL(
                                 "XQST0045 an annotation is in a reserved namespace"));
@@ -2006,7 +2071,12 @@ static sxml_status check_expression_annotations(const static_reader *reader) {
                    (name.namespace_uri.index == xquery_namespace.index &&
                     !sxml_byte_view_equals(name.local_name, SXML_BYTE_VIEW_FROM_LITERAL("public")) &&
                     !sxml_byte_view_equals(name.local_name,
-                                           SXML_BYTE_VIEW_FROM_LITERAL("private")))) {
+                                           SXML_BYTE_VIEW_FROM_LITERAL("private")) &&
+                    /* XQuery Update Facility 3.0, 5.3 (D187). */
+                    !sxml_byte_view_equals(name.local_name,
+                                           SXML_BYTE_VIEW_FROM_LITERAL("updating")) &&
+                    !sxml_byte_view_equals(name.local_name,
+                                           SXML_BYTE_VIEW_FROM_LITERAL("simple")))) {
             status = report(reader, annotation,
                             SXML_BYTE_VIEW_FROM_LITERAL(
                                 "XQST0045 an annotation is in a reserved namespace"));

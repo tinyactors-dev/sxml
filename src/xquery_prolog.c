@@ -21,7 +21,9 @@
  * core and the XQuery parts lower bodies and initializers as they lower
  * the query body. The unit holds:
  *
- * - function 1, the main function: the query body;
+ * - function 1, the main function: the query body, annotated %updating
+ *   when the body is an updating expression (XQuery Update Facility 3.0,
+ *   D187);
  * - the declared functions, one IR function per arity of each arity
  *   range (5.18): the full arity has the body, its result coerced to the
  *   declared type; a shorter arity computes the defaults of the parameters
@@ -63,6 +65,7 @@
 #include "xquery_load_module_internal.h"
 #include "xquery_module_internal.h"
 #include "xquery_static_internal.h"
+#include "xquery_update_internal.h"
 
 #include <stdalign.h>
 #include <string.h>
@@ -1812,6 +1815,31 @@ static sxml_status read_module_contexts(const context_reading *reading,
     return status;
 }
 
+/* The XQuery Update Facility's rules on updating expressions in every
+   module (src/xquery_update_internal.h, D187); *body_is_updating for the
+   main module's body. */
+typedef struct update_rules_check {
+    const sxml_xquery_lowering_request *request;
+    const module_contexts *contexts;
+    size_t module_count;
+} update_rules_check;
+
+static sxml_status check_update_rules(update_rules_check check, bool *body_is_updating) {
+    sxml_status status = SXML_STATUS_OK;
+    for (size_t module_index = 0; status == SXML_STATUS_OK && module_index < check.module_count;
+         module_index += 1) {
+        bool is_updating = false;
+        status = sxml_xquery_check_update_rules(
+            &(sxml_xquery_update_rules_request){.context = &check.contexts->contexts[module_index],
+                                                .error_record = check.request->error_record},
+            &is_updating);
+        if (module_index == 0) {
+            *body_is_updating = is_updating;
+        }
+    }
+    return status;
+}
+
 sxml_status sxml_xquery_lower(const sxml_xquery_lowering_request *request, sxml_ir_unit **unit) {
     if (request == NULL || request->ast == NULL || request->static_context == NULL ||
         sxml_ast_get_node(request->ast, request->ast->root)->kind != SXML_AST_KIND_MODULE) {
@@ -1856,12 +1884,24 @@ sxml_status sxml_xquery_lower(const sxml_xquery_lowering_request *request, sxml_
         status = read_module_contexts(
             &(context_reading){.request = request, .set = &set, .unit = new_unit}, &contexts);
     }
+    bool body_is_updating = false;
+    if (status == SXML_STATUS_OK) {
+        status = check_update_rules(
+            (update_rules_check){
+                .request = request, .contexts = &contexts, .module_count = set.module_count},
+            &body_is_updating);
+    }
     if (status == SXML_STATUS_OK) {
         status = run_lowering(&(lowering_run){.request = request,
                                               .set = &set,
                                               .contexts = contexts.contexts,
                                               .body = body},
                               new_unit);
+    }
+    if (status == SXML_STATUS_OK && body_is_updating) {
+        /* An updating query (D187): its value is a pending update list. */
+        status = sxml_xquery_mark_updating_function(&(sxml_xquery_updating_mark){
+            .unit = new_unit, .function_index = {.value = 1}});
     }
     release_module_contexts(host, &set, &contexts);
     sxml_xquery_release_modules(&set);

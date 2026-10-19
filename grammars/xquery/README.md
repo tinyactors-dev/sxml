@@ -32,8 +32,9 @@ vendored suites (qt4tests `16645335`, xslt40-test `91328fbf`):
 | XT40 patterns (`xslt_pattern`) | 19,168 | 3 (0.02%) | n/a | n/a |
 
 Not counted above:
-- XQuery Update, Full Text and XSLT-dependent test cases (XQ40: 157 parse,
-  1,490 do not; XP40: 133 parse); sxml implements none of these grammars.
+- Full Text and XSLT-dependent test cases; sxml implements neither grammar.
+  The XQuery Update Facility 3.0 (D187) is in grammars/xquery: every query
+  and library module of the upd-* test sets parses (1,159 texts).
 - Test cases that need XML 1.1 or an XML 1.0 edition before the fifth (all
   parse).
 - 23 (XP40) and 47 (XQ40) test cases whose result allows XPST0003 among

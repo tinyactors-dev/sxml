@@ -6,6 +6,11 @@
  * Inherits the XPath 4.0 grammar and adds the prolog and modules, the full
  * FLWOR clauses, switch, typeswitch, try/catch, validate, extension
  * expressions, direct constructors and string constructors.
+ *
+ * Also the XQuery Update Facility 3.0 (W3C Recommendation, 24 January
+ * 2017, Appendix A): the revalidation declaration, the updating
+ * compatibility annotation, the insert, delete, replace, rename,
+ * copy-modify and transform-with expressions and updating function calls.
  */
 
 const xpath = require('../xpath/grammar');
@@ -29,7 +34,15 @@ const windowVariables = ($) => seq(
   optional(seq('next', '$', field('next', $._eq_name))),
 );
 
-const KEYWORDS = lexical.XPATH_KEYWORDS.concat(lexical.XQUERY_KEYWORDS);
+// XQuery Update Facility 3.0, A.1: further literal terminals spelled as
+// names (the others, such as "node", "value" and "with", are XPath's).
+const UPDATE_KEYWORDS = [
+  'after', 'before', 'copy', 'delete', 'first', 'insert', 'into', 'invoke',
+  'last', 'modify', 'nodes', 'rename', 'replace', 'revalidation', 'skip',
+  'transform', 'updating',
+];
+
+const KEYWORDS = lexical.XPATH_KEYWORDS.concat(lexical.XQUERY_KEYWORDS, UPDATE_KEYWORDS);
 
 // XQuery 4.0 has no namespace axis (A.1 Axis).
 const AXES = [
@@ -119,6 +132,7 @@ const xquery = grammar(xpath, {
       $.namespace_declaration,
       $.schema_import,
       $.module_import,
+      $.revalidation_declaration,
     ),
 
     _prolog_body_declaration: ($) => choice(
@@ -142,6 +156,12 @@ const xquery = grammar(xpath, {
 
     default_collation_declaration: ($) => seq(
       'declare', 'default', 'collation', field('uri', $.string_literal),
+    ),
+
+    // RevalidationDecl ::= "declare" "revalidation" ("strict" | "lax" | "skip")
+    // (XQuery Update Facility 3.0, 5.2)
+    revalidation_declaration: ($) => seq(
+      'declare', 'revalidation', field('mode', choice('strict', 'lax', 'skip')),
     ),
 
     base_uri_declaration: ($) => seq('declare', 'base-uri', field('uri', $.string_literal)),
@@ -215,7 +235,8 @@ const xquery = grammar(xpath, {
 
     // VarDecl ::= "declare" Annotation* "variable" VarNameAndType ((":=" VarValue) | ("external" (":=" VarDefaultValue)?))
     variable_declaration: ($) => seq(
-      'declare', repeat(field('annotation', $.annotation)), 'variable',
+      'declare', optional(field('annotation', $.compatibility_annotation)),
+      repeat(field('annotation', $.annotation)), 'variable',
       field('variable', $.variable_name_and_type),
       $._variable_value,
     ),
@@ -228,7 +249,8 @@ const xquery = grammar(xpath, {
     // FunctionDecl ::= "declare" Annotation* "function" EQName "(" ParamListWithDefaults? ")"
     //                  TypeDeclaration? (FunctionBody | "external")
     function_declaration: ($) => seq(
-      'declare', repeat(field('annotation', $.annotation)), 'function',
+      'declare', optional(field('annotation', $.compatibility_annotation)),
+      repeat(field('annotation', $.annotation)), 'function',
       field('name', $._function_eq_name),
       '(', commaSeparated(field('parameter', $.parameter_with_default)), ')',
       optional(field('return_type', $.type_declaration)),
@@ -266,6 +288,12 @@ const xquery = grammar(xpath, {
       'declare', 'option', field('name', $._eq_name), field('value', $.string_literal),
     ),
 
+    // AnnotatedDecl ::= "declare" (CompatibilityAnnotation | Annotation)* (VarDecl | FunctionDecl)
+    // (XQuery Update Facility 3.0, 5.4); the compatibility annotation is
+    // accepted first, the place every test and example writes it.
+    // CompatibilityAnnotation ::= "updating"
+    compatibility_annotation: ($) => 'updating',
+
     // Annotation ::= "%" EQName ("(" (Constant ++ ",") ")")?
     annotation: ($) => seq(
       '%', field('name', $._eq_name),
@@ -279,7 +307,70 @@ const xquery = grammar(xpath, {
       $.typeswitch_expression,
       $.if_expression,
       $.try_catch_expression,
+      $.insert_expression,
+      $.delete_expression,
+      $.rename_expression,
+      $.replace_expression,
+      $.copy_modify_expression,
       $._or_level,
+    ),
+
+    // InsertExpr ::= "insert" ("node" | "nodes") SourceExpr InsertExprTargetChoice TargetExpr
+    // InsertExprTargetChoice ::= (("as" ("first" | "last"))? "into") | "after" | "before"
+    // (XQuery Update Facility 3.0, 5.4.1)
+    insert_expression: ($) => seq(
+      'insert', choice('node', 'nodes'),
+      field('source', $._expression_single),
+      choice(
+        seq('as', field('mode', choice('first', 'last')), 'into'),
+        field('mode', choice('into', 'after', 'before')),
+      ),
+      field('target', $._expression_single),
+    ),
+
+    // DeleteExpr ::= "delete" ("node" | "nodes") TargetExpr (5.4.2)
+    delete_expression: ($) => seq(
+      'delete', choice('node', 'nodes'), field('target', $._expression_single),
+    ),
+
+    // ReplaceExpr ::= "replace" ("value" "of")? "node" TargetExpr "with" ExprSingle (5.4.3)
+    replace_expression: ($) => seq(
+      'replace', optional(field('value_of', seq('value', 'of'))), 'node',
+      field('target', $._expression_single),
+      'with', field('value', $._expression_single),
+    ),
+
+    // RenameExpr ::= "rename" "node" TargetExpr "as" NewNameExpr (5.4.4)
+    rename_expression: ($) => seq(
+      'rename', 'node', field('target', $._expression_single),
+      'as', field('name_expression', $._expression_single),
+    ),
+
+    // CopyModifyExpr ::= "copy" "$" VarName ":=" ExprSingle ("," "$" VarName ":=" ExprSingle)*
+    //                    "modify" ExprSingle "return" ExprSingle (5.4.5)
+    copy_modify_expression: ($) => seq(
+      'copy', commaSeparated1(field('binding', $.copy_binding)),
+      'modify', field('modify', $._expression_single),
+      'return', field('return', $._expression_single),
+    ),
+
+    copy_binding: ($) => seq(
+      '$', field('name', $._eq_name), ':=', field('value', $._expression_single),
+    ),
+
+    // TransformWithExpr ::= ArrowExpr ("transform" "with" "{" Expr? "}")? (5.4.6);
+    // XQuery 4.0's pipeline level sits above it.
+    _arrow_level: ($, original) => choice(original, $.transform_with_expression),
+
+    transform_with_expression: ($) => seq(
+      field('value', $._arrow_level), 'transform', 'with',
+      '{', optional(field('modify', $._expression)), '}',
+    ),
+
+    // UpdatingFunctionCall ::= "invoke" "updating" PrimaryExpr "(" (ExprSingle ++ ",")? ")" (5.3)
+    updating_function_call: ($) => seq(
+      'invoke', 'updating', field('function', $._primary_expression),
+      field('arguments', $.positional_argument_list),
     ),
 
     // FLWORExpr ::= InitialClause IntermediateClause* ReturnClause
@@ -478,6 +569,7 @@ const xquery = grammar(xpath, {
       $.string_template,
       $.string_constructor,
       $.unary_lookup,
+      $.updating_function_call,
     ),
 
     ordered_expression: ($) => seq('ordered', field('content', $.enclosed_expression)),
