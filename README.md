@@ -293,10 +293,12 @@ serializer.
 ## Use it from JavaScript
 
 The `sxml-js` package in [`bindings/javascript`](bindings/javascript) runs
-the same library as WebAssembly. It covers XML parsing, XPath 4.0 and
-serialization; XQuery and XSLT are not exposed in JavaScript yet. The
-package is not on npm yet: build it from this repository as its README
-describes.
+the same library as WebAssembly. Its core module, `sxml.wasm`, covers XML
+parsing, XPath 4.0 and serialization. The full module, `sxml-full.wasm`,
+adds XQuery 4.0 (with updates), XSLT 4.0 and XSD 1.1 validation:
+`processor.compileQuery`, `processor.compileStylesheet` and
+`processor.compileSchema`. The package is not on npm yet: build it from
+this repository as its README describes.
 
 ```js
 import { load } from 'sxml-js';
@@ -319,6 +321,15 @@ console.log(data.serialize({ method: 'json' }));
 // {"count":2}
 
 processor.dispose();
+```
+
+With `sxml-full.wasm` loaded, a query or a stylesheet is compiled once and
+run many times:
+
+```js
+const query = processor.compileQuery('declare variable $n external; //book[@year < $n] ! string()');
+query.run({ context: books, variables: { n: 1975 } });
+// 'The Art of Computer Programming'
 ```
 
 The package's [README](bindings/javascript/README.md) describes its API.

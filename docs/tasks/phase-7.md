@@ -781,6 +781,33 @@ After every packet the owner accepted. Owns the gate boxes. A separate
 agent (D11) runs the rubric and re-checks each "done when" and the size
 budgets. Open items go under "Proposed".
 
+## Bindings
+
+### js-1 JavaScript bindings for XQuery, XSLT and XSD validation (implementation)
+After 7.2 (D189), D207 and D208. The package covered XPath only.
+- **Specifications**: XQuery 4.0 (5 Modules and Prologs, 5.16, 5.22),
+  the XQuery Update Facility 3.0 (2.2, 3.2.2, 6.1), XSLT 4.0 (2.4, 23,
+  26), XSD 1.1 Part 1 (4.2, 5.2, appendix C), through the stable
+  `xquery.h`, `xslt.h` and `schema.h`.
+- **Mechanism**: D189's two links: shim files linked into
+  `sxml-full.wasm` only; the package finds them by their exports. No
+  header changes.
+- **Owns**: `bindings/javascript/` (the new `sxml_javascript_full.c`,
+  `_xquery.c`, `_xslt.c`, `_schema.c`, `_internal.h`, `test/full.test.ts`;
+  `src/index.ts`, `sxml_javascript.c/h`, `CMakeLists.txt`, `README.md`),
+  the JavaScript section of the top-level `README.md`.
+- **Done when**: compile once, run many times for the three languages,
+  with results as values or serialized text and errors with codes and
+  locations; XQuery's external variables, output declarations and update
+  results through the update sink; XSLT's parameters, initial mode,
+  template or function, principal and secondary results; XSD reports;
+  TypeScript types, Node 22 tests on the full module, README examples
+  with real output; `sxml.wasm` unchanged.
+**Done** 2026-10-19 (D216): `Processor.compileQuery`,
+`compileStylesheet`, `compileSchema`; 24 tests (`javascript/languages`,
+`javascript/languages_full`); `sxml.wasm` 2,134,058 bytes, unchanged;
+`sxml-full.wasm` 3,666,545 to 6,570,723 (budget 7,000,000 / 2,450,000).
+
 ## Proposed for the owner
 
 No phase covers these four features yet (D183 Proposed). The owner has

@@ -4,6 +4,22 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- js-1 done (D216): the JavaScript package's full module,
+  `sxml-full.wasm`, has XQuery 4.0 with the Update Facility
+  (`Processor.compileQuery`: external variables, output declarations,
+  updated trees and fn:put documents through an update sink), XSLT 4.0
+  (`compileStylesheet`: parameters, initial mode, template or function,
+  principal result serialized, raw or as a tree, result documents,
+  messages) and XSD 1.1 validation (`compileSchema`: every report with
+  its location, the validity, the typed copy). Four shim files linked
+  into the full module only (D189's two links): `sxml.wasm` 2,134,058
+  bytes, unchanged; `sxml-full.wasm` 3,666,545 to 6,570,723 (the XQuery
+  compiler and grammar; budget 7,000,000 / 2,450,000). 24 Node tests.
+  Open: `javascript/size_budget` fails on the CLI module at HEAD
+  (7,803,988 bytes, budget 7,500,000), and the `debug-gcc` library does
+  not build (`src/function_library_binary.c:1303`, -Wconversion); neither
+  is this packet's.
+
 - 7.15a done (D213): full UCA collations as the optional feature
   `sxml_uca_collation_feature()` ("uca-collation") over the DUCET the
   host serves (`SXML_RESOURCE_KIND_COLLATION_DATA`), read once per
