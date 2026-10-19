@@ -1125,6 +1125,120 @@ static sxml_status lower_template_function(sxml_xslt_lowering *lowering,
 
 /* ======================================================= Instructions */
 
+/* One non-tunnel parameter a call supplies: an xsl:with-param of
+   xsl:call-template, or an attribute of an extension instruction that
+   calls a template (10.1.3: its attributes but the standard ones, which
+   are in the XSLT namespace, name parameters). */
+typedef struct supplied_parameter {
+    sxml_name_identifier parameter_name;
+    /* The xsl:with-param; 0 for an attribute. */
+    sxml_xslt_ast_node_index with_parameter;
+    /* The attribute; 0 for an xsl:with-param. */
+    sxml_xslt_ast_attribute_index attribute;
+} supplied_parameter;
+
+/* Where a walk over the parameters a call supplies is. */
+typedef struct supplied_cursor {
+    sxml_xslt_ast_node_index call;
+    sxml_xslt_ast_node_index next_child;
+    uint32_t next_attribute_offset;
+    bool has_started;
+} supplied_cursor;
+
+static bool is_extension_call(const sxml_xslt_lowering *lowering, sxml_xslt_ast_node_index call) {
+    return node_of(lowering, call)->kind == SXML_XSLT_AST_KIND_EXTENSION_INSTRUCTION;
+}
+
+/* The next parameter the call supplies; false after the last. */
+static bool next_supplied_parameter(const sxml_xslt_lowering *lowering, supplied_cursor *cursor,
+                                    supplied_parameter *parameter) {
+    if (!cursor->has_started) {
+        cursor->has_started = true;
+        cursor->next_child = node_of(lowering, cursor->call)->first_child;
+    }
+    if (is_extension_call(lowering, cursor->call)) {
+        const sxml_xslt_ast_attribute_list list = node_of(lowering, cursor->call)->attributes;
+        while (cursor->next_attribute_offset < list.attribute_count) {
+            const sxml_xslt_ast_attribute_index index = {
+                .value = list.first_attribute_index + cursor->next_attribute_offset};
+            cursor->next_attribute_offset += 1;
+            const sxml_xslt_ast_attribute *attribute =
+                sxml_xslt_ast_get_attribute(lowering->ast, index);
+            if (attribute->kind == SXML_XSLT_AST_ATTRIBUTE_FOREIGN) {
+                *parameter = (supplied_parameter){.parameter_name = attribute->attribute_name,
+                                                  .with_parameter = {.value = 0},
+                                                  .attribute = index};
+                return true;
+            }
+        }
+        return false;
+    }
+    while (cursor->next_child.value != 0) {
+        const sxml_xslt_ast_node_index child = cursor->next_child;
+        cursor->next_child = node_of(lowering, child)->next_sibling;
+        if (node_of(lowering, child)->kind == SXML_XSLT_AST_KIND_WITH_PARAM &&
+            !boolean_of(lowering, (boolean_query){.node = child,
+                                                  .kind = SXML_XSLT_AST_ATTRIBUTE_TUNNEL,
+                                                  .fallback = false})) {
+            *parameter = (supplied_parameter){.parameter_name = name_of(lowering, child),
+                                              .with_parameter = child,
+                                              .attribute = {.value = 0}};
+            return true;
+        }
+    }
+    return false;
+}
+
+/* The non-tunnel xsl:param of target named parameter_name; 0 for none. */
+static sxml_xslt_ast_node_index declared_parameter(const sxml_xslt_lowering *lowering,
+                                                   const template_entry *target,
+                                                   sxml_name_identifier parameter_name) {
+    for (sxml_xslt_ast_node_index parameter = node_of(lowering, target->node)->first_child;
+         parameter.value != 0; parameter = node_of(lowering, parameter)->next_sibling) {
+        if (node_of(lowering, parameter)->kind == SXML_XSLT_AST_KIND_PARAM &&
+            !boolean_of(lowering, (boolean_query){.node = parameter,
+                                                  .kind = SXML_XSLT_AST_ATTRIBUTE_TUNNEL,
+                                                  .fallback = false}) &&
+            name_of(lowering, parameter).index == parameter_name.index) {
+            return parameter;
+        }
+    }
+    return (sxml_xslt_ast_node_index){.value = 0};
+}
+
+/* How an attribute of an extension instruction gives its parameter's
+   value (10.1.3), by the declared type of the parameter: xs:boolean
+   exactly once, an attribute value template read as a boolean attribute
+   is; another atomic or union type exactly once, an attribute value
+   template whose value is xs:untypedAtomic (cast by the coercion rules);
+   otherwise an XPath expression. */
+typedef enum argument_form {
+    SXML_ARGUMENT_FORM_EXPRESSION = 0,
+    SXML_ARGUMENT_FORM_BOOLEAN,
+    SXML_ARGUMENT_FORM_UNTYPED,
+} argument_form;
+
+static argument_form argument_form_of(const sxml_xslt_lowering *lowering,
+                                      sxml_xslt_declared_type type) {
+    if (!type.has_type || type.sequence_type.occurrence != SXML_OCCURRENCE_EXACTLY_ONE) {
+        return SXML_ARGUMENT_FORM_EXPRESSION;
+    }
+    if (type.sequence_type.item_type.index ==
+        sxml_builtin_type_identifier(SXML_TYPE_XS_BOOLEAN).index) {
+        return SXML_ARGUMENT_FORM_BOOLEAN;
+    }
+    sxml_type_description description = {.variety = SXML_TYPE_VARIETY_ANY_ITEM};
+    if (sxml_type_registry_describe_type(lowering->lowerer->type_registry,
+                                         type.sequence_type.item_type,
+                                         &description) != SXML_STATUS_OK) {
+        return SXML_ARGUMENT_FORM_EXPRESSION;
+    }
+    const bool is_atomic = description.variety == SXML_TYPE_VARIETY_ATOMIC ||
+                           description.variety == SXML_TYPE_VARIETY_UNION ||
+                           description.variety == SXML_TYPE_VARIETY_ENUMERATION;
+    return is_atomic ? SXML_ARGUMENT_FORM_UNTYPED : SXML_ARGUMENT_FORM_EXPRESSION;
+}
+
 /* One xsl:with-param, lowered. */
 typedef struct with_parameter {
     sxml_name_identifier parameter_name;
@@ -1152,6 +1266,13 @@ typedef struct parameter_maps_locals {
     size_t value_count;
     /* Where the frame's own (empty) result goes. */
     sxml_ir_expression_index finished;
+    /* For an extension instruction that calls a template (10.1.3): the
+       template, whose parameters decide how each attribute reads, the
+       walk over the attributes and the form of the current one; NULL for
+       the xsl:with-param children of other instructions. */
+    const template_entry *target;
+    supplied_cursor cursor;
+    argument_form form;
 } parameter_maps_locals;
 
 /* Starts the value of the with-param current (9.3): select, content, or
@@ -1249,6 +1370,70 @@ static sxml_status finish_with_parameter(sxml_xpath_lowerer *lowerer,
     return status;
 }
 
+/* Starts the value of an attribute of an extension instruction that
+   calls a template (10.1.3): the attribute parsed in the form its
+   parameter asks for; always pushes a frame. */
+static sxml_status start_extension_argument(sxml_xpath_lowering_machine *machine,
+                                            sxml_xpath_lowering_frame *frame,
+                                            const supplied_parameter *supplied) {
+    parameter_maps_locals *locals = frame->locals;
+    const sxml_xslt_lowering *lowering = locals->head.lowering;
+    with_parameter *value = &locals->values[locals->value_count];
+    locals->value_count += 1;
+    *value = (with_parameter){.parameter_name = supplied->parameter_name, .is_tunnel = false};
+    sxml_xslt_declared_type type = {.has_type = false};
+    sxml_status status = sxml_xslt_lowering_resolve_declared_type(
+        lowering, declared_parameter(lowering, locals->target, supplied->parameter_name), &type);
+    locals->form = argument_form_of(lowering, type);
+    const sxml_xslt_ast_value_kind kind = locals->form == SXML_ARGUMENT_FORM_EXPRESSION
+                                              ? SXML_XSLT_AST_VALUE_KIND_EXPRESSION
+                                              : SXML_XSLT_AST_VALUE_KIND_VALUE_TEMPLATE;
+    sxml_ast *ast = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xslt_lowering_parse_attribute(
+            lowering, (sxml_xslt_attribute_parse){.attribute = supplied->attribute, .kind = kind},
+            &ast);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_xslt_lowering_call_parsed(machine,
+                                          &(sxml_xslt_parsed_call){.lowering = lowering,
+                                                                   .ast = ast,
+                                                                   .kind = kind,
+                                                                   .node = locals->head.node,
+                                                                   .block = frame->block,
+                                                                   .atom = &value->value});
+}
+
+/* After an attribute's value: the boolean it names, or the string as
+   xs:untypedAtomic. */
+static sxml_status finish_extension_argument(sxml_xpath_lowerer *lowerer,
+                                             sxml_xpath_lowering_frame *frame) {
+    parameter_maps_locals *locals = frame->locals;
+    with_parameter *value = &locals->values[locals->value_count - 1];
+    switch (locals->form) {
+    case SXML_ARGUMENT_FORM_EXPRESSION:
+        return SXML_STATUS_OK;
+    case SXML_ARGUMENT_FORM_BOOLEAN:
+        return sxml_xslt_lowering_bind_boolean_value(
+            lowerer, (sxml_xslt_boolean_value){.block = frame->block, .value = value->value},
+            &value->value);
+    case SXML_ARGUMENT_FORM_UNTYPED:
+        return bind_expression(
+            lowerer,
+            (expression_binding){
+                .block = frame->block,
+                .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_CAST,
+                               .cast = {.value = value->value,
+                                        .target_type = sxml_builtin_type_identifier(
+                                            SXML_TYPE_XS_UNTYPED_ATOMIC),
+                                        .allows_empty = false}}},
+            &value->value);
+    }
+    return SXML_STATUS_OK;
+}
+
 /* Puts the values whose is_tunnel is tunnel into base with map:put. */
 typedef struct map_building {
     sxml_xpath_lowering_frame *frame;
@@ -1291,8 +1476,17 @@ static sxml_status continue_parameter_maps(sxml_xpath_lowering_machine *machine,
     sxml_status status = SXML_STATUS_OK;
     if (frame->step == 0) {
         size_t child_count = 0;
+        if (locals->target != NULL) {
+            supplied_cursor cursor = {.call = locals->head.node};
+            supplied_parameter supplied = {.parameter_name = {.index = 0}};
+            while (next_supplied_parameter(lowering, &cursor, &supplied)) {
+                child_count += 1;
+            }
+            locals->cursor = (supplied_cursor){.call = locals->head.node};
+        }
         for (sxml_xslt_ast_node_index child = node_of(lowering, locals->head.node)->first_child;
-             child.value != 0; child = node_of(lowering, child)->next_sibling) {
+             locals->target == NULL && child.value != 0;
+             child = node_of(lowering, child)->next_sibling) {
             child_count += node_of(lowering, child)->kind == SXML_XSLT_AST_KIND_WITH_PARAM ? 1U : 0U;
         }
         if (child_count > 0) {
@@ -1305,10 +1499,19 @@ static sxml_status continue_parameter_maps(sxml_xpath_lowering_machine *machine,
                                 .element_alignment = alignof(with_parameter)}});
             locals->values = frame->owned_memory[0];
         }
-        locals->next_child = node_of(lowering, locals->head.node)->first_child;
+        locals->next_child = locals->target != NULL
+                                 ? (sxml_xslt_ast_node_index){.value = 0}
+                                 : node_of(lowering, locals->head.node)->first_child;
         frame->step = 1;
+    } else if (locals->target != NULL) {
+        status = finish_extension_argument(lowerer, frame);
     } else {
         status = finish_with_parameter(lowerer, frame);
+    }
+    supplied_parameter supplied = {.parameter_name = {.index = 0}};
+    if (status == SXML_STATUS_OK && locals->target != NULL &&
+        next_supplied_parameter(lowering, &locals->cursor, &supplied)) {
+        return start_extension_argument(machine, frame, &supplied);
     }
     while (status == SXML_STATUS_OK && locals->next_child.value != 0) {
         const sxml_xslt_ast_node_index child = locals->next_child;
@@ -1394,6 +1597,9 @@ typedef struct parameter_maps_request {
     sxml_ir_atom base_tunnel_parameters;
     sxml_ir_atom *parameters;
     sxml_ir_atom *tunnel_parameters;
+    /* The template an extension instruction calls (10.1.3); NULL for
+       xsl:with-param children. */
+    const template_entry *target;
 } parameter_maps_request;
 
 static sxml_status push_parameter_maps(sxml_xpath_lowering_machine *machine,
@@ -1403,7 +1609,8 @@ static sxml_status push_parameter_maps(sxml_xpath_lowering_machine *machine,
                                            .base_tunnel_parameters =
                                                request->base_tunnel_parameters,
                                            .parameters = request->parameters,
-                                           .tunnel_parameters = request->tunnel_parameters};
+                                           .tunnel_parameters = request->tunnel_parameters,
+                                           .target = request->target};
     sxml_xpath_lowering_frame *frame = NULL;
     const sxml_status status = sxml_xpath_lowering_push_procedure(
         machine,
@@ -1672,35 +1879,25 @@ typedef struct call_template_locals {
     sxml_ir_atom tunnel_parameters;
 } call_template_locals;
 
-/* XTSE0680 and XTSE0690 (10.1.5, 9.2.2) between a call and its target. */
+/* XTSE0680 and XTSE0690 (10.1.5, 9.2.2) between a call and its target;
+   10.1.3 applies both to an extension instruction that calls it. */
 static sxml_status check_call_parameters(const sxml_xslt_lowering *lowering,
                                          sxml_xslt_ast_node_index call,
                                          const template_entry *target) {
     const double version = sxml_xslt_ast_get_static_context(
                                lowering->ast, node_of(lowering, call)->static_context)
                                ->version;
-    for (sxml_xslt_ast_node_index with_parameter_node = node_of(lowering, call)->first_child; with_parameter_node.value != 0;
-         with_parameter_node = node_of(lowering, with_parameter_node)->next_sibling) {
-        if (node_of(lowering, with_parameter_node)->kind != SXML_XSLT_AST_KIND_WITH_PARAM ||
-            boolean_of(lowering, (boolean_query){.node = with_parameter_node,
-                                                 .kind = SXML_XSLT_AST_ATTRIBUTE_TUNNEL,
-                                                 .fallback = false})) {
-            continue;
-        }
-        bool is_declared = false;
-        for (sxml_xslt_ast_node_index parameter = node_of(lowering, target->node)->first_child;
-             parameter.value != 0; parameter = node_of(lowering, parameter)->next_sibling) {
-            is_declared = is_declared ||
-                          (node_of(lowering, parameter)->kind == SXML_XSLT_AST_KIND_PARAM &&
-                           !boolean_of(lowering, (boolean_query){.node = parameter,
-                                                                 .kind =
-                                                                     SXML_XSLT_AST_ATTRIBUTE_TUNNEL,
-                                                                 .fallback = false}) &&
-                           name_of(lowering, parameter).index == name_of(lowering, with_parameter_node).index);
-        }
-        if (!is_declared && version >= 2.0) {
-            return report_static_error(lowering, with_parameter_node, SXML_BYTE_VIEW_FROM_LITERAL("XTSE0680 xsl:call-template passes a non-tunnel parameter "
-                                       "the template does not declare (XSLT 4.0, 10.1.5)"));
+    supplied_cursor cursor = {.call = call};
+    supplied_parameter supplied = {.parameter_name = {.index = 0}};
+    while (next_supplied_parameter(lowering, &cursor, &supplied)) {
+        const bool is_declared =
+            declared_parameter(lowering, target, supplied.parameter_name).value != 0;
+        if (!is_declared && (version >= 2.0 || is_extension_call(lowering, call))) {
+            return report_static_error(
+                lowering, supplied.with_parameter.value != 0 ? supplied.with_parameter : call,
+                SXML_BYTE_VIEW_FROM_LITERAL("XTSE0680 xsl:call-template passes a non-tunnel "
+                                            "parameter the template does not declare (XSLT "
+                                            "4.0, 10.1.5)"));
         }
     }
     for (sxml_xslt_ast_node_index parameter = node_of(lowering, target->node)->first_child;
@@ -1715,15 +1912,9 @@ static sxml_status check_call_parameters(const sxml_xslt_lowering *lowering,
             continue;
         }
         bool is_supplied = false;
-        for (sxml_xslt_ast_node_index with_parameter_node = node_of(lowering, call)->first_child; with_parameter_node.value != 0;
-             with_parameter_node = node_of(lowering, with_parameter_node)->next_sibling) {
-            is_supplied = is_supplied ||
-                          (node_of(lowering, with_parameter_node)->kind == SXML_XSLT_AST_KIND_WITH_PARAM &&
-                           !boolean_of(lowering, (boolean_query){.node = with_parameter_node,
-                                                                 .kind =
-                                                                     SXML_XSLT_AST_ATTRIBUTE_TUNNEL,
-                                                                 .fallback = false}) &&
-                           name_of(lowering, with_parameter_node).index == name_of(lowering, parameter).index);
+        cursor = (supplied_cursor){.call = call};
+        while (!is_supplied && next_supplied_parameter(lowering, &cursor, &supplied)) {
+            is_supplied = supplied.parameter_name.index == name_of(lowering, parameter).index;
         }
         if (!is_supplied) {
             return report_static_error(lowering, call, SXML_BYTE_VIEW_FROM_LITERAL("XTSE0690 xsl:call-template supplies no value for a "
@@ -1802,7 +1993,10 @@ static sxml_status add_template_call(sxml_xpath_lowerer *lowerer, const template
    the overridden one (3.4.5.4). NULL for none. */
 static const template_entry *bound_template(const sxml_xslt_lowering *lowering,
                                             sxml_xslt_ast_node_index call) {
-    const sxml_name_identifier name = name_of(lowering, call);
+    /* 10.1.3: an extension instruction names the template it calls. */
+    const sxml_name_identifier name = is_extension_call(lowering, call)
+                                          ? node_of(lowering, call)->element_name
+                                          : name_of(lowering, call);
     sxml_name_identifier original = {.index = 0};
     sxml_xslt_component_binding binding = {.declaration = {.value = 0}};
     if (sxml_name_pool_find_name(
@@ -1856,7 +2050,11 @@ static sxml_status continue_call_template(sxml_xpath_lowering_machine *machine,
                                                .base_tunnel_parameters =
                                                    inherited.tunnel_parameters,
                                                .parameters = &locals->parameters,
-                                               .tunnel_parameters = &locals->tunnel_parameters});
+                                               .tunnel_parameters = &locals->tunnel_parameters,
+                                               .target = is_extension_call(lowering,
+                                                                           locals->head.node)
+                                                             ? locals->target
+                                                             : NULL});
     }
     focus_atoms focus = {{0}, {0}, {0}};
     sxml_status status = bind_focus_atoms(lowerer, frame->block, &focus);
@@ -1880,6 +2078,12 @@ static sxml_status continue_call_template(sxml_xpath_lowering_machine *machine,
     return sxml_xpath_lowering_finish_frame(machine, frame, call);
 }
 
+bool sxml_xslt_lowering_calls_template(const sxml_xslt_lowering *lowering,
+                                       sxml_xslt_ast_node_index instruction) {
+    return lowering->templates != NULL && is_extension_call(lowering, instruction) &&
+           bound_template(lowering, instruction) != NULL;
+}
+
 static const sxml_xpath_lowering_procedure call_template_procedure = {
     .procedure_name = SXML_BYTE_VIEW_INITIALIZER("xsl:call-template"),
     .step = continue_call_template,
@@ -1890,6 +2094,8 @@ static const sxml_xpath_lowering_procedure call_template_procedure = {
 static const sxml_xslt_instruction_rule template_rules[] = {
     {.kind = SXML_XSLT_AST_KIND_APPLY_TEMPLATES, .procedure = &apply_templates_procedure},
     {.kind = SXML_XSLT_AST_KIND_CALL_TEMPLATE, .procedure = &call_template_procedure},
+    /* 10.1.3: lowered so when sxml_xslt_lowering_calls_template. */
+    {.kind = SXML_XSLT_AST_KIND_EXTENSION_INSTRUCTION, .procedure = &call_template_procedure},
     {.kind = SXML_XSLT_AST_KIND_NEXT_MATCH, .procedure = &overriding_procedure},
     {.kind = SXML_XSLT_AST_KIND_APPLY_IMPORTS, .procedure = &overriding_procedure},
 };

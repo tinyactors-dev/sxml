@@ -16,6 +16,7 @@
 #include "ir_pass_internal.h"
 #include "xslt_accumulator_internal.h"
 #include "xslt_key_internal.h"
+#include "xslt_value_template_internal.h"
 #include "processor_internal.h"
 #include "sxml/name.h"
 #include "sxml/types.h"
@@ -369,6 +370,55 @@ void sxml_xslt_release_kept_asts(sxml_xslt_kept_asts *kept_asts) {
     kept_asts->ast_capacity = 0;
 }
 
+sxml_status sxml_xslt_lowering_parse_attribute(const sxml_xslt_lowering *lowering,
+                                              sxml_xslt_attribute_parse request, sxml_ast **ast) {
+    *ast = NULL;
+    const sxml_xslt_ast_attribute *attribute =
+        sxml_xslt_ast_get_attribute(lowering->ast, request.attribute);
+    if (attribute->value.kind != SXML_XSLT_AST_VALUE_KIND_TEXT) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    const sxml_xslt_ast_module *module =
+        sxml_xslt_ast_get_module(lowering->ast, node_of(lowering, attribute->node)->module);
+    const sxml_ast_build_request build = {
+        .expression_text = sxml_xslt_ast_get_text(lowering->ast, attribute->value.payload.text),
+        /* Module URIs never move (D102), so the AST may borrow it. */
+        .source_name = module->module_uri,
+        .allocator = lowering->lowerer->allocator,
+        /* The lowerer bounds the depth it lowers (maximum_depth). */
+        .maximum_expression_depth = lowering->lowerer->maximum_depth,
+        .error_record = lowering->error_record};
+    sxml_ast *made = NULL;
+    const sxml_status status = request.kind == SXML_XSLT_AST_VALUE_KIND_VALUE_TEMPLATE
+                                   ? sxml_xslt_build_value_template_ast(&build, &made)
+                                   : sxml_xpath_build_ast(&build, &made);
+    if (status != SXML_STATUS_OK) {
+        /* The error inside the text, placed in the module as the reader
+           places it (D169). */
+        if (lowering->error_record != NULL && sxml_status_has_error_record(status)) {
+            sxml_source_location *location = &lowering->error_record->diagnostic.location;
+            const sxml_ast_source_span span = sxml_ast_moved_source_span(
+                (sxml_ast_source_span){.byte_offset = location->byte_offset > UINT32_MAX
+                                                          ? UINT32_MAX
+                                                          : (uint32_t)location->byte_offset,
+                                       .byte_count = 0,
+                                       .line_number = location->line_number,
+                                       .column_number = location->column_number},
+                attribute->source_span);
+            *location = (sxml_source_location){.source_name = module->module_uri,
+                                               .line_number = span.line_number,
+                                               .column_number = span.column_number,
+                                               .byte_offset = span.byte_offset};
+        }
+        return status;
+    }
+    /* Its nodes are placed in the module, so a dynamic error points where
+       a static one does (D169). */
+    sxml_ast_move_source_spans(made, attribute->source_span);
+    *ast = made;
+    return sxml_xslt_lowering_keep_ast(lowering, made);
+}
+
 sxml_status sxml_xslt_lowering_bind_mapped_expression(sxml_xpath_lowerer *lowerer,
                                                       const sxml_xslt_mapped_expression *request,
                                                       sxml_ir_atom *atom) {
@@ -624,7 +674,10 @@ sxml_status sxml_xslt_lowering_call_expression(sxml_xpath_lowering_machine *mach
 /* A value template (5.6): its STRING_TEMPLATE's parts in order. */
 typedef struct value_template_locals {
     const sxml_xslt_lowering *lowering;
-    sxml_xslt_ast_expression_index expression;
+    /* The template's AST (an expression of the stylesheet AST or a kept
+       AST) and the static context it is lowered in. */
+    const sxml_ast *ast;
+    const sxml_xpath_static_context *static_context;
     /* The next part of the body, and the enclosed expression's value. */
     sxml_ast_node_index part;
     sxml_ir_atom value;
@@ -632,10 +685,6 @@ typedef struct value_template_locals {
     sxml_ir_atom result;
     bool has_result;
 } value_template_locals;
-
-static const sxml_ast *value_template_ast(const value_template_locals *locals) {
-    return sxml_xslt_ast_get_expression(locals->lowering->ast, locals->expression)->ast;
-}
 
 /* Appends part_atom to the template's string with "||". */
 static sxml_status append_template_part(sxml_xpath_lowering_machine *machine,
@@ -683,15 +732,11 @@ static sxml_status continue_value_template(sxml_xpath_lowering_machine *machine,
                                            sxml_xpath_lowering_frame *frame) {
     sxml_xpath_lowerer *lowerer = machine->state;
     value_template_locals *locals = frame->locals;
-    const sxml_xslt_lowering *lowering = locals->lowering;
-    const sxml_xslt_ast_expression *expression =
-        sxml_xslt_ast_get_expression(lowering->ast, locals->expression);
-    const sxml_ast *ast = value_template_ast(locals);
+    const sxml_ast *ast = locals->ast;
     sxml_status status = SXML_STATUS_OK;
     if (frame->step == 0) {
         frame->step = 1;
-        if (ast == NULL || expression->static_context.value == 0 ||
-            expression->static_context.value >= lowering->static_context_count) {
+        if (ast == NULL || locals->static_context == NULL) {
             return SXML_STATUS_INVALID_ARGUMENT;
         }
         const sxml_ast_node_index body = sxml_ast_find_child(
@@ -725,8 +770,7 @@ static sxml_status continue_value_template(sxml_xpath_lowering_machine *machine,
             &(sxml_xpath_lowering_embedded_call){
                 .embedding = {.ast = ast,
                               .node = enclosed,
-                              .static_context =
-                                  &lowering->static_contexts[expression->static_context.value],
+                              .static_context = locals->static_context,
                               .focus = NULL},
                 .block = frame->block,
                 .is_body = false,
@@ -760,10 +804,20 @@ static const sxml_xpath_lowering_procedure value_template_procedure = {
     .step = continue_value_template,
     .locals_size = sizeof(value_template_locals)};
 
-sxml_status sxml_xslt_lowering_call_value_template(sxml_xpath_lowering_machine *machine,
-                                                   const sxml_xslt_expression_call *call) {
+/* Pushes the value template procedure for the template ast. */
+typedef struct value_template_push {
+    const sxml_xslt_lowering *lowering;
+    const sxml_ast *ast;
+    const sxml_xpath_static_context *static_context;
+    sxml_xpath_lowering_block *block;
+    sxml_ir_atom *atom;
+} value_template_push;
+
+static sxml_status push_value_template(sxml_xpath_lowering_machine *machine,
+                                       const value_template_push *call) {
     const value_template_locals initial = {.lowering = call->lowering,
-                                           .expression = call->expression};
+                                           .ast = call->ast,
+                                           .static_context = call->static_context};
     sxml_xpath_lowering_frame *frame = NULL;
     return sxml_xpath_lowering_push_procedure(
         machine,
@@ -778,6 +832,47 @@ sxml_status sxml_xslt_lowering_call_value_template(sxml_xpath_lowering_machine *
                             .focused = NULL},
             .initial_locals = {.bytes = (const uint8_t *)&initial, .byte_count = sizeof(initial)}},
         &frame);
+}
+
+sxml_status sxml_xslt_lowering_call_value_template(sxml_xpath_lowering_machine *machine,
+                                                   const sxml_xslt_expression_call *call) {
+    return push_value_template(
+        machine, &(value_template_push){
+                     .lowering = call->lowering,
+                     .ast = sxml_xslt_ast_get_expression(call->lowering->ast, call->expression)->ast,
+                     .static_context =
+                         sxml_xslt_lowering_expression_context(call->lowering, call->expression),
+                     .block = call->block,
+                     .atom = call->atom});
+}
+
+sxml_status sxml_xslt_lowering_call_parsed(sxml_xpath_lowering_machine *machine,
+                                           const sxml_xslt_parsed_call *call) {
+    const sxml_xslt_lowering *lowering = call->lowering;
+    const uint32_t context = node_of(lowering, call->node)->static_context.value;
+    if (call->ast == NULL || context == 0 || context >= lowering->static_context_count) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    const sxml_xpath_static_context *static_context = &lowering->static_contexts[context];
+    if (call->kind == SXML_XSLT_AST_VALUE_KIND_VALUE_TEMPLATE) {
+        return push_value_template(machine, &(value_template_push){.lowering = lowering,
+                                                                   .ast = call->ast,
+                                                                   .static_context = static_context,
+                                                                   .block = call->block,
+                                                                   .atom = call->atom});
+    }
+    return sxml_xpath_lowering_call_embedded(
+        machine, &(sxml_xpath_lowering_embedded_call){
+                     .embedding = {.ast = call->ast,
+                                   .node = {.value = 0},
+                                   .static_context = static_context,
+                                   .focus = NULL},
+                     .block = call->block,
+                     .is_body = false,
+                     .destination = {.expression = NULL,
+                                     .atom = call->atom,
+                                     .atom_block = call->block,
+                                     .focused = NULL}});
 }
 
 /* --------------------------------------------------------- Text nodes */
@@ -1564,6 +1659,12 @@ static sxml_status lower_child(sxml_xpath_lowering_machine *machine, child_lower
         procedure = &literal_result_procedure;
         break;
     case SXML_XSLT_AST_KIND_EXTENSION_INSTRUCTION:
+        /* 10.1.3: one named after a named template calls it; sxml has no
+           other extension instructions (24.3). */
+        procedure = sxml_xslt_lowering_calls_template(lowering, request.child)
+                        ? find_instruction_procedure(child->kind)
+                        : &fallback_procedure;
+        break;
     case SXML_XSLT_AST_KIND_UNKNOWN_INSTRUCTION:
         procedure = &fallback_procedure;
         break;

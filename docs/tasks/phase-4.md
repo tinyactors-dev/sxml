@@ -376,3 +376,19 @@ modules Proposed.
 - [x] Review agent pass (D11), findings fixed; the owner is told XSLT
   works (D11 goal). (agent review, D169; the larger follow-ups are
   Proposed or listed)
+
+## Later sweeps
+
+Sweeps after the gate, over the XSLT leftovers of `docs/agents/QUEUE.md`
+(D181: debug preset, the unit tests touched, the affected XT40 sets with
+the release driver).
+
+- [ ] **4.19 XSLT conformance sweep** (implementation). Owns the XSLT
+  lowering and reader files it changes (`src/xslt_*`), their unit tests,
+  and single insertions in the ledgers. In order of value: the "~T" type
+  patterns of priority (only if the suite's draft is the project's, D29),
+  xsl:item-type and xsl:record-type (D98), merge, fn:snapshot, extension
+  instructions as template calls (10.1.3), an index for match="$var"
+  membership, the module named by errors in included modules, the larger
+  duplicates of D169. Done when each item is done or its cause is
+  recorded, with before and after counts of the affected sets.

@@ -262,7 +262,7 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `record_field` | An attribute of `xsl:record`: the field name is its local name, the value its expression |
 | `excluded_namespace` | A namespace whose namespace nodes literal result elements do not copy (XSLT 4.0, 11.1.3) |
 | `extension_namespace` | A namespace whose elements are extension instructions (XSLT 4.0, 24.3) |
-| `extension_instruction` | An element in an extension namespace inside a sequence constructor; sxml knows none and runs its fallback |
+| `extension_instruction` | An element in an extension namespace inside a sequence constructor; one named after a named template calls it, its attributes giving the parameters (XSLT 4.0, 10.1.3); sxml knows no others and runs their fallback |
 | `data_element` | A top-level element outside the XSLT namespace, ignored by the processor (XSLT 4.0, 3.6.4) |
 | `fixed_namespace_bindings` | The namespace bindings that the `fixed-namespaces` attribute sets for every expression of a stylesheet module (XSLT 4.0, 3.6.1) |
 | `module_uri` | The absolute URI a stylesheet module was read from; the source name of its expressions |

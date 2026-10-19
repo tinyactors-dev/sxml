@@ -388,6 +388,33 @@ static void test_fallback(sxml_test_state *state) {
          "<xsl:fallback>f</xsl:fallback></xsl:future></a></xsl:template></xsl:stylesheet>",
          "<a>f</a>"},
         {STYLESHEET("<xsl:sequence select='1'><xsl:fallback>f</xsl:fallback></xsl:sequence>"), "1"},
+        /* 10.1.3: an extension instruction named after a named template
+           calls it; its attributes are expressions, or value templates
+           for an atomic or boolean parameter. */
+        {"<xsl:stylesheet version='4.0' " XSL_NAMESPACE " xmlns:e='urn:e'"
+         " xmlns:xs='http://www.w3.org/2001/XMLSchema' extension-element-prefixes='e'>"
+         "<xsl:template name='xsl:initial-template'><xsl:variable name='n' select='2'/>"
+         "<e:t a='$n + 1' b='{$n}5' c=' {\"y\"}es '/></xsl:template>"
+         "<xsl:template name='e:t'><xsl:param name='a'/><xsl:param name='b' as='xs:integer'/>"
+         "<xsl:param name='c' as='xs:boolean'/><xsl:param name='d' select='\"d\"'/>"
+         "<xsl:sequence select='$a, $b + 1, $c, $d'/></xsl:template></xsl:stylesheet>",
+         "3 26 true() \"d\""},
+        {"<xsl:stylesheet version='4.0' " XSL_NAMESPACE " xmlns:e='urn:e'"
+         " extension-element-prefixes='e'>"
+         "<xsl:template name='xsl:initial-template'><e:t b='1'/></xsl:template>"
+         "<xsl:template name='e:t'><xsl:param name='a'/></xsl:template></xsl:stylesheet>",
+         "error:XTSE0680"},
+        {"<xsl:stylesheet version='4.0' " XSL_NAMESPACE " xmlns:e='urn:e'"
+         " extension-element-prefixes='e'>"
+         "<xsl:template name='xsl:initial-template'><e:t/></xsl:template>"
+         "<xsl:template name='e:t'><xsl:param name='a' required='yes'/></xsl:template>"
+         "</xsl:stylesheet>",
+         "error:XTSE0690"},
+        {"<xsl:stylesheet version='4.0' " XSL_NAMESPACE " xmlns:e='urn:e'"
+         " extension-element-prefixes='e'>"
+         "<xsl:template name='xsl:initial-template'><e:t a='1 +'/></xsl:template>"
+         "<xsl:template name='e:t'><xsl:param name='a'/></xsl:template></xsl:stylesheet>",
+         "error:XPST0003"},
     };
     check_cases(state, (case_list){.cases = cases,
                                    .case_count = SXML_TEST_COUNT(cases),

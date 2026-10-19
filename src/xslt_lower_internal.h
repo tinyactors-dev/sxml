@@ -152,6 +152,25 @@ typedef struct sxml_xslt_kept_asts {
 SXML_NODISCARD sxml_status sxml_xslt_lowering_keep_ast(const sxml_xslt_lowering *lowering,
                                                        sxml_ast *ast);
 
+/* An attribute to parse while lowering (D152's kept ASTs): one whose
+   form is known only then, such as an attribute of an extension
+   instruction that calls a named template (XSLT 4.0, 10.1.3). */
+typedef struct sxml_xslt_attribute_parse {
+    /* A TEXT attribute of the stylesheet AST. */
+    sxml_xslt_ast_attribute_index attribute;
+    /* EXPRESSION or VALUE_TEMPLATE. */
+    sxml_xslt_ast_value_kind kind;
+} sxml_xslt_attribute_parse;
+
+/* Parses the attribute's text as request.kind, placed in its module
+   (D169), and keeps the AST until the lowering ends; *ast is borrowed
+   from the kept list. XPST0003 (or a value template's XTSE0350, XTSE0370)
+   in the error record, located in the module, when it does not parse; the
+   allocator's failures. *ast is NULL on failure. */
+SXML_NODISCARD sxml_status sxml_xslt_lowering_parse_attribute(const sxml_xslt_lowering *lowering,
+                                                              sxml_xslt_attribute_parse request,
+                                                              sxml_ast **ast);
+
 /* Destroys the kept ASTs and releases the list's memory. */
 void sxml_xslt_release_kept_asts(sxml_xslt_kept_asts *kept_asts);
 
@@ -215,6 +234,24 @@ SXML_NODISCARD sxml_status sxml_xslt_lowering_call_expression(
 /* From a step: a VALUE_TEMPLATE as one xs:string (5.6; see above). */
 SXML_NODISCARD sxml_status sxml_xslt_lowering_call_value_template(
     sxml_xpath_lowering_machine *machine, const sxml_xslt_expression_call *call);
+
+/* An AST from sxml_xslt_lowering_parse_attribute to lower to an atom in
+   block, in the static context of node. */
+typedef struct sxml_xslt_parsed_call {
+    const sxml_xslt_lowering *lowering;
+    /* Borrowed (kept until the lowering ends). */
+    const sxml_ast *ast;
+    /* EXPRESSION (the current focus) or VALUE_TEMPLATE (one xs:string). */
+    sxml_xslt_ast_value_kind kind;
+    sxml_xslt_ast_node_index node;
+    sxml_xpath_lowering_block *block;
+    sxml_ir_atom *atom;
+} sxml_xslt_parsed_call;
+
+/* From a step: as sxml_xslt_lowering_call_expression and
+   sxml_xslt_lowering_call_value_template, for a parsed AST. */
+SXML_NODISCARD sxml_status sxml_xslt_lowering_call_parsed(sxml_xpath_lowering_machine *machine,
+                                                          const sxml_xslt_parsed_call *call);
 
 /* A sequence constructor to lower: first and its following siblings. */
 typedef struct sxml_xslt_sequence_constructor_call {
@@ -730,6 +767,13 @@ SXML_NODISCARD sxml_status sxml_xslt_lowering_mark_temporary_output_state(
    template function. src/xslt_lower_template.c. */
 bool sxml_xslt_lowering_received_tunnel_parameters(const sxml_xslt_lowering *lowering,
                                                    sxml_ir_atom *tunnel_parameters);
+
+/* True when instruction is an extension instruction named after a named
+   template it binds to (XSLT 4.0, 10.1.3), which it then calls as
+   xsl:call-template would, its attributes giving the parameters.
+   src/xslt_lower_template.c. */
+bool sxml_xslt_lowering_calls_template(const sxml_xslt_lowering *lowering,
+                                       sxml_xslt_ast_node_index instruction);
 
 /* ----------------------------------------------------------- The entry */
 
