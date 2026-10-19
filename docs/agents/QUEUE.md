@@ -27,7 +27,9 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 
 ## Next
 
-- Phase 7 (`docs/tasks/phase-7.md`, D183, D184): 7.10b HTML follow-ups; Full Text, UCA, timezones, calendars and languages, iXML.
+- 7.19: the Phase 7 review, once 7.6e is done.
+- More XPath/XQuery and XSLT sweeps on the leftovers below; perf-4 on casts
+  and path-MAP hoisting.
 
 ## Leftovers no packet owns yet
 
