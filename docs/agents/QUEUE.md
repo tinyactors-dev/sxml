@@ -12,14 +12,17 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 - Passes: XP40 31,098, XQ40 42,490, XT40 8,931+, XSD in scope 41,483 of
   41,518. Zero error outcomes in every suite.
 - Optional features (D189). Budgets (D202, D207): core `sxml.wasm`
-  2,200,000 / 770,000 (2,120,223 now), `sxml-full.wasm` 4,000,000 /
-  1,400,000 (3,553,063 with fn:transform), CLI module 7,000,000 / 1,500,000.
+  2,200,000 / 770,000 (2,131,859 after 7.2b moved DTD validation behind a
+  feature, D211), `sxml-full.wasm` 4,000,000 / 1,400,000 (3,577,133), CLI
+  module 7,000,000 / 1,500,000 (6,079,521). XQuery lowering parts (about
+  75 KB) stay in the core until the part registry is split by language.
 - EXPath Binary (D198) 646 of 646 and File (D200) 270 of 270 in XQ40; File
   needs `--allow-file-access` in the CLI and has no Windows implementation.
 
 ## Running
 
-- 7.2b core size audit: sxml.wasm is 2,294,051 at HEAD, over 2,200,000.
+- 7.12a XQuery/XPath Full Text, part 1.
+- JavaScript bindings for XQuery, XSLT and validation (js-1).
 - 7.6a XSLT streamability analysis.
 - 7.15a UCA collations.
 - 7.16 timezone database.
@@ -28,8 +31,6 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 
 - Phase 7 (`docs/tasks/phase-7.md`, D183, D184): 7.6b streamed
   evaluation after 7.6a; 7.10b HTML follow-ups; Full Text, UCA, timezones, calendars and languages, iXML.
-- Next to start when load allows: 7.12a Full Text, then JavaScript bindings
-  for XQuery, XSLT and validation (they cover XPath only).
 - `sxml` CLI gaps: `--output`, writing result documents, `--method=csv`,
   "did you mean" for options of a command.
 
