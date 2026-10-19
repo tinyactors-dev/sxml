@@ -4835,8 +4835,8 @@ static bool sxml_xml_is_complete_construct(TSNode node) {
  * it the first child that is not a complete construct, or its end when
  * all its children are.
  */
-static size_t sxml_xml_error_offset(TSNode error) {
-    TSNode node = error;
+static size_t sxml_xml_error_offset(const sxml_xml_frame_node *error) {
+    TSNode node = error->node;
     bool descends = true;
     while (descends) {
         descends = false;
@@ -4855,7 +4855,11 @@ static size_t sxml_xml_error_offset(TSNode error) {
     const uint32_t child_count = ts_node_child_count(node);
     for (uint32_t child_index = 0; child_index < child_count; child_index++) {
         const TSNode child = ts_node_child(node, child_index);
-        if (!sxml_xml_is_complete_construct(child)) {
+        /* The marker and start tags the builder writes before a document
+           segment (D222) are no trouble of the text's. */
+        const bool is_in_prefix =
+            ts_node_end_byte(child) <= error->frame->prefix_byte_count;
+        if (!is_in_prefix && !sxml_xml_is_complete_construct(child)) {
             return ts_node_start_byte(child);
         }
     }
@@ -4886,8 +4890,11 @@ static sxml_status sxml_xml_check_syntax(sxml_xml_document *document,
                                     "section 2.1)"),
             .location =
                 sxml_xml_location_at(
-                    document, sxml_xml_document_offset_of(
-                                  tree->frame, (uint32_t)sxml_xml_error_offset(error)))});
+                    document,
+                    sxml_xml_document_offset_of(
+                        tree->frame,
+                        (uint32_t)sxml_xml_error_offset(
+                            &(sxml_xml_frame_node){.frame = tree->frame, .node = error})))});
 }
 
 /* ------------------------------------------------- Document segments */

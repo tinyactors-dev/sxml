@@ -684,8 +684,10 @@ typedef struct sxml_xml_incremental_parse_request {
     sxml_tree_builder builder;
 } sxml_xml_incremental_parse_request;
 
-/* Checks and decodes the document, parses it and sends start_document and
-   the unparsed entities; the content follows at each resume. Fails as
+/* Checks and decodes the document, parses its head (the prolog and the
+   start tag of the document element, D222) and sends start_document and
+   the unparsed entities; the content follows at each resume, which also
+   finds the errors of the content segments. Fails as
    sxml_xml_parser_parse does; *parse is then untouched. */
 SXML_NODISCARD sxml_status
 sxml_xml_incremental_parse_create(const sxml_xml_incremental_parse_request *request,
