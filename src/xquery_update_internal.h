@@ -185,7 +185,9 @@ SXML_NODISCARD sxml_status sxml_xquery_read_update_primitive(
  *   SXML_XQUERY_UPDATE_NO_INHERIT_NAMESPACES and
  *   SXML_XQUERY_UPDATE_PRESERVES_TYPES, the prolog's copy-namespaces and
  *   construction modes for the nodes copied in;
- * - rename($target, $new-name) (5.4.4).
+ * - rename($modes, $target, $new-name) (5.4.4), $modes the copy flags
+ *   alone (no-inherit keeps a new binding off the descendants, 3.2.2
+ *   upd:propagateNamespace).
  */
 #define SXML_XQUERY_UPDATE_NO_PRESERVE_NAMESPACES 8
 #define SXML_XQUERY_UPDATE_NO_INHERIT_NAMESPACES 16

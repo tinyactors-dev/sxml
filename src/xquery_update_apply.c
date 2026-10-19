@@ -655,6 +655,10 @@ typedef struct node_name {
 typedef struct described_node {
     sxml_node_index index;
     const sxml_node_description *description;
+    /* An element whose parent gained a binding under copy-namespaces
+       no-inherit: it does not inherit its new parent's bindings and gets
+       all of its own (3.2.2, upd:propagateNamespace). */
+    bool ignores_parent_namespaces;
 } described_node;
 
 static sxml_status read_node_name(const rebuild *state, described_node node, node_name *name) {
@@ -737,7 +741,8 @@ static sxml_status send_attribute(const rebuild *state, sxml_node_index attribut
     node_name name = {.expanded_name = {0}, .namespace_prefix = {0}};
     if (status == SXML_STATUS_OK) {
         status = read_node_name(
-            state, (described_node){.index = attribute, .description = &description}, &name);
+            state, (described_node){.index = attribute, .description = &description,
+                            .ignores_parent_namespaces = false}, &name);
     }
     sxml_byte_view value = {.bytes = NULL, .byte_count = 0};
     if (status == SXML_STATUS_OK) {
@@ -895,14 +900,15 @@ static bool view_has_binding(sxml_namespace_binding_view bindings, sxml_namespac
 /* The in-scope namespaces of the old element that its old parent element
    lacks, and undeclarations of those it does not inherit (as
    sxml_tree_builder_copy_node does with copy-namespaces preserve). */
-static sxml_status send_element_bindings(const rebuild *state, sxml_node_index element,
-                                         const sxml_node_description *description) {
+static sxml_status send_element_bindings(const rebuild *state, described_node node) {
+    const sxml_node_index element = node.index;
+    const sxml_node_description *description = node.description;
     sxml_namespace_binding_view bindings = {.namespace_bindings = NULL,
                                             .namespace_binding_count = 0};
     sxml_namespace_binding_view parent_bindings = {.namespace_bindings = NULL,
                                                    .namespace_binding_count = 0};
     sxml_status status = sxml_node_get_in_scope_namespaces(old_node(state, element), &bindings);
-    if (status == SXML_STATUS_OK && description->has_parent) {
+    if (status == SXML_STATUS_OK && description->has_parent && !node.ignores_parent_namespaces) {
         sxml_node_description parent;
         status = sxml_node_describe(old_node(state, description->parent), &parent);
         if (status == SXML_STATUS_OK && parent.node_kind == SXML_NODE_KIND_ELEMENT) {
@@ -965,11 +971,11 @@ static sxml_status start_element(const rebuild *state, described_node node, bool
                 .is_id = description->is_id && !is_touched,
                 .is_idrefs = description->is_idrefs && !is_touched,
                 .is_nilled = description->is_nilled && !is_touched,
-                .ignores_parent_namespaces = false,
+                .ignores_parent_namespaces = node.ignores_parent_namespaces,
                 .location = no_location});
     }
     if (status == SXML_STATUS_OK) {
-        status = send_element_bindings(state, element, description);
+        status = send_element_bindings(state, node);
     }
     for (uint32_t offset = 1; status == SXML_STATUS_OK && offset <= description->attribute_count;
          offset += 1) {
@@ -1039,7 +1045,8 @@ static sxml_status send_leaf(const rebuild *state, sxml_node_index leaf,
             builder.state, &(sxml_comment_event){.comment = value, .location = no_location});
     case SXML_NODE_KIND_PROCESSING_INSTRUCTION: {
         node_name name = {.expanded_name = {0}, .namespace_prefix = {0}};
-        status = read_node_name(state, (described_node){.index = leaf, .description = description},
+        status = read_node_name(state, (described_node){.index = leaf, .description = description,
+                            .ignores_parent_namespaces = false},
                                 &name);
         sxml_name_parts parts;
         if (status == SXML_STATUS_OK) {
@@ -1073,6 +1080,39 @@ static sxml_status push_open(rebuild *state, sxml_node_index node) {
     return SXML_STATUS_OK;
 }
 
+/* Whether a primitive of node renames it or adds attributes under
+   copy-namespaces no-inherit. */
+static bool gains_private_binding(const rebuild *state, sxml_node_index node) {
+    for (uint32_t number = primitives_of(state, node)->first_number; number != 0;
+         number = entry_of(state->work, number)->next_number) {
+        const sxml_xquery_update_primitive *primitive = &entry_of(state->work, number)->primitive;
+        if (!primitive->inherits_namespaces &&
+            (primitive->primitive_kind == SXML_XQUERY_UPDATE_PRIMITIVE_RENAME ||
+             primitive->primitive_kind == SXML_XQUERY_UPDATE_PRIMITIVE_INSERT_ATTRIBUTES ||
+             primitive->primitive_kind == SXML_XQUERY_UPDATE_PRIMITIVE_REPLACE_NODE)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* Whether the children of element must not inherit from its rebuilt
+   self: it or one of its attributes gained a binding under no-inherit. */
+static sxml_status keeps_bindings_to_itself(const rebuild *state, sxml_node_index element,
+                                            bool *keeps) {
+    sxml_node_description description;
+    const sxml_status status = sxml_node_describe(old_node(state, element), &description);
+    *keeps = false;
+    if (status != SXML_STATUS_OK || description.node_kind != SXML_NODE_KIND_ELEMENT) {
+        return status;
+    }
+    *keeps = gains_private_binding(state, element);
+    for (uint32_t offset = 1; !*keeps && offset <= description.attribute_count; offset += 1) {
+        *keeps = gains_private_binding(state, (sxml_node_index){.index = element.index + offset});
+    }
+    return SXML_STATUS_OK;
+}
+
 /* One child of an open node (3.2.2 order, see the file comment). Writes
    whether it was opened (an element whose children come next). */
 static sxml_status send_child(rebuild *state, described_node node, bool *is_opened) {
@@ -1093,7 +1133,12 @@ static sxml_status send_child(rebuild *state, described_node node, bool *is_open
         status = send_content(state, replacement);
     } else if (!is_deleted && description->node_kind == SXML_NODE_KIND_ELEMENT) {
         bool is_closed = false;
-        status = start_element(state, node, &is_closed);
+        described_node element = node;
+        status = keeps_bindings_to_itself(state, description->parent,
+                                          &element.ignores_parent_namespaces);
+        if (status == SXML_STATUS_OK) {
+            status = start_element(state, element, &is_closed);
+        }
         if (status == SXML_STATUS_OK && !is_closed) {
             *is_opened = true;
             return push_open(state, child);
@@ -1140,7 +1185,8 @@ static sxml_status send_children(rebuild *state, const sxml_node_description *ro
         status = sxml_node_describe(old_node(state, next), &description);
         bool is_opened = false;
         if (status == SXML_STATUS_OK) {
-            status = send_child(state, (described_node){.index = next, .description = &description},
+            status = send_child(state, (described_node){.index = next, .description = &description,
+                            .ignores_parent_namespaces = false},
                                 &is_opened);
         }
         if (is_opened) {
@@ -1186,7 +1232,8 @@ static sxml_status send_tree(rebuild *state) {
     }
     if (description.node_kind == SXML_NODE_KIND_ELEMENT) {
         bool is_closed = false;
-        status = start_element(state, (described_node){.index = root, .description = &description},
+        status = start_element(state, (described_node){.index = root, .description = &description,
+                            .ignores_parent_namespaces = false},
                                &is_closed);
         if (status == SXML_STATUS_OK && !is_closed) {
             status = push_open(state, root);

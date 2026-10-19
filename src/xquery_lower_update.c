@@ -263,6 +263,7 @@ static sxml_status plan_update(sxml_xpath_lowerer *state, sxml_ast_node_index no
         break;
     case SXML_AST_KIND_RENAME_EXPRESSION:
         locals->native_function = &sxml_xquery_rename_function;
+        variant = 0;
         locals->operands[0] = child_of(state, node, SXML_AST_FIELD_TARGET);
         locals->operands[1] = child_of(state, node, SXML_AST_FIELD_NAME_EXPRESSION);
         locals->operand_count = 2;

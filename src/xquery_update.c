@@ -1694,10 +1694,14 @@ static sxml_status check_rename_conflict(const sxml_function_call *call, const t
 static sxml_status make_rename(const primitive_output *output) {
     const sxml_function_call *call = output->call;
     target_node target = {.item = {.representation = 0}};
-    sxml_status status = read_target(
-        call, &(target_request){.value = call->arguments.sequences[0],
-                                .cardinality_error = &rename_target_error},
-        &target);
+    update_variant variant = {.variant = 0, .copy_flags = 0};
+    sxml_status status = read_variant(call, 1, &variant);
+    if (status == SXML_STATUS_OK) {
+        status = read_target(call,
+                             &(target_request){.value = call->arguments.sequences[1],
+                                               .cardinality_error = &rename_target_error},
+                             &target);
+    }
     const sxml_node_kind kind = target.description.node_kind;
     if (status == SXML_STATUS_OK &&
         !kind_is_one_of(kind, KIND_BIT(SXML_NODE_KIND_ELEMENT) | KIND_BIT(SXML_NODE_KIND_ATTRIBUTE) |
@@ -1706,7 +1710,7 @@ static sxml_status make_rename(const primitive_output *output) {
     }
     uint64_t item_count = 0;
     if (status == SXML_STATUS_OK) {
-        status = sxml_sequence_count(call->arguments.sequences[1], call->error_record, &item_count);
+        status = sxml_sequence_count(call->arguments.sequences[2], call->error_record, &item_count);
     }
     if (status == SXML_STATUS_OK && item_count != 1) {
         status = sxml_function_library_report(call, &name_type_error);
@@ -1714,7 +1718,7 @@ static sxml_status make_rename(const primitive_output *output) {
     sxml_item new_name_item = {.representation = 0};
     if (status == SXML_STATUS_OK) {
         status = sxml_sequence_get_item(
-            call->arguments.sequences[1],
+            call->arguments.sequences[2],
             (sxml_item_request){.item_index = 0, .error_record = NULL}, &new_name_item);
     }
     sxml_qname_datum name = {.expanded_name = {0}, .namespace_prefix = {0}};
@@ -1742,7 +1746,8 @@ static sxml_status make_rename(const primitive_output *output) {
                                   &(primitive_request){.primitive_kind =
                                                            SXML_XQUERY_UPDATE_PRIMITIVE_RENAME,
                                                        .target = target.item,
-                                                       .parameter = sxml_sequence_from_item(qname)});
+                                                       .parameter = sxml_sequence_from_item(qname),
+                                                       .copy_flags = variant.copy_flags});
         sxml_item_release(qname);
     }
     return status;
@@ -1758,10 +1763,6 @@ static const sxml_function_parameter one_parameter[] = {
     SXML_REQUIRED_PARAMETER("target", "item()*"),
 };
 
-static const sxml_function_parameter two_parameters[] = {
-    SXML_REQUIRED_PARAMETER("target", "item()*"),
-    SXML_REQUIRED_PARAMETER("value", "item()*"),
-};
 
 static const sxml_function_parameter three_parameters[] = {
     SXML_REQUIRED_PARAMETER("variant", "xs:integer"),
@@ -1801,7 +1802,7 @@ const sxml_native_function sxml_xquery_rename_function = {
     /* The statically known namespaces of the code running. */
     .properties = SXML_NATIVE_FUNCTION_USES_DYNAMIC_CONTEXT,
     .local_name = SXML_BYTE_VIEW_INITIALIZER("rename"),
-    .parameters = {two_parameters, 2},
+    .parameters = {three_parameters, 3},
     .result_type = SXML_BYTE_VIEW_INITIALIZER("function(*)*"),
     .call = call_rename,
     .resumable_body = NULL};
