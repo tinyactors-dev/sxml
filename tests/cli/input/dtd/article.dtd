@@ -1,0 +1,7 @@
+<!ELEMENT article (title, chapter, see)>
+<!ATTLIST article id ID #REQUIRED>
+<!ELEMENT title (#PCDATA)>
+<!ELEMENT chapter (#PCDATA)>
+<!ELEMENT see EMPTY>
+<!ATTLIST see ref IDREF #REQUIRED>
+<!ENTITY chapter SYSTEM "chapter.ent">

@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<!DOCTYPE article SYSTEM "article.dtd">
+<article id="a1">
+  <title>Entities</title>
+  &chapter;
+  <see ref="a1"/>
+</article>

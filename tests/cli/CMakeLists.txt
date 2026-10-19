@@ -99,6 +99,12 @@ sxml_add_cli_test(check_missing_file_json EXIT_CODE 3 ARGUMENTS check --format j
 sxml_add_cli_test(check_entity_limit EXIT_CODE 4 ARGUMENTS check billion-laughs.xml)
 sxml_add_cli_test(check_no_file EXIT_CODE 2 ARGUMENTS check)
 sxml_add_cli_test(check_help EXIT_CODE 0 ARGUMENTS check --help)
+# sxml check with the DTD (D199, D44): files in tests/cli/input/dtd/.
+sxml_add_cli_test(check_external_not_read EXIT_CODE 0 ARGUMENTS check dtd/article.xml dtd/broken-entity.xml)
+sxml_add_cli_test(check_external_entities EXIT_CODE 1 ARGUMENTS check --external-entities dtd/article.xml dtd/broken-entity.xml)
+sxml_add_cli_test(check_validate_dtd EXIT_CODE 1 ARGUMENTS check --validate-dtd --external-entities dtd/article.xml dtd/invalid.xml)
+sxml_add_cli_test(check_validate_dtd_json EXIT_CODE 1 ARGUMENTS check --validate-dtd --external-entities --format=json dtd/article.xml dtd/invalid.xml well-formed.xml)
+sxml_add_cli_test(check_validate_dtd_internal_only EXIT_CODE 1 ARGUMENTS check --validate-dtd dtd/article.xml)
 
 # sxml xpath (apps/sxml/README.md): files in tests/cli/input/.
 sxml_add_cli_test(xpath_sequence EXIT_CODE 0 ARGUMENTS xpath "1 to 3, 'four', 5.0, 6e0, [7], {'k': 8}")

@@ -1,24 +1,33 @@
 sxml check - Check that XML documents are well-formed
 
-Usage: sxml check [--format=FORMAT] FILE...
+Usage: sxml check [--external-entities] [--validate-dtd] [--format=FORMAT] FILE...
 
 Checks that each FILE is a well-formed XML 1.0 document that also
 conforms to Namespaces in XML 1.0. No tree is built. The supported
 encodings are UTF-8, UTF-16, ISO-8859-1 and US-ASCII. The external DTD
-subset and external entities are not read.
+subset and external entities are read only with --external-entities,
+and then only as local files, relative to the file that refers to
+them.
 
-Prints nothing when every FILE is well-formed. Each problem is
+With --validate-dtd, each FILE must also be valid against its DTD
+(XML 1.0, section 5.1); the first error of each FILE is reported. A
+FILE without a document type declaration is not valid. An external
+DTD subset is part of the DTD only with --external-entities.
+
+Prints nothing when every FILE is well-formed (valid). Each problem is
 reported on standard error as
   FILE:LINE:COLUMN: message
 With --format=json, one JSON object on standard output lists every
 FILE with its "status".
 
-Exit status: 0 when every FILE is well-formed, 1 when one is not, 3
-when one cannot be read.
+Exit status: 0 when every FILE is well-formed (valid), 1 when one is
+not, 3 when one cannot be read.
 
 Options:
-  -h, --help           Show this help and exit
-      --format=FORMAT  Report format (one of: text, json; default: text)
+  -h, --help               Show this help and exit
+      --external-entities  Read the external DTD subset and external entities as local files
+      --validate-dtd       Also check that each FILE is valid against its DTD
+      --format=FORMAT      Report format (one of: text, json; default: text)
 
 Arguments:
   FILE  XML document to check; - reads standard input
@@ -26,3 +35,4 @@ Arguments:
 Examples:
   sxml check books.xml
   sxml check --format=json books.xml broken.xml
+  sxml check --validate-dtd --external-entities article.xml

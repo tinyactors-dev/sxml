@@ -381,30 +381,49 @@ $ sxml serialize --method=html page.xml
 Check that XML documents are well-formed.
 
 ```
-sxml check [--format=FORMAT] FILE...
+sxml check [--external-entities] [--validate-dtd] [--format=FORMAT] FILE...
 ```
 
 `sxml check` checks that each FILE is a well-formed XML 1.0 document that
 also conforms to Namespaces in XML 1.0. The supported encodings are UTF-8,
 UTF-16, ISO-8859-1 and US-ASCII. The external DTD subset and external
-entities are not read.
+entities are read only with `--external-entities`.
 
 When every FILE is well-formed, `sxml check` writes nothing. Each problem
 is reported on standard error as `FILE:LINE:COLUMN: message`.
 
 | Option | Description |
 | --- | --- |
+| `--external-entities` | Read the external DTD subset and external entities as local files |
+| `--validate-dtd` | Also check that each FILE is valid against its DTD |
 | `--format=FORMAT` | Report format: `text` (default) or `json` |
+
+Each flag does one thing:
+
+- `--external-entities` reads the external DTD subset, external parameter
+  entities and external parsed entities. A system identifier is resolved
+  against the file that declares it (for standard input, against the
+  working directory), and only local files are read. Without the flag,
+  nothing outside FILE is read, and references to external entities are
+  skipped (XML 1.0, section 4.4.3).
+- `--validate-dtd` also checks that each FILE is valid against its DTD
+  (XML 1.0, section 5.1), and reports the first validity error of each
+  FILE as `FILE:LINE:COLUMN: CODE: message`. CODE is the XSD constraint
+  that sxml checks the declarations with (`cvc-...`), or `xml-validity`
+  for the constraints of XML 1.0 itself. A FILE without a document type
+  declaration is not valid. The flag reads no external entity: give
+  `--external-entities` too when the DTD is in an external subset.
 
 With `--format=json`, one JSON object on standard output lists each FILE
 with its `status`: `well-formed`, `not-well-formed`, `unreadable` or
-`failed`. A file that is not well-formed also has `line`, `column`,
-`byte_offset` and `message`. Later versions can add fields to this object.
-Existing fields do not change.
+`failed`; with `--validate-dtd`, `valid` and `invalid` take the place of
+`well-formed`. A file that is not well-formed also has `line`, `column`,
+`byte_offset` and `message`; an invalid file has `code` too. Later
+versions can add fields to this object. Existing fields do not change.
 
-Exit status: 0 when every FILE is well-formed; 1 when a FILE is not; 3
-when a FILE cannot be read; 4 when a limit is exceeded (entity expansion
-beyond 4 MiB).
+Exit status: 0 when every FILE is well-formed (with `--validate-dtd`,
+valid); 1 when a FILE is not; 3 when a FILE cannot be read; 4 when a
+limit is exceeded (entity expansion beyond 4 MiB).
 
 ```console
 $ sxml check books.xml
@@ -415,6 +434,24 @@ $ sxml check --format=json books.xml broken.xml
 {"files":[{"file":"books.xml","status":"well-formed"},{"file":"broken.xml","status":"not-well-formed","line":2,"column":1,"byte_offset":11,"message":"not well-formed: the document ends or breaks off before a construct is complete (XML 1.0, section 2.1)"}]}
 $ sxml check missing.xml
 sxml check: cannot read 'missing.xml'
+```
+
+With a DTD (the files of `tests/cli/input/dtd/`): `article.xml` names the
+external subset `article.dtd`, which declares the external entity
+`chapter.ent`; `broken-entity.xml` refers to an entity that is not
+well-formed; `invalid.xml` has a second `title` that its DTD does not
+allow.
+
+```console
+$ sxml check article.xml broken-entity.xml
+$ sxml check --external-entities article.xml broken-entity.xml
+broken-entity.xml:5:7: an external parsed entity referenced in content must match [78] extParsedEnt (XML 1.0, section 4.3.2)
+$ sxml check --validate-dtd --external-entities article.xml invalid.xml
+invalid.xml:6:28: cvc-complex-type.2.4: element 'title' is not allowed here; expected no element
+$ sxml check --validate-dtd article.xml
+article.xml:3:1: cvc-elt.1: no global declaration governs element 'article'
+$ sxml check --validate-dtd --external-entities --format=json article.xml invalid.xml
+{"files":[{"file":"article.xml","status":"valid"},{"file":"invalid.xml","status":"invalid","line":6,"column":28,"byte_offset":126,"code":"cvc-complex-type.2.4","message":"element 'title' is not allowed here; expected no element"}]}
 ```
 
 ## sxml validate
