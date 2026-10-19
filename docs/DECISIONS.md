@@ -8701,6 +8701,24 @@ over D207's 2,200,000 / 770,000, so `javascript/size_budget` failed.
   version-021, xpath-compat-0302, 0401) stay failures, not reclassified
   (D178).
 
+### D214. XQuery and XPath Full Text 3.0 (packet 7.12a)
+Recorded 2026-10-19, after D12, D53, D71, D162, D183, D187, D189, D208.
+Amended as the packet goes on.
+- **Grammar** (`grammars/xquery` only, D12): Full Text 3.0, Appendix A,
+  with FTContainsExpr as the operand of ComparisonExpr above XQuery 4.0's
+  OtherwiseExpr. Its 43 keywords are not reserved words: tree-sitter's
+  keyword extraction returns one only where the parse state expects it,
+  so no name position changes. (Reserved, as the XQuery keywords are, they
+  grew the compiled parser by 1.5 MB; contextual, with the choice rules
+  inlined, by 500 KB, in the CLI only.) One GLR conflict, after a
+  thesaurus URI ("at least ... levels" against "at start").
+- **AST**: 29 kinds, 16 fields, 15 keywords, four flags; a selection is
+  a tree of FT_SELECTION, FT_OR, FT_AND, FT_MILD_NOT, FT_UNARY_NOT,
+  FT_PRIMARY_WITH_OPTIONS and FT_WORDS nodes with the positional filters
+  as children of their FT_SELECTION.
+- XPath's Full Text is not implemented: the QT4 cases are XQuery only,
+  and the XPath grammar and `sxml.wasm` stay as they are.
+
 ## Proposed
 
 - **A streamability option and a streamed source in `xslt.h`** (packet
