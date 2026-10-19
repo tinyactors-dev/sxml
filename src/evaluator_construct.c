@@ -2256,6 +2256,13 @@ static sxml_status sxml_construct_copy_with_content(sxml_dynamic_context *contex
     if (status == SXML_STATUS_OK) {
         status = sxml_construction_start_document(construction);
     }
+    if (status == SXML_STATUS_OK && construction->enclosing == NULL) {
+        /* The unparsed-entities property is copied (XSLT 4.0, 11.9.1 and
+           11.9.2; D210); a document copied into enclosing content gives
+           only its children. */
+        status = sxml_tree_builder_copy_unparsed_entities(construction->builder,
+                                                          copied->node.tree);
+    }
     sxml_construct_content_start start = {.has_pushed = false};
     if (status == SXML_STATUS_OK) {
         status = sxml_construct_start_content(construction, content, &start);

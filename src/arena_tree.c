@@ -124,6 +124,14 @@ typedef struct sxml_arena_unparsed_entity {
     struct sxml_arena_unparsed_entity *next_entity;
 } sxml_arena_unparsed_entity;
 
+/* The entity base URI of an element (glossary `entity_base_uri`), in a
+   list newest first: few elements have one. */
+typedef struct sxml_arena_entity_base_uri {
+    uint32_t node_number;
+    sxml_byte_view base_uri;
+    struct sxml_arena_entity_base_uri *next_base_uri;
+} sxml_arena_entity_base_uri;
+
 /* Where building is. */
 typedef enum sxml_arena_tree_phase {
     /* No event yet. */
@@ -197,6 +205,8 @@ struct sxml_arena_tree {
     sxml_byte_view document_uri;
     sxml_byte_view base_uri;
     sxml_arena_unparsed_entity *newest_entity;
+    size_t entity_count;
+    sxml_arena_entity_base_uri *newest_base_uri;
 };
 
 /* -------------------------------------------------------------- Errors */
@@ -1603,6 +1613,29 @@ static bool sxml_arena_tree_accepts_content(const sxml_arena_tree *arena_tree) {
             arena_tree->has_open_node);
 }
 
+/* Keeps the entity base URI of an element (XML 1.0, 4.2.2; D210). */
+static sxml_status sxml_arena_tree_keep_entity_base_uri(sxml_arena_tree *arena_tree,
+                                                        sxml_arena_entity_base_uri kept) {
+    void *memory = NULL;
+    sxml_status status = sxml_arena_tree_allocate(
+        arena_tree,
+        (sxml_allocation_request){.byte_count = sizeof(sxml_arena_entity_base_uri),
+                                  .alignment = alignof(sxml_arena_entity_base_uri)},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_arena_entity_base_uri *copy = memory;
+    *copy = kept;
+    status = sxml_arena_tree_copy_text(arena_tree, kept.base_uri, &copy->base_uri);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    copy->next_base_uri = arena_tree->newest_base_uri;
+    arena_tree->newest_base_uri = copy;
+    return SXML_STATUS_OK;
+}
+
 static sxml_status sxml_arena_tree_start_element(
     void *state, const sxml_element_start_event *event) {
     sxml_arena_tree *arena_tree = sxml_arena_tree_from_state(state);
@@ -1642,6 +1675,12 @@ static sxml_status sxml_arena_tree_start_element(
     uint32_t node_number = 0;
     if (status == SXML_STATUS_OK) {
         status = sxml_arena_tree_add_node(arena_tree, &element, &node_number);
+    }
+    if (status == SXML_STATUS_OK && event->entity_base_uri.byte_count != 0) {
+        status = sxml_arena_tree_keep_entity_base_uri(
+            arena_tree, (sxml_arena_entity_base_uri){.node_number = node_number,
+                                                     .base_uri = event->entity_base_uri,
+                                                     .next_base_uri = NULL});
     }
     if (status != SXML_STATUS_OK) {
         return status;
@@ -2057,6 +2096,7 @@ static sxml_status sxml_arena_tree_add_unparsed_entity(
     }
     copy->next_entity = arena_tree->newest_entity;
     arena_tree->newest_entity = copy;
+    arena_tree->entity_count += 1;
     return SXML_STATUS_OK;
 }
 
@@ -2193,6 +2233,36 @@ static sxml_status sxml_arena_tree_find_unparsed_entity(
     return SXML_STATUS_INDEX_OUT_OF_RANGE;
 }
 
+/* The list is newest first, so declaration order counts from its end. */
+static sxml_status sxml_arena_tree_get_unparsed_entity(void *state, size_t entity_number,
+                                                       sxml_unparsed_entity *entity) {
+    const sxml_arena_tree *arena_tree = sxml_arena_tree_from_state(state);
+    if (entity_number >= arena_tree->entity_count) {
+        return SXML_STATUS_INDEX_OUT_OF_RANGE;
+    }
+    const sxml_arena_unparsed_entity *candidate = arena_tree->newest_entity;
+    for (size_t skipped = arena_tree->entity_count - 1 - entity_number; skipped > 0;
+         skipped -= 1) {
+        candidate = candidate->next_entity;
+    }
+    *entity = candidate->entity;
+    return SXML_STATUS_OK;
+}
+
+static sxml_status sxml_arena_tree_get_entity_base_uri(void *state, sxml_node_index element,
+                                                       sxml_byte_view *base_uri) {
+    const sxml_arena_tree *arena_tree = sxml_arena_tree_from_state(state);
+    *base_uri = (sxml_byte_view){.bytes = NULL, .byte_count = 0};
+    for (const sxml_arena_entity_base_uri *candidate = arena_tree->newest_base_uri;
+         candidate != NULL; candidate = candidate->next_base_uri) {
+        if (candidate->node_number == element.index) {
+            *base_uri = candidate->base_uri;
+            break;
+        }
+    }
+    return SXML_STATUS_OK;
+}
+
 static const sxml_tree_operations sxml_arena_tree_operations = {
     .describe_tree = sxml_arena_tree_describe_tree,
     .describe_node = sxml_arena_tree_describe_node,
@@ -2202,6 +2272,8 @@ static const sxml_tree_operations sxml_arena_tree_operations = {
     .get_location = sxml_arena_tree_get_node_location,
     .find_unparsed_entity = sxml_arena_tree_find_unparsed_entity,
     .find_element_by_id = NULL,
+    .get_unparsed_entity = sxml_arena_tree_get_unparsed_entity,
+    .get_entity_base_uri = sxml_arena_tree_get_entity_base_uri,
 };
 
 /* ---------------------------------------------------------- Finishing */

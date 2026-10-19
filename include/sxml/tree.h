@@ -258,6 +258,22 @@ typedef struct sxml_tree_operations {
        makes sxml scan the tree. */
     sxml_status (*find_element_by_id)(void *state, sxml_byte_view identifier,
                                       sxml_element_by_id_result *result);
+    /* Optional, added after the freeze (D99, D210). The unparsed entity
+       numbered entity_number, from 0 in the order of the declarations;
+       SXML_STATUS_INDEX_OUT_OF_RANGE past the last. NULL: the tree lists
+       none, so copies of its document node have none
+       (sxml_tree_builder_copy_unparsed_entities). */
+    sxml_status (*get_unparsed_entity)(void *state, size_t entity_number,
+                                       sxml_unparsed_entity *entity);
+    /* Optional, added after the freeze (D99, D210). The base URI an
+       element has from the external entity it comes from (XML 1.0,
+       4.2.2; XDM 4.0, 5.2, dm:base-uri): set for the elements at the top
+       of an external parsed entity, empty for every other element. It
+       takes the place of the tree's base URI for the element and its
+       descendants, before their xml:base attributes apply. NULL: no
+       element has one. */
+    sxml_status (*get_entity_base_uri)(void *state, sxml_node_index element,
+                                       sxml_byte_view *base_uri);
 } sxml_tree_operations;
 
 /*
@@ -501,6 +517,10 @@ typedef struct sxml_element_start_event {
     bool ignores_parent_namespaces;
     /* Where the element starts in its source; line_number 0 when unknown. */
     sxml_source_location location;
+    /* The URI of the external parsed entity the element is at the top of
+       (sxml_tree_operations.get_entity_base_uri); empty, the zero value,
+       for every other element. Added after the freeze (D99, D210). */
+    sxml_byte_view entity_base_uri;
 } sxml_element_start_event;
 
 /* An attribute of the element just started, or a parentless attribute. */
@@ -640,6 +660,19 @@ typedef struct sxml_copy_request {
  */
 SXML_NODISCARD SXML_EXPORT sxml_status sxml_tree_builder_copy_node(
     sxml_tree_builder builder, const sxml_copy_request *request);
+
+/*
+ * Sends to builder, right after its start_document, an add_unparsed_entity
+ * event for each unparsed entity of tree, in order: what a copy of a
+ * document node keeps (XSLT 4.0, 11.9.1 and 11.9.2: the unparsed-entities
+ * property is copied). sxml_tree_builder_copy_node does it for a document
+ * node. Sends nothing for a tree whose get_unparsed_entity is NULL. Added
+ * after the freeze (D99, D210).
+ *
+ * Returns the builder's failures and the tree's.
+ */
+SXML_NODISCARD SXML_EXPORT sxml_status sxml_tree_builder_copy_unparsed_entities(
+    sxml_tree_builder builder, const sxml_tree *tree);
 
 /* --------------------------------------------------------- Arena tree */
 

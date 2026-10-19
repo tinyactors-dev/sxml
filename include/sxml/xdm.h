@@ -855,7 +855,9 @@ SXML_NODISCARD SXML_EXPORT sxml_status sxml_node_make_typed_value(
  * Makes dm:base-uri of request->node as an owned sequence: an xs:anyURI
  * item, or the empty sequence when it is absent. The base URI comes from
  * xml:base attributes on the node and its ancestors, resolved against the
- * tree's base URI (XDM 4.0, section 7.3; RFC 3986, section 5).
+ * tree's base URI (XDM 4.0, section 7.3; RFC 3986, section 5), or against
+ * the entity base URI of the nearest such element at the top of an
+ * external entity (sxml_tree_operations.get_entity_base_uri, D210).
  */
 SXML_NODISCARD SXML_EXPORT sxml_status sxml_node_make_base_uri(
     sxml_item_heap *item_heap, const sxml_node_value_request *request,

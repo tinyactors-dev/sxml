@@ -145,6 +145,9 @@ typedef struct sxml_xml_frame {
        ts_tree_cursor_current_depth gives, kept here because that is linear
        in the depth (a deep document would cost quadratic time). */
     uint32_t cursor_depth;
+    /* The document's element depth when the frame was pushed: an element
+       one deeper starts at the top of the frame's entity. */
+    uint32_t element_depth;
 } sxml_xml_frame;
 
 /* One step of expanding entities inside an attribute value (4.4.5). */
@@ -1019,6 +1022,7 @@ static sxml_status sxml_xml_push_frame(sxml_xml_document *document,
     *pushed = *frame;
     pushed->cursor = cursor;
     pushed->cursor_depth = 1;
+    pushed->element_depth = document->element_depth;
     pushed->needs_advance = false;
     pushed->descends = false;
     if (pushed->has_entity) {
@@ -4121,6 +4125,26 @@ typedef struct sxml_xml_element_header {
     size_t scope_start;
 } sxml_xml_element_header;
 
+/*
+ * The entity base URI of the element being started (D210): the URI of
+ * the innermost external parsed entity being read, when the element is at
+ * its top (XML 1.0, 4.2.2: relative URIs in an entity are relative to
+ * where the entity is; XML Base, 4.2); empty otherwise. The element
+ * depth already counts the element.
+ */
+static sxml_byte_view sxml_xml_entity_base_uri(const sxml_xml_document *document) {
+    for (size_t frame_number = sxml_xml_frame_count(document); frame_number > 0;
+         frame_number -= 1) {
+        const sxml_xml_frame *frame = sxml_xml_frame_at(document, frame_number - 1);
+        if (frame->frame_kind == SXML_XML_FRAME_KIND_EXTERNAL_GENERAL_ENTITY) {
+            return frame->element_depth + 1 == document->element_depth
+                       ? sxml_xml_dtd_text(&document->parser->dtd, frame->base_uri)
+                       : (sxml_byte_view){.bytes = NULL, .byte_count = 0};
+        }
+    }
+    return (sxml_byte_view){.bytes = NULL, .byte_count = 0};
+}
+
 static sxml_status sxml_xml_send_header(sxml_xml_document *document,
                                         const sxml_xml_frame *frame,
                                         const sxml_xml_element_header *header) {
@@ -4139,7 +4163,8 @@ static sxml_status sxml_xml_send_header(sxml_xml_document *document,
             .is_nilled = false,
             .ignores_parent_namespaces = false,
             .location =
-                sxml_xml_node_location(document, frame, header->tag_node)});
+                sxml_xml_node_location(document, frame, header->tag_node),
+            .entity_base_uri = sxml_xml_entity_base_uri(document)});
     const sxml_xml_array *bindings = &document->parser->namespace_bindings;
     for (size_t binding_index = header->scope_start;
          status == SXML_STATUS_OK && binding_index < bindings->element_count;

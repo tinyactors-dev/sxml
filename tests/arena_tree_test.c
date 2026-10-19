@@ -1273,6 +1273,13 @@ static void test_unparsed_entities_are_found(sxml_test_state *state) {
                                     .system_identifier = text_view("pic.gif"),
                                     .public_identifier = text_view("")}) ==
                                 SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, builder.operations->add_unparsed_entity(
+                                builder.state,
+                                &(sxml_unparsed_entity){
+                                    .entity_name = text_view("sound"),
+                                    .system_identifier = text_view("sound.wav"),
+                                    .public_identifier = text_view("-//sound")}) ==
+                                SXML_STATUS_OK);
     write_element(&writer, "root");
     write_end_element(&writer);
     /* Entities come before the content. */
@@ -1297,6 +1304,103 @@ static void test_unparsed_entities_are_found(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, built.tree->operations->find_unparsed_entity(
                                 built.tree->state, &entity) ==
                                 SXML_STATUS_INDEX_OUT_OF_RANGE);
+    /* Listed in the order of the declarations (D210). */
+    SXML_TEST_REQUIRE(state, built.tree->operations->get_unparsed_entity(
+                                 built.tree->state, 0, &entity) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, sxml_byte_view_equals(entity.entity_name, text_view("picture")));
+    SXML_TEST_REQUIRE(state, built.tree->operations->get_unparsed_entity(
+                                 built.tree->state, 1, &entity) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, sxml_byte_view_equals(entity.public_identifier,
+                                                  text_view("-//sound")));
+    SXML_TEST_EXPECT(state, built.tree->operations->get_unparsed_entity(
+                                built.tree->state, 2, &entity) ==
+                                SXML_STATUS_INDEX_OUT_OF_RANGE);
+    /* A copy of the document node keeps them (XSLT 4.0, 11.9.2). */
+    built_tree copied;
+    SXML_TEST_REQUIRE(state, built_tree_create(&configuration, &copied) == SXML_STATUS_OK);
+    SXML_TEST_REQUIRE(
+        state, sxml_tree_builder_copy_node(
+                   sxml_arena_tree_as_tree_builder(copied.arena_tree),
+                   &(sxml_copy_request){.node = {.tree = built.tree,
+                                                 .node_index = {.index = 0},
+                                                 .namespace_number = 0},
+                                        .preserves_namespaces = true,
+                                        .inherits_namespaces = true,
+                                        .preserves_type_annotations = true}) ==
+                   SXML_STATUS_OK);
+    SXML_TEST_REQUIRE(state, sxml_arena_tree_finish(copied.arena_tree, &copied.tree) ==
+                                 SXML_STATUS_OK);
+    entity = (sxml_unparsed_entity){.entity_name = text_view("sound")};
+    SXML_TEST_REQUIRE(state, copied.tree->operations->find_unparsed_entity(
+                                 copied.tree->state, &entity) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, sxml_byte_view_equals(entity.system_identifier,
+                                                  text_view("sound.wav")));
+    SXML_TEST_REQUIRE(state, copied.tree->operations->get_unparsed_entity(
+                                 copied.tree->state, 0, &entity) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, sxml_byte_view_equals(entity.entity_name, text_view("picture")));
+    built_tree_destroy(&copied);
+    built_tree_destroy(&built);
+    tree_fixture_destroy(&fixture);
+}
+
+/* An element at the top of an external entity keeps the entity's URI
+   (D210); other elements have none. */
+static void test_entity_base_uris_are_kept(sxml_test_state *state) {
+    tree_fixture fixture;
+    SXML_TEST_REQUIRE(state, tree_fixture_create(&fixture) == SXML_STATUS_OK);
+    sxml_arena_tree_configuration configuration = arena_configuration(&fixture);
+    built_tree built;
+    SXML_TEST_REQUIRE(state, built_tree_create(&configuration, &built) == SXML_STATUS_OK);
+    event_writer writer = writer_for(&fixture, &built);
+    write_start_document(&writer);
+    write_element(&writer, "root");
+    const sxml_name_identifier name = intern_name(
+        &writer, (test_name){.namespace_uri = "", .prefix = "", .local_name = "chapter"});
+    if (writer.status == SXML_STATUS_OK) {
+        writer.status = writer.builder.operations->start_element(
+            writer.builder.state,
+            &(sxml_element_start_event){.element_name = name,
+                                        .location = no_location,
+                                        .entity_base_uri =
+                                            text_view("http://example.com/dir/chapter.xml")});
+    }
+    write_element(&writer, "para");
+    write_end_element(&writer);
+    write_end_element(&writer);
+    write_end_element(&writer);
+    write_end_document(&writer);
+    SXML_TEST_REQUIRE(state, writer.status == SXML_STATUS_OK);
+    SXML_TEST_REQUIRE(state, sxml_arena_tree_finish(built.arena_tree, &built.tree) ==
+                                 SXML_STATUS_OK);
+    sxml_byte_view base_uri = text_view("unset");
+    SXML_TEST_REQUIRE(state, built.tree->operations->get_entity_base_uri(
+                                 built.tree->state, (sxml_node_index){.index = 2},
+                                 &base_uri) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, sxml_byte_view_equals(
+                                base_uri, text_view("http://example.com/dir/chapter.xml")));
+    SXML_TEST_REQUIRE(state, built.tree->operations->get_entity_base_uri(
+                                 built.tree->state, (sxml_node_index){.index = 3},
+                                 &base_uri) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, base_uri.byte_count == 0);
+    /* dm:base-uri of the descendant is the entity's (XDM 4.0, 5.2). */
+    sxml_sequence value = sxml_sequence_empty();
+    SXML_TEST_REQUIRE(
+        state, sxml_node_make_base_uri(
+                   fixture.item_heap,
+                   &(sxml_node_value_request){.node = {.tree = built.tree,
+                                                       .node_index = {.index = 3},
+                                                       .namespace_number = 0},
+                                              .error_record = NULL},
+                   &value) == SXML_STATUS_OK);
+    sxml_item item = {.representation = 0};
+    sxml_atomic_datum datum;
+    memset(&datum, 0, sizeof datum);
+    SXML_TEST_REQUIRE(state, sxml_sequence_get_item(value, (sxml_item_request){.item_index = 0},
+                                                    &item) == SXML_STATUS_OK);
+    SXML_TEST_REQUIRE(state, sxml_atomic_item_get_datum(item, &datum) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, sxml_byte_view_equals(datum.datum_details.string.utf8,
+                                                  text_view("http://example.com/dir/chapter.xml")));
+    sxml_sequence_release(value);
     built_tree_destroy(&built);
     tree_fixture_destroy(&fixture);
 }
@@ -1435,6 +1539,7 @@ static const sxml_test_case arena_tree_test_cases[] = {
      .function = test_locations_are_kept_on_request},
     {.name = "unparsed_entities_are_found",
      .function = test_unparsed_entities_are_found},
+    {.name = "entity_base_uris_are_kept", .function = test_entity_base_uris_are_kept},
     {.name = "large_trees_grow_in_segments",
      .function = test_large_trees_grow_in_segments},
     {.name = "building_survives_every_allocation_failure",

@@ -727,6 +727,29 @@ static sxml_status sxml_xslt_test_validate_source(sxml_xslt_test_context *contex
     return status;
 }
 
+/* A source with neither a file nor content: its select expression,
+   evaluated without a focus, gives the value (catalog-schema.xsd, source;
+   id-043's select="parse-xml('...')"). */
+static sxml_status sxml_xslt_test_select_source(sxml_xslt_test_context *context,
+                                                const sxml_qt4_source *source,
+                                                sxml_byte_view select) {
+    sxml_sequence selected = sxml_sequence_empty();
+    const sxml_status status = sxml_xslt_test_evaluate(
+        context,
+        (sxml_xslt_test_expression){
+            .expression_text = select, .has_focus = false, .focus = sxml_sequence_empty()},
+        &selected);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_xslt_test_own_value(context, selected);
+    if (sxml_byte_view_equals(source->role, SXML_TEXT("."))) {
+        context->has_global_context_item = true;
+        context->global_context_item = selected;
+    }
+    return SXML_STATUS_OK;
+}
+
 /* Parses one source: its inline content or its file. */
 static sxml_status sxml_xslt_test_parse_source(sxml_xslt_test_context *context,
                                                size_t source_index) {
@@ -740,6 +763,10 @@ static sxml_status sxml_xslt_test_parse_source(sxml_xslt_test_context *context,
     sxml_xslt_test_set_stage(context,
                              (sxml_xslt_test_stage){.description = SXML_TEXT("source"),
                                                     .subject = source->file_path});
+    if (!has_content && source->file_path.byte_count == 0 && detail != NULL &&
+        detail->select.byte_count != 0) {
+        return sxml_xslt_test_select_source(context, source, detail->select);
+    }
     sxml_byte_view document_uri = sxml_xslt_test_empty_text;
     sxml_status status = SXML_STATUS_OK;
     if (source->uri.byte_count != 0) {

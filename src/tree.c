@@ -828,6 +828,9 @@ static sxml_status sxml_node_copy_send_document(
     status =
         copy->builder.operations->start_document(copy->builder.state, &event);
     if (status == SXML_STATUS_OK) {
+        status = sxml_tree_builder_copy_unparsed_entities(copy->builder, copy->tree);
+    }
+    if (status == SXML_STATUS_OK) {
         status = sxml_node_copy_send_content(
             copy, copy->request->node.node_index.index, root);
     }
@@ -884,6 +887,33 @@ static sxml_status sxml_node_copy_send_stored_namespace(
     }
     return copy->builder.operations->add_namespace_binding(copy->builder.state,
                                                            &binding);
+}
+
+sxml_status sxml_tree_builder_copy_unparsed_entities(sxml_tree_builder builder,
+                                                     const sxml_tree *tree) {
+    if (builder.operations == NULL || tree == NULL) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    if (tree->operations->get_unparsed_entity == NULL) {
+        return SXML_STATUS_OK;
+    }
+    for (size_t entity_number = 0;; entity_number += 1) {
+        sxml_unparsed_entity entity = {
+            .entity_name = {.bytes = NULL, .byte_count = 0},
+            .system_identifier = {.bytes = NULL, .byte_count = 0},
+            .public_identifier = {.bytes = NULL, .byte_count = 0}};
+        sxml_status status =
+            tree->operations->get_unparsed_entity(tree->state, entity_number, &entity);
+        if (status == SXML_STATUS_INDEX_OUT_OF_RANGE) {
+            return SXML_STATUS_OK;
+        }
+        if (status == SXML_STATUS_OK) {
+            status = builder.operations->add_unparsed_entity(builder.state, &entity);
+        }
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+    }
 }
 
 sxml_status sxml_tree_builder_copy_node(sxml_tree_builder builder,

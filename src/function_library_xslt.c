@@ -732,15 +732,26 @@ static sxml_status call_document(const sxml_function_call *call, sxml_sequence *
     return status;
 }
 
-static const sxml_static_error unparsed_entity_document_error = {
+/* XSLT 4.0, 20.5.2 and 20.5.3: each function has its own code. An
+   absent context item is XPDY0002, raised before the call, which both
+   sections name for the omitted $doc. */
+static const sxml_static_error unparsed_entity_uri_document_error = {
     .error_status = SXML_STATUS_DYNAMIC_ERROR,
     .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XTDE1370"),
     .description = SXML_BYTE_VIEW_INITIALIZER(
-        "The node given to unparsed-entity-uri or unparsed-entity-public-id is not in a tree "
-        "whose root is a document node (XSLT 4.0, 20.2.3, 20.2.4)")};
+        "The node given to unparsed-entity-uri is not in a tree whose root is a document node "
+        "(XSLT 4.0, 20.5.2)")};
 
-/* Raises XTDE1370 unless the node of argument 1 is in a document. */
-static sxml_status check_unparsed_entity_document(const sxml_function_call *call) {
+static const sxml_static_error unparsed_entity_public_id_document_error = {
+    .error_status = SXML_STATUS_DYNAMIC_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XTDE1380"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "The node given to unparsed-entity-public-id is not in a tree whose root is a document "
+        "node (XSLT 4.0, 20.5.3)")};
+
+/* Raises document_error unless the node of argument 1 is in a document. */
+static sxml_status check_unparsed_entity_document(const sxml_function_call *call,
+                                                  const sxml_static_error *document_error) {
     sxml_optional_item node_item = {.has_item = false};
     sxml_status status = sxml_function_library_read_optional_item(call, 1, &node_item);
     sxml_node_reference node;
@@ -748,24 +759,24 @@ static sxml_status check_unparsed_entity_document(const sxml_function_call *call
         status = sxml_item_get_node(node_item.item, &node);
     }
     if (status != SXML_STATUS_OK || !node_item.has_item) {
-        return status == SXML_STATUS_OK
-                   ? sxml_function_library_report(call, &unparsed_entity_document_error)
-                   : status;
+        return status == SXML_STATUS_OK ? sxml_function_library_report(call, document_error)
+                                        : status;
     }
     sxml_node_description description;
     status = sxml_node_describe(
         (sxml_node_reference){.tree = node.tree, .node_index = {.index = 0}, .namespace_number = 0},
         &description);
     if (status != SXML_STATUS_OK || description.node_kind != SXML_NODE_KIND_DOCUMENT) {
-        return sxml_function_library_report(call, &unparsed_entity_document_error);
+        return sxml_function_library_report(call, document_error);
     }
     return SXML_STATUS_OK;
 }
 
 /* The unparsed entity of argument 0's name in the document of argument
-   1's node, after XTDE1370; found is false when the DTD declares none
-   (XDM 4.0, 6.1.3, dm:unparsed-entity-system-id). */
+   1's node, after document_error (in); found is false when the DTD
+   declares none (XDM 4.0, 6.1.3, dm:unparsed-entity-system-id). */
 typedef struct unparsed_entity_lookup {
+    const sxml_static_error *document_error;
     bool is_found;
     sxml_unparsed_entity entity;
 } unparsed_entity_lookup;
@@ -773,7 +784,7 @@ typedef struct unparsed_entity_lookup {
 static sxml_status find_unparsed_entity(const sxml_function_call *call,
                                         unparsed_entity_lookup *lookup) {
     lookup->is_found = false;
-    sxml_status status = check_unparsed_entity_document(call);
+    sxml_status status = check_unparsed_entity_document(call, lookup->document_error);
     sxml_string name = {.utf8 = {.bytes = NULL, .byte_count = 0},
                         .codepoint_count = 0,
                         .is_ascii = true};
@@ -807,7 +818,8 @@ static sxml_status find_unparsed_entity(const sxml_function_call *call,
    absolute system identifier of the unparsed entity, the zero-length URI
    when there is none. */
 static sxml_status call_unparsed_entity_uri(const sxml_function_call *call, sxml_sequence *result) {
-    unparsed_entity_lookup lookup = {.is_found = false};
+    unparsed_entity_lookup lookup = {.document_error = &unparsed_entity_uri_document_error,
+                                     .is_found = false};
     const sxml_status status = find_unparsed_entity(call, &lookup);
     if (status != SXML_STATUS_OK) {
         return status;
@@ -836,7 +848,8 @@ static sxml_status call_unparsed_entity_uri(const sxml_function_call *call, sxml
    none. */
 static sxml_status call_unparsed_entity_public_id(const sxml_function_call *call,
                                                   sxml_sequence *result) {
-    unparsed_entity_lookup lookup = {.is_found = false};
+    unparsed_entity_lookup lookup = {.document_error = &unparsed_entity_public_id_document_error,
+                                     .is_found = false};
     const sxml_status status = find_unparsed_entity(call, &lookup);
     if (status != SXML_STATUS_OK) {
         return status;

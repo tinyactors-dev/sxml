@@ -864,14 +864,32 @@ sxml_element_find_base_attribute(const sxml_base_attribute_request *request,
 
 /* The xml:base values that decide an element's base URI, innermost first:
    on the element and its ancestor elements, up to and including the first
-   that is an absolute URI (XML Base, section 4.2). */
+   that is an absolute URI (XML Base, section 4.2), or up to the first
+   element at the top of an external entity, whose entity base URI then
+   takes the place of the tree's (XML 1.0, 4.2.2; XML Base, 4.2: the URI
+   of the entity; D210). */
 typedef struct sxml_base_chain {
     sxml_node_reference element;
+    /* 0 when the tree's pool has no xml:base name. */
     sxml_name_identifier xml_base_name;
     /* NULL to count only. */
     sxml_byte_view *values;
     size_t value_count;
+    /* Empty unless the walk stopped at an element with one. */
+    sxml_byte_view entity_base_uri;
 } sxml_base_chain;
+
+/* The entity base URI of element (sxml_tree_operations.get_entity_base_uri);
+   empty when it has none. */
+static sxml_status sxml_element_get_entity_base_uri(sxml_node_reference element,
+                                                    sxml_byte_view *base_uri) {
+    *base_uri = (sxml_byte_view){.bytes = NULL, .byte_count = 0};
+    const sxml_tree *tree = element.tree;
+    if (tree->operations->get_entity_base_uri == NULL) {
+        return SXML_STATUS_OK;
+    }
+    return tree->operations->get_entity_base_uri(tree->state, element.node_index, base_uri);
+}
 
 /* Walks the chain (in/out): fills chain->values when it is not NULL and
    sets value_count. */
@@ -887,13 +905,15 @@ static sxml_status sxml_base_chain_walk(sxml_base_chain *chain) {
         if (description.node_kind != SXML_NODE_KIND_ELEMENT) {
             break;
         }
-        sxml_base_attribute_lookup lookup;
-        status = sxml_element_find_base_attribute(
-            &(sxml_base_attribute_request){.element = element,
-                                           .description = &description,
-                                           .xml_base_name =
-                                               chain->xml_base_name},
-            &lookup);
+        sxml_base_attribute_lookup lookup = {.is_found = false,
+                                             .value = {.bytes = NULL, .byte_count = 0}};
+        if (chain->xml_base_name.index != 0) {
+            status = sxml_element_find_base_attribute(
+                &(sxml_base_attribute_request){.element = element,
+                                               .description = &description,
+                                               .xml_base_name = chain->xml_base_name},
+                &lookup);
+        }
         if (status != SXML_STATUS_OK) {
             return status;
         }
@@ -905,6 +925,13 @@ static sxml_status sxml_base_chain_walk(sxml_base_chain *chain) {
             if (sxml_uri_reference_split(lookup.value).has_scheme) {
                 break;
             }
+        }
+        status = sxml_element_get_entity_base_uri(element, &chain->entity_base_uri);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        if (chain->entity_base_uri.byte_count != 0) {
+            break;
         }
         if (!description.has_parent) {
             break;
@@ -975,7 +1002,8 @@ static sxml_status sxml_element_make_base_uri(sxml_item_heap *item_heap,
     sxml_base_chain chain = {.element = element,
                              .xml_base_name = {.index = 0},
                              .values = NULL,
-                             .value_count = 0};
+                             .value_count = 0,
+                             .entity_base_uri = {.bytes = NULL, .byte_count = 0}};
     bool has_xml_base_name = sxml_name_pool_find_name(
         element.tree->name_pool,
         &(sxml_name_request){.namespace_uri =
@@ -984,9 +1012,10 @@ static sxml_status sxml_element_make_base_uri(sxml_item_heap *item_heap,
                              .local_name =
                                  SXML_BYTE_VIEW_FROM_LITERAL("base")},
         &chain.xml_base_name);
-    if (has_xml_base_name) {
-        status = sxml_base_chain_walk(&chain);
+    if (!has_xml_base_name) {
+        chain.xml_base_name.index = 0;
     }
+    status = sxml_base_chain_walk(&chain);
     size_t values_byte_count = 0;
     if (status == SXML_STATUS_OK) {
         status = sxml_size_multiply(chain.value_count, sizeof(sxml_byte_view),
@@ -1006,7 +1035,8 @@ static sxml_status sxml_element_make_base_uri(sxml_item_heap *item_heap,
     }
     sxml_base_resolution resolution = {
         .item_heap = item_heap,
-        .base_uri = tree_description.base_uri,
+        .base_uri = chain.entity_base_uri.byte_count != 0 ? chain.entity_base_uri
+                                                          : tree_description.base_uri,
         .memory = {.memory = NULL, .byte_count = 0}};
     for (size_t value_number = chain.value_count;
          status == SXML_STATUS_OK && value_number > 0; value_number -= 1) {
