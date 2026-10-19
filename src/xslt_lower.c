@@ -11,6 +11,7 @@
  * Section numbers are of XSLT 4.0 (W3C QT4 CG draft, October 2026).
  */
 #include "xslt_lower_internal.h"
+#include "memory_internal.h"
 
 #include "function_library_core_internal.h"
 #include "ir_pass_internal.h"
@@ -1874,30 +1875,6 @@ static void release_storage(sxml_allocator allocator, lowering_storage *storage)
     sxml_allocator_release(allocator, storage->namespace_aliases);
 }
 
-/* count elements of element_size bytes, or NULL for none. */
-typedef struct array_request {
-    size_t element_count;
-    size_t element_size;
-    size_t element_alignment;
-} array_request;
-
-static sxml_status allocate_array(sxml_allocator allocator, array_request request, void **memory) {
-    *memory = NULL;
-    if (request.element_count == 0) {
-        return SXML_STATUS_OK;
-    }
-    size_t byte_count = 0;
-    const sxml_status status =
-        sxml_size_multiply(request.element_count, request.element_size, &byte_count);
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    return sxml_allocator_allocate(
-        allocator,
-        (sxml_allocation_request){.byte_count = byte_count, .alignment = request.element_alignment},
-        memory);
-}
-
 /* What the static contexts of a lowering are made from. */
 typedef struct context_source {
     const sxml_xslt_ast *ast;
@@ -1927,8 +1904,8 @@ static sxml_status make_static_contexts(context_source source, lowering_storage 
     void *memory = NULL;
     if (status == SXML_STATUS_OK) {
         status =
-            allocate_array(allocator,
-                           (array_request){.element_count = context_count,
+            sxml_allocator_allocate_array(allocator,
+                           (sxml_array_allocation_request){.element_count = context_count,
                                            .element_size = sizeof(sxml_xpath_static_context),
                                            .element_alignment = alignof(sxml_xpath_static_context)},
                            &memory);
@@ -1936,8 +1913,8 @@ static sxml_status make_static_contexts(context_source source, lowering_storage 
     storage->static_contexts = memory;
     if (status == SXML_STATUS_OK) {
         status =
-            allocate_array(allocator,
-                           (array_request){.element_count = binding_capacity,
+            sxml_allocator_allocate_array(allocator,
+                           (sxml_array_allocation_request){.element_count = binding_capacity,
                                            .element_size = sizeof(sxml_namespace_binding),
                                            .element_alignment = alignof(sxml_namespace_binding)},
                            &memory);
@@ -2001,8 +1978,8 @@ static sxml_status collect_aliases(const sxml_xslt_lowering *source_lowering,
     }
     void *memory = NULL;
     const sxml_status status =
-        allocate_array(source_lowering->lowerer->allocator,
-                       (array_request){.element_count = alias_capacity,
+        sxml_allocator_allocate_array(source_lowering->lowerer->allocator,
+                       (sxml_array_allocation_request){.element_count = alias_capacity,
                                        .element_size = sizeof(sxml_xslt_namespace_alias),
                                        .element_alignment = alignof(sxml_xslt_namespace_alias)},
                        &memory);

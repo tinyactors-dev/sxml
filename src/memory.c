@@ -9,6 +9,8 @@
  */
 #include "sxml/memory.h"
 
+#include "memory_internal.h"
+
 #include <stdalign.h>
 #include <string.h>
 
@@ -208,6 +210,31 @@ sxml_status sxml_allocator_allocate(sxml_allocator allocator,
     }
     *memory = allocation;
     return SXML_STATUS_OK;
+}
+
+sxml_status sxml_allocator_allocate_array(sxml_allocator allocator,
+                                          sxml_array_allocation_request request,
+                                          void **memory) {
+    *memory = NULL;
+    if (request.element_count == 0) {
+        return SXML_STATUS_OK;
+    }
+    size_t byte_count = 0;
+    sxml_status status =
+        sxml_size_multiply(request.element_count, request.element_size, &byte_count);
+    void *allocation = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_allocator_allocate(
+            allocator,
+            (sxml_allocation_request){.byte_count = byte_count,
+                                      .alignment = request.element_alignment},
+            &allocation);
+    }
+    if (status == SXML_STATUS_OK) {
+        memset(allocation, 0, byte_count);
+        *memory = allocation;
+    }
+    return status;
 }
 
 void sxml_allocator_release(sxml_allocator allocator, void *memory) {

@@ -33,6 +33,8 @@
  */
 #include "xslt_lower_internal.h"
 
+#include "memory_internal.h"
+
 #include "sxml/name.h"
 #include "sxml/types.h"
 #include "xslt_package_internal.h"
@@ -153,17 +155,13 @@ static sxml_status collect_declarations(named_type_reading *reading) {
     if (declaration_count == 0) {
         return SXML_STATUS_OK;
     }
-    size_t byte_count = 0;
-    sxml_status status =
-        sxml_size_multiply(declaration_count, sizeof(type_declaration), &byte_count);
     void *memory = NULL;
-    if (status == SXML_STATUS_OK) {
-        status = sxml_allocator_allocate(
-            lowering->lowerer->allocator,
-            (sxml_allocation_request){.byte_count = byte_count,
-                                      .alignment = alignof(type_declaration)},
-            &memory);
-    }
+    sxml_status status = sxml_allocator_allocate_array(
+        lowering->lowerer->allocator,
+        (sxml_array_allocation_request){.element_count = declaration_count,
+                                        .element_size = sizeof(type_declaration),
+                                        .element_alignment = alignof(type_declaration)},
+        &memory);
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -399,17 +397,13 @@ static sxml_status define_records(const named_type_reading *reading) {
              field.value != 0; field = node_of(lowering, field)->next_sibling) {
             field_count += node_of(lowering, field)->kind == SXML_XSLT_AST_KIND_FIELD ? 1U : 0U;
         }
-        size_t byte_count = 0;
-        status = sxml_size_multiply(field_count == 0 ? 1U : field_count, sizeof(sxml_record_field),
-                                    &byte_count);
         void *memory = NULL;
-        if (status == SXML_STATUS_OK) {
-            status = sxml_allocator_allocate(
-                lowering->lowerer->allocator,
-                (sxml_allocation_request){.byte_count = byte_count,
-                                          .alignment = alignof(sxml_record_field)},
-                &memory);
-        }
+        status = sxml_allocator_allocate_array(
+            lowering->lowerer->allocator,
+            (sxml_array_allocation_request){.element_count = field_count,
+                                            .element_size = sizeof(sxml_record_field),
+                                            .element_alignment = alignof(sxml_record_field)},
+            &memory);
         if (status != SXML_STATUS_OK) {
             return status;
         }

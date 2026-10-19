@@ -38,6 +38,7 @@
 #include "sxml/xslt.h"
 
 #include "function_library_internal.h"
+#include "memory_internal.h"
 #include "function_library_parts_internal.h"
 #include "processor_internal.h"
 #include "xdm_internal.h"
@@ -292,17 +293,13 @@ static sxml_status sxml_static_parameters_keep(sxml_processor *processor,
     if (parameters.variable_binding_count == 0) {
         return SXML_STATUS_OK;
     }
-    size_t byte_count = 0;
-    sxml_status status = sxml_size_multiply(parameters.variable_binding_count,
-                                            sizeof(sxml_variable_binding), &byte_count);
     void *memory = NULL;
-    if (status == SXML_STATUS_OK) {
-        status = sxml_allocator_allocate(
-            processor->allocator,
-            (sxml_allocation_request){.byte_count = byte_count,
-                                      .alignment = alignof(sxml_variable_binding)},
-            &memory);
-    }
+    const sxml_status status = sxml_allocator_allocate_array(
+        processor->allocator,
+        (sxml_array_allocation_request){.element_count = parameters.variable_binding_count,
+                                        .element_size = sizeof(sxml_variable_binding),
+                                        .element_alignment = alignof(sxml_variable_binding)},
+        &memory);
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -794,17 +791,13 @@ static sxml_status sxml_transformation_prime_documents(sxml_transformation *tran
     if (available.available_document_count == 0 || !sxml_xslt_prepares_documents(stylesheet->ast)) {
         return SXML_STATUS_OK;
     }
-    size_t byte_count = 0;
-    sxml_status status = sxml_size_multiply(available.available_document_count,
-                                            sizeof(sxml_available_document), &byte_count);
     void *memory = NULL;
-    if (status == SXML_STATUS_OK) {
-        status = sxml_allocator_allocate(
-            stylesheet->processor->allocator,
-            (sxml_allocation_request){.byte_count = byte_count,
-                                      .alignment = alignof(sxml_available_document)},
-            &memory);
-    }
+    sxml_status status = sxml_allocator_allocate_array(
+        stylesheet->processor->allocator,
+        (sxml_array_allocation_request){.element_count = available.available_document_count,
+                                        .element_size = sizeof(sxml_available_document),
+                                        .element_alignment = alignof(sxml_available_document)},
+        &memory);
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -899,22 +892,14 @@ static sxml_status sxml_invocation_global_name(sxml_processor *processor,
 static sxml_status sxml_parameter_map_make(sxml_processor *processor,
                                            sxml_variable_binding_view bindings,
                                            sxml_sequence *map) {
-    sxml_map_entry *entries = NULL;
-    sxml_status status = SXML_STATUS_OK;
-    if (bindings.variable_binding_count > 0) {
-        size_t byte_count = 0;
-        status = sxml_size_multiply(bindings.variable_binding_count, sizeof(sxml_map_entry),
-                                    &byte_count);
-        void *memory = NULL;
-        if (status == SXML_STATUS_OK) {
-            status = sxml_allocator_allocate(
-                processor->allocator,
-                (sxml_allocation_request){.byte_count = byte_count,
-                                          .alignment = alignof(sxml_map_entry)},
-                &memory);
-        }
-        entries = memory;
-    }
+    void *memory = NULL;
+    sxml_status status = sxml_allocator_allocate_array(
+        processor->allocator,
+        (sxml_array_allocation_request){.element_count = bindings.variable_binding_count,
+                                        .element_size = sizeof(sxml_map_entry),
+                                        .element_alignment = alignof(sxml_map_entry)},
+        &memory);
+    sxml_map_entry *entries = memory;
     for (size_t binding_index = 0;
          status == SXML_STATUS_OK && binding_index < bindings.variable_binding_count;
          binding_index += 1) {
@@ -1026,16 +1011,13 @@ static sxml_status sxml_transformation_bind_parameters(sxml_transformation *tran
         transformation->request->dynamic_context.variable_bindings;
     const size_t total_count = stylesheet->static_parameter_count +
                                supplied.variable_binding_count + SXML_INVOCATION_VALUE_COUNT;
-    size_t byte_count = 0;
-    sxml_status status = sxml_size_multiply(total_count, sizeof(sxml_variable_binding), &byte_count);
     void *memory = NULL;
-    if (status == SXML_STATUS_OK) {
-        status = sxml_allocator_allocate(
-            stylesheet->processor->allocator,
-            (sxml_allocation_request){.byte_count = byte_count,
-                                      .alignment = alignof(sxml_variable_binding)},
-            &memory);
-    }
+    sxml_status status = sxml_allocator_allocate_array(
+        stylesheet->processor->allocator,
+        (sxml_array_allocation_request){.element_count = total_count,
+                                        .element_size = sizeof(sxml_variable_binding),
+                                        .element_alignment = alignof(sxml_variable_binding)},
+        &memory);
     if (status != SXML_STATUS_OK) {
         return status;
     }

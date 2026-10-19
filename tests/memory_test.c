@@ -4,6 +4,7 @@
  * counting allocators are tested in tests/allocator_test.c.
  */
 #include "sxml/memory.h"
+#include "memory_internal.h"
 #include "test_runner.h"
 
 #include <stdalign.h>
@@ -299,6 +300,38 @@ static void test_release_of_null_does_nothing(sxml_test_state *state) {
     sxml_allocator_release((sxml_allocator){.state = NULL, .operations = NULL},
                            NULL);
     SXML_TEST_EXPECT(state, true);
+}
+
+/* src/memory_internal.h: arrays come zeroed, none for no elements, and an
+   overflowing size is refused. */
+static void test_allocate_array_zeroes_and_checks_size(sxml_test_state *state) {
+    void *memory = NULL;
+    SXML_TEST_EXPECT(state, sxml_allocator_allocate_array(
+                                sxml_default_allocator(),
+                                (sxml_array_allocation_request){.element_count = 4,
+                                                                .element_size = sizeof(uint64_t),
+                                                                .element_alignment =
+                                                                    alignof(uint64_t)},
+                                &memory) == SXML_STATUS_OK);
+    const uint64_t *values = memory;
+    SXML_TEST_EXPECT(state, values != NULL && values[0] == 0 && values[3] == 0);
+    sxml_allocator_release(sxml_default_allocator(), memory);
+    /* Any address: an array of no elements writes NULL over it. */
+    static uint8_t marker;
+    memory = &marker;
+    SXML_TEST_EXPECT(state, sxml_allocator_allocate_array(
+                                sxml_default_allocator(),
+                                (sxml_array_allocation_request){
+                                    .element_count = 0, .element_size = 8, .element_alignment = 8},
+                                &memory) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, memory == NULL);
+    SXML_TEST_EXPECT(state, sxml_allocator_allocate_array(
+                                sxml_default_allocator(),
+                                (sxml_array_allocation_request){.element_count = SIZE_MAX,
+                                                                .element_size = 2,
+                                                                .element_alignment = 1},
+                                &memory) != SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, memory == NULL);
 }
 
 /*
@@ -751,6 +784,8 @@ static void test_arena_survives_every_allocation_failure(
 }
 
 static const sxml_test_case memory_test_cases[] = {
+    {.name = "allocate_array_zeroes_and_checks_size",
+     .function = test_allocate_array_zeroes_and_checks_size},
     {.name = "byte_views_with_same_bytes_are_equal",
      .function = test_byte_views_with_same_bytes_are_equal},
     {.name = "empty_byte_views_are_equal_whatever_their_pointers",
