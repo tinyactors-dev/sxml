@@ -8730,7 +8730,8 @@ Amended as the packet goes on.
 
 ### D215. Invisible XML: fn:invisible-xml over an Earley parser (packet 7.18)
 Recorded 2026-10-19, after D12, D13, D53, D71, D162, D183, D189, D191,
-D208. Amended as the packet goes on.
+D208. Replaces D162's place for fn:invisible-xml (the function was
+absent, XPST0017; supports-invisible-xml false).
 - **No tree-sitter for user grammars** (D12 gives way, as D53 did for
   regex): an iXML grammar is run-time data, the argument of
   fn:invisible-xml, and its language is any context-free language, so it
@@ -8739,6 +8740,73 @@ D208. Amended as the packet goes on.
   but then sxml would carry two parsers for one job; instead the grammar
   of iXML grammars is compiled in as a constant table of its XML form, so
   the one Earley parser reads grammars and inputs alike.
+- **Optional feature** `sxml_invisible_xml_feature()` ("invisible-xml",
+  `include/sxml/processor.h`, additive), whose library_functions hold
+  the one row (D191); in `sxml_all_optional_features()`, so the CLI, the
+  drivers and `sxml-full.wasm` have it and `sxml.wasm` does not.
+  supports-invisible-xml follows the feature.
+- **One compiler** (`src/ixml.c`): the grammar builder reads the XML
+  form ("IXML in XML") as tree builder events or as entries of the
+  constant table `src/ixml_grammar_table.c`, which
+  `tools/generate-ixml-grammar.py` makes from `tools/ixml-grammar.ixml`
+  (the editorial draft of 2026-02-03: 1.0 with its errata and renaming).
+  A grammar string is parsed with that table's grammar and its parse is
+  sent to the builder; an ixml element is copied to it
+  (`sxml_tree_builder_copy_node`); no grammar is the table itself.
+  Elements and attributes in a namespace, comments and text are not part
+  of the grammar. Groups, options and repetitions become hidden
+  nonterminals, left-recursive ("Hints for Implementers" turned around,
+  so Earley reads them in linear time); a string is one terminal per
+  character; a class is a mask of general categories (the regex tables,
+  Unicode 16.0; LC is Lu, Ll and Lt). S02, S03, S07, S08, S09, S10 and a
+  malformed XML form are FOIX0001.
+- **Earley** (`src/ixml_earley.c`, glossary `earley_item`,
+  `parse_forest`): items keep the first way they were derived
+  (predecessor and child); those always end, so the tree is read out of
+  them with an explicit stack. A second derivation marks the item; the
+  parse is ambiguous when a marked item is in the tree or two root items
+  complete. Nullables: a nonterminal completed in its own set is
+  recorded, so later items in that set advance over it. Every item and
+  tree node is charged to the evaluation's step limit. Right recursion
+  stays quadratic (no Leo items): `-r: 'a', r; .` over 3,000 characters
+  makes about 4.5 million items.
+- **Constructing XML**: marks, aliases, exposed attributes, insertions
+  as the Specification says; the document element gets
+  ixml:state="ambiguous", and for an unknown version
+  ixml:state="version-mismatch" with ixml:version="1.1". sxml recognizes
+  "1.0" and "1.1" (renaming, which the suite's 1.1 grammars use). A
+  failed parse is `<failed ixml:state="failed">` with line, column,
+  position, the character found (or end-of-input) and each terminal
+  expected, in ixml notation. D02 to D07 raise FOIX0002 whatever
+  fail-on-error says: the parse has no XML, and F&O names no other code.
+  Input and grammar line ends are normalized and a leading BOM dropped
+  ("Parsing").
+- **The parser function** holds its compiled grammar as its body's state,
+  reference-counted through retain and release, in item-heap memory.
+- **Test suite** (D13, D208): the iXML community suite moved from GitHub
+  to Codeberg in May 2026 (the GitHub repository's last commit only
+  moves it); vendored from codeberg.org/InvisibleXML/ixml at
+  d1f37f6bb1f86a1d370a2ada326d9430922e9967 (`third_party/ixml-tests`,
+  its `tests/` without `performance/`, 78 MB, which no catalog of the
+  top-level catalog names; 2.4 MB) with the repository's LICENSE
+  (GPL-3.0; test data only, nothing links it). `tools/update-test-suites.sh`
+  fetches it. The driver is an XQuery module run by `sxml xquery`
+  (`tests/ixml/ixml-driver.xq`, one process per catalog through
+  `tests/ixml/run-ixml-tests.sh`), so it uses only the public API;
+  `ixml/suite` checks it against a baseline that only goes up. It
+  compares with fn:deep-equal after dropping ixml:version, which the
+  suite's results predate; tests that need a Unicode version other than
+  16.0 are not run.
+- **Counts**: the suite 886 of 907 pass, 4 errors (inputs with C0
+  controls, which an xs:string cannot hold: fn:unparsed-text raises
+  FOUT1190), 17 not run (Unicode versions); every grammar test (142)
+  passes, and 711 of 715 test cases with a correct grammar (99.4 %;
+  gate 90 %). QT4 fn-invisible-xml 16 of 16 (XP40 and XQ40; 6 before,
+  as wrong errors); app-spec-examples' three invisible-xml cases pass;
+  misc-BuiltInKeywords XQ40 297 to 298, XP40 296 to 297;
+  fn-system-properties 23 of 35 unchanged (the -false case is not run,
+  the true one runs). The driver's non-goal tables no longer name
+  fn-invisible-xml, so the 16 cases count in the D95 denominators.
 
 ### D216. JavaScript bindings for XQuery, XSLT and XSD validation (packet js-1)
 Recorded 2026-10-19, after D10, D138, D187, D189, D205, D207, D208.

@@ -793,6 +793,11 @@ dynamic context.
   `third_party/ixml-tests` if the owner agrees.
 - **Size**: 40–70 KB.
 - **Gate**: all 16 QT4 cases; ≥ 90 % of the suite's correct-grammar tests.
+**Done** 2026-10-19 (D215), gate met: QT4 fn-invisible-xml 16 of 16
+(XP40, XQ40); the iXML community suite (vendored, `third_party/ixml-tests`)
+886 of 907, test cases with a correct grammar 711 of 715 (99.4 %), grammar
+tests 142 of 142. `sxml-full.wasm` +39,704 bytes (stripped); `sxml.wasm`
+unchanged but for 4 bytes.
 
 ### 7.19 Phase 7 review (review)
 After every packet the owner accepted. Owns the gate boxes. A separate

@@ -920,6 +920,9 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `encoding_label` | A name the Encoding Standard gives an encoding (`latin1`, `windows-1251`), matched without case and surrounding whitespace |
 | `ixml_grammar` | An Invisible XML grammar compiled for the Earley parser: rules, alternatives, terminals and marks |
 | `parse_forest` | The Earley parser's shared record of every parse of an input under an ixml grammar; the first tree is serialized, and more than one marks the result ambiguous |
+| `earley_item` | A state of the Earley parser: a production, the dot (how much of it is read), the input position it started at, and the first way it was derived (its predecessor and child items; D215) |
+| `grammar_of_grammars` | The iXML grammar of iXML grammars, compiled into sxml as a constant table of its XML form; a grammar in ixml notation is parsed with it (D215) |
+| `ixml_mark` | How a rule, nonterminal or terminal appears in the XML of a parse: as an element (`^`), an attribute (`@`) or hidden (`-`; the Specification's "deleted") |
 | `collation_element_table` | The mapping of code points and contractions to collation elements, the DUCET or the CLDR root collation (UTS #10, section 3.6) |
 | `tailoring` | Changes to a collation element table for a language or a reordering, compiled from CLDR rules (UTS #35, Part 5) |
 | `reorder_group` | A run of primary weights of the root collation that a reorder code moves as a whole: space, punct, symbol, currency, digit, or one or more scripts (UTS #35, Part 5, section 3.13) |

@@ -4,6 +4,21 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 7.18 done (D215): Invisible XML. fn:invisible-xml as the optional
+  feature `sxml_invisible_xml_feature()` ("invisible-xml"): one grammar
+  compiler over the XML form (tree builder events, or the constant table
+  of the grammar of grammars, so ixml notation is parsed by the same
+  Earley parser), an Earley parser whose items keep their first
+  derivation and mark a second (ambiguity), and construction with marks,
+  renaming, insertions, ixml:state and D02 to D07. QT4 fn-invisible-xml
+  16 of 16 (was 6, wrong errors), now in the D95 scope. The iXML
+  community suite is vendored from Codeberg (`third_party/ixml-tests`,
+  2.4 MB) and run by an XQuery driver through `sxml xquery`
+  (`tests/ixml/`): 886 of 907, every grammar test, 711 of 715 cases with
+  a correct grammar; 4 errors are inputs with C0 controls an xs:string
+  cannot hold. `sxml-full.wasm` +39,704 bytes, `sxml.wasm` +4. Open:
+  right recursion is quadratic (no Leo items).
+
 - 7.15b done (D220): UCA collations order by CLDR's root collation
   (`allkeys_CLDR.txt`, asked for before the DUCET) and honour `lang`
   through the CLDR collation of the language, read from its LDML file at
