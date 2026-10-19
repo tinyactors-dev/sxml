@@ -238,6 +238,53 @@ static sxml_status call_distinct_ordered_nodes(const sxml_function_call *call,
         result);
 }
 
+/* Loads the document uri_reference names as fn:doc does with options:
+   *document_node, owned, is the loader's node, its stripped copy, or the
+   validated copy of that. On failure *document_node is released. */
+typedef struct document_loading {
+    sxml_byte_view uri_reference;
+    const sxml_document_options *options;
+    /* Where load errors go; NULL leaves them unreported (fn:doc-available
+       asks only whether a document comes back). */
+    sxml_error_record *error_record;
+} document_loading;
+
+static sxml_status load_document_with_options(const sxml_function_call *call,
+                                              const document_loading *loading,
+                                              sxml_item *document_node) {
+    const sxml_document_options *options = loading->options;
+    *document_node = (sxml_item){.representation = 0};
+    sxml_status status = sxml_dynamic_context_load_document(
+        call->dynamic_context,
+        &(sxml_document_request){.uri_reference = loading->uri_reference,
+                                 .base_uri = sxml_dynamic_context_get_static_base_uri(
+                                     call->dynamic_context),
+                                 .error_record = loading->error_record,
+                                 .blocks_external_resources = !options->trusts_external,
+                                 .validates_dtd = options->validates_dtd},
+        document_node);
+    if (status == SXML_STATUS_OK && options->strips_space) {
+        sxml_sequence stripped = sxml_sequence_empty();
+        status = sxml_function_library_strip_document(call, *document_node, &stripped);
+        sxml_item_release(*document_node);
+        *document_node =
+            status == SXML_STATUS_OK ? stripped.content : (sxml_item){.representation = 0};
+    }
+    if (status == SXML_STATUS_OK &&
+        sxml_sequence_get_representation(options->xsd_validation) !=
+            SXML_SEQUENCE_REPRESENTATION_EMPTY) {
+        sxml_atomic_datum validation;
+        status = sxml_atomic_item_get_datum(options->xsd_validation.content, &validation);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_schema_scope_validate_document(
+                call, validation.datum_details.string.utf8, document_node);
+        } else {
+            sxml_item_release(*document_node);
+        }
+    }
+    return status;
+}
+
 /* fn:doc($source, $options := {}) (F&O 4.0, section 17.1.1): through the
    document loader, which gives the same node for the same URI within an
    evaluation; a relative URI is resolved against the static base URI
@@ -270,33 +317,12 @@ static sxml_status call_doc(const sxml_function_call *call, sxml_sequence *resul
     }
     sxml_item document_node = {.representation = 0};
     if (status == SXML_STATUS_OK) {
-        status = sxml_dynamic_context_load_document(
-            call->dynamic_context,
-            &(sxml_document_request){.uri_reference = uri_reference.utf8,
-                                     .base_uri = sxml_dynamic_context_get_static_base_uri(
-                                         call->dynamic_context),
-                                     .error_record = call->error_record,
-                                     .blocks_external_resources = !options.trusts_external,
-                                     .validates_dtd = options.validates_dtd},
+        status = load_document_with_options(
+            call,
+            &(document_loading){.uri_reference = uri_reference.utf8,
+                                .options = &options,
+                                .error_record = call->error_record},
             &document_node);
-    }
-    if (status == SXML_STATUS_OK && options.strips_space) {
-        sxml_sequence stripped = sxml_sequence_empty();
-        status = sxml_function_library_strip_document(call, document_node, &stripped);
-        sxml_item_release(document_node);
-        document_node = status == SXML_STATUS_OK ? stripped.content : (sxml_item){.representation = 0};
-    }
-    if (status == SXML_STATUS_OK &&
-        sxml_sequence_get_representation(options.xsd_validation) !=
-            SXML_SEQUENCE_REPRESENTATION_EMPTY) {
-        sxml_atomic_datum validation;
-        status = sxml_atomic_item_get_datum(options.xsd_validation.content, &validation);
-        if (status == SXML_STATUS_OK) {
-            status = sxml_schema_scope_validate_document(
-                call, validation.datum_details.string.utf8, &document_node);
-        } else {
-            sxml_item_release(document_node);
-        }
     }
     sxml_sequence_release(options.xsd_validation);
     if (status == SXML_STATUS_OK) {
@@ -306,9 +332,11 @@ static sxml_status call_doc(const sxml_function_call *call, sxml_sequence *resul
 }
 
 /* fn:doc-available($source, $options := {}) (F&O 4.0, section 15.1.2):
-   true when fn:doc would give a document. The loader keeps what it loads,
-   so a later fn:doc gives the same node; FODC0002 and FODC0005 mean
-   false. The options are accepted and ignored, as fn:doc ignores them. */
+   true when fn:doc with the same options would give a document. The
+   loader keeps what it loads, so a later fn:doc gives the same node.
+   Errors in the options are raised; a document that cannot be loaded,
+   is not valid against its DTD (dtd-validation) or the in-scope schemas
+   (xsd-validation) gives false. */
 static sxml_status call_doc_available(const sxml_function_call *call, sxml_sequence *result) {
     if (call->dynamic_context == NULL) {
         return sxml_function_library_report(call, &no_dynamic_context_error);
@@ -318,27 +346,35 @@ static sxml_status call_doc_available(const sxml_function_call *call, sxml_seque
     if (status != SXML_STATUS_OK) {
         return status;
     }
+    sxml_document_options options = {.strips_space = false,
+                                     .validates_dtd = false,
+                                     .trusts_external = false,
+                                     .xsd_validation = sxml_sequence_empty()};
+    status = sxml_function_library_read_document_options(call, 1, &options);
     bool is_available = false;
-    if (source.has_item) {
+    if (status == SXML_STATUS_OK && source.has_item) {
         sxml_string uri_reference;
         status = sxml_function_library_read_string_argument(call, 0, &uri_reference);
         sxml_item document_node = {.representation = 0};
         if (status == SXML_STATUS_OK) {
-            status = sxml_dynamic_context_load_document(
-                call->dynamic_context,
-                &(sxml_document_request){.uri_reference = uri_reference.utf8,
-                                         .base_uri = sxml_dynamic_context_get_static_base_uri(
-                                             call->dynamic_context),
-                                         .error_record = NULL},
+            status = load_document_with_options(
+                call,
+                &(document_loading){.uri_reference = uri_reference.utf8,
+                                    .options = &options,
+                                    .error_record = NULL},
                 &document_node);
         }
         if (status == SXML_STATUS_OK) {
             is_available = true;
             sxml_item_release(document_node);
         } else if (status == SXML_STATUS_DYNAMIC_ERROR) {
+            /* What fn:doc would raise (FODC0002, FODC0005, FODC0006,
+               FODC0014, ...) is the answer false. */
+            sxml_item_heap_clear_raised_error(call->item_heap);
             status = SXML_STATUS_OK;
         }
     }
+    sxml_sequence_release(options.xsd_validation);
     if (status == SXML_STATUS_OK) {
         *result = sxml_function_library_make_boolean(
             (sxml_boolean_result){.is_true = is_available});
