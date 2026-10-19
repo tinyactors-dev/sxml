@@ -1,6 +1,6 @@
 sxml xpath - Evaluate an XPath 4.0 expression
 
-Usage: sxml xpath [--context-item=FILE] [--param=NAME=VALUE]... [--method=METHOD] [--allow-file-access] EXPRESSION
+Usage: sxml xpath [--context-item=FILE] [--param=NAME=VALUE]... [--method=METHOD] [--allow-file-access] [--output=FILE] [--force] EXPRESSION
 
 Evaluates EXPRESSION as XPath 4.0 and writes the result to standard
 output, by the adaptive method with one item per line unless --method
@@ -13,19 +13,25 @@ lets the expression read and write files with the EXPath File
 functions (namespace http://expath.org/ns/file); without it they do
 not exist. An EXPRESSION that starts with - must follow --.
 
+--output=FILE (-o FILE) writes the result to FILE instead, and only
+when the command succeeds; a FILE that exists is replaced only with
+--force.
+
 An error is reported on standard error as
   expression:LINE:COLUMN: err:CODE: description
 
 Exit status: 0 on success, 1 for an error in the expression or a
 context document that is not well-formed, 3 when a file cannot be
-read.
+read or written.
 
 Options:
   -h, --help               Show this help and exit
       --context-item=FILE  XML document to use as the context item; - reads standard input
       --param=NAME=VALUE   Bind $NAME to xs:untypedAtomic(VALUE) (repeatable)
-      --method=METHOD      Serialization method of the result (one of: adaptive, xml, xhtml, html, text, json; default: adaptive)
+      --method=METHOD      Serialization method of the result (one of: adaptive, xml, xhtml, html, text, json, csv; default: adaptive)
       --allow-file-access  Let the query read and write files (EXPath File functions)
+  -o, --output=FILE        Write the result to FILE instead of standard output
+      --force              Replace files that exist instead of refusing
 
 Arguments:
   EXPRESSION  XPath 4.0 expression to evaluate
@@ -35,3 +41,4 @@ Examples:
   sxml xpath --context-item=books.xml '//book[@year < 1980]/title/string()'
   sxml xpath --param=n=5 'xs:integer($n) * 2'
   sxml xpath --method=json 'map { "a": [1, 2] }'
+  sxml xpath --context-item=books.xml --output=titles.txt '//title/string()'

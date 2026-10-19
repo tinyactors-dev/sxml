@@ -1,0 +1,2 @@
+sxml transform: result document 'books/b1.xml' not written; give --result-directory
+sxml transform: result document 'books/b2.xml' not written; give --result-directory

@@ -874,7 +874,7 @@ static void sxml_validate_finish(sxml_validate_run *run) {
     sxml_allocator_release(allocator, files->names);
     sxml_allocator_release(allocator, files->uris);
     sxml_allocator_release(allocator, files->documents);
-    sxml_query_run_finish(&run->query);
+    (void)sxml_query_run_finish(&run->query, SXML_CLI_EXIT_SUCCESS);
 }
 
 static sxml_cli_exit_code sxml_run_validate_command(const sxml_cli_invocation *invocation) {

@@ -209,6 +209,80 @@ SXML_NODISCARD sxml_status sxml_cli_file_reader_read(
     sxml_cli_file_reader reader, const sxml_cli_file_read_request *request,
     sxml_byte_view *contents);
 
+/* ---------------------------------------------------------- File writer */
+
+/* What is at a path, as the file writer sees it. */
+typedef enum sxml_cli_file_kind {
+    SXML_CLI_FILE_KIND_NONE,
+    SXML_CLI_FILE_KIND_FILE,
+    SXML_CLI_FILE_KIND_DIRECTORY,
+    /* Something else: a device, a socket. */
+    SXML_CLI_FILE_KIND_OTHER,
+} sxml_cli_file_kind;
+
+/* One file to write (docs/CLI.md: only the files --output,
+   --result-directory and --allow-put name). */
+typedef struct sxml_cli_file_write_request {
+    /* The file name, relative to the working directory or absolute; not
+       "-". Borrowed for the call. */
+    sxml_byte_view path;
+    /* Whether a file that exists at path may be replaced (--force). */
+    bool replaces_existing;
+    /* Provides the memory of the write until it is committed or
+       abandoned. */
+    sxml_allocator allocator;
+} sxml_cli_file_write_request;
+
+/*
+ * A file being written. begin fills it in; exactly one of commit and
+ * abandon ends it. Until commit, the bytes go to a temporary file beside
+ * path, so the file at path is never seen half written, and a write that
+ * is abandoned leaves nothing behind.
+ */
+typedef struct sxml_cli_file_write {
+    /* Receives the contents, in pieces. */
+    sxml_cli_output_stream stream;
+    /* The platform's state of this write; NULL when none is open. */
+    void *handle;
+    /* Set by begin and commit when they refuse because a file exists at
+       path and the request does not replace it. */
+    bool refused_existing;
+} sxml_cli_file_write;
+
+/*
+ * The interface through which commands write files (glossary:
+ * file_writer). The default implementation is the platform layer's
+ * (apps/sxml/platform.h). Tables are static const.
+ */
+typedef struct sxml_cli_file_writer_operations {
+    /* Writes what is at path to *kind; SXML_CLI_FILE_KIND_NONE for a path
+       that names nothing or cannot be seen. */
+    sxml_status (*find_kind)(void *state, sxml_byte_view path, sxml_cli_file_kind *kind);
+    /* Creates the directory path, whose parent exists; succeeds when path
+       is a directory already. SXML_STATUS_INPUT_OUTPUT_FAILED otherwise. */
+    sxml_status (*create_directory)(void *state, sxml_byte_view path);
+    /* Starts writing request->path: refuses (SXML_STATUS_INPUT_OUTPUT_FAILED,
+       write->refused_existing) when a file exists there and the request
+       does not replace it, and fails when the temporary file cannot be
+       made. On failure write->handle is NULL. */
+    sxml_status (*begin)(void *state, const sxml_cli_file_write_request *request,
+                         sxml_cli_file_write *write);
+    /* Puts the written bytes at the path in one step: replacing a file
+       there only when the request said so (else refusing as begin does,
+       when one appeared meanwhile). Ends the write in every case: on
+       failure the temporary file is removed. */
+    sxml_status (*commit)(void *state, sxml_cli_file_write *write);
+    /* Ends the write and removes the temporary file; the file at path is
+       untouched. */
+    void (*abandon)(void *state, sxml_cli_file_write *write);
+} sxml_cli_file_writer_operations;
+
+/* Passed by value; operations NULL means no file can be written. */
+typedef struct sxml_cli_file_writer {
+    void *state;
+    const sxml_cli_file_writer_operations *operations;
+} sxml_cli_file_writer;
+
 /* ----------------------------------------------------------- Invocation */
 
 typedef struct sxml_cli_arguments sxml_cli_arguments;
@@ -231,6 +305,8 @@ struct sxml_cli_invocation {
     sxml_byte_view version_text;
     /* Reads the files named on the command line. */
     sxml_cli_file_reader file_reader;
+    /* Writes the files the command line names for writing. */
+    sxml_cli_file_writer file_writer;
     /* The working directory, which relative file names are in: an
        absolute path with '/' between its parts; empty when unknown. */
     sxml_byte_view working_directory;

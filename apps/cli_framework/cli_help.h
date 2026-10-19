@@ -44,6 +44,11 @@ typedef struct sxml_cli_usage_error_report {
  *     sxml version: unknown option '--fromat'; did you mean '--format'?
  *     Usage: sxml version [--format=FORMAT]
  *     Try 'sxml version --help'.
+ *
+ * An unknown long option of a command that is not close to one of its
+ * options, but is an option of other commands, names them instead of a
+ * suggestion: "sxml xpath: unknown option '--expression'; it is an option
+ * of 'sxml xquery'".
  */
 void sxml_cli_write_usage_error(sxml_cli_writer *writer,
                                 const sxml_cli_usage_error_report *report);

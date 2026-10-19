@@ -170,7 +170,11 @@ adaptive output method writes the result, one item on each line.
 | `--method=METHOD` | Serialization method: `adaptive` (default), `xml`, `xhtml`, `html`, `text` or `json`, each with its default parameters |
 | `--allow-file-access` | Let the expression read and write files with the EXPath File functions (`file:`). Without this option, they do not exist. |
 
-- `fn:doc` and the other resource functions read local files.
+- `fn:doc` and the other resource functions (`fn:html-doc`,
+  `fn:unparsed-text`, `fn:json-doc` and others) read local files. The
+  static base URI is the working directory's file URI
+  (`file:///DIRECTORY/`), so a relative name such as `html-doc("page.html")`
+  is a file in the working directory.
 - The EXPath Binary 4.0 functions are available with the prefix `bin`
   (`http://expath.org/ns/binary`). With `--allow-file-access`, the EXPath
   File 4.0 functions are available with the prefix `file`
@@ -252,7 +256,9 @@ serialization. The default method is xml.
   to the working directory. `import schema ... at` reads schema documents
   in the same way, so `validate` expressions and schema types are
   available.
-- `fn:doc` reads local files.
+- `fn:doc` and the other resource functions read local files; as for
+  [sxml xpath](#sxml-xpath), the static base URI is the working
+  directory's file URI, so `unparsed-text("notes.txt")` reads a file there.
 - An updating query (the XQuery Update Facility 3.0: insert, delete,
   replace, rename, updating functions) writes the context item's document
   as its updates left it, in place of its value, which is empty. The file

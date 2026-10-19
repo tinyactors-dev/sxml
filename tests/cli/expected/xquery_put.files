@@ -1,0 +1,7 @@
+== copy.xml
+<catalog xmlns:x="urn:x">
+  <book id="b1"><title>XPath 4.0</title><x:price>10</x:price></book>
+  
+</catalog>== notes/count 1.xml
+<?xml version="1.0" encoding="UTF-8"?><note>2</note>== notes/keep.txt
+old

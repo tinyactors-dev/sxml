@@ -435,6 +435,63 @@ static void sxml_cli_write_usage_error_description(
     }
 }
 
+/* Whether command has the long option name. */
+static bool sxml_cli_command_has_long_option(const sxml_cli_command *command,
+                                             sxml_byte_view name) {
+    for (size_t option_index = 0; option_index < command->option_count;
+         option_index += 1) {
+        if (sxml_byte_view_equals(command->options[option_index].long_name,
+                                  name)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/*
+ * For an unknown long option without a close match: names the other
+ * commands that have an option of exactly that name, as
+ * "; it is an option of 'sxml xquery'" or
+ * "; it is an option of 'sxml check', 'sxml validate' and 'sxml version'".
+ * Writes nothing when none has it.
+ */
+static void sxml_cli_write_other_commands(
+    sxml_cli_writer *writer, const sxml_cli_usage_error_report *report) {
+    const sxml_cli_program *program = report->program;
+    size_t owner_count = 0;
+    for (size_t command_index = 0; command_index < program->command_count;
+         command_index += 1) {
+        const sxml_cli_command *command = program->commands[command_index];
+        if (command != report->command &&
+            sxml_cli_command_has_long_option(command,
+                                             report->usage_error.argument)) {
+            owner_count += 1;
+        }
+    }
+    size_t written_count = 0;
+    for (size_t command_index = 0; command_index < program->command_count;
+         command_index += 1) {
+        const sxml_cli_command *command = program->commands[command_index];
+        if (command == report->command ||
+            !sxml_cli_command_has_long_option(command,
+                                              report->usage_error.argument)) {
+            continue;
+        }
+        if (written_count == 0) {
+            sxml_cli_writer_write(writer, SXML_TEXT("; it is an option of '"));
+        } else if (written_count + 1 == owner_count) {
+            sxml_cli_writer_write(writer, SXML_TEXT(" and '"));
+        } else {
+            sxml_cli_writer_write(writer, SXML_TEXT(", '"));
+        }
+        sxml_cli_writer_write(writer, program->name);
+        sxml_cli_writer_write_byte(writer, ' ');
+        sxml_cli_writer_write(writer, command->name);
+        sxml_cli_writer_write_byte(writer, '\'');
+        written_count += 1;
+    }
+}
+
 void sxml_cli_write_usage_error(sxml_cli_writer *writer,
                                 const sxml_cli_usage_error_report *report) {
     const sxml_cli_help_request request = {.program = report->program,
@@ -449,6 +506,9 @@ void sxml_cli_write_usage_error(sxml_cli_writer *writer,
         }
         sxml_cli_writer_write(writer, usage_error->suggestion);
         sxml_cli_writer_write(writer, SXML_TEXT("'?"));
+    } else if (usage_error->kind == SXML_CLI_USAGE_ERROR_UNKNOWN_OPTION &&
+               !usage_error->is_short_option && report->command != NULL) {
+        sxml_cli_write_other_commands(writer, report);
     }
     sxml_cli_writer_write_byte(writer, '\n');
     sxml_cli_write_usage_line(writer, request);

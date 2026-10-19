@@ -29,12 +29,14 @@ const sxml_byte_view sxml_query_methods[SXML_QUERY_METHOD_COUNT] = {
     SXML_BYTE_VIEW_INITIALIZER("adaptive"), SXML_BYTE_VIEW_INITIALIZER("xml"),
     SXML_BYTE_VIEW_INITIALIZER("xhtml"),    SXML_BYTE_VIEW_INITIALIZER("html"),
     SXML_BYTE_VIEW_INITIALIZER("text"),     SXML_BYTE_VIEW_INITIALIZER("json"),
+    SXML_BYTE_VIEW_INITIALIZER("csv"),
 };
 
 static const sxml_serialization_method sxml_query_method_values[SXML_QUERY_METHOD_COUNT] = {
     SXML_SERIALIZATION_METHOD_ADAPTIVE, SXML_SERIALIZATION_METHOD_XML,
     SXML_SERIALIZATION_METHOD_XHTML,    SXML_SERIALIZATION_METHOD_HTML,
     SXML_SERIALIZATION_METHOD_TEXT,     SXML_SERIALIZATION_METHOD_JSON,
+    SXML_SERIALIZATION_METHOD_CSV,
 };
 
 /* --------------------------------------------------------------- Files */
@@ -278,6 +280,134 @@ sxml_byte_view sxml_query_file_of_uri(const sxml_cli_invocation *invocation, sxm
     return name;
 }
 
+/* ------------------------------------------------------- File URIs */
+
+static int sxml_query_hex_value(uint8_t byte) {
+    if (byte >= '0' && byte <= '9') {
+        return byte - '0';
+    }
+    if (byte >= 'a' && byte <= 'f') {
+        return byte - 'a' + 10;
+    }
+    if (byte >= 'A' && byte <= 'F') {
+        return byte - 'A' + 10;
+    }
+    return -1;
+}
+
+sxml_status sxml_query_decode_uri_path(const sxml_cli_invocation *invocation,
+                                       sxml_byte_view text, sxml_byte_view *path) {
+    void *memory = NULL;
+    const sxml_status status = sxml_allocator_allocate(
+        invocation->allocator,
+        (sxml_allocation_request){.byte_count = text.byte_count + 1, .alignment = 1}, &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    uint8_t *bytes = memory;
+    size_t written_count = 0;
+    for (size_t byte_index = 0; byte_index < text.byte_count; byte_index += 1) {
+        uint8_t byte = text.bytes[byte_index];
+        if (byte == '?' || byte == '#' || byte == '\\') {
+            sxml_allocator_release(invocation->allocator, memory);
+            return SXML_STATUS_INVALID_ARGUMENT;
+        }
+        if (byte == '%') {
+            const int high = byte_index + 2 < text.byte_count
+                                 ? sxml_query_hex_value(text.bytes[byte_index + 1])
+                                 : -1;
+            const int low =
+                high >= 0 ? sxml_query_hex_value(text.bytes[byte_index + 2]) : -1;
+            /* RFC 3986, 2.1; a decoded "/", "\" or NUL would change the
+               path's parts. */
+            byte = (uint8_t)(high * 16 + low);
+            if (high < 0 || low < 0 || byte == 0 || byte == '/' || byte == '\\') {
+                sxml_allocator_release(invocation->allocator, memory);
+                return SXML_STATUS_INVALID_ARGUMENT;
+            }
+            byte_index += 2;
+        }
+        bytes[written_count] = byte;
+        written_count += 1;
+    }
+    *path = (sxml_byte_view){.bytes = bytes, .byte_count = written_count};
+    return SXML_STATUS_OK;
+}
+
+sxml_status sxml_query_normalize_directory_uri(const sxml_cli_invocation *invocation,
+                                               sxml_byte_view uri, sxml_byte_view *normalized) {
+    const sxml_byte_view scheme = SXML_TEXT("file://");
+    if (!sxml_query_starts_with(uri, scheme)) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    void *memory = NULL;
+    const sxml_status status = sxml_allocator_allocate(
+        invocation->allocator,
+        (sxml_allocation_request){.byte_count = uri.byte_count + 1, .alignment = 1}, &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    uint8_t *bytes = memory;
+    memcpy(bytes, scheme.bytes, scheme.byte_count);
+    size_t written_count = scheme.byte_count;
+    /* The path's parts, as RFC 3986, 5.2.4 removes dot segments; empty
+       parts go too, and the result ends with "/". */
+    size_t part_start = scheme.byte_count;
+    while (part_start <= uri.byte_count) {
+        size_t part_end = part_start;
+        while (part_end < uri.byte_count && uri.bytes[part_end] != '/') {
+            part_end += 1;
+        }
+        const sxml_byte_view part = {.bytes = uri.bytes + part_start,
+                                     .byte_count = part_end - part_start};
+        if (sxml_byte_view_equals(part, SXML_TEXT(".."))) {
+            /* Back to the "/" before the last part written. */
+            while (written_count > scheme.byte_count + 1 && bytes[written_count - 2] != '/') {
+                written_count -= 1;
+            }
+            if (written_count > scheme.byte_count + 1) {
+                written_count -= 1;
+            }
+        } else if (part.byte_count > 0 && !sxml_byte_view_equals(part, SXML_TEXT("."))) {
+            if (written_count == scheme.byte_count || bytes[written_count - 1] != '/') {
+                bytes[written_count] = '/';
+                written_count += 1;
+            }
+            memcpy(bytes + written_count, part.bytes, part.byte_count);
+            written_count += part.byte_count;
+            bytes[written_count] = '/';
+            written_count += 1;
+        }
+        part_start = part_end + 1;
+    }
+    if (written_count == scheme.byte_count) {
+        bytes[written_count] = '/';
+        written_count += 1;
+    }
+    *normalized = (sxml_byte_view){.bytes = bytes, .byte_count = written_count};
+    return SXML_STATUS_OK;
+}
+
+/* Writes bytes to the CLI stream an sxml_query_library_stream wraps. */
+static sxml_status sxml_query_write_library_bytes(void *state, sxml_byte_view bytes) {
+    const sxml_cli_output_stream *stream = state;
+    if (bytes.byte_count == 0) {
+        return SXML_STATUS_OK;
+    }
+    return sxml_cli_output_stream_write(*stream, bytes) == SXML_STATUS_OK
+               ? SXML_STATUS_OK
+               : SXML_STATUS_INPUT_OUTPUT_FAILED;
+}
+
+static const sxml_output_stream_operations sxml_query_library_stream_operations = {
+    .write = sxml_query_write_library_bytes,
+};
+
+sxml_output_stream sxml_query_library_stream(const sxml_cli_output_stream *stream) {
+    return (sxml_output_stream){.state = (void *)stream,
+                                .operations = &sxml_query_library_stream_operations};
+}
+
 /* -------------------------------------------------------------- Output */
 
 static sxml_status sxml_query_write_output(void *state, sxml_byte_view bytes) {
@@ -291,7 +421,7 @@ static const sxml_output_stream_operations sxml_query_output_operations = {
 };
 
 sxml_status sxml_query_run_write(const sxml_query_run *run, const sxml_query_output *output) {
-    sxml_cli_writer *writer = run->invocation->standard_output;
+    sxml_cli_writer *writer = run->result_writer;
     sxml_status status = sxml_serialize_sequence(
         sxml_processor_get_item_heap(run->processor),
         &(sxml_serialization_request){.value = output->result,
@@ -300,7 +430,11 @@ sxml_status sxml_query_run_write(const sxml_query_run *run, const sxml_query_out
                                       .error_record = output->error_record},
         (sxml_output_stream){.state = writer, .operations = &sxml_query_output_operations});
     uint64_t item_count = 0;
-    if (status == SXML_STATUS_OK &&
+    /* The CSV method ends every record with a line feed already
+       (Serialization 4.0, CSV output method). */
+    const bool ends_lines = output->serialization_parameters.serialization_method ==
+                            SXML_SERIALIZATION_METHOD_CSV;
+    if (status == SXML_STATUS_OK && !ends_lines &&
         sxml_sequence_count(output->result, NULL, &item_count) == SXML_STATUS_OK &&
         item_count > 0) {
         sxml_cli_writer_write_byte(writer, '\n');
@@ -345,8 +479,12 @@ sxml_cli_exit_code sxml_query_run_fail(const sxml_query_run *run,
     const bool names_its_source = status == SXML_STATUS_STATIC_ERROR &&
                                   diagnostic->location.line_number != 0 &&
                                   diagnostic->location.source_name.byte_count > 0;
-    sxml_cli_writer_write_escaped(error, names_its_source ? diagnostic->location.source_name
-                                                          : failure->source_name);
+    /* A module's name is its URI, resolved against the static base URI:
+       written as the file it names (sxml_query_file_of_uri). */
+    sxml_cli_writer_write_escaped(
+        error, names_its_source
+                   ? sxml_query_file_of_uri(run->invocation, diagnostic->location.source_name)
+                   : failure->source_name);
     if (diagnostic->location.line_number != 0) {
         sxml_cli_writer_write_byte(error, ':');
         sxml_cli_writer_write_decimal(error, diagnostic->location.line_number);
@@ -593,6 +731,218 @@ static sxml_cli_exit_code sxml_query_read_context_item(sxml_query_run *run) {
     return exit_code;
 }
 
+/* ------------------------------------------------------- Written files */
+
+void sxml_query_run_write_prefix(const sxml_query_run *run) {
+    sxml_cli_writer *error = run->invocation->standard_error;
+    sxml_cli_writer_write(error, run->invocation->program->name);
+    sxml_cli_writer_write_byte(error, ' ');
+    sxml_cli_writer_write(error, run->command_name);
+    sxml_cli_writer_write(error, SXML_TEXT(": "));
+}
+
+/* A file that cannot be written: it exists (and --force is not given) or
+   the platform refused. */
+typedef struct sxml_query_unwritable {
+    sxml_byte_view path;
+    bool refused_existing;
+} sxml_query_unwritable;
+
+static void sxml_query_report_unwritable(const sxml_query_run *run,
+                                         sxml_query_unwritable unwritable) {
+    sxml_cli_writer *error = run->invocation->standard_error;
+    const sxml_byte_view path = unwritable.path;
+    sxml_query_run_write_prefix(run);
+    if (unwritable.refused_existing) {
+        sxml_cli_writer_write_quoted(error, path);
+        sxml_cli_writer_write_line(error, SXML_TEXT(" exists; give --force to replace it"));
+        return;
+    }
+    sxml_cli_writer_write(error, SXML_TEXT("cannot write "));
+    sxml_cli_writer_write_quoted(error, path);
+    sxml_cli_writer_write_byte(error, '\n');
+}
+
+/* Makes room for one more file in run->files. */
+static sxml_status sxml_query_grow_files(sxml_query_run *run) {
+    if (run->file_count < run->file_capacity) {
+        return SXML_STATUS_OK;
+    }
+    const size_t capacity = run->file_capacity == 0 ? 4 : run->file_capacity * 2;
+    size_t byte_count = 0;
+    sxml_status status = sxml_size_multiply(capacity, sizeof(sxml_query_file), &byte_count);
+    void *memory = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_allocator_allocate(
+            run->invocation->allocator,
+            (sxml_allocation_request){.byte_count = byte_count,
+                                      .alignment = alignof(sxml_query_file)},
+            &memory);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (run->file_count > 0) {
+        memcpy(memory, run->files, run->file_count * sizeof(sxml_query_file));
+    }
+    sxml_allocator_release(run->invocation->allocator, run->files);
+    run->files = memory;
+    run->file_capacity = capacity;
+    return SXML_STATUS_OK;
+}
+
+sxml_cli_exit_code sxml_query_run_begin_file(sxml_query_run *run, sxml_byte_view path,
+                                             sxml_cli_output_stream *stream) {
+    const sxml_cli_invocation *invocation = run->invocation;
+    void *path_memory = NULL;
+    sxml_status status = sxml_query_grow_files(run);
+    if (status == SXML_STATUS_OK && path.byte_count > 0) {
+        status = sxml_allocator_allocate(
+            invocation->allocator,
+            (sxml_allocation_request){.byte_count = path.byte_count, .alignment = 1},
+            &path_memory);
+    }
+    if (status != SXML_STATUS_OK) {
+        return SXML_CLI_EXIT_INTERNAL_ERROR;
+    }
+    if (path.byte_count > 0) {
+        memcpy(path_memory, path.bytes, path.byte_count);
+    }
+    sxml_query_file *file = &run->files[run->file_count];
+    *file = (sxml_query_file){
+        .write = {.stream = {.state = NULL, .operations = NULL},
+                  .handle = NULL,
+                  .refused_existing = false},
+        .path = {.bytes = path_memory, .byte_count = path.byte_count}};
+    const sxml_cli_file_writer writer = invocation->file_writer;
+    status = writer.operations == NULL
+                 ? SXML_STATUS_INPUT_OUTPUT_FAILED
+                 : writer.operations->begin(
+                       writer.state,
+                       &(sxml_cli_file_write_request){.path = file->path,
+                                                      .replaces_existing = run->replaces_existing,
+                                                      .allocator = invocation->allocator},
+                       &file->write);
+    if (status != SXML_STATUS_OK) {
+        sxml_query_report_unwritable(
+            run, (sxml_query_unwritable){.path = path,
+                                         .refused_existing = file->write.refused_existing});
+        sxml_allocator_release(invocation->allocator, path_memory);
+        return status == SXML_STATUS_INPUT_OUTPUT_FAILED ? SXML_CLI_EXIT_INPUT_OUTPUT_ERROR
+                                                         : SXML_CLI_EXIT_INTERNAL_ERROR;
+    }
+    run->file_count += 1;
+    *stream = file->write.stream;
+    return SXML_CLI_EXIT_SUCCESS;
+}
+
+/* Commits (on success) or abandons the run's files and releases them. */
+static sxml_cli_exit_code sxml_query_run_end_files(sxml_query_run *run,
+                                                   sxml_cli_exit_code exit_code) {
+    const sxml_cli_invocation *invocation = run->invocation;
+    const sxml_cli_file_writer writer = invocation->file_writer;
+    if (exit_code != SXML_CLI_EXIT_SUCCESS && run->output_path.byte_count > 0 &&
+        run->output_writer.status != SXML_STATUS_OK) {
+        /* The result could not be written to the --output file. */
+        sxml_query_report_unwritable(
+            run, (sxml_query_unwritable){.path = run->output_path, .refused_existing = false});
+    }
+    for (size_t file_index = 0; file_index < run->file_count; file_index += 1) {
+        sxml_query_file *file = &run->files[file_index];
+        if (file->write.handle != NULL) {
+            if (exit_code == SXML_CLI_EXIT_SUCCESS) {
+                if (writer.operations->commit(writer.state, &file->write) != SXML_STATUS_OK) {
+                    sxml_query_report_unwritable(
+                        run, (sxml_query_unwritable){
+                                 .path = file->path,
+                                 .refused_existing = file->write.refused_existing});
+                    exit_code = SXML_CLI_EXIT_INPUT_OUTPUT_ERROR;
+                }
+            } else {
+                writer.operations->abandon(writer.state, &file->write);
+            }
+        }
+        sxml_allocator_release(invocation->allocator, (void *)file->path.bytes);
+    }
+    sxml_allocator_release(invocation->allocator, run->files);
+    run->files = NULL;
+    run->file_count = 0;
+    run->file_capacity = 0;
+    return exit_code;
+}
+
+/* The value of the option long_name, and whether it is given; false for
+   an option the command does not have. */
+static bool sxml_query_find_text_option(const sxml_cli_invocation *invocation,
+                                        sxml_byte_view long_name, sxml_byte_view *value) {
+    sxml_cli_option_match match = {.is_present = false, .occurrence_count = 0};
+    if (sxml_cli_arguments_find_option(
+            invocation->arguments,
+            (sxml_cli_option_lookup){.long_name = long_name, .occurrence_index = 0},
+            &match) != SXML_STATUS_OK ||
+        !match.is_present) {
+        return false;
+    }
+    *value = match.value;
+    return true;
+}
+
+bool sxml_query_has_option(const sxml_cli_invocation *invocation, sxml_byte_view long_name) {
+    sxml_byte_view value = {.bytes = NULL, .byte_count = 0};
+    return sxml_query_find_text_option(invocation, long_name, &value);
+}
+
+/* Whether the command has the option long_name. */
+static bool sxml_query_command_declares(const sxml_cli_invocation *invocation,
+                                        sxml_byte_view long_name) {
+    const sxml_cli_command *command = invocation->command;
+    for (size_t option_index = 0; option_index < command->option_count; option_index += 1) {
+        if (sxml_byte_view_equals(command->options[option_index].long_name, long_name)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* Reads --output and --force and begins writing the --output file. */
+static sxml_cli_exit_code sxml_query_read_output(sxml_query_run *run) {
+    const sxml_cli_invocation *invocation = run->invocation;
+    run->replaces_existing = sxml_query_has_option(invocation, SXML_TEXT("force"));
+    sxml_byte_view path = {.bytes = NULL, .byte_count = 0};
+    const bool has_output = sxml_query_find_text_option(invocation, SXML_TEXT("output"), &path);
+    if (run->replaces_existing && !has_output &&
+        !sxml_query_has_option(invocation, SXML_TEXT("result-directory")) &&
+        !sxml_query_has_option(invocation, SXML_TEXT("allow-put"))) {
+        sxml_byte_view description =
+            SXML_TEXT("--force replaces only files the command writes; give --output");
+        if (sxml_query_command_declares(invocation, SXML_TEXT("result-directory"))) {
+            description = SXML_TEXT("--force replaces only files the command writes; give "
+                                    "--output or --result-directory");
+        } else if (sxml_query_command_declares(invocation, SXML_TEXT("allow-put"))) {
+            description = SXML_TEXT(
+                "--force replaces only files the command writes; give --output or --allow-put");
+        }
+        return sxml_cli_invocation_report_usage_error(invocation, description);
+    }
+    if (!has_output) {
+        return SXML_CLI_EXIT_SUCCESS;
+    }
+    if (path.byte_count == 0 || sxml_byte_view_equals(path, SXML_TEXT("-"))) {
+        return sxml_cli_invocation_report_usage_error(
+            invocation,
+            SXML_TEXT("--output needs a file name; without it the result goes to standard output"));
+    }
+    sxml_cli_output_stream stream = {.state = NULL, .operations = NULL};
+    const sxml_cli_exit_code exit_code = sxml_query_run_begin_file(run, path, &stream);
+    if (exit_code != SXML_CLI_EXIT_SUCCESS) {
+        return exit_code;
+    }
+    run->output_path = path;
+    run->output_writer = sxml_cli_writer_from_stream(stream);
+    run->result_writer = &run->output_writer;
+    return SXML_CLI_EXIT_SUCCESS;
+}
+
 /* -------------------------------------------------------------- The run */
 
 /* The most optional features a run names: every feature of
@@ -641,6 +991,11 @@ static sxml_status sxml_query_bind_feature_namespaces(sxml_query_run *run) {
 sxml_cli_exit_code sxml_query_run_start(sxml_query_run *run) {
     const sxml_cli_invocation *invocation = run->invocation;
     run->resolver = (sxml_query_file_resolver){.invocation = invocation};
+    run->result_writer = invocation->standard_output;
+    const sxml_cli_exit_code output_exit_code = sxml_query_read_output(run);
+    if (output_exit_code != SXML_CLI_EXIT_SUCCESS) {
+        return output_exit_code;
+    }
     /* Every feature; EXPath File, and the platform's files, only with
        --allow-file-access (D184, D200). */
     const sxml_optional_feature_view all_features = sxml_all_optional_features();
@@ -679,6 +1034,15 @@ sxml_cli_exit_code sxml_query_run_start(sxml_query_run *run) {
     if (sxml_query_bind_feature_namespaces(run) != SXML_STATUS_OK) {
         return SXML_CLI_EXIT_INTERNAL_ERROR;
     }
+    /* XPath 4.0 and XQuery 4.0, C.1: the static base URI is
+       implementation-defined; the working directory's makes a relative
+       name a file there, for fn:html-doc and fn:unparsed-text too, whose
+       relative names need an absolute base (F&O 4.0, 17.1.5). */
+    if (invocation->working_directory.byte_count > 0 &&
+        sxml_query_make_file_uri(invocation, (sxml_byte_view){.bytes = NULL, .byte_count = 0},
+                                 &run->static_base_uri) != SXML_STATUS_OK) {
+        return SXML_CLI_EXIT_INTERNAL_ERROR;
+    }
     if (run->parameter_binding == SXML_PARAMETER_BINDING_NONE) {
         return SXML_CLI_EXIT_SUCCESS;
     }
@@ -689,14 +1053,16 @@ sxml_cli_exit_code sxml_query_run_start(sxml_query_run *run) {
     return exit_code;
 }
 
-void sxml_query_run_finish(sxml_query_run *run) {
+sxml_cli_exit_code sxml_query_run_finish(sxml_query_run *run, sxml_cli_exit_code exit_code) {
     const sxml_allocator allocator = run->invocation->allocator;
+    exit_code = sxml_query_run_end_files(run, exit_code);
     for (size_t parameter_index = 0; parameter_index < run->parameter_count;
          parameter_index += 1) {
         sxml_sequence_release(run->bindings[parameter_index].value);
     }
     sxml_allocator_release(allocator, run->declarations);
     sxml_allocator_release(allocator, run->bindings);
+    sxml_allocator_release(allocator, (void *)run->static_base_uri.bytes);
     if (run->has_context_item) {
         sxml_item_release(run->context_item);
     }
@@ -704,6 +1070,7 @@ void sxml_query_run_finish(sxml_query_run *run) {
         sxml_item_heap_clear_raised_error(sxml_processor_get_item_heap(run->processor));
         sxml_processor_destroy(run->processor);
     }
+    return exit_code;
 }
 
 sxml_static_context_configuration sxml_query_run_static_context(const sxml_query_run *run) {
@@ -711,7 +1078,7 @@ sxml_static_context_configuration sxml_query_run_static_context(const sxml_query
     return (sxml_static_context_configuration){
         .namespace_bindings = {.namespace_bindings = run->feature_namespaces,
                                .namespace_binding_count = run->feature_namespace_count},
-        .static_base_uri = {.bytes = NULL, .byte_count = 0},
+        .static_base_uri = run->static_base_uri,
         .variable_declarations = {.variable_declarations = declares ? run->declarations : NULL,
                                   .variable_declaration_count =
                                       declares ? run->parameter_count : 0}};

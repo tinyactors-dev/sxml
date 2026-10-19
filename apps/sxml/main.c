@@ -67,6 +67,8 @@ int main(int argument_count, char **arguments) {
             &file_system) != SXML_STATUS_OK) {
         file_system = (sxml_file_system){.state = NULL, .operations = NULL};
     }
+    /* The files --output, --result-directory and --allow-put name. */
+    static sxml_platform_file_writer_state file_writer_state;
     sxml_cli_exit_code exit_code = sxml_cli_run(
         sxml_program(),
         &(sxml_cli_run_request){
@@ -77,6 +79,7 @@ int main(int argument_count, char **arguments) {
             .allocator = allocator,
             .version_text = sxml_byte_view_from_c_string(sxml_version_text()),
             .file_reader = sxml_platform_file_reader(),
+            .file_writer = sxml_platform_file_writer(&file_writer_state),
             .working_directory = working_directory,
             .file_system = file_system,
         });

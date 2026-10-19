@@ -1,21 +1,27 @@
 sxml serialize - Parse an XML document and write it out again
 
-Usage: sxml serialize [--indent] [--method=METHOD] FILE
+Usage: sxml serialize [--indent] [--method=METHOD] [--output=FILE] [--force] FILE
 
 Parses FILE and writes the document to standard output with the
 Serialization 4.0 method that --method names (xml by default) and the
 method's default parameters. --indent indents the output.
 
+--output=FILE (-o FILE) writes the document to FILE instead, and only
+when FILE (the input) is well-formed; a FILE that exists is replaced
+only with --force, which may name the input itself.
+
 A FILE that is not well-formed is reported on standard error as
   FILE:LINE:COLUMN: message
 
 Exit status: 0 on success, 1 when FILE is not well-formed or cannot be
-serialized, 3 when FILE cannot be read.
+serialized, 3 when a file cannot be read or written.
 
 Options:
   -h, --help           Show this help and exit
       --indent         Indent the output
-      --method=METHOD  Serialization method (one of: adaptive, xml, xhtml, html, text, json; default: xml)
+      --method=METHOD  Serialization method (one of: adaptive, xml, xhtml, html, text, json, csv; default: xml)
+  -o, --output=FILE    Write the result to FILE instead of standard output
+      --force          Replace files that exist instead of refusing
 
 Arguments:
   FILE  XML document to write; - reads standard input
@@ -23,3 +29,4 @@ Arguments:
 Examples:
   sxml serialize --indent books.xml
   sxml serialize --method=json books.xml
+  sxml serialize --indent --force --output=books.xml books.xml

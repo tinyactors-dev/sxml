@@ -264,6 +264,7 @@ static sxml_cli_exit_code sxml_cli_run_command(
                 .allocator = session->request->allocator,
                 .version_text = session->request->version_text,
                 .file_reader = session->request->file_reader,
+                .file_writer = session->request->file_writer,
                 .working_directory = session->request->working_directory,
                 .file_system = session->request->file_system,
             };

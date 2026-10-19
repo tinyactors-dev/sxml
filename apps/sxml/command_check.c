@@ -489,7 +489,7 @@ sxml_run_check_command(const sxml_cli_invocation *invocation) {
     sxml_xml_parser_destroy(run.parser);
     sxml_name_pool_destroy(own_name_pool);
     if (run.has_processor) {
-        sxml_query_run_finish(&run.query);
+        (void)sxml_query_run_finish(&run.query, SXML_CLI_EXIT_SUCCESS);
     }
     if (start_code != SXML_CLI_EXIT_SUCCESS) {
         return start_code;

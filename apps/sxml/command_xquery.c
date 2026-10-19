@@ -19,6 +19,12 @@
  * - An updating query (XQuery Update Facility 3.0, D187) writes the
  *   context item's document as its updates left it, in place of its
  *   value, which is empty; the file itself is not changed.
+ * - fn:put (XQUF 3.0, 6.1; D205) writes the document to the local file
+ *   its file: URI names only with --allow-put; without it the sink takes
+ *   no documents and fn:put raises FOUP0002.
+ * - --output=FILE (-o FILE) writes the result to FILE instead of standard
+ *   output. Every file, puts included, is written only when the query
+ *   succeeds; --force lets them replace files (query_command.h).
  *
  * Errors as for sxml xpath, with the query file's name (or "expression")
  * in place of "expression": "QUERY-FILE:LINE:COLUMN: err:CODE:
@@ -82,6 +88,19 @@ static const sxml_cli_option sxml_xquery_options[] = {
             "Serialization method of the result, replacing the query's"),
     },
     SXML_QUERY_FILE_ACCESS_OPTION,
+    {
+        .long_name = SXML_BYTE_VIEW_INITIALIZER("allow-put"),
+        .short_name = 0,
+        .value_kind = SXML_CLI_VALUE_KIND_NONE,
+        .value_name = {.bytes = NULL, .byte_count = 0},
+        .choices = {.texts = NULL, .text_count = 0},
+        .default_value = {.bytes = NULL, .byte_count = 0},
+        .multiplicity = SXML_CLI_OPTION_AT_MOST_ONCE,
+        .summary = SXML_BYTE_VIEW_INITIALIZER(
+            "Let fn:put write the documents it stores to local files"),
+    },
+    SXML_QUERY_OUTPUT_OPTION,
+    SXML_QUERY_FORCE_OPTION,
 };
 
 static const sxml_cli_positional sxml_xquery_positionals[] = {
@@ -97,6 +116,7 @@ static const sxml_byte_view sxml_xquery_examples[] = {
     SXML_BYTE_VIEW_INITIALIZER("sxml xquery --context-item=books.xml titles.xq"),
     SXML_BYTE_VIEW_INITIALIZER("sxml xquery --expression='for $i in 1 to 3 return <i>{$i}</i>'"),
     SXML_BYTE_VIEW_INITIALIZER("sxml xquery --param=n=5 --expression='declare variable $n external; $n * 2'"),
+    SXML_BYTE_VIEW_INITIALIZER("sxml xquery --allow-put --context-item=books.xml --expression='put(., \"copy.xml\")'"),
 };
 
 /* The query text: QUERY-FILE's contents (owned, released by the caller)
@@ -156,6 +176,12 @@ typedef struct sxml_xquery_updated_context {
     sxml_node_reference context_node;
     bool has_update;
     sxml_item updated_root;
+    /* For fn:put (--allow-put): the run whose files it writes, the
+       evaluation's error record, and the reader of fn:put's $params,
+       made on the first put. */
+    sxml_query_run *run;
+    sxml_error_record *error_record;
+    sxml_serialization_parameter_reader *parameter_reader;
 } sxml_xquery_updated_context;
 
 static sxml_status sxml_xquery_receive_tree(void *state,
@@ -171,8 +197,97 @@ static sxml_status sxml_xquery_receive_tree(void *state,
     return SXML_STATUS_OK;
 }
 
+/* The file fn:put's URI names (XQUF 3.0, 6.1: an absolute URI, resolved
+   against the static base URI), owned: the percent-decoded path of a
+   file:// URI, relative to the working directory when it is inside it.
+   INVALID_ARGUMENT for another URI. */
+static sxml_status sxml_xquery_put_path(const sxml_cli_invocation *invocation, sxml_byte_view uri,
+                                        sxml_byte_view *path) {
+    const sxml_byte_view scheme = SXML_TEXT("file://");
+    if (uri.byte_count <= scheme.byte_count ||
+        memcmp(uri.bytes, scheme.bytes, scheme.byte_count) != 0) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    const sxml_byte_view file = sxml_query_file_of_uri(invocation, uri);
+    if (file.byte_count == 0) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    return sxml_query_decode_uri_path(invocation, file, path);
+}
+
+/* Serializes the node of a put into the file at path, with the
+   parameters its $params give (XQUF 3.0, 6.1: "serialization
+   parameters"). */
+static sxml_status sxml_xquery_write_put(sxml_xquery_updated_context *context,
+                                         const sxml_xquery_put_document *put_document,
+                                         sxml_byte_view path) {
+    sxml_query_run *run = context->run;
+    sxml_item_heap *item_heap = sxml_processor_get_item_heap(run->processor);
+    sxml_status status = SXML_STATUS_OK;
+    if (context->parameter_reader == NULL) {
+        status = sxml_serialization_parameter_reader_create(
+            run->invocation->allocator,
+            &(sxml_serialization_parameter_reader_configuration){
+                .allocator = run->invocation->allocator, .item_heap = item_heap},
+            &context->parameter_reader);
+    }
+    sxml_serialization_parameters parameters;
+    memset(&parameters, 0, sizeof(parameters));
+    if (status == SXML_STATUS_OK) {
+        status = sxml_serialization_parameter_reader_read(
+            context->parameter_reader,
+            &(sxml_serialization_parameter_read_request){
+                .options = put_document->serialization_parameters,
+                .error_record = context->error_record},
+            &parameters);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_cli_output_stream stream = {.state = NULL, .operations = NULL};
+    const sxml_cli_exit_code exit_code = sxml_query_run_begin_file(run, path, &stream);
+    if (exit_code != SXML_CLI_EXIT_SUCCESS) {
+        return exit_code == SXML_CLI_EXIT_INPUT_OUTPUT_ERROR ? SXML_STATUS_INPUT_OUTPUT_FAILED
+                                                             : SXML_STATUS_OUT_OF_MEMORY;
+    }
+    return sxml_serialize_sequence(
+        item_heap,
+        &(sxml_serialization_request){.value = sxml_sequence_from_item(put_document->node),
+                                      .serialization_parameters = parameters,
+                                      .error_record = context->error_record},
+        sxml_query_library_stream(&stream));
+}
+
+/* fn:put with --allow-put: the document is written to the file its URI
+   names when the query succeeds; an existing file only with --force. */
+static sxml_status sxml_xquery_receive_put(void *state,
+                                           const sxml_xquery_put_document *put_document) {
+    sxml_xquery_updated_context *context = state;
+    const sxml_cli_invocation *invocation = context->run->invocation;
+    sxml_byte_view path = {.bytes = NULL, .byte_count = 0};
+    sxml_status status = sxml_xquery_put_path(invocation, put_document->uri, &path);
+    if (status == SXML_STATUS_INVALID_ARGUMENT) {
+        sxml_query_run_write_prefix(context->run);
+        sxml_cli_writer_write(invocation->standard_error, SXML_TEXT("fn:put cannot store "));
+        sxml_cli_writer_write_quoted(invocation->standard_error, put_document->uri);
+        sxml_cli_writer_write_line(invocation->standard_error,
+                                   SXML_TEXT(": only file URIs name local files"));
+        return SXML_STATUS_INPUT_OUTPUT_FAILED;
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xquery_write_put(context, put_document, path);
+    }
+    sxml_allocator_release(invocation->allocator, (void *)path.bytes);
+    return status;
+}
+
 static const sxml_xquery_update_sink_operations sxml_xquery_sink_operations = {
-    .receive_updated_tree = sxml_xquery_receive_tree};
+    .receive_updated_tree = sxml_xquery_receive_tree, .receive_put_document = NULL};
+
+/* With --allow-put (D205 leaves storing to the host). */
+static const sxml_xquery_update_sink_operations sxml_xquery_put_sink_operations = {
+    .receive_updated_tree = sxml_xquery_receive_tree,
+    .receive_put_document = sxml_xquery_receive_put};
 
 /* What an updating query writes: the context item's document as updated,
    or as it was; nothing without one. */
@@ -190,7 +305,7 @@ static sxml_sequence sxml_xquery_updated_output(const sxml_query_run *run,
 }
 
 /* Compiles, evaluates and writes the query. */
-static sxml_cli_exit_code sxml_xquery_evaluate(const sxml_query_run *run,
+static sxml_cli_exit_code sxml_xquery_evaluate(sxml_query_run *run,
                                                const sxml_xquery_text *query_text) {
     const sxml_cli_invocation *invocation = run->invocation;
     sxml_error_record error_record;
@@ -208,7 +323,11 @@ static sxml_cli_exit_code sxml_xquery_evaluate(const sxml_query_run *run,
     const sxml_dynamic_context_configuration dynamic_context = sxml_query_run_dynamic_context(run);
     sxml_xquery_updated_context updated = {.context_node = {.tree = NULL},
                                            .has_update = false,
-                                           .updated_root = {.representation = 0}};
+                                           .updated_root = {.representation = 0},
+                                           .run = run,
+                                           .error_record = &error_record,
+                                           .parameter_reader = NULL};
+    const bool allows_put = sxml_query_has_option(invocation, SXML_TEXT("allow-put"));
     sxml_item context_item = {.representation = 0};
     if (dynamic_context.has_context_value &&
         sxml_sequence_get_item(dynamic_context.context_value,
@@ -223,7 +342,9 @@ static sxml_cli_exit_code sxml_xquery_evaluate(const sxml_query_run *run,
             &(sxml_xquery_evaluation_request){
                 .dynamic_context = dynamic_context,
                 .error_record = &error_record,
-                .update_sink = {.state = &updated, .operations = &sxml_xquery_sink_operations}},
+                .update_sink = {.state = &updated,
+                                .operations = allows_put ? &sxml_xquery_put_sink_operations
+                                                         : &sxml_xquery_sink_operations}},
             &result);
     }
     if (status == SXML_STATUS_OK && sxml_xquery_query_is_updating(query)) {
@@ -246,6 +367,7 @@ static sxml_cli_exit_code sxml_xquery_evaluate(const sxml_query_run *run,
                                                                 .error_record = &error_record});
         sxml_sequence_release(result);
     }
+    sxml_serialization_parameter_reader_destroy(updated.parameter_reader);
     sxml_xquery_query_destroy(query);
     if (status == SXML_STATUS_OK) {
         return SXML_CLI_EXIT_SUCCESS;
@@ -271,7 +393,7 @@ static sxml_cli_exit_code sxml_run_xquery_command(const sxml_cli_invocation *inv
     if (exit_code == SXML_CLI_EXIT_SUCCESS) {
         exit_code = sxml_xquery_evaluate(&run, &query_text);
     }
-    sxml_query_run_finish(&run);
+    exit_code = sxml_query_run_finish(&run, exit_code);
     if (query_text.is_owned) {
         sxml_allocator_release(invocation->allocator, (void *)query_text.text.bytes);
     }
@@ -297,13 +419,20 @@ const sxml_cli_command sxml_xquery_command = {
         "\n"
         "An updating query (the XQuery Update Facility 3.0) writes the\n"
         "context item's document as its updates left it; FILE itself is\n"
-        "not changed.\n"
+        "not changed. fn:put stores documents only with --allow-put, which\n"
+        "writes each to the local file its URI names (relative URIs are in\n"
+        "the working directory); without it fn:put raises FOUP0002.\n"
+        "\n"
+        "--output=FILE (-o FILE) writes the result to FILE instead. Files are\n"
+        "written only when the query succeeds; one that exists is replaced\n"
+        "only with --force.\n"
         "\n"
         "An error is reported on standard error as\n"
         "  QUERY-FILE:LINE:COLUMN: err:CODE: description\n"
         "\n"
         "Exit status: 0 on success, 1 for an error in the query or a context\n"
-        "document that is not well-formed, 3 when a file cannot be read."),
+        "document that is not well-formed, 3 when a file cannot be read or\n"
+        "written."),
     .options = sxml_xquery_options,
     .option_count = sizeof sxml_xquery_options / sizeof sxml_xquery_options[0],
     .positionals = sxml_xquery_positionals,

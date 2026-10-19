@@ -1,0 +1,1 @@
+sxml xquery: fn:put cannot store 'http://example.com/a.xml': only file URIs name local files

@@ -9,8 +9,9 @@
  * - FILE (- for standard input) is parsed as namespace-well-formed XML
  *   1.0; one that is not is reported as "FILE:LINE:COLUMN: message"
  *   (exit 1).
- * - --method=M: xml (the default), xhtml, html, text, json or adaptive,
- *   with the method's default parameters.
+ * - --method=M: xml (the default), xhtml, html, text, json, csv or
+ *   adaptive, with the method's default parameters.
+ * - --output=FILE (-o FILE) and --force as for sxml xpath.
  * - --indent sets the indent parameter to yes (Serialization 4.0, 5.1.5).
  */
 #include "cli_arguments.h"
@@ -44,6 +45,8 @@ static const sxml_cli_option sxml_serialize_options[] = {
         .multiplicity = SXML_CLI_OPTION_AT_MOST_ONCE,
         .summary = SXML_BYTE_VIEW_INITIALIZER("Serialization method"),
     },
+    SXML_QUERY_OUTPUT_OPTION,
+    SXML_QUERY_FORCE_OPTION,
 };
 
 static const sxml_cli_positional sxml_serialize_positionals[] = {
@@ -57,6 +60,7 @@ static const sxml_cli_positional sxml_serialize_positionals[] = {
 static const sxml_byte_view sxml_serialize_examples[] = {
     SXML_BYTE_VIEW_INITIALIZER("sxml serialize --indent books.xml"),
     SXML_BYTE_VIEW_INITIALIZER("sxml serialize --method=json books.xml"),
+    SXML_BYTE_VIEW_INITIALIZER("sxml serialize --indent --force --output=books.xml books.xml"),
 };
 
 /* Parses FILE and writes it. */
@@ -108,7 +112,7 @@ static sxml_cli_exit_code sxml_run_serialize_command(const sxml_cli_invocation *
     if (exit_code == SXML_CLI_EXIT_SUCCESS) {
         exit_code = sxml_serialize_file(&run, file);
     }
-    sxml_query_run_finish(&run);
+    exit_code = sxml_query_run_finish(&run, exit_code);
     return exit_code;
 }
 
@@ -120,11 +124,15 @@ const sxml_cli_command sxml_serialize_command = {
         "Serialization 4.0 method that --method names (xml by default) and the\n"
         "method's default parameters. --indent indents the output.\n"
         "\n"
+        "--output=FILE (-o FILE) writes the document to FILE instead, and only\n"
+        "when FILE (the input) is well-formed; a FILE that exists is replaced\n"
+        "only with --force, which may name the input itself.\n"
+        "\n"
         "A FILE that is not well-formed is reported on standard error as\n"
         "  FILE:LINE:COLUMN: message\n"
         "\n"
         "Exit status: 0 on success, 1 when FILE is not well-formed or cannot be\n"
-        "serialized, 3 when FILE cannot be read."),
+        "serialized, 3 when a file cannot be read or written."),
     .options = sxml_serialize_options,
     .option_count = sizeof sxml_serialize_options / sizeof sxml_serialize_options[0],
     .positionals = sxml_serialize_positionals,

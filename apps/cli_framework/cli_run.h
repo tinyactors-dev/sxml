@@ -31,6 +31,9 @@ typedef struct sxml_cli_run_request {
     sxml_byte_view version_text;
     /* Passed to commands that read files; may have no operations. */
     sxml_cli_file_reader file_reader;
+    /* Passed to commands that write files (--output); may have no
+       operations. */
+    sxml_cli_file_writer file_writer;
     /* Passed to commands: the working directory, an absolute path with
        '/' between its parts; empty when unknown. Borrowed for the call. */
     sxml_byte_view working_directory;

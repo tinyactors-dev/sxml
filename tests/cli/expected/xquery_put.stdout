@@ -1,0 +1,4 @@
+<catalog xmlns:x="urn:x">
+  <book id="b1"><title>XPath 4.0</title><x:price>10</x:price></book>
+  
+</catalog>

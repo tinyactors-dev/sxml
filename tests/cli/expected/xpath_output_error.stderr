@@ -1,0 +1,1 @@
+expression:1:4: err:FOAR0001: division by zero (F&O 4.0, op:numeric-divide, op:numeric-integer-divide, op:numeric-mod)

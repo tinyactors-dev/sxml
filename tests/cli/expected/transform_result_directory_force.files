@@ -1,0 +1,5 @@
+== site/books/b1.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<book title="XPath 4.0"/>== site/books/b2.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<book title="XQuery 4.0"/>

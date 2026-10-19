@@ -12,8 +12,11 @@
  * - --param=NAME=VALUE, repeatable, declares the external variable $NAME
  *   and binds it to xs:untypedAtomic(VALUE).
  * - --method=M writes the result by the Serialization 4.0 method M:
- *   adaptive (the default; one item per line), xml, xhtml, html, text or
- *   json, with that method's default parameters.
+ *   adaptive (the default; one item per line), xml, xhtml, html, text,
+ *   json or csv, with that method's default parameters.
+ * - --output=FILE (-o FILE) writes the result to FILE instead of standard
+ *   output, when the expression succeeds; --force lets it replace a file
+ *   (query_command.h).
  *
  * Errors: a static, type or dynamic error is reported on standard error as
  * "expression:LINE:COLUMN: err:CODE: description" (exit 1); a context
@@ -65,6 +68,8 @@ static const sxml_cli_option sxml_xpath_options[] = {
         .summary = SXML_BYTE_VIEW_INITIALIZER("Serialization method of the result"),
     },
     SXML_QUERY_FILE_ACCESS_OPTION,
+    SXML_QUERY_OUTPUT_OPTION,
+    SXML_QUERY_FORCE_OPTION,
 };
 
 static const sxml_cli_positional sxml_xpath_positionals[] = {
@@ -80,6 +85,7 @@ static const sxml_byte_view sxml_xpath_examples[] = {
     SXML_BYTE_VIEW_INITIALIZER("sxml xpath --context-item=books.xml '//book[@year < 1980]/title/string()'"),
     SXML_BYTE_VIEW_INITIALIZER("sxml xpath --param=n=5 'xs:integer($n) * 2'"),
     SXML_BYTE_VIEW_INITIALIZER("sxml xpath --method=json 'map { \"a\": [1, 2] }'"),
+    SXML_BYTE_VIEW_INITIALIZER("sxml xpath --context-item=books.xml --output=titles.txt '//title/string()'"),
 };
 
 /* Compiles, evaluates and writes the expression. */
@@ -140,7 +146,7 @@ static sxml_cli_exit_code sxml_run_xpath_command(const sxml_cli_invocation *invo
     if (exit_code == SXML_CLI_EXIT_SUCCESS) {
         exit_code = sxml_xpath_evaluate(&run, text);
     }
-    sxml_query_run_finish(&run);
+    exit_code = sxml_query_run_finish(&run, exit_code);
     return exit_code;
 }
 
@@ -159,12 +165,17 @@ const sxml_cli_command sxml_xpath_command = {
         "functions (namespace http://expath.org/ns/file); without it they do\n"
         "not exist. An EXPRESSION that starts with - must follow --.\n"
         "\n"
+        "--output=FILE (-o FILE) writes the result to FILE instead, and only\n"
+        "when the command succeeds; a FILE that exists is replaced only with\n"
+        "--force.\n"
+        "\n"
+
         "An error is reported on standard error as\n"
         "  expression:LINE:COLUMN: err:CODE: description\n"
         "\n"
         "Exit status: 0 on success, 1 for an error in the expression or a\n"
         "context document that is not well-formed, 3 when a file cannot be\n"
-        "read."),
+        "read or written."),
     .options = sxml_xpath_options,
     .option_count = sizeof sxml_xpath_options / sizeof sxml_xpath_options[0],
     .positionals = sxml_xpath_positionals,

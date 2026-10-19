@@ -1,6 +1,6 @@
 sxml transform - Transform a document with an XSLT 4.0 stylesheet
 
-Usage: sxml transform [--initial-mode=NAME] [--initial-template=NAME] [--method=METHOD] [--param=NAME=VALUE]... STYLESHEET [INPUT]
+Usage: sxml transform [--initial-mode=NAME] [--initial-template=NAME] [--method=METHOD] [--param=NAME=VALUE]... [--result-directory=DIR] [--output=FILE] [--force] STYLESHEET [INPUT]
 
 Compiles the XSLT 4.0 stylesheet STYLESHEET and runs it.
 
@@ -11,25 +11,39 @@ called with INPUT as the context item. Without INPUT, the template
 that --initial-template names, else xsl:initial-template, is called
 without a context item.
 
-The principal result goes to standard output, serialized as the
-stylesheet's xsl:output says; --method replaces the method. Result
-documents with an href are not written. xsl:message output goes to
-standard error. --param=NAME=VALUE binds the stylesheet parameter
-$NAME to xs:untypedAtomic(VALUE). Included and imported modules and
-documents are read from local files.
+The principal result goes to standard output, or to the file that
+--output names, serialized as the stylesheet's xsl:output says;
+--method replaces the method. xsl:message output goes to standard
+error. --param=NAME=VALUE binds the stylesheet parameter $NAME to
+xs:untypedAtomic(VALUE). Included and imported modules and documents
+are read from local files.
+
+Result documents with an href are written only with
+--result-directory=DIR: DIR, which must exist, is the base output
+URI, so an href resolves against it, and a result document whose URI
+is not a file below DIR is an error. Directories below DIR are made
+as needed. Without the option each is reported on standard error
+and not written.
+
+Files are written only when the transformation succeeds; one that
+exists is replaced only with --force.
 
 An error is reported on standard error as
   STYLESHEET:LINE:COLUMN: err:CODE: description
 
 Exit status: 0 on success, 1 for an error in the stylesheet or a
-document that is not well-formed, 3 when a file cannot be read.
+document that is not well-formed, 3 when a file cannot be read or
+written.
 
 Options:
   -h, --help                   Show this help and exit
       --initial-mode=NAME      Mode whose template rules process INPUT, instead of the default mode
       --initial-template=NAME  Named template to call, instead of applying templates to INPUT
-      --method=METHOD          Serialization method of the result, replacing the stylesheet's (one of: adaptive, xml, xhtml, html, text, json)
+      --method=METHOD          Serialization method of the result, replacing the stylesheet's (one of: adaptive, xml, xhtml, html, text, json, csv)
       --param=NAME=VALUE       Bind stylesheet parameter $NAME to xs:untypedAtomic(VALUE) (repeatable)
+      --result-directory=DIR   Write result documents with an href into the existing directory DIR
+  -o, --output=FILE            Write the result to FILE instead of standard output
+      --force                  Replace files that exist instead of refusing
 
 Arguments:
   STYLESHEET  File holding the principal stylesheet module
@@ -40,3 +54,4 @@ Examples:
   sxml transform --param='heading=Reading list' list.xsl books.xml
   sxml transform hello.xsl
   sxml transform --method=xml list.xsl - < books.xml
+  sxml transform --result-directory=site --output=site/index.html chapters.xsl books.xml

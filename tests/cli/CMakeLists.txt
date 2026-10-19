@@ -17,13 +17,22 @@ endforeach()
 #   SXML_UPDATE_GOLDEN=1 ctest --preset debug -R '^cli/'
 # and review the diff.
 
-# sxml_add_cli_test(<name> EXIT_CODE <code> [GOLDEN <golden>] [ARGUMENTS <argument>...])
+# sxml_add_cli_test(<name> EXIT_CODE <code> [GOLDEN <golden>]
+#                   [WORKSPACE [FILES <input>...] [EXISTING <file>...]]
+#                   [ARGUMENTS <argument>...])
 # Arguments are passed verbatim; empty arguments are not supported here (the
 # unit tests in tests/cli_arguments_test.c cover them). The program runs in
 # tests/cli/input/, so file arguments are relative names there: the same
 # under WASI, whose only visible directory is the working directory.
+#
+# WORKSPACE runs the program in an empty directory of its own instead, for
+# commands that write files (--output, --result-directory, --allow-put):
+# the FILES of tests/cli/input/ are copied into it, each EXISTING file is
+# made with the text "old" first, and after the run every file in it but
+# the copied inputs that are unchanged, with its contents, is compared with
+# expected/<golden>.files (so a temporary file left behind fails the test).
 function(sxml_add_cli_test name)
-    cmake_parse_arguments(PARSE_ARGV 1 cli "" "EXIT_CODE;GOLDEN" "ARGUMENTS")
+    cmake_parse_arguments(PARSE_ARGV 1 cli "WORKSPACE" "EXIT_CODE;GOLDEN" "ARGUMENTS;FILES;EXISTING")
     if(NOT DEFINED cli_EXIT_CODE)
         message(FATAL_ERROR "sxml_add_cli_test(${name}): EXIT_CODE is required")
     endif()
@@ -39,6 +48,23 @@ function(sxml_add_cli_test name)
         string(APPEND emulator_text " [==[${emulator_part}]==]")
     endforeach()
     set(golden_base "${CMAKE_CURRENT_SOURCE_DIR}/expected/${cli_GOLDEN}")
+    set(workspace_text "")
+    if(cli_WORKSPACE)
+        set(input_text "")
+        foreach(input IN LISTS cli_FILES)
+            string(APPEND input_text " [==[${input}]==]")
+        endforeach()
+        set(existing_text "")
+        foreach(existing IN LISTS cli_EXISTING)
+            string(APPEND existing_text " [==[${existing}]==]")
+        endforeach()
+        set(workspace_text
+"set(WORKSPACE_DIRECTORY [==[${CMAKE_CURRENT_BINARY_DIR}/workspace/${name}]==])
+set(WORKSPACE_INPUTS${input_text})
+set(WORKSPACE_EXISTING${existing_text})
+set(EXPECTED_FILES_FILE [==[${golden_base}.files]==])
+")
+    endif()
     set(script "${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/${name}.cmake")
     file(GENERATE OUTPUT "${script}" CONTENT
 "set(PROGRAM [==[$<TARGET_FILE:sxml_cli>]==])
@@ -48,7 +74,7 @@ set(EXPECTED_EXIT_CODE ${cli_EXIT_CODE})
 set(EXPECTED_STDOUT_FILE [==[${golden_base}.stdout]==])
 set(EXPECTED_STDERR_FILE [==[${golden_base}.stderr]==])
 set(WORKING_DIRECTORY [==[${CMAKE_CURRENT_SOURCE_DIR}/input]==])
-include([==[${CMAKE_CURRENT_SOURCE_DIR}/run-cli-test.cmake]==])
+${workspace_text}include([==[${CMAKE_CURRENT_SOURCE_DIR}/run-cli-test.cmake]==])
 ")
     add_test(NAME cli/${name} COMMAND "${CMAKE_COMMAND}" -P "${script}")
 endfunction()
@@ -119,6 +145,10 @@ sxml_add_cli_test(xpath_syntax_error EXIT_CODE 1 ARGUMENTS xpath "1 +")
 # fn:parse-html: the HTML parser feature the sxml command names (packet 7.10a).
 sxml_add_cli_test(xpath_parse_html EXIT_CODE 0 ARGUMENTS xpath "parse-html('<title>T</title><ul><li>one<li>two</ul><svg viewbox=\"0 0 1 1\"/>')")
 sxml_add_cli_test(xpath_parse_html_error EXIT_CODE 1 ARGUMENTS xpath "parse-html('<p>x</q>', {'fail-on-error': true()})")
+# Relative names resolve against the working directory, the static base URI
+# of the query commands (packet 7.10b): fn:html-doc and fn:unparsed-text.
+sxml_add_cli_test(xpath_relative_html_doc EXIT_CODE 0 ARGUMENTS xpath "string-join((html-doc('page.html')//*:p ! normalize-space(), unparsed-text('note.txt') => normalize-space()), ' ')")
+sxml_add_cli_test(xquery_relative_html_doc EXIT_CODE 0 ARGUMENTS xquery --method=text "--expression=html-doc('page.html')//*:title ! string(), ends-with(static-base-uri(), '/'), unparsed-text-lines('note.txt')")
 sxml_add_cli_test(xpath_dynamic_error EXIT_CODE 1 ARGUMENTS xpath "error(QName('http://www.w3.org/2005/xqt-errors', 'err:FOER0000'), 'stop here')")
 sxml_add_cli_test(xpath_type_error EXIT_CODE 1 ARGUMENTS xpath "(1, 2) eq 1")
 sxml_add_cli_test(xpath_no_focus EXIT_CODE 1 ARGUMENTS xpath "count(//x)")
@@ -238,3 +268,61 @@ sxml_add_cli_test(serialize_text EXIT_CODE 0 ARGUMENTS serialize --method=text b
 sxml_add_cli_test(serialize_not_well_formed EXIT_CODE 1 ARGUMENTS serialize mismatched-tag.xml)
 sxml_add_cli_test(serialize_missing EXIT_CODE 3 ARGUMENTS serialize missing.xml)
 sxml_add_cli_test(serialize_help EXIT_CODE 0 ARGUMENTS serialize --help)
+
+# --output and --force (docs/CLI.md, "No hidden side effects"; packet
+# cli-2): the result goes to FILE only when the command succeeds, through a
+# temporary file that leaves nothing behind, and never over an existing
+# file without --force.
+sxml_add_cli_test(xpath_output EXIT_CODE 0 WORKSPACE ARGUMENTS xpath --output=numbers.txt "1 to 3")
+sxml_add_cli_test(xpath_output_short EXIT_CODE 0 WORKSPACE FILES books.xml ARGUMENTS xpath -o titles.txt --context-item=books.xml "//title/string()")
+sxml_add_cli_test(xpath_output_exists EXIT_CODE 3 WORKSPACE EXISTING numbers.txt ARGUMENTS xpath --output=numbers.txt "1 to 3")
+sxml_add_cli_test(xpath_output_force EXIT_CODE 0 WORKSPACE EXISTING numbers.txt ARGUMENTS xpath --force --output=numbers.txt "1 to 3")
+sxml_add_cli_test(xpath_output_error EXIT_CODE 1 WORKSPACE ARGUMENTS xpath --output=numbers.txt "1, 1 div 0")
+sxml_add_cli_test(xpath_output_error_keeps_file EXIT_CODE 1 WORKSPACE EXISTING numbers.txt ARGUMENTS xpath --force --output=numbers.txt "1 div 0")
+sxml_add_cli_test(xpath_output_no_directory EXIT_CODE 3 WORKSPACE ARGUMENTS xpath --output=missing/numbers.txt "1")
+sxml_add_cli_test(xpath_output_directory EXIT_CODE 3 WORKSPACE FILES xslt/books.xsl ARGUMENTS xpath --force --output=xslt "1")
+sxml_add_cli_test(xpath_output_standard_output EXIT_CODE 2 ARGUMENTS xpath --output=- "1")
+sxml_add_cli_test(xpath_force_without_output EXIT_CODE 2 ARGUMENTS xpath --force "1")
+sxml_add_cli_test(xquery_output EXIT_CODE 0 WORKSPACE FILES books.xml titles.xq ARGUMENTS xquery --context-item=books.xml --output=titles.html titles.xq)
+sxml_add_cli_test(xquery_output_update EXIT_CODE 0 WORKSPACE FILES books.xml ARGUMENTS xquery --context-item=books.xml --output=books-2.xml "--expression=delete node //book[2]")
+sxml_add_cli_test(serialize_output EXIT_CODE 0 WORKSPACE FILES books.xml ARGUMENTS serialize --indent --output=books-indented.xml books.xml)
+sxml_add_cli_test(serialize_output_same_file EXIT_CODE 0 WORKSPACE FILES books.xml ARGUMENTS serialize --method=text --force --output=books.xml books.xml)
+sxml_add_cli_test(transform_output EXIT_CODE 0 WORKSPACE FILES books.xml xslt/books.xsl xslt/common.xsl ARGUMENTS transform --output=books.html xslt/books.xsl books.xml)
+sxml_add_cli_test(transform_force_without_output EXIT_CODE 2 ARGUMENTS transform --force xslt/books.xsl books.xml)
+
+# Result documents with an href: written only below --result-directory,
+# which is the base output URI (XSLT 4.0, 2.4.6, 26.2; packet cli-2).
+sxml_add_cli_test(transform_result_documents_dropped EXIT_CODE 0 WORKSPACE FILES books.xml xslt/chapters.xsl ARGUMENTS transform xslt/chapters.xsl books.xml)
+sxml_add_cli_test(transform_result_directory EXIT_CODE 0 WORKSPACE FILES books.xml xslt/chapters.xsl EXISTING site/keep.txt ARGUMENTS transform --result-directory=site xslt/chapters.xsl books.xml)
+sxml_add_cli_test(transform_result_directory_output EXIT_CODE 0 WORKSPACE FILES books.xml xslt/chapters.xsl EXISTING site/keep.txt ARGUMENTS transform --result-directory=./site/ -o site/index.txt xslt/chapters.xsl books.xml)
+sxml_add_cli_test(transform_result_directory_exists EXIT_CODE 3 WORKSPACE FILES books.xml xslt/chapters.xsl EXISTING site/books/b2.xml ARGUMENTS transform --result-directory=site --output=index.txt xslt/chapters.xsl books.xml)
+sxml_add_cli_test(transform_result_directory_force EXIT_CODE 0 WORKSPACE FILES books.xml xslt/chapters.xsl EXISTING site/books/b2.xml ARGUMENTS transform --result-directory=site --force xslt/chapters.xsl books.xml)
+sxml_add_cli_test(transform_result_directory_parent EXIT_CODE 3 WORKSPACE FILES xslt/escape.xsl EXISTING site/keep.txt ARGUMENTS transform --result-directory=site xslt/escape.xsl)
+sxml_add_cli_test(transform_result_directory_absolute EXIT_CODE 3 WORKSPACE FILES xslt/escape.xsl EXISTING site/keep.txt ARGUMENTS transform --result-directory=site --param=href=file:///elsewhere.xml xslt/escape.xsl)
+sxml_add_cli_test(transform_result_directory_escaped EXIT_CODE 3 WORKSPACE FILES xslt/escape.xsl EXISTING site/keep.txt ARGUMENTS transform --result-directory=site --param=href=a%2F..%2F..%2Fb.xml xslt/escape.xsl)
+sxml_add_cli_test(transform_result_directory_missing EXIT_CODE 3 WORKSPACE FILES books.xml xslt/chapters.xsl ARGUMENTS transform --result-directory=site xslt/chapters.xsl books.xml)
+sxml_add_cli_test(transform_result_directory_force_alone EXIT_CODE 2 ARGUMENTS transform --force xslt/hello.xsl)
+
+# fn:put writes files only with --allow-put (XQUF 3.0, 6.1; D205; packet
+# cli-2), relative URIs in the working directory, the static base URI.
+sxml_add_cli_test(xquery_put_denied EXIT_CODE 1 WORKSPACE FILES books.xml ARGUMENTS xquery --context-item=books.xml "--expression=put(., 'copy.xml')")
+sxml_add_cli_test(xquery_put EXIT_CODE 0 WORKSPACE FILES books.xml ARGUMENTS xquery --allow-put --context-item=books.xml "--expression=delete node //book[2], put(., 'copy.xml'), put(<note>{count(//book)}</note>, 'notes/count%201.xml', {'omit-xml-declaration': false()})" EXISTING notes/keep.txt)
+sxml_add_cli_test(xquery_put_exists EXIT_CODE 3 WORKSPACE EXISTING copy.xml ARGUMENTS xquery --allow-put "--expression=put(<a/>, 'copy.xml')")
+sxml_add_cli_test(xquery_put_force EXIT_CODE 0 WORKSPACE EXISTING copy.xml ARGUMENTS xquery --allow-put --force "--expression=put(<a/>, 'copy.xml')")
+sxml_add_cli_test(xquery_put_not_file EXIT_CODE 3 WORKSPACE ARGUMENTS xquery --allow-put "--expression=put(<a/>, 'http://example.com/a.xml')")
+sxml_add_cli_test(xquery_put_error EXIT_CODE 1 WORKSPACE ARGUMENTS xquery --allow-put "--expression=put(<a/>, 'a.xml'), put(<b/>, 'b.xml'), error()")
+sxml_add_cli_test(xquery_put_bad_parameters EXIT_CODE 1 WORKSPACE ARGUMENTS xquery --allow-put "--expression=put(<a/>, 'a.xml', {'indent': 'x'})")
+sxml_add_cli_test(xquery_force_without_files EXIT_CODE 2 ARGUMENTS xquery --force --expression=1)
+
+# --method=csv (Serialization 4.0, CSV output method; packet cli-2).
+sxml_add_cli_test(xpath_method_csv EXIT_CODE 0 ARGUMENTS xpath --method=csv "(['name', 'year'], ['XPath', 4], ['say \"hi\", twice', 3.5])")
+sxml_add_cli_test(xquery_method_csv EXIT_CODE 0 ARGUMENTS xquery --method=csv --context-item=books.xml "--expression=//book ! [string(title), number(*:price)]")
+sxml_add_cli_test(xpath_method_csv_error EXIT_CODE 1 ARGUMENTS xpath --method=csv "1")
+
+# An unknown option of a command: "did you mean" its close option, or the
+# other commands that have it (docs/CLI.md; packet cli-2).
+sxml_add_cli_test(xpath_misspelled_option EXIT_CODE 2 ARGUMENTS xpath --contxt-item=books.xml "1")
+sxml_add_cli_test(xpath_misspelled_output EXIT_CODE 2 ARGUMENTS xpath --ouptut=a.txt "1")
+sxml_add_cli_test(xpath_option_of_xquery EXIT_CODE 2 ARGUMENTS xpath --expression=1)
+sxml_add_cli_test(xpath_option_of_others EXIT_CODE 2 ARGUMENTS xpath --format=json "1")
+sxml_add_cli_test(serialize_option_of_others EXIT_CODE 2 ARGUMENTS serialize --context-item=books.xml books.xml)

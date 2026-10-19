@@ -98,3 +98,22 @@ SXML_NODISCARD sxml_status sxml_platform_file_system_initialize(
     sxml_platform_file_system_state *state,
     const sxml_platform_file_system_configuration *configuration,
     sxml_file_system *file_system);
+
+/* ------------------------------------------------------------ File writer */
+
+/* The state of the platform's file writer (platform_file_writer.c), in
+   caller memory: a buffer for one path and the counter of temporary names.
+   Fields are private. */
+typedef struct sxml_platform_file_writer_state {
+    sxml_platform_path path;
+    uint64_t temporary_counter;
+} sxml_platform_file_writer_state;
+
+/*
+ * The file writer over the platform's files (cli_command.h,
+ * sxml_cli_file_writer), with *state, which it initializes and which must
+ * outlive it: writes go to a temporary file beside the target, moved into
+ * place in one step on commit (POSIX rename and link; MoveFileEx on
+ * Windows).
+ */
+sxml_cli_file_writer sxml_platform_file_writer(sxml_platform_file_writer_state *state);

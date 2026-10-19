@@ -1,6 +1,6 @@
 sxml xquery - Run an XQuery 4.0 query
 
-Usage: sxml xquery [--context-item=FILE] [--expression=TEXT] [--param=NAME=VALUE]... [--method=METHOD] [--allow-file-access] [QUERY-FILE]
+Usage: sxml xquery [--context-item=FILE] [--expression=TEXT] [--param=NAME=VALUE]... [--method=METHOD] [--allow-file-access] [--allow-put] [--output=FILE] [--force] [QUERY-FILE]
 
 Runs the XQuery 4.0 main module in QUERY-FILE, or the query that
 --expression gives, and writes the result to standard output. The
@@ -17,21 +17,31 @@ query read and write files with the EXPath File functions
 
 An updating query (the XQuery Update Facility 3.0) writes the
 context item's document as its updates left it; FILE itself is
-not changed.
+not changed. fn:put stores documents only with --allow-put, which
+writes each to the local file its URI names (relative URIs are in
+the working directory); without it fn:put raises FOUP0002.
+
+--output=FILE (-o FILE) writes the result to FILE instead. Files are
+written only when the query succeeds; one that exists is replaced
+only with --force.
 
 An error is reported on standard error as
   QUERY-FILE:LINE:COLUMN: err:CODE: description
 
 Exit status: 0 on success, 1 for an error in the query or a context
-document that is not well-formed, 3 when a file cannot be read.
+document that is not well-formed, 3 when a file cannot be read or
+written.
 
 Options:
   -h, --help               Show this help and exit
       --context-item=FILE  XML document to use as the context item; - reads standard input
       --expression=TEXT    The query itself, instead of QUERY-FILE
       --param=NAME=VALUE   Bind external variable $NAME to xs:untypedAtomic(VALUE) (repeatable)
-      --method=METHOD      Serialization method of the result, replacing the query's (one of: adaptive, xml, xhtml, html, text, json)
+      --method=METHOD      Serialization method of the result, replacing the query's (one of: adaptive, xml, xhtml, html, text, json, csv)
       --allow-file-access  Let the query read and write files (EXPath File functions)
+      --allow-put          Let fn:put write the documents it stores to local files
+  -o, --output=FILE        Write the result to FILE instead of standard output
+      --force              Replace files that exist instead of refusing
 
 Arguments:
   QUERY-FILE  File holding the XQuery 4.0 main module; - reads standard input
@@ -40,3 +50,4 @@ Examples:
   sxml xquery --context-item=books.xml titles.xq
   sxml xquery --expression='for $i in 1 to 3 return <i>{$i}</i>'
   sxml xquery --param=n=5 --expression='declare variable $n external; $n * 2'
+  sxml xquery --allow-put --context-item=books.xml --expression='put(., "copy.xml")'
