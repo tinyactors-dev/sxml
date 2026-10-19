@@ -80,7 +80,7 @@ typedef struct sxml_platform_file_system_state {
 } sxml_platform_file_system_state;
 
 /* Absolute directories; empty for the process's working directory and
-   for $TMPDIR (else /tmp). */
+   for $TMPDIR (else /tmp, and under WASI the current directory). */
 typedef struct sxml_platform_file_system_configuration {
     sxml_byte_view current_directory;
     sxml_byte_view temporary_directory;

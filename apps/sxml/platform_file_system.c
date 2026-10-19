@@ -363,7 +363,14 @@ sxml_status sxml_platform_file_system_initialize(
     }
     const char *temporary = getenv("TMPDIR");
     if (temporary == NULL || temporary[0] != '/') {
+#if defined(__wasi__)
+        /* A WASI program sees only the directories its runtime grants:
+           temporary files go to the current directory, which the call
+           below fills first. */
+        temporary = state->current_directory.text;
+#else
         temporary = "/tmp";
+#endif
     }
     if (!sxml_platform_choose_directory(
             (sxml_platform_directory_choice){.given = configuration->current_directory,
