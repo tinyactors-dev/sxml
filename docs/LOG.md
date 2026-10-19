@@ -4,6 +4,16 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 7.13 done (D190): XML 1.1 input. The version is read from the XML
+  declaration; 1.1 documents refuse restricted characters, translate NEL
+  and LINE SEPARATOR (a pre-pass; the grammar is unchanged for 7.14) and
+  allow C0 character references. xmlconf XML 1.1 202 to 242 of 271 (the
+  29 left need external entities: 7.14); QT4 claims xml-version 1.1
+  (XQ40 300 of 313, fn-graphemes 918 to 1,189); XT40 XML_1.1 supported,
+  xml-version 0 to 40 of 42, namespace 206 to 221; XSD XmlVersions 48 to
+  51 of 51. No passed case lost. For the owner: XQuery's own XML version
+  (D190 Proposed).
+
 - 7.5 done (D188): disable-output-escaping. Text nodes carry a mark
   (`disables_output_escaping`, additive to `tree.h`, as D163's CDATA
   request); text that differs in it stays a node of its own; ignored in

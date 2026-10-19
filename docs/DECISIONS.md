@@ -7599,6 +7599,66 @@ IR expression kind added.
   validation without any in-scope schema raises FODC0014
   (`src/function_library_schema.c`); use-xsi-schema-location.
 
+### D190. XML 1.1 input (packet 7.13)
+Recorded 2026-10-19, after D12, D81, D183, D184. Supersedes D81's "version
+1.1 documents are parsed by the 1.0 rules".
+- **Version**: read from the XML declaration of the decoded text before
+  parsing (`sxml_xml_read_declared_version`, the pseudo-attribute reader
+  that already finds the encoding name); `1.1` is XML 1.1, every other
+  version, `1.x` included, and no declaration are XML 1.0 (XML 1.1,
+  4.3.4; XML 1.0, 2.8).
+- **A pre-pass, not scanner state** (deviation from 7.13's mechanism):
+  for a 1.1 document the parser refuses a [2a] RestrictedChar written
+  literally (XML 1.1, [1] document) and translates NEL, CR NEL and LINE
+  SEPARATOR after the declaration into LF in its copy of the text (2.11;
+  CR LINE SEPARATOR stays two line ends). Translation must come before
+  tokenizing, because NEL is whitespace in 1.1 markup (a NEL between
+  attributes), which the grammar would otherwise have to know
+  per version in every whitespace and text token. The grammar stays the
+  1.0 grammar for 7.14; NEL and LINE SEPARATOR in the declaration stay
+  and are an ERROR, as 2.11 requires. Cost: a copy only for 1.1
+  documents with such line ends; diagnostic positions after them are
+  positions in the translated text (the byte offset can be off by one
+  or two per translated character in UTF-8 input).
+- **Characters and names**: character references may denote the C0
+  controls in 1.1 (4.1, `sxml_xml_codepoint_is_version_1_1_char`);
+  U+0000 never. Names need nothing: XML 1.0 Fifth Edition has 1.1's name
+  characters. `xmlns:p=""` undeclares p in 1.1 (D81, unchanged).
+- **Serialization**: version 1.1 already wrote the C0 and C1 controls as
+  references and undeclare-prefixes (packets 3.3, 3.4); unchanged.
+- **Drivers**: QT4 claims `xml-version 1.1` (sxml reads both versions);
+  XT40 supports `XML_1.1` and xml-version="1.1" sources, and keeps it
+  among D95's non-goals so the gate rates keep their meaning;
+  assert-xml with xml-version="1.1" writes the result with version 1.1
+  and parses both texts as 1.1 documents (`tests/qt4/driver/assertion.c`,
+  shared). XSD: the suite names no XML-1.1 test; the XmlVersions set's
+  1.1 documents now parse.
+- **Query texts stay XML 1.0** (not this packet; Proposed below):
+  XQuery's xgc: xml-version leaves the version of query lexing
+  implementation-defined; sxml's is 1.0 (XQST0090 for `&#1;`, XQST0085
+  for `xmlns:p=""` in a direct constructor, no NEL line ends, version
+  1.0 as the default serialization version). QT4's 1.1 cases that need
+  1.1 query lexing fail honestly; the 1.0 cases that need 1.0 lexing
+  keep passing (the two sets conflict case by case).
+- **Measured** (release drivers, before at 2459034 / after):
+  - xmlconf XML 1.1 (`tests/xml_conformance_test.c` now selects the
+    ibm and eduni xml-1.1 catalogs, eduni's NS 1.1 tests and the 1.1
+    erratum test, Fifth Edition rules for EDITION; 271 cases): 202 to
+    242 passed (valid 84/84, invalid 13/13, not-wf 140/169, error 5).
+    All 29 failures are not-wf cases whose fault lies in an external
+    entity or DTD, which sxml does not read (D81): 7.14's. Of the 242
+    cases that need none, all pass. The 1.0 selection is unchanged
+    (601/175/948).
+  - QT4 (the 15 test sets with xml-version dependencies): XQ40 2,497 to
+    2,798 passed, XP40 1,944 to 2,235; fn-graphemes 918 to 1,189 in
+    both. Of XQ40's 313 1.1 cases 300 pass (95.8 %); the 13 that fail
+    need 1.1 query lexing (above). No case that passed fails.
+  - XT40: xml-version 0 to 40 of 42, namespace 206 to 221, catalog 5
+    to 7, xml-to-json 112 to 115, no case lost. Left: xml-version-007
+    (a value template), -016 and namespace-2606, -6202 (namespace
+    undeclaration in XSLT, `src/xslt*`).
+  - XSD saxon-XmlVersions 48 to 51 of 51.
+
 ### D191. Optional features add library functions (packet 7.10a)
 Recorded 2026-10-19, after D45, D101, D162, D189. A feature whose D162
 place is "the functions are absent" (XPST0017: fn:parse-html and
@@ -7622,6 +7682,17 @@ part).
   (cmake/SxmlParts.cmake) does not take it as a part.
 
 ## Proposed
+
+- **XQuery's XML version** (packet 7.13, D190; for the owner of
+  `xquery.h` and `processor.h`): query texts follow XML 1.0 (line ends,
+  XQST0090 for `&#1;`, XQST0085 for `xmlns:p=""` in direct constructors,
+  version 1.0 as the default serialization version). XQuery 4.0 (A.2,
+  xgc: xml-version) leaves it implementation-defined and recommends
+  1.1's control-character rules with a 1.0 mode. QT4 has 13 XQ40 cases
+  that need 1.1 lexing and about as many 1.0 cases that need 1.0
+  lexing. Choose: keep 1.0; switch to 1.1; or add a processor option
+  for the XML version (one additive header field; the QT4 driver then
+  sets it per case).
 
 - **Phase 7: four more features and the size of optional parts** (packet
   7.1, D183; for the owner). The details are in `docs/tasks/phase-7.md`,

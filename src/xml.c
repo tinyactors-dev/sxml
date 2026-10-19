@@ -29,8 +29,15 @@
  * No Recursion (8), well-formed parsed entities (9), No External Entity
  * References (10), No < in Attribute Values (11), attribute-value
  * normalization and defaults (12), first declaration wins (13), namespaces
- * (14), XML 1.1 (15: parsed by the 1.0 rules, D81) and the root element
- * (16: guaranteed by the grammar).
+ * (14), XML 1.1 (15) and the root element (16: guaranteed by the grammar).
+ *
+ * XML 1.1 (15): the version is read from the XML declaration before
+ * parsing. A 1.1 document must not contain restricted characters
+ * literally, and its NEL and LINE SEPARATOR line ends are translated
+ * into a copy of the text before the grammar sees it (XML 1.1 Second
+ * Edition, 2.2 and 2.11), so the grammar stays the 1.0 grammar; its
+ * character references may denote the C0 and C1 controls (4.1), and its
+ * prefixes may be undeclared (Namespaces in XML 1.1, section 5).
  *
  * The tree-sitter runtime allocates with malloc during the call; D12
  * accepts that for the parse step, and every tree it makes is deleted
@@ -167,9 +174,9 @@ typedef struct sxml_xml_document {
     bool has_external_subset;
     bool has_parameter_entity_references;
     bool is_standalone;
-    /* version="1.1": prefixes may be undeclared (Namespaces in XML 1.1,
-       section 5; D81). */
-    bool allows_prefix_undeclaration;
+    /* The XML declaration's version (15): 1.1 changes the characters
+       allowed, the line ends and namespace undeclaration. */
+    sxml_xml_version version;
     /* WFC: Entity Declared applies (4.1). */
     bool requires_declared_entities;
     /* A parameter entity was not read: later entity and attribute-list
@@ -601,10 +608,13 @@ static sxml_status sxml_xml_append_text(sxml_xml_buffer *buffer,
 /*
  * Decodes a character reference token, "&#123;" or "&#x7B;" ([66]
  * CharRef), into *codepoint. Returns false when it does not denote a [2]
- * Char (WFC: Legal Character, 4.1), however many digits it has.
+ * Char of the document's version (WFC: Legal Character, 4.1; XML 1.1 adds
+ * the C0 controls), however many digits it has.
  */
-static bool sxml_xml_decode_character_reference(sxml_byte_view reference,
-                                                uint32_t *codepoint) {
+static bool
+sxml_xml_decode_character_reference(const sxml_xml_document *document,
+                                    sxml_byte_view reference,
+                                    uint32_t *codepoint) {
     if (reference.byte_count < 4) {
         return false;
     }
@@ -633,8 +643,11 @@ static bool sxml_xml_decode_character_reference(sxml_byte_view reference,
             is_too_large = value > 0x10FFFF;
         }
     }
+    const bool is_char = document->version == SXML_XML_VERSION_1_1
+                             ? sxml_xml_codepoint_is_version_1_1_char(value)
+                             : sxml_xml_codepoint_is_char(value);
     if (digit_count == 0 || reference.bytes[reference.byte_count - 1] != ';' ||
-        is_too_large || !sxml_xml_codepoint_is_char(value)) {
+        is_too_large || !is_char) {
         return false;
     }
     *codepoint = value;
@@ -1113,7 +1126,7 @@ static sxml_status
 sxml_xml_visit_character_reference(sxml_xml_document *document,
                                    const sxml_xml_frame *frame, TSNode node) {
     uint32_t codepoint = 0;
-    if (!sxml_xml_decode_character_reference(sxml_xml_node_text(frame, node),
+    if (!sxml_xml_decode_character_reference(document, sxml_xml_node_text(frame, node),
                                              &codepoint)) {
         return sxml_xml_fail_at(
             document,
@@ -1462,7 +1475,7 @@ sxml_xml_expand_in_value(sxml_xml_document *document,
         top->byte_offset += reference.reference_text.byte_count;
         if (reference.is_character_reference) {
             uint32_t codepoint = 0;
-            if (!sxml_xml_decode_character_reference(reference.reference_text,
+            if (!sxml_xml_decode_character_reference(document, reference.reference_text,
                                                      &codepoint)) {
                 failure.description = SXML_XML_TEXT(
                     "WFC: Legal Character: a character reference must denote "
@@ -1558,8 +1571,7 @@ static sxml_status sxml_xml_normalize_value(sxml_xml_document *document,
             }
         } else if (child_type == SXML_XML_NODE_CHARACTER_REFERENCE) {
             uint32_t codepoint = 0;
-            if (!sxml_xml_decode_character_reference(
-                    sxml_xml_node_text(frame, child), &codepoint)) {
+            if (!sxml_xml_decode_character_reference(document, sxml_xml_node_text(frame, child), &codepoint)) {
                 return sxml_xml_fail_at(
                     document,
                     (sxml_xml_node_failure){
@@ -1661,8 +1673,7 @@ static sxml_status sxml_xml_build_replacement_text(sxml_xml_document *document,
                              .normalizes_line_ends = normalizes_line_ends});
         } else if (child_type == SXML_XML_NODE_CHARACTER_REFERENCE) {
             uint32_t codepoint = 0;
-            if (!sxml_xml_decode_character_reference(
-                    sxml_xml_node_text(frame, child), &codepoint)) {
+            if (!sxml_xml_decode_character_reference(document, sxml_xml_node_text(frame, child), &codepoint)) {
                 return sxml_xml_fail_at(
                     document,
                     (sxml_xml_node_failure){
@@ -2380,7 +2391,7 @@ static sxml_status sxml_xml_declare_namespace(sxml_xml_document *document,
         return sxml_xml_fail(document, failure);
     }
     if (!is_default && value.byte_count == 0 &&
-        !document->allows_prefix_undeclaration) {
+        document->version != SXML_XML_VERSION_1_1) {
         failure.description = SXML_XML_TEXT(
             "NSC: a namespace declaration for a prefix must not have an "
             "empty value in XML 1.0 (Namespaces in XML 1.0, section 3)");
@@ -2953,6 +2964,65 @@ static sxml_status sxml_xml_run_frames(sxml_xml_document *document,
 
 /* ---------------------------------------------------- Whole document */
 
+/*
+ * Reads the version from the XML declaration (15) and applies XML 1.1's
+ * character and line-end rules to the decoded text: no restricted
+ * character may appear literally (XML 1.1, [1] document and 2.2), and NEL
+ * and LINE SEPARATOR after the declaration are translated (2.11; in the
+ * declaration itself they stay, and the grammar refuses them). The
+ * translation shrinks the text, so it is done in the parser's copy;
+ * diagnostics then give positions in the translated text.
+ */
+static sxml_status sxml_xml_apply_version(sxml_xml_document *document) {
+    const sxml_xml_declared_version declared =
+        sxml_xml_read_declared_version(document->text);
+    document->version = declared.version;
+    if (declared.version != SXML_XML_VERSION_1_1) {
+        return SXML_STATUS_OK;
+    }
+    const size_t restricted_offset =
+        sxml_xml_find_restricted_character(document->text);
+    if (restricted_offset != document->text.byte_count) {
+        return sxml_xml_fail(
+            document,
+            (sxml_xml_failure){
+                .status = SXML_STATUS_MALFORMED_INPUT,
+                .description = SXML_XML_TEXT(
+                    "a control character must be written as a character "
+                    "reference in XML 1.1 ([2a] RestrictedChar, XML 1.1, "
+                    "section 2.2)"),
+                .location = sxml_xml_location_at(document, restricted_offset)});
+    }
+    const sxml_byte_view after_declaration = {
+        .bytes = document->text.bytes + declared.declaration_end_offset,
+        .byte_count =
+            document->text.byte_count - declared.declaration_end_offset};
+    if (!sxml_xml_has_version_1_1_line_end(after_declaration)) {
+        return SXML_STATUS_OK;
+    }
+    sxml_xml_buffer *copy = &document->parser->transcoded_text;
+    if (document->text.bytes != copy->bytes) {
+        copy->byte_count = 0;
+        const sxml_status status =
+            sxml_xml_buffer_append(copy, document->text);
+        if (status != SXML_STATUS_OK) {
+            return sxml_xml_fail_resource(document, status);
+        }
+    }
+    sxml_xml_translate_version_1_1_line_ends(copy,
+                                             declared.declaration_end_offset);
+    document->text = (sxml_byte_view){.bytes = copy->bytes,
+                                      .byte_count = copy->byte_count};
+    document->tracker = sxml_xml_position_tracker_start(
+        (sxml_xml_position_tracker_configuration){
+            .text = document->text,
+            .input_encoding = document->detection.encoding,
+            .has_byte_order_mark =
+                document->detection.has_utf8_byte_order_mark ||
+                document->detection.has_utf16_byte_order_mark});
+    return SXML_STATUS_OK;
+}
+
 /* Decodes the input into document->text (1: encodings, 4.3.3). */
 static sxml_status sxml_xml_decode(sxml_xml_document *document) {
     const sxml_xml_parse_request *request = document->request;
@@ -3045,7 +3115,7 @@ static sxml_status sxml_xml_decode(sxml_xml_document *document) {
             document, (size_t)(null_byte - document->text.bytes));
         return sxml_xml_fail(document, failure);
     }
-    return SXML_STATUS_OK;
+    return sxml_xml_apply_version(document);
 }
 
 /* True for the node types that are whole constructs when they appear
@@ -3137,8 +3207,8 @@ static bool sxml_xml_is_utf16_family(sxml_xml_encoding_family family) {
 
 /*
  * The XML declaration ([23]): standalone, and an encoding declaration
- * that agrees with the bytes (4.3.3, Appendix F). Versions 1.x other than
- * 1.0 are read by the 1.0 rules (XML 1.0 Fifth Edition, section 2.8; D81).
+ * that agrees with the bytes (4.3.3, Appendix F). The version was read
+ * before parsing (sxml_xml_apply_version).
  */
 static sxml_status sxml_xml_check_declaration(sxml_xml_document *document,
                                               const sxml_xml_frame *frame,
@@ -3151,9 +3221,6 @@ static sxml_status sxml_xml_check_declaration(sxml_xml_document *document,
             SXML_XML_TEXT("yes"));
         encoding_name =
             sxml_xml_field_text(frame, declaration, SXML_XML_FIELD_ENCODING);
-        document->allows_prefix_undeclaration = sxml_byte_view_equals(
-            sxml_xml_field_text(frame, declaration, SXML_XML_FIELD_VERSION),
-            SXML_XML_TEXT("1.1"));
     }
     if (document->request->encoding_name.byte_count != 0) {
         return SXML_STATUS_OK;
@@ -3380,7 +3447,7 @@ sxml_xml_parse_document(sxml_xml_parser *parser,
         .has_external_subset = false,
         .has_parameter_entity_references = false,
         .is_standalone = false,
-        .allows_prefix_undeclaration = false,
+        .version = SXML_XML_VERSION_1_0,
         .requires_declared_entities = true,
         .skips_declarations = false,
         .expansion_byte_count = 0,

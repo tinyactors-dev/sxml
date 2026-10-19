@@ -491,7 +491,9 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `character_encoding` | How a document's characters are stored as bytes: UTF-8, UTF-16 (little or big endian), ISO-8859-1 or US-ASCII (`sxml_xml_encoding`, XML 1.0, section 4.3.3) |
 | `byte_order_mark` | U+FEFF at the start of a document, which identifies UTF-8 or the byte order of UTF-16 (XML 1.0, Appendix F) |
 | `transcoding` | Converting a document from its character encoding into UTF-8 before parsing |
-| `line_end_normalization` | Turning CR LF and lone CR into LF in all text of a document (XML 1.0, section 2.11) |
+| `line_end_normalization` | Turning CR LF and lone CR into LF in all text of a document (XML 1.0, section 2.11); in XML 1.1 also NEL, CR NEL and LINE SEPARATOR (XML 1.1, section 2.11) |
+| `xml_version` | The version of XML a document follows, 1.0 or 1.1, read from its XML declaration (`sxml_xml_version`; XML 1.1, section 4.3.4); it decides the characters allowed, the line ends and whether prefixes may be undeclared |
+| `restricted_character` | A C0 or C1 control (other than tab, LF, CR and NEL) that an XML 1.1 document may contain only as a character reference (XML 1.1, [2a] RestrictedChar) |
 | `general_entity` | An entity referenced as `&name;` (XML 1.0, section 4): internal (with replacement text), external parsed, or unparsed |
 | `parameter_entity` | An entity referenced as `%name;` inside the DTD (XML 1.0, section 4) |
 | `replacement_text` | The text an internal entity stands for: its literal value with character references expanded and general entity references kept (XML 1.0, section 4.5) |

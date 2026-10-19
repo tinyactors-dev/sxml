@@ -72,8 +72,13 @@ static const sxml_xslt_test_supported_dependency
            4.0 has it. */
         SXML_XSLT_TEST_SUPPORTED("feature", "XPath_3.1"),
         SXML_XSLT_TEST_SUPPORTED("feature", "HTML5"),
+        /* XML 1.1 documents (D190): sources, stylesheets and assert-xml
+           with xml-version="1.1" are read by XML 1.1. */
+        SXML_XSLT_TEST_SUPPORTED("feature", "XML_1.1"),
         /* XSLT 4.0, 26.1.8, with the XML, XHTML and HTML methods (D188). */
         SXML_XSLT_TEST_SUPPORTED("feature", "disabling_output_escaping"),
+        /* XSLT 1.0 behaviour (XSLT 4.0, 3.8.1; D_PACKET74). */
+        SXML_XSLT_TEST_SUPPORTED("feature", "backwards_compatibility"),
         /* streamable="yes" runs unstreamed (D97). */
         SXML_XSLT_TEST_SUPPORTED("feature", "streaming-fallback"),
         SXML_XSLT_TEST_SUPPORTED("default_language_for_numbering", "en"),
@@ -203,8 +208,12 @@ static const sxml_byte_view sxml_xslt_test_non_goal_features[] = {
     SXML_BYTE_VIEW_INITIALIZER("schema_aware"),
     SXML_BYTE_VIEW_INITIALIZER("streaming"),
     SXML_BYTE_VIEW_INITIALIZER("dtd"),
+    /* Supported since packet 7.13 (D190), but kept out of the D95
+       denominator so that the gate rates keep their meaning. */
     SXML_BYTE_VIEW_INITIALIZER("XML_1.1"),
     SXML_BYTE_VIEW_INITIALIZER("XSD_1.1"),
+    /* Supported since packet 7.4 (D_PACKET74), kept out of the D95
+       denominator as XML_1.1 is. */
     SXML_BYTE_VIEW_INITIALIZER("backwards_compatibility"),
     SXML_BYTE_VIEW_INITIALIZER("HTML4"),
     SXML_BYTE_VIEW_INITIALIZER("ICU_spellout"),
@@ -363,9 +372,6 @@ static sxml_byte_view sxml_xslt_test_unsupported_environment_part(
             &environment->source_details.source_details[detail_index];
         if (detail->needs_xinclude) {
             return SXML_TEXT("xinclude");
-        }
-        if (sxml_byte_view_equals(detail->xml_version, SXML_TEXT("1.1"))) {
-            return SXML_TEXT("xml-version 1.1");
         }
     }
     for (size_t collation_index = 0;

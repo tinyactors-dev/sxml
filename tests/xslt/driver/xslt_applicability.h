@@ -26,7 +26,7 @@
  *    "support negative year" are phrases, not token lists);
  *    satisfied="false" asks for the opposite;
  * 3. its environment asks only for what sxml can provide: no XInclude,
- *    no XML 1.1 source, no collation other than codepoint, HTML ASCII and
+ *    no collation other than codepoint, HTML ASCII and
  *    UCA ones (D97); schemas and validated sources are provided (D179);
  * 4. it runs a transformation: <posture-and-sweep> tests ask for a
  *    streamability assessment instead.

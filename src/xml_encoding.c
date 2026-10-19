@@ -132,27 +132,46 @@ sxml_xml_reader_take_until(sxml_xml_declaration_reader *reader, uint8_t stop) {
                             .byte_count = reader->byte_offset - start};
 }
 
+/* The pseudo-attributes of an XML declaration read before parsing. */
+typedef struct sxml_xml_declaration_scan {
+    sxml_byte_view version;
+    sxml_byte_view encoding;
+    /* The offset just after "?>"; 0 when the declaration does not have
+       the expected shape. */
+    size_t end_offset;
+} sxml_xml_declaration_scan;
+
 /*
- * Reads the value of the encoding pseudo-attribute from the XML
- * declaration at the start of input, which is ASCII-compatible
- * (XML 1.0, [23] XMLDecl, [80] EncodingDecl). Gives an empty view when
- * there is no declaration or it does not have the expected shape; the
- * grammar checks the declaration properly later.
+ * Reads the pseudo-attributes of the XML declaration at the start of
+ * input, which is ASCII-compatible (XML 1.0, [23] XMLDecl, [24]
+ * VersionInfo, [80] EncodingDecl). Views stay empty when there is no
+ * declaration or it does not have the expected shape; the grammar checks
+ * the declaration properly later.
  */
-static sxml_byte_view sxml_xml_read_declared_encoding(sxml_byte_view input) {
+static sxml_xml_declaration_scan
+sxml_xml_scan_declaration(sxml_byte_view input) {
     static const uint8_t declaration_start[] = {'<', '?', 'x', 'm', 'l'};
-    const sxml_byte_view none = {.bytes = NULL, .byte_count = 0};
+    sxml_xml_declaration_scan scan = {
+        .version = {.bytes = NULL, .byte_count = 0},
+        .encoding = {.bytes = NULL, .byte_count = 0},
+        .end_offset = 0};
     if (!sxml_xml_starts_with(input, SXML_XML_ARRAY_VIEW(declaration_start))) {
-        return none;
+        return scan;
     }
     sxml_xml_declaration_reader reader = {
         .input = input, .byte_offset = sizeof declaration_start};
     for (;;) {
         const size_t before_whitespace = reader.byte_offset;
         sxml_xml_reader_skip_whitespace(&reader);
+        if (reader.byte_offset + 1 < input.byte_count &&
+            input.bytes[reader.byte_offset] == '?' &&
+            input.bytes[reader.byte_offset + 1] == '>') {
+            scan.end_offset = reader.byte_offset + 2;
+            return scan;
+        }
         if (reader.byte_offset == before_whitespace ||
             reader.byte_offset >= input.byte_count) {
-            return none;
+            return scan;
         }
         const sxml_byte_view name = sxml_xml_reader_take_until(&reader, '=');
         sxml_byte_view trimmed = name;
@@ -163,29 +182,57 @@ static sxml_byte_view sxml_xml_read_declared_encoding(sxml_byte_view input) {
         }
         if (reader.byte_offset >= input.byte_count ||
             input.bytes[reader.byte_offset] != '=') {
-            return none;
+            return scan;
         }
         reader.byte_offset += 1;
         sxml_xml_reader_skip_whitespace(&reader);
         if (reader.byte_offset >= input.byte_count) {
-            return none;
+            return scan;
         }
         const uint8_t quote = input.bytes[reader.byte_offset];
         if (quote != '"' && quote != '\'') {
-            return none;
+            return scan;
         }
         reader.byte_offset += 1;
         const sxml_byte_view value = sxml_xml_reader_take_until(&reader, quote);
         if (reader.byte_offset >= input.byte_count ||
             input.bytes[reader.byte_offset] != quote) {
-            return none;
+            return scan;
         }
         reader.byte_offset += 1;
         if (sxml_byte_view_equals(trimmed,
                                   SXML_BYTE_VIEW_FROM_LITERAL("encoding"))) {
-            return value;
+            scan.encoding = value;
+        } else if (sxml_byte_view_equals(
+                       trimmed, SXML_BYTE_VIEW_FROM_LITERAL("version"))) {
+            scan.version = value;
         }
     }
+}
+
+sxml_xml_declared_version sxml_xml_read_declared_version(sxml_byte_view text) {
+    static const uint8_t utf8_mark[] = {0xEF, 0xBB, 0xBF};
+    sxml_byte_view after_mark = text;
+    size_t mark_byte_count = 0;
+    if (sxml_xml_starts_with(text, SXML_XML_ARRAY_VIEW(utf8_mark))) {
+        mark_byte_count = sizeof utf8_mark;
+        after_mark.bytes += mark_byte_count;
+        after_mark.byte_count -= mark_byte_count;
+    }
+    const sxml_xml_declaration_scan scan =
+        sxml_xml_scan_declaration(after_mark);
+    sxml_xml_declared_version declared = {.version = SXML_XML_VERSION_1_0,
+                                          .declaration_end_offset = 0};
+    if (scan.end_offset != 0) {
+        declared.declaration_end_offset = mark_byte_count + scan.end_offset;
+        /* XML 1.1, [26] VersionNum ::= '1.1'; other 1.x numbers are read
+           as 1.0 (XML 1.0 Fifth Edition, 2.8). */
+        if (sxml_byte_view_equals(scan.version,
+                                  SXML_BYTE_VIEW_FROM_LITERAL("1.1"))) {
+            declared.version = SXML_XML_VERSION_1_1;
+        }
+    }
+    return declared;
 }
 
 /* The encoding of a family when the byte order is known otherwise. */
@@ -294,7 +341,7 @@ sxml_status sxml_xml_detect_encoding(const sxml_xml_encoding_request *request,
         after_mark.byte_count -= sizeof utf8_mark;
     }
     detected.declared_encoding_name =
-        sxml_xml_read_declared_encoding(after_mark);
+        sxml_xml_scan_declaration(after_mark).encoding;
     if (detected.declared_encoding_name.byte_count != 0) {
         sxml_xml_encoding_family family =
             sxml_xml_classify_encoding_name(detected.declared_encoding_name);
@@ -429,6 +476,97 @@ bool sxml_xml_codepoint_is_char(uint32_t codepoint) {
            (codepoint >= 0x20 && codepoint <= 0xD7FF) ||
            (codepoint >= 0xE000 && codepoint <= 0xFFFD) ||
            (codepoint >= 0x10000 && codepoint <= 0x10FFFF);
+}
+
+bool sxml_xml_codepoint_is_version_1_1_char(uint32_t codepoint) {
+    /* XML 1.1, [2] Char ::= [#x1-#xD7FF] | [#xE000-#xFFFD]
+                           | [#x10000-#x10FFFF] */
+    return (codepoint >= 0x1 && codepoint <= 0xD7FF) ||
+           (codepoint >= 0xE000 && codepoint <= 0xFFFD) ||
+           (codepoint >= 0x10000 && codepoint <= 0x10FFFF);
+}
+
+/* XML 1.1, [2a] RestrictedChar ::= [#x1-#x8] | [#xB-#xC] | [#xE-#x1F]
+   | [#x7F-#x84] | [#x86-#x9F] */
+static bool sxml_xml_codepoint_is_restricted(uint32_t codepoint) {
+    return (codepoint >= 0x1 && codepoint <= 0x8) || codepoint == 0xB ||
+           codepoint == 0xC || (codepoint >= 0xE && codepoint <= 0x1F) ||
+           (codepoint >= 0x7F && codepoint <= 0x84) ||
+           (codepoint >= 0x86 && codepoint <= 0x9F);
+}
+
+size_t sxml_xml_find_restricted_character(sxml_byte_view text) {
+    for (size_t byte_index = 0; byte_index < text.byte_count;
+         byte_index += 1) {
+        const uint8_t byte = text.bytes[byte_index];
+        /* Below U+0080 the byte is the codepoint; U+0080 to U+009F are
+           0xC2 0x80 to 0xC2 0x9F. */
+        if ((byte < 0x80 && sxml_xml_codepoint_is_restricted(byte)) ||
+            (byte == 0xC2 && byte_index + 1 < text.byte_count &&
+             sxml_xml_codepoint_is_restricted(text.bytes[byte_index + 1]))) {
+            return byte_index;
+        }
+    }
+    return text.byte_count;
+}
+
+/* The UTF-8 forms of NEL (U+0085) and LINE SEPARATOR (U+2028). */
+static bool sxml_xml_is_next_line_at(sxml_byte_view text, size_t byte_index) {
+    return byte_index + 1 < text.byte_count && text.bytes[byte_index] == 0xC2 &&
+           text.bytes[byte_index + 1] == 0x85;
+}
+
+static bool sxml_xml_is_line_separator_at(sxml_byte_view text,
+                                          size_t byte_index) {
+    return byte_index + 2 < text.byte_count && text.bytes[byte_index] == 0xE2 &&
+           text.bytes[byte_index + 1] == 0x80 &&
+           text.bytes[byte_index + 2] == 0xA8;
+}
+
+bool sxml_xml_has_version_1_1_line_end(sxml_byte_view text) {
+    for (size_t byte_index = 0; byte_index < text.byte_count;
+         byte_index += 1) {
+        if (sxml_xml_is_next_line_at(text, byte_index) ||
+            sxml_xml_is_line_separator_at(text, byte_index)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void sxml_xml_translate_version_1_1_line_ends(sxml_xml_buffer *text,
+                                              size_t start_offset) {
+    uint8_t *bytes = text->bytes;
+    const sxml_byte_view original = {.bytes = bytes,
+                                     .byte_count = text->byte_count};
+    size_t write_index = start_offset;
+    size_t read_index = start_offset;
+    while (read_index < original.byte_count) {
+        if (sxml_xml_is_next_line_at(original, read_index)) {
+            /* NEL alone is LF; after CR, the CR already ends the line. */
+            const bool follows_carriage_return =
+                write_index > start_offset && bytes[write_index - 1] == '\r';
+            if (!follows_carriage_return) {
+                bytes[write_index] = '\n';
+                write_index += 1;
+            }
+            read_index += 2;
+        } else if (sxml_xml_is_line_separator_at(original, read_index)) {
+            /* CR LINE SEPARATOR is two line ends: the CR must not join the
+               LF that follows into one. */
+            if (write_index > start_offset && bytes[write_index - 1] == '\r') {
+                bytes[write_index - 1] = '\n';
+            }
+            bytes[write_index] = '\n';
+            write_index += 1;
+            read_index += 3;
+        } else {
+            bytes[write_index] = bytes[read_index];
+            write_index += 1;
+            read_index += 1;
+        }
+    }
+    text->byte_count = write_index;
 }
 
 /* A range of codepoints, both ends included. */

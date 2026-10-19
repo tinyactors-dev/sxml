@@ -273,7 +273,9 @@ test_dependency_table_lists_what_sxml_supports(sxml_test_state *state) {
                      is_supported(TEXT("feature"), TEXT("schemaImport")));
     SXML_TEST_EXPECT(state, !is_supported(TEXT("spec"), TEXT("XP40")));
     SXML_TEST_EXPECT(state, is_supported(TEXT("xml-version"), TEXT("1.1 1.0")));
-    SXML_TEST_EXPECT(state, !is_supported(TEXT("xml-version"), TEXT("1.1")));
+    /* XML 1.1 documents (D190); not XML 1.0 Fourth Edition. */
+    SXML_TEST_EXPECT(state, is_supported(TEXT("xml-version"), TEXT("1.1")));
+    SXML_TEST_EXPECT(state, !is_supported(TEXT("xml-version"), TEXT("1.0:4-")));
     SXML_TEST_EXPECT(state, !is_supported(TEXT("unknown-type"), TEXT("en")));
     SXML_TEST_EXPECT(state, !is_supported(TEXT("language"), TEXT("")));
     SXML_TEST_EXPECT(state, is_supported(TEXT("language"), TEXT(" en ")));

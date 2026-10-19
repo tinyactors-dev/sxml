@@ -694,10 +694,13 @@ static void test_encodings_are_detected(sxml_test_state *state) {
         state, (sxml_byte_view){.bytes = ucs4, .byte_count = sizeof ucs4},
         (expected_failure){.status = SXML_STATUS_UNSUPPORTED_FEATURE,
                            .description_start = "the document's encoding"});
-    /* Versions 1.x other than 1.0 are read by the 1.0 rules (D81). */
+    /* Versions 1.x other than 1.0 and 1.1 are read by the 1.0 rules (XML
+       1.0 Fifth Edition, 2.8). */
+    expect_log(state, "<?xml version='1.2'?><a>&#x85;</a>",
+               "D<a'\xC2\x85'</>/D");
     expect_log(state, "<?xml version='1.1'?><a/>", "D<a</>/D");
-    /* ...except that a 1.1 document may undeclare a prefix (Namespaces in
-       XML 1.1, section 5). */
+    /* A 1.1 document may undeclare a prefix (Namespaces in XML 1.1,
+       section 5). */
     expect_log(state,
                "<?xml version='1.1'?><a xmlns:p='urn:p'><b xmlns:p=''/></a>",
                "D<a ns(p=urn:p)<b ns(p=)</></>/D");
@@ -706,6 +709,46 @@ static void test_encodings_are_detected(sxml_test_state *state) {
         "<?xml version='1.1'?><a xmlns:p='urn:p'><b xmlns:p=''><p:c/>"
         "</b></a>",
         malformed("NSC: Prefix Declared"));
+}
+
+static void test_version_1_1_rules_apply(sxml_test_state *state) {
+    /* XML 1.1 Second Edition, 4.1 and 2.2: the C0 controls as character
+       references, also in attribute values and entity values; not in XML
+       1.0, and U+0000 in neither. */
+    expect_log(state, "<?xml version='1.1'?><a x='&#1;'>&#x1F;&#127;</a>",
+               "D<a @x=\x01'\x1F''\x7F'</>/D");
+    expect_log(state,
+               "<?xml version='1.1'?><!DOCTYPE a [<!ENTITY e '&#2;'>]>"
+               "<a>&e;</a>",
+               "D<a'\x02'</>/D");
+    expect_failure(state, "<a>&#1;</a>", malformed("WFC: Legal Character"));
+    expect_failure(state, "<?xml version='1.1'?><a>&#0;</a>",
+                   malformed("WFC: Legal Character"));
+    /* The restricted characters must not appear literally in 1.1 (2.2);
+       XML 1.0 allows the C1 controls. */
+    expect_log(state, "<a>\xC2\x80</a>", "D<a'\xC2\x80'</>/D");
+    expect_failure(state, "<?xml version='1.1'?><a>\xC2\x80</a>",
+                   malformed("a control character must be written"));
+    expect_failure(state, "<?xml version='1.1'?><a>\x7F</a>",
+                   malformed("a control character must be written"));
+    /* Line ends (2.11): NEL, CR NEL and LINE SEPARATOR are one LF each;
+       CR LINE SEPARATOR is two. In 1.0 they are ordinary characters. */
+    expect_log(state,
+               "<?xml version='1.1'?><a>x\xC2\x85y\r\xC2\x85z\xE2\x80\xA8"
+               "w\r\xE2\x80\xA8v</a>",
+               "D<a'x\ny''\n''z\nw\n\nv'</>/D");
+    expect_log(state, "<a>x\xC2\x85y</a>", "D<a'x\xC2\x85y'</>/D");
+    /* ...also in markup and attribute values, where LF is whitespace. */
+    expect_log(state,
+               "<?xml version='1.1'?><a\xC2\x85x='1\xE2\x80\xA8"
+               "2'\xE2\x80\xA8/>",
+               "D<a @x=1 2</>/D");
+    /* ...but not in the XML declaration, read before the translation. */
+    expect_failure(state, "<?xml version='1.1'\xC2\x85?><a/>",
+                   malformed("not well-formed"));
+    /* A character reference keeps NEL. */
+    expect_log(state, "<?xml version='1.1'?><a>&#x85;</a>",
+               "D<a'\xC2\x85'</>/D");
 }
 
 static void test_diagnostics_locate_the_failure(sxml_test_state *state) {
@@ -1105,6 +1148,8 @@ static const sxml_test_case xml_test_cases[] = {
     {.name = "encodings_are_detected", .function = test_encodings_are_detected},
     {.name = "diagnostics_locate_the_failure",
      .function = test_diagnostics_locate_the_failure},
+    {.name = "version_1_1_rules_apply",
+     .function = test_version_1_1_rules_apply},
     {.name = "limits_bound_the_work", .function = test_limits_bound_the_work},
     {.name = "deep_input_is_walked_iteratively",
      .function = test_deep_input_is_walked_iteratively},

@@ -143,9 +143,16 @@ express (section numbers of XML 1.0 Fifth Edition, and of Namespaces in XML
     or last); every prefix bound; `xml` and `xmlns` prefixes and namespaces
     used only as allowed; no `xmlns:p=""` in XML 1.0; attribute uniqueness by
     expanded name; no colon in PI targets, entity names or notation names.
-15. **XML 1.1**: the grammar accepts `version="1.1"` and parses the document
-    by the 1.0 rules (1.0 Fifth Edition, 2.8 permits this). Whether sxml
-    rejects or accepts such documents is the builder's decision.
+15. **XML 1.1** (D190): the grammar accepts `version="1.1"` and stays the
+    1.0 grammar. Before parsing, the builder reads the version from the
+    declaration; for 1.1 it refuses restricted characters written literally
+    (XML 1.1, 2.2) and translates NEL, CR NEL and LINE SEPARATOR after the
+    declaration into LF in a copy of the text (2.11), so the grammar never
+    sees them; in the declaration they stay and are an `ERROR`. Character
+    references may then denote the C0 controls (4.1), and `xmlns:p=""`
+    undeclares p (Namespaces in XML 1.1, section 5). Names are the same in
+    both versions (1.0 Fifth Edition adopted 1.1's). Other `1.x` versions
+    are read by the 1.0 rules (1.0 Fifth Edition, 2.8).
 16. A document node always has a `root` element. The grammar guarantees it
     for parsed documents; it is listed here so a builder that parses
     fragments by wrapping keeps the check.

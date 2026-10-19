@@ -197,10 +197,62 @@ SXML_NODISCARD sxml_status sxml_xml_transcode(
 SXML_NODISCARD sxml_status sxml_xml_check_ascii(
     sxml_byte_view input, sxml_xml_transcoding_failure *failure);
 
+/* ------------------------------------------------------ XML version */
+
+/* The version of XML a document follows (XML 1.1 Second Edition, 4.3.4):
+   1.1 when its XML declaration says version="1.1", else 1.0, as a
+   document without a declaration is (XML 1.1, 2.8). */
+typedef enum sxml_xml_version {
+    SXML_XML_VERSION_1_0,
+    SXML_XML_VERSION_1_1,
+} sxml_xml_version;
+
+/* What the XML declaration at the start of a decoded document says. */
+typedef struct sxml_xml_declared_version {
+    sxml_xml_version version;
+    /* The offset just after the declaration's "?>"; 0 without a
+       declaration of the expected shape. */
+    size_t declaration_end_offset;
+} sxml_xml_declared_version;
+
+/*
+ * Reads the version pseudo-attribute of the XML declaration at the start
+ * of text, which is UTF-8 and may start with a byte order mark ([23]
+ * XMLDecl, [24] VersionInfo). A declaration that does not have the
+ * expected shape gives version 1.0; the grammar checks it properly later.
+ */
+sxml_xml_declared_version sxml_xml_read_declared_version(sxml_byte_view text);
+
+/*
+ * The byte offset in text (UTF-8, well-formed) of the first [2a]
+ * RestrictedChar of XML 1.1, which a document must not contain literally
+ * (XML 1.1, [1] document and 2.2), or text.byte_count when there is none.
+ */
+size_t sxml_xml_find_restricted_character(sxml_byte_view text);
+
+/* True when text (UTF-8) has a NEL (U+0085) or a LINE SEPARATOR (U+2028),
+   which XML 1.1 translates to LF (XML 1.1, 2.11). */
+bool sxml_xml_has_version_1_1_line_end(sxml_byte_view text);
+
+/*
+ * Translates the line ends XML 1.1 adds to those of XML 1.0 in the bytes
+ * of text from start_offset on, in place (XML 1.1, 2.11): CR NEL becomes
+ * CR, which the parser then reads as one line end, NEL and LINE SEPARATOR
+ * become LF, and a CR before a LINE SEPARATOR becomes LF, so that the two
+ * stay two line ends. The text shrinks.
+ */
+void sxml_xml_translate_version_1_1_line_ends(sxml_xml_buffer *text,
+                                              size_t start_offset);
+
 /* ---------------------------------------------------- Characters */
 
 /* [2] Char (XML 1.0 Fifth Edition). */
 bool sxml_xml_codepoint_is_char(uint32_t codepoint);
+
+/* [2] Char of XML 1.1: every codepoint but U+0000, the surrogates,
+   U+FFFE and U+FFFF; as character references, the restricted characters
+   too (XML 1.1, 2.2 and 4.1). */
+bool sxml_xml_codepoint_is_version_1_1_char(uint32_t codepoint);
 
 /* [4] NameStartChar. */
 bool sxml_xml_codepoint_is_name_start(uint32_t codepoint);

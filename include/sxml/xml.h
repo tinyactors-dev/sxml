@@ -12,8 +12,8 @@
 #include "sxml/view.h"
 
 /*
- * The XML parser: XML 1.0 bytes in, tree builder events out
- * (docs/DECISIONS.md, D12, D28, D51).
+ * The XML parser: XML 1.0 and 1.1 bytes in, tree builder events out
+ * (docs/DECISIONS.md, D12, D28, D51, D190).
  *
  * The parser reads a whole document from memory, checks that it is
  * well-formed (XML 1.0 Fifth Edition) and namespace-well-formed (Namespaces
@@ -26,6 +26,12 @@
  *   named by the caller from outside the document (XML 1.0, section 4.3.3).
  *   Any other encoding gives SXML_STATUS_UNSUPPORTED_FEATURE. Text sent to
  *   the builder is UTF-8 whatever the input encoding.
+ * - Versions: a document whose XML declaration says version="1.1" is read
+ *   by XML 1.1 (Second Edition) and Namespaces in XML 1.1: it must not
+ *   contain the C0 and C1 controls literally, NEL and LINE SEPARATOR end
+ *   lines, character references may denote the C0 controls, and a prefix
+ *   may be undeclared (xmlns:p=""). Every other document is read by the
+ *   XML 1.0 rules, other 1.x version numbers included (XML 1.0, 2.8).
  * - Nothing outside the input is read. The external DTD subset and
  *   external entities are not retrieved, as XML 1.0 section 5.1 allows a
  *   processor that does not validate; the internal subset is processed

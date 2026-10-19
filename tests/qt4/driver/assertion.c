@@ -672,6 +672,9 @@ typedef struct sxml_qt4_xml_writing {
     sxml_item_heap *item_heap;
     sxml_sequence value;
     sxml_error_record *error_record;
+    /* Writes nodes with version 1.1, which has references for the C0
+       controls (Serialization 4.0, 5.1.2). */
+    bool is_xml_version_1_1;
 } sxml_qt4_xml_writing;
 
 static sxml_status sxml_qt4_write_as_xml(const sxml_qt4_xml_writing *writing,
@@ -707,7 +710,11 @@ static sxml_status sxml_qt4_write_as_xml(const sxml_qt4_xml_writing *writing,
                         {.serialization_method =
                              SXML_SERIALIZATION_METHOD_ADAPTIVE,
                          .has_item_separator = false,
-                         .item_separator = sxml_qt4_empty_text},
+                         .item_separator = sxml_qt4_empty_text,
+                         .has_version = writing->is_xml_version_1_1,
+                         .version = writing->is_xml_version_1_1
+                                        ? SXML_TEXT("1.1")
+                                        : sxml_qt4_empty_text},
                     .error_record = writing->error_record},
                 stream);
             was_string = false;
@@ -725,6 +732,15 @@ static const sxml_byte_view sxml_qt4_xml_check = SXML_BYTE_VIEW_INITIALIZER(
     ">'), parse-xml('<" SXML_QT4_XML_WRAPPER ">' || $expected || '</" SXML_QT4_XML_WRAPPER
     ">'), {'comments': true(), 'processing-instructions': true()})");
 
+/* The same for assert-xml xml-version="1.1": both texts are XML 1.1
+   documents (XML 1.1, 4.3.4), whose character references may denote the
+   C0 controls and whose prefixes may be undeclared. */
+#define SXML_QT4_XML_1_1_START "<?xml version=\"1.1\"?><" SXML_QT4_XML_WRAPPER ">"
+static const sxml_byte_view sxml_qt4_xml_1_1_check = SXML_BYTE_VIEW_INITIALIZER(
+    "deep-equal(parse-xml('" SXML_QT4_XML_1_1_START "' || $result || '</" SXML_QT4_XML_WRAPPER
+    ">'), parse-xml('" SXML_QT4_XML_1_1_START "' || $expected || '</" SXML_QT4_XML_WRAPPER
+    ">'), {'comments': true(), 'processing-instructions': true()})");
+
 /* What assert-xml holds while it compares. */
 typedef struct sxml_qt4_xml_comparison {
     sxml_output_buffer *output_buffer;
@@ -732,6 +748,9 @@ typedef struct sxml_qt4_xml_comparison {
     sxml_sequence actual;
     sxml_sequence expected;
     sxml_sequence check_value;
+    /* xml-version="1.1": the result is written and both texts are parsed
+       as XML 1.1. */
+    bool is_xml_version_1_1;
     /* Set when the comparison reached a verdict. */
     bool has_verdict;
     sxml_qt4_assertion_verdict verdict;
@@ -761,9 +780,11 @@ static sxml_status sxml_qt4_serialize_result(sxml_qt4_assertion_state *state,
     }
     if (status == SXML_STATUS_OK) {
         status = sxml_qt4_write_as_xml(
-            &(sxml_qt4_xml_writing){.item_heap = state->item_heap,
-                                    .value = comparison->written,
-                                    .error_record = &state->error_record},
+            &(sxml_qt4_xml_writing){
+                .item_heap = state->item_heap,
+                .value = comparison->written,
+                .error_record = &state->error_record,
+                .is_xml_version_1_1 = comparison->is_xml_version_1_1},
             sxml_output_buffer_as_output_stream(comparison->output_buffer));
     }
     if (status == SXML_STATUS_OK) {
@@ -790,7 +811,19 @@ static sxml_status sxml_qt4_compare_xml(sxml_qt4_assertion_state *state,
                                         sxml_qt4_xml_comparison *comparison) {
     static const sxml_byte_view name = SXML_BYTE_VIEW_INITIALIZER("assert-xml");
     sxml_qt4_assertion_verdict *verdict = &comparison->verdict;
-    sxml_status status = sxml_qt4_serialize_result(state, comparison);
+    sxml_qt4_attribute_value xml_version = {.is_present = false,
+                                            .value = sxml_qt4_empty_text};
+    sxml_status status = sxml_qt4_leaf_attribute(
+        state,
+        (sxml_qt4_attribute_lookup){.element = leaf->element,
+                                    .local_name = SXML_TEXT("xml-version")},
+        &xml_version);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    comparison->is_xml_version_1_1 =
+        sxml_byte_view_equals(xml_version.value, SXML_TEXT("1.1"));
+    status = sxml_qt4_serialize_result(state, comparison);
     if (status != SXML_STATUS_OK || comparison->has_verdict) {
         return status;
     }
@@ -826,7 +859,10 @@ static sxml_status sxml_qt4_compare_xml(sxml_qt4_assertion_state *state,
     if (status == SXML_STATUS_OK) {
         status = sxml_qt4_assertion_evaluate(
             state,
-            &(sxml_qt4_bound_expression){.expression_text = sxml_qt4_xml_check,
+            &(sxml_qt4_bound_expression){.expression_text =
+                                             comparison->is_xml_version_1_1
+                                                 ? sxml_qt4_xml_1_1_check
+                                                 : sxml_qt4_xml_check,
                                          .result = comparison->actual,
                                          .expected = comparison->expected},
             &comparison->check_value);
@@ -870,6 +906,7 @@ static sxml_status sxml_qt4_check_xml(sxml_qt4_assertion_state *state,
                                           .actual = sxml_sequence_empty(),
                                           .expected = sxml_sequence_empty(),
                                           .check_value = sxml_sequence_empty(),
+                                          .is_xml_version_1_1 = false,
                                           .has_verdict = false,
                                           .verdict = {.verdict_kind =
                                                           SXML_QT4_VERDICT_FAIL,

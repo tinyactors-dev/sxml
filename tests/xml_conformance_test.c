@@ -1,7 +1,10 @@
 /*
  * The W3C XML conformance suite through the XML parser (packet 1.14,
  * docs/DECISIONS.md D13, D81): the standalone tests of XML 1.0 Fifth
- * Edition, selected as grammars/xml/test/xml-conformance.py selects them.
+ * Edition, selected as grammars/xml/test/xml-conformance.py selects them,
+ * and apart from them the tests of XML 1.1 and Namespaces in XML 1.1
+ * (packet 7.13): the ibm and eduni xml-1.1 catalogs, eduni's namespace 1.1
+ * tests and the one 1.1 erratum test, whatever entities they use.
  *
  * Golden file: tests/memory_test.c (layout, naming).
  *
@@ -15,7 +18,11 @@
  * INVALID_UTF8 or UNSUPPORTED_FEATURE. Tests marked NAMESPACE="no" are
  * well-formed XML 1.0 but not namespace-well-formed, so a namespace-aware
  * parser rightly refuses some of them; they are counted apart and accepted
- * either way. The catalogs themselves are read with the parser, through a
+ * either way. An "error" test may be refused or not. A 1.1 test that
+ * uses external entities (ENTITIES other than "none", or an external DTD
+ * that the catalog does not mention) can fail only
+ * because the parser does not read them (D81); such failures are counted
+ * and printed, and do not fail the run. The catalogs themselves are read with the parser, through a
  * tree builder that collects the attributes of TEST elements.
  */
 #include "sxml/memory.h"
@@ -166,6 +173,9 @@ typedef struct conformance_counts {
     uint32_t not_well_formed_total;
     uint32_t namespace_free_total;
     uint32_t namespace_free_refused;
+    uint32_t error_total;
+    /* Failures of tests that use external entities (XML 1.1 only). */
+    uint32_t external_entity_failure_count;
     uint32_t failure_count;
 } conformance_counts;
 
@@ -182,6 +192,7 @@ typedef struct conformance_run {
     uint32_t element_depth;
     uint32_t case_depth;
     conformance_counts counts;
+    conformance_counts version_1_1_counts;
 } conformance_run;
 
 static bool field_is(const char *field, const char *expected) {
@@ -213,6 +224,36 @@ static bool case_is_selected(const conformance_case *test_case) {
         return false;
     }
     return true;
+}
+
+/* The tests of XML 1.1 and Namespaces in XML 1.1 (packet 7.13), of the
+   Fifth Edition of XML 1.0 when it matters. */
+static bool case_is_version_1_1(const conformance_case *test_case) {
+    if (test_case->edition[0] != '\0' &&
+        strchr(test_case->edition, '5') == NULL) {
+        return false;
+    }
+    return field_is(test_case->recommendation, "XML1.1") ||
+           field_is(test_case->recommendation, "NS1.1") ||
+           strstr(test_case->version, "1.1") != NULL;
+}
+
+/* True when document names an external entity or DTD, which the parser
+   does not read (D81); some catalogs say ENTITIES="none" for them. */
+static bool document_names_external_entity(sxml_byte_view document) {
+    static const char *const keywords[] = {"SYSTEM", "PUBLIC"};
+    for (size_t keyword_index = 0; keyword_index < 2; keyword_index++) {
+        const size_t keyword_byte_count = strlen(keywords[keyword_index]);
+        for (size_t byte_index = 0;
+             byte_index + keyword_byte_count <= document.byte_count;
+             byte_index++) {
+            if (memcmp(document.bytes + byte_index, keywords[keyword_index],
+                       keyword_byte_count) == 0) {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 /* Parses document into a new arena tree and returns the parser's status. */
@@ -285,9 +326,15 @@ static void run_case(conformance_run *run, const conformance_case *test_case) {
         return;
     }
     const sxml_status status = build_document(run, document);
+    const bool uses_external_entities =
+        (test_case->entities[0] != '\0' &&
+         !field_is(test_case->entities, "none")) ||
+        document_names_external_entity(document);
     release_file(document);
     const bool is_namespace_free = field_is(test_case->namespace_flag, "no");
-    conformance_counts *counts = &run->counts;
+    const bool is_version_1_1 = !case_is_selected(test_case);
+    conformance_counts *counts =
+        is_version_1_1 ? &run->version_1_1_counts : &run->counts;
     bool passed = false;
     if (field_is(test_case->type, "valid") ||
         field_is(test_case->type, "invalid")) {
@@ -306,10 +353,18 @@ static void run_case(conformance_run *run, const conformance_case *test_case) {
         passed = status_refuses(status);
         counts->not_well_formed_total += 1;
         counts->not_well_formed_passed += passed ? 1 : 0;
+    } else if (field_is(test_case->type, "error")) {
+        counts->error_total += 1;
+        passed = true;
     } else {
         return;
     }
-    if (!passed) {
+    if (!passed && is_version_1_1 && uses_external_entities) {
+        counts->external_entity_failure_count += 1;
+        printf("FAILED (external entities not read) %s (%s, %s): %s\n",
+               test_case->identifier, test_case->type, path,
+               (const char *)sxml_status_name(status).bytes);
+    } else if (!passed) {
         counts->failure_count += 1;
         printf("FAILED %s (%s, %s): %s\n", test_case->identifier,
                test_case->type, path,
@@ -404,7 +459,8 @@ static sxml_status catalog_end_element(void *state) {
     conformance_run *run = run_from_state(state);
     if (run->is_in_case && run->element_depth == run->case_depth) {
         run->is_in_case = false;
-        if (case_is_selected(&run->current_case)) {
+        if (case_is_selected(&run->current_case) ||
+            case_is_version_1_1(&run->current_case)) {
             run_case(run, &run->current_case);
         }
     }
@@ -635,6 +691,15 @@ static void test_conformance_suite(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, counts->valid_total == 601);
     SXML_TEST_EXPECT(state, counts->invalid_total == 175);
     SXML_TEST_EXPECT(state, counts->not_well_formed_total == 948);
+    const conformance_counts *version_1_1 = &run.version_1_1_counts;
+    printf("XML 1.1: valid %u/%u, invalid %u/%u, not-wf %u/%u, error %u; "
+           "%u failed only because external entities are not read\n",
+           version_1_1->valid_passed, version_1_1->valid_total,
+           version_1_1->invalid_passed, version_1_1->invalid_total,
+           version_1_1->not_well_formed_passed,
+           version_1_1->not_well_formed_total, version_1_1->error_total,
+           version_1_1->external_entity_failure_count);
+    SXML_TEST_EXPECT(state, version_1_1->failure_count == 0);
     sxml_xml_parser_destroy(run.catalog_parser);
     sxml_xml_parser_destroy(run.document_parser);
     sxml_item_heap_destroy(run.item_heap);
