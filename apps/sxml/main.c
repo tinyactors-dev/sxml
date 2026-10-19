@@ -55,6 +55,18 @@ int main(int argument_count, char **arguments) {
         (sxml_memory_view){.bytes = working_directory_bytes,
                            .byte_count = sizeof(working_directory_bytes)},
         &working_directory);
+    /* The files of --allow-file-access (D200); static, it is large. The
+       null file system when the platform has none. */
+    static sxml_platform_file_system_state file_system_state;
+    sxml_file_system file_system = {.state = NULL, .operations = NULL};
+    if (sxml_platform_file_system_initialize(
+            &file_system_state,
+            &(sxml_platform_file_system_configuration){
+                .current_directory = {.bytes = NULL, .byte_count = 0},
+                .temporary_directory = {.bytes = NULL, .byte_count = 0}},
+            &file_system) != SXML_STATUS_OK) {
+        file_system = (sxml_file_system){.state = NULL, .operations = NULL};
+    }
     sxml_cli_exit_code exit_code = sxml_cli_run(
         sxml_program(),
         &(sxml_cli_run_request){
@@ -66,6 +78,7 @@ int main(int argument_count, char **arguments) {
             .version_text = sxml_byte_view_from_c_string(sxml_version_text()),
             .file_reader = sxml_platform_file_reader(),
             .working_directory = working_directory,
+            .file_system = file_system,
         });
     sxml_allocator_release(allocator, argument_views);
     if (sxml_platform_flush_streams() != SXML_STATUS_OK &&

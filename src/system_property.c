@@ -82,7 +82,9 @@ static const sxml_system_property sxml_system_property_table[] = {
     /* The optional feature sxml_expath_binary_feature (D198). */
     SXML_KNOWN_FUNCTION_PROPERTY("supports-binary-library", SXML_NAMESPACE_EXPATH_BINARY, "hex",
                                  1),
-    SXML_BOOLEAN_PROPERTY("supports-file-library", "", false),
+    /* The optional feature sxml_expath_file_feature (D200). */
+    SXML_KNOWN_FUNCTION_PROPERTY("supports-file-library", SXML_NAMESPACE_EXPATH_FILE, "exists",
+                                 1),
 };
 
 sxml_system_property_view sxml_system_properties(void) {

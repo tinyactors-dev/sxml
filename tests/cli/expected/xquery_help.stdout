@@ -1,6 +1,6 @@
 sxml xquery - Run an XQuery 4.0 query
 
-Usage: sxml xquery [--context-item=FILE] [--expression=TEXT] [--param=NAME=VALUE]... [--method=METHOD] [QUERY-FILE]
+Usage: sxml xquery [--context-item=FILE] [--expression=TEXT] [--param=NAME=VALUE]... [--method=METHOD] [--allow-file-access] [QUERY-FILE]
 
 Runs the XQuery 4.0 main module in QUERY-FILE, or the query that
 --expression gives, and writes the result to standard output. The
@@ -11,7 +11,9 @@ xml unless they name another); --method replaces the method.
 --param=NAME=VALUE binds the external variable $NAME, if the query
 declares it, to xs:untypedAtomic(VALUE). Library modules (import
 module ... at) are read from local files relative to the working
-directory; fn:doc reads local files.
+directory; fn:doc reads local files. --allow-file-access lets the
+query read and write files with the EXPath File functions
+(namespace http://expath.org/ns/file); without it they do not exist.
 
 An updating query (the XQuery Update Facility 3.0) writes the
 context item's document as its updates left it; FILE itself is
@@ -29,6 +31,7 @@ Options:
       --expression=TEXT    The query itself, instead of QUERY-FILE
       --param=NAME=VALUE   Bind external variable $NAME to xs:untypedAtomic(VALUE) (repeatable)
       --method=METHOD      Serialization method of the result, replacing the query's (one of: adaptive, xml, xhtml, html, text, json)
+      --allow-file-access  Let the query read and write files (EXPath File functions)
 
 Arguments:
   QUERY-FILE  File holding the XQuery 4.0 main module; - reads standard input

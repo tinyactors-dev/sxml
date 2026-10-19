@@ -248,6 +248,11 @@ typedef struct sxml_qt4_test_case_target {
 void sxml_qt4_test_case_decide_applicability(
     sxml_qt4_test_case_target request, sxml_qt4_applicability *applicability);
 
+/* The directory of catalog.xml as the file reader opens it, ending with
+   "/" (empty for the working directory): what a suite path is appended
+   to, for example a sandpit's (D200). Borrowed from the catalog. */
+sxml_byte_view sxml_qt4_catalog_get_directory(const sxml_qt4_catalog *catalog);
+
 /* A suite file to read. */
 typedef struct sxml_qt4_file_request {
     sxml_byte_view suite_path;

@@ -219,7 +219,8 @@ static void sxml_qt4_run_one(sxml_qt4_run_state *run, size_t test_case_index) {
                                      .test_case = &test_case,
                                      .target = run->target,
                                      .allocator = run->invocation->allocator,
-                                     .arena = run->reason_arena},
+                                     .arena = run->reason_arena,
+                                     .file_system = run->invocation->file_system},
         &result);
     if (status != SXML_STATUS_OK) {
         problem.description = sxml_status_name(status);

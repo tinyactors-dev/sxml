@@ -81,6 +81,7 @@ static const sxml_cli_option sxml_xquery_options[] = {
         .summary = SXML_BYTE_VIEW_INITIALIZER(
             "Serialization method of the result, replacing the query's"),
     },
+    SXML_QUERY_FILE_ACCESS_OPTION,
 };
 
 static const sxml_cli_positional sxml_xquery_positionals[] = {
@@ -290,7 +291,9 @@ const sxml_cli_command sxml_xquery_command = {
         "--param=NAME=VALUE binds the external variable $NAME, if the query\n"
         "declares it, to xs:untypedAtomic(VALUE). Library modules (import\n"
         "module ... at) are read from local files relative to the working\n"
-        "directory; fn:doc reads local files.\n"
+        "directory; fn:doc reads local files. --allow-file-access lets the\n"
+        "query read and write files with the EXPath File functions\n"
+        "(namespace http://expath.org/ns/file); without it they do not exist.\n"
         "\n"
         "An updating query (the XQuery Update Facility 3.0) writes the\n"
         "context item's document as its updates left it; FILE itself is\n"

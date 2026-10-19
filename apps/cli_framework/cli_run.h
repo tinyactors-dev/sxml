@@ -34,6 +34,10 @@ typedef struct sxml_cli_run_request {
     /* Passed to commands: the working directory, an absolute path with
        '/' between its parts; empty when unknown. Borrowed for the call. */
     sxml_byte_view working_directory;
+    /* Passed to commands that give EXPath File access (sxml
+       --allow-file-access, the QT4 driver's sandpits; D200); the null
+       file system when the platform has none. */
+    sxml_file_system file_system;
 } sxml_cli_run_request;
 
 /*

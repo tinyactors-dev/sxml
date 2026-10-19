@@ -5,7 +5,7 @@
 #   sxml_program        apps/sxml/ without main: the command table and the
 #                       commands, linked by the executable and by tests.
 #   sxml_cli            the executable, named "sxml" (main.c and the platform
-#                       layer platform_stdio.c).
+#                       layer platform_stdio.c and platform_file_system.c).
 #
 # Application code: it links only the public library interface (include/sxml/)
 # and never sees src/.
@@ -40,6 +40,7 @@ sxml_apply_project_flags(sxml_program)
 add_executable(sxml_cli
     sxml/main.c
     sxml/platform_stdio.c
+    sxml/platform_file_system.c
 )
 target_link_libraries(sxml_cli PRIVATE sxml_program)
 set_target_properties(sxml_cli PROPERTIES OUTPUT_NAME sxml)

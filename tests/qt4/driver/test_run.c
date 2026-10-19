@@ -9,6 +9,7 @@
 #include "budget.h"
 #include "reason.h"
 #include "resource_table.h"
+#include "sandpit.h"
 #include "suite_path.h"
 #include "sxml/name.h"
 #include "sxml/processor.h"
@@ -29,6 +30,10 @@ static const sxml_byte_view sxml_qt4_empty_text = {.bytes = NULL,
 
 /* The URI scheme and authority of suite files: file:///SUITE-PATH. */
 #define SXML_QT4_SUITE_URI_PREFIX "file:///"
+
+/* The most optional features a test's processor names: every feature of
+   sxml_all_optional_features and EXPath File for a sandpit (D200). */
+#define SXML_QT4_FEATURE_CAPACITY ((size_t)16)
 
 /* As sxml check and sxml xpath: entity expansion is bounded. */
 enum { SXML_QT4_MAXIMUM_EXPANSION_BYTE_COUNT = 4 * 1024 * 1024 };
@@ -1576,6 +1581,20 @@ static void sxml_qt4_release_context(sxml_qt4_test_context *context) {
     sxml_arena_destroy(context->scratch);
 }
 
+/* Whether a dependency list asks for the feature expath-file. */
+static bool sxml_qt4_lists_file_feature(sxml_qt4_dependency_view dependencies) {
+    for (size_t dependency_index = 0; dependency_index < dependencies.dependency_count;
+         dependency_index += 1) {
+        const sxml_qt4_dependency *dependency = &dependencies.dependencies[dependency_index];
+        if (dependency->requires_satisfaction &&
+            sxml_byte_view_equals(dependency->dependency_type, SXML_TEXT("feature")) &&
+            sxml_byte_view_equals(dependency->value, SXML_TEXT("expath-file"))) {
+            return true;
+        }
+    }
+    return false;
+}
+
 /* Runs an applicable test in its own processor and budget. */
 static void sxml_qt4_run_isolated(const sxml_qt4_test_run_request *request,
                                   sxml_qt4_test_answer *answer) {
@@ -1597,7 +1616,51 @@ static void sxml_qt4_run_isolated(const sxml_qt4_test_run_request *request,
     context.environment = &request->test_case->environment;
     context.allocator = allocator;
     context.stage = SXML_TEXT("processor");
-    sxml_status status = sxml_processor_create(
+    /* A sandpit's test gets EXPath File over a copy of the sandpit; the
+       others do not name the feature (D200). */
+    sxml_qt4_sandpit sandpit;
+    memset(&sandpit, 0, sizeof sandpit);
+    const sxml_optional_feature_view all_features = sxml_all_optional_features();
+    sxml_optional_feature features[SXML_QT4_FEATURE_CAPACITY];
+    size_t feature_count = 0;
+    for (size_t feature_index = 0;
+         feature_index < all_features.optional_feature_count &&
+         feature_count + 1 < SXML_QT4_FEATURE_CAPACITY;
+         feature_index += 1) {
+        features[feature_count] = all_features.optional_features[feature_index];
+        feature_count += 1;
+    }
+    sxml_status status = SXML_STATUS_OK;
+    if (context.environment->has_sandpit &&
+        request->file_system.operations != NULL) {
+        context.stage = SXML_TEXT("sandpit");
+        sxml_byte_view source = sxml_qt4_empty_text;
+        status = sxml_qt4_concatenate(
+            request->arena,
+            (sxml_qt4_concatenation){
+                .first = sxml_qt4_catalog_get_directory(request->catalog),
+                .second = context.environment->sandpit_path},
+            &source);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_qt4_sandpit_create(
+                &(sxml_qt4_sandpit_request){.host = request->file_system,
+                                            .source_directory = source,
+                                            .allocator = allocator},
+                &sandpit);
+        }
+        context.stage = SXML_TEXT("processor");
+    }
+    /* A test that asks for EXPath File without a sandpit gets the
+       feature without files (D200). */
+    if (status == SXML_STATUS_OK &&
+        (context.environment->has_sandpit ||
+         sxml_qt4_lists_file_feature(request->test_case->test_set_dependencies) ||
+         sxml_qt4_lists_file_feature(request->test_case->dependencies))) {
+        features[feature_count] = sxml_expath_file_feature();
+        feature_count += 1;
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_processor_create(
         allocator,
         &(sxml_processor_configuration){
             .allocator = allocator,
@@ -1609,8 +1672,11 @@ static void sxml_qt4_run_isolated(const sxml_qt4_test_run_request *request,
             .resource_resolver =
                 sxml_qt4_resource_table_resolver(&resource_table),
             .clock = sxml_system_clock(),
-            .optional_features = sxml_all_optional_features()},
+            .optional_features = {.optional_features = features,
+                                  .optional_feature_count = feature_count},
+            .file_system = sandpit.file_system},
         &context.processor);
+    }
     if (status == SXML_STATUS_OK) {
         status = sxml_arena_create(
             allocator,
@@ -1630,6 +1696,7 @@ static void sxml_qt4_run_isolated(const sxml_qt4_test_run_request *request,
         sxml_qt4_describe_failure(&context, status, answer);
     }
     sxml_qt4_release_context(&context);
+    sxml_qt4_sandpit_destroy(&sandpit);
     if (budget.live_allocation_count != 0) {
         answer->needs_missing_feature = false;
     }

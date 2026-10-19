@@ -20,6 +20,23 @@
 enum { SXML_QUERY_METHOD_COUNT = 6 };
 extern const sxml_byte_view sxml_query_methods[SXML_QUERY_METHOD_COUNT];
 
+/*
+ * The --allow-file-access option of sxml xpath and sxml xquery (D184,
+ * D200): the query may call the EXPath File functions, which read and
+ * write the platform's files. Without it they are absent (XPST0017).
+ */
+#define SXML_QUERY_FILE_ACCESS_OPTION                                          \
+    {                                                                          \
+        .long_name = SXML_BYTE_VIEW_INITIALIZER("allow-file-access"),          \
+        .short_name = 0, .value_kind = SXML_CLI_VALUE_KIND_NONE,               \
+        .value_name = {.bytes = NULL, .byte_count = 0},                        \
+        .choices = {.texts = NULL, .text_count = 0},                           \
+        .default_value = {.bytes = NULL, .byte_count = 0},                     \
+        .multiplicity = SXML_CLI_OPTION_AT_MOST_ONCE,                          \
+        .summary = SXML_BYTE_VIEW_INITIALIZER(                                 \
+            "Let the query read and write files (EXPath File functions)"),     \
+    }
+
 /* What --param does with $NAME. */
 typedef enum sxml_parameter_binding {
     /* Declared in the static context and bound (XPath: the expression has
@@ -68,6 +85,10 @@ typedef struct sxml_query_run {
     size_t parameter_count;
     bool has_context_item;
     sxml_item context_item;
+    /* The prefixes of the optional features' functions, in scope for
+       every query: bin and file (D198, D200). */
+    sxml_namespace_binding feature_namespaces[2];
+    size_t feature_namespace_count;
 } sxml_query_run;
 
 /* Makes the processor and reads --param and --context-item (unless

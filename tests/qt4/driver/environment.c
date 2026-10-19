@@ -40,6 +40,7 @@ sxml_qt4_environment sxml_qt4_environment_absent(void) {
                             .decimal_format_count = 0},
         .has_function_library = false,
         .has_sandpit = false,
+        .sandpit_path = {.bytes = NULL, .byte_count = 0},
     };
 }
 
@@ -632,6 +633,21 @@ sxml_qt4_read_environment_child(const sxml_qt4_environment_reader *reader,
         environment->has_function_library = true;
     } else if (sxml_qt4_is_named(step, SXML_TEXT("sandpit"))) {
         environment->has_sandpit = true;
+        sxml_byte_view reference = sxml_qt4_empty_text;
+        sxml_status status = sxml_qt4_read_attribute(
+            reader,
+            (sxml_qt4_attribute_name){.element = element,
+                                      .local_name = SXML_TEXT("path")},
+            &reference);
+        if (status == SXML_STATUS_OK && reference.byte_count > 0) {
+            status = sxml_qt4_suite_path_resolve(
+                &(sxml_qt4_suite_path_request){.containing_file =
+                                                   reader->containing_file,
+                                               .reference = reference,
+                                               .arena = reader->arena},
+                &environment->sandpit_path);
+        }
+        return status;
     }
     return SXML_STATUS_OK;
 }

@@ -30,6 +30,7 @@ sxml_apply_project_flags(sxml_qt4_driver_library)
 add_executable(sxml_qt4_driver
     main.c
     "${PROJECT_SOURCE_DIR}/apps/sxml/platform_stdio.c"
+    "${PROJECT_SOURCE_DIR}/apps/sxml/platform_file_system.c"
 )
 target_include_directories(sxml_qt4_driver PRIVATE "${PROJECT_SOURCE_DIR}/apps/sxml")
 target_link_libraries(sxml_qt4_driver PRIVATE sxml_qt4_driver_library)

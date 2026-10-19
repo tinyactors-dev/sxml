@@ -87,6 +87,10 @@ typedef struct sxml_qt4_test_run_request {
     sxml_allocator allocator;
     /* Receives the reason; must outlive the result. */
     sxml_arena *arena;
+    /* The host's files, which a sandpit is copied in (sandpit.h, D200);
+       the null file system when there are none: a test case with a
+       sandpit then gets none. */
+    sxml_file_system file_system;
 } sxml_qt4_test_run_request;
 
 /*

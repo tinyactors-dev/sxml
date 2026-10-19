@@ -2,7 +2,10 @@
 
 #include "cli_command.h"
 #include "cli_output.h"
+#include "sxml/processor.h"
 #include "sxml/status.h"
+
+#include <stdint.h>
 
 /*
  * The platform layer of the sxml program (docs/CLI.md, D44): the only code
@@ -50,3 +53,48 @@ sxml_cli_file_reader sxml_platform_file_reader(void);
  * the path does not fit in memory; that is not a failure.
  */
 void sxml_platform_read_working_directory(sxml_memory_view memory, sxml_byte_view *path);
+
+/* ------------------------------------------------------------ File system */
+
+/* The longest path, with its terminating NUL, the file system handles. */
+#define SXML_PLATFORM_PATH_CAPACITY ((size_t)4096)
+
+/* A NUL-terminated path in a buffer of its own, so it travels as one
+   object. */
+typedef struct sxml_platform_path {
+    char text[SXML_PLATFORM_PATH_CAPACITY];
+} sxml_platform_path;
+
+/*
+ * The state of the platform's file system (platform_file_system.c), in
+ * caller memory: the directories it resolves against and buffers for the
+ * paths of one operation. Fields are private.
+ */
+typedef struct sxml_platform_file_system_state {
+    sxml_platform_path current_directory;
+    sxml_platform_path temporary_directory;
+    sxml_platform_path first_path;
+    sxml_platform_path second_path;
+    sxml_platform_path result_path;
+    uint64_t temporary_counter;
+} sxml_platform_file_system_state;
+
+/* Absolute directories; empty for the process's working directory and
+   for $TMPDIR (else /tmp). */
+typedef struct sxml_platform_file_system_configuration {
+    sxml_byte_view current_directory;
+    sxml_byte_view temporary_directory;
+} sxml_platform_file_system_configuration;
+
+/*
+ * Makes the file system of EXPath File (include/sxml/processor.h,
+ * sxml_file_system; D200) over the platform's files, with *state, which
+ * must outlive it, and writes it to *file_system. Returns
+ * SXML_STATUS_INPUT_OUTPUT_FAILED when a directory is not absolute or too
+ * long, and SXML_STATUS_UNSUPPORTED_FEATURE on Windows, which has no
+ * implementation yet; *file_system is then the null file system.
+ */
+SXML_NODISCARD sxml_status sxml_platform_file_system_initialize(
+    sxml_platform_file_system_state *state,
+    const sxml_platform_file_system_configuration *configuration,
+    sxml_file_system *file_system);

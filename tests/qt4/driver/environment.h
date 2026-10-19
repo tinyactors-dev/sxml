@@ -209,6 +209,10 @@ typedef struct sxml_qt4_environment {
        writable directories (EXPath File). */
     bool has_function_library;
     bool has_sandpit;
+    /* The suite path of the sandpit's directory (its path attribute
+       resolved against the environment's file): what the driver copies
+       for each test case (D200). */
+    sxml_byte_view sandpit_path;
 } sxml_qt4_environment;
 
 /* The environment of a test case with no environment element. */

@@ -52,6 +52,9 @@ typedef struct sxml_qt4_supported_dependency {
  * - binary: the EXPath Binary Module 4.0, the optional feature
  *   sxml_expath_binary_feature() that the driver's processor names
  *   (packet 7.8, D198).
+ * - expath-file: the EXPath File Module 4.0, sxml_expath_file_feature()
+ *   over the platform's files; a sandpit is copied for each test case
+ *   (sandpit.h, packet 7.9, D200).
  */
 static const sxml_qt4_supported_dependency sxml_qt4_supported_dependencies[] = {
     {SXML_BYTE_VIEW_INITIALIZER("feature"),
@@ -99,6 +102,8 @@ static const sxml_qt4_supported_dependency sxml_qt4_supported_dependencies[] = {
      SXML_BYTE_VIEW_INITIALIZER("typedData")},
     {SXML_BYTE_VIEW_INITIALIZER("feature"),
      SXML_BYTE_VIEW_INITIALIZER("binary")},
+    {SXML_BYTE_VIEW_INITIALIZER("feature"),
+     SXML_BYTE_VIEW_INITIALIZER("expath-file")},
 };
 
 /* The features of schema awareness (the area "schema-aware",
@@ -161,7 +166,6 @@ static const sxml_byte_view sxml_qt4_non_goal_features[] = {
     SXML_BYTE_VIEW_INITIALIZER("fn-transform-XSLT*"),
     SXML_BYTE_VIEW_INITIALIZER("fn-invisible-xml"),
     SXML_BYTE_VIEW_INITIALIZER("remote_http"),
-    SXML_BYTE_VIEW_INITIALIZER("expath-file"),
     SXML_BYTE_VIEW_INITIALIZER("advanced-uca-fallback"),
     SXML_BYTE_VIEW_INITIALIZER("schema-location-hint"),
 };
@@ -169,7 +173,6 @@ static const sxml_byte_view sxml_qt4_non_goal_features[] = {
 /* The non-goal test sets of D95, with "*" as above. */
 static const sxml_byte_view sxml_qt4_non_goal_test_sets[] = {
     SXML_BYTE_VIEW_INITIALIZER("ft-*"),
-    SXML_BYTE_VIEW_INITIALIZER("expath-*"),
     SXML_BYTE_VIEW_INITIALIZER("fn-invisible-xml"),
     SXML_BYTE_VIEW_INITIALIZER("fn-transform"),
 };
@@ -460,9 +463,6 @@ sxml_qt4_unsupported_environment_part(const sxml_qt4_environment *environment) {
     }
     if (environment->has_function_library) {
         return SXML_TEXT("function-library");
-    }
-    if (environment->has_sandpit) {
-        return SXML_TEXT("sandpit");
     }
     return sxml_qt4_empty_text;
 }

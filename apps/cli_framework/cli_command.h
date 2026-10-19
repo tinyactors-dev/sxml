@@ -6,6 +6,7 @@
 
 #include "cli_output.h"
 #include "sxml/memory.h"
+#include "sxml/processor.h"
 #include "sxml/status.h"
 #include "sxml/view.h"
 
@@ -233,6 +234,9 @@ struct sxml_cli_invocation {
     /* The working directory, which relative file names are in: an
        absolute path with '/' between its parts; empty when unknown. */
     sxml_byte_view working_directory;
+    /* The platform's files, for commands that give EXPath File access
+       (D200); the null file system when there is none. */
+    sxml_file_system file_system;
 };
 
 /*

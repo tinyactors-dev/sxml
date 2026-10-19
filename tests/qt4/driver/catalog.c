@@ -1217,6 +1217,10 @@ void sxml_qt4_test_case_decide_applicability(
         applicability);
 }
 
+sxml_byte_view sxml_qt4_catalog_get_directory(const sxml_qt4_catalog *catalog) {
+    return catalog->catalog_directory;
+}
+
 sxml_status sxml_qt4_catalog_read_file(sxml_qt4_catalog *catalog,
                                        const sxml_qt4_file_request *request,
                                        sxml_byte_view *contents) {

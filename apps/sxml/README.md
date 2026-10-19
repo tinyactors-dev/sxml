@@ -54,8 +54,9 @@ sxml [-h | --help | --version] COMMAND [ARGUMENT...]
 - Results go to standard output. Errors and diagnostics go to standard
   error.
 - `sxml` reads documents, schemas, modules and stylesheets from local files
-  only. It does not use the network, does not write files, and reads no
-  configuration files.
+  only. It does not use the network and reads no configuration files. It
+  writes files only when `sxml xpath` or `sxml xquery` is given
+  `--allow-file-access`.
 
 ## Sample files
 
@@ -155,7 +156,7 @@ The examples on this page use these files.
 Evaluate an XPath 4.0 expression.
 
 ```
-sxml xpath [--context-item=FILE] [--param=NAME=VALUE]... [--method=METHOD] EXPRESSION
+sxml xpath [--context-item=FILE] [--param=NAME=VALUE]... [--method=METHOD] [--allow-file-access] EXPRESSION
 ```
 
 `sxml xpath` evaluates EXPRESSION as XPath 4.0, with the F&O 4.0 function
@@ -167,8 +168,14 @@ adaptive output method writes the result, one item on each line.
 | `--context-item=FILE` | Parse FILE and make it the context item. Without this option, there is no context item. |
 | `--param=NAME=VALUE` | Bind `$NAME` to `xs:untypedAtomic(VALUE)`. Repeatable. |
 | `--method=METHOD` | Serialization method: `adaptive` (default), `xml`, `xhtml`, `html`, `text` or `json`, each with its default parameters |
+| `--allow-file-access` | Let the expression read and write files with the EXPath File functions (`file:`). Without this option, they do not exist. |
 
 - `fn:doc` and the other resource functions read local files.
+- The EXPath Binary 4.0 functions are available with the prefix `bin`
+  (`http://expath.org/ns/binary`). With `--allow-file-access`, the EXPath
+  File 4.0 functions are available with the prefix `file`
+  (`http://expath.org/ns/file`). Relative paths are resolved against the
+  working directory.
 - An EXPRESSION that starts with `-` must come after `--`.
 - An error is reported on standard error as
   `expression:LINE:COLUMN: err:CODE: description`.
@@ -197,6 +204,14 @@ $ echo '<p>hi</p>' | sxml xpath --context-item=- 'string(/p)'
 "hi"
 $ sxml xpath '1 div 0'
 expression:1:1: err:FOAR0001: division by zero (F&O 4.0, op:numeric-divide, op:numeric-integer-divide, op:numeric-mod)
+$ sxml xpath "bin:hex('CAFE') => bin:to-octets()"
+202
+254
+$ sxml xpath --allow-file-access "file:exists('books.xml'), file:size('books.xml')"
+true()
+306
+$ sxml xpath "file:exists('books.xml')"
+expression:1:1: err:XPST0017: no function with this name and arity is known
 ```
 
 ## sxml xquery
@@ -204,7 +219,7 @@ expression:1:1: err:FOAR0001: division by zero (F&O 4.0, op:numeric-divide, op:n
 Run an XQuery 4.0 query.
 
 ```
-sxml xquery [--context-item=FILE] [--expression=TEXT] [--param=NAME=VALUE]... [--method=METHOD] [QUERY-FILE]
+sxml xquery [--context-item=FILE] [--expression=TEXT] [--param=NAME=VALUE]... [--method=METHOD] [--allow-file-access] [QUERY-FILE]
 ```
 
 `sxml xquery` runs the XQuery 4.0 main module in QUERY-FILE, or the query
@@ -218,6 +233,7 @@ serialization. The default method is xml.
 | `--expression=TEXT` | The query text, instead of QUERY-FILE |
 | `--param=NAME=VALUE` | Bind the external variable `$NAME`, if the query declares it, to `xs:untypedAtomic(VALUE)`. Repeatable. |
 | `--method=METHOD` | Replace the serialization method of the query: `adaptive`, `xml`, `xhtml`, `html`, `text` or `json` |
+| `--allow-file-access` | Let the query read and write files with the EXPath File functions, as for [sxml xpath](#sxml-xpath) |
 
 - `import module ... at` reads library modules from local files, relative
   to the working directory. `import schema ... at` reads schema documents
@@ -248,6 +264,8 @@ $ sxml xquery --context-item=books.xml --method=text --expression='copy $b := //
 TAOCP
 $ sxml xquery --context-item=books.xml --expression='import schema default element namespace "" at "books.xsd"; (validate { /books })//book[1]/@year instance of attribute(*, xs:gYear)'
 true
+$ sxml xquery --allow-file-access --method=text --expression='file:write-text-lines("notes.txt", ("one", "two")), file:read-text-lines("notes.txt")[2]'
+two
 ```
 
 ## sxml transform

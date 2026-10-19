@@ -15,6 +15,7 @@
 #include "sxml/types.h"
 
 #include <stdalign.h>
+#include <stdbool.h>
 #include <string.h>
 
 #define SXML_TEXT(literal) SXML_BYTE_VIEW_FROM_LITERAL(literal)
@@ -515,9 +516,68 @@ static sxml_cli_exit_code sxml_query_read_context_item(sxml_query_run *run) {
 
 /* -------------------------------------------------------------- The run */
 
+/* The most optional features a run names: every feature of
+   sxml_all_optional_features and EXPath File. */
+#define SXML_QUERY_FEATURE_CAPACITY ((size_t)16)
+
+/* Whether the command was given --allow-file-access (false for a command
+   without the option). */
+static bool sxml_query_allows_file_access(const sxml_cli_invocation *invocation) {
+    sxml_cli_option_match match = {.is_present = false, .occurrence_count = 0};
+    return sxml_cli_arguments_find_option(
+               invocation->arguments,
+               (sxml_cli_option_lookup){.long_name = SXML_TEXT("allow-file-access"),
+                                        .occurrence_index = 0},
+               &match) == SXML_STATUS_OK &&
+           match.is_present;
+}
+
+/* Binds the conventional prefixes of the optional features' namespaces
+   (EXPath Binary 4.0, 1.5; EXPath File 4.0, 1.7): bin and file; without
+   --allow-file-access the file: functions are absent (XPST0017). */
+static sxml_status sxml_query_bind_feature_namespaces(sxml_query_run *run) {
+    sxml_name_pool *name_pool = sxml_processor_get_name_pool(run->processor);
+    run->feature_namespace_count = 0;
+    sxml_namespace_prefix_identifier prefix = {.index = 0};
+    sxml_status status = sxml_name_pool_intern_namespace_prefix(name_pool, SXML_TEXT("bin"),
+                                                                &prefix);
+    if (status == SXML_STATUS_OK) {
+        run->feature_namespaces[0] = (sxml_namespace_binding){
+            .namespace_prefix = prefix,
+            .namespace_uri = sxml_well_known_namespace_identifier(SXML_NAMESPACE_EXPATH_BINARY)};
+        run->feature_namespace_count = 1;
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_name_pool_intern_namespace_prefix(name_pool, SXML_TEXT("file"), &prefix);
+        if (status == SXML_STATUS_OK) {
+            run->feature_namespaces[1] = (sxml_namespace_binding){
+                .namespace_prefix = prefix,
+                .namespace_uri = sxml_well_known_namespace_identifier(SXML_NAMESPACE_EXPATH_FILE)};
+            run->feature_namespace_count = 2;
+        }
+    }
+    return status;
+}
+
 sxml_cli_exit_code sxml_query_run_start(sxml_query_run *run) {
     const sxml_cli_invocation *invocation = run->invocation;
     run->resolver = (sxml_query_file_resolver){.invocation = invocation};
+    /* Every feature; EXPath File, and the platform's files, only with
+       --allow-file-access (D184, D200). */
+    const sxml_optional_feature_view all_features = sxml_all_optional_features();
+    sxml_optional_feature features[SXML_QUERY_FEATURE_CAPACITY];
+    size_t feature_count = 0;
+    for (size_t feature_index = 0; feature_index < all_features.optional_feature_count &&
+                                   feature_count + 1 < SXML_QUERY_FEATURE_CAPACITY;
+         feature_index += 1) {
+        features[feature_count] = all_features.optional_features[feature_index];
+        feature_count += 1;
+    }
+    const bool allows_file_access = sxml_query_allows_file_access(invocation);
+    if (allows_file_access) {
+        features[feature_count] = sxml_expath_file_feature();
+        feature_count += 1;
+    }
     const sxml_status status = sxml_processor_create(
         invocation->allocator,
         &(sxml_processor_configuration){
@@ -528,9 +588,16 @@ sxml_cli_exit_code sxml_query_run_start(sxml_query_run *run) {
             .resource_resolver = {.state = &run->resolver,
                                   .operations = &sxml_query_file_resolver_operations},
             .clock = sxml_system_clock(),
-            .optional_features = sxml_all_optional_features()},
+            .optional_features = {.optional_features = features,
+                                  .optional_feature_count = feature_count},
+            .file_system = allows_file_access
+                               ? invocation->file_system
+                               : (sxml_file_system){.state = NULL, .operations = NULL}},
         &run->processor);
     if (status != SXML_STATUS_OK) {
+        return SXML_CLI_EXIT_INTERNAL_ERROR;
+    }
+    if (sxml_query_bind_feature_namespaces(run) != SXML_STATUS_OK) {
         return SXML_CLI_EXIT_INTERNAL_ERROR;
     }
     if (run->parameter_binding == SXML_PARAMETER_BINDING_NONE) {
@@ -563,7 +630,8 @@ void sxml_query_run_finish(sxml_query_run *run) {
 sxml_static_context_configuration sxml_query_run_static_context(const sxml_query_run *run) {
     const bool declares = run->parameter_binding == SXML_PARAMETER_BINDING_DECLARE;
     return (sxml_static_context_configuration){
-        .namespace_bindings = {.namespace_bindings = NULL, .namespace_binding_count = 0},
+        .namespace_bindings = {.namespace_bindings = run->feature_namespaces,
+                               .namespace_binding_count = run->feature_namespace_count},
         .static_base_uri = {.bytes = NULL, .byte_count = 0},
         .variable_declarations = {.variable_declarations = declares ? run->declarations : NULL,
                                   .variable_declaration_count =

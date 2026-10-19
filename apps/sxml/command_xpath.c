@@ -64,6 +64,7 @@ static const sxml_cli_option sxml_xpath_options[] = {
         .multiplicity = SXML_CLI_OPTION_AT_MOST_ONCE,
         .summary = SXML_BYTE_VIEW_INITIALIZER("Serialization method of the result"),
     },
+    SXML_QUERY_FILE_ACCESS_OPTION,
 };
 
 static const sxml_cli_positional sxml_xpath_positionals[] = {
@@ -153,8 +154,10 @@ const sxml_cli_command sxml_xpath_command = {
         "\n"
         "--context-item=FILE parses FILE and makes it the context item; without\n"
         "it there is no context item. --param=NAME=VALUE binds $NAME to\n"
-        "xs:untypedAtomic(VALUE). fn:doc reads local files. An EXPRESSION that\n"
-        "starts with - must follow --.\n"
+        "xs:untypedAtomic(VALUE). fn:doc reads local files. --allow-file-access\n"
+        "lets the expression read and write files with the EXPath File\n"
+        "functions (namespace http://expath.org/ns/file); without it they do\n"
+        "not exist. An EXPRESSION that starts with - must follow --.\n"
         "\n"
         "An error is reported on standard error as\n"
         "  expression:LINE:COLUMN: err:CODE: description\n"

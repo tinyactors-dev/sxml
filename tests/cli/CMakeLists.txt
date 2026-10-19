@@ -128,6 +128,12 @@ sxml_add_cli_test(xpath_serialization_error EXIT_CODE 1 ARGUMENTS xpath --method
 sxml_add_cli_test(xpath_no_expression EXIT_CODE 2 ARGUMENTS xpath)
 sxml_add_cli_test(xpath_negative_after_double_dash EXIT_CODE 0 ARGUMENTS xpath -- "-1 - 1")
 sxml_add_cli_test(xpath_help EXIT_CODE 0 ARGUMENTS xpath --help)
+# EXPath Binary, always there, and EXPath File with --allow-file-access
+# only (packets 7.8, 7.9; D184, D198, D200).
+sxml_add_cli_test(xpath_binary EXIT_CODE 0 ARGUMENTS xpath "bin:hex('CAFE') => bin:to-octets(), string(bin:pack-integer(1000, 2))")
+sxml_add_cli_test(xpath_file_access EXIT_CODE 0 ARGUMENTS xpath --allow-file-access "file:exists('books.xml'), file:is-dir('xslt'), file:name(file:current-dir()), file:read-text-lines('books.xml')[1]")
+sxml_add_cli_test(xpath_file_access_denied EXIT_CODE 1 ARGUMENTS xpath "file:exists('books.xml')")
+sxml_add_cli_test(xquery_file_write EXIT_CODE 0 ARGUMENTS xquery --allow-file-access --method=adaptive "--expression=let $file := file:create-temp-file('sxml-cli-', '.txt') return (file:write-text($file, codepoints-to-string((99, 97, 102, 233))), file:read-text($file), file:size($file), file:delete($file), file:exists($file))")
 
 # sxml xquery (apps/sxml/README.md): query files in tests/cli/input/.
 sxml_add_cli_test(xquery_file_html EXIT_CODE 0 ARGUMENTS xquery --context-item=books.xml titles.xq)
