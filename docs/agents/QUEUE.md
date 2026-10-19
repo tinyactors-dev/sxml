@@ -9,7 +9,7 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 - Phase 5 (XSD 1.1, schema awareness) closed by agent review (D182); four
   gate boxes wait for full runs and fuzzing on the owner's machine (D181).
   All public headers are stable.
-- Passes: XP40 31,098, XQ40 42,490, XT40 8,973, XSD in scope 41,483 of
+- Passes: XP40 31,098, XQ40 42,490, XT40 8,931+, XSD in scope 41,483 of
   41,518. Zero error outcomes in every suite.
 - Optional features (D189). Budgets (D202, D207): core `sxml.wasm`
   2,200,000 / 770,000 (2,120,223 now), `sxml-full.wasm` 4,000,000 /
@@ -23,7 +23,7 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 - 7.6a XSLT streamability analysis.
 - 7.11 fn:transform (after 7.3).
 - 7.7b/7.7c XQuery Update 4.0 additions, fn:put, revalidation (after 7.7a, D187: upd-* 733 of 825).
-- 7.14 DTD processing (after 7.13, D195).
+- 7.14c DTD follow-ups: QT4 driver features, `sxml check` flags, XT40 dtd failures.
 
 ## Next
 
@@ -47,7 +47,7 @@ XPath and XQuery (after 2.21, D190; XP40 31,098, XQ40 41,456):
 - fn:serialize canonical-JSON cases (27) need `bin:unpack-double` (7.8).
 - A processor keeps every imported schema until it is destroyed (D174).
 
-XSLT (after 4.19, D185; XT40 8,973):
+XSLT (after 4.19, D185; XT40 8,931+):
 - `priority` stays at 6/40: the suite expects "~T" patterns the project's
   draft (13 Oct 2026) replaced, and other expectations contradict 6.4 (D29).
 - `match="$var"` membership index: designed in D185, needs
@@ -83,8 +83,10 @@ multi-byte decoders (or FODC0011), source locations, XHTML input, and the
 CLI's missing static base URI (relative `html-doc`/`unparsed-text` in
 `sxml xpath`/`xquery`).
 
-XML 1.1 (after 7.13, D195; xmlconf 1.1 242 of 271):
-- 29 xmlconf cases need external entities or DTDs (7.14).
+DTD (7.14a/b done, D199): xmlconf external-entity cases all pass, XML 1.1
+not-wf 169 of 169; XT40 dtd 68 of 79 (gate 90 %); XT40 8,931.
+
+XML 1.1 (after 7.13, D195):
 - XT40 xml-version-007/-016 and namespace-2606/-6202 fail in `src/xslt*`.
 - Owner: 13 XQ40 cases need query text lexed by XML 1.1 rules; keep 1.0,
   switch to 1.1, or a processor option (Proposed in DECISIONS.md).
