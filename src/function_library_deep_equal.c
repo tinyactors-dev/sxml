@@ -93,6 +93,12 @@ typedef struct deep_equal_options {
     bool compares_id_property;
     bool compares_idrefs_property;
     bool compares_nilled_property;
+    /* type-variety (default true: an element of simple content differs
+       from one of complex content) and typed-values (default true:
+       elements of simple content and typed attributes compare by their
+       typed values). */
+    bool compares_type_variety;
+    bool compares_typed_values;
     bool ignores_empty_entries;
     bool is_ordered;
     whitespace_handling whitespace;
@@ -221,11 +227,15 @@ static void set_boolean_option(deep_equal_options *options, boolean_setting sett
     case SXML_BOOLEAN_OPTION_KIND_TYPE_ANNOTATIONS:
         options->compares_type_annotations = value;
         return;
+    case SXML_BOOLEAN_OPTION_KIND_TYPE_VARIETY:
+        options->compares_type_variety = value;
+        return;
+    case SXML_BOOLEAN_OPTION_KIND_TYPED_VALUES:
+        options->compares_typed_values = value;
+        return;
     case SXML_BOOLEAN_OPTION_KIND_DEBUG:
     case SXML_BOOLEAN_OPTION_KIND_FALSE_ON_ERROR:
-    case SXML_BOOLEAN_OPTION_KIND_TYPE_VARIETY:
-    case SXML_BOOLEAN_OPTION_KIND_TYPED_VALUES:
-        /* No effect without schemas (and no diagnostics). */
+        /* No diagnostics. */
         return;
     }
 }
@@ -532,6 +542,8 @@ static sxml_status read_options(const sxml_function_call *call,
                                 deep_equal_options *options) {
     *options = (deep_equal_options){.whitespace = SXML_WHITESPACE_HANDLING_PRESERVE,
                                     .is_ordered = true,
+                                    .compares_type_variety = true,
+                                    .compares_typed_values = true,
                                     .collation = sxml_collation_codepoint(),
                                     .unordered_elements = sxml_sequence_empty()};
     sxml_status status = SXML_STATUS_OK;
@@ -1434,6 +1446,130 @@ static sxml_status push_children(deep_comparison *comparison, parent_pair pair) 
     return push_unordered(comparison, first, second);
 }
 
+/* True when an element's annotation has simple content: a simple type
+   or a complex type with simple content (F&O 4.0, fn:deep-equal);
+   xs:untyped and xs:anyType have complex content. */
+static bool has_simple_content(const deep_comparison *comparison,
+                               sxml_type_identifier annotation) {
+    if (annotation.index == SXML_TYPE_XS_UNTYPED || annotation.index == SXML_TYPE_XS_ANY_TYPE) {
+        return false;
+    }
+    sxml_type_description description;
+    if (sxml_type_registry_describe_type(sxml_item_heap_get_type_registry(comparison->item_heap),
+                                         annotation, &description) != SXML_STATUS_OK) {
+        return false;
+    }
+    if (description.variety == SXML_TYPE_VARIETY_COMPLEX) {
+        return description.variety_details.complex_type.content_type_variety ==
+               SXML_CONTENT_TYPE_VARIETY_SIMPLE;
+    }
+    return description.variety == SXML_TYPE_VARIETY_ATOMIC ||
+           description.variety == SXML_TYPE_VARIETY_LIST ||
+           description.variety == SXML_TYPE_VARIETY_UNION ||
+           description.variety == SXML_TYPE_VARIETY_ANY_SIMPLE;
+}
+
+/* The typed values of two nodes, deep-equal item by item (the normal
+   rules for atomic items; an items-equal function is not asked). */
+static sxml_status compare_typed_values(deep_comparison *comparison, node_pair pair) {
+    sxml_sequence first = sxml_sequence_empty();
+    sxml_sequence second = sxml_sequence_empty();
+    sxml_status status = sxml_node_make_typed_value(
+        comparison->item_heap,
+        &(sxml_node_value_request){.node = pair.first_node,
+                                   .error_record = comparison->call->error_record},
+        &first);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_node_make_typed_value(
+            comparison->item_heap,
+            &(sxml_node_value_request){.node = pair.second_node,
+                                       .error_record = comparison->call->error_record},
+            &second);
+    }
+    uint64_t first_count = 0;
+    uint64_t second_count = 0;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_sequence_count(first, comparison->call->error_record, &first_count);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_sequence_count(second, comparison->call->error_record, &second_count);
+    }
+    comparison->is_equal = comparison->is_equal && first_count == second_count;
+    for (uint64_t item_index = 0;
+         status == SXML_STATUS_OK && comparison->is_equal && item_index < first_count;
+         item_index += 1) {
+        sxml_item first_item = {.representation = 0};
+        sxml_item second_item = {.representation = 0};
+        status = sxml_sequence_get_item(first, (sxml_item_request){.item_index = item_index},
+                                        &first_item);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_sequence_get_item(second, (sxml_item_request){.item_index = item_index},
+                                            &second_item);
+        }
+        if (status == SXML_STATUS_OK) {
+            status = compare_atomic(comparison, first_item, second_item);
+        }
+    }
+    sxml_sequence_release(first);
+    sxml_sequence_release(second);
+    return status;
+}
+
+/* The string values of two nodes by equal-strings. */
+static sxml_status compare_string_values(deep_comparison *comparison, node_pair pair) {
+    sxml_item first = {.representation = 0};
+    sxml_item second = {.representation = 0};
+    sxml_status status = sxml_node_make_string_value(comparison->item_heap, pair.first_node, &first);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_node_make_string_value(comparison->item_heap, pair.second_node, &second);
+    }
+    sxml_atomic_datum first_datum;
+    sxml_atomic_datum second_datum;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_atomic_item_get_datum(first, &first_datum);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_atomic_item_get_datum(second, &second_datum);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = compare_strings(
+            comparison, (text_pair){.first_text = first_datum.datum_details.string.utf8,
+                                    .second_text = second_datum.datum_details.string.utf8});
+    }
+    sxml_item_release(first);
+    sxml_item_release(second);
+    return status;
+}
+
+/* How two elements' contents compare (F&O 4.0, fn:deep-equal): both of
+   simple content by typed values (typed-values) or string values; both
+   of complex content by their children (*compares_children); one of each
+   not at all, or with type-variety false by their children. */
+typedef struct element_contents {
+    bool compares_children;
+} element_contents;
+
+static sxml_status compare_element_contents(deep_comparison *comparison, described_pair pair,
+                                            element_contents *contents) {
+    contents->compares_children = false;
+    const bool first_is_simple = has_simple_content(comparison, pair.first->type_annotation);
+    const bool second_is_simple = has_simple_content(comparison, pair.second->type_annotation);
+    if (first_is_simple != second_is_simple) {
+        /* type-variety false: the children decide, as for complex
+           content (QT4 deep-equal-40-idref-property-002). */
+        comparison->is_equal = !comparison->options.compares_type_variety;
+        contents->compares_children = comparison->is_equal;
+        return SXML_STATUS_OK;
+    }
+    if (!first_is_simple) {
+        contents->compares_children = true;
+        return SXML_STATUS_OK;
+    }
+    return comparison->options.compares_typed_values
+               ? compare_typed_values(comparison, pair.nodes)
+               : compare_string_values(comparison, pair.nodes);
+}
+
 static sxml_status compare_nodes(deep_comparison *comparison, node_pair pair) {
     sxml_node_description first;
     sxml_node_description second;
@@ -1460,8 +1596,15 @@ static sxml_status compare_nodes(deep_comparison *comparison, node_pair pair) {
             comparison->is_equal = false;
             return SXML_STATUS_OK;
         }
+        element_contents contents = {.compares_children = true};
+        status = compare_element_contents(
+            comparison, (described_pair){.nodes = pair, .first = &first, .second = &second},
+            &contents);
+        if (status != SXML_STATUS_OK || !comparison->is_equal) {
+            return status;
+        }
         status = find_children_order(comparison, first.node_name, &order);
-        if (status == SXML_STATUS_OK) {
+        if (status == SXML_STATUS_OK && contents.compares_children) {
             status = push_children(comparison, (parent_pair){.nodes = pair,
                                                              .first = &first,
                                                              .second = &second,
@@ -1482,6 +1625,13 @@ static sxml_status compare_nodes(deep_comparison *comparison, node_pair pair) {
                                                        .second = &second,
                                                        .is_unordered = false});
     case SXML_NODE_KIND_ATTRIBUTE:
+        if (comparison->options.compares_typed_values &&
+            first.type_annotation.index != SXML_TYPE_XS_UNTYPED_ATOMIC &&
+            second.type_annotation.index != SXML_TYPE_XS_UNTYPED_ATOMIC) {
+            /* T is true: the typed values. */
+            return compare_typed_values(comparison, pair);
+        }
+        return compare_contents(comparison, pair, first.node_kind);
     case SXML_NODE_KIND_TEXT:
     case SXML_NODE_KIND_COMMENT:
     case SXML_NODE_KIND_PROCESSING_INSTRUCTION:
