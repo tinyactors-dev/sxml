@@ -499,6 +499,25 @@ static void test_merge(sxml_test_state *state) {
                     "</xsl:merge-source><xsl:merge-source name='a' select='1'><xsl:merge-key/>"
                     "</xsl:merge-source><xsl:merge-action/></xsl:merge>"),
          "error:XTSE3190"},
+        /* 15.4: XTDE2210 for keys that differ in order, XTTE2230 for key
+           values that are not comparable. */
+        {STYLESHEET("<xsl:merge><xsl:merge-source select='1'><xsl:merge-key select='.'/>"
+                    "</xsl:merge-source><xsl:merge-source select='2'>"
+                    "<xsl:merge-key select='.' order='descending'/></xsl:merge-source>"
+                    "<xsl:merge-action/></xsl:merge>"),
+         "error:XTDE2210"},
+        {STYLESHEET("<xsl:merge><xsl:merge-source select='1'><xsl:merge-key select='.'/>"
+                    "</xsl:merge-source><xsl:merge-source select='\"a\"'>"
+                    "<xsl:merge-key select='.'/></xsl:merge-source>"
+                    "<xsl:merge-action/></xsl:merge>"),
+         "error:XTTE2230"},
+        /* 14.2.1, 15.5.1: patterns cannot see the current group. */
+        {STYLESHEET("<xsl:for-each-group select='1' group-by='.'>"
+                    "<xsl:number count='*[current-group()]'/></xsl:for-each-group>"),
+         "error:XTSE1060"},
+        {STYLESHEET("<xsl:number count='*[Q{http://www.w3.org/2005/xpath-functions}"
+                    "current-merge-key()]'/>"),
+         "error:XTSE3500"},
     };
     check_cases(state, (case_list){.cases = cases,
                                    .case_count = SXML_TEST_COUNT(cases),

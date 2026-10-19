@@ -3894,6 +3894,80 @@ static sxml_status sxml_xslt_pattern_build_with_capacity(sxml_xslt_pattern_build
     return status;
 }
 
+/* The functions whose value no pattern can see, with the static error a
+   pattern that calls or names one raises: fn:current-group (14.2.1),
+   fn:current-grouping-key (14.2.2), fn:current-merge-group (15.5.1),
+   fn:current-merge-key and fn:current-merge-key-array (15.5.2, 15.5.3). */
+typedef struct sxml_xslt_pattern_forbidden_function {
+    const char *local_name;
+    const char *code_local_name;
+    const char *description;
+} sxml_xslt_pattern_forbidden_function;
+
+static const sxml_xslt_pattern_forbidden_function sxml_xslt_pattern_forbidden_functions[] = {
+    {"current-group", "XTSE1060", "fn:current-group is used in a pattern (XSLT 4.0, 14.2.1)"},
+    {"current-grouping-key", "XTSE1070",
+     "fn:current-grouping-key is used in a pattern (XSLT 4.0, 14.2.2)"},
+    {"current-merge-group", "XTSE3470",
+     "fn:current-merge-group is used in a pattern (XSLT 4.0, 15.5.1)"},
+    {"current-merge-key", "XTSE3500",
+     "fn:current-merge-key is used in a pattern (XSLT 4.0, 15.5.3)"},
+    {"current-merge-key-array", "XTSE3500",
+     "fn:current-merge-key-array is used in a pattern (XSLT 4.0, 15.5.2)"},
+};
+
+/* The static error of a call of, or reference to, one of the forbidden
+   functions anywhere in the pattern (one pass over its nodes). */
+static sxml_status sxml_xslt_pattern_check_forbidden_functions(
+    const sxml_xslt_pattern_match_expression_request *request) {
+    const sxml_ast *ast = request->pattern_ast;
+    const sxml_xpath_static_context *static_context = request->static_context;
+    if (static_context == NULL) {
+        return SXML_STATUS_OK;
+    }
+    for (uint32_t node_number = 1; node_number < ast->node_count; node_number += 1) {
+        const sxml_ast_node_index node = {.value = node_number};
+        const sxml_ast_kind kind = sxml_xslt_pattern_node(ast, node)->kind;
+        if (kind != SXML_AST_KIND_FUNCTION_CALL &&
+            kind != SXML_AST_KIND_NAMED_FUNCTION_REFERENCE) {
+            continue;
+        }
+        sxml_xpath_resolved_name resolved = {.namespace_uri = {0},
+                                             .local_name = {.bytes = NULL, .byte_count = 0}};
+        if (sxml_xpath_resolve_name(
+                &(sxml_xpath_name_request){
+                    .ast = ast,
+                    .name_node = sxml_xslt_pattern_child(ast, node, SXML_AST_FIELD_NAME),
+                    .name_role = SXML_XPATH_NAME_ROLE_FUNCTION,
+                    .static_context = static_context,
+                    .error_record = NULL},
+                &resolved) != SXML_STATUS_OK ||
+            resolved.namespace_uri.index !=
+                sxml_well_known_namespace_identifier(SXML_NAMESPACE_FUNCTIONS).index) {
+            /* An unknown prefix is lowering's error (XPST0081). */
+            continue;
+        }
+        for (size_t function_index = 0;
+             function_index < sizeof(sxml_xslt_pattern_forbidden_functions) /
+                                  sizeof(sxml_xslt_pattern_forbidden_functions[0]);
+             function_index += 1) {
+            const sxml_xslt_pattern_forbidden_function *forbidden =
+                &sxml_xslt_pattern_forbidden_functions[function_index];
+            if (sxml_byte_view_equals(resolved.local_name,
+                                      sxml_byte_view_from_c_string(forbidden->local_name))) {
+                return sxml_xpath_report_static_error(
+                    &(sxml_xpath_static_error){
+                        .ast = ast,
+                        .node = node,
+                        .code_local_name = sxml_byte_view_from_c_string(forbidden->code_local_name),
+                        .description = sxml_byte_view_from_c_string(forbidden->description)},
+                    request->error_record);
+            }
+        }
+    }
+    return SXML_STATUS_OK;
+}
+
 sxml_status sxml_xslt_pattern_build_match_expression(
     const sxml_xslt_pattern_match_expression_request *request,
     sxml_ast **match_expression) {
@@ -3904,6 +3978,10 @@ sxml_status sxml_xslt_pattern_build_match_expression(
     const sxml_ast *pattern = request->pattern_ast;
     if (sxml_xslt_pattern_node(pattern, pattern->root)->kind != SXML_AST_KIND_PATTERN) {
         return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    const sxml_status forbidden = sxml_xslt_pattern_check_forbidden_functions(request);
+    if (forbidden != SXML_STATUS_OK) {
+        return forbidden;
     }
     sxml_xslt_pattern_builder builder = {
         .request = request,

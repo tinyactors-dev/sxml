@@ -311,6 +311,21 @@ static const sxml_xslt_error_mapping sort_mappings[] = {
          "The collation of xsl:sort is not one sxml recognizes (XSLT 4.0, 13.1.3)")},
 };
 
+/* xsl:merge sorts its tuples by the merge keys: keys that are not
+   comparable are XTTE2230 there (15.4). */
+static const sxml_xslt_error_mapping merge_sort_mappings[] = {
+    {.caught_code = SXML_BYTE_VIEW_INITIALIZER("XPTY0004"),
+     .raised_status = SXML_STATUS_TYPE_ERROR,
+     .raised_code = SXML_BYTE_VIEW_INITIALIZER("XTTE2230"),
+     .description = SXML_BYTE_VIEW_INITIALIZER(
+         "Two merge key values are not comparable (XSLT 4.0, 15.4)")},
+    {.caught_code = SXML_BYTE_VIEW_INITIALIZER("FOCH0002"),
+     .raised_status = SXML_STATUS_DYNAMIC_ERROR,
+     .raised_code = SXML_BYTE_VIEW_INITIALIZER("XTDE1035"),
+     .description = SXML_BYTE_VIEW_INITIALIZER(
+         "The collation of xsl:merge-key is not one sxml recognizes (XSLT 4.0, 13.1.3)")},
+};
+
 static const sxml_xslt_error_mapping grouping_mappings[] = {
     {.caught_code = SXML_BYTE_VIEW_INITIALIZER("FOCH0002"),
      .raised_status = SXML_STATUS_DYNAMIC_ERROR,
@@ -1052,8 +1067,15 @@ static sxml_status finish_sort(sxml_xpath_lowering_machine *machine,
                                .sort = {.input = locals->input,
                                         .focus = locals->item_focus.slots,
                                         .keys = keys}},
-                .mappings = {.mappings = sort_mappings,
-                             .mapping_count = sizeof(sort_mappings) / sizeof(sort_mappings[0])}},
+                .mappings = locals->tuple_key_offset != 0
+                                ? (sxml_xslt_error_mapping_view){.mappings = merge_sort_mappings,
+                                                                 .mapping_count =
+                                                                     sizeof(merge_sort_mappings) /
+                                                                     sizeof(merge_sort_mappings[0])}
+                                : (sxml_xslt_error_mapping_view){
+                                      .mappings = sort_mappings,
+                                      .mapping_count =
+                                          sizeof(sort_mappings) / sizeof(sort_mappings[0])}},
             &sorted);
     }
     if (status != SXML_STATUS_OK) {
@@ -1821,6 +1843,53 @@ static sxml_status check_merge(const sxml_xslt_lowering *lowering, merge_locals 
     return SXML_STATUS_OK;
 }
 
+/* 15.4, XTDE2210: corresponding xsl:merge-key elements of two merge
+   sources whose lang, order, collation, case-order or data-type have
+   different effective values. Only fixed values (no enclosed expression)
+   are compared; an absent attribute is its default. */
+static bool has_inconsistent_merge_keys(const sxml_xslt_lowering *lowering,
+                                        sxml_xslt_ast_node_index merge) {
+    static const sxml_xslt_ast_attribute_kind compared[] = {
+        SXML_XSLT_AST_ATTRIBUTE_LANG, SXML_XSLT_AST_ATTRIBUTE_ORDER,
+        SXML_XSLT_AST_ATTRIBUTE_COLLATION, SXML_XSLT_AST_ATTRIBUTE_CASE_ORDER,
+        SXML_XSLT_AST_ATTRIBUTE_DATA_TYPE};
+    static const char *const defaults[] = {"", "ascending", "", "", ""};
+    const sxml_xslt_ast_node_index first_source =
+        first_child_of(lowering, (child_query){.node = merge, .kind = SXML_XSLT_AST_KIND_MERGE_SOURCE});
+    for (sxml_xslt_ast_node_index source = next_like(lowering, first_source); source.value != 0;
+         source = next_like(lowering, source)) {
+        sxml_xslt_ast_node_index first_key = first_child_of(
+            lowering, (child_query){.node = first_source, .kind = SXML_XSLT_AST_KIND_MERGE_KEY});
+        sxml_xslt_ast_node_index key = first_child_of(
+            lowering, (child_query){.node = source, .kind = SXML_XSLT_AST_KIND_MERGE_KEY});
+        for (; first_key.value != 0 && key.value != 0;
+             first_key = next_like(lowering, first_key), key = next_like(lowering, key)) {
+            for (size_t attribute_index = 0;
+                 attribute_index < sizeof(compared) / sizeof(compared[0]); attribute_index += 1) {
+                const sxml_xslt_ast_attribute *first_attribute =
+                    find_attribute(lowering, first_key, compared[attribute_index]);
+                const sxml_xslt_ast_attribute *attribute =
+                    find_attribute(lowering, key, compared[attribute_index]);
+                const sxml_byte_view fallback =
+                    sxml_byte_view_from_c_string(defaults[attribute_index]);
+                const fixed_text first_text =
+                    first_attribute->kind == SXML_XSLT_AST_ATTRIBUTE_NONE
+                        ? (fixed_text){.is_fixed = true, .text = fallback}
+                        : read_fixed_text(lowering, first_attribute);
+                const fixed_text text = attribute->kind == SXML_XSLT_AST_ATTRIBUTE_NONE
+                                            ? (fixed_text){.is_fixed = true, .text = fallback}
+                                            : read_fixed_text(lowering, attribute);
+                if (first_text.is_fixed && text.is_fixed &&
+                    !sxml_byte_view_equals(sxml_xml_text_trim_whitespace(first_text.text),
+                                           sxml_xml_text_trim_whitespace(text.text))) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
 /* Allocates the owned arrays and the source names. */
 static sxml_status start_merge(sxml_xpath_lowering_machine *machine,
                                sxml_xpath_lowering_frame *frame) {
@@ -2134,6 +2203,25 @@ static sxml_status step_merge(sxml_xpath_lowering_machine *machine,
     switch (locals->phase) {
     case SXML_XSLT_MERGE_PHASE_START:
         locals->phase = SXML_XSLT_MERGE_PHASE_KEY_ATTRIBUTES;
+        if (has_inconsistent_merge_keys(lowering, locals->head.node)) {
+            /* XTDE2210 (15.4) when evaluated: the merge is its raise. */
+            outcome->is_pushed = true;
+            sxml_ir_expression_index raise = {0};
+            status = sxml_xpath_lowerer_add_raise(
+                lowerer,
+                (sxml_xpath_lowering_raise_request){
+                    .node = no_ast_node,
+                    .error_status = SXML_STATUS_DYNAMIC_ERROR,
+                    .code_local_name = SXML_BYTE_VIEW_FROM_LITERAL("XTDE2210"),
+                    .description = SXML_BYTE_VIEW_FROM_LITERAL(
+                        "Corresponding merge keys of two merge sources differ in lang, order, "
+                        "collation, case-order or data-type (XSLT 4.0, 15.4)")},
+                &raise);
+            if (status != SXML_STATUS_OK) {
+                return status;
+            }
+            return sxml_xpath_lowering_finish_frame(machine, frame, raise);
+        }
         status = start_merge(machine, frame);
         locals->key = first_child_of(
             lowering, (child_query){.node = locals->source, .kind = SXML_XSLT_AST_KIND_MERGE_KEY});
