@@ -47,6 +47,7 @@
 #include "sxml/xml.h"
 
 #include "sxml/string.h"
+#include "dtd_internal.h"
 #include "xdm_internal.h"
 #include "xml_internal.h"
 
@@ -150,6 +151,9 @@ typedef struct sxml_xml_frame {
 typedef struct sxml_xml_expansion {
     uint32_t entity_index;
     size_t byte_offset;
+    /* Which inclusion of a parameter entity this is, from 1, for the
+       nesting constraints of declarations (2.8, 3.2.1). */
+    size_t inclusion_number;
 } sxml_xml_expansion;
 
 struct sxml_xml_parser {
@@ -171,7 +175,37 @@ struct sxml_xml_parser {
     /* Named children of nodes being looped over, as a stack of lists:
        ts_node_named_child is linear in the index, a cursor is not. */
     sxml_xml_array child_nodes;
+    /* DTD validation (D199): the schema documents written from the DTD,
+       their ranges and views, and the prefix bindings their names are
+       resolved with. */
+    sxml_xml_buffer schema_text;
+    /* For each open element of a validating parse, what its declaration
+       says of its content: sxml_xml_open_content. */
+    sxml_xml_array open_contents;
+    /* While a declaration is expanded: for each open parenthesis, the
+       inclusion it was read in (size_t). */
+    sxml_xml_array parenthesis_inclusions;
+    sxml_xml_array schema_documents;
+    sxml_xml_array schema_views;
+    sxml_xml_array prefix_bindings;
 };
+
+/* What the declaration of an open element says of its content, for the
+   validity constraints on content that the parser checks (D199). */
+typedef struct sxml_xml_open_content {
+    /* Whether the element type is declared; EMPTY, ANY, mixed or element
+       content. */
+    bool is_declared;
+    sxml_xml_content_kind content_kind;
+    bool is_declared_in_external_markup;
+} sxml_xml_open_content;
+
+/* The two builders of a validating parse: the parse's, which may be the
+   null builder, and the validator's checking builder. */
+typedef struct sxml_xml_tee {
+    sxml_tree_builder first;
+    sxml_tree_builder second;
+} sxml_xml_tee;
 
 /* The work of one parse. */
 typedef struct sxml_xml_document {
@@ -198,6 +232,13 @@ typedef struct sxml_xml_document {
     bool skips_declarations;
     /* request->entity_resolver is not the null resolver. */
     bool reads_external_entities;
+    /* request->validator is not the null validator. */
+    bool validates;
+    /* The name the document type declaration gives, for VC: Root Element
+       Type (2.8). */
+    sxml_byte_view doctype_name;
+    /* The events of a validating parse go to both builders. */
+    sxml_xml_tee tee;
     size_t expansion_byte_count;
     uint32_t element_depth;
     sxml_namespace_prefix_identifier xml_prefix;
@@ -218,10 +259,13 @@ typedef enum sxml_xml_node_type {
     SXML_XML_NODE_CDATA_TEXT,
     SXML_XML_NODE_CHARACTER_DATA,
     SXML_XML_NODE_CHARACTER_REFERENCE,
+    SXML_XML_NODE_CHOICE_GROUP,
     SXML_XML_NODE_COMMENT,
     SXML_XML_NODE_COMMENT_TEXT,
     SXML_XML_NODE_CONDITIONAL_SECTION,
+    SXML_XML_NODE_CONTENT_PARTICLE,
     SXML_XML_NODE_ELEMENT,
+    SXML_XML_NODE_ELEMENT_CONTENT,
     SXML_XML_NODE_ELEMENT_DECLARATION,
     SXML_XML_NODE_EMPTY_ELEMENT_TAG,
     SXML_XML_NODE_END_TAG,
@@ -230,11 +274,14 @@ typedef enum sxml_xml_node_type {
     SXML_XML_NODE_ENUMERATION,
     SXML_XML_NODE_GENERAL_ENTITY_DECLARATION,
     SXML_XML_NODE_INCLUDE_SECTION,
+    SXML_XML_NODE_MIXED_CONTENT,
+    SXML_XML_NODE_NAME,
     SXML_XML_NODE_NOTATION_DECLARATION,
     SXML_XML_NODE_NOTATION_TYPE,
     SXML_XML_NODE_PARAMETER_ENTITY_DECLARATION,
     SXML_XML_NODE_PARAMETER_ENTITY_REFERENCE,
     SXML_XML_NODE_PROCESSING_INSTRUCTION,
+    SXML_XML_NODE_SEQUENCE_GROUP,
     SXML_XML_NODE_START_TAG,
     SXML_XML_NODE_STRING_TYPE,
     SXML_XML_NODE_TEXT_DECLARATION,
@@ -258,10 +305,13 @@ static const sxml_xml_node_type_entry sxml_xml_node_types[] = {
     {"cdata_text", SXML_XML_NODE_CDATA_TEXT},
     {"character_data", SXML_XML_NODE_CHARACTER_DATA},
     {"character_reference", SXML_XML_NODE_CHARACTER_REFERENCE},
+    {"choice_group", SXML_XML_NODE_CHOICE_GROUP},
     {"comment", SXML_XML_NODE_COMMENT},
     {"comment_text", SXML_XML_NODE_COMMENT_TEXT},
     {"conditional_section", SXML_XML_NODE_CONDITIONAL_SECTION},
+    {"content_particle", SXML_XML_NODE_CONTENT_PARTICLE},
     {"element", SXML_XML_NODE_ELEMENT},
+    {"element_content", SXML_XML_NODE_ELEMENT_CONTENT},
     {"element_declaration", SXML_XML_NODE_ELEMENT_DECLARATION},
     {"empty_element_tag", SXML_XML_NODE_EMPTY_ELEMENT_TAG},
     {"end_tag", SXML_XML_NODE_END_TAG},
@@ -270,12 +320,15 @@ static const sxml_xml_node_type_entry sxml_xml_node_types[] = {
     {"enumeration", SXML_XML_NODE_ENUMERATION},
     {"general_entity_declaration", SXML_XML_NODE_GENERAL_ENTITY_DECLARATION},
     {"include_section", SXML_XML_NODE_INCLUDE_SECTION},
+    {"mixed_content", SXML_XML_NODE_MIXED_CONTENT},
+    {"name", SXML_XML_NODE_NAME},
     {"notation_declaration", SXML_XML_NODE_NOTATION_DECLARATION},
     {"notation_type", SXML_XML_NODE_NOTATION_TYPE},
     {"parameter_entity_declaration",
      SXML_XML_NODE_PARAMETER_ENTITY_DECLARATION},
     {"parameter_entity_reference", SXML_XML_NODE_PARAMETER_ENTITY_REFERENCE},
     {"processing_instruction", SXML_XML_NODE_PROCESSING_INSTRUCTION},
+    {"sequence_group", SXML_XML_NODE_SEQUENCE_GROUP},
     {"start_tag", SXML_XML_NODE_START_TAG},
     {"string_type", SXML_XML_NODE_STRING_TYPE},
     {"text_declaration", SXML_XML_NODE_TEXT_DECLARATION},
@@ -408,6 +461,15 @@ sxml_xml_parser_initialize(sxml_memory_view memory,
             sxml_xml_parser_array(allocator, sizeof(sxml_xml_expansion)),
         .duplicate_slots = sxml_xml_parser_array(allocator, sizeof(uint32_t)),
         .child_nodes = sxml_xml_parser_array(allocator, sizeof(TSNode)),
+        .schema_text = sxml_xml_buffer_empty(allocator),
+        .open_contents =
+            sxml_xml_parser_array(allocator, sizeof(sxml_xml_open_content)),
+        .parenthesis_inclusions = sxml_xml_parser_array(allocator, sizeof(size_t)),
+        .schema_documents =
+            sxml_xml_parser_array(allocator, sizeof(sxml_byte_range)),
+        .schema_views = sxml_xml_parser_array(allocator, sizeof(sxml_byte_view)),
+        .prefix_bindings =
+            sxml_xml_parser_array(allocator, sizeof(sxml_dtd_prefix_binding)),
     };
     *parser = placed;
     return SXML_STATUS_OK;
@@ -428,6 +490,12 @@ void sxml_xml_parser_finalize(sxml_xml_parser *parser) {
     sxml_xml_array_release(&parser->expansions);
     sxml_xml_array_release(&parser->duplicate_slots);
     sxml_xml_array_release(&parser->child_nodes);
+    sxml_xml_buffer_release(&parser->schema_text);
+    sxml_xml_array_release(&parser->open_contents);
+    sxml_xml_array_release(&parser->parenthesis_inclusions);
+    sxml_xml_array_release(&parser->schema_documents);
+    sxml_xml_array_release(&parser->schema_views);
+    sxml_xml_array_release(&parser->prefix_bindings);
 }
 
 sxml_status
@@ -553,6 +621,36 @@ static sxml_status sxml_xml_fail_resource(const sxml_xml_document *document,
                          .line_number = 0,
                          .column_number = 0,
                          .byte_offset = 0}});
+}
+
+/*
+ * Reports a validity error the parser checks itself to the request's
+ * validator (D199), when the parse validates; the validator's status
+ * decides whether the parse goes on.
+ */
+typedef struct sxml_xml_validity_failure {
+    /* Static text naming the constraint, "VC: ..." (XML 1.0). */
+    sxml_byte_view description;
+    sxml_source_location location;
+} sxml_xml_validity_failure;
+
+static sxml_status sxml_xml_report_validity(const sxml_xml_document *document,
+                                            sxml_xml_validity_failure failure) {
+    if (!document->validates) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_xml_validator validator = document->request->validator;
+    const sxml_status status = validator.operations->report_validity_error(
+        validator.state,
+        &(sxml_xml_validity_error){.description = failure.description,
+                                   .location = failure.location});
+    if (status != SXML_STATUS_OK) {
+        return sxml_xml_fail(document,
+                             (sxml_xml_failure){.status = status,
+                                                .description = failure.description,
+                                                .location = failure.location});
+    }
+    return SXML_STATUS_OK;
 }
 
 /* ------------------------------------------------------------ Text */
@@ -1710,7 +1808,14 @@ sxml_xml_check_reference(sxml_xml_document *document,
          sxml_xml_dtd_get_entity(&document->parser->dtd, lookup.entry_index)
              ->is_declared_in_external_markup)) {
         if (!document->requires_declared_entities) {
-            return SXML_STATUS_OK;
+            /* Then only VC: Entity Declared (4.1). */
+            return sxml_xml_report_validity(
+                document,
+                (sxml_xml_validity_failure){
+                    .description = SXML_XML_TEXT(
+                        "VC: Entity Declared: the entity is not declared (XML "
+                        "1.0, section 4.1)"),
+                    .location = check->reference.location});
         }
         failure.description = sxml_xml_entity_declared_description;
         return sxml_xml_fail(document, failure);
@@ -1833,7 +1938,9 @@ sxml_xml_expand_in_value(sxml_xml_document *document,
         return sxml_xml_fail_resource(document, status);
     }
     *(sxml_xml_expansion *)element = (sxml_xml_expansion){
-        .entity_index = expansion->entity_index, .byte_offset = 0};
+        .entity_index = expansion->entity_index,
+        .byte_offset = 0,
+        .inclusion_number = 0};
     sxml_xml_dtd_get_entity(&parser->dtd, expansion->entity_index)
         ->is_being_expanded = true;
     while (status == SXML_STATUS_OK && stack->element_count > base_count) {
@@ -1921,7 +2028,9 @@ sxml_xml_expand_in_value(sxml_xml_document *document,
         status = sxml_xml_array_push(stack, &element);
         if (status == SXML_STATUS_OK) {
             *(sxml_xml_expansion *)element = (sxml_xml_expansion){
-                .entity_index = outcome.entity_index, .byte_offset = 0};
+                .entity_index = outcome.entity_index,
+                .byte_offset = 0,
+                .inclusion_number = 0};
             sxml_xml_dtd_get_entity(&parser->dtd, outcome.entity_index)
                 ->is_being_expanded = true;
         }
@@ -2190,9 +2299,14 @@ typedef struct sxml_xml_parameter_expansion {
 } sxml_xml_parameter_expansion;
 
 /* Whether every reference was included; false when one names an entity
-   that is not declared or not read (5.1). */
+   that is not declared or not read (5.1). For a declaration, whether a
+   replacement text holds a parenthesis of a group without its partner (VC:
+   Proper Group/PE Nesting, 3.2.1) or the declaration's closing '>' (VC:
+   Proper Declaration/PE Nesting, 2.8). */
 typedef struct sxml_xml_parameter_expansion_result {
     bool is_complete;
+    bool breaks_group_nesting;
+    bool breaks_declaration_nesting;
 } sxml_xml_parameter_expansion_result;
 
 static sxml_status
@@ -2211,6 +2325,11 @@ sxml_xml_expand_parameter_entities(sxml_xml_document *document,
     uint8_t quote = 0;
     sxml_status status = SXML_STATUS_OK;
     result->is_complete = true;
+    result->breaks_group_nesting = false;
+    result->breaks_declaration_nesting = false;
+    size_t inclusion_count = 0;
+    sxml_xml_array *parentheses = &parser->parenthesis_inclusions;
+    parentheses->element_count = 0;
     while (status == SXML_STATUS_OK) {
         sxml_xml_expansion *top =
             stack->element_count > base_count
@@ -2236,10 +2355,27 @@ sxml_xml_expand_parameter_entities(sxml_xml_document *document,
             continue;
         }
         const uint8_t byte = text.bytes[*offset];
+        const size_t inclusion_number = top == NULL ? 0 : top->inclusion_number;
         if (!is_in_literal && quote != 0) {
             quote = byte == quote ? 0 : quote;
         } else if (!is_in_literal && (byte == '"' || byte == '\'')) {
             quote = byte;
+        } else if (!is_in_literal && byte == '(') {
+            void *element = NULL;
+            status = sxml_xml_array_push(parentheses, &element);
+            if (status == SXML_STATUS_OK) {
+                *(size_t *)element = inclusion_number;
+            }
+        } else if (!is_in_literal && byte == ')' &&
+                   parentheses->element_count != 0) {
+            parentheses->element_count -= 1;
+            result->breaks_group_nesting =
+                result->breaks_group_nesting ||
+                *(const size_t *)sxml_xml_array_at(parentheses,
+                                                   parentheses->element_count) !=
+                    inclusion_number;
+        } else if (!is_in_literal && byte == '>' && inclusion_number != 0) {
+            result->breaks_declaration_nesting = true;
         } else if (byte == '%') {
             const sxml_xml_parameter_reference reference =
                 sxml_xml_read_parameter_reference(text, *offset);
@@ -2263,9 +2399,11 @@ sxml_xml_expand_parameter_entities(sxml_xml_document *document,
                     status = sxml_xml_buffer_append_byte(output, ' ');
                 }
                 if (status == SXML_STATUS_OK) {
+                    inclusion_count += 1;
                     *(sxml_xml_expansion *)element = (sxml_xml_expansion){
                         .entity_index = inclusion.entity_index,
-                        .byte_offset = 0};
+                        .byte_offset = 0,
+                        .inclusion_number = inclusion_count};
                     sxml_xml_dtd_get_entity(&parser->dtd, inclusion.entity_index)
                         ->is_being_expanded = true;
                 }
@@ -2308,6 +2446,13 @@ sxml_xml_expand_parameter_entities(sxml_xml_document *document,
         sxml_xml_dtd_get_entity(&parser->dtd, top->entity_index)
             ->is_being_expanded = false;
         stack->element_count -= 1;
+    }
+    if (!is_in_literal && (expansion->text.byte_count == 0 ||
+                           expansion->text.bytes[expansion->text.byte_count - 1] !=
+                               '>')) {
+        /* The scanner ended the declaration before its '>', which an
+           entity holds. */
+        result->breaks_declaration_nesting = true;
     }
     if (status == SXML_STATUS_OUT_OF_MEMORY ||
         status == SXML_STATUS_ARITHMETIC_OVERFLOW) {
@@ -2416,6 +2561,7 @@ static sxml_status sxml_xml_declare_entity(sxml_xml_document *document,
         .replacement_text = {.byte_offset = 0, .byte_count = 0},
         .system_identifier = {.byte_offset = 0, .byte_count = 0},
         .public_identifier = {.byte_offset = 0, .byte_count = 0},
+        .notation_name = {.byte_offset = 0, .byte_count = 0},
         .is_declared_in_external_markup =
             frame->frame_kind != SXML_XML_FRAME_KIND_DOCUMENT,
         .base_uri = frame->base_uri,
@@ -2431,6 +2577,10 @@ static sxml_status sxml_xml_declare_entity(sxml_xml_document *document,
     const TSNode notation = sxml_xml_field(node, SXML_XML_FIELD_NOTATION);
     if (!ts_node_is_null(notation)) {
         status = sxml_xml_check_no_colon(document, frame, notation);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xml_store(document, sxml_xml_node_text(frame, notation),
+                                    &entity.notation_name);
+        }
         if (status != SXML_STATUS_OK) {
             return status;
         }
@@ -2501,8 +2651,62 @@ sxml_xml_attribute_type_of(const sxml_xml_frame *frame, TSNode type_node) {
         if (sxml_byte_view_equals(text, SXML_XML_TEXT("IDREFS"))) {
             return SXML_XML_ATTRIBUTE_TYPE_IDREFS;
         }
+        if (sxml_byte_view_equals(text, SXML_XML_TEXT("ENTITY"))) {
+            return SXML_XML_ATTRIBUTE_TYPE_ENTITY;
+        }
+        if (sxml_byte_view_equals(text, SXML_XML_TEXT("ENTITIES"))) {
+            return SXML_XML_ATTRIBUTE_TYPE_ENTITIES;
+        }
+        if (sxml_byte_view_equals(text, SXML_XML_TEXT("NMTOKEN"))) {
+            return SXML_XML_ATTRIBUTE_TYPE_NMTOKEN;
+        }
+        return SXML_XML_ATTRIBUTE_TYPE_NMTOKENS;
     }
-    return SXML_XML_ATTRIBUTE_TYPE_OTHER_TOKENIZED;
+    return node_type == SXML_XML_NODE_NOTATION_TYPE
+               ? SXML_XML_ATTRIBUTE_TYPE_NOTATION
+               : SXML_XML_ATTRIBUTE_TYPE_ENUMERATION;
+}
+
+/* The [60] DefaultDecl of a default_declaration node. */
+static sxml_xml_default_kind
+sxml_xml_default_kind_of(const sxml_xml_frame *frame, TSNode default_node) {
+    const sxml_byte_view text = sxml_xml_node_text(frame, default_node);
+    if (text.byte_count != 0 && text.bytes[0] == '#') {
+        return text.byte_count > 1 && text.bytes[1] == 'R'
+                   ? SXML_XML_DEFAULT_KIND_REQUIRED
+               : text.byte_count > 1 && text.bytes[1] == 'I'
+                   ? SXML_XML_DEFAULT_KIND_IMPLIED
+                   : SXML_XML_DEFAULT_KIND_FIXED;
+    }
+    return SXML_XML_DEFAULT_KIND_VALUE;
+}
+
+/* Stores the names of a [58] NotationType or the name tokens of a [59]
+   Enumeration, each followed by one space, in the DTD text. */
+static sxml_status sxml_xml_store_enumeration(sxml_xml_document *document,
+                                              sxml_xml_frame_node type,
+                                              sxml_byte_range *range) {
+    sxml_xml_dtd *dtd = &document->parser->dtd;
+    const size_t start = dtd->text.byte_count;
+    sxml_xml_children children = {.first_index = 0, .child_count = 0};
+    sxml_status status = sxml_xml_fail_resource(
+        document, sxml_xml_list_children(document, type.node, &children));
+    for (size_t child_index = 0;
+         status == SXML_STATUS_OK && child_index < children.child_count;
+         child_index++) {
+        status = sxml_xml_buffer_append(
+            &dtd->text,
+            sxml_xml_node_text(type.frame,
+                               sxml_xml_child_at(document, children, child_index)));
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xml_buffer_append_byte(&dtd->text, ' ');
+        }
+        status = sxml_xml_fail_resource(document, status);
+    }
+    sxml_xml_release_children(document, children);
+    *range = (sxml_byte_range){.byte_offset = start,
+                               .byte_count = dtd->text.byte_count - start};
+    return status;
 }
 
 /* One [53] AttDef of an attribute-list declaration for element_name. */
@@ -2522,14 +2726,28 @@ sxml_xml_declare_attribute(sxml_xml_document *document,
     if (status != SXML_STATUS_OK) {
         return status;
     }
+    const TSNode type_node = sxml_xml_field(node, SXML_XML_FIELD_TYPE);
     sxml_xml_attribute_definition definition = {
         .attribute_name = {.byte_offset = 0, .byte_count = 0},
-        .attribute_type = sxml_xml_attribute_type_of(
-            frame, sxml_xml_field(node, SXML_XML_FIELD_TYPE)),
+        .attribute_type = sxml_xml_attribute_type_of(frame, type_node),
+        .enumeration = {.byte_offset = 0, .byte_count = 0},
+        .default_kind = sxml_xml_default_kind_of(
+            frame, sxml_xml_field(node, SXML_XML_FIELD_DEFAULT)),
         .has_default_value = false,
         .default_value = {.byte_offset = 0, .byte_count = 0},
+        .is_declared_in_external_markup =
+            frame->frame_kind != SXML_XML_FRAME_KIND_DOCUMENT,
         .next_definition = 0,
     };
+    if (definition.attribute_type == SXML_XML_ATTRIBUTE_TYPE_NOTATION ||
+        definition.attribute_type == SXML_XML_ATTRIBUTE_TYPE_ENUMERATION) {
+        status = sxml_xml_store_enumeration(
+            document, (sxml_xml_frame_node){.frame = frame, .node = type_node},
+            &definition.enumeration);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+    }
     const TSNode value = sxml_xml_field(
         sxml_xml_field(node, SXML_XML_FIELD_DEFAULT), SXML_XML_FIELD_VALUE);
     if (!ts_node_is_null(value)) {
@@ -2805,6 +3023,25 @@ sxml_xml_expand_declaration(sxml_xml_document *document,
                                         .location = location,
                                         .output = &source.owned_text},
         &result);
+    if (status == SXML_STATUS_OK && result.breaks_group_nesting) {
+        status = sxml_xml_report_validity(
+            document,
+            (sxml_xml_validity_failure){
+                .description = SXML_XML_TEXT(
+                    "VC: Proper Group/PE Nesting: a group's parentheses are in "
+                    "different replacement texts (XML 1.0, section 3.2.1)"),
+                .location = location});
+    }
+    if (status == SXML_STATUS_OK && result.breaks_declaration_nesting) {
+        status = sxml_xml_report_validity(
+            document,
+            (sxml_xml_validity_failure){
+                .description = SXML_XML_TEXT(
+                    "VC: Proper Declaration/PE Nesting: a declaration's start "
+                    "and end are in different replacement texts (XML 1.0, "
+                    "section 2.8)"),
+                .location = location});
+    }
     if (status != SXML_STATUS_OK || !result.is_complete ||
         source.owned_text.byte_count == 0) {
         sxml_xml_buffer_release(&source.owned_text);
@@ -2913,6 +3150,25 @@ sxml_xml_visit_conditional_section(sxml_xml_document *document,
                 .location = location});
     }
     offset += 1;
+    if (!sxml_byte_view_equals(
+            sxml_xml_text_trim_whitespace(sxml_xml_entity_text(
+                document, (sxml_xml_entity_text_request){
+                              .entity_index = inclusion.entity_index,
+                              .skips_text_declaration = true})),
+            is_include ? SXML_XML_TEXT("INCLUDE") : SXML_XML_TEXT("IGNORE"))) {
+        status = sxml_xml_report_validity(
+            document,
+            (sxml_xml_validity_failure){
+                .description = SXML_XML_TEXT(
+                    "VC: Proper Conditional Section/PE Nesting: a section's "
+                    "'<![', '[' and ']]>' are in different replacement texts "
+                    "(XML 1.0, section 3.4)"),
+                .location = location});
+        if (status != SXML_STATUS_OK) {
+            sxml_xml_buffer_release(text);
+            return status;
+        }
+    }
     if (!is_include || offset == whole.byte_count) {
         /* Ignored: the grammar has checked the text as [64]
            ignoreSectContents already. */
@@ -2922,6 +3178,273 @@ sxml_xml_visit_conditional_section(sxml_xml_document *document,
     memmove(text->bytes, text->bytes + offset, text->byte_count - offset);
     text->byte_count -= offset;
     return sxml_xml_push_external_text(document, frame, &source);
+}
+
+/* --------------------------------------------- Element types, notations */
+
+/* The quantifier after node, '?', '*' or '+', or 0 ([47], [48]). */
+static uint8_t sxml_xml_quantifier_after(const sxml_xml_frame *frame,
+                                         TSNode node) {
+    const TSNode next = ts_node_next_sibling(node);
+    if (ts_node_is_null(next) || ts_node_is_named(next)) {
+        return 0;
+    }
+    const sxml_byte_view text = sxml_xml_node_text(frame, next);
+    if (text.byte_count == 1 &&
+        (text.bytes[0] == '?' || text.bytes[0] == '*' || text.bytes[0] == '+')) {
+        return text.bytes[0];
+    }
+    return 0;
+}
+
+/* Appends one particle to the DTD's content models. */
+static sxml_status sxml_xml_add_particle(sxml_xml_document *document,
+                                         const sxml_xml_particle *particle) {
+    void *element = NULL;
+    const sxml_status status =
+        sxml_xml_array_push(&document->parser->dtd.particles, &element);
+    if (status != SXML_STATUS_OK) {
+        return sxml_xml_fail_resource(document, status);
+    }
+    *(sxml_xml_particle *)element = *particle;
+    return SXML_STATUS_OK;
+}
+
+/* An element name of a content model, stored as a particle. */
+static sxml_status sxml_xml_add_element_particle(sxml_xml_document *document,
+                                                 sxml_xml_frame_node name) {
+    sxml_xml_particle particle = {
+        .particle_kind = SXML_XML_PARTICLE_KIND_ELEMENT,
+        .quantifier = sxml_xml_quantifier_after(name.frame, name.node),
+        .element_name = {.byte_offset = 0, .byte_count = 0}};
+    const sxml_byte_view element_name = sxml_xml_node_text(name.frame, name.node);
+    uint32_t element_index = 0;
+    sxml_status status = sxml_xml_fail_resource(
+        document, sxml_xml_dtd_get_element(&document->parser->dtd, element_name,
+                                           &element_index));
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_xml_element_entry *element =
+        sxml_xml_dtd_element_at(&document->parser->dtd, element_index);
+    element->is_referred_to = true;
+    particle.element_name = element->element_name;
+    return sxml_xml_add_particle(document, &particle);
+}
+
+/*
+ * The particles of a [47] children content model, in document order: a
+ * cursor walks the groups with an explicit depth (D71), writing a group's
+ * start (with the quantifier after it) on the way in and its end on the
+ * way out, and each name of a [48] cp.
+ */
+static sxml_status sxml_xml_add_content_model(sxml_xml_document *document,
+                                              sxml_xml_frame_node content) {
+    const sxml_xml_frame *frame = content.frame;
+    TSTreeCursor cursor = ts_tree_cursor_new(content.node);
+    sxml_status status = SXML_STATUS_OK;
+    bool is_entering = true;
+    uint32_t depth = 0;
+    while (status == SXML_STATUS_OK) {
+        const TSNode current = ts_tree_cursor_current_node(&cursor);
+        const sxml_xml_node_type current_type = sxml_xml_type_of(current);
+        const bool is_group = current_type == SXML_XML_NODE_CHOICE_GROUP ||
+                              current_type == SXML_XML_NODE_SEQUENCE_GROUP;
+        if (is_entering) {
+            if (is_group) {
+                status = sxml_xml_add_particle(
+                    document,
+                    &(sxml_xml_particle){
+                        .particle_kind = current_type == SXML_XML_NODE_CHOICE_GROUP
+                                             ? SXML_XML_PARTICLE_KIND_CHOICE
+                                             : SXML_XML_PARTICLE_KIND_SEQUENCE,
+                        .quantifier = sxml_xml_quantifier_after(frame, current),
+                        .element_name = {.byte_offset = 0, .byte_count = 0}});
+            } else if (current_type == SXML_XML_NODE_NAME) {
+                status = sxml_xml_add_element_particle(
+                    document, (sxml_xml_frame_node){.frame = frame, .node = current});
+            }
+            if (!is_group && current_type != SXML_XML_NODE_ELEMENT_CONTENT &&
+                current_type != SXML_XML_NODE_CONTENT_PARTICLE) {
+                is_entering = false;
+                continue;
+            }
+            if (ts_tree_cursor_goto_first_child(&cursor)) {
+                depth += 1;
+                continue;
+            }
+            is_entering = false;
+            continue;
+        }
+        if (is_group && depth != 0 && ts_node_child_count(current) != 0) {
+            status = sxml_xml_add_particle(
+                document,
+                &(sxml_xml_particle){
+                    .particle_kind = SXML_XML_PARTICLE_KIND_GROUP_END,
+                    .quantifier = 0,
+                    .element_name = {.byte_offset = 0, .byte_count = 0}});
+        }
+        if (depth == 0) {
+            break;
+        }
+        if (ts_tree_cursor_goto_next_sibling(&cursor)) {
+            is_entering = true;
+            continue;
+        }
+        (void)ts_tree_cursor_goto_parent(&cursor);
+        depth -= 1;
+    }
+    ts_tree_cursor_delete(&cursor);
+    return status;
+}
+
+static const sxml_byte_view sxml_xml_duplicate_types_description =
+    SXML_BYTE_VIEW_INITIALIZER(
+        "VC: No Duplicate Types: an element type appears twice in one mixed-"
+        "content declaration (XML 1.0, section 3.2.2)");
+
+/*
+ * [45] elementdecl: the content model is kept for DTD validation (the
+ * first declaration of an element type; another is VC: Unique Element
+ * Type Declaration, 3.2).
+ */
+static sxml_status sxml_xml_declare_element(sxml_xml_document *document,
+                                            const sxml_xml_frame *frame,
+                                            TSNode node) {
+    const TSNode name_node = sxml_xml_field(node, SXML_XML_FIELD_NAME);
+    sxml_status status = sxml_xml_check_qualified_name(document, frame, name_node);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_xml_dtd *dtd = &document->parser->dtd;
+    const sxml_source_location location =
+        sxml_xml_node_location(document, frame, node);
+    uint32_t element_index = 0;
+    status = sxml_xml_fail_resource(
+        document, sxml_xml_dtd_get_element(
+                      dtd, sxml_xml_node_text(frame, name_node), &element_index));
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (sxml_xml_dtd_element_at(dtd, element_index)->is_declared) {
+        return sxml_xml_report_validity(
+            document,
+            (sxml_xml_validity_failure){
+                .description = SXML_XML_TEXT(
+                    "VC: Unique Element Type Declaration: an element type is "
+                    "declared twice (XML 1.0, section 3.2)"),
+                .location = location});
+    }
+    const TSNode specification =
+        ts_node_named_child(sxml_xml_field(node, SXML_XML_FIELD_CONTENT), 0);
+    const sxml_byte_view specification_text =
+        sxml_xml_node_text(frame, sxml_xml_field(node, SXML_XML_FIELD_CONTENT));
+    const size_t first_particle = dtd->particles.element_count;
+    sxml_xml_content_kind content_kind = SXML_XML_CONTENT_KIND_ANY;
+    if (ts_node_is_null(specification)) {
+        content_kind = specification_text.byte_count != 0 &&
+                               specification_text.bytes[0] == 'E'
+                           ? SXML_XML_CONTENT_KIND_EMPTY
+                           : SXML_XML_CONTENT_KIND_ANY;
+    } else if (sxml_xml_type_of(specification) == SXML_XML_NODE_MIXED_CONTENT) {
+        content_kind = SXML_XML_CONTENT_KIND_MIXED;
+        sxml_xml_children children = {.first_index = 0, .child_count = 0};
+        status = sxml_xml_fail_resource(
+            document, sxml_xml_list_children(document, specification, &children));
+        for (size_t child_index = 0;
+             status == SXML_STATUS_OK && child_index < children.child_count;
+             child_index++) {
+            const TSNode child = sxml_xml_child_at(document, children, child_index);
+            const sxml_byte_view child_name = sxml_xml_node_text(frame, child);
+            for (size_t earlier = 0;
+                 status == SXML_STATUS_OK && earlier < child_index; earlier++) {
+                if (sxml_byte_view_equals(
+                        sxml_xml_node_text(
+                            frame, sxml_xml_child_at(document, children, earlier)),
+                        child_name)) {
+                    status = sxml_xml_report_validity(
+                        document,
+                        (sxml_xml_validity_failure){
+                            .description = sxml_xml_duplicate_types_description,
+                            .location = location});
+                }
+            }
+            if (status == SXML_STATUS_OK) {
+                status = sxml_xml_add_element_particle(
+                    document, (sxml_xml_frame_node){.frame = frame, .node = child});
+            }
+        }
+        sxml_xml_release_children(document, children);
+    } else {
+        content_kind = SXML_XML_CONTENT_KIND_CHILDREN;
+        status = sxml_xml_add_content_model(
+            document, (sxml_xml_frame_node){.frame = frame, .node = specification});
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_xml_element_entry *element = sxml_xml_dtd_element_at(dtd, element_index);
+    element->is_declared = true;
+    element->is_declared_in_external_markup =
+        frame->frame_kind != SXML_XML_FRAME_KIND_DOCUMENT;
+    element->content_kind = content_kind;
+    element->first_particle = first_particle;
+    element->particle_count = dtd->particles.element_count - first_particle;
+    return SXML_STATUS_OK;
+}
+
+/* [82] NotationDecl: kept for DTD validation; another declaration of the
+   name is VC: Unique Notation Name (4.7). */
+static sxml_status sxml_xml_declare_notation(sxml_xml_document *document,
+                                             const sxml_xml_frame *frame,
+                                             TSNode node) {
+    const TSNode name_node = sxml_xml_field(node, SXML_XML_FIELD_NAME);
+    sxml_status status = sxml_xml_check_no_colon(document, frame, name_node);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_xml_dtd *dtd = &document->parser->dtd;
+    const sxml_byte_view name = sxml_xml_node_text(frame, name_node);
+    for (size_t notation_index = 0; notation_index < dtd->notations.element_count;
+         notation_index++) {
+        const sxml_xml_notation *notation =
+            sxml_xml_array_at(&dtd->notations, notation_index);
+        if (sxml_byte_view_equals(sxml_xml_dtd_text(dtd, notation->notation_name),
+                                  name)) {
+            return sxml_xml_report_validity(
+                document,
+                (sxml_xml_validity_failure){
+                    .description = SXML_XML_TEXT(
+                        "VC: Unique Notation Name: a notation is declared twice "
+                        "(XML 1.0, section 4.7)"),
+                    .location = sxml_xml_node_location(document, frame, node)});
+        }
+    }
+    sxml_xml_notation notation = {.notation_name = {.byte_offset = 0, .byte_count = 0},
+                                  .public_identifier = {.byte_offset = 0, .byte_count = 0},
+                                  .system_identifier = {.byte_offset = 0, .byte_count = 0}};
+    status = sxml_xml_store(document, name, &notation.notation_name);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xml_store(
+            document,
+            sxml_xml_literal_content(sxml_xml_field_text(frame, node, SXML_XML_FIELD_PUBLIC_ID)),
+            &notation.public_identifier);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xml_store(
+            document,
+            sxml_xml_literal_content(sxml_xml_field_text(frame, node, SXML_XML_FIELD_SYSTEM_ID)),
+            &notation.system_identifier);
+    }
+    void *element = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xml_fail_resource(document,
+                                        sxml_xml_array_push(&dtd->notations, &element));
+    }
+    if (status == SXML_STATUS_OK) {
+        *(sxml_xml_notation *)element = notation;
+    }
+    return status;
 }
 
 /* What a visit asks of the walk. */
@@ -2974,12 +3497,10 @@ static sxml_status sxml_xml_visit_declaration(sxml_xml_document *document,
                    : sxml_xml_declare_attribute_list(document, frame, node);
     }
     if (node_type == SXML_XML_NODE_ELEMENT_DECLARATION) {
-        return sxml_xml_check_qualified_name(
-            document, frame, sxml_xml_field(node, SXML_XML_FIELD_NAME));
+        return sxml_xml_declare_element(document, frame, node);
     }
     if (node_type == SXML_XML_NODE_NOTATION_DECLARATION) {
-        return sxml_xml_check_no_colon(
-            document, frame, sxml_xml_field(node, SXML_XML_FIELD_NAME));
+        return sxml_xml_declare_notation(document, frame, node);
     }
     if (node_type == SXML_XML_NODE_PROCESSING_INSTRUCTION) {
         return sxml_xml_check_no_colon(
@@ -3139,6 +3660,81 @@ static sxml_status sxml_xml_has_duplicate(sxml_xml_document *document,
     return SXML_STATUS_OK;
 }
 
+/* VC: Standalone Document Declaration (2.9): in a document that says
+   standalone="yes", a declaration from external markup must not change an
+   attribute: by supplying its default or by normalizing it further. */
+static sxml_status sxml_xml_report_standalone(const sxml_xml_document *document,
+                                              const sxml_xml_frame *frame,
+                                              TSNode node) {
+    return sxml_xml_report_validity(
+        document,
+        (sxml_xml_validity_failure){
+            .description = SXML_XML_TEXT(
+                "VC: Standalone Document Declaration: a declaration outside the "
+                "document entity changes an attribute of a standalone document "
+                "(XML 1.0, section 2.9)"),
+            .location = sxml_xml_node_location((sxml_xml_document *)document, frame,
+                                               node)});
+}
+
+/* A specified attribute and its definition, which may be NULL. */
+typedef struct sxml_xml_attribute_check {
+    sxml_xml_frame_node tag;
+    sxml_byte_view attribute_name;
+    sxml_byte_view value;
+    const sxml_xml_attribute_definition *definition;
+} sxml_xml_attribute_check;
+
+/*
+ * The validity constraints on a specified attribute that the schema
+ * cannot check (XML 1.0, 3.1 and 3.3): a namespace declaration is an
+ * attribute to validation and must be declared, with its #FIXED value
+ * (VC: Attribute Value Type, Fixed Attribute Default; namespace
+ * declarations are no attributes in XDM, so the schema never sees them),
+ * and a tokenized value separates its tokens by single spaces, which XSD's
+ * whitespace collapsing would hide (VC: Name Token, IDREF, Entity Name,
+ * Fifth Edition erratum E20).
+ */
+static sxml_status sxml_xml_check_attribute(const sxml_xml_document *document,
+                                            const sxml_xml_attribute_check *check) {
+    const sxml_xml_attribute_definition *definition = check->definition;
+    const sxml_byte_view name = check->attribute_name;
+    const bool is_namespace_declaration =
+        sxml_byte_view_equals(name, SXML_XML_TEXT("xmlns")) ||
+        (name.byte_count > 6 && memcmp(name.bytes, "xmlns:", 6) == 0);
+    sxml_byte_view description = {.bytes = NULL, .byte_count = 0};
+    if (is_namespace_declaration && definition == NULL) {
+        description = SXML_XML_TEXT(
+            "VC: Attribute Value Type: the attribute is not declared, and a "
+            "namespace declaration is an attribute to DTD validation (XML 1.0, "
+            "section 3.1)");
+    } else if (is_namespace_declaration &&
+               definition->default_kind == SXML_XML_DEFAULT_KIND_FIXED &&
+               !sxml_byte_view_equals(check->value,
+                                      sxml_xml_dtd_text(&document->parser->dtd,
+                                                        definition->default_value))) {
+        description = SXML_XML_TEXT(
+            "VC: Fixed Attribute Default: the value differs from the #FIXED "
+            "default (XML 1.0, section 3.3.2)");
+    } else if (definition != NULL &&
+               definition->attribute_type != SXML_XML_ATTRIBUTE_TYPE_CDATA &&
+               (sxml_xml_view_contains_byte(check->value, '\t') ||
+                sxml_xml_view_contains_byte(check->value, '\n') ||
+                sxml_xml_view_contains_byte(check->value, '\r'))) {
+        description = SXML_XML_TEXT(
+            "VC: Name Token: the tokens of a tokenized attribute are separated "
+            "by single spaces (XML 1.0, section 3.3.1)");
+    } else {
+        return SXML_STATUS_OK;
+    }
+    return sxml_xml_report_validity(
+        document, (sxml_xml_validity_failure){
+                      .description = description,
+                      .location = sxml_xml_node_location((sxml_xml_document *)document,
+                                                         check->tag.frame,
+                                                         check->tag.node)});
+}
+
 /* A tag to collect the attributes of. */
 typedef struct sxml_xml_tag {
     TSNode node;
@@ -3193,11 +3789,32 @@ static sxml_status sxml_xml_collect_attributes(sxml_xml_document *document,
            no offset to apply to a null pointer. */
         if (attribute_type != SXML_XML_ATTRIBUTE_TYPE_CDATA &&
             value.byte_count != 0) {
+            const size_t written_byte_count = value.byte_count;
             value.byte_count = sxml_xml_collapse_spaces((sxml_memory_view){
                 .bytes = parser->attribute_values.bytes + value_start,
                 .byte_count = value.byte_count});
             parser->attribute_values.byte_count =
                 value_start + value.byte_count;
+            if (document->is_standalone &&
+                definition->is_declared_in_external_markup &&
+                value.byte_count != written_byte_count) {
+                status = sxml_xml_report_standalone(document, frame, child);
+                if (status != SXML_STATUS_OK) {
+                    return status;
+                }
+            }
+        }
+        if (document->validates) {
+            status = sxml_xml_check_attribute(
+                document, &(sxml_xml_attribute_check){
+                              .tag = {.frame = frame, .node = child},
+                              .attribute_name = name,
+                              .value = sxml_xml_buffer_view(
+                                  &parser->attribute_values, value),
+                              .definition = definition});
+            if (status != SXML_STATUS_OK) {
+                return status;
+            }
         }
         void *element = NULL;
         status = sxml_xml_array_push(&parser->attributes, &element);
@@ -3253,6 +3870,12 @@ static sxml_status sxml_xml_collect_attributes(sxml_xml_document *document,
         }
         if (is_specified) {
             continue;
+        }
+        if (document->is_standalone && definition->is_declared_in_external_markup) {
+            status = sxml_xml_report_standalone(document, frame, tag->node);
+            if (status != SXML_STATUS_OK) {
+                return status;
+            }
         }
         void *element = NULL;
         status = sxml_xml_array_push(&parser->attributes, &element);
@@ -3617,6 +4240,9 @@ static sxml_status sxml_xml_end_element(sxml_xml_document *document) {
     parser->namespace_bindings.element_count = *scope_start;
     scopes->element_count -= 1;
     document->element_depth -= 1;
+    if (document->validates && parser->open_contents.element_count != 0) {
+        parser->open_contents.element_count -= 1;
+    }
     if (!sxml_xml_has_builder(document)) {
         return SXML_STATUS_OK;
     }
@@ -3640,6 +4266,20 @@ static sxml_status sxml_xml_start_element(sxml_xml_document *document,
     }
     const sxml_byte_view element_name =
         sxml_xml_field_text(frame, tag_node, SXML_XML_FIELD_NAME);
+    if (document->element_depth == 0 && document->has_doctype &&
+        !sxml_byte_view_equals(element_name, document->doctype_name)) {
+        const sxml_status status = sxml_xml_report_validity(
+            document,
+            (sxml_xml_validity_failure){
+                .description = SXML_XML_TEXT(
+                    "VC: Root Element Type: the document element's name must be "
+                    "the name of the document type declaration (XML 1.0, "
+                    "section 2.8)"),
+                .location = sxml_xml_node_location(document, frame, tag_node)});
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+    }
     sxml_status status = sxml_xml_collect_attributes(
         document, frame,
         &(sxml_xml_tag){.node = tag_node, .element_name = element_name});
@@ -3654,6 +4294,25 @@ static sxml_status sxml_xml_start_element(sxml_xml_document *document,
     }
     *(size_t *)element = scope_start;
     document->element_depth += 1;
+    if (document->validates) {
+        const sxml_xml_dtd *dtd = &parser->dtd;
+        const sxml_xml_lookup declaration =
+            sxml_xml_dtd_find_element(dtd, element_name);
+        const sxml_xml_element_entry *entry =
+            declaration.is_found
+                ? sxml_xml_dtd_element_at(dtd, declaration.entry_index)
+                : NULL;
+        status = sxml_xml_array_push(&parser->open_contents, &element);
+        if (status != SXML_STATUS_OK) {
+            return sxml_xml_fail_resource(document, status);
+        }
+        *(sxml_xml_open_content *)element = (sxml_xml_open_content){
+            .is_declared = entry != NULL && entry->is_declared,
+            .content_kind =
+                entry != NULL ? entry->content_kind : SXML_XML_CONTENT_KIND_ANY,
+            .is_declared_in_external_markup =
+                entry != NULL && entry->is_declared_in_external_markup};
+    }
     const size_t attribute_count = parser->attributes.element_count;
     for (size_t attribute_index = 0; attribute_index < attribute_count;
          attribute_index++) {
@@ -3886,6 +4545,66 @@ sxml_xml_reference_content_entity(sxml_xml_document *document,
         sxml_xml_field(ts_tree_root_node(syntax_tree), SXML_XML_FIELD_ROOT));
 }
 
+/*
+ * The validity constraints on content that no schema component checks
+ * (XML 1.0, 3 VC: Element Valid, 2.9 VC: Standalone Document
+ * Declaration): an EMPTY element has no content at all, not a comment, a
+ * processing instruction or an entity reference (Fifth Edition errata
+ * E15); element content holds white space only as character data, not as
+ * character references or CDATA sections; and in a standalone document
+ * an element type declared outside the document entity must not get
+ * white space in element content.
+ */
+static sxml_status sxml_xml_check_content(sxml_xml_document *document,
+                                          const sxml_xml_frame_node *content) {
+    const sxml_xml_array *open_contents = &document->parser->open_contents;
+    if (open_contents->element_count == 0) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_xml_open_content *open =
+        sxml_xml_array_at(open_contents, open_contents->element_count - 1);
+    if (!open->is_declared) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_xml_node_type node_type = sxml_xml_type_of(content->node);
+    sxml_byte_view description = {.bytes = NULL, .byte_count = 0};
+    if (open->content_kind == SXML_XML_CONTENT_KIND_EMPTY &&
+        (node_type == SXML_XML_NODE_CHARACTER_DATA ||
+         node_type == SXML_XML_NODE_CHARACTER_REFERENCE ||
+         node_type == SXML_XML_NODE_ENTITY_REFERENCE ||
+         node_type == SXML_XML_NODE_CDATA_SECTION ||
+         node_type == SXML_XML_NODE_COMMENT ||
+         node_type == SXML_XML_NODE_PROCESSING_INSTRUCTION)) {
+        description = SXML_XML_TEXT(
+            "VC: Element Valid: an element declared EMPTY has no content, not "
+            "even a comment, a processing instruction or an entity reference "
+            "(XML 1.0, section 3)");
+    } else if (open->content_kind == SXML_XML_CONTENT_KIND_CHILDREN &&
+               (node_type == SXML_XML_NODE_CHARACTER_REFERENCE ||
+                node_type == SXML_XML_NODE_CDATA_SECTION)) {
+        description = SXML_XML_TEXT(
+            "VC: Element Valid: element content holds white space only as "
+            "character data, not as character references or CDATA sections "
+            "(XML 1.0, section 3)");
+    } else if (open->content_kind == SXML_XML_CONTENT_KIND_CHILDREN &&
+               node_type == SXML_XML_NODE_CHARACTER_DATA &&
+               document->is_standalone && open->is_declared_in_external_markup &&
+               sxml_xml_text_is_whitespace(
+                   sxml_xml_node_text(content->frame, content->node))) {
+        description = SXML_XML_TEXT(
+            "VC: Standalone Document Declaration: white space in the element "
+            "content of an element type declared outside the document entity "
+            "of a standalone document (XML 1.0, section 2.9)");
+    } else {
+        return SXML_STATUS_OK;
+    }
+    return sxml_xml_report_validity(
+        document, (sxml_xml_validity_failure){
+                      .description = description,
+                      .location = sxml_xml_node_location(document, content->frame,
+                                                         content->node)});
+}
+
 /* One node of the content walk; sets result->descends to enter its
    children. */
 static sxml_status sxml_xml_visit_content(sxml_xml_document *document,
@@ -3901,6 +4620,13 @@ static sxml_status sxml_xml_visit_content(sxml_xml_document *document,
     if (node_type == SXML_XML_NODE_ELEMENT) {
         result->descends = true;
         return SXML_STATUS_OK;
+    }
+    if (document->validates) {
+        const sxml_status status = sxml_xml_check_content(
+            document, &(sxml_xml_frame_node){.frame = frame, .node = node});
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
     }
     if (node_type == SXML_XML_NODE_START_TAG) {
         return is_wrapper_child ? SXML_STATUS_OK
@@ -3974,6 +4700,485 @@ static sxml_status sxml_xml_run_frames(sxml_xml_document *document,
         frame->descends = result.descends;
     }
     return SXML_STATUS_OK;
+}
+
+/* ------------------------------------------------------ DTD validation */
+
+/* The events of a validating parse go to the parse's builder, when it has
+   one, and to the validator's checking builder (D199). */
+static sxml_xml_tee *sxml_xml_tee_from_state(void *state) { return state; }
+
+static bool sxml_xml_tee_has_first(const sxml_xml_tee *tee) {
+    return tee->first.operations != NULL;
+}
+
+static sxml_status
+sxml_xml_tee_start_document(void *state, const sxml_document_start_event *event) {
+    const sxml_xml_tee *tee = sxml_xml_tee_from_state(state);
+    sxml_status status = SXML_STATUS_OK;
+    if (sxml_xml_tee_has_first(tee)) {
+        status = tee->first.operations->start_document(tee->first.state, event);
+    }
+    return status == SXML_STATUS_OK
+               ? tee->second.operations->start_document(tee->second.state, event)
+               : status;
+}
+
+static sxml_status sxml_xml_tee_end_document(void *state) {
+    const sxml_xml_tee *tee = sxml_xml_tee_from_state(state);
+    sxml_status status = SXML_STATUS_OK;
+    if (sxml_xml_tee_has_first(tee)) {
+        status = tee->first.operations->end_document(tee->first.state);
+    }
+    return status == SXML_STATUS_OK
+               ? tee->second.operations->end_document(tee->second.state)
+               : status;
+}
+
+static sxml_status
+sxml_xml_tee_start_element(void *state, const sxml_element_start_event *event) {
+    const sxml_xml_tee *tee = sxml_xml_tee_from_state(state);
+    sxml_status status = SXML_STATUS_OK;
+    if (sxml_xml_tee_has_first(tee)) {
+        status = tee->first.operations->start_element(tee->first.state, event);
+    }
+    return status == SXML_STATUS_OK
+               ? tee->second.operations->start_element(tee->second.state, event)
+               : status;
+}
+
+static sxml_status
+sxml_xml_tee_add_namespace_binding(void *state,
+                                   const sxml_namespace_binding *binding) {
+    const sxml_xml_tee *tee = sxml_xml_tee_from_state(state);
+    sxml_status status = SXML_STATUS_OK;
+    if (sxml_xml_tee_has_first(tee)) {
+        status = tee->first.operations->add_namespace_binding(tee->first.state,
+                                                              binding);
+    }
+    return status == SXML_STATUS_OK ? tee->second.operations->add_namespace_binding(
+                                          tee->second.state, binding)
+                                    : status;
+}
+
+static sxml_status sxml_xml_tee_add_attribute(void *state,
+                                              const sxml_attribute_event *event) {
+    const sxml_xml_tee *tee = sxml_xml_tee_from_state(state);
+    sxml_status status = SXML_STATUS_OK;
+    if (sxml_xml_tee_has_first(tee)) {
+        status = tee->first.operations->add_attribute(tee->first.state, event);
+    }
+    return status == SXML_STATUS_OK
+               ? tee->second.operations->add_attribute(tee->second.state, event)
+               : status;
+}
+
+static sxml_status sxml_xml_tee_end_element(void *state) {
+    const sxml_xml_tee *tee = sxml_xml_tee_from_state(state);
+    sxml_status status = SXML_STATUS_OK;
+    if (sxml_xml_tee_has_first(tee)) {
+        status = tee->first.operations->end_element(tee->first.state);
+    }
+    return status == SXML_STATUS_OK
+               ? tee->second.operations->end_element(tee->second.state)
+               : status;
+}
+
+static sxml_status sxml_xml_tee_add_text(void *state, const sxml_text_event *event) {
+    const sxml_xml_tee *tee = sxml_xml_tee_from_state(state);
+    sxml_status status = SXML_STATUS_OK;
+    if (sxml_xml_tee_has_first(tee)) {
+        status = tee->first.operations->add_text(tee->first.state, event);
+    }
+    return status == SXML_STATUS_OK
+               ? tee->second.operations->add_text(tee->second.state, event)
+               : status;
+}
+
+static sxml_status sxml_xml_tee_add_comment(void *state,
+                                            const sxml_comment_event *event) {
+    const sxml_xml_tee *tee = sxml_xml_tee_from_state(state);
+    sxml_status status = SXML_STATUS_OK;
+    if (sxml_xml_tee_has_first(tee)) {
+        status = tee->first.operations->add_comment(tee->first.state, event);
+    }
+    return status == SXML_STATUS_OK
+               ? tee->second.operations->add_comment(tee->second.state, event)
+               : status;
+}
+
+static sxml_status sxml_xml_tee_add_processing_instruction(
+    void *state, const sxml_processing_instruction_event *event) {
+    const sxml_xml_tee *tee = sxml_xml_tee_from_state(state);
+    sxml_status status = SXML_STATUS_OK;
+    if (sxml_xml_tee_has_first(tee)) {
+        status = tee->first.operations->add_processing_instruction(tee->first.state,
+                                                                   event);
+    }
+    return status == SXML_STATUS_OK
+               ? tee->second.operations->add_processing_instruction(
+                     tee->second.state, event)
+               : status;
+}
+
+static sxml_status sxml_xml_tee_add_unparsed_entity(void *state,
+                                                    const sxml_unparsed_entity *entity) {
+    const sxml_xml_tee *tee = sxml_xml_tee_from_state(state);
+    sxml_status status = SXML_STATUS_OK;
+    if (sxml_xml_tee_has_first(tee)) {
+        status = tee->first.operations->add_unparsed_entity(tee->first.state, entity);
+    }
+    return status == SXML_STATUS_OK ? tee->second.operations->add_unparsed_entity(
+                                          tee->second.state, entity)
+                                    : status;
+}
+
+static const sxml_tree_builder_operations sxml_xml_tee_operations = {
+    .start_document = sxml_xml_tee_start_document,
+    .end_document = sxml_xml_tee_end_document,
+    .start_element = sxml_xml_tee_start_element,
+    .add_namespace_binding = sxml_xml_tee_add_namespace_binding,
+    .add_attribute = sxml_xml_tee_add_attribute,
+    .end_element = sxml_xml_tee_end_element,
+    .add_text = sxml_xml_tee_add_text,
+    .add_comment = sxml_xml_tee_add_comment,
+    .add_processing_instruction = sxml_xml_tee_add_processing_instruction,
+    .add_unparsed_entity = sxml_xml_tee_add_unparsed_entity,
+};
+
+/* Adds a prefix binding for resolving the DTD's names, unless the prefix
+   has one already: the first wins. */
+static sxml_status sxml_xml_add_prefix_binding(sxml_xml_document *document,
+                                               const sxml_dtd_prefix_binding *binding) {
+    sxml_xml_array *bindings = &document->parser->prefix_bindings;
+    for (size_t binding_index = 0; binding_index < bindings->element_count;
+         binding_index++) {
+        if (sxml_byte_view_equals(
+                ((const sxml_dtd_prefix_binding *)sxml_xml_array_at(bindings,
+                                                                    binding_index))
+                    ->namespace_prefix,
+                binding->namespace_prefix)) {
+            return SXML_STATUS_OK;
+        }
+    }
+    void *element = NULL;
+    const sxml_status status = sxml_xml_array_push(bindings, &element);
+    if (status != SXML_STATUS_OK) {
+        return sxml_xml_fail_resource(document, status);
+    }
+    *(sxml_dtd_prefix_binding *)element = *binding;
+    return SXML_STATUS_OK;
+}
+
+/* The prefix an xmlns or xmlns:p attribute name declares; false for other
+   names. */
+typedef struct sxml_xml_declared_prefix {
+    bool is_declaration;
+    sxml_byte_view namespace_prefix;
+} sxml_xml_declared_prefix;
+
+static sxml_xml_declared_prefix sxml_xml_declared_prefix_of(sxml_byte_view name) {
+    if (sxml_byte_view_equals(name, SXML_XML_TEXT("xmlns"))) {
+        return (sxml_xml_declared_prefix){
+            .is_declaration = true,
+            .namespace_prefix = {.bytes = NULL, .byte_count = 0}};
+    }
+    if (name.byte_count > 6 && memcmp(name.bytes, "xmlns:", 6) == 0) {
+        return (sxml_xml_declared_prefix){
+            .is_declaration = true,
+            .namespace_prefix = {.bytes = name.bytes + 6,
+                                 .byte_count = name.byte_count - 6}};
+    }
+    return (sxml_xml_declared_prefix){
+        .is_declaration = false, .namespace_prefix = {.bytes = NULL, .byte_count = 0}};
+}
+
+/*
+ * The bindings the DTD's names are resolved with: the namespace
+ * declarations written on the document element (the plain text of their
+ * values), then the defaults of xmlns attributes in the DTD, the first
+ * binding of a prefix winning; the xml prefix is bound as always.
+ */
+static sxml_status sxml_xml_collect_prefix_bindings(sxml_xml_document *document,
+                                                    sxml_xml_frame_node root) {
+    document->parser->prefix_bindings.element_count = 0;
+    sxml_status status = sxml_xml_add_prefix_binding(
+        document, &(sxml_dtd_prefix_binding){.namespace_prefix = SXML_XML_TEXT("xml"),
+                                             .namespace_uri = sxml_xml_namespace_text});
+    const TSNode element = sxml_xml_field(root.node, SXML_XML_FIELD_ROOT);
+    const TSNode tag = ts_node_named_child(element, 0);
+    sxml_xml_children attributes = {.first_index = 0, .child_count = 0};
+    if (status == SXML_STATUS_OK && !ts_node_is_null(tag)) {
+        status = sxml_xml_fail_resource(
+            document, sxml_xml_list_children(document, tag, &attributes));
+    }
+    for (size_t attribute_index = 0;
+         status == SXML_STATUS_OK && attribute_index < attributes.child_count;
+         attribute_index++) {
+        const TSNode attribute = sxml_xml_child_at(document, attributes, attribute_index);
+        if (sxml_xml_type_of(attribute) != SXML_XML_NODE_ATTRIBUTE) {
+            continue;
+        }
+        const sxml_xml_declared_prefix declared = sxml_xml_declared_prefix_of(
+            sxml_xml_field_text(root.frame, attribute, SXML_XML_FIELD_NAME));
+        const TSNode value = sxml_xml_field(attribute, SXML_XML_FIELD_VALUE);
+        if (!declared.is_declaration || ts_node_named_child_count(value) > 1) {
+            continue;
+        }
+        const TSNode text = ts_node_named_child(value, 0);
+        status = sxml_xml_add_prefix_binding(
+            document,
+            &(sxml_dtd_prefix_binding){
+                .namespace_prefix = declared.namespace_prefix,
+                .namespace_uri = ts_node_is_null(text)
+                                     ? (sxml_byte_view){.bytes = NULL, .byte_count = 0}
+                                     : sxml_xml_node_text(root.frame, text)});
+    }
+    sxml_xml_release_children(document, attributes);
+    const sxml_xml_dtd *dtd = &document->parser->dtd;
+    for (uint32_t number = 1;
+         status == SXML_STATUS_OK && number <= dtd->attribute_definitions.element_count;
+         number++) {
+        const sxml_xml_attribute_definition *definition =
+            sxml_xml_dtd_get_definition(dtd, number);
+        const sxml_xml_declared_prefix declared = sxml_xml_declared_prefix_of(
+            sxml_xml_dtd_text(dtd, definition->attribute_name));
+        if (declared.is_declaration && definition->has_default_value) {
+            status = sxml_xml_add_prefix_binding(
+                document,
+                &(sxml_dtd_prefix_binding){
+                    .namespace_prefix = declared.namespace_prefix,
+                    .namespace_uri = sxml_xml_dtd_text(dtd, definition->default_value)});
+        }
+    }
+    return status;
+}
+
+/*
+ * Starts DTD validation once the DTD is read (D199): the schema documents
+ * written from the DTD go to the validator, whose checking builder then
+ * receives every event with the parse's builder.
+ */
+static sxml_status sxml_xml_start_validation(sxml_xml_document *document,
+                                             sxml_xml_frame_node root) {
+    sxml_xml_parser *parser = document->parser;
+    sxml_status status = sxml_xml_collect_prefix_bindings(document, root);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    parser->schema_text.byte_count = 0;
+    parser->schema_documents.element_count = 0;
+    parser->schema_views.element_count = 0;
+    status = sxml_dtd_write_schemas(&(sxml_dtd_schema_request){
+        .dtd = &parser->dtd,
+        .bindings = {.bindings = parser->prefix_bindings.elements == NULL
+                                     ? NULL
+                                     : sxml_xml_array_at(&parser->prefix_bindings, 0),
+                     .binding_count = parser->prefix_bindings.element_count},
+        .output = &parser->schema_text,
+        .documents = &parser->schema_documents});
+    for (size_t document_index = 0;
+         status == SXML_STATUS_OK &&
+         document_index < parser->schema_documents.element_count;
+         document_index++) {
+        void *element = NULL;
+        status = sxml_xml_array_push(&parser->schema_views, &element);
+        if (status == SXML_STATUS_OK) {
+            *(sxml_byte_view *)element = sxml_xml_buffer_view(
+                &parser->schema_text,
+                *(const sxml_byte_range *)sxml_xml_array_at(&parser->schema_documents,
+                                                            document_index));
+        }
+    }
+    if (status != SXML_STATUS_OK) {
+        return sxml_xml_fail_resource(document, status);
+    }
+    sxml_tree_builder checking_builder = {.state = NULL, .operations = NULL};
+    const sxml_xml_validator validator = document->request->validator;
+    status = validator.operations->start_validation(
+        validator.state,
+        &(sxml_xml_dtd_schema_view){
+            .schema_texts = sxml_xml_array_at(&parser->schema_views, 0),
+            .schema_text_count = parser->schema_views.element_count},
+        &checking_builder);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (checking_builder.operations == NULL) {
+        return SXML_STATUS_OK;
+    }
+    document->tee = (sxml_xml_tee){.first = document->builder, .second = checking_builder};
+    document->builder =
+        (sxml_tree_builder){.state = &document->tee, .operations = &sxml_xml_tee_operations};
+    return SXML_STATUS_OK;
+}
+
+/* A validity error at the document type declaration. */
+static sxml_status sxml_xml_report_declaration(const sxml_xml_document *document,
+                                               sxml_byte_view description) {
+    return sxml_xml_report_validity(
+        document,
+        (sxml_xml_validity_failure){
+            .description = description,
+            .location = {.source_name = document->request->source_name,
+                         .line_number = 1,
+                         .column_number = 1,
+                         .byte_offset = 0}});
+}
+
+/* True when the space-separated list holds a token twice. */
+static bool sxml_xml_has_duplicate_token(sxml_byte_view list) {
+    sxml_byte_view rest = list;
+    sxml_byte_view token = {.bytes = NULL, .byte_count = 0};
+    while (sxml_xml_text_next_token(&rest, &token)) {
+        sxml_byte_view later_rest = rest;
+        sxml_byte_view later = {.bytes = NULL, .byte_count = 0};
+        while (sxml_xml_text_next_token(&later_rest, &later)) {
+            if (sxml_byte_view_equals(token, later)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+static bool sxml_xml_is_notation_declared(const sxml_xml_dtd *dtd,
+                                          sxml_byte_view name) {
+    for (size_t notation_index = 0; notation_index < dtd->notations.element_count;
+         notation_index++) {
+        if (sxml_byte_view_equals(
+                sxml_xml_dtd_text(
+                    dtd, ((const sxml_xml_notation *)sxml_xml_array_at(
+                              &dtd->notations, notation_index))
+                             ->notation_name),
+                name)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/*
+ * The validity constraints on the declarations that no schema component
+ * checks (XML 1.0, 3.3.1 and 4.2.2): ID Attribute Default, One ID per
+ * Element Type, One Notation Per Element Type, No Notation on Empty
+ * Element, Notation Attributes, No Duplicate Tokens, Notation Declared.
+ */
+static sxml_status sxml_xml_check_declarations(sxml_xml_document *document) {
+    const sxml_xml_dtd *dtd = &document->parser->dtd;
+    sxml_status status = SXML_STATUS_OK;
+    for (size_t element_index = 0;
+         status == SXML_STATUS_OK && element_index < dtd->elements.element_count;
+         element_index++) {
+        const sxml_xml_element_entry *element =
+            sxml_xml_dtd_element_at(dtd, (uint32_t)element_index);
+        size_t identifier_count = 0;
+        size_t notation_count = 0;
+        for (uint32_t number = element->first_definition;
+             status == SXML_STATUS_OK && number != 0;) {
+            const sxml_xml_attribute_definition *definition =
+                sxml_xml_dtd_get_definition(dtd, number);
+            number = definition->next_definition;
+            if (definition->attribute_type == SXML_XML_ATTRIBUTE_TYPE_ID) {
+                identifier_count += 1;
+                if (definition->has_default_value) {
+                    status = sxml_xml_report_declaration(
+                        document, SXML_XML_TEXT("VC: ID Attribute Default: an ID "
+                                                "attribute must be #IMPLIED or "
+                                                "#REQUIRED (XML 1.0, section "
+                                                "3.3.1)"));
+                }
+            }
+            if (status == SXML_STATUS_OK &&
+                (definition->attribute_type == SXML_XML_ATTRIBUTE_TYPE_NOTATION ||
+                 definition->attribute_type == SXML_XML_ATTRIBUTE_TYPE_ENUMERATION) &&
+                sxml_xml_has_duplicate_token(
+                    sxml_xml_dtd_text(dtd, definition->enumeration))) {
+                status = sxml_xml_report_declaration(
+                    document,
+                    SXML_XML_TEXT("VC: No Duplicate Tokens: a name appears twice "
+                                  "in an enumerated attribute type (XML 1.0, "
+                                  "section 3.3.1)"));
+            }
+            if (status != SXML_STATUS_OK ||
+                definition->attribute_type != SXML_XML_ATTRIBUTE_TYPE_NOTATION) {
+                continue;
+            }
+            notation_count += 1;
+            sxml_byte_view rest = sxml_xml_dtd_text(dtd, definition->enumeration);
+            sxml_byte_view name = {.bytes = NULL, .byte_count = 0};
+            while (status == SXML_STATUS_OK && sxml_xml_text_next_token(&rest, &name)) {
+                if (!sxml_xml_is_notation_declared(dtd, name)) {
+                    status = sxml_xml_report_declaration(
+                        document,
+                        SXML_XML_TEXT("VC: Notation Attributes: a notation the "
+                                      "attribute type names is not declared (XML "
+                                      "1.0, section 3.3.1)"));
+                }
+            }
+        }
+        if (status == SXML_STATUS_OK && identifier_count > 1) {
+            status = sxml_xml_report_declaration(
+                document, SXML_XML_TEXT("VC: One ID per Element Type: an element "
+                                        "type has two ID attributes (XML 1.0, "
+                                        "section 3.3.1)"));
+        }
+        if (status == SXML_STATUS_OK && notation_count > 1) {
+            status = sxml_xml_report_declaration(
+                document,
+                SXML_XML_TEXT("VC: One Notation Per Element Type: an element type "
+                              "has two NOTATION attributes (XML 1.0, section "
+                              "3.3.1)"));
+        }
+        if (status == SXML_STATUS_OK && notation_count != 0 && element->is_declared &&
+            element->content_kind == SXML_XML_CONTENT_KIND_EMPTY) {
+            status = sxml_xml_report_declaration(
+                document,
+                SXML_XML_TEXT("VC: No Notation on Empty Element: an EMPTY element "
+                              "type has a NOTATION attribute (XML 1.0, section "
+                              "3.3.1)"));
+        }
+    }
+    for (size_t entity_index = 0;
+         status == SXML_STATUS_OK && entity_index < dtd->entities.element_count;
+         entity_index++) {
+        const sxml_xml_entity *entity =
+            sxml_xml_dtd_get_entity(dtd, (uint32_t)entity_index);
+        if (entity->entity_kind == SXML_XML_ENTITY_KIND_UNPARSED &&
+            !sxml_xml_is_notation_declared(
+                dtd, sxml_xml_dtd_text(dtd, entity->notation_name))) {
+            status = sxml_xml_report_declaration(
+                document,
+                SXML_XML_TEXT("VC: Notation Declared: the notation of an unparsed "
+                              "entity is not declared (XML 1.0, section 4.2.2)"));
+        }
+    }
+    return status;
+}
+
+/*
+ * What validation checks before the first event: a document type
+ * declaration (XML 1.0, 2.8: a valid document has one, and F&O 4.0's
+ * dtd-validation requires one), the declarations, then the validator is
+ * started.
+ */
+static sxml_status sxml_xml_prepare_validation(sxml_xml_document *document,
+                                               sxml_xml_frame_node root) {
+    if (!document->validates) {
+        return SXML_STATUS_OK;
+    }
+    sxml_status status = SXML_STATUS_OK;
+    if (!document->has_doctype) {
+        status = sxml_xml_report_declaration(
+            document,
+            SXML_XML_TEXT("VC: a valid document has a document type declaration "
+                          "(XML 1.0, section 2.8)"));
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xml_check_declarations(document);
+    }
+    return status == SXML_STATUS_OK ? sxml_xml_start_validation(document, root)
+                                    : status;
 }
 
 /* ---------------------------------------------------- Whole document */
@@ -4273,6 +5478,7 @@ sxml_xml_read_external_subset(sxml_xml_document *document,
         .replacement_text = {.byte_offset = 0, .byte_count = 0},
         .system_identifier = {.byte_offset = 0, .byte_count = 0},
         .public_identifier = {.byte_offset = 0, .byte_count = 0},
+        .notation_name = {.byte_offset = 0, .byte_count = 0},
         .is_declared_in_external_markup = true,
         .base_uri = frame->base_uri,
         .load_state = SXML_XML_LOAD_STATE_NOT_LOADED,
@@ -4391,6 +5597,8 @@ static sxml_status sxml_xml_process_doctype(sxml_xml_document *document,
     if (status != SXML_STATUS_OK) {
         return status;
     }
+    document->doctype_name =
+        sxml_xml_field_text(frame, doctype, SXML_XML_FIELD_NAME);
     document->has_external_subset =
         !ts_node_is_null(sxml_xml_field(doctype, SXML_XML_FIELD_EXTERNAL_ID));
     const TSNode subset =
@@ -4544,6 +5752,10 @@ static sxml_status sxml_xml_walk_document(sxml_xml_document *document) {
         status = sxml_xml_process_doctype(document, &frame, root);
     }
     if (status == SXML_STATUS_OK) {
+        status = sxml_xml_prepare_validation(
+            document, (sxml_xml_frame_node){.frame = &frame, .node = root});
+    }
+    if (status == SXML_STATUS_OK) {
         status = sxml_xml_send_document(document, &frame, root);
     }
     return status;
@@ -4568,6 +5780,7 @@ sxml_xml_parse_document(sxml_xml_parser *parser,
     sxml_xml_dtd_clear(&parser->dtd);
     parser->namespace_bindings.element_count = 0;
     parser->element_scopes.element_count = 0;
+    parser->open_contents.element_count = 0;
     parser->expansions.element_count = 0;
     parser->child_nodes.element_count = 0;
     sxml_xml_document document = {
@@ -4596,6 +5809,10 @@ sxml_xml_parse_document(sxml_xml_parser *parser,
         .skips_declarations = false,
         .reads_external_entities = request->entity_resolver.operations != NULL &&
                                    request->entity_resolver.operations->resolve != NULL,
+        .validates = request->validator.operations != NULL,
+        .doctype_name = {.bytes = NULL, .byte_count = 0},
+        .tee = {.first = {.state = NULL, .operations = NULL},
+                .second = {.state = NULL, .operations = NULL}},
         .expansion_byte_count = 0,
         .element_depth = 0,
         .xml_prefix = {.index = 0},

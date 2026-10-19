@@ -227,14 +227,6 @@ void *sxml_xml_array_at(const sxml_xml_array *array, size_t element_index) {
 
 /* -------------------------------------------------------- Hash index */
 
-/* An element with attribute definitions. */
-typedef struct sxml_xml_element_entry {
-    sxml_byte_range element_name;
-    /* Definition numbers (index plus one); 0 for none. */
-    uint32_t first_definition;
-    uint32_t last_definition;
-} sxml_xml_element_entry;
-
 /* FNV-1a, 32 bits: names are short and the index only needs spread. */
 static uint32_t sxml_xml_hash_name(sxml_byte_view name) {
     uint32_t hash = 2166136261U;
@@ -364,6 +356,12 @@ sxml_xml_dtd sxml_xml_dtd_empty(sxml_allocator allocator) {
         .elements = sxml_xml_array_empty((sxml_xml_array_configuration){
             .allocator = allocator,
             .element_byte_count = sizeof(sxml_xml_element_entry)}),
+        .particles = sxml_xml_array_empty((sxml_xml_array_configuration){
+            .allocator = allocator,
+            .element_byte_count = sizeof(sxml_xml_particle)}),
+        .notations = sxml_xml_array_empty((sxml_xml_array_configuration){
+            .allocator = allocator,
+            .element_byte_count = sizeof(sxml_xml_notation)}),
         .general_entity_slots = sxml_xml_array_empty(slot_configuration),
         .parameter_entity_slots = sxml_xml_array_empty(slot_configuration),
         .element_slots = sxml_xml_array_empty(slot_configuration),
@@ -383,6 +381,8 @@ void sxml_xml_dtd_clear(sxml_xml_dtd *dtd) {
     dtd->entities.element_count = 0;
     dtd->attribute_definitions.element_count = 0;
     dtd->elements.element_count = 0;
+    dtd->particles.element_count = 0;
+    dtd->notations.element_count = 0;
     dtd->general_entity_count = 0;
     dtd->parameter_entity_count = 0;
     sxml_xml_clear_slots(&dtd->general_entity_slots);
@@ -395,6 +395,8 @@ void sxml_xml_dtd_release(sxml_xml_dtd *dtd) {
     sxml_xml_array_release(&dtd->entities);
     sxml_xml_array_release(&dtd->attribute_definitions);
     sxml_xml_array_release(&dtd->elements);
+    sxml_xml_array_release(&dtd->particles);
+    sxml_xml_array_release(&dtd->notations);
     sxml_xml_array_release(&dtd->general_entity_slots);
     sxml_xml_array_release(&dtd->parameter_entity_slots);
     sxml_xml_array_release(&dtd->element_slots);
@@ -486,10 +488,9 @@ sxml_xml_entity *sxml_xml_dtd_get_entity(const sxml_xml_dtd *dtd,
     return sxml_xml_array_at(&dtd->entities, entry_index);
 }
 
-/* Finds or adds the element entry of element_name. */
-static sxml_status sxml_xml_dtd_get_element(sxml_xml_dtd *dtd,
-                                            sxml_byte_view element_name,
-                                            uint32_t *element_index) {
+sxml_status sxml_xml_dtd_get_element(sxml_xml_dtd *dtd,
+                                     sxml_byte_view element_name,
+                                     uint32_t *element_index) {
     const sxml_xml_name_index index = sxml_xml_element_index(dtd);
     sxml_xml_lookup existing = sxml_xml_index_find(&index, element_name);
     if (existing.is_found) {
@@ -515,7 +516,13 @@ static sxml_status sxml_xml_dtd_get_element(sxml_xml_dtd *dtd,
     *(sxml_xml_element_entry *)element =
         (sxml_xml_element_entry){.element_name = name_range,
                                  .first_definition = 0,
-                                 .last_definition = 0};
+                                 .last_definition = 0,
+                                 .is_referred_to = false,
+                                 .is_declared = false,
+                                 .is_declared_in_external_markup = false,
+                                 .content_kind = SXML_XML_CONTENT_KIND_ANY,
+                                 .first_particle = 0,
+                                 .particle_count = 0};
     *element_index = (uint32_t)(dtd->elements.element_count - 1);
     sxml_xml_index_place(&index, *element_index);
     return SXML_STATUS_OK;
@@ -588,4 +595,15 @@ sxml_xml_dtd_get_definition(const sxml_xml_dtd *dtd,
                             uint32_t definition_number) {
     return sxml_xml_array_at(&dtd->attribute_definitions,
                              (size_t)definition_number - 1);
+}
+
+sxml_xml_lookup sxml_xml_dtd_find_element(const sxml_xml_dtd *dtd,
+                                          sxml_byte_view element_name) {
+    const sxml_xml_name_index index = sxml_xml_element_index(dtd);
+    return sxml_xml_index_find(&index, element_name);
+}
+
+sxml_xml_element_entry *sxml_xml_dtd_element_at(const sxml_xml_dtd *dtd,
+                                                uint32_t element_index) {
+    return sxml_xml_array_at(&dtd->elements, element_index);
 }

@@ -547,3 +547,89 @@ typedef struct sxml_schema_validation_request {
 SXML_NODISCARD SXML_EXPORT sxml_status sxml_schema_validate_node(
     const sxml_schema *schema, const sxml_schema_validation_request *request,
     sxml_item *validated_node);
+
+/* ------------------------------------------------------- DTD validation */
+
+/*
+ * A DTD validator: the validator of include/sxml/xml.h's
+ * sxml_xml_validator interface that sxml provides (D199). DTD validation
+ * is schema validation: the parser writes the DTD as XSD schema
+ * documents, which this validator compiles with its processor and checks
+ * the document's events against with a schema validator; the validity
+ * constraints the parser checks itself arrive as reports too. The tree the
+ * parse builds is the one it would build without validation (attributes
+ * untyped, is-id and is-idrefs from the DTD, XDM 4.0 section 6): DTD
+ * validation adds no type annotations.
+ *
+ * Reports carry the schema validator's constraint names (cvc-...) for
+ * what the schema checks, and "xml-validity" for the constraints the
+ * parser checks, whose descriptions name them as XML 1.0 does ("VC: Root
+ * Element Type: ..."). A DTD that does not compile (a default value its
+ * type does not allow, a content model that is not deterministic, XML
+ * 1.0 appendix E) is reported, with the schema's constraint name, as an
+ * error of the document. A validator serves one parse.
+ */
+typedef struct sxml_dtd_validator sxml_dtd_validator;
+
+typedef struct sxml_dtd_validator_configuration {
+    /* Compiles the schema; kept by reference, must outlive the validator. */
+    sxml_processor *processor;
+    /* Receives every error; the null sink makes the first one stop the
+       parse, with SXML_STATUS_DYNAMIC_ERROR. The state must outlive the
+       validator. */
+    sxml_schema_report_sink report_sink;
+    /* Receives the first error; may be NULL. Must outlive the validator. */
+    sxml_error_record *error_record;
+} sxml_dtd_validator_configuration;
+
+/*
+ * Writes the memory requirements of a DTD validator's fixed part to
+ * *requirements. Returns SXML_STATUS_INVALID_ARGUMENT for an invalid
+ * configuration (no processor).
+ */
+SXML_NODISCARD SXML_EXPORT sxml_status sxml_dtd_validator_memory_requirements(
+    const sxml_dtd_validator_configuration *configuration,
+    sxml_memory_requirements *requirements);
+
+/*
+ * Places a DTD validator in memory and writes its address to *validator.
+ * Allocates nothing until the parse starts validation. Returns
+ * SXML_STATUS_INVALID_ARGUMENT for an invalid configuration, or
+ * SXML_STATUS_INSUFFICIENT_MEMORY or SXML_STATUS_MISALIGNED_MEMORY when
+ * memory does not meet the memory requirements.
+ */
+SXML_NODISCARD SXML_EXPORT sxml_status sxml_dtd_validator_initialize(
+    sxml_memory_view memory, const sxml_dtd_validator_configuration *configuration,
+    sxml_dtd_validator **validator);
+
+/* Releases the schema and the schema validator. Does nothing when
+   validator is NULL. */
+SXML_EXPORT void sxml_dtd_validator_finalize(sxml_dtd_validator *validator);
+
+/*
+ * Allocates a DTD validator through allocator and initializes it.
+ * allocator is stored and must outlive the validator. Returns the failures
+ * of sxml_dtd_validator_initialize and sxml_allocator_allocate.
+ */
+SXML_NODISCARD SXML_EXPORT sxml_status sxml_dtd_validator_create(
+    sxml_allocator allocator, const sxml_dtd_validator_configuration *configuration,
+    sxml_dtd_validator **validator);
+
+/* Finalizes a validator made by sxml_dtd_validator_create and releases its
+   memory. Does nothing when validator is NULL. */
+SXML_EXPORT void sxml_dtd_validator_destroy(sxml_dtd_validator *validator);
+
+/* The interface to name in sxml_xml_parse_request.validator. Valid until
+   the validator is finalized. */
+SXML_EXPORT sxml_xml_validator
+sxml_dtd_validator_as_xml_validator(sxml_dtd_validator *validator);
+
+/*
+ * Writes the outcome of the validation to *outcome once the parse has
+ * ended: valid when no error was reported and the schema validator found
+ * the document valid (IDREFs resolved, cvc-id). Returns
+ * SXML_STATUS_INVALID_ARGUMENT, leaving *outcome untouched, when the
+ * parse did not reach the end of the document and reported no error.
+ */
+SXML_NODISCARD SXML_EXPORT sxml_status sxml_dtd_validator_get_outcome(
+    const sxml_dtd_validator *validator, sxml_validation_outcome *outcome);

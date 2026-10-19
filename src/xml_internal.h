@@ -389,6 +389,9 @@ typedef struct sxml_xml_entity {
     /* External and unparsed entities, without the quotes. */
     sxml_byte_range system_identifier;
     sxml_byte_range public_identifier;
+    /* Unparsed entities: the notation NDATA names (VC: Notation
+       Declared, 4.2.2). */
+    sxml_byte_range notation_name;
     /* Declared in the external subset or in a parameter entity: a
        reference to it does not meet WFC: Entity Declared where that
        constraint applies (4.1). */
@@ -413,29 +416,101 @@ typedef struct sxml_xml_entity {
     TSTree *syntax_tree;
 } sxml_xml_entity;
 
-/* The declared type of an attribute, as far as normalization and the
-   ID properties need it (XML 1.0, section 3.3.1). */
+/* The declared type of an attribute (XML 1.0, section 3.3.1). Every type
+   but CDATA gets the extra normalization of 3.3.3. */
 typedef enum sxml_xml_attribute_type {
     SXML_XML_ATTRIBUTE_TYPE_CDATA,
     SXML_XML_ATTRIBUTE_TYPE_ID,
     SXML_XML_ATTRIBUTE_TYPE_IDREF,
     SXML_XML_ATTRIBUTE_TYPE_IDREFS,
-    /* ENTITY, ENTITIES, NMTOKEN, NMTOKENS, NOTATION, enumerations. */
-    SXML_XML_ATTRIBUTE_TYPE_OTHER_TOKENIZED,
+    SXML_XML_ATTRIBUTE_TYPE_ENTITY,
+    SXML_XML_ATTRIBUTE_TYPE_ENTITIES,
+    SXML_XML_ATTRIBUTE_TYPE_NMTOKEN,
+    SXML_XML_ATTRIBUTE_TYPE_NMTOKENS,
+    /* [58] NotationType: the names are in enumeration. */
+    SXML_XML_ATTRIBUTE_TYPE_NOTATION,
+    /* [59] Enumeration: the name tokens are in enumeration. */
+    SXML_XML_ATTRIBUTE_TYPE_ENUMERATION,
 } sxml_xml_attribute_type;
+
+/* [60] DefaultDecl. */
+typedef enum sxml_xml_default_kind {
+    SXML_XML_DEFAULT_KIND_IMPLIED,
+    SXML_XML_DEFAULT_KIND_REQUIRED,
+    SXML_XML_DEFAULT_KIND_FIXED,
+    SXML_XML_DEFAULT_KIND_VALUE,
+} sxml_xml_default_kind;
 
 /* One attribute definition (XML 1.0, section 3.3). */
 typedef struct sxml_xml_attribute_definition {
     sxml_byte_range attribute_name;
     sxml_xml_attribute_type attribute_type;
+    /* NOTATION and enumerated types: the names or name tokens, each
+       followed by one space, in the DTD text. */
+    sxml_byte_range enumeration;
+    sxml_xml_default_kind default_kind;
     /* True for a default value (#FIXED or a plain value), false for
        #REQUIRED and #IMPLIED. */
     bool has_default_value;
     /* The normalized default value, in the DTD text. */
     sxml_byte_range default_value;
+    /* Declared in the external subset or a parameter entity (VC:
+       Standalone Document Declaration, 2.9). */
+    bool is_declared_in_external_markup;
     /* The next definition of the same element, plus one; 0 at the end. */
     uint32_t next_definition;
 } sxml_xml_attribute_definition;
+
+/* [46] contentspec, by kind. */
+typedef enum sxml_xml_content_kind {
+    SXML_XML_CONTENT_KIND_EMPTY,
+    SXML_XML_CONTENT_KIND_ANY,
+    /* [51] Mixed: the particles are the element names allowed. */
+    SXML_XML_CONTENT_KIND_MIXED,
+    /* [47] children: the particles are the content model. */
+    SXML_XML_CONTENT_KIND_CHILDREN,
+} sxml_xml_content_kind;
+
+/* One step of a content model written out in document order: groups open
+   and end around their particles, as the model nests (3.2.1). */
+typedef enum sxml_xml_particle_kind {
+    SXML_XML_PARTICLE_KIND_SEQUENCE,
+    SXML_XML_PARTICLE_KIND_CHOICE,
+    SXML_XML_PARTICLE_KIND_GROUP_END,
+    SXML_XML_PARTICLE_KIND_ELEMENT,
+} sxml_xml_particle_kind;
+
+typedef struct sxml_xml_particle {
+    sxml_xml_particle_kind particle_kind;
+    /* '?', '*', '+' or 0 for exactly once; of the group on its start. */
+    uint8_t quantifier;
+    /* ELEMENT: the element type's name, in the DTD text. */
+    sxml_byte_range element_name;
+} sxml_xml_particle;
+
+/* An element type with an element declaration or attribute definitions. */
+typedef struct sxml_xml_element_entry {
+    sxml_byte_range element_name;
+    /* Definition numbers (index plus one); 0 for none. */
+    uint32_t first_definition;
+    uint32_t last_definition;
+    /* Named in a content model ([48] cp, [51] Mixed). */
+    bool is_referred_to;
+    /* Its [45] elementdecl, when it has one: the first wins. */
+    bool is_declared;
+    bool is_declared_in_external_markup;
+    sxml_xml_content_kind content_kind;
+    /* Its particles in sxml_xml_dtd.particles. */
+    size_t first_particle;
+    size_t particle_count;
+} sxml_xml_element_entry;
+
+/* One [82] NotationDecl. */
+typedef struct sxml_xml_notation {
+    sxml_byte_range notation_name;
+    sxml_byte_range public_identifier;
+    sxml_byte_range system_identifier;
+} sxml_xml_notation;
 
 /*
  * The declarations of one document: entities and attribute definitions,
@@ -446,8 +521,13 @@ typedef struct sxml_xml_dtd {
     sxml_xml_buffer text;
     sxml_xml_array entities;
     sxml_xml_array attribute_definitions;
-    /* Elements with attribute definitions: sxml_xml_element_entry. */
+    /* Elements with declarations or attribute definitions:
+       sxml_xml_element_entry. */
     sxml_xml_array elements;
+    /* The content models of element declarations: sxml_xml_particle. */
+    sxml_xml_array particles;
+    /* sxml_xml_notation, in declaration order. */
+    sxml_xml_array notations;
     /* Hash indices of names: slots of entry index plus one. */
     sxml_xml_array general_entity_slots;
     sxml_xml_array parameter_entity_slots;
@@ -527,6 +607,20 @@ SXML_NODISCARD sxml_status sxml_xml_dtd_add_attribute_definition(
  */
 uint32_t sxml_xml_dtd_first_definition(const sxml_xml_dtd *dtd,
                                        sxml_byte_view element_name);
+
+/* Finds the entry of element_name, adding one without declarations when
+   there is none, and writes its index. */
+SXML_NODISCARD sxml_status sxml_xml_dtd_get_element(sxml_xml_dtd *dtd,
+                                                    sxml_byte_view element_name,
+                                                    uint32_t *element_index);
+
+/* Finds the entry of element_name. */
+sxml_xml_lookup sxml_xml_dtd_find_element(const sxml_xml_dtd *dtd,
+                                          sxml_byte_view element_name);
+
+/* The element entry at element_index. */
+sxml_xml_element_entry *sxml_xml_dtd_element_at(const sxml_xml_dtd *dtd,
+                                                uint32_t element_index);
 
 /* The attribute definition numbered definition_number (from 1). */
 const sxml_xml_attribute_definition *

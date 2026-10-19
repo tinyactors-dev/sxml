@@ -147,6 +147,63 @@ typedef struct sxml_xml_entity_resolver {
     const sxml_xml_entity_resolver_operations *operations;
 } sxml_xml_entity_resolver;
 
+/* --------------------------------------------------- DTD validation */
+
+/*
+ * The DTD of a document as XSD 1.1 schema documents (D199): the parser
+ * writes them from the declarations it has read, one per namespace of the
+ * declared names, which it resolves with the namespace declarations of
+ * the document element and the defaults of xmlns attributes in the DTD.
+ * Element types become global element declarations (EMPTY, ANY as a
+ * strict wildcard, mixed content, content models as model groups),
+ * attribute definitions attribute uses (CDATA as xs:string, ID, IDREF(S),
+ * ENTITY, ENTITIES, NMTOKEN(S), NOTATION and enumerations as restrictions,
+ * #REQUIRED, #FIXED and defaults), notation declarations notations. Views
+ * are borrowed for the call.
+ */
+typedef struct sxml_xml_dtd_schema_view {
+    const sxml_byte_view *schema_texts;
+    size_t schema_text_count;
+} sxml_xml_dtd_schema_view;
+
+/* A validity constraint of XML 1.0 that the parser checks itself, because
+   no schema component expresses it (VC: Root Element Type, Unique Element
+   Type Declaration, ID Attribute Default, Standalone Document
+   Declaration, ...). Borrowed for the call. */
+typedef struct sxml_xml_validity_error {
+    /* Names the constraint as XML 1.0 does, "VC: Root Element Type". */
+    sxml_byte_view description;
+    sxml_source_location location;
+} sxml_xml_validity_error;
+
+/* The operations of a DTD validator. Tables are static const. */
+typedef struct sxml_xml_validator_operations {
+    /* Called once the DTD is read, before the first event: compiles the
+       schema and writes to *checking_builder the builder that checks the
+       document's events (a schema validator whose results go nowhere).
+       The parser then sends every event to it as well as to the parse's
+       builder. Any status other than SXML_STATUS_OK stops the parse with
+       it. */
+    sxml_status (*start_validation)(void *state,
+                                    const sxml_xml_dtd_schema_view *schema,
+                                    sxml_tree_builder *checking_builder);
+    /* Receives a validity error the parser found itself. SXML_STATUS_OK
+       lets the parse go on; any other status stops it with that status. */
+    sxml_status (*report_validity_error)(
+        void *state, const sxml_xml_validity_error *error);
+} sxml_xml_validator_operations;
+
+/*
+ * The DTD validator interface, passed by value (XML 1.0, section 5.1: a
+ * validating processor). A validator whose operations is NULL is the null
+ * validator: the document is only checked for well-formedness, the
+ * default. include/sxml/schema.h has the validator sxml provides.
+ */
+typedef struct sxml_xml_validator {
+    void *state;
+    const sxml_xml_validator_operations *operations;
+} sxml_xml_validator;
+
 /*
  * A parser. It keeps memory between documents (the entity table, the
  * namespace stack, the attribute list), so one parser can serve many
@@ -194,6 +251,10 @@ typedef struct sxml_xml_parse_request {
        resolver reads none (see the top of this header). A zeroed request
        has the null resolver. */
     sxml_xml_entity_resolver entity_resolver;
+    /* Validates the document against its DTD; the null validator does
+       not. A document without a document type declaration is then not
+       valid. A zeroed request has the null validator. */
+    sxml_xml_validator validator;
 } sxml_xml_parse_request;
 
 /*

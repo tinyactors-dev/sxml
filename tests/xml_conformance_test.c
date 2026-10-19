@@ -8,6 +8,9 @@
  * catalogs, eduni's namespace 1.1 tests and the one 1.1 erratum test,
  * whatever entities they use. Every document is parsed with an entity
  * resolver that reads the suite's files, so external entities are read.
+ * The valid and invalid cases of XML 1.0 (those marked NAMESPACE="no"
+ * aside) are also validated against their DTDs (packet 7.14b): a valid
+ * case must be found valid and an invalid one invalid.
  *
  * Golden file: tests/memory_test.c (layout, naming).
  *
@@ -27,6 +30,8 @@
  */
 #include "sxml/memory.h"
 #include "sxml/name.h"
+#include "sxml/processor.h"
+#include "sxml/schema.h"
 #include "sxml/status.h"
 #include "sxml/tree.h"
 #include "sxml/types.h"
@@ -177,8 +182,24 @@ typedef struct conformance_counts {
     uint32_t failure_count;
 } conformance_counts;
 
+/* How DTD validation (packet 7.14b) judged the valid and invalid cases:
+   valid ones must be found valid, invalid ones invalid. */
+typedef struct validation_counts {
+    uint32_t valid_passed;
+    uint32_t valid_total;
+    uint32_t invalid_passed;
+    uint32_t invalid_total;
+    uint32_t failure_count;
+} validation_counts;
+
 /* What the suite run shares: the objects and the counts. */
 typedef struct conformance_run {
+    /* Validation compiles schemas with a processor; its parser interns
+       into the processor's name pool. */
+    sxml_processor *processor;
+    sxml_xml_parser *validating_parser;
+    validation_counts standalone_validation;
+    validation_counts external_validation;
     sxml_name_pool *name_pool;
     sxml_type_registry *registry;
     sxml_item_heap *item_heap;
@@ -349,6 +370,87 @@ static sxml_status build_document(const conformance_run *run,
     return status;
 }
 
+/* Parses a document with DTD validation and returns whether it was found
+   valid; writes the first error's description to diagnostic. */
+static bool document_is_valid(const conformance_run *run,
+                              const conformance_document *source,
+                              sxml_diagnostic *diagnostic) {
+    char base_uri[SXML_TEST_PATH_BYTE_COUNT];
+    (void)snprintf(base_uri, sizeof base_uri, "file://%s", source->path);
+    sxml_error_record error_record;
+    memset(&error_record, 0, sizeof error_record);
+    sxml_dtd_validator *validator = NULL;
+    if (sxml_dtd_validator_create(
+            sxml_default_allocator(),
+            &(sxml_dtd_validator_configuration){
+                .processor = run->processor,
+                .report_sink = {.state = NULL, .operations = NULL},
+                .error_record = &error_record},
+            &validator) != SXML_STATUS_OK) {
+        return false;
+    }
+    const sxml_status status = sxml_xml_parser_check(
+        run->validating_parser,
+        &(sxml_xml_parse_request){
+            .input = source->text,
+            .source_name = SXML_BYTE_VIEW_FROM_LITERAL("test.xml"),
+            .document_uri = {.bytes = NULL, .byte_count = 0},
+            .base_uri = sxml_byte_view_from_c_string(base_uri),
+            .encoding_name = {.bytes = NULL, .byte_count = 0},
+            .diagnostic = diagnostic,
+            .entity_resolver = {.state = NULL, .operations = &suite_entity_resolver},
+            .validator = sxml_dtd_validator_as_xml_validator(validator)});
+    sxml_validation_outcome outcome = {.validity = SXML_VALIDITY_INVALID,
+                                       .error_count = 0};
+    bool is_valid = false;
+    if (status == SXML_STATUS_OK &&
+        sxml_dtd_validator_get_outcome(validator, &outcome) == SXML_STATUS_OK) {
+        is_valid = outcome.validity == SXML_VALIDITY_VALID;
+    }
+    if (status == SXML_STATUS_DYNAMIC_ERROR || (status == SXML_STATUS_OK && !is_valid)) {
+        *diagnostic = error_record.diagnostic;
+    }
+    sxml_dtd_validator_destroy(validator);
+    return is_valid;
+}
+
+/* Validates a valid or invalid case of XML 1.0 and counts the verdict. */
+static void validate_case(conformance_run *run, const conformance_case *test_case,
+                          const conformance_document *source) {
+    const bool is_valid_case = field_is(test_case->type, "valid");
+    if ((!is_valid_case && !field_is(test_case->type, "invalid")) ||
+        !case_is_version_1_0(test_case) ||
+        field_is(test_case->namespace_flag, "no")) {
+        return;
+    }
+    validation_counts *counts = case_uses_entities(test_case)
+                                    ? &run->external_validation
+                                    : &run->standalone_validation;
+    sxml_diagnostic diagnostic = {
+        .description = {.bytes = NULL, .byte_count = 0},
+        .location = {.source_name = {.bytes = NULL, .byte_count = 0},
+                     .line_number = 0,
+                     .column_number = 0,
+                     .byte_offset = 0}};
+    const bool is_valid = document_is_valid(run, source, &diagnostic);
+    const bool passed = is_valid == is_valid_case;
+    counts->valid_total += is_valid_case ? 1 : 0;
+    counts->invalid_total += is_valid_case ? 0 : 1;
+    counts->valid_passed += is_valid_case && passed ? 1 : 0;
+    counts->invalid_passed += !is_valid_case && passed ? 1 : 0;
+    if (!passed) {
+        counts->failure_count += 1;
+        if (getenv("SXML_XML_CONFORMANCE_VERBOSE") != NULL) {
+            printf("VALIDATION %s %s (%s): %.*s\n", is_valid ? "accepted" : "refused",
+                   test_case->identifier, test_case->type,
+                   (int)diagnostic.description.byte_count,
+                   (const char *)diagnostic.description.bytes);
+        }
+    }
+    /* The description lives in the heap until the next error (D41). */
+    sxml_item_heap_clear_raised_error(sxml_processor_get_item_heap(run->processor));
+}
+
 static bool status_refuses(sxml_status status) {
     return status == SXML_STATUS_MALFORMED_INPUT ||
            status == SXML_STATUS_INVALID_UTF8 ||
@@ -365,8 +467,9 @@ static void run_case(conformance_run *run, const conformance_case *test_case) {
         run->counts.failure_count += 1;
         return;
     }
-    const sxml_status status = build_document(
-        run, &(conformance_document){.text = document, .path = path});
+    const conformance_document source = {.text = document, .path = path};
+    const sxml_status status = build_document(run, &source);
+    validate_case(run, test_case, &source);
     release_file(document);
     const bool is_namespace_free = field_is(test_case->namespace_flag, "no");
     conformance_counts *counts =
@@ -711,6 +814,19 @@ static void test_conformance_suite(sxml_test_state *state) {
     SXML_TEST_REQUIRE(state, sxml_xml_parser_create(allocator, &configuration,
                                                     &run.catalog_parser) ==
                                  SXML_STATUS_OK);
+    SXML_TEST_REQUIRE(state,
+                      sxml_processor_create(
+                          allocator,
+                          &(sxml_processor_configuration){.allocator = allocator},
+                          &run.processor) == SXML_STATUS_OK);
+    SXML_TEST_REQUIRE(
+        state, sxml_xml_parser_create(
+                   allocator,
+                   &(sxml_xml_parser_configuration){
+                       .allocator = allocator,
+                       .name_pool = sxml_processor_get_name_pool(run.processor),
+                       .limits = configuration.limits},
+                   &run.validating_parser) == SXML_STATUS_OK);
     SXML_TEST_EXPECT(state, run_suite(&run, suite_directory) == SXML_STATUS_OK);
     const conformance_counts *counts = &run.counts;
     printf("valid %u/%u, invalid %u/%u, not-wf %u/%u; NAMESPACE=\"no\": %u "
@@ -744,6 +860,21 @@ static void test_conformance_suite(sxml_test_state *state) {
            version_1_1->not_well_formed_passed,
            version_1_1->not_well_formed_total, version_1_1->error_total);
     SXML_TEST_EXPECT(state, version_1_1->failure_count == 0);
+    const validation_counts *standalone = &run.standalone_validation;
+    const validation_counts *external_validation = &run.external_validation;
+    printf("DTD validation, standalone: valid %u/%u, invalid %u/%u; external "
+           "entities: valid %u/%u, invalid %u/%u\n",
+           standalone->valid_passed, standalone->valid_total,
+           standalone->invalid_passed, standalone->invalid_total,
+           external_validation->valid_passed, external_validation->valid_total,
+           external_validation->invalid_passed, external_validation->invalid_total);
+    /* Packet 7.14b: every valid case valid, every invalid case invalid. */
+    SXML_TEST_EXPECT(state, standalone->failure_count == 0);
+    SXML_TEST_EXPECT(state, external_validation->failure_count == 0);
+    SXML_TEST_EXPECT(state, standalone->invalid_total == 173);
+    SXML_TEST_EXPECT(state, external_validation->invalid_total == 54);
+    sxml_xml_parser_destroy(run.validating_parser);
+    sxml_processor_destroy(run.processor);
     sxml_xml_parser_destroy(run.catalog_parser);
     sxml_xml_parser_destroy(run.document_parser);
     sxml_item_heap_destroy(run.item_heap);
