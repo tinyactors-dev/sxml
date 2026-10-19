@@ -9584,6 +9584,74 @@ English" and their D162 places: the fallback markers of
   cardinal plural rules; date formats of CLDR (sxml formats pictures,
   not patterns); a language's digits other than ASCII in names.
 
+### D225. The built-in schemas are an optional feature; the core size guard (packet health-3)
+Recorded 2026-10-19, after D162, D189, D208, D211. The core `sxml.wasm`
+was 2,352,234 bytes stripped (823,283 gzipped) at 6130546, over D207's
+2,200,000 / 770,000, so `javascript/size_budget` failed again.
+- **What grew it** (linker maps of the core module per commit, code and
+  data, from ae7ef0b at 2,131,859): c008c7c (packet 2.22, lax
+  validation without in-scope schemas) +171,516: plan_validation called
+  sxml_processor_get_builtin_schema, which runs sxml_schema_create, so
+  the whole XSD schema compiler was reachable from XPath again, as
+  D211 found for DTD validation: schema_read 43,074, schema_content_model
+  26,932, schema_simple_type 18,108, schema_complex_type 18,062,
+  schema_resolve 9,475, schema_assemble 9,055, schema_components 4,736,
+  schema_assertion 3,689, schema_identity 2,457, data 21,853. 820231e
+  (the fn: schema, D.1 to D.3) made it reachable a second way. d326dcc
+  (7.6b) +18,136: evaluator_stream 14,565, linked through the evaluator
+  part registry (D101) although only XSLT lowers to STREAM. 4d78eba
+  (xml-mem) +8,697: document segments and the XML grammar's tables.
+  29aff55 (fn:element-to-map) +5,347; 1fd0615 (7.17's core part of the
+  formatting functions) +4,703; 3c8b502 (deep-equal options) +1,888;
+  f164846 +2,070; 81728fb +1,674 (Full Text lowering through the
+  registry, D189); 658ad10 +1,577; 820231e +1,370; the rest under
+  1,000. No feature definition was linked into the core by mistake.
+- **Moved**: the processor's built-in schemas for XPath's functions
+  become `sxml_builtin_schemas_feature()` (`include/sxml/schema.h`,
+  additive; name "builtin-schemas"; kind
+  SXML_OPTIONAL_FEATURE_KIND_BUILTIN_SCHEMAS; definition in
+  `src/processor_builtin_schemas.c`, operations type in
+  `src/processor_internal.h`). `src/function_library_schema.c` reaches
+  sxml_processor_get_builtin_schema and
+  sxml_processor_get_function_namespace_schema only through the table.
+  Without the feature (D162's place): lax validation of fn:doc and
+  fn:parse-xml without an in-scope schema raises FODC0014 as strict
+  does (as before c008c7c); fn:json-to-xml validate=true without an
+  in-scope schema of the fn: namespace raises FOJS0004, F&O 4.0's error
+  for a processor that cannot validate (17.4.6); fn:analyze-string's
+  result stays untyped (6.3.4: implementation-defined). XQuery's and
+  XSLT's in-scope schemas call the getters directly and do not need the
+  feature. `sxml_all_optional_features()` includes it, so the sxml
+  command, the drivers and `sxml-full.wasm` are unchanged.
+- **Guard**: the JavaScript modules are linked with a map
+  (`-Wl,-Map`, beside each module), and `size-budget.mjs` compares the
+  core's map with `bindings/javascript/test/size-baseline/sxml.txt`
+  (code and data per object at this audit): it prints the five largest
+  growths on every run and twenty when the core is over budget, so the
+  object and the commit are named at once. A packet that raises a
+  budget or audits the core refreshes the baseline in the same change
+  (`node size-budget.mjs --write-baseline MAP BASELINE`).
+- **Not moved** (owned by running packets): evaluator_stream 14,565
+  (7.6c; a registry split by language, D189's 75 KB, would drop it with
+  the XQuery lowering parts).
+- **Sizes**: `sxml.wasm` 2,352,234 / 823,283 to 2,180,960 / 762,788,
+  under 2,200,000 / 770,000 with no core budget raised.
+  `sxml-full.wasm` was 7,002,841 / 1,595,270, over its 7,000,000 (Full
+  Text's stemmers, stop words and thesauri, 7.12b/c; 2.22's schema
+  work): its budget rises to 7,500,000 / 2,625,000 (D208, ratio 0.35).
+  `javascript/package_full` lists invisible-xml, localization and
+  builtin-schemas, which its feature list lacked.
+- **Same pass**: debug-gcc failed in `src/function_library_binary.c`
+  (-Wconversion on a conditional over two uint8_t operands, whose type is
+  int, C17 6.5.15p5); GCC sees it only under -fsanitize=undefined, so a
+  plain command line did not show it. `tools/run-wasi.mjs` preopens
+  /usr/share/zoneinfo, so `cli/xpath_timezone` passes under WASI.
+  The goldens of `cli/validate_not_well_formed` and
+  `cli/validate_schema_not_well_formed` follow D222's segmented parse: a
+  document that ends inside an element gets the parser's truncation
+  message at the same place, and the validity errors before the fatal
+  error are reported too (XML 1.0, 1.2).
+
 ## Proposed
 
 - **The CLI's WebAssembly budget after the Phase 7 features** (packet
