@@ -85,6 +85,11 @@ typedef enum sxml_optional_feature_kind {
        operations sxml_uca_collation_operations
        (src/collation_internal.h). */
     SXML_OPTIONAL_FEATURE_KIND_UCA_COLLATION,
+    /* sxml_full_text_feature: the matcher of XQuery and XPath Full Text
+       3.0 for the contains row of src/xquery_lower_full_text.c
+       (src/full_text.c, packet 7.12a, D214); operations
+       sxml_full_text_operations (src/full_text_internal.h). */
+    SXML_OPTIONAL_FEATURE_KIND_FULL_TEXT,
     SXML_OPTIONAL_FEATURE_KIND_COUNT,
 } sxml_optional_feature_kind;
 
@@ -237,3 +242,5 @@ extern const sxml_optional_feature_definition sxml_xslt_transform_feature_defini
 extern const sxml_optional_feature_definition sxml_timezone_database_feature_definition;
 /* The DTD validation feature (src/schema_from_dtd.c). */
 extern const sxml_optional_feature_definition sxml_dtd_validation_feature_definition;
+/* The Full Text feature (src/full_text.c). */
+extern const sxml_optional_feature_definition sxml_full_text_feature_definition;

@@ -13,6 +13,7 @@
  */
 #include "xquery_lower_internal.h"
 
+#include "full_text_internal.h"
 #include "sxml/name.h"
 #include "sxml/types.h"
 #include "sxml/xdm.h"
@@ -929,6 +930,21 @@ static sxml_status push_position_variable(sxml_xpath_lowerer *state,
     return push_scope_variable(state, position_name, sxml_ir_slot_atom(locals->position_slot));
 }
 
+/* "score $s" of a for binding (Full Text 3.0, 2.3.1): every item's score
+   is 1, as relevant as any other (scores are implementation-dependent
+   within [0, 1]; D214). */
+static sxml_status push_score_variable(sxml_xpath_lowerer *state, sxml_ast_node_index score) {
+    sxml_name_identifier score_name = {0};
+    sxml_status status = sxml_xpath_lowerer_resolve_variable_name(
+        state, child_of(state, score, SXML_AST_FIELD_NAME), &score_name);
+    sxml_ir_atom one = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_add_item_constant(state, sxml_atomic_item_from_double(1.0),
+                                                      &one);
+    }
+    return status == SXML_STATUS_OK ? push_scope_variable(state, score_name, one) : status;
+}
+
 /* A for binding, its sequence lowered: the range and position variables
    in the MAP's body block, then the rest of the segment there. */
 static sxml_status begin_for_body(sxml_xpath_lowering_machine *machine,
@@ -956,6 +972,10 @@ static sxml_status begin_for_body(sxml_xpath_lowering_machine *machine,
     }
     if (status == SXML_STATUS_OK && positional.value != 0) {
         status = push_position_variable(state, frame, positional);
+    }
+    const sxml_ast_node_index score = child_of(state, binding, SXML_AST_FIELD_SCORE);
+    if (status == SXML_STATUS_OK && score.value != 0) {
+        status = push_score_variable(state, score);
     }
     if (status != SXML_STATUS_OK) {
         return status;
@@ -1281,6 +1301,29 @@ static sxml_status continue_let(sxml_xpath_lowering_machine *machine,
     locals->scope_mark = state->scope_entry_count;
     const sxml_ast_node_index binding = locals->position.binding;
     const sxml_ast_kind kind = node_of(state, binding)->kind;
+    if (kind == SXML_AST_KIND_LET_SCORE_BINDING) {
+        /* "let score $s := E" (Full Text 3.0, 2.3.2): $s is the score of
+           E (src/full_text_internal.h). */
+        sxml_name_identifier score_name = {0};
+        sxml_status status = sxml_xpath_lowerer_resolve_variable_name(
+            state, child_of(state, binding, SXML_AST_FIELD_NAME), &score_name);
+        sxml_ir_atom score = {0};
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xquery_bind_full_text_score(
+                state,
+                &(sxml_xquery_full_text_score_request){
+                    .block = frame->block, .node = binding, .value = locals->value},
+                &score);
+        }
+        if (status == SXML_STATUS_OK) {
+            status = push_scope_variable(state, score_name, score);
+        }
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        frame->step = SXML_XQUERY_CLAUSE_STEP_LET_END;
+        return push_rest(machine, frame, frame->block);
+    }
     /* A grouping specification has the name and type a variable has. */
     const sxml_status status =
         kind == SXML_AST_KIND_LET_VALUE_BINDING ||

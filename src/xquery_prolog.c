@@ -59,6 +59,7 @@
  */
 #include "xquery_lower_internal.h"
 
+#include "full_text_internal.h"
 #include "ir_pass_internal.h"
 #include "sxml/memory.h"
 #include "xpath_lower_internal.h"
@@ -1824,6 +1825,22 @@ typedef struct update_rules_check {
     size_t module_count;
 } update_rules_check;
 
+/* The static rules of Full Text (src/full_text_internal.h, D214) for
+   every module of the query. */
+static sxml_status check_full_text_rules(update_rules_check check) {
+    sxml_status status = SXML_STATUS_OK;
+    for (size_t module_index = 0; status == SXML_STATUS_OK && module_index < check.module_count;
+         module_index += 1) {
+        status = sxml_xquery_check_full_text_rules(&(sxml_xquery_full_text_rules_request){
+            .ast = check.contexts->contexts[module_index].ast,
+            .processor = check.request->processor != NULL
+                             ? check.request->processor
+                             : check.request->static_context->processor,
+            .error_record = check.request->error_record});
+    }
+    return status;
+}
+
 static sxml_status check_update_rules(update_rules_check check, bool *body_is_updating) {
     sxml_status status = SXML_STATUS_OK;
     for (size_t module_index = 0; status == SXML_STATUS_OK && module_index < check.module_count;
@@ -1885,6 +1902,10 @@ sxml_status sxml_xquery_lower(const sxml_xquery_lowering_request *request, sxml_
             &(context_reading){.request = request, .set = &set, .unit = new_unit}, &contexts);
     }
     bool body_is_updating = false;
+    if (status == SXML_STATUS_OK) {
+        status = check_full_text_rules((update_rules_check){
+            .request = request, .contexts = &contexts, .module_count = set.module_count});
+    }
     if (status == SXML_STATUS_OK) {
         status = check_update_rules(
             (update_rules_check){

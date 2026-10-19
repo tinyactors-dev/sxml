@@ -71,7 +71,7 @@ if(SXML_BUILD_TESTS AND SXML_NODE_EXECUTABLE)
             "${CMAKE_CURRENT_SOURCE_DIR}/test/package.test.ts"
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
     set_tests_properties(javascript/package_full PROPERTIES
-        ENVIRONMENT "SXML_WASM_PATH=$<TARGET_FILE:sxml_javascript_full_module>;SXML_WASM_FEATURES=test,expath-binary,html,xslt-transform,timezone-database,dtd-validation,uca-collation")
+        ENVIRONMENT "SXML_WASM_PATH=$<TARGET_FILE:sxml_javascript_full_module>;SXML_WASM_FEATURES=test,expath-binary,html,xslt-transform,timezone-database,dtd-validation,uca-collation,full-text")
     # XQuery, XSLT and XSD (test/full.test.ts): on the full module, which
     # links them; on the core module, that they are refused (D189).
     add_test(NAME javascript/languages
