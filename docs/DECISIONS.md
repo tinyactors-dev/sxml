@@ -9675,6 +9675,73 @@ was 2,352,234 bytes stripped (823,283 gzipped) at 6130546, over D207's
   message at the same place, and the validity errors before the fatal
   error are reported too (XML 1.0, 1.2).
 
+### D226. XPath and XQuery conformance sweep (packet 2.22)
+Recorded 2026-10-19, after D190, D174, D205. Takes the "XPath and
+XQuery" leftovers of `docs/agents/QUEUE.md`. No public header changed;
+no IR expression kind added.
+- **The fn: namespace's schema** (F&O 4.0, appendix D): its three
+  documents (D.1 analyze-string, D.2 json-to-xml, D.3 csv-to-xml) are
+  known to the schema assembly as xml.xsd is: an import of the namespace
+  the resolver does not deliver (xs:import, XQuery's import schema,
+  xsl:import-schema, the QT4 driver's file-less `<schema>`) reads them.
+  The processor compiles them once and keeps them
+  (`sxml_processor_get_function_namespace_schema`).
+  `sxml_schema_scope_validate_by_function_namespace` validates against
+  an in-scope schema of the namespace first (so that schema-element()
+  matches), else the processor's. fn:json-to-xml validate=true returns
+  the validated tree (duplicates reject by default, retain is FOJS0005);
+  fn:analyze-string returns its typed result (6.3.4 recommends it).
+  D225 later put the processor's schemas behind an optional feature.
+- **Lax validation** with no in-scope schema validates against the
+  built-in components (XSD 1.1 Part 1, 3.3.4.6), not FODC0014.
+- **fn:element-to-map's schema-based conversion** (14.6.6, 14.6.9):
+  typed elements without a plan entry get the layout their type gives
+  (`sxml_schema_scope_describe_content` reads attribute uses, wildcards
+  and the particle's element terms with an explicit stack); content is
+  the typed value, an array for list types, cast to the selected type;
+  nilled elements get the layouts' nilled mappings.
+- **fn:deep-equal**: type-variety and typed-values (simple content by
+  typed values; type-variety false lets children decide).
+- **fn:doc-available** applies fn:doc's options; failures of loading or
+  validating are false, errors in the options are raised.
+- **fn:schema-type** finds in-scope schema types; the record gives a
+  complex type's content variety and simple-content-type.
+- **Signatures**: fn:parse-xml, fn:json-to-xml, fn:csv-to-xml, fn:jtree
+  and fn:in-scope-namespaces declare the result types F&O 4.0 gives.
+- **The record model** (XPath 4.0, 3.2.10.1; PR 2566, PR 2934): a map
+  that is not a record matches no record type, record(*) only records,
+  a structural record type needs as many entries as fields. "A but
+  with B" lowers to the internal row `sxml_but_with_function`
+  (`src/function_library_map.c`), which coerces the merged map to A's
+  record type, so chains keep the record. A record called with a key
+  that names no field is XPTY0004 (XDM 4.0, 8.3.2).
+- **XPath 4.0 namespace declarations** (A.1): XQST0033 and XQST0070 as
+  XQuery's prolog (5.13); duplicate parameter names are XQST0039.
+- **Measured** (release, full runs, baseline at 7f29dc2): this packet's
+  cases XP40 +38 and XQ40 +86 passed, 15 wrong codes made right; 2 lost
+  in each, both honest: fn-doc-available-40-051 now raises FODC0013 for
+  xinclude as fn:doc does, -065 asks for use-xsi-schema-location. XT40
+  json-to-xml 53 to 60, import-schema 207 to 209.
+- **Not done** (for later sweeps): lookups of a record with a key that
+  names no field (XPTY0004, recordTypeDecl-019/-020, Lookup-451) and
+  array lookups with a decimal key (Lookup-018a and 3 more) wait for
+  `src/evaluator.c` (a prepared change: the record check in
+  sxml_lookup_in_item, keys coerced to xs:integer in
+  sxml_lookup_array_member); `{ E }` over JNodes (MapConstructor-500..)
+  is also there. The item axis's JNode parent (D113, `src/xpath_lower.c`);
+  a declared function's `$a := .` found by fn:function-lookup needs the
+  IR to know a shorter arity's default functions
+  (fn-function-lookup-902). XUDY0038 (e) and is-id under construction
+  strip (f) have no QT4 case. The wrong-error passes left (g): 23 per
+  spec are EXPath Binary's 4.0 types (D198, kept). Also open:
+  fn:xsd-validator's schema, schema-location and target-namespace
+  options (7 cases, FODC0009; the driver serves sources, not schema
+  documents, at those URIs), fn:element-to-map-plan's records, the
+  adaptive method's names for derived types (the suite contradicts
+  itself: Serialization-adaptive-37a against -41/-42), and the
+  NamedRecordTypeDecl module cases (`recordTypeDecl/` against the
+  suite's `RecordTypeDecl/`).
+
 ## Proposed
 
 - **The CLI's WebAssembly budget after the Phase 7 features** (packet

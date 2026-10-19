@@ -4,6 +4,20 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 2.22 done (D226): XPath and XQuery leftovers. The fn: namespace's
+  schema (F&O 4.0, appendix D) for imports and, compiled once per
+  processor, for json-to-xml validate=true and typed analyze-string
+  results; lax validation without schemas; fn:element-to-map's
+  schema-based conversion (220 of 220); deep-equal's typed-values and
+  type-variety; doc-available with options; schema-type of schema
+  types; the draft's record model (a plain map is no record; but with
+  keeps the record type; a record called with another key is
+  XPTY0004); XPath 4.0 namespace declarations' XQST0033/XQST0070;
+  XQST0039. XP40 +38, XQ40 +86 cases, 2 honest losses each
+  (doc-available xinclude and use-xsi-schema-location). Open: record and
+  decimal-key lookups (prepared, `src/evaluator.c` was busy), the item
+  axis's JNode parent, fn:xsd-validator's schema options.
+
 - xml-mem done (D222): the XML parser reads a document in document
   segments and holds one segment's tree-sitter tree at a time: the head
   (prolog and the document element's start tag), then content segments

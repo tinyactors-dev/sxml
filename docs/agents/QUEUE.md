@@ -50,15 +50,12 @@ JavaScript (js-1, D216): 7,000,000 / 2,450,000
 
 ## Leftovers no packet owns yet
 
-XPath and XQuery (after 2.21, D190; XP40 31,098, XQ40 41,456):
-- Built-in schema for the `fn` namespace, compiled once per processor
-  (json-to-xml validation, typed analyze-string results; about 25 cases).
-- The current draft's record model: maps are records only when annotated
-  (cast-record-901, recordTypeDecl-019/072/089).
+XPath and XQuery (after 2.22, D226):
+- Record lookups with a key that names no field, and array lookups with
+  decimal keys: a prepared change in `src/evaluator.c` (D226).
 - NCName vs `Q{}N` name tests (sxml_name_test is frozen); the item axis's
   JNode parent (D113); a declared function's `$a := .` via function-lookup.
-- Lax validation with no in-scope schema raises FODC0014 (the planner in
-  `src/function_library_schema.c` treats it as strict).
+- fn:xsd-validator's schema, schema-location, target-namespace options.
 - fn:serialize canonical-JSON cases (27) need `bin:unpack-double` (7.8).
 - A processor keeps every imported schema until it is destroyed (D174).
 

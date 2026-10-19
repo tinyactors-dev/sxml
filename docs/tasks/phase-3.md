@@ -350,3 +350,22 @@ to 656/674), JNode paths (prod-AxisStep.J XQ 132 to 147, prod-PathExpr.J
 177 to 184), distinct-values with the implicit timezone (op-same-key XQ
 19 to 27), fn:doc's xsd-validation (65 to 69); XP40 30,931 to 31,098,
 XQ40 41,273 to 41,456, none lost. Open: D190's "Not done".
+
+### 2.22 XPath and XQuery conformance sweep (implementation)
+After 2.21. Takes the "XPath and XQuery" leftovers of
+`docs/agents/QUEUE.md` (from D190) in order of value: (a) a built-in
+schema for the fn namespace, compiled once per processor (json-to-xml
+validation, typed analyze-string results); (b) the current draft's
+record model; (c) lax validation with no in-scope schema; (d) the item
+axis's JNode parent and a declared function's `$a := .` through
+function-lookup; (e) XUDY0038 for dynamic calls of updating function
+items; (f) XQuery constructors under construction strip and is-id; (g)
+the wrong-error passes; then the largest remaining clusters. Files: the
+function library, the schema scope and assembly, the evaluator's
+coercion and the XPath lowering parts the fixes touch. Verification as
+D181 says.
+**Done** 2026-10-19 (D226): (a), (b) (lookups of records left), (c),
+part of (g) (XQST0039), fn:element-to-map's schema-based conversion,
+deep-equal typed values, doc-available options, schema-type, signatures,
+XPath namespace declarations; XP40 +38, XQ40 +86 cases. Open: D226's
+"Not done".
