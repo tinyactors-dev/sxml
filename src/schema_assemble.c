@@ -25,6 +25,7 @@
 
 #include "evaluator_internal.h"
 #include "processor_internal.h"
+#include "schema_scope_internal.h"
 #include "tree_internal.h"
 #include "xdm_internal.h"
 #include "xml_internal.h"
@@ -659,6 +660,204 @@ static const sxml_byte_view xml_namespace_document = SXML_BYTE_VIEW_INITIALIZER(
     "<xs:attribute ref='xml:lang'/><xs:attribute ref='xml:space'/>"
     "<xs:attribute ref='xml:id'/></xs:attributeGroup></xs:schema>");
 
+/* The schema documents of the fn: namespace (F&O 4.0, appendix D: D.1
+   for fn:analyze-string, D.2 for fn:json-to-xml and fn:xml-to-json, D.3
+   for fn:csv-to-xml; without their comments; no component name of one is
+   used by another), for an import of the namespace that the resolver does
+   not deliver. */
+#define SXML_FUNCTION_NAMESPACE_SCHEMA_START                                                   \
+    "<xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema' "                                 \
+    "xmlns:fn='http://www.w3.org/2005/xpath-functions' "                                      \
+    "targetNamespace='http://www.w3.org/2005/xpath-functions' elementFormDefault='qualified'>"
+
+static const sxml_byte_view function_namespace_documents[SXML_FUNCTION_NAMESPACE_DOCUMENT_COUNT] = {
+    /* D.1 */
+    SXML_BYTE_VIEW_INITIALIZER(SXML_FUNCTION_NAMESPACE_SCHEMA_START
+    "<xs:element name='analyze-string-result' type='fn:analyze-string-result-type'/>"
+    "<xs:element name='match' type='fn:match-type'/>"
+    "<xs:element name='non-match' type='xs:string'/>"
+    "<xs:element name='group' type='fn:group-type'/>"
+    "<xs:element name='lookahead-group' type='fn:lookahead-group-type'/>"
+    "<xs:complexType name='analyze-string-result-type' mixed='true'><xs:sequence>"
+    "<xs:choice minOccurs='0' maxOccurs='unbounded'><xs:element ref='fn:match'/>"
+    "<xs:element ref='fn:non-match'/></xs:choice></xs:sequence></xs:complexType>"
+    "<xs:complexType name='match-type' mixed='true'><xs:sequence>"
+    "<xs:element ref='fn:group' minOccurs='0' maxOccurs='unbounded'/>"
+    "<xs:element ref='fn:lookahead-group' minOccurs='0' maxOccurs='unbounded'/>"
+    "</xs:sequence></xs:complexType>"
+    "<xs:complexType name='group-type' mixed='true'><xs:sequence>"
+    "<xs:element ref='fn:group' minOccurs='0' maxOccurs='unbounded'/></xs:sequence>"
+    "<xs:attribute name='nr' type='xs:positiveInteger' use='required'/>"
+    "<xs:attribute name='name' type='xs:NCName' use='optional'/></xs:complexType>"
+    "<xs:complexType name='lookahead-group-type'>"
+    "<xs:attribute name='nr' type='xs:positiveInteger' use='required'/>"
+    "<xs:attribute name='name' type='xs:NCName' use='optional'/>"
+    "<xs:attribute name='value' type='xs:string' use='required'/>"
+    "<xs:attribute name='position' type='xs:positiveInteger' use='required'/>"
+    "</xs:complexType>"
+    "</xs:schema>"),
+    /* D.2 */
+    SXML_BYTE_VIEW_INITIALIZER(SXML_FUNCTION_NAMESPACE_SCHEMA_START
+    "<xs:element name='map' type='fn:mapType'><xs:unique name='unique-key'>"
+    "<xs:selector xpath='*'/><xs:field xpath='@key'/><xs:field xpath='@escaped-key'/>"
+    "</xs:unique></xs:element>"
+    "<xs:element name='array' type='fn:arrayType'/>"
+    "<xs:element name='string' type='fn:stringType'/>"
+    "<xs:element name='number' type='fn:numberType'/>"
+    "<xs:element name='boolean' type='fn:booleanType'/>"
+    "<xs:element name='null' type='fn:nullType'/>"
+    "<xs:complexType name='nullType'><xs:sequence/>"
+    "<xs:anyAttribute processContents='skip' namespace='##other'/></xs:complexType>"
+    "<xs:complexType name='booleanType'><xs:simpleContent><xs:extension base='xs:boolean'>"
+    "<xs:anyAttribute processContents='skip' namespace='##other'/></xs:extension>"
+    "</xs:simpleContent></xs:complexType>"
+    "<xs:complexType name='stringType'><xs:simpleContent><xs:extension base='xs:string'>"
+    "<xs:attribute name='escaped' type='xs:boolean' use='optional' default='false'/>"
+    "<xs:anyAttribute processContents='skip' namespace='##other'/></xs:extension>"
+    "</xs:simpleContent></xs:complexType>"
+    "<xs:simpleType name='finiteNumberType'><xs:restriction base='xs:double'>"
+    "<xs:minExclusive value='-INF'/><xs:maxExclusive value='INF'/></xs:restriction>"
+    "</xs:simpleType>"
+    "<xs:complexType name='numberType'><xs:simpleContent>"
+    "<xs:extension base='fn:finiteNumberType'>"
+    "<xs:anyAttribute processContents='skip' namespace='##other'/></xs:extension>"
+    "</xs:simpleContent></xs:complexType>"
+    "<xs:complexType name='arrayType'><xs:choice minOccurs='0' maxOccurs='unbounded'>"
+    "<xs:element ref='fn:map'/><xs:element ref='fn:array'/><xs:element ref='fn:string'/>"
+    "<xs:element ref='fn:number'/><xs:element ref='fn:boolean'/><xs:element ref='fn:null'/>"
+    "</xs:choice><xs:anyAttribute processContents='skip' namespace='##other'/>"
+    "</xs:complexType>"
+    "<xs:complexType name='mapWithinMapType'><xs:complexContent>"
+    "<xs:extension base='fn:mapType'><xs:attributeGroup ref='fn:key-group'/></xs:extension>"
+    "</xs:complexContent></xs:complexType>"
+    "<xs:complexType name='arrayWithinMapType'><xs:complexContent>"
+    "<xs:extension base='fn:arrayType'><xs:attributeGroup ref='fn:key-group'/>"
+    "</xs:extension></xs:complexContent></xs:complexType>"
+    "<xs:complexType name='stringWithinMapType'><xs:simpleContent>"
+    "<xs:extension base='fn:stringType'><xs:attributeGroup ref='fn:key-group'/>"
+    "</xs:extension></xs:simpleContent></xs:complexType>"
+    "<xs:complexType name='numberWithinMapType'><xs:simpleContent>"
+    "<xs:extension base='fn:numberType'><xs:attributeGroup ref='fn:key-group'/>"
+    "</xs:extension></xs:simpleContent></xs:complexType>"
+    "<xs:complexType name='booleanWithinMapType'><xs:simpleContent>"
+    "<xs:extension base='fn:booleanType'><xs:attributeGroup ref='fn:key-group'/>"
+    "</xs:extension></xs:simpleContent></xs:complexType>"
+    "<xs:complexType name='nullWithinMapType'><xs:attributeGroup ref='fn:key-group'/>"
+    "</xs:complexType>"
+    "<xs:complexType name='mapType'><xs:choice minOccurs='0' maxOccurs='unbounded'>"
+    "<xs:element name='map' type='fn:mapWithinMapType'><xs:unique name='unique-key-2'>"
+    "<xs:selector xpath='*'/><xs:field xpath='@key'/></xs:unique></xs:element>"
+    "<xs:element name='array' type='fn:arrayWithinMapType'/>"
+    "<xs:element name='string' type='fn:stringWithinMapType'/>"
+    "<xs:element name='number' type='fn:numberWithinMapType'/>"
+    "<xs:element name='boolean' type='fn:booleanWithinMapType'/>"
+    "<xs:element name='null' type='fn:nullWithinMapType'/>"
+    "</xs:choice><xs:anyAttribute processContents='skip' namespace='##other'/>"
+    "</xs:complexType>"
+    "<xs:attributeGroup name='key-group'>"
+    "<xs:attribute name='key' type='xs:string' use='required'/>"
+    "<xs:attribute name='escaped-key' type='xs:boolean' use='optional' default='false'/>"
+    "</xs:attributeGroup>"
+    "</xs:schema>"),
+    /* D.3 */
+    SXML_BYTE_VIEW_INITIALIZER(SXML_FUNCTION_NAMESPACE_SCHEMA_START
+    "<xs:element name='csv' type='fn:csvType'/>"
+    "<xs:element name='columns' type='fn:columnsType'/>"
+    "<xs:element name='rows' type='fn:rowsType'/>"
+    "<xs:element name='column' type='fn:columnFieldType'/>"
+    "<xs:element name='row' type='fn:rowType'/>"
+    "<xs:element name='field' type='fn:fieldType'/>"
+    "<xs:complexType name='csvType'><xs:sequence>"
+    "<xs:element ref='fn:columns' minOccurs='0' maxOccurs='1'/>"
+    "<xs:element ref='fn:rows' minOccurs='1' maxOccurs='1'/></xs:sequence></xs:complexType>"
+    "<xs:complexType name='columnsType'><xs:sequence>"
+    "<xs:element ref='fn:column' minOccurs='0' maxOccurs='unbounded'/></xs:sequence>"
+    "</xs:complexType>"
+    "<xs:complexType name='rowsType'><xs:sequence>"
+    "<xs:element ref='fn:row' minOccurs='0' maxOccurs='unbounded'/></xs:sequence>"
+    "</xs:complexType>"
+    "<xs:complexType name='rowType'><xs:sequence>"
+    "<xs:element ref='fn:field' minOccurs='0' maxOccurs='unbounded'/></xs:sequence>"
+    "</xs:complexType>"
+    "<xs:complexType name='columnFieldType'><xs:simpleContent>"
+    "<xs:extension base='xs:string'>"
+    "<xs:anyAttribute processContents='skip' namespace='##other'/></xs:extension>"
+    "</xs:simpleContent></xs:complexType>"
+    "<xs:complexType name='fieldType'><xs:simpleContent>"
+    "<xs:extension base='fn:columnFieldType'>"
+    "<xs:attribute name='column' type='xs:string' use='optional'/></xs:extension>"
+    "</xs:simpleContent></xs:complexType>"
+    "</xs:schema>"),
+};
+
+#undef SXML_FUNCTION_NAMESPACE_SCHEMA_START
+
+sxml_byte_view sxml_schema_function_namespace_document(size_t document_index) {
+    return function_namespace_documents[document_index];
+}
+
+/* The documents every processor knows for namespace_uri (the xml: and
+   fn: namespaces) and their URIs, as *known; false for any other
+   namespace. Each has a URI of its own, so that none is found as
+   another. */
+typedef struct known_documents {
+    const sxml_byte_view *contents;
+    const sxml_byte_view *uris;
+    size_t document_count;
+} known_documents;
+
+static bool find_known_documents(sxml_namespace_uri_identifier namespace_uri,
+                                 known_documents *known) {
+    static const sxml_byte_view xml_namespace_uri =
+        SXML_BYTE_VIEW_INITIALIZER("http://www.w3.org/2001/xml.xsd");
+    static const sxml_byte_view function_namespace_uris[SXML_FUNCTION_NAMESPACE_DOCUMENT_COUNT] = {
+        SXML_BYTE_VIEW_INITIALIZER("http://www.w3.org/2005/xpath-functions#analyze-string"),
+        SXML_BYTE_VIEW_INITIALIZER("http://www.w3.org/2005/xpath-functions#json"),
+        SXML_BYTE_VIEW_INITIALIZER("http://www.w3.org/2005/xpath-functions#csv"),
+    };
+    if (namespace_uri.index == (uint32_t)SXML_NAMESPACE_XML) {
+        *known = (known_documents){
+            .contents = &xml_namespace_document, .uris = &xml_namespace_uri, .document_count = 1};
+        return true;
+    }
+    if (namespace_uri.index == (uint32_t)SXML_NAMESPACE_FUNCTIONS) {
+        *known = (known_documents){.contents = function_namespace_documents,
+                                   .uris = function_namespace_uris,
+                                   .document_count = SXML_FUNCTION_NAMESPACE_DOCUMENT_COUNT};
+        return true;
+    }
+    return false;
+}
+
+/* Adds the known documents in source's place; *position is the first's. */
+typedef struct known_placement {
+    const known_documents *known;
+    document_source *source;
+    size_t *position;
+} known_placement;
+
+static sxml_status add_known_documents(sxml_schema_assembly *assembly,
+                                       known_placement placement) {
+    const known_documents *known = placement.known;
+    document_source *source = placement.source;
+    size_t *position = placement.position;
+    sxml_status status = SXML_STATUS_OK;
+    *position = SIZE_MAX;
+    for (size_t document_index = 0;
+         status == SXML_STATUS_OK && document_index < known->document_count;
+         document_index += 1) {
+        source->content = known->contents[document_index];
+        source->uri = known->uris[document_index];
+        source->is_node = false;
+        size_t added = SIZE_MAX;
+        status = add_document(assembly, source, &added);
+        if (*position == SIZE_MAX) {
+            *position = added;
+        }
+    }
+    return status;
+}
+
 /* Asks the resolver for a referred document (include/sxml/schema.h:
    kind SCHEMA_DOCUMENT, schemaLocation, its absolute form, the
    namespace) and adds it. */
@@ -868,17 +1067,17 @@ sxml_status sxml_schema_assembly_add_reference(sxml_schema_assembly *assembly,
                                                        .namespace_text = namespace_value,
                                                        .is_missing = &is_missing,
                                                        .position = &position});
+    known_documents known;
     if (status == SXML_STATUS_OK && is_missing && is_import &&
-        reference->imported_namespace.index == (uint32_t)SXML_NAMESPACE_XML &&
+        find_known_documents(reference->imported_namespace, &known) &&
         !has_namespace_document(assembly, reference->imported_namespace)) {
         /* The xml: attributes are known to every processor (XML
            Namespaces; the document of http://www.w3.org/2001/xml.xsd),
-           unless a document of the namespace is there already (4.2.6.2:
-           a processor may keep the first import of a namespace). */
-        source.content = xml_namespace_document;
-        source.uri = SXML_TEXT("http://www.w3.org/2001/xml.xsd");
-        source.is_node = false;
-        status = add_document(assembly, &source, &position);
+           and so are the fn: elements (F&O 4.0, appendix D), unless a
+           document of the namespace is there already (4.2.6.2: a
+           processor may keep the first import of a namespace). */
+        status = add_known_documents(
+            assembly, (known_placement){.known = &known, .source = &source, .position = &position});
     }
     /* A document the resolver does not deliver is no error by itself
        (Part 1, 4.2.3 clause 2.4, 4.2.6.2): its components are missing,
@@ -974,6 +1173,16 @@ static sxml_status add_configured_document(sxml_schema_assembly *assembly,
                                            .namespace_text = configured->target_namespace_uri,
                                            .is_missing = &is_missing,
                                            .position = &position});
+        known_documents known;
+        if (status == SXML_STATUS_OK && is_missing && configured->checks_target_namespace &&
+            find_known_documents(expected, &known)) {
+            /* An import of the xml: or fn: namespace that the resolver
+               does not deliver gets the document every processor knows
+               (F&O 4.0, appendix D). */
+            is_missing = false;
+            status = add_known_documents(
+            assembly, (known_placement){.known = &known, .source = &source, .position = &position});
+        }
         if (status == SXML_STATUS_OK && is_missing) {
             /* include/sxml/schema.h: src-import, "the schema document
                cannot be read". */

@@ -160,6 +160,15 @@ typedef struct sxml_schema_scope_error {
 /* Returns request->error_status, or the heap's failure. */
 SXML_NODISCARD sxml_status sxml_schema_scope_raise(const sxml_schema_scope_error *request);
 
+/* The schema documents of the fn: namespace that every processor knows
+   (F&O 4.0, appendix D: D.1 for fn:analyze-string, D.2 for
+   fn:json-to-xml, D.3 for fn:csv-to-xml); src/schema_assemble.c reads
+   them for an import of the namespace the resolver does not deliver.
+   document_index is below SXML_FUNCTION_NAMESPACE_DOCUMENT_COUNT. */
+enum { SXML_FUNCTION_NAMESPACE_DOCUMENT_COUNT = 3 };
+
+sxml_byte_view sxml_schema_function_namespace_document(size_t document_index);
+
 /* ------------------------------------------------------------ Validate */
 
 /* The $mode of the validate row. */

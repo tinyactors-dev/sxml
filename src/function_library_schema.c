@@ -13,6 +13,7 @@
 
 #include "evaluator_internal.h"
 #include "function_library_core_internal.h"
+#include "processor_internal.h"
 #include "sxml/schema.h"
 #include "sxml/tree.h"
 #include "sxml/xdm.h"
@@ -97,7 +98,8 @@ static sxml_status validation_root_name(sxml_node_reference node, sxml_name_iden
 
 /* The schema that defines the type (by type), or declares the root's
    name; for lax validation without one, the first schema (every schema
-   has the built-in components, XSD 1.1 Part 1, 3.4.7). */
+   has the built-in components, XSD 1.1 Part 1, 3.4.7), or the built-in
+   schema when no schema is in scope. */
 static sxml_status plan_validation(const sxml_function_call *call,
                                    const scope_validation *validation, scope_plan *plan) {
     const sxml_schema_view schemas = in_scope_schemas(call);
@@ -142,6 +144,16 @@ static sxml_status plan_validation(const sxml_function_call *call,
     if (validation->mode == SXML_SCHEMA_VALIDATE_MODE_LAX && schemas.schema_count > 0) {
         plan->schema = schemas.schemas[0];
         return SXML_STATUS_OK;
+    }
+    const sxml_evaluation_environment *environment =
+        call->dynamic_context == NULL
+            ? NULL
+            : sxml_processor_get_evaluation_environment(call->dynamic_context);
+    if (validation->mode == SXML_SCHEMA_VALIDATE_MODE_LAX && environment != NULL) {
+        /* No in-scope schema: lax assessment of an undeclared root finds
+           nothing to check (XSD 1.1 Part 1, 3.3.4.6 and 5.2), so the
+           built-in components alone validate it (F&O 4.0, 17.2.1). */
+        return sxml_processor_get_builtin_schema(environment->processor, &plan->schema);
     }
     plan->plan_kind = SXML_SCOPE_PLAN_NO_DECLARATION;
     return SXML_STATUS_OK;

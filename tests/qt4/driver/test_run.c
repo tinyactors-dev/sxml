@@ -898,8 +898,11 @@ static sxml_status sxml_qt4_serve_collections(sxml_qt4_test_context *context) {
 
 /* Makes the served schemas and compiles them into context->schema: one
    RESOLVED document per <schema> with a file, the resolver serving it by
-   its suite URI (resource_table.h). A compilation error leaves the schema
-   out (see sxml_qt4_test_context). */
+   its suite URI (resource_table.h), and one by namespace alone per
+   <schema> with none ("the test driver or the product under test is
+   expected to recognize this URI": the fn: namespace, F&O 4.0, appendix
+   D). A compilation error leaves the schema out (see
+   sxml_qt4_test_context). */
 static sxml_status sxml_qt4_compile_schemas(sxml_qt4_test_context *context) {
     const sxml_qt4_schema_view schemas = context->environment->schemas;
     void *memory = NULL;
@@ -923,11 +926,20 @@ static sxml_status sxml_qt4_compile_schemas(sxml_qt4_test_context *context) {
     }
     sxml_schema_document *documents = document_memory;
     size_t served_count = 0;
+    size_t document_count = 0;
     for (size_t schema_index = 0;
          status == SXML_STATUS_OK && schema_index < schemas.schema_count;
          schema_index += 1) {
         const sxml_qt4_schema *schema = &schemas.schemas[schema_index];
         if (schema->file_path.byte_count == 0) {
+            if (schema->uri.byte_count != 0) {
+                documents[document_count] = (sxml_schema_document){
+                    .document_source = SXML_SCHEMA_DOCUMENT_SOURCE_RESOLVED,
+                    .document_uri = sxml_qt4_empty_text,
+                    .checks_target_namespace = true,
+                    .target_namespace_uri = schema->uri};
+                document_count += 1;
+            }
             continue;
         }
         sxml_qt4_served_schema *entry = &served[served_count];
@@ -936,10 +948,11 @@ static sxml_status sxml_qt4_compile_schemas(sxml_qt4_test_context *context) {
                                           .file_uri = sxml_qt4_empty_text};
         status = sxml_qt4_suite_uri(context, schema->file_path, &entry->file_uri);
         if (status == SXML_STATUS_OK) {
-            documents[served_count] = (sxml_schema_document){
+            documents[document_count] = (sxml_schema_document){
                 .document_source = SXML_SCHEMA_DOCUMENT_SOURCE_RESOLVED,
                 .document_uri = entry->file_uri,
                 .checks_target_namespace = false};
+            document_count += 1;
             served_count += 1;
         }
     }
@@ -948,12 +961,14 @@ static sxml_status sxml_qt4_compile_schemas(sxml_qt4_test_context *context) {
     }
     context->resource_table->served_schemas = (sxml_qt4_served_schema_view){
         .served_schemas = served, .served_schema_count = served_count};
-    if (served_count == 0) {
+    if (document_count == 0) {
         return SXML_STATUS_OK;
     }
-    sxml_qt4_set_stage(context,
-                       (sxml_qt4_stage){.description = SXML_TEXT("schema"),
-                                        .subject = served[0].file_path});
+    sxml_qt4_set_stage(
+        context, (sxml_qt4_stage){.description = SXML_TEXT("schema"),
+                                  .subject = served_count != 0
+                                                 ? served[0].file_path
+                                                 : schemas.schemas[0].uri});
     sxml_error_record error_record;
     memset(&error_record, 0, sizeof error_record);
     status = sxml_schema_create(
@@ -961,7 +976,7 @@ static sxml_status sxml_qt4_compile_schemas(sxml_qt4_test_context *context) {
         &(sxml_schema_configuration){
             .processor = context->processor,
             .schema_documents = {.schema_documents = documents,
-                                 .schema_document_count = served_count},
+                                 .schema_document_count = document_count},
             .base_uri = sxml_qt4_empty_text,
             .report_sink = {.state = NULL, .operations = NULL},
             .maximum_content_model_state_count = 0,
