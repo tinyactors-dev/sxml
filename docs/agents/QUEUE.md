@@ -9,7 +9,7 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 - Phase 5 (XSD 1.1, schema awareness) closed by agent review (D182); four
   gate boxes wait for full runs and fuzzing on the owner's machine (D181).
   All public headers are stable.
-- Passes: XP40 31,098, XQ40 42,490, XT40 8,759, XSD in scope 41,483 of
+- Passes: XP40 31,098, XQ40 42,490, XT40 8,973, XSD in scope 41,483 of
   41,518. Zero error outcomes in every suite.
 - Optional features (D189): `sxml.wasm` (core) 2,004,485 of 2,100,000
   bytes, `sxml-full.wasm` 2,005,513 of 3,000,000. Gzipped budgets 735,000 /
@@ -19,7 +19,7 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 ## Running
 
 - 7.4 XSLT backwards compatibility and XPath 1.0 mode.
-- 7.3 xsl:evaluate and 7.5 disable-output-escaping.
+- 7.11 fn:transform (after 7.3).
 - 7.9 EXPath File (7.8 Binary done, D198: bin-* 646 of 646).
 - 7.10a HTML5 tokenizer and tree builder.
 - 7.7b/7.7c XQuery Update 4.0 additions, fn:put, revalidation (after 7.7a, D187: upd-* 733 of 825).
@@ -28,7 +28,7 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 ## Next
 
 - Phase 7 (`docs/tasks/phase-7.md`, D183, D184): 7.6a streaming analysis
-  after 7.4; after 7.3, 7.11 fn:transform;
+  after 7.4;
   then Full Text, UCA, timezones, calendars and languages, iXML.
 - JavaScript bindings for XQuery, XSLT and validation (they cover XPath only).
 - `sxml` CLI gaps: `--output`, writing result documents, `--method=csv`,
@@ -48,7 +48,7 @@ XPath and XQuery (after 2.21, D190; XP40 31,098, XQ40 41,456):
 - fn:serialize canonical-JSON cases (27) need `bin:unpack-double` (7.8).
 - A processor keeps every imported schema until it is destroyed (D174).
 
-XSLT (after 4.19, D185; XT40 8,759):
+XSLT (after 4.19, D185; XT40 8,973):
 - `priority` stays at 6/40: the suite expects "~T" patterns the project's
   draft (13 Oct 2026) replaced, and other expectations contradict 6.4 (D29).
 - `match="$var"` membership index: designed in D185, needs
@@ -66,6 +66,11 @@ XSLT (after 4.19, D185; XT40 8,759):
 - Schema-aware leftovers (D179): XTSE3105, typed modes reading name tests
   as `schema-element()`, ID/IDREF skipping for elements, `xs:untypedAtomic`
   as a type attribute, `xsl:copy` with preserve, schema roles, XTSE0265.
+
+xsl:evaluate (7.3, D196: 73 of 83, gate 90 %): 3 need parse-html (7.10),
+2 need json-doc/unparsed-text-available trust checks, 1 a UCA strength
+(7.15); keyword arguments to stylesheet functions from the target
+expression. disable-output-escaping (7.5, D188): 25 of 25 run.
 
 XML 1.1 (after 7.13, D195; xmlconf 1.1 242 of 271):
 - 29 xmlconf cases need external entities or DTDs (7.14).

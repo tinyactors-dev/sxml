@@ -508,6 +508,14 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `text_declaration` | The `<?xml version? encoding?>` at the start of an external entity, with a required encoding (XML 1.0, section 4.3.1) |
 | `conditional_section` | An `<![INCLUDE[ ... ]]>` or `<![IGNORE[ ... ]]>` section of external DTD text; its keyword may be a parameter-entity reference (XML 1.0, section 3.4) |
 | `unexpanded_declaration` | A markup declaration of external DTD text with parameter-entity references outside its literals, which matches its production only after the references are replaced (XML 1.0, section 4.4.8) |
+| `element_type` | An element name of a DTD with its element type declaration and attribute-list declarations (XML 1.0, section 3) |
+| `content_specification` | What an element type declaration allows as content: EMPTY, ANY, mixed content or a content model of element types (XML 1.0, [46] contentspec) |
+| `validity_constraint` | A rule of XML 1.0 marked "VC" that only a validating processor checks; sxml checks those no schema component expresses in the parser and the rest with the schema validator (D199) |
+| `dtd_validator` | The validator of the XML parser's DTD validation that sxml provides (`sxml_dtd_validator`): it compiles the schema documents the parser writes from the DTD and checks the document's events with a schema validator (D199) |
+| `checking_builder` | The tree builder a validating parse sends its events to besides the parse's own builder: a schema validator whose result builder is the null builder |
+| `tee` | A tree builder that passes each event to two builders in turn |
+| `prefix_binding` | A namespace prefix and URI by which the DTD's qualified names are resolved when its schema documents are written |
+| `open_content` | What the declaration of an open element says of its content, kept by a validating parse for the validity constraints on content |
 | `attribute_definition` | One attribute of an attribute-list declaration: its name, type and default (XML 1.0, section 3.3) |
 | `attribute_default` | The value an attribute definition supplies when an element does not specify the attribute (XML 1.0, section 3.3.2) |
 | `file_reader` | Interface through which a command of the sxml program reads a named file or standard input (`sxml_cli_file_reader`) |
