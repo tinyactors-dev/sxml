@@ -114,6 +114,26 @@ static sxml_civil_date sxml_civil_date_from_day_number(int64_t day_number) {
                              .day = (uint8_t)day};
 }
 
+sxml_date_time sxml_date_time_from_unix_time(sxml_unix_time unix_time) {
+    const int64_t seconds_per_day = 86400;
+    int64_t day_number = unix_time.seconds / seconds_per_day;
+    int64_t second_of_day = unix_time.seconds % seconds_per_day;
+    if (second_of_day < 0) {
+        second_of_day += seconds_per_day;
+        day_number -= 1;
+    }
+    const sxml_civil_date date = sxml_civil_date_from_day_number(day_number);
+    return (sxml_date_time){.year = date.year,
+                            .month = date.month,
+                            .day = date.day,
+                            .hour = (uint8_t)(second_of_day / 3600),
+                            .minute = (uint8_t)(second_of_day / 60 % 60),
+                            .second = (uint8_t)(second_of_day % 60),
+                            .nanosecond = unix_time.nanoseconds,
+                            .has_timezone = true,
+                            .timezone_offset_minutes = 0};
+}
+
 /* Reads the platform's UTC clock (C17, section 7.27.2.5, timespec_get). */
 static sxml_status sxml_system_clock_read(void *state, sxml_clock_reading *reading) {
     (void)state;
@@ -122,25 +142,10 @@ static sxml_status sxml_system_clock_read(void *state, sxml_clock_reading *readi
     if (timespec_get(&now, TIME_UTC) != TIME_UTC) {
         return SXML_STATUS_UNSUPPORTED_FEATURE;
     }
-    const int64_t seconds = (int64_t)now.tv_sec;
-    const int64_t seconds_per_day = 86400;
-    int64_t day_number = seconds / seconds_per_day;
-    int64_t second_of_day = seconds % seconds_per_day;
-    if (second_of_day < 0) {
-        second_of_day += seconds_per_day;
-        day_number -= 1;
-    }
-    const sxml_civil_date date = sxml_civil_date_from_day_number(day_number);
     *reading = (sxml_clock_reading){
-        .current_date_time = {.year = date.year,
-                              .month = date.month,
-                              .day = date.day,
-                              .hour = (uint8_t)(second_of_day / 3600),
-                              .minute = (uint8_t)(second_of_day / 60 % 60),
-                              .second = (uint8_t)(second_of_day % 60),
-                              .nanosecond = (uint32_t)now.tv_nsec,
-                              .has_timezone = true,
-                              .timezone_offset_minutes = 0},
+        .current_date_time = sxml_date_time_from_unix_time(
+            (sxml_unix_time){.seconds = (int64_t)now.tv_sec,
+                             .nanoseconds = (uint32_t)now.tv_nsec}),
         .implicit_timezone_offset_minutes = 0};
     return SXML_STATUS_OK;
 #else
@@ -527,7 +532,8 @@ sxml_status sxml_processor_initialize(sxml_memory_view memory,
         .kept_schema_capacity = 0,
         .builtin_schema = NULL,
         .optional_features =
-            sxml_optional_feature_slots_from_view(configuration->optional_features)};
+            sxml_optional_feature_slots_from_view(configuration->optional_features),
+        .file_system = configuration->file_system};
     status = sxml_processor_place_members(new_processor, &layout, memory);
     if (status != SXML_STATUS_OK) {
         return status;

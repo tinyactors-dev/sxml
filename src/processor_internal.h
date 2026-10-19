@@ -70,6 +70,9 @@ struct sxml_processor {
     /* The optional features the configuration named, by kind, with the
        state each keeps here (src/optional_feature_internal.h, D189). */
     sxml_optional_feature_slots optional_features;
+    /* The configuration's file system, for the EXPath File feature
+       (D200); the null file system when none. */
+    sxml_file_system file_system;
 };
 
 /*
@@ -93,6 +96,16 @@ SXML_NODISCARD sxml_status sxml_processor_keep_schema(sxml_processor *processor,
  */
 SXML_NODISCARD sxml_status sxml_processor_get_builtin_schema(sxml_processor *processor,
                                                              const sxml_schema **schema);
+
+/* An instant as seconds and nanoseconds since 1970-01-01T00:00:00Z. */
+typedef struct sxml_unix_time {
+    int64_t seconds;
+    uint32_t nanoseconds;
+} sxml_unix_time;
+
+/* The instant as an xs:dateTime in UTC (timezone Z), proleptic Gregorian:
+   what the system clock reads and file:last-modified gives (D200). */
+sxml_date_time sxml_date_time_from_unix_time(sxml_unix_time unix_time);
 
 /* The function table of the processor's library, for compilation and for
    fn:function-lookup. */

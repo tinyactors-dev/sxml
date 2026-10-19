@@ -1018,68 +1018,6 @@ static sxml_status call_decode_string(const sxml_function_call *call, sxml_seque
     return status;
 }
 
-/* The octets of one codepoint in encoding: up to 4; byte_count 0 when the
-   encoding cannot represent it. */
-typedef struct encoded_codepoint {
-    uint8_t bytes[4];
-    size_t byte_count;
-} encoded_codepoint;
-
-static void put_utf16_unit(encoded_codepoint *encoded, uint32_t unit, bool is_big_endian) {
-    encoded->bytes[encoded->byte_count] = (uint8_t)(is_big_endian ? unit >> 8U : unit & 0xFFU);
-    encoded->bytes[encoded->byte_count + 1] = (uint8_t)(is_big_endian ? unit & 0xFFU : unit >> 8U);
-    encoded->byte_count += 2;
-}
-
-static encoded_codepoint encode_codepoint(sxml_xml_encoding_family family, uint32_t codepoint) {
-    encoded_codepoint encoded = {.bytes = {0}, .byte_count = 0};
-    switch (family) {
-    case SXML_XML_ENCODING_FAMILY_UTF8:
-        if (codepoint < 0x80) {
-            encoded.bytes[0] = (uint8_t)codepoint;
-            encoded.byte_count = 1;
-        } else if (codepoint < 0x800) {
-            encoded.bytes[0] = (uint8_t)(0xC0U | (codepoint >> 6U));
-            encoded.bytes[1] = (uint8_t)(0x80U | (codepoint & 0x3FU));
-            encoded.byte_count = 2;
-        } else if (codepoint < 0x10000) {
-            encoded.bytes[0] = (uint8_t)(0xE0U | (codepoint >> 12U));
-            encoded.bytes[1] = (uint8_t)(0x80U | ((codepoint >> 6U) & 0x3FU));
-            encoded.bytes[2] = (uint8_t)(0x80U | (codepoint & 0x3FU));
-            encoded.byte_count = 3;
-        } else {
-            encoded.bytes[0] = (uint8_t)(0xF0U | (codepoint >> 18U));
-            encoded.bytes[1] = (uint8_t)(0x80U | ((codepoint >> 12U) & 0x3FU));
-            encoded.bytes[2] = (uint8_t)(0x80U | ((codepoint >> 6U) & 0x3FU));
-            encoded.bytes[3] = (uint8_t)(0x80U | (codepoint & 0x3FU));
-            encoded.byte_count = 4;
-        }
-        break;
-    case SXML_XML_ENCODING_FAMILY_UTF16:
-    case SXML_XML_ENCODING_FAMILY_UTF16_BIG_ENDIAN:
-    case SXML_XML_ENCODING_FAMILY_UTF16_LITTLE_ENDIAN: {
-        const bool is_big_endian = family != SXML_XML_ENCODING_FAMILY_UTF16_LITTLE_ENDIAN;
-        if (codepoint < 0x10000) {
-            put_utf16_unit(&encoded, codepoint, is_big_endian);
-        } else {
-            put_utf16_unit(&encoded, 0xD800U + ((codepoint - 0x10000U) >> 10U), is_big_endian);
-            put_utf16_unit(&encoded, 0xDC00U + ((codepoint - 0x10000U) & 0x3FFU), is_big_endian);
-        }
-        break;
-    }
-    case SXML_XML_ENCODING_FAMILY_ISO_8859_1:
-    case SXML_XML_ENCODING_FAMILY_US_ASCII:
-        if (codepoint < (family == SXML_XML_ENCODING_FAMILY_US_ASCII ? 0x80U : 0x100U)) {
-            encoded.bytes[0] = (uint8_t)codepoint;
-            encoded.byte_count = 1;
-        }
-        break;
-    case SXML_XML_ENCODING_FAMILY_UNSUPPORTED:
-        break;
-    }
-    return encoded;
-}
-
 /* bin:encode-string($value, $encoding := 'UTF-8') as xs:base64Binary?
    (6.3): UTF-16 is big-endian; no byte order mark is added;
    bin:conversion-error for a character the encoding cannot represent. */
@@ -1115,7 +1053,7 @@ static sxml_status call_encode_string(const sxml_function_call *call, sxml_seque
         sxml_codepoint_iterator iterator = {.string = value.string, .byte_offset = 0};
         uint32_t codepoint = 0;
         while (status == SXML_STATUS_OK && sxml_codepoint_iterator_next(&iterator, &codepoint)) {
-            const encoded_codepoint encoded = encode_codepoint(family, codepoint);
+            const sxml_text_encoded_codepoint encoded = sxml_text_encode_codepoint(family, codepoint);
             if (encoded.byte_count == 0) {
                 status = report(call, &conversion_error);
             } else if (pass_number == 0) {

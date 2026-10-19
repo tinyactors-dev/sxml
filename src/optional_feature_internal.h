@@ -57,6 +57,11 @@ typedef enum sxml_optional_feature_kind {
        (src/function_library_binary.c, packet 7.8, D198); operations is
        that view. */
     SXML_OPTIONAL_FEATURE_KIND_EXPATH_BINARY,
+    /* sxml_expath_file_feature: the file: functions as library_functions
+       over the processor's file system (src/function_library_file.c,
+       packet 7.9, D200); operations is that view. Not in
+       sxml_all_optional_features (D184). */
+    SXML_OPTIONAL_FEATURE_KIND_EXPATH_FILE,
     /* sxml_html_parser_feature: fn:parse-html and fn:html-doc as
        library_functions (src/html.c, src/function_library_html.c, packet
        7.10a, D201); operations sxml_html_feature_operations

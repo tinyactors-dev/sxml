@@ -15,14 +15,19 @@
  * order, ISO-8859-1 and US-ASCII; encoding names are classified by
  * sxml_xml_classify_encoding_name.
  *
+ * The one encoder (sxml_text_encode_codepoint) serves bin:encode-string
+ * and the EXPath File writers (src/function_library_file.c, D200).
+ *
  * Thread safety: no state; the text being built is the caller's.
  */
 #include "function_library_core_internal.h"
 #include "sxml/status.h"
 #include "sxml/view.h"
+#include "xml_internal.h"
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 /* The encodings text is decoded from (the XML parser's, D51). */
 typedef enum sxml_text_encoding {
@@ -96,3 +101,19 @@ typedef struct sxml_text_decoding_request {
 SXML_NODISCARD sxml_status sxml_text_decode(const sxml_text_decoding_request *request,
                                             sxml_library_text *text,
                                             sxml_text_decoding_failure *failure);
+
+/* ------------------------------------------------------------ Encoding */
+
+/* The octets of one codepoint in an encoding (bin:encode-string, the
+   EXPath File writers): up to 4; byte_count 0 when the encoding cannot
+   represent it. */
+typedef struct sxml_text_encoded_codepoint {
+    uint8_t bytes[4];
+    size_t byte_count;
+} sxml_text_encoded_codepoint;
+
+/* Encodes codepoint (a Unicode scalar value) in family: UTF-8, UTF-16 as
+   big-endian unless little-endian is named, ISO-8859-1 or US-ASCII; no
+   byte order mark. */
+sxml_text_encoded_codepoint sxml_text_encode_codepoint(sxml_xml_encoding_family family,
+                                                       uint32_t codepoint);

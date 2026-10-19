@@ -362,6 +362,166 @@ typedef struct sxml_trace_sink {
 SXML_EXPORT sxml_trace_sink sxml_stream_trace_sink(
     const sxml_output_stream *output_stream);
 
+/* ----------------------------------------------------------- File system */
+
+/*
+ * The host's file system, for the EXPath File feature
+ * (sxml_expath_file_feature below; packet 7.9, D200). sxml never touches
+ * files itself: every file: function reaches files through this
+ * interface, and without one (the null file system) every file:
+ * function that needs files raises file:io-error.
+ *
+ * Paths given to the operations are absolute and in the host's form:
+ * sxml resolves a query's relative paths against the CURRENT directory,
+ * turns file: URIs into paths and joins names with directory_separator.
+ * They are UTF-8 and borrowed for the call. An operation returns
+ * SXML_STATUS_OK, or SXML_STATUS_INPUT_OUTPUT_FAILED when the file
+ * system refuses (file:io-error), or the allocator's failures. sxml
+ * checks with describe before an operation, so the operations need not
+ * tell a missing file from other failures. Views a file system writes
+ * to its outputs belong to it and stay valid until its next operation.
+ */
+
+/* What a path names. */
+typedef enum sxml_file_kind {
+    /* Nothing, or nothing the host lets sxml see. */
+    SXML_FILE_KIND_NONE,
+    SXML_FILE_KIND_FILE,
+    SXML_FILE_KIND_DIRECTORY,
+    /* Something else: a device, a socket. */
+    SXML_FILE_KIND_OTHER,
+} sxml_file_kind;
+
+/* What describe tells about a path; a symbolic link is described as what
+   it refers to (EXPath File 4.0, 1.3). */
+typedef struct sxml_file_description {
+    sxml_file_kind file_kind;
+    /* The size of a FILE, in octets. */
+    uint64_t byte_count;
+    /* The last modification, seconds and nanoseconds since
+       1970-01-01T00:00:00Z. */
+    int64_t modified_seconds;
+    uint32_t modified_nanoseconds;
+} sxml_file_description;
+
+/* A part of a file to read into memory. */
+typedef struct sxml_file_read_request {
+    sxml_byte_view path;
+    uint64_t offset;
+    /* Receives memory.byte_count octets from offset; sxml asks only for
+       octets inside the file. */
+    sxml_memory_view memory;
+} sxml_file_read_request;
+
+/* How write changes a file. */
+typedef enum sxml_file_write_mode {
+    /* The file becomes content, created when it does not exist. */
+    SXML_FILE_WRITE_MODE_REPLACE,
+    /* content is added at the end, the file created when it does not
+       exist. */
+    SXML_FILE_WRITE_MODE_APPEND,
+    /* content overwrites the octets from offset (at most the file's size),
+       extending the file as needed. */
+    SXML_FILE_WRITE_MODE_AT_OFFSET,
+} sxml_file_write_mode;
+
+typedef struct sxml_file_write_request {
+    sxml_byte_view path;
+    sxml_byte_view content;
+    sxml_file_write_mode write_mode;
+    uint64_t offset;
+} sxml_file_write_request;
+
+/* One entry of a directory: its name (no separator), and what it is. */
+typedef struct sxml_file_entry {
+    sxml_byte_view name;
+    sxml_file_kind file_kind;
+} sxml_file_entry;
+
+/* Receives the entries list finds; a failure stops the listing and is
+   list's. */
+typedef struct sxml_file_entry_sink {
+    void *state;
+    sxml_status (*add)(void *state, const sxml_file_entry *entry);
+} sxml_file_entry_sink;
+
+typedef struct sxml_file_list_request {
+    /* A directory; empty for the roots of the file system
+       (file:list-roots), whose names are absolute paths. */
+    sxml_byte_view path;
+    sxml_file_entry_sink sink;
+} sxml_file_list_request;
+
+/* A rename: the target does not exist or is a file it replaces. */
+typedef struct sxml_file_move_request {
+    sxml_byte_view source;
+    sxml_byte_view target;
+} sxml_file_move_request;
+
+/* A new, empty file or directory whose name did not exist before. */
+typedef struct sxml_file_temporary_request {
+    /* An existing directory. */
+    sxml_byte_view directory;
+    /* The name starts with prefix and ends with suffix; the rest is the
+       host's choice. */
+    sxml_byte_view prefix;
+    sxml_byte_view suffix;
+    bool is_directory;
+} sxml_file_temporary_request;
+
+/* The directories get_directory gives. */
+typedef enum sxml_file_directory_kind {
+    /* Where relative paths are resolved (EXPath File 4.0, 1.2). */
+    SXML_FILE_DIRECTORY_KIND_CURRENT,
+    /* Where temporary files go by default (file:temp-dir). */
+    SXML_FILE_DIRECTORY_KIND_TEMPORARY,
+} sxml_file_directory_kind;
+
+/* The operations of a file system. Tables are static const. */
+typedef struct sxml_file_system_operations {
+    /* The host's conventions (EXPath File 4.0, 6): "/" or "\\", ":" or
+       ";", "\n" or "\r\n". On "\\" sxml also accepts "/" in paths and
+       reads "C:\\" and "\\\\server\\" as absolute. Static text. */
+    sxml_byte_view directory_separator;
+    sxml_byte_view path_separator;
+    sxml_byte_view line_separator;
+    /* Describes path; a path that names nothing is SXML_FILE_KIND_NONE
+       with SXML_STATUS_OK. */
+    sxml_status (*describe)(void *state, sxml_byte_view path,
+                            sxml_file_description *description);
+    sxml_status (*read)(void *state, const sxml_file_read_request *request);
+    sxml_status (*write)(void *state, const sxml_file_write_request *request);
+    /* Calls request->sink.add once per entry, "." and ".." left out. */
+    sxml_status (*list)(void *state, const sxml_file_list_request *request);
+    /* Creates one directory whose parent exists. */
+    sxml_status (*create_directory)(void *state, sxml_byte_view path);
+    /* Removes a file, an empty directory or a symbolic link (not what it
+       refers to). */
+    sxml_status (*remove)(void *state, sxml_byte_view path);
+    sxml_status (*move)(void *state, const sxml_file_move_request *request);
+    /* Creates the file or directory and writes its absolute path to
+       *created_path. */
+    sxml_status (*create_temporary)(void *state, const sxml_file_temporary_request *request,
+                                    sxml_byte_view *created_path);
+    /* Writes the absolute path of a directory to *path. */
+    sxml_status (*get_directory)(void *state, sxml_file_directory_kind directory_kind,
+                                 sxml_byte_view *path);
+    /* Writes the canonical absolute path of an existing path to
+       *canonical_path: no ".", "..", or symbolic links
+       (file:path-to-native). */
+    sxml_status (*canonicalize)(void *state, sxml_byte_view path,
+                                sxml_byte_view *canonical_path);
+} sxml_file_system_operations;
+
+/*
+ * The file system interface, passed by value. A file system whose
+ * operations is NULL is the null file system: there are no files.
+ */
+typedef struct sxml_file_system {
+    void *state;
+    const sxml_file_system_operations *operations;
+} sxml_file_system;
+
 /* ------------------------------------------------------ Optional features */
 
 /*
@@ -419,9 +579,22 @@ SXML_EXPORT sxml_optional_feature sxml_expath_binary_feature(void);
 SXML_EXPORT sxml_optional_feature sxml_html_parser_feature(void);
 
 /*
+ * The EXPath File Module 4.0 (namespace http://expath.org/ns/file): the
+ * file: functions over the configuration's file_system, and
+ * fn:system-properties()?supports-file-library true. Without it the
+ * file: functions are absent (XPST0017). It gives queries access beyond
+ * the resolver, so sxml_all_optional_features() leaves it out: a host
+ * names it on purpose (D184). Its name is "expath-file" (packet 7.9,
+ * D200).
+ */
+SXML_EXPORT sxml_optional_feature sxml_expath_file_feature(void);
+
+/*
  * Every optional feature sxml has, as static data, for hosts that want
  * them all: the sxml command, the test drivers and the JavaScript
  * package's full module. A program that calls this links every feature.
+ * EXPath File is not in it: it reaches files beyond the resolver, so a
+ * host names it on purpose (D184, D200).
  */
 SXML_EXPORT sxml_optional_feature_view sxml_all_optional_features(void);
 
@@ -496,6 +669,10 @@ typedef struct sxml_processor_configuration {
        array, or a feature whose definition is NULL, makes the
        configuration invalid. */
     sxml_optional_feature_view optional_features;
+    /* The files sxml_expath_file_feature() reads and writes (above); the
+       null file system means none. Its state must outlive the processor.
+       Ignored when the feature is not named (D200). */
+    sxml_file_system file_system;
 } sxml_processor_configuration;
 
 /*

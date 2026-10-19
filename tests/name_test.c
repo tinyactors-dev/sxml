@@ -191,6 +191,7 @@ static void test_well_known_namespaces_have_fixed_identifiers(
          "http://www.w3.org/2010/xslt-xquery-serialization"},
         {SXML_NAMESPACE_XSLT, "http://www.w3.org/1999/XSL/Transform"},
         {SXML_NAMESPACE_EXPATH_BINARY, "http://expath.org/ns/binary"},
+        {SXML_NAMESPACE_EXPATH_FILE, "http://expath.org/ns/file"},
     };
     name_fixture fixture = {.storage = {0}, .name_pool = NULL};
     sxml_name_pool_configuration configuration = default_configuration();

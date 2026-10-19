@@ -60,6 +60,8 @@ static const sxml_byte_view sxml_well_known_namespace_uris
             SXML_BYTE_VIEW_INITIALIZER("http://www.w3.org/1999/XSL/Transform"),
         [SXML_NAMESPACE_EXPATH_BINARY] =
             SXML_BYTE_VIEW_INITIALIZER("http://expath.org/ns/binary"),
+        [SXML_NAMESPACE_EXPATH_FILE] =
+            SXML_BYTE_VIEW_INITIALIZER("http://expath.org/ns/file"),
 };
 
 /* --------------------------------------------------------------- Tables */

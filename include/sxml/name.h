@@ -95,8 +95,11 @@ typedef enum sxml_well_known_namespace {
     /* http://expath.org/ns/binary, "bin": the EXPath Binary functions and
        their errors (EXPath Binary 4.0, section 1.5; D191). */
     SXML_NAMESPACE_EXPATH_BINARY = 13,
+    /* http://expath.org/ns/file, "file": the EXPath File functions and
+       their errors (EXPath File 4.0, section 1.7; D200). */
+    SXML_NAMESPACE_EXPATH_FILE = 14,
     /* One more than the largest well-known namespace. */
-    SXML_NAMESPACE_WELL_KNOWN_COUNT = 14,
+    SXML_NAMESPACE_WELL_KNOWN_COUNT = 15,
 } sxml_well_known_namespace;
 
 /*

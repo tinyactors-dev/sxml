@@ -59,17 +59,28 @@ static void test_test_feature_has_its_name(sxml_test_state *state) {
 
 static void test_all_features_lists_every_kind_once(sxml_test_state *state) {
     const sxml_optional_feature_view all = sxml_all_optional_features();
-    SXML_TEST_EXPECT(state, all.optional_feature_count == (size_t)SXML_OPTIONAL_FEATURE_KIND_COUNT);
+    /* Every kind but EXPath File, which a host names on purpose (D184,
+       D200). */
+    SXML_TEST_EXPECT(state,
+                     all.optional_feature_count == (size_t)SXML_OPTIONAL_FEATURE_KIND_COUNT - 1);
     SXML_TEST_REQUIRE(state, sxml_optional_feature_view_is_valid(all));
+    size_t expected_kind = 0;
     for (size_t feature_index = 0; feature_index < all.optional_feature_count;
          feature_index += 1) {
         const sxml_optional_feature_definition *definition =
             all.optional_features[feature_index].definition;
+        if (expected_kind == (size_t)SXML_OPTIONAL_FEATURE_KIND_EXPATH_FILE) {
+            expected_kind += 1;
+        }
         /* In kind order, each kind once, each with operations and a name. */
-        SXML_TEST_EXPECT(state, (size_t)definition->feature_kind == feature_index);
+        SXML_TEST_EXPECT(state, (size_t)definition->feature_kind == expected_kind);
         SXML_TEST_EXPECT(state, definition->operations != NULL);
         SXML_TEST_EXPECT(state, definition->feature_name.byte_count > 0);
+        expected_kind += 1;
     }
+    SXML_TEST_EXPECT(state, sxml_byte_view_equals(
+                                sxml_optional_feature_get_name(sxml_expath_file_feature()),
+                                TEXT("expath-file")));
 }
 
 /* -------------------------------------------------------- Configuration */
