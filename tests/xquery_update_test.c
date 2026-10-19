@@ -238,6 +238,12 @@ static const query_case query_cases[] = {
                 "copy $c := <a/> modify try { insert node <b/> into $c, error() } catch * "
                 "{ insert node <c/> into $c } return $c",
                 "<a><c/></a>"),
+    /* 5.4.6: one copy per item, the modify clause with it as the focus. */
+    QUERY_VALUE("transform-with",
+                "(<a x='1'><b/></a>, <c x='2'/>) transform with { delete node b, rename node @x "
+                "as 'y' }",
+                "<a y=\"1\"/><c y=\"2\"/>"),
+    QUERY_VALUE("transform-with-empty", "<a/> transform with { }", "<a/>"),
     /* The static rules (2.2, 5.1 to 5.4). */
     QUERY_ERROR("updating-operand", "let $x := <a/> return (insert node <b/> into $x, 1)",
                 "XUST0001"),

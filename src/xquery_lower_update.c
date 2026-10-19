@@ -13,6 +13,9 @@
  *   in scope of the later clauses and of modify; then
  *   modify-copies((copies), M), whose array the return clause reads, each
  *   variable bound to its member by LOOKUP;
+ * - transform-with (5.4.6): a MAP over its value whose body is the
+ *   copy-modify of the item, the modify clause lowered with the copy as
+ *   its fixed focus;
  * - an updating function call (5.3): a DYNAMIC_CALL.
  *
  * For `copy $c := $d modify delete node $c/a return $c`:
@@ -23,8 +26,6 @@
  *                   (static-call delete $4)))
  *         (let $6 (static-call modify-copies $1 $5)
  *           (let $7 (lookup $6 1) $7))))
- *
- * transform-with (5.4.6) is not lowered yet: no QT4 test uses it.
  *
  * Golden file: src/xquery_lower_construct.c (procedures as frames whose
  * steps ask the machine for their parts, D71).
@@ -553,15 +554,139 @@ static const sxml_xpath_lowering_procedure updating_call_procedure = {
 
 /* ====================================================== transform-with */
 
-static sxml_status lower_transform_with(sxml_xpath_lowerer *state,
-                                        sxml_xpath_lowering_node_in_block request,
-                                        sxml_ir_expression_index *expression) {
-    (void)expression;
-    return sxml_xpath_lowerer_report_unsupported(
-        state, request.node,
-        SXML_BYTE_VIEW_FROM_LITERAL("the transform-with expression (XQuery Update Facility "
-                                    "3.0, 5.4.6) is not supported yet"));
+/* "E transform with { M }" (5.4.6) is "E ! (copy $c := . modify M'
+   return $c)", where M' is M with $c as its fixed focus: a MAP over E
+   whose body copies the item, lowers M with the copy as context value
+   (as "->" does, XPath 4.0, 4.19), and applies. */
+typedef struct transform_locals {
+    sxml_ir_atom input;
+    sxml_ir_slot item;
+    sxml_xpath_lowering_block body_block;
+    sxml_ir_atom copy;
+    sxml_ir_atom modify;
+    sxml_xpath_lowering_focus focus;
+    sxml_xpath_lowering_focus *outer_focus;
+} transform_locals;
+
+/* The copy of the MAP's item, and M lowered with it as the focus. */
+static sxml_status lower_transform_modify(sxml_xpath_lowering_machine *machine,
+                                          sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *state = machine->state;
+    transform_locals *locals = frame->locals;
+    sxml_status status = sxml_xpath_lowerer_add_slot(state, &locals->item);
+    if (status == SXML_STATUS_OK) {
+        const sxml_ir_atom item = sxml_ir_slot_atom(locals->item);
+        status = bind_native_call(
+            state,
+            (native_call_in_block){.block = &locals->body_block,
+                                   .call = {.node = frame->node,
+                                            .native_function = &sxml_xquery_copy_function,
+                                            .arguments = {.atoms = &item, .atom_count = 1}}},
+            &locals->copy);
+    }
+    const sxml_ast_node_index modify = child_of(state, frame->node, SXML_AST_FIELD_MODIFY);
+    if (status != SXML_STATUS_OK || modify.value == 0) {
+        frame->step = 2;
+        sxml_ir_expression_index empty = {0};
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xpath_lowerer_add_empty_sequence(state, frame->node, &empty);
+        }
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xpath_lowerer_bind_expression(
+                state,
+                (sxml_xpath_lowering_expression_in_block){.block = &locals->body_block,
+                                                          .expression = empty},
+                &locals->modify);
+        }
+        return status;
+    }
+    frame->step = 2;
+    locals->focus = (sxml_xpath_lowering_focus){.kind = SXML_XPATH_LOWERING_FOCUS_KIND_FIXED,
+                                                .fixed_value = locals->copy};
+    locals->outer_focus = state->function->focus;
+    state->function->focus = &locals->focus;
+    return sxml_xpath_lowering_call_atom(
+        machine, (sxml_xpath_lowering_atom_call){
+                     .node = modify, .block = &locals->body_block, .atom = &locals->modify});
 }
+
+/* modify-copies over the copy, its one member, and the MAP. */
+static sxml_status finish_transform(sxml_xpath_lowering_machine *machine,
+                                    sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *state = machine->state;
+    transform_locals *locals = frame->locals;
+    if (locals->outer_focus != NULL) {
+        state->function->focus = locals->outer_focus;
+    }
+    const sxml_ir_atom arguments[2] = {locals->copy, locals->modify};
+    sxml_ir_atom modified = {0};
+    sxml_status status = bind_native_call(
+        state,
+        (native_call_in_block){.block = &locals->body_block,
+                               .call = {.node = frame->node,
+                                        .native_function = &sxml_xquery_modify_copies_function,
+                                        .arguments = {.atoms = arguments, .atom_count = 2}}},
+        &modified);
+    sxml_ir_atom key = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_add_item_constant(state, sxml_atomic_item_from_integer(1),
+                                                      &key);
+    }
+    sxml_ir_expression_index member = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_add_expression(
+            state,
+            (sxml_xpath_lowering_expression_to_add){
+                .node = frame->node,
+                .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_LOOKUP,
+                               .lookup = {.value = modified, .key = key}}},
+            &member);
+    }
+    sxml_ir_expression_index body = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_finish_block(
+            state,
+            (sxml_xpath_lowering_block_result){.block = locals->body_block, .result = member},
+            &body);
+    }
+    sxml_ir_expression_index map = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_add_expression(
+            state,
+            (sxml_xpath_lowering_expression_to_add){
+                .node = frame->node,
+                .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_MAP,
+                               .map = {.input = locals->input,
+                                       .focus = {.context_value = locals->item},
+                                       .body = body,
+                                       .flags = 0}}},
+            &map);
+    }
+    return status == SXML_STATUS_OK ? sxml_xpath_lowering_finish_frame(machine, frame, map)
+                                    : status;
+}
+
+static sxml_status continue_transform(sxml_xpath_lowering_machine *machine,
+                                      sxml_xpath_lowering_frame *frame) {
+    transform_locals *locals = frame->locals;
+    if (frame->step == 0) {
+        frame->step = 1;
+        return sxml_xpath_lowering_call_atom(
+            machine, (sxml_xpath_lowering_atom_call){
+                         .node = child_of(machine->state, frame->node, SXML_AST_FIELD_VALUE),
+                         .block = frame->block,
+                         .atom = &locals->input});
+    }
+    if (frame->step == 1) {
+        return lower_transform_modify(machine, frame);
+    }
+    return finish_transform(machine, frame);
+}
+
+static const sxml_xpath_lowering_procedure transform_procedure = {
+    .procedure_name = SXML_BYTE_VIEW_INITIALIZER("xquery transform-with"),
+    .step = continue_transform,
+    .locals_size = sizeof(transform_locals)};
 
 /* ================================================================= Part */
 
@@ -572,7 +697,7 @@ static const sxml_xpath_lowering_rule update_rules[] = {
     {.kind = SXML_AST_KIND_RENAME_EXPRESSION, .procedure = &update_procedure},
     {.kind = SXML_AST_KIND_COPY_MODIFY_EXPRESSION, .procedure = &copy_modify_procedure},
     {.kind = SXML_AST_KIND_UPDATING_FUNCTION_CALL, .procedure = &updating_call_procedure},
-    {.kind = SXML_AST_KIND_TRANSFORM_WITH_EXPRESSION, .leaf = lower_transform_with},
+    {.kind = SXML_AST_KIND_TRANSFORM_WITH_EXPRESSION, .procedure = &transform_procedure},
 };
 
 const sxml_xpath_lowering_part sxml_xpath_lowering_part_update = {
