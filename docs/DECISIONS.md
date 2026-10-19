@@ -7748,6 +7748,51 @@ entities are skipped in content".
   remaining parts (the processor's resource kind, trust-external, the
   drivers, the CLI, DTD validation) follow in this record.
 
+### D198. EXPath Binary (packet 7.8)
+Recorded 2026-10-19, after D51, D99, D162, D163, D189, D191. The EXPath
+Binary Module 4.0 is the optional feature `sxml_expath_binary_feature()`
+("expath-binary").
+- **Public, additive**: `include/sxml/processor.h` declares the feature
+  function. `include/sxml/name.h` (frozen by D99) gains the well-known
+  namespace `SXML_NAMESPACE_EXPATH_BINARY` = 13
+  (http://expath.org/ns/binary), so rows name their namespace as the fn,
+  map and math rows do. `SXML_NAMESPACE_WELL_KNOWN_COUNT` is now 14:
+  interned URIs start one later, which no caller sees.
+- **Rows**: 33 functions in `src/function_library_binary.c`, whose view is
+  not named as a part, so they are the definition's `library_functions`
+  (D191). The kind's operations table is that same view. Every binary
+  parameter is `(xs:hexBinary | xs:base64Binary)`; results are
+  xs:base64Binary (1.2). The 4.0 types are kept: `xs:unsignedByte` for
+  octets and the `enum(...)` octet order, so bad values are XPTY0004 as
+  4.0 says (appendix F), where the QT4 cases still expect
+  bin:octet-out-of-range and bin:unknown-significance-order (26 wrong
+  error codes, which count as passes).
+- **Errors** are in the bin namespace, prefix bin, filled into the error
+  record directly (static text, D21).
+- **Text**: the decoder of fn:unparsed-text moves to `src/text_decoding.c`
+  (`sxml_text_decoding_choose`, `sxml_text_decode`). Its encoding choice
+  was already written after bin:infer-encoding, so bin:infer-encoding and
+  bin:decode-string use it unchanged. bin:encode-string encodes UTF-8,
+  UTF-16 (big-endian, no mark), UTF-16BE/LE, ISO-8859-1 and US-ASCII.
+  Encoding names are classified by `sxml_xml_classify_encoding_name`.
+- **Integers** beyond int64_t are packed and unpacked through their
+  decimal text on base 10^9 limbs. bin:integer-too-large is raised past
+  4,096 octets (9,865 digits, inside the heap's decimal limit).
+- **System property**: the value kind DYNAMIC_XQUERY becomes
+  KNOWN_FUNCTION, with a function name and arity in the row.
+  supports-dynamic-xquery asks for fn:load-xquery-module#1 and
+  supports-binary-library for bin:hex#1, so the property follows the
+  configuration.
+- **Hosts**: the feature is in `sxml_all_optional_features()`, so the sxml
+  command, the drivers and `sxml-full.wasm` have it, and `sxml.wasm` does
+  not. The QT4 driver supports the dependency feature binary, and bin-*
+  is no longer a non-goal set.
+- **Counts** (release driver, XP40 and XQ40 alike): bin-* 0 to 646 of
+  646, of which 26 have the wrong error code; fn-serialize 200 to 224
+  (XP40) and 258 to 282 (XQ40), the canonical-JSON cases that call
+  bin:unpack-double; fn-system-properties 23 to 23 (the -false case is
+  now not run, the true case passes).
+
 ## Proposed
 
 - **XQuery's XML version** (packet 7.13, D195; for the owner of

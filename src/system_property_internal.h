@@ -8,6 +8,7 @@
  * string values) report, so the two never disagree (D163). Internal to
  * sxml; defined in src/system_property.c.
  */
+#include "sxml/name.h"
 #include "sxml/types.h"
 #include "sxml/xdm.h"
 
@@ -18,10 +19,19 @@ typedef enum sxml_system_property_value_kind {
     SXML_SYSTEM_PROPERTY_VALUE_GIVEN,
     /* sxml_version_text(), an xs:string. */
     SXML_SYSTEM_PROPERTY_VALUE_PRODUCT_VERSION,
-    /* Whether fn:load-xquery-module is a known function where it is asked
-       (F&O 4.0, 17.1.9: supports-dynamic-xquery), an xs:boolean. */
-    SXML_SYSTEM_PROPERTY_VALUE_DYNAMIC_XQUERY,
+    /* Whether known_function is in the function table where the property
+       is asked, an xs:boolean: fn:load-xquery-module#1 for
+       supports-dynamic-xquery, a function of an optional feature for
+       supports-binary-library (F&O 4.0, 17.1.9; D198). */
+    SXML_SYSTEM_PROPERTY_VALUE_KNOWN_FUNCTION,
 } sxml_system_property_value_kind;
+
+/* A function to look for, by name and arity. */
+typedef struct sxml_system_property_function {
+    sxml_well_known_namespace function_namespace;
+    sxml_byte_view local_name;
+    size_t arity;
+} sxml_system_property_function;
 
 typedef struct sxml_system_property {
     /* The no-namespace name of fn:system-properties; empty when F&O has
@@ -34,6 +44,8 @@ typedef struct sxml_system_property {
     sxml_atomic_datum value;
     sxml_system_property_value_kind value_kind;
     sxml_builtin_type value_type;
+    /* For KNOWN_FUNCTION. */
+    sxml_system_property_function known_function;
 } sxml_system_property;
 
 typedef struct sxml_system_property_view {

@@ -92,8 +92,11 @@ typedef enum sxml_well_known_namespace {
     SXML_NAMESPACE_SERIALIZATION = 11,
     /* http://www.w3.org/1999/XSL/Transform, "xsl". */
     SXML_NAMESPACE_XSLT = 12,
+    /* http://expath.org/ns/binary, "bin": the EXPath Binary functions and
+       their errors (EXPath Binary 4.0, section 1.5; D191). */
+    SXML_NAMESPACE_EXPATH_BINARY = 13,
     /* One more than the largest well-known namespace. */
-    SXML_NAMESPACE_WELL_KNOWN_COUNT = 13,
+    SXML_NAMESPACE_WELL_KNOWN_COUNT = 14,
 } sxml_well_known_namespace;
 
 /*

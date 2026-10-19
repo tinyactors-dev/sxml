@@ -46,6 +46,9 @@ typedef struct sxml_qt4_supported_dependency {
  *   (packet 5.11, D174); they stay non-goals of the D95 denominators
  *   below, so the Phase 2 to 4 gate rates keep their meaning, and the
  *   report counts them as the area "schema-aware".
+ * - binary: the EXPath Binary Module 4.0, the optional feature
+ *   sxml_expath_binary_feature() that the driver's processor names
+ *   (packet 7.8, D198).
  */
 static const sxml_qt4_supported_dependency sxml_qt4_supported_dependencies[] = {
     {SXML_BYTE_VIEW_INITIALIZER("feature"),
@@ -91,6 +94,8 @@ static const sxml_qt4_supported_dependency sxml_qt4_supported_dependencies[] = {
      SXML_BYTE_VIEW_INITIALIZER("schemaValidation")},
     {SXML_BYTE_VIEW_INITIALIZER("feature"),
      SXML_BYTE_VIEW_INITIALIZER("typedData")},
+    {SXML_BYTE_VIEW_INITIALIZER("feature"),
+     SXML_BYTE_VIEW_INITIALIZER("binary")},
 };
 
 /* The features of schema awareness (the area "schema-aware",
@@ -149,7 +154,6 @@ static const sxml_byte_view sxml_qt4_non_goal_features[] = {
     SXML_BYTE_VIEW_INITIALIZER("fn-invisible-xml"),
     SXML_BYTE_VIEW_INITIALIZER("remote_http"),
     SXML_BYTE_VIEW_INITIALIZER("expath-file"),
-    SXML_BYTE_VIEW_INITIALIZER("binary"),
     SXML_BYTE_VIEW_INITIALIZER("advanced-uca-fallback"),
     SXML_BYTE_VIEW_INITIALIZER("schema-location-hint"),
 };
@@ -158,7 +162,6 @@ static const sxml_byte_view sxml_qt4_non_goal_features[] = {
 static const sxml_byte_view sxml_qt4_non_goal_test_sets[] = {
     SXML_BYTE_VIEW_INITIALIZER("upd-*"),
     SXML_BYTE_VIEW_INITIALIZER("ft-*"),
-    SXML_BYTE_VIEW_INITIALIZER("bin-*"),
     SXML_BYTE_VIEW_INITIALIZER("expath-*"),
     SXML_BYTE_VIEW_INITIALIZER("misc-HtmlTestSuite"),
     SXML_BYTE_VIEW_INITIALIZER("fn-parse-html"),

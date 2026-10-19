@@ -1338,15 +1338,16 @@ static sxml_status call_parse_xml_fragment(const sxml_function_call *call,
    those with an F&O name. */
 #define SXML_SYSTEM_PROPERTY_CAPACITY 32U
 
-/* Whether fn:load-xquery-module#1 is in the function table of call's
-   dynamic context: what supports-dynamic-xquery says (F&O 4.0, 17.1.9). */
-typedef struct dynamic_xquery_support {
-    bool is_supported;
-} dynamic_xquery_support;
+/* Whether function is in the function table of call's dynamic context:
+   what a KNOWN_FUNCTION property says (F&O 4.0, 17.1.9). */
+typedef struct function_presence {
+    bool is_known;
+} function_presence;
 
-static sxml_status find_dynamic_xquery_support(const sxml_function_call *call,
-                                               dynamic_xquery_support *support) {
-    support->is_supported = false;
+static sxml_status find_known_function(const sxml_function_call *call,
+                                       const sxml_system_property_function *function,
+                                       function_presence *presence) {
+    presence->is_known = false;
     const sxml_function_table table = call->dynamic_context == NULL
                                           ? (sxml_function_table){.state = NULL, .operations = NULL}
                                           : call->dynamic_context->function_table;
@@ -1356,17 +1357,19 @@ static sxml_status find_dynamic_xquery_support(const sxml_function_call *call,
     sxml_name_identifier name = {.index = 0};
     sxml_status status = sxml_name_pool_intern_name(
         sxml_item_heap_get_name_pool(call->item_heap),
-        &(sxml_name_request){.namespace_uri = {.index = SXML_NAMESPACE_FUNCTIONS},
-                             .local_name = SXML_BYTE_VIEW_FROM_LITERAL("load-xquery-module")},
+        &(sxml_name_request){
+            .namespace_uri = sxml_well_known_namespace_identifier(function->function_namespace),
+            .local_name = function->local_name},
         &name);
     sxml_function_entry entry;
     memset(&entry, 0, sizeof(entry));
     entry.entry_kind = SXML_FUNCTION_ENTRY_KIND_NONE;
     if (status == SXML_STATUS_OK) {
         status = sxml_function_table_find(
-            table, &(sxml_function_query){.function_name = name, .arity = 1}, &entry);
+            table, &(sxml_function_query){.function_name = name, .arity = function->arity},
+            &entry);
     }
-    support->is_supported =
+    presence->is_known =
         status == SXML_STATUS_OK && entry.entry_kind != SXML_FUNCTION_ENTRY_KIND_NONE;
     return status;
 }
@@ -1378,8 +1381,7 @@ static sxml_status call_system_properties(const sxml_function_call *call,
     sxml_map_entry entries[SXML_SYSTEM_PROPERTY_CAPACITY];
     size_t entry_count = 0;
     sxml_name_pool *name_pool = sxml_item_heap_get_name_pool(call->item_heap);
-    dynamic_xquery_support support = {.is_supported = false};
-    sxml_status status = find_dynamic_xquery_support(call, &support);
+    sxml_status status = SXML_STATUS_OK;
     const sxml_system_property_view properties = sxml_system_properties();
     for (size_t property_index = 0;
          status == SXML_STATUS_OK && property_index < properties.property_count;
@@ -1390,8 +1392,13 @@ static sxml_status call_system_properties(const sxml_function_call *call,
             continue;
         }
         sxml_atomic_datum datum = property->value;
-        if (property->value_kind == SXML_SYSTEM_PROPERTY_VALUE_DYNAMIC_XQUERY) {
-            datum.datum_details.boolean = support.is_supported;
+        if (property->value_kind == SXML_SYSTEM_PROPERTY_VALUE_KNOWN_FUNCTION) {
+            function_presence presence = {.is_known = false};
+            status = find_known_function(call, &property->known_function, &presence);
+            if (status != SXML_STATUS_OK) {
+                break;
+            }
+            datum.datum_details.boolean = presence.is_known;
         } else if (property->value_kind == SXML_SYSTEM_PROPERTY_VALUE_PRODUCT_VERSION) {
             datum.datum_details.string.utf8 = sxml_byte_view_from_c_string(sxml_version_text());
             datum.datum_details.string.codepoint_count = datum.datum_details.string.utf8.byte_count;

@@ -4,6 +4,14 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 7.8 done (D198): EXPath Binary 4.0 as the optional feature
+  `sxml_expath_binary_feature()` (33 bin: functions; D191's library
+  functions, so `sxml.wasm` does not link them). bin-* 0 to 646 of 646 in
+  XP40 and XQ40 (26 of them wrong error codes that 4.0's types make
+  XPTY0004); fn-serialize +24 in each (canonical JSON via
+  bin:unpack-double); supports-binary-library follows the configuration.
+  fn:unparsed-text's decoder is shared (`src/text_decoding.c`).
+
 - 7.13 done (D195): XML 1.1 input. The version is read from the XML
   declaration; 1.1 documents refuse restricted characters, translate NEL
   and LINE SEPARATOR (a pre-pass; the grammar is unchanged for 7.14) and

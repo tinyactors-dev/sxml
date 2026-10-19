@@ -53,6 +53,10 @@ typedef enum sxml_optional_feature_kind {
     /* sxml_test_optional_feature: adds nothing to XPath, XQuery or XSLT;
        operations sxml_test_feature_operations. */
     SXML_OPTIONAL_FEATURE_KIND_TEST,
+    /* sxml_expath_binary_feature: the bin: functions as library_functions
+       (src/function_library_binary.c, packet 7.8, D198); operations is
+       that view. */
+    SXML_OPTIONAL_FEATURE_KIND_EXPATH_BINARY,
     SXML_OPTIONAL_FEATURE_KIND_COUNT,
 } sxml_optional_feature_kind;
 
@@ -187,3 +191,9 @@ typedef struct sxml_test_feature_operations {
      */
     sxml_status (*read_data_byte_count)(sxml_processor *processor, size_t *byte_count);
 } sxml_test_feature_operations;
+
+/* ---------------------------------------------- Definitions of features */
+
+/* The EXPath Binary feature (src/function_library_binary.c), for
+   sxml_all_optional_features. */
+extern const sxml_optional_feature_definition sxml_expath_binary_feature_definition;

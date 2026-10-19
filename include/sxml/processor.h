@@ -402,6 +402,15 @@ typedef struct sxml_optional_feature_view {
 SXML_EXPORT sxml_optional_feature sxml_test_optional_feature(void);
 
 /*
+ * The EXPath Binary Module 4.0 (namespace http://expath.org/ns/binary):
+ * the bin: functions over xs:base64Binary and xs:hexBinary values, and
+ * fn:system-properties()?supports-binary-library true. Without it the
+ * bin: functions are absent (XPST0017). Its name is "expath-binary"
+ * (packet 7.8, D198).
+ */
+SXML_EXPORT sxml_optional_feature sxml_expath_binary_feature(void);
+
+/*
  * Every optional feature sxml has, as static data, for hosts that want
  * them all: the sxml command, the test drivers and the JavaScript
  * package's full module. A program that calls this links every feature.

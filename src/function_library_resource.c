@@ -24,6 +24,7 @@
 #include "processor_internal.h"
 #include "sxml/processor.h"
 #include "sxml/string.h"
+#include "text_decoding_internal.h"
 #include "xml_internal.h"
 
 #include <stdalign.h>
@@ -200,280 +201,17 @@ typedef enum text_failure {
     SXML_TEXT_FAILURE_UNDECODABLE,
 } text_failure;
 
-/* The encodings fn:unparsed-text decodes (the XML parser's, D51). */
-typedef enum text_encoding {
-    SXML_TEXT_ENCODING_UTF8,
-    SXML_TEXT_ENCODING_UTF16_BIG_ENDIAN,
-    SXML_TEXT_ENCODING_UTF16_LITTLE_ENDIAN,
-    SXML_TEXT_ENCODING_ISO_8859_1,
-    SXML_TEXT_ENCODING_US_ASCII,
-} text_encoding;
-
-/* How to decode: the encoding and where the characters start. */
-typedef struct text_decoding {
-    text_encoding encoding;
-    size_t start_offset;
-    /* True when the encoding came from a candidate (FOUT1190 on bad
-       bytes), false when inferred (FOUT1200). */
-    bool has_candidate;
-} text_decoding;
-
-/* The byte order mark that starts content, if any. */
-typedef enum byte_order_mark {
-    SXML_BYTE_ORDER_MARK_NONE,
-    SXML_BYTE_ORDER_MARK_UTF8,
-    SXML_BYTE_ORDER_MARK_UTF16_BIG_ENDIAN,
-    SXML_BYTE_ORDER_MARK_UTF16_LITTLE_ENDIAN,
-} byte_order_mark;
-
-static byte_order_mark find_byte_order_mark(sxml_byte_view content) {
-    const uint8_t *bytes = content.bytes;
-    if (content.byte_count >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF) {
-        return SXML_BYTE_ORDER_MARK_UTF8;
-    }
-    if (content.byte_count >= 2 && bytes[0] == 0xFE && bytes[1] == 0xFF) {
-        return SXML_BYTE_ORDER_MARK_UTF16_BIG_ENDIAN;
-    }
-    if (content.byte_count >= 2 && bytes[0] == 0xFF && bytes[1] == 0xFE) {
-        return SXML_BYTE_ORDER_MARK_UTF16_LITTLE_ENDIAN;
-    }
-    return SXML_BYTE_ORDER_MARK_NONE;
-}
-
-/*
- * Chooses the effective encoding and start position (F&O 4.0, section
- * 17.1.5, after bin:infer-encoding): a byte order mark decides when there
- * is no candidate and is skipped when it agrees with the candidate; a
- * candidate "UTF-16" without one is big-endian; no candidate and no mark
- * is UTF-8. A mark the candidate disagrees with is decoded as characters
- * of the candidate (so it fails, or is U+FEFF's bytes in ISO-8859-1).
- * False for an encoding name sxml does not support (FOUT1190).
- */
-static bool choose_decoding(sxml_byte_view content, sxml_byte_view candidate,
-                            text_decoding *decoding) {
-    const byte_order_mark mark = find_byte_order_mark(content);
-    *decoding = (text_decoding){.encoding = SXML_TEXT_ENCODING_UTF8,
-                                .start_offset = 0,
-                                .has_candidate = candidate.byte_count > 0};
-    if (candidate.byte_count == 0) {
-        switch (mark) {
-        case SXML_BYTE_ORDER_MARK_UTF8:
-            decoding->start_offset = 3;
-            break;
-        case SXML_BYTE_ORDER_MARK_UTF16_BIG_ENDIAN:
-            *decoding = (text_decoding){.encoding = SXML_TEXT_ENCODING_UTF16_BIG_ENDIAN,
-                                        .start_offset = 2,
-                                        .has_candidate = false};
-            break;
-        case SXML_BYTE_ORDER_MARK_UTF16_LITTLE_ENDIAN:
-            *decoding = (text_decoding){.encoding = SXML_TEXT_ENCODING_UTF16_LITTLE_ENDIAN,
-                                        .start_offset = 2,
-                                        .has_candidate = false};
-            break;
-        case SXML_BYTE_ORDER_MARK_NONE:
-            break;
-        }
-        return true;
-    }
-    switch (sxml_xml_classify_encoding_name(candidate)) {
-    case SXML_XML_ENCODING_FAMILY_UNSUPPORTED:
-        return false;
-    case SXML_XML_ENCODING_FAMILY_UTF8:
-        decoding->start_offset = mark == SXML_BYTE_ORDER_MARK_UTF8 ? 3 : 0;
-        return true;
-    case SXML_XML_ENCODING_FAMILY_UTF16:
-        decoding->encoding = mark == SXML_BYTE_ORDER_MARK_UTF16_LITTLE_ENDIAN
-                                 ? SXML_TEXT_ENCODING_UTF16_LITTLE_ENDIAN
-                                 : SXML_TEXT_ENCODING_UTF16_BIG_ENDIAN;
-        decoding->start_offset = mark == SXML_BYTE_ORDER_MARK_UTF16_LITTLE_ENDIAN ||
-                                         mark == SXML_BYTE_ORDER_MARK_UTF16_BIG_ENDIAN
-                                     ? 2
-                                     : 0;
-        return true;
-    case SXML_XML_ENCODING_FAMILY_UTF16_BIG_ENDIAN:
-        decoding->encoding = SXML_TEXT_ENCODING_UTF16_BIG_ENDIAN;
-        decoding->start_offset = mark == SXML_BYTE_ORDER_MARK_UTF16_BIG_ENDIAN ? 2 : 0;
-        return true;
-    case SXML_XML_ENCODING_FAMILY_UTF16_LITTLE_ENDIAN:
-        decoding->encoding = SXML_TEXT_ENCODING_UTF16_LITTLE_ENDIAN;
-        decoding->start_offset = mark == SXML_BYTE_ORDER_MARK_UTF16_LITTLE_ENDIAN ? 2 : 0;
-        return true;
-    case SXML_XML_ENCODING_FAMILY_ISO_8859_1:
-        decoding->encoding = SXML_TEXT_ENCODING_ISO_8859_1;
-        return true;
-    case SXML_XML_ENCODING_FAMILY_US_ASCII:
-        decoding->encoding = SXML_TEXT_ENCODING_US_ASCII;
-        return true;
-    }
-    return false;
-}
-
-/* One step of decoding: a codepoint, or a malformed unit to skip. */
-typedef struct decoded_unit {
-    bool is_well_formed;
-    uint32_t codepoint;
-    size_t byte_count;
-} decoded_unit;
-
-/* The continuation bytes of a UTF-8 sequence, for a lead byte; 0 for an
-   invalid lead byte (RFC 3629, section 4). */
-static size_t utf8_continuation_count(uint8_t lead_byte) {
-    if (lead_byte >= 0xC2 && lead_byte <= 0xDF) {
-        return 1;
-    }
-    if (lead_byte >= 0xE0 && lead_byte <= 0xEF) {
-        return 2;
-    }
-    if (lead_byte >= 0xF0 && lead_byte <= 0xF4) {
-        return 3;
-    }
-    return 0;
-}
-
-/* Decodes the UTF-8 sequence at offset (RFC 3629, table 3-7 of Unicode:
-   no overlong forms, surrogates or codepoints past U+10FFFF). */
-static decoded_unit decode_utf8(sxml_byte_view content, size_t offset) {
-    const uint8_t lead_byte = content.bytes[offset];
-    if (lead_byte < 0x80) {
-        return (decoded_unit){.is_well_formed = true, .codepoint = lead_byte, .byte_count = 1};
-    }
-    const decoded_unit malformed = {.is_well_formed = false, .codepoint = 0, .byte_count = 1};
-    const size_t continuation_count = utf8_continuation_count(lead_byte);
-    if (continuation_count == 0 || content.byte_count - offset <= continuation_count) {
-        return malformed;
-    }
-    uint32_t codepoint = lead_byte & (0x7FU >> (continuation_count + 1));
-    for (size_t continuation_index = 1; continuation_index <= continuation_count;
-         continuation_index += 1) {
-        const uint8_t byte = content.bytes[offset + continuation_index];
-        if ((byte & 0xC0U) != 0x80U) {
-            return malformed;
-        }
-        codepoint = (codepoint << 6U) | (byte & 0x3FU);
-    }
-    static const uint32_t smallest_codepoints[4] = {0, 0x80, 0x800, 0x10000};
-    if (codepoint < smallest_codepoints[continuation_count] || codepoint > 0x10FFFF ||
-        (codepoint >= 0xD800 && codepoint <= 0xDFFF)) {
-        return malformed;
-    }
-    return (decoded_unit){
-        .is_well_formed = true, .codepoint = codepoint, .byte_count = continuation_count + 1};
-}
-
-/* The UTF-16 code unit at offset, which has two bytes left. */
-static uint32_t utf16_code_unit(sxml_byte_view content, size_t offset, text_encoding encoding) {
-    const bool is_big_endian = encoding == SXML_TEXT_ENCODING_UTF16_BIG_ENDIAN;
-    const uint32_t first = content.bytes[offset];
-    const uint32_t second = content.bytes[offset + 1];
-    return is_big_endian ? (first << 8U) | second : (second << 8U) | first;
-}
-
-/* Decodes the UTF-16 code units at offset: a pair for a supplementary
-   codepoint; a lone surrogate or an odd last byte is malformed. */
-static decoded_unit decode_utf16(sxml_byte_view content, size_t offset, text_encoding encoding) {
-    if (content.byte_count - offset < 2) {
-        return (decoded_unit){.is_well_formed = false, .codepoint = 0, .byte_count = 1};
-    }
-    const uint32_t unit = utf16_code_unit(content, offset, encoding);
-    const decoded_unit lone = {.is_well_formed = false, .codepoint = 0, .byte_count = 2};
-    if (unit >= 0xDC00 && unit <= 0xDFFF) {
-        return lone;
-    }
-    if (unit < 0xD800 || unit > 0xDBFF) {
-        return (decoded_unit){.is_well_formed = true, .codepoint = unit, .byte_count = 2};
-    }
-    if (content.byte_count - offset < 4) {
-        return lone;
-    }
-    const uint32_t low_unit = utf16_code_unit(content, offset + 2, encoding);
-    if (low_unit < 0xDC00 || low_unit > 0xDFFF) {
-        return lone;
-    }
-    return (decoded_unit){.is_well_formed = true,
-                          .codepoint = 0x10000U + ((unit - 0xD800U) << 10U) + (low_unit - 0xDC00U),
-                          .byte_count = 4};
-}
-
-static decoded_unit decode_unit(sxml_byte_view content, size_t offset, text_encoding encoding) {
-    const uint8_t byte = content.bytes[offset];
-    switch (encoding) {
-    case SXML_TEXT_ENCODING_UTF8:
-        return decode_utf8(content, offset);
-    case SXML_TEXT_ENCODING_UTF16_BIG_ENDIAN:
-    case SXML_TEXT_ENCODING_UTF16_LITTLE_ENDIAN:
-        return decode_utf16(content, offset, encoding);
-    case SXML_TEXT_ENCODING_ISO_8859_1:
-        return (decoded_unit){.is_well_formed = true, .codepoint = byte, .byte_count = 1};
-    case SXML_TEXT_ENCODING_US_ASCII:
+/* The failure a decoding failure is (src/text_decoding_internal.h). */
+static text_failure text_failure_of(sxml_text_decoding_failure failure) {
+    switch (failure) {
+    case SXML_TEXT_DECODING_FAILURE_ENCODING:
+        return SXML_TEXT_FAILURE_ENCODING;
+    case SXML_TEXT_DECODING_FAILURE_UNDECODABLE:
+        return SXML_TEXT_FAILURE_UNDECODABLE;
+    case SXML_TEXT_DECODING_FAILURE_NONE:
         break;
     }
-    return (decoded_unit){.is_well_formed = byte < 0x80, .codepoint = byte, .byte_count = 1};
-}
-
-/* What to decode and how. */
-typedef struct text_decoding_request {
-    sxml_byte_view content;
-    text_decoding decoding;
-    const text_options *options;
-} text_decoding_request;
-
-/* Appends codepoint, or a line feed for a line end when newlines are
-   normalized: CR LF and a lone CR become LF (F&O 4.0, section 17.1.5,
-   normalize-newlines). */
-typedef struct newline_state {
-    bool follows_carriage_return;
-} newline_state;
-
-static sxml_status append_character(sxml_library_text *text, newline_state *state,
-                                    uint32_t codepoint) {
-    const bool was_carriage_return = state->follows_carriage_return;
-    state->follows_carriage_return = codepoint == 0x0D;
-    if (codepoint == 0x0D) {
-        return sxml_function_library_text_append_codepoint(text, 0x0A);
-    }
-    if (codepoint == 0x0A && was_carriage_return) {
-        return SXML_STATUS_OK;
-    }
-    return sxml_function_library_text_append_codepoint(text, codepoint);
-}
-
-/*
- * Decodes request->content into *text: each well-formed character that
- * XML permits ([2] Char), and U+FFFD for what does not decode or is not
- * permitted when the fallback option is true; otherwise *failure says
- * which error to raise.
- */
-static sxml_status decode_text(const text_decoding_request *request, sxml_library_text *text,
-                               text_failure *failure) {
-    *failure = SXML_TEXT_FAILURE_NONE;
-    const sxml_byte_view content = request->content;
-    newline_state state = {.follows_carriage_return = false};
-    size_t offset = request->decoding.start_offset;
-    while (offset < content.byte_count) {
-        const decoded_unit unit = decode_unit(content, offset, request->decoding.encoding);
-        uint32_t codepoint = unit.codepoint;
-        if (!unit.is_well_formed ||
-            (!request->options->permits_any_character && !sxml_xml_codepoint_is_char(codepoint))) {
-            if (!request->options->has_fallback) {
-                *failure = unit.is_well_formed || request->decoding.has_candidate
-                               ? SXML_TEXT_FAILURE_ENCODING
-                               : SXML_TEXT_FAILURE_UNDECODABLE;
-                return SXML_STATUS_OK;
-            }
-            codepoint = 0xFFFD;
-        }
-        sxml_status status = SXML_STATUS_OK;
-        if (request->options->normalizes_newlines) {
-            status = append_character(text, &state, codepoint);
-        } else {
-            status = sxml_function_library_text_append_codepoint(text, codepoint);
-        }
-        if (status != SXML_STATUS_OK) {
-            return status;
-        }
-        offset += unit.byte_count;
-    }
-    return SXML_STATUS_OK;
+    return SXML_TEXT_FAILURE_NONE;
 }
 
 /* ---------------------------------------------------------- Text reading */
@@ -518,15 +256,24 @@ static sxml_status decode_retrieved(const sxml_retrieved_resource *retrieved,
     const sxml_byte_view candidate = retrieved->encoding_name.byte_count > 0
                                          ? retrieved->encoding_name
                                          : options->encoding_name;
-    text_decoding decoding;
-    if (!choose_decoding(retrieved->content, candidate, &decoding)) {
+    sxml_text_decoding decoding;
+    if (!sxml_text_decoding_choose(
+            (sxml_text_decoding_choice){.content = retrieved->content, .candidate = candidate},
+            &decoding)) {
         outcome->failure = SXML_TEXT_FAILURE_ENCODING;
         return SXML_STATUS_OK;
     }
-    return decode_text(&(text_decoding_request){.content = retrieved->content,
-                                                .decoding = decoding,
-                                                .options = options},
-                       &outcome->text, &outcome->failure);
+    sxml_text_decoding_failure failure = SXML_TEXT_DECODING_FAILURE_NONE;
+    const sxml_status status =
+        sxml_text_decode(&(sxml_text_decoding_request){
+                             .content = retrieved->content,
+                             .decoding = decoding,
+                             .normalizes_newlines = options->normalizes_newlines,
+                             .has_fallback = options->has_fallback,
+                             .permits_any_character = options->permits_any_character},
+                         &outcome->text, &failure);
+    outcome->failure = text_failure_of(failure);
+    return status;
 }
 
 /*

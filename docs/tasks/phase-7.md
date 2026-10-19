@@ -400,6 +400,9 @@ After the owner's size decision (D183 Proposed).
 - **Owns**: new `src/function_library_binary.c`.
 - **Size**: 30–50 KB.
 - **Gate**: ≥ 95 % of the 673.
+**Done** 2026-10-19 (D198): bin-* 646 of 646 in XP40 and XQ40 (26 wrong
+error codes, XPTY0004 by the 4.0 types); fn-serialize +24 in each; the
+673 also counted fn-serialize's and fn-system-properties' binary cases.
 
 ### 7.9 EXPath File (design and implementation)
 - **Specifications**: EXPath File Module 4.0, as the QT4 expath-file set

@@ -244,6 +244,7 @@ sxml_optional_feature sxml_test_optional_feature(void) {
    definition here (src/optional_feature_internal.h). */
 static const sxml_optional_feature sxml_every_optional_feature[] = {
     {.definition = &sxml_test_feature_definition},
+    {.definition = &sxml_expath_binary_feature_definition},
 };
 
 sxml_optional_feature_view sxml_all_optional_features(void) {

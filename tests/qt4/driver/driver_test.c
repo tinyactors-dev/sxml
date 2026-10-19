@@ -402,7 +402,10 @@ static void test_scope_follows_the_non_goals_of_d95(sxml_test_state *state) {
     SXML_TEST_EXPECT(state,
                      sxml_qt4_feature_is_non_goal(TEXT("fn-transform-XSLT30")));
     SXML_TEST_EXPECT(
-        state, sxml_qt4_feature_is_non_goal(TEXT(" binary expath-file ")));
+        state, sxml_qt4_feature_is_non_goal(TEXT(" remote_http expath-file ")));
+    /* EXPath Binary is an optional feature the driver names (D198). */
+    SXML_TEST_EXPECT(state, !sxml_qt4_feature_is_non_goal(TEXT("binary")));
+    SXML_TEST_EXPECT(state, !sxml_qt4_test_set_is_non_goal(TEXT("bin-hex")));
     SXML_TEST_EXPECT(
         state, !sxml_qt4_feature_is_non_goal(TEXT("higherOrderFunctions")));
     SXML_TEST_EXPECT(state, !sxml_qt4_feature_is_non_goal(

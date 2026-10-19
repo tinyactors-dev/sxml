@@ -35,6 +35,18 @@
      .value = {.datum_kind = SXML_DATUM_KIND_BOOLEAN, .datum_details = {.boolean = (truth)}}, \
      .value_type = SXML_TYPE_XS_BOOLEAN}
 
+/* An F&O property that is true when a function is known where it is
+   asked. */
+#define SXML_KNOWN_FUNCTION_PROPERTY(function_text, namespace_value, local_text, arity_value) \
+    {.function_name = SXML_BYTE_VIEW_INITIALIZER(function_text),                          \
+     .xslt_name = SXML_BYTE_VIEW_INITIALIZER(""),                                         \
+     .value_kind = SXML_SYSTEM_PROPERTY_VALUE_KNOWN_FUNCTION,                             \
+     .value = {.datum_kind = SXML_DATUM_KIND_BOOLEAN},                                    \
+     .value_type = SXML_TYPE_XS_BOOLEAN,                                                  \
+     .known_function = {.function_namespace = (namespace_value),                          \
+                        .local_name = SXML_BYTE_VIEW_INITIALIZER(local_text),             \
+                        .arity = (arity_value)}}
+
 static const sxml_system_property sxml_system_property_table[] = {
     SXML_DECIMAL_PROPERTY("xpath-version", "xpath-version", "4.0"),
     SXML_DECIMAL_PROPERTY("xsd-version", "xsd-version", "1.1"),
@@ -64,13 +76,12 @@ static const sxml_system_property sxml_system_property_table[] = {
     SXML_BOOLEAN_PROPERTY("supports-dtd-validation", "", false),
     SXML_BOOLEAN_PROPERTY("supports-dtd-attribute-typing", "", false),
     SXML_BOOLEAN_PROPERTY("supports-invisible-xml", "", false),
-    {.function_name = SXML_BYTE_VIEW_INITIALIZER("supports-dynamic-xquery"),
-     .xslt_name = SXML_BYTE_VIEW_INITIALIZER(""),
-     .value_kind = SXML_SYSTEM_PROPERTY_VALUE_DYNAMIC_XQUERY,
-     .value = {.datum_kind = SXML_DATUM_KIND_BOOLEAN},
-     .value_type = SXML_TYPE_XS_BOOLEAN},
+    SXML_KNOWN_FUNCTION_PROPERTY("supports-dynamic-xquery", SXML_NAMESPACE_FUNCTIONS,
+                                 "load-xquery-module", 1),
     SXML_BOOLEAN_PROPERTY("supports-dynamic-xslt", "", false),
-    SXML_BOOLEAN_PROPERTY("supports-binary-library", "", false),
+    /* The optional feature sxml_expath_binary_feature (D198). */
+    SXML_KNOWN_FUNCTION_PROPERTY("supports-binary-library", SXML_NAMESPACE_EXPATH_BINARY, "hex",
+                                 1),
     SXML_BOOLEAN_PROPERTY("supports-file-library", "", false),
 };
 

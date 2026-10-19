@@ -58,6 +58,8 @@ static const sxml_byte_view sxml_well_known_namespace_uris
             "http://www.w3.org/2010/xslt-xquery-serialization"),
         [SXML_NAMESPACE_XSLT] =
             SXML_BYTE_VIEW_INITIALIZER("http://www.w3.org/1999/XSL/Transform"),
+        [SXML_NAMESPACE_EXPATH_BINARY] =
+            SXML_BYTE_VIEW_INITIALIZER("http://expath.org/ns/binary"),
 };
 
 /* --------------------------------------------------------------- Tables */
