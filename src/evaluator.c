@@ -89,6 +89,14 @@ static const sxml_static_error sxml_array_key_error = {
         "4.7.3)"),
 };
 
+static const sxml_static_error sxml_record_lookup_error = {
+    .error_status = SXML_STATUS_TYPE_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XPTY0004"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "A lookup of a record uses a key that names no field of its record type (XPath 4.0, "
+        "section 4.15.3.1)"),
+};
+
 static const sxml_static_error sxml_array_bounds_error = {
     .error_status = SXML_STATUS_DYNAMIC_ERROR,
     .code_local_name = SXML_BYTE_VIEW_INITIALIZER("FOAY0001"),
@@ -2461,10 +2469,15 @@ static sxml_status sxml_lookup_array_member(sxml_dynamic_context *context,
     const sxml_type_registry *registry =
         sxml_item_heap_get_type_registry(context->item_heap);
     if (sxml_item_is_atomic(key) &&
-        sxml_item_get_type_annotation(key).index == SXML_TYPE_XS_UNTYPED_ATOMIC) {
-        /* data($K) ! array:get($V, .) (XPath 4.0, 4.7.3): an untyped key is
-           cast to xs:integer by the coercion rules. An integer is never
-           heap-allocated, so the coerced key needs no release. */
+        !sxml_type_registry_is_derived_from(
+            registry,
+            (sxml_type_pair){
+                .derived_type = sxml_item_get_type_annotation(key),
+                .base_type = sxml_builtin_type_identifier(SXML_TYPE_XS_INTEGER)})) {
+        /* data($K) ! array:get($V, .) (XPath 4.0, 4.15.3.1): a key is
+           coerced to xs:integer, so an untyped key is cast and a decimal
+           or double of integral value relabelled (3.4.2). An integer is
+           never heap-allocated, so the coerced key needs no release. */
         sxml_sequence coerced = sxml_sequence_empty();
         sxml_status status = sxml_evaluator_coerce(
             context,
@@ -2573,6 +2586,11 @@ static sxml_status sxml_lookup_in_item(sxml_dynamic_context *context,
         if (status == SXML_STATUS_OK && lookup.is_found) {
             status = sxml_sequence_builder_append_sequence(builder, lookup.entry.value,
                                                            context->error_record);
+        } else if (status == SXML_STATUS_OK &&
+                   sxml_item_get_type_annotation(target.item).index != SXML_TYPE_MAP) {
+            /* A record has an entry for every field: a key that names
+               none is XPTY0004 (4.15.3.1). */
+            status = sxml_error_record_report(context->error_record, &sxml_record_lookup_error);
         }
     }
     return status;
