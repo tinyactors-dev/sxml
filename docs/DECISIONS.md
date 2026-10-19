@@ -8156,7 +8156,43 @@ EXPath File Module 4.0 is the optional feature `sxml_expath_file_feature()`
   was over its 2,100,000 bytes before this packet; the full module's
   3,553,063 at 1e91f97 is fn:transform's (D203).
 
+### D206. XSLT 1.0 follow-ups: EXSLT common, text value templates, result documents (packet 7.4b)
+Recorded 2026-10-19, after D197 and D99. Follows up D197's "Not done".
+- **name.h (frozen, additive, D99)**: `SXML_NAMESPACE_EXSLT_COMMON = 15`
+  for http://exslt.org/common, `SXML_NAMESPACE_WELL_KNOWN_COUNT` 16.
+  Needed because a function row names its namespace by a well-known
+  constant (`sxml_native_function.function_namespace`); the list only
+  grows and no value changes.
+- **EXSLT common**: `src/function_library_exslt.c`, an XSLT-only library
+  part (as `output`, D149) with exsl:node-set (returns its argument: a
+  temporary tree is already a document node in XSLT 2.0 and later) and
+  exsl:object-type ("string", "number", "boolean", "node-set" for nodes
+  and the empty sequence, "external" otherwise). function-available
+  reports them. No other EXSLT module: DocBook tests the others
+  (dyn:evaluate, set:leading, date:date-time, str:*) with
+  function-available first, and no XT40 case needs them.
+- **Text value templates** in an element with XSLT 1.0 behaviour are
+  lowered without XPath 1.0 compatibility mode (XSLT 4.0, 3.8.1): the
+  value template frame lowers its expressions in a copy of the element's
+  static context with the mode off.
+- **xsl:result-document** whose result is the principal result (no href)
+  chooses its default method as an explicit result document: xhtml for an
+  XHTML html element, also in a 1.0 stylesheet (XSLT 4.0, 26.1).
+
 ## Proposed
+
+- **xs:numeric parameters in XPath 1.0 compatibility mode** (packet 7.4b,
+  D197; for the owner): XPath 4.0, 3.4.1 applies fn:number to an
+  argument in the mode only when the parameter type is xs:double or
+  xs:double?. F&O 4.0 made fn:format-number, fn:round, fn:floor,
+  fn:ceiling and fn:abs take xs:numeric?, so a string or a node argument
+  is not converted and raises XPTY0004. 14 cases expect the older
+  conversion: QT4 numberformat15, 38, 41, 42 and in XT40 format-number
+  014, 035, 038, 039, 040, 041, backwards-022, version-021,
+  xpath-compat-0302 and 0401. 7.4 followed the specification and did not
+  reclassify them (D178). Choose: confirm (the 14 stay failures), or
+  extend the mode's fn:number conversion to xs:numeric and xs:numeric?
+  parameters (one place, `src/xpath_lower.c`'s argument conversion).
 
 - **The CLI's WebAssembly budget after the Phase 7 features** (packet
   7.10a, D201; for the owner): the `sxml` CLI module names every optional
