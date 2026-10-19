@@ -9868,16 +9868,16 @@ offer.
   Lowering: `sxml_xpath_lower` XPath's, XQuery's prolog XQuery's, XSLT's
   lowering XSLT's; a lowerer configured with `parts.parts == NULL` gets
   XPath's (it was the whole registry).
-- **The evaluator** (left, see below): the unit carries its language's
-  list (`sxml_ir_unit_configuration.evaluator_parts`, a
+- **The evaluator**: the unit carries its language's list
+  (`sxml_ir_unit_configuration.evaluator_parts`, a
   `const struct sxml_evaluator_registered_part_view *`, set where
   `sxml_xpath_lower`, XQuery's prolog and XSLT's lowering create their
   units; NULL means XPath's), and `sxml_machine_start_part_kind` looks
   the kind up among the parts of the unit whose code runs
   (`sxml_evaluator_find_kind_handler(parts, kind)`), so an XSLT unit run
   from XPath (fn:transform) or an XPath unit inside XSLT (xsl:evaluate)
-  finds its own parts. evaluator_template declares SXML_LANGUAGE_XSLT
-  (done); evaluator_stream needs the same line.
+  finds its own parts. A unit built by hand (unit tests) names a list
+  itself.
 - `sxml_*_registered_parts()` and `sxml_function_library_parts_for_language`
   stay, for tests and checks only: they link every part.
 - **XQuery and XSLT parts**: XQuery has no library or evaluator part of
@@ -9899,18 +9899,18 @@ offer.
   the rest under 1,100; 120,332 bytes of code and data in all.
   `sxml-full.wasm` 7,044,360 / 1,612,207 to 7,044,334 / 1,612,149; the
   CLI module 8,636,999 to 8,636,973. Native builds and the full and CLI
-  modules name every language, so they keep every part. The D225
-  baseline (`bindings/javascript/test/size-baseline/sxml.txt`) is
-  refreshed at this point.
+  modules name every language, so they keep every part.
 - **Counts** (release, whole runs, 5385a0e against the change): QT4 XP40
   32,654 passed and 34 wrong errors, XQ40 45,913 and 55, XT40 11,826 and
   173, before and after; no test changed its outcome.
-- **Left**: the evaluator step above. It edits `src/ir_internal.h` and
-  `src/evaluator_stream.c` (7.6d's, uncommitted), `src/evaluator.c`
-  (perf-2's) and `src/xslt_lower.c` (7.6d's), so it waits for them; it
-  takes evaluator_stream (about 14.7 KB) and evaluator_template (about
-  4.9 KB) out of the core, and `tests/evaluator_machine_test.c` then
-  checks that XPath's list lacks APPLY_TEMPLATES and STREAM.
+- **The evaluator step** (cd4ac60, at 5664da8): `sxml.wasm` 2,101,275 /
+  734,951 to 2,077,439 / 725,473: evaluator_stream 16,118,
+  evaluator_template 4,935, processor 1,074, xml 637 and data (23,739 of
+  code and data). `sxml-full.wasm` 7,069,158 to 7,069,013, the CLI
+  8,662,430 to 8,662,285. Release whole runs at 5664da8, before and
+  after: XP40 32,655 and 34 wrong errors, XQ40 45,914 and 55, XT40 11,860
+  and 163; no outcome changed. The baseline is refreshed from this
+  module.
 - Rejected: registering a language's parts by hand in its compile entry
   (D101's rejected hand-kept list); a run-time filter of one table by
   language (the table still links every part); CMake options per module

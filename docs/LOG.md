@@ -38,17 +38,16 @@ One short entry per week, newest first: what passed, what's next, what is blocke
   each part registry, one unit per language with the parts serving it
   (`sxml_function_library_<language>_parts()`,
   `sxml_xpath_lowering_<language>_parts()`,
-  `sxml_evaluator_<language>_parts()`), and each language's entry point
-  names its own, so a module links only its languages' parts. The core
-  `sxml.wasm` drops XQuery's lowering (with xquery_flwor and the update
-  primitives) and XSLT's library parts: 2,215,004 / 774,905 (over budget
-  after perf-1's passes) to 2,094,214 / 731,897. Full module, CLI and
-  native builds unchanged in content. QT4 XP40 32,654, XQ40 45,913, XT40
-  11,826 passed before and after (whole release runs, no outcome
-  changed). Baseline refreshed. Left: the evaluator's use of its lists
-  (evaluator_stream 14.7 KB, evaluator_template 4.9 KB), which edits
-  `src/ir_internal.h`, `src/evaluator_stream.c`, `src/xslt_lower.c`
-  (7.6d) and `src/evaluator.c` (perf-2); D227 describes the change.
+  `sxml_evaluator_<language>_parts()`); each language's entry point
+  names its lists, and a unit carries its language's evaluator parts, so
+  a module links only its languages' parts. The core `sxml.wasm` drops
+  XQuery's lowering (with xquery_flwor and the update primitives),
+  XSLT's library parts, evaluator_stream and evaluator_template:
+  2,215,004 / 774,905 (over budget after perf-1's passes) to 2,094,214 /
+  731,897 at 5385a0e, and 2,101,275 / 734,951 to 2,077,439 / 725,473 at
+  5664da8. The full module, CLI and native builds keep every part. QT4
+  XP40, XQ40 and XT40 whole release runs unchanged at both steps (5664da8:
+  32,655, 45,914, 11,860 passed). Baseline refreshed.
 
 - perf-1 done (D224): evaluator performance with general mechanisms.
   A benchmark set (`tests/bench/run-bench.py`: XMark, joins, paths,
