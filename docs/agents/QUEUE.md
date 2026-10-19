@@ -22,7 +22,8 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 - 7.4b XSLT 1.0 follow-ups: exsl:node-set, docbook-002, TVTs in 1.0 elements, result-document xhtml.
 - 7.6a XSLT streamability analysis.
 - 7.11 fn:transform (after 7.3).
-- 7.7b/7.7c XQuery Update 4.0 additions, fn:put, revalidation (after 7.7a, D187: upd-* 733 of 825).
+- 7.15a UCA collations.
+- 7.16 timezone database.
 - 7.14c DTD follow-ups: QT4 driver features, `sxml check` flags, XT40 dtd failures.
 
 ## Next
@@ -85,6 +86,14 @@ CLI's missing static base URI (relative `html-doc`/`unparsed-text` in
 
 DTD (7.14a/b done, D199): xmlconf external-entity cases all pass, XML 1.1
 not-wf 169 of 169; XT40 dtd 68 of 79 (gate 90 %); XT40 8,931.
+
+XQuery Update (7.7a-c done, D187, D205): upd-* 787 of 825 (98.6 % of 798
+in scope). Left: XUDY0038 for dynamic calls of updating function items (the
+evaluator's dynamic call); six propagateNamespace cases are a test-suite
+whitespace error; two cases assume no cvc-id.1 IDREF check on parentless
+elements (schema owner); XQuery constructors under construction strip
+still keep is-id (evaluator_construct.c cannot tell XQuery from XSLT);
+fn:put in `sxml xquery` under `--allow-file-access`.
 
 XML 1.1 (after 7.13, D195):
 - XT40 xml-version-007/-016 and namespace-2606/-6202 fail in `src/xslt*`.
