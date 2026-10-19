@@ -402,6 +402,30 @@ part 1.2 KB of the core module.
     accumulators computed while streaming, xsl:fork, xsl:merge, the
     streamed principal source (no `xslt.h` field), template rules with
     stream points of their own.
+- **7.6d The remaining streamed shapes** (after 7.6c; D228), in order of
+  value: (a) a streamed principal source, an additive `xslt.h` field with
+  a record, used by `sxml transform`, with the CLI's memory at 100 MB
+  before and after; (b) accumulators computed while streaming; (c)
+  xsl:fork, then xsl:merge with streamed inputs; (d) template rules with
+  stream points of their own; (e) avg folding; (f) the IR printer's new
+  fields.
+  - Owns: `src/xslt_lower_stream.c`, `src/evaluator_stream.c`,
+    `tests/evaluator_stream_test.c`, `include/sxml/xslt.h` (the field),
+    `apps/sxml/command_transform.c`; single hunks in `src/xslt.c`,
+    `src/xslt_lower.c`, `src/xslt_lower_template.c`,
+    `src/xslt_streamability.c`, the IR and the XSLT driver.
+  - **Done** 2026-10-19 (D228): (a) `streamed_source_uri` and
+    `sxml_xslt_stylesheet_streams_source`; `sxml transform` streams an
+    INPUT file when the initial mode streams: "/" with a for-each over a
+    100 MB document 673.2 MB to 267.3 MB resident, template rules 658.8 MB
+    (tree) to 267.3 MB; the driver streams the suite's streaming="true"
+    sources. (d) template rules of streamed modes run on open nodes,
+    streamed or grounded (STREAM axis self); built-in rules, apply-
+    templates without select and child-step apply points stream. (e) avg
+    folds as sum and count. (f) done. XT40 none lost. Left: (b)
+    accumulators while streaming, (c) xsl:fork and xsl:merge, and a
+    principal result held whole until it is serialized (the identity
+    keeps memory proportional to its output).
 - **Header**: possibly `xslt.h`, additive: a streamed principal source
   given as bytes or a parser, with a record. The resolver's BYTES form
   already serves xsl:source-document.

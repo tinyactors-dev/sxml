@@ -4,6 +4,22 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 7.6d done (D228): a streamed principal source. `xslt.h` (additive):
+  `streamed_source_uri` in the transformation request and
+  `sxml_xslt_stylesheet_streams_source`; the invocation opens the URI
+  with STREAM OPENS_DOCUMENT and applies the initial mode to the open
+  document node. Template rules of a streamed mode are streamed bodies or
+  run inside a grounding stream (STREAM axis self, the node's full
+  window); the built-in rules stream the children, their values content
+  LETs; apply-templates without select and child-step apply points use
+  shallow windows; fn:avg folds; the IR printer writes self, fold and
+  apply focus. `sxml transform` streams an INPUT file when the initial
+  mode streams: 100 MB, "/" with a for-each, 673.2 MB to 267.3 MB
+  resident; template rules 658.8 MB (tree) to 267.3 MB. The XSLT driver
+  streams the suite's streaming="true" sources. XT40 none lost
+  (streamable-116 now passes). Left: accumulators while streaming,
+  xsl:fork, xsl:merge with streamed inputs, a principal result held whole.
+
 - size-2 done (D227): per-language part lists. CMake writes, beside
   each part registry, one unit per language with the parts serving it
   (`sxml_function_library_<language>_parts()`,
