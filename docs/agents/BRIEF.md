@@ -61,6 +61,9 @@ you implement or use.
 - All agents share one git index. Commit with an explicit pathspec in one
   command: `git commit -m "..." -- path1 path2`. Never `git add` and commit
   in two commands, and never `git commit -a`.
+- **Never commit a shared ledger (DECISIONS, GLOSSARY, LOG, QUEUE, task
+  files) by pathspec**: that takes everyone's uncommitted text with it,
+  which has happened several times.
 - For part of a shared ledger (DECISIONS, GLOSSARY, LOG), stage only your
   hunk (`git apply --cached` of your patch, or `git update-index` of HEAD's
   file plus your insertion) and commit it in the same command. Read a
