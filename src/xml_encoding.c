@@ -235,6 +235,16 @@ sxml_xml_declared_version sxml_xml_read_declared_version(sxml_byte_view text) {
     return declared;
 }
 
+sxml_xml_declared_encoding
+sxml_xml_read_declared_encoding(sxml_byte_view text) {
+    const sxml_xml_declaration_scan scan = sxml_xml_scan_declaration(text);
+    return (sxml_xml_declared_encoding){
+        .encoding_name = scan.end_offset == 0
+                             ? (sxml_byte_view){.bytes = NULL, .byte_count = 0}
+                             : scan.encoding,
+        .declaration_end_offset = scan.end_offset};
+}
+
 /* The encoding of a family when the byte order is known otherwise. */
 static sxml_status
 sxml_xml_encoding_of_family(sxml_xml_encoding_family family,

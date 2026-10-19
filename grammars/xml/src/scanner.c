@@ -15,7 +15,10 @@
  * - character data, CDATA text, comment text and processing-instruction
  *   content, which end at a delimiter and must not contain it, and whose
  *   characters must all match [2] Char;
- * - processing-instruction targets, which exclude the name "xml" in any case.
+ * - processing-instruction targets, which exclude the name "xml" in any case;
+ * - in the external subset, a whole markup declaration that holds a
+ *   parameter-entity reference outside its literals (2.8, 4.4.8), which only
+ *   the tree builder can expand, and the text of ignored sections (3.4).
  *
  * Tag stack state. tree-sitter serializes the scanner state after every
  * external token into at most TREE_SITTER_SERIALIZATION_BUFFER_SIZE bytes
@@ -48,6 +51,8 @@ enum token_type {
     COMMENT_TEXT,
     PROCESSING_INSTRUCTION_TARGET,
     PROCESSING_INSTRUCTION_CONTENT,
+    UNEXPANDED_DECLARATION,
+    IGNORED_TEXT,
     ERROR_SENTINEL,
 };
 
@@ -513,6 +518,154 @@ static bool scan_processing_instruction_content(TSLexer *lexer) {
     return false;
 }
 
+/* [69] PEReference inside a markup declaration of the external subset
+ * (2.8): the whole declaration, from '<!' to its closing '>', when a
+ * parameter-entity reference occurs outside its quoted literals. Such a
+ * declaration matches its production only after the tree builder replaces
+ * the references (4.4.8, Included as PE), so the grammar sees one token.
+ * Without a reference the scanner offers nothing and the grammar parses
+ * the declaration itself. */
+static bool scan_unexpanded_declaration(TSLexer *lexer) {
+    if (lexer->lookahead != '<') {
+        return false;
+    }
+    advance(lexer);
+    if (lexer->lookahead != '!') {
+        return false;
+    }
+    advance(lexer);
+    /* The keyword: its first two letters decide which one it must be. */
+    const char *rest = NULL;
+    if (lexer->lookahead == 'E') {
+        advance(lexer);
+        rest = lexer->lookahead == 'L' ? "LEMENT" : lexer->lookahead == 'N' ? "NTITY" : NULL;
+    } else if (lexer->lookahead == 'A') {
+        rest = "ATTLIST";
+    } else if (lexer->lookahead == 'N') {
+        rest = "NOTATION";
+    }
+    if (rest == NULL) {
+        return false;
+    }
+    for (const char *letter = rest; *letter != '\0'; letter += 1) {
+        if (lexer->lookahead != *letter) {
+            return false;
+        }
+        advance(lexer);
+    }
+    bool has_reference = false;
+    int32_t quote = 0;
+    while (!lexer->eof(lexer)) {
+        int32_t character = lexer->lookahead;
+        if (!is_xml_character(character)) {
+            return false;
+        }
+        if (quote != 0) {
+            if (character == quote) {
+                quote = 0;
+            }
+            advance(lexer);
+            continue;
+        }
+        if (character == '"' || character == '\'') {
+            quote = character;
+            advance(lexer);
+            continue;
+        }
+        if (character == '>') {
+            if (!has_reference) {
+                return false;
+            }
+            advance(lexer);
+            lexer->mark_end(lexer);
+            lexer->result_symbol = UNEXPANDED_DECLARATION;
+            return true;
+        }
+        if (character == '<') {
+            break;
+        }
+        advance(lexer);
+        if (character == '%' && is_name_start_character(lexer->lookahead)) {
+            while (!lexer->eof(lexer) && is_name_character(lexer->lookahead)) {
+                advance(lexer);
+            }
+            if (lexer->lookahead == ';') {
+                has_reference = true;
+            }
+        }
+    }
+    /* No '>' before the next markup or the end: the '>' may come from a
+     * parameter entity (VC: Proper Declaration/PE Nesting, 2.8), which only
+     * validity forbids. The tree builder decides once it has expanded. */
+    if (!has_reference || quote != 0) {
+        return false;
+    }
+    lexer->mark_end(lexer);
+    lexer->result_symbol = UNEXPANDED_DECLARATION;
+    return true;
+}
+
+/* [65] Ignore ::= Char* - (Char* ('<![' | ']]>') Char*): text of an
+ * ignored section up to the next '<![' or ']]>', which the grammar reads.
+ * As for CDATA text, a run of brackets before '>' is returned in pieces,
+ * because the token cannot end two characters before the position. */
+static bool scan_ignored_text(TSLexer *lexer) {
+    bool has_consumed = false;
+    while (!lexer->eof(lexer)) {
+        int32_t character = lexer->lookahead;
+        if (character == '<') {
+            lexer->mark_end(lexer);
+            advance(lexer);
+            if (lexer->lookahead == '!') {
+                advance(lexer);
+                if (lexer->lookahead == '[') {
+                    if (has_consumed) {
+                        lexer->result_symbol = IGNORED_TEXT;
+                        return true;
+                    }
+                    return false;
+                }
+            }
+            has_consumed = true;
+            continue;
+        }
+        if (character == ']') {
+            uint32_t bracket_run = 0;
+            if (has_consumed) {
+                lexer->mark_end(lexer);
+            } else {
+                advance(lexer);
+                lexer->mark_end(lexer);
+                bracket_run = 1;
+            }
+            while (lexer->lookahead == ']') {
+                advance(lexer);
+                bracket_run += 1;
+            }
+            if (lexer->lookahead == '>' && bracket_run >= 2) {
+                if (has_consumed || bracket_run >= 3) {
+                    lexer->result_symbol = IGNORED_TEXT;
+                    return true;
+                }
+                return false; /* Only the delimiter ']]>' is left. */
+            }
+            has_consumed = true;
+            continue;
+        }
+        if (!is_xml_character(character)) {
+            return false;
+        }
+        advance(lexer);
+        has_consumed = true;
+    }
+    if (has_consumed) {
+        lexer->mark_end(lexer);
+        lexer->result_symbol = IGNORED_TEXT;
+        return true;
+    }
+    return false;
+}
+
 /* --- tree-sitter entry points --------------------------------------------- */
 
 void *tree_sitter_xml_external_scanner_create(void) {
@@ -577,6 +730,12 @@ bool tree_sitter_xml_external_scanner_scan(void *payload, TSLexer *lexer, const 
      * recovery never makes broken input look well-formed. */
     if (state == NULL || valid_symbols[ERROR_SENTINEL]) {
         return false;
+    }
+    if (valid_symbols[UNEXPANDED_DECLARATION]) {
+        return scan_unexpanded_declaration(lexer);
+    }
+    if (valid_symbols[IGNORED_TEXT]) {
+        return scan_ignored_text(lexer);
     }
     if (valid_symbols[START_TAG_NAME]) {
         return scan_start_tag_name(state, lexer);

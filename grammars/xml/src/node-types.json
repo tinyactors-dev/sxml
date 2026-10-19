@@ -168,6 +168,36 @@
     }
   },
   {
+    "type": "conditional_section",
+    "named": true,
+    "fields": {
+      "contents": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "ignored_section_contents",
+            "named": true
+          }
+        ]
+      },
+      "keyword": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "IGNORE",
+            "named": false
+          },
+          {
+            "type": "parameter_entity_reference",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "content_particle",
     "named": true,
     "fields": {},
@@ -286,9 +316,29 @@
           }
         ]
       },
+      "external_entity": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "external_parsed_entity",
+            "named": true
+          }
+        ]
+      },
+      "external_subset": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "external_subset",
+            "named": true
+          }
+        ]
+      },
       "root": {
         "multiple": false,
-        "required": true,
+        "required": false,
         "types": [
           {
             "type": "element",
@@ -485,6 +535,10 @@
         {
           "type": "entity_value_text",
           "named": true
+        },
+        {
+          "type": "parameter_entity_reference",
+          "named": true
         }
       ]
     }
@@ -531,6 +585,122 @@
     }
   },
   {
+    "type": "external_parsed_entity",
+    "named": true,
+    "fields": {
+      "declaration": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "text_declaration",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "cdata_section",
+          "named": true
+        },
+        {
+          "type": "character_data",
+          "named": true
+        },
+        {
+          "type": "character_reference",
+          "named": true
+        },
+        {
+          "type": "comment",
+          "named": true
+        },
+        {
+          "type": "element",
+          "named": true
+        },
+        {
+          "type": "entity_reference",
+          "named": true
+        },
+        {
+          "type": "processing_instruction",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "external_subset",
+    "named": true,
+    "fields": {
+      "declaration": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "text_declaration",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "attribute_list_declaration",
+          "named": true
+        },
+        {
+          "type": "comment",
+          "named": true
+        },
+        {
+          "type": "conditional_section",
+          "named": true
+        },
+        {
+          "type": "element_declaration",
+          "named": true
+        },
+        {
+          "type": "general_entity_declaration",
+          "named": true
+        },
+        {
+          "type": "include_section",
+          "named": true
+        },
+        {
+          "type": "notation_declaration",
+          "named": true
+        },
+        {
+          "type": "parameter_entity_declaration",
+          "named": true
+        },
+        {
+          "type": "parameter_entity_reference",
+          "named": true
+        },
+        {
+          "type": "processing_instruction",
+          "named": true
+        },
+        {
+          "type": "unexpanded_declaration",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "general_entity_declaration",
     "named": true,
     "fields": {
@@ -574,6 +744,80 @@
           }
         ]
       }
+    }
+  },
+  {
+    "type": "ignored_section_contents",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "ignored_section_contents",
+          "named": true
+        },
+        {
+          "type": "ignored_text",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "include_section",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "attribute_list_declaration",
+          "named": true
+        },
+        {
+          "type": "comment",
+          "named": true
+        },
+        {
+          "type": "conditional_section",
+          "named": true
+        },
+        {
+          "type": "element_declaration",
+          "named": true
+        },
+        {
+          "type": "general_entity_declaration",
+          "named": true
+        },
+        {
+          "type": "include_section",
+          "named": true
+        },
+        {
+          "type": "notation_declaration",
+          "named": true
+        },
+        {
+          "type": "parameter_entity_declaration",
+          "named": true
+        },
+        {
+          "type": "parameter_entity_reference",
+          "named": true
+        },
+        {
+          "type": "processing_instruction",
+          "named": true
+        },
+        {
+          "type": "unexpanded_declaration",
+          "named": true
+        }
+      ]
     }
   },
   {
@@ -805,6 +1049,32 @@
     }
   },
   {
+    "type": "text_declaration",
+    "named": true,
+    "fields": {
+      "encoding": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "encoding_name",
+            "named": true
+          }
+        ]
+      },
+      "version": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "version_number",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "xml_declaration",
     "named": true,
     "fields": {
@@ -839,6 +1109,14 @@
         ]
       }
     }
+  },
+  {
+    "type": "\u0001E",
+    "named": false
+  },
+  {
+    "type": "\u0001S",
+    "named": false
   },
   {
     "type": "\"",
@@ -933,6 +1211,10 @@
     "named": false
   },
   {
+    "type": "<![",
+    "named": false
+  },
+  {
     "type": "<![CDATA[",
     "named": false
   },
@@ -966,6 +1248,14 @@
   },
   {
     "type": "EMPTY",
+    "named": false
+  },
+  {
+    "type": "IGNORE",
+    "named": false
+  },
+  {
+    "type": "INCLUDE",
     "named": false
   },
   {
@@ -1029,6 +1319,10 @@
     "named": true
   },
   {
+    "type": "ignored_text",
+    "named": true
+  },
+  {
     "type": "name",
     "named": true
   },
@@ -1062,6 +1356,10 @@
   },
   {
     "type": "tokenized_type",
+    "named": true
+  },
+  {
+    "type": "unexpanded_declaration",
     "named": true
   },
   {

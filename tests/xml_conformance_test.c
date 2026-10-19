@@ -1,10 +1,13 @@
 /*
  * The W3C XML conformance suite through the XML parser (packet 1.14,
  * docs/DECISIONS.md D13, D81): the standalone tests of XML 1.0 Fifth
- * Edition, selected as grammars/xml/test/xml-conformance.py selects them,
- * and apart from them the tests of XML 1.1 and Namespaces in XML 1.1
- * (packet 7.13): the ibm and eduni xml-1.1 catalogs, eduni's namespace 1.1
- * tests and the one 1.1 erratum test, whatever entities they use.
+ * Edition, selected as grammars/xml/test/xml-conformance.py selects them;
+ * apart from them the tests of the same editions that use external
+ * entities or an external DTD (packet 7.14a, D199), and the tests of XML
+ * 1.1 and Namespaces in XML 1.1 (packet 7.13): the ibm and eduni xml-1.1
+ * catalogs, eduni's namespace 1.1 tests and the one 1.1 erratum test,
+ * whatever entities they use. Every document is parsed with an entity
+ * resolver that reads the suite's files, so external entities are read.
  *
  * Golden file: tests/memory_test.c (layout, naming).
  *
@@ -18,12 +21,9 @@
  * INVALID_UTF8 or UNSUPPORTED_FEATURE. Tests marked NAMESPACE="no" are
  * well-formed XML 1.0 but not namespace-well-formed, so a namespace-aware
  * parser rightly refuses some of them; they are counted apart and accepted
- * either way. An "error" test may be refused or not. A 1.1 test that
- * uses external entities (ENTITIES other than "none", or an external DTD
- * that the catalog does not mention) can fail only
- * because the parser does not read them (D81); such failures are counted
- * and printed, and do not fail the run. The catalogs themselves are read with the parser, through a
- * tree builder that collects the attributes of TEST elements.
+ * either way. An "error" test may be refused or not. The catalogs
+ * themselves are read with the parser, through a tree builder that
+ * collects the attributes of TEST elements.
  */
 #include "sxml/memory.h"
 #include "sxml/name.h"
@@ -174,8 +174,6 @@ typedef struct conformance_counts {
     uint32_t namespace_free_total;
     uint32_t namespace_free_refused;
     uint32_t error_total;
-    /* Failures of tests that use external entities (XML 1.1 only). */
-    uint32_t external_entity_failure_count;
     uint32_t failure_count;
 } conformance_counts;
 
@@ -192,6 +190,7 @@ typedef struct conformance_run {
     uint32_t element_depth;
     uint32_t case_depth;
     conformance_counts counts;
+    conformance_counts external_counts;
     conformance_counts version_1_1_counts;
 } conformance_run;
 
@@ -199,12 +198,15 @@ static bool field_is(const char *field, const char *expected) {
     return strcmp(field, expected) == 0;
 }
 
-/* The selection of grammars/xml/test/xml-conformance.py. */
-static bool case_is_selected(const conformance_case *test_case) {
-    if (test_case->entities[0] != '\0' &&
-        !field_is(test_case->entities, "none")) {
-        return false;
-    }
+/* True when the case uses external entities or an external DTD. */
+static bool case_uses_entities(const conformance_case *test_case) {
+    return test_case->entities[0] != '\0' &&
+           !field_is(test_case->entities, "none");
+}
+
+/* The editions and recommendations of grammars/xml/test/xml-conformance.py,
+   whatever entities the case uses. */
+static bool case_is_version_1_0(const conformance_case *test_case) {
     const char *recommendation = test_case->recommendation[0] == '\0'
                                      ? "XML1.0"
                                      : test_case->recommendation;
@@ -226,6 +228,7 @@ static bool case_is_selected(const conformance_case *test_case) {
     return true;
 }
 
+
 /* The tests of XML 1.1 and Namespaces in XML 1.1 (packet 7.13), of the
    Fifth Edition of XML 1.0 when it matters. */
 static bool case_is_version_1_1(const conformance_case *test_case) {
@@ -238,27 +241,62 @@ static bool case_is_version_1_1(const conformance_case *test_case) {
            strstr(test_case->version, "1.1") != NULL;
 }
 
-/* True when document names an external entity or DTD, which the parser
-   does not read (D81); some catalogs say ENTITIES="none" for them. */
-static bool document_names_external_entity(sxml_byte_view document) {
-    static const char *const keywords[] = {"SYSTEM", "PUBLIC"};
-    for (size_t keyword_index = 0; keyword_index < 2; keyword_index++) {
-        const size_t keyword_byte_count = strlen(keywords[keyword_index]);
-        for (size_t byte_index = 0;
-             byte_index + keyword_byte_count <= document.byte_count;
-             byte_index++) {
-            if (memcmp(document.bytes + byte_index, keywords[keyword_index],
-                       keyword_byte_count) == 0) {
-                return true;
-            }
-        }
+/* ------------------------------------------------- Entity resolver */
+
+/*
+ * An entity resolver over the suite's files (include/sxml/xml.h): the
+ * absolute URI the parser resolved against the document's file: URI, read
+ * as a path. Anything else is not available.
+ */
+static sxml_status
+resolve_suite_entity(void *state,
+                     const sxml_xml_external_entity_request *request,
+                     sxml_xml_external_entity *entity) {
+    (void)state;
+    static const char scheme[] = "file://";
+    const sxml_byte_view uri = request->absolute_uri;
+    if (uri.byte_count <= sizeof scheme - 1 ||
+        uri.byte_count >= SXML_TEST_PATH_BYTE_COUNT ||
+        memcmp(uri.bytes, scheme, sizeof scheme - 1) != 0) {
+        return SXML_STATUS_OK;
     }
-    return false;
+    char path[SXML_TEST_PATH_BYTE_COUNT];
+    memcpy(path, uri.bytes + sizeof scheme - 1,
+           uri.byte_count - (sizeof scheme - 1));
+    path[uri.byte_count - (sizeof scheme - 1)] = '\0';
+    const sxml_byte_view contents = read_file(path);
+    if (contents.bytes != NULL) {
+        entity->is_available = true;
+        entity->content = contents;
+    }
+    return SXML_STATUS_OK;
 }
 
-/* Parses document into a new arena tree and returns the parser's status. */
+static void release_suite_entity(void *state,
+                                 const sxml_xml_external_entity *entity) {
+    (void)state;
+    release_file(entity->content);
+}
+
+static const sxml_xml_entity_resolver_operations suite_entity_resolver = {
+    .resolve = resolve_suite_entity,
+    .release = release_suite_entity,
+};
+
+/* A document to parse and the path it was read from. */
+typedef struct conformance_document {
+    sxml_byte_view text;
+    const char *path;
+} conformance_document;
+
+/* Parses a document into a new arena tree and returns the parser's
+   status. Its base URI is its file: URI, so that external entities are
+   found relative to it. */
 static sxml_status build_document(const conformance_run *run,
-                                  sxml_byte_view document) {
+                                  const conformance_document *source) {
+    const sxml_byte_view document = source->text;
+    char base_uri[SXML_TEST_PATH_BYTE_COUNT];
+    (void)snprintf(base_uri, sizeof base_uri, "file://%s", source->path);
     sxml_arena_tree *arena_tree = NULL;
     sxml_status status = sxml_arena_tree_create(
         sxml_default_allocator(),
@@ -290,9 +328,11 @@ static sxml_status build_document(const conformance_run *run,
             .input = document,
             .source_name = SXML_BYTE_VIEW_FROM_LITERAL("test.xml"),
             .document_uri = {.bytes = NULL, .byte_count = 0},
-            .base_uri = {.bytes = NULL, .byte_count = 0},
+            .base_uri = sxml_byte_view_from_c_string(base_uri),
             .encoding_name = {.bytes = NULL, .byte_count = 0},
-            .diagnostic = &diagnostic},
+            .diagnostic = &diagnostic,
+            .entity_resolver = {.state = NULL,
+                                .operations = &suite_entity_resolver}},
         sxml_arena_tree_as_tree_builder(arena_tree));
     if (status == SXML_STATUS_OK) {
         sxml_tree *tree = NULL;
@@ -325,16 +365,14 @@ static void run_case(conformance_run *run, const conformance_case *test_case) {
         run->counts.failure_count += 1;
         return;
     }
-    const sxml_status status = build_document(run, document);
-    const bool uses_external_entities =
-        (test_case->entities[0] != '\0' &&
-         !field_is(test_case->entities, "none")) ||
-        document_names_external_entity(document);
+    const sxml_status status = build_document(
+        run, &(conformance_document){.text = document, .path = path});
     release_file(document);
     const bool is_namespace_free = field_is(test_case->namespace_flag, "no");
-    const bool is_version_1_1 = !case_is_selected(test_case);
     conformance_counts *counts =
-        is_version_1_1 ? &run->version_1_1_counts : &run->counts;
+        !case_is_version_1_0(test_case) ? &run->version_1_1_counts
+        : case_uses_entities(test_case) ? &run->external_counts
+                                        : &run->counts;
     bool passed = false;
     if (field_is(test_case->type, "valid") ||
         field_is(test_case->type, "invalid")) {
@@ -359,12 +397,7 @@ static void run_case(conformance_run *run, const conformance_case *test_case) {
     } else {
         return;
     }
-    if (!passed && is_version_1_1 && uses_external_entities) {
-        counts->external_entity_failure_count += 1;
-        printf("FAILED (external entities not read) %s (%s, %s): %s\n",
-               test_case->identifier, test_case->type, path,
-               (const char *)sxml_status_name(status).bytes);
-    } else if (!passed) {
+    if (!passed) {
         counts->failure_count += 1;
         printf("FAILED %s (%s, %s): %s\n", test_case->identifier,
                test_case->type, path,
@@ -459,7 +492,7 @@ static sxml_status catalog_end_element(void *state) {
     conformance_run *run = run_from_state(state);
     if (run->is_in_case && run->element_depth == run->case_depth) {
         run->is_in_case = false;
-        if (case_is_selected(&run->current_case) ||
+        if (case_is_version_1_0(&run->current_case) ||
             case_is_version_1_1(&run->current_case)) {
             run_case(run, &run->current_case);
         }
@@ -691,14 +724,25 @@ static void test_conformance_suite(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, counts->valid_total == 601);
     SXML_TEST_EXPECT(state, counts->invalid_total == 175);
     SXML_TEST_EXPECT(state, counts->not_well_formed_total == 948);
+    const conformance_counts *external = &run.external_counts;
+    printf("external entities: valid %u/%u, invalid %u/%u, not-wf %u/%u, "
+           "error %u\n",
+           external->valid_passed, external->valid_total,
+           external->invalid_passed, external->invalid_total,
+           external->not_well_formed_passed, external->not_well_formed_total,
+           external->error_total);
+    SXML_TEST_EXPECT(state, external->failure_count == 0);
+    /* The selection of packet 7.14a: 265 cases. */
+    SXML_TEST_EXPECT(state, external->valid_total == 127);
+    SXML_TEST_EXPECT(state, external->invalid_total == 54);
+    SXML_TEST_EXPECT(state, external->not_well_formed_total == 66);
+    SXML_TEST_EXPECT(state, external->error_total == 18);
     const conformance_counts *version_1_1 = &run.version_1_1_counts;
-    printf("XML 1.1: valid %u/%u, invalid %u/%u, not-wf %u/%u, error %u; "
-           "%u failed only because external entities are not read\n",
+    printf("XML 1.1: valid %u/%u, invalid %u/%u, not-wf %u/%u, error %u\n",
            version_1_1->valid_passed, version_1_1->valid_total,
            version_1_1->invalid_passed, version_1_1->invalid_total,
            version_1_1->not_well_formed_passed,
-           version_1_1->not_well_formed_total, version_1_1->error_total,
-           version_1_1->external_entity_failure_count);
+           version_1_1->not_well_formed_total, version_1_1->error_total);
     SXML_TEST_EXPECT(state, version_1_1->failure_count == 0);
     sxml_xml_parser_destroy(run.catalog_parser);
     sxml_xml_parser_destroy(run.document_parser);

@@ -223,6 +223,20 @@ typedef struct sxml_xml_declared_version {
  */
 sxml_xml_declared_version sxml_xml_read_declared_version(sxml_byte_view text);
 
+/* What the text declaration ([77] TextDecl) or XML declaration at the
+   start of an entity's decoded text says. */
+typedef struct sxml_xml_declared_encoding {
+    /* The encoding name; empty without a declaration or encoding. */
+    sxml_byte_view encoding_name;
+    /* The offset just after the declaration's "?>"; 0 without a
+       declaration of the expected shape. */
+    size_t declaration_end_offset;
+} sxml_xml_declared_encoding;
+
+/* Reads the declaration at the start of text (UTF-8, no byte order
+   mark). The grammar checks a declaration properly where it parses one. */
+sxml_xml_declared_encoding sxml_xml_read_declared_encoding(sxml_byte_view text);
+
 /*
  * The byte offset in text (UTF-8, well-formed) of the first [2a]
  * RestrictedChar of XML 1.1, which a document must not contain literally
@@ -349,11 +363,21 @@ sxml_xml_position_tracker_locate(sxml_xml_position_tracker *tracker,
 typedef enum sxml_xml_entity_kind {
     /* Declared with a literal value: has replacement text. */
     SXML_XML_ENTITY_KIND_INTERNAL,
-    /* Declared with an external identifier; not read (XML 1.0, 5.1). */
+    /* Declared with an external identifier: read through the request's
+       entity resolver when it has one, else not read (XML 1.0, 5.1). */
     SXML_XML_ENTITY_KIND_EXTERNAL_PARSED,
     /* Declared with NDATA. */
     SXML_XML_ENTITY_KIND_UNPARSED,
 } sxml_xml_entity_kind;
+
+/* Whether an external entity has been asked of the resolver yet. */
+typedef enum sxml_xml_load_state {
+    SXML_XML_LOAD_STATE_NOT_LOADED,
+    /* Its text is in external_text. */
+    SXML_XML_LOAD_STATE_LOADED,
+    /* No resolver, or the resolver did not deliver it: not read. */
+    SXML_XML_LOAD_STATE_UNAVAILABLE,
+} sxml_xml_load_state;
 
 /* One declared entity. Ranges are in the DTD text of sxml_xml_dtd. */
 typedef struct sxml_xml_entity {
@@ -365,6 +389,21 @@ typedef struct sxml_xml_entity {
     /* External and unparsed entities, without the quotes. */
     sxml_byte_range system_identifier;
     sxml_byte_range public_identifier;
+    /* Declared in the external subset or in a parameter entity: a
+       reference to it does not meet WFC: Entity Declared where that
+       constraint applies (4.1). */
+    bool is_declared_in_external_markup;
+    /* The base URI of the entity in which the declaration occurs, against
+       which the system identifier is resolved (4.2.2); empty for none. */
+    sxml_byte_range base_uri;
+    /* External entities: whether the text was read, the text decoded to
+       UTF-8 with line ends normalized (2.11), where the content starts
+       after a text declaration (4.3.1), and the URI it was found at. The
+       text is released by the parser when the parse ends. */
+    sxml_xml_load_state load_state;
+    sxml_xml_buffer external_text;
+    size_t content_offset;
+    sxml_byte_range entity_uri;
     /* Set while the entity's replacement text is being expanded: a
        reference to it then is recursion (WFC: No Recursion, 4.1). */
     bool is_being_expanded;

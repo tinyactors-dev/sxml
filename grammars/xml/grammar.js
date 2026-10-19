@@ -113,6 +113,50 @@ const PUBLIC_ID_CHARACTERS = "\\u{20}\\u{d}\\u{a}a-zA-Z0-9\\-()+,./:=?;!*#@$_%";
  */
 const quoted = (body) => choice(seq('"', body('"'), '"'), seq("'", body("'"), "'"));
 
+/**
+ * [71] GEDecl ::= '<!ENTITY' S Name S EntityDef S? '>'
+ * [73] EntityDef ::= EntityValue | (ExternalID NDataDecl?)
+ * [76] NDataDecl ::= S 'NDATA' S Name
+ * @param {GrammarSymbols<string>} $
+ * @param {RuleOrLiteral} entity_value
+ */
+const general_entity_declaration = ($, entity_value) => seq(
+  '<!ENTITY',
+  $._whitespace,
+  field('name', $.name),
+  $._whitespace,
+  choice(
+    field('value', entity_value),
+    seq(
+      field('external_id', $.external_identifier),
+      optional(seq($._whitespace, 'NDATA', $._whitespace, field('notation', $.name))),
+    ),
+  ),
+  optional($._whitespace),
+  '>',
+);
+
+/**
+ * [72] PEDecl ::= '<!ENTITY' S '%' S Name S PEDef S? '>'
+ * [74] PEDef ::= EntityValue | ExternalID
+ * @param {GrammarSymbols<string>} $
+ * @param {RuleOrLiteral} entity_value
+ */
+const parameter_entity_declaration = ($, entity_value) => seq(
+  '<!ENTITY',
+  $._whitespace,
+  '%',
+  $._whitespace,
+  field('name', $.name),
+  $._whitespace,
+  choice(
+    field('value', entity_value),
+    field('external_id', $.external_identifier),
+  ),
+  optional($._whitespace),
+  '>',
+);
+
 module.exports = grammar({
   name: 'xml',
 
@@ -129,6 +173,8 @@ module.exports = grammar({
     $.comment_text,
     $._processing_instruction_target,
     $.processing_instruction_content,
+    $.unexpanded_declaration,
+    $.ignored_text,
     $._error_sentinel,
   ],
 
@@ -137,14 +183,126 @@ module.exports = grammar({
     // [22] prolog ::= XMLDecl? Misc* (doctypedecl Misc*)?
     // The XML declaration, if present, starts at the first character. A
     // byte order mark before it (4.3.3) is not part of the document.
-    document: ($) => seq(
-      optional($._byte_order_mark),
-      optional(field('declaration', $.xml_declaration)),
-      repeat($._misc),
-      optional(seq(field('doctype', $.doctype_declaration), repeat($._misc))),
-      field('root', $.element),
-      repeat($._misc),
+    //
+    // The same start rule also reads the external entities of a document,
+    // each after a marker that the tree builder puts in front of the
+    // entity's text and that cannot start a document: U+0001, which is no
+    // [2] Char, and a letter. A document never yields these alternatives:
+    // the tree builder accepts them only for the entities it asks for.
+    document: ($) => choice(
+      seq(
+        optional($._byte_order_mark),
+        optional(field('declaration', $.xml_declaration)),
+        repeat($._misc),
+        optional(seq(field('doctype', $.doctype_declaration), repeat($._misc))),
+        field('root', $.element),
+        repeat($._misc),
+      ),
+      seq($._external_subset_marker, optional(field('external_subset', $.external_subset))),
+      seq($._external_entity_marker, optional(field('external_entity', $.external_parsed_entity))),
     ),
+
+    _external_subset_marker: (_) => '\u0001S',
+    _external_entity_marker: (_) => '\u0001E',
+
+    // [30] extSubset ::= TextDecl? extSubsetDecl
+    // [31] extSubsetDecl ::= ( markupdecl | conditionalSect | DeclSep)*
+    // Also the replacement text of a parameter entity that is read in the
+    // external subset or in an external parameter entity (2.8), where
+    // parameter-entity references may occur inside declarations; the tree
+    // builder refuses a text declaration there.
+    external_subset: ($) => choice(
+      seq(field('declaration', $.text_declaration), repeat($._external_subset_item)),
+      repeat1($._external_subset_item),
+    ),
+
+    _external_subset_item: ($) => choice(
+      $._external_markup_declaration,
+      $.include_section,
+      $.conditional_section,
+      $.parameter_entity_reference,
+      $._whitespace,
+    ),
+
+    // [78] extParsedEnt ::= TextDecl? content
+    // An external parsed general entity referenced in content (4.3.2).
+    // Element Type Match holds within it: the tag stack starts empty.
+    external_parsed_entity: ($) => choice(
+      seq(field('declaration', $.text_declaration), repeat($._content)),
+      repeat1($._content),
+    ),
+
+    // [77] TextDecl ::= '<?xml' VersionInfo? EncodingDecl S? '?>'
+    text_declaration: ($) => seq(
+      '<?',
+      'xml',
+      optional($._version_information),
+      $._encoding_declaration,
+      optional($._whitespace),
+      '?>',
+    ),
+
+    // [29] markupdecl in the external subset and in external parameter
+    // entities: entity values may hold parameter-entity references
+    // (4.4.5), and a declaration with a parameter-entity reference outside
+    // its literals is one unexpanded_declaration token from src/scanner.c,
+    // which the tree builder expands (4.4.8, Included as PE) and parses
+    // again.
+    _external_markup_declaration: ($) => choice(
+      $.element_declaration,
+      $.attribute_list_declaration,
+      alias($._external_general_entity_declaration, $.general_entity_declaration),
+      alias($._external_parameter_entity_declaration, $.parameter_entity_declaration),
+      $.notation_declaration,
+      $.processing_instruction,
+      $.comment,
+      $.unexpanded_declaration,
+    ),
+
+    // [61] conditionalSect ::= includeSect | ignoreSect
+    // [62] includeSect ::= '<![' S? 'INCLUDE' S? '[' extSubsetDecl ']]>'
+    include_section: ($) => seq(
+      '<![',
+      optional($._whitespace),
+      'INCLUDE',
+      optional($._whitespace),
+      '[',
+      repeat($._external_subset_item),
+      ']]>',
+    ),
+
+    // [63] ignoreSect ::= '<![' S? 'IGNORE' S? '[' ignoreSectContents* ']]>'
+    // The keyword may also be a parameter-entity reference (2.8); its
+    // replacement text decides, so everything after the reference up to the
+    // section's end is read as ignored text here, and the tree builder reads
+    // the keyword, the '[' and the contents from the replacement text and
+    // that text (the '[' may come from the entity: VC: Proper Conditional
+    // Section/PE Nesting is a validity constraint only), parsing the contents
+    // again when the keyword turns out to be INCLUDE.
+    conditional_section: ($) => seq(
+      '<![',
+      optional($._whitespace),
+      choice(
+        seq(
+          field('keyword', 'IGNORE'),
+          optional($._whitespace),
+          '[',
+          optional(field('contents', $.ignored_section_contents)),
+        ),
+        seq(
+          field('keyword', $.parameter_entity_reference),
+          optional(field('contents', $.ignored_section_contents)),
+        ),
+      ),
+      ']]>',
+    ),
+
+    // [64] ignoreSectContents ::= Ignore ('<![' ignoreSectContents ']]>' Ignore)*
+    // [65] Ignore ::= Char* - (Char* ('<![' | ']]>') Char*)
+    ignored_section_contents: ($) => repeat1(choice(
+      $.ignored_text,
+      seq('<![', optional($.ignored_section_contents), ']]>'),
+    )),
 
     _byte_order_mark: (_) => /\u{feff}/u,
 
@@ -376,52 +534,39 @@ module.exports = grammar({
       seq(optional(seq('#FIXED', $._whitespace)), field('value', $.attribute_value)),
     ),
 
-    // [71] GEDecl ::= '<!ENTITY' S Name S EntityDef S? '>'
-    // [73] EntityDef ::= EntityValue | (ExternalID NDataDecl?)
-    // [76] NDataDecl ::= S 'NDATA' S Name
-    general_entity_declaration: ($) => seq(
-      '<!ENTITY',
-      $._whitespace,
-      field('name', $.name),
-      $._whitespace,
-      choice(
-        field('value', $.entity_value),
-        seq(
-          field('external_id', $.external_identifier),
-          optional(seq($._whitespace, 'NDATA', $._whitespace, field('notation', $.name))),
-        ),
-      ),
-      optional($._whitespace),
-      '>',
-    ),
+    // [71] GEDecl, [72] PEDecl: see the functions above.
+    general_entity_declaration: ($) => general_entity_declaration($, $.entity_value),
 
-    // [72] PEDecl ::= '<!ENTITY' S '%' S Name S PEDef S? '>'
-    // [74] PEDef ::= EntityValue | ExternalID
-    parameter_entity_declaration: ($) => seq(
-      '<!ENTITY',
-      $._whitespace,
-      '%',
-      $._whitespace,
-      field('name', $.name),
-      $._whitespace,
-      choice(
-        field('value', $.entity_value),
-        field('external_id', $.external_identifier),
-      ),
-      optional($._whitespace),
-      '>',
-    ),
+    _external_general_entity_declaration: ($) =>
+      general_entity_declaration($, alias($._external_entity_value, $.entity_value)),
+
+    parameter_entity_declaration: ($) => parameter_entity_declaration($, $.entity_value),
+
+    _external_parameter_entity_declaration: ($) =>
+      parameter_entity_declaration($, alias($._external_entity_value, $.entity_value)),
 
     // [9] EntityValue ::= '"' ([^%&"] | PEReference | Reference)* '"'
     //                   | "'" ([^%&'] | PEReference | Reference)* "'"
     // No PEReference: WFC PEs in Internal Subset (2.8) forbids it inside a
-    // declaration of the internal subset, the only DTD part this grammar reads.
+    // declaration of the internal subset.
     entity_value: ($) => quoted((quote) => repeat(choice(
       alias(
         quote === '"' ? $._entity_value_text_in_double_quotes : $._entity_value_text_in_single_quotes,
         $.entity_value_text),
       $.entity_reference,
       $.character_reference,
+    ))),
+
+    // The same in the external subset and external parameter entities,
+    // where a parameter-entity reference in an entity value is included in
+    // the literal (4.4.5).
+    _external_entity_value: ($) => quoted((quote) => repeat(choice(
+      alias(
+        quote === '"' ? $._entity_value_text_in_double_quotes : $._entity_value_text_in_single_quotes,
+        $.entity_value_text),
+      $.entity_reference,
+      $.character_reference,
+      $.parameter_entity_reference,
     ))),
 
     _entity_value_text_in_double_quotes: (_) => one_or_more(without(CHARACTER_RANGES, '%&"')),

@@ -32,10 +32,18 @@
  *   lines, character references may denote the C0 controls, and a prefix
  *   may be undeclared (xmlns:p=""). Every other document is read by the
  *   XML 1.0 rules, other 1.x version numbers included (XML 1.0, 2.8).
- * - Nothing outside the input is read. The external DTD subset and
- *   external entities are not retrieved, as XML 1.0 section 5.1 allows a
- *   processor that does not validate; the internal subset is processed
- *   (entity declarations, attribute defaults and types, unparsed entities).
+ * - Nothing outside the input is read unless the request names an entity
+ *   resolver. Without one, the external DTD subset and external entities
+ *   are not retrieved, as XML 1.0 section 5.1 allows a processor that does
+ *   not validate; the internal subset is processed (entity declarations,
+ *   attribute defaults and types, unparsed entities). With one, the parser
+ *   asks it for the external subset after the internal subset (2.8), for
+ *   external parameter entities where they are referenced, and for
+ *   external parsed general entities referenced in content (4.4.3), and
+ *   reads them as XML 1.0 sections 2.8, 3.4, 4.3 and 4.4 describe:
+ *   conditional sections, text declarations, parameter-entity references
+ *   inside declarations. The resolver decides what may be read; the
+ *   parser itself opens no file and no network connection.
  * - What the builder receives: a document with every element, attribute
  *   (defaulted ones included, after attribute-value normalization, XML 1.0
  *   section 3.3.3), text node (whitespace included; entity and character
@@ -64,6 +72,80 @@ typedef struct sxml_xml_limits {
        gives SXML_STATUS_LIMIT_EXCEEDED. */
     size_t maximum_entity_expansion_byte_count;
 } sxml_xml_limits;
+
+/* ------------------------------------------------- External entities */
+
+/* What the parser asks an entity resolver for (XML 1.0, section 4.2.2). */
+typedef enum sxml_xml_external_entity_purpose {
+    /* The external subset of the document type declaration (2.8). */
+    SXML_XML_EXTERNAL_ENTITY_PURPOSE_SUBSET,
+    /* An external parameter entity, referenced in the DTD (4.4.8). */
+    SXML_XML_EXTERNAL_ENTITY_PURPOSE_PARAMETER_ENTITY,
+    /* An external parsed general entity, referenced in content (4.4.3). */
+    SXML_XML_EXTERNAL_ENTITY_PURPOSE_GENERAL_ENTITY,
+} sxml_xml_external_entity_purpose;
+
+/* One external entity to retrieve. Views are borrowed for the call. */
+typedef struct sxml_xml_external_entity_request {
+    sxml_xml_external_entity_purpose purpose;
+    /* The entity's name; empty for the external subset. */
+    sxml_byte_view entity_name;
+    /* The system identifier as the declaration wrote it, without quotes. */
+    sxml_byte_view system_identifier;
+    /* The public identifier, without quotes; empty when there is none. */
+    sxml_byte_view public_identifier;
+    /* system_identifier resolved (RFC 3986, section 5) against the base
+       URI of the entity in which the declaration occurs (4.2.2): the
+       request's base URI for the document, an external entity's URI for
+       declarations in it. Empty when the identifier is relative and that
+       base URI is absent. */
+    sxml_byte_view absolute_uri;
+} sxml_xml_external_entity_request;
+
+/*
+ * What an entity resolver delivers. The parser hands resolve a
+ * zero-initialized value. Views are borrowed until release is called: the
+ * parser copies the content and calls release before it asks for another
+ * entity.
+ */
+typedef struct sxml_xml_external_entity {
+    /* False when the entity cannot or must not be read: the parser then
+       goes on without it, as a processor that does not read external
+       entities does (XML 1.0, sections 4.4.3 and 5.1). */
+    bool is_available;
+    /* The entity's bytes, in its encoding (4.3.3). */
+    sxml_byte_view content;
+    /* The encoding named outside the entity, such as an HTTP charset;
+       empty to detect it from the content (Appendix F). */
+    sxml_byte_view encoding_name;
+    /* The URI the entity was found at, after any redirection: the base URI
+       of the declarations and references in it (4.2.2). Empty means the
+       request's absolute_uri. */
+    sxml_byte_view entity_uri;
+} sxml_xml_external_entity;
+
+/* The operations of an entity resolver. Tables are static const. */
+typedef struct sxml_xml_entity_resolver_operations {
+    /* Retrieves the entity request describes into *entity. Returns
+       SXML_STATUS_OK, with is_available false, for an entity that is not
+       there or not allowed; any other status stops the parse with it. */
+    sxml_status (*resolve)(void *state,
+                           const sxml_xml_external_entity_request *request,
+                           sxml_xml_external_entity *entity);
+    /* Optional. Called once for every resolve that returned SXML_STATUS_OK,
+       when the parser no longer needs the entity's views. */
+    void (*release)(void *state, const sxml_xml_external_entity *entity);
+} sxml_xml_entity_resolver_operations;
+
+/*
+ * The entity resolver interface, passed by value. A resolver whose
+ * operations is NULL is the null resolver: nothing outside the input is
+ * read, which is the default.
+ */
+typedef struct sxml_xml_entity_resolver {
+    void *state;
+    const sxml_xml_entity_resolver_operations *operations;
+} sxml_xml_entity_resolver;
 
 /*
  * A parser. It keeps memory between documents (the entity table, the
@@ -108,6 +190,10 @@ typedef struct sxml_xml_parse_request {
     sxml_byte_view encoding_name;
     /* Receives the failure's description and location; may be NULL. */
     sxml_diagnostic *diagnostic;
+    /* Retrieves the external subset and external entities; the null
+       resolver reads none (see the top of this header). A zeroed request
+       has the null resolver. */
+    sxml_xml_entity_resolver entity_resolver;
 } sxml_xml_parse_request;
 
 /*

@@ -47,6 +47,7 @@
 #include "sxml/xml.h"
 
 #include "sxml/string.h"
+#include "xdm_internal.h"
 #include "xml_internal.h"
 
 #include <stdalign.h>
@@ -96,8 +97,12 @@ typedef enum sxml_xml_frame_kind {
     SXML_XML_FRAME_KIND_DOCUMENT,
     /* The replacement text of a general entity referenced in content. */
     SXML_XML_FRAME_KIND_GENERAL_ENTITY,
-    /* The replacement text of a parameter entity in the internal subset. */
+    /* DTD text: the replacement text of a parameter entity, the external
+       subset, an expanded declaration or an included conditional section. */
     SXML_XML_FRAME_KIND_PARAMETER_ENTITY,
+    /* The text of an external parsed general entity referenced in content
+       (4.3.2): its tree's walk root is the entity, not a wrapper. */
+    SXML_XML_FRAME_KIND_EXTERNAL_GENERAL_ENTITY,
 } sxml_xml_frame_kind;
 
 /*
@@ -122,6 +127,15 @@ typedef struct sxml_xml_frame {
     /* Where the outermost entity reference is: every event and error in
        an entity frame is reported there. */
     sxml_source_location reference_location;
+    /* DTD text read as the external subset is (2.8): parameter-entity
+       references may occur inside declarations, conditional sections are
+       allowed. Inherited by the frames it pushes. */
+    bool is_external_context;
+    /* The frame's text is the start of an external entity, where a text
+       declaration may stand (4.3.1). */
+    bool starts_external_entity;
+    /* The base URI of the frame's text, in the DTD text (4.2.2). */
+    sxml_byte_range base_uri;
     /* Whether the cursor moves on before the next visit, and whether it
        moves into the children of the current node. */
     bool needs_advance;
@@ -182,6 +196,8 @@ typedef struct sxml_xml_document {
     /* A parameter entity was not read: later entity and attribute-list
        declarations are not processed (5.1). */
     bool skips_declarations;
+    /* request->entity_resolver is not the null resolver. */
+    bool reads_external_entities;
     size_t expansion_byte_count;
     uint32_t element_depth;
     sxml_namespace_prefix_identifier xml_prefix;
@@ -204,6 +220,7 @@ typedef enum sxml_xml_node_type {
     SXML_XML_NODE_CHARACTER_REFERENCE,
     SXML_XML_NODE_COMMENT,
     SXML_XML_NODE_COMMENT_TEXT,
+    SXML_XML_NODE_CONDITIONAL_SECTION,
     SXML_XML_NODE_ELEMENT,
     SXML_XML_NODE_ELEMENT_DECLARATION,
     SXML_XML_NODE_EMPTY_ELEMENT_TAG,
@@ -212,6 +229,7 @@ typedef enum sxml_xml_node_type {
     SXML_XML_NODE_ENTITY_VALUE_TEXT,
     SXML_XML_NODE_ENUMERATION,
     SXML_XML_NODE_GENERAL_ENTITY_DECLARATION,
+    SXML_XML_NODE_INCLUDE_SECTION,
     SXML_XML_NODE_NOTATION_DECLARATION,
     SXML_XML_NODE_NOTATION_TYPE,
     SXML_XML_NODE_PARAMETER_ENTITY_DECLARATION,
@@ -219,7 +237,9 @@ typedef enum sxml_xml_node_type {
     SXML_XML_NODE_PROCESSING_INSTRUCTION,
     SXML_XML_NODE_START_TAG,
     SXML_XML_NODE_STRING_TYPE,
+    SXML_XML_NODE_TEXT_DECLARATION,
     SXML_XML_NODE_TOKENIZED_TYPE,
+    SXML_XML_NODE_UNEXPANDED_DECLARATION,
 } sxml_xml_node_type;
 
 typedef struct sxml_xml_node_type_entry {
@@ -240,6 +260,7 @@ static const sxml_xml_node_type_entry sxml_xml_node_types[] = {
     {"character_reference", SXML_XML_NODE_CHARACTER_REFERENCE},
     {"comment", SXML_XML_NODE_COMMENT},
     {"comment_text", SXML_XML_NODE_COMMENT_TEXT},
+    {"conditional_section", SXML_XML_NODE_CONDITIONAL_SECTION},
     {"element", SXML_XML_NODE_ELEMENT},
     {"element_declaration", SXML_XML_NODE_ELEMENT_DECLARATION},
     {"empty_element_tag", SXML_XML_NODE_EMPTY_ELEMENT_TAG},
@@ -248,6 +269,7 @@ static const sxml_xml_node_type_entry sxml_xml_node_types[] = {
     {"entity_value_text", SXML_XML_NODE_ENTITY_VALUE_TEXT},
     {"enumeration", SXML_XML_NODE_ENUMERATION},
     {"general_entity_declaration", SXML_XML_NODE_GENERAL_ENTITY_DECLARATION},
+    {"include_section", SXML_XML_NODE_INCLUDE_SECTION},
     {"notation_declaration", SXML_XML_NODE_NOTATION_DECLARATION},
     {"notation_type", SXML_XML_NODE_NOTATION_TYPE},
     {"parameter_entity_declaration",
@@ -256,7 +278,9 @@ static const sxml_xml_node_type_entry sxml_xml_node_types[] = {
     {"processing_instruction", SXML_XML_NODE_PROCESSING_INSTRUCTION},
     {"start_tag", SXML_XML_NODE_START_TAG},
     {"string_type", SXML_XML_NODE_STRING_TYPE},
+    {"text_declaration", SXML_XML_NODE_TEXT_DECLARATION},
     {"tokenized_type", SXML_XML_NODE_TOKENIZED_TYPE},
+    {"unexpanded_declaration", SXML_XML_NODE_UNEXPANDED_DECLARATION},
 };
 
 static sxml_xml_node_type sxml_xml_type_of(TSNode node) {
@@ -285,12 +309,16 @@ static sxml_xml_node_type sxml_xml_type_of(TSNode node) {
 /* The field names of grammars/xml the walks read. */
 typedef enum sxml_xml_field_name {
     SXML_XML_FIELD_CONTENT,
+    SXML_XML_FIELD_CONTENTS,
     SXML_XML_FIELD_DECLARATION,
     SXML_XML_FIELD_DEFAULT,
     SXML_XML_FIELD_DOCTYPE,
     SXML_XML_FIELD_ENCODING,
+    SXML_XML_FIELD_EXTERNAL_ENTITY,
     SXML_XML_FIELD_EXTERNAL_ID,
+    SXML_XML_FIELD_EXTERNAL_SUBSET,
     SXML_XML_FIELD_INTERNAL_SUBSET,
+    SXML_XML_FIELD_KEYWORD,
     SXML_XML_FIELD_NAME,
     SXML_XML_FIELD_NOTATION,
     SXML_XML_FIELD_PUBLIC_ID,
@@ -304,10 +332,12 @@ typedef enum sxml_xml_field_name {
 } sxml_xml_field_name;
 
 static const char *const sxml_xml_field_texts[] = {
-    "content",     "declaration",     "default",   "doctype",  "encoding",
-    "external_id", "internal_subset", "name",      "notation", "public_id",
-    "root",        "standalone",      "system_id", "target",   "type",
-    "value",       "version",
+    "content",         "contents",        "declaration",     "default",
+    "doctype",         "encoding",        "external_entity", "external_id",
+    "external_subset", "internal_subset", "keyword",         "name",
+    "notation",        "public_id",       "root",            "standalone",
+    "system_id",       "target",          "type",            "value",
+    "version",
 };
 
 /* The child of node in the field field_name. */
@@ -1045,6 +1075,358 @@ sxml_xml_count_expansion(sxml_xml_document *document,
     return SXML_STATUS_OK;
 }
 
+/* ------------------------------------------------------- Encodings */
+
+static bool sxml_xml_is_utf16_family(sxml_xml_encoding_family family) {
+    return family == SXML_XML_ENCODING_FAMILY_UTF16 ||
+           family == SXML_XML_ENCODING_FAMILY_UTF16_LITTLE_ENDIAN ||
+           family == SXML_XML_ENCODING_FAMILY_UTF16_BIG_ENDIAN;
+}
+
+/* The encoding detected from an entity's bytes and the name its XML or
+   text declaration gives (empty when it gives none). */
+typedef struct sxml_xml_encoding_check {
+    const sxml_xml_encoding_detection *detection;
+    sxml_byte_view encoding_name;
+} sxml_xml_encoding_check;
+
+/* True when the encoding declaration agrees with the bytes (4.3.3,
+   Appendix F). */
+static bool sxml_xml_encoding_is_consistent(const sxml_xml_encoding_check *check) {
+    const sxml_xml_encoding_detection *detection = check->detection;
+    const sxml_byte_view encoding_name = check->encoding_name;
+    const bool is_utf16 =
+        detection->encoding == SXML_XML_ENCODING_UTF16_LITTLE_ENDIAN ||
+        detection->encoding == SXML_XML_ENCODING_UTF16_BIG_ENDIAN;
+    const sxml_xml_encoding_family family =
+        sxml_xml_classify_encoding_name(encoding_name);
+    if (is_utf16) {
+        /* Without a byte order mark only the byte-order-specific names
+           say UTF-16 (4.3.3: UTF-16 entities begin with the mark). */
+        return detection->has_utf16_byte_order_mark
+                   ? encoding_name.byte_count == 0 ||
+                         sxml_xml_is_utf16_family(family)
+                   : (family == SXML_XML_ENCODING_FAMILY_UTF16_LITTLE_ENDIAN &&
+                      detection->encoding ==
+                          SXML_XML_ENCODING_UTF16_LITTLE_ENDIAN) ||
+                         (family == SXML_XML_ENCODING_FAMILY_UTF16_BIG_ENDIAN &&
+                          detection->encoding ==
+                              SXML_XML_ENCODING_UTF16_BIG_ENDIAN);
+    }
+    if (detection->has_utf8_byte_order_mark) {
+        return encoding_name.byte_count == 0 ||
+               family == SXML_XML_ENCODING_FAMILY_UTF8;
+    }
+    return !sxml_xml_is_utf16_family(family);
+}
+
+/* ------------------------------------------------- External entities */
+
+/* The markers the grammar reads before the text of external DTD text (the
+   external subset, an external parameter entity, and any DTD text read as
+   they are) and before an external parsed entity (grammars/xml,
+   document). */
+static const sxml_byte_view sxml_xml_external_subset_marker =
+    SXML_BYTE_VIEW_INITIALIZER("\001S");
+static const sxml_byte_view sxml_xml_external_entity_marker =
+    SXML_BYTE_VIEW_INITIALIZER("\001E");
+
+/* Normalizes the line ends of text in place (XML 1.0, section 2.11): CR LF
+   and a lone CR become LF. */
+static void sxml_xml_normalize_line_ends(sxml_xml_buffer *text) {
+    if (text->byte_count == 0 ||
+        memchr(text->bytes, '\r', text->byte_count) == NULL) {
+        return;
+    }
+    size_t written = 0;
+    for (size_t byte_index = 0; byte_index < text->byte_count; byte_index++) {
+        uint8_t byte = text->bytes[byte_index];
+        if (byte == '\r') {
+            byte = '\n';
+            if (byte_index + 1 < text->byte_count &&
+                text->bytes[byte_index + 1] == '\n') {
+                byte_index += 1;
+            }
+        }
+        text->bytes[written] = byte;
+        written += 1;
+    }
+    text->byte_count = written;
+}
+
+/* An external entity's bytes to decode, and where its reference is. */
+typedef struct sxml_xml_external_decoding {
+    const sxml_xml_external_entity *entity;
+    sxml_source_location location;
+} sxml_xml_external_decoding;
+
+/*
+ * Decodes an external entity into text as the document is decoded
+ * (4.3.3, Appendix F): its own encoding, a byte order mark dropped, a
+ * text declaration that must agree with the bytes; then its line ends
+ * normalized (2.11) and, in an XML 1.1 document, XML 1.1's characters and
+ * line ends (XML 1.1, 2.2, 2.11 and 4.3.4: the entities of a 1.1 document
+ * are read as 1.1). Failures are reported at the reference.
+ */
+static sxml_status
+sxml_xml_decode_external(sxml_xml_document *document,
+                         const sxml_xml_external_decoding *decoding,
+                         sxml_xml_buffer *text) {
+    const sxml_xml_external_entity *entity = decoding->entity;
+    sxml_xml_failure failure = {
+        .status = SXML_STATUS_UNSUPPORTED_FEATURE,
+        .description = SXML_XML_TEXT(
+            "the encoding of an external entity is not one sxml reads: UTF-8, "
+            "UTF-16, ISO-8859-1 or US-ASCII (XML 1.0, section 4.3.3)"),
+        .location = decoding->location};
+    sxml_xml_encoding_detection detection;
+    sxml_status status = sxml_xml_detect_encoding(
+        &(sxml_xml_encoding_request){.input = entity->content,
+                                     .encoding_name = entity->encoding_name},
+        &detection);
+    if (status != SXML_STATUS_OK) {
+        return sxml_xml_fail(document, failure);
+    }
+    sxml_xml_transcoding_failure transcoding_failure = {.input_byte_offset = 0};
+    failure.status = SXML_STATUS_MALFORMED_INPUT;
+    failure.description = SXML_XML_TEXT(
+        "an external entity's bytes are not well-formed in its encoding "
+        "(XML 1.0, section 4.3.3)");
+    switch (detection.encoding) {
+    case SXML_XML_ENCODING_UTF8: {
+        sxml_utf8_validation validation = {
+            .valid_byte_count = 0, .codepoint_count = 0, .is_ascii = false};
+        status = sxml_utf8_validate(entity->content, &validation);
+        if (status != SXML_STATUS_OK) {
+            failure.status = SXML_STATUS_INVALID_UTF8;
+            return sxml_xml_fail(document, failure);
+        }
+        status = sxml_xml_buffer_append(text, entity->content);
+        break;
+    }
+    case SXML_XML_ENCODING_US_ASCII:
+        status = sxml_xml_check_ascii(entity->content, &transcoding_failure);
+        if (status != SXML_STATUS_OK) {
+            return sxml_xml_fail(document, failure);
+        }
+        status = sxml_xml_buffer_append(text, entity->content);
+        break;
+    case SXML_XML_ENCODING_UTF16_LITTLE_ENDIAN:
+    case SXML_XML_ENCODING_UTF16_BIG_ENDIAN:
+    case SXML_XML_ENCODING_ISO_8859_1:
+        status = sxml_xml_transcode(
+            &(sxml_xml_transcoding_request){.input = entity->content,
+                                            .encoding = detection.encoding},
+            text, &transcoding_failure);
+        if (status == SXML_STATUS_INVALID_UTF8) {
+            failure.status = status;
+            return sxml_xml_fail(document, failure);
+        }
+        break;
+    }
+    if (status != SXML_STATUS_OK) {
+        return sxml_xml_fail_resource(document, status);
+    }
+    static const uint8_t utf8_mark[] = {0xEF, 0xBB, 0xBF};
+    if (text->byte_count >= sizeof utf8_mark &&
+        memcmp(text->bytes, utf8_mark, sizeof utf8_mark) == 0) {
+        memmove(text->bytes, text->bytes + sizeof utf8_mark,
+                text->byte_count - sizeof utf8_mark);
+        text->byte_count -= sizeof utf8_mark;
+    }
+    const sxml_byte_view decoded = {.bytes = text->bytes,
+                                    .byte_count = text->byte_count};
+    if (entity->encoding_name.byte_count == 0 &&
+        !sxml_xml_encoding_is_consistent(&(sxml_xml_encoding_check){
+            .detection = &detection,
+            .encoding_name =
+                sxml_xml_read_declared_encoding(decoded).encoding_name})) {
+        failure.description = SXML_XML_TEXT(
+            "the encoding declaration of an external entity contradicts the "
+            "encoding of its bytes (XML 1.0, section 4.3.3 and Appendix F)");
+        return sxml_xml_fail(document, failure);
+    }
+    if (decoded.byte_count != 0 &&
+        memchr(decoded.bytes, 0, decoded.byte_count) != NULL) {
+        failure.description =
+            SXML_XML_TEXT("U+0000 is not a character of XML ([2] Char)");
+        return sxml_xml_fail(document, failure);
+    }
+    if (document->version == SXML_XML_VERSION_1_0 &&
+        sxml_xml_read_declared_version(decoded).version ==
+            SXML_XML_VERSION_1_1) {
+        failure.description = SXML_XML_TEXT(
+            "an external entity of an XML 1.0 document must not declare "
+            "version 1.1 (XML 1.1, section 4.3.4)");
+        return sxml_xml_fail(document, failure);
+    }
+    if (document->version == SXML_XML_VERSION_1_1) {
+        if (sxml_xml_find_restricted_character(decoded) !=
+            decoded.byte_count) {
+            failure.description = SXML_XML_TEXT(
+                "a control character must be written as a character "
+                "reference in XML 1.1, also in the external entities of a 1.1 "
+                "document ([2a] RestrictedChar, XML 1.1, sections 2.2 and "
+                "4.3.4)");
+            return sxml_xml_fail(document, failure);
+        }
+        sxml_xml_translate_version_1_1_line_ends(
+            text, sxml_xml_read_declared_encoding(decoded)
+                      .declaration_end_offset);
+    }
+    sxml_xml_normalize_line_ends(text);
+    if (text->byte_count > UINT32_MAX - 64) {
+        return sxml_xml_fail_resource(document, SXML_STATUS_LIMIT_EXCEEDED);
+    }
+    return SXML_STATUS_OK;
+}
+
+/* An external entity to read, what for, and where it is referenced. */
+typedef struct sxml_xml_external_load {
+    uint32_t entity_index;
+    sxml_xml_external_entity_purpose purpose;
+    sxml_source_location location;
+} sxml_xml_external_load;
+
+/*
+ * Reads the external entity at load->entity_index through the request's
+ * entity resolver, once per parse (4.2.2): its system identifier resolved
+ * against the base URI of its declaration, its text decoded. Without a
+ * resolver, or when the resolver does not deliver it, the entity is
+ * unavailable and not read (4.4.3, 5.1).
+ */
+static sxml_status
+sxml_xml_load_external_entity(sxml_xml_document *document,
+                              const sxml_xml_external_load *load) {
+    sxml_xml_parser *parser = document->parser;
+    sxml_xml_dtd *dtd = &parser->dtd;
+    sxml_xml_entity *entity = sxml_xml_dtd_get_entity(dtd, load->entity_index);
+    if (entity->load_state != SXML_XML_LOAD_STATE_NOT_LOADED) {
+        return SXML_STATUS_OK;
+    }
+    entity->load_state = SXML_XML_LOAD_STATE_UNAVAILABLE;
+    if (!document->reads_external_entities) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_allocator allocator = parser->configuration.allocator;
+    const sxml_byte_view base_uri = sxml_xml_dtd_text(dtd, entity->base_uri);
+    const sxml_byte_view system_identifier =
+        sxml_xml_dtd_text(dtd, entity->system_identifier);
+    sxml_uri_resolution resolution = {.uri = {.bytes = NULL, .byte_count = 0},
+                                      .memory = NULL};
+    sxml_status status = sxml_uri_resolve(
+        &(sxml_uri_resolution_request){.base_uri = base_uri,
+                                       .reference = system_identifier,
+                                       .allocator = allocator},
+        &resolution);
+    if (status != SXML_STATUS_OK) {
+        return sxml_xml_fail_resource(document, status);
+    }
+    const sxml_byte_view absolute_uri =
+        base_uri.byte_count != 0 || sxml_uri_has_scheme(system_identifier)
+            ? resolution.uri
+            : (sxml_byte_view){.bytes = NULL, .byte_count = 0};
+    const sxml_xml_entity_resolver resolver =
+        document->request->entity_resolver;
+    sxml_xml_external_entity delivered;
+    memset(&delivered, 0, sizeof delivered);
+    status = resolver.operations->resolve(
+        resolver.state,
+        &(sxml_xml_external_entity_request){
+            .purpose = load->purpose,
+            .entity_name =
+                load->purpose == SXML_XML_EXTERNAL_ENTITY_PURPOSE_SUBSET
+                    ? (sxml_byte_view){.bytes = NULL, .byte_count = 0}
+                    : sxml_xml_dtd_text(dtd, entity->entity_name),
+            .system_identifier = system_identifier,
+            .public_identifier = sxml_xml_dtd_text(dtd, entity->public_identifier),
+            .absolute_uri = absolute_uri},
+        &delivered);
+    if (status != SXML_STATUS_OK) {
+        sxml_allocator_release(allocator, resolution.memory);
+        return status;
+    }
+    if (delivered.is_available) {
+        sxml_xml_buffer text = sxml_xml_buffer_empty(allocator);
+        status = sxml_xml_decode_external(
+            document,
+            &(sxml_xml_external_decoding){.entity = &delivered,
+                                          .location = load->location},
+            &text);
+        const sxml_byte_view entity_uri =
+            delivered.entity_uri.byte_count != 0 ? delivered.entity_uri
+            : absolute_uri.byte_count != 0       ? absolute_uri
+                                                 : system_identifier;
+        sxml_byte_range entity_uri_range = {.byte_offset = 0, .byte_count = 0};
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xml_fail_resource(
+                document,
+                sxml_xml_dtd_store_text(dtd, entity_uri, &entity_uri_range));
+        }
+        entity = sxml_xml_dtd_get_entity(dtd, load->entity_index);
+        if (status == SXML_STATUS_OK) {
+            entity->external_text = text;
+            entity->entity_uri = entity_uri_range;
+            entity->content_offset =
+                sxml_xml_read_declared_encoding(
+                    (sxml_byte_view){.bytes = text.bytes,
+                                     .byte_count = text.byte_count})
+                    .declaration_end_offset;
+            entity->load_state = SXML_XML_LOAD_STATE_LOADED;
+        } else {
+            sxml_xml_buffer_release(&text);
+        }
+    }
+    if (resolver.operations->release != NULL) {
+        resolver.operations->release(resolver.state, &delivered);
+    }
+    sxml_allocator_release(allocator, resolution.memory);
+    return status;
+}
+
+/* The text an entity stands for: an internal entity's replacement text,
+   or a loaded external entity's text, from its start or after its text
+   declaration (4.3.1: the declaration is not part of the replacement
+   text). */
+typedef struct sxml_xml_entity_text_request {
+    uint32_t entity_index;
+    bool skips_text_declaration;
+} sxml_xml_entity_text_request;
+
+static sxml_byte_view
+sxml_xml_entity_text(const sxml_xml_document *document,
+                     sxml_xml_entity_text_request request) {
+    const sxml_xml_dtd *dtd = &document->parser->dtd;
+    const sxml_xml_entity *entity =
+        sxml_xml_dtd_get_entity(dtd, request.entity_index);
+    if (entity->entity_kind == SXML_XML_ENTITY_KIND_INTERNAL) {
+        return sxml_xml_dtd_text(dtd, entity->replacement_text);
+    }
+    if (entity->load_state != SXML_XML_LOAD_STATE_LOADED) {
+        return (sxml_byte_view){.bytes = NULL, .byte_count = 0};
+    }
+    const size_t start =
+        request.skips_text_declaration ? entity->content_offset : 0;
+    return sxml_xml_view_from_text(
+        (sxml_byte_view){.bytes = entity->external_text.bytes,
+                         .byte_count = entity->external_text.byte_count},
+        start, entity->external_text.byte_count - start);
+}
+
+/* Releases what loading external entities kept. */
+static void sxml_xml_release_external_texts(sxml_xml_document *document) {
+    sxml_xml_dtd *dtd = &document->parser->dtd;
+    for (size_t entity_index = 0; entity_index < dtd->entities.element_count;
+         entity_index++) {
+        sxml_xml_entity *entity =
+            sxml_xml_dtd_get_entity(dtd, (uint32_t)entity_index);
+        if (entity->load_state == SXML_XML_LOAD_STATE_LOADED) {
+            sxml_xml_buffer_release(&entity->external_text);
+        }
+        entity->load_state = SXML_XML_LOAD_STATE_NOT_LOADED;
+    }
+}
+
 /* ------------------------------------------------------------ Events */
 
 static bool sxml_xml_has_builder(const sxml_xml_document *document) {
@@ -1299,7 +1681,8 @@ typedef struct sxml_xml_reference_outcome {
 /*
  * The checks every reference to a general entity gets (4.1, 4.4): declared
  * (or skipped when the constraint does not apply), parsed, not recursive.
- * External parsed entities are not read (4.4.3); in an attribute value
+ * External parsed entities are read in content when the request has an
+ * entity resolver and skipped otherwise (4.4.3); in an attribute value
  * they are an error (3.1).
  */
 typedef struct sxml_xml_reference_check {
@@ -1320,7 +1703,12 @@ sxml_xml_check_reference(sxml_xml_document *document,
                                 .location = check->reference.location};
     *outcome =
         (sxml_xml_reference_outcome){.expands = false, .entity_index = 0};
-    if (!lookup.is_found) {
+    /* The declaration must not be in the external subset or a parameter
+       entity where the constraint applies (WFC: Entity Declared, 4.1). */
+    if (!lookup.is_found ||
+        (document->requires_declared_entities &&
+         sxml_xml_dtd_get_entity(&document->parser->dtd, lookup.entry_index)
+             ->is_declared_in_external_markup)) {
         if (!document->requires_declared_entities) {
             return SXML_STATUS_OK;
         }
@@ -1334,11 +1722,14 @@ sxml_xml_check_reference(sxml_xml_document *document,
         failure.description = sxml_xml_parsed_entity_description;
         return sxml_xml_fail(document, failure);
     case SXML_XML_ENTITY_KIND_EXTERNAL_PARSED:
-        if (!check->is_in_attribute_value) {
+        if (check->is_in_attribute_value) {
+            failure.description = sxml_xml_no_external_reference_description;
+            return sxml_xml_fail(document, failure);
+        }
+        if (!document->reads_external_entities) {
             return SXML_STATUS_OK;
         }
-        failure.description = sxml_xml_no_external_reference_description;
-        return sxml_xml_fail(document, failure);
+        break;
     case SXML_XML_ENTITY_KIND_INTERNAL:
         break;
     }
@@ -1346,10 +1737,31 @@ sxml_xml_check_reference(sxml_xml_document *document,
         failure.description = sxml_xml_no_recursion_description;
         return sxml_xml_fail(document, failure);
     }
-    sxml_status status = sxml_xml_count_expansion(
-        document, (sxml_xml_expansion_count){
-                      .byte_count = entity->replacement_text.byte_count,
-                      .location = check->reference.location});
+    sxml_status status = SXML_STATUS_OK;
+    if (entity->entity_kind == SXML_XML_ENTITY_KIND_EXTERNAL_PARSED) {
+        status = sxml_xml_load_external_entity(
+            document,
+            &(sxml_xml_external_load){
+                .entity_index = lookup.entry_index,
+                .purpose = SXML_XML_EXTERNAL_ENTITY_PURPOSE_GENERAL_ENTITY,
+                .location = check->reference.location});
+        entity =
+            sxml_xml_dtd_get_entity(&document->parser->dtd, lookup.entry_index);
+        if (status != SXML_STATUS_OK ||
+            entity->load_state != SXML_XML_LOAD_STATE_LOADED) {
+            return status;
+        }
+    }
+    status = sxml_xml_count_expansion(
+        document,
+        (sxml_xml_expansion_count){
+            .byte_count =
+                sxml_xml_entity_text(document,
+                                     (sxml_xml_entity_text_request){
+                                         .entity_index = lookup.entry_index,
+                                         .skips_text_declaration = false})
+                    .byte_count,
+            .location = check->reference.location});
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -1647,6 +2059,263 @@ static size_t sxml_xml_collapse_spaces(sxml_memory_view value) {
 
 /* ----------------------------------------------- Document type: DTD */
 
+static const sxml_byte_view sxml_xml_pe_between_declarations_description =
+    SXML_BYTE_VIEW_INITIALIZER(
+        "WFC: PE Between Declarations: the replacement text of a parameter "
+        "entity must be whole markup declarations (XML 1.0, section 2.8)");
+
+/*
+ * Resolves a parameter-entity reference met in DTD text (4.4.8, 4.4.5):
+ * declared, not recursive, read when it is external, its replacement text
+ * counted against the expansion limit. An entity that is not declared or
+ * not read is not included: then later entity and attribute-list
+ * declarations are not processed (5.1); in a standalone document an
+ * undeclared one is WFC: Entity Declared (4.1).
+ */
+typedef struct sxml_xml_parameter_inclusion {
+    bool is_included;
+    uint32_t entity_index;
+} sxml_xml_parameter_inclusion;
+
+static sxml_status
+sxml_xml_include_parameter_entity(sxml_xml_document *document,
+                                  const sxml_xml_value_reference *reference,
+                                  sxml_xml_parameter_inclusion *inclusion) {
+    *inclusion =
+        (sxml_xml_parameter_inclusion){.is_included = false, .entity_index = 0};
+    const sxml_xml_lookup lookup = sxml_xml_dtd_find_entity(
+        &document->parser->dtd,
+        (sxml_xml_entity_key){.entity_name = reference->entity_name,
+                              .is_parameter_entity = true});
+    sxml_xml_failure failure = {.status = SXML_STATUS_MALFORMED_INPUT,
+                                .description = sxml_xml_entity_declared_description,
+                                .location = reference->location};
+    if (!lookup.is_found) {
+        if (document->is_standalone) {
+            return sxml_xml_fail(document, failure);
+        }
+        document->skips_declarations = true;
+        return SXML_STATUS_OK;
+    }
+    const sxml_xml_entity *entity =
+        sxml_xml_dtd_get_entity(&document->parser->dtd, lookup.entry_index);
+    if (entity->is_being_expanded) {
+        failure.description = sxml_xml_no_recursion_description;
+        return sxml_xml_fail(document, failure);
+    }
+    if (entity->entity_kind != SXML_XML_ENTITY_KIND_INTERNAL) {
+        const sxml_status status = sxml_xml_load_external_entity(
+            document,
+            &(sxml_xml_external_load){
+                .entity_index = lookup.entry_index,
+                .purpose = SXML_XML_EXTERNAL_ENTITY_PURPOSE_PARAMETER_ENTITY,
+                .location = reference->location});
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        entity =
+            sxml_xml_dtd_get_entity(&document->parser->dtd, lookup.entry_index);
+        if (entity->load_state != SXML_XML_LOAD_STATE_LOADED) {
+            document->skips_declarations =
+                document->skips_declarations || !document->is_standalone;
+            return SXML_STATUS_OK;
+        }
+    }
+    const sxml_status status = sxml_xml_count_expansion(
+        document,
+        (sxml_xml_expansion_count){
+            .byte_count =
+                sxml_xml_entity_text(document,
+                                     (sxml_xml_entity_text_request){
+                                         .entity_index = lookup.entry_index,
+                                         .skips_text_declaration = false})
+                    .byte_count,
+            .location = reference->location});
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    *inclusion = (sxml_xml_parameter_inclusion){
+        .is_included = true, .entity_index = lookup.entry_index};
+    return SXML_STATUS_OK;
+}
+
+/* A [69] PEReference at offset in text: its extent and name. */
+typedef struct sxml_xml_parameter_reference {
+    bool is_reference;
+    size_t byte_count;
+    sxml_byte_view entity_name;
+} sxml_xml_parameter_reference;
+
+static sxml_xml_parameter_reference
+sxml_xml_read_parameter_reference(sxml_byte_view text, size_t byte_offset) {
+    sxml_xml_parameter_reference reference = {
+        .is_reference = false,
+        .byte_count = 0,
+        .entity_name = {.bytes = NULL, .byte_count = 0}};
+    size_t end = byte_offset + 1;
+    while (end < text.byte_count && text.bytes[end] != ';' &&
+           !sxml_xml_byte_is_whitespace(text.bytes[end]) &&
+           text.bytes[end] != '%' && text.bytes[end] != '"' &&
+           text.bytes[end] != '\'') {
+        end += 1;
+    }
+    if (end >= text.byte_count || text.bytes[end] != ';') {
+        return reference;
+    }
+    reference.entity_name =
+        sxml_xml_view_from_text(text, byte_offset + 1, end - byte_offset - 1);
+    reference.is_reference = sxml_xml_text_is_name(reference.entity_name);
+    reference.byte_count = end + 1 - byte_offset;
+    return reference;
+}
+
+/*
+ * Parameter-entity references to expand in DTD text, with an explicit
+ * stack of the entities open:
+ * - in a declaration of the external subset (4.4.8, Included as PE):
+ *   references outside the declaration's literals are replaced by their
+ *   replacement text enlarged by one leading and one trailing space;
+ * - in an entity value (4.4.5, Included in Literal): the replacement text
+ *   is processed as part of the literal, so its parameter-entity and
+ *   character references are replaced too and general entity references
+ *   kept (bypassed, 4.4.7), with no spaces added.
+ * The replacement texts of the entities included are read the same way.
+ */
+typedef struct sxml_xml_parameter_expansion {
+    /* The text to expand: the declaration, or one reference "%name;". */
+    sxml_byte_view text;
+    bool is_in_literal;
+    sxml_source_location location;
+    sxml_xml_buffer *output;
+} sxml_xml_parameter_expansion;
+
+/* Whether every reference was included; false when one names an entity
+   that is not declared or not read (5.1). */
+typedef struct sxml_xml_parameter_expansion_result {
+    bool is_complete;
+} sxml_xml_parameter_expansion_result;
+
+static sxml_status
+sxml_xml_expand_parameter_entities(sxml_xml_document *document,
+                                   const sxml_xml_parameter_expansion *expansion,
+                                   sxml_xml_parameter_expansion_result *result) {
+    sxml_xml_parser *parser = document->parser;
+    sxml_xml_array *stack = &parser->expansions;
+    const size_t base_count = stack->element_count;
+    sxml_xml_buffer *output = expansion->output;
+    const bool is_in_literal = expansion->is_in_literal;
+    sxml_xml_failure failure = {.status = SXML_STATUS_MALFORMED_INPUT,
+                                .description = {.bytes = NULL, .byte_count = 0},
+                                .location = expansion->location};
+    size_t outer_offset = 0;
+    uint8_t quote = 0;
+    sxml_status status = SXML_STATUS_OK;
+    result->is_complete = true;
+    while (status == SXML_STATUS_OK) {
+        sxml_xml_expansion *top =
+            stack->element_count > base_count
+                ? sxml_xml_array_at(stack, stack->element_count - 1)
+                : NULL;
+        const sxml_byte_view text =
+            top == NULL ? expansion->text
+                        : sxml_xml_entity_text(
+                              document, (sxml_xml_entity_text_request){
+                                            .entity_index = top->entity_index,
+                                            .skips_text_declaration = true});
+        size_t *offset = top == NULL ? &outer_offset : &top->byte_offset;
+        if (*offset >= text.byte_count) {
+            if (top == NULL) {
+                break;
+            }
+            sxml_xml_dtd_get_entity(&parser->dtd, top->entity_index)
+                ->is_being_expanded = false;
+            stack->element_count -= 1;
+            if (!is_in_literal) {
+                status = sxml_xml_buffer_append_byte(output, ' ');
+            }
+            continue;
+        }
+        const uint8_t byte = text.bytes[*offset];
+        if (!is_in_literal && quote != 0) {
+            quote = byte == quote ? 0 : quote;
+        } else if (!is_in_literal && (byte == '"' || byte == '\'')) {
+            quote = byte;
+        } else if (byte == '%') {
+            const sxml_xml_parameter_reference reference =
+                sxml_xml_read_parameter_reference(text, *offset);
+            if (reference.is_reference) {
+                *offset += reference.byte_count;
+                sxml_xml_parameter_inclusion inclusion = {.is_included = false,
+                                                          .entity_index = 0};
+                status = sxml_xml_include_parameter_entity(
+                    document,
+                    &(sxml_xml_value_reference){
+                        .entity_name = reference.entity_name,
+                        .location = expansion->location},
+                    &inclusion);
+                if (status != SXML_STATUS_OK || !inclusion.is_included) {
+                    result->is_complete = false;
+                    break;
+                }
+                void *element = NULL;
+                status = sxml_xml_array_push(stack, &element);
+                if (status == SXML_STATUS_OK && !is_in_literal) {
+                    status = sxml_xml_buffer_append_byte(output, ' ');
+                }
+                if (status == SXML_STATUS_OK) {
+                    *(sxml_xml_expansion *)element = (sxml_xml_expansion){
+                        .entity_index = inclusion.entity_index,
+                        .byte_offset = 0};
+                    sxml_xml_dtd_get_entity(&parser->dtd, inclusion.entity_index)
+                        ->is_being_expanded = true;
+                }
+                continue;
+            }
+        } else if (is_in_literal && byte == '&') {
+            const sxml_xml_text_reference reference =
+                sxml_xml_read_text_reference(text, *offset);
+            if (!reference.is_well_formed) {
+                failure.description = SXML_XML_TEXT(
+                    "the replacement text of a parameter entity in an entity "
+                    "value has a malformed reference ([67] Reference, XML 1.0, "
+                    "section 4.4.5)");
+                status = sxml_xml_fail(document, failure);
+                break;
+            }
+            *offset += reference.reference_text.byte_count;
+            if (!reference.is_character_reference) {
+                /* Bypassed: kept as written (4.4.7). */
+                status = sxml_xml_buffer_append(output, reference.reference_text);
+                continue;
+            }
+            uint32_t codepoint = 0;
+            if (!sxml_xml_decode_character_reference(
+                    document, reference.reference_text, &codepoint)) {
+                failure.description = sxml_xml_legal_character_description;
+                status = sxml_xml_fail(document, failure);
+                break;
+            }
+            status = sxml_xml_buffer_append_codepoint(output, codepoint);
+            continue;
+        }
+        status = sxml_xml_buffer_append_byte(output, byte);
+        *offset += 1;
+    }
+    /* Unwind the marks of the entities still open. */
+    while (stack->element_count > base_count) {
+        const sxml_xml_expansion *top =
+            sxml_xml_array_at(stack, stack->element_count - 1);
+        sxml_xml_dtd_get_entity(&parser->dtd, top->entity_index)
+            ->is_being_expanded = false;
+        stack->element_count -= 1;
+    }
+    if (status == SXML_STATUS_OUT_OF_MEMORY ||
+        status == SXML_STATUS_ARITHMETIC_OVERFLOW) {
+        return sxml_xml_fail_resource(document, SXML_STATUS_OUT_OF_MEMORY);
+    }
+    return status;
+}
+
 /* The replacement text of an entity_value node (4.5), in scratch text. */
 static sxml_status sxml_xml_build_replacement_text(sxml_xml_document *document,
                                                    const sxml_xml_frame *frame,
@@ -1686,6 +2355,25 @@ static sxml_status sxml_xml_build_replacement_text(sxml_xml_document *document,
             /* Bypassed: kept as written (4.4.7). */
             status = sxml_xml_buffer_append(scratch,
                                             sxml_xml_node_text(frame, child));
+        } else if (child_type == SXML_XML_NODE_PARAMETER_ENTITY_REFERENCE) {
+            /* Only in the external subset and external parameter entities,
+               the grammar's _external_entity_value (4.4.5). An entity not
+               read leaves skips_declarations set: the declaration is then
+               not processed (5.1). */
+            sxml_xml_parameter_expansion_result result = {.is_complete = true};
+            status = sxml_xml_expand_parameter_entities(
+                document,
+                &(sxml_xml_parameter_expansion){
+                    .text = sxml_xml_node_text(frame, child),
+                    .is_in_literal = true,
+                    .location = sxml_xml_node_location(document, frame, child),
+                    .output = scratch},
+                &result);
+            if (status != SXML_STATUS_OK || !result.is_complete) {
+                sxml_xml_release_children(document, children);
+                return status;
+            }
+            continue;
         }
         if (status != SXML_STATUS_OK) {
             return sxml_xml_fail_resource(document, status);
@@ -1728,6 +2416,14 @@ static sxml_status sxml_xml_declare_entity(sxml_xml_document *document,
         .replacement_text = {.byte_offset = 0, .byte_count = 0},
         .system_identifier = {.byte_offset = 0, .byte_count = 0},
         .public_identifier = {.byte_offset = 0, .byte_count = 0},
+        .is_declared_in_external_markup =
+            frame->frame_kind != SXML_XML_FRAME_KIND_DOCUMENT,
+        .base_uri = frame->base_uri,
+        .load_state = SXML_XML_LOAD_STATE_NOT_LOADED,
+        .external_text =
+            sxml_xml_buffer_empty(document->parser->configuration.allocator),
+        .content_offset = 0,
+        .entity_uri = {.byte_offset = 0, .byte_count = 0},
         .is_being_expanded = false,
         .syntax_tree = NULL,
     };
@@ -1743,6 +2439,10 @@ static sxml_status sxml_xml_declare_entity(sxml_xml_document *document,
         /* The replacement text is built even when the declaration loses
            to an earlier one: its character references must be legal. */
         status = sxml_xml_build_replacement_text(document, frame, value);
+        if (status == SXML_STATUS_OK && document->skips_declarations) {
+            /* A parameter entity in the value was not read (5.1). */
+            return SXML_STATUS_OK;
+        }
         if (status == SXML_STATUS_OK) {
             sxml_xml_buffer *scratch = &document->parser->scratch_text;
             status = sxml_xml_store(
@@ -1908,96 +2608,97 @@ static const sxml_byte_view sxml_xml_subset_prefix =
 static const sxml_byte_view sxml_xml_subset_suffix =
     SXML_BYTE_VIEW_INITIALIZER("]><d/>");
 
-/* [69] PEReference between declarations. */
+/* [69] PEReference between declarations ([28a] DeclSep): the
+   replacement text is parsed as whole declarations, of the internal subset
+   or, in external DTD text and for an external entity, of the external
+   subset (2.8, 4.4.8). */
 static sxml_status
 sxml_xml_reference_parameter_entity(sxml_xml_document *document,
                                     const sxml_xml_frame *frame, TSNode node) {
-    const sxml_xml_lookup lookup = sxml_xml_dtd_find_entity(
-        &document->parser->dtd,
-        (sxml_xml_entity_key){.entity_name = sxml_xml_field_text(
-                                  frame, node, SXML_XML_FIELD_NAME),
-                              .is_parameter_entity = true});
-    if (!lookup.is_found) {
-        if (document->is_standalone) {
-            return sxml_xml_fail_at(
-                document,
-                (sxml_xml_node_failure){
-                    .frame = frame,
-                    .node = node,
-                    .description = sxml_xml_entity_declared_description});
-        }
-        /* Not read: what follows may depend on it (5.1). */
-        document->skips_declarations = true;
-        return SXML_STATUS_OK;
-    }
-    const sxml_xml_entity *entity =
-        sxml_xml_dtd_get_entity(&document->parser->dtd, lookup.entry_index);
-    if (entity->entity_kind != SXML_XML_ENTITY_KIND_INTERNAL) {
-        document->skips_declarations =
-            document->skips_declarations || !document->is_standalone;
-        return SXML_STATUS_OK;
-    }
-    if (entity->is_being_expanded) {
-        return sxml_xml_fail_at(
-            document, (sxml_xml_node_failure){
-                          .frame = frame,
-                          .node = node,
-                          .description = sxml_xml_no_recursion_description});
-    }
-    sxml_status status = sxml_xml_count_expansion(
+    const sxml_source_location location =
+        sxml_xml_node_location(document, frame, node);
+    sxml_xml_parameter_inclusion inclusion = {.is_included = false,
+                                              .entity_index = 0};
+    sxml_status status = sxml_xml_include_parameter_entity(
         document,
-        (sxml_xml_expansion_count){
-            .byte_count = entity->replacement_text.byte_count,
-            .location = sxml_xml_node_location(document, frame, node)});
-    if (status != SXML_STATUS_OK) {
+        &(sxml_xml_value_reference){
+            .entity_name = sxml_xml_field_text(frame, node, SXML_XML_FIELD_NAME),
+            .location = location},
+        &inclusion);
+    if (status != SXML_STATUS_OK || !inclusion.is_included) {
         return status;
     }
+    const sxml_xml_dtd *dtd = &document->parser->dtd;
+    const sxml_xml_entity *entity =
+        sxml_xml_dtd_get_entity(dtd, inclusion.entity_index);
+    const bool is_external =
+        entity->entity_kind != SXML_XML_ENTITY_KIND_INTERNAL;
+    const bool is_external_context = is_external || frame->is_external_context;
+    const sxml_byte_view prefix =
+        is_external_context ? sxml_xml_external_subset_marker
+                            : sxml_xml_subset_prefix;
     sxml_xml_frame pushed = {
         .frame_kind = SXML_XML_FRAME_KIND_PARAMETER_ENTITY,
         .syntax_tree = NULL,
         .cursor = {.tree = NULL, .id = NULL, .context = {0, 0, 0}},
         .text = {.bytes = NULL, .byte_count = 0},
-        .prefix_byte_count = (uint32_t)sxml_xml_subset_prefix.byte_count,
+        .prefix_byte_count = (uint32_t)prefix.byte_count,
         .owned_text =
             sxml_xml_buffer_empty(document->parser->configuration.allocator),
         .has_entity = true,
-        .entity_index = lookup.entry_index,
-        .reference_location = sxml_xml_node_location(document, frame, node),
+        .entity_index = inclusion.entity_index,
+        .reference_location = frame->frame_kind == SXML_XML_FRAME_KIND_DOCUMENT
+                                  ? location
+                                  : frame->reference_location,
+        .is_external_context = is_external_context,
+        .starts_external_entity = is_external,
+        .base_uri = is_external ? entity->entity_uri : frame->base_uri,
         .needs_advance = false,
         .descends = false,
+        .cursor_depth = 0,
     };
-    status = sxml_xml_buffer_append(
-        &pushed.owned_text,
-        sxml_xml_dtd_text(&document->parser->dtd, entity->replacement_text));
-    if (status != SXML_STATUS_OK) {
-        sxml_xml_buffer_release(&pushed.owned_text);
-        return sxml_xml_fail_resource(document, status);
+    if (is_external) {
+        /* The entity's own text is kept until the parse ends. */
+        pushed.text = sxml_xml_entity_text(
+            document, (sxml_xml_entity_text_request){
+                          .entity_index = inclusion.entity_index,
+                          .skips_text_declaration = false});
+    } else {
+        /* A copy: declarations in it grow the DTD text it lives in. */
+        status = sxml_xml_buffer_append(
+            &pushed.owned_text, sxml_xml_dtd_text(dtd, entity->replacement_text));
+        if (status != SXML_STATUS_OK) {
+            sxml_xml_buffer_release(&pushed.owned_text);
+            return sxml_xml_fail_resource(document, status);
+        }
+        pushed.text = (sxml_byte_view){.bytes = pushed.owned_text.bytes,
+                                       .byte_count = pushed.owned_text.byte_count};
     }
-    pushed.text = (sxml_byte_view){.bytes = pushed.owned_text.bytes,
-                                   .byte_count = pushed.owned_text.byte_count};
-    const sxml_xml_wrapped_text wrapped = {.prefix = sxml_xml_subset_prefix,
-                                           .text = pushed.text,
-                                           .suffix = sxml_xml_subset_suffix};
+    const sxml_xml_wrapped_text wrapped = {
+        .prefix = prefix,
+        .text = pushed.text,
+        .suffix = is_external_context
+                      ? (sxml_byte_view){.bytes = NULL, .byte_count = 0}
+                      : sxml_xml_subset_suffix};
     status = sxml_xml_parse_wrapped(document, &wrapped, &pushed.syntax_tree);
     if (status == SXML_STATUS_OK && pushed.syntax_tree == NULL) {
         status = sxml_xml_fail(
             document,
             (sxml_xml_failure){
                 .status = SXML_STATUS_MALFORMED_INPUT,
-                .description = SXML_XML_TEXT(
-                    "WFC: PE Between Declarations: the replacement text of a "
-                    "parameter entity must be whole markup declarations (XML "
-                    "1.0, section 2.8)"),
+                .description = sxml_xml_pe_between_declarations_description,
                 .location = pushed.reference_location});
     }
     if (status != SXML_STATUS_OK) {
         sxml_xml_buffer_release(&pushed.owned_text);
         return status;
     }
+    const TSNode tree_root = ts_tree_root_node(pushed.syntax_tree);
     const TSNode subset =
-        sxml_xml_field(sxml_xml_field(ts_tree_root_node(pushed.syntax_tree),
-                                      SXML_XML_FIELD_DOCTYPE),
-                       SXML_XML_FIELD_INTERNAL_SUBSET);
+        is_external_context
+            ? sxml_xml_field(tree_root, SXML_XML_FIELD_EXTERNAL_SUBSET)
+            : sxml_xml_field(sxml_xml_field(tree_root, SXML_XML_FIELD_DOCTYPE),
+                             SXML_XML_FIELD_INTERNAL_SUBSET);
     if (ts_node_is_null(subset)) {
         ts_tree_delete(pushed.syntax_tree);
         sxml_xml_buffer_release(&pushed.owned_text);
@@ -2006,11 +2707,257 @@ sxml_xml_reference_parameter_entity(sxml_xml_document *document,
     return sxml_xml_push_frame(document, &pushed, subset);
 }
 
-/* One child of an internal subset. */
+/* DTD text to read as the external subset: an expanded declaration or the
+   contents of a conditional section, in a frame of its own. */
+typedef struct sxml_xml_external_text {
+    /* The text, or empty when owned_text holds it. */
+    sxml_byte_view text;
+    sxml_xml_buffer owned_text;
+    sxml_source_location location;
+    /* Static text naming the production the text must match. */
+    sxml_byte_view description;
+} sxml_xml_external_text;
+
+/* Parses external DTD text and pushes a frame over it. Takes ownership of
+   source->owned_text even on failure. */
+static sxml_status
+sxml_xml_push_external_text(sxml_xml_document *document,
+                            const sxml_xml_frame *frame,
+                            sxml_xml_external_text *source) {
+    sxml_xml_frame pushed = {
+        .frame_kind = SXML_XML_FRAME_KIND_PARAMETER_ENTITY,
+        .syntax_tree = NULL,
+        .cursor = {.tree = NULL, .id = NULL, .context = {0, 0, 0}},
+        .text = source->owned_text.byte_count != 0
+                    ? (sxml_byte_view){.bytes = source->owned_text.bytes,
+                                       .byte_count = source->owned_text.byte_count}
+                    : source->text,
+        .prefix_byte_count =
+            (uint32_t)sxml_xml_external_subset_marker.byte_count,
+        .owned_text = source->owned_text,
+        .has_entity = false,
+        .entity_index = 0,
+        .reference_location = frame->frame_kind == SXML_XML_FRAME_KIND_DOCUMENT
+                                  ? source->location
+                                  : frame->reference_location,
+        .is_external_context = true,
+        .starts_external_entity = false,
+        .base_uri = frame->base_uri,
+        .needs_advance = false,
+        .descends = false,
+        .cursor_depth = 0,
+    };
+    const sxml_xml_wrapped_text wrapped = {
+        .prefix = sxml_xml_external_subset_marker,
+        .text = pushed.text,
+        .suffix = {.bytes = NULL, .byte_count = 0}};
+    sxml_status status =
+        sxml_xml_parse_wrapped(document, &wrapped, &pushed.syntax_tree);
+    if (status == SXML_STATUS_OK && pushed.syntax_tree == NULL) {
+        status = sxml_xml_fail(
+            document, (sxml_xml_failure){.status = SXML_STATUS_MALFORMED_INPUT,
+                                         .description = source->description,
+                                         .location = pushed.reference_location});
+    }
+    if (status != SXML_STATUS_OK) {
+        sxml_xml_buffer_release(&pushed.owned_text);
+        return status;
+    }
+    const TSNode subset = sxml_xml_field(ts_tree_root_node(pushed.syntax_tree),
+                                         SXML_XML_FIELD_EXTERNAL_SUBSET);
+    if (ts_node_is_null(subset)) {
+        ts_tree_delete(pushed.syntax_tree);
+        sxml_xml_buffer_release(&pushed.owned_text);
+        return SXML_STATUS_OK;
+    }
+    return sxml_xml_push_frame(document, &pushed, subset);
+}
+
+/*
+ * A markup declaration of external DTD text with parameter-entity
+ * references outside its literals (one unexpanded_declaration token): the
+ * references are replaced (4.4.8, Included as PE) and the result is parsed
+ * as the external subset. A reference to an entity that is not read
+ * leaves the declaration unprocessed (5.1).
+ */
+static sxml_status
+sxml_xml_expand_declaration(sxml_xml_document *document,
+                            const sxml_xml_frame *frame, TSNode node) {
+    if (document->skips_declarations) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_source_location location =
+        sxml_xml_node_location(document, frame, node);
+    sxml_xml_external_text source = {
+        .text = {.bytes = NULL, .byte_count = 0},
+        .owned_text =
+            sxml_xml_buffer_empty(document->parser->configuration.allocator),
+        .location = location,
+        .description = SXML_XML_TEXT(
+            "a markup declaration must match its production once its "
+            "parameter-entity references are replaced (XML 1.0, sections 2.8 "
+            "and 4.4.8)")};
+    sxml_xml_parameter_expansion_result result = {.is_complete = true};
+    sxml_status status = sxml_xml_expand_parameter_entities(
+        document,
+        &(sxml_xml_parameter_expansion){.text = sxml_xml_node_text(frame, node),
+                                        .is_in_literal = false,
+                                        .location = location,
+                                        .output = &source.owned_text},
+        &result);
+    if (status != SXML_STATUS_OK || !result.is_complete ||
+        source.owned_text.byte_count == 0) {
+        sxml_xml_buffer_release(&source.owned_text);
+        return status;
+    }
+    return sxml_xml_push_external_text(document, frame, &source);
+}
+
+/*
+ * [61] conditionalSect whose keyword is IGNORE or a parameter-entity
+ * reference (an include section with INCLUDE written out is walked as it
+ * is). For a reference, the replacement text followed by the section's
+ * text after the reference must read S? ('INCLUDE' | 'IGNORE') S? '[' and
+ * the contents (3.4; the '[' and more may come from the entity, which only
+ * VC: Proper Conditional Section/PE Nesting forbids); the contents of an
+ * included section are parsed as the external subset.
+ */
+static sxml_status
+sxml_xml_visit_conditional_section(sxml_xml_document *document,
+                                   const sxml_xml_frame *frame, TSNode node) {
+    const TSNode keyword = sxml_xml_field(node, SXML_XML_FIELD_KEYWORD);
+    if (sxml_xml_type_of(keyword) != SXML_XML_NODE_PARAMETER_ENTITY_REFERENCE) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_source_location location =
+        sxml_xml_node_location(document, frame, keyword);
+    sxml_xml_parameter_inclusion inclusion = {.is_included = false,
+                                              .entity_index = 0};
+    sxml_status status = sxml_xml_include_parameter_entity(
+        document,
+        &(sxml_xml_value_reference){
+            .entity_name =
+                sxml_xml_field_text(frame, keyword, SXML_XML_FIELD_NAME),
+            .location = location},
+        &inclusion);
+    if (status != SXML_STATUS_OK || !inclusion.is_included) {
+        return status;
+    }
+    /* The section's text after the reference, without the final "]]>". */
+    const sxml_byte_view section = sxml_xml_node_text(frame, node);
+    const size_t after_keyword =
+        ts_node_end_byte(keyword) - ts_node_start_byte(node);
+    const sxml_byte_view rest = sxml_xml_view_from_text(
+        section, after_keyword,
+        section.byte_count >= after_keyword + 3
+            ? section.byte_count - after_keyword - 3
+            : 0);
+    sxml_xml_external_text source = {
+        .text = {.bytes = NULL, .byte_count = 0},
+        .owned_text =
+            sxml_xml_buffer_empty(document->parser->configuration.allocator),
+        .location = location,
+        .description = SXML_XML_TEXT(
+            "the contents of an included conditional section must match [31] "
+            "extSubsetDecl (XML 1.0, section 3.4)")};
+    sxml_xml_buffer *text = &source.owned_text;
+    status = sxml_xml_buffer_append(
+        text, sxml_xml_entity_text(document,
+                                   (sxml_xml_entity_text_request){
+                                       .entity_index = inclusion.entity_index,
+                                       .skips_text_declaration = true}));
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xml_buffer_append(text, rest);
+    }
+    if (status != SXML_STATUS_OK) {
+        sxml_xml_buffer_release(text);
+        return sxml_xml_fail_resource(document, status);
+    }
+    const sxml_byte_view whole = {.bytes = text->bytes,
+                                  .byte_count = text->byte_count};
+    size_t offset = 0;
+    while (offset < whole.byte_count &&
+           sxml_xml_byte_is_whitespace(whole.bytes[offset])) {
+        offset += 1;
+    }
+    static const char include_keyword[] = "INCLUDE";
+    static const char ignore_keyword[] = "IGNORE";
+    bool is_include = false;
+    size_t keyword_byte_count = 0;
+    if (whole.byte_count - offset >= sizeof include_keyword - 1 &&
+        memcmp(whole.bytes + offset, include_keyword,
+               sizeof include_keyword - 1) == 0) {
+        is_include = true;
+        keyword_byte_count = sizeof include_keyword - 1;
+    } else if (whole.byte_count - offset >= sizeof ignore_keyword - 1 &&
+               memcmp(whole.bytes + offset, ignore_keyword,
+                      sizeof ignore_keyword - 1) == 0) {
+        keyword_byte_count = sizeof ignore_keyword - 1;
+    }
+    offset += keyword_byte_count;
+    while (offset < whole.byte_count &&
+           sxml_xml_byte_is_whitespace(whole.bytes[offset])) {
+        offset += 1;
+    }
+    if (keyword_byte_count == 0 || offset >= whole.byte_count ||
+        whole.bytes[offset] != '[') {
+        sxml_xml_buffer_release(text);
+        return sxml_xml_fail(
+            document,
+            (sxml_xml_failure){
+                .status = SXML_STATUS_MALFORMED_INPUT,
+                .description = SXML_XML_TEXT(
+                    "a conditional section must start with INCLUDE or IGNORE "
+                    "and '[' ([62] includeSect, [63] ignoreSect, XML 1.0, "
+                    "section 3.4)"),
+                .location = location});
+    }
+    offset += 1;
+    if (!is_include || offset == whole.byte_count) {
+        /* Ignored: the grammar has checked the text as [64]
+           ignoreSectContents already. */
+        sxml_xml_buffer_release(text);
+        return SXML_STATUS_OK;
+    }
+    memmove(text->bytes, text->bytes + offset, text->byte_count - offset);
+    text->byte_count -= offset;
+    return sxml_xml_push_external_text(document, frame, &source);
+}
+
+/* What a visit asks of the walk. */
+typedef struct sxml_xml_visit_result {
+    /* Enter the children of the node visited. */
+    bool descends;
+} sxml_xml_visit_result;
+
+/* One child of an internal subset or of external DTD text. */
 static sxml_status sxml_xml_visit_declaration(sxml_xml_document *document,
                                               const sxml_xml_frame *frame,
-                                              TSNode node) {
+                                              sxml_xml_visit_result *result) {
+    const TSNode node = ts_tree_cursor_current_node(&frame->cursor);
     const sxml_xml_node_type node_type = sxml_xml_type_of(node);
+    if (node_type == SXML_XML_NODE_INCLUDE_SECTION) {
+        /* [62] includeSect: its declarations are read in place (3.4). */
+        result->descends = true;
+        return SXML_STATUS_OK;
+    }
+    if (node_type == SXML_XML_NODE_CONDITIONAL_SECTION) {
+        return sxml_xml_visit_conditional_section(document, frame, node);
+    }
+    if (node_type == SXML_XML_NODE_UNEXPANDED_DECLARATION) {
+        return sxml_xml_expand_declaration(document, frame, node);
+    }
+    if (node_type == SXML_XML_NODE_TEXT_DECLARATION &&
+        !frame->starts_external_entity) {
+        return sxml_xml_fail_at(
+            document,
+            (sxml_xml_node_failure){
+                .frame = frame,
+                .node = node,
+                .description = SXML_XML_TEXT(
+                    "a text declaration may stand only at the start of an "
+                    "external entity (XML 1.0, section 4.3.1)")});
+    }
     if (node_type == SXML_XML_NODE_GENERAL_ENTITY_DECLARATION ||
         node_type == SXML_XML_NODE_PARAMETER_ENTITY_DECLARATION) {
         return document->skips_declarations
@@ -2768,6 +3715,73 @@ static const sxml_byte_view sxml_xml_content_entity_description =
         "the replacement text of an entity referenced in content must match "
         "[43] content (XML 1.0, section 4.3.2)");
 
+static const sxml_byte_view sxml_xml_external_entity_description =
+    SXML_BYTE_VIEW_INITIALIZER(
+        "an external parsed entity referenced in content must match [78] "
+        "extParsedEnt (XML 1.0, section 4.3.2)");
+
+/*
+ * [68] EntityRef in content to an external parsed entity that was read
+ * (4.4.3, Included If Validating; sxml includes it whenever it reads it):
+ * its text is parsed after the external entity marker, so that its text
+ * declaration and content follow [78] extParsedEnt, and walked in a frame
+ * of its own. The tree is kept for later references, as an internal
+ * entity's is.
+ */
+static sxml_status
+sxml_xml_reference_external_entity(sxml_xml_document *document,
+                                   const sxml_xml_value_expansion *reference) {
+    sxml_xml_dtd *dtd = &document->parser->dtd;
+    sxml_xml_entity *entity = sxml_xml_dtd_get_entity(dtd, reference->entity_index);
+    const sxml_xml_frame pushed = {
+        .frame_kind = SXML_XML_FRAME_KIND_EXTERNAL_GENERAL_ENTITY,
+        .syntax_tree = NULL,
+        .cursor = {.tree = NULL, .id = NULL, .context = {0, 0, 0}},
+        .text = sxml_xml_entity_text(
+            document,
+            (sxml_xml_entity_text_request){.entity_index = reference->entity_index,
+                                           .skips_text_declaration = false}),
+        .prefix_byte_count = (uint32_t)sxml_xml_external_entity_marker.byte_count,
+        .owned_text =
+            sxml_xml_buffer_empty(document->parser->configuration.allocator),
+        .has_entity = true,
+        .entity_index = reference->entity_index,
+        .reference_location = reference->location,
+        .is_external_context = false,
+        .starts_external_entity = true,
+        .base_uri = entity->entity_uri,
+        .needs_advance = false,
+        .descends = false,
+        .cursor_depth = 0,
+    };
+    if (entity->syntax_tree == NULL) {
+        const sxml_xml_wrapped_text wrapped = {
+            .prefix = sxml_xml_external_entity_marker,
+            .text = pushed.text,
+            .suffix = {.bytes = NULL, .byte_count = 0}};
+        TSTree *syntax_tree = NULL;
+        sxml_status status = sxml_xml_parse_wrapped(document, &wrapped, &syntax_tree);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        if (syntax_tree == NULL) {
+            return sxml_xml_fail(
+                document, (sxml_xml_failure){
+                              .status = SXML_STATUS_MALFORMED_INPUT,
+                              .description = sxml_xml_external_entity_description,
+                              .location = reference->location});
+        }
+        entity = sxml_xml_dtd_get_entity(dtd, reference->entity_index);
+        entity->syntax_tree = syntax_tree;
+    }
+    const TSNode walk_root = sxml_xml_field(ts_tree_root_node(entity->syntax_tree),
+                                            SXML_XML_FIELD_EXTERNAL_ENTITY);
+    if (ts_node_is_null(walk_root)) {
+        return SXML_STATUS_OK;
+    }
+    return sxml_xml_push_frame(document, &pushed, walk_root);
+}
+
 /* [68] EntityRef in content. */
 static sxml_status
 sxml_xml_reference_content_entity(sxml_xml_document *document,
@@ -2797,6 +3811,12 @@ sxml_xml_reference_content_entity(sxml_xml_document *document,
     }
     const sxml_xml_entity *entity =
         sxml_xml_dtd_get_entity(&document->parser->dtd, outcome.entity_index);
+    if (entity->entity_kind == SXML_XML_ENTITY_KIND_EXTERNAL_PARSED) {
+        return sxml_xml_reference_external_entity(
+            document, &(sxml_xml_value_expansion){
+                          .entity_index = outcome.entity_index,
+                          .location = location});
+    }
     const sxml_byte_view replacement =
         sxml_xml_dtd_text(&document->parser->dtd, entity->replacement_text);
     if (!sxml_xml_view_contains_byte(replacement, '<') &&
@@ -2866,13 +3886,8 @@ sxml_xml_reference_content_entity(sxml_xml_document *document,
         sxml_xml_field(ts_tree_root_node(syntax_tree), SXML_XML_FIELD_ROOT));
 }
 
-/* One node of the content walk; sets *descends to enter its children. */
-/* What a visit asks of the walk. */
-typedef struct sxml_xml_visit_result {
-    /* Enter the children of the node visited. */
-    bool descends;
-} sxml_xml_visit_result;
-
+/* One node of the content walk; sets result->descends to enter its
+   children. */
 static sxml_status sxml_xml_visit_content(sxml_xml_document *document,
                                           const sxml_xml_frame *frame,
                                           sxml_xml_visit_result *result) {
@@ -2945,11 +3960,10 @@ static sxml_status sxml_xml_run_frames(sxml_xml_document *document,
                 continue;
             }
         }
-        const TSNode node = ts_tree_cursor_current_node(&frame->cursor);
         sxml_xml_visit_result result = {.descends = false};
         sxml_status status =
             walk.walks_declarations
-                ? sxml_xml_visit_declaration(document, frame, node)
+                ? sxml_xml_visit_declaration(document, frame, &result)
                 : sxml_xml_visit_content(document, frame, &result);
         if (status != SXML_STATUS_OK) {
             return status;
@@ -3199,12 +4213,6 @@ static sxml_status sxml_xml_check_syntax(sxml_xml_document *document,
                 sxml_xml_location_at(document, sxml_xml_error_offset(error))});
 }
 
-static bool sxml_xml_is_utf16_family(sxml_xml_encoding_family family) {
-    return family == SXML_XML_ENCODING_FAMILY_UTF16 ||
-           family == SXML_XML_ENCODING_FAMILY_UTF16_LITTLE_ENDIAN ||
-           family == SXML_XML_ENCODING_FAMILY_UTF16_BIG_ENDIAN;
-}
-
 /*
  * The XML declaration ([23]): standalone, and an encoding declaration
  * that agrees with the bytes (4.3.3, Appendix F). The version was read
@@ -3225,32 +4233,9 @@ static sxml_status sxml_xml_check_declaration(sxml_xml_document *document,
     if (document->request->encoding_name.byte_count != 0) {
         return SXML_STATUS_OK;
     }
-    const sxml_xml_encoding_detection *detection = &document->detection;
-    const bool is_utf16 =
-        detection->encoding == SXML_XML_ENCODING_UTF16_LITTLE_ENDIAN ||
-        detection->encoding == SXML_XML_ENCODING_UTF16_BIG_ENDIAN;
-    const sxml_xml_encoding_family family =
-        sxml_xml_classify_encoding_name(encoding_name);
-    bool is_consistent = true;
-    if (is_utf16) {
-        /* Without a byte order mark only the byte-order-specific names
-           say UTF-16 (4.3.3: UTF-16 entities begin with the mark). */
-        is_consistent =
-            detection->has_utf16_byte_order_mark
-                ? encoding_name.byte_count == 0 ||
-                      sxml_xml_is_utf16_family(family)
-                : (family == SXML_XML_ENCODING_FAMILY_UTF16_LITTLE_ENDIAN &&
-                   detection->encoding ==
-                       SXML_XML_ENCODING_UTF16_LITTLE_ENDIAN) ||
-                      (family == SXML_XML_ENCODING_FAMILY_UTF16_BIG_ENDIAN &&
-                       detection->encoding ==
-                           SXML_XML_ENCODING_UTF16_BIG_ENDIAN);
-    } else if (detection->has_utf8_byte_order_mark) {
-        is_consistent = encoding_name.byte_count == 0 ||
-                        family == SXML_XML_ENCODING_FAMILY_UTF8;
-    } else {
-        is_consistent = !sxml_xml_is_utf16_family(family);
-    }
+    const bool is_consistent = sxml_xml_encoding_is_consistent(
+        &(sxml_xml_encoding_check){.detection = &document->detection,
+                                   .encoding_name = encoding_name});
     if (is_consistent) {
         return SXML_STATUS_OK;
     }
@@ -3267,8 +4252,131 @@ static sxml_status sxml_xml_check_declaration(sxml_xml_document *document,
                               : ts_node_start_byte(declaration))});
 }
 
+/*
+ * Reads the external subset that the document type declaration names
+ * ([30] extSubset) through the entity resolver and pushes a frame over its
+ * declarations. It is kept in the entity table as a parameter entity
+ * whose name, "[dtd]", is no Name, so that no reference can reach it.
+ */
+static sxml_status
+sxml_xml_read_external_subset(sxml_xml_document *document,
+                              const sxml_xml_frame_node *doctype) {
+    const sxml_xml_frame *frame = doctype->frame;
+    const TSNode external_id =
+        sxml_xml_field(doctype->node, SXML_XML_FIELD_EXTERNAL_ID);
+    const sxml_source_location location =
+        sxml_xml_node_location(document, frame, doctype->node);
+    sxml_xml_entity entity = {
+        .entity_kind = SXML_XML_ENTITY_KIND_EXTERNAL_PARSED,
+        .is_parameter_entity = true,
+        .entity_name = {.byte_offset = 0, .byte_count = 0},
+        .replacement_text = {.byte_offset = 0, .byte_count = 0},
+        .system_identifier = {.byte_offset = 0, .byte_count = 0},
+        .public_identifier = {.byte_offset = 0, .byte_count = 0},
+        .is_declared_in_external_markup = true,
+        .base_uri = frame->base_uri,
+        .load_state = SXML_XML_LOAD_STATE_NOT_LOADED,
+        .external_text =
+            sxml_xml_buffer_empty(document->parser->configuration.allocator),
+        .content_offset = 0,
+        .entity_uri = {.byte_offset = 0, .byte_count = 0},
+        .is_being_expanded = false,
+        .syntax_tree = NULL,
+    };
+    sxml_status status = sxml_xml_store(document, SXML_XML_TEXT("[dtd]"),
+                                        &entity.entity_name);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xml_store(document,
+                                sxml_xml_literal_content(sxml_xml_field_text(
+                                    frame, external_id, SXML_XML_FIELD_SYSTEM_ID)),
+                                &entity.system_identifier);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xml_store(document,
+                                sxml_xml_literal_content(sxml_xml_field_text(
+                                    frame, external_id, SXML_XML_FIELD_PUBLIC_ID)),
+                                &entity.public_identifier);
+    }
+    sxml_xml_lookup added = {.is_found = false, .entry_index = 0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xml_fail_resource(
+            document,
+            sxml_xml_dtd_add_entity(&document->parser->dtd, &entity, &added));
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xml_load_external_entity(
+            document,
+            &(sxml_xml_external_load){
+                .entity_index = added.entry_index,
+                .purpose = SXML_XML_EXTERNAL_ENTITY_PURPOSE_SUBSET,
+                .location = location});
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    const sxml_xml_entity *loaded =
+        sxml_xml_dtd_get_entity(&document->parser->dtd, added.entry_index);
+    if (loaded->load_state != SXML_XML_LOAD_STATE_LOADED) {
+        return SXML_STATUS_OK;
+    }
+    status = sxml_xml_count_expansion(
+        document,
+        (sxml_xml_expansion_count){.byte_count = loaded->external_text.byte_count,
+                                   .location = location});
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_xml_frame pushed = {
+        .frame_kind = SXML_XML_FRAME_KIND_PARAMETER_ENTITY,
+        .syntax_tree = NULL,
+        .cursor = {.tree = NULL, .id = NULL, .context = {0, 0, 0}},
+        .text = sxml_xml_entity_text(
+            document, (sxml_xml_entity_text_request){
+                          .entity_index = added.entry_index,
+                          .skips_text_declaration = false}),
+        .prefix_byte_count =
+            (uint32_t)sxml_xml_external_subset_marker.byte_count,
+        .owned_text =
+            sxml_xml_buffer_empty(document->parser->configuration.allocator),
+        .has_entity = true,
+        .entity_index = added.entry_index,
+        .reference_location = location,
+        .is_external_context = true,
+        .starts_external_entity = true,
+        .base_uri = loaded->entity_uri,
+        .needs_advance = false,
+        .descends = false,
+        .cursor_depth = 0,
+    };
+    const sxml_xml_wrapped_text wrapped = {
+        .prefix = sxml_xml_external_subset_marker,
+        .text = pushed.text,
+        .suffix = {.bytes = NULL, .byte_count = 0}};
+    status = sxml_xml_parse_wrapped(document, &wrapped, &pushed.syntax_tree);
+    if (status == SXML_STATUS_OK && pushed.syntax_tree == NULL) {
+        status = sxml_xml_fail(
+            document,
+            (sxml_xml_failure){
+                .status = SXML_STATUS_MALFORMED_INPUT,
+                .description = SXML_XML_TEXT(
+                    "the external subset must match [30] extSubset (XML 1.0, "
+                    "section 2.8)"),
+                .location = location});
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    const TSNode subset = sxml_xml_field(ts_tree_root_node(pushed.syntax_tree),
+                                         SXML_XML_FIELD_EXTERNAL_SUBSET);
+    if (ts_node_is_null(subset)) {
+        ts_tree_delete(pushed.syntax_tree);
+        return SXML_STATUS_OK;
+    }
+    return sxml_xml_push_frame(document, &pushed, subset);
+}
+
 /* The document type declaration ([28]): the facts that decide which
-   constraints apply, then the internal subset. */
+   constraints apply, then the internal subset and the external subset. */
 static sxml_status sxml_xml_process_doctype(sxml_xml_document *document,
                                             const sxml_xml_frame *frame,
                                             TSNode root) {
@@ -3303,13 +4411,25 @@ static sxml_status sxml_xml_process_doctype(sxml_xml_document *document,
     document->requires_declared_entities =
         document->is_standalone || (!document->has_external_subset &&
                                     !document->has_parameter_entity_references);
-    if (ts_node_is_null(subset)) {
-        return SXML_STATUS_OK;
-    }
     const size_t base_frame_count = sxml_xml_frame_count(document);
-    sxml_xml_frame pushed = *frame;
-    pushed.syntax_tree = NULL;
-    status = sxml_xml_push_frame(document, &pushed, subset);
+    if (!ts_node_is_null(subset)) {
+        sxml_xml_frame pushed = *frame;
+        pushed.syntax_tree = NULL;
+        status = sxml_xml_push_frame(document, &pushed, subset);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xml_run_frames(
+                document, (sxml_xml_walk){.walks_declarations = true,
+                                          .base_frame_count = base_frame_count});
+        }
+    }
+    if (status != SXML_STATUS_OK || !document->has_external_subset ||
+        !document->reads_external_entities) {
+        return status;
+    }
+    /* The external subset is read after the internal subset, whose
+       declarations take precedence (2.8). */
+    status = sxml_xml_read_external_subset(
+        document, &(sxml_xml_frame_node){.frame = frame, .node = doctype});
     if (status == SXML_STATUS_OK) {
         status = sxml_xml_run_frames(
             document, (sxml_xml_walk){.walks_declarations = true,
@@ -3377,6 +4497,26 @@ static sxml_status sxml_xml_walk_document(sxml_xml_document *document) {
     if (status != SXML_STATUS_OK) {
         return status;
     }
+    if (ts_node_is_null(sxml_xml_field(root, SXML_XML_FIELD_ROOT))) {
+        /* The grammar's alternatives for external entities, which only the
+           parser's own markers start (16). */
+        return sxml_xml_fail(
+            document,
+            (sxml_xml_failure){
+                .status = SXML_STATUS_MALFORMED_INPUT,
+                .description = SXML_XML_TEXT(
+                    "not well-formed: a document must have a root element "
+                    "(XML 1.0, [1] document)"),
+                .location = sxml_xml_location_at(document, 0)});
+    }
+    const sxml_byte_view base_uri = document->request->base_uri.byte_count != 0
+                                        ? document->request->base_uri
+                                        : document->request->document_uri;
+    sxml_byte_range base_range = {.byte_offset = 0, .byte_count = 0};
+    status = sxml_xml_store(document, base_uri, &base_range);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
     /* The document frame's template: its cursor is made when pushed. */
     const sxml_xml_frame frame = {
         .frame_kind = SXML_XML_FRAME_KIND_DOCUMENT,
@@ -3392,8 +4532,12 @@ static sxml_status sxml_xml_walk_document(sxml_xml_document *document) {
                                .line_number = 0,
                                .column_number = 0,
                                .byte_offset = 0},
+        .is_external_context = false,
+        .starts_external_entity = false,
+        .base_uri = base_range,
         .needs_advance = false,
         .descends = false,
+        .cursor_depth = 0,
     };
     status = sxml_xml_check_declaration(document, &frame, root);
     if (status == SXML_STATUS_OK) {
@@ -3450,6 +4594,8 @@ sxml_xml_parse_document(sxml_xml_parser *parser,
         .version = SXML_XML_VERSION_1_0,
         .requires_declared_entities = true,
         .skips_declarations = false,
+        .reads_external_entities = request->entity_resolver.operations != NULL &&
+                                   request->entity_resolver.operations->resolve != NULL,
         .expansion_byte_count = 0,
         .element_depth = 0,
         .xml_prefix = {.index = 0},
@@ -3490,6 +4636,7 @@ sxml_xml_parse_document(sxml_xml_parser *parser,
             entity->syntax_tree = NULL;
         }
     }
+    sxml_xml_release_external_texts(&document);
     if (document.syntax_tree != NULL) {
         ts_tree_delete(document.syntax_tree);
     }

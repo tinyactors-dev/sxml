@@ -359,6 +359,199 @@ static expected_failure malformed(const char *description_start) {
                               .description_start = description_start};
 }
 
+/* ------------------------------------------------- External entities */
+
+/* An entity resolver over a table of URIs and texts; it logs every
+   request as "purpose:absolute-uri;". */
+typedef struct entity_table {
+    const char *const *uris;
+    const char *const *texts;
+    size_t entry_count;
+    char requests[SXML_TEST_LOG_BYTE_COUNT];
+    size_t release_count;
+} entity_table;
+
+static sxml_status
+resolve_table_entity(void *state,
+                     const sxml_xml_external_entity_request *request,
+                     sxml_xml_external_entity *entity) {
+    entity_table *table = state;
+    static const char purposes[] = {'S', 'P', 'G'};
+    const size_t used = strlen(table->requests);
+    (void)snprintf(table->requests + used, sizeof table->requests - used,
+                   "%c:%.*s;", purposes[request->purpose],
+                   (int)request->absolute_uri.byte_count,
+                   (const char *)request->absolute_uri.bytes);
+    for (size_t entry_index = 0; entry_index < table->entry_count;
+         entry_index++) {
+        if (sxml_byte_view_equals(
+                request->absolute_uri,
+                sxml_byte_view_from_c_string(table->uris[entry_index]))) {
+            entity->is_available = true;
+            entity->content =
+                sxml_byte_view_from_c_string(table->texts[entry_index]);
+        }
+    }
+    return SXML_STATUS_OK;
+}
+
+static void release_table_entity(void *state,
+                                 const sxml_xml_external_entity *entity) {
+    (void)entity;
+    entity_table *table = state;
+    table->release_count += 1;
+}
+
+static const sxml_xml_entity_resolver_operations table_resolver_operations = {
+    .resolve = resolve_table_entity,
+    .release = release_table_entity,
+};
+
+/* Parses document with base URI http://x/d.xml and table as its entity
+   resolver; check mode must agree on the status. */
+typedef struct resolved_parse {
+    const char *document;
+    entity_table *table;
+    sxml_xml_limits limits;
+} resolved_parse;
+
+static parse_outcome parse_with_entities(const resolved_parse *parse,
+                                         event_log *log) {
+    parse_outcome outcome = {.status = SXML_STATUS_OUT_OF_MEMORY,
+                             .check_status = SXML_STATUS_OUT_OF_MEMORY,
+                             .diagnostic = empty_diagnostic()};
+    parser_fixture fixture;
+    if (fixture_create(&fixture, parse->limits) != SXML_STATUS_OK) {
+        return outcome;
+    }
+    *log = (event_log){
+        .name_pool = fixture.name_pool,
+        .text = "",
+        .byte_count = 0,
+        .element_location = {.source_name = {.bytes = NULL, .byte_count = 0},
+                             .line_number = 0,
+                             .column_number = 0,
+                             .byte_offset = 0}};
+    sxml_xml_parse_request request = request_for(
+        sxml_byte_view_from_c_string(parse->document), &outcome.diagnostic);
+    request.base_uri = SXML_BYTE_VIEW_FROM_LITERAL("http://x/d.xml");
+    request.entity_resolver = (sxml_xml_entity_resolver){
+        .state = parse->table, .operations = &table_resolver_operations};
+    outcome.status = sxml_xml_parser_parse(
+        fixture.parser, &request,
+        (sxml_tree_builder){.state = log, .operations = &log_operations});
+    sxml_diagnostic check_diagnostic = empty_diagnostic();
+    request.diagnostic = &check_diagnostic;
+    outcome.check_status = sxml_xml_parser_check(fixture.parser, &request);
+    fixture_destroy(&fixture);
+    return outcome;
+}
+
+static void test_external_entities_are_read(sxml_test_state *state) {
+    static const char *const uris[] = {
+        "http://x/d.dtd", "http://x/sub/p.ent", "http://x/sub/g.ent",
+        "http://x/c.ent"};
+    static const char *const texts[] = {
+        /* The external subset: a text declaration, a parameter-entity
+           reference inside a declaration (4.4.8), conditional sections
+           (3.4), an external parameter entity whose own declarations
+           resolve against its URI (4.2.2). */
+        "<?xml encoding='UTF-8'?>\n"
+        "<!ENTITY % type 'CDATA'>\n"
+        "<!ENTITY % on 'INCLUDE'>\n"
+        "<!ATTLIST r a %type; 'from-dtd' b CDATA 'dtd'>\n"
+        "<![%on;[<!ENTITY i 'included'>]]>\n"
+        "<![IGNORE[<!ENTITY i 'ignored'> <![ x ]]> ]]>\n"
+        "<!ENTITY % p SYSTEM 'sub/p.ent'>\n"
+        "%p;\n",
+        "<!ENTITY g SYSTEM 'g.ent'><!ENTITY v \"%type;-value\">",
+        "<?xml version='1.0' encoding='UTF-8'?><e>&i;</e>\r\ntail",
+        "<c/>"};
+    entity_table table = {.uris = uris,
+                          .texts = texts,
+                          .entry_count = 4,
+                          .requests = "",
+                          .release_count = 0};
+    event_log log;
+    /* The internal subset comes first and wins (2.8); the external general
+       entity is parsed as [78] extParsedEnt, its line ends normalized
+       (2.11). */
+    parse_outcome outcome = parse_with_entities(
+        &(resolved_parse){
+            .document = "<!DOCTYPE r SYSTEM 'd.dtd' [<!ATTLIST r b CDATA 'internal'>]>"
+                        "<r>&i;&g;&v;</r>",
+            .table = &table,
+            .limits = no_limits},
+        &log);
+    SXML_TEST_EXPECT(state, outcome.status == SXML_STATUS_OK &&
+                                outcome.check_status == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, strcmp(log.text, "D<r @b=internal @a=from-dtd"
+                                             "'included'<e'included'</>"
+                                             "'\ntail''CDATA-value'</>/D") == 0);
+    SXML_TEST_EXPECT(state,
+                     strcmp(table.requests,
+                            "S:http://x/d.dtd;P:http://x/sub/p.ent;"
+                            "G:http://x/sub/g.ent;S:http://x/d.dtd;"
+                            "P:http://x/sub/p.ent;G:http://x/sub/g.ent;") == 0);
+    SXML_TEST_EXPECT(state, table.release_count == 6);
+    if (strcmp(log.text, "") != 0 && outcome.status != SXML_STATUS_OK) {
+        printf("    %s\n    %.*s\n", log.text,
+               (int)outcome.diagnostic.description.byte_count,
+               (const char *)outcome.diagnostic.description.bytes);
+    }
+    /* An entity the resolver does not deliver is not read (4.4.3, 5.1). */
+    table.requests[0] = '\0';
+    outcome = parse_with_entities(
+        &(resolved_parse){.document = "<!DOCTYPE r [<!ENTITY m SYSTEM 'none'>]>"
+                                      "<r>&m;</r>",
+                          .table = &table,
+                          .limits = no_limits},
+        &log);
+    SXML_TEST_EXPECT(state, outcome.status == SXML_STATUS_OK &&
+                                strcmp(log.text, "D<r</>/D") == 0 &&
+                                strcmp(table.requests,
+                                       "G:http://x/none;G:http://x/none;") == 0);
+    /* Not-well-formed external text, and recursion through it (4.1). */
+    static const char *const bad_uris[] = {"http://x/bad.ent", "http://x/self.ent"};
+    static const char *const bad_texts[] = {"<a>", "<!ENTITY % s SYSTEM 'self.ent'>%s;"};
+    entity_table bad = {.uris = bad_uris,
+                        .texts = bad_texts,
+                        .entry_count = 2,
+                        .requests = "",
+                        .release_count = 0};
+    outcome = parse_with_entities(
+        &(resolved_parse){.document = "<!DOCTYPE r [<!ENTITY b SYSTEM 'bad.ent'>]>"
+                                      "<r>&b;</r>",
+                          .table = &bad,
+                          .limits = no_limits},
+        &log);
+    SXML_TEST_EXPECT(state, outcome.status == SXML_STATUS_MALFORMED_INPUT);
+    outcome = parse_with_entities(
+        &(resolved_parse){.document = "<!DOCTYPE r SYSTEM 'self.ent'><r/>",
+                          .table = &bad,
+                          .limits = no_limits},
+        &log);
+    SXML_TEST_EXPECT(state, outcome.status == SXML_STATUS_MALFORMED_INPUT);
+    /* "Billion laughs" through parameter entities stops at the bound. */
+    static const char *const laugh_uris[] = {"http://x/l.dtd"};
+    static const char *const laugh_texts[] = {
+        "<!ENTITY % a 'haha haha'><!ENTITY % b '%a;%a;%a;%a;%a;%a;'>"
+        "<!ENTITY % c '%b;%b;%b;%b;%b;%b;'><!ELEMENT r (%c;)>"};
+    entity_table laughs = {.uris = laugh_uris,
+                           .texts = laugh_texts,
+                           .entry_count = 1,
+                           .requests = "",
+                           .release_count = 0};
+    outcome = parse_with_entities(
+        &(resolved_parse){
+            .document = "<!DOCTYPE r SYSTEM 'l.dtd'><r/>",
+            .table = &laughs,
+            .limits = {.maximum_depth = 0,
+                       .maximum_entity_expansion_byte_count = 200}},
+        &log);
+    SXML_TEST_EXPECT(state, outcome.status == SXML_STATUS_LIMIT_EXCEEDED);
+}
+
 /* -------------------------------------------------------------- Cases */
 
 static void test_parser_lifecycle(sxml_test_state *state) {
@@ -1151,6 +1344,8 @@ static const sxml_test_case xml_test_cases[] = {
     {.name = "version_1_1_rules_apply",
      .function = test_version_1_1_rules_apply},
     {.name = "limits_bound_the_work", .function = test_limits_bound_the_work},
+    {.name = "external_entities_are_read",
+     .function = test_external_entities_are_read},
     {.name = "deep_input_is_walked_iteratively",
      .function = test_deep_input_is_walked_iteratively},
     {.name = "documents_build_arena_trees",

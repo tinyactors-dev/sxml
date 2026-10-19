@@ -40,7 +40,13 @@ Node types (fields in parentheses):
 
 | Node | Production | Notes |
 | --- | --- | --- |
-| `document` (`declaration`, `doctype`, `root`) | [1] | Other children: `comment`, `processing_instruction` (Misc). |
+| `document` (`declaration`, `doctype`, `root`) | [1] | Other children: `comment`, `processing_instruction` (Misc). Or, after a marker only the builder writes, `external_subset` or `external_entity` (below). |
+| `external_subset` (`declaration`) | [30], [31] | After the marker U+0001 `S`: the external subset, an external parameter entity, or other DTD text read as the external subset is. Children: declarations, `include_section`, `conditional_section`, `unexpanded_declaration`, `parameter_entity_reference`. |
+| `external_parsed_entity` (`declaration`) | [78] | After the marker U+0001 `E`: an external general entity referenced in content; content items as in an element. |
+| `text_declaration` (`version`, `encoding`) | [77] | The encoding is required. |
+| `include_section` | [62] | `INCLUDE` written out; its declarations are children. |
+| `conditional_section` (`keyword`, `contents`) | [61], [63] | `IGNORE`, or a `parameter_entity_reference` keyword whose replacement text decides; `contents` is an `ignored_section_contents` (`ignored_text` pieces and nested `<![` ... `]]>`), which for a reference keyword holds everything after the reference. |
+| `unexpanded_declaration` | [29] | One token: a markup declaration of external DTD text with a parameter-entity reference outside its literals, up to its `>` (or to the next markup or the end, when the `>` comes from an entity). |
 | `xml_declaration` (`version`, `encoding`, `standalone`) | [23] | `version_number`, `encoding_name`, `standalone_value` (`yes`/`no`). |
 | `doctype_declaration` (`name`, `external_id`, `internal_subset`) | [28] | |
 | `internal_subset` | [28b] | Declarations, `parameter_entity_reference`, `processing_instruction`, `comment`, in order. |
@@ -71,9 +77,13 @@ come from the external scanner; the builder sees them as ordinary leaves.
 
 ## What the grammar checks
 
-- Every production of the document grammar, [1]–[83] except the external
-  subset ([30]–[31], [61]–[65]) and text declarations ([77]–[78]), which a
-  non-validating processor that reads no external entities never parses.
+- Every production of the document grammar, [1]–[83]; the external subset
+  ([30]–[31], [61]–[65]) and external entities with their text declarations
+  ([77]–[78]) after the builder's markers. A declaration of external DTD
+  text whose parameter-entity references stand outside its literals
+  matches its production only after expansion, so the scanner returns it
+  as one `unexpanded_declaration` and the builder expands and parses it
+  again.
 - [2] Char in every text token: character data, attribute values, entity
   values, comments, PIs, CDATA sections, system literals. Undecodable bytes
   are rejected too.
@@ -81,9 +91,10 @@ come from the external scanner; the builder sees them as ordinary leaves.
   included; [7] name tokens; [13] public identifier characters.
 - WFC: Element Type Match (3): the external scanner keeps a stack of open
   start tags and accepts an end-tag name only if it equals the innermost one.
-- WFC: PEs in Internal Subset (2.8): parameter-entity references are
-  accepted between declarations only; inside a declaration (including an
-  entity value) they are an error.
+- WFC: PEs in Internal Subset (2.8): in the internal subset,
+  parameter-entity references are accepted between declarations only;
+  inside a declaration (including an entity value) they are an error. In
+  external DTD text they may stand inside declarations and entity values.
 - The XML declaration only at the very start (after an optional byte order
   mark), with its parts in order; no PI target `xml` in any case ([17]).
 - No `]]>` in character data ([14]); no `--` inside comments, and no comment
@@ -153,9 +164,20 @@ express (section numbers of XML 1.0 Fifth Edition, and of Namespaces in XML
     undeclares p (Namespaces in XML 1.1, section 5). Names are the same in
     both versions (1.0 Fifth Edition adopted 1.1's). Other `1.x` versions
     are read by the 1.0 rules (1.0 Fifth Edition, 2.8).
-16. A document node always has a `root` element. The grammar guarantees it
-    for parsed documents; it is listed here so a builder that parses
-    fragments by wrapping keeps the check.
+16. A document node always has a `root` element: the grammar's
+    alternatives for external entities, which start with U+0001 (no [2]
+    Char), are refused for a document.
+17. **External entities** (D199, read only through the request's entity
+    resolver): the external subset after the internal subset (2.8); a text
+    declaration only at the start of an external entity (4.3.1) and its
+    encoding agreeing with the bytes (4.3.3); entities of a 1.0 document
+    declaring no version 1.1 (XML 1.1, 4.3.4); parameter-entity references
+    inside declarations expanded with a space on each side (4.4.8) and in
+    entity values included in the literal (4.4.5), with an explicit stack;
+    conditional sections whose keyword is a reference read from its
+    replacement text (3.4); WFC: Entity Declared where it applies also
+    refuses declarations from the external subset or parameter entities
+    (4.1).
 
 ## External scanner
 
