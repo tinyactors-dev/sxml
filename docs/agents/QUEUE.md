@@ -23,13 +23,12 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 - 7.8 EXPath Binary and 7.9 EXPath File (one agent).
 - 7.10a HTML5 tokenizer and tree builder.
 - 7.7a XQuery Update Facility 3.0.
-- 7.13 XML 1.1 input.
+- 7.14 DTD processing (after 7.13, D195).
 
 ## Next
 
 - Phase 7 (`docs/tasks/phase-7.md`, D183, D184): 7.6a streaming analysis
-  after 7.4; after 7.13, 7.14
-  DTD; after 7.3, 7.11 fn:transform;
+  after 7.4; after 7.3, 7.11 fn:transform;
   then Full Text, UCA, timezones, calendars and languages, iXML.
 - JavaScript bindings for XQuery, XSLT and validation (they cover XPath only).
 - `sxml` CLI gaps: `--output`, writing result documents, `--method=csv`,
@@ -67,6 +66,12 @@ XSLT (after 4.19, D185; XT40 8,759):
 - Schema-aware leftovers (D179): XTSE3105, typed modes reading name tests
   as `schema-element()`, ID/IDREF skipping for elements, `xs:untypedAtomic`
   as a type attribute, `xsl:copy` with preserve, schema roles, XTSE0265.
+
+XML 1.1 (after 7.13, D195; xmlconf 1.1 242 of 271):
+- 29 xmlconf cases need external entities or DTDs (7.14).
+- XT40 xml-version-007/-016 and namespace-2606/-6202 fail in `src/xslt*`.
+- Owner: 13 XQ40 cases need query text lexed by XML 1.1 rules; keep 1.0,
+  switch to 1.1, or a processor option (Proposed in DECISIONS.md).
 
 XSD:
 - is-id for union and list elements (needs the element's flags after its
