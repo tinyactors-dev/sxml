@@ -397,7 +397,20 @@ static sxml_tree_identifier sxml_generic_node_get_tree(sxml_item node) {
     return sxml_tree_get_identifier(node.payload.tree);
 }
 
+/* True for two XNodes of one tree: their order is that of (node index,
+   namespace number), as sxml_node_compare_document_order has it, read
+   from the items without making node references. */
+static bool sxml_items_are_nodes_of_one_tree(sxml_item_pair pair) {
+    return pair.first.representation == (uint8_t)SXML_ITEM_REPRESENTATION_NODE &&
+           pair.second.representation == (uint8_t)SXML_ITEM_REPRESENTATION_NODE &&
+           pair.first.payload.tree == pair.second.payload.tree;
+}
+
 bool sxml_generic_node_is_same_node(sxml_item_pair pair) {
+    if (sxml_items_are_nodes_of_one_tree(pair)) {
+        return pair.first.type_or_node_index == pair.second.type_or_node_index &&
+               pair.first.namespace_number == pair.second.namespace_number;
+    }
     if (!sxml_item_is_generic_node(pair.first) ||
         !sxml_item_is_generic_node(pair.second) ||
         pair.first.representation != pair.second.representation) {
@@ -411,6 +424,14 @@ bool sxml_generic_node_is_same_node(sxml_item_pair pair) {
 
 sxml_status sxml_generic_node_compare_document_order(sxml_item_pair pair,
                                                      sxml_ordering *ordering) {
+    if (sxml_items_are_nodes_of_one_tree(pair)) {
+        *ordering = pair.first.type_or_node_index != pair.second.type_or_node_index
+                        ? sxml_ordering_of_numbers(pair.first.type_or_node_index,
+                                                   pair.second.type_or_node_index)
+                        : sxml_ordering_of_numbers(pair.first.namespace_number,
+                                                   pair.second.namespace_number);
+        return SXML_STATUS_OK;
+    }
     if (!sxml_item_is_generic_node(pair.first) ||
         !sxml_item_is_generic_node(pair.second)) {
         return SXML_STATUS_INVALID_ARGUMENT;

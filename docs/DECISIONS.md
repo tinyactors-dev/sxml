@@ -9247,6 +9247,24 @@ source (below).
   none lost: streaming-fallback-001 to -006, system-property-012;
   merge-097sf is now run and fails on uri-collection with ?select=.
 
+### D221. Evaluator performance: benchmarks, axis walks, filter indexes (packet perf-1)
+Recorded 2026-10-19, after D46, D71, D89, D149, D178, D182, D185. In
+progress; completed when the packet ends.
+- **Benchmarks** (`tests/bench/run-bench.py --build DIR`): XMark Q8,
+  Q9, Q11 and all twenty queries (XMark-All.xq) over the suite's XMark
+  document (3.5 MB, made by the XMark generator), a join written as a
+  filter, path expressions, deep recursion, big group by and order by,
+  an xsl:key join, a `match="$var"` pattern, and QT4 app-Demos itunes
+  through sxml-qt4. Processor seconds (user plus system), the fastest of
+  three runs: other builds share this machine, so wall time is noise.
+- **Axis walks** (glossary `axis_walk`): a step described every node
+  three times (the iterator's successor, the node test, the origin per
+  step). An internal walk in `src/tree_axis.c` hands out each node with
+  its description for the child, following-sibling, descendant(-or-
+  self), attribute, self and parent axes, the others through the
+  iterator; the step tests the description it has and makes an item
+  only for a node that matches. Two XNodes of one tree are ordered and
+  compared from their items. Steps are unchanged.
 ## Proposed
 
 - **The CLI's WebAssembly budget after the Phase 7 features** (packet

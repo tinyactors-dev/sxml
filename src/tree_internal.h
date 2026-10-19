@@ -72,3 +72,51 @@ static inline sxml_node_reference sxml_node_reference_of_stored_node(
         .namespace_number = 0,
     };
 }
+
+/* ------------------------------------------------------------ Axis walks */
+
+/*
+ * An axis walk (glossary `axis_walk`, D221): the nodes of one axis from an
+ * origin, as sxml_axis_iterator gives them, each handed out with its
+ * description, so a caller that tests nodes describes each node once.
+ * The child, following-sibling, descendant, descendant-or-self,
+ * attribute, self and parent axes are walked from the descriptions
+ * themselves (one description per node, D39's index order); the other
+ * axes run an sxml_axis_iterator and describe the nodes it gives. A plain
+ * value: copy it freely, it holds no memory.
+ */
+typedef struct sxml_axis_walk {
+    sxml_node_reference origin;
+    sxml_axis axis;
+    /* The generic axes. */
+    bool is_iterator_walk;
+    sxml_axis_iterator iterator;
+    /* The walked axes: the node to hand out next, if any. */
+    bool has_next_node;
+    sxml_node_reference next_node;
+    /* The descendant axes: the last node number of the walk. */
+    uint32_t last_number;
+} sxml_axis_walk;
+
+/* A node of an axis walk and its description. */
+typedef struct sxml_described_node {
+    bool has_node;
+    sxml_node_reference node;
+    sxml_node_description description;
+} sxml_described_node;
+
+/*
+ * Starts a walk over request.axis from request.origin. Returns
+ * SXML_STATUS_INVALID_ARGUMENT for a request sxml_axis_iterator_start
+ * refuses, and the failures of sxml_node_describe.
+ */
+SXML_NODISCARD sxml_status sxml_axis_walk_start(sxml_axis_request request,
+                                                sxml_axis_walk *walk);
+
+/*
+ * Moves walk (in/out) to the next node of its axis and writes it with its
+ * description to *node, or sets node->has_node false at the end. Returns
+ * the failures of the tree implementation; on failure walk is untouched.
+ */
+SXML_NODISCARD sxml_status sxml_axis_walk_next(sxml_axis_walk *walk,
+                                               sxml_described_node *node);

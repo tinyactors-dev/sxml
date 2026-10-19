@@ -492,3 +492,150 @@ sxml_status sxml_axis_iterator_next(sxml_axis_iterator *iterator,
     iterator->has_next_node = successor.has_node;
     return SXML_STATUS_OK;
 }
+
+/* ------------------------------------------------------------ Axis walks */
+
+/* True for the axes an axis walk follows from descriptions. */
+static bool sxml_axis_is_walked(sxml_axis axis) {
+    return axis == SXML_AXIS_CHILD || axis == SXML_AXIS_FOLLOWING_SIBLING ||
+           axis == SXML_AXIS_DESCENDANT || axis == SXML_AXIS_DESCENDANT_OR_SELF ||
+           axis == SXML_AXIS_ATTRIBUTE || axis == SXML_AXIS_SELF || axis == SXML_AXIS_PARENT;
+}
+
+/* The stored node node_number of the tree of origin. */
+static sxml_node_reference sxml_axis_walk_node(const sxml_axis_walk *walk,
+                                               uint32_t node_number) {
+    return sxml_node_reference_of_stored_node(
+        (sxml_stored_node_request){.tree = walk->origin.tree, .node_number = node_number});
+}
+
+/*
+ * The first node of a walked axis, from the origin's description (XPath
+ * 4.0, section 4.7.5, and the index order of D39 that the file comment
+ * describes).
+ */
+static void sxml_axis_walk_first(sxml_axis_walk *walk,
+                                 const sxml_node_description *origin) {
+    const sxml_node_reference origin_node = walk->origin;
+    const bool is_stored = origin_node.namespace_number == 0;
+    const uint32_t origin_number = origin_node.node_index.index;
+    walk->has_next_node = false;
+    const sxml_axis axis = walk->axis;
+    if (axis == SXML_AXIS_SELF) {
+        walk->has_next_node = true;
+        walk->next_node = origin_node;
+    } else if (axis == SXML_AXIS_PARENT) {
+        walk->has_next_node = origin->has_parent;
+        walk->next_node = sxml_axis_walk_node(walk, origin->parent.index);
+    } else if (axis == SXML_AXIS_CHILD) {
+        walk->has_next_node = origin->has_children;
+        walk->next_node = sxml_axis_walk_node(walk, origin->first_child.index);
+    } else if (axis == SXML_AXIS_FOLLOWING_SIBLING) {
+        walk->has_next_node = origin->has_next_sibling;
+        walk->next_node = sxml_axis_walk_node(walk, origin->next_sibling.index);
+    } else if (axis == SXML_AXIS_ATTRIBUTE) {
+        walk->has_next_node = is_stored && origin->node_kind == SXML_NODE_KIND_ELEMENT &&
+                              origin->attribute_count > 0;
+        walk->next_node = sxml_axis_walk_node(walk, origin_number + 1);
+        walk->last_number = origin_number + origin->attribute_count;
+    } else if (axis == SXML_AXIS_DESCENDANT_OR_SELF) {
+        /* The origin itself; then its descendants (none for a namespace
+           node, whose index is its element's). */
+        walk->has_next_node = true;
+        walk->next_node = origin_node;
+        walk->last_number = is_stored ? origin->last_descendant.index : origin_number;
+    } else if (axis == SXML_AXIS_DESCENDANT) {
+        const uint64_t first_number = (uint64_t)origin_number + 1 + origin->attribute_count;
+        walk->last_number = origin->last_descendant.index;
+        walk->has_next_node = is_stored && first_number <= walk->last_number;
+        walk->next_node = sxml_axis_walk_node(walk, (uint32_t)first_number);
+    }
+}
+
+/* The node after the one just handed out, from its description. */
+static void sxml_axis_walk_advance(sxml_axis_walk *walk,
+                                   const sxml_described_node *current) {
+    const sxml_node_description *description = &current->description;
+    const sxml_axis axis = walk->axis;
+    if (axis == SXML_AXIS_CHILD || axis == SXML_AXIS_FOLLOWING_SIBLING) {
+        walk->has_next_node = description->has_next_sibling;
+        walk->next_node = sxml_axis_walk_node(walk, description->next_sibling.index);
+    } else if (axis == SXML_AXIS_ATTRIBUTE) {
+        const uint32_t next_number = current->node.node_index.index + 1;
+        walk->has_next_node = next_number <= walk->last_number;
+        walk->next_node = sxml_axis_walk_node(walk, next_number);
+    } else if (axis == SXML_AXIS_DESCENDANT || axis == SXML_AXIS_DESCENDANT_OR_SELF) {
+        /* The non-attribute node after current in document order. */
+        const uint64_t next_number =
+            (uint64_t)current->node.node_index.index + 1 + description->attribute_count;
+        walk->has_next_node =
+            current->node.namespace_number == 0 && next_number <= walk->last_number;
+        walk->next_node = sxml_axis_walk_node(walk, (uint32_t)next_number);
+    } else {
+        walk->has_next_node = false;
+    }
+}
+
+sxml_status sxml_axis_walk_start(sxml_axis_request request, sxml_axis_walk *walk) {
+    if (!sxml_axis_is_walked(request.axis) || request.origin.tree == NULL) {
+        sxml_axis_iterator iterator;
+        const sxml_status status = sxml_axis_iterator_start(request, &iterator);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        *walk = (sxml_axis_walk){.origin = request.origin,
+                                 .axis = request.axis,
+                                 .is_iterator_walk = true,
+                                 .iterator = iterator,
+                                 .has_next_node = false};
+        return SXML_STATUS_OK;
+    }
+    sxml_node_description origin = sxml_axis_empty_description();
+    const sxml_status status = sxml_node_describe(request.origin, &origin);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_axis_walk new_walk = {.origin = request.origin,
+                               .axis = request.axis,
+                               .is_iterator_walk = false,
+                               .has_next_node = false,
+                               .last_number = 0};
+    sxml_axis_walk_first(&new_walk, &origin);
+    *walk = new_walk;
+    return SXML_STATUS_OK;
+}
+
+sxml_status sxml_axis_walk_next(sxml_axis_walk *walk, sxml_described_node *node) {
+    sxml_described_node current = {.has_node = false};
+    if (walk->is_iterator_walk) {
+        sxml_axis_iterator iterator = walk->iterator;
+        sxml_node_iteration_step step = sxml_axis_no_node();
+        sxml_status status = sxml_axis_iterator_next(&iterator, &step);
+        if (status == SXML_STATUS_OK && step.has_node) {
+            current.description = sxml_axis_empty_description();
+            status = sxml_node_describe(step.node, &current.description);
+        }
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        current.has_node = step.has_node;
+        current.node = step.node;
+        walk->iterator = iterator;
+        *node = current;
+        return SXML_STATUS_OK;
+    }
+    if (!walk->has_next_node) {
+        node->has_node = false;
+        return SXML_STATUS_OK;
+    }
+    current.node = walk->next_node;
+    current.description = sxml_axis_empty_description();
+    const sxml_status status = sxml_node_describe(current.node, &current.description);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    current.has_node = true;
+    sxml_axis_walk_advance(walk, &current);
+    *node = current;
+    return SXML_STATUS_OK;
+}

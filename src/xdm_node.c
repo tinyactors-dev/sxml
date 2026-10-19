@@ -94,11 +94,8 @@ typedef struct sxml_text_measure {
     sxml_byte_view first_text;
 } sxml_text_measure;
 
-/* A node and its description, as the walks over its descendants use them. */
-typedef struct sxml_described_node {
-    sxml_node_reference node;
-    sxml_node_description description;
-} sxml_described_node;
+/* The walks over a node's descendants use sxml_described_node
+   (src/tree_internal.h): a node and its description. */
 
 /*
  * Calls visit for each text descendant of a document or element in
@@ -241,7 +238,7 @@ static sxml_status
 sxml_node_make_string_value_as(sxml_item_heap *item_heap,
                                const sxml_string_value_request *request,
                                sxml_item *item) {
-    sxml_described_node described = {.node = request->node};
+    sxml_described_node described = {.has_node = true, .node = request->node};
     sxml_status status =
         sxml_node_describe(request->node, &described.description);
     if (status != SXML_STATUS_OK) {

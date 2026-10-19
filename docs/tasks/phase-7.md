@@ -870,6 +870,25 @@ After D44, D200, D205. The command wrote nothing but EXPath File output.
 `sxml transform --result-directory=DIR`, `sxml xquery --allow-put`,
 `--method=csv`, other commands' options named; CLI tests 161 to 203.
 
+## Performance
+
+### perf-1 Evaluator performance (implementation)
+After D182 (the evaluator runs about 4 million steps a second and has
+no index for joins), D178 (QT4 app-Demos itunes is quadratic by its own
+text, 72 s) and D185 (`match="$var"` membership is a linear scan).
+- **Mechanism**: general mechanisms of the one IR and evaluator, no
+  language-specific machinery: a benchmark set (`tests/bench/`), axis
+  steps that describe each node once, and filter indexes: an IR pass
+  (the optimizer seam, D46) gives a FILTER whose predicate needs
+  "key = probe", "eq" or "is" a filter index, a for clause's where
+  becomes such a FILTER, and the evaluator keeps the index in the
+  evaluation memo (D149).
+- **Owns**: `tests/bench/`, `src/tree_axis.c`, `src/evaluator_path.c`,
+  `src/evaluator_index.c`, `src/ir_filter_index.c`; the FILTER parts of
+  `src/evaluator.c`, `src/ir.c`, `src/ir_verify.c`, `src/ir_internal.h`.
+- **Done when**: the baseline and the numbers after each change in a
+  D-record and the commit messages; no QT4 XQ40 or XT40 outcome
+  changes; D71, the memory limits and honest step counts kept.
 ## Proposed for the owner
 
 No phase covers these four features yet (D183 Proposed). The owner has

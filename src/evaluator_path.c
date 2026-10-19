@@ -17,6 +17,7 @@
  * explicit stack, sorting is bottom-up.
  */
 #include "evaluator_internal.h"
+#include "tree_internal.h"
 #include "xdm_internal.h"
 
 #include <stdalign.h>
@@ -217,22 +218,47 @@ static sxml_status sxml_name_matches_test(const sxml_item_heap *item_heap,
                                           sxml_name_question question,
                                           sxml_type_match *match);
 
+/* A node with its description, and the node test to test it with. */
+typedef struct sxml_described_node_test {
+    sxml_node_reference node;
+    const sxml_node_description *description;
+    const sxml_node_test *node_test;
+} sxml_described_node_test;
+
+/* sxml_evaluator_test_node for a node already described. */
+static sxml_status sxml_test_described_node(const sxml_item_heap *item_heap,
+                                            const sxml_described_node_test *request,
+                                            sxml_type_match *match);
+
 sxml_status sxml_evaluator_test_node(const sxml_item_heap *item_heap,
                                      const sxml_node_test_request *request,
                                      sxml_type_match *match) {
-    const sxml_node_test *node_test = request->node_test;
     sxml_node_description description;
-    sxml_status status = sxml_node_describe(request->node, &description);
+    const sxml_status status = sxml_node_describe(request->node, &description);
     if (status != SXML_STATUS_OK) {
         return status;
     }
+    return sxml_test_described_node(
+        item_heap,
+        &(sxml_described_node_test){.node = request->node,
+                                    .description = &description,
+                                    .node_test = request->node_test},
+        match);
+}
+
+static sxml_status sxml_test_described_node(const sxml_item_heap *item_heap,
+                                            const sxml_described_node_test *request,
+                                            sxml_type_match *match) {
+    const sxml_node_test *node_test = request->node_test;
+    const sxml_node_description *description = request->description;
+    sxml_status status = SXML_STATUS_OK;
     bool is_match = node_test->node_kind == SXML_NODE_KIND_ANY ||
-                    node_test->node_kind == description.node_kind;
+                    node_test->node_kind == description->node_kind;
     if (is_match && node_test->node_kind != SXML_NODE_KIND_ANY) {
         sxml_type_match name_match = {.is_match = false};
         status = sxml_name_matches_test(
             item_heap,
-            (sxml_name_question){.name = description.node_name,
+            (sxml_name_question){.name = description->node_name,
                                  .name_test = &node_test->name_test},
             &name_match);
         is_match = name_match.is_match;
@@ -244,12 +270,12 @@ sxml_status sxml_evaluator_test_node(const sxml_item_heap *item_heap,
         is_match = sxml_type_registry_is_derived_from(
                        sxml_item_heap_get_type_registry(item_heap),
                        (sxml_type_pair){
-                           .derived_type = description.type_annotation,
+                           .derived_type = description->type_annotation,
                            .base_type = node_test->type_annotation}) &&
-                   (!description.is_nilled || node_test->allows_nilled);
+                   (!description->is_nilled || node_test->allows_nilled);
     }
     if (status == SXML_STATUS_OK && is_match &&
-        description.node_kind == SXML_NODE_KIND_DOCUMENT &&
+        description->node_kind == SXML_NODE_KIND_DOCUMENT &&
         node_test->document_element_test.index != SXML_TYPE_NONE) {
         /* document-node(E): exactly one element child, matching E, and no
            text children (section 3.2.7.1). */
@@ -404,19 +430,27 @@ typedef struct sxml_step_output {
     sxml_error_record *error_record;
 } sxml_step_output;
 
-/* Appends the XNode if it matches; the item made is owned by the list. */
+/* Appends the XNode if it matches; the item made is owned by the list.
+   The node's description saves describing it again for a node test, and
+   a node that does not match makes no item. */
 static sxml_status sxml_step_output_add_node(const sxml_step_output *output,
-                                             sxml_node_reference node) {
+                                             const sxml_described_node *node) {
     const sxml_step_test *test = output->test;
     sxml_type_match match = {.is_match = true};
     sxml_status status = SXML_STATUS_OK;
-    sxml_item item = sxml_node_item_make(node);
     if (test->test_kind == SXML_STEP_TEST_KIND_NODE_TEST) {
-        status = sxml_evaluator_test_node(
+        status = sxml_test_described_node(
             output->dynamic_context->item_heap,
-            &(sxml_node_test_request){.node = node, .node_test = &test->node_test},
+            &(sxml_described_node_test){.node = node->node,
+                                        .description = &node->description,
+                                        .node_test = &test->node_test},
             &match);
-    } else if (test->test_kind == SXML_STEP_TEST_KIND_TYPE_MATCH) {
+        if (status != SXML_STATUS_OK || !match.is_match) {
+            return status;
+        }
+    }
+    sxml_item item = sxml_node_item_make(node->node);
+    if (test->test_kind == SXML_STEP_TEST_KIND_TYPE_MATCH) {
         status = sxml_evaluator_match_sequence_type(
             output->dynamic_context,
             &(sxml_type_match_request){
@@ -554,16 +588,16 @@ static sxml_status sxml_step_output_take_json_node(
 static sxml_status sxml_step_xml_node(const sxml_step_output *output,
                                       sxml_node_reference origin,
                                       sxml_axis axis) {
-    sxml_axis_iterator iterator;
-    sxml_status status = sxml_axis_iterator_start(
-        (sxml_axis_request){.origin = origin, .axis = axis}, &iterator);
+    sxml_axis_walk walk;
+    sxml_status status =
+        sxml_axis_walk_start((sxml_axis_request){.origin = origin, .axis = axis}, &walk);
     while (status == SXML_STATUS_OK) {
-        sxml_node_iteration_step step;
-        status = sxml_axis_iterator_next(&iterator, &step);
-        if (status != SXML_STATUS_OK || !step.has_node) {
+        sxml_described_node node;
+        status = sxml_axis_walk_next(&walk, &node);
+        if (status != SXML_STATUS_OK || !node.has_node) {
             break;
         }
-        status = sxml_step_output_add_node(output, step.node);
+        status = sxml_step_output_add_node(output, &node);
     }
     return status;
 }
@@ -1199,10 +1233,8 @@ sxml_status sxml_evaluator_make_document_order_value(
                 (sxml_item_pair){.first = array.items[item_index - 1],
                                  .second = array.items[item_index]},
                 &ordering);
-            is_sorted = ordering == SXML_ORDERING_LESS &&
-                        !sxml_generic_node_is_same_node(
-                            (sxml_item_pair){.first = array.items[item_index - 1],
-                                             .second = array.items[item_index]});
+            /* LESS: in order, and not the same node. */
+            is_sorted = ordering == SXML_ORDERING_LESS;
         }
     }
     if (status == SXML_STATUS_OK && node_count != 0 &&

@@ -489,6 +489,70 @@ static void test_axes_match_table(sxml_test_state *state) {
     tree_fixture_destroy(&fixture);
 }
 
+/* Walks an axis with an axis walk (D221) and writes its nodes' labels to
+   text; each description must be the node's own. */
+static sxml_status walk_axis_described(sxml_axis_request request, char *text,
+                                       bool *descriptions_match) {
+    text[0] = '\0';
+    *descriptions_match = true;
+    sxml_axis_walk walk;
+    sxml_status status = sxml_axis_walk_start(request, &walk);
+    while (status == SXML_STATUS_OK) {
+        sxml_described_node node = {.has_node = false};
+        status = sxml_axis_walk_next(&walk, &node);
+        if (status != SXML_STATUS_OK || !node.has_node) {
+            break;
+        }
+        sxml_node_description description;
+        status = sxml_node_describe(node.node, &description);
+        if (status == SXML_STATUS_OK &&
+            (description.node_kind != node.description.node_kind ||
+             description.node_name.index != node.description.node_name.index ||
+             description.last_descendant.index != node.description.last_descendant.index ||
+             description.has_next_sibling != node.description.has_next_sibling)) {
+            *descriptions_match = false;
+        }
+        append_label(text, node.node);
+    }
+    return status;
+}
+
+/* An axis walk gives every axis of the table as the iterator does. */
+static void test_axis_walks_match_table(sxml_test_state *state) {
+    tree_fixture fixture;
+    SXML_TEST_REQUIRE(state, tree_fixture_create(&fixture) == SXML_STATUS_OK);
+    built_tree built;
+    SXML_TEST_REQUIRE(state, build_fixed_document(&fixture, &built) == SXML_STATUS_OK);
+    for (size_t case_index = 0; case_index < SXML_TEST_COUNT(axis_cases); case_index++) {
+        const axis_case *axis_case_entry = &axis_cases[case_index];
+        sxml_node_reference origin = fixed_node(&built, axis_case_entry->origin);
+        origin.namespace_number = axis_case_entry->namespace_number;
+        char text[TEST_TEXT_BYTE_COUNT];
+        bool descriptions_match = false;
+        sxml_status status = walk_axis_described(
+            (sxml_axis_request){.origin = origin, .axis = axis_case_entry->axis}, text,
+            &descriptions_match);
+        bool matches = status == SXML_STATUS_OK && descriptions_match &&
+                       strcmp(text, axis_case_entry->expected) == 0;
+        if (!matches) {
+            printf("axis walk case %zu: expected \"%s\", got \"%s\"\n", case_index,
+                   axis_case_entry->expected, text);
+        }
+        SXML_TEST_EXPECT(state, matches);
+    }
+    sxml_axis_walk walk;
+    SXML_TEST_EXPECT(state,
+                     sxml_axis_walk_start(
+                         (sxml_axis_request){.origin = {.tree = NULL}, .axis = SXML_AXIS_CHILD},
+                         &walk) == SXML_STATUS_INVALID_ARGUMENT);
+    SXML_TEST_EXPECT(state, sxml_axis_walk_start(
+                                (sxml_axis_request){.origin = fixed_node(&built, 99),
+                                                    .axis = SXML_AXIS_CHILD},
+                                &walk) == SXML_STATUS_INDEX_OUT_OF_RANGE);
+    built_tree_destroy(&built);
+    tree_fixture_destroy(&fixture);
+}
+
 static void test_axis_iterator_checks_origin(sxml_test_state *state) {
     tree_fixture fixture;
     SXML_TEST_REQUIRE(state, tree_fixture_create(&fixture) == SXML_STATUS_OK);
@@ -1581,6 +1645,7 @@ static void test_deep_trees_copy_and_walk_iteratively(sxml_test_state *state) {
 
 static const sxml_test_case tree_test_cases[] = {
     {.name = "axes_match_table", .function = test_axes_match_table},
+    {.name = "axis_walks_match_table", .function = test_axis_walks_match_table},
     {.name = "axis_iterator_checks_origin",
      .function = test_axis_iterator_checks_origin},
     {.name = "nodes_describe_themselves",
