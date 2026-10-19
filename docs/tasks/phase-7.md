@@ -444,6 +444,12 @@ part 1.2 KB of the core module.
     `src/xslt_lower_control.c` (xsl:fork), `src/xslt.c`, the serializer,
     the result writer, the XML parser's input, `include/sxml/processor.h`
     (the byte reader) and `apps/sxml/command_transform.c`.
+  - **Done** (D231): (a), (b) xsl:fork and (c); `sxml transform`
+    identity on 95.6 MB 525 MB to 134 MB peak resident, accumulators
+    more than 4.1 GB to 135 MB; XT40 12,031 to 12,048, none lost. Left:
+    xsl:merge with streamed inputs (a new evaluator part) and (d), whose
+    parser change waits for `src/xml.c`, `src/xml_segment.c` and
+    `src/xml_encoding.c` (perf-3); the design is in D231.
 - **Header**: possibly `xslt.h`, additive: a streamed principal source
   given as bytes or a parser, with a record. The resolver's BYTES form
   already serves xsl:source-document.

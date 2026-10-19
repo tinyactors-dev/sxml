@@ -10176,9 +10176,9 @@ XP40 sets an inline function's module or a QName cast touch unchanged.
   with a non-NCName (`src/function_library_xslt.c`, another packet's
   uncommitted file).
 
-### D231. The last streamed shapes: accumulators while streaming (packet 7.6e)
-Recorded 2026-10-19, after D71, D155, D212, D219, D223, D228. In progress;
-completed when the packet ends. Replaces D223's and D228's "accumulators
+### D231. The last streamed shapes: accumulators, xsl:fork and the principal result while streaming (packet 7.6e)
+Recorded 2026-10-19, after D71, D155, D166, D212, D219, D223, D228.
+Replaces D223's and D228's "accumulators
 computed while streaming are not done" and their rule that a stylesheet
 reading an accumulator streams nothing.
 - **Accumulators while streaming** (XSLT 4.0, 18.2.9, 19.3, 19.4;
@@ -10240,9 +10240,58 @@ reading an accumulator streams nothing.
   results (18.3), and the resolver is asked again for each pass. A fork
   some prong of which does not stream, or with xsl:for-each-group, is
   grounded as before.
+- **The principal result as it is made** (2.4, 26.1; glossary
+  `principal_stream`, `streamed_serialization`): a transformation that
+  streams its principal source with SERIALIZED delivery, a tree built
+  (build-tree yes, a method given that builds one, or no method; 26.1),
+  no item-separator and no xsl:result-document instruction lowers its
+  main function as DOCUMENT with the new
+  construction flag PRINCIPAL_RESULT over the whole body (the invocation
+  then delivers into it, D166; the built principal result now takes the
+  same shape without the flag). That DOCUMENT builds into the result
+  writer's principal stream (environment field `principal_result_builder`)
+  and makes no tree. Without build-tree and method, a first item that
+  is a map, an array or a JNode makes the method json (26.1.2): the
+  construction then keeps the raw value (environment field
+  `principal_result_is_raw`), the stream, which has written nothing, is
+  dropped, and the raw result is delivered as before. The stream chooses the method from the first
+  evidence (26.1.2) and the output definition: for the xml method with
+  no indent, no canonical form, no doctype and standalone omitted, a
+  streamed serialization writes each event as it arrives (one small tree
+  per open element, for the start tag's namespaces; its parent's
+  bindings are inherited unless the element binds the prefix itself);
+  for any other method the events build the tree, which is serialized
+  at the end as before. The serializer is unchanged: start tags, text,
+  comments and processing instructions go through the XML method's own
+  writer functions (`src/serialize_xml.c`), refactored out of its tree
+  walk.
+- **Measured** (`sxml transform`, release, 95.6 MB document, 904,745
+  records; peak resident set): the streamed identity (on-no-match
+  shallow-copy) 525 MB before, 134 MB after, output identical; an
+  accumulator counting the records with accumulator-before and -after
+  more than 4.1 GB before (stopped at 207 s), 135 MB after; a for-each
+  over the hot records 134 MB before and after. What is left is the
+  input, which the CLI holds whole. evaluator_stream_test: the identity
+  of a 2.4 MB document streams with a peak of 189 KB of allocator memory.
+  XT40 (release, case by case): 12,031 to 12,048 passed, none lost (the
+  gains include other packets' commits in between).
 - **Not done**: capture="yes" end rules while streaming; an accumulator
   value of a window node no entry holds any more (a streamed node kept
-  past its body) falls back to the tree of its window.
+  past its body) falls back to the tree of its window. xsl:merge with
+  streamed inputs (15.3) needs several streamed documents read in step,
+  one cursor each with the merge keys of its current item, and a part
+  that interleaves them; that is a new evaluator part, not a shape of
+  STREAM, and stays for a packet of its own (merge sources are grounded,
+  as before). Bytes delivered incrementally to the parser: the planned
+  interface is an additive resource form in `processor.h`,
+  SXML_RESOURCE_FORM_BYTE_READER, a reader whose read operation fills a
+  buffer the parser lends and reports the end, with release as for
+  BYTES; the incremental parse (D219, D222) then decodes and checks the
+  input a window at a time, as segments, instead of at its creation, and
+  the CLI serves the input file through it. The parser change is in
+  `src/xml.c`, `src/xml_segment.c` and `src/xml_encoding.c`, which
+  another packet (perf-3) is changing now, so neither the form nor the
+  parser change is made here; the header is unchanged.
 
 ## Proposed
 

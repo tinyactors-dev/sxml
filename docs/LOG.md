@@ -21,15 +21,20 @@ One short entry per week, newest first: what passed, what's next, what is blocke
   in D230, needs the evaluator), typed modes, XTDE3490, xml-version-007,
   namespace-2606/-6202, docbook-004.
 
-- 7.6e in progress (D231): accumulators computed while streaming (each
-  event a STREAM takes calls the accumulator functions, full windows get
-  descend-K; fn:accumulator-before and -after read the values of streamed
-  nodes; rules' errors raised when a value is read; dependent rules wait
-  a round), and xsl:fork prongs streamed in passes of their own over the
-  document.  with an accumulator over 95.6 MB: more than
-  4.1 GB (stopped) to 135.4 MB resident. XT40 none lost. Next: the
-  principal result delivered as it is made, then incremental bytes from
-  the resolver.
+- 7.6e done (D231): the last streamed shapes. Accumulators computed
+  while streaming (each event a STREAM takes calls the accumulator
+  functions, full windows get descend-K; fn:accumulator-before and -after
+  read the values of streamed nodes; rules' errors raised when a value is
+  read; dependent rules wait a round); xsl:fork prongs streamed in passes
+  of their own over the document; the principal result of a streamed
+  principal source serialized as it is made (a DOCUMENT with
+  PRINCIPAL_RESULT over the main body, a streamed XML serialization).
+  `sxml transform` on 95.6 MB: identity 525 MB to 134 MB peak resident,
+  an accumulator over the records more than 4.1 GB (stopped) to 135 MB;
+  what is left is the input the CLI holds. XT40 12,031 to 12,048, none
+  lost. Left: xsl:merge with streamed inputs (a new evaluator part), the
+  byte reader resource form (waits for the parser files perf-3 holds),
+  capture="yes" end rules.
 
 - perf-2 done (D229): the second round of evaluator performance,
   profile first (callgrind). Numbers to doubles by Clinger's fast path
