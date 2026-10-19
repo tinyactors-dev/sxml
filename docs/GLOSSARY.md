@@ -912,6 +912,9 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `revalidation` | Schema validation of a tree an update rebuilt, in the revalidation mode the prolog declares (lax or strict; skip does none), whose validated copy becomes the updated tree (XQuery Update Facility 3.0, 3.2.4 upd:revalidate; D205) |
 | `full_text_selection` | The compiled form of an FTSelection: words, connectives, positional filters and match options, run as a match program (XQuery and XPath Full Text 3.0) |
 | `all_matches` | The set of matches a full-text selection gives over the tokens of a node, with their positions (XQuery and XPath Full Text 3.0, "AllMatches") |
+| `snowball_program` | A Snowball stemming algorithm compiled for sxml's stemming machine: instructions with jumps over the word's code points, its strings, groupings and among tables (snowballstem.org; Full Text 3.0, 3.4.4; D214) |
+| `thesaurus_expansion` | The query strings a thesaurus gives one query string: the string itself and the terms related to it, within the relationship and levels asked for, each matched as an alternative (Full Text 3.0, 3.4.3; D214) |
+| `full_text_score` | The relevance of a match, a number in [0, 1] computed from the matches and their weights (Full Text 3.0, 2.3; D214) |
 | `tentative_encoding` | An encoding the HTML parser sniffed from octets rather than got from a byte order mark or the encoding option; a meta element that declares another one makes the parser read the document again in that one (HTML Living Standard, 13.2.3.2 and 13.2.3.4; `is_encoding_tentative`) |
 | `html_working_tree` | The HTML parser's mutable node table during tree construction (adoption agency, foster parenting), sent to the tree builder once the document ends |
 | `insertion_mode` | The state of HTML tree construction that decides how a token is handled (HTML Living Standard, 13.2.4.1) |

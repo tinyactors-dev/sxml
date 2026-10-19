@@ -349,6 +349,8 @@ static sxml_status make_native_call(sxml_xpath_lowerer *state, native_call reque
 /* The effective options of one FTWords, as the instruction writes them. */
 typedef struct effective_options {
     sxml_full_text_match_options options;
+    /* The language option's stemmer (3.4.1; English when there is none). */
+    sxml_full_text_language language;
     /* The stop word option that applies; 0 for "no stop words". */
     sxml_ast_node_index stop_words;
 } effective_options;
@@ -395,9 +397,16 @@ static void take_options(const sxml_xpath_lowerer *state, option_source source,
         case SXML_AST_KIND_FT_STOP_WORD_OPTION:
             effective->stop_words = is_no ? (sxml_ast_node_index){0} : option;
             break;
+        case SXML_AST_KIND_FT_LANGUAGE_OPTION: {
+            /* 3.4.1: the language chooses the stemmer (3.4.4); matching
+               does not depend on it otherwise. */
+            const sxml_ast_node_index literal = child_of(state, option, SXML_AST_FIELD_LANGUAGE);
+            effective->language =
+                sxml_full_text_language_of(sxml_ast_get_text(state->ast, node_of(state, literal)->payload.text));
+            break;
+        }
         default:
-            /* Language and thesaurus: sxml's matching does not depend on
-               the language, and the default thesaurus is empty. */
+            /* The thesaurus: below. */
             break;
         }
     }
@@ -1014,7 +1023,7 @@ static sxml_status emit_words(sxml_xpath_lowerer *state, sxml_xpath_lowering_fra
         options->is_diacritics_sensitive ? 1U : 0U,
         options->uses_stemming ? 1U : 0U,
         options->uses_wildcards ? 1U : 0U,
-        0,
+        (uint32_t)effective.language,
         stop_words,
         0};
     append_instruction(locals, (instruction_text){.opcode = SXML_FULL_TEXT_OPCODE_WORDS,

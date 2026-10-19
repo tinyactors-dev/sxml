@@ -33,6 +33,8 @@
  *   over each item's tokens.
  * - src/full_text_tokenize.c: the tokenizer (below), folding, wildcards.
  * - src/full_text_match.c: the match program and AllMatches.
+ * - src/full_text_stem.c and src/full_text_stem_table.c: the Snowball
+ *   stemmers (below, "Stemming").
  *
  * The match program (glossary `full_text_selection`)
  * ---------------------------------------------------
@@ -57,7 +59,8 @@
  *                         options: c case (0 insensitive, 1 sensitive,
  *                         2 lowercase, 3 uppercase), d diacritics
  *                         (0 insensitive, 1 sensitive), s stemming and
- *                         w wildcards (0 off, 1 on), l language operand,
+ *                         w wildcards (0 off, 1 on), l the language of
+                         the stemmer (sxml_full_text_language),
  *                         t stop word operand (the stop words, 0 for
  *                         none), h thesaurus (0 none);
  *   T m,n                 FTTimes (4.2.6.10): minimum and maximum
@@ -257,6 +260,161 @@ SXML_NODISCARD sxml_status sxml_full_text_fold(const sxml_full_text_fold_request
 
 /* Releases the bytes of output and leaves it empty. */
 void sxml_full_text_bytes_release(sxml_full_text_bytes *output);
+
+/* Appends codepoint to *output in UTF-8, or bytes as they are. Return
+   the allocator's failures. */
+SXML_NODISCARD sxml_status sxml_full_text_append_codepoint(sxml_full_text_bytes *output,
+                                                           uint32_t codepoint);
+SXML_NODISCARD sxml_status sxml_full_text_append_text(sxml_full_text_bytes *output,
+                                                      sxml_byte_view bytes);
+
+/* ------------------------------------------------------- Stemming */
+
+/*
+ * Stemming (Full Text 3.0, 3.4.4; packet 7.12c, D214; glossary
+ * `snowball_program`): the Snowball algorithms of the languages of D208,
+ * compiled by tools/generate-snowball-stemmers.py from
+ * the .sbl files of third_party/snowball into programs (src/full_text_stem_table.c)
+ * that one machine runs (src/full_text_stem.c): a flat array of 16-bit
+ * words, each instruction an opcode and its operands, over the word's
+ * code points, with Snowball's cursor, limits and slice, the program's
+ * integers, booleans and string variables, cursor save slots (one per
+ * construct that restores the cursor; no routine is recursive, so one
+ * slot each suffices) and an explicit return stack (D71).
+ */
+
+/* The languages with a stemmer, in the order of the programs. */
+typedef enum sxml_full_text_language {
+    SXML_FULL_TEXT_LANGUAGE_ENGLISH = 0,
+    SXML_FULL_TEXT_LANGUAGE_GERMAN = 1,
+    SXML_FULL_TEXT_LANGUAGE_FRENCH = 2,
+    SXML_FULL_TEXT_LANGUAGE_ITALIAN = 3,
+    SXML_FULL_TEXT_LANGUAGE_SPANISH = 4,
+    SXML_FULL_TEXT_LANGUAGE_DUTCH = 5,
+} sxml_full_text_language;
+
+#define SXML_FULL_TEXT_LANGUAGE_COUNT 6U
+
+/* The opcodes of a Snowball program (keep in step with OPCODES in
+   tools/generate-snowball-stemmers.py). */
+typedef enum sxml_full_text_stem_opcode {
+    SXML_FULL_TEXT_STEM_JUMP = 0,
+    SXML_FULL_TEXT_STEM_JUMP_IF_TRUE,
+    SXML_FULL_TEXT_STEM_JUMP_IF_FALSE,
+    SXML_FULL_TEXT_STEM_TRUE,
+    SXML_FULL_TEXT_STEM_FALSE,
+    SXML_FULL_TEXT_STEM_SAVE,
+    SXML_FULL_TEXT_STEM_RESTORE,
+    SXML_FULL_TEXT_STEM_LIMIT_SAVE,
+    SXML_FULL_TEXT_STEM_LIMIT_RESTORE,
+    SXML_FULL_TEXT_STEM_BACKWARD_BEGIN,
+    SXML_FULL_TEXT_STEM_BACKWARD_END,
+    SXML_FULL_TEXT_STEM_LITERAL,
+    SXML_FULL_TEXT_STEM_IN_GROUPING,
+    SXML_FULL_TEXT_STEM_OUT_GROUPING,
+    SXML_FULL_TEXT_STEM_NEXT,
+    SXML_FULL_TEXT_STEM_HOP,
+    SXML_FULL_TEXT_STEM_AT_LIMIT,
+    SXML_FULL_TEXT_STEM_OPEN_SLICE,
+    SXML_FULL_TEXT_STEM_CLOSE_SLICE,
+    SXML_FULL_TEXT_STEM_REPLACE,
+    SXML_FULL_TEXT_STEM_SLICE_TO,
+    SXML_FULL_TEXT_STEM_INSERT,
+    SXML_FULL_TEXT_STEM_INSERT_VARIABLE,
+    SXML_FULL_TEXT_STEM_ATTACH,
+    SXML_FULL_TEXT_STEM_ATTACH_VARIABLE,
+    SXML_FULL_TEXT_STEM_SET_MARK,
+    SXML_FULL_TEXT_STEM_TO_MARK,
+    SXML_FULL_TEXT_STEM_AT_MARK,
+    SXML_FULL_TEXT_STEM_INTEGER_ASSIGN,
+    SXML_FULL_TEXT_STEM_INTEGER_COMPARE,
+    SXML_FULL_TEXT_STEM_BOOLEAN_SET,
+    SXML_FULL_TEXT_STEM_BOOLEAN_TEST,
+    SXML_FULL_TEXT_STEM_CALL,
+    SXML_FULL_TEXT_STEM_RETURN,
+    SXML_FULL_TEXT_STEM_AMONG_FIND,
+    SXML_FULL_TEXT_STEM_AMONG_DISPATCH,
+} sxml_full_text_stem_opcode;
+
+/* count code points (or entries) from first. */
+typedef struct sxml_full_text_stem_span {
+    uint16_t first;
+    uint16_t count;
+} sxml_full_text_stem_span;
+
+/* One string of an among and the action it selects (from 1). */
+typedef struct sxml_full_text_stem_among_entry {
+    uint16_t string;
+    uint16_t result;
+} sxml_full_text_stem_among_entry;
+
+/* One compiled Snowball algorithm. Its routine "stem" starts at code 0.
+   Strings, groupings (sorted code points) and among entries (longest
+   first) are spans of characters and among_entries. */
+typedef struct sxml_full_text_stemmer_program {
+    const uint16_t *code;
+    size_t code_count;
+    const uint16_t *characters;
+    const sxml_full_text_stem_span *strings;
+    const sxml_full_text_stem_span *groupings;
+    const sxml_full_text_stem_among_entry *among_entries;
+    const sxml_full_text_stem_span *amongs;
+    size_t among_count;
+    uint16_t slot_count;
+    uint16_t limit_slot_count;
+    uint16_t integer_count;
+    uint16_t boolean_count;
+    uint16_t string_variable_count;
+    uint16_t call_depth;
+} sxml_full_text_stemmer_program;
+
+/* Indexed by sxml_full_text_language (src/full_text_stem_table.c). */
+extern const sxml_full_text_stemmer_program sxml_full_text_stemmer_programs[];
+
+/* The language of a language option's tag: its primary subtag, ASCII case
+   insensitive; English for an empty tag and for any other (3.4.1: FTST0009
+   has refused other languages statically). */
+sxml_full_text_language sxml_full_text_language_of(sxml_byte_view language_tag);
+
+/* The memory of the stemming machine, reused from word to word. */
+typedef struct sxml_full_text_stem_workspace {
+    sxml_allocator allocator;
+    /* The word's code points while it is stemmed. */
+    uint32_t *text;
+    size_t text_capacity;
+    /* String variables (Dutch's ch), text_capacity code points each. */
+    uint32_t *variables;
+    size_t variable_capacity;
+    /* Slots, limit slots, integers, booleans, among results and the
+       return stack. */
+    int32_t *registers;
+    size_t register_capacity;
+} sxml_full_text_stem_workspace;
+
+/* One word to stem. */
+typedef struct sxml_full_text_stem_request {
+    /* UTF-8; words longer than SXML_FULL_TEXT_MAXIMUM_STEMMED_LENGTH code
+       points are not stemmed (they are appended as they are). */
+    sxml_byte_view word;
+    sxml_full_text_language language;
+    sxml_full_text_stem_workspace *workspace;
+} sxml_full_text_stem_request;
+
+#define SXML_FULL_TEXT_MAXIMUM_STEMMED_LENGTH 256U
+
+/*
+ * Appends the stem of request->word to *output (whose allocator is set):
+ * the Snowball algorithm of request->language, run on the word as it is
+ * (Snowball's algorithms expect lowercase words; the caller folds first).
+ * Returns the allocator's failures, SXML_STATUS_LIMIT_EXCEEDED when a
+ * program runs past its step bound, and SXML_STATUS_INVALID_ARGUMENT for
+ * a program the generator cannot have made.
+ */
+SXML_NODISCARD sxml_status sxml_full_text_stem(const sxml_full_text_stem_request *request,
+                                               sxml_full_text_bytes *output);
+
+/* Releases what workspace holds and leaves it empty. */
+void sxml_full_text_stem_workspace_release(sxml_full_text_stem_workspace *workspace);
 
 /* A query token with wildcards and a folded token of the text. */
 typedef struct sxml_full_text_wildcard_request {

@@ -81,12 +81,16 @@ typedef struct folded_token {
 } folded_token;
 
 /* The text's tokens folded one way: variant number folds_case + 2 *
-   strips_diacritics. Made on first use. */
+   strips_diacritics + 4 * stems (3.4.4). Made on first use (a stemmed
+   variant again when another language asks for it). */
 typedef struct folded_variant {
     bool is_made;
+    sxml_full_text_language language;
     sxml_full_text_bytes bytes;
     folded_token *tokens;
 } folded_variant;
+
+#define SXML_FULL_TEXT_VARIANT_COUNT 8U
 
 /* One run of a program over one item's tokens. */
 typedef struct matcher {
@@ -102,7 +106,8 @@ typedef struct matcher {
     size_t stack_count;
     size_t stack_capacity;
     uint32_t next_query_position;
-    folded_variant variants[4];
+    folded_variant variants[SXML_FULL_TEXT_VARIANT_COUNT];
+    sxml_full_text_stem_workspace stem_workspace;
 } matcher;
 
 /* --------------------------------------------------------- Errors */
@@ -326,14 +331,42 @@ static sxml_status read_integer(const matcher *state, uint32_t member_number, in
 
 /* --------------------------------------------------- Text folding */
 
-/* Folds every token of the text as variant variant_number says. */
-static sxml_status make_variant(matcher *state, size_t variant_number) {
+/* Appends the stem of folded (3.4.4) to *output. */
+typedef struct stem_target {
+    sxml_byte_view folded;
+    sxml_full_text_language language;
+} stem_target;
+
+static sxml_status append_stem(matcher *state, stem_target target, sxml_full_text_bytes *output) {
+    return sxml_full_text_stem(&(sxml_full_text_stem_request){.word = target.folded,
+                                                               .language = target.language,
+                                                               .workspace = &state->stem_workspace},
+                               output);
+}
+
+/* A variant of the text's tokens. */
+typedef struct variant_choice {
+    size_t variant_number;
+    sxml_full_text_language language;
+} variant_choice;
+
+/* Folds every token of the text as variant variant_number says, and
+   stems it (in language) when the variant does. */
+static sxml_status make_variant(matcher *state, variant_choice choice) {
+    const size_t variant_number = choice.variant_number;
     folded_variant *variant = &state->variants[variant_number];
-    if (variant->is_made) {
+    const bool stems = (variant_number & 4U) != 0;
+    if (variant->is_made && (!stems || variant->language == choice.language)) {
         return SXML_STATUS_OK;
     }
+    sxml_full_text_bytes_release(&variant->bytes);
+    sxml_allocator_release(state->allocator, variant->tokens);
+    variant->tokens = NULL;
+    variant->is_made = false;
+    variant->language = choice.language;
     const sxml_full_text_search *search = &state->request->search;
     variant->bytes = (sxml_full_text_bytes){.allocator = state->allocator};
+    sxml_full_text_bytes folded = {.allocator = state->allocator};
     sxml_status status = SXML_STATUS_OK;
     if (search->token_count != 0) {
         status = sxml_allocator_allocate(
@@ -346,6 +379,7 @@ static sxml_status make_variant(matcher *state, size_t variant_number) {
          token_index += 1) {
         const sxml_full_text_token *token = &search->tokens[token_index];
         const size_t start = variant->bytes.byte_count;
+        folded.byte_count = 0;
         status = sxml_full_text_fold(
             &(sxml_full_text_fold_request){
                 .word = {.bytes = search->text.bytes + token->byte_offset,
@@ -353,7 +387,14 @@ static sxml_status make_variant(matcher *state, size_t variant_number) {
                 .folding = {.folds_case = (variant_number & 1U) != 0,
                             .strips_diacritics = (variant_number & 2U) != 0,
                             .uses_upper_case = false}},
-            &variant->bytes);
+            stems ? &folded : &variant->bytes);
+        if (status == SXML_STATUS_OK && stems) {
+            status = append_stem(
+                state,
+                (stem_target){.folded = {.bytes = folded.bytes, .byte_count = folded.byte_count},
+                              .language = choice.language},
+                &variant->bytes);
+        }
         if (status == SXML_STATUS_OK && variant->bytes.byte_count > UINT32_MAX) {
             status = SXML_STATUS_LIMIT_EXCEEDED;
         }
@@ -363,6 +404,7 @@ static sxml_status make_variant(matcher *state, size_t variant_number) {
                                .byte_count = (uint32_t)(variant->bytes.byte_count - start)};
         }
     }
+    sxml_full_text_bytes_release(&folded);
     variant->is_made = status == SXML_STATUS_OK;
     return status;
 }
@@ -411,6 +453,7 @@ typedef struct words_instruction {
     uint32_t words_member;
     sxml_full_text_any_all any_all;
     sxml_full_text_match_options options;
+    sxml_full_text_language language;
     uint32_t stop_words_member;
 } words_instruction;
 
@@ -425,9 +468,15 @@ static sxml_full_text_folding query_folding(const words_instruction *words) {
         .uses_upper_case = case_mode == SXML_FULL_TEXT_CASE_UPPERCASE};
 }
 
+/* Whether the words are stemmed (3.4.4; a query token with wildcards
+   is a pattern, not a word, so neither side is stemmed then). */
+static bool stems_words(const words_instruction *words) {
+    return words->options.uses_stemming && !words->options.uses_wildcards;
+}
+
 static size_t text_variant(const words_instruction *words) {
     return (words->options.case_mode == SXML_FULL_TEXT_CASE_INSENSITIVE ? 1U : 0U) +
-           (words->options.is_diacritics_sensitive ? 0U : 2U);
+           (words->options.is_diacritics_sensitive ? 0U : 2U) + (stems_words(words) ? 4U : 0U);
 }
 
 /* Whether folded is one of the stop words (each folded as the query). */
@@ -487,6 +536,7 @@ typedef struct query_string {
 static sxml_status add_query_string(matcher *state, query_string request,
                                     query_tokens *query) {
     sxml_full_text_token_list list = {.allocator = state->allocator};
+    sxml_full_text_bytes folded = {.allocator = state->allocator};
     sxml_status status =
         sxml_full_text_tokenize(&(sxml_full_text_source){.text = request.text,
                                                          .paragraph_breaks = NULL,
@@ -518,20 +568,26 @@ static sxml_status add_query_string(matcher *state, query_string request,
          token_index += 1) {
         const sxml_full_text_token *token = &list.tokens[token_index];
         const size_t start = query->bytes.byte_count;
+        folded.byte_count = 0;
         status = sxml_full_text_fold(
             &(sxml_full_text_fold_request){
                 .word = {.bytes = request.text.bytes + token->byte_offset,
                          .byte_count = token->byte_count},
                 .folding = query_folding(request.words)},
-            &query->bytes);
+            &folded);
+        const sxml_byte_view folded_word = {.bytes = folded.bytes, .byte_count = folded.byte_count};
         answer is_stop = {.is_true = false};
         if (status == SXML_STATUS_OK) {
             status = is_stop_word(
-                state,
-                (stop_word_check){.words = request.words,
-                                  .folded = {.bytes = query->bytes.bytes + start,
-                                             .byte_count = query->bytes.byte_count - start}},
-                &is_stop);
+                state, (stop_word_check){.words = request.words, .folded = folded_word}, &is_stop);
+        }
+        if (status == SXML_STATUS_OK) {
+            status = stems_words(request.words)
+                         ? append_stem(state,
+                                       (stem_target){.folded = folded_word,
+                                                     .language = request.words->language},
+                                       &query->bytes)
+                         : sxml_full_text_append_text(&query->bytes, folded_word);
         }
         if (status == SXML_STATUS_OK) {
             query->tokens[query->token_count] =
@@ -544,6 +600,7 @@ static sxml_status add_query_string(matcher *state, query_string request,
     if (status == SXML_STATUS_OK) {
         query->string_starts[query->string_count] = query->token_count;
     }
+    sxml_full_text_bytes_release(&folded);
     sxml_full_text_token_list_release(&list);
     return status;
 }
@@ -762,7 +819,9 @@ static sxml_status apply_words(matcher *state, const words_instruction *words,
     sxml_status status = read_query(state, words, &query);
     sxml_status variant_status = SXML_STATUS_OK;
     if (status == SXML_STATUS_OK) {
-        variant_status = make_variant(state, text_variant(words));
+        variant_status = make_variant(
+            state,
+            (variant_choice){.variant_number = text_variant(words), .language = words->language});
         status = variant_status;
     }
     all_matches combined = {.first_match = state->match_count, .match_count = 0};
@@ -1754,7 +1813,8 @@ static sxml_status read_instruction(sxml_byte_view text, size_t *byte_offset,
 static sxml_status decode_words(const instruction *decoded, words_instruction *words) {
     if (decoded->argument_count != SXML_FULL_TEXT_MAXIMUM_ARGUMENT_COUNT ||
         decoded->arguments[1] > (uint32_t)SXML_FULL_TEXT_ANY_ALL_ALL_WORDS ||
-        decoded->arguments[2] > (uint32_t)SXML_FULL_TEXT_CASE_UPPERCASE) {
+        decoded->arguments[2] > (uint32_t)SXML_FULL_TEXT_CASE_UPPERCASE ||
+        decoded->arguments[6] >= SXML_FULL_TEXT_LANGUAGE_COUNT) {
         return SXML_STATUS_INVALID_ARGUMENT;
     }
     *words = (words_instruction){
@@ -1764,6 +1824,7 @@ static sxml_status decode_words(const instruction *decoded, words_instruction *w
                     .is_diacritics_sensitive = decoded->arguments[3] != 0,
                     .uses_stemming = decoded->arguments[4] != 0,
                     .uses_wildcards = decoded->arguments[5] != 0},
+        .language = (sxml_full_text_language)decoded->arguments[6],
         .stop_words_member = decoded->arguments[7]};
     return SXML_STATUS_OK;
 }
@@ -1855,10 +1916,11 @@ static void release_matcher(matcher *state) {
     sxml_allocator_release(state->allocator, state->string_matches);
     sxml_allocator_release(state->allocator, state->matches);
     sxml_allocator_release(state->allocator, state->stack);
-    for (size_t variant = 0; variant < 4; variant += 1) {
+    for (size_t variant = 0; variant < SXML_FULL_TEXT_VARIANT_COUNT; variant += 1) {
         sxml_full_text_bytes_release(&state->variants[variant].bytes);
         sxml_allocator_release(state->allocator, state->variants[variant].tokens);
     }
+    sxml_full_text_stem_workspace_release(&state->stem_workspace);
 }
 
 sxml_status sxml_full_text_run(const sxml_full_text_run_request *request,
@@ -1867,9 +1929,10 @@ sxml_status sxml_full_text_run(const sxml_full_text_run_request *request,
     matcher state = {.request = request,
                      .allocator = sxml_item_heap_as_allocator(request->call->item_heap),
                      .next_query_position = 1};
-    for (size_t variant = 0; variant < 4; variant += 1) {
+    for (size_t variant = 0; variant < SXML_FULL_TEXT_VARIANT_COUNT; variant += 1) {
         state.variants[variant].bytes.allocator = state.allocator;
     }
+    state.stem_workspace.allocator = state.allocator;
     sxml_sequence program_text;
     sxml_status status = sxml_array_get_member(request->program, 0, &program_text);
     sxml_item text_item;

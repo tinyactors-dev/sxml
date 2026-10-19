@@ -216,6 +216,14 @@ static const query_case query_cases[] = {
                 "$t contains text ('CAFÉ' using uppercase) using case insensitive, "
                 "$t contains text 'café' using lowercase)",
                 "false true false true true true true false false"),
+    /* 3.4.4: stemming, by the language's Snowball stemmer. */
+    QUERY_VALUE("stemming",
+                "('Improving the usability' contains text 'improve' using stemming, "
+                "'Improving' contains text 'improve', "
+                "'Die Häuser' contains text 'haus' using stemming using language 'de', "
+                "'performed tests' contains text 'perform test' using stemming, "
+                "'performed' contains text 'perform.*' using stemming using wildcards)",
+                "true false true true true"),
     /* 3.7: without content. */
     QUERY_VALUE("ignore",
                 "let $d := <d>a <n>b</n> c</d> return ($d contains text 'a c', "

@@ -57,7 +57,7 @@ void sxml_full_text_token_list_release(sxml_full_text_token_list *list) {
 }
 
 /* Appends bytes to output, growing it. */
-static sxml_status append_bytes(sxml_full_text_bytes *output, sxml_byte_view bytes) {
+sxml_status sxml_full_text_append_text(sxml_full_text_bytes *output, sxml_byte_view bytes) {
     if (bytes.byte_count == 0) {
         return SXML_STATUS_OK;
     }
@@ -89,7 +89,7 @@ static sxml_status append_bytes(sxml_full_text_bytes *output, sxml_byte_view byt
 }
 
 /* Appends codepoint as UTF-8. */
-static sxml_status append_codepoint(sxml_full_text_bytes *output, uint32_t codepoint) {
+sxml_status sxml_full_text_append_codepoint(sxml_full_text_bytes *output, uint32_t codepoint) {
     uint8_t encoded[4];
     size_t byte_count = 0;
     if (codepoint < 0x80U) {
@@ -111,7 +111,7 @@ static sxml_status append_codepoint(sxml_full_text_bytes *output, uint32_t codep
         encoded[3] = (uint8_t)(0x80U | (codepoint & 0x3FU));
         byte_count = 4;
     }
-    return append_bytes(output, (sxml_byte_view){.bytes = encoded, .byte_count = byte_count});
+    return sxml_full_text_append_text(output, (sxml_byte_view){.bytes = encoded, .byte_count = byte_count});
 }
 
 void sxml_full_text_bytes_release(sxml_full_text_bytes *output) {
@@ -342,7 +342,7 @@ static sxml_status fold_case(const sxml_full_text_fold_request *request,
         const sxml_xml_decoded_codepoint decoded = sxml_xml_decode_codepoint(word, byte_offset);
         byte_offset += decoded.encoded_byte_count;
         if (!request->folding.folds_case) {
-            status = append_codepoint(output, decoded.codepoint);
+            status = sxml_full_text_append_codepoint(output, decoded.codepoint);
             continue;
         }
         sxml_case_mapping mapping;
@@ -355,7 +355,7 @@ static sxml_status fold_case(const sxml_full_text_fold_request *request,
         for (size_t mapped_index = 0;
              status == SXML_STATUS_OK && mapped_index < mapping.codepoint_count;
              mapped_index += 1) {
-            status = append_codepoint(output, mapping.codepoints[mapped_index]);
+            status = sxml_full_text_append_codepoint(output, mapping.codepoints[mapped_index]);
         }
     }
     return status;
@@ -390,7 +390,7 @@ sxml_status sxml_full_text_fold(const sxml_full_text_fold_request *request,
         byte_offset += decoded.encoded_byte_count;
         if (sxml_regex_get_general_category(decoded.codepoint) !=
             SXML_REGEX_GENERAL_CATEGORY_MN) {
-            status = append_codepoint(output, decoded.codepoint);
+            status = sxml_full_text_append_codepoint(output, decoded.codepoint);
         }
     }
     sxml_unicode_normalized_text_release(&decomposed);
