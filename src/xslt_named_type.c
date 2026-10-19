@@ -27,9 +27,10 @@
  * with the same import precedence and none higher), XTSE4035, XTSE4050
  * (two fields of a record of one name), and those of resolving the types.
  *
- * Not done (delayed, D162): the constructor function of constructor="yes"
- * (5.4.2.2) and the initial values of fields; a record type with a
- * constructor is declared, and calling the constructor is XPST0017.
+ * The constructor function of constructor="yes" (5.4.2.2) is the implicit
+ * xsl:function the reader synthesizes beside the declaration
+ * (src/xslt_read.c, add_record_constructor). Not done (delayed, D162):
+ * the initial values of fields in coercions and casts.
  */
 #include "xslt_lower_internal.h"
 

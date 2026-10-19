@@ -217,6 +217,9 @@ typedef struct scope_run {
     const scope_plan *plan;
     sxml_schema_report_sink report_sink;
     sxml_error_record *schema_error;
+    /* Validation Root Valid (ID/IDREF) is not applied
+       (sxml_schema_scope_validate_node). */
+    bool skips_id_constraints;
 } scope_run;
 
 static sxml_status run_validation(const sxml_function_call *call, const scope_run *run,
@@ -226,16 +229,19 @@ static sxml_status run_validation(const sxml_function_call *call, const scope_ru
     }
     memset(run->schema_error, 0, sizeof *run->schema_error);
     const sxml_item node = sxml_node_item_make(run->validation->node);
-    const sxml_status status = sxml_schema_validate_node(
+    const sxml_status status = sxml_schema_scope_validate_node(
         run->plan->schema,
-        &(sxml_schema_validation_request){
-            .node = node,
-            .validation_mode = run->validation->mode == SXML_SCHEMA_VALIDATE_MODE_LAX
-                                   ? SXML_VALIDATION_MODE_LAX
-                                   : SXML_VALIDATION_MODE_STRICT,
-            .governing_type = run->plan->governing_type,
-            .report_sink = run->report_sink,
-            .error_record = run->schema_error},
+        &(sxml_schema_node_validation){
+            .request =
+                &(sxml_schema_validation_request){
+                    .node = node,
+                    .validation_mode = run->validation->mode == SXML_SCHEMA_VALIDATE_MODE_LAX
+                                           ? SXML_VALIDATION_MODE_LAX
+                                           : SXML_VALIDATION_MODE_STRICT,
+                    .governing_type = run->plan->governing_type,
+                    .report_sink = run->report_sink,
+                    .error_record = run->schema_error},
+            .skips_id_constraints = run->skips_id_constraints},
         validated);
     sxml_item_release(node);
     return status;
@@ -489,11 +495,15 @@ static sxml_status validate_xslt_item(const sxml_function_call *call, const xslt
     }
     sxml_error_record schema_error;
     memset(&schema_error, 0, sizeof schema_error);
+    /* 25.2: Validation Root Valid (ID/IDREF) is applied to the element of
+       a document, not to an element validated by itself (25.1.1). */
     status = run_validation(call,
                             &(scope_run){.validation = &validation,
                                          .plan = &plan,
                                          .report_sink = {.state = NULL, .operations = NULL},
-                                         .schema_error = &schema_error},
+                                         .schema_error = &schema_error,
+                                         .skips_id_constraints =
+                                             description.node_kind != SXML_NODE_KIND_DOCUMENT},
                             validated);
     if (status == SXML_STATUS_DYNAMIC_ERROR) {
         /* XSLT 4.0, 25: these are type errors. */

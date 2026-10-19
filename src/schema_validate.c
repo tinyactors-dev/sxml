@@ -19,6 +19,8 @@
  */
 #include "schema_validate_internal.h"
 
+#include "schema_scope_internal.h"
+
 #include "cast_internal.h"
 #include "processor_internal.h"
 #include "sxml/name.h"
@@ -2302,8 +2304,9 @@ static sxml_byte_view base_uri_text(const node_validation *validation) {
 }
 
 static sxml_status copy_through_validator(const sxml_schema *schema,
-                                          const sxml_schema_validation_request *request,
+                                          const sxml_schema_node_validation *node_validation_request,
                                           node_validation *validation) {
+    const sxml_schema_validation_request *request = node_validation_request->request;
     sxml_processor *processor = schema->processor;
     sxml_node_reference node = {.tree = NULL, .node_index = {.index = 0}, .namespace_number = 0};
     sxml_status status = sxml_item_get_node(request->node, &node);
@@ -2350,6 +2353,7 @@ static sxml_status copy_through_validator(const sxml_schema *schema,
             &validation->validator);
     }
     if (status == SXML_STATUS_OK) {
+        validation->validator->skips_id_constraints = node_validation_request->skips_id_constraints;
         /* XSD assesses the infoset, not earlier annotations
            (include/sxml/schema.h). */
         status = sxml_tree_builder_copy_node(
@@ -2365,7 +2369,16 @@ static sxml_status copy_through_validator(const sxml_schema *schema,
 sxml_status sxml_schema_validate_node(const sxml_schema *schema,
                                       const sxml_schema_validation_request *request,
                                       sxml_item *validated_node) {
-    if (schema == NULL || request == NULL || validated_node == NULL) {
+    return sxml_schema_scope_validate_node(
+        schema,
+        &(sxml_schema_node_validation){.request = request, .skips_id_constraints = false},
+        validated_node);
+}
+
+sxml_status sxml_schema_scope_validate_node(const sxml_schema *schema,
+                                            const sxml_schema_node_validation *request,
+                                            sxml_item *validated_node) {
+    if (schema == NULL || request == NULL || request->request == NULL || validated_node == NULL) {
         return SXML_STATUS_INVALID_ARGUMENT;
     }
     node_validation validation = {

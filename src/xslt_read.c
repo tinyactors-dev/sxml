@@ -24,6 +24,7 @@
 #include "tree_internal.h"
 #include "xdm_internal.h"
 #include "xpath_ast_internal.h"
+#include "xslt_snippet_text_internal.h"
 #include "xslt_static_internal.h"
 #include "xslt_value_template_internal.h"
 
@@ -5475,6 +5476,399 @@ static sxml_status flush_text(stylesheet_reader *reader, text_end end) {
     return status;
 }
 
+/* ------------------------------------------- Record constructor functions */
+
+/*
+ * 5.4.2.2: an xsl:record-type with constructor="yes" generates an
+ * implicit xsl:function, which is synthesized here, beside the
+ * declaration, as the specification writes it:
+ *
+ *     <xsl:function name="N" as="N" visibility="V">
+ *       <xsl:param name="F" as="T" [required="no" select="S"]/>...
+ *       <xsl:map>
+ *         <xsl:map-entry key="'F'" select="$F"/>...      (a static field:
+ *       </xsl:map>                                      its own select)
+ *     </xsl:function>
+ *
+ * The as and select expressions of the fields are shared with the
+ * synthesized attributes. An initial value given as a sequence
+ * constructor is not supported: such a field gets no default, and a
+ * static one is the empty sequence (delayed, D162).
+ */
+typedef struct synthesized_node {
+    sxml_xslt_ast_kind kind;
+    sxml_xslt_ast_node_index parent;
+    /* The record type or field it stands for (module, element, context). */
+    sxml_xslt_ast_node_index origin;
+} synthesized_node;
+
+static sxml_status add_synthesized_node(stylesheet_reader *reader, synthesized_node request,
+                                        sxml_xslt_ast_node_index *node) {
+    const sxml_xslt_ast_node *origin = sxml_xslt_ast_get_node(reader->ast, request.origin);
+    const uint32_t declaration_flag =
+        request.kind == SXML_XSLT_AST_KIND_FUNCTION ? SXML_XSLT_AST_NODE_FLAG_DECLARATION : 0U;
+    const sxml_xslt_ast_node_request node_request = {
+        .kind = request.kind,
+        .flags = SXML_XSLT_AST_NODE_FLAG_SYNTHESIZED | declaration_flag,
+        .module = origin->module,
+        .source_node = origin->source_node,
+        .static_context = origin->static_context,
+        .element_name = {.index = 0},
+        .namespace_prefix = {.index = 0},
+        .content = {.kind = SXML_XSLT_AST_VALUE_KIND_NONE},
+        .source_span = origin->source_span};
+    sxml_status status = sxml_xslt_ast_add_node(reader->ast, &node_request, node);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xslt_ast_append_child(
+            reader->ast, (sxml_xslt_ast_child_request){.parent = request.parent, .child = *node});
+    }
+    return status;
+}
+
+/* An attribute of the node added last. */
+typedef struct synthesized_attribute {
+    sxml_xslt_ast_node_index node;
+    sxml_xslt_ast_attribute_kind kind;
+    const char *local_name;
+} synthesized_attribute;
+
+static sxml_status add_synthesized_attribute(stylesheet_reader *reader,
+                                             const synthesized_attribute *request,
+                                             sxml_xslt_ast_value value) {
+    sxml_name_identifier name = {.index = 0};
+    sxml_status status = sxml_name_pool_intern_name(
+        reader->name_pool,
+        &(sxml_name_request){.namespace_uri = {.index = SXML_NAMESPACE_NONE},
+                             .local_name = sxml_byte_view_from_c_string(request->local_name)},
+        &name);
+    sxml_xslt_ast_attribute_index attribute = {.value = 0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xslt_ast_add_attribute(
+            reader->ast,
+            &(sxml_xslt_ast_attribute_request){
+                .node = request->node,
+                .kind = request->kind,
+                .flags = SXML_XSLT_AST_ATTRIBUTE_FLAG_SYNTHESIZED,
+                .attribute_name = name,
+                .namespace_prefix = {.index = 0},
+                .value = value,
+                .source_span = sxml_xslt_ast_get_node(reader->ast, request->node)->source_span},
+            &attribute);
+    }
+    return status;
+}
+
+/* An expression (or sequence type) of text, parsed for node. */
+typedef struct synthesized_expression {
+    sxml_xslt_ast_value_kind kind;
+    sxml_byte_view text;
+    sxml_xslt_ast_node_index node;
+} synthesized_expression;
+
+static sxml_status add_synthesized_expression(stylesheet_reader *reader,
+                                              const synthesized_expression *request,
+                                              sxml_xslt_ast_value *value) {
+    const sxml_xslt_ast_node *node = sxml_xslt_ast_get_node(reader->ast, request->node);
+    sxml_ast *expression_ast = NULL;
+    sxml_status status = parse_expression(reader,
+                                          &(expression_text){.kind = request->kind,
+                                                             .text = request->text,
+                                                             .module = node->module,
+                                                             .source_span = node->source_span},
+                                          &expression_ast);
+    sxml_xslt_ast_expression_index expression = {.value = 0};
+    if (status == SXML_STATUS_OK) {
+        status = hand_over_expression(reader,
+                                      &(expression_handover){.kind = request->kind,
+                                                             .expression_ast = expression_ast,
+                                                             .static_context = node->static_context,
+                                                             .node = request->node,
+                                                             .source_span = node->source_span},
+                                      &expression);
+    }
+    *value = (sxml_xslt_ast_value){.kind = request->kind, .payload = {.expression = expression}};
+    return status;
+}
+
+/* The value of node's attribute of kind; kind NONE when it has none. */
+static sxml_xslt_ast_value attribute_value_of(const stylesheet_reader *reader,
+                                              sxml_xslt_ast_node_index node,
+                                              sxml_xslt_ast_attribute_kind kind) {
+    return sxml_xslt_ast_get_attribute(
+               reader->ast, sxml_xslt_ast_find_attribute(
+                                reader->ast, (sxml_xslt_ast_attribute_query){.node = node, .kind = kind}))
+        ->value;
+}
+
+/* Text for a name: "Q{uri}local" (as) or "'local'" (a key) or "$local"
+   (a parameter reference), in the snippet text. */
+typedef enum name_text_form {
+    SXML_NAME_TEXT_FORM_BRACED,
+    SXML_NAME_TEXT_FORM_STRING,
+    SXML_NAME_TEXT_FORM_VARIABLE,
+} name_text_form;
+
+typedef struct name_text {
+    sxml_name_identifier name;
+    name_text_form form;
+} name_text;
+
+static sxml_status write_name_text(const stylesheet_reader *reader, name_text request,
+                                   sxml_xslt_snippet_text *text) {
+    sxml_name_parts parts = {.namespace_uri = {.index = 0},
+                             .local_name = {.bytes = NULL, .byte_count = 0}};
+    sxml_status status = sxml_name_pool_get_name_parts(reader->name_pool, request.name, &parts);
+    sxml_byte_view uri = {.bytes = NULL, .byte_count = 0};
+    if (status == SXML_STATUS_OK && request.form == SXML_NAME_TEXT_FORM_BRACED) {
+        status = sxml_name_pool_get_namespace_uri(reader->name_pool, parts.namespace_uri, &uri);
+    }
+    text->byte_count = 0;
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    switch (request.form) {
+    case SXML_NAME_TEXT_FORM_BRACED:
+        SXML_XSLT_SNIPPET_APPEND(text, "Q{");
+        sxml_xslt_snippet_text_append(text, uri);
+        SXML_XSLT_SNIPPET_APPEND(text, "}");
+        sxml_xslt_snippet_text_append(text, parts.local_name);
+        break;
+    case SXML_NAME_TEXT_FORM_STRING:
+        sxml_xslt_snippet_text_append_string_literal(text, parts.local_name);
+        break;
+    case SXML_NAME_TEXT_FORM_VARIABLE:
+        SXML_XSLT_SNIPPET_APPEND(text, "$");
+        sxml_xslt_snippet_text_append(text, parts.local_name);
+        break;
+    }
+    return text->status;
+}
+
+/* The reader and the snippet text the synthesized expressions are
+   written in. */
+typedef struct constructor_synthesis {
+    stylesheet_reader *reader;
+    sxml_xslt_snippet_text text;
+} constructor_synthesis;
+
+/* The function node and its attributes. */
+static sxml_status add_constructor_function(constructor_synthesis *synthesis,
+                                            sxml_xslt_ast_node_index record_type,
+                                            sxml_xslt_ast_node_index *function) {
+    stylesheet_reader *reader = synthesis->reader;
+    sxml_xslt_snippet_text *text = &synthesis->text;
+    const sxml_xslt_ast_value name =
+        attribute_value_of(reader, record_type, SXML_XSLT_AST_ATTRIBUTE_NAME);
+    const sxml_xslt_ast_value visibility =
+        attribute_value_of(reader, record_type, SXML_XSLT_AST_ATTRIBUTE_VISIBILITY);
+    sxml_status status = add_synthesized_node(
+        reader,
+        (synthesized_node){.kind = SXML_XSLT_AST_KIND_FUNCTION,
+                           .parent = sxml_xslt_ast_get_node(reader->ast, record_type)->parent,
+                           .origin = record_type},
+        function);
+    if (status == SXML_STATUS_OK) {
+        status = add_synthesized_attribute(
+            reader,
+            &(synthesized_attribute){
+                .node = *function, .kind = SXML_XSLT_AST_ATTRIBUTE_NAME, .local_name = "name"},
+            name);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = write_name_text(
+            reader, (name_text){.name = name.payload.name, .form = SXML_NAME_TEXT_FORM_BRACED},
+            text);
+    }
+    sxml_xslt_ast_value type = {.kind = SXML_XSLT_AST_VALUE_KIND_NONE};
+    if (status == SXML_STATUS_OK) {
+        /* "with no occurrence indicator": the record type itself. */
+        status = add_synthesized_expression(
+            reader,
+            &(synthesized_expression){.kind = SXML_XSLT_AST_VALUE_KIND_SEQUENCE_TYPE,
+                                      .text = sxml_xslt_snippet_text_view(text),
+                                      .node = *function},
+            &type);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = add_synthesized_attribute(
+            reader,
+            &(synthesized_attribute){
+                .node = *function, .kind = SXML_XSLT_AST_ATTRIBUTE_AS, .local_name = "as"},
+            type);
+    }
+    if (status == SXML_STATUS_OK && visibility.kind != SXML_XSLT_AST_VALUE_KIND_NONE) {
+        status = add_synthesized_attribute(
+            reader,
+            &(synthesized_attribute){.node = *function,
+                                     .kind = SXML_XSLT_AST_ATTRIBUTE_VISIBILITY,
+                                     .local_name = "visibility"},
+            visibility);
+    }
+    return status;
+}
+
+/* True when the field is static="yes". */
+static bool is_static_field(const stylesheet_reader *reader, sxml_xslt_ast_node_index field) {
+    const sxml_xslt_ast_value value =
+        attribute_value_of(reader, field, SXML_XSLT_AST_ATTRIBUTE_STATIC);
+    return value.kind == SXML_XSLT_AST_VALUE_KIND_BOOLEAN && value.payload.is_true;
+}
+
+/* The xsl:param of a non-static field. */
+static sxml_status add_constructor_parameter(stylesheet_reader *reader,
+                                             sxml_xslt_ast_node_index function,
+                                             sxml_xslt_ast_node_index field) {
+    const sxml_xslt_ast_value type = attribute_value_of(reader, field, SXML_XSLT_AST_ATTRIBUTE_AS);
+    const sxml_xslt_ast_value select =
+        attribute_value_of(reader, field, SXML_XSLT_AST_ATTRIBUTE_SELECT);
+    sxml_xslt_ast_node_index parameter = {.value = 0};
+    sxml_status status = add_synthesized_node(
+        reader,
+        (synthesized_node){.kind = SXML_XSLT_AST_KIND_PARAM, .parent = function, .origin = field},
+        &parameter);
+    if (status == SXML_STATUS_OK) {
+        status = add_synthesized_attribute(
+            reader,
+            &(synthesized_attribute){
+                .node = parameter, .kind = SXML_XSLT_AST_ATTRIBUTE_NAME, .local_name = "name"},
+            attribute_value_of(reader, field, SXML_XSLT_AST_ATTRIBUTE_NAME));
+    }
+    if (status == SXML_STATUS_OK && type.kind != SXML_XSLT_AST_VALUE_KIND_NONE) {
+        status = add_synthesized_attribute(
+            reader,
+            &(synthesized_attribute){
+                .node = parameter, .kind = SXML_XSLT_AST_ATTRIBUTE_AS, .local_name = "as"},
+            type);
+    }
+    if (status == SXML_STATUS_OK && select.kind == SXML_XSLT_AST_VALUE_KIND_EXPRESSION) {
+        status = add_synthesized_attribute(
+            reader,
+            &(synthesized_attribute){.node = parameter,
+                                     .kind = SXML_XSLT_AST_ATTRIBUTE_REQUIRED,
+                                     .local_name = "required"},
+            (sxml_xslt_ast_value){.kind = SXML_XSLT_AST_VALUE_KIND_BOOLEAN,
+                                  .payload = {.is_true = false}});
+        if (status == SXML_STATUS_OK) {
+            status = add_synthesized_attribute(
+                reader,
+                &(synthesized_attribute){.node = parameter,
+                                         .kind = SXML_XSLT_AST_ATTRIBUTE_SELECT,
+                                         .local_name = "select"},
+                select);
+        }
+    }
+    return status;
+}
+
+/* The xsl:map-entry of a field. */
+static sxml_status add_constructor_entry(constructor_synthesis *synthesis,
+                                         sxml_xslt_ast_node_index map,
+                                         sxml_xslt_ast_node_index field) {
+    stylesheet_reader *reader = synthesis->reader;
+    sxml_xslt_snippet_text *text = &synthesis->text;
+    const sxml_xslt_ast_value name =
+        attribute_value_of(reader, field, SXML_XSLT_AST_ATTRIBUTE_NAME);
+    sxml_xslt_ast_node_index entry = {.value = 0};
+    sxml_status status = add_synthesized_node(
+        reader,
+        (synthesized_node){.kind = SXML_XSLT_AST_KIND_MAP_ENTRY, .parent = map, .origin = field},
+        &entry);
+    if (status == SXML_STATUS_OK) {
+        status = write_name_text(
+            reader, (name_text){.name = name.payload.name, .form = SXML_NAME_TEXT_FORM_STRING},
+            text);
+    }
+    sxml_xslt_ast_value key = {.kind = SXML_XSLT_AST_VALUE_KIND_NONE};
+    if (status == SXML_STATUS_OK) {
+        status = add_synthesized_expression(
+            reader,
+            &(synthesized_expression){.kind = SXML_XSLT_AST_VALUE_KIND_EXPRESSION,
+                                      .text = sxml_xslt_snippet_text_view(text),
+                                      .node = entry},
+            &key);
+    }
+    sxml_xslt_ast_value select = {.kind = SXML_XSLT_AST_VALUE_KIND_NONE};
+    if (status == SXML_STATUS_OK && is_static_field(reader, field)) {
+        select = attribute_value_of(reader, field, SXML_XSLT_AST_ATTRIBUTE_SELECT);
+        if (select.kind != SXML_XSLT_AST_VALUE_KIND_EXPRESSION) {
+            status = add_synthesized_expression(
+                reader,
+                &(synthesized_expression){.kind = SXML_XSLT_AST_VALUE_KIND_EXPRESSION,
+                                          .text = SXML_BYTE_VIEW_FROM_LITERAL("()"),
+                                          .node = entry},
+                &select);
+        }
+    } else if (status == SXML_STATUS_OK) {
+        status = write_name_text(
+            reader, (name_text){.name = name.payload.name, .form = SXML_NAME_TEXT_FORM_VARIABLE},
+            text);
+        if (status == SXML_STATUS_OK) {
+            status = add_synthesized_expression(
+                reader,
+                &(synthesized_expression){.kind = SXML_XSLT_AST_VALUE_KIND_EXPRESSION,
+                                          .text = sxml_xslt_snippet_text_view(text),
+                                          .node = entry},
+                &select);
+        }
+    }
+    /* The node's attributes must follow it: the expressions are made
+       first, then both attributes. */
+    if (status == SXML_STATUS_OK) {
+        status = add_synthesized_attribute(
+            reader,
+            &(synthesized_attribute){
+                .node = entry, .kind = SXML_XSLT_AST_ATTRIBUTE_KEY, .local_name = "key"},
+            key);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = add_synthesized_attribute(
+            reader,
+            &(synthesized_attribute){
+                .node = entry, .kind = SXML_XSLT_AST_ATTRIBUTE_SELECT, .local_name = "select"},
+            select);
+    }
+    return status;
+}
+
+static sxml_status add_record_constructor(stylesheet_reader *reader,
+                                          sxml_xslt_ast_node_index record_type) {
+    const sxml_xslt_ast_value constructor =
+        attribute_value_of(reader, record_type, SXML_XSLT_AST_ATTRIBUTE_CONSTRUCTOR);
+    if (constructor.kind != SXML_XSLT_AST_VALUE_KIND_BOOLEAN || !constructor.payload.is_true) {
+        return SXML_STATUS_OK;
+    }
+    constructor_synthesis synthesis = {
+        .reader = reader, .text = {.allocator = reader->allocator, .status = SXML_STATUS_OK}};
+    sxml_xslt_ast_node_index function = {.value = 0};
+    sxml_status status = add_constructor_function(&synthesis, record_type, &function);
+    const sxml_xslt_ast_node_index first_field =
+        sxml_xslt_ast_get_node(reader->ast, record_type)->first_child;
+    for (sxml_xslt_ast_node_index field = first_field;
+         status == SXML_STATUS_OK && field.value != 0;
+         field = sxml_xslt_ast_get_node(reader->ast, field)->next_sibling) {
+        if (sxml_xslt_ast_get_node(reader->ast, field)->kind == SXML_XSLT_AST_KIND_FIELD &&
+            !is_static_field(reader, field)) {
+            status = add_constructor_parameter(reader, function, field);
+        }
+    }
+    sxml_xslt_ast_node_index map = {.value = 0};
+    if (status == SXML_STATUS_OK) {
+        status = add_synthesized_node(
+            reader,
+            (synthesized_node){.kind = SXML_XSLT_AST_KIND_MAP, .parent = function, .origin = record_type},
+            &map);
+    }
+    for (sxml_xslt_ast_node_index field = first_field;
+         status == SXML_STATUS_OK && field.value != 0;
+         field = sxml_xslt_ast_get_node(reader->ast, field)->next_sibling) {
+        if (sxml_xslt_ast_get_node(reader->ast, field)->kind == SXML_XSLT_AST_KIND_FIELD) {
+            status = add_constructor_entry(&synthesis, map, field);
+        }
+    }
+    sxml_xslt_snippet_text_release(&synthesis.text);
+    return status;
+}
+
 /* A frame whose children are all read: its required child (XTSE0010). */
 static sxml_status end_frame(stylesheet_reader *reader, size_t frame_index) {
     const open_element *frame = frame_at(reader, frame_index);
@@ -5498,6 +5892,9 @@ static sxml_status end_frame(stylesheet_reader *reader, size_t frame_index) {
                                                          "element syntax)",
                                           .module = frame->module,
                                           .source_span = location_of(frame->tree, frame->element)});
+    }
+    if (frame->rule != NULL && frame->rule->kind == SXML_XSLT_AST_KIND_RECORD_TYPE) {
+        return add_record_constructor(reader, frame->node);
     }
     return SXML_STATUS_OK;
 }

@@ -276,3 +276,20 @@ typedef struct sxml_function_namespace_validation {
 
 SXML_NODISCARD sxml_status sxml_schema_scope_validate_by_function_namespace(
     const sxml_function_call *call, const sxml_function_namespace_validation *validation);
+
+/*
+ * sxml_schema_validate_node (include/sxml/schema.h) for
+ * validation->request; with skips_id_constraints the rule Validation Root
+ * Valid (ID/IDREF) of the validation root (XSD 1.1, Part 1, 3.17.4.2:
+ * cvc-id.1, cvc-id.2) is not applied, as XSLT asks when it validates an
+ * element (XSLT 4.0, 25.2: the rule is applied to a document's element).
+ * IDs are still IDs (is-id). src/schema_validate.c.
+ */
+typedef struct sxml_schema_node_validation {
+    const sxml_schema_validation_request *request;
+    bool skips_id_constraints;
+} sxml_schema_node_validation;
+
+SXML_NODISCARD sxml_status sxml_schema_scope_validate_node(
+    const sxml_schema *schema, const sxml_schema_node_validation *validation,
+    sxml_item *validated_node);

@@ -3948,7 +3948,11 @@ static sxml_status start_closure(sxml_xpath_lowering_machine *machine,
                                 .captured_variables = {0},
                                 .defining_function = lowerer->function->function_index,
                                 .slot_count = slot_count,
-                                .body = {.value = 0}},
+                                .body = {.value = 0},
+                                /* Its stylesheet module: a dynamic error in
+                                   the body names it (D169). */
+                                .module_number = sxml_xslt_lowering_module_of_node(
+                                    locals->head.lowering, locals->head.node)},
             &locals->closure);
     }
     if (status != SXML_STATUS_OK) {

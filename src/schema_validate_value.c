@@ -665,6 +665,9 @@ sxml_status sxml_schema_id_table_add_idref(sxml_schema_id_table *id_table,
 sxml_status sxml_schema_id_table_check_idrefs(sxml_schema_id_table *id_table,
                                               sxml_schema_validator *validator) {
     sxml_status status = SXML_STATUS_OK;
+    if (validator->skips_id_constraints) {
+        return SXML_STATUS_OK;
+    }
     for (size_t reference_index = 0;
          status == SXML_STATUS_OK && reference_index < id_table->references.entry_count;
          reference_index += 1) {
@@ -906,7 +909,8 @@ static sxml_status examine_items(sxml_schema_validator *validator, value_items i
                                               .element_number = items.element_number},
                     &id_outcome);
             }
-            if (status == SXML_STATUS_OK && id_outcome.is_duplicate) {
+            if (status == SXML_STATUS_OK && id_outcome.is_duplicate &&
+                !validator->skips_id_constraints) {
                 /* 3.17.4.2, clause 2: no two IDs are equal. */
                 sxml_schema_message message =
                     subject_message(items.subject, duplicate_id_templates);

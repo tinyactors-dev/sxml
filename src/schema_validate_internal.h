@@ -258,6 +258,9 @@ struct sxml_schema_validator {
        zero byte (ENTITY values, Part 2, 3.3.20). */
     sxml_schema_scratch_array entity_names;
     struct sxml_schema_id_table id_table;
+    /* cvc-id.1 and cvc-id.2 are not reported
+       (sxml_schema_scope_validate_node). */
+    bool skips_id_constraints;
     sxml_schema_subtree_recorder recorder;
     /* The tree so far: a document was started; the root has ended. */
     bool is_document;

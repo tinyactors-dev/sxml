@@ -198,6 +198,52 @@ static sxml_status report_static_error(const sxml_xslt_lowering *lowering,
         (sxml_xslt_static_error){.node = node, .code_and_description = code_and_description});
 }
 
+/* The input-type-annotations of a module root: STRIP, PRESERVE, or
+   UNSPECIFIED (also when absent). */
+static sxml_xslt_ast_keyword input_type_annotations_of(const sxml_xslt_lowering *lowering,
+                                                       sxml_xslt_ast_node_index root) {
+    const sxml_xslt_ast_attribute *attribute = sxml_xslt_ast_get_attribute(
+        lowering->ast, sxml_xslt_ast_find_attribute(
+                           lowering->ast, (sxml_xslt_ast_attribute_query){
+                                              .node = root,
+                                              .kind = SXML_XSLT_AST_ATTRIBUTE_INPUT_TYPE_ANNOTATIONS}));
+    return attribute->value.kind == SXML_XSLT_AST_VALUE_KIND_KEYWORD
+               ? attribute->value.payload.keyword
+               : SXML_XSLT_AST_KEYWORD_UNSPECIFIED;
+}
+
+/* XTSE0265 (3.6.1): a package's modules ask for input-type-annotations
+   strip and preserve, or a module asks for one that its xsl:package
+   element does not. The node of the module in conflict, or 0. */
+static sxml_xslt_ast_node_index find_annotation_conflict(const sxml_xslt_lowering *lowering) {
+    const sxml_xslt_ast *ast = lowering->ast;
+    for (uint32_t module_index = 1; module_index < ast->module_count; module_index += 1) {
+        const sxml_xslt_ast_node_index root =
+            sxml_xslt_ast_get_module(ast, (sxml_xslt_ast_module_index){.value = module_index})->root;
+        const sxml_xslt_ast_keyword value = input_type_annotations_of(lowering, root);
+        if (value == SXML_XSLT_AST_KEYWORD_UNSPECIFIED) {
+            continue;
+        }
+        const uint32_t package = sxml_xslt_package_of_node(lowering, root);
+        for (uint32_t other_index = 1; other_index < ast->module_count; other_index += 1) {
+            const sxml_xslt_ast_node_index other =
+                sxml_xslt_ast_get_module(ast, (sxml_xslt_ast_module_index){.value = other_index})
+                    ->root;
+            if (sxml_xslt_package_of_node(lowering, other) != package) {
+                continue;
+            }
+            const sxml_xslt_ast_keyword other_value = input_type_annotations_of(lowering, other);
+            const bool is_package_element =
+                sxml_xslt_ast_get_node(ast, other)->kind == SXML_XSLT_AST_KIND_PACKAGE;
+            if ((other_value != SXML_XSLT_AST_KEYWORD_UNSPECIFIED && other_value != value) ||
+                (is_package_element && other_value != value)) {
+                return root;
+            }
+        }
+    }
+    return (sxml_xslt_ast_node_index){.value = 0};
+}
+
 /* True for a name in a reserved namespace (3.5.1): XSLT, XML, xmlns, XML
    Schema, schema instance, fn, map, array, math, err. */
 static bool is_reserved_name(const sxml_xslt_lowering *lowering, sxml_name_identifier name) {
@@ -1303,6 +1349,14 @@ sxml_status sxml_xslt_declare_components(sxml_xslt_lowering *lowering,
             SXML_BYTE_VIEW_FROM_LITERAL("XTSE0270 one name test is in an xsl:strip-space and an "
                                         "xsl:preserve-space of one import precedence (XSLT 4.0, "
                                         "4.2.2)"));
+    }
+    const sxml_xslt_ast_node_index annotation_conflict = find_annotation_conflict(lowering);
+    if (annotation_conflict.value != 0) {
+        return report_static_error(
+            lowering, annotation_conflict,
+            SXML_BYTE_VIEW_FROM_LITERAL("XTSE0265 the stylesheet modules of a package differ in "
+                                        "input-type-annotations, strip and preserve (XSLT 4.0, "
+                                        "3.6.1)"));
     }
     const uint32_t context_count = lowering->static_context_count;
     if (context_count < 2) {
