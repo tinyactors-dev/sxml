@@ -896,6 +896,11 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `streaming_parameter` | The first parameter of a declared-streamable stylesheet function (XSLT 4.0, 19.8.5) |
 | `choice_operand_group` | Operands of which at most one is evaluated (the branches of a conditional), which may each consume a streamed input (XSLT 4.0, 19.8) |
 | `scanning_expression` | A relative path that has the form of a motionless pattern, assessed as crawling instead of roaming (XSLT 4.0, 19.8.8.8) |
+| `streamed_document` | A document read by streamed evaluation: its parser's events are consumed as they arrive, and it is never built as one tree (XSLT 4.0, 18.1; D219) |
+| `incremental_parse` | A parse of the XML parser that stops between events when its builder asks for a pause and goes on when it is resumed (`sxml_xml_incremental_parse`, D219) |
+| `stream_window` | The small tree a node of a streamed document lives in: the document node, the node's ancestors with their attributes and namespaces, the node, and its subtree (a full window) or not (a shallow window) (D219) |
+| `open_node` | The element (or document node) of a shallow stream window whose content has not been read yet: a STREAM whose origin it is reads that content from the events (D219) |
+| `stream_point` | An instruction of a streamed body that selects streamed nodes as their events pass: an xsl:for-each whose select is a downward path, lowered to a chain of STREAM expressions (D219) |
 | `pending_update_list` | The update primitives an updating expression returns, applied together at the end of a snapshot (XQuery Update Facility 3.0, "pending update list"); internal to the evaluator, not an XDM item |
 | `update_primitive` | One change of a pending update list: insert, delete, replace node, replace value, rename, put (XQuery Update Facility 3.0, "update primitives") |
 | `updating_expression` | An expression whose value is a pending update list: insert, delete, replace, rename, an updating function call, and the expressions that pass one on (XQuery Update Facility 3.0, 2.2); its opposite is a `simple_expression` |

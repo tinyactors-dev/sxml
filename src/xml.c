@@ -250,6 +250,12 @@ typedef struct sxml_xml_document {
     uint32_t element_depth;
     sxml_namespace_prefix_identifier xml_prefix;
     sxml_namespace_prefix_identifier xmlns_prefix;
+    /* An incremental parse (glossary `incremental_parse`): the walk of
+       the content stops after a visit whose events asked to pause, and
+       the frames below content_base_frame_count are not the content's. */
+    bool is_incremental;
+    bool pause_requested;
+    size_t content_base_frame_count;
 } sxml_xml_document;
 
 /* ------------------------------------------------------- Node types */
@@ -4748,6 +4754,11 @@ static sxml_status sxml_xml_run_frames(sxml_xml_document *document,
         frame = sxml_xml_frame_at(document, frame_index);
         frame->needs_advance = true;
         frame->descends = result.descends;
+        if (document->pause_requested && !walk.walks_declarations) {
+            /* An incremental parse resumes here (the frames stay). */
+            document->pause_requested = false;
+            return SXML_STATUS_OK;
+        }
     }
     return SXML_STATUS_OK;
 }
@@ -5758,12 +5769,15 @@ static sxml_status sxml_xml_send_document(sxml_xml_document *document,
     const size_t base_frame_count = sxml_xml_frame_count(document);
     sxml_xml_frame pushed = *frame;
     pushed.syntax_tree = NULL;
+    document->content_base_frame_count = base_frame_count;
     sxml_status status = sxml_xml_push_frame(document, &pushed, root);
-    if (status == SXML_STATUS_OK) {
-        status = sxml_xml_run_frames(
-            document, (sxml_xml_walk){.walks_declarations = false,
-                                      .base_frame_count = base_frame_count});
+    if (status != SXML_STATUS_OK || document->is_incremental) {
+        /* An incremental parse walks the content when resumed. */
+        return status;
     }
+    status = sxml_xml_run_frames(
+        document, (sxml_xml_walk){.walks_declarations = false,
+                                  .base_frame_count = base_frame_count});
     if (status == SXML_STATUS_OK && sxml_xml_has_builder(document)) {
         status =
             document->builder.operations->end_document(document->builder.state);
@@ -5846,17 +5860,25 @@ static sxml_status sxml_xml_prepare_names(sxml_xml_document *document) {
     return sxml_xml_fail_resource(document, status);
 }
 
-static sxml_status
-sxml_xml_parse_document(sxml_xml_parser *parser,
-                        const sxml_xml_parse_request *request,
-                        sxml_tree_builder builder) {
+/* Prepares *document for a parse of request into builder. */
+typedef struct sxml_xml_document_start {
+    sxml_xml_parser *parser;
+    const sxml_xml_parse_request *request;
+    sxml_tree_builder builder;
+} sxml_xml_document_start;
+
+static void sxml_xml_start_document(const sxml_xml_document_start *start,
+                                    sxml_xml_document *document) {
+    sxml_xml_parser *parser = start->parser;
+    const sxml_xml_parse_request *request = start->request;
+    const sxml_tree_builder builder = start->builder;
     sxml_xml_dtd_clear(&parser->dtd);
     parser->namespace_bindings.element_count = 0;
     parser->element_scopes.element_count = 0;
     parser->open_contents.element_count = 0;
     parser->expansions.element_count = 0;
     parser->child_nodes.element_count = 0;
-    sxml_xml_document document = {
+    *document = (sxml_xml_document){
         .parser = parser,
         .request = request,
         .builder = builder,
@@ -5891,33 +5913,47 @@ sxml_xml_parse_document(sxml_xml_parser *parser,
         .element_depth = 0,
         .xml_prefix = {.index = 0},
         .xmlns_prefix = {.index = 0},
+        .is_incremental = false,
+        .pause_requested = false,
+        .content_base_frame_count = 0,
     };
-    sxml_status status = sxml_xml_prepare_names(&document);
+}
+
+/* Decodes the document, parses its syntax tree and walks it (to the start
+   of the content for an incremental parse). */
+static sxml_status sxml_xml_read_document(sxml_xml_document *document) {
+    sxml_status status = sxml_xml_prepare_names(document);
     if (status == SXML_STATUS_OK) {
-        status = sxml_xml_decode(&document);
+        status = sxml_xml_decode(document);
     }
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    document.syntax_parser = ts_parser_new();
-    if (document.syntax_parser == NULL ||
-        !ts_parser_set_language(document.syntax_parser, tree_sitter_xml())) {
-        status = sxml_xml_fail_resource(&document, SXML_STATUS_OUT_OF_MEMORY);
+    document->syntax_parser = ts_parser_new();
+    if (document->syntax_parser == NULL ||
+        !ts_parser_set_language(document->syntax_parser, tree_sitter_xml())) {
+        status = sxml_xml_fail_resource(document, SXML_STATUS_OUT_OF_MEMORY);
     }
     if (status == SXML_STATUS_OK) {
-        document.syntax_tree = ts_parser_parse_string(
-            document.syntax_parser, NULL, (const char *)document.text.bytes,
-            (uint32_t)document.text.byte_count);
-        if (document.syntax_tree == NULL) {
+        document->syntax_tree = ts_parser_parse_string(
+            document->syntax_parser, NULL, (const char *)document->text.bytes,
+            (uint32_t)document->text.byte_count);
+        if (document->syntax_tree == NULL) {
             status =
-                sxml_xml_fail_resource(&document, SXML_STATUS_OUT_OF_MEMORY);
+                sxml_xml_fail_resource(document, SXML_STATUS_OUT_OF_MEMORY);
         }
     }
     if (status == SXML_STATUS_OK) {
-        status = sxml_xml_walk_document(&document);
+        status = sxml_xml_walk_document(document);
     }
-    sxml_xml_pop_frames_to(&document, 0);
-    sxml_xml_dtd *dtd = &parser->dtd;
+    return status;
+}
+
+/* Frees what the parse of document made with the tree-sitter runtime and
+   its external texts. */
+static void sxml_xml_release_document(sxml_xml_document *document) {
+    sxml_xml_pop_frames_to(document, 0);
+    sxml_xml_dtd *dtd = &document->parser->dtd;
     for (size_t entity_index = 0; entity_index < dtd->entities.element_count;
          entity_index++) {
         sxml_xml_entity *entity =
@@ -5927,14 +5963,119 @@ sxml_xml_parse_document(sxml_xml_parser *parser,
             entity->syntax_tree = NULL;
         }
     }
-    sxml_xml_release_external_texts(&document);
-    if (document.syntax_tree != NULL) {
-        ts_tree_delete(document.syntax_tree);
+    sxml_xml_release_external_texts(document);
+    if (document->syntax_tree != NULL) {
+        ts_tree_delete(document->syntax_tree);
+        document->syntax_tree = NULL;
     }
-    if (document.syntax_parser != NULL) {
-        ts_parser_delete(document.syntax_parser);
+    if (document->syntax_parser != NULL) {
+        ts_parser_delete(document->syntax_parser);
+        document->syntax_parser = NULL;
     }
+}
+
+static sxml_status
+sxml_xml_parse_document(sxml_xml_parser *parser,
+                        const sxml_xml_parse_request *request,
+                        sxml_tree_builder builder) {
+    sxml_xml_document document;
+    sxml_xml_start_document(
+        &(sxml_xml_document_start){.parser = parser, .request = request, .builder = builder},
+        &document);
+    const sxml_status status = sxml_xml_read_document(&document);
+    sxml_xml_release_document(&document);
     return status;
+}
+
+/* --------------------------------------------------- Incremental parses */
+
+struct sxml_xml_incremental_parse {
+    sxml_allocator allocator;
+    sxml_xml_parse_request request;
+    sxml_xml_document document;
+    bool is_finished;
+};
+
+sxml_status
+sxml_xml_incremental_parse_create(const sxml_xml_incremental_parse_request *request,
+                                  sxml_xml_incremental_parse **parse) {
+    if (request == NULL || parse == NULL || request->parser == NULL ||
+        request->parse_request == NULL || request->builder.operations == NULL ||
+        sxml_allocator_is_null(request->allocator) ||
+        (request->parse_request->input.bytes == NULL &&
+         request->parse_request->input.byte_count != 0)) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    if (request->parse_request->validator.operations != NULL) {
+        /* Validation needs the whole document (D199). */
+        return SXML_STATUS_UNSUPPORTED_FEATURE;
+    }
+    void *memory = NULL;
+    sxml_status status = sxml_allocator_allocate(
+        request->allocator,
+        (sxml_allocation_request){.byte_count = sizeof(sxml_xml_incremental_parse),
+                                  .alignment = alignof(sxml_xml_incremental_parse)},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_xml_incremental_parse *new_parse = memory;
+    new_parse->allocator = request->allocator;
+    new_parse->request = *request->parse_request;
+    new_parse->is_finished = false;
+    sxml_xml_start_document(&(sxml_xml_document_start){.parser = request->parser,
+                                                       .request = &new_parse->request,
+                                                       .builder = request->builder},
+                            &new_parse->document);
+    new_parse->document.is_incremental = true;
+    status = sxml_xml_read_document(&new_parse->document);
+    new_parse->document.pause_requested = false;
+    if (status != SXML_STATUS_OK) {
+        sxml_xml_incremental_parse_destroy(new_parse);
+        return status;
+    }
+    *parse = new_parse;
+    return SXML_STATUS_OK;
+}
+
+sxml_status sxml_xml_incremental_parse_resume(sxml_xml_incremental_parse *parse,
+                                              bool *is_finished) {
+    if (parse == NULL || is_finished == NULL) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    sxml_xml_document *document = &parse->document;
+    if (!parse->is_finished) {
+        sxml_status status = sxml_xml_run_frames(
+            document,
+            (sxml_xml_walk){.walks_declarations = false,
+                            .base_frame_count = document->content_base_frame_count});
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        if (sxml_xml_frame_count(document) <= document->content_base_frame_count) {
+            parse->is_finished = true;
+            status = document->builder.operations->end_document(document->builder.state);
+            if (status != SXML_STATUS_OK) {
+                return status;
+            }
+        }
+    }
+    *is_finished = parse->is_finished;
+    return SXML_STATUS_OK;
+}
+
+void sxml_xml_incremental_parse_pause(sxml_xml_incremental_parse *parse) {
+    if (parse != NULL) {
+        parse->document.pause_requested = true;
+    }
+}
+
+void sxml_xml_incremental_parse_destroy(sxml_xml_incremental_parse *parse) {
+    if (parse == NULL) {
+        return;
+    }
+    sxml_xml_release_document(&parse->document);
+    sxml_allocator_release(parse->allocator, parse);
 }
 
 sxml_status sxml_xml_parser_parse(sxml_xml_parser *parser,

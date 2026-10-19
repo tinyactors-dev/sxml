@@ -451,6 +451,21 @@ SXML_NODISCARD sxml_status sxml_xpath_lowerer_resolve_item_type(
     sxml_xpath_lowerer *lowerer, sxml_ast_node_index node,
     sxml_type_identifier *item_type);
 
+/* The node test of an axis step of another AST, as lowering the step
+   would register it (a name test gets the axis's principal node kind):
+   for the stream points of src/xslt_lower_stream.c (D219). */
+typedef struct sxml_xpath_step_test_request {
+    const sxml_ast *ast;
+    const sxml_xpath_static_context *static_context;
+    /* The step's test field (0 for none: node()). */
+    sxml_ast_node_index test;
+    sxml_axis axis;
+} sxml_xpath_step_test_request;
+
+SXML_NODISCARD sxml_status sxml_xpath_lowerer_resolve_step_test(
+    sxml_xpath_lowerer *lowerer, const sxml_xpath_step_test_request *request,
+    sxml_type_identifier *node_test);
+
 /* A value coerced to a type (XPath 4.0, section 3.4), bound in block; the
    value itself when the type accepts everything or a constant already
    matches. */

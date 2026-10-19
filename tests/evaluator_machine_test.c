@@ -36,11 +36,13 @@ static const sxml_ir_expression_kind reserved_kinds[] = {
     SXML_IR_EXPRESSION_KIND_PROCESSING_INSTRUCTION_CONSTRUCTOR,
     SXML_IR_EXPRESSION_KIND_SHALLOW_COPY,
     SXML_IR_EXPRESSION_KIND_APPLY_TEMPLATES,
+    SXML_IR_EXPRESSION_KIND_STREAM,
 };
 
 /* The reserved kinds whose part is filled: TRY_CATCH (packet 3.6), the
    constructors and SHALLOW_COPY (packet 3.5), APPLY_TEMPLATES (packet 4.8,
-   tests/evaluator_template_test.c). */
+   tests/evaluator_template_test.c), STREAM (packet 7.6b,
+   tests/evaluator_stream_test.c). */
 static const sxml_ir_expression_kind evaluated_kinds[] = {
     SXML_IR_EXPRESSION_KIND_TRY_CATCH,
     SXML_IR_EXPRESSION_KIND_DOCUMENT_CONSTRUCTOR,
@@ -52,6 +54,7 @@ static const sxml_ir_expression_kind evaluated_kinds[] = {
     SXML_IR_EXPRESSION_KIND_PROCESSING_INSTRUCTION_CONSTRUCTOR,
     SXML_IR_EXPRESSION_KIND_SHALLOW_COPY,
     SXML_IR_EXPRESSION_KIND_APPLY_TEMPLATES,
+    SXML_IR_EXPRESSION_KIND_STREAM,
 };
 
 static bool is_evaluated_kind(sxml_ir_expression_kind kind) {
@@ -81,7 +84,7 @@ static sxml_byte_view text_view(const char *text) {
 /* ---------------------------------------------------------- Registry */
 
 static void test_registry_lists_the_parts(sxml_test_state *state) {
-    static const char *const part_names[] = {"construct", "global", "template", "try"};
+    static const char *const part_names[] = {"construct", "global", "stream", "template", "try"};
     const sxml_evaluator_registered_part_view registered = sxml_evaluator_registered_parts();
     for (size_t name_index = 0; name_index < SXML_TEST_COUNT(part_names); name_index += 1) {
         bool is_found = false;

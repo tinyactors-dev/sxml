@@ -3500,6 +3500,20 @@ static sxml_status resolve_node_test(sxml_xpath_lowerer *state, node_test_reques
     return status;
 }
 
+sxml_status sxml_xpath_lowerer_resolve_step_test(sxml_xpath_lowerer *lowerer,
+                                                 const sxml_xpath_step_test_request *request,
+                                                 sxml_type_identifier *node_test) {
+    const sxml_ast *ast = lowerer->ast;
+    const sxml_xpath_static_context *static_context = lowerer->static_context;
+    lowerer->ast = request->ast;
+    lowerer->static_context = request->static_context;
+    const sxml_status status = resolve_node_test(
+        lowerer, (node_test_request){.test = request->test, .axis = request->axis}, node_test);
+    lowerer->ast = ast;
+    lowerer->static_context = static_context;
+    return status;
+}
+
 /* A STEP from origin, bound in block. */
 typedef struct step_request {
     sxml_xpath_lowering_block *block;

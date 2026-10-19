@@ -1293,6 +1293,9 @@ typedef struct for_each_locals {
     sxml_ir_atom body;
 } for_each_locals;
 
+/* The step after a streamed xsl:for-each's frame. */
+#define SXML_XSLT_FOR_EACH_STEP_STREAMED 9U
+
 /* In the body: (body, if (position() lt last()) then text{separator}
    else ()). */
 static sxml_status add_separator(sxml_xpath_lowerer *lowerer, for_each_locals *locals) {
@@ -1391,6 +1394,19 @@ static sxml_status continue_for_each(sxml_xpath_lowering_machine *machine,
                                      sxml_xpath_lowering_frame *frame) {
     for_each_locals *locals = frame->locals;
     const sxml_xslt_lowering *lowering = locals->head.lowering;
+    if (frame->step == SXML_XSLT_FOR_EACH_STEP_STREAMED) {
+        return finish_with_atom(machine, frame, locals->input);
+    }
+    if (frame->step == 0 && sxml_xslt_is_stream_point(lowering, locals->head.node)) {
+        /* A stream point of a streamed body (D219). */
+        frame->step = SXML_XSLT_FOR_EACH_STEP_STREAMED;
+        return sxml_xslt_lowering_call_stream_point(
+            machine, &(sxml_xslt_stream_call){.lowering = lowering,
+                                              .node = locals->head.node,
+                                              .block = frame->block,
+                                              .href = {0},
+                                              .atom = &locals->input});
+    }
     if (frame->step == 0) {
         frame->step = 1;
         const sxml_xslt_ast_attribute *select =

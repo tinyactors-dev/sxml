@@ -548,6 +548,39 @@ static sxml_status check_apply_templates(const verifier *checker,
     return SXML_STATUS_OK;
 }
 
+/* STREAM (D219): an axis of a step down, a focus without a size, a
+   counter in range; the predicate and the body in the focus. */
+static sxml_status check_stream(verifier *checker, const sxml_ir_stream *stream) {
+    if ((stream->flags & ~SXML_IR_STREAM_KNOWN_FLAGS) != 0) {
+        return report(checker, "a stream has unknown flags");
+    }
+    const bool opens_document = (stream->flags & (uint32_t)SXML_IR_STREAM_OPENS_DOCUMENT) != 0;
+    if (!opens_document && stream->axis != SXML_AXIS_CHILD &&
+        stream->axis != SXML_AXIS_DESCENDANT) {
+        return report(checker, "a stream has an axis other than child or descendant");
+    }
+    if (stream->focus.context_size.value != 0 || stream->body.value == 0 ||
+        (opens_document && stream->predicate.value != 0)) {
+        return report(checker, "a stream has a size, no body or a document predicate");
+    }
+    if (stream->position_counter.value > current_function(checker)->slot_count) {
+        return report(checker, "a stream counter is beyond the function's slots");
+    }
+    sxml_status status = check_required_atom(checker, stream->origin);
+    if (status == SXML_STATUS_OK) {
+        status = check_focus_slots(checker, stream->focus);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = push_scoped_visit(
+            checker, (scoped_visit){.expression = stream->body, .focus = stream->focus});
+    }
+    if (status == SXML_STATUS_OK && stream->predicate.value != 0) {
+        status = push_scoped_visit(
+            checker, (scoped_visit){.expression = stream->predicate, .focus = stream->focus});
+    }
+    return status;
+}
+
 static sxml_status visit_expression(verifier *checker,
                                     sxml_ir_expression_index index) {
     checker->expression = index;
@@ -822,6 +855,8 @@ static sxml_status visit_expression(verifier *checker,
         return check_node_construction(checker, expression);
     case SXML_IR_EXPRESSION_KIND_APPLY_TEMPLATES:
         return check_apply_templates(checker, &expression->apply_templates);
+    case SXML_IR_EXPRESSION_KIND_STREAM:
+        return check_stream(checker, &expression->stream);
     }
     return report(checker, "an expression kind is unknown");
 }

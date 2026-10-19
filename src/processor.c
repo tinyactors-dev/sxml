@@ -1372,6 +1372,111 @@ static sxml_status sxml_loader_load_document(void *state,
 }
 
 /*
+ * xsl:source-document with streamable="yes" (XSLT 4.0, 18.1; D219): the
+ * document fn:doc would read, as bytes to parse incrementally when the
+ * resolver delivers bytes, else as the node fn:doc gives (an available or
+ * loaded document, a node the resolver delivers). A streamed document is
+ * not kept: each xsl:source-document reads it again.
+ */
+sxml_status sxml_processor_document_loader_open_streamed(
+    sxml_processor_document_loader *loader, const sxml_streamed_document_request *request,
+    sxml_streamed_document *document) {
+    memset(document, 0, sizeof(*document));
+    document->document_node = (sxml_item){.representation = 0};
+    const sxml_allocator allocator = loader->configuration.evaluation_environment.processor->allocator;
+    sxml_status status = sxml_uri_resolve(
+        &(sxml_uri_resolution_request){.base_uri = request->base_uri,
+                                       .reference = request->uri_reference,
+                                       .allocator = allocator},
+        &document->resolution);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    const sxml_document_request document_request = {.uri_reference = request->uri_reference,
+                                                    .base_uri = request->base_uri,
+                                                    .error_record = request->error_record,
+                                                    .blocks_external_resources = false,
+                                                    .validates_dtd = false};
+    const sxml_document_lookup lookup = sxml_loader_find_document(loader, document->resolution.uri);
+    const sxml_resource_resolver resolver = loader->configuration.evaluation_environment.resource_resolver;
+    if (lookup.is_found || resolver.operations == NULL || resolver.operations->resolve == NULL) {
+        return sxml_loader_load_document(loader, &document_request, &document->document_node);
+    }
+    const sxml_byte_view absolute_uri = sxml_uri_has_scheme(document->resolution.uri)
+                                            ? document->resolution.uri
+                                            : (sxml_byte_view){.bytes = NULL, .byte_count = 0};
+    status = resolver.operations->resolve(
+        resolver.state,
+        &(sxml_resource_request){.resource_kind = SXML_RESOURCE_KIND_XML_DOCUMENT,
+                                 .uri_reference = request->uri_reference,
+                                 .absolute_uri = absolute_uri,
+                                 .processor = loader->configuration.evaluation_environment.processor},
+        &document->resource);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (document->resource.resource_form != SXML_RESOURCE_FORM_BYTES) {
+        status = sxml_loader_take_resource(
+            loader,
+            &(sxml_resolution_exchange){.request = &document_request,
+                                        .absolute_uri = absolute_uri,
+                                        .resource = &document->resource},
+            &document->document_node);
+        if (resolver.operations->release != NULL) {
+            resolver.operations->release(resolver.state, &document->resource);
+        }
+        const sxml_document_preparation preparation = loader->configuration.document_preparation;
+        if (status == SXML_STATUS_OK && preparation.operations != NULL) {
+            sxml_item prepared = {.representation = 0};
+            status = preparation.operations->prepare_document(
+                preparation.state, document->document_node, &prepared);
+            sxml_item_release(document->document_node);
+            document->document_node = prepared;
+        }
+        return status;
+    }
+    document->holds_resource = true;
+    document->is_streamed = true;
+    sxml_byte_view document_uri = document->resource.resource_uri;
+    if (document_uri.byte_count == 0) {
+        document_uri = absolute_uri.byte_count > 0 ? absolute_uri : request->uri_reference;
+    }
+    document->entity_resolution = (sxml_entity_resolution){
+        .processor = loader->configuration.evaluation_environment.processor,
+        .resolver = resolver,
+        .refuses = false,
+        .was_refused = false,
+        .holds_resource = false};
+    document->parse_request = (sxml_xml_parse_request){
+        .input = document->resource.content,
+        .source_name = document_uri,
+        .document_uri = document_uri,
+        .base_uri = document_uri,
+        .encoding_name = document->resource.encoding_name,
+        .diagnostic = NULL,
+        .entity_resolver = sxml_entity_resolution_as_resolver(&document->entity_resolution),
+        .validator = {.state = NULL, .operations = NULL}};
+    document->preparation = loader->configuration.document_preparation;
+    return SXML_STATUS_OK;
+}
+
+void sxml_processor_document_loader_close_streamed(sxml_processor_document_loader *loader,
+                                                   sxml_streamed_document *document) {
+    const sxml_resource_resolver resolver = loader->configuration.evaluation_environment.resource_resolver;
+    if (document->holds_resource && resolver.operations != NULL &&
+        resolver.operations->release != NULL) {
+        resolver.operations->release(resolver.state, &document->resource);
+    }
+    document->holds_resource = false;
+    sxml_item_release(document->document_node);
+    document->document_node = (sxml_item){.representation = 0};
+    sxml_allocator_release(loader->configuration.evaluation_environment.processor->allocator,
+                           document->resolution.memory);
+    document->resolution.memory = NULL;
+    document->is_streamed = false;
+}
+
+/*
  * fn:parse-xml (F&O 4.0, section 17.2.1): a new tree on every call, whose
  * base URI is the request's (the base-uri option) or the static base URI,
  * and which has no document URI.

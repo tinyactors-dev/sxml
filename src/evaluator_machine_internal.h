@@ -324,6 +324,20 @@ void sxml_evaluator_machine_bind_slot(sxml_dynamic_context *dynamic_context,
 SXML_NODISCARD sxml_status sxml_evaluator_machine_raise(
     sxml_dynamic_context *dynamic_context, const sxml_static_error *error);
 
+/* A predicate's value and the position of the item it tests. */
+typedef struct sxml_predicate_value {
+    /* Borrowed. */
+    sxml_sequence value;
+    uint64_t position;
+} sxml_predicate_value;
+
+/* Writes to *selects whether the value of a predicate selects the item at
+   position (XPath 4.0, 4.4.1): a numeric value by equality with the
+   position, anything else by its effective boolean value. Raises FORG0006
+   as a FILTER does. For STREAM (src/evaluator_stream.c). */
+SXML_NODISCARD sxml_status sxml_evaluator_machine_test_predicate(
+    sxml_dynamic_context *dynamic_context, const sxml_predicate_value *predicate, bool *selects);
+
 /* --------------------------------------------------- Global variables */
 
 /*

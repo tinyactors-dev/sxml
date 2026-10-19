@@ -5920,3 +5920,65 @@ sxml_status sxml_xslt_check_streamability(const sxml_xslt_streamability_request 
     }
     return report_not_streamable(request, &(error_report){.node = failed, .outcome = failure});
 }
+
+/* ------------------------------------------------- Sweeps for lowering */
+
+sxml_status sxml_xslt_assess_sweep(const sxml_xslt_sweep_query *query,
+                                   sxml_xslt_stream_sweep *found) {
+    *found = SXML_XSLT_STREAM_SWEEP_UNCERTAIN;
+    if (query == NULL || query->ast == NULL || !query->ast->is_sealed ||
+        query->name_pool == NULL || sxml_allocator_is_null(query->allocator)) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    machine state = {.ast = query->ast,
+                     .lookup = {.ast = query->ast, .name_pool = query->name_pool},
+                     .allocator = query->allocator,
+                     .frames = NULL,
+                     .frame_count = 0,
+                     .frame_capacity = 0,
+                     .maximum_frame_count = 100000U,
+                     .operands = NULL,
+                     .operand_count = 0,
+                     .operand_capacity = 0,
+                     .is_limit_reached = false};
+    /* The stacks are made before the machine runs. */
+    void *operands = NULL;
+    sxml_status status = grow(query->allocator, &(growth){.elements = &operands,
+                                                         .capacity = &state.operand_capacity,
+                                                         .count = 0,
+                                                         .element_size = sizeof(operand),
+                                                         .element_alignment = alignof(operand)});
+    state.operands = operands;
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    construct assessed = query->assesses_content
+                             ? sequence_constructor_construct(query->ast, query->instruction)
+                             : xslt_construct(query->ast, query->instruction);
+    if (query->expression_ast != NULL) {
+        assessed = xpath_construct(query->expression_ast, query->expression_node,
+                                   query->static_context);
+    }
+    const u_type context_type = query->is_document_focus ? SXML_U_DOCUMENT : SXML_U_ELEMENT;
+    assessment result;
+    status =
+        assess(&state,
+               &(frame_request){.construct = assessed,
+                                .focus = striding_focus(context_type),
+                                .scope = empty_scope()},
+               &result);
+    sxml_allocator_release(query->allocator, state.frames);
+    sxml_allocator_release(query->allocator, state.operands);
+    if (status != SXML_STATUS_OK || result.is_uncertain) {
+        return status;
+    }
+    if (is_free(result)) {
+        *found = SXML_XSLT_STREAM_SWEEP_FREE_RANGING;
+    } else if (result.sweep == SXML_STREAM_SWEEP_CONSUMING ||
+               (query->requires_grounded && result.posture != SXML_STREAM_POSTURE_GROUNDED)) {
+        *found = SXML_XSLT_STREAM_SWEEP_CONSUMING;
+    } else {
+        *found = SXML_XSLT_STREAM_SWEEP_MOTIONLESS;
+    }
+    return SXML_STATUS_OK;
+}

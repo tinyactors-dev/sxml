@@ -1919,6 +1919,19 @@ static sxml_status continue_source_document(sxml_xpath_lowering_machine *machine
         if (lowering->accumulators != NULL) {
             status = check_use_accumulators(lowering->accumulators, locals->head.node);
         }
+        bool is_streamed = false;
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xslt_plan_source_document(lowering, locals->head.node, &is_streamed);
+        }
+        if (status == SXML_STATUS_OK && is_streamed) {
+            /* Streamed evaluation (src/xslt_lower_stream.c, D219). */
+            return sxml_xslt_lowering_call_streamed_document(
+                machine, &(sxml_xslt_stream_call){.lowering = lowering,
+                                                  .node = locals->head.node,
+                                                  .block = frame->block,
+                                                  .href = locals->href,
+                                                  .atom = &locals->value});
+        }
         if (status == SXML_STATUS_OK) {
             status = sxml_xslt_lowering_bind_library_call(
                 lowerer, &(sxml_xslt_library_call){.block = frame->block,

@@ -2502,12 +2502,16 @@ static sxml_status lower_into_unit(const unit_lowering *work) {
                                    .templates = NULL,
                                    .components = NULL,
                                    .kept_asts = NULL,
-                                   .packages = NULL};
+                                   .packages = NULL,
+                                   .stream_plan = NULL};
     sxml_xslt_kept_asts kept_asts = {
         .allocator = lowerer->allocator, .asts = NULL, .ast_count = 0, .ast_capacity = 0};
     lowering.kept_asts = &kept_asts;
     status = make_static_contexts((context_source){.ast = request->ast, .base = work->base_context},
                                   &memory, &lowering);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xslt_create_stream_plan(lowerer->allocator, &lowering.stream_plan);
+    }
     /* Packages first: every lookup below binds through them (packet
        4.16), the namespace aliases too (D163). */
     if (status == SXML_STATUS_OK) {
@@ -2625,6 +2629,7 @@ static sxml_status lower_into_unit(const unit_lowering *work) {
     sxml_xslt_release_packages(&lowering);
     release_storage(work->base_context->allocator, &memory);
     sxml_xslt_release_kept_asts(&kept_asts);
+    sxml_xslt_release_stream_plan(lowering.stream_plan);
     sxml_xpath_lowerer_finalize(lowerer);
     return status;
 }

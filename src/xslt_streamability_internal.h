@@ -76,3 +76,46 @@ typedef struct sxml_xslt_streamability_request {
  */
 SXML_NODISCARD sxml_status
 sxml_xslt_check_streamability(const sxml_xslt_streamability_request *request);
+
+/*
+ * The sweep of one construct in a striding focus (glossary `sweep`, 19.6),
+ * for the lowering of streamed evaluation (src/xslt_lower_stream.c,
+ * D219): a motionless construct reads nothing of its context item's
+ * content, so it runs in a shallow stream window.
+ */
+typedef enum sxml_xslt_stream_sweep {
+    SXML_XSLT_STREAM_SWEEP_MOTIONLESS,
+    SXML_XSLT_STREAM_SWEEP_CONSUMING,
+    SXML_XSLT_STREAM_SWEEP_FREE_RANGING,
+    /* sxml has no rule for it (see above). */
+    SXML_XSLT_STREAM_SWEEP_UNCERTAIN,
+} sxml_xslt_stream_sweep;
+
+typedef struct sxml_xslt_sweep_query {
+    /* A sealed AST, borrowed for the call. */
+    const sxml_xslt_ast *ast;
+    sxml_allocator allocator;
+    const sxml_name_pool *name_pool;
+    /* The construct: an instruction of ast, or, when expression_ast is not
+       NULL, the node expression_node of that XPath AST of ast (in
+       static_context). */
+    sxml_xslt_ast_node_index instruction;
+    /* With an instruction: its sequence constructor (its children that
+       are instructions) instead of the instruction. */
+    bool assesses_content;
+    const sxml_ast *expression_ast;
+    sxml_ast_node_index expression_node;
+    sxml_xslt_ast_static_context_index static_context;
+    /* The context item is a streamed document node; an element otherwise. */
+    bool is_document_focus;
+    /* A motionless construct whose value is streamed nodes (not grounded,
+       19.4) is reported as consuming: what consumes its value reads them
+       (the content of a literal result element absorbs them). */
+    bool requires_grounded;
+} sxml_xslt_sweep_query;
+
+/* Writes the sweep of query's construct, with the context item striding,
+   to *found. Returns SXML_STATUS_INVALID_ARGUMENT for a missing or
+   unsealed AST and the allocator's failures. */
+SXML_NODISCARD sxml_status sxml_xslt_assess_sweep(const sxml_xslt_sweep_query *query,
+                                                 sxml_xslt_stream_sweep *found);

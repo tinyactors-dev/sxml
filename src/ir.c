@@ -2110,6 +2110,7 @@ static const char *const expression_kind_names[] = {
         "processing-instruction-constructor",
     [SXML_IR_EXPRESSION_KIND_SHALLOW_COPY] = "shallow-copy",
     [SXML_IR_EXPRESSION_KIND_APPLY_TEMPLATES] = "apply-templates",
+    [SXML_IR_EXPRESSION_KIND_STREAM] = "stream",
 };
 
 static const char *binary_operator_name(sxml_ir_binary_operator operator) {
@@ -2666,6 +2667,37 @@ static sxml_status print_expression(text_writer *writer, print_stack *stack,
             }
         }
         return SXML_STATUS_OK;
+    }
+    case SXML_IR_EXPRESSION_KIND_STREAM: {
+        /* "(stream ORIGIN document FOCUS BODY)" or "(stream ORIGIN AXIS
+           TEST FOCUS [counter $n] [shallow] [PREDICATE] BODY)" (D219). */
+        const sxml_ir_stream *stream = &expression->stream;
+        write_text(writer, " ");
+        write_atom(writer, stream->origin);
+        if ((stream->flags & (uint32_t)SXML_IR_STREAM_OPENS_DOCUMENT) != 0) {
+            write_text(writer, " document");
+        } else {
+            write_text(writer, " ");
+            write_text(writer, axis_name(stream->axis));
+            write_text(writer, " ");
+            write_item_type(writer, stream->node_test);
+        }
+        write_text(writer, " ");
+        write_focus(writer, stream->focus);
+        if (stream->position_counter.value != 0) {
+            write_text(writer, " counter ");
+            write_slot(writer, stream->position_counter);
+        }
+        if ((stream->flags & (uint32_t)SXML_IR_STREAM_SHALLOW_WINDOWS) != 0) {
+            write_text(writer, " shallow");
+        }
+        status = push_nested_operand(
+            stack, (nested_operand){.expression = stream->body, .indent = indent});
+        if (status == SXML_STATUS_OK && stream->predicate.value != 0) {
+            status = push_nested_operand(
+                stack, (nested_operand){.expression = stream->predicate, .indent = indent});
+        }
+        return status;
     }
     case SXML_IR_EXPRESSION_KIND_STEP:
         write_text(writer, " ");

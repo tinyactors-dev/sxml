@@ -983,6 +983,9 @@ static void scan_expression(edge_sink *sink, const sxml_ir_expression *expressio
     case SXML_IR_EXPRESSION_KIND_APPLY_TEMPLATES:
         add_edge(sink, node_of_atom(module, expression->apply_templates.select));
         return;
+    case SXML_IR_EXPRESSION_KIND_STREAM:
+        add_edge(sink, node_of_atom(module, expression->stream.origin));
+        return;
     case SXML_IR_EXPRESSION_KIND_NONE:
     case SXML_IR_EXPRESSION_KIND_LET:
     case SXML_IR_EXPRESSION_KIND_SEQUENCE:

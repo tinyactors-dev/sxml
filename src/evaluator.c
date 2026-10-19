@@ -4986,6 +4986,7 @@ static sxml_status sxml_make_leaf_value(sxml_dynamic_context *context,
     case SXML_IR_EXPRESSION_KIND_PROCESSING_INSTRUCTION_CONSTRUCTOR:
     case SXML_IR_EXPRESSION_KIND_SHALLOW_COPY:
     case SXML_IR_EXPRESSION_KIND_APPLY_TEMPLATES:
+    case SXML_IR_EXPRESSION_KIND_STREAM:
     case SXML_IR_EXPRESSION_KIND_COUNT:
         break;
     }
@@ -5082,6 +5083,7 @@ static sxml_status sxml_machine_step_expression(sxml_dynamic_context *context) {
     case SXML_IR_EXPRESSION_KIND_PROCESSING_INSTRUCTION_CONSTRUCTOR:
     case SXML_IR_EXPRESSION_KIND_SHALLOW_COPY:
     case SXML_IR_EXPRESSION_KIND_APPLY_TEMPLATES:
+    case SXML_IR_EXPRESSION_KIND_STREAM:
         /* Evaluated by evaluator parts (XQuery and XSLT, D101). */
         return sxml_machine_start_part_kind(context, expression->expression_kind);
     case SXML_IR_EXPRESSION_KIND_NONE:
@@ -5331,6 +5333,20 @@ void sxml_evaluator_machine_bind_slot(sxml_dynamic_context *dynamic_context,
 sxml_status sxml_evaluator_machine_raise(sxml_dynamic_context *dynamic_context,
                                          const sxml_static_error *error) {
     return sxml_error_record_report(dynamic_context->error_record, error);
+}
+
+sxml_status sxml_evaluator_machine_test_predicate(sxml_dynamic_context *dynamic_context,
+                                                  const sxml_predicate_value *predicate,
+                                                  bool *selects) {
+    sxml_predicate_outcome outcome = {.selects = false};
+    const sxml_status status = sxml_predicate_selects(
+        dynamic_context,
+        (sxml_predicate_test){.value = predicate->value, .position = predicate->position},
+        &outcome);
+    if (status == SXML_STATUS_OK) {
+        *selects = outcome.selects;
+    }
+    return status;
 }
 
 /* ---------------------------------------------------------- Entry points */

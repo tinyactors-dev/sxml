@@ -510,6 +510,10 @@ typedef enum sxml_ir_expression_kind {
     /* xsl:apply-templates, xsl:next-match, xsl:apply-imports (XSLT 4.0,
        section 6): the template rule extension point. */
     SXML_IR_EXPRESSION_KIND_APPLY_TEMPLATES,
+    /* Streamed evaluation (XSLT 4.0, 18.1; D219): the nodes of one step
+       from a node of a streamed document, selected as its events pass,
+       each with its focus for the body. */
+    SXML_IR_EXPRESSION_KIND_STREAM,
 
     /* One more than the largest kind. */
     SXML_IR_EXPRESSION_KIND_COUNT,
@@ -964,6 +968,57 @@ typedef struct sxml_ir_apply_templates {
     sxml_ir_atom separator;
 } sxml_ir_apply_templates;
 
+/* Bits of sxml_ir_stream's flags. */
+typedef enum sxml_ir_stream_flag {
+    /* origin is the URI of a document to read as a streamed document
+       (glossary `streamed_document`), not a node: the body runs once with
+       its document node as the focus; axis and node_test are not read. */
+    SXML_IR_STREAM_OPENS_DOCUMENT = 1U << 0U,
+    /* A selected element of a streamed document gets a shallow stream
+       window (glossary `stream_window`): its ancestors and attributes, not
+       its content, which a STREAM of the body whose origin it is reads as
+       it passes (it is the open node, glossary `open_node`). Without the
+       flag the window holds the element's subtree. */
+    SXML_IR_STREAM_SHALLOW_WINDOWS = 1U << 1U,
+} sxml_ir_stream_flag;
+
+/* Every bit of sxml_ir_stream_flag. */
+#define SXML_IR_STREAM_KNOWN_FLAGS                                            \
+    ((uint32_t)SXML_IR_STREAM_OPENS_DOCUMENT | (uint32_t)SXML_IR_STREAM_SHALLOW_WINDOWS)
+
+/*
+ * STREAM (XSLT 4.0, 18.1 and 19; D219), lowered from a stream point
+ * (glossary `stream_point`) of a streamed construct. Without
+ * OPENS_DOCUMENT: the nodes of axis (CHILD or DESCENDANT) from origin, one
+ * node, that match node_test (a registered node test) and, when predicate
+ * is not 0, whose predicate is true; for each, in document order, the body
+ * with focus.context_value bound to the node and focus.context_position to
+ * its position, the values concatenated (delivered, D166, when the STREAM
+ * delivers). The predicate runs in the same focus, the position then being
+ * the node's among the nodes of the step that match node_test; a numeric
+ * predicate value is compared with it (XPath 4.0, 4.4.1). The position the
+ * body sees is the node's among the selected nodes, or, when
+ * position_counter is not 0, one more than that slot's xs:integer, which
+ * the STREAM then rebinds (the position in the whole path when nested
+ * STREAMs select it step by step). focus.context_size is 0: a streamed
+ * selection has no size.
+ *
+ * When origin is the open node of a streamed document, the nodes are read
+ * from its events (src/evaluator_stream.c); otherwise from origin's tree,
+ * so the same IR serves streamed and unstreamed nodes.
+ */
+typedef struct sxml_ir_stream {
+    sxml_ir_atom origin;
+    sxml_axis axis;
+    sxml_type_identifier node_test;
+    sxml_ir_expression_index predicate;
+    sxml_ir_focus focus;
+    sxml_ir_slot position_counter;
+    sxml_ir_expression_index body;
+    /* Bits of sxml_ir_stream_flag. */
+    uint32_t flags;
+} sxml_ir_stream;
+
 /* One expression: its kind, where it comes from, and the payload its kind
    names. */
 typedef struct sxml_ir_expression {
@@ -999,6 +1054,7 @@ typedef struct sxml_ir_expression {
         /* The constructor kinds and SHALLOW_COPY. */
         sxml_ir_node_construction node_construction;
         sxml_ir_apply_templates apply_templates;
+        sxml_ir_stream stream;
     };
 } sxml_ir_expression;
 

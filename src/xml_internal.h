@@ -19,7 +19,9 @@
  */
 #include "sxml/memory.h"
 #include "sxml/status.h"
+#include "sxml/tree.h"
 #include "sxml/view.h"
+#include "sxml/xml.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -626,3 +628,48 @@ sxml_xml_element_entry *sxml_xml_dtd_element_at(const sxml_xml_dtd *dtd,
 const sxml_xml_attribute_definition *
 sxml_xml_dtd_get_definition(const sxml_xml_dtd *dtd,
                             uint32_t definition_number);
+
+/* --------------------------------------------------- Incremental parses */
+
+/*
+ * An incremental parse (glossary `incremental_parse`, D219): the events of
+ * one document, sent to a builder a few at a time. The builder asks for a
+ * pause from inside an event (sxml_xml_incremental_parse_pause); the walk
+ * then stops after the construct that sent it (a start tag sends its
+ * attributes and, for an empty element, its end in the same visit) and
+ * goes on at the next resume. Streamed evaluation reads documents so
+ * (src/evaluator_stream.c). The checks, the events and their order are
+ * those of sxml_xml_parser_parse; the concrete syntax tree is still made
+ * for the whole document when the parse is created (D12).
+ */
+typedef struct sxml_xml_incremental_parse sxml_xml_incremental_parse;
+
+typedef struct sxml_xml_incremental_parse_request {
+    /* For the parse's own memory. */
+    sxml_allocator allocator;
+    /* Serves this parse only until it is destroyed. */
+    sxml_xml_parser *parser;
+    /* Copied; its views are borrowed until the parse is destroyed. A
+       validator is SXML_STATUS_UNSUPPORTED_FEATURE. */
+    const sxml_xml_parse_request *parse_request;
+    sxml_tree_builder builder;
+} sxml_xml_incremental_parse_request;
+
+/* Checks and decodes the document, parses it and sends start_document and
+   the unparsed entities; the content follows at each resume. Fails as
+   sxml_xml_parser_parse does; *parse is then untouched. */
+SXML_NODISCARD sxml_status
+sxml_xml_incremental_parse_create(const sxml_xml_incremental_parse_request *request,
+                                  sxml_xml_incremental_parse **parse);
+
+/* Sends events until the builder asks for a pause or the document ends
+   (end_document sent; *is_finished true, and every later resume does
+   nothing). Fails as sxml_xml_parser_parse does. */
+SXML_NODISCARD sxml_status sxml_xml_incremental_parse_resume(sxml_xml_incremental_parse *parse,
+                                                           bool *is_finished);
+
+/* From a builder event of parse: stop after the current construct. */
+void sxml_xml_incremental_parse_pause(sxml_xml_incremental_parse *parse);
+
+/* Releases the parse; accepts NULL. */
+void sxml_xml_incremental_parse_destroy(sxml_xml_incremental_parse *parse);

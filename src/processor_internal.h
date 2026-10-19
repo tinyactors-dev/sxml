@@ -332,6 +332,52 @@ SXML_NODISCARD sxml_status sxml_parameter_document_load(
 /* Releases a loaded document's node and marks it not loaded. */
 void sxml_parameter_document_release(sxml_parameter_document *document);
 
+/* ---------------------------------------------------- Streamed documents */
+
+/* A document xsl:source-document reads streamed (XSLT 4.0, 18.1; D219).
+   Views are borrowed for the call. */
+typedef struct sxml_streamed_document_request {
+    /* The href, as written. */
+    sxml_byte_view uri_reference;
+    /* The static base URI to resolve it against; may be empty. */
+    sxml_byte_view base_uri;
+    sxml_error_record *error_record;
+} sxml_streamed_document_request;
+
+/* An open streamed document (glossary `streamed_document`). It must not
+   move while open: the parse request's entity resolver points into it. */
+typedef struct sxml_streamed_document {
+    /* True: parse_request reads the bytes the resolver delivered (with an
+       entity resolver over the evaluation's resolver). False: the
+       document is document_node, owned, the node fn:doc gives. */
+    bool is_streamed;
+    sxml_xml_parse_request parse_request;
+    sxml_item document_node;
+    /* What fn:doc applies to each document it loads (XSLT's whitespace
+       stripping, 4.2); a streamed document's windows go through it. */
+    sxml_document_preparation preparation;
+    /* Private to src/processor.c. */
+    sxml_entity_resolution entity_resolution;
+    sxml_resource resource;
+    bool holds_resource;
+    sxml_uri_resolution resolution;
+} sxml_streamed_document;
+
+/*
+ * Opens request's document into *document (as fn:doc resolves and finds
+ * it: available and loaded documents first, then the resolver). Returns
+ * fn:doc's errors (FODC0002, FODC0005) and the resolver's and allocator's
+ * failures; *document is then closed. Close it on every path.
+ */
+SXML_NODISCARD sxml_status sxml_processor_document_loader_open_streamed(
+    sxml_processor_document_loader *loader, const sxml_streamed_document_request *request,
+    sxml_streamed_document *document);
+
+/* Gives the resource back and releases what document holds; accepts a
+   closed document. */
+void sxml_processor_document_loader_close_streamed(sxml_processor_document_loader *loader,
+                                                   sxml_streamed_document *document);
+
 /* ------------------------------------------------------------ Resources */
 
 /* A text or binary resource to retrieve (F&O 4.0, "fn:unparsed-text",

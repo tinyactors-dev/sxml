@@ -136,6 +136,9 @@ typedef struct sxml_xslt_lowering {
     /* Made by sxml_xslt_declare_packages first (src/xslt_package.c,
        packet 4.16, D160): which declaration each reference binds to. */
     struct sxml_xslt_package_table *packages;
+    /* The stream points of the streamed bodies planned so far
+       (src/xslt_lower_stream.c, D219); NULL without one. */
+    struct sxml_xslt_stream_plan *stream_plan;
 } sxml_xslt_lowering;
 
 /* ASTs a lowering keeps until it ends (glossary `kept_ast`). */
@@ -525,6 +528,54 @@ SXML_NODISCARD sxml_status sxml_xslt_lowering_bind_mapped_expression(
 SXML_NODISCARD sxml_status sxml_xslt_lowering_make_guarded_match(sxml_xpath_lowerer *lowerer,
                                                                  sxml_ir_expression_index body,
                                                                  sxml_ir_expression *guarded);
+
+/* ------------------------------------------------- Streamed evaluation */
+
+/*
+ * xsl:source-document with streamable="yes" and its stream points
+ * (glossary `stream_point`), lowered to STREAM (src/xslt_lower_stream.c;
+ * XSLT 4.0, 18.1 and 19; D219). The plan of a lowering records the stream
+ * points of the bodies it streams.
+ */
+typedef struct sxml_xslt_stream_plan sxml_xslt_stream_plan;
+
+/* An empty plan; the allocator's failures. */
+SXML_NODISCARD sxml_status sxml_xslt_create_stream_plan(sxml_allocator allocator,
+                                                       sxml_xslt_stream_plan **plan);
+
+/* NULL is allowed. */
+void sxml_xslt_release_stream_plan(sxml_xslt_stream_plan *plan);
+
+/* Whether node, an xsl:source-document, is streamed, recording the
+   stream points of its body when it is. From a step or outside a
+   machine; the analysis's and allocator's failures. */
+SXML_NODISCARD sxml_status sxml_xslt_plan_source_document(const sxml_xslt_lowering *lowering,
+                                                         sxml_xslt_ast_node_index node,
+                                                         bool *is_streamed);
+
+/* True when node (an xsl:for-each) is a stream point of a streamed body. */
+bool sxml_xslt_is_stream_point(const sxml_xslt_lowering *lowering, sxml_xslt_ast_node_index node);
+
+/* A streamed construct to lower, bound in block, its atom written to
+   *atom. */
+typedef struct sxml_xslt_stream_call {
+    const sxml_xslt_lowering *lowering;
+    sxml_xslt_ast_node_index node;
+    sxml_xpath_lowering_block *block;
+    /* For the document: the href, an xs:string. */
+    sxml_ir_atom href;
+    sxml_ir_atom *atom;
+} sxml_xslt_stream_call;
+
+/* From a step: pushes the frame lowering a stream point (xsl:for-each)
+   to its chain of STREAMs, in the current focus. */
+SXML_NODISCARD sxml_status sxml_xslt_lowering_call_stream_point(
+    sxml_xpath_lowering_machine *machine, const sxml_xslt_stream_call *call);
+
+/* From a step: pushes the frame lowering a streamed xsl:source-document
+   to STREAM with OPENS_DOCUMENT over call->href. */
+SXML_NODISCARD sxml_status sxml_xslt_lowering_call_streamed_document(
+    sxml_xpath_lowering_machine *machine, const sxml_xslt_stream_call *call);
 
 /* ------------------------------------------------------------- Helpers */
 
