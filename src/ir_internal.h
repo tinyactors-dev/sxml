@@ -1035,6 +1035,15 @@ typedef enum sxml_ir_stream_flag {
  * When origin is the open node of a streamed document, the nodes are read
  * from its events (src/evaluator_stream.c); otherwise from origin's tree,
  * so the same IR serves streamed and unstreamed nodes.
+ *
+ * Axis SELF, without OPENS_DOCUMENT (glossary `grounding_stream`, D228):
+ * the body runs once, with focus.context_value bound to origin's full
+ * stream window (its content read now) when origin is the open node of a
+ * streamed document, else to origin itself, any value; node_test is not
+ * read, and the STREAM has no predicate, counter, fold or flag. It guards
+ * a template rule whose body reads its node's content other than through
+ * stream points of its own (XSLT 4.0, 19.8.4.5: the node is then
+ * grounded first).
  */
 typedef struct sxml_ir_stream {
     sxml_ir_atom origin;

@@ -142,6 +142,9 @@ typedef struct stream_point {
 typedef struct stream_body {
     sxml_xslt_ast_node_index node;
     size_t point_number;
+    /* Its focus is a document node (the document of xsl:source-document,
+       a template rule matching "/"); an element otherwise. */
+    bool is_document_focus;
 } stream_body;
 
 struct sxml_xslt_stream_plan {
@@ -353,7 +356,8 @@ static sxml_byte_view called_name(const sxml_ast *ast, sxml_ast_node_index index
 
 static bool is_named(sxml_byte_view local_name, const char *name) {
     const size_t length = strlen(name);
-    return local_name.byte_count == length && memcmp(local_name.bytes, name, length) == 0;
+    return local_name.byte_count == length &&
+           (length == 0 || memcmp(local_name.bytes, name, length) == 0);
 }
 
 /* Some names of functions, by local name. */
@@ -1333,9 +1337,29 @@ static sxml_status is_path_point(const sxml_xslt_lowering *lowering, point_quest
    reading nothing a full window lacks. They see each node's position in
    the path; fn:last, which a streamed selection cannot answer, keeps them
    from streaming (19.8.9.14). */
+/* The path of xsl:apply-templates without select at a node (6.6):
+   child::node(), one step with no AST of its own. */
+static stream_path default_select_path(void) {
+    stream_path path;
+    memset(&path, 0, sizeof(path));
+    path.steps[0] = (stream_step){.step = {0}, .axis = SXML_AXIS_CHILD, .predicate = {0}};
+    path.step_count = 1;
+    return path;
+}
+
+typedef struct apply_point_finding {
+    bool is_point;
+    /* The path's last step is a child step: each node can get a shallow
+       window, the template rule chosen for it streaming its content or
+       grounding it (D228). */
+    bool is_shallow;
+} apply_point_finding;
+
 static sxml_status is_apply_point(const sxml_xslt_lowering *lowering, point_question question,
-                                  bool *is_point) {
+                                  apply_point_finding *found) {
+    bool *is_point = &found->is_point;
     *is_point = false;
+    found->is_shallow = false;
     const sxml_xslt_ast_node_index node = question.node;
     if (node_of(lowering, node)->kind != SXML_XSLT_AST_KIND_APPLY_TEMPLATES ||
         sxml_xslt_lowering_has_sort(lowering, node) ||
@@ -1345,12 +1369,15 @@ static sxml_status is_apply_point(const sxml_xslt_lowering *lowering, point_ques
     }
     const sxml_xslt_ast_expression *select = select_of(lowering, node);
     stream_path path;
-    if (select == NULL || calls_window_function(select->ast) ||
-        !read_path((path_reading){.ast = select->ast,
-                                  .node = no_ast_node,
-                                  .is_document_focus = question.is_document_focus,
-                                  .allows_attribute = false},
-                   &path)) {
+    if (!has_attribute(lowering, node, SXML_XSLT_AST_ATTRIBUTE_SELECT)) {
+        /* 6.6: no select is child::node() of a node (D228). */
+        path = default_select_path();
+    } else if (select == NULL || calls_window_function(select->ast) ||
+               !read_path((path_reading){.ast = select->ast,
+                                         .node = no_ast_node,
+                                         .is_document_focus = question.is_document_focus,
+                                         .allows_attribute = false},
+                          &path)) {
         return SXML_STATUS_OK;
     }
     bool is_valid = true;
@@ -1398,6 +1425,9 @@ static sxml_status is_apply_point(const sxml_xslt_lowering *lowering, point_ques
     bool reads_beyond = true;
     status = reads_beyond_windows(lowering, node, &reads_beyond);
     *is_point = status == SXML_STATUS_OK && !reads_beyond;
+    /* A descendant step's nodes inside a selected node are found in its
+       full window. */
+    found->is_shallow = path.steps[path.step_count - 1U].axis == SXML_AXIS_CHILD;
     return status;
 }
 
@@ -1448,7 +1478,7 @@ typedef struct body_planning {
 static sxml_status plan_one_body(const body_planning *planning, bool *is_streamed) {
     const sxml_xslt_lowering *lowering = planning->lowering;
     const stream_body body = planning->list->bodies[planning->body_index];
-    const bool is_document_focus = body.point_number == 0;
+    const bool is_document_focus = body.is_document_focus;
     *is_streamed = true;
     size_t point_count = 0;
     /* The siblings still to visit, one chain per open wrapping element. */
@@ -1486,20 +1516,22 @@ static sxml_status plan_one_body(const body_planning *planning, bool *is_streame
                 status =
                     push_body(lowering, planning->list,
                               (stream_body){.node = node,
-                                            .point_number = lowering->stream_plan->point_count});
+                                            .point_number = lowering->stream_plan->point_count,
+                                            .is_document_focus = false});
             }
             continue;
         }
-        status = is_apply_point(lowering, question, &is_point);
+        apply_point_finding apply_point = {.is_point = false, .is_shallow = false};
+        status = is_apply_point(lowering, question, &apply_point);
         if (status != SXML_STATUS_OK) {
             break;
         }
-        if (is_point) {
+        if (apply_point.is_point) {
             point_count += 1;
             status = add_point(lowering->stream_plan,
                                (stream_point){.kind = SXML_STREAM_POINT_APPLY,
                                               .node = node,
-                                              .is_shallow = false,
+                                              .is_shallow = apply_point.is_shallow,
                                               .ast = NULL,
                                               .path = no_ast_node,
                                               .grounding = SXML_STREAM_GROUNDING_NODES,
@@ -1571,25 +1603,16 @@ static bool applies_no_accumulators(const sxml_xslt_lowering *lowering,
     return true;
 }
 
-sxml_status sxml_xslt_plan_source_document(const sxml_xslt_lowering *lowering,
-                                           sxml_xslt_ast_node_index node, bool *is_streamed) {
+/* Plans the streamed body of node (an xsl:source-document or a template
+   rule) and the bodies of its stream points; *is_streamed is the verdict
+   of node's own body. Points of a body not streamed are dropped. */
+static sxml_status plan_streamed_body(const sxml_xslt_lowering *lowering, stream_body first,
+                                      bool *is_streamed) {
     *is_streamed = false;
     sxml_xslt_stream_plan *plan = lowering->stream_plan;
-    const sxml_xslt_ast_attribute *streamable =
-        attribute_of(lowering, node, SXML_XSLT_AST_ATTRIBUTE_STREAMABLE);
-    if (plan == NULL || streamable->value.kind != SXML_XSLT_AST_VALUE_KIND_BOOLEAN ||
-        !streamable->value.payload.is_true ||
-        has_attribute(lowering, node, SXML_XSLT_AST_ATTRIBUTE_VALIDATION) ||
-        has_attribute(lowering, node, SXML_XSLT_AST_ATTRIBUTE_TYPE) ||
-        sxml_xslt_lowering_has_xslt_1_behaviour(lowering, node)) {
-        return SXML_STATUS_OK;
-    }
-    if (!applies_no_accumulators(lowering, node)) {
-        return SXML_STATUS_OK;
-    }
     const size_t first_point = plan->point_count;
     body_list list = {.bodies = NULL, .count = 0, .capacity = 0};
-    sxml_status status = push_body(lowering, &list, (stream_body){.node = node, .point_number = 0});
+    sxml_status status = push_body(lowering, &list, first);
     for (size_t body_index = 0; status == SXML_STATUS_OK && body_index < list.count;
          body_index += 1) {
         bool is_body_streamed = false;
@@ -1608,7 +1631,7 @@ sxml_status sxml_xslt_plan_source_document(const sxml_xslt_lowering *lowering,
     }
     sxml_xpath_lowerer_release_scratch(lowering->lowerer, list.bodies);
     for (size_t point_index = first_point; point_index < plan->point_count; point_index += 1) {
-        plan->points[point_index].document = node;
+        plan->points[point_index].document = first.node;
     }
     if (status != SXML_STATUS_OK || !*is_streamed) {
         /* Not streamed: its points are lowered as before. */
@@ -1616,6 +1639,107 @@ sxml_status sxml_xslt_plan_source_document(const sxml_xslt_lowering *lowering,
         *is_streamed = false;
     }
     return status;
+}
+
+sxml_status sxml_xslt_plan_source_document(const sxml_xslt_lowering *lowering,
+                                           sxml_xslt_ast_node_index node, bool *is_streamed) {
+    *is_streamed = false;
+    sxml_xslt_stream_plan *plan = lowering->stream_plan;
+    const sxml_xslt_ast_attribute *streamable =
+        attribute_of(lowering, node, SXML_XSLT_AST_ATTRIBUTE_STREAMABLE);
+    if (plan == NULL || streamable->value.kind != SXML_XSLT_AST_VALUE_KIND_BOOLEAN ||
+        !streamable->value.payload.is_true ||
+        has_attribute(lowering, node, SXML_XSLT_AST_ATTRIBUTE_VALIDATION) ||
+        has_attribute(lowering, node, SXML_XSLT_AST_ATTRIBUTE_TYPE) ||
+        sxml_xslt_lowering_has_xslt_1_behaviour(lowering, node)) {
+        return SXML_STATUS_OK;
+    }
+    if (!applies_no_accumulators(lowering, node)) {
+        return SXML_STATUS_OK;
+    }
+    return plan_streamed_body(
+        lowering, (stream_body){.node = node, .point_number = 0, .is_document_focus = true},
+        is_streamed);
+}
+
+bool sxml_xslt_reads_accumulators(const sxml_xslt_ast *ast) {
+    bool has_accumulators = false;
+    for (uint32_t order = 1; !has_accumulators && sxml_xslt_ast_get_declaration(ast, order).value != 0;
+         order += 1U) {
+        has_accumulators =
+            sxml_xslt_ast_get_node(ast, sxml_xslt_ast_get_declaration(ast, order))->kind ==
+            SXML_XSLT_AST_KIND_ACCUMULATOR;
+    }
+    if (!has_accumulators) {
+        return false;
+    }
+    const function_names names = {.names = accumulator_function_names,
+                                  .name_count = sizeof(accumulator_function_names) /
+                                                sizeof(accumulator_function_names[0])};
+    for (uint32_t index = 1; index < ast->expression_count; index += 1U) {
+        const sxml_xslt_ast_expression *expression = sxml_xslt_ast_get_expression(
+            ast, (sxml_xslt_ast_expression_index){.value = index});
+        if (expression->ast != NULL && calls_named_function(expression->ast, names)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* Whether the parameters of a template rule read nothing of its node's
+   content: none has a default that is not motionless. */
+static sxml_status has_motionless_parameters(const sxml_xslt_lowering *lowering,
+                                             sxml_xslt_template_rule_plan rule,
+                                             bool *motionless) {
+    *motionless = true;
+    sxml_status status = SXML_STATUS_OK;
+    for (sxml_xslt_ast_node_index child = node_of(lowering, rule.node)->first_child;
+         *motionless && status == SXML_STATUS_OK && child.value != 0;
+         child = node_of(lowering, child)->next_sibling) {
+        if (node_of(lowering, child)->kind == SXML_XSLT_AST_KIND_PARAM &&
+            (has_attribute(lowering, child, SXML_XSLT_AST_ATTRIBUTE_SELECT) ||
+             node_of(lowering, child)->first_child.value != 0)) {
+            status = is_motionless_instruction(
+                lowering,
+                (point_question){.node = child, .is_document_focus = rule.is_document_focus},
+                motionless);
+        }
+    }
+    return status;
+}
+
+sxml_status sxml_xslt_plan_template_rule(const sxml_xslt_lowering *lowering,
+                                         sxml_xslt_template_rule_plan rule, bool *is_streamed) {
+    *is_streamed = false;
+    if (lowering->stream_plan == NULL || sxml_xslt_lowering_has_xslt_1_behaviour(lowering, rule.node)) {
+        return SXML_STATUS_OK;
+    }
+    bool motionless = false;
+    sxml_status status = has_motionless_parameters(lowering, rule, &motionless);
+    if (status != SXML_STATUS_OK || !motionless) {
+        return status;
+    }
+    return plan_streamed_body(lowering,
+                              (stream_body){.node = rule.node,
+                                            .point_number = 0,
+                                            .is_document_focus = rule.is_document_focus},
+                              is_streamed);
+}
+
+sxml_status sxml_xslt_check_streamed_body(const sxml_xslt_lowering *lowering,
+                                          sxml_xslt_ast_node_index node) {
+    const sxml_xslt_stream_plan *plan = lowering->stream_plan;
+    for (size_t point_index = 0; plan != NULL && point_index < plan->point_count;
+         point_index += 1) {
+        const stream_point *point = &plan->points[point_index];
+        if (point->kind == SXML_STREAM_POINT_PATH && point->document.value == node.value &&
+            !point->has_lowered) {
+            /* A streamed path lowered another way would read the body's
+               shallow window as a tree. */
+            return SXML_STATUS_INVALID_ARGUMENT;
+        }
+    }
+    return SXML_STATUS_OK;
 }
 
 /* ------------------------------------------- Lowering a chain of STREAMs */
@@ -1674,7 +1798,11 @@ static sxml_status start_chain(chain_start start, stream_chain *chain) {
          index += 1U) {
         step_lowering *step = &chain->steps[index];
         const stream_step *read = &chain->path.steps[index];
-        status = sxml_xpath_lowerer_resolve_step_test(
+        if (read->step.value == 0) {
+            /* The default select's node(). */
+            step->node_test = sxml_builtin_type_identifier(SXML_TYPE_NODE);
+        } else {
+            status = sxml_xpath_lowerer_resolve_step_test(
             lowerer,
             &(sxml_xpath_step_test_request){
                 .ast = chain->ast,
@@ -1684,6 +1812,7 @@ static sxml_status start_chain(chain_start start, stream_chain *chain) {
                     (sxml_ast_child_query){.parent = read->step, .field = SXML_AST_FIELD_TEST}),
                 .axis = read->axis},
             &step->node_test);
+        }
         if (status == SXML_STATUS_OK) {
             status = sxml_xpath_lowerer_add_slot(lowerer, &step->value);
         }
@@ -1867,16 +1996,22 @@ static sxml_status continue_stream_point(sxml_xpath_lowering_machine *machine,
         frame->step = SXML_STREAM_CHAIN_STEP_PREDICATES;
         const stream_point *point = find_point(lowering, locals->head.node);
         const sxml_xslt_ast_expression *select = select_of(lowering, locals->head.node);
-        if (point == NULL || select == NULL ||
-            !read_path((path_reading){.ast = select->ast,
-                                      .node = no_ast_node,
-                                      .is_document_focus = true,
-                                      .allows_attribute = false},
-                       &chain->path)) {
+        if (point != NULL && point->kind == SXML_STREAM_POINT_APPLY &&
+            !has_attribute(lowering, locals->head.node, SXML_XSLT_AST_ATTRIBUTE_SELECT)) {
+            chain->path = default_select_path();
+            chain->ast = NULL;
+            chain->static_context = NULL;
+        } else if (point == NULL || select == NULL ||
+                   !read_path((path_reading){.ast = select->ast,
+                                             .node = no_ast_node,
+                                             .is_document_focus = true,
+                                             .allows_attribute = false},
+                              &chain->path)) {
             return SXML_STATUS_INVALID_ARGUMENT;
+        } else {
+            chain->ast = select->ast;
+            chain->static_context = &lowering->static_contexts[select->static_context.value];
         }
-        chain->ast = select->ast;
-        chain->static_context = &lowering->static_contexts[select->static_context.value];
         chain->is_shallow = point->is_shallow;
         locals->applies_templates = point->kind == SXML_STREAM_POINT_APPLY;
         status = start_chain(
@@ -2218,19 +2353,13 @@ static sxml_status continue_streamed_document(sxml_xpath_lowering_machine *machi
     if (locals->document_focus.parts_read.context_size.value != 0) {
         return SXML_STATUS_INVALID_ARGUMENT;
     }
-    const sxml_xslt_stream_plan *plan = lowering->stream_plan;
-    for (size_t point_index = 0; point_index < plan->point_count; point_index += 1) {
-        const stream_point *point = &plan->points[point_index];
-        if (point->kind == SXML_STREAM_POINT_PATH && point->document.value == locals->head.node.value &&
-            !point->has_lowered) {
-            /* A streamed path lowered another way would read the
-               document's shallow window as a tree. */
-            return SXML_STATUS_INVALID_ARGUMENT;
-        }
+    sxml_status status = sxml_xslt_check_streamed_body(lowering, locals->head.node);
+    if (status != SXML_STATUS_OK) {
+        return status;
     }
     sxml_ir_expression_index result = {0};
     sxml_ir_expression_index body = {0};
-    sxml_status status = sxml_xslt_lowering_add_expression(
+    status = sxml_xslt_lowering_add_expression(
         lowerer,
         (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_ATOM, .atom = locals->body},
         &result);

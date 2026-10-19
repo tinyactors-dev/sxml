@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?><catalog xmlns:x="urn:x">
+  <book id="b1"><title>XPath 4.0</title><x:price currency="EUR">20</x:price></book>
+  <book id="b2"><title>XQuery 4.0</title><x:price currency="EUR">24</x:price></book>
+</catalog>

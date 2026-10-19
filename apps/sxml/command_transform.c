@@ -18,6 +18,10 @@
  *   the default mode), or the named template --initial-template is called
  *   with it as the focus. Without INPUT the initial template is called
  *   (--initial-template, else xsl:initial-template) without a focus.
+ *   When the stylesheet streams its initial mode
+ *   (sxml_xslt_stylesheet_streams_source), an INPUT file is a streamed
+ *   principal source instead, read through the resolver as it is parsed,
+ *   and there is no global context item (D228).
  * - --param=NAME=VALUE, repeatable, binds the stylesheet parameter or
  *   static parameter $NAME to xs:untypedAtomic(VALUE), which the
  *   parameter's "as" type converts.
@@ -476,7 +480,11 @@ typedef struct sxml_transform_plan {
     sxml_byte_view stylesheet_uri;
     sxml_name_identifier initial_template;
     sxml_name_identifier initial_mode;
+    /* INPUT, read once the stylesheet is compiled: as a tree, the global
+       context item, or as a streamed principal source (D228). */
     bool has_input;
+    sxml_byte_view input_file;
+    bool has_input_tree;
     sxml_item input;
     sxml_transform_results results;
     /* The base output URI (XSLT 4.0, 2.4.6): the result directory's URI,
@@ -541,17 +549,54 @@ static sxml_cli_exit_code sxml_transform_read_plan(sxml_query_run *run,
             SXML_STATUS_OK) {
         return SXML_CLI_EXIT_INTERNAL_ERROR;
     }
-    if (!plan->has_input) {
-        return SXML_CLI_EXIT_SUCCESS;
-    }
-    sxml_byte_view input_file = {.bytes = NULL, .byte_count = 0};
-    if (sxml_cli_arguments_get_positional(invocation->arguments, 1, &input_file) !=
-        SXML_STATUS_OK) {
+    if (plan->has_input &&
+        sxml_cli_arguments_get_positional(invocation->arguments, 1, &plan->input_file) !=
+            SXML_STATUS_OK) {
         return SXML_CLI_EXIT_INTERNAL_ERROR;
     }
+    return SXML_CLI_EXIT_SUCCESS;
+}
+
+/* Reads INPUT for request: when the stylesheet streams it (its initial
+   mode is streamable, sxml_xslt_stylesheet_streams_source) and it is a
+   file, as the URI of a streamed principal source, written to *uri
+   (owned), so the document is never built whole (XSLT 4.0, 2.4.3 and 18;
+   D228); otherwise parsed into plan->input, the global context item.
+   Returns SXML_CLI_EXIT_SUCCESS to go on. */
+typedef struct sxml_transform_input {
+    const sxml_xslt_stylesheet *stylesheet;
+    const sxml_xslt_transformation_request *request;
+    sxml_byte_view *uri;
+} sxml_transform_input;
+
+static sxml_cli_exit_code sxml_transform_read_input(sxml_query_run *run,
+                                                    sxml_transform_plan *plan,
+                                                    const sxml_transform_input *input) {
+    bool streams = false;
+    if (input->request->invocation_kind == SXML_XSLT_INVOCATION_KIND_APPLY_TEMPLATES &&
+        !sxml_byte_view_equals(plan->input_file, SXML_TEXT("-")) &&
+        sxml_xslt_stylesheet_streams_source(input->stylesheet, input->request, &streams) !=
+            SXML_STATUS_OK) {
+        return SXML_CLI_EXIT_INTERNAL_ERROR;
+    }
+    /* A file that cannot be found is reported as before, by the parse. */
+    const sxml_cli_file_writer writer = run->invocation->file_writer;
+    sxml_cli_file_kind kind = SXML_CLI_FILE_KIND_NONE;
+    if (streams && (writer.operations == NULL ||
+                    writer.operations->find_kind(writer.state, plan->input_file, &kind) !=
+                        SXML_STATUS_OK ||
+                    kind != SXML_CLI_FILE_KIND_FILE)) {
+        streams = false;
+    }
+    if (streams) {
+        return sxml_query_make_file_uri(run->invocation, plan->input_file, input->uri) ==
+                       SXML_STATUS_OK
+                   ? SXML_CLI_EXIT_SUCCESS
+                   : SXML_CLI_EXIT_INTERNAL_ERROR;
+    }
     const sxml_cli_exit_code exit_code =
-        sxml_query_run_parse_document(run, input_file, &plan->input);
-    plan->has_input = exit_code == SXML_CLI_EXIT_SUCCESS;
+        sxml_query_run_parse_document(run, plan->input_file, &plan->input);
+    plan->has_input_tree = exit_code == SXML_CLI_EXIT_SUCCESS;
     return exit_code;
 }
 
@@ -592,8 +637,7 @@ static sxml_byte_view sxml_transform_module_file(const sxml_cli_invocation *invo
     return sxml_query_file_of_uri(invocation, name);
 }
 
-static sxml_cli_exit_code sxml_transform_run(const sxml_query_run *run,
-                                             const sxml_transform_plan *plan) {
+static sxml_cli_exit_code sxml_transform_run(sxml_query_run *run, sxml_transform_plan *plan) {
     const sxml_cli_invocation *invocation = run->invocation;
     sxml_error_record error_record;
     memset(&error_record, 0, sizeof(error_record));
@@ -621,19 +665,15 @@ static sxml_cli_exit_code sxml_transform_run(const sxml_query_run *run,
                                     .has_written = false,
                                     .ends_with_line_feed = false};
     sxml_transform_messages messages = {.writer = invocation->standard_error};
+    sxml_cli_exit_code input_exit_code = SXML_CLI_EXIT_SUCCESS;
+    sxml_byte_view streamed_source_uri = {.bytes = NULL, .byte_count = 0};
     if (status == SXML_STATUS_OK) {
         sxml_dynamic_context_configuration dynamic_context = parameters;
-        dynamic_context.has_context_value = plan->has_input;
-        dynamic_context.context_value =
-            plan->has_input ? sxml_sequence_from_item(plan->input) : sxml_sequence_empty();
         dynamic_context.trace_sink =
             (sxml_trace_sink){.state = &messages, .operations = &sxml_transform_message_sink};
         const bool applies_templates =
             plan->has_input && plan->initial_template.index == 0;
-        sxml_sequence principal_result = sxml_sequence_empty();
-        status = sxml_xslt_stylesheet_transform(
-            stylesheet,
-            &(sxml_xslt_transformation_request){
+        sxml_xslt_transformation_request request = {
                 .dynamic_context = dynamic_context,
                 .output_definition = &definition,
                 .output_stream = {.state = &output,
@@ -649,9 +689,28 @@ static sxml_cli_exit_code sxml_transform_run(const sxml_query_run *run,
                                        ? plan->results.directory_uri
                                        : plan->base_output_uri,
                 .result_document_handler = {.state = (void *)&plan->results,
-                                            .operations = &sxml_transform_result_operations}},
-            &principal_result);
-        sxml_sequence_release(principal_result);
+                                            .operations = &sxml_transform_result_operations}};
+        if (plan->has_input) {
+            input_exit_code = sxml_transform_read_input(
+                run, plan,
+                &(sxml_transform_input){
+                    .stylesheet = stylesheet, .request = &request, .uri = &streamed_source_uri});
+        }
+        if (input_exit_code == SXML_CLI_EXIT_SUCCESS) {
+            request.streamed_source_uri = streamed_source_uri;
+            request.dynamic_context.has_context_value = plan->has_input_tree;
+            request.dynamic_context.context_value = plan->has_input_tree
+                                                        ? sxml_sequence_from_item(plan->input)
+                                                        : sxml_sequence_empty();
+            sxml_sequence principal_result = sxml_sequence_empty();
+            status = sxml_xslt_stylesheet_transform(stylesheet, &request, &principal_result);
+            sxml_sequence_release(principal_result);
+        }
+    }
+    sxml_allocator_release(invocation->allocator, (void *)streamed_source_uri.bytes);
+    if (input_exit_code != SXML_CLI_EXIT_SUCCESS) {
+        sxml_xslt_stylesheet_destroy(stylesheet);
+        return input_exit_code;
     }
     if (status == SXML_STATUS_OK && output.has_written && !output.ends_with_line_feed) {
         sxml_cli_writer_write_byte(run->result_writer, '\n');
@@ -701,7 +760,7 @@ static sxml_cli_exit_code sxml_run_transform_command(const sxml_cli_invocation *
     if (exit_code == SXML_CLI_EXIT_SUCCESS) {
         exit_code = sxml_transform_run(&run, &plan);
     }
-    if (plan.has_input) {
+    if (plan.has_input_tree) {
         sxml_item_release(plan.input);
     }
     sxml_allocator_release(invocation->allocator, (void *)plan.stylesheet_text.bytes);
@@ -724,6 +783,10 @@ const sxml_cli_command sxml_transform_command = {
         "called with INPUT as the context item. Without INPUT, the template\n"
         "that --initial-template names, else xsl:initial-template, is called\n"
         "without a context item.\n"
+        "\n"
+        "When templates are applied to an INPUT file in a mode declared\n"
+        "streamable=\"yes\" whose template rules are all guaranteed-streamable,\n"
+        "INPUT is streamed and is not the global context item.\n"
         "\n"
         "The principal result goes to standard output, or to the file that\n"
         "--output names, serialized as the stylesheet's xsl:output says;\n"

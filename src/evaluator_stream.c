@@ -64,8 +64,8 @@ static const sxml_static_error sxml_stream_not_well_formed_error = {
     .error_status = SXML_STATUS_DYNAMIC_ERROR,
     .code_local_name = SXML_BYTE_VIEW_INITIALIZER("FODC0002"),
     .description = SXML_BYTE_VIEW_INITIALIZER(
-        "The document of xsl:source-document is not a well-formed XML document "
-        "(XSLT 4.0, 18.1; F&O 4.0, fn:doc)"),
+        "A streamed document (of xsl:source-document or the principal source) is not a "
+        "well-formed XML document (XSLT 4.0, 18.1; F&O 4.0, fn:doc)"),
 };
 
 static const sxml_static_error sxml_stream_not_a_node_error = {
@@ -230,6 +230,36 @@ static sxml_status sxml_stream_keep(sxml_xml_buffer *buffer, sxml_byte_view byte
 
 /* ------------------------------------------------------ Window building */
 
+/* Sends the start of the open element at element_index, with its
+   bindings and attributes, to the window being built. */
+static sxml_status sxml_stream_replay_element(const sxml_stream_document *document,
+                                              sxml_stream_window_build *build,
+                                              size_t element_index) {
+    const sxml_tree_builder builder = build->builder;
+    const sxml_stream_element *element = sxml_stream_element_at(document, element_index);
+    sxml_element_start_event start = element->event;
+    start.entity_base_uri = sxml_xml_buffer_view(&document->ancestor_text, element->entity_base_uri);
+    sxml_status status = builder.operations->start_element(builder.state, &start);
+    for (size_t binding_index = 0;
+         status == SXML_STATUS_OK && binding_index < element->binding_count; binding_index += 1) {
+        const sxml_namespace_binding *binding =
+            sxml_xml_array_at(&document->bindings, element->first_binding + binding_index);
+        status = builder.operations->add_namespace_binding(builder.state, binding);
+    }
+    for (size_t attribute_index = 0;
+         status == SXML_STATUS_OK && attribute_index < element->attribute_count;
+         attribute_index += 1) {
+        const sxml_stream_attribute *attribute =
+            sxml_xml_array_at(&document->attributes, element->first_attribute + attribute_index);
+        sxml_attribute_event event = attribute->event;
+        event.attribute_value = sxml_xml_buffer_view(&document->ancestor_text, attribute->value);
+        status = builder.operations->add_attribute(builder.state, &event);
+    }
+    build->last_element_index = build->next_node_index;
+    build->next_node_index += 1U + (uint32_t)element->attribute_count;
+    return status;
+}
+
 /* Starts a window: the document node and the open elements up to
    element_count, with their bindings and attributes. */
 static sxml_status sxml_stream_begin_window(sxml_stream_document *document, size_t element_count,
@@ -285,30 +315,7 @@ static sxml_status sxml_stream_begin_window(sxml_stream_document *document, size
     build->next_node_index = 1;
     for (size_t element_index = 0; status == SXML_STATUS_OK && element_index < element_count;
          element_index += 1) {
-        const sxml_stream_element *element = sxml_stream_element_at(document, element_index);
-        sxml_element_start_event start = element->event;
-        start.entity_base_uri =
-            sxml_xml_buffer_view(&document->ancestor_text, element->entity_base_uri);
-        status = builder.operations->start_element(builder.state, &start);
-        for (size_t binding_index = 0;
-             status == SXML_STATUS_OK && binding_index < element->binding_count;
-             binding_index += 1) {
-            const sxml_namespace_binding *binding =
-                sxml_xml_array_at(&document->bindings, element->first_binding + binding_index);
-            status = builder.operations->add_namespace_binding(builder.state, binding);
-        }
-        for (size_t attribute_index = 0;
-             status == SXML_STATUS_OK && attribute_index < element->attribute_count;
-             attribute_index += 1) {
-            const sxml_stream_attribute *attribute = sxml_xml_array_at(
-                &document->attributes, element->first_attribute + attribute_index);
-            sxml_attribute_event event = attribute->event;
-            event.attribute_value =
-                sxml_xml_buffer_view(&document->ancestor_text, attribute->value);
-            status = builder.operations->add_attribute(builder.state, &event);
-        }
-        build->last_element_index = build->next_node_index;
-        build->next_node_index += 1U + (uint32_t)element->attribute_count;
+        status = sxml_stream_replay_element(document, build, element_index);
     }
     if (status != SXML_STATUS_OK) {
         sxml_arena_tree_destroy(build->arena_tree);
@@ -778,6 +785,28 @@ static sxml_status sxml_stream_element_window(sxml_dynamic_context *dynamic_cont
                                   node);
 }
 
+/* Sends a text, comment or processing instruction event to builder. */
+static sxml_status sxml_stream_add_leaf(const sxml_stream_document *document,
+                                        sxml_tree_builder builder, const sxml_stream_event *event) {
+    const sxml_byte_view text = sxml_xml_buffer_view(&document->event_text, event->text);
+    if (event->event_kind == SXML_STREAM_EVENT_TEXT) {
+        return builder.operations->add_text(
+            builder.state, &(sxml_text_event){.text = text,
+                                              .location = event->location,
+                                              .is_cdata_section = event->is_cdata_section,
+                                              .disables_output_escaping = false});
+    }
+    if (event->event_kind == SXML_STREAM_EVENT_COMMENT) {
+        return builder.operations->add_comment(
+            builder.state, &(sxml_comment_event){.comment = text, .location = event->location});
+    }
+    return builder.operations->add_processing_instruction(
+        builder.state, &(sxml_processing_instruction_event){
+                           .target = text,
+                           .data = sxml_xml_buffer_view(&document->event_text, event->data),
+                           .location = event->location});
+}
+
 /* The window of a text, comment or processing instruction just taken. */
 static sxml_status sxml_stream_leaf_window(sxml_stream_document *document,
                                            const sxml_stream_event *event, sxml_item *node) {
@@ -788,24 +817,7 @@ static sxml_status sxml_stream_leaf_window(sxml_stream_document *document,
         return status;
     }
     const uint32_t node_index = build.next_node_index;
-    const sxml_tree_builder builder = build.builder;
-    const sxml_byte_view text = sxml_xml_buffer_view(&document->event_text, event->text);
-    if (event->event_kind == SXML_STREAM_EVENT_TEXT) {
-        status = builder.operations->add_text(
-            builder.state, &(sxml_text_event){.text = text,
-                                              .location = event->location,
-                                              .is_cdata_section = event->is_cdata_section,
-                                              .disables_output_escaping = false});
-    } else if (event->event_kind == SXML_STREAM_EVENT_COMMENT) {
-        status = builder.operations->add_comment(
-            builder.state, &(sxml_comment_event){.comment = text, .location = event->location});
-    } else {
-        status = builder.operations->add_processing_instruction(
-            builder.state, &(sxml_processing_instruction_event){
-                               .target = text,
-                               .data = sxml_xml_buffer_view(&document->event_text, event->data),
-                               .location = event->location});
-    }
+    status = sxml_stream_add_leaf(document, build.builder, event);
     if (status != SXML_STATUS_OK) {
         sxml_arena_tree_destroy(build.arena_tree);
         return status;
@@ -813,6 +825,56 @@ static sxml_status sxml_stream_leaf_window(sxml_stream_document *document,
     return sxml_stream_end_window(
         document,
         (sxml_stream_window_end){.build = &build, .open_count = depth, .node_index = node_index},
+        node);
+}
+
+/* The full window of the document node while it is the open node, its
+   content not read yet: the whole document, as fn:doc would build it
+   (a template rule that reads more than stream points of its own, D228).
+   The events queued so far go to the window first, the pending text
+   next, then the rest of the parse. */
+static sxml_status sxml_stream_document_window(sxml_dynamic_context *dynamic_context,
+                                               sxml_stream_document *document, sxml_item *node) {
+    sxml_stream_window_build build;
+    sxml_status status = sxml_stream_begin_window(document, 0, &build);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    while (status == SXML_STATUS_OK && document->queue_count > 0) {
+        const sxml_stream_event *queued = &document->queue[document->queue_start];
+        if (queued->event_kind == SXML_STREAM_EVENT_START_ELEMENT) {
+            status = sxml_stream_replay_element(document, &build, queued->depth - 1U);
+        } else if (queued->event_kind == SXML_STREAM_EVENT_END_ELEMENT) {
+            status = build.builder.operations->end_element(build.builder.state);
+        } else if (queued->event_kind != SXML_STREAM_EVENT_END_DOCUMENT) {
+            status = sxml_stream_add_leaf(document, build.builder, queued);
+        }
+        sxml_stream_event taken;
+        if (status == SXML_STATUS_OK) {
+            status = sxml_stream_next_event(dynamic_context, document, &taken);
+        }
+    }
+    if (status == SXML_STATUS_OK && document->has_pending_text) {
+        document->has_pending_text = false;
+        status = sxml_stream_add_leaf(document, build.builder, &document->pending_text);
+    }
+    if (status == SXML_STATUS_OK && !document->is_finished) {
+        document->capture = build;
+        document->mode = SXML_STREAM_MODE_CAPTURE;
+        document->mode_depth = 0;
+        while (status == SXML_STATUS_OK && !document->is_finished) {
+            status = sxml_stream_resume(dynamic_context, document);
+        }
+        document->mode = SXML_STREAM_MODE_NOTIFY;
+        build = document->capture;
+        document->capture.arena_tree = NULL;
+    }
+    if (status != SXML_STATUS_OK) {
+        sxml_arena_tree_destroy(build.arena_tree);
+        return status;
+    }
+    return sxml_stream_end_window(
+        document, (sxml_stream_window_end){.build = &build, .open_count = 0, .node_index = 0},
         node);
 }
 
@@ -1690,6 +1752,60 @@ static sxml_status sxml_stream_finish_document(sxml_dynamic_context *dynamic_con
     return sxml_stream_finish(dynamic_context, state);
 }
 
+/* A grounding stream (axis SELF, D228): the body once, in the focus of
+   origin's full window when origin is the open node (its content read
+   now, so whoever opened it skips nothing), else of origin. */
+static sxml_status sxml_stream_start_grounding(sxml_dynamic_context *dynamic_context,
+                                               sxml_stream_state *state) {
+    sxml_sequence value = sxml_sequence_empty();
+    sxml_status status =
+        sxml_evaluator_machine_read_atom(dynamic_context, state->stream->origin, &value);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_stream_document *document = NULL;
+    if (sxml_sequence_get_representation(value) == SXML_SEQUENCE_REPRESENTATION_SINGLE_ITEM) {
+        document = sxml_stream_find_document(dynamic_context, value.content);
+    }
+    state->candidate_source = SXML_STREAM_CANDIDATE_LEAF;
+    state->selected_count = 1;
+    const sxml_ir_focus focus = state->stream->focus;
+    sxml_evaluator_task *task = sxml_evaluator_machine_top(dynamic_context);
+    task->phase = (uint32_t)SXML_STREAM_PHASE_BODY;
+    if (document == NULL) {
+        if (focus.context_value.value != 0) {
+            sxml_sequence_retain(value);
+            sxml_evaluator_machine_bind_slot(dynamic_context, focus.context_value, value);
+        }
+    } else {
+        document->is_open_node_consumed = true;
+        if (document->open_depth == 0) {
+            status = sxml_stream_document_window(dynamic_context, document, &state->candidate);
+        } else if (sxml_stream_depth(document) == document->open_depth) {
+            status = sxml_stream_element_window(
+                dynamic_context,
+                (sxml_stream_element_request){.document = document, .is_full = true},
+                &state->candidate);
+        } else {
+            /* Content of the open node was read before: no window can
+               hold it all. */
+            status = SXML_STATUS_INVALID_ARGUMENT;
+        }
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        if (focus.context_value.value != 0) {
+            sxml_item_retain(state->candidate);
+            sxml_evaluator_machine_bind_slot(dynamic_context, focus.context_value,
+                                             sxml_sequence_from_item(state->candidate));
+        }
+    }
+    if (task->delivers_content) {
+        return sxml_evaluator_machine_push_content(dynamic_context, state->stream->body);
+    }
+    return sxml_evaluator_machine_push_expression(dynamic_context, state->stream->body);
+}
+
 static sxml_status sxml_stream_start(sxml_dynamic_context *dynamic_context,
                                      sxml_evaluator_task *task) {
     sxml_stream_state *state = NULL;
@@ -1699,6 +1815,9 @@ static sxml_status sxml_stream_start(sxml_dynamic_context *dynamic_context,
     }
     if ((state->stream->flags & (uint32_t)SXML_IR_STREAM_OPENS_DOCUMENT) != 0) {
         return sxml_stream_start_document(dynamic_context, state);
+    }
+    if (state->stream->axis == SXML_AXIS_SELF) {
+        return sxml_stream_start_grounding(dynamic_context, state);
     }
     status = sxml_stream_resolve_test(dynamic_context, state->stream->node_test, &state->test);
     if (status == SXML_STATUS_OK) {
@@ -1743,6 +1862,12 @@ static sxml_status sxml_stream_step(sxml_dynamic_context *dynamic_context,
     case SXML_STREAM_PHASE_BODY:
         if ((state->stream->flags & (uint32_t)SXML_IR_STREAM_OPENS_DOCUMENT) != 0) {
             return sxml_stream_finish_document(dynamic_context, state);
+        }
+        if (state->stream->axis == SXML_AXIS_SELF) {
+            /* A grounding stream's one body ended. */
+            const sxml_status status = sxml_stream_append(
+                dynamic_context, state, sxml_evaluator_machine_take_value(dynamic_context));
+            return status == SXML_STATUS_OK ? sxml_stream_finish(dynamic_context, state) : status;
         }
         return sxml_stream_take_body(dynamic_context, state);
     }

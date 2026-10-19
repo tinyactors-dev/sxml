@@ -6062,7 +6062,24 @@ sxml_status sxml_xslt_assess_mode(const sxml_xslt_mode_query *query, bool *is_gu
     }
     const sxml_xslt_ast *ast = query->ast;
     mode_reference mode = {.kind = SXML_XSLT_AST_NAME_TOKEN_KIND_UNNAMED, .name = {.index = 0}};
-    if (!instruction_mode(ast, query->instruction, &mode) || !is_streamable_mode(ast, mode)) {
+    if (query->instruction.value == 0) {
+        /* A mode by name (D228); #default against the principal module
+           (2.4.3). */
+        const sxml_xslt_ast_name_token token = {
+            .kind = query->is_default_mode ? SXML_XSLT_AST_NAME_TOKEN_KIND_DEFAULT
+                    : query->mode_name.index != 0 ? SXML_XSLT_AST_NAME_TOKEN_KIND_NAME
+                                                  : SXML_XSLT_AST_NAME_TOKEN_KIND_UNNAMED,
+            .name = query->mode_name,
+            .namespace_uri = {.index = 0},
+            .has_arity = false,
+            .arity = 0};
+        mode = resolve_mode(
+            ast, sxml_xslt_ast_get_module(ast, (sxml_xslt_ast_module_index){.value = 1})->root,
+            token);
+    } else if (!instruction_mode(ast, query->instruction, &mode)) {
+        return SXML_STATUS_OK;
+    }
+    if (!is_streamable_mode(ast, mode)) {
         return SXML_STATUS_OK;
     }
     machine state = {.ast = ast,

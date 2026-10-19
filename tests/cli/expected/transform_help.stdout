@@ -11,6 +11,10 @@ called with INPUT as the context item. Without INPUT, the template
 that --initial-template names, else xsl:initial-template, is called
 without a context item.
 
+When templates are applied to an INPUT file in a mode declared
+streamable="yes" whose template rules are all guaranteed-streamable,
+INPUT is streamed and is not the global context item.
+
 The principal result goes to standard output, or to the file that
 --output names, serialized as the stylesheet's xsl:output says;
 --method replaces the method. xsl:message output goes to standard

@@ -620,6 +620,22 @@ typedef struct sxml_xslt_transformation_request {
        arity of the initial function. Each is coerced to its parameter's
        declared type (XPTY0004). */
     sxml_sequence_view function_arguments;
+    /* APPLY_TEMPLATES: the absolute URI of a principal source to stream;
+       empty for none (D228). The initial match selection is then the
+       document node of the document at this URI, read through the
+       available documents and the resolver as xsl:source-document reads
+       one (kind SXML_RESOURCE_KIND_XML_DOCUMENT; its BYTES form is what
+       can be streamed), stripped as every source document is (4.2.2).
+       When the initial mode is streamable and every template rule of it
+       is guaranteed-streamable, and no expression reads an accumulator
+       (sxml_xslt_stylesheet_streams_source), its nodes are read as the
+       parser delivers them, without building the document (XSLT 4.0,
+       2.4.3 and 18; the streaming specification); otherwise the whole
+       document is built first, with the same results. The global context
+       item is the dynamic context's, absent when it gives none: a node
+       of a streamed document is never one (2.4.2). With it,
+       has_initial_match_selection must be false. */
+    sxml_byte_view streamed_source_uri;
     /* The base output URI, an absolute URI; empty when absent (2.4.6).
        Relative hrefs of xsl:result-document resolve against it; it is
        the URI of the principal result and the base URI of its tree. */
@@ -691,6 +707,22 @@ SXML_NODISCARD SXML_EXPORT sxml_status sxml_xslt_stylesheet_transform(
     const sxml_xslt_stylesheet *stylesheet,
     const sxml_xslt_transformation_request *request,
     sxml_sequence *principal_result);
+
+/*
+ * Writes to *streams whether request, given a streamed_source_uri, would
+ * stream it (D228): an APPLY_TEMPLATES invocation whose initial mode
+ * (initial_mode_name, selects_unnamed_mode, else the default mode) is
+ * declared streamable="yes" with every template rule guaranteed-
+ * streamable (XSLT 4.0, 19.10), in a stylesheet whose expressions read no
+ * accumulator. Only the invocation fields of request are read; false for
+ * the other invocation kinds. A host can so pass a large source as a URI
+ * when it streams and as a tree, also the global context item, when it
+ * does not. Returns SXML_STATUS_INVALID_ARGUMENT for a NULL argument and
+ * the allocator's failures.
+ */
+SXML_NODISCARD SXML_EXPORT sxml_status sxml_xslt_stylesheet_streams_source(
+    const sxml_xslt_stylesheet *stylesheet, const sxml_xslt_transformation_request *request,
+    bool *streams);
 
 /* ------------------------------------------------------------ fn:transform */
 

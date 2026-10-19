@@ -637,6 +637,204 @@ static void test_large_document_paths_stream_in_bounded_memory(sxml_test_state *
     sxml_allocator_release(sxml_default_allocator(), memory);
 }
 
+/* -------------------------------------------- Streamed principal source */
+
+/* A stylesheet whose unnamed mode is streamable or not, with templates. */
+#define PRINCIPAL(streamable, on_no_match, templates)                                              \
+    "<xsl:stylesheet version='3.0' " XSL_NAMESPACE " exclude-result-prefixes='#all'>"              \
+    "<xsl:mode streamable='" streamable "' on-no-match='" on_no_match "'/>" templates              \
+    "</xsl:stylesheet>"
+
+/* Applies the templates of stylesheet_text's default mode to the streamed
+   principal source in.xml (D228), serialized into the output buffer. */
+static sxml_status run_principal(fixture *test_fixture, sxml_byte_view stylesheet_text) {
+    memset(&test_fixture->error_record, 0, sizeof(test_fixture->error_record));
+    sxml_output_buffer_clear(test_fixture->output_buffer);
+    sxml_xslt_stylesheet *stylesheet = NULL;
+    sxml_status status = sxml_xslt_stylesheet_create(
+        fixture_allocator(test_fixture),
+        &(sxml_xslt_stylesheet_configuration){
+            .processor = test_fixture->processor,
+            .principal_module_text = stylesheet_text,
+            .static_context = {.static_base_uri = TEXT("http://example.com/x/main.xsl")},
+            .principal_module_source = SXML_XSLT_PRINCIPAL_MODULE_SOURCE_TEXT,
+            .error_record = &test_fixture->error_record},
+        &stylesheet);
+    if (status == SXML_STATUS_OK) {
+        sxml_dynamic_context_configuration dynamic_context;
+        memset(&dynamic_context, 0, sizeof(dynamic_context));
+        sxml_sequence principal = sxml_sequence_empty();
+        status = sxml_xslt_stylesheet_transform(
+            stylesheet,
+            &(sxml_xslt_transformation_request){
+                .dynamic_context = dynamic_context,
+                .initial_match_selection = sxml_sequence_empty(),
+                .streamed_source_uri = TEXT("http://example.com/x/in.xml"),
+                .base_output_uri = TEXT("http://example.com/out/main.xml"),
+                .output_definition = NULL,
+                .output_stream = sxml_output_buffer_as_output_stream(test_fixture->output_buffer),
+                .error_record = &test_fixture->error_record,
+                .invocation_kind = SXML_XSLT_INVOCATION_KIND_APPLY_TEMPLATES,
+                .result_delivery = SXML_XSLT_RESULT_DELIVERY_SERIALIZED},
+            &principal);
+        sxml_sequence_release(principal);
+    }
+    sxml_xslt_stylesheet_destroy(stylesheet);
+    return status;
+}
+
+/* Template rules applied to a streamed principal source (D228): the
+   streamed mode, and the same templates in a mode that is not
+   streamable, which grounds the whole document first. */
+typedef struct principal_case {
+    const char *streamed_text;
+    const char *unstreamed_text;
+    /* The output; NULL: the same as the unstreamed run's. */
+    const char *expected_output;
+} principal_case;
+
+#define PRINCIPAL_CASE(on_no_match, templates, expected)                                           \
+    {                                                                                              \
+        .streamed_text = PRINCIPAL("yes", on_no_match, templates),                                 \
+        .unstreamed_text = PRINCIPAL("no", on_no_match, templates), .expected_output = (expected)  \
+    }
+
+static const principal_case principal_cases[] = {
+    /* A template rule for "/" with a stream point of its own (glossary
+       `streamed_template_rule`). */
+    PRINCIPAL_CASE("shallow-skip",
+                   "<xsl:template match='/'><out><xsl:for-each "
+                   "select='records/record[@hot = \"yes\"]'><r id='{@id}'><xsl:value-of "
+                   "select='name'/></r></xsl:for-each></out></xsl:template>",
+                   DECLARATION "<out><r id=\"10000\">item 10000</r><r id=\"20000\">item 20000</r>"
+                               "<r id=\"30000\">item 30000</r></out>"),
+    /* The built-in rule applies templates to the children as they pass;
+       a rule that reads its node's content gets its full window. */
+    PRINCIPAL_CASE("shallow-skip",
+                   "<xsl:template match='/'><out><xsl:apply-templates/></out></xsl:template>"
+                   "<xsl:template match='record[@hot = \"yes\"]'><xsl:copy-of select='.'/>"
+                   "</xsl:template>",
+                   NULL),
+    /* The identity, as the document streams: the shallow copies' content
+       is delivered as it is made (the result itself is held whole, so it
+       is kept small here). */
+    PRINCIPAL_CASE("shallow-copy",
+                   "<xsl:template match='record[@hot = \"no\"]'/>"
+                   "<xsl:template match='price'><p><xsl:value-of select='. * 2'/></p>"
+                   "</xsl:template>",
+                   NULL),
+    /* An aggregate over the document from the rule for "/". */
+    PRINCIPAL_CASE("shallow-skip",
+                   "<xsl:template match='/'><n><xsl:value-of "
+                   "select='sum(records/record/price)'/></n></xsl:template>",
+                   DECLARATION "<n>1.4925E6</n>"),
+};
+
+static void test_principal_source_streams_in_bounded_memory(sxml_test_state *state) {
+    sxml_byte_view document = {.bytes = NULL, .byte_count = 0};
+    void *memory = NULL;
+    sxml_status status = make_large_document(&document, &memory);
+    SXML_TEST_EXPECT(state, status == SXML_STATUS_OK);
+    if (status != SXML_STATUS_OK) {
+        return;
+    }
+    for (size_t case_index = 0; case_index < SXML_TEST_COUNT(principal_cases); case_index += 1) {
+        const principal_case *test_case = &principal_cases[case_index];
+        const sxml_byte_view streamed = {.bytes = (const uint8_t *)test_case->streamed_text,
+                                         .byte_count = strlen(test_case->streamed_text)};
+        const sxml_byte_view unstreamed = {.bytes = (const uint8_t *)test_case->unstreamed_text,
+                                           .byte_count = strlen(test_case->unstreamed_text)};
+        fixture test_fixture;
+        status = fixture_create(&test_fixture, document);
+        /* Unstreamed and unlimited first: the output to compare with. */
+        sxml_output_buffer *expected = NULL;
+        if (status == SXML_STATUS_OK) {
+            status = run_principal(&test_fixture, unstreamed);
+        }
+        if (status == SXML_STATUS_OK) {
+            status = sxml_output_buffer_create(
+                sxml_default_allocator(),
+                &(sxml_output_buffer_configuration){.allocator = sxml_default_allocator(),
+                                                    .maximum_byte_count = 0},
+                &expected);
+        }
+        if (status == SXML_STATUS_OK) {
+            const sxml_byte_view bytes = sxml_output_buffer_get_bytes(test_fixture.output_buffer);
+            const sxml_output_stream stream = sxml_output_buffer_as_output_stream(expected);
+            status = stream.operations->write(stream.state, bytes);
+        }
+        test_fixture.memory.peak_byte_count = test_fixture.memory.live_byte_count;
+        test_fixture.memory.limit_byte_count =
+            test_fixture.memory.live_byte_count + STREAM_LIMIT_BYTE_COUNT;
+        if (status == SXML_STATUS_OK) {
+            status = run_principal(&test_fixture, streamed);
+        }
+        const sxml_byte_view got = sxml_output_buffer_get_bytes(test_fixture.output_buffer);
+        printf("  case %zu: status %d, peak %zu bytes, %zu output bytes\n", case_index,
+               (int)status, test_fixture.memory.peak_byte_count, got.byte_count);
+        SXML_TEST_EXPECT(state, status == SXML_STATUS_OK);
+        if (expected != NULL) {
+            SXML_TEST_EXPECT(state,
+                             sxml_byte_view_equals(got, sxml_output_buffer_get_bytes(expected)));
+        }
+        if (test_case->expected_output != NULL) {
+            SXML_TEST_EXPECT(
+                state,
+                sxml_byte_view_equals(
+                    got, (sxml_byte_view){.bytes = (const uint8_t *)test_case->expected_output,
+                                          .byte_count = strlen(test_case->expected_output)}));
+        }
+        /* Under the same limit the unstreamed run builds the document. */
+        sxml_status limited = SXML_STATUS_OK;
+        if (status == SXML_STATUS_OK) {
+            limited = run_principal(&test_fixture, unstreamed);
+        }
+        SXML_TEST_EXPECT(state, limited != SXML_STATUS_OK);
+        sxml_output_buffer_destroy(expected);
+        SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
+    }
+    sxml_allocator_release(sxml_default_allocator(), memory);
+}
+
+/* The library tells whether a request's initial mode streams (D228). */
+static void test_streams_source_reads_the_initial_mode(sxml_test_state *state) {
+    fixture test_fixture;
+    sxml_status status = fixture_create(&test_fixture, TEXT(books));
+    /* Streamable; not streamable; streamable, but a call-template
+       invocation. */
+    const char *const texts[] = {PRINCIPAL("yes", "shallow-skip", ""),
+                                 PRINCIPAL("no", "shallow-skip", ""),
+                                 PRINCIPAL("yes", "shallow-skip", "")};
+    const bool expected[] = {true, false, false};
+    for (size_t text_index = 0; status == SXML_STATUS_OK && text_index < SXML_TEST_COUNT(texts);
+         text_index += 1) {
+        sxml_xslt_stylesheet *stylesheet = NULL;
+        status = sxml_xslt_stylesheet_create(
+            fixture_allocator(&test_fixture),
+            &(sxml_xslt_stylesheet_configuration){
+                .processor = test_fixture.processor,
+                .principal_module_text = {.bytes = (const uint8_t *)texts[text_index],
+                                          .byte_count = strlen(texts[text_index])},
+                .principal_module_source = SXML_XSLT_PRINCIPAL_MODULE_SOURCE_TEXT,
+                .error_record = &test_fixture.error_record},
+            &stylesheet);
+        bool streams = !expected[text_index];
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xslt_stylesheet_streams_source(
+                stylesheet,
+                &(sxml_xslt_transformation_request){
+                    .invocation_kind = text_index == 2U
+                                           ? SXML_XSLT_INVOCATION_KIND_CALL_TEMPLATE
+                                           : SXML_XSLT_INVOCATION_KIND_APPLY_TEMPLATES},
+                &streams);
+        }
+        SXML_TEST_EXPECT(state, status == SXML_STATUS_OK && streams == expected[text_index]);
+        sxml_xslt_stylesheet_destroy(stylesheet);
+    }
+    SXML_TEST_EXPECT(state, status == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
+}
+
 static const sxml_test_case evaluator_stream_test_cases[] = {
     {.name = "streamed_results_are_unstreamed_results",
      .function = test_streamed_results_are_unstreamed_results},
@@ -648,6 +846,10 @@ static const sxml_test_case evaluator_stream_test_cases[] = {
      .function = test_large_document_streams_in_bounded_memory},
     {.name = "large_document_paths_stream_in_bounded_memory",
      .function = test_large_document_paths_stream_in_bounded_memory},
+    {.name = "principal_source_streams_in_bounded_memory",
+     .function = test_principal_source_streams_in_bounded_memory},
+    {.name = "streams_source_reads_the_initial_mode",
+     .function = test_streams_source_reads_the_initial_mode},
 };
 
 int main(int argument_count, char **arguments) {

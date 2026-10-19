@@ -51,6 +51,7 @@
 #include "sxml/types.h"
 #include "sxml/xdm.h"
 #include "xslt_pattern_internal.h"
+#include "xslt_streamability_internal.h"
 #include "sort_internal.h"
 
 #include <math.h>
@@ -121,10 +122,13 @@ typedef struct mode_entry {
        0 for none. */
     sxml_xslt_ast_node_index as_declaration;
     uint32_t as_precedence;
+    /* Whether its template rules and built-in template are prepared for
+       open nodes (D228): 0 not asked yet, 1 yes, 2 no. */
+    uint8_t stream_verdict;
 } mode_entry;
 
-/* The kinds of built-in template (6.10), twice: copying namespaces or
-   not. */
+/* The kinds of built-in template (6.10), four times: copying namespaces
+   or not, streamed or not (D228). */
 #define BUILT_IN_TEMPLATE_KIND_COUNT 6U
 
 /* The XPath texts the built-in templates and apply-templates without
@@ -195,8 +199,9 @@ struct sxml_xslt_template_lowering {
     size_t mode_capacity;
     /* The empty map, a constant of the unit. */
     sxml_ir_atom empty_map;
-    /* By sxml_ir_built_in_rule, then copy-namespaces "no"; 0 until made. */
-    sxml_ir_function_index built_in_templates[2U * BUILT_IN_TEMPLATE_KIND_COUNT];
+    /* By sxml_ir_built_in_rule, then copy-namespaces "no", then the same
+       streamed (D228); 0 until made. */
+    sxml_ir_function_index built_in_templates[4U * BUILT_IN_TEMPLATE_KIND_COUNT];
     sxml_ast *snippets[SXML_SNIPPET_COUNT];
     /* The rule that raises XTTE3100 in typed modes (6.9.4), for typed 1
        and 2; zero until made. */
@@ -1050,6 +1055,42 @@ typedef struct template_function_request {
 } template_function_request;
 
 /* Lowers one template's body into a function (outside a machine). */
+static sxml_status prepares_for_open_nodes(const sxml_xslt_lowering *lowering,
+                                           const template_entry *entry, bool *prepares);
+
+static bool is_document_pattern(const sxml_xslt_lowering *lowering, const template_entry *entry);
+
+/* The guard of a template rule that reads more of its node than stream
+   points of its own (D228): a grounding STREAM from the item slot whose
+   focus is grounded, around body. */
+typedef struct grounding_request {
+    sxml_ir_slot grounded;
+    sxml_ir_expression_index *body;
+    /* The node to ground; NONE: the item slot. */
+    sxml_ir_atom origin;
+} grounding_request;
+
+static sxml_status add_grounding(sxml_xpath_lowerer *lowerer, grounding_request request) {
+    return sxml_xslt_lowering_add_expression(
+        lowerer,
+        (sxml_ir_expression){
+            .expression_kind = SXML_IR_EXPRESSION_KIND_STREAM,
+            .stream = {.origin = request.origin.atom_kind == SXML_IR_ATOM_KIND_NONE
+                                     ? sxml_ir_slot_atom(item_slot)
+                                     : request.origin,
+                       .axis = SXML_AXIS_SELF,
+                       .node_test = {.index = SXML_TYPE_NONE},
+                       .predicate = {0},
+                       .focus = {.context_value = request.grounded,
+                                 .context_position = {0},
+                                 .context_size = {0}},
+                       .position_counter = {0},
+                       .body = *request.body,
+                       .flags = 0,
+                       .fold = {0}}},
+        request.body);
+}
+
 static sxml_status lower_template_function(sxml_xslt_lowering *lowering,
                                            template_function_request request) {
     sxml_xpath_lowerer *lowerer = lowering->lowerer;
@@ -1077,14 +1118,38 @@ static sxml_status lower_template_function(sxml_xslt_lowering *lowering,
                                           : SXML_XPATH_LOWERING_FOCUS_KIND_SLOTS,
                   .slots = focus_slots},
     };
+    /* A template rule of a streamed mode may be applied to an open node
+       (D228): its body streams, or reads the node's full window. */
+    bool prepares = false;
+    bool is_streamed = false;
+    sxml_status status = SXML_STATUS_OK;
+    if (!is_focus_absent && entry->pattern.value != 0) {
+        status = prepares_for_open_nodes(lowering, entry, &prepares);
+    }
+    if (status == SXML_STATUS_OK && prepares) {
+        status = sxml_xslt_plan_template_rule(
+            lowering,
+            (sxml_xslt_template_rule_plan){.node = entry->node,
+                                           .is_document_focus = is_document_pattern(lowering, entry)},
+            &is_streamed);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
     sxml_xpath_lowerer_enter_function(lowerer, &function_frame);
+    sxml_ir_slot grounded = {0};
+    if (prepares && !is_streamed) {
+        status = sxml_xpath_lowerer_add_slot(lowerer, &grounded);
+        function_frame.focus.slots.context_value = grounded;
+    }
     templates->current_function = function;
     templates->current_focus = &function_frame.focus;
     sxml_xpath_lowering_block block = {.first = {0}, .open_let = {0}};
     sxml_ir_expression_index body = {0};
     const sxml_xslt_instruction_locals initial = {.lowering = lowering, .node = entry->node};
-    sxml_status status = SXML_STATUS_OK;
-    if (sxml_xslt_package_is_abstract(lowering, entry->node)) {
+    if (status != SXML_STATUS_OK) {
+        /* No slot: nothing to lower. */
+    } else if (sxml_xslt_package_is_abstract(lowering, entry->node)) {
         /* 3.4.5.2: an abstract template no package overrides. */
         status = add_raise(lowerer,
                            (raise_text){.error_status = SXML_STATUS_DYNAMIC_ERROR,
@@ -1110,6 +1175,12 @@ static sxml_status lower_template_function(sxml_xslt_lowering *lowering,
                 lowerer, (sxml_xpath_lowering_block_result){.block = block, .result = body},
                 &body);
         }
+    }
+    if (status == SXML_STATUS_OK && is_streamed) {
+        status = sxml_xslt_check_streamed_body(lowering, entry->node);
+    }
+    if (status == SXML_STATUS_OK && grounded.value != 0) {
+        status = add_grounding(lowerer, (grounding_request){.grounded = grounded, .body = &body, .origin = {.atom_kind = SXML_IR_ATOM_KIND_NONE}});
     }
     templates->current_function = (sxml_ir_function_index){.value = 0};
     templates->current_focus = NULL;
@@ -2858,7 +2929,110 @@ static sxml_status bind_built_in_apply(sxml_xpath_lowerer *lowerer, snippet_bind
 typedef struct built_in_lowering {
     const sxml_xslt_lowering *lowering;
     uint32_t construction_flags;
+    /* The slot of the item it processes: the item parameter, or the
+       grounded window of a streamed deep copy (D228). */
+    sxml_ir_slot item;
+    /* Of a streamed mode (D228): the children are applied as they pass. */
+    bool is_streamed;
 } built_in_lowering;
+
+/* The children of the item applied in the current mode as a STREAM
+   (D228): child::node() one node at a time, an element in a shallow
+   window (a template rule applied to it streams its content or grounds
+   it), each with its position and no size, bound in block. The same IR
+   walks the children of an unstreamed node. */
+static sxml_status bind_streamed_children(sxml_xpath_lowerer *lowerer,
+                                          sxml_xpath_lowering_block *block, sxml_ir_atom *atom) {
+    sxml_ir_slot value = {0};
+    sxml_ir_slot position = {0};
+    sxml_status status = sxml_xpath_lowerer_add_slot(lowerer, &value);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_add_slot(lowerer, &position);
+    }
+    const sxml_ir_focus focus = {
+        .context_value = value, .context_position = position, .context_size = {0}};
+    sxml_ir_expression_index apply = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xslt_lowering_add_expression(
+            lowerer,
+            (sxml_ir_expression){
+                .expression_kind = SXML_IR_EXPRESSION_KIND_APPLY_TEMPLATES,
+                .apply_templates = {.select = {.atom_kind = SXML_IR_ATOM_KIND_NONE},
+                                    .focus = focus,
+                                    .mode = {.value = 0},
+                                    .rule_search = SXML_IR_RULE_SEARCH_FROM_START,
+                                    .parameters = sxml_ir_slot_atom(parameters_slot),
+                                    .tunnel_parameters = sxml_ir_slot_atom(tunnel_parameters_slot),
+                                    .separator = {.atom_kind = SXML_IR_ATOM_KIND_NONE}}},
+            &apply);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return bind_expression(
+        lowerer,
+        (expression_binding){
+            .block = block,
+            .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_STREAM,
+                           .stream = {.origin = sxml_ir_slot_atom(item_slot),
+                                      .axis = SXML_AXIS_CHILD,
+                                      .node_test = sxml_builtin_type_identifier(SXML_TYPE_NODE),
+                                      .predicate = {0},
+                                      .focus = focus,
+                                      .position_counter = {0},
+                                      .body = apply,
+                                      .flags = (uint32_t)SXML_IR_STREAM_SHALLOW_WINDOWS,
+                                      .fold = {0}}}},
+        atom);
+}
+
+/* The children of the item applied (6.10), streamed in a streamed mode,
+   where their LET is a content LET (D166) while mark->goes_on: a
+   delivering call delivers each child's value as it passes, so the
+   values of a large document are never held together (D228). */
+typedef struct built_in_apply {
+    built_in_lowering lowering;
+    snippet_binding binding;
+    sxml_xpath_lowering_content_mark *mark;
+} built_in_apply;
+
+static sxml_status bind_children_apply(sxml_xpath_lowerer *lowerer, const built_in_apply *request,
+                                       sxml_ir_atom *atom) {
+    const snippet_binding children = request->binding;
+    sxml_xpath_lowering_content_mark *mark = request->mark;
+    if (!request->lowering.is_streamed) {
+        mark->goes_on = false;
+        return bind_built_in_apply(lowerer, children, atom);
+    }
+    const sxml_ir_expression_index open_let_before = children.block->open_let;
+    sxml_status status = bind_streamed_children(lowerer, children.block, atom);
+    if (status == SXML_STATUS_OK && mark->goes_on) {
+        status = sxml_xpath_lowerer_mark_content_let(
+            lowerer,
+            (sxml_xpath_lowering_content_item){
+                .block = children.block, .open_let_before = open_let_before, .atom = *atom},
+            mark);
+    }
+    return status;
+}
+
+/* The attributes of the item applied (6.10), marked as content as
+   bind_children_apply marks the children in a streamed mode. */
+static sxml_status bind_attributes_apply(sxml_xpath_lowerer *lowerer,
+                                         const built_in_apply *request, sxml_ir_atom *atom) {
+    const snippet_binding attributes = request->binding;
+    sxml_xpath_lowering_content_mark *mark = request->mark;
+    const sxml_ir_expression_index open_let_before = attributes.block->open_let;
+    sxml_status status = bind_built_in_apply(lowerer, attributes, atom);
+    if (status == SXML_STATUS_OK && request->lowering.is_streamed && mark->goes_on) {
+        status = sxml_xpath_lowerer_mark_content_let(
+            lowerer,
+            (sxml_xpath_lowering_content_item){
+                .block = attributes.block, .open_let_before = open_let_before, .atom = *atom},
+            mark);
+    }
+    return status;
+}
 
 /* One action of it to lower. */
 typedef struct built_in_action_request {
@@ -2873,6 +3047,7 @@ typedef struct copy_request {
     const sxml_ir_atom *content;
     size_t content_count;
     uint32_t construction_flags;
+    sxml_ir_slot item;
 } copy_request;
 
 static sxml_status bind_copy(sxml_xpath_lowerer *lowerer, copy_request request,
@@ -2897,10 +3072,92 @@ static sxml_status bind_copy(sxml_xpath_lowerer *lowerer, copy_request request,
         return status;
     }
     return bind_expression(lowerer, (expression_binding){.block = request.block, .expression = (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_SHALLOW_COPY,
-                             .node_construction = {.value = sxml_ir_slot_atom(item_slot),
+                             .node_construction = {.value = sxml_ir_slot_atom(request.item),
                                                    .content = content,
                                                    .construction_flags =
                                                        request.construction_flags}}}, atom);
+}
+
+/* 6.10.3, 6.10.5: the attributes, then the children applied (two
+   applications, so positions restart), as a sequence or the content of
+   the item's shallow copy, bound in block. In a streamed mode both are
+   content LETs (D166, D228): the copy's in a content block of its own,
+   so a delivering call delivers the children's values as they pass. */
+typedef struct attributes_and_children {
+    built_in_lowering lowering;
+    built_in_action action;
+    sxml_xpath_lowering_block *block;
+} attributes_and_children;
+
+static sxml_status bind_attributes_and_children(sxml_xpath_lowerer *lowerer,
+                                                const attributes_and_children *request,
+                                                sxml_ir_atom *atom) {
+    const built_in_lowering lowering = request->lowering;
+    const bool copies = request->action == SXML_BUILT_IN_ACTION_SHALLOW_COPY;
+    const bool has_content_block = copies && lowering.is_streamed;
+    sxml_xpath_lowering_block content_block = {.first = {0}, .open_let = {0}};
+    sxml_xpath_lowering_block *block = has_content_block ? &content_block : request->block;
+    const snippet_binding children = {
+        .lowering = lowering.lowering, .kind = SXML_SNIPPET_CHILDREN, .block = block};
+    const snippet_binding attributes = {
+        .lowering = lowering.lowering, .kind = SXML_SNIPPET_ATTRIBUTES, .block = block};
+    /* Without a content block of its own the copy's content LETs would
+       be read by the copy, not by the block's result. */
+    sxml_xpath_lowering_content_mark mark = {.goes_on = !copies || has_content_block};
+    sxml_ir_atom atoms[2] = {{0}, {0}};
+    sxml_status status = bind_attributes_apply(
+        lowerer, &(built_in_apply){.lowering = lowering, .binding = attributes, .mark = &mark},
+        &atoms[0]);
+    if (status == SXML_STATUS_OK) {
+        status = bind_children_apply(
+            lowerer, &(built_in_apply){.lowering = lowering, .binding = children, .mark = &mark},
+            &atoms[1]);
+    }
+    if (status == SXML_STATUS_OK && copies && !has_content_block) {
+        return bind_copy(lowerer,
+                         (copy_request){.block = request->block,
+                                        .content = atoms,
+                                        .content_count = 2,
+                                        .construction_flags = lowering.construction_flags,
+                                        .item = lowering.item},
+                         atom);
+    }
+    sxml_ir_atom_list list = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ir_unit_add_atoms(
+            lowerer->unit, (sxml_ir_atom_view){.atoms = atoms, .atom_count = 2}, &list);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    const sxml_ir_expression sequence = {.expression_kind = SXML_IR_EXPRESSION_KIND_SEQUENCE,
+                                         .sequence = list};
+    if (!has_content_block) {
+        return bind_expression(lowerer,
+                               (expression_binding){.block = request->block, .expression = sequence},
+                               atom);
+    }
+    sxml_ir_expression_index result = {0};
+    sxml_ir_expression_index content = {0};
+    status = sxml_xslt_lowering_add_expression(lowerer, sequence, &result);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_finish_block(
+            lowerer, (sxml_xpath_lowering_block_result){.block = content_block, .result = result},
+            &content);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return bind_expression(
+        lowerer,
+        (expression_binding){
+            .block = request->block,
+            .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_SHALLOW_COPY,
+                           .node_construction = {.value = sxml_ir_slot_atom(lowering.item),
+                                                 .content = content,
+                                                 .construction_flags =
+                                                     lowering.construction_flags}}},
+        atom);
 }
 
 /* The body of one action, a block of its own. */
@@ -2915,7 +3172,7 @@ static sxml_status lower_built_in_action(sxml_xpath_lowerer *lowerer,
     const snippet_binding attributes = {
         .lowering = lowering.lowering, .kind = SXML_SNIPPET_ATTRIBUTES, .block = &block};
     sxml_ir_atom atoms[2] = {{0}, {0}};
-    sxml_ir_atom result = sxml_ir_slot_atom(item_slot);
+    sxml_ir_atom result = sxml_ir_slot_atom(lowering.item);
     sxml_status status = SXML_STATUS_OK;
     switch (action) {
     case SXML_BUILT_IN_ACTION_NOTHING:
@@ -2930,9 +3187,13 @@ static sxml_status lower_built_in_action(sxml_xpath_lowerer *lowerer,
                                                      "with on-no-match=\"fail\" (XSLT 4.0, "
                                                      "6.10.6)"},
                          expression);
-    case SXML_BUILT_IN_ACTION_APPLY_CHILDREN:
-        status = bind_built_in_apply(lowerer, children, &result);
+    case SXML_BUILT_IN_ACTION_APPLY_CHILDREN: {
+        sxml_xpath_lowering_content_mark mark = {.goes_on = true};
+        status = bind_children_apply(
+            lowerer, &(built_in_apply){.lowering = lowering, .binding = children, .mark = &mark},
+            &result);
         break;
+    }
     case SXML_BUILT_IN_ACTION_APPLY_JNODE_CHILDREN:
         status = bind_built_in_apply(lowerer,
                                      (snippet_binding){.lowering = lowering.lowering,
@@ -2949,27 +3210,9 @@ static sxml_status lower_built_in_action(sxml_xpath_lowerer *lowerer,
         break;
     case SXML_BUILT_IN_ACTION_APPLY_ATTRIBUTES_AND_CHILDREN:
     case SXML_BUILT_IN_ACTION_SHALLOW_COPY:
-        /* 6.10.3, 6.10.5: two applications, so positions restart. */
-        status = bind_built_in_apply(lowerer, attributes, &atoms[0]);
-        if (status == SXML_STATUS_OK) {
-            status = bind_built_in_apply(lowerer, children, &atoms[1]);
-        }
-        if (status == SXML_STATUS_OK && action == SXML_BUILT_IN_ACTION_SHALLOW_COPY) {
-            status = bind_copy(lowerer,
-                               (copy_request){.block = &block,
-                                              .content = atoms,
-                                              .content_count = 2,
-                                              .construction_flags = lowering.construction_flags},
-                               &result);
-        } else if (status == SXML_STATUS_OK) {
-            sxml_ir_atom_list list = {0};
-            status = sxml_ir_unit_add_atoms(
-                lowerer->unit, (sxml_ir_atom_view){.atoms = atoms, .atom_count = 2}, &list);
-            if (status == SXML_STATUS_OK) {
-                status = bind_expression(lowerer, (expression_binding){.block = &block, .expression = (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_SEQUENCE,
-                                         .sequence = list}}, &result);
-            }
-        }
+        status = bind_attributes_and_children(
+            lowerer, &(attributes_and_children){.lowering = lowering, .action = action, .block = &block},
+            &result);
         break;
     case SXML_BUILT_IN_ACTION_DEEP_COPY:
         /* 6.10.2: the node with copies of its attributes and children. */
@@ -2982,7 +3225,8 @@ static sxml_status lower_built_in_action(sxml_xpath_lowerer *lowerer,
                                (copy_request){.block = &block,
                                               .content = atoms,
                                               .content_count = 2,
-                                              .construction_flags = lowering.construction_flags},
+                                              .construction_flags = lowering.construction_flags,
+                                              .item = lowering.item},
                                &result);
         }
         break;
@@ -2991,7 +3235,8 @@ static sxml_status lower_built_in_action(sxml_xpath_lowerer *lowerer,
                            (copy_request){.block = &block,
                                           .content = NULL,
                                           .content_count = 0,
-                                          .construction_flags = lowering.construction_flags},
+                                          .construction_flags = lowering.construction_flags,
+                                              .item = lowering.item},
                            &result);
         break;
     case SXML_BUILT_IN_ACTION_TEXT: {
@@ -3071,6 +3316,8 @@ static sxml_status lower_built_in_body(sxml_xpath_lowerer *lowerer, built_in_bod
 typedef struct built_in_request {
     sxml_ir_built_in_rule rule;
     bool copies_namespaces;
+    /* Of a streamed mode (D228). */
+    bool is_streamed;
 } built_in_request;
 
 static sxml_status get_built_in_template(const sxml_xslt_lowering *lowering,
@@ -3079,7 +3326,8 @@ static sxml_status get_built_in_template(const sxml_xslt_lowering *lowering,
     sxml_xslt_template_lowering *templates = lowering->templates;
     sxml_xpath_lowerer *lowerer = lowering->lowerer;
     const size_t slot = (size_t)request.rule +
-                        (request.copies_namespaces ? 0U : BUILT_IN_TEMPLATE_KIND_COUNT);
+                        (request.copies_namespaces ? 0U : BUILT_IN_TEMPLATE_KIND_COUNT) +
+                        (request.is_streamed ? 2U * BUILT_IN_TEMPLATE_KIND_COUNT : 0U);
     if (templates->built_in_templates[slot].value != 0) {
         *function = templates->built_in_templates[slot];
         return SXML_STATUS_OK;
@@ -3109,13 +3357,28 @@ static sxml_status get_built_in_template(const sxml_xslt_lowering *lowering,
                            (request.copies_namespaces
                                 ? 0U
                                 : (uint32_t)SXML_IR_CONSTRUCTION_NO_PRESERVE_NAMESPACES);
+    /* A streamed deep copy reads the item's content: its full window
+       (D228). */
+    sxml_ir_slot grounded = {0};
+    if (request.is_streamed && request.rule == SXML_IR_BUILT_IN_RULE_DEEP_COPY) {
+        status = sxml_xpath_lowerer_add_slot(lowerer, &grounded);
+        function_frame.focus.slots.context_value = grounded;
+    }
     sxml_ir_expression_index body = {0};
-    status = lower_built_in_body(
-        lowerer,
-        (built_in_body_request){
-            .lowering = {.lowering = lowering, .construction_flags = flags},
-            .plan = plan_of(request.rule)},
-        &body);
+    if (status == SXML_STATUS_OK) {
+        status = lower_built_in_body(
+            lowerer,
+            (built_in_body_request){
+                .lowering = {.lowering = lowering,
+                             .construction_flags = flags,
+                             .item = grounded.value != 0 ? grounded : item_slot,
+                             .is_streamed = request.is_streamed},
+                .plan = plan_of(request.rule)},
+            &body);
+    }
+    if (status == SXML_STATUS_OK && grounded.value != 0) {
+        status = add_grounding(lowerer, (grounding_request){.grounded = grounded, .body = &body, .origin = {.atom_kind = SXML_IR_ATOM_KIND_NONE}});
+    }
     sxml_xpath_lowerer_leave_function(lowerer, &function_frame);
     if (status != SXML_STATUS_OK) {
         return status;
@@ -3223,6 +3486,75 @@ static void find_applicable_modes(const sxml_xslt_lowering *lowering, const temp
             modes->count += 1;
         }
     }
+}
+
+/* Whether the mode at mode_index (of templates->modes) is streamed
+   (D228): declared streamable with every template rule
+   guaranteed-streamable (6.6.4, 7.6a's analysis), and no accumulator
+   value read anywhere. Its template rules and built-in template are then
+   prepared for open nodes: a streamed body, or the grounding of the
+   node's full window. Asked once per mode. */
+static sxml_status mode_is_streamed(const sxml_xslt_lowering *lowering, size_t mode_index,
+                                    bool *is_streamed) {
+    mode_entry *mode = &lowering->templates->modes[mode_index];
+    sxml_status status = SXML_STATUS_OK;
+    if (mode->stream_verdict == 0) {
+        bool is_guaranteed = false;
+        if (lowering->stream_plan != NULL && !sxml_xslt_reads_accumulators(lowering->ast)) {
+            const sxml_xpath_lowerer *lowerer = lowering->lowerer;
+            status = sxml_xslt_assess_mode(&(sxml_xslt_mode_query){.ast = lowering->ast,
+                                                                   .allocator = lowerer->allocator,
+                                                                   .name_pool = lowerer->name_pool,
+                                                                   .instruction = {.value = 0},
+                                                                   .mode_name = mode->mode_name,
+                                                                   .is_default_mode = false},
+                                           &is_guaranteed);
+        }
+        mode->stream_verdict = status == SXML_STATUS_OK && is_guaranteed ? 1U : 2U;
+    }
+    *is_streamed = mode->stream_verdict == 1U;
+    return status;
+}
+
+static sxml_status prepares_for_open_nodes(const sxml_xslt_lowering *lowering,
+                                           const template_entry *entry, bool *prepares) {
+    *prepares = false;
+    const sxml_xslt_template_lowering *templates = lowering->templates;
+    void *memory = NULL;
+    sxml_status status = allocate_zeroed(lowering->lowerer->allocator,
+                                         (zeroed_request){.element_count = templates->mode_count,
+                                                          .element_size = sizeof(size_t),
+                                                          .element_alignment = alignof(size_t)},
+                                         &memory);
+    applicable_modes modes = {.positions = memory, .count = 0};
+    if (status == SXML_STATUS_OK) {
+        find_applicable_modes(lowering, entry, &modes);
+    }
+    for (size_t index = 0; status == SXML_STATUS_OK && !*prepares && index < modes.count;
+         index += 1) {
+        status = mode_is_streamed(lowering, modes.positions[index], prepares);
+    }
+    sxml_allocator_release(lowering->lowerer->allocator, modes.positions);
+    return status;
+}
+
+/* True when the template's pattern is "/" (5.5.2): its body's focus is a
+   document node. */
+static bool is_document_pattern(const sxml_xslt_lowering *lowering, const template_entry *entry) {
+    const sxml_ast *ast = sxml_xslt_ast_get_expression(lowering->ast, entry->pattern)->ast;
+    if (ast == NULL) {
+        return false;
+    }
+    bool has_root = false;
+    for (uint32_t index = 1; index < ast->node_count; index += 1U) {
+        const sxml_ast_node *node = sxml_ast_get_node(ast, (sxml_ast_node_index){.value = index});
+        if (node->kind == SXML_AST_KIND_ABSOLUTE_PATH_PATTERN && node->first_child.value == 0) {
+            has_root = true;
+        } else if (node->kind != SXML_AST_KIND_PATTERN) {
+            return false;
+        }
+    }
+    return has_root;
 }
 
 /* The priority of a template rule: its priority attribute, else its
@@ -3480,12 +3812,17 @@ static sxml_status add_rules_and_modes(const sxml_xslt_lowering *lowering) {
                                                    ? (sxml_ir_built_in_rule)mode->on_no_match.value
                                                    : SXML_IR_BUILT_IN_RULE_TEXT_ONLY_COPY;
         sxml_ir_function_index built_in_template = {0};
-        status = get_built_in_template(
-            lowering,
-            (built_in_request){.rule = built_in,
-                               .copies_namespaces = !mode->copies_namespaces.is_set ||
-                                                    mode->copies_namespaces.value != 0},
-            &built_in_template);
+        bool is_streamed = false;
+        status = mode_is_streamed(lowering, mode_index, &is_streamed);
+        if (status == SXML_STATUS_OK) {
+            status = get_built_in_template(
+                lowering,
+                (built_in_request){.rule = built_in,
+                                   .copies_namespaces = !mode->copies_namespaces.is_set ||
+                                                        mode->copies_namespaces.value != 0,
+                                   .is_streamed = is_streamed},
+                &built_in_template);
+        }
         sxml_ir_template_rule_list list = {0};
         if (status == SXML_STATUS_OK) {
             status = sxml_ir_unit_add_template_rules(
@@ -3779,6 +4116,9 @@ typedef struct focused_apply {
 static sxml_status bind_focused_apply(sxml_xpath_lowerer *lowerer, const focused_apply *focused,
                                       sxml_ir_atom *atom);
 
+static sxml_status bind_streamed_source(sxml_xpath_lowerer *lowerer, const focused_apply *focused,
+                                        sxml_ir_atom *atom);
+
 static sxml_status bind_initial_function(sxml_xpath_lowerer *lowerer,
                                          const sxml_xslt_invocation_request *request,
                                          sxml_ir_atom *atom);
@@ -3895,6 +4235,10 @@ sxml_status sxml_xslt_lowering_bind_invocation(sxml_xpath_lowerer *lowerer,
                             .tunnel_parameters = atom_or_default(
                                 request->invocation.tunnel_parameters, templates->empty_map),
                             .separator = {.atom_kind = SXML_IR_ATOM_KIND_NONE}}};
+    if (request->invocation.streamed_source.atom_kind != SXML_IR_ATOM_KIND_NONE) {
+        return bind_streamed_source(lowerer, &(focused_apply){.request = request, .apply = apply},
+                                    atom);
+    }
     if (apply.apply_templates.select.atom_kind != SXML_IR_ATOM_KIND_NONE) {
         /* The host's initial match selection (packet 4.15). */
         return bind_expression(lowerer, (expression_binding){.block = request->block,
@@ -3903,6 +4247,71 @@ sxml_status sxml_xslt_lowering_bind_invocation(sxml_xpath_lowerer *lowerer,
     }
     return bind_focused_apply(lowerer, &(focused_apply){.request = request, .apply = apply},
                               atom);
+}
+
+/* 2.4.3 with a streamed principal source (D228; XSLT 4.0, 2.4.3 and
+   the streaming specification: a streaming processor should accept the
+   initial match selection in streamed form when the initial mode is
+   streamable): the document is opened as xsl:source-document opens one
+   (STREAM with OPENS_DOCUMENT over its URI) and the templates of the
+   initial mode are applied to its document node, an open node, when the
+   mode is streamed; otherwise to its full window, the whole document.
+   The global context item stays the host's: no streamed node is one
+   (2.4.2). */
+static sxml_status bind_streamed_source(sxml_xpath_lowerer *lowerer, const focused_apply *focused,
+                                        sxml_ir_atom *atom) {
+    const sxml_xslt_lowering *lowering = focused->request->lowering;
+    sxml_ir_expression apply = focused->apply;
+    bool is_streamed = false;
+    sxml_status status =
+        mode_is_streamed(lowering, apply.apply_templates.mode.value - 1U, &is_streamed);
+    sxml_ir_slot value = {0};
+    sxml_ir_slot position = {0};
+    sxml_ir_slot grounded = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_add_slot(lowerer, &value);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_add_slot(lowerer, &position);
+    }
+    if (status == SXML_STATUS_OK && !is_streamed) {
+        status = sxml_xpath_lowerer_add_slot(lowerer, &grounded);
+    }
+    const sxml_ir_focus focus = {
+        .context_value = value, .context_position = position, .context_size = {0}};
+    if (is_streamed) {
+        apply.apply_templates.select = (sxml_ir_atom){.atom_kind = SXML_IR_ATOM_KIND_NONE};
+        apply.apply_templates.focus = focus;
+    } else {
+        apply.apply_templates.select = sxml_ir_slot_atom(grounded);
+    }
+    sxml_ir_expression_index body = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xslt_lowering_add_expression(lowerer, apply, &body);
+    }
+    if (status == SXML_STATUS_OK && !is_streamed) {
+        status = add_grounding(lowerer, (grounding_request){.grounded = grounded,
+                                                            .body = &body,
+                                                            .origin = sxml_ir_slot_atom(value)});
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return bind_expression(
+        lowerer,
+        (expression_binding){
+            .block = focused->request->block,
+            .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_STREAM,
+                           .stream = {.origin = focused->request->invocation.streamed_source,
+                                      .axis = SXML_AXIS_SELF,
+                                      .node_test = {.index = SXML_TYPE_NONE},
+                                      .predicate = {0},
+                                      .focus = focus,
+                                      .position_counter = {0},
+                                      .body = body,
+                                      .flags = (uint32_t)SXML_IR_STREAM_OPENS_DOCUMENT,
+                                      .fold = {0}}}},
+        atom);
 }
 
 /* 2.4.3: templates applied to the global context item, the initial match

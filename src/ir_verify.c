@@ -565,8 +565,15 @@ static sxml_status check_stream(verifier *checker, const sxml_ir_stream *stream)
     }
     const bool opens_document = (stream->flags & (uint32_t)SXML_IR_STREAM_OPENS_DOCUMENT) != 0;
     if (!opens_document && stream->axis != SXML_AXIS_CHILD &&
-        stream->axis != SXML_AXIS_DESCENDANT) {
-        return report(checker, "a stream has an axis other than child or descendant");
+        stream->axis != SXML_AXIS_DESCENDANT && stream->axis != SXML_AXIS_SELF) {
+        return report(checker, "a stream has an axis other than child, descendant or self");
+    }
+    if (!opens_document && stream->axis == SXML_AXIS_SELF &&
+        (stream->flags != 0 || stream->predicate.value != 0 ||
+         stream->position_counter.value != 0 || stream->fold.value != 0 ||
+         stream->focus.context_position.value != 0)) {
+        /* A grounding stream (D228) binds its origin only. */
+        return report(checker, "a grounding stream has a predicate, counter, fold or flag");
     }
     if (stream->focus.context_size.value != 0 || stream->body.value == 0 ||
         (opens_document && stream->predicate.value != 0)) {

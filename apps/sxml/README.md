@@ -385,6 +385,13 @@ transformation.
   that template instead, with INPUT as the context item.
 - Without INPUT, it calls the template that `--initial-template` names,
   or else `xsl:initial-template`, without a context item.
+- When templates are applied to an INPUT file in a mode that is declared
+  `streamable="yes"` and whose template rules are all
+  guaranteed-streamable, and the stylesheet reads no accumulator, INPUT
+  is streamed: it is read as it is parsed and never built as one tree
+  (XSLT 4.0, 2.4.3 and 18; D228). It is then not the global context item
+  (2.4.2): a global variable that reads the context item fails with
+  XPDY0002. Standard input (`-`) is always built as a tree.
 
 The principal result goes to standard output, or to the file that
 `--output` names. The unnamed `xsl:output` of the stylesheet controls the

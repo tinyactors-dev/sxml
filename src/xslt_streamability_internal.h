@@ -130,13 +130,20 @@ typedef struct sxml_xslt_mode_query {
     const sxml_xslt_ast *ast;
     sxml_allocator allocator;
     const sxml_name_pool *name_pool;
-    /* An xsl:apply-templates of ast. */
+    /* An xsl:apply-templates of ast; 0 asks about mode_name instead (the
+       initial mode of a streamed principal source, D228). */
     sxml_xslt_ast_node_index instruction;
+    /* Without an instruction: the mode, 0 for the unnamed mode, unless
+       is_default_mode asks about the default mode of the principal
+       module (2.4.3: the initial mode when the invocation names none). */
+    sxml_name_identifier mode_name;
+    bool is_default_mode;
 } sxml_xslt_mode_query;
 
 /* Writes true to *is_guaranteed when query's instruction names one mode
-   (not #current or #all) that is declared streamable="yes" (6.9.1) and
-   every template rule applicable to it is guaranteed-streamable. Returns
+   (not #current or #all), or query names one, that is declared
+   streamable="yes" (6.9.1) and every template rule applicable to it is
+   guaranteed-streamable. Returns
    SXML_STATUS_INVALID_ARGUMENT for a missing or unsealed AST and the
    allocator's failures. */
 SXML_NODISCARD sxml_status sxml_xslt_assess_mode(const sxml_xslt_mode_query *query,

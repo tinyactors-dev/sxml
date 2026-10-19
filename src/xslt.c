@@ -248,6 +248,8 @@ typedef struct sxml_unit_invocation {
     bool applies_templates;
     bool selects_unnamed_mode;
     bool has_initial_match_selection;
+    /* D228: the initial match selection is a streamed principal source. */
+    bool has_streamed_source;
     sxml_error_record *error_record;
 } sxml_unit_invocation;
 
@@ -280,6 +282,7 @@ static sxml_status sxml_xslt_lower_invocation(const sxml_unit_invocation *invoca
                                           invocation->initial_function_arity,
                                       .has_initial_match_selection =
                                           invocation->has_initial_match_selection,
+                                      .has_streamed_source = invocation->has_streamed_source,
                                       .reads_invocation_parameters = true,
                                       .builds_result_document = false,
                                       .maximum_expression_count = 0,
@@ -635,6 +638,13 @@ static bool sxml_transformation_request_is_valid(const sxml_xslt_transformation_
     if (request->selects_unnamed_mode && request->initial_mode_name.index != 0) {
         return false;
     }
+    if (request->streamed_source_uri.byte_count > 0 &&
+        (!applies_templates || request->has_initial_match_selection ||
+         request->streamed_source_uri.bytes == NULL)) {
+        /* D228: a streamed principal source is the initial match
+           selection of an apply-templates invocation. */
+        return false;
+    }
     if (request->invocation_kind != SXML_XSLT_INVOCATION_KIND_CALL_TEMPLATE &&
         request->initial_template_name.index != 0) {
         return false;
@@ -662,7 +672,8 @@ static bool sxml_transformation_request_is_valid(const sxml_xslt_transformation_
 }
 
 /* The most invocation values a transformation binds: two parameter maps
-   and an initial match selection, or the arguments' array. */
+   and an initial match selection or a streamed principal source's URI
+   (D228), or the arguments' array. */
 enum { SXML_INVOCATION_VALUE_COUNT = 3 };
 
 /* What one transformation holds while it runs; released at its end. */
@@ -761,8 +772,10 @@ static sxml_status sxml_transformation_choose_unit(sxml_transformation *transfor
         request->invocation_kind == SXML_XSLT_INVOCATION_KIND_CALL_FUNCTION;
     const bool applies_templates =
         request->invocation_kind == SXML_XSLT_INVOCATION_KIND_APPLY_TEMPLATES;
+    const bool has_streamed_source = request->streamed_source_uri.byte_count > 0;
     if (applies_templates && request->initial_mode_name.index == 0 &&
-        !request->selects_unnamed_mode && !request->has_initial_match_selection) {
+        !request->selects_unnamed_mode && !request->has_initial_match_selection &&
+        !has_streamed_source) {
         transformation->unit = stylesheet->unit;
         return SXML_STATUS_OK;
     }
@@ -780,6 +793,7 @@ static sxml_status sxml_transformation_choose_unit(sxml_transformation *transfor
         .applies_templates = applies_templates || calls_function,
         .selects_unnamed_mode = request->selects_unnamed_mode,
         .has_initial_match_selection = request->has_initial_match_selection,
+        .has_streamed_source = has_streamed_source,
         .error_record = request->error_record};
     if (request->invocation_kind == SXML_XSLT_INVOCATION_KIND_CALL_TEMPLATE &&
         invocation.initial_template.index == 0) {
@@ -1000,6 +1014,30 @@ sxml_transformation_bind_invocation_values(sxml_transformation *transformation) 
             local_names[value_count] =
                 SXML_BYTE_VIEW_FROM_LITERAL(SXML_XSLT_INVOCATION_INITIAL_MATCH_SELECTION);
             value_count += 1;
+        } else if (status == SXML_STATUS_OK && request->streamed_source_uri.byte_count > 0) {
+            /* D228: the URI the unit's STREAM opens, an xs:string. */
+            sxml_string uri = {.utf8 = {.bytes = NULL, .byte_count = 0},
+                               .codepoint_count = 0,
+                               .is_ascii = true};
+            status = sxml_string_from_utf8(request->streamed_source_uri, &uri);
+            sxml_item item = {.representation = 0};
+            if (status == SXML_STATUS_OK) {
+                sxml_atomic_datum datum;
+                memset(&datum, 0, sizeof(datum));
+                datum.datum_kind = SXML_DATUM_KIND_STRING;
+                datum.datum_details.string = uri;
+                status = sxml_atomic_item_make(
+                    processor->item_heap,
+                    &(sxml_atomic_item_request){.type = {.index = SXML_TYPE_XS_STRING},
+                                                .datum = datum},
+                    &item);
+            }
+            if (status == SXML_STATUS_OK) {
+                values[value_count] = sxml_sequence_from_item(item);
+                local_names[value_count] =
+                    SXML_BYTE_VIEW_FROM_LITERAL(SXML_XSLT_INVOCATION_STREAMED_SOURCE);
+                value_count += 1;
+            }
         }
     }
     for (size_t value_index = 0; value_index < value_count; value_index += 1) {
@@ -1200,6 +1238,31 @@ sxml_status sxml_xslt_stylesheet_transform(const sxml_xslt_stylesheet *styleshee
     }
     sxml_transformation_release(&transformation);
     return status;
+}
+
+sxml_status sxml_xslt_stylesheet_streams_source(const sxml_xslt_stylesheet *stylesheet,
+                                                const sxml_xslt_transformation_request *request,
+                                                bool *streams) {
+    if (stylesheet == NULL || request == NULL || streams == NULL) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    *streams = false;
+    if (request->invocation_kind != SXML_XSLT_INVOCATION_KIND_APPLY_TEMPLATES ||
+        sxml_xslt_reads_accumulators(stylesheet->ast)) {
+        return SXML_STATUS_OK;
+    }
+    /* The initial mode as the lowering picks it (2.4.3), by name. */
+    sxml_processor *processor = stylesheet->processor;
+    return sxml_xslt_assess_mode(
+        &(sxml_xslt_mode_query){
+            .ast = stylesheet->ast,
+            .allocator = processor->allocator,
+            .name_pool = sxml_item_heap_get_name_pool(processor->item_heap),
+            .instruction = {.value = 0},
+            .mode_name = request->initial_mode_name,
+            .is_default_mode =
+                request->initial_mode_name.index == 0 && !request->selects_unnamed_mode},
+        streams);
 }
 
 /* ----------------------------------------- Transformation on the machine */

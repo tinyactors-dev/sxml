@@ -555,6 +555,33 @@ SXML_NODISCARD sxml_status sxml_xslt_plan_source_document(const sxml_xslt_loweri
                                                          sxml_xslt_ast_node_index node,
                                                          bool *is_streamed);
 
+/* A template rule of a guaranteed-streamable mode to plan (D228): its
+   body is streamed when it reads its node's content only through one
+   stream point (glossary `streamed_template_rule`); is_document_focus
+   when its pattern matches document nodes only ("/"). */
+typedef struct sxml_xslt_template_rule_plan {
+    sxml_xslt_ast_node_index node;
+    bool is_document_focus;
+} sxml_xslt_template_rule_plan;
+
+/* Whether rule's body is streamed, recording its stream points when it
+   is; the analysis's and allocator's failures. */
+SXML_NODISCARD sxml_status sxml_xslt_plan_template_rule(const sxml_xslt_lowering *lowering,
+                                                       sxml_xslt_template_rule_plan rule,
+                                                       bool *is_streamed);
+
+/* After the streamed body of node (an xsl:source-document or a template
+   rule) is lowered: SXML_STATUS_INVALID_ARGUMENT when one of its streamed
+   paths was not lowered by its override. */
+SXML_NODISCARD sxml_status sxml_xslt_check_streamed_body(const sxml_xslt_lowering *lowering,
+                                                        sxml_xslt_ast_node_index node);
+
+/* True when the stylesheet (a sealed AST) declares accumulators and an
+   expression calls fn:accumulator-before or fn:accumulator-after: their
+   values for the nodes of stream windows are not computed yet, so
+   nothing is streamed that they could read (D223, D228). */
+bool sxml_xslt_reads_accumulators(const sxml_xslt_ast *ast);
+
 /* True when node (an xsl:for-each or xsl:apply-templates) is a stream
    point of a streamed body. */
 bool sxml_xslt_is_stream_point(const sxml_xslt_lowering *lowering, sxml_xslt_ast_node_index node);
@@ -710,6 +737,11 @@ typedef struct sxml_xslt_invocation {
     sxml_ir_atom initial_match_selection;
     sxml_ir_atom template_parameters;
     sxml_ir_atom tunnel_parameters;
+    /* The URI of a streamed principal source (an xs:string; D228): the
+       initial match selection is its document node, opened as
+       xsl:source-document opens one, streamed when the initial mode is
+       streamed; NONE for none. */
+    sxml_ir_atom streamed_source;
     /* A function call invocation (2.4.5) when initial_function is not 0:
        the stylesheet function of that name and arity function_arity is
        called with the members of the array function_arguments (XTDE0041
@@ -728,6 +760,7 @@ typedef struct sxml_xslt_invocation {
 #define SXML_XSLT_INVOCATION_TEMPLATE_PARAMETERS "template-parameters"
 #define SXML_XSLT_INVOCATION_TUNNEL_PARAMETERS "tunnel-parameters"
 #define SXML_XSLT_INVOCATION_FUNCTION_ARGUMENTS "function-arguments"
+#define SXML_XSLT_INVOCATION_STREAMED_SOURCE "streamed-source"
 
 typedef struct sxml_xslt_invocation_request {
     const sxml_xslt_lowering *lowering;
@@ -912,6 +945,10 @@ typedef struct sxml_xslt_lowering_request {
     /* The initial match selection is the host's (a global of the unit),
        not the global context item. */
     bool has_initial_match_selection;
+    /* The initial match selection is the document node of the host's
+       streamed principal source (a global of the unit holding its URI,
+       D228). */
+    bool has_streamed_source;
     /* The parameters of the initial template or of the template rules of
        the initial mode are the host's (two globals of the unit, empty
        maps by default); without it the invocation passes none. */

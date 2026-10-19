@@ -248,6 +248,12 @@ sxml_add_cli_test(transform_mode_without_input EXIT_CODE 2 ARGUMENTS transform -
 sxml_add_cli_test(transform_bad_name EXIT_CODE 2 ARGUMENTS transform --initial-template=a:b xslt/hello.xsl)
 sxml_add_cli_test(transform_no_stylesheet EXIT_CODE 2 ARGUMENTS transform)
 sxml_add_cli_test(transform_help EXIT_CODE 0 ARGUMENTS transform --help)
+# A streamable initial mode: INPUT is a streamed principal source (D228).
+sxml_add_cli_test(transform_streamed EXIT_CODE 0 ARGUMENTS transform xslt/streamed.xsl books.xml)
+sxml_add_cli_test(transform_streamed_copy EXIT_CODE 0 ARGUMENTS transform xslt/streamed-copy.xsl books.xml)
+sxml_add_cli_test(transform_streamed_global EXIT_CODE 1 ARGUMENTS transform xslt/streamed-global.xsl books.xml)
+sxml_add_cli_test(transform_streamed_not_well_formed EXIT_CODE 1 ARGUMENTS transform xslt/streamed.xsl mismatched-tag.xml)
+sxml_add_cli_test(transform_streamed_missing_input EXIT_CODE 3 ARGUMENTS transform xslt/streamed.xsl missing.xml)
 
 # sxml validate (apps/sxml/README.md): schemas and documents in tests/cli/input/xsd/.
 sxml_add_cli_test(validate_valid EXIT_CODE 0 ARGUMENTS validate --schema=xsd/books.xsd xsd/books.xml)

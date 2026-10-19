@@ -2254,9 +2254,10 @@ static sxml_status lower_main_function(sxml_xpath_lowerer *lowerer, const main_r
  * parameter maps of an apply-templates or call-template invocation (with
  * the empty map as their default, so a unit evaluated without them still
  * runs), and when asked the initial match selection or the arguments of
- * an initial function (no default).
+ * an initial function (no default), and the URI of a streamed principal
+ * source (D228).
  */
-enum { SXML_INVOCATION_GLOBAL_MAXIMUM_COUNT = 3 };
+enum { SXML_INVOCATION_GLOBAL_MAXIMUM_COUNT = 4 };
 
 typedef struct invocation_globals {
     sxml_name_identifier names[SXML_INVOCATION_GLOBAL_MAXIMUM_COUNT];
@@ -2349,6 +2350,15 @@ static sxml_status plan_invocation_globals(const invocation_plan *plan,
                                             SXML_XSLT_INVOCATION_INITIAL_MATCH_SELECTION,
                                         .has_empty_map_default = false},
             globals, &invocation->initial_match_selection);
+    }
+    if (status == SXML_STATUS_OK && plan->request->has_streamed_source &&
+        invocation->template_node.value == 0) {
+        /* D228: the URI of the streamed principal source. */
+        status = plan_invocation_global(
+            (invocation_global_request){.lowerer = lowerer,
+                                        .local_name = SXML_XSLT_INVOCATION_STREAMED_SOURCE,
+                                        .has_empty_map_default = false},
+            globals, &invocation->streamed_source);
     }
     return status;
 }
