@@ -1,0 +1,3 @@
+tree-construction web-platform-tests/wpt 6df7a6ede9ba3acd4abfa950ee09cd9fb66d8540 html/syntax/parsing/resources
+tokenizer html5lib/html5lib-tests c777c408b61078ea2eb4acefc2535f54dbc8b28a tokenizer
+encoding html5lib/html5lib-tests c777c408b61078ea2eb4acefc2535f54dbc8b28a encoding
