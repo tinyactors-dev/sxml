@@ -4,6 +4,23 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 7.15b done (D220): UCA collations order by CLDR's root collation
+  (`allkeys_CLDR.txt`, asked for before the DUCET) and honour `lang`
+  through the CLDR collation of the language, read from its LDML file at
+  first use and compiled into a tailoring over the root
+  (`src/collation_tailoring.c`: resets, relations, starred ranges,
+  extensions, settings, `[reorder]`, `[import]`; `-u-co-` types;
+  locale lookup by truncation), and `reorder` over 170 reorder groups
+  generated from CLDR (`src/collation_tables.c`). CLDR 47 subset vendored
+  in `third_party/cldr` (root, en, en_US, en_US_POSIX, de, de_AT, es, fr,
+  fr_CA, it, nl). The QT4 and XSLT drivers and the sxml command serve it;
+  xsl:sort lang works. QT4 collation sets unchanged (no case lost; fr-CA
+  now by its tailoring), XT40 collation and sort sets unchanged.
+  `sxml.wasm` +375 bytes, `sxml-full.wasm` +25,126, the CLI +37,303, all
+  within budget. Not supported (not honoured, root order): `[before n]`,
+  special reset positions, prefixes, `[suppressContractions]`. The
+  JavaScript package still ships the DUCET only.
+
 - 7.10b done (D218): HTML input sniffs its encoding as browsers do
   (BOM, the encoding option, the `<meta>` prescan, then UTF-8 or
   windows-1252, tentative) and parses again when a later meta element

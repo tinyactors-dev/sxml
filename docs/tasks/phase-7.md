@@ -663,6 +663,18 @@ assertion the driver does not check (transform-009). The rest is D203's
   first use into a tailoring (glossary `tailoring`). The rules are a
   built-in set for a few languages, or come through the resolver
   (option 4). Owner question 5 names the set.
+  - **Done** 2026-10-19 (D220): option 4 over one resource kind
+    (COLLATION_DATA with `urn:sxml:collation-data:` + a CLDR path, no
+    COLLATION_TAILORING kind): the CLDR root (`allkeys_CLDR.txt`) and the
+    LDML files of en, de, fr, it, es, nl and their regions (CLDR 47,
+    `third_party/cldr`), compiled at first use by
+    `src/collation_tailoring.c`; reorder over the groups of the generated
+    `src/collation_tables.c` (`tools/generate-collation-tables.py`; the
+    DUCET part of `tools/generate-unicode-tables.py` stays unused). The
+    QT4 and XSLT drivers and the sxml command serve the data; xsl:sort
+    lang works. No QT4 or XT40 case lost. Left: `[before n]`, special
+    reset positions, prefixes and `[suppressContractions]` (root's
+    search, eor and emoji types), the JavaScript package's data.
 - **Header**: none (the collation URIs are already public). With option
   4, `processor.h` gets the resource kinds COLLATION_DATA and
   COLLATION_TAILORING.
