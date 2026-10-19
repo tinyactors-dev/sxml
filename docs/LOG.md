@@ -4,6 +4,17 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 7.14c done (D210): the DTD follow-ups. `tree.h` gains (additive,
+  D99) unparsed entities listed by number and copied with a document
+  node (xsl:copy, xsl:copy-of, fn:copy-of, fn:snapshot), and an entity
+  base URI for elements at the top of an external entity (dm:base-uri).
+  XTDE1380 has its own code. `sxml check --external-entities` and
+  `--validate-dtd` are added. The QT4 driver claims infoset-dtd and
+  dtd-validation-option, and supports-dtd-validation is true. XT40
+  8,944 to 8,952, dtd 68 to 76 of 79 (gate met); QT4 XQ40 fn-id 61/61,
+  fn-idref 51/54. Left: base-uri-051a (FODC0016 is right), the
+  system properties should follow D211's feature.
+
 - 7.4b done (D206): the XSLT 1.0 follow-ups. EXSLT common
   (`src/function_library_exslt.c`, XSLT only): exsl:node-set returns
   its argument, exsl:object-type; exsl:document in an extension

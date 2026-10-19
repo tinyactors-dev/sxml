@@ -883,6 +883,15 @@ unchanged: a 1.1 pre-pass in `src/xml.c` instead of scanner state.
     parsed; XML's validity constraints map to its errors, and the DTD's
     own codes are kept in the description;
   - no second content-model engine.
+- **7.14c Follow-ups** (D199's open items, D210): the QT4 driver claims
+  infoset-dtd and dtd-validation-option and reads environment sources
+  through the entity resolver, with supports-dtd-validation true; `sxml
+  check --external-entities` and `--validate-dtd` (D44); XT40's dtd
+  failures: XTDE1370/1380 codes, a parse-xml source in the driver (id-043),
+  unparsed entities kept by xsl:copy and xsl:copy-of
+  (unparsed-entity-05 to 08), an element base URI from external entities
+  (base-uri-051, 051b; additive `tree.h`, D99); the clang-tidy finding in
+  `src/processor.c`.
 - **Header**: `xml.h`, additive (options for the external subset,
   external entities and DTD validation, and the validator hook), and
   `processor.h` (the resource kind), with records.
@@ -895,6 +904,18 @@ unchanged: a 1.1 pre-pass in `src/xml.c` instead of scanner state.
 - **Size**: 30–60 KB.
 - **Gate**: ≥ 95 % of the 265 xmlconf entity cases and of the 175 invalid
   cases checked as invalid; ≥ 90 % of the QT4 and XT40 dtd cases.
+
+**Done** 2026-10-19, 7.14a and 7.14b (D199): xmlconf entity cases 265 of
+265 run as expected (valid 127/127, invalid 54/54, not-wf 66/66, 18
+error), DTD validation of the invalid cases 173 of 173 standalone and 54
+of 54 external; QT4 fn-doc and fn-parse-xml gained 11 XQ40 and 11 XP40;
+XT40 dtd 68 of 79 (86 %, under the gate), left to 7.14c.
+
+**Done** 2026-10-19, 7.14c (D210), gate met: XT40 dtd 76 of 79 (96 %;
+whole suite 8,944 to 8,952, none lost); QT4 infoset-dtd sets XQ40 fn-id
+61 of 61, fn-idref 51 of 54, app-FunctxFunctx 627 of 627, XP40 fn-id 30,
+fn-idref 24 (all run cases but 3 schema-typed fn-idref ones); xmlconf
+unchanged.
 
 ## Gate (proposed in D183; the owner may change the numbers)
 

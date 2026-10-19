@@ -504,6 +504,7 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `internal_subset` | The declarations between `[` and `]` of a document type declaration (XML 1.0, section 2.8) |
 | `external_subset` | The declarations a document type declaration names by its external identifier, read after the internal subset (XML 1.0, sections 2.8, [30]) |
 | `external_entity` | An entity declared with a system identifier: the external subset, an external parameter entity or an external parsed general entity, read only through an entity resolver (XML 1.0, section 4.2.2) |
+| `entity_base_uri` | The base URI an element has because it stands at the top of an external parsed entity: the entity's URI, in place of the tree's base URI for it and its descendants before xml:base applies (XML 1.0, section 4.2.2; D210) |
 | `entity_resolver` | The host's interface through which the XML parser retrieves external entities (`sxml_xml_entity_resolver`); the null resolver reads nothing outside the input |
 | `external_context` | DTD text read as the external subset is: the external subset, external parameter entities and the text expanded or included from them, where parameter-entity references may stand inside declarations (XML 1.0, section 2.8) |
 | `text_declaration` | The `<?xml version? encoding?>` at the start of an external entity, with a required encoding (XML 1.0, section 4.3.1) |

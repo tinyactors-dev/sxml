@@ -8414,28 +8414,72 @@ fn:civil-timezone.
   would be an additive header change); without one, no place keeps the
   implicit timezone and [ZN] the fallback format.
 
+### D210. DTD follow-ups: unparsed entities on copies, entity base URIs, sxml check with the DTD, the drivers (packet 7.14c)
+Recorded 2026-10-19, after D44, D99, D178, D199. Resolves the three
+Proposed items of 7.14: the base URI of an element from an external
+entity, unparsed entities kept by copies, and `sxml check` with the DTD.
+- **Substrate, additive** (`include/sxml/tree.h`, frozen by D99; every
+  zero value keeps the behaviour before):
+  - `sxml_tree_operations.get_unparsed_entity(state, entity_number,
+    entity)`, optional: the unparsed entities in the order of their
+    declarations, SXML_STATUS_INDEX_OUT_OF_RANGE past the last;
+  - `sxml_tree_builder_copy_unparsed_entities(builder, tree)`: sends them
+    right after start_document. `sxml_tree_builder_copy_node` calls it for
+    a document node, and so does SHALLOW_COPY of a document node that is
+    not copied into enclosing content (`src/evaluator_construct.c`): XSLT
+    4.0, 11.9.1 (xsl:copy) and 11.9.2 (xsl:copy-of) copy the
+    unparsed-entities property, and fn:copy-of and fn:snapshot copy as
+    xsl:copy-of does. Temporary trees, xsl:document and the XQuery document
+    constructor still have none (XSLT 4.0 sets the property to empty);
+  - `sxml_element_start_event.entity_base_uri` and the optional
+    `sxml_tree_operations.get_entity_base_uri(state, element, base_uri)`:
+    the entity base URI (glossary `entity_base_uri`) of an element at the
+    top of an external parsed entity. The XML parser sets it from the
+    entity's frame (an element one deeper than the document's element
+    depth when the frame was pushed); the arena tree keeps it in a short
+    list; dm:base-uri stops its walk of xml:base attributes at the first
+    element that has one and resolves against it instead of the tree's
+    base URI (XML 1.0, 4.2.2; XML Base, 4.2; XDM 4.0, dm:base-uri).
+- **Copies do not carry entity base URIs**: XSLT 4.0, 11.9.2 gives a
+  copied descendant its new parent's base URI ("these differences are
+  lost when the subtree is copied"). Copies that stand for the same
+  document (xsl:strip-space, validating a parsed document) lose them too;
+  left as it is.
+- **XTDE1370 and XTDE1380**: each function now raises its own code (XSLT
+  4.0, 20.5.2, 20.5.3; error-1380b). Without a focus both raise XPDY0002,
+  as the two sections say for an omitted $doc; error-1370a and 1380a
+  expect the XSLT 2.0 codes and stay wrong-error passes (D178).
+- **`sxml check --external-entities` and `--validate-dtd`** (D44: one
+  intent per flag, nothing fetched that was not asked for). The first
+  reads the external subset and external entities as local files, through
+  the query commands' local-file resolver and
+  `sxml_processor_entity_resolver`, relative to the file that declares
+  them. The second validates with `sxml_dtd_validator` and reads nothing
+  by itself. Its null report sink stops at the first error of each file,
+  reported as `FILE:LINE:COLUMN: CODE: message`; the JSON statuses are
+  `valid` and `invalid`, the latter with `code`. Golden file
+  `apps/sxml/command_validate.c`; CLI tests `check_external_*` and
+  `check_validate_dtd*` over `tests/cli/input/dtd/`.
+- **Drivers**: XT40 serves a source given only by a select expression,
+  evaluated without a focus (id-043). QT4 claims infoset-dtd and
+  dtd-validation-option and parses environment sources with the entity
+  resolver (external DTDs are suite files). supports-dtd-validation and
+  supports-dtd-attribute-typing are true (F&O 4.0, 17.1.9: fn:doc and
+  fn:parse-xml raise an error for an invalid document, and the tree
+  has is-id and is-idrefs from the DTD).
+- **Measured** (release drivers): XT40 8,944 to 8,952 passed, none lost
+  (163 wrong-error, 0 errors); dtd cases 68 to 76 of 79 (96 %, gate 90 %
+  met). The 3 left: base-uri-051a (fn:doc without trust-external raises
+  FODC0016, as F&O 4.0 asks), error-1370a and 1380a (wrong error, above).
+  QT4 XQ40 fn-id 47 to 61 of 61, fn-idref 34 to 51 of 54 (the 3 need
+  schema-typed IDREFs), fn-system-properties 22 to 23, app-FunctxFunctx
+  626 to 627; XP40 fn-id 17 to 30, fn-idref 10 to 24, fn-system-properties
+  22 to 23; fn-doc and fn-parse-xml unchanged (XQ40 73 and 53, XP40 67
+  and 42). XQ40 whole suite 44,835 to 45,000 passed (with 7.11's driver claims, c857ce3), failures 336 to 336. supports-dtd-validation and supports-dtd-attribute-typing are true regardless of the optional feature dtd-validation (D211); they should follow it, which needs the feature in reach of fn:system-properties. xmlconf unchanged (D199's counts).
+- **clang-tidy**: `src/processor.c`'s multi-level pointer conversion is an
+  explicit cast now.
+
 ## Proposed
-
-- **The base URI of an element from an external entity** (packet 7.14,
-  D199; for the owner of `tree.h`, frozen by D99): XML Base and XDM 4.0
-  (5.2, dm:base-uri) give an element inside an external parsed entity
-  the entity's URI. The tree keeps one document base URI and xml:base
-  attributes only, so XT40 base-uri-051, 051a and 051b fail. Choose: an
-  additive per-element base URI in `tree.h` (set by the builder for an
-  entity's top-level elements), or leave it.
-
-- **Unparsed entities kept by copies** (packet 7.14, D199; for the
-  owner of `tree.h`): xsl:copy-of and xsl:copy of a document node make a
-  new tree without the source's unparsed entities, so
-  fn:unparsed-entity-uri on the copy is empty (XT40 unparsed-entity-05
-  to 08). Choose: copy them with the document node (a builder event for
-  unparsed entities), or leave it.
-
-- **`sxml check` with the DTD** (packet 7.14, D199, D44): the CLI never
-  reads an external DTD or entity. Proposed flag: `sxml check
-  --external-entities` reads them as local files relative to the input,
-  and `--validate-dtd` adds DTD validation (sxml_dtd_validator). Not
-  added: `apps/` and `tests/cli` held others' work in progress.
 
 - **xs:numeric parameters in XPath 1.0 compatibility mode** (packet 7.4b,
   D197; for the owner): XPath 4.0, 3.4.1 applies fn:number to an
