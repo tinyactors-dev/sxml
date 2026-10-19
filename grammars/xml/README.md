@@ -143,7 +143,7 @@ express (section numbers of XML 1.0 Fifth Edition, and of Namespaces in XML
     or last); every prefix bound; `xml` and `xmlns` prefixes and namespaces
     used only as allowed; no `xmlns:p=""` in XML 1.0; attribute uniqueness by
     expanded name; no colon in PI targets, entity names or notation names.
-15. **XML 1.1** (D190): the grammar accepts `version="1.1"` and stays the
+15. **XML 1.1** (D195): the grammar accepts `version="1.1"` and stays the
     1.0 grammar. Before parsing, the builder reads the version from the
     declaration; for 1.1 it refuses restricted characters written literally
     (XML 1.1, 2.2) and translates NEL, CR NEL and LINE SEPARATOR after the

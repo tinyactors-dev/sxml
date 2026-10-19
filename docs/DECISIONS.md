@@ -7599,7 +7599,7 @@ IR expression kind added.
   validation without any in-scope schema raises FODC0014
   (`src/function_library_schema.c`); use-xsi-schema-location.
 
-### D190. XML 1.1 input (packet 7.13)
+### D195. XML 1.1 input (packet 7.13)
 Recorded 2026-10-19, after D12, D81, D183, D184. Supersedes D81's "version
 1.1 documents are parsed by the 1.0 rules".
 - **Version**: read from the XML declaration of the decoded text before
@@ -7683,7 +7683,7 @@ part).
 
 ## Proposed
 
-- **XQuery's XML version** (packet 7.13, D190; for the owner of
+- **XQuery's XML version** (packet 7.13, D195; for the owner of
   `xquery.h` and `processor.h`): query texts follow XML 1.0 (line ends,
   XQST0090 for `&#1;`, XQST0085 for `xmlns:p=""` in direct constructors,
   version 1.0 as the default serialization version). XQuery 4.0 (A.2,

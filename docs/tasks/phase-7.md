@@ -778,10 +778,10 @@ absent), bug 4 more; XT40 8,759 to 8,784 passed, 0 errors, none lost
 - **Gate**: ≥ 95 % of the 275 xmlconf cases; ≥ 90 % of the QT4 and XT40
   cases.
 
-**Done** 2026-10-19 (D190), gate partly met: xmlconf 242 of 271 XML 1.1
+**Done** 2026-10-19 (D195), gate partly met: xmlconf 242 of 271 XML 1.1
 cases (89.3 %; every case without external entities passes, the 29
 failures need external entities or DTDs, which is 7.14's); QT4 XQ40 300
-of 313 (95.8 %; the 13 need XQuery's own 1.1 lexing, D190 Proposed);
+of 313 (95.8 %; the 13 need XQuery's own 1.1 lexing, D195 Proposed);
 XT40 xml-version 40 of 42, 65 XML_1.1 cases now run. The grammar is
 unchanged: a 1.1 pre-pass in `src/xml.c` instead of scanner state.
 

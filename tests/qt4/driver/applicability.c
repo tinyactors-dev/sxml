@@ -25,9 +25,9 @@ typedef struct sxml_qt4_supported_dependency {
  * - namespace-axis: the namespace axis (D77).
  * - xml-version 1.0, 1.0:5+ and 1.1: documents are read by XML 1.0 Fifth
  *   Edition or, when they declare version 1.1, by XML 1.1 (D28, D81,
- *   D190); 1.0:4- is not. Query texts follow the XML 1.0 rules (line
+ *   D195); 1.0:4- is not. Query texts follow the XML 1.0 rules (line
  *   ends, character references, namespace undeclaration), so the 1.1
- *   cases that need XQuery's 1.1 mode fail (D190).
+ *   cases that need XQuery's 1.1 mode fail (D195).
  * - xsd-version 1.1: XSD 1.1 lexical and value spaces (D66).
  * - limits big_integer: xs:integer is unbounded (D36); year_lt_0: years
  *   are int64_t with year 0 as XSD 1.1 has it (D36, D66).
