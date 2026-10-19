@@ -9247,7 +9247,7 @@ source (below).
   none lost: streaming-fallback-001 to -006, system-property-012;
   merge-097sf is now run and fails on uri-collection with ?select=.
 
-### D221. Evaluator performance: benchmarks, axis walks, filter indexes (packet perf-1)
+### D224. Evaluator performance: benchmarks, axis walks, filter indexes (packet perf-1)
 Recorded 2026-10-19, after D46, D71, D89, D149, D178, D182, D185. In
 progress; completed when the packet ends.
 - **Benchmarks** (`tests/bench/run-bench.py --build DIR`): XMark Q8,

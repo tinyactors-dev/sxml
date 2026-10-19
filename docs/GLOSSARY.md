@@ -667,7 +667,7 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `well_known_namespace` | A namespace with a fixed `namespace_uri_identifier` in every name pool (`SXML_NAMESPACE_XML_SCHEMA`) |
 | `axis` | An XPath axis (`SXML_AXIS_CHILD`, ...), walked by an `axis_iterator` |
 | `axis_iterator` | Walks the nodes of one axis from an origin node |
-| `axis_walk` | Walks the nodes of one axis from an origin node and hands out each with its description, one description per node (internal, `src/tree_axis.c`, D221) |
+| `axis_walk` | Walks the nodes of one axis from an origin node and hands out each with its description, one description per node (internal, `src/tree_axis.c`, D224) |
 | `integer_range` | The bounds of a range sequence (`first_integer` to `last_integer`) |
 | `descending_integer_range` | A sequence representation holding an `integer_range` whose items run from `last_integer` down to `first_integer` (`fn:reverse` of a range, D143) |
 | `static_form` | The abstract syntax a function item was made from, compared up to the renaming of bound variables; two function items with the same static form and captured context are equivalent (F&O 4.0, section 1.9.5; D143) |

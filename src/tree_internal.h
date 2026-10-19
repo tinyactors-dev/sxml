@@ -76,7 +76,7 @@ static inline sxml_node_reference sxml_node_reference_of_stored_node(
 /* ------------------------------------------------------------ Axis walks */
 
 /*
- * An axis walk (glossary `axis_walk`, D221): the nodes of one axis from an
+ * An axis walk (glossary `axis_walk`, D224): the nodes of one axis from an
  * origin, as sxml_axis_iterator gives them, each handed out with its
  * description, so a caller that tests nodes describes each node once.
  * The child, following-sibling, descendant, descendant-or-self,
