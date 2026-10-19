@@ -93,6 +93,19 @@ static const sxml_xslt_test_supported_dependency
         SXML_XSLT_TEST_SUPPORTED("feature", "streaming-fallback"),
         SXML_XSLT_TEST_SUPPORTED("default_language_for_numbering", "en"),
         SXML_XSLT_TEST_SUPPORTED("languages_for_numbering", "en"),
+        /* The localization feature over the vendored CLDR files (packet
+           7.17, D221): xsl:number's lang in the languages of D208, the
+           ordinal attribute naming CLDR rule sets (ordinal_scheme_name
+           CLDR, ICU_spellout) or an ending of the inflected forms
+           (inflection), and the calendars BE, JE, OS and AH. */
+        SXML_XSLT_TEST_SUPPORTED("languages_for_numbering", "de"),
+        SXML_XSLT_TEST_SUPPORTED("languages_for_numbering", "fr"),
+        SXML_XSLT_TEST_SUPPORTED("languages_for_numbering", "it"),
+        SXML_XSLT_TEST_SUPPORTED("languages_for_numbering", "es"),
+        SXML_XSLT_TEST_SUPPORTED("languages_for_numbering", "nl"),
+        SXML_XSLT_TEST_SUPPORTED("ordinal_scheme_name", "CLDR"),
+        SXML_XSLT_TEST_SUPPORTED("ordinal_scheme_name", "inflection"),
+        SXML_XSLT_TEST_SUPPORTED("feature", "ICU_spellout"),
         /* The alphabets and symbol sequences of src/format.c (packet
            4.17), each over the ranges its test cases name. */
         SXML_XSLT_TEST_SUPPORTED("combinations_for_numbering",
@@ -139,6 +152,18 @@ static const sxml_xslt_test_supported_dependency
         SXML_XSLT_TEST_SUPPORTED("supported_calendars_in_date_formatting_"
                                  "functions",
                                  "ISO"),
+        SXML_XSLT_TEST_SUPPORTED("supported_calendars_in_date_formatting_"
+                                 "functions",
+                                 "BE"),
+        SXML_XSLT_TEST_SUPPORTED("supported_calendars_in_date_formatting_"
+                                 "functions",
+                                 "JE"),
+        SXML_XSLT_TEST_SUPPORTED("supported_calendars_in_date_formatting_"
+                                 "functions",
+                                 "OS"),
+        SXML_XSLT_TEST_SUPPORTED("supported_calendars_in_date_formatting_"
+                                 "functions",
+                                 "AH"),
         SXML_XSLT_TEST_SUPPORTED("default_calendar_in_date_formatting_"
                                  "functions",
                                  "AD"),
