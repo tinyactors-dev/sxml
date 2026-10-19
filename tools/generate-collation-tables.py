@@ -1,0 +1,147 @@
+#!/usr/bin/env python3
+"""Generates src/collation_tables.c, the reorder groups of the UCA collation
+feature (src/collation_uca.c, src/collation_tailoring.c; packet 7.15b).
+
+Usage: tools/generate-collation-tables.py FractionalUCA_SHORT.txt \\
+           > src/collation_tables.c
+
+FractionalUCA_SHORT.txt is the CLDR root collation in CLDR's fractional
+form (common/uca/FractionalUCA_SHORT.txt of the CLDR release named in
+third_party/cldr.version; UTS #35, Part 5, section 2.3 "Root Data Files").
+It is not vendored: third_party/cldr/README.md gives its URL and hash.
+
+The output is the list of reorder groups (glossary `reorder_group`; UTS
+#35, Part 5, section 3.13 "Collation Reordering") in the order of the
+root collation: the special groups space, punct, symbol, currency and
+digit, then each script group with its ISO 15924 codes, the unassigned
+code points, and the end of the reorderable primaries. Each group is
+given by the first code point of the group, in the file's order, so the
+primary where the group starts comes from the collation element table
+the host serves (allkeys_CLDR.txt or the DUCET, whose primaries are the
+same), and its implicit weights for Han, Tangut, Nushu and Khitan.
+
+How the file names the groups:
+  - "FDD1 xxxx; [..]" lines start a group (the "first primary" of a
+    special group or a script); the first single code point line after
+    one is the group's first code point ("[U+4E00" for Han, whose
+    weights are implicit);
+  - "[top_byte XX codes]" lines give the codes of each lead byte; the
+    groups of a run of lead bytes with the same codes take those codes
+    one by one when there are as many groups as codes, and all of them
+    together otherwise (Hira Hrkt Kana, Hani Hans Hant);
+  - groups that start at the same weight are one group (Merc Mero);
+  - "FDD1 FDD0" is the unassigned code points (UTS #10, section 10.1.2,
+    base FBC0), which are never named by a code.
+"""
+import hashlib
+import re
+import sys
+
+SPECIAL_CODES = {
+    'SPACE': 'space',
+    'PUNCTUATION': 'punct',
+    'SYMBOL': 'symbol',
+    'CURRENCY': 'currency',
+    'DIGIT': 'digit',
+}
+
+
+def read_groups(lines):
+    lead_byte_codes = {}
+    for line in lines:
+        match = re.match(r'\[top_byte\s+([0-9A-F]{2})\s+([^\]]*)\]', line)
+        if match:
+            codes = [code for code in match.group(2).split() if code != 'COMPRESS']
+            lead_byte_codes[int(match.group(1), 16)] = codes
+    groups = []
+    pending = None
+    for line in lines:
+        match = re.match(r'FDD1 ([0-9A-F]+);\s*\[([0-9A-F]{2})([^,]*),', line)
+        if match:
+            pending = {
+                'lead_byte': int(match.group(2), 16),
+                'weight': match.group(2) + match.group(3),
+                'is_unassigned': match.group(1) == 'FDD0',
+                'first': None,
+            }
+            groups.append(pending)
+            continue
+        match = re.match(r'([0-9A-F]{4,6});\s*\[(U\+([0-9A-F]+)|[0-9A-F]{2})', line)
+        if match and pending is not None:
+            pending['first'] = int(match.group(3) or match.group(1), 16)
+            pending = None
+    runs = []
+    for group in groups:
+        codes = lead_byte_codes[group['lead_byte']]
+        if runs and runs[-1][0] == codes:
+            runs[-1][1].append(group)
+        else:
+            runs.append((codes, [group]))
+    named = []
+    for codes, run_groups in runs:
+        if run_groups[0]['is_unassigned']:
+            named.append(([], run_groups[0]))
+        elif len(codes) == len(run_groups):
+            named.extend(([code], group) for code, group in zip(codes, run_groups))
+        else:
+            named.append((list(codes), run_groups[0]))
+            for group in run_groups[1:]:
+                if run_groups[0]['first'] is None:
+                    run_groups[0]['first'] = group['first']
+    merged = []
+    for codes, group in named:
+        if merged and merged[-1][1]['weight'] == group['weight']:
+            merged[-1][0].extend(codes)
+            if merged[-1][1]['first'] is None:
+                merged[-1][1]['first'] = group['first']
+        else:
+            merged.append((list(codes), group))
+    for codes, group in merged:
+        if group['first'] is None and not group['is_unassigned']:
+            sys.exit('no first code point for the group of %s' % ' '.join(codes))
+    return merged
+
+
+def main():
+    if len(sys.argv) != 2:
+        sys.exit(__doc__)
+    with open(sys.argv[1], 'rb') as data_file:
+        data = data_file.read()
+    lines = data.decode('utf-8').split('\n')
+    version = None
+    for line in lines:
+        match = re.match(r'\[UCA version = ([0-9.]+)\]', line)
+        if match:
+            version = match.group(1)
+    groups = read_groups(lines)
+    out = sys.stdout
+    out.write('/*\n')
+    out.write(' * The reorder groups of the UCA collation feature (glossary\n')
+    out.write(' * `reorder_group`; src/collation_uca_internal.h), generated by\n')
+    out.write(' * tools/generate-collation-tables.py from CLDR\'s\n')
+    out.write(' * FractionalUCA_SHORT.txt (UCA version %s). SHA-256 of the input:\n' % version)
+    out.write(' *   %s\n' % hashlib.sha256(data).hexdigest())
+    out.write(' * Do not edit; regenerate.\n')
+    out.write(' *\n')
+    out.write(' * UTS #35, Part 5, section 3.13: the groups the reorder codes move, in\n')
+    out.write(' * the order of the CLDR root collation, each from its first code point.\n')
+    out.write(' */\n')
+    out.write('#include "collation_uca_internal.h"\n\n')
+    out.write('/* clang-format off */\n')
+    out.write('const sxml_collation_reorder_group_definition sxml_collation_reorder_groups[] = {\n')
+    for codes, group in groups:
+        names = ' '.join(SPECIAL_CODES.get(code, code) for code in codes)
+        if group['is_unassigned']:
+            out.write('    {"", 0x0, SXML_COLLATION_REORDER_GROUP_KIND_UNASSIGNED},\n')
+            continue
+        kind = ('SXML_COLLATION_REORDER_GROUP_KIND_SPECIAL' if codes[0] in SPECIAL_CODES
+                else 'SXML_COLLATION_REORDER_GROUP_KIND_SCRIPT')
+        out.write('    {"%s", 0x%X, %s},\n' % (names, group['first'], kind))
+    out.write('};\n')
+    out.write('/* clang-format on */\n\n')
+    out.write('const size_t sxml_collation_reorder_group_count =\n')
+    out.write('    sizeof(sxml_collation_reorder_groups) / sizeof(sxml_collation_reorder_groups[0]);\n')
+
+
+if __name__ == '__main__':
+    main()

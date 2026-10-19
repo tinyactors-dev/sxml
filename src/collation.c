@@ -57,7 +57,10 @@ sxml_collation sxml_collation_codepoint(void) {
                             .is_numeric = false,
                             .is_fallback_allowed = true,
                             .has_unsupported_parameter = false,
+                            .explicit_parameters = 0,
                             .version = {.bytes = NULL, .byte_count = 0},
+                            .language = {.bytes = NULL, .byte_count = 0},
+                            .reordering = {.bytes = NULL, .byte_count = 0},
                             .uca_operations = NULL,
                             .element_table = NULL};
 }
@@ -96,8 +99,9 @@ static const sxml_byte_view strength_numbers[] = {
     SXML_BYTE_VIEW_INITIALIZER("3"), SXML_BYTE_VIEW_INITIALIZER("4"),
     SXML_BYTE_VIEW_INITIALIZER("5")};
 
-/* The lang values the root collation serves without a tailoring (CLDR
-   has none for en, und and root): BCP 47 tags compared without case. */
+/* The lang values the root collation serves without a tailoring and
+   without asking for CLDR data (CLDR has none for en, und and root): BCP
+   47 tags compared without case. */
 static bool is_root_language(sxml_byte_view value) {
     uint8_t lowered[16];
     if (value.byte_count >= sizeof(lowered)) {
@@ -184,7 +188,8 @@ static void apply_parameter(sxml_collation *collation, uca_parameter parameter) 
     const yes_no_value yes_no = read_yes_no(value);
     size_t chosen_index = 0;
     bool is_honoured = true;
-    switch (read_keyword(parameter.keyword)) {
+    const uca_keyword keyword = read_keyword(parameter.keyword);
+    switch (keyword) {
     case SXML_UCA_KEYWORD_STRENGTH:
         is_honoured = false;
         for (size_t strength_index = 0; strength_index < 5; strength_index += 1) {
@@ -235,16 +240,20 @@ static void apply_parameter(sxml_collation *collation, uca_parameter parameter) 
         is_honoured = yes_no.is_valid;
         break;
     case SXML_UCA_KEYWORD_LANGUAGE:
-        /* Other languages need a tailoring (packet 7.15b). */
-        is_honoured = is_root_language(value);
+        /* Other languages are tailorings, which sxml_collation_resolve
+           looks up (packet 7.15b). */
+        collation->language = is_root_language(value)
+                                  ? (sxml_byte_view){.bytes = NULL, .byte_count = 0}
+                                  : value;
         break;
     case SXML_UCA_KEYWORD_VERSION:
         /* Compared with the table's version by sxml_collation_resolve. */
         collation->version = value;
         break;
     case SXML_UCA_KEYWORD_REORDER:
-        /* A reordering is a tailoring (packet 7.15b). */
-        is_honoured = value.byte_count == 0;
+        /* A reordering is a tailoring, which sxml_collation_resolve looks
+           up (packet 7.15b). */
+        collation->reordering = value;
         break;
     case SXML_UCA_KEYWORD_UNKNOWN:
         is_honoured = false;
@@ -252,7 +261,24 @@ static void apply_parameter(sxml_collation *collation, uca_parameter parameter) 
     }
     if (!is_honoured) {
         collation->has_unsupported_parameter = true;
+        return;
     }
+    /* The parameters a tailoring's settings do not override (UTS #35,
+       part 5, section 3.4). */
+    static const uint32_t keyword_parameters[] = {
+        [SXML_UCA_KEYWORD_STRENGTH] = SXML_COLLATION_PARAMETER_STRENGTH,
+        [SXML_UCA_KEYWORD_ALTERNATE] = SXML_COLLATION_PARAMETER_ALTERNATE,
+        [SXML_UCA_KEYWORD_MAXIMUM_VARIABLE] = SXML_COLLATION_PARAMETER_MAXIMUM_VARIABLE,
+        [SXML_UCA_KEYWORD_CASE_FIRST] = SXML_COLLATION_PARAMETER_CASE_FIRST,
+        [SXML_UCA_KEYWORD_CASE_LEVEL] = SXML_COLLATION_PARAMETER_CASE_LEVEL,
+        [SXML_UCA_KEYWORD_BACKWARDS] = SXML_COLLATION_PARAMETER_BACKWARDS,
+        [SXML_UCA_KEYWORD_NUMERIC] = SXML_COLLATION_PARAMETER_NUMERIC,
+        [SXML_UCA_KEYWORD_NORMALIZATION] = 0,
+        [SXML_UCA_KEYWORD_LANGUAGE] = 0,
+        [SXML_UCA_KEYWORD_VERSION] = 0,
+        [SXML_UCA_KEYWORD_REORDER] = 0,
+        [SXML_UCA_KEYWORD_UNKNOWN] = 0};
+    collation->explicit_parameters |= keyword_parameters[keyword];
 }
 
 /* Splits text at the first separator byte: *part before it, *rest after
@@ -382,9 +408,33 @@ sxml_status sxml_collation_resolve(const sxml_collation_resolution_request *requ
             !sxml_byte_view_equals(collation.version, operations->get_version(table))) {
             collation.has_unsupported_parameter = true;
         }
+        if (collation.language.byte_count > 0 || collation.reordering.byte_count > 0) {
+            /* UTS #35, part 5: the language's tailoring and the
+               reordering; the root order when they cannot be honoured. */
+            sxml_uca_tailoring tailoring = {.table = table, .is_honoured = false};
+            const sxml_status status = operations->find_tailoring(
+                &(sxml_uca_tailoring_request){.processor = request->processor,
+                                              .table = table,
+                                              .language = collation.language,
+                                              .reordering = collation.reordering},
+                &tailoring);
+            if (status != SXML_STATUS_OK) {
+                return status;
+            }
+            collation.element_table = tailoring.table;
+            if (!tailoring.is_honoured) {
+                collation.has_unsupported_parameter = true;
+            }
+        }
+        operations->apply_settings(collation.element_table, &collation);
+    } else if (collation.language.byte_count > 0 || collation.reordering.byte_count > 0) {
+        /* The fallback has no tailorings. */
+        collation.has_unsupported_parameter = true;
     }
-    /* The version was borrowed from the URI for this check only. */
+    /* The views were borrowed from the URI for these lookups only. */
     collation.version = (sxml_byte_view){.bytes = NULL, .byte_count = 0};
+    collation.language = (sxml_byte_view){.bytes = NULL, .byte_count = 0};
+    collation.reordering = (sxml_byte_view){.bytes = NULL, .byte_count = 0};
     /* F&O 4.0, section 5.2.4: with fallback=no, a collation that does not
        honour every parameter (the fallback honours none of UTS #10's
        weights) is not supported. */

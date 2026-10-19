@@ -1,25 +1,36 @@
 /*
  * The UCA collation feature (src/collation_internal.h, "The UCA collation
- * feature"; include/sxml/processor.h, sxml_uca_collation_feature; packet
- * 7.15a, D213): a collation element table read from the DUCET the host
- * serves as feature data (glossary `collation_element_table`,
- * `feature_data`), and the collation elements of strings over it (UTS #10,
- * Unicode Collation Algorithm, version 16.0.0; UTS #35, part 5, section 3,
- * for the parameters).
+ * feature"; include/sxml/processor.h, sxml_uca_collation_feature; packets
+ * 7.15a and 7.15b, D213, D220): a root collation element table read from
+ * the CLDR root collation (or the DUCET) the host serves as feature data
+ * (glossary `collation_element_table`, `feature_data`), the reorder groups
+ * and reorderings over it (glossary `reorder_group`), and the collation
+ * elements of strings over a table or a tailoring of it
+ * (src/collation_tailoring.c; UTS #10, Unicode Collation Algorithm,
+ * version 16.0.0; UTS #35, part 5, section 3, for the parameters).
  *
  * Golden file: src/optional_feature.c (the test feature: reading feature
  * data once into the processor's slot), src/collation.c (element arrays
  * through an allocator).
  *
- * The table. allkeys.txt (UTS #10, section 9.1) is read in two passes,
- * one that counts and one that fills, into three sorted arrays: the
- * collation elements of every entry, the entries of one codepoint, and the
- * contractions (entries of several codepoints). Each element keeps its
- * 16-bit primary and secondary weights and its tertiary weight; the
- * variable mark "*" decides only the groups of maxVariable (below). Han
- * and unassigned codepoints are not in the file: their implicit weights
- * are computed (UTS #10, section 10.1), with the @implicitweights ranges
- * the file gives.
+ * The table. allkeys.txt (UTS #10, section 9.1; CLDR's allkeys_CLDR.txt
+ * has the same form) is read in two passes, one that counts and one that
+ * fills, into three sorted arrays: the collation elements of every entry,
+ * the entries of one codepoint, and the contractions (entries of several
+ * codepoints). Each element keeps its 16-bit primary and secondary
+ * weights, its tertiary weight and its case; the variable mark "*"
+ * decides only the groups of maxVariable of the DUCET (below). Han and
+ * unassigned codepoints are not in the file: their implicit weights are
+ * computed (UTS #10, section 10.1), with the @implicitweights ranges the
+ * file gives, else those of UTS #10 16.0.0. A tailoring is a table of the
+ * same form over its parent (src/collation_uca_internal.h); lookups try
+ * the chain from the tailoring to the root.
+ *
+ * Reordering (UTS #35, part 5, section 3.13): the root's primaries fall
+ * into the reorder groups of src/collation_tables.c, each starting at the
+ * primary of its first codepoint; a reordering moves whole groups, so a
+ * primary weighs as its group's new start plus its distance from the old
+ * one.
  *
  * The elements of a string (UTS #10, section 4, steps S1 to S3):
  * 1. The string is put into NFD (S1.1): each codepoint's canonical
@@ -34,13 +45,14 @@
  *    parameters applied: variable weighting (UTS #10, section 4, shifted
  *    and blanked; which primaries are variable follows maxVariable), the
  *    case level and caseFirst from the tertiary weight (UTS #35, part 5,
- *    section 3.14). Primary weights are shifted left by 8 bits, so numeric
- *    weights fit between the primary of digit zero and the next one.
+ *    section 3.14), the reordering of primaries. Weights are shifted left
+ *    by 8 bits, so numeric weights fit between the primary of digit zero
+ *    and the next one, and a tailoring's between the root's weights.
  *
  * No recursion (D71); the table lives in the processor's feature slot and
  * is read only by the processor's thread (D35).
  */
-#include "collation_internal.h"
+#include "collation_uca_internal.h"
 
 #include "optional_feature_internal.h"
 #include "processor_internal.h"
@@ -53,14 +65,8 @@
 
 /* ------------------------------------------------------------- The table */
 
-/* The longest contraction sxml reads; the DUCET's are at most 3. */
-#define SXML_UCA_MAXIMUM_CONTRACTION_LENGTH 8U
 /* At most this many elements in one entry; the DUCET's are at most 18. */
 #define SXML_UCA_MAXIMUM_ENTRY_ELEMENT_COUNT 32U
-/* At most this many @implicitweights lines; the DUCET has 4. */
-#define SXML_UCA_MAXIMUM_IMPLICIT_RANGE_COUNT 16U
-/* The @version text kept. */
-#define SXML_UCA_MAXIMUM_VERSION_BYTE_COUNT 32U
 
 /* The DUCET's common secondary and tertiary weights (UTS #10, section
    10.1, the implicit weights [.AAAA.0020.0002][.BBBB.0000.0000]). */
@@ -73,65 +79,11 @@
 #define SXML_UCA_GROUP_NEVER_VARIABLE 4U
 #define SXML_UCA_GROUP_UNKNOWN 0xFFU
 
-/* One collation element of the table. */
-typedef struct uca_table_element {
-    uint16_t primary;
-    uint16_t secondary;
-    uint8_t tertiary;
-    /* Marked "*" in the file. */
-    bool is_variable_marked;
-} uca_table_element;
+/* The base of the implicit weights of unassigned codepoints (UTS #10,
+   section 10.1.2). */
+#define SXML_UCA_UNASSIGNED_BASE 0xFBC0U
 
-/* An entry of one codepoint. */
-typedef struct uca_mapping {
-    uint32_t codepoint;
-    uint32_t element_offset;
-    uint32_t element_count;
-} uca_mapping;
-
-/* An entry of several codepoints. */
-typedef struct uca_contraction {
-    uint32_t codepoints[SXML_UCA_MAXIMUM_CONTRACTION_LENGTH];
-    uint32_t codepoint_count;
-    uint32_t element_offset;
-    uint32_t element_count;
-} uca_contraction;
-
-/* One @implicitweights line: codepoints first to last weigh base, with
-   their offset from origin, the first codepoint of base's ranges. */
-typedef struct uca_implicit_range {
-    uint32_t first;
-    uint32_t last;
-    uint32_t base;
-    uint32_t origin;
-} uca_implicit_range;
-
-struct sxml_collation_element_table {
-    sxml_allocator allocator;
-    uca_table_element *elements;
-    size_t element_count;
-    uca_mapping *mappings;
-    size_t mapping_count;
-    uca_contraction *contractions;
-    size_t contraction_count;
-    uca_implicit_range implicit_ranges[SXML_UCA_MAXIMUM_IMPLICIT_RANGE_COUNT];
-    size_t implicit_range_count;
-    /* The primary of digit zero (U+0030): numeric weights go there, and
-       variable primaries are below it. */
-    uint32_t digit_zero_primary;
-    /* The group of each primary below digit_zero_primary. */
-    uint8_t *variable_groups;
-    uint8_t version[SXML_UCA_MAXIMUM_VERSION_BYTE_COUNT];
-    size_t version_byte_count;
-};
-
-/* The feature's state in a processor: the table, or NULL when the
-   resolver had no data. */
-typedef struct uca_feature_state {
-    sxml_collation_element_table *table;
-} uca_feature_state;
-
-static void release_table(sxml_collation_element_table *table) {
+void sxml_uca_release_table(sxml_collation_element_table *table) {
     if (table == NULL) {
         return;
     }
@@ -140,6 +92,8 @@ static void release_table(sxml_collation_element_table *table) {
     sxml_allocator_release(allocator, table->mappings);
     sxml_allocator_release(allocator, table->contractions);
     sxml_allocator_release(allocator, table->variable_groups);
+    sxml_allocator_release(allocator, table->group_starts);
+    sxml_allocator_release(allocator, table->reorder_ranges);
     sxml_allocator_release(allocator, table);
 }
 
@@ -230,11 +184,30 @@ static bool read_byte(text_cursor *cursor, uint8_t expected) {
     return true;
 }
 
+/* The tertiary weights of upper-case variants (UTS #10, section 10.3.1,
+   the tertiary weight table; UTS #35, part 5, section 3.14). */
+static bool is_upper_tertiary(uint32_t tertiary) {
+    switch (tertiary) {
+    case 0x08U:
+    case 0x09U:
+    case 0x0AU:
+    case 0x0BU:
+    case 0x0CU:
+    case 0x0EU:
+    case 0x11U:
+    case 0x12U:
+    case 0x1DU:
+        return true;
+    default:
+        return false;
+    }
+}
+
 /* One entry line as read. */
 typedef struct entry_line {
     uint32_t codepoints[SXML_UCA_MAXIMUM_CONTRACTION_LENGTH];
     size_t codepoint_count;
-    uca_table_element elements[SXML_UCA_MAXIMUM_ENTRY_ELEMENT_COUNT];
+    sxml_uca_element elements[SXML_UCA_MAXIMUM_ENTRY_ELEMENT_COUNT];
     size_t element_count;
 } entry_line;
 
@@ -265,7 +238,7 @@ static bool read_entry_line(text_cursor *cursor, entry_line *line) {
         if (is_line_end(cursor)) {
             break;
         }
-        uca_table_element element = {0};
+        sxml_uca_element element = {0};
         uint32_t primary = 0;
         uint32_t secondary = 0;
         uint32_t tertiary = 0;
@@ -273,7 +246,7 @@ static bool read_entry_line(text_cursor *cursor, entry_line *line) {
             !read_byte(cursor, '[')) {
             return false;
         }
-        element.is_variable_marked = cursor_peek(cursor) == '*';
+        const bool is_variable_marked = cursor_peek(cursor) == '*';
         if (!(read_byte(cursor, '.') || read_byte(cursor, '*')) ||
             !read_hex(cursor, weight_hex, &primary) || !read_byte(cursor, '.') ||
             !read_hex(cursor, weight_hex, &secondary) || !read_byte(cursor, '.') ||
@@ -294,6 +267,8 @@ static bool read_entry_line(text_cursor *cursor, entry_line *line) {
         element.primary = (uint16_t)primary;
         element.secondary = (uint16_t)secondary;
         element.tertiary = (uint8_t)tertiary;
+        element.flags = (uint8_t)((is_variable_marked ? SXML_UCA_ELEMENT_FLAG_VARIABLE_MARKED : 0U) |
+                                  (is_upper_tertiary(tertiary) ? SXML_UCA_ELEMENT_FLAG_UPPER : 0U));
         line->elements[line->element_count] = element;
         line->element_count += 1;
     }
@@ -313,7 +288,7 @@ static bool read_word(text_cursor *cursor, const char *text) {
 
 /* Reads "@implicitweights first..last; base" into the table. */
 static bool read_implicit_weights(text_cursor *cursor, sxml_collation_element_table *table) {
-    uca_implicit_range range = {0};
+    sxml_uca_implicit_range range = {0};
     skip_blanks(cursor);
     if (!read_hex(cursor, codepoint_hex, &range.first) || !read_word(cursor, "..") ||
         !read_hex(cursor, codepoint_hex, &range.last) || range.last < range.first) {
@@ -330,7 +305,7 @@ static bool read_implicit_weights(text_cursor *cursor, sxml_collation_element_ta
     }
     range.origin = range.first;
     for (size_t range_index = 0; range_index < table->implicit_range_count; range_index += 1) {
-        uca_implicit_range *earlier = &table->implicit_ranges[range_index];
+        sxml_uca_implicit_range *earlier = &table->implicit_ranges[range_index];
         if (earlier->base == range.base) {
             /* UTS #10, section 10.1.3: the offset is from the first range
                of the base (Tangut and its supplement share FB00). */
@@ -413,15 +388,15 @@ static sxml_status read_lines(reading_pass pass, sxml_byte_view content) {
             }
             if (line.element_count > 0) {
                 memcpy(&table->elements[element_count], line.elements,
-                       line.element_count * sizeof(uca_table_element));
+                       line.element_count * sizeof(sxml_uca_element));
             }
             if (line.codepoint_count == 1) {
                 table->mappings[mapping_count] =
-                    (uca_mapping){.codepoint = line.codepoints[0],
+                    (sxml_uca_mapping){.codepoint = line.codepoints[0],
                                   .element_offset = (uint32_t)element_count,
                                   .element_count = (uint32_t)line.element_count};
             } else if (table->contractions != NULL) {
-                uca_contraction *contraction = &table->contractions[contraction_count];
+                sxml_uca_contraction *contraction = &table->contractions[contraction_count];
                 memset(contraction, 0, sizeof(*contraction));
                 memcpy(contraction->codepoints, line.codepoints,
                        line.codepoint_count * sizeof(uint32_t));
@@ -446,16 +421,8 @@ static sxml_status read_lines(reading_pass pass, sxml_byte_view content) {
     return SXML_STATUS_OK;
 }
 
-/* Allocates an array of element_count elements of element_size bytes;
-   NULL for none. */
-typedef struct array_request {
-    size_t element_count;
-    size_t element_size;
-    size_t alignment;
-} array_request;
-
-static sxml_status allocate_array(sxml_allocator allocator, array_request request,
-                                  void **memory) {
+sxml_status sxml_uca_allocate_array(sxml_allocator allocator, sxml_uca_array_request request,
+                                    void **memory) {
     *memory = NULL;
     if (request.element_count == 0) {
         return SXML_STATUS_OK;
@@ -473,18 +440,12 @@ static sxml_status allocate_array(sxml_allocator allocator, array_request reques
 
 static bool mapping_is_before(const void *state, sxml_sort_pair pair) {
     (void)state;
-    return ((const uca_mapping *)pair.first)->codepoint <
-           ((const uca_mapping *)pair.second)->codepoint;
+    return ((const sxml_uca_mapping *)pair.first)->codepoint <
+           ((const sxml_uca_mapping *)pair.second)->codepoint;
 }
 
-/* A codepoint sequence. */
-typedef struct codepoint_sequence {
-    const uint32_t *codepoints;
-    size_t codepoint_count;
-} codepoint_sequence;
-
 /* Orders sequences lexicographically, a proper prefix first. */
-static int compare_sequences(codepoint_sequence first, codepoint_sequence second) {
+static int compare_sequences(sxml_uca_codepoints first, sxml_uca_codepoints second) {
     const size_t common =
         first.codepoint_count < second.codepoint_count ? first.codepoint_count : second.codepoint_count;
     for (size_t codepoint_index = 0; codepoint_index < common; codepoint_index += 1) {
@@ -498,9 +459,9 @@ static int compare_sequences(codepoint_sequence first, codepoint_sequence second
     return first.codepoint_count < second.codepoint_count ? -1 : 1;
 }
 
-static codepoint_sequence contraction_sequence(const uca_contraction *contraction) {
-    return (codepoint_sequence){.codepoints = contraction->codepoints,
-                                .codepoint_count = contraction->codepoint_count};
+static sxml_uca_codepoints contraction_sequence(const sxml_uca_contraction *contraction) {
+    return (sxml_uca_codepoints){.codepoints = contraction->codepoints,
+                                 .codepoint_count = contraction->codepoint_count};
 }
 
 static bool contraction_is_before(const void *state, sxml_sort_pair pair) {
@@ -509,9 +470,22 @@ static bool contraction_is_before(const void *state, sxml_sort_pair pair) {
                              contraction_sequence(pair.second)) < 0;
 }
 
-/* The entry of codepoint, or NULL. */
-static const uca_mapping *find_mapping(const sxml_collation_element_table *table,
-                                       uint32_t codepoint) {
+void sxml_uca_sort_entries(sxml_collation_element_table *table) {
+    sxml_sort_in_place(&(sxml_sort_request){.elements = table->mappings,
+                                            .element_count = table->mapping_count,
+                                            .element_size = sizeof(sxml_uca_mapping),
+                                            .is_before = mapping_is_before,
+                                            .state = NULL});
+    sxml_sort_in_place(&(sxml_sort_request){.elements = table->contractions,
+                                            .element_count = table->contraction_count,
+                                            .element_size = sizeof(sxml_uca_contraction),
+                                            .is_before = contraction_is_before,
+                                            .state = NULL});
+}
+
+/* The entry of codepoint in table alone, or NULL. */
+static const sxml_uca_mapping *find_own_mapping(const sxml_collation_element_table *table,
+                                                uint32_t codepoint) {
     size_t low = 0;
     size_t high = table->mapping_count;
     while (low < high) {
@@ -529,9 +503,24 @@ static const uca_mapping *find_mapping(const sxml_collation_element_table *table
     return NULL;
 }
 
-/* The index of the first contraction not before sequence. */
+bool sxml_uca_find_mapping(const sxml_collation_element_table *table, uint32_t codepoint,
+                           sxml_uca_entry *entry) {
+    for (const sxml_collation_element_table *chain_table = table; chain_table != NULL;
+         chain_table = chain_table->parent) {
+        const sxml_uca_mapping *mapping = find_own_mapping(chain_table, codepoint);
+        if (mapping != NULL) {
+            *entry = (sxml_uca_entry){.elements = chain_table->elements + mapping->element_offset,
+                                      .element_count = mapping->element_count};
+            return true;
+        }
+    }
+    return false;
+}
+
+/* The index of the first contraction of table alone not before
+   sequence. */
 static size_t lower_bound_contraction(const sxml_collation_element_table *table,
-                                      codepoint_sequence sequence) {
+                                      sxml_uca_codepoints sequence) {
     size_t low = 0;
     size_t high = table->contraction_count;
     while (low < high) {
@@ -545,27 +534,37 @@ static size_t lower_bound_contraction(const sxml_collation_element_table *table,
     return low;
 }
 
-/* The contraction of exactly sequence, or NULL. */
-static const uca_contraction *find_contraction(const sxml_collation_element_table *table,
-                                               codepoint_sequence sequence) {
-    const size_t found = lower_bound_contraction(table, sequence);
-    if (found < table->contraction_count &&
-        compare_sequences(contraction_sequence(&table->contractions[found]), sequence) == 0) {
-        return &table->contractions[found];
+bool sxml_uca_find_contraction(const sxml_collation_element_table *table,
+                               sxml_uca_codepoints sequence, sxml_uca_entry *entry) {
+    for (const sxml_collation_element_table *chain_table = table; chain_table != NULL;
+         chain_table = chain_table->parent) {
+        const size_t found = lower_bound_contraction(chain_table, sequence);
+        if (found < chain_table->contraction_count &&
+            compare_sequences(contraction_sequence(&chain_table->contractions[found]), sequence) == 0) {
+            const sxml_uca_contraction *contraction = &chain_table->contractions[found];
+            *entry = (sxml_uca_entry){.elements = chain_table->elements + contraction->element_offset,
+                                      .element_count = contraction->element_count};
+            return true;
+        }
     }
-    return NULL;
+    return false;
 }
 
-/* Whether some contraction starts with codepoint. */
-static bool starts_contraction(const sxml_collation_element_table *table, uint32_t codepoint) {
-    const size_t found = lower_bound_contraction(
-        table, (codepoint_sequence){.codepoints = &codepoint, .codepoint_count = 1});
-    return found < table->contraction_count &&
-           table->contractions[found].codepoints[0] == codepoint;
+bool sxml_uca_starts_contraction(const sxml_collation_element_table *table, uint32_t codepoint) {
+    for (const sxml_collation_element_table *chain_table = table; chain_table != NULL;
+         chain_table = chain_table->parent) {
+        const size_t found = lower_bound_contraction(
+            chain_table, (sxml_uca_codepoints){.codepoints = &codepoint, .codepoint_count = 1});
+        if (found < chain_table->contraction_count && chain_table->contractions[found].codepoints[0] == codepoint) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /* The maxVariable group of a variable character (UTS #35, part 5,
-   section 3.6, by general category). */
+   section 3.6, by general category), or SXML_UCA_GROUP_NEVER_VARIABLE
+   for a character that is neither space, punctuation nor a symbol. */
 static uint8_t group_of_category(uint32_t codepoint) {
     const uint32_t category_bit = 1U << (uint32_t)sxml_regex_get_general_category(codepoint);
     if ((category_bit & (SXML_REGEX_CATEGORY_MASK_Z |
@@ -578,40 +577,84 @@ static uint8_t group_of_category(uint32_t codepoint) {
     if ((category_bit & (1U << (uint32_t)SXML_REGEX_GENERAL_CATEGORY_SC)) != 0) {
         return (uint8_t)SXML_COLLATION_VARIABLE_GROUP_CURRENCY;
     }
-    return (uint8_t)SXML_COLLATION_VARIABLE_GROUP_SYMBOL;
+    if ((category_bit & ((1U << (uint32_t)SXML_REGEX_GENERAL_CATEGORY_SM) |
+                         (1U << (uint32_t)SXML_REGEX_GENERAL_CATEGORY_SK) |
+                         (1U << (uint32_t)SXML_REGEX_GENERAL_CATEGORY_SO))) != 0) {
+        return (uint8_t)SXML_COLLATION_VARIABLE_GROUP_SYMBOL;
+    }
+    return SXML_UCA_GROUP_NEVER_VARIABLE;
 }
 
 /*
- * The group of every primary below digit zero's. A primary takes the
- * lowest group of the characters whose first element it is: the DUCET's
- * variable ("*") elements are space, punctuation and symbols, and the
- * currency symbols follow them; a primary that no single character starts
- * with takes the group of the primary before it.
+ * The group of every primary below digit zero's.
+ * - The CLDR root: by the reorder groups space, punct, symbol and
+ *   currency (UTS #35, part 5, section 3.6: maxVariable names the last
+ *   group that is variable); a primary below the space group (U+FFFE's)
+ *   is never variable.
+ * - The DUCET: a primary takes the lowest group of the characters whose
+ *   first element it is: the variable ("*") elements are space,
+ *   punctuation and symbols, and the currency symbols follow them; a
+ *   primary that no single character starts with takes the group of the
+ *   primary before it.
  */
-static sxml_status make_variable_groups(sxml_collation_element_table *table) {
+static void make_root_variable_groups(sxml_collation_element_table *table) {
+    const uint32_t *starts = table->group_starts;
+    for (size_t primary = 0; primary < table->digit_zero_primary; primary += 1) {
+        uint8_t group = SXML_UCA_GROUP_NEVER_VARIABLE;
+        for (size_t group_index = 0; group_index <= SXML_COLLATION_VARIABLE_GROUP_CURRENCY;
+             group_index += 1) {
+            if (primary >= starts[group_index] && primary < starts[group_index + 1]) {
+                group = (uint8_t)group_index;
+            }
+        }
+        table->variable_groups[primary] = group;
+    }
+}
+
+/* Whether the first reorder groups are the four of maxVariable, in its
+   order (src/collation_tables.c). */
+static bool has_variable_reorder_groups(void) {
+    static const char *const names[] = {"space", "punct", "symbol", "currency"};
+    for (size_t group_index = 0; group_index < 4; group_index += 1) {
+        if (sxml_collation_reorder_group_count <= group_index ||
+            strcmp(sxml_collation_reorder_groups[group_index].codes, names[group_index]) != 0) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static sxml_status make_variable_groups(sxml_collation_element_table *table, bool is_cldr_root) {
     void *memory = NULL;
-    sxml_status status = allocate_array(
+    sxml_status status = sxml_uca_allocate_array(
         table->allocator,
-        (array_request){.element_count = table->digit_zero_primary,
-                        .element_size = sizeof(uint8_t),
-                        .alignment = alignof(uint8_t)},
+        (sxml_uca_array_request){.element_count = table->digit_zero_primary,
+                                 .element_size = sizeof(uint8_t),
+                                 .alignment = alignof(uint8_t)},
         &memory);
     if (status != SXML_STATUS_OK || memory == NULL) {
         return status;
     }
     table->variable_groups = memory;
+    if (is_cldr_root && table->group_starts != NULL && has_variable_reorder_groups()) {
+        make_root_variable_groups(table);
+        return SXML_STATUS_OK;
+    }
     memset(table->variable_groups, SXML_UCA_GROUP_UNKNOWN, table->digit_zero_primary);
     for (size_t mapping_index = 0; mapping_index < table->mapping_count; mapping_index += 1) {
-        const uca_mapping *mapping = &table->mappings[mapping_index];
+        const sxml_uca_mapping *mapping = &table->mappings[mapping_index];
         if (mapping->element_count == 0) {
             continue;
         }
-        const uca_table_element *first = &table->elements[mapping->element_offset];
+        const sxml_uca_element *first = &table->elements[mapping->element_offset];
         if (first->primary == 0 || first->primary >= table->digit_zero_primary) {
             continue;
         }
+        const bool is_marked = (first->flags & SXML_UCA_ELEMENT_FLAG_VARIABLE_MARKED) != 0;
         uint8_t group = group_of_category(mapping->codepoint);
-        if (!first->is_variable_marked && group != SXML_COLLATION_VARIABLE_GROUP_CURRENCY) {
+        if (is_marked && group == SXML_UCA_GROUP_NEVER_VARIABLE) {
+            group = (uint8_t)SXML_COLLATION_VARIABLE_GROUP_SYMBOL;
+        } else if (!is_marked && group != SXML_COLLATION_VARIABLE_GROUP_CURRENCY) {
             group = SXML_UCA_GROUP_NEVER_VARIABLE;
         }
         if (group < table->variable_groups[first->primary]) {
@@ -628,9 +671,85 @@ static sxml_status make_variable_groups(sxml_collation_element_table *table) {
     return SXML_STATUS_OK;
 }
 
-/* Reads content into a new table in *table (NULL on failure). */
-static sxml_status read_table(sxml_allocator allocator, sxml_byte_view content,
+/* The implicit weights of UTS #10 version 16.0.0, section 10.1.3 (Table
+   16), for a root table whose file has no @implicitweights lines
+   (allkeys_CLDR.txt has none; the CLDR root has the same weights). */
+static void set_default_implicit_ranges(sxml_collation_element_table *table) {
+    static const sxml_uca_implicit_range ranges[] = {
+        {.first = 0x17000U, .last = 0x18AFFU, .base = 0xFB00U, .origin = 0x17000U},
+        {.first = 0x18B00U, .last = 0x18CFFU, .base = 0xFB02U, .origin = 0x18B00U},
+        {.first = 0x18D00U, .last = 0x18D7FU, .base = 0xFB00U, .origin = 0x17000U},
+        {.first = 0x1B170U, .last = 0x1B2FFU, .base = 0xFB01U, .origin = 0x1B170U},
+    };
+    memcpy(table->implicit_ranges, ranges, sizeof(ranges));
+    table->implicit_range_count = sizeof(ranges) / sizeof(ranges[0]);
+}
+
+/* The first primary of codepoint in a root table: its entry's, or its
+   implicit weight's. */
+static uint32_t first_primary(const sxml_collation_element_table *root, uint32_t codepoint) {
+    sxml_uca_entry entry;
+    if (sxml_uca_find_mapping(root, codepoint, &entry) && entry.element_count > 0) {
+        return entry.elements[0].primary;
+    }
+    sxml_uca_element implicit[2];
+    sxml_uca_make_implicit_elements(root, codepoint, implicit);
+    return implicit[0].primary;
+}
+
+/*
+ * Where each reorder group starts in a root table (UTS #35, part 5,
+ * section 3.13), from the first codepoint src/collation_tables.c gives,
+ * and after the last group the primary of U+FFFD, where CLDR's trailing
+ * weights start. Leaves group_starts NULL when they are not ascending (a
+ * table not in the root order), so reorder is then not honoured.
+ */
+static sxml_status make_group_starts(sxml_collation_element_table *table) {
+    void *memory = NULL;
+    const size_t start_count = sxml_collation_reorder_group_count + 1;
+    sxml_status status = sxml_uca_allocate_array(
+        table->allocator,
+        (sxml_uca_array_request){.element_count = start_count,
+                                 .element_size = sizeof(uint32_t),
+                                 .alignment = alignof(uint32_t)},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    uint32_t *starts = memory;
+    if (starts == NULL) {
+        return SXML_STATUS_OK;
+    }
+    for (size_t group_index = 0; group_index < sxml_collation_reorder_group_count;
+         group_index += 1) {
+        const sxml_collation_reorder_group_definition *group =
+            &sxml_collation_reorder_groups[group_index];
+        starts[group_index] = group->group_kind == SXML_COLLATION_REORDER_GROUP_KIND_UNASSIGNED
+                                  ? SXML_UCA_UNASSIGNED_BASE
+                                  : first_primary(table, group->first_codepoint);
+    }
+    starts[start_count - 1] = first_primary(table, 0xFFFDU);
+    for (size_t start_index = 1; start_index < start_count; start_index += 1) {
+        if (starts[start_index] <= starts[start_index - 1]) {
+            sxml_allocator_release(table->allocator, starts);
+            return SXML_STATUS_OK;
+        }
+    }
+    table->group_starts = starts;
+    return SXML_STATUS_OK;
+}
+
+/* The data of a root table: its text, and whether it is the CLDR root
+   (else the DUCET). */
+typedef struct table_source {
+    sxml_byte_view content;
+    bool is_cldr_root;
+} table_source;
+
+/* Reads source into a new table in *table (NULL on failure). */
+static sxml_status read_table(sxml_allocator allocator, table_source source,
                               sxml_collation_element_table **made) {
+    const sxml_byte_view content = source.content;
     *made = NULL;
     void *memory = NULL;
     sxml_status status = sxml_allocator_allocate(
@@ -644,48 +763,44 @@ static sxml_status read_table(sxml_allocator allocator, sxml_byte_view content,
     sxml_collation_element_table *table = memory;
     memset(table, 0, sizeof(*table));
     table->allocator = allocator;
+    table->root = table;
     status = read_lines((reading_pass){.table = table, .is_filling = false}, content);
     if (status == SXML_STATUS_OK) {
-        status = allocate_array(allocator,
-                                (array_request){.element_count = table->element_count,
-                                                .element_size = sizeof(uca_table_element),
-                                                .alignment = alignof(uca_table_element)},
-                                &memory);
+        status = sxml_uca_allocate_array(allocator,
+                                         (sxml_uca_array_request){.element_count = table->element_count,
+                                                                  .element_size = sizeof(sxml_uca_element),
+                                                                  .alignment = alignof(sxml_uca_element)},
+                                         &memory);
         table->elements = memory;
     }
     if (status == SXML_STATUS_OK) {
-        status = allocate_array(allocator,
-                                (array_request){.element_count = table->mapping_count,
-                                                .element_size = sizeof(uca_mapping),
-                                                .alignment = alignof(uca_mapping)},
-                                &memory);
+        status = sxml_uca_allocate_array(allocator,
+                                         (sxml_uca_array_request){.element_count = table->mapping_count,
+                                                                  .element_size = sizeof(sxml_uca_mapping),
+                                                                  .alignment = alignof(sxml_uca_mapping)},
+                                         &memory);
         table->mappings = memory;
     }
     if (status == SXML_STATUS_OK) {
-        status = allocate_array(allocator,
-                                (array_request){.element_count = table->contraction_count,
-                                                .element_size = sizeof(uca_contraction),
-                                                .alignment = alignof(uca_contraction)},
-                                &memory);
+        status = sxml_uca_allocate_array(
+            allocator,
+            (sxml_uca_array_request){.element_count = table->contraction_count,
+                                     .element_size = sizeof(sxml_uca_contraction),
+                                     .alignment = alignof(sxml_uca_contraction)},
+            &memory);
         table->contractions = memory;
     }
     if (status == SXML_STATUS_OK) {
         status = read_lines((reading_pass){.table = table, .is_filling = true}, content);
     }
     if (status == SXML_STATUS_OK) {
-        sxml_sort_in_place(&(sxml_sort_request){.elements = table->mappings,
-                                                .element_count = table->mapping_count,
-                                                .element_size = sizeof(uca_mapping),
-                                                .is_before = mapping_is_before,
-                                                .state = NULL});
-        sxml_sort_in_place(&(sxml_sort_request){.elements = table->contractions,
-                                                .element_count = table->contraction_count,
-                                                .element_size = sizeof(uca_contraction),
-                                                .is_before = contraction_is_before,
-                                                .state = NULL});
+        sxml_uca_sort_entries(table);
+        if (table->implicit_range_count == 0) {
+            set_default_implicit_ranges(table);
+        }
         /* Digit zero's primary bounds the variable weights and places the
            numeric ones; a table without it is not a DUCET. */
-        const uca_mapping *zero = find_mapping(table, '0');
+        const sxml_uca_mapping *zero = find_own_mapping(table, '0');
         if (zero == NULL || zero->element_count == 0 || table->elements == NULL ||
             table->elements[zero->element_offset].primary == 0 || table->version_byte_count == 0) {
             status = SXML_STATUS_MALFORMED_INPUT;
@@ -694,14 +809,227 @@ static sxml_status read_table(sxml_allocator allocator, sxml_byte_view content,
         }
     }
     if (status == SXML_STATUS_OK) {
-        status = make_variable_groups(table);
+        status = make_group_starts(table);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = make_variable_groups(table, source.is_cldr_root);
     }
     if (status != SXML_STATUS_OK) {
-        release_table(table);
+        sxml_uca_release_table(table);
         return status;
     }
     *made = table;
     return SXML_STATUS_OK;
+}
+
+/* ------------------------------------------------------------ Reordering */
+
+/* Whether a reorder code is one of a group's codes, without ASCII
+   case. */
+static bool group_has_code(const sxml_collation_reorder_group_definition *group,
+                           sxml_byte_view code) {
+    const char *codes = group->codes;
+    size_t position = 0;
+    while (codes[position] != '\0') {
+        size_t end = position;
+        while (codes[end] != '\0' && codes[end] != ' ') {
+            end += 1;
+        }
+        bool is_equal = end - position == code.byte_count;
+        for (size_t byte_index = 0; is_equal && byte_index < code.byte_count; byte_index += 1) {
+            uint8_t first = (uint8_t)codes[position + byte_index];
+            uint8_t second = code.bytes[byte_index];
+            first = first >= 'A' && first <= 'Z' ? (uint8_t)(first + 0x20U) : first;
+            second = second >= 'A' && second <= 'Z' ? (uint8_t)(second + 0x20U) : second;
+            is_equal = first == second;
+        }
+        if (is_equal) {
+            return true;
+        }
+        position = codes[end] == ' ' ? end + 1 : end;
+    }
+    return false;
+}
+
+static bool code_is(sxml_byte_view code, const char *text) {
+    const size_t byte_count = strlen(text);
+    if (code.byte_count != byte_count) {
+        return false;
+    }
+    for (size_t byte_index = 0; byte_index < byte_count; byte_index += 1) {
+        uint8_t byte = code.bytes[byte_index];
+        byte = byte >= 'A' && byte <= 'Z' ? (uint8_t)(byte + 0x20U) : byte;
+        if (byte != (uint8_t)text[byte_index]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool is_code_separator(uint8_t byte) {
+    return byte == ',' || byte == ' ' || byte == '-' || byte == '_' || byte == '\t' ||
+           byte == '\n' || byte == '\r';
+}
+
+/* At most this many groups (src/collation_tables.c has fewer). */
+#define SXML_UCA_MAXIMUM_GROUP_COUNT 256U
+
+/* No group: the end of the order. */
+#define SXML_UCA_NO_GROUP 0xFFFFU
+
+/*
+ * UTS #35, part 5, section 3.13: the special groups the codes do not
+ * name stay at the start in their order; then the groups named, in the
+ * codes' order, with "others" (or "Zzzz") standing for every script
+ * group not named, in the root order; when "others" is not named, those
+ * follow at the end.
+ */
+sxml_status sxml_uca_set_reordering(const sxml_uca_reordering_request *request,
+                                    bool *is_honoured) {
+    sxml_collation_element_table *table = request->table;
+    const sxml_collation_element_table *root = table->root;
+    *is_honoured = false;
+    const size_t group_count = sxml_collation_reorder_group_count;
+    if (root->group_starts == NULL || group_count > SXML_UCA_MAXIMUM_GROUP_COUNT) {
+        return SXML_STATUS_OK;
+    }
+    /* The groups named, in order; SXML_UCA_NO_GROUP stands for others. */
+    uint16_t named[SXML_UCA_MAXIMUM_GROUP_COUNT + 1];
+    size_t named_count = 0;
+    bool is_named[SXML_UCA_MAXIMUM_GROUP_COUNT] = {false};
+    bool has_others = false;
+    bool has_default = false;
+    size_t code_count = 0;
+    const sxml_byte_view codes = request->codes;
+    size_t position = 0;
+    while (position < codes.byte_count) {
+        if (is_code_separator(codes.bytes[position])) {
+            position += 1;
+            continue;
+        }
+        size_t end = position;
+        while (end < codes.byte_count && !is_code_separator(codes.bytes[end])) {
+            end += 1;
+        }
+        const sxml_byte_view code = {.bytes = codes.bytes + position, .byte_count = end - position};
+        position = end;
+        code_count += 1;
+        if (code_is(code, "default")) {
+            has_default = true;
+            continue;
+        }
+        if (code_is(code, "others") || code_is(code, "zzzz")) {
+            if (has_others) {
+                return SXML_STATUS_OK;
+            }
+            has_others = true;
+            named[named_count] = SXML_UCA_NO_GROUP;
+            named_count += 1;
+            continue;
+        }
+        size_t found = group_count;
+        for (size_t group_index = 0; group_index < group_count; group_index += 1) {
+            if (sxml_collation_reorder_groups[group_index].group_kind !=
+                    SXML_COLLATION_REORDER_GROUP_KIND_UNASSIGNED &&
+                group_has_code(&sxml_collation_reorder_groups[group_index], code)) {
+                found = group_index;
+                break;
+            }
+        }
+        if (found == group_count || is_named[found] || named_count == SXML_UCA_MAXIMUM_GROUP_COUNT) {
+            return SXML_STATUS_OK;
+        }
+        is_named[found] = true;
+        named[named_count] = (uint16_t)found;
+        named_count += 1;
+    }
+    if (has_default && code_count > 1) {
+        return SXML_STATUS_OK;
+    }
+    /* The new order of the groups. */
+    uint16_t order[SXML_UCA_MAXIMUM_GROUP_COUNT];
+    size_t order_count = 0;
+    for (size_t group_index = 0; group_index < group_count; group_index += 1) {
+        if (sxml_collation_reorder_groups[group_index].group_kind ==
+                SXML_COLLATION_REORDER_GROUP_KIND_SPECIAL &&
+            !is_named[group_index]) {
+            order[order_count] = (uint16_t)group_index;
+            order_count += 1;
+        }
+    }
+    for (size_t named_index = 0; named_index <= named_count; named_index += 1) {
+        const bool is_end = named_index == named_count;
+        if (!is_end && named[named_index] != SXML_UCA_NO_GROUP) {
+            order[order_count] = named[named_index];
+            order_count += 1;
+            continue;
+        }
+        if (is_end && has_others) {
+            break;
+        }
+        /* "others" here, or at the end when it is not named. */
+        for (size_t group_index = 0; group_index < group_count; group_index += 1) {
+            if (sxml_collation_reorder_groups[group_index].group_kind !=
+                    SXML_COLLATION_REORDER_GROUP_KIND_SPECIAL &&
+                !is_named[group_index]) {
+                order[order_count] = (uint16_t)group_index;
+                order_count += 1;
+            }
+        }
+    }
+    void *memory = NULL;
+    sxml_status status = sxml_uca_allocate_array(
+        table->allocator,
+        (sxml_uca_array_request){.element_count = group_count,
+                                 .element_size = sizeof(sxml_uca_reorder_range),
+                                 .alignment = alignof(sxml_uca_reorder_range)},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_uca_reorder_range *ranges = memory;
+    uint32_t next_start = root->group_starts[0];
+    for (size_t order_index = 0; order_index < order_count; order_index += 1) {
+        const size_t group_index = order[order_index];
+        const uint32_t first = root->group_starts[group_index];
+        const uint32_t end = root->group_starts[group_index + 1];
+        ranges[group_index] = (sxml_uca_reorder_range){
+            .first = first, .end = end, .shift = (int32_t)next_start - (int32_t)first};
+        next_start += end - first;
+    }
+    sxml_allocator_release(table->allocator, table->reorder_ranges);
+    table->reorder_ranges = ranges;
+    table->reorder_range_count = group_count;
+    table->has_reordering = true;
+    *is_honoured = true;
+    return SXML_STATUS_OK;
+}
+
+/* A primary after the reordering of the chain of table (the nearest
+   tailoring that has one). */
+static uint32_t reorder_primary(const sxml_collation_element_table *table, uint32_t primary) {
+    for (const sxml_collation_element_table *chain_table = table; chain_table != NULL;
+         chain_table = chain_table->parent) {
+        if (!chain_table->has_reordering) {
+            continue;
+        }
+        /* The ranges are in the root order of their groups. */
+        size_t low = 0;
+        size_t high = chain_table->reorder_range_count;
+        while (low < high) {
+            const size_t middle = low + ((high - low) / 2);
+            const sxml_uca_reorder_range *range = &chain_table->reorder_ranges[middle];
+            if (primary < range->first) {
+                high = middle;
+            } else if (primary >= range->end) {
+                low = middle + 1;
+            } else {
+                return (uint32_t)((int32_t)primary + range->shift);
+            }
+        }
+        return primary;
+    }
+    return primary;
 }
 
 /* ---------------------------------------------------- The feature's slot */
@@ -709,12 +1037,15 @@ static sxml_status read_table(sxml_allocator allocator, sxml_byte_view content,
 /* The reader of the feature data: reads the table into *state. */
 typedef struct table_reading {
     sxml_allocator allocator;
+    bool is_cldr_root;
     sxml_collation_element_table *table;
 } table_reading;
 
 static sxml_status read_table_data(void *state, sxml_byte_view content) {
     table_reading *reading = state;
-    return read_table(reading->allocator, content, &reading->table);
+    return read_table(reading->allocator,
+                      (table_source){.content = content, .is_cldr_root = reading->is_cldr_root},
+                      &reading->table);
 }
 
 static const sxml_feature_data_reader_operations table_reader_operations = {
@@ -722,49 +1053,66 @@ static const sxml_feature_data_reader_operations table_reader_operations = {
 };
 
 static void finalize_feature_state(void *state, sxml_allocator allocator) {
-    uca_feature_state *feature_state = state;
-    release_table(feature_state->table);
+    sxml_uca_feature_state *feature_state = state;
+    for (size_t tailoring_index = 0; tailoring_index < feature_state->tailoring_count;
+         tailoring_index += 1) {
+        sxml_uca_release_table(feature_state->tailorings[tailoring_index].made_table);
+    }
+    sxml_uca_release_table(feature_state->table);
     sxml_allocator_release(allocator, feature_state);
 }
 
-/* The DUCET of UTS #10 version 16.0.0, sxml's Unicode version. */
-static const sxml_byte_view ducet_uri =
-    SXML_BYTE_VIEW_INITIALIZER("http://www.unicode.org/Public/UCA/16.0.0/allkeys.txt");
+/* The root tables the feature asks for, in order: CLDR's root collation
+   (UTS #35, part 5, section 2.3, allkeys_CLDR.txt), then the DUCET of UTS
+   #10 version 16.0.0, sxml's Unicode version, whose order differs from
+   it only in U+FFFE and U+FFFF, the Tibetan contractions of U+0FB2 and
+   U+0FB3, and which symbols are marked variable. */
+static const sxml_byte_view root_table_uris[] = {
+    SXML_BYTE_VIEW_INITIALIZER("urn:sxml:collation-data:uca/allkeys_CLDR.txt"),
+    SXML_BYTE_VIEW_INITIALIZER("http://www.unicode.org/Public/UCA/16.0.0/allkeys.txt"),
+};
 
 static sxml_status find_table(sxml_processor *processor,
                               const sxml_collation_element_table **table) {
     *table = NULL;
-    const uca_feature_state *kept = sxml_processor_get_optional_feature_state(
+    const sxml_uca_feature_state *kept = sxml_processor_get_optional_feature_state(
         processor, SXML_OPTIONAL_FEATURE_KIND_UCA_COLLATION);
     if (kept != NULL) {
         *table = kept->table;
         return SXML_STATUS_OK;
     }
-    table_reading reading = {.allocator = processor->allocator, .table = NULL};
-    sxml_feature_data_outcome outcome = {.is_available = false};
-    sxml_status status = sxml_optional_feature_read_data(
-        &(sxml_feature_data_request){
-            .processor = processor,
-            .resource_kind = SXML_RESOURCE_KIND_COLLATION_DATA,
-            .uri = ducet_uri,
-            .reader = {.state = &reading, .operations = &table_reader_operations}},
-        &outcome);
+    table_reading reading = {.allocator = processor->allocator, .is_cldr_root = false, .table = NULL};
+    sxml_status status = SXML_STATUS_OK;
+    for (size_t uri_index = 0; status == SXML_STATUS_OK && reading.table == NULL &&
+                               uri_index < sizeof(root_table_uris) / sizeof(root_table_uris[0]);
+         uri_index += 1) {
+        sxml_feature_data_outcome outcome = {.is_available = false};
+        reading.is_cldr_root = uri_index == 0;
+        status = sxml_optional_feature_read_data(
+            &(sxml_feature_data_request){
+                .processor = processor,
+                .resource_kind = SXML_RESOURCE_KIND_COLLATION_DATA,
+                .uri = root_table_uris[uri_index],
+                .reader = {.state = &reading, .operations = &table_reader_operations}},
+            &outcome);
+    }
     if (status != SXML_STATUS_OK) {
-        release_table(reading.table);
+        sxml_uca_release_table(reading.table);
         return status;
     }
     /* The answer is kept, also "no data": the resolver is asked once. */
     void *memory = NULL;
     status = sxml_allocator_allocate(
         processor->allocator,
-        (sxml_allocation_request){.byte_count = sizeof(uca_feature_state),
-                                  .alignment = alignof(uca_feature_state)},
+        (sxml_allocation_request){.byte_count = sizeof(sxml_uca_feature_state),
+                                  .alignment = alignof(sxml_uca_feature_state)},
         &memory);
     if (status != SXML_STATUS_OK) {
-        release_table(reading.table);
+        sxml_uca_release_table(reading.table);
         return status;
     }
-    uca_feature_state *state = memory;
+    sxml_uca_feature_state *state = memory;
+    memset(state, 0, sizeof(*state));
     state->table = reading.table;
     status = sxml_processor_set_optional_feature_state(
         processor, SXML_OPTIONAL_FEATURE_KIND_UCA_COLLATION, state);
@@ -774,6 +1122,53 @@ static sxml_status find_table(sxml_processor *processor,
     }
     *table = state->table;
     return SXML_STATUS_OK;
+}
+
+static sxml_status find_tailoring(const sxml_uca_tailoring_request *request,
+                                  sxml_uca_tailoring *tailoring) {
+    tailoring->table = request->table;
+    tailoring->is_honoured = false;
+    sxml_uca_feature_state *state = sxml_processor_get_optional_feature_state(
+        request->processor, SXML_OPTIONAL_FEATURE_KIND_UCA_COLLATION);
+    if (state == NULL || state->table == NULL) {
+        return SXML_STATUS_OK;
+    }
+    return sxml_uca_build_tailoring(
+        &(sxml_uca_tailoring_build){
+            .processor = request->processor, .state = state, .request = request},
+        tailoring);
+}
+
+static void apply_settings(const sxml_collation_element_table *table, sxml_collation *collation) {
+    /* The nearest table of the chain that sets a parameter decides it. */
+    uint32_t decided = collation->explicit_parameters;
+    for (const sxml_collation_element_table *chain_table = table; chain_table != NULL;
+         chain_table = chain_table->parent) {
+        const sxml_collation *settings = &chain_table->settings;
+        const uint32_t applied = settings->explicit_parameters & ~decided;
+        if ((applied & SXML_COLLATION_PARAMETER_STRENGTH) != 0) {
+            collation->strength = settings->strength;
+        }
+        if ((applied & SXML_COLLATION_PARAMETER_ALTERNATE) != 0) {
+            collation->alternate = settings->alternate;
+        }
+        if ((applied & SXML_COLLATION_PARAMETER_MAXIMUM_VARIABLE) != 0) {
+            collation->maximum_variable = settings->maximum_variable;
+        }
+        if ((applied & SXML_COLLATION_PARAMETER_CASE_FIRST) != 0) {
+            collation->case_first = settings->case_first;
+        }
+        if ((applied & SXML_COLLATION_PARAMETER_CASE_LEVEL) != 0) {
+            collation->has_case_level = settings->has_case_level;
+        }
+        if ((applied & SXML_COLLATION_PARAMETER_BACKWARDS) != 0) {
+            collation->is_backwards = settings->is_backwards;
+        }
+        if ((applied & SXML_COLLATION_PARAMETER_NUMERIC) != 0) {
+            collation->is_numeric = settings->is_numeric;
+        }
+        decided |= applied;
+    }
 }
 
 static sxml_byte_view get_version(const sxml_collation_element_table *table) {
@@ -809,8 +1204,8 @@ static sxml_status append_character(character_array *array, const uca_character 
         }
         void *memory = NULL;
         if (status == SXML_STATUS_OK) {
-            status = allocate_array(array->allocator,
-                                    (array_request){.element_count = new_capacity,
+            status = sxml_uca_allocate_array(array->allocator,
+                                    (sxml_uca_array_request){.element_count = new_capacity,
                                                     .element_size = sizeof(uca_character),
                                                     .alignment = alignof(uca_character)},
                                     &memory);
@@ -893,65 +1288,54 @@ typedef struct element_writer {
     size_t byte_end;
 } element_writer;
 
-/* The tertiary weights of upper-case variants (UTS #10, section 10.3.1,
-   the tertiary weight table; UTS #35, part 5, section 3.14). */
-static bool is_upper_tertiary(uint32_t tertiary) {
-    switch (tertiary) {
-    case 0x08U:
-    case 0x09U:
-    case 0x0AU:
-    case 0x0BU:
-    case 0x0CU:
-    case 0x0EU:
-    case 0x11U:
-    case 0x12U:
-    case 0x1DU:
-        return true;
-    default:
-        return false;
-    }
-}
-
 static bool is_variable_primary(const element_writer *writer, uint32_t primary) {
-    const sxml_collation_element_table *table = writer->table;
-    return primary != 0 && primary < table->digit_zero_primary &&
-           table->variable_groups[primary] <= (uint8_t)writer->collation->maximum_variable;
+    const sxml_collation_element_table *root = writer->table->root;
+    return primary != 0 && primary < root->digit_zero_primary &&
+           root->variable_groups[primary] <= (uint8_t)writer->collation->maximum_variable;
 }
 
 /* Appends one element of the table (or computed) with the parameters
-   applied. */
-static sxml_status write_element(element_writer *writer, uca_table_element element) {
+   applied: each level's weight is the table weight shifted left by 8
+   bits plus the tailoring's offset (src/collation_uca_internal.h), the
+   primary after the reordering. */
+static sxml_status write_element(element_writer *writer, sxml_uca_element element) {
     const sxml_collation *collation = writer->collation;
-    const uint32_t primary = element.primary;
+    uint32_t primary = element.primary;
+    if (primary != 0 && (element.flags & SXML_UCA_ELEMENT_FLAG_CONTINUATION) == 0) {
+        primary = reorder_primary(writer->table, primary);
+    }
+    const uint32_t primary_weight = (primary << 8U) | element.primary_offset;
+    const uint32_t secondary_weight = ((uint32_t)element.secondary << 8U) | element.secondary_offset;
+    const uint32_t tertiary_weight = ((uint32_t)element.tertiary << 8U) | element.tertiary_offset;
     uint32_t weights[SXML_COLLATION_ELEMENT_LEVEL_COUNT] = {0};
     const bool is_variable = collation->alternate != SXML_COLLATION_ALTERNATE_NON_IGNORABLE &&
-                             is_variable_primary(writer, primary);
-    const bool is_ignorable =
-        primary == 0 && element.secondary == 0 && element.tertiary == 0;
+                             (element.flags & SXML_UCA_ELEMENT_FLAG_CONTINUATION) == 0 &&
+                             is_variable_primary(writer, element.primary);
+    const bool is_ignorable = primary_weight == 0 && secondary_weight == 0 && tertiary_weight == 0;
     if (is_variable) {
         /* Shifted: [.0000.0000.0000.pppp]; blanked: ignorable. */
         if (collation->alternate == SXML_COLLATION_ALTERNATE_SHIFTED) {
-            weights[SXML_COLLATION_LEVEL_QUATERNARY] = primary << 8U;
+            weights[SXML_COLLATION_LEVEL_QUATERNARY] = primary_weight;
         }
         writer->is_after_variable = true;
     } else if (is_ignorable ||
-               (primary == 0 && writer->is_after_variable &&
+               (primary_weight == 0 && writer->is_after_variable &&
                 collation->alternate != SXML_COLLATION_ALTERNATE_NON_IGNORABLE)) {
         /* Completely ignorable, or ignorable after a variable element. */
     } else {
-        if (primary != 0) {
+        if (primary_weight != 0) {
             writer->is_after_variable = false;
         }
-        const bool is_upper = is_upper_tertiary(element.tertiary);
+        const bool is_upper = (element.flags & SXML_UCA_ELEMENT_FLAG_UPPER) != 0;
         const bool is_upper_first = collation->case_first == SXML_COLLATION_CASE_FIRST_UPPER;
         const uint32_t case_rank = is_upper == is_upper_first ? 1U : 2U;
-        weights[SXML_COLLATION_LEVEL_PRIMARY] = primary << 8U;
-        weights[SXML_COLLATION_LEVEL_SECONDARY] = element.secondary;
-        weights[SXML_COLLATION_LEVEL_CASE] = primary != 0 ? case_rank : 0;
-        weights[SXML_COLLATION_LEVEL_TERTIARY] = element.tertiary;
-        if (collation->case_first != SXML_COLLATION_CASE_FIRST_OFF && element.tertiary != 0) {
+        weights[SXML_COLLATION_LEVEL_PRIMARY] = primary_weight;
+        weights[SXML_COLLATION_LEVEL_SECONDARY] = secondary_weight;
+        weights[SXML_COLLATION_LEVEL_CASE] = primary_weight != 0 ? case_rank : 0;
+        weights[SXML_COLLATION_LEVEL_TERTIARY] = tertiary_weight;
+        if (collation->case_first != SXML_COLLATION_CASE_FIRST_OFF && tertiary_weight != 0) {
             /* The case bits above the tertiary weight. */
-            weights[SXML_COLLATION_LEVEL_TERTIARY] = (case_rank << 8U) | element.tertiary;
+            weights[SXML_COLLATION_LEVEL_TERTIARY] = (case_rank << 16U) | tertiary_weight;
         }
         weights[SXML_COLLATION_LEVEL_QUATERNARY] = 0xFFFFFFU;
     }
@@ -960,12 +1344,11 @@ static sxml_status write_element(element_writer *writer, uca_table_element eleme
     return sxml_collation_element_array_append(writer->elements, &made);
 }
 
-static sxml_status write_table_elements(element_writer *writer, uint32_t element_offset,
-                                        uint32_t element_count) {
+static sxml_status write_entry_elements(element_writer *writer, sxml_uca_entry entry) {
     sxml_status status = SXML_STATUS_OK;
-    for (uint32_t element_index = 0; status == SXML_STATUS_OK && element_index < element_count;
+    for (uint32_t element_index = 0; status == SXML_STATUS_OK && element_index < entry.element_count;
          element_index += 1) {
-        status = write_element(writer, writer->table->elements[element_offset + element_index]);
+        status = write_element(writer, entry.elements[element_index]);
     }
     return status;
 }
@@ -998,13 +1381,13 @@ static bool is_unified_ideograph(uint32_t codepoint) {
 
 /* The implicit weights of a codepoint without an entry (UTS #10, section
    10.1): [.AAAA.0020.0002][.BBBB.0000.0000]. */
-static sxml_status write_implicit_elements(element_writer *writer, uint32_t codepoint) {
-    const sxml_collation_element_table *table = writer->table;
+void sxml_uca_make_implicit_elements(const sxml_collation_element_table *root,
+                                     uint32_t codepoint, sxml_uca_element elements[2]) {
     uint32_t base = 0;
     uint32_t second = 0;
     bool is_in_range = false;
-    for (size_t range_index = 0; range_index < table->implicit_range_count; range_index += 1) {
-        const uca_implicit_range *range = &table->implicit_ranges[range_index];
+    for (size_t range_index = 0; range_index < root->implicit_range_count; range_index += 1) {
+        const sxml_uca_implicit_range *range = &root->implicit_ranges[range_index];
         if (codepoint >= range->first && codepoint <= range->last) {
             /* Section 10.1.3: Tangut, Nushu, Khitan. */
             base = range->base;
@@ -1023,23 +1406,25 @@ static sxml_status write_implicit_elements(element_writer *writer, uint32_t code
                        ? 0xFB40U
                        : 0xFB80U;
         } else {
-            base = 0xFBC0U;
+            base = SXML_UCA_UNASSIGNED_BASE;
         }
         base += codepoint >> 15U;
         second = (codepoint & 0x7FFFU) | 0x8000U;
     }
-    sxml_status status = write_element(
-        writer, (uca_table_element){.primary = (uint16_t)base,
-                                    .secondary = SXML_UCA_COMMON_SECONDARY,
-                                    .tertiary = SXML_UCA_COMMON_TERTIARY,
-                                    .is_variable_marked = false});
-    if (status == SXML_STATUS_OK) {
-        status = write_element(writer, (uca_table_element){.primary = (uint16_t)second,
-                                                           .secondary = 0,
-                                                           .tertiary = 0,
-                                                           .is_variable_marked = false});
-    }
-    return status;
+    elements[0] = (sxml_uca_element){.primary = (uint16_t)base,
+                                     .secondary = SXML_UCA_COMMON_SECONDARY,
+                                     .tertiary = SXML_UCA_COMMON_TERTIARY,
+                                     .flags = 0};
+    elements[1] = (sxml_uca_element){.primary = (uint16_t)second,
+                                     .secondary = 0,
+                                     .tertiary = 0,
+                                     .flags = SXML_UCA_ELEMENT_FLAG_CONTINUATION};
+}
+
+static sxml_status write_implicit_elements(element_writer *writer, uint32_t codepoint) {
+    sxml_uca_element elements[2];
+    sxml_uca_make_implicit_elements(writer->table->root, codepoint, elements);
+    return write_entry_elements(writer, (sxml_uca_entry){.elements = elements, .element_count = 2});
 }
 
 /* The value of a decimal digit (general category Nd), whose primary the
@@ -1048,28 +1433,31 @@ static int digit_value(const sxml_collation_element_table *table, uint32_t codep
     if (sxml_regex_get_general_category(codepoint) != SXML_REGEX_GENERAL_CATEGORY_ND) {
         return -1;
     }
-    const uca_mapping *mapping = find_mapping(table, codepoint);
+    const sxml_collation_element_table *root = table->root;
+    const sxml_uca_mapping *mapping = find_own_mapping(root, codepoint);
     if (mapping == NULL || mapping->element_count != 1) {
         return -1;
     }
-    const uint32_t primary = table->elements[mapping->element_offset].primary;
-    if (primary < table->digit_zero_primary || primary > table->digit_zero_primary + 9U) {
+    const uint32_t primary = root->elements[mapping->element_offset].primary;
+    if (primary < root->digit_zero_primary || primary > root->digit_zero_primary + 9U) {
         return -1;
     }
-    return (int)(primary - table->digit_zero_primary);
+    return (int)(primary - root->digit_zero_primary);
 }
 
-/* Appends a numeric element: digit zero's primary (shifted) plus
-   offset, common secondary and tertiary. */
+/* Appends a numeric element: digit zero's primary (shifted, after the
+   reordering) plus offset, common secondary and tertiary. */
 static sxml_status write_numeric_element(element_writer *writer, uint32_t offset) {
-    const uint32_t base = writer->table->digit_zero_primary << 8U;
+    const uint32_t base = reorder_primary(writer->table, writer->table->root->digit_zero_primary)
+                          << 8U;
     const bool is_upper_first = writer->collation->case_first == SXML_COLLATION_CASE_FIRST_UPPER;
     const uint32_t case_rank = is_upper_first ? 2U : 1U;
+    const uint32_t common_tertiary = SXML_UCA_COMMON_TERTIARY << 8U;
     sxml_collation_element made = {
-        .weights = {base + offset, SXML_UCA_COMMON_SECONDARY, case_rank,
+        .weights = {base + offset, SXML_UCA_COMMON_SECONDARY << 8U, case_rank,
                     writer->collation->case_first == SXML_COLLATION_CASE_FIRST_OFF
-                        ? SXML_UCA_COMMON_TERTIARY
-                        : (case_rank << 8U) | SXML_UCA_COMMON_TERTIARY,
+                        ? common_tertiary
+                        : (case_rank << 16U) | common_tertiary,
                     0xFFFFFFU},
         .byte_offset = writer->byte_offset,
         .byte_end = writer->byte_end};
@@ -1123,8 +1511,7 @@ static sxml_status write_numeric_elements(element_writer *writer, digit_run run)
 typedef struct entry_match {
     uint32_t codepoints[SXML_UCA_MAXIMUM_CONTRACTION_LENGTH];
     size_t codepoint_count;
-    uint32_t element_offset;
-    uint32_t element_count;
+    sxml_uca_entry entry;
     bool is_found;
 } entry_match;
 
@@ -1154,7 +1541,7 @@ static entry_match find_longest_match(match_position position, size_t *end) {
     size_t positions[SXML_UCA_MAXIMUM_CONTRACTION_LENGTH];
     uint32_t sequence[SXML_UCA_MAXIMUM_CONTRACTION_LENGTH];
     size_t sequence_count = 0;
-    if (starts_contraction(table, characters[position.start].codepoint)) {
+    if (sxml_uca_starts_contraction(table, characters[position.start].codepoint)) {
         size_t index = position.start;
         while (sequence_count < SXML_UCA_MAXIMUM_CONTRACTION_LENGTH &&
                index < position.characters->character_count) {
@@ -1164,28 +1551,21 @@ static entry_match find_longest_match(match_position position, size_t *end) {
             index = next_unconsumed(position.characters, index + 1);
         }
         for (size_t length = sequence_count; length >= 2; length -= 1) {
-            const uca_contraction *contraction = find_contraction(
-                table, (codepoint_sequence){.codepoints = sequence, .codepoint_count = length});
-            if (contraction != NULL) {
+            if (sxml_uca_find_contraction(
+                    table, (sxml_uca_codepoints){.codepoints = sequence, .codepoint_count = length},
+                    &match.entry)) {
                 memcpy(match.codepoints, sequence, length * sizeof(uint32_t));
                 match.codepoint_count = length;
-                match.element_offset = contraction->element_offset;
-                match.element_count = contraction->element_count;
                 match.is_found = true;
                 *end = positions[length - 1] + 1;
                 return match;
             }
         }
     }
-    const uca_mapping *mapping = find_mapping(table, characters[position.start].codepoint);
     match.codepoints[0] = characters[position.start].codepoint;
     match.codepoint_count = 1;
     *end = position.start + 1;
-    if (mapping != NULL) {
-        match.element_offset = mapping->element_offset;
-        match.element_count = mapping->element_count;
-        match.is_found = true;
-    }
+    match.is_found = sxml_uca_find_mapping(table, characters[position.start].codepoint, &match.entry);
     return match;
 }
 
@@ -1218,13 +1598,14 @@ static void extend_match(discontiguous_extension extension, entry_match *match,
         const bool is_unblocked = !has_skipped || highest_skipped_class < combining_class;
         if (is_unblocked) {
             match->codepoints[match->codepoint_count] = characters[index].codepoint;
-            const uca_contraction *contraction = find_contraction(
-                extension.table, (codepoint_sequence){.codepoints = match->codepoints,
-                                                      .codepoint_count = match->codepoint_count + 1});
-            if (contraction != NULL) {
+            sxml_uca_entry entry;
+            if (sxml_uca_find_contraction(
+                    extension.table,
+                    (sxml_uca_codepoints){.codepoints = match->codepoints,
+                                          .codepoint_count = match->codepoint_count + 1},
+                    &entry)) {
                 match->codepoint_count += 1;
-                match->element_offset = contraction->element_offset;
-                match->element_count = contraction->element_count;
+                match->entry = entry;
                 characters[index].is_consumed = true;
                 if (characters[index].byte_end > *byte_end) {
                     *byte_end = characters[index].byte_end;
@@ -1279,7 +1660,7 @@ static sxml_status append_elements(const sxml_collation_element_request *request
             extend_match(
                 (discontiguous_extension){.table = table, .characters = &characters, .end = end},
                 &match, &writer.byte_end);
-            status = write_table_elements(&writer, match.element_offset, match.element_count);
+            status = write_entry_elements(&writer, match.entry);
         } else {
             status = write_implicit_elements(&writer, character->codepoint);
         }
@@ -1294,6 +1675,8 @@ static sxml_status append_elements(const sxml_collation_element_request *request
 static const sxml_uca_collation_operations uca_collation_operations = {
     .find_table = find_table,
     .get_version = get_version,
+    .find_tailoring = find_tailoring,
+    .apply_settings = apply_settings,
     .append_elements = append_elements,
 };
 

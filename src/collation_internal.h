@@ -14,13 +14,16 @@
  * - the HTML ASCII case-insensitive collation (section 5.2.6): codepoints
  *   with A-Z read as a-z;
  * - UCA collation URIs (section 5.2.4). With the UCA collation feature
- *   (sxml_uca_collation_feature, src/collation_uca.c, packet 7.15a, D213)
- *   and its collation element table (glossary `collation_element_table`,
- *   the DUCET the host serves as feature data), a UCA URI is UTS #10 over
- *   that table with the parameters strength, alternate, maxVariable,
- *   backwards, caseLevel, caseFirst, numeric and normalization; lang
- *   (other than the root collation, en and und) and reorder are tailorings
- *   (glossary `tailoring`, packet 7.15b). Without the feature or its data,
+ *   (sxml_uca_collation_feature, src/collation_uca.c, packets 7.15a and
+ *   7.15b, D213, D220) and its collation element table (glossary
+ *   `collation_element_table`, the CLDR root collation or the DUCET the
+ *   host serves as feature data), a UCA URI is UTS #10 over that table
+ *   with the parameters strength, alternate, maxVariable, backwards,
+ *   caseLevel, caseFirst, numeric and normalization; lang (other than the
+ *   root collation, en and und) and reorder are tailorings (glossary
+ *   `tailoring`, src/collation_tailoring.c) compiled from the CLDR
+ *   collation of the language and the reorder codes, whose settings apply
+ *   to the parameters the URI does not set. Without the feature or its data,
  *   the UCA fallback (D97, simple-uca-fallback): the levels of UTS #10 over
  *   weights sxml derives from Unicode properties. A codepoint's full
  *   compatibility decomposition gives its collation elements: each base
@@ -96,6 +99,19 @@ typedef enum sxml_collation_variable_group {
     SXML_COLLATION_VARIABLE_GROUP_CURRENCY,
 } sxml_collation_variable_group;
 
+/* The parameters of a UCA collation that a URI or a tailoring's rules
+   set (sxml_collation.explicit_parameters): a tailoring's settings apply
+   to those the URI does not set (UTS #35, part 5, section 3.4). */
+enum {
+    SXML_COLLATION_PARAMETER_STRENGTH = 0x01U,
+    SXML_COLLATION_PARAMETER_ALTERNATE = 0x02U,
+    SXML_COLLATION_PARAMETER_MAXIMUM_VARIABLE = 0x04U,
+    SXML_COLLATION_PARAMETER_CASE_FIRST = 0x08U,
+    SXML_COLLATION_PARAMETER_CASE_LEVEL = 0x10U,
+    SXML_COLLATION_PARAMETER_BACKWARDS = 0x20U,
+    SXML_COLLATION_PARAMETER_NUMERIC = 0x40U,
+};
+
 /* The UCA caseFirst parameter (UTS #35, part 5, section 3.14). */
 typedef enum sxml_collation_case_first {
     /* The table's tertiary weights as they are. */
@@ -110,6 +126,28 @@ typedef struct sxml_collation_element_table sxml_collation_element_table;
 
 /* The UCA collation feature's operations (below). */
 typedef struct sxml_uca_collation_operations sxml_uca_collation_operations;
+
+/* The tailoring sxml_uca_collation_operations.find_tailoring looks up. */
+typedef struct sxml_uca_tailoring_request {
+    sxml_processor *processor;
+    /* The root table, from find_table. */
+    const sxml_collation_element_table *table;
+    /* The lang parameter (a BCP 47 language tag, F&O 4.0, section
+       5.2.4), and the reorder parameter; each empty when absent. */
+    sxml_byte_view language;
+    sxml_byte_view reordering;
+} sxml_uca_tailoring_request;
+
+/* What find_tailoring found. */
+typedef struct sxml_uca_tailoring {
+    /* The table to use: the tailoring, or the root table when the
+       language has none or it is not honoured. */
+    const sxml_collation_element_table *table;
+    /* False when the language or the reordering cannot be honoured: no
+       CLDR data for the language, rules sxml does not support, an unknown
+       reorder code. */
+    bool is_honoured;
+} sxml_uca_tailoring;
 
 /*
  * A collation. A plain value: copy it freely. The fields after
@@ -134,11 +172,17 @@ typedef struct sxml_collation {
     /* A parameter sxml cannot honour: an unknown keyword or value, a lang
        that needs a tailoring, reorder, or a version the table is not. */
     bool has_unsupported_parameter;
-    /* The version parameter, borrowed from the URI; empty when absent. */
+    /* The parameters the URI sets (SXML_COLLATION_PARAMETER_*). */
+    uint32_t explicit_parameters;
+    /* The version, lang and reorder parameters, borrowed from the URI
+       while sxml_collation_resolve reads them; empty when absent and
+       after the resolution. */
     sxml_byte_view version;
-    /* SXML_COLLATION_KIND_UCA: the feature's operations and the table, in
-       the processor's feature state (valid while the processor lives);
-       NULL otherwise. */
+    sxml_byte_view language;
+    sxml_byte_view reordering;
+    /* SXML_COLLATION_KIND_UCA: the feature's operations and the table (the
+       root table or a tailoring of it), in the processor's feature state
+       (valid while the processor lives); NULL otherwise. */
     const sxml_uca_collation_operations *uca_operations;
     const sxml_collation_element_table *element_table;
 } sxml_collation;
@@ -265,12 +309,13 @@ typedef struct sxml_collation_element_request {
  */
 struct sxml_uca_collation_operations {
     /*
-     * Writes to *table the processor's collation element table, read at
-     * the first call from the DUCET the resolver serves
+     * Writes to *table the processor's root collation element table, read
+     * at the first call from the CLDR root collation the resolver serves
      * (SXML_RESOURCE_KIND_COLLATION_DATA,
-     * "http://www.unicode.org/Public/UCA/16.0.0/allkeys.txt") and kept as
-     * the feature's state; NULL when the resolver has no such data (then
-     * asked again at the next call). Returns SXML_STATUS_MALFORMED_INPUT
+     * "urn:sxml:collation-data:uca/allkeys_CLDR.txt"), else from the DUCET
+     * ("http://www.unicode.org/Public/UCA/16.0.0/allkeys.txt"), and kept
+     * as the feature's state; NULL when the resolver has neither (the
+     * answer is kept too). Returns SXML_STATUS_MALFORMED_INPUT
      * for data that is not in the format of UTS #10, section 9.1, and the
      * failures of sxml_optional_feature_read_data and the allocator.
      */
@@ -278,6 +323,23 @@ struct sxml_uca_collation_operations {
                               const sxml_collation_element_table **table);
     /* The table's @version line ("16.0.0"), borrowed from the table. */
     sxml_byte_view (*get_version)(const sxml_collation_element_table *table);
+    /*
+     * Writes to *tailoring the table of request->language and
+     * request->reordering over the root table (UTS #35, part 5): the
+     * language's CLDR collation (its "standard" one, or the type of a
+     * "-u-co-" extension), read at the first use from the CLDR files the
+     * resolver serves (SXML_RESOURCE_KIND_COLLATION_DATA,
+     * "urn:sxml:collation-data:collation/" + a language + ".xml") and
+     * compiled, then the reordering; kept in the feature's state with the
+     * answer, also when it is not honoured. Returns the failures of the
+     * resolver and the allocator; data that is not CLDR collation data
+     * makes the tailoring not honoured.
+     */
+    sxml_status (*find_tailoring)(const sxml_uca_tailoring_request *request,
+                                  sxml_uca_tailoring *tailoring);
+    /* Applies the settings of table's rules to the parameters of
+       collation its URI does not set. */
+    void (*apply_settings)(const sxml_collation_element_table *table, sxml_collation *collation);
     /*
      * Appends the collation elements of request->input under
      * request->collation (SXML_COLLATION_KIND_UCA) to *elements (UTS #10,

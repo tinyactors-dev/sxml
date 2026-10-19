@@ -103,6 +103,48 @@ sxml_qt4_serve_timezone_data(const sxml_qt4_resource_table *table,
         resource);
 }
 
+/* The URI prefix of CLDR's files (processor.h,
+   SXML_RESOURCE_KIND_COLLATION_DATA), and where the driver keeps them:
+   the vendored subset beside the suite (third_party/cldr, packet 7.15b). */
+#define SXML_QT4_COLLATION_URI_PREFIX "urn:sxml:collation-data:"
+#define SXML_QT4_CLDR_DIRECTORY "../cldr/common/"
+
+/* COLLATION_DATA: urn:sxml:collation-data:PATH as the suite path
+   ../cldr/common/PATH, for a PATH of letters, digits, "_", "." and "/"
+   without "..". */
+static sxml_status
+sxml_qt4_serve_cldr_file(const sxml_qt4_resource_table *table,
+                         sxml_byte_view uri, sxml_resource *resource) {
+    const sxml_byte_view prefix = SXML_TEXT(SXML_QT4_COLLATION_URI_PREFIX);
+    const sxml_byte_view directory = SXML_TEXT(SXML_QT4_CLDR_DIRECTORY);
+    const sxml_byte_view name = {.bytes = uri.bytes + prefix.byte_count,
+                                 .byte_count = uri.byte_count - prefix.byte_count};
+    bool is_plain = name.byte_count + directory.byte_count <=
+                    SXML_QT4_TIMEZONE_PATH_CAPACITY;
+    for (size_t byte_index = 0; is_plain && byte_index < name.byte_count;
+         byte_index += 1) {
+        const uint8_t byte = name.bytes[byte_index];
+        is_plain = (byte >= 'a' && byte <= 'z') || (byte >= 'A' && byte <= 'Z') ||
+                   (byte >= '0' && byte <= '9') || byte == '_' || byte == '/' ||
+                   (byte == '.' && (byte_index + 1 == name.byte_count ||
+                                    name.bytes[byte_index + 1] != '.'));
+    }
+    if (!is_plain) {
+        resource->description = SXML_TEXT("Not a file of CLDR");
+        return SXML_STATUS_OK;
+    }
+    uint8_t path[SXML_QT4_TIMEZONE_PATH_CAPACITY];
+    memcpy(path, directory.bytes, directory.byte_count);
+    memcpy(path + directory.byte_count, name.bytes, name.byte_count);
+    return sxml_qt4_serve_file(
+        table,
+        (sxml_qt4_served_file){
+            .file_path = {.bytes = path,
+                          .byte_count = directory.byte_count + name.byte_count},
+            .encoding = sxml_qt4_empty_text},
+        resource);
+}
+
 /* One request to the table, with the URI it is matched by. */
 typedef struct sxml_qt4_table_request {
     const sxml_qt4_resource_table *table;
@@ -315,8 +357,15 @@ sxml_qt4_resolve_from_table(void *state, const sxml_resource_request *request,
     case SXML_RESOURCE_KIND_TIMEZONE_DATA:
         return sxml_qt4_serve_timezone_data(table, uri, resource);
     case SXML_RESOURCE_KIND_COLLATION_DATA:
-        /* The DUCET of the UCA collation feature: the vendored copy beside
-           the suite (third_party/unicode-collation, D213). */
+        /* The CLDR root collation and the CLDR collations of languages:
+           the vendored subset beside the suite (third_party/cldr, packet
+           7.15b); the DUCET: the vendored copy (third_party/
+           unicode-collation, D213). */
+        if (uri.byte_count > sizeof(SXML_QT4_COLLATION_URI_PREFIX) - 1 &&
+            memcmp(uri.bytes, SXML_QT4_COLLATION_URI_PREFIX,
+                   sizeof(SXML_QT4_COLLATION_URI_PREFIX) - 1) == 0) {
+            return sxml_qt4_serve_cldr_file(table, uri, resource);
+        }
         if (sxml_byte_view_equals(
                 uri, SXML_TEXT("http://www.unicode.org/Public/UCA/16.0.0/"
                                "allkeys.txt"))) {

@@ -177,11 +177,21 @@ typedef enum sxml_resource_kind {
        digits, "_", "-", "+" and "/" between parts, no part "." or "..".
        Form: BYTES. */
     SXML_RESOURCE_KIND_TIMEZONE_DATA,
-    /* The collation element table of the UCA collation feature
-       (sxml_uca_collation_feature; D213): absolute_uri is
-       "http://www.unicode.org/Public/UCA/16.0.0/allkeys.txt", the DUCET
-       of UTS #10 version 16.0.0 in its file format (UTS #10, section
-       9.1). Form: BYTES. */
+    /* The data of the UCA collation feature (sxml_uca_collation_feature;
+       D213, D220), absolute_uri one of:
+       - "urn:sxml:collation-data:" and a path as in the common/ directory
+         of the Unicode CLDR: "uca/allkeys_CLDR.txt", the CLDR root
+         collation as a collation element table (UTS #10, section 9.1;
+         UTS #35, Part 5, section 2.3), asked for first; or
+         "collation/" + a locale + ".xml", the LDML file of a language's
+         collations ("collation/de.xml", "collation/de_AT.xml",
+         "collation/root.xml"; UTS #35, Part 5). sxml makes the path from
+         ASCII letters, digits, "_" and "/" and one ".xml" or ".txt", so a
+         resolver can map it onto a directory.
+       - "http://www.unicode.org/Public/UCA/16.0.0/allkeys.txt", the DUCET
+         of UTS #10 version 16.0.0 in its file format, asked for when the
+         CLDR root is not served.
+       Form: BYTES. */
     SXML_RESOURCE_KIND_COLLATION_DATA,
 } sxml_resource_kind;
 
@@ -627,15 +637,19 @@ SXML_EXPORT sxml_optional_feature sxml_expath_file_feature(void);
 SXML_EXPORT sxml_optional_feature sxml_timezone_database_feature(void);
 
 /*
- * UCA collations (F&O 4.0, 5.2.4; UTS #10, version 16.0.0): a UCA
- * collation URI orders strings by the DUCET, which the feature asks the
- * resolver for as SXML_RESOURCE_KIND_COLLATION_DATA when a UCA collation
- * is first used, with the parameters strength, alternate, maxVariable,
- * backwards, caseLevel, caseFirst, numeric and normalization. Without it,
- * or when the resolver has no data, a UCA URI with fallback=yes (the
- * default) uses sxml's fallback (D97), and one with fallback=no is not
- * supported (FOCH0002, XQST0038). Its name is "uca-collation" (packet
- * 7.15a, D213).
+ * UCA collations (F&O 4.0, 5.2.4; UTS #10, version 16.0.0; UTS #35, Part
+ * 5): a UCA collation URI orders strings by the CLDR root collation (or
+ * the DUCET), which the feature asks the resolver for as
+ * SXML_RESOURCE_KIND_COLLATION_DATA when a UCA collation is first used,
+ * with the parameters strength, alternate, maxVariable, backwards,
+ * caseLevel, caseFirst, numeric and normalization, the reorder codes of
+ * reorder, and for lang the CLDR collation of the language (its standard
+ * one, or another through "-u-co-", as de-u-co-phonebk), compiled from
+ * the language's CLDR file at its first use. Without it, or when the
+ * resolver has no data, a UCA URI with fallback=yes (the default) uses
+ * sxml's fallback (D97), and one with fallback=no is not supported
+ * (FOCH0002, XQST0038); the same for a language without CLDR data. Its
+ * name is "uca-collation" (packets 7.15a and 7.15b, D213, D220).
  */
 SXML_EXPORT sxml_optional_feature sxml_uca_collation_feature(void);
 

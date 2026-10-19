@@ -922,6 +922,7 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `parse_forest` | The Earley parser's shared record of every parse of an input under an ixml grammar; the first tree is serialized, and more than one marks the result ambiguous |
 | `collation_element_table` | The mapping of code points and contractions to collation elements, the DUCET or the CLDR root collation (UTS #10, section 3.6) |
 | `tailoring` | Changes to a collation element table for a language or a reordering, compiled from CLDR rules (UTS #35, Part 5) |
+| `reorder_group` | A run of primary weights of the root collation that a reorder code moves as a whole: space, punct, symbol, currency, digit, or one or more scripts (UTS #35, Part 5, section 3.13) |
 | `timezone_database` | Zones of the IANA Time Zone Database: for a zone name and an instant, the offset and abbreviation in effect |
 | `zone_name` | An IANA timezone name such as `Europe/Berlin` (an "Olson name"), a place of fn:civil-timezone and the formatting functions |
 | `local_time_type` | What local time is at an instant in a zone: its offset from UTC, whether it is daylight saving time, and its abbreviation (RFC 8536, 3.2, "local time type records"; D209) |
