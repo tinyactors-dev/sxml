@@ -9833,6 +9833,89 @@ no IR expression kind added.
   NamedRecordTypeDecl module cases (`recordTypeDecl/` against the
   suite's `RecordTypeDecl/`).
 
+### D227. Per-language part lists (packet size-2)
+Recorded 2026-10-19, after D101, D103, D189, D211, D225. D189 and D225
+found XQuery's lowering parts (about 75 KB) and evaluator_stream (14.5 KB)
+in the core `sxml.wasm` only because each part registry was one table:
+the lowerer's default was the whole lowering registry,
+`sxml_function_library_parts_for_language` was one switch over every
+language's list, and the evaluator looked up kinds in every evaluator
+part. A module could not leave out the parts of a language it does not
+offer.
+- **One mechanism, three registries**: `cmake/SxmlParts.cmake` writes,
+  beside each registry's unit with every part, one translation unit per
+  language (`<registry>_<language>.c` in `generated/`) holding the parts
+  that serve it, and a function giving a pointer to that static list:
+  `sxml_function_library_<language>_parts()`
+  (`src/function_library_parts_internal.h`),
+  `sxml_xpath_lowering_<language>_parts()` (`src/xpath_lower_internal.h`)
+  and `sxml_evaluator_<language>_parts()`
+  (`src/evaluator_machine_internal.h`), for xpath, xquery and xslt
+  (glossary `language_part_list`). Naming one list links only its parts,
+  so linking follows the languages a module's entry points offer, with no
+  option and no `#if`.
+- **Languages** come from the declarations the parts already have: a
+  library part's `sxml_function_library_<part>_languages` (D101); a
+  lowering part's `.languages` field, which CMake now reads too (a part
+  without one fails the configure; `tests/part_registry_test.c` checks
+  that CMake read what the field says); an evaluator part's optional
+  `const sxml_language_set sxml_evaluator_part_<part>_languages`, in the
+  library parts' form (all three languages when absent). The registered
+  entries of the lowering and evaluator registries carry the languages
+  read.
+- **Who names a list**: the language's entry point. Library: the
+  processor (XPath's, which XQuery uses too), XSLT compilation (XSLT's).
+  Lowering: `sxml_xpath_lower` XPath's, XQuery's prolog XQuery's, XSLT's
+  lowering XSLT's; a lowerer configured with `parts.parts == NULL` gets
+  XPath's (it was the whole registry).
+- **The evaluator** (left, see below): the unit carries its language's
+  list (`sxml_ir_unit_configuration.evaluator_parts`, a
+  `const struct sxml_evaluator_registered_part_view *`, set where
+  `sxml_xpath_lower`, XQuery's prolog and XSLT's lowering create their
+  units; NULL means XPath's), and `sxml_machine_start_part_kind` looks
+  the kind up among the parts of the unit whose code runs
+  (`sxml_evaluator_find_kind_handler(parts, kind)`), so an XSLT unit run
+  from XPath (fn:transform) or an XPath unit inside XSLT (xsl:evaluate)
+  finds its own parts. evaluator_template declares SXML_LANGUAGE_XSLT
+  (done); evaluator_stream needs the same line.
+- `sxml_*_registered_parts()` and `sxml_function_library_parts_for_language`
+  stay, for tests and checks only: they link every part.
+- **XQuery and XSLT parts**: XQuery has no library or evaluator part of
+  its own; its lowering parts are xquery, update and full_text
+  (construct serves every language: XPath 4.0's computed constructors).
+  XSLT's are the library parts xslt, exslt and output and the evaluator
+  parts template (APPLY_TEMPLATES) and stream (STREAM). XSLT's
+  instructions lower through procedures its own code pushes (D103), not
+  registered parts.
+- **Sizes** (stripped / gzipped, wasm preset, at 5385a0e): `sxml.wasm`
+  2,215,004 / 774,905 (over D207's 2,200,000 / 770,000 after perf-1's IR
+  passes: ir_loop_passes +15,375, evaluator_index +9,547, evaluator
+  +5,528) to 2,094,214 / 731,897, no budget raised: xquery_lower 30,925,
+  xquery_update_apply 17,391, function_library_xslt 11,083,
+  xquery_update 11,474, xquery_lower_window 10,796, xquery_flwor 8,700,
+  xquery_lower_update 7,899, xslt_read 6,328, the internal
+  data 6,180, xquery_lower_full_text 2,655, function_library_output
+  1,698, function_library_schema 1,342, function_library_exslt 1,080,
+  the rest under 1,100; 120,332 bytes of code and data in all.
+  `sxml-full.wasm` 7,044,360 / 1,612,207 to 7,044,334 / 1,612,149; the
+  CLI module 8,636,999 to 8,636,973. Native builds and the full and CLI
+  modules name every language, so they keep every part. The D225
+  baseline (`bindings/javascript/test/size-baseline/sxml.txt`) is
+  refreshed at this point.
+- **Counts** (release, whole runs, 5385a0e against the change): QT4 XP40
+  32,654 passed and 34 wrong errors, XQ40 45,913 and 55, XT40 11,826 and
+  173, before and after; no test changed its outcome.
+- **Left**: the evaluator step above. It edits `src/ir_internal.h` and
+  `src/evaluator_stream.c` (7.6d's, uncommitted), `src/evaluator.c`
+  (perf-2's) and `src/xslt_lower.c` (7.6d's), so it waits for them; it
+  takes evaluator_stream (about 14.7 KB) and evaluator_template (about
+  4.9 KB) out of the core, and `tests/evaluator_machine_test.c` then
+  checks that XPath's list lacks APPLY_TEMPLATES and STREAM.
+- Rejected: registering a language's parts by hand in its compile entry
+  (D101's rejected hand-kept list); a run-time filter of one table by
+  language (the table still links every part); CMake options per module
+  (two builds, D189).
+
 ## Proposed
 
 - **The CLI's WebAssembly budget after the Phase 7 features** (packet

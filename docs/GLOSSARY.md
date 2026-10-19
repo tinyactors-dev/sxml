@@ -734,8 +734,9 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `conjunct_break` | The Indic_Conjunct_Break property value of a codepoint (None, Linker, Consonant, Extend), for rule GB9c of UAX #29 |
 | `character_reference_name` | An HTML named character reference without "&" and ";" (`nbsp`, `NotEqualTilde`), an argument of `fn:char` (HTML, section 13.5) |
 | `library_part` | The native functions of one `src/function_library_<part>.c` file: one `sxml_native_function_view`, named in a function library's configuration |
-| `part_registry` | The list of library parts or evaluator parts that CMake generates from the glob of their files, so a new part needs no edit elsewhere (D101) |
-| `language_set` | The languages (XPath, XQuery, XSLT) a library part serves; a part without one serves all three (D101) |
+| `part_registry` | The list of library parts, evaluator parts or lowering parts that CMake generates from the glob of their files, so a new part needs no edit elsewhere (D101, D103) |
+| `language_set` | The languages (XPath, XQuery, XSLT) a library, evaluator or lowering part serves; a library or evaluator part without one serves all three (D101, D227) |
+| `language_part_list` | The parts of one part registry that serve one language, generated in a translation unit of its own; the language's entry point names it, so a module links only the parts of the languages it offers (D227) |
 | `collation` | Rules for comparing strings, named by a URI; Phase 1 knows only the Unicode codepoint collation (F&O 4.0, section 5.3) |
 | `case_mapping` | The Unicode full case mapping of `fn:upper-case` and `fn:lower-case`: one codepoint to one or more (F&O 4.0, section 5.4) |
 | `deep_equality` | `fn:deep-equal` of two sequences: items compared pairwise, into nodes, maps and arrays (F&O 4.0, section 14.2.4) |
