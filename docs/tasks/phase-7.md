@@ -545,6 +545,11 @@ so the gate is met: misc-HtmlTestSuite 1,378 of 1,379, fn-parse-html 22 of
   names the feature (then about 1.16 MB, measured as XSLT's cost in
   D157).
 - **Gate**: ≥ 80 % of the 133 and all 12 XT40 cases.
+**Done** 2026-10-19 (D203): QT4 fn-transform 129 of the 133 run (XQ40;
+XP40 126 of 130), gate met; XT40 transform 9 of 12, not all: a static
+fn:transform (transform-004), a ~record pattern (transform-401) and an
+assertion the driver does not check (transform-009). The rest is D203's
+"Not done".
 
 ### 7.12 XQuery and XPath Full Text 3.0 (design and implementation, three packets)
 - **Specifications**: XQuery and XPath Full Text 3.0 (W3C

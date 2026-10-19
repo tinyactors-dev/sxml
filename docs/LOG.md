@@ -29,6 +29,19 @@ One short entry per week, newest first: what passed, what's next, what is blocke
   with other whitespace in their expected XML, 2 IDREF checks on
   element validation, XQuery constructors under strip still keep IDs.
 
+- 7.11 done (D203): fn:transform as the optional feature
+  `sxml_xslt_transform_feature()` ("xslt-transform", in every-feature
+  hosts and `sxml-full.wasm`). Its resumable body compiles the
+  stylesheet with `xslt.h`'s compiler and runs the transformation as a
+  unit evaluation on the caller's machine (no nested run, D71); a unit
+  evaluation now carries its language's extension in its global table,
+  so the inner transformation's result documents reach its own writer.
+  QT4 fn-transform 0 to 129 of 133 run (XQ40), 126 of 130 (XP40); XT40
+  8,861 to 8,870, transform 0 to 9 of 12, none lost. `sxml.wasm` +327
+  bytes; `sxml-full.wasm` +1,329,984 (3,554,353, D207's 4,000,000).
+  Left: static fn:transform (transform-004), enable-assertions false, a
+  separate execution scope and document loader for the inner run.
+
 - 7.14 done (D199): DTD processing. The external subset, external
   parameter and parsed entities (through an entity resolver in `xml.h`;
   the processor adapts its resource resolver, new resource kind
