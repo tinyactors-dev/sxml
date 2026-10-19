@@ -164,8 +164,8 @@ $ sxml transform list.xsl books.xml
 </html>
 ```
 
-`sxml help` lists every command; [docs/CLI.md](docs/CLI.md) is the full
-reference.
+`sxml help` lists every command;
+[apps/sxml/README.md](apps/sxml/README.md) is the full reference.
 
 ## Use it from C
 
@@ -335,9 +335,10 @@ and XSD 1.1. Pass rates of the test cases that apply to sxml:
 | XSLT 4.0 (XT40) | 9,208 | 8,650 | 93.9 % |
 | XSD 1.1 (W3C XSD test suite) | 41,518 | 41,483 | 99.9 % |
 
-The schema-aware test cases are run too. Test cases that need a feature
-sxml does not have (XQuery Update, Full Text, EXPath modules, streaming)
-are not run.
+The schema-aware test cases are run too: XPath passes 279 of 315, XQuery
+1,236 of 1,516 and XSLT 627 of 971. Test cases that need a feature sxml
+does not have (XQuery Update, Full Text, EXPath modules, streaming) are
+not run.
 [docs/CONFORMANCE.md](docs/CONFORMANCE.md) has the full results, by test
 set and by failure cause.
 
@@ -361,11 +362,10 @@ set and by failure cause.
 ## Status
 
 sxml is under active development and has no tagged release yet. XML
-parsing, XPath 4.0, XQuery 4.0, XSLT 4.0 and serialization are
-implemented, and their C headers are stable. Schema validation (XSD 1.1)
-is available in the library (`schema.h`, still provisional) and as
-`sxml validate`, with assertions, type alternatives and identity
-constraints. XPath, XQuery and XSLT are schema-aware.
+parsing, XPath 4.0, XQuery 4.0, XSLT 4.0, XSD 1.1 validation and
+serialization are implemented, in the library and in the `sxml` command.
+XPath, XQuery and XSLT are schema-aware. All public C headers, `schema.h`
+included, are stable.
 
 ## License
 
@@ -373,7 +373,8 @@ The repository does not have a license file yet.
 
 ## Documentation
 
-- [docs/CLI.md](docs/CLI.md): the `sxml` command.
+- [apps/sxml/README.md](apps/sxml/README.md): the `sxml` command.
+- [docs/CLI.md](docs/CLI.md): the design rules of the `sxml` command.
 - [include/sxml/](include/sxml/): the C API. Each header documents its
   types and functions; start with `processor.h` and `xpath.h`.
 - [bindings/javascript/README.md](bindings/javascript/README.md): the
