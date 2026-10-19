@@ -6,17 +6,16 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 ## State (2026-10-19)
 
 - Phases 0–4 closed by agent review (D11, D151, D161, D169).
-- Phase 5 (XSD 1.1, schema awareness) is implemented; its gate review
-  (5.14) runs without full re-runs or fuzzing, which wait for the owner's
-  machine (D181).
+- Phase 5 (XSD 1.1, schema awareness) closed by agent review (D182); four
+  gate boxes wait for full runs and fuzzing on the owner's machine (D181).
+  All public headers are stable.
 - Passes: XP40 30,931, XQ40 41,273, XT40 8,650, XSD in scope 41,483 of
   41,518. Zero error outcomes in every suite.
-- `sxml.wasm` is 1,998,723 of its 2,000,000-byte budget: the next feature
+- `sxml.wasm` is 1,997,773 of its 2,000,000-byte budget: the next feature
   that links into it breaks the size test (owner decision open).
 
 ## Running
 
-- 5.14: Phase 5 gate review, light form (D181).
 - CLI docs split: the user reference moves to `apps/sxml/README.md`.
 - XPath/XQuery conformance sweep (2.21).
 - XSLT conformance sweep (4.19).
@@ -59,6 +58,14 @@ XSD:
   content; tree.h is frozen, D180).
 - 35 failures: XSD 1.0-only rules, `xs:NOTATION` as a union member,
   XML 1.1 instances, wildcard consistency with type tables.
+
+Larger duplicates (D182): the schema reader's own boolean and integer
+parsers, Gregorian day arithmetic in four places, three ways of building
+compile-report text, four text writers, three private heapsorts in
+serialization.
+
+Performance: the evaluator runs about 4 million steps a second and has no
+index for joins (app-Demos itunes is quadratic in its own text, 72 s).
 
 Platform and tooling:
 - macOS, Windows and MSVC have never been built; `_getcwd` is untested.

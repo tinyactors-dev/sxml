@@ -15,14 +15,14 @@ Windows, iOS and Android, and a WebAssembly module for browsers and Node.js.
 
 ## Current phase
 
-**Phase 5: XSD 1.1 validation and schema-aware typing**, started early on
-the owner's choice (D164). Work on the packets in `docs/tasks/phase-5.md`.
-Phases 0 to 4 were closed by agent review, as the owner chose (D11, D161,
-D169); CI is disabled for now and gates are checked locally (D123). The
-substrate headers are frozen (D99); the public XPath, XQuery and XSLT APIs
-are stable, while `schema.h` stays provisional until the Phase 5 gate.
-Features D97 left out are delayed, not dropped: Phase 7 (D162). Each phase is
-closed by its gate review.
+**Conformance sweeps and Phase 7 planning.** Phases 0 to 5 were closed by
+agent review, as the owner chose (D11, D161, D169, D182); the Phase 5 gate
+boxes that need full runs or fuzzing wait for the owner's machine (D181).
+CI is disabled for now (D123). Verification is in proportion (D181): agents
+check what their change touches. The substrate headers are frozen (D99); all
+public APIs (XPath, XQuery, XSLT, schema) are stable. Features D97 left out
+are delayed, not dropped: Phase 7 (D162), planned in `docs/tasks/phase-7.md`.
+Agent prompts and the work queue live in `docs/agents/`.
 
 ## Design principle
 
