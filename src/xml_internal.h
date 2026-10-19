@@ -230,6 +230,19 @@ bool sxml_xml_text_is_name(sxml_byte_view name);
    whitespace-trimmed value of an attribute, XSLT 4.0, 2.4). */
 sxml_byte_view sxml_xml_text_trim_whitespace(sxml_byte_view text);
 
+/* True when name matches Namespaces in XML 1.0 [4] NCName: a [5] Name
+   without a colon. */
+bool sxml_xml_text_is_ncname(sxml_byte_view name);
+
+/* True when every byte of text is a [3] S character; true for empty
+   text. */
+bool sxml_xml_text_is_whitespace(sxml_byte_view text);
+
+/* Splits *rest at its first token, a run of non-[3] S bytes: *token gets
+   it, *rest what follows it. False, and nothing changed, when *rest has
+   only whitespace. */
+bool sxml_xml_text_next_token(sxml_byte_view *rest, sxml_byte_view *token);
+
 /* ---------------------------------------------------- Positions */
 
 /*

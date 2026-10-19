@@ -167,11 +167,6 @@ static const char *const calendar_designators[] = {
     "KE", "KY", "ME",  "MS", "NS", "OS", "RS", "SE", "SH", "SS", "TE", "VE", "VS",
 };
 
-static bool is_ncname(sxml_byte_view text) {
-    return text.byte_count > 0 && memchr(text.bytes, ':', text.byte_count) == NULL &&
-           sxml_xml_text_is_name(text);
-}
-
 sxml_status sxml_calendar_choose(sxml_byte_view calendar_name, sxml_calendar_choice *choice) {
     const sxml_calendar_choice fallback = {.calendar_kind = SXML_CALENDAR_KIND_AD,
                                            .needs_fallback_marker = true};
@@ -199,7 +194,7 @@ sxml_status sxml_calendar_choose(sxml_byte_view calendar_name, sxml_calendar_cho
         if (colon != NULL) {
             const sxml_byte_view prefix = {.bytes = calendar_name.bytes,
                                            .byte_count = (size_t)(colon - calendar_name.bytes)};
-            if (!is_ncname(prefix)) {
+            if (!sxml_xml_text_is_ncname(prefix)) {
                 return SXML_STATUS_MALFORMED_INPUT;
             }
             is_in_namespace = true;
@@ -207,7 +202,7 @@ sxml_status sxml_calendar_choose(sxml_byte_view calendar_name, sxml_calendar_cho
                 .bytes = colon + 1, .byte_count = calendar_name.byte_count - prefix.byte_count - 1};
         }
     }
-    if (!is_ncname(local_name)) {
+    if (!sxml_xml_text_is_ncname(local_name)) {
         return SXML_STATUS_MALFORMED_INPUT;
     }
     if (is_in_namespace) {

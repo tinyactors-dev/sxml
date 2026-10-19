@@ -899,15 +899,6 @@ static sxml_status compare_strings(deep_comparison *comparison, text_pair pair) 
     return status;
 }
 
-static bool is_all_whitespace(sxml_byte_view text) {
-    for (size_t byte_index = 0; byte_index < text.byte_count; byte_index += 1) {
-        if (!sxml_xml_byte_is_whitespace(text.bytes[byte_index])) {
-            return false;
-        }
-    }
-    return true;
-}
-
 /* ------------------------------------------------------ Comparing items */
 
 static bool is_date_time(sxml_atomic_datum datum) {
@@ -1251,7 +1242,7 @@ static sxml_status read_unit(const deep_comparison *comparison, child_side side,
         }
         if (comparison->options.whitespace != SXML_WHITESPACE_HANDLING_PRESERVE &&
             !side.preserves_space &&
-            is_all_whitespace(sxml_function_library_text_view(side.text))) {
+            sxml_xml_text_is_whitespace(sxml_function_library_text_view(side.text))) {
             continue;
         }
         *unit = (comparison_unit){.kind = SXML_UNIT_KIND_TEXT,

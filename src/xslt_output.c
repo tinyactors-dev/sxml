@@ -273,10 +273,6 @@ static sxml_status append_eqname(text_builder *builder, eqname_append request) {
     return status;
 }
 
-static bool is_whitespace_text(sxml_byte_view text) {
-    return sxml_xml_text_trim_whitespace(text).byte_count == 0;
-}
-
 /* yes, true, 1 or no, false, 0 (XSLT 4.0, 26.1.4), spaces trimmed. */
 typedef struct boolean_text {
     bool is_valid;
@@ -1880,7 +1876,7 @@ static sxml_status read_evidence(evidence_request request, method_evidence *evid
     case SXML_NODE_KIND_TEXT: {
         sxml_byte_view content = {.bytes = NULL, .byte_count = 0};
         status = sxml_node_get_content(request.node, &content);
-        if (status == SXML_STATUS_OK && !is_whitespace_text(content)) {
+        if (status == SXML_STATUS_OK && !sxml_xml_text_is_whitespace(content)) {
             *evidence = SXML_METHOD_EVIDENCE_XML;
         }
         return status;

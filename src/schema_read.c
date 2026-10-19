@@ -956,39 +956,6 @@ static bool is_in_range(const schema_reader *reader, uint32_t node) {
 
 /* ------------------------------------------------------------ Text */
 
-static bool views_equal(sxml_byte_view first, sxml_byte_view second) {
-    return first.byte_count == second.byte_count &&
-           (first.byte_count == 0 || memcmp(first.bytes, second.bytes, first.byte_count) == 0);
-}
-
-static sxml_byte_view trimmed(sxml_byte_view text) { return sxml_xml_text_trim_whitespace(text); }
-
-/* The next whitespace-separated token of *rest; false at the end. */
-static bool next_token(sxml_byte_view *rest, sxml_byte_view *token) {
-    size_t start = 0;
-    while (start < rest->byte_count && sxml_xml_byte_is_whitespace(rest->bytes[start])) {
-        start += 1;
-    }
-    size_t end = start;
-    while (end < rest->byte_count && !sxml_xml_byte_is_whitespace(rest->bytes[end])) {
-        end += 1;
-    }
-    if (start == end) {
-        return false;
-    }
-    *token = (sxml_byte_view){.bytes = rest->bytes + start, .byte_count = end - start};
-    *rest = (sxml_byte_view){.bytes = rest->bytes + end, .byte_count = rest->byte_count - end};
-    return true;
-}
-
-/* XML Namespaces [4] NCName. */
-static bool is_ncname(sxml_byte_view text) {
-    if (!sxml_xml_text_is_name(text)) {
-        return false;
-    }
-    return memchr(text.bytes, ':', text.byte_count) == NULL;
-}
-
 /* [7] QName: prefix and local part split at the colon. */
 typedef struct qname_parts {
     bool is_valid;
@@ -1005,9 +972,9 @@ static qname_parts split_qname(sxml_byte_view text) {
         parts.prefix = (sxml_byte_view){.bytes = text.bytes, .byte_count = prefix_count};
         parts.local_name =
             (sxml_byte_view){.bytes = colon + 1, .byte_count = text.byte_count - prefix_count - 1U};
-        parts.is_valid = is_ncname(parts.prefix) && is_ncname(parts.local_name);
+        parts.is_valid = sxml_xml_text_is_ncname(parts.prefix) && sxml_xml_text_is_ncname(parts.local_name);
     } else {
-        parts.is_valid = is_ncname(text);
+        parts.is_valid = sxml_xml_text_is_ncname(text);
     }
     return parts;
 }
@@ -1019,11 +986,11 @@ typedef struct boolean_value_text {
 } boolean_value_text;
 
 static boolean_value_text parse_boolean(sxml_byte_view text) {
-    const sxml_byte_view token = trimmed(text);
-    if (views_equal(token, SXML_TEXT("true")) || views_equal(token, SXML_TEXT("1"))) {
+    const sxml_byte_view token = sxml_xml_text_trim_whitespace(text);
+    if (sxml_byte_view_equals(token, SXML_TEXT("true")) || sxml_byte_view_equals(token, SXML_TEXT("1"))) {
         return (boolean_value_text){.is_valid = true, .value = true};
     }
-    if (views_equal(token, SXML_TEXT("false")) || views_equal(token, SXML_TEXT("0"))) {
+    if (sxml_byte_view_equals(token, SXML_TEXT("false")) || sxml_byte_view_equals(token, SXML_TEXT("0"))) {
         return (boolean_value_text){.is_valid = true, .value = false};
     }
     return (boolean_value_text){.is_valid = false, .value = false};
@@ -1032,7 +999,7 @@ static boolean_value_text parse_boolean(sxml_byte_view text) {
 /* xs:nonNegativeInteger (Part 2, 3.4.20); a value above
    SXML_SCHEMA_UNBOUNDED - 1 is read as that. */
 static bool parse_non_negative_integer(sxml_byte_view text, uint64_t *value) {
-    sxml_byte_view digits = trimmed(text);
+    sxml_byte_view digits = sxml_xml_text_trim_whitespace(text);
     if (digits.byte_count > 0 && digits.bytes[0] == '+') {
         digits.bytes += 1;
         digits.byte_count -= 1;
@@ -1068,7 +1035,7 @@ static bool parse_non_negative_integer(sxml_byte_view text, uint64_t *value) {
 
 /* allNNI: a nonNegativeInteger or "unbounded". */
 static bool parse_all_nni(sxml_byte_view text, uint64_t *value) {
-    if (views_equal(trimmed(text), SXML_TEXT("unbounded"))) {
+    if (sxml_byte_view_equals(sxml_xml_text_trim_whitespace(text), SXML_TEXT("unbounded"))) {
         *value = SXML_SCHEMA_UNBOUNDED;
         return true;
     }
@@ -1082,9 +1049,9 @@ typedef struct keyword_list {
 } keyword_list;
 
 static bool find_keyword(keyword_list list, sxml_byte_view text, size_t *position) {
-    const sxml_byte_view token = trimmed(text);
+    const sxml_byte_view token = sxml_xml_text_trim_whitespace(text);
     for (size_t keyword_index = 0; keyword_index < list.keyword_count; keyword_index += 1) {
-        if (views_equal(token, list.keywords[keyword_index])) {
+        if (sxml_byte_view_equals(token, list.keywords[keyword_index])) {
             *position = keyword_index;
             return true;
         }
@@ -1252,11 +1219,11 @@ static sxml_status resolve_qname(schema_reader *reader, sxml_byte_view text,
                                  qname_resolution *resolution) {
     *resolution = (qname_resolution){
         .is_resolved = false, .name = {.index = 0}, .namespace_uri = {.index = 0}};
-    const qname_parts parts = split_qname(trimmed(text));
+    const qname_parts parts = split_qname(sxml_xml_text_trim_whitespace(text));
     if (!parts.is_valid) {
         return report(reader, (read_error){.constraint_name = SXML_TEXT("src-resolve"),
                                            .description = "A QName value is not a QName",
-                                           .subject = trimmed(text)});
+                                           .subject = sxml_xml_text_trim_whitespace(text)});
     }
     prefix_lookup lookup = {.is_bound = false, .namespace_uri = {.index = 0}};
     sxml_status status = lookup_prefix(reader, parts.prefix, &lookup);
@@ -1351,7 +1318,7 @@ static sxml_status add_reference(schema_reader *reader, reference_request reques
                                              .description = "A QName value names a component "
                                                             "of a namespace the schema "
                                                             "document does not import",
-                                             .subject = trimmed(request.text)});
+                                             .subject = sxml_xml_text_trim_whitespace(request.text)});
         if (status != SXML_STATUS_OK) {
             return status;
         }
@@ -1382,7 +1349,7 @@ static sxml_status add_reference_list(schema_reader *reader, reference_request r
     sxml_byte_view rest = request.text;
     sxml_byte_view token = {.bytes = NULL, .byte_count = 0};
     sxml_status status = SXML_STATUS_OK;
-    while (status == SXML_STATUS_OK && next_token(&rest, &token)) {
+    while (status == SXML_STATUS_OK && sxml_xml_text_next_token(&rest, &token)) {
         sxml_schema_reference_index reference = {.value = 0};
         status = add_reference(reader,
                                (reference_request){.symbol_space = request.symbol_space,
@@ -1486,7 +1453,7 @@ static sxml_status read_derivation_set(schema_reader *reader, derivation_set_req
         return SXML_STATUS_OK;
     }
     const sxml_byte_view text = attribute_value(reader, request.attribute);
-    if (views_equal(trimmed(text), SXML_TEXT("#all"))) {
+    if (sxml_byte_view_equals(sxml_xml_text_trim_whitespace(text), SXML_TEXT("#all"))) {
         *set = request.allowed;
         return SXML_STATUS_OK;
     }
@@ -1494,12 +1461,12 @@ static sxml_status read_derivation_set(schema_reader *reader, derivation_set_req
     sxml_byte_view rest = text;
     sxml_byte_view token = {.bytes = NULL, .byte_count = 0};
     bool is_valid = true;
-    while (next_token(&rest, &token)) {
+    while (sxml_xml_text_next_token(&rest, &token)) {
         bool is_known = false;
         for (size_t token_index = 0;
              token_index < sizeof(derivation_tokens) / sizeof(derivation_tokens[0]);
              token_index += 1) {
-            if (views_equal(token, derivation_tokens[token_index].token) &&
+            if (sxml_byte_view_equals(token, derivation_tokens[token_index].token) &&
                 (request.allowed & (uint32_t)derivation_tokens[token_index].derivation) != 0) {
                 result |= (uint32_t)derivation_tokens[token_index].derivation;
                 is_known = true;
@@ -1527,13 +1494,13 @@ static bool is_valid_value(value_kind kind, sxml_byte_view value) {
     size_t position = 0;
     switch (kind) {
     case SXML_VALUE_KIND_NCNAME:
-        return is_ncname(trimmed(value));
+        return sxml_xml_text_is_ncname(sxml_xml_text_trim_whitespace(value));
     case SXML_VALUE_KIND_QNAME:
-        return split_qname(trimmed(value)).is_valid;
+        return split_qname(sxml_xml_text_trim_whitespace(value)).is_valid;
     case SXML_VALUE_KIND_QNAME_LIST: {
         sxml_byte_view rest = value;
         sxml_byte_view token = {.bytes = NULL, .byte_count = 0};
-        while (next_token(&rest, &token)) {
+        while (sxml_xml_text_next_token(&rest, &token)) {
             if (!split_qname(token).is_valid) {
                 return false;
             }
@@ -1564,7 +1531,7 @@ static bool find_rule_attribute(const role_rule *rule, sxml_byte_view local_name
     for (uint32_t attribute_index = 0; attribute_index < (uint32_t)SXML_READ_ATTRIBUTE_COUNT;
          attribute_index += 1) {
         if ((rule->attributes & ATTRIBUTE_BIT(attribute_index)) != 0 &&
-            views_equal(attribute_rules[attribute_index].local_name, local_name)) {
+            sxml_byte_view_equals(attribute_rules[attribute_index].local_name, local_name)) {
             *attribute = (read_attribute)attribute_index;
             return true;
         }
@@ -1596,7 +1563,7 @@ static sxml_status collect_attributes(schema_reader *reader) {
         }
         const sxml_name_parts parts = name_parts_of(reader, description.node_name);
         if (parts.namespace_uri.index == (uint32_t)SXML_NAMESPACE_XML &&
-            views_equal(parts.local_name, SXML_TEXT("base"))) {
+            sxml_byte_view_equals(parts.local_name, SXML_TEXT("base"))) {
             element->record->has_xml_base = true;
             continue;
         }
@@ -1642,7 +1609,7 @@ static sxml_status collect_attributes(schema_reader *reader) {
    vc:maxVersion are xs:decimal). Writes -1, 0 or 1 as 1.1 is less than,
    equal to or greater than text; false when text is not a decimal. */
 static bool compare_version(sxml_byte_view text, int *comparison) {
-    sxml_byte_view digits = trimmed(text);
+    sxml_byte_view digits = sxml_xml_text_trim_whitespace(text);
     bool is_negative = false;
     if (digits.byte_count > 0 && (digits.bytes[0] == '+' || digits.bytes[0] == '-')) {
         is_negative = digits.bytes[0] == '-';
@@ -1710,7 +1677,7 @@ static bool compare_version(sxml_byte_view text, int *comparison) {
 static bool is_known_facet(sxml_byte_view local_name) {
     for (uint32_t role_index = (uint32_t)SXML_READ_ROLE_MIN_EXCLUSIVE;
          role_index <= (uint32_t)SXML_READ_ROLE_ASSERTION; role_index += 1) {
-        if (views_equal(role_rules[role_index].local_name, local_name)) {
+        if (sxml_byte_view_equals(role_rules[role_index].local_name, local_name)) {
             return true;
         }
     }
@@ -1736,7 +1703,7 @@ static sxml_status check_availability(schema_reader *reader, availability_reques
         (availability){.is_valid = true, .are_all_available = true, .is_any_unavailable = false};
     sxml_byte_view rest = request.names;
     sxml_byte_view token = {.bytes = NULL, .byte_count = 0};
-    while (next_token(&rest, &token)) {
+    while (sxml_xml_text_next_token(&rest, &token)) {
         const qname_parts parts = split_qname(token);
         prefix_lookup lookup = {.is_bound = false, .namespace_uri = {.index = 0}};
         if (parts.is_valid) {
@@ -1817,14 +1784,14 @@ static sxml_status decide_inclusion(schema_reader *reader, uint32_t child,
         if (status != SXML_STATUS_OK) {
             break;
         }
-        const bool is_minimum = views_equal(parts.local_name, SXML_TEXT("minVersion"));
-        const bool is_maximum = views_equal(parts.local_name, SXML_TEXT("maxVersion"));
-        const bool is_type_available = views_equal(parts.local_name, SXML_TEXT("typeAvailable"));
+        const bool is_minimum = sxml_byte_view_equals(parts.local_name, SXML_TEXT("minVersion"));
+        const bool is_maximum = sxml_byte_view_equals(parts.local_name, SXML_TEXT("maxVersion"));
+        const bool is_type_available = sxml_byte_view_equals(parts.local_name, SXML_TEXT("typeAvailable"));
         const bool is_type_unavailable =
-            views_equal(parts.local_name, SXML_TEXT("typeUnavailable"));
-        const bool is_facet_available = views_equal(parts.local_name, SXML_TEXT("facetAvailable"));
+            sxml_byte_view_equals(parts.local_name, SXML_TEXT("typeUnavailable"));
+        const bool is_facet_available = sxml_byte_view_equals(parts.local_name, SXML_TEXT("facetAvailable"));
         const bool is_facet_unavailable =
-            views_equal(parts.local_name, SXML_TEXT("facetUnavailable"));
+            sxml_byte_view_equals(parts.local_name, SXML_TEXT("facetUnavailable"));
         const sxml_schema_position position = position_of_node(reader, child);
         if (is_minimum || is_maximum) {
             int comparison = 0;
@@ -1882,7 +1849,7 @@ static sxml_status decide_inclusion(schema_reader *reader, uint32_t child,
 static read_role role_in_slot(const child_slot *slot, sxml_byte_view local_name) {
     for (uint32_t role_index = 1; role_index < (uint32_t)SXML_READ_ROLE_COUNT; role_index += 1) {
         if ((slot->roles & ROLE_BIT(role_index)) != 0 &&
-            views_equal(role_rules[role_index].local_name, local_name)) {
+            sxml_byte_view_equals(role_rules[role_index].local_name, local_name)) {
             return (read_role)role_index;
         }
     }
@@ -1960,15 +1927,6 @@ static sxml_status match_child(schema_reader *reader, slot_cursor *cursor,
     return status;
 }
 
-static bool is_whitespace_text(sxml_byte_view text) {
-    for (size_t byte_index = 0; byte_index < text.byte_count; byte_index += 1) {
-        if (!sxml_xml_byte_is_whitespace(text.bytes[byte_index])) {
-            return false;
-        }
-    }
-    return true;
-}
-
 /* Gives the current element's children their roles (an ignored or
    misplaced one keeps NONE) and reports what its slots do not allow:
    misplaced or missing children, text in element-only content. */
@@ -1994,13 +1952,13 @@ static sxml_status assign_child_roles(schema_reader *reader) {
         if (description.node_kind == SXML_NODE_KIND_TEXT) {
             sxml_byte_view text = {.bytes = NULL, .byte_count = 0};
             status = sxml_node_get_content(node_reference(reader, child), &text);
-            if (status == SXML_STATUS_OK && !is_whitespace_text(text)) {
+            if (status == SXML_STATUS_OK && !sxml_xml_text_is_whitespace(text)) {
                 status =
                     report(reader, (read_error){.constraint_name = {.bytes = NULL, .byte_count = 0},
                                                 .description = "Text is not allowed in "
                                                                "this element of the "
                                                                "schema document",
-                                                .subject = trimmed(text)});
+                                                .subject = sxml_xml_text_trim_whitespace(text)});
             }
         } else if (description.node_kind == SXML_NODE_KIND_ELEMENT) {
             inclusion_decision inclusion = {.is_excluded = false};
@@ -2090,7 +2048,7 @@ static sxml_status current_base_uri(schema_reader *reader, sxml_byte_view *base_
             const sxml_name_parts parts = name_parts_of(reader, attribute.node_name);
             if (status != SXML_STATUS_OK ||
                 parts.namespace_uri.index != (uint32_t)SXML_NAMESPACE_XML ||
-                !views_equal(parts.local_name, SXML_TEXT("base"))) {
+                !sxml_byte_view_equals(parts.local_name, SXML_TEXT("base"))) {
                 continue;
             }
             sxml_byte_view reference = {.bytes = NULL, .byte_count = 0};
@@ -2102,7 +2060,7 @@ static sxml_status current_base_uri(schema_reader *reader, sxml_byte_view *base_
                 status = sxml_uri_resolve(
                     &(sxml_uri_resolution_request){
                         .base_uri = {.bytes = buffer->bytes, .byte_count = buffer->byte_count},
-                        .reference = trimmed(reference),
+                        .reference = sxml_xml_text_trim_whitespace(reference),
                         .allocator = reader->allocator},
                     &resolution);
             }
@@ -2131,19 +2089,19 @@ static sxml_status current_base_uri(schema_reader *reader, sxml_byte_view *base_
    3.13.2): ##defaultNamespace, ##targetNamespace, ##local or a URI. */
 static sxml_status read_xpath_default_namespace(schema_reader *reader, sxml_byte_view text,
                                                 sxml_namespace_uri_identifier *namespace_uri) {
-    const sxml_byte_view token = trimmed(text);
-    if (views_equal(token, SXML_TEXT("##defaultNamespace"))) {
+    const sxml_byte_view token = sxml_xml_text_trim_whitespace(text);
+    if (sxml_byte_view_equals(token, SXML_TEXT("##defaultNamespace"))) {
         prefix_lookup lookup = {.is_bound = false, .namespace_uri = {.index = 0}};
         sxml_status status =
             lookup_prefix(reader, (sxml_byte_view){.bytes = NULL, .byte_count = 0}, &lookup);
         *namespace_uri = lookup.namespace_uri;
         return status;
     }
-    if (views_equal(token, SXML_TEXT("##targetNamespace"))) {
+    if (sxml_byte_view_equals(token, SXML_TEXT("##targetNamespace"))) {
         *namespace_uri = reader->request->target_namespace;
         return SXML_STATUS_OK;
     }
-    if (views_equal(token, SXML_TEXT("##local"))) {
+    if (sxml_byte_view_equals(token, SXML_TEXT("##local"))) {
         *namespace_uri = (sxml_namespace_uri_identifier){.index = SXML_NAMESPACE_NONE};
         return SXML_STATUS_OK;
     }
@@ -2195,7 +2153,7 @@ static sxml_status current_namespace_context(schema_reader *reader,
         sxml_schema_get_namespace_context(reader->components, reader->last_context);
     if (reader->last_context.value != 0 &&
         last->default_namespace.index == default_namespace.index &&
-        views_equal(sxml_schema_get_text(reader->components, last->base_uri), base_uri) &&
+        sxml_byte_view_equals(sxml_schema_get_text(reader->components, last->base_uri), base_uri) &&
         bindings_equal(
             sxml_schema_get_namespace_bindings(reader->components, last->namespace_bindings),
             reader->element.bindings)) {
@@ -2335,8 +2293,8 @@ static sxml_status global_name(schema_reader *reader, sxml_name_identifier *name
     if (!has_attribute(reader, SXML_READ_ATTRIBUTE_NAME)) {
         return SXML_STATUS_OK;
     }
-    const sxml_byte_view local_name = trimmed(attribute_value(reader, SXML_READ_ATTRIBUTE_NAME));
-    if (!is_ncname(local_name)) {
+    const sxml_byte_view local_name = sxml_xml_text_trim_whitespace(attribute_value(reader, SXML_READ_ATTRIBUTE_NAME));
+    if (!sxml_xml_text_is_ncname(local_name)) {
         return SXML_STATUS_OK;
     }
     return intern_name(reader,
@@ -2723,7 +2681,7 @@ static void attach_particle(schema_reader *reader, particle_attachment attachmen
 static sxml_status read_schema_defaults(schema_reader *reader) {
     sxml_schema_document_defaults *defaults = reader->defaults;
     if (has_attribute(reader, SXML_READ_ATTRIBUTE_TARGET_NAMESPACE) &&
-        trimmed(attribute_value(reader, SXML_READ_ATTRIBUTE_TARGET_NAMESPACE)).byte_count == 0) {
+        sxml_xml_text_trim_whitespace(attribute_value(reader, SXML_READ_ATTRIBUTE_TARGET_NAMESPACE)).byte_count == 0) {
         /* Part 1, 3.17.2: an absent target namespace has no attribute;
            the empty one is not a namespace name. */
         sxml_status status =
@@ -2768,7 +2726,7 @@ static sxml_status read_schema_defaults(schema_reader *reader) {
             reader, attribute_value(reader, SXML_READ_ATTRIBUTE_XPATH_DEFAULT_NAMESPACE),
             &defaults->xpath_default_namespace);
         defaults->xpath_default_is_default_namespace =
-            views_equal(trimmed(attribute_value(reader, SXML_READ_ATTRIBUTE_XPATH_DEFAULT_NAMESPACE)),
+            sxml_byte_view_equals(sxml_xml_text_trim_whitespace(attribute_value(reader, SXML_READ_ATTRIBUTE_XPATH_DEFAULT_NAMESPACE)),
                         SXML_TEXT("##defaultNamespace"));
     }
     if (status == SXML_STATUS_OK && has_attribute(reader, SXML_READ_ATTRIBUTE_DEFAULT_ATTRIBUTES)) {
@@ -2799,7 +2757,7 @@ static sxml_status read_document_reference(schema_reader *reader,
         .referrer = reader->request,
         .element = reader->element.node,
         .position = reader->element.position,
-        .schema_location = trimmed(attribute_value(reader, SXML_READ_ATTRIBUTE_SCHEMA_LOCATION)),
+        .schema_location = sxml_xml_text_trim_whitespace(attribute_value(reader, SXML_READ_ATTRIBUTE_SCHEMA_LOCATION)),
         .base_uri = {.bytes = NULL, .byte_count = 0},
         .imported_namespace = {.index = SXML_NAMESPACE_NONE}};
     sxml_status status = SXML_STATUS_OK;
@@ -3281,10 +3239,10 @@ static sxml_status read_default_open_content(schema_reader *reader) {
         boolean_value(reader, (boolean_request){.attribute = SXML_READ_ATTRIBUTE_APPLIES_TO_EMPTY,
                                                 .default_value = false});
     if (has_attribute(reader, SXML_READ_ATTRIBUTE_MODE)) {
-        const sxml_byte_view mode = trimmed(attribute_value(reader, SXML_READ_ATTRIBUTE_MODE));
-        if (views_equal(mode, SXML_TEXT("suffix"))) {
+        const sxml_byte_view mode = sxml_xml_text_trim_whitespace(attribute_value(reader, SXML_READ_ATTRIBUTE_MODE));
+        if (sxml_byte_view_equals(mode, SXML_TEXT("suffix"))) {
             defaults->open_content_mode = SXML_SCHEMA_OPEN_CONTENT_SUFFIX;
-        } else if (!views_equal(mode, SXML_TEXT("interleave"))) {
+        } else if (!sxml_byte_view_equals(mode, SXML_TEXT("interleave"))) {
             return report_attribute_value(reader, SXML_READ_ATTRIBUTE_MODE);
         }
     }
@@ -3308,9 +3266,9 @@ static sxml_status read_namespace_list(schema_reader *reader, namespace_list_req
     sxml_status status = SXML_STATUS_OK;
     bool is_valid = true;
     const bool is_namespace = request.attribute == SXML_READ_ATTRIBUTE_NAMESPACE;
-    if (is_namespace && views_equal(trimmed(text), SXML_TEXT("##any"))) {
+    if (is_namespace && sxml_byte_view_equals(sxml_xml_text_trim_whitespace(text), SXML_TEXT("##any"))) {
         request.wildcard->namespace_constraint_variety = SXML_SCHEMA_NAMESPACE_CONSTRAINT_ANY;
-    } else if (is_namespace && views_equal(trimmed(text), SXML_TEXT("##other"))) {
+    } else if (is_namespace && sxml_byte_view_equals(sxml_xml_text_trim_whitespace(text), SXML_TEXT("##other"))) {
         request.wildcard->namespace_constraint_variety = SXML_SCHEMA_NAMESPACE_CONSTRAINT_NOT;
         status = append_list_index(reader, target.index);
         if (status == SXML_STATUS_OK && target.index != SXML_NAMESPACE_NONE) {
@@ -3322,11 +3280,11 @@ static sxml_status read_namespace_list(schema_reader *reader, namespace_list_req
                          : SXML_SCHEMA_NAMESPACE_CONSTRAINT_NOT;
         sxml_byte_view rest = text;
         sxml_byte_view token = {.bytes = NULL, .byte_count = 0};
-        while (status == SXML_STATUS_OK && next_token(&rest, &token)) {
+        while (status == SXML_STATUS_OK && sxml_xml_text_next_token(&rest, &token)) {
             sxml_namespace_uri_identifier uri = {.index = SXML_NAMESPACE_NONE};
-            if (views_equal(token, SXML_TEXT("##targetNamespace"))) {
+            if (sxml_byte_view_equals(token, SXML_TEXT("##targetNamespace"))) {
                 uri = target;
-            } else if (views_equal(token, SXML_TEXT("##local"))) {
+            } else if (sxml_byte_view_equals(token, SXML_TEXT("##local"))) {
                 uri.index = SXML_NAMESPACE_NONE;
             } else if (token.byte_count > 1 && token.bytes[0] == '#' && token.bytes[1] == '#') {
                 is_valid = false;
@@ -3363,10 +3321,10 @@ static sxml_status read_disallowed_names(schema_reader *reader, sxml_schema_wild
     sxml_byte_view token = {.bytes = NULL, .byte_count = 0};
     sxml_status status = SXML_STATUS_OK;
     const bool is_attribute_wildcard = reader->element.role == SXML_READ_ROLE_ANY_ATTRIBUTE;
-    while (status == SXML_STATUS_OK && next_token(&rest, &token)) {
-        if (views_equal(token, SXML_TEXT("##defined"))) {
+    while (status == SXML_STATUS_OK && sxml_xml_text_next_token(&rest, &token)) {
+        if (sxml_byte_view_equals(token, SXML_TEXT("##defined"))) {
             wildcard->disallows_defined = true;
-        } else if (views_equal(token, SXML_TEXT("##definedSibling")) && !is_attribute_wildcard) {
+        } else if (sxml_byte_view_equals(token, SXML_TEXT("##definedSibling")) && !is_attribute_wildcard) {
             wildcard->disallows_sibling = true;
         } else if (token.byte_count > 0 && token.bytes[0] == '#') {
             status = report_attribute_value(reader, SXML_READ_ATTRIBUTE_NOT_QNAME);
@@ -3683,7 +3641,7 @@ static sxml_status check_foreign_namespace(schema_reader *reader) {
                                           ->name);
             is_in_restriction = definition->base_type_reference.value != 0 &&
                                 !(is_schema_namespace(base.namespace_uri) &&
-                                  views_equal(base.local_name, SXML_TEXT("anyType")));
+                                  sxml_byte_view_equals(base.local_name, SXML_TEXT("anyType")));
         }
         if (record->role == SXML_READ_ROLE_GLOBAL_COMPLEX_TYPE ||
             record->role == SXML_READ_ROLE_LOCAL_COMPLEX_TYPE) {
@@ -3711,8 +3669,8 @@ typedef struct local_name_request {
 static sxml_status local_declaration_name(schema_reader *reader, local_name_request request,
                                           sxml_name_identifier *name) {
     name->index = 0;
-    const sxml_byte_view local_name = trimmed(attribute_value(reader, SXML_READ_ATTRIBUTE_NAME));
-    if (!is_ncname(local_name)) {
+    const sxml_byte_view local_name = sxml_xml_text_trim_whitespace(attribute_value(reader, SXML_READ_ATTRIBUTE_NAME));
+    if (!sxml_xml_text_is_ncname(local_name)) {
         return SXML_STATUS_OK;
     }
     sxml_namespace_uri_identifier namespace_uri = {.index = SXML_NAMESPACE_NONE};
@@ -3727,7 +3685,7 @@ static sxml_status local_declaration_name(schema_reader *reader, local_name_requ
         }
         if (status == SXML_STATUS_OK) {
             status = intern_uri(
-                reader, trimmed(attribute_value(reader, SXML_READ_ATTRIBUTE_TARGET_NAMESPACE)),
+                reader, sxml_xml_text_trim_whitespace(attribute_value(reader, SXML_READ_ATTRIBUTE_TARGET_NAMESPACE)),
                 &namespace_uri);
         }
         if (status == SXML_STATUS_OK &&
@@ -3916,7 +3874,7 @@ static sxml_status read_element_declaration(schema_reader *reader) {
 static sxml_status check_attribute_name(schema_reader *reader, sxml_name_identifier name) {
     const sxml_name_parts parts = name_parts_of(reader, name);
     if (name.index != 0 && parts.namespace_uri.index == SXML_NAMESPACE_NONE &&
-        views_equal(parts.local_name, SXML_TEXT("xmlns"))) {
+        sxml_byte_view_equals(parts.local_name, SXML_TEXT("xmlns"))) {
         return report(reader, (read_error){.constraint_name = SXML_TEXT("no-xmlns"),
                                            .description = "An attribute declaration may not be "
                                                           "named xmlns",
@@ -4589,7 +4547,7 @@ static sxml_status collect_imports(schema_reader *reader) {
         const sxml_name_parts parts = name_parts_of(reader, description.node_name);
         if (description.node_kind == SXML_NODE_KIND_ELEMENT &&
             is_schema_namespace(parts.namespace_uri) &&
-            views_equal(parts.local_name, SXML_TEXT("import"))) {
+            sxml_byte_view_equals(parts.local_name, SXML_TEXT("import"))) {
             sxml_namespace_uri_identifier namespace_uri = {.index = SXML_NAMESPACE_NONE};
             for (uint32_t attribute_index = 1;
                  status == SXML_STATUS_OK && attribute_index <= description.attribute_count;
@@ -4599,7 +4557,7 @@ static sxml_status collect_imports(schema_reader *reader) {
                 const sxml_name_parts attribute_parts = name_parts_of(reader, attribute.node_name);
                 if (status == SXML_STATUS_OK &&
                     attribute_parts.namespace_uri.index == SXML_NAMESPACE_NONE &&
-                    views_equal(attribute_parts.local_name, SXML_TEXT("namespace"))) {
+                    sxml_byte_view_equals(attribute_parts.local_name, SXML_TEXT("namespace"))) {
                     sxml_byte_view value = {.bytes = NULL, .byte_count = 0};
                     status = sxml_node_get_content(node_reference(reader, child + attribute_index),
                                                    &value);
@@ -4650,7 +4608,7 @@ static uint32_t hash_bytes(sxml_byte_view bytes) {
 /* The slot of value, or the free slot where it would go. */
 static size_t find_identifier_slot(const identifier_set *set, sxml_byte_view value) {
     size_t slot = hash_bytes(value) & (set->slot_count - 1U);
-    while (set->slots[slot].bytes != NULL && !views_equal(set->slots[slot], value)) {
+    while (set->slots[slot].bytes != NULL && !sxml_byte_view_equals(set->slots[slot], value)) {
         slot = (slot + 1U) & (set->slot_count - 1U);
     }
     return slot;
@@ -4721,10 +4679,10 @@ static sxml_status find_identifier(const schema_reader *reader, uint32_t element
         status = describe_node(reader, element + attribute_index, &attribute);
         const sxml_name_parts parts = name_parts_of(reader, attribute.node_name);
         if (status == SXML_STATUS_OK && parts.namespace_uri.index == SXML_NAMESPACE_NONE &&
-            views_equal(parts.local_name, SXML_TEXT("id"))) {
+            sxml_byte_view_equals(parts.local_name, SXML_TEXT("id"))) {
             status =
                 sxml_node_get_content(node_reference(reader, element + attribute_index), value);
-            *value = trimmed(*value);
+            *value = sxml_xml_text_trim_whitespace(*value);
         }
     }
     return status;
@@ -4745,8 +4703,8 @@ static sxml_status check_identifiers(schema_reader *reader) {
         }
         const sxml_name_parts parts = name_parts_of(reader, description.node_name);
         if (!is_schema_namespace(parts.namespace_uri) ||
-            views_equal(parts.local_name, SXML_TEXT("appinfo")) ||
-            views_equal(parts.local_name, SXML_TEXT("documentation"))) {
+            sxml_byte_view_equals(parts.local_name, SXML_TEXT("appinfo")) ||
+            sxml_byte_view_equals(parts.local_name, SXML_TEXT("documentation"))) {
             node = description.last_descendant.index + 1U;
             continue;
         }
@@ -4816,7 +4774,7 @@ static sxml_status start_reading(schema_reader *reader) {
             status = describe_node(reader, node + attribute_index, &attribute);
             const sxml_name_parts parts = name_parts_of(reader, attribute.node_name);
             if (parts.namespace_uri.index == (uint32_t)SXML_NAMESPACE_XML &&
-                views_equal(parts.local_name, SXML_TEXT("base"))) {
+                sxml_byte_view_equals(parts.local_name, SXML_TEXT("base"))) {
                 record->has_xml_base = true;
             }
         }

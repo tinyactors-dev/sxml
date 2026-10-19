@@ -20,6 +20,7 @@
 #include "sxml/string.h"
 #include "sxml/tree.h"
 #include "unicode_internal.h"
+#include "xml_internal.h"
 
 #include <stdalign.h>
 #include <string.h>
@@ -128,16 +129,6 @@ static bool sxml_name_list_contains(sxml_name_list list, sxml_byte_view local_na
         }
     }
     return false;
-}
-
-static bool sxml_text_is_whitespace(sxml_byte_view text) {
-    for (size_t offset = 0; offset < text.byte_count; offset += 1) {
-        const uint8_t byte = text.bytes[offset];
-        if (byte != ' ' && byte != '\t' && byte != '\n' && byte != '\r') {
-            return false;
-        }
-    }
-    return true;
 }
 
 /* ------------------------------------------------------------- The writer */
@@ -965,7 +956,7 @@ static sxml_status sxml_xml_writer_survey_children(const sxml_xml_writer *writer
             if (status != SXML_STATUS_OK) {
                 return status;
             }
-            survey->has_text_content = survey->has_text_content || !sxml_text_is_whitespace(content);
+            survey->has_text_content = survey->has_text_content || !sxml_xml_text_is_whitespace(content);
         } else {
             survey->has_markup_child = true;
         }
@@ -1632,7 +1623,7 @@ static sxml_status sxml_xml_writer_write_subtree(sxml_xml_writer *writer,
         if (kind == SXML_NODE_KIND_TEXT && parent != NULL && parent->is_indenting) {
             sxml_byte_view content = {.bytes = NULL, .byte_count = 0};
             status = sxml_node_get_content(current, &content);
-            if (status == SXML_STATUS_OK && sxml_text_is_whitespace(content)) {
+            if (status == SXML_STATUS_OK && sxml_xml_text_is_whitespace(content)) {
                 /* Whitespace may be elided where it may be added (5.1.4). */
                 node_index += 1;
                 continue;
@@ -1994,7 +1985,7 @@ static sxml_status sxml_xml_writer_write_top_level(sxml_xml_writer *writer,
                                                    const sxml_normalized_event *event) {
     sxml_status status = SXML_STATUS_OK;
     if (event->event_kind == SXML_NORMALIZED_EVENT_KIND_TEXT) {
-        const bool is_whitespace = sxml_text_is_whitespace(event->text);
+        const bool is_whitespace = sxml_xml_text_is_whitespace(event->text);
         top_level->has_nonwhitespace_text = top_level->has_nonwhitespace_text || !is_whitespace;
         if (writer->is_canonical) {
             /* Canonical XML 1.1, section 2.3: whitespace outside the

@@ -521,22 +521,6 @@ static bool sxml_read_count(sxml_byte_view text, uint64_t *count) {
 
 /* The text with XML whitespace around it removed (the facet values'
    whiteSpace collapse, Part 1, 3.16.2). */
-static sxml_byte_view sxml_trim(sxml_byte_view text) {
-    size_t start = 0;
-    size_t end = text.byte_count;
-    while (start < end && sxml_xml_byte_is_whitespace(text.bytes[start])) {
-        start += 1;
-    }
-    while (end > start && sxml_xml_byte_is_whitespace(text.bytes[end - 1])) {
-        end -= 1;
-    }
-    return (sxml_byte_view){.bytes = text.bytes + start, .byte_count = end - start};
-}
-
-static bool sxml_text_is(sxml_byte_view text, sxml_byte_view expected) {
-    return sxml_byte_view_equals(text, expected);
-}
-
 /* Appends the canonical text of an item, an EQName for xs:QName and
    xs:NOTATION (types.h), to *text in the text table. */
 typedef struct sxml_canonical_append {
@@ -779,13 +763,13 @@ static sxml_status sxml_read_count_value(const sxml_simple_type_compiler *compil
 static sxml_status sxml_read_keyword_value(const sxml_simple_type_compiler *compiler,
                                            sxml_facet_reading reading, sxml_check_answer *answer) {
     sxml_byte_view value =
-        sxml_trim(sxml_schema_get_text(compiler->components, reading.facet->value));
+        sxml_xml_text_trim_whitespace(sxml_schema_get_text(compiler->components, reading.facet->value));
     if (reading.facet->facet_kind == SXML_FACET_KIND_WHITESPACE) {
-        answer->is_valid = sxml_text_is(value, SXML_BYTE_VIEW_FROM_LITERAL("preserve")) || sxml_text_is(value, SXML_BYTE_VIEW_FROM_LITERAL("replace")) ||
-                    sxml_text_is(value, SXML_BYTE_VIEW_FROM_LITERAL("collapse"));
+        answer->is_valid = sxml_byte_view_equals(value, SXML_BYTE_VIEW_FROM_LITERAL("preserve")) || sxml_byte_view_equals(value, SXML_BYTE_VIEW_FROM_LITERAL("replace")) ||
+                    sxml_byte_view_equals(value, SXML_BYTE_VIEW_FROM_LITERAL("collapse"));
     } else {
-        answer->is_valid = sxml_text_is(value, SXML_BYTE_VIEW_FROM_LITERAL("required")) || sxml_text_is(value, SXML_BYTE_VIEW_FROM_LITERAL("prohibited")) ||
-                    sxml_text_is(value, SXML_BYTE_VIEW_FROM_LITERAL("optional"));
+        answer->is_valid = sxml_byte_view_equals(value, SXML_BYTE_VIEW_FROM_LITERAL("required")) || sxml_byte_view_equals(value, SXML_BYTE_VIEW_FROM_LITERAL("prohibited")) ||
+                    sxml_byte_view_equals(value, SXML_BYTE_VIEW_FROM_LITERAL("optional"));
     }
     if (answer->is_valid) {
         /* The trimmed run of the value as written (the text table may move
@@ -1086,11 +1070,11 @@ static bool sxml_breaks_base_facet(sxml_facet_kind kind, sxml_step_facet own,
         return own_count > base_count || (base.is_fixed && own_count != base_count);
     case SXML_FACET_KIND_WHITESPACE:
         /* preserve < replace < collapse in restrictiveness (4.3.6.4). */
-        return (sxml_text_is(base.value, SXML_BYTE_VIEW_FROM_LITERAL("collapse")) && !sxml_text_is(own.value, SXML_BYTE_VIEW_FROM_LITERAL("collapse"))) ||
-               (sxml_text_is(base.value, SXML_BYTE_VIEW_FROM_LITERAL("replace")) && sxml_text_is(own.value, SXML_BYTE_VIEW_FROM_LITERAL("preserve"))) ||
+        return (sxml_byte_view_equals(base.value, SXML_BYTE_VIEW_FROM_LITERAL("collapse")) && !sxml_byte_view_equals(own.value, SXML_BYTE_VIEW_FROM_LITERAL("collapse"))) ||
+               (sxml_byte_view_equals(base.value, SXML_BYTE_VIEW_FROM_LITERAL("replace")) && sxml_byte_view_equals(own.value, SXML_BYTE_VIEW_FROM_LITERAL("preserve"))) ||
                (base.is_fixed && !sxml_byte_view_equals(own.value, base.value));
     case SXML_FACET_KIND_EXPLICIT_TIMEZONE:
-        return (!sxml_text_is(base.value, SXML_BYTE_VIEW_FROM_LITERAL("optional")) || base.is_fixed) &&
+        return (!sxml_byte_view_equals(base.value, SXML_BYTE_VIEW_FROM_LITERAL("optional")) || base.is_fixed) &&
                !sxml_byte_view_equals(own.value, base.value);
     case SXML_FACET_KIND_PATTERN:
     case SXML_FACET_KIND_ENUMERATION:

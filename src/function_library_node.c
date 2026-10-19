@@ -906,19 +906,6 @@ static bool next_token(token_cursor *cursor, sxml_byte_view *token) {
     return true;
 }
 
-/* True when text is lexically an xs:NCName (Namespaces in XML, [4]). */
-static bool text_is_ncname(sxml_byte_view text) {
-    if (!sxml_xml_text_is_name(text)) {
-        return false;
-    }
-    for (size_t byte_index = 0; byte_index < text.byte_count; byte_index += 1) {
-        if (text.bytes[byte_index] == ':') {
-            return false;
-        }
-    }
-    return true;
-}
-
 /* The string value of a node into *item (owned), and its text. */
 typedef struct node_text {
     sxml_item item;
@@ -1072,7 +1059,7 @@ static sxml_status call_identifying(const sxml_function_call *call,
         sxml_byte_view token;
         while (status == SXML_STATUS_OK && datum.datum_kind == SXML_DATUM_KIND_STRING &&
                next_token(&cursor, &token)) {
-            if (!text_is_ncname(token)) {
+            if (!sxml_xml_text_is_ncname(token)) {
                 continue;
             }
             id_finding finding = {.is_found = false};
@@ -1132,7 +1119,7 @@ static sxml_status match_candidate(const sxml_function_call *call, sxml_byte_vie
         status = sxml_atomic_item_get_datum(step.item, &datum);
         if (status == SXML_STATUS_OK && datum.datum_kind == SXML_DATUM_KIND_STRING) {
             const sxml_byte_view candidate = sxml_xml_text_trim_whitespace(datum.datum_details.string.utf8);
-            match->is_match = text_is_ncname(candidate) && sxml_byte_view_equals(candidate, token);
+            match->is_match = sxml_xml_text_is_ncname(candidate) && sxml_byte_view_equals(candidate, token);
         }
     }
     return status;
@@ -1581,7 +1568,7 @@ static sxml_status append_jnode_step(const path_writer *writer, sxml_item node) 
     case SXML_DATUM_KIND_STRING:
         return append_key_text(writer,
                                (key_text_request){.key = description.json_key,
-                                                  .is_quoted = !text_is_ncname(
+                                                  .is_quoted = !sxml_xml_text_is_ncname(
                                                       key.datum_details.string.utf8)});
     case SXML_DATUM_KIND_INTEGER:
     case SXML_DATUM_KIND_DECIMAL:

@@ -21,6 +21,7 @@
 
 #include "sxml/name.h"
 #include "sxml/string.h"
+#include "xml_internal.h"
 
 #include <math.h>
 #include <stdlib.h>
@@ -1200,51 +1201,6 @@ static sxml_status sxml_parse_string(sxml_item_heap *item_heap,
 
 /* -------------------------------------------------------------- QNames */
 
-static bool sxml_is_ncname_start_codepoint(uint32_t codepoint) {
-    /* NameStartChar without ":" (XML 1.0 Fifth Edition, section 2.3;
-       Namespaces in XML 1.0, section 3). */
-    return (codepoint >= 'A' && codepoint <= 'Z') || codepoint == '_' ||
-           (codepoint >= 'a' && codepoint <= 'z') ||
-           (codepoint >= 0xC0 && codepoint <= 0xD6) ||
-           (codepoint >= 0xD8 && codepoint <= 0xF6) ||
-           (codepoint >= 0xF8 && codepoint <= 0x2FF) ||
-           (codepoint >= 0x370 && codepoint <= 0x37D) ||
-           (codepoint >= 0x37F && codepoint <= 0x1FFF) ||
-           (codepoint >= 0x200C && codepoint <= 0x200D) ||
-           (codepoint >= 0x2070 && codepoint <= 0x218F) ||
-           (codepoint >= 0x2C00 && codepoint <= 0x2FEF) ||
-           (codepoint >= 0x3001 && codepoint <= 0xD7FF) ||
-           (codepoint >= 0xF900 && codepoint <= 0xFDCF) ||
-           (codepoint >= 0xFDF0 && codepoint <= 0xFFFD) ||
-           (codepoint >= 0x10000 && codepoint <= 0xEFFFF);
-}
-
-static bool sxml_is_ncname_codepoint(uint32_t codepoint) {
-    return sxml_is_ncname_start_codepoint(codepoint) || codepoint == '-' ||
-           codepoint == '.' || (codepoint >= '0' && codepoint <= '9') ||
-           codepoint == 0xB7 || (codepoint >= 0x300 && codepoint <= 0x36F) ||
-           (codepoint >= 0x203F && codepoint <= 0x2040);
-}
-
-static bool sxml_text_is_ncname(sxml_byte_view text) {
-    sxml_string string;
-    if (text.byte_count == 0 ||
-        sxml_string_from_utf8(text, &string) != SXML_STATUS_OK) {
-        return false;
-    }
-    sxml_codepoint_iterator iterator = {.string = string, .byte_offset = 0};
-    uint32_t codepoint = 0;
-    bool is_first = true;
-    while (sxml_codepoint_iterator_next(&iterator, &codepoint)) {
-        if (is_first ? !sxml_is_ncname_start_codepoint(codepoint)
-                     : !sxml_is_ncname_codepoint(codepoint)) {
-            return false;
-        }
-        is_first = false;
-    }
-    return true;
-}
-
 /* A predeclared prefix (XPath 4.0, section 2.2.1 "Static Context",
    statically known namespaces). */
 typedef struct sxml_predeclared_prefix {
@@ -1325,11 +1281,11 @@ static sxml_status sxml_parse_qname(sxml_item_heap *item_heap,
         local_name = (sxml_byte_view){
             .bytes = colon + 1,
             .byte_count = text.byte_count - namespace_prefix.byte_count - 1};
-        if (!sxml_text_is_ncname(namespace_prefix)) {
+        if (!sxml_xml_text_is_ncname(namespace_prefix)) {
             return sxml_lexical_fail(request, &sxml_cast_lexical_form_error);
         }
     }
-    if (!sxml_text_is_ncname(local_name)) {
+    if (!sxml_xml_text_is_ncname(local_name)) {
         return sxml_lexical_fail(request, &sxml_cast_lexical_form_error);
     }
     sxml_name_pool *name_pool = sxml_item_heap_get_name_pool(item_heap);

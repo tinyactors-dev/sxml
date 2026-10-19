@@ -48,6 +48,7 @@
 #include "schema_internal.h"
 
 #include "processor_internal.h"
+#include "sort_internal.h"
 
 #include <stdalign.h>
 #include <stddef.h>
@@ -176,46 +177,18 @@ struct sxml_schema_content_model {
 
 /* ------------------------------------------------------------- Sorting */
 
-/* Sorts keys ascending (heap sort: no recursion, no memory). */
+static bool key_is_before(const void *state, sxml_sort_pair pair) {
+    (void)state;
+    return *(const uint64_t *)pair.first < *(const uint64_t *)pair.second;
+}
+
+/* Sorts keys ascending (src/sort_internal.h: no recursion, no memory). */
 static void sort_keys(uint64_t *keys, size_t key_count) {
-    if (key_count < 2) {
-        return;
-    }
-    for (size_t heap_count = 1; heap_count < key_count; heap_count += 1) {
-        size_t child = heap_count;
-        while (child > 0) {
-            const size_t parent = (child - 1) / 2;
-            if (keys[parent] >= keys[child]) {
-                break;
-            }
-            const uint64_t swapped = keys[parent];
-            keys[parent] = keys[child];
-            keys[child] = swapped;
-            child = parent;
-        }
-    }
-    for (size_t heap_count = key_count - 1; heap_count > 0; heap_count -= 1) {
-        const uint64_t largest = keys[0];
-        keys[0] = keys[heap_count];
-        keys[heap_count] = largest;
-        size_t parent = 0;
-        for (;;) {
-            size_t child = parent * 2 + 1;
-            if (child >= heap_count) {
-                break;
-            }
-            if (child + 1 < heap_count && keys[child + 1] > keys[child]) {
-                child += 1;
-            }
-            if (keys[parent] >= keys[child]) {
-                break;
-            }
-            const uint64_t swapped = keys[parent];
-            keys[parent] = keys[child];
-            keys[child] = swapped;
-            parent = child;
-        }
-    }
+    sxml_sort_in_place(&(sxml_sort_request){.elements = keys,
+                                            .element_count = key_count,
+                                            .element_size = sizeof(uint64_t),
+                                            .is_before = key_is_before,
+                                            .state = NULL});
 }
 
 /* FNV-1a over 32-bit values. */

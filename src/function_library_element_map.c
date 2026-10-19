@@ -301,12 +301,6 @@ static bool element_map_is_empty(sxml_sequence sequence) {
 
 /* ------------------------------------------------------------- Names */
 
-/* True for an NCName (XML Namespaces 1.0, production NCName). */
-static bool element_map_is_ncname(sxml_byte_view text) {
-    return text.byte_count > 0 && sxml_xml_text_is_name(text) &&
-           memchr(text.bytes, ':', text.byte_count) == NULL;
-}
-
 /* A name of the form Q{uri}local split up; false for another form. */
 typedef struct element_map_eqname {
     sxml_byte_view namespace_uri;
@@ -372,10 +366,10 @@ static sxml_status element_map_read_plan_name(const element_map_context *context
     plan_name->is_valid = false;
     element_map_eqname eqname = {.namespace_uri = {.bytes = NULL, .byte_count = 0},
                                  .local_name = text};
-    if (!element_map_split_eqname(text, &eqname) && !element_map_is_ncname(text)) {
+    if (!element_map_split_eqname(text, &eqname) && !sxml_xml_text_is_ncname(text)) {
         return SXML_STATUS_OK;
     }
-    if (!element_map_is_ncname(eqname.local_name)) {
+    if (!sxml_xml_text_is_ncname(eqname.local_name)) {
         return SXML_STATUS_OK;
     }
     plan_name->is_valid = true;
@@ -3227,7 +3221,7 @@ static sxml_status element_map_decode_name(element_map_building *building,
                                                         prefix_text.byte_count - 1};
             has_namespace = true;
             element_map_resolved_prefix resolved = {.prefix = {0}, .namespace_uri = {0}};
-            is_valid = element_map_is_ncname(prefix_text) &&
+            is_valid = sxml_xml_text_is_ncname(prefix_text) &&
                        element_map_resolve_prefix(building, prefix_text, &resolved);
             prefix = resolved.prefix;
             namespace_uri = resolved.namespace_uri;
@@ -3237,7 +3231,7 @@ static sxml_status element_map_decode_name(element_map_building *building,
         if (context->escapes_names) {
             status = element_map_append_escaped(local_text, &local);
         } else {
-            is_valid = element_map_is_ncname(local_text);
+            is_valid = sxml_xml_text_is_ncname(local_text);
             status = sxml_function_library_text_append(&local, local_text);
         }
     }
@@ -4024,7 +4018,7 @@ static sxml_status element_map_send_node(element_map_building *building,
         }
         const sxml_byte_view target_text = sxml_function_library_text_view(&target);
         const sxml_byte_view data = sxml_function_library_text_view(&text);
-        is_valid = is_valid && element_map_is_ncname(target_text) &&
+        is_valid = is_valid && sxml_xml_text_is_ncname(target_text) &&
                    !(target_text.byte_count == 3 && (target_text.bytes[0] | 0x20) == 'x' &&
                      (target_text.bytes[1] | 0x20) == 'm' && (target_text.bytes[2] | 0x20) == 'l') &&
                    !element_map_contains(data, SXML_BYTE_VIEW_FROM_LITERAL("?>"));

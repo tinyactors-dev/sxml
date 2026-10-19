@@ -32,6 +32,7 @@
  */
 #include "sort_internal.h"
 #include "xpath_ast_internal.h"
+#include "xml_internal.h"
 
 #include <string.h>
 
@@ -1425,17 +1426,6 @@ sxml_xquery_check_attribute_names(sxml_ast_front_end *front_end,
             .node = duplicate.attribute});
 }
 
-/* True when every byte of written is XML whitespace (S). */
-static bool sxml_xquery_is_all_whitespace(sxml_byte_view written) {
-    for (size_t byte_index = 0; byte_index < written.byte_count;
-         byte_index += 1U) {
-        if (!sxml_xquery_is_whitespace(written.bytes[byte_index])) {
-            return false;
-        }
-    }
-    return true;
-}
-
 /* True for content that delimits boundary whitespace (4.12.1.4): the start
    or end of the content (index 0), a direct constructor or an enclosed
    expression. CDATA sections and text do not. */
@@ -1466,7 +1456,7 @@ sxml_xquery_mark_boundary_whitespace(sxml_ast_front_end *front_end,
         if (node->kind == SXML_AST_KIND_DIRECT_ELEMENT_TEXT &&
             sxml_xquery_delimits_boundary(ast, previous) &&
             sxml_xquery_delimits_boundary(ast, next) &&
-            sxml_xquery_is_all_whitespace(
+            sxml_xml_text_is_whitespace(
                 sxml_xquery_written_text(front_end, node->source_span))) {
             const sxml_status status = sxml_ast_add_flags(
                 ast, (sxml_ast_flags_request){

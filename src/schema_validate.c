@@ -25,6 +25,7 @@
 #include "sxml/tree.h"
 #include "sxml/types.h"
 #include "sxml/xdm.h"
+#include "xml_internal.h"
 
 #include <stdalign.h>
 #include <string.h>
@@ -1907,16 +1908,6 @@ static sxml_status validator_end_element(void *state) {
     return status;
 }
 
-static bool is_whitespace(sxml_byte_view text) {
-    for (size_t byte_index = 0; byte_index < text.byte_count; byte_index += 1) {
-        const uint8_t byte = text.bytes[byte_index];
-        if (byte != ' ' && byte != '\t' && byte != '\n' && byte != '\r') {
-            return false;
-        }
-    }
-    return true;
-}
-
 /* Character children of a strictly assessed element (cvc-elt.3.2.1,
    cvc-complex-type.2.1 to 2.3). Writes to outcome->keeps whether the text goes
    on as it is. */
@@ -1977,7 +1968,7 @@ static sxml_status assess_text(sxml_schema_validator *validator, text_request re
                                                     .location = request.event->location});
     }
     case SXML_CONTENT_TYPE_VARIETY_ELEMENT_ONLY:
-        if (is_whitespace(text)) {
+        if (sxml_xml_text_is_whitespace(text)) {
             /* XDM 4.0, 7.5.7.4: whitespace in content that is not mixed
                makes no text node. */
             outcome->keeps = false;

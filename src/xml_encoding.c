@@ -554,6 +554,36 @@ bool sxml_xml_text_is_name(sxml_byte_view name) {
     return true;
 }
 
+bool sxml_xml_text_is_ncname(sxml_byte_view name) {
+    return sxml_xml_text_is_name(name) && memchr(name.bytes, ':', name.byte_count) == NULL;
+}
+
+bool sxml_xml_text_is_whitespace(sxml_byte_view text) {
+    for (size_t byte_index = 0; byte_index < text.byte_count; byte_index += 1) {
+        if (!sxml_xml_byte_is_whitespace(text.bytes[byte_index])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool sxml_xml_text_next_token(sxml_byte_view *rest, sxml_byte_view *token) {
+    size_t start = 0;
+    while (start < rest->byte_count && sxml_xml_byte_is_whitespace(rest->bytes[start])) {
+        start += 1;
+    }
+    size_t end = start;
+    while (end < rest->byte_count && !sxml_xml_byte_is_whitespace(rest->bytes[end])) {
+        end += 1;
+    }
+    if (start == end) {
+        return false;
+    }
+    *token = (sxml_byte_view){.bytes = rest->bytes + start, .byte_count = end - start};
+    *rest = (sxml_byte_view){.bytes = rest->bytes + end, .byte_count = rest->byte_count - end};
+    return true;
+}
+
 /* ------------------------------------------------------------ Positions */
 
 sxml_xml_position_tracker sxml_xml_position_tracker_start(

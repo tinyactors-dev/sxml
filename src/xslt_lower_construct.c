@@ -1116,11 +1116,6 @@ typedef struct resolved_name {
     const char *error_code;
 } resolved_name;
 
-static bool is_ncname(sxml_byte_view text) {
-    return text.byte_count > 0 && sxml_xml_text_is_name(text) &&
-           memchr(text.bytes, ':', text.byte_count) == NULL;
-}
-
 static sxml_status resolve_fixed_name(sxml_xpath_lowerer *lowerer, const name_resolution *request,
                                       resolved_name *name) {
     const char *const invalid_code = request->is_attribute ? "XTDE0850" : "XTDE0820";
@@ -1136,7 +1131,7 @@ static sxml_status resolve_fixed_name(sxml_xpath_lowerer *lowerer, const name_re
                                  .byte_count = lexical.byte_count - prefix.byte_count - 1};
     }
     *name = (resolved_name){.expanded_name = {0}, .namespace_prefix = {0}, .error_code = NULL};
-    if (!is_ncname(local) || (colon != NULL && !is_ncname(prefix))) {
+    if (!sxml_xml_text_is_ncname(local) || (colon != NULL && !sxml_xml_text_is_ncname(prefix))) {
         name->error_code = invalid_code;
         return SXML_STATUS_OK;
     }

@@ -133,11 +133,6 @@ sxml_status sxml_schema_assembly_note_redefinition(sxml_schema_assembly *assembl
     return status;
 }
 
-static bool views_equal(sxml_byte_view first, sxml_byte_view second) {
-    return first.byte_count == second.byte_count &&
-           (first.byte_count == 0 || memcmp(first.bytes, second.bytes, first.byte_count) == 0);
-}
-
 static sxml_byte_view uri_of(const assembly_document *document) {
     return (sxml_byte_view){.bytes = document->uri_bytes, .byte_count = document->uri_byte_count};
 }
@@ -370,7 +365,7 @@ static sxml_status find_schema_element(const sxml_schema_assembly *assembly, sxm
         return status;
     }
     search->is_found = parts.namespace_uri.index == (uint32_t)SXML_NAMESPACE_XML_SCHEMA &&
-                       views_equal(parts.local_name, SXML_TEXT("schema"));
+                       sxml_byte_view_equals(parts.local_name, SXML_TEXT("schema"));
     search->schema_element = node.node_index;
     return SXML_STATUS_OK;
 }
@@ -403,7 +398,7 @@ static sxml_status read_target_namespace(const sxml_schema_assembly *assembly,
                                                    attribute_description.node_name, &parts);
         }
         if (status == SXML_STATUS_OK && parts.namespace_uri.index == SXML_NAMESPACE_NONE &&
-            views_equal(parts.local_name, SXML_TEXT("targetNamespace"))) {
+            sxml_byte_view_equals(parts.local_name, SXML_TEXT("targetNamespace"))) {
             sxml_byte_view value = {.bytes = NULL, .byte_count = 0};
             status = sxml_node_get_content(attribute, &value);
             if (status == SXML_STATUS_OK) {
@@ -431,7 +426,7 @@ static document_match find_document(const sxml_schema_assembly *assembly,
     }
     for (size_t position = 0; position < assembly->document_count; position += 1) {
         const assembly_document *document = assembly->documents[position];
-        if (!views_equal(uri_of(document), source->uri)) {
+        if (!sxml_byte_view_equals(uri_of(document), source->uri)) {
             continue;
         }
         if (!match.has_same_uri) {

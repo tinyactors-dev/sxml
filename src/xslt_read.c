@@ -2082,58 +2082,6 @@ static bool rule_lists_child(const element_rule *rule, sxml_xslt_ast_kind kind) 
 
 /* ------------------------------------------------------------ Text helpers */
 
-static bool is_space_byte(uint8_t byte) {
-    return byte == ' ' || byte == '\t' || byte == '\n' || byte == '\r';
-}
-
-static bool is_whitespace_text(sxml_byte_view text) {
-    for (size_t byte_index = 0; byte_index < text.byte_count; byte_index += 1) {
-        if (!is_space_byte(text.bytes[byte_index])) {
-            return false;
-        }
-    }
-    return true;
-}
-
-/* Splits *rest at its first whitespace-separated token: *token gets it,
-   *rest what follows. False when no token is left. */
-static bool next_token(sxml_byte_view *rest, sxml_byte_view *token) {
-    sxml_byte_view text = *rest;
-    while (text.byte_count > 0 && is_space_byte(text.bytes[0])) {
-        text = (sxml_byte_view){.bytes = text.bytes + 1, .byte_count = text.byte_count - 1};
-    }
-    if (text.byte_count == 0) {
-        *rest = text;
-        return false;
-    }
-    size_t length = 0;
-    while (length < text.byte_count && !is_space_byte(text.bytes[length])) {
-        length += 1;
-    }
-    *token = (sxml_byte_view){.bytes = text.bytes, .byte_count = length};
-    *rest = (sxml_byte_view){.bytes = text.bytes + length, .byte_count = text.byte_count - length};
-    return true;
-}
-
-/* An NCName, checked as far as ASCII decides (XML Names 1.0, [4]):
-   letters, digits, ".", "-", "_" and every non-ASCII byte, not starting
-   with a digit, "." or "-". */
-static bool is_ncname(sxml_byte_view text) {
-    if (text.byte_count == 0) {
-        return false;
-    }
-    for (size_t byte_index = 0; byte_index < text.byte_count; byte_index += 1) {
-        const uint8_t byte = text.bytes[byte_index];
-        const bool is_letter = (byte >= 'a' && byte <= 'z') || (byte >= 'A' && byte <= 'Z') ||
-                               byte == '_' || byte >= 0x80U;
-        const bool is_other = (byte >= '0' && byte <= '9') || byte == '.' || byte == '-';
-        if (!is_letter && !(is_other && byte_index > 0)) {
-            return false;
-        }
-    }
-    return true;
-}
-
 /* The number of UTF-8 characters in text (one per non-continuation
    byte). */
 static size_t count_characters(sxml_byte_view text) {
@@ -2825,7 +2773,7 @@ typedef struct prefix_list_request {
 static sxml_status read_prefix_list(stylesheet_reader *reader, const prefix_list_request *request) {
     sxml_byte_view rest = request->text;
     sxml_byte_view token = {.bytes = NULL, .byte_count = 0};
-    while (next_token(&rest, &token)) {
+    while (sxml_xml_text_next_token(&rest, &token)) {
         if (request->allows_all && sxml_byte_view_equals(token, SXML_BYTE_VIEW_FROM_LITERAL("#all"))) {
             sxml_namespace_binding_view bindings = {.namespace_bindings = NULL,
                                                     .namespace_binding_count = 0};
@@ -2845,7 +2793,7 @@ static sxml_status read_prefix_list(stylesheet_reader *reader, const prefix_list
         const bool is_default = sxml_byte_view_equals(token, SXML_BYTE_VIEW_FROM_LITERAL("#default"));
         sxml_namespace_prefix_identifier prefix = {.index = 0};
         if (!is_default) {
-            if (!is_ncname(token)) {
+            if (!sxml_xml_text_is_ncname(token)) {
                 return raise_error(reader, (reader_error){.error_code = request->error_code,
                                                           .description = "A prefix list holds a "
                                                                          "token that is no prefix "
@@ -2947,7 +2895,7 @@ static sxml_status read_fixed_namespaces(stylesheet_reader *reader, fixed_namesp
     sxml_byte_view rest = request.attribute->value;
     sxml_byte_view token = {.bytes = NULL, .byte_count = 0};
     sxml_status status = SXML_STATUS_OK;
-    while (status == SXML_STATUS_OK && next_token(&rest, &token)) {
+    while (status == SXML_STATUS_OK && sxml_xml_text_next_token(&rest, &token)) {
         if (sxml_byte_view_equals(token, SXML_BYTE_VIEW_FROM_LITERAL("#standard"))) {
             for (size_t index = 0; status == SXML_STATUS_OK &&
                                    index < sizeof(standard_prefixes) / sizeof(standard_prefixes[0]);
@@ -2969,7 +2917,7 @@ static sxml_status read_fixed_namespaces(stylesheet_reader *reader, fixed_namesp
             const sxml_byte_view uri_text = {.bytes = token.bytes + equals_index + 1,
                                              .byte_count = token.byte_count - equals_index - 1};
             sxml_namespace_uri_identifier uri = {.index = 0};
-            if (!is_ncname(prefix) || uri_text.byte_count == 0 ||
+            if (!sxml_xml_text_is_ncname(prefix) || uri_text.byte_count == 0 ||
                 sxml_byte_view_equals(prefix, SXML_BYTE_VIEW_FROM_LITERAL("xmlns"))) {
                 status = SXML_STATUS_STATIC_ERROR;
                 break;
@@ -2982,7 +2930,7 @@ static sxml_status read_fixed_namespaces(stylesheet_reader *reader, fixed_namesp
             }
             continue;
         }
-        if (is_ncname(token)) {
+        if (sxml_xml_text_is_ncname(token)) {
             sxml_namespace_prefix_identifier prefix = {.index = 0};
             status = sxml_name_pool_intern_namespace_prefix(reader->name_pool, token, &prefix);
             sxml_namespace_uri_identifier uri = {.index = 0};
@@ -3113,7 +3061,7 @@ static sxml_status resolve_eqname(stylesheet_reader *reader, const eqname_reques
             const sxml_byte_view prefix = {.bytes = text.bytes, .byte_count = colon_index};
             local_name = (sxml_byte_view){.bytes = text.bytes + colon_index + 1,
                                           .byte_count = text.byte_count - colon_index - 1};
-            if (!is_ncname(prefix) || !is_ncname(local_name)) {
+            if (!sxml_xml_text_is_ncname(prefix) || !sxml_xml_text_is_ncname(local_name)) {
                 result->is_malformed = true;
                 return SXML_STATUS_OK;
             }
@@ -3130,7 +3078,7 @@ static sxml_status resolve_eqname(stylesheet_reader *reader, const eqname_reques
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    if (!is_ncname(local_name)) {
+    if (!sxml_xml_text_is_ncname(local_name)) {
         result->is_malformed = true;
         return SXML_STATUS_OK;
     }
@@ -3370,7 +3318,7 @@ static sxml_status read_name_token(stylesheet_reader *reader, name_token_request
         }
         if (text.byte_count > 2 && text.bytes[0] == '*' && text.bytes[1] == ':') {
             const sxml_byte_view local = {.bytes = text.bytes + 2, .byte_count = text.byte_count - 2};
-            if (!is_ncname(local)) {
+            if (!sxml_xml_text_is_ncname(local)) {
                 return raise_value_error(reader, request.value,
 (reader_error){.description = "A name test is malformed (XSLT 4.0, 2.3)"});
             }
@@ -3431,7 +3379,7 @@ static sxml_status read_name_list(stylesheet_reader *reader, const value_request
     reader->name_tokens.count = 0;
     sxml_byte_view rest = request->attribute->value;
     sxml_byte_view token_text = {.bytes = NULL, .byte_count = 0};
-    while (next_token(&rest, &token_text)) {
+    while (sxml_xml_text_next_token(&rest, &token_text)) {
         sxml_xslt_ast_name_token token;
         sxml_status status = read_name_token(
             reader, (name_token_request){.value = request, .text = token_text}, &token);
@@ -3609,7 +3557,7 @@ static sxml_status read_value(stylesheet_reader *reader, const value_request *re
     case SXML_VALUE_SYNTAX_EQNAME:
     case SXML_VALUE_SYNTAX_NCNAME: {
         eqname_result result = {.name = {.index = 0}, .is_malformed = false, .is_unbound = false};
-        if (request->rule->value_syntax == SXML_VALUE_SYNTAX_NCNAME && !is_ncname(trimmed)) {
+        if (request->rule->value_syntax == SXML_VALUE_SYNTAX_NCNAME && !sxml_xml_text_is_ncname(trimmed)) {
             return raise_value_error(reader, request,
 (reader_error){.description = "The attribute must be an NCName (XSLT 4.0, 2.3)"});
         }
@@ -3650,7 +3598,7 @@ static sxml_status read_value(stylesheet_reader *reader, const value_request *re
         const bool is_default = sxml_byte_view_equals(trimmed, SXML_BYTE_VIEW_FROM_LITERAL("#default"));
         sxml_namespace_prefix_identifier prefix = {.index = 0};
         if (!is_default) {
-            if (!is_ncname(trimmed)) {
+            if (!sxml_xml_text_is_ncname(trimmed)) {
                 return raise_value_error(reader, request,
 (reader_error){.description = "The attribute must be a prefix or #default (XSLT 4.0, "
                                          "11.1.4)"});
@@ -3971,7 +3919,7 @@ static sxml_status compute_static_context(stylesheet_reader *reader, const conte
         sxml_byte_view rest = collation_attribute->value;
         sxml_byte_view token = {.bytes = NULL, .byte_count = 0};
         bool is_found = false;
-        while (!is_found && next_token(&rest, &token)) {
+        while (!is_found && sxml_xml_text_next_token(&rest, &token)) {
             if (sxml_byte_view_equals(token, sxml_byte_view_from_c_string(codepoint_collation_uri))) {
                 is_found = true;
             } else if (sxml_collation_is_supported(token)) {
@@ -4542,7 +4490,7 @@ static sxml_status has_content(content_query query, content_presence *presence) 
         } else if (child_description.node_kind == SXML_NODE_KIND_TEXT) {
             sxml_byte_view content = {.bytes = NULL, .byte_count = 0};
             status = sxml_node_get_content(tree_node(query.source.tree, child), &content);
-            if (status == SXML_STATUS_OK && (!is_whitespace_text(content) || query.preserves_space)) {
+            if (status == SXML_STATUS_OK && (!sxml_xml_text_is_whitespace(content) || query.preserves_space)) {
                 has = true;
             }
         }
@@ -5403,7 +5351,7 @@ static sxml_status flush_text(stylesheet_reader *reader, text_end end) {
     const sxml_byte_view text = {.bytes = reader->text.elements, .byte_count = reader->text.count};
     open_element *frame = frame_at(reader, end.frame_index);
     const bool is_in_text_element = frame->rule != NULL && frame->rule->kind == SXML_XSLT_AST_KIND_TEXT;
-    if (is_whitespace_text(text)) {
+    if (sxml_xml_text_is_whitespace(text)) {
         const bool is_stripped =
             (!is_in_text_element && !frame->preserves_space) ||
             (frame->rule != NULL && (frame->rule->element_flags & SXML_ELEMENT_FLAG_STRIPS_WHITESPACE) != 0) ||
@@ -5913,7 +5861,7 @@ static sxml_status read_element(stylesheet_reader *reader, element_input input) 
                 reader,
                 &(expression_text){.kind = SXML_XSLT_AST_VALUE_KIND_EXPRESSION,
                                    /* An empty xsl:select is the empty sequence. */
-                                   .text = is_whitespace_text((sxml_byte_view){
+                                   .text = sxml_xml_text_is_whitespace((sxml_byte_view){
                                                .bytes = reader->text.elements,
                                                .byte_count = reader->text.count})
                                                ? SXML_BYTE_VIEW_FROM_LITERAL("()")
