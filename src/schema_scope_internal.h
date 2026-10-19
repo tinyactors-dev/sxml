@@ -84,6 +84,37 @@ typedef struct sxml_schema_scope_constructor_request {
 SXML_NODISCARD sxml_status sxml_schema_scope_find_constructor(
     const sxml_schema_scope_constructor_request *request, sxml_function_entry *entry);
 
+/*
+ * What fn:element-to-map's schema-based conversion reads of a complex
+ * type a schema of schemas registered (F&O 4.0, 14.6.6): whether it has
+ * {attribute uses} or an {attribute wildcard}, and for element-only
+ * content the element declaration terms of its {particle}, expanded
+ * through model groups: whether open content or a wildcard term is there,
+ * how many names there are, and whether one name may occur more than once
+ * or every name at most once (maxOccurs multiplied down the levels and
+ * summed over the terms of a name; unbounded is infinite). child_name is
+ * the name when there is one. is_found is false when no schema of schemas
+ * registered type as a complex type. Returns the allocator's failures.
+ */
+typedef struct sxml_schema_scope_content_request {
+    sxml_schema_view schemas;
+    sxml_type_identifier type;
+    sxml_allocator allocator;
+} sxml_schema_scope_content_request;
+
+typedef struct sxml_schema_scope_content {
+    bool is_found;
+    bool has_attributes;
+    bool has_wildcards;
+    size_t child_name_count;
+    bool has_repeated_name;
+    bool has_names_at_most_once;
+    sxml_name_identifier child_name;
+} sxml_schema_scope_content;
+
+SXML_NODISCARD sxml_status sxml_schema_scope_describe_content(
+    const sxml_schema_scope_content_request *request, sxml_schema_scope_content *content);
+
 /* True when a document schema was assembled from has the target
    namespace namespace_uri (SXML_NAMESPACE_NONE for none). */
 bool sxml_schema_scope_defines_namespace(const sxml_schema *schema,

@@ -6,9 +6,11 @@
 #include "schema_scope_internal.h"
 
 #include "processor_internal.h"
+#include "memory_internal.h"
 #include "schema_internal.h"
 #include "xdm_internal.h"
 
+#include <stdalign.h>
 #include <string.h>
 
 bool sxml_schema_scope_find_element(sxml_schema_view schemas, sxml_name_identifier element_name,
@@ -68,6 +70,179 @@ const sxml_schema *sxml_schema_scope_find_type_owner(sxml_schema_view schemas,
         }
     }
     return NULL;
+}
+
+/* ------------------------------------------- Content for element-to-map */
+
+/* The complex type definition registered as type in a schema of
+   schemas, and the schema's components; NULL when there is none. */
+typedef struct registered_complex_type {
+    const sxml_schema_components *components;
+    const sxml_schema_type_definition *definition;
+} registered_complex_type;
+
+static registered_complex_type find_registered_complex_type(sxml_schema_view schemas,
+                                                            sxml_type_identifier type) {
+    for (size_t schema_index = 0; schema_index < schemas.schema_count; schema_index += 1) {
+        const sxml_schema_components *components = &schemas.schemas[schema_index]->components;
+        const uint32_t type_count =
+            components->tables[SXML_SCHEMA_TABLE_TYPE_DEFINITION].entry_count;
+        for (uint32_t type_index = 1; type_index < type_count; type_index += 1) {
+            const sxml_schema_type_definition *definition = sxml_schema_get_type_definition(
+                components, (sxml_schema_type_definition_index){.value = type_index});
+            if (definition->registered_type.index == type.index &&
+                definition->variety == SXML_TYPE_VARIETY_COMPLEX) {
+                return (registered_complex_type){.components = components,
+                                                 .definition = definition};
+            }
+        }
+    }
+    return (registered_complex_type){.components = NULL, .definition = NULL};
+}
+
+/* A particle to visit and the product of the maxOccurs above it. */
+typedef struct content_visit {
+    sxml_schema_particle_index particle;
+    uint64_t occurrences;
+} content_visit;
+
+/* One element name of the particle and how often it may occur. */
+typedef struct content_name {
+    sxml_name_identifier name;
+    uint64_t occurrences;
+} content_name;
+
+static uint64_t multiply_occurrences(uint64_t first, uint64_t second) {
+    if (first == SXML_SCHEMA_UNBOUNDED || second == SXML_SCHEMA_UNBOUNDED) {
+        return first == 0 || second == 0 ? 0 : SXML_SCHEMA_UNBOUNDED;
+    }
+    return second != 0 && first > (SXML_SCHEMA_UNBOUNDED - 1) / second ? SXML_SCHEMA_UNBOUNDED
+                                                                        : first * second;
+}
+
+static uint64_t add_occurrences(uint64_t first, uint64_t second) {
+    return first >= SXML_SCHEMA_UNBOUNDED - second ? SXML_SCHEMA_UNBOUNDED : first + second;
+}
+
+/* The work of describe_content: the visits to make and the names seen,
+   each array as large as its table (no model group contains itself, so
+   no particle is pending twice on one path). */
+typedef struct content_walk {
+    const sxml_schema_components *components;
+    content_visit *visits;
+    size_t visit_count;
+    size_t visit_capacity;
+    content_name *names;
+    size_t name_count;
+    size_t name_capacity;
+} content_walk;
+
+/* Visits one particle: an element term adds to its name, a model group
+   pushes its particles, a wildcard is noted. */
+static void visit_particle(content_walk *walk, content_visit visit,
+                           sxml_schema_scope_content *content) {
+    const sxml_schema_particle *particle = sxml_schema_get_particle(walk->components, visit.particle);
+    const uint64_t occurrences =
+        multiply_occurrences(visit.occurrences, particle->maximum_occurrences);
+    if (particle->term_kind == SXML_SCHEMA_TERM_WILDCARD) {
+        content->has_wildcards = true;
+    } else if (particle->term_kind == SXML_SCHEMA_TERM_ELEMENT_DECLARATION) {
+        const sxml_name_identifier name =
+            sxml_schema_get_element_declaration(
+                walk->components, (sxml_schema_element_declaration_index){.value = particle->term})
+                ->element_name;
+        for (size_t name_index = 0; name_index < walk->name_count; name_index += 1) {
+            if (walk->names[name_index].name.index == name.index) {
+                walk->names[name_index].occurrences =
+                    add_occurrences(walk->names[name_index].occurrences, occurrences);
+                return;
+            }
+        }
+        if (walk->name_count < walk->name_capacity) {
+            walk->names[walk->name_count] =
+                (content_name){.name = name, .occurrences = occurrences};
+            walk->name_count += 1;
+        }
+    } else if (particle->term_kind == SXML_SCHEMA_TERM_MODEL_GROUP) {
+        const sxml_schema_index_view particles = sxml_schema_get_list(
+            walk->components,
+            sxml_schema_get_model_group(walk->components,
+                                        (sxml_schema_model_group_index){.value = particle->term})
+                ->particles);
+        for (size_t particle_index = 0; particle_index < particles.index_count &&
+                                        walk->visit_count < walk->visit_capacity;
+             particle_index += 1) {
+            walk->visits[walk->visit_count] = (content_visit){
+                .particle = {.value = particles.indexes[particle_index]},
+                .occurrences = occurrences};
+            walk->visit_count += 1;
+        }
+    }
+}
+
+sxml_status sxml_schema_scope_describe_content(const sxml_schema_scope_content_request *request,
+                                               sxml_schema_scope_content *content) {
+    *content = (sxml_schema_scope_content){.is_found = false};
+    const registered_complex_type found =
+        find_registered_complex_type(request->schemas, request->type);
+    if (found.definition == NULL) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_schema_type_definition *definition = found.definition;
+    content->is_found = true;
+    content->has_attributes =
+        definition->attribute_uses.entry_count > 0 || definition->attribute_wildcard.value != 0;
+    if (definition->content_type_variety != SXML_CONTENT_TYPE_VARIETY_ELEMENT_ONLY) {
+        return SXML_STATUS_OK;
+    }
+    content->has_wildcards = definition->open_content_wildcard.value != 0;
+    content_walk walk = {
+        .components = found.components,
+        .visit_capacity = found.components->tables[SXML_SCHEMA_TABLE_PARTICLE].entry_count + 1,
+        .name_capacity =
+            found.components->tables[SXML_SCHEMA_TABLE_ELEMENT_DECLARATION].entry_count + 1};
+    void *visit_memory = NULL;
+    void *name_memory = NULL;
+    sxml_status status = sxml_allocator_allocate_array(
+        request->allocator,
+        (sxml_array_allocation_request){.element_count = walk.visit_capacity,
+                                        .element_size = sizeof(content_visit),
+                                        .element_alignment = alignof(content_visit)},
+        &visit_memory);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_allocator_allocate_array(
+            request->allocator,
+            (sxml_array_allocation_request){.element_count = walk.name_capacity,
+                                            .element_size = sizeof(content_name),
+                                            .element_alignment = alignof(content_name)},
+            &name_memory);
+    }
+    walk.visits = visit_memory;
+    walk.names = name_memory;
+    if (status == SXML_STATUS_OK && definition->particle.value != 0) {
+        walk.visits[0] = (content_visit){.particle = definition->particle, .occurrences = 1};
+        walk.visit_count = 1;
+    }
+    while (status == SXML_STATUS_OK && walk.visit_count > 0) {
+        walk.visit_count -= 1;
+        visit_particle(&walk, walk.visits[walk.visit_count], content);
+    }
+    if (status == SXML_STATUS_OK) {
+        content->child_name_count = walk.name_count;
+        content->has_names_at_most_once = true;
+        for (size_t name_index = 0; name_index < walk.name_count; name_index += 1) {
+            if (walk.names[name_index].occurrences > 1) {
+                content->has_repeated_name = true;
+                content->has_names_at_most_once = false;
+            }
+        }
+        if (walk.name_count == 1) {
+            content->child_name = walk.names[0].name;
+        }
+    }
+    sxml_allocator_release(request->allocator, visit_memory);
+    sxml_allocator_release(request->allocator, name_memory);
+    return status;
 }
 
 /* The one parameter of every constructor function: xs:T($value as

@@ -28,6 +28,7 @@
 #include "evaluator_machine_internal.h"
 #include "function_library_core_internal.h"
 #include "ir_internal.h"
+#include "schema_scope_internal.h"
 #include "sxml/serialize.h"
 #include "sxml/string.h"
 #include "sxml/tree.h"
@@ -1348,6 +1349,12 @@ typedef struct element_slot {
     bool is_converted;
     bool has_value;
     bool has_child_name;
+    /* The layout is the schema's (F&O 4.0, 14.6.6): the content is the
+       typed value (14.6.9), an array for a list type (is_list). */
+    bool is_typed;
+    bool is_list;
+    /* The element has the nilled property (xsi:nil="true"). */
+    bool is_nilled;
 } element_slot;
 
 /* One call of fn:element-to-map at work. */
@@ -1531,6 +1538,338 @@ static element_map_layout element_map_infer_layout(const element_map_shape *shap
                                            : SXML_ELEMENT_MAP_LAYOUT_SEQUENCE;
 }
 
+/* ------------------------------------------- Schema-based conversion */
+
+/* True for an annotation that schema validation gave (not xs:untyped,
+   xs:anyType or xs:untypedAtomic): 14.6.6 and 14.6.9 apply. */
+static bool element_map_is_typed(sxml_type_identifier annotation) {
+    return annotation.index != SXML_TYPE_NONE && annotation.index != SXML_TYPE_XS_UNTYPED &&
+           annotation.index != SXML_TYPE_XS_ANY_TYPE &&
+           annotation.index != SXML_TYPE_XS_UNTYPED_ATOMIC;
+}
+
+/* The in-scope schemas of the call's static context. */
+static sxml_schema_view element_map_in_scope_schemas(const element_map_context *context) {
+    const sxml_ir_static_context *static_context =
+        context->call->dynamic_context == NULL
+            ? NULL
+            : sxml_dynamic_context_get_static_context(context->call->dynamic_context);
+    return static_context == NULL ? (sxml_schema_view){.schemas = NULL, .schema_count = 0}
+                                  : static_context->in_scope_schemas;
+}
+
+/* zeroLength(ST) (F&O 4.0, 14.6.6): a length or maxLength facet of 0, a
+   pattern "", or enumerations that are all zero-length, in a restriction
+   step of ST or of a type it is derived from. */
+static bool element_map_is_zero_length(const sxml_type_registry *registry,
+                                       sxml_type_identifier simple_type) {
+    sxml_type_identifier type = simple_type;
+    while (type.index != SXML_TYPE_NONE) {
+        sxml_type_description description;
+        if (sxml_type_registry_describe_type(registry, type, &description) != SXML_STATUS_OK) {
+            return false;
+        }
+        size_t enumeration_count = 0;
+        size_t empty_enumeration_count = 0;
+        for (size_t facet_index = 0; facet_index < description.facets.facet_count;
+             facet_index += 1) {
+            const sxml_facet *facet = &description.facets.facets[facet_index];
+            if ((facet->facet_kind == SXML_FACET_KIND_LENGTH ||
+                 facet->facet_kind == SXML_FACET_KIND_MAX_LENGTH) &&
+                sxml_byte_view_equals(facet->value, SXML_BYTE_VIEW_FROM_LITERAL("0"))) {
+                return true;
+            }
+            if (facet->facet_kind == SXML_FACET_KIND_PATTERN && facet->value.byte_count == 0) {
+                return true;
+            }
+            if (facet->facet_kind == SXML_FACET_KIND_ENUMERATION) {
+                enumeration_count += 1;
+                empty_enumeration_count += facet->value.byte_count == 0 ? 1U : 0U;
+            }
+        }
+        if (enumeration_count > 0 && enumeration_count == empty_enumeration_count) {
+            return true;
+        }
+        /* Built-in types have no facets here (D165). */
+        if (description.is_builtin) {
+            return false;
+        }
+        type = description.base_type;
+    }
+    return false;
+}
+
+/* The type 14.6.6 selects for content of a simple type: boolean,
+   integer, decimal or double by derivation, string otherwise. */
+static element_map_content_type element_map_schema_content_type(const sxml_type_registry *registry,
+                                                                sxml_type_identifier simple_type) {
+    static const struct {
+        sxml_builtin_type base_type;
+        element_map_content_type content_type;
+    } rules[] = {
+        {SXML_TYPE_XS_BOOLEAN, SXML_ELEMENT_MAP_CONTENT_TYPE_BOOLEAN},
+        {SXML_TYPE_XS_INTEGER, SXML_ELEMENT_MAP_CONTENT_TYPE_INTEGER},
+        {SXML_TYPE_XS_DECIMAL, SXML_ELEMENT_MAP_CONTENT_TYPE_DECIMAL},
+        {SXML_TYPE_XS_FLOAT, SXML_ELEMENT_MAP_CONTENT_TYPE_DOUBLE},
+        {SXML_TYPE_XS_DOUBLE, SXML_ELEMENT_MAP_CONTENT_TYPE_DOUBLE},
+    };
+    for (size_t rule_index = 0; rule_index < sizeof(rules) / sizeof(rules[0]); rule_index += 1) {
+        if (sxml_type_registry_is_derived_from(
+                registry, (sxml_type_pair){.derived_type = simple_type,
+                                           .base_type = sxml_builtin_type_identifier(
+                                               rules[rule_index].base_type)})) {
+            return rules[rule_index].content_type;
+        }
+    }
+    return SXML_ELEMENT_MAP_CONTENT_TYPE_STRING;
+}
+
+/* True for a simple type of {variety} list. */
+static bool element_map_is_list_type(const sxml_type_registry *registry,
+                                     sxml_type_identifier simple_type) {
+    sxml_type_description description;
+    return sxml_type_registry_describe_type(registry, simple_type, &description) ==
+               SXML_STATUS_OK &&
+           description.variety == SXML_TYPE_VARIETY_LIST;
+}
+
+/* The layout of an element by its complex type's {content type} (F&O
+   4.0, 14.6.6); *simple_type becomes the simple content type. */
+typedef struct element_map_complex_layout {
+    const sxml_type_description *description;
+    const sxml_schema_scope_content *content;
+    const sxml_type_registry *registry;
+} element_map_complex_layout;
+
+static element_map_layout element_map_layout_of_complex_type(element_map_complex_layout request,
+                                                             element_slot *slot,
+                                                             sxml_type_identifier *simple_type) {
+    const bool has_attributes = request.content->has_attributes;
+    const sxml_schema_scope_content *content = request.content;
+    switch (request.description->variety_details.complex_type.content_type_variety) {
+    case SXML_CONTENT_TYPE_VARIETY_EMPTY:
+        return has_attributes ? SXML_ELEMENT_MAP_LAYOUT_EMPTY_PLUS : SXML_ELEMENT_MAP_LAYOUT_EMPTY;
+    case SXML_CONTENT_TYPE_VARIETY_SIMPLE:
+        *simple_type = request.description->variety_details.complex_type.simple_content_type;
+        if (element_map_is_zero_length(request.registry, *simple_type)) {
+            return has_attributes ? SXML_ELEMENT_MAP_LAYOUT_EMPTY_PLUS
+                                  : SXML_ELEMENT_MAP_LAYOUT_EMPTY;
+        }
+        return has_attributes ? SXML_ELEMENT_MAP_LAYOUT_SIMPLE_PLUS : SXML_ELEMENT_MAP_LAYOUT_SIMPLE;
+    case SXML_CONTENT_TYPE_VARIETY_ELEMENT_ONLY:
+        if (!content->has_wildcards && content->child_name_count == 1 &&
+            content->has_repeated_name) {
+            slot->has_child_name = true;
+            slot->child_name = content->child_name;
+            return has_attributes ? SXML_ELEMENT_MAP_LAYOUT_LIST_PLUS : SXML_ELEMENT_MAP_LAYOUT_LIST;
+        }
+        return !content->has_wildcards && content->has_names_at_most_once
+                   ? SXML_ELEMENT_MAP_LAYOUT_RECORD
+                   : SXML_ELEMENT_MAP_LAYOUT_SEQUENCE;
+    case SXML_CONTENT_TYPE_VARIETY_MIXED:
+        break;
+    }
+    return SXML_ELEMENT_MAP_LAYOUT_MIXED;
+}
+
+/* Chooses the layout of a typed element without a plan entry as F&O
+   4.0, 14.6.6 does and sets slot->is_typed; leaves the slot as it is
+   when the in-scope schemas do not define the element's complex type
+   (the instance decides then, 14.6.2). */
+static sxml_status element_map_select_schema_layout(element_map_conversion *conversion,
+                                                    element_map_shape_request request,
+                                                    element_slot *slot) {
+    const element_map_context *context = conversion->context;
+    const sxml_type_identifier annotation = request.description->type_annotation;
+    const sxml_type_registry *registry = sxml_item_heap_get_type_registry(context->item_heap);
+    sxml_type_description description;
+    sxml_status status = sxml_type_registry_describe_type(registry, annotation, &description);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_type_identifier simple_type = {.index = SXML_TYPE_NONE};
+    element_map_layout layout = SXML_ELEMENT_MAP_LAYOUT_NONE;
+    if (description.variety == SXML_TYPE_VARIETY_COMPLEX) {
+        sxml_schema_scope_content content;
+        status = sxml_schema_scope_describe_content(
+            &(sxml_schema_scope_content_request){.schemas = element_map_in_scope_schemas(context),
+                                                 .type = annotation,
+                                                 .allocator = context->allocator},
+            &content);
+        if (status != SXML_STATUS_OK || !content.is_found) {
+            return status;
+        }
+        layout = element_map_layout_of_complex_type(
+            (element_map_complex_layout){
+                .description = &description, .content = &content, .registry = registry},
+            slot, &simple_type);
+    } else if (description.variety == SXML_TYPE_VARIETY_ATOMIC ||
+               description.variety == SXML_TYPE_VARIETY_LIST ||
+               description.variety == SXML_TYPE_VARIETY_UNION ||
+               description.variety == SXML_TYPE_VARIETY_ANY_SIMPLE) {
+        simple_type = annotation;
+        layout = element_map_is_zero_length(registry, simple_type) ? SXML_ELEMENT_MAP_LAYOUT_EMPTY
+                                                                   : SXML_ELEMENT_MAP_LAYOUT_SIMPLE;
+    } else {
+        return SXML_STATUS_OK;
+    }
+    slot->layout = layout;
+    slot->is_typed = true;
+    slot->content_type = SXML_ELEMENT_MAP_CONTENT_TYPE_STRING;
+    if (simple_type.index != SXML_TYPE_NONE) {
+        slot->content_type = element_map_schema_content_type(registry, simple_type);
+        slot->is_list = element_map_is_list_type(registry, simple_type);
+    }
+    return SXML_STATUS_OK;
+}
+
+/* The nilled marker #fn:null (F&O 4.0, 14.6.1), an xs:QName. */
+static sxml_status element_map_make_null(const element_map_context *context,
+                                         sxml_sequence *value) {
+    sxml_name_identifier name = {.index = 0};
+    sxml_namespace_prefix_identifier prefix = {.index = 0};
+    sxml_status status = sxml_name_pool_intern_name(
+        context->name_pool,
+        &(sxml_name_request){
+            .namespace_uri = {.index = SXML_NAMESPACE_FUNCTIONS},
+            .local_name = SXML_BYTE_VIEW_FROM_LITERAL("null")},
+        &name);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_name_pool_intern_namespace_prefix(context->name_pool,
+                                              SXML_BYTE_VIEW_FROM_LITERAL("fn"), &prefix);
+    }
+    sxml_item item = {.representation = 0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_atomic_item_make(
+            context->item_heap,
+            &(sxml_atomic_item_request){
+                .type = sxml_builtin_type_identifier(SXML_TYPE_XS_QNAME),
+                .datum = {.datum_kind = SXML_DATUM_KIND_QNAME,
+                          .datum_details = {.qname = {.expanded_name = name,
+                                                      .namespace_prefix = prefix}}}},
+            &item);
+    }
+    if (status == SXML_STATUS_OK) {
+        *value = sxml_sequence_from_item(item);
+    }
+    return status;
+}
+
+/* Content of a schema-validated node (F&O 4.0, 14.6.9). */
+typedef struct element_map_typed_request {
+    sxml_node_reference node;
+    element_map_content_type content_type;
+    bool is_list;
+    bool is_nilled;
+} element_map_typed_request;
+
+/* AV cast to a prescribed type other than string; AV itself when it is
+   empty or whitespace, or, liberal, when the cast fails. */
+static sxml_status element_map_cast_typed_value(const element_map_context *context,
+                                                element_map_content_type content_type,
+                                                sxml_sequence *value) {
+    static const sxml_builtin_type target_types[] = {
+        SXML_TYPE_XS_UNTYPED_ATOMIC, SXML_TYPE_XS_INTEGER, SXML_TYPE_XS_DECIMAL,
+        SXML_TYPE_XS_DOUBLE,         SXML_TYPE_XS_BOOLEAN, SXML_TYPE_XS_UNTYPED_ATOMIC,
+    };
+    sxml_item item = {.representation = 0};
+    if (content_type == SXML_ELEMENT_MAP_CONTENT_TYPE_STRING ||
+        content_type == SXML_ELEMENT_MAP_CONTENT_TYPE_SKIP ||
+        !element_map_single_item(*value, &item)) {
+        return SXML_STATUS_OK;
+    }
+    sxml_byte_view text = {.bytes = NULL, .byte_count = 0};
+    if (element_map_item_text(item, &text) && element_map_is_whitespace(text)) {
+        return SXML_STATUS_OK;
+    }
+    sxml_sequence cast = sxml_sequence_empty();
+    const sxml_status status = sxml_cast_make_value(
+        context->item_heap,
+        &(sxml_cast_request){
+            .value = *value,
+            .target_type = sxml_builtin_type_identifier(target_types[content_type]),
+            .allows_empty = true,
+            .namespace_bindings = {NULL, 0},
+            .error_record = NULL},
+        &cast);
+    if (status == SXML_STATUS_OK) {
+        sxml_sequence_release(*value);
+        *value = cast;
+        return SXML_STATUS_OK;
+    }
+    if (status != SXML_STATUS_DYNAMIC_ERROR && status != SXML_STATUS_TYPE_ERROR) {
+        return status;
+    }
+    return context->is_liberal ? SXML_STATUS_OK : element_map_report(context, &element_map_cast_error);
+}
+
+/* #fn:null for a nilled element; else AV, the typed value (the string
+   value as xs:untypedAtomic where it has none), as array{AV} for a list
+   type, else cast as element_map_cast_typed_value says. */
+static sxml_status element_map_make_typed_content(const element_map_context *context,
+                                                  element_map_typed_request request,
+                                                  sxml_sequence *value) {
+    if (request.is_nilled) {
+        return element_map_make_null(context, value);
+    }
+    sxml_sequence typed = sxml_sequence_empty();
+    sxml_status status = sxml_node_make_typed_value(
+        context->item_heap, &(sxml_node_value_request){.node = request.node, .error_record = NULL},
+        &typed);
+    if (status == SXML_STATUS_TYPE_ERROR) {
+        /* Element-only content: the string value (14.6.9). */
+        sxml_item item = {.representation = 0};
+        status = sxml_node_make_string_value(context->item_heap, request.node, &item);
+        typed = status == SXML_STATUS_OK ? sxml_sequence_from_item(item) : sxml_sequence_empty();
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (!request.is_list) {
+        status = element_map_cast_typed_value(context, request.content_type, &typed);
+        if (status == SXML_STATUS_OK) {
+            *value = typed;
+        } else {
+            sxml_sequence_release(typed);
+        }
+        return status;
+    }
+    /* array{AV}: every atomic item a member. */
+    uint64_t item_count = 0;
+    status = sxml_sequence_count(typed, NULL, &item_count);
+    element_map_buffer members = {NULL, 0, 0};
+    for (uint64_t item_index = 0; status == SXML_STATUS_OK && item_index < item_count;
+         item_index += 1) {
+        sxml_item item = {.representation = 0};
+        status = sxml_sequence_get_item(typed, (sxml_item_request){.item_index = item_index}, &item);
+        if (status == SXML_STATUS_OK) {
+            status = element_map_buffer_reserve(context, &members, sizeof(sxml_sequence));
+        }
+        if (status == SXML_STATUS_OK) {
+            sxml_item_retain(item);
+            ((sxml_sequence *)members.elements)[members.element_count] =
+                sxml_sequence_from_item(item);
+            members.element_count += 1;
+        }
+    }
+    sxml_item array = {.representation = 0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_array_make(context->item_heap,
+                                 (sxml_sequence_view){.sequences = members.elements,
+                                                      .sequence_count = members.element_count},
+                                 &array);
+    }
+    for (size_t member_index = 0; member_index < members.element_count; member_index += 1) {
+        sxml_sequence_release(((sxml_sequence *)members.elements)[member_index]);
+    }
+    element_map_buffer_release(context, &members);
+    sxml_sequence_release(typed);
+    if (status == SXML_STATUS_OK) {
+        *value = sxml_sequence_from_item(array);
+    }
+    return status;
+}
+
 /* The string value of an element: the item (owned by the caller) and
    its text. */
 typedef struct element_map_string_value_result {
@@ -1582,6 +1921,14 @@ static sxml_status element_map_select_layout(element_map_conversion *conversion,
         return status;
     }
     slot->is_converted = true;
+    slot->is_nilled = request.description->is_nilled;
+    if (entry == NULL && element_map_is_typed(request.description->type_annotation)) {
+        /* 14.6.7: no plan entry, a schema-determined layout (14.6.6). */
+        status = element_map_select_schema_layout(conversion, request, slot);
+        if (status != SXML_STATUS_OK || slot->is_typed) {
+            return status;
+        }
+    }
     if (entry != NULL && (entry->layout == SXML_ELEMENT_MAP_LAYOUT_DEEP_SKIP ||
                           entry->layout == SXML_ELEMENT_MAP_LAYOUT_ERROR ||
                           element_map_layout_fits((element_map_fit){entry->layout, entry},
@@ -1894,8 +2241,14 @@ static sxml_status element_map_collect_attributes(const element_map_context *con
         status = element_map_find_plan_entry(
             context, (element_map_name_query){.name = description.node_name, .is_attribute = true},
             &entry);
+        const bool is_typed = element_map_is_typed(description.type_annotation);
+        const sxml_type_registry *registry = sxml_item_heap_get_type_registry(context->item_heap);
+        /* 14.6.6: a typed attribute without a plan entry has the type its
+           simple type selects. */
         const element_map_content_type content_type =
-            entry == NULL ? SXML_ELEMENT_MAP_CONTENT_TYPE_STRING : entry->content_type;
+            entry != NULL ? entry->content_type
+            : is_typed    ? element_map_schema_content_type(registry, description.type_annotation)
+                          : SXML_ELEMENT_MAP_CONTENT_TYPE_STRING;
         if (status != SXML_STATUS_OK || content_type == SXML_ELEMENT_MAP_CONTENT_TYPE_SKIP) {
             continue;
         }
@@ -1903,7 +2256,16 @@ static sxml_status element_map_collect_attributes(const element_map_context *con
         status = sxml_node_get_content(attribute, &text);
         element_map_entry_addition addition = {.key = {.representation = 0},
                                                .value = sxml_sequence_empty()};
-        if (status == SXML_STATUS_OK) {
+        if (status == SXML_STATUS_OK && is_typed) {
+            status = element_map_make_typed_content(
+                context,
+                (element_map_typed_request){
+                    .node = attribute,
+                    .content_type = content_type,
+                    .is_list = element_map_is_list_type(registry, description.type_annotation),
+                    .is_nilled = false},
+                &addition.value);
+        } else if (status == SXML_STATUS_OK) {
             status = element_map_make_content(
                 context,
                 (element_map_content_request){.text = text, .content_type = content_type},
@@ -2050,6 +2412,75 @@ static sxml_status element_map_make_member_array(const element_map_context *cont
     return status;
 }
 
+/* The content of the simple and simple-plus layouts: the typed content
+   of a typed element (14.6.9), else the string value with the slot's
+   content type. */
+static sxml_status element_map_make_simple_content(const element_map_context *context,
+                                                   element_map_element target,
+                                                   sxml_sequence *value) {
+    if (target.slot->is_typed) {
+        return element_map_make_typed_content(
+            context,
+            (element_map_typed_request){.node = target.element,
+                                        .content_type = target.slot->content_type,
+                                        .is_list = target.slot->is_list,
+                                        .is_nilled = target.slot->is_nilled},
+            value);
+    }
+    element_map_string_value_result string_value = {.item = {.representation = 0},
+                                                    .text = {NULL, 0}};
+    sxml_status status = element_map_string_value(context, target.element, &string_value);
+    if (status == SXML_STATUS_OK) {
+        status = element_map_make_content(
+            context,
+            (element_map_content_request){.text = string_value.text,
+                                          .content_type = target.slot->content_type},
+            value);
+    }
+    sxml_item_release(string_value.item);
+    return status;
+}
+
+/* The content entry of a nilled typed element (the "Mapping for nilled
+   elements" rows of F&O 4.0, 14.6.1): "#content": #fn:null after the
+   attributes of empty-plus and list-plus and as the last member of
+   sequence and mixed; "#content": () for record. */
+typedef struct element_map_nilled_request {
+    element_map_layout layout;
+    element_map_entry_list *attributes;
+    element_map_buffer *parts;
+} element_map_nilled_request;
+
+static sxml_status element_map_add_nilled_content(const element_map_context *context,
+                                                  element_map_nilled_request request) {
+    element_map_entry_addition addition = {.key = {.representation = 0},
+                                           .value = sxml_sequence_empty()};
+    sxml_status status = element_map_make_content_key(context, request.attributes, &addition.key);
+    if (status == SXML_STATUS_OK && request.layout != SXML_ELEMENT_MAP_LAYOUT_RECORD) {
+        status = element_map_make_null(context, &addition.value);
+    }
+    if (status != SXML_STATUS_OK) {
+        sxml_item_release(addition.key);
+        return status;
+    }
+    if (request.layout != SXML_ELEMENT_MAP_LAYOUT_SEQUENCE &&
+        request.layout != SXML_ELEMENT_MAP_LAYOUT_MIXED) {
+        return element_map_entry_list_add(context, request.attributes, addition);
+    }
+    status = element_map_buffer_reserve(context, request.parts, sizeof(element_map_part));
+    if (status != SXML_STATUS_OK) {
+        sxml_item_release(addition.key);
+        sxml_sequence_release(addition.value);
+        return status;
+    }
+    ((element_map_part *)request.parts->elements)[request.parts->element_count] =
+        (element_map_part){.part_kind = SXML_ELEMENT_MAP_PART_KIND_ELEMENT,
+                           .key = addition.key,
+                           .value = addition.value};
+    request.parts->element_count += 1;
+    return SXML_STATUS_OK;
+}
+
 /* Gives an element of a layout with attributes or children its value
    (F&O 4.0, sections 14.6.1.2 and 14.6.1.4 to 14.6.1.9). */
 static sxml_status element_map_build_structure(element_map_conversion *conversion,
@@ -2100,17 +2531,7 @@ static sxml_status element_map_build_structure(element_map_conversion *conversio
     } else if (layout == SXML_ELEMENT_MAP_LAYOUT_SIMPLE_PLUS) {
         element_map_entry_addition addition = {.key = {.representation = 0},
                                                .value = sxml_sequence_empty()};
-        element_map_string_value_result string_value = {.item = {.representation = 0}, .text = {NULL, 0}};
-        status = element_map_string_value(context, target.element, &string_value);
-        const sxml_byte_view text = string_value.text;
-        if (status == SXML_STATUS_OK) {
-            status = element_map_make_content(
-                context,
-                (element_map_content_request){.text = text,
-                                              .content_type = target.slot->content_type},
-                &addition.value);
-        }
-        sxml_item_release(string_value.item);
+        status = element_map_make_simple_content(context, target, &addition.value);
         if (status == SXML_STATUS_OK) {
             status = element_map_make_content_key(context, &attributes, &addition.key);
         }
@@ -2149,6 +2570,12 @@ static sxml_status element_map_build_structure(element_map_conversion *conversio
                         element_map_namespace_of(context, target.description->node_name)},
                 &addition.key);
         }
+        if (target.slot->is_typed && target.slot->is_nilled) {
+            /* 14.6.1.6: the array entry becomes "#content": #fn:null,
+               which element_map_add_nilled_content adds. */
+            sxml_item_release(addition.key);
+            addition.key = (sxml_item){.representation = 0};
+        }
         if (status == SXML_STATUS_OK && addition.key.representation != 0) {
             status = element_map_make_member_array(
                 context,
@@ -2161,6 +2588,13 @@ static sxml_status element_map_build_structure(element_map_conversion *conversio
                 sxml_item_release(addition.key);
             }
         }
+    }
+    if (status == SXML_STATUS_OK && target.slot->is_typed && target.slot->is_nilled &&
+        layout != SXML_ELEMENT_MAP_LAYOUT_SIMPLE_PLUS && layout != SXML_ELEMENT_MAP_LAYOUT_LIST) {
+        status = element_map_add_nilled_content(
+            context,
+            (element_map_nilled_request){.layout = layout, .attributes = &attributes,
+                                         .parts = &parts});
     }
     if (status == SXML_STATUS_OK) {
         if (layout == SXML_ELEMENT_MAP_LAYOUT_LIST || layout == SXML_ELEMENT_MAP_LAYOUT_SEQUENCE ||
@@ -2199,20 +2633,9 @@ static sxml_status element_map_build_value(element_map_conversion *conversion,
         value = sxml_sequence_from_item(item);
         break;
     }
-    case SXML_ELEMENT_MAP_LAYOUT_SIMPLE: {
-        element_map_string_value_result string_value = {.item = {.representation = 0}, .text = {NULL, 0}};
-        status = element_map_string_value(context, target.element, &string_value);
-        const sxml_byte_view text = string_value.text;
-        if (status == SXML_STATUS_OK) {
-            status = element_map_make_content(
-                context,
-                (element_map_content_request){.text = text,
-                                              .content_type = target.slot->content_type},
-                &value);
-        }
-        sxml_item_release(string_value.item);
+    case SXML_ELEMENT_MAP_LAYOUT_SIMPLE:
+        status = element_map_make_simple_content(context, target, &value);
         break;
-    }
     case SXML_ELEMENT_MAP_LAYOUT_XML:
         status = element_map_serialize(context, target.element, &value);
         break;
