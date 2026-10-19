@@ -19,7 +19,8 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 
 ## Running
 
-- 7.4 XSLT backwards compatibility and XPath 1.0 mode.
+- 7.4b XSLT 1.0 follow-ups: exsl:node-set, docbook-002, TVTs in 1.0 elements, result-document xhtml.
+- 7.6a XSLT streamability analysis.
 - 7.11 fn:transform (after 7.3).
 - 7.9 EXPath File (7.8 Binary done, D198: bin-* 646 of 646).
 - 7.7b/7.7c XQuery Update 4.0 additions, fn:put, revalidation (after 7.7a, D187: upd-* 733 of 825).
@@ -27,9 +28,8 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 
 ## Next
 
-- Phase 7 (`docs/tasks/phase-7.md`, D183, D184): 7.6a streaming analysis
-  after 7.4;
-  then Full Text, UCA, timezones, calendars and languages, iXML.
+- Phase 7 (`docs/tasks/phase-7.md`, D183, D184): 7.6b streamed
+  evaluation after 7.6a; 7.10b HTML follow-ups; Full Text, UCA, timezones, calendars and languages, iXML.
 - JavaScript bindings for XQuery, XSLT and validation (they cover XPath only).
 - `sxml` CLI gaps: `--output`, writing result documents, `--method=csv`,
   "did you mean" for options of a command.
@@ -66,6 +66,11 @@ XSLT (after 4.19, D185; XT40 8,973):
 - Schema-aware leftovers (D179): XTSE3105, typed modes reading name tests
   as `schema-element()`, ID/IDREF skipping for elements, `xs:untypedAtomic`
   as a type attribute, `xsl:copy` with preserve, schema roles, XTSE0265.
+
+XSLT backwards compatibility (7.4, D197): backwards_compatibility 111 of
+124; QT4 xpath-1.0-compatibility 1 of 5. 14 cases expect fn:number-style
+conversion for xs:numeric parameters, which XPath 4.0 §3.4.1 restricts to
+xs:double (owner to confirm).
 
 xsl:evaluate (7.3, D196: 73 of 83, gate 90 %): 3 need parse-html (7.10),
 2 need json-doc/unparsed-text-available trust checks, 1 a UCA strength
