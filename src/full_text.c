@@ -28,6 +28,7 @@
 #include "sxml/xquery.h"
 #include "xdm_internal.h"
 
+#include <math.h>
 #include <stdalign.h>
 #include <string.h>
 
@@ -278,15 +279,38 @@ static sxml_status make_item_text(item_request request, item_text *text,
 
 /* --------------------------------------------------------- contains */
 
+/* What one search context item gives: whether it matches, and its score. */
+typedef struct match_outcome {
+    bool is_match;
+    double score;
+} match_outcome;
+
 /* Whether one search context item matches. */
 typedef struct item_match {
     item_request item;
     sxml_item program;
 } item_match;
 
-static sxml_status match_item(item_match match, item_outcome *is_match) {
+/*
+ * The score of an item (2.3: implementation-dependent, within [0, 1];
+ * glossary `full_text_score`): w / (w + 1 + log2(1 + n)), where w is the
+ * weight of its matches without StringExcludes (each 1, times the weights
+ * of the selections it passed, averaged over the operands of ftand: a
+ * term frequency) and n its token count, so more and heavier matches
+ * score higher and longer texts lower, as BM25 saturates and normalizes
+ * term frequency; there is no document frequency in one evaluation. 0
+ * without a match.
+ */
+static double item_score(double weight, size_t token_count) {
+    if (!(weight > 0.0)) {
+        return 0.0;
+    }
+    return weight / (weight + 1.0 + log2(1.0 + (double)token_count));
+}
+
+static sxml_status match_item(item_match match, match_outcome *outcome) {
     const item_request request = match.item;
-    is_match->is_true = false;
+    *outcome = (match_outcome){.is_match = false, .score = 0.0};
     const sxml_allocator allocator = sxml_item_heap_as_allocator(request.call->item_heap);
     item_text text = {.allocator = allocator, .text = {.item_heap = request.call->item_heap}};
     item_outcome is_ignored_item = {.is_true = false};
@@ -300,7 +324,7 @@ static sxml_status match_item(item_match match, item_outcome *is_match) {
                                      .keeps_wildcards = false},
             &tokens);
     }
-    sxml_full_text_run_outcome outcome = {.is_match = false};
+    sxml_full_text_run_outcome run_outcome = {.is_match = false, .weight = 0.0};
     if (status == SXML_STATUS_OK && !is_ignored_item.is_true) {
         status = sxml_full_text_run(
             &(sxml_full_text_run_request){
@@ -309,15 +333,27 @@ static sxml_status match_item(item_match match, item_outcome *is_match) {
                 .search = {.text = sxml_function_library_text_view(&text.text),
                            .tokens = tokens.tokens,
                            .token_count = tokens.token_count}},
-            &outcome);
+            &run_outcome);
     }
-    is_match->is_true = outcome.is_match;
+    outcome->is_match = run_outcome.is_match;
+    outcome->score = run_outcome.is_match ? item_score(run_outcome.weight, tokens.token_count)
+                                          : 0.0;
     sxml_full_text_token_list_release(&tokens);
     release_item_text(&text);
     return status;
 }
 
-static sxml_status contains(const sxml_function_call *call, sxml_sequence *result) {
+/* fts:FTContainsExpr over every search context item (4.3): whether one
+   matches (the first stops the search when only that is wanted), and the
+   highest score of one. */
+typedef struct contains_request {
+    const sxml_function_call *call;
+    bool is_scored;
+} contains_request;
+
+static sxml_status evaluate_contains(contains_request request, match_outcome *outcome) {
+    const sxml_function_call *call = request.call;
+    *outcome = (match_outcome){.is_match = false, .score = 0.0};
     const sxml_sequence search = sxml_function_library_get_argument(call, 0);
     sxml_optional_item program;
     sxml_status status = sxml_function_library_read_optional_item(call, 1, &program);
@@ -329,28 +365,52 @@ static sxml_status contains(const sxml_function_call *call, sxml_sequence *resul
     if (status == SXML_STATUS_OK) {
         status = read_ignored(call, allocator, &ignored);
     }
-    item_outcome is_match = {.is_true = false};
-    for (uint64_t item_index = 0; status == SXML_STATUS_OK && !is_match.is_true;
+    for (uint64_t item_index = 0;
+         status == SXML_STATUS_OK && (request.is_scored || !outcome->is_match);
          item_index += 1) {
         sxml_item item;
         status = sxml_sequence_get_item(
-            search, (sxml_item_request){.item_index = item_index, .error_record = call->error_record},
+            search,
+            (sxml_item_request){.item_index = item_index, .error_record = call->error_record},
             &item);
         if (status == SXML_STATUS_INDEX_OUT_OF_RANGE) {
             status = SXML_STATUS_OK;
             break;
         }
+        match_outcome item_found = {.is_match = false, .score = 0.0};
         if (status == SXML_STATUS_OK) {
             status = match_item(
                 (item_match){.item = {.call = call, .item = item, .ignored = &ignored},
                              .program = program.item},
-                &is_match);
+                &item_found);
+        }
+        outcome->is_match = outcome->is_match || item_found.is_match;
+        if (item_found.score > outcome->score) {
+            outcome->score = item_found.score;
         }
     }
     sxml_allocator_release(allocator, ignored.nodes);
+    return status;
+}
+
+static sxml_status contains(const sxml_function_call *call, sxml_sequence *result) {
+    match_outcome outcome;
+    const sxml_status status =
+        evaluate_contains((contains_request){.call = call, .is_scored = false}, &outcome);
     if (status == SXML_STATUS_OK) {
         *result = sxml_function_library_make_boolean(
-            (sxml_boolean_result){.is_true = is_match.is_true});
+            (sxml_boolean_result){.is_true = outcome.is_match});
+    }
+    return status;
+}
+
+/* The score of "E contains text S" (2.3): the highest of its items. */
+static sxml_status score_contains(const sxml_function_call *call, sxml_sequence *result) {
+    match_outcome outcome;
+    const sxml_status status =
+        evaluate_contains((contains_request){.call = call, .is_scored = true}, &outcome);
+    if (status == SXML_STATUS_OK) {
+        *result = sxml_sequence_from_item(sxml_atomic_item_from_double(outcome.score));
     }
     return status;
 }
@@ -359,6 +419,7 @@ static sxml_status contains(const sxml_function_call *call, sxml_sequence *resul
 
 static const sxml_full_text_operations full_text_operations = {
     .contains = contains,
+    .score_contains = score_contains,
     .check_rules = sxml_full_text_check_rules,
     .lower_step = sxml_full_text_lower_step,
 };

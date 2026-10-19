@@ -472,6 +472,8 @@ typedef struct clause_locals {
     sxml_ir_expression_index rest;
     /* A trace clause's value. */
     sxml_ir_expression_index traced;
+    /* A for binding's score (Full Text 3.0, 2.3.1). */
+    sxml_ir_atom score;
 } clause_locals;
 
 enum {
@@ -484,6 +486,7 @@ enum {
     SXML_XQUERY_CLAUSE_STEP_WHERE_END = 6,
     SXML_XQUERY_CLAUSE_STEP_TRACE_BODY = 7,
     SXML_XQUERY_CLAUSE_STEP_FINISH = 8,
+    SXML_XQUERY_CLAUSE_STEP_FOR_SCORE = 9,
 };
 
 static sxml_status continue_flwor(sxml_xpath_lowering_machine *machine,
@@ -930,23 +933,43 @@ static sxml_status push_position_variable(sxml_xpath_lowerer *state,
     return push_scope_variable(state, position_name, sxml_ir_slot_atom(locals->position_slot));
 }
 
-/* "score $s" of a for binding (Full Text 3.0, 2.3.1): every item's score
-   is 1, as relevant as any other (scores are implementation-dependent
-   within [0, 1]; D214). */
-static sxml_status push_score_variable(sxml_xpath_lowerer *state, sxml_ast_node_index score) {
+/* "score $s" of a for binding (Full Text 3.0, 2.3.1), its score lowered
+   (src/xquery_lower_full_text.c; D214). */
+static sxml_status push_score_variable(sxml_xpath_lowerer *state, sxml_ast_node_index score,
+                                       sxml_ir_atom value) {
     sxml_name_identifier score_name = {0};
-    sxml_status status = sxml_xpath_lowerer_resolve_variable_name(
+    const sxml_status status = sxml_xpath_lowerer_resolve_variable_name(
         state, child_of(state, score, SXML_AST_FIELD_NAME), &score_name);
-    sxml_ir_atom one = {0};
-    if (status == SXML_STATUS_OK) {
-        status = sxml_xpath_lowerer_add_item_constant(state, sxml_atomic_item_from_double(1.0),
-                                                      &one);
-    }
-    return status == SXML_STATUS_OK ? push_scope_variable(state, score_name, one) : status;
+    return status == SXML_STATUS_OK ? push_scope_variable(state, score_name, value) : status;
 }
 
-/* A for binding, its sequence lowered: the range and position variables
-   in the MAP's body block, then the rest of the segment there. */
+/* A for binding's variables, its slots made (and its score lowered): the
+   range, position and score variables in the MAP's body block, then the
+   rest of the segment there. */
+static sxml_status bind_for_variables(sxml_xpath_lowering_machine *machine,
+                                      sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *state = machine->state;
+    clause_locals *locals = frame->locals;
+    const sxml_ast_node_index binding = locals->position.binding;
+    const sxml_ast_node_index positional = child_of(state, binding, SXML_AST_FIELD_POSITION);
+    sxml_status status = push_range_variables(state, frame);
+    if (status == SXML_STATUS_OK && positional.value != 0) {
+        status = push_position_variable(state, frame, positional);
+    }
+    const sxml_ast_node_index score = child_of(state, binding, SXML_AST_FIELD_SCORE);
+    if (status == SXML_STATUS_OK && score.value != 0) {
+        status = push_score_variable(state, score, locals->score);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    frame->step = SXML_XQUERY_CLAUSE_STEP_FOR_END;
+    return push_rest(machine, frame, &locals->body_block);
+}
+
+/* A for binding, its sequence lowered: its slots, its score (before its
+   variables are in scope: the score lowers a predicate of the sequence
+   again), then its variables. */
 static sxml_status begin_for_body(sxml_xpath_lowering_machine *machine,
                                   sxml_xpath_lowering_frame *frame) {
     sxml_xpath_lowerer *state = machine->state;
@@ -967,21 +990,19 @@ static sxml_status begin_for_body(sxml_xpath_lowering_machine *machine,
         status = sxml_xpath_lowerer_add_slot(state, &locals->position_slot);
     }
     locals->scope_mark = state->scope_entry_count;
-    if (status == SXML_STATUS_OK) {
-        status = push_range_variables(state, frame);
-    }
-    if (status == SXML_STATUS_OK && positional.value != 0) {
-        status = push_position_variable(state, frame, positional);
-    }
-    const sxml_ast_node_index score = child_of(state, binding, SXML_AST_FIELD_SCORE);
-    if (status == SXML_STATUS_OK && score.value != 0) {
-        status = push_score_variable(state, score);
-    }
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    frame->step = SXML_XQUERY_CLAUSE_STEP_FOR_END;
-    return push_rest(machine, frame, &locals->body_block);
+    if (child_of(state, binding, SXML_AST_FIELD_SCORE).value != 0) {
+        frame->step = SXML_XQUERY_CLAUSE_STEP_FOR_SCORE;
+        return sxml_xquery_call_full_text_for_score(
+            machine, &(sxml_xquery_full_text_for_score_request){
+                         .binding = binding,
+                         .item = sxml_ir_slot_atom(locals->item),
+                         .block = &locals->body_block,
+                         .score = &locals->score});
+    }
+    return bind_for_variables(machine, frame);
 }
 
 /* The MAP of a for binding (4.13.2; "allowing empty" is
@@ -1416,6 +1437,8 @@ static sxml_status continue_clause(sxml_xpath_lowering_machine *machine,
         return begin_clause(machine, frame);
     case SXML_XQUERY_CLAUSE_STEP_FOR_BODY:
         return begin_for_body(machine, frame);
+    case SXML_XQUERY_CLAUSE_STEP_FOR_SCORE:
+        return bind_for_variables(machine, frame);
     case SXML_XQUERY_CLAUSE_STEP_FOR_END:
         return finish_for(machine, frame);
     case SXML_XQUERY_CLAUSE_STEP_LET_BODY:

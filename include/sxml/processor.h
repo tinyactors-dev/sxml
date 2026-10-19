@@ -203,6 +203,24 @@ typedef enum sxml_resource_kind {
        makes the path from ASCII letters, digits, "_" and "/" and ".xml",
        so a resolver can map it onto a directory. Form: BYTES. */
     SXML_RESOURCE_KIND_LOCALE_DATA,
+    /* A stop word list of Full Text (sxml_full_text_feature; XQuery and
+       XPath Full Text 3.0, 3.4.7; D214), asked for while a query is
+       compiled: "stop words at" a URI (uri_reference as written,
+       absolute_uri resolved against the static base URI), or, with both
+       empty, the default list of "stop words default". Form: BYTES,
+       UTF-8, the words separated by whitespace. NONE: a list by URI
+       raises FTST0008; the default list is then empty. */
+    SXML_RESOURCE_KIND_FULL_TEXT_STOP_WORDS,
+    /* A thesaurus of Full Text (3.4.3), asked for while a query is
+       compiled: "thesaurus at" a URI (as for stop words), or, with both
+       URIs empty, the default thesaurus of "thesaurus default". Forms:
+       BYTES or DOCUMENT_NODE, an XML document in the thesaurus format of
+       the W3C Full Text test suite (namespace
+       "http://www.w3.org/2007/xqftts/thesaurus"): entry elements, each a
+       term and synonym elements, each a term, a relationship and
+       synonyms of its own one level further. NONE: a thesaurus by URI
+       raises FTST0018; the default thesaurus is then empty. */
+    SXML_RESOURCE_KIND_FULL_TEXT_THESAURUS,
 } sxml_resource_kind;
 
 /* What sxml asks a resolver for. Views are borrowed for the call. */

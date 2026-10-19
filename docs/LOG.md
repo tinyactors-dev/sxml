@@ -4,6 +4,23 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 7.12b and 7.12c done (D214 amended): Full Text's match options and
+  scores. Stemming: the Snowball algorithms of the D208 languages,
+  compiled by `tools/generate-snowball-stemmers.py` from the vendored
+  .sbl files (`third_party/snowball`, BSD) for one stemming machine
+  (`src/full_text_stem.c`); every snowball-data word stems as Snowball
+  3.1.1 does. Stop word lists and thesauri by URI are read while
+  compiling through the new resource kinds FULL_TEXT_STOP_WORDS and
+  FULL_TEXT_THESAURUS (`processor.h`, additive), with relationships,
+  levels and the defaults; the QT4 driver serves the catalog's files
+  (fullText-defaults supported). Scores come from the matches and their
+  weights (w / (w + 1 + log2(1 + n))), for let score and for score.
+  Ideographs and hiragana are one-character words (UAX #29), so zh and
+  ja are accepted. ft-* 624 to 672 of 685, XQ40 45,839 to 45,868; the
+  13 left: 9 expected-result whitespace, 2 stemmer-dependent, 2
+  fullText-units. Open: `sxml.wasm` is over its 2,200,000 budget at HEAD
+  (2,328,807 before this packet; +2 KB here).
+
 - 7.17 done (D221): languages and calendars in the formatting
   functions, as the optional feature `sxml_localization_feature()`
   ("localization") over CLDR 47 files the host serves

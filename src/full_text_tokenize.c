@@ -132,6 +132,33 @@ static bool is_word_codepoint(uint32_t codepoint) {
                             (1U << (uint32_t)SXML_REGEX_GENERAL_CATEGORY_PC))) != 0;
 }
 
+/* Whether codepoint is an ideograph or a hiragana letter: a word by itself
+   (UAX #29, "Word Boundaries": they are neither ALetter nor Katakana, so
+   WB999 breaks around each), which is how Chinese and Japanese text is
+   segmented without a dictionary (D214). The blocks of the Unicode 16.0
+   Ideographic property, and Hiragana. */
+static bool is_single_character_word(uint32_t codepoint) {
+    static const uint32_t ranges[][2] = {
+        {0x3005, 0x3007},   {0x3021, 0x3029},   {0x3038, 0x303C},   {0x3041, 0x309F},
+        {0x3400, 0x4DBF},   {0x4E00, 0x9FFF},   {0xF900, 0xFAFF},   {0x16FE4, 0x16FE4},
+        {0x17000, 0x18CFF}, {0x18D00, 0x18D08}, {0x1B170, 0x1B2FB}, {0x20000, 0x2FA1F},
+        {0x30000, 0x323AF},
+    };
+    for (size_t range = 0; range < sizeof ranges / sizeof ranges[0]; range += 1) {
+        if (codepoint >= ranges[range][0] && codepoint <= ranges[range][1]) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* Whether codepoint ends a sentence: ".", "!", "?" and their ideographic
+   and fullwidth forms. */
+static bool is_sentence_end(uint32_t codepoint) {
+    return codepoint == '.' || codepoint == '!' || codepoint == '?' || codepoint == 0x3002U ||
+           codepoint == 0xFF01U || codepoint == 0xFF0EU || codepoint == 0xFF1FU;
+}
+
 static bool is_letter(uint32_t codepoint) {
     return ((1U << (uint32_t)sxml_regex_get_general_category(codepoint)) &
             SXML_REGEX_CATEGORY_MASK_L) != 0;
@@ -308,7 +335,16 @@ sxml_status sxml_full_text_tokenize(const sxml_full_text_source *source,
             continue;
         }
         const sxml_xml_decoded_codepoint decoded = sxml_xml_decode_codepoint(text, byte_offset);
-        if (is_word_codepoint(decoded.codepoint)) {
+        if (is_single_character_word(decoded.codepoint)) {
+            if (state.is_in_token) {
+                status = emit_token(&state, byte_offset);
+            }
+            state.is_in_token = true;
+            state.token_start = byte_offset;
+            if (status == SXML_STATUS_OK) {
+                status = emit_token(&state, byte_offset + decoded.encoded_byte_count);
+            }
+        } else if (is_word_codepoint(decoded.codepoint)) {
             if (!state.is_in_token) {
                 state.is_in_token = true;
                 state.token_start = byte_offset;
@@ -318,8 +354,7 @@ sxml_status sxml_full_text_tokenize(const sxml_full_text_source *source,
             if (state.is_in_token) {
                 status = emit_token(&state, byte_offset);
             }
-            if (decoded.codepoint == '.' || decoded.codepoint == '!' ||
-                decoded.codepoint == '?') {
+            if (is_sentence_end(decoded.codepoint)) {
                 state.has_sentence_end = true;
             }
         }

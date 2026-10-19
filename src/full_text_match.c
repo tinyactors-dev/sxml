@@ -30,6 +30,7 @@
 #include "function_library_core_internal.h"
 #include "xdm_internal.h"
 
+#include <math.h>
 #include <stdalign.h>
 #include <string.h>
 
@@ -53,10 +54,13 @@ typedef struct string_match {
     bool is_contiguous;
 } string_match;
 
-/* fts:match: string_match_count StringMatches from first_string_match. */
+/* fts:match: string_match_count StringMatches from first_string_match,
+   and the weight its selections gave it (3.1.1; 1 without weights): the
+   share of the match in the item's score (src/full_text.c). */
 typedef struct match_row {
     size_t first_string_match;
     size_t string_match_count;
+    double weight;
 } match_row;
 
 /* fts:allMatches: match_count Matches from first_match. */
@@ -200,12 +204,19 @@ static void put_string_match(matcher *state, string_match entry) {
     state->string_match_count += 1;
 }
 
-/* Appends a Match of the StringMatches from first to the end (room
-   reserved). */
-static void put_match(matcher *state, size_t first_string_match) {
+/* A Match being appended: its StringMatches start at first_string_match
+   and end at the end; its weight. */
+typedef struct match_start {
+    size_t first_string_match;
+    double weight;
+} match_start;
+
+/* Appends a Match (room reserved). */
+static void put_match(matcher *state, match_start start) {
     state->matches[state->match_count] =
-        (match_row){.first_string_match = first_string_match,
-                    .string_match_count = state->string_match_count - first_string_match};
+        (match_row){.first_string_match = start.first_string_match,
+                    .string_match_count = state->string_match_count - start.first_string_match,
+                    .weight = start.weight};
     state->match_count += 1;
 }
 
@@ -426,6 +437,8 @@ typedef struct query_token {
     size_t byte_offset;
     size_t byte_count;
     bool is_stop_word;
+    /* The token as the query wrote it (in a program member). */
+    sxml_byte_view written;
 } query_token;
 
 /* The tokens of one FTWords. */
@@ -455,6 +468,7 @@ typedef struct words_instruction {
     sxml_full_text_match_options options;
     sxml_full_text_language language;
     uint32_t stop_words_member;
+    uint32_t thesaurus_member;
 } words_instruction;
 
 /* The folding of the query side and of the text side (3.4.5: case
@@ -593,7 +607,9 @@ static sxml_status add_query_string(matcher *state, query_string request,
             query->tokens[query->token_count] =
                 (query_token){.byte_offset = start,
                               .byte_count = query->bytes.byte_count - start,
-                              .is_stop_word = is_stop.is_true};
+                              .is_stop_word = is_stop.is_true,
+                              .written = {.bytes = request.text.bytes + token->byte_offset,
+                                          .byte_count = token->byte_count}};
             query->token_count += 1;
         }
     }
@@ -728,7 +744,7 @@ static sxml_status match_phrase(matcher *state, phrase_request request, all_matc
                                                .query_position = request.query_position,
                                                .is_include = true,
                                                .is_contiguous = true});
-        put_match(state, first_string_match);
+        put_match(state, (match_start){.first_string_match = first_string_match, .weight = 1.0});
     }
     *result = matches_since(state, first_match);
     return status;
@@ -788,7 +804,12 @@ static sxml_status apply_and(matcher *state, operand_pair pair, all_matches *res
                 status = reserve_matches(state, 1);
             }
             if (status == SXML_STATUS_OK) {
-                put_match(state, first_string_match);
+                put_match(state,
+                          (match_start){
+                              .first_string_match = first_string_match,
+                              .weight = (state->matches[left.first_match + left_match].weight +
+                                         state->matches[right.first_match + right_match].weight) /
+                                        2.0});
             }
         }
     }
@@ -796,18 +817,355 @@ static sxml_status apply_and(matcher *state, operand_pair pair, all_matches *res
     return status;
 }
 
-/* The query tokens of string string_index, as a phrase. */
-typedef struct string_phrase {
-    phrase_request phrase;
-    size_t string_index;
-} string_phrase;
+/* ------------------------------------------------ Thesauri (3.4.3) */
 
-static sxml_status match_query_string(matcher *state, string_phrase request,
+/* Byte views in allocator memory. */
+typedef struct view_list {
+    sxml_byte_view *views;
+    size_t view_count;
+    size_t view_capacity;
+} view_list;
+
+static sxml_status push_view(matcher *state, view_list *list, sxml_byte_view view) {
+    const sxml_status status = grow(state->allocator,
+                                    &(growth){.elements = (void **)&list->views,
+                                              .capacity = &list->view_capacity,
+                                              .count = list->view_count,
+                                              .required = list->view_count + 1,
+                                              .element_size = sizeof(sxml_byte_view),
+                                              .alignment = alignof(sxml_byte_view)});
+    if (status == SXML_STATUS_OK) {
+        list->views[list->view_count] = view;
+        list->view_count += 1;
+    }
+    return status;
+}
+
+static bool has_view(const view_list *list, sxml_byte_view view) {
+    for (size_t view_index = 0; view_index < list->view_count; view_index += 1) {
+        if (sxml_byte_view_equals(list->views[view_index], view)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* The key a phrase is looked up by: its tokens folded as the words fold
+   the query, one space between them. */
+typedef struct phrase_key_request {
+    const words_instruction *words;
+    sxml_byte_view text;
+} phrase_key_request;
+
+static sxml_status append_phrase_key(matcher *state, phrase_key_request request,
+                                     sxml_full_text_bytes *key) {
+    sxml_full_text_token_list list = {.allocator = state->allocator};
+    sxml_status status = sxml_full_text_tokenize(&(sxml_full_text_source){.text = request.text,
+                                                                         .paragraph_breaks = NULL,
+                                                                         .paragraph_break_count = 0,
+                                                                         .keeps_wildcards = false},
+                                                &list);
+    for (size_t token_index = 0; status == SXML_STATUS_OK && token_index < list.token_count;
+         token_index += 1) {
+        if (token_index != 0) {
+            status = sxml_full_text_append_text(key, SXML_BYTE_VIEW_FROM_LITERAL(" "));
+        }
+        const sxml_full_text_token *token = &list.tokens[token_index];
+        if (status == SXML_STATUS_OK) {
+            status = sxml_full_text_fold(
+                &(sxml_full_text_fold_request){
+                    .word = {.bytes = request.text.bytes + token->byte_offset,
+                             .byte_count = token->byte_count},
+                    .folding = query_folding(request.words)},
+                key);
+        }
+    }
+    sxml_full_text_token_list_release(&list);
+    return status;
+}
+
+/* One relation of a thesaurus: the keys of its two terms (in the table's
+   bytes) and the related term as the thesaurus writes it. */
+typedef struct thesaurus_relation {
+    size_t from_offset;
+    size_t from_count;
+    size_t to_offset;
+    size_t to_count;
+    sxml_byte_view related;
+} thesaurus_relation;
+
+/* One thesaurus: its levels and its relations. */
+typedef struct thesaurus_entry {
+    uint64_t minimum_level;
+    uint64_t maximum_level;
+    size_t first_relation;
+    size_t relation_count;
+} thesaurus_entry;
+
+/* The thesauri of one FTWords, read from its program member. */
+typedef struct thesaurus_table {
+    sxml_full_text_bytes keys;
+    thesaurus_relation *relations;
+    size_t relation_count;
+    size_t relation_capacity;
+    thesaurus_entry *thesauri;
+    size_t thesaurus_count;
+    size_t thesaurus_capacity;
+} thesaurus_table;
+
+static void release_thesaurus_table(matcher *state, thesaurus_table *table) {
+    sxml_full_text_bytes_release(&table->keys);
+    sxml_allocator_release(state->allocator, table->relations);
+    sxml_allocator_release(state->allocator, table->thesauri);
+}
+
+static sxml_byte_view table_key(const thesaurus_table *table, size_t offset, size_t count) {
+    return (sxml_byte_view){.bytes = table->keys.bytes + offset, .byte_count = count};
+}
+
+/* Member string string_index (xs:string, made by the lowering). */
+typedef struct member_strings {
+    sxml_sequence member;
+    uint64_t next;
+} member_strings;
+
+static sxml_status next_string(member_strings *strings, sxml_byte_view *text) {
+    sxml_item item;
+    sxml_status status = sxml_sequence_get_item(
+        strings->member, (sxml_item_request){.item_index = strings->next, .error_record = NULL},
+        &item);
+    strings->next += 1;
+    sxml_atomic_datum datum;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_atomic_item_get_datum(item, &datum);
+    }
+    if (status == SXML_STATUS_OK && datum.datum_kind != SXML_DATUM_KIND_STRING) {
+        status = SXML_STATUS_INVALID_ARGUMENT;
+    }
+    if (status == SXML_STATUS_OK) {
+        *text = datum.datum_details.string.utf8;
+    }
+    return status;
+}
+
+static uint64_t decimal_value(sxml_byte_view text) {
+    uint64_t value = 0;
+    for (size_t byte_index = 0; byte_index < text.byte_count; byte_index += 1) {
+        value = value * 10U + (uint64_t)(text.bytes[byte_index] - '0');
+    }
+    return value;
+}
+
+/* Reads the member: per thesaurus its minimum and maximum level, its
+   relation count n and n pairs (src/full_text_internal.h, "W"). */
+static sxml_status read_thesauri(matcher *state, const words_instruction *words,
+                                 thesaurus_table *table) {
+    member_strings strings = {.next = 0};
+    sxml_status status = read_member(state, words->thesaurus_member, &strings.member);
+    uint64_t item_count = 0;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_sequence_count(strings.member, NULL, &item_count);
+    }
+    while (status == SXML_STATUS_OK && strings.next + 3 <= item_count) {
+        sxml_byte_view numbers[3];
+        for (size_t number = 0; status == SXML_STATUS_OK && number < 3; number += 1) {
+            status = next_string(&strings, &numbers[number]);
+        }
+        const uint64_t pair_count = status == SXML_STATUS_OK ? decimal_value(numbers[2]) : 0;
+        if (status == SXML_STATUS_OK) {
+            status = grow(state->allocator,
+                          &(growth){.elements = (void **)&table->thesauri,
+                                    .capacity = &table->thesaurus_capacity,
+                                    .count = table->thesaurus_count,
+                                    .required = table->thesaurus_count + 1,
+                                    .element_size = sizeof(thesaurus_entry),
+                                    .alignment = alignof(thesaurus_entry)});
+        }
+        if (status == SXML_STATUS_OK && pair_count > (item_count - strings.next) / 2U) {
+            status = SXML_STATUS_INVALID_ARGUMENT;
+        }
+        if (status == SXML_STATUS_OK) {
+            table->thesauri[table->thesaurus_count] =
+                (thesaurus_entry){.minimum_level = decimal_value(numbers[0]),
+                                  .maximum_level = decimal_value(numbers[1]),
+                                  .first_relation = table->relation_count,
+                                  .relation_count = (size_t)pair_count};
+            table->thesaurus_count += 1;
+            status = grow(state->allocator,
+                          &(growth){.elements = (void **)&table->relations,
+                                    .capacity = &table->relation_capacity,
+                                    .count = table->relation_count,
+                                    .required = table->relation_count + (size_t)pair_count,
+                                    .element_size = sizeof(thesaurus_relation),
+                                    .alignment = alignof(thesaurus_relation)});
+        }
+        for (uint64_t pair_index = 0; status == SXML_STATUS_OK && pair_index < pair_count;
+             pair_index += 1) {
+            sxml_byte_view term = {.bytes = NULL, .byte_count = 0};
+            sxml_byte_view related = {.bytes = NULL, .byte_count = 0};
+            status = next_string(&strings, &term);
+            if (status == SXML_STATUS_OK) {
+                status = next_string(&strings, &related);
+            }
+            thesaurus_relation relation = {.related = related};
+            relation.from_offset = table->keys.byte_count;
+            if (status == SXML_STATUS_OK) {
+                status = append_phrase_key(
+                    state, (phrase_key_request){.words = words, .text = term}, &table->keys);
+            }
+            relation.from_count = table->keys.byte_count - relation.from_offset;
+            relation.to_offset = table->keys.byte_count;
+            if (status == SXML_STATUS_OK) {
+                status = append_phrase_key(
+                    state, (phrase_key_request){.words = words, .text = related}, &table->keys);
+            }
+            relation.to_count = table->keys.byte_count - relation.to_offset;
+            if (status == SXML_STATUS_OK) {
+                table->relations[table->relation_count] = relation;
+                table->relation_count += 1;
+            }
+        }
+    }
+    return status;
+}
+
+/* The terms related to key in one thesaurus at the levels it asks for
+   (3.4.3; glossary `thesaurus_expansion`): breadth first, level by level,
+   each term once; added to *related as written, and their keys to
+   *reached. */
+typedef struct expansion_request {
+    const thesaurus_table *table;
+    const thesaurus_entry *thesaurus;
+    sxml_byte_view key;
+} expansion_request;
+
+typedef struct expansion {
+    view_list related;
+    view_list reached;
+} expansion;
+
+static sxml_status expand(matcher *state, expansion_request request, expansion *result) {
+    view_list frontier = {0};
+    view_list next = {0};
+    view_list visited = {0};
+    sxml_status status = push_view(state, &frontier, request.key);
+    if (status == SXML_STATUS_OK) {
+        status = push_view(state, &visited, request.key);
+    }
+    if (status == SXML_STATUS_OK && !has_view(&result->reached, request.key)) {
+        status = push_view(state, &result->reached, request.key);
+    }
+    for (uint64_t level = 1; status == SXML_STATUS_OK && frontier.view_count != 0 &&
+                             level <= request.thesaurus->maximum_level;
+         level += 1) {
+        next.view_count = 0;
+        for (size_t relation_index = 0;
+             status == SXML_STATUS_OK && relation_index < request.thesaurus->relation_count;
+             relation_index += 1) {
+            const thesaurus_relation *relation =
+                &request.table->relations[request.thesaurus->first_relation + relation_index];
+            const sxml_byte_view term_key =
+                table_key(request.table, relation->from_offset, relation->from_count);
+            const sxml_byte_view related_key =
+                table_key(request.table, relation->to_offset, relation->to_count);
+            /* A term's level is its shortest distance from the key. */
+            if (!has_view(&frontier, term_key) || has_view(&visited, related_key)) {
+                continue;
+            }
+            status = push_view(state, &next, related_key);
+            if (status == SXML_STATUS_OK) {
+                status = push_view(state, &visited, related_key);
+            }
+            if (status == SXML_STATUS_OK && level >= request.thesaurus->minimum_level &&
+                !has_view(&result->reached, related_key)) {
+                status = push_view(state, &result->reached, related_key);
+                if (status == SXML_STATUS_OK) {
+                    status = push_view(state, &result->related, relation->related);
+                }
+            }
+        }
+        const view_list swapped = frontier;
+        frontier = next;
+        next = swapped;
+    }
+    sxml_allocator_release(state->allocator, frontier.views);
+    sxml_allocator_release(state->allocator, next.views);
+    sxml_allocator_release(state->allocator, visited.views);
+    return status;
+}
+
+/* The tokens first_query.. of phrase as the query wrote them, as a key. */
+static sxml_status append_written_key(matcher *state, const phrase_request *phrase,
+                                      sxml_full_text_bytes *key) {
+    sxml_status status = SXML_STATUS_OK;
+    for (size_t offset = 0; status == SXML_STATUS_OK && offset < phrase->query_count; offset += 1) {
+        if (offset != 0) {
+            status = sxml_full_text_append_text(key, SXML_BYTE_VIEW_FROM_LITERAL(" "));
+        }
+        if (status == SXML_STATUS_OK) {
+            status = append_phrase_key(
+                state,
+                (phrase_key_request){.words = phrase->words,
+                                     .text = phrase->query->tokens[phrase->first_query + offset]
+                                                 .written},
+                key);
+        }
+    }
+    return status;
+}
+
+/* A phrase and the thesauri of its words (NULL for none): the phrase's
+   matches, then those of each related term with the same query position,
+   as alternatives (fts:applyThesaurusOption, 4.2.4). */
+typedef struct alternatives_request {
+    phrase_request phrase;
+    const thesaurus_table *table;
+} alternatives_request;
+
+static sxml_status match_alternatives(matcher *state, alternatives_request request,
                                       all_matches *result) {
-    phrase_request phrase = request.phrase;
-    phrase.first_query = phrase.query->string_starts[request.string_index];
-    phrase.query_count = phrase.query->string_starts[request.string_index + 1] - phrase.first_query;
-    return match_phrase(state, phrase, result);
+    sxml_status status = match_phrase(state, request.phrase, result);
+    if (status != SXML_STATUS_OK || request.table == NULL) {
+        return status;
+    }
+    sxml_full_text_bytes key = {.allocator = state->allocator};
+    expansion found = {0};
+    status = append_written_key(state, &request.phrase, &key);
+    for (size_t thesaurus = 0;
+         status == SXML_STATUS_OK && thesaurus < request.table->thesaurus_count; thesaurus += 1) {
+        status =
+            expand(state,
+                   (expansion_request){.table = request.table,
+                                       .thesaurus = &request.table->thesauri[thesaurus],
+                                       .key = {.bytes = key.bytes, .byte_count = key.byte_count}},
+                   &found);
+    }
+    for (size_t term_index = 0; status == SXML_STATUS_OK && term_index < found.related.view_count;
+         term_index += 1) {
+        query_tokens related = {.allocator = state->allocator,
+                                .bytes = {.allocator = state->allocator}};
+        status = add_query_string(
+            state,
+            (query_string){.words = request.phrase.words, .text = found.related.views[term_index]},
+            &related);
+        all_matches related_matches = {.first_match = state->match_count, .match_count = 0};
+        if (status == SXML_STATUS_OK) {
+            phrase_request phrase = request.phrase;
+            phrase.query = &related;
+            phrase.first_query = 0;
+            phrase.query_count = related.token_count;
+            status = match_phrase(state, phrase, &related_matches);
+        }
+        if (status == SXML_STATUS_OK) {
+            status = apply_or(state, (operand_pair){.left = *result, .right = related_matches},
+                              result);
+        }
+        release_query_tokens(&related);
+    }
+    sxml_allocator_release(state->allocator, found.related.views);
+    sxml_allocator_release(state->allocator, found.reached.views);
+    sxml_full_text_bytes_release(&key);
+    return status;
 }
 
 /* FTWords (4.2.4, fts:ApplyFTWords): any, all, phrase, any word and all
@@ -824,18 +1182,25 @@ static sxml_status apply_words(matcher *state, const words_instruction *words,
             (variant_choice){.variant_number = text_variant(words), .language = words->language});
         status = variant_status;
     }
+    thesaurus_table table = {.keys = {.allocator = state->allocator}};
+    if (status == SXML_STATUS_OK && words->thesaurus_member != 0) {
+        status = read_thesauri(state, words, &table);
+    }
+    alternatives_request alternatives = {
+        .phrase = {.words = words, .query = &query},
+        .table = words->thesaurus_member != 0 ? &table : NULL};
     all_matches combined = {.first_match = state->match_count, .match_count = 0};
     const bool is_conjunction = words->any_all == SXML_FULL_TEXT_ANY_ALL_ALL ||
                                 words->any_all == SXML_FULL_TEXT_ANY_ALL_ALL_WORDS;
-    phrase_request phrase = {.words = words, .query = &query};
+    phrase_request *phrase = &alternatives.phrase;
     if (status == SXML_STATUS_OK && query.token_count == 0) {
         /* No query tokens: an empty AllMatches. */
     } else if (status == SXML_STATUS_OK && words->any_all == SXML_FULL_TEXT_ANY_ALL_PHRASE) {
-        phrase.first_query = 0;
-        phrase.query_count = query.token_count;
-        phrase.query_position = state->next_query_position;
+        phrase->first_query = 0;
+        phrase->query_count = query.token_count;
+        phrase->query_position = state->next_query_position;
         state->next_query_position += 1;
-        status = match_phrase(state, phrase, &combined);
+        status = match_alternatives(state, alternatives, &combined);
     } else if (status == SXML_STATUS_OK) {
         const bool by_word = words->any_all == SXML_FULL_TEXT_ANY_ALL_ANY_WORD ||
                              words->any_all == SXML_FULL_TEXT_ANY_ALL_ALL_WORDS;
@@ -843,17 +1208,16 @@ static sxml_status apply_words(matcher *state, const words_instruction *words,
         for (size_t part_index = 0; status == SXML_STATUS_OK && part_index < part_count;
              part_index += 1) {
             all_matches part_matches;
-            phrase.query_position = state->next_query_position;
+            phrase->query_position = state->next_query_position;
             state->next_query_position += 1;
             if (by_word) {
-                phrase.first_query = part_index;
-                phrase.query_count = 1;
-                status = match_phrase(state, phrase, &part_matches);
+                phrase->first_query = part_index;
+                phrase->query_count = 1;
             } else {
-                status = match_query_string(
-                    state, (string_phrase){.phrase = phrase, .string_index = part_index},
-                    &part_matches);
+                phrase->first_query = query.string_starts[part_index];
+                phrase->query_count = query.string_starts[part_index + 1] - phrase->first_query;
             }
+            status = match_alternatives(state, alternatives, &part_matches);
             if (status != SXML_STATUS_OK) {
                 break;
             }
@@ -867,6 +1231,7 @@ static sxml_status apply_words(matcher *state, const words_instruction *words,
             }
         }
     }
+    release_thesaurus_table(state, &table);
     release_query_tokens(&query);
     *result = combined;
     return status;
@@ -910,7 +1275,7 @@ static sxml_status apply_not(matcher *state, all_matches operand, all_matches *r
             status = reserve_matches(state, 1);
         }
         if (status == SXML_STATUS_OK) {
-            put_match(state, first_string_match);
+            put_match(state, (match_start){.first_string_match = first_string_match, .weight = 1.0});
         }
         /* The next choice, the last match's StringMatch counting fastest. */
         for (size_t match = operand.match_count; match > 0; match -= 1) {
@@ -1058,12 +1423,16 @@ static sxml_status add_combination(matcher *state, combination_request request) 
     const size_t first_string_match = state->string_match_count;
     sxml_status status = SXML_STATUS_OK;
     size_t chosen_index = 0;
+    /* The combination weighs what its occurrences weigh on average. */
+    double chosen_weight = 0.0;
     for (size_t match = 0; status == SXML_STATUS_OK && match < request.operand.match_count;
          match += 1) {
         const bool is_chosen =
             chosen_index < request.chosen_count && request.chosen[chosen_index] == match;
         if (is_chosen) {
             chosen_index += 1;
+            chosen_weight += state->matches[request.operand.first_match + match].weight /
+                             (double)request.chosen_count;
         }
         if (is_chosen || request.excludes_others) {
             status = copy_match_entries(state,
@@ -1072,11 +1441,14 @@ static sxml_status add_combination(matcher *state, combination_request request) 
                                                      .is_inverted = !is_chosen});
         }
     }
+    if (request.chosen_count == 0) {
+        chosen_weight = 1.0;
+    }
     if (status == SXML_STATUS_OK) {
         status = reserve_matches(state, 1);
     }
     if (status == SXML_STATUS_OK) {
-        put_match(state, first_string_match);
+        put_match(state, (match_start){.first_string_match = first_string_match, .weight = chosen_weight});
     }
     return status;
 }
@@ -1191,7 +1563,7 @@ static sxml_status apply_order(matcher *state, all_matches operand, all_matches 
             status = reserve_matches(state, 1);
         }
         if (status == SXML_STATUS_OK) {
-            put_match(state, first_string_match);
+            put_match(state, (match_start){.first_string_match = first_string_match, .weight = row.weight});
         }
     }
     *result = matches_since(state, first_match);
@@ -1351,7 +1723,7 @@ static sxml_status add_window_match(matcher *state, size_t match_index, window_f
         status = reserve_matches(state, 1);
     }
     if (status == SXML_STATUS_OK) {
-        put_match(state, first_string_match);
+        put_match(state, (match_start){.first_string_match = first_string_match, .weight = row.weight});
     }
     return status;
 }
@@ -1495,7 +1867,7 @@ static sxml_status add_distance_match(matcher *state, size_t match_index,
         status = reserve_matches(state, 1);
     }
     if (status == SXML_STATUS_OK) {
-        put_match(state, first_string_match);
+        put_match(state, (match_start){.first_string_match = first_string_match, .weight = row.weight});
     }
     return status;
 }
@@ -1671,7 +2043,7 @@ static sxml_status apply_scope(matcher *state, filter_input input, all_matches *
             status = reserve_matches(state, 1);
         }
         if (status == SXML_STATUS_OK) {
-            put_match(state, first_string_match);
+            put_match(state, (match_start){.first_string_match = first_string_match, .weight = row.weight});
         }
     }
     *result = matches_since(state, first_match);
@@ -1743,7 +2115,16 @@ static sxml_status apply_content(matcher *state, filter_input input, all_matches
 
 /* ---------------------------------------------- Weights (3.1.1) */
 
-static sxml_status check_weight(const matcher *state, uint32_t member_number) {
+/* weight {g} (3.1.1): FTDY0016 outside [-1000, 1000]; else the matches of
+   operand weigh |g| times as much (how weights change scores is
+   implementation-dependent; a negative weight counts as its size). */
+typedef struct weighting {
+    uint32_t member_number;
+    all_matches operand;
+} weighting;
+
+static sxml_status apply_weight(matcher *state, weighting request) {
+    const uint32_t member_number = request.member_number;
     sxml_sequence member;
     sxml_status status = read_member(state, member_number, &member);
     sxml_item item;
@@ -1765,6 +2146,10 @@ static sxml_status check_weight(const matcher *state, uint32_t member_number) {
     /* NaN is not within the range either. */
     if (!(weight >= -1000.0 && weight <= 1000.0)) {
         return sxml_function_library_report(state->request->call, &weight_error);
+    }
+    const double size = fabs(weight);
+    for (size_t match = 0; match < request.operand.match_count; match += 1) {
+        state->matches[request.operand.first_match + match].weight *= size;
     }
     return SXML_STATUS_OK;
 }
@@ -1825,7 +2210,8 @@ static sxml_status decode_words(const instruction *decoded, words_instruction *w
                     .uses_stemming = decoded->arguments[4] != 0,
                     .uses_wildcards = decoded->arguments[5] != 0},
         .language = (sxml_full_text_language)decoded->arguments[6],
-        .stop_words_member = decoded->arguments[7]};
+        .stop_words_member = decoded->arguments[7],
+        .thesaurus_member = decoded->arguments[8]};
     return SXML_STATUS_OK;
 }
 
@@ -1877,7 +2263,9 @@ static sxml_status execute(matcher *state, const instruction *decoded) {
             break;
         case SXML_FULL_TEXT_OPCODE_WEIGHT:
             result = left;
-            status = decoded->argument_count == 1 ? check_weight(state, decoded->arguments[0])
+            status = decoded->argument_count == 1
+                         ? apply_weight(state, (weighting){.member_number = decoded->arguments[0],
+                                                           .operand = left})
                                                   : SXML_STATUS_INVALID_ARGUMENT;
             break;
         case SXML_FULL_TEXT_OPCODE_ORDER:
@@ -1961,11 +2349,15 @@ sxml_status sxml_full_text_run(const sxml_full_text_run_request *request,
     if (status == SXML_STATUS_OK) {
         status = state.stack_count == 1 ? pop(&state, &all) : SXML_STATUS_INVALID_ARGUMENT;
     }
-    /* 4.3: true when some match has no StringExclude. */
-    for (size_t match = 0;
-         status == SXML_STATUS_OK && !outcome->is_match && match < all.match_count; match += 1) {
-        outcome->is_match = !has_exclude(&state, (all_matches){.first_match = all.first_match + match,
-                                                       .match_count = 1});
+    /* 4.3: true when some match has no StringExclude; the weight of
+       those matches is the item's term frequency (src/full_text.c). */
+    outcome->weight = 0.0;
+    for (size_t match = 0; status == SXML_STATUS_OK && match < all.match_count; match += 1) {
+        if (!has_exclude(&state,
+                         (all_matches){.first_match = all.first_match + match, .match_count = 1})) {
+            outcome->is_match = true;
+            outcome->weight += state.matches[all.first_match + match].weight;
+        }
     }
     release_matcher(&state);
     return status;

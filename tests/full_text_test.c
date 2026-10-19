@@ -33,6 +33,9 @@ typedef struct fixture_request {
     uint64_t failing_allocation_number;
     /* The processor names sxml_full_text_feature(). */
     bool has_full_text;
+    /* What the processor's table resolver serves; NULL for the null
+       resolver. */
+    const sxml_resource_entry_view *resources;
 } fixture_request;
 
 static sxml_allocator fixture_allocator(const fixture *test_fixture) {
@@ -56,7 +59,9 @@ static sxml_status fixture_create(fixture_request request, fixture *test_fixture
         allocator,
         &(sxml_processor_configuration){
             .allocator = allocator,
-            .resource_resolver = {.state = NULL, .operations = NULL},
+            .resource_resolver = request.resources != NULL
+                                     ? sxml_table_resource_resolver(request.resources)
+                                     : (sxml_resource_resolver){.state = NULL, .operations = NULL},
             .optional_features = {.optional_features = features,
                                   .optional_feature_count = request.has_full_text ? 1U : 0U}},
         &test_fixture->processor);
@@ -232,18 +237,40 @@ static const query_case query_cases[] = {
                 "$d contains text 'a' without content $d)",
                 "false false true false"),
     /* 2.3: score variables. */
+    /* 2.3: scores from the matches (w / (w + 1 + log2(1 + n)), w the
+       weighted matches, n the tokens), 1 where there is no contains
+       expression to score, 0 without a match. */
     QUERY_VALUE("scores",
                 "(for $p score $s in ('a', 'b') return $s, let score $s := 'a' contains text "
-                "'a' return $s, let score $s := 'a' contains text 'b' return $s)",
-                "1 1 1 0"),
+                "'a' return $s, let score $s := 'a' contains text 'b' return $s, "
+                "let score $s := 'x' return $s, let score $s := () return $s)",
+                "1 1 0.3333333333333333 0 1 0"),
+    QUERY_VALUE("for-scores",
+                "for $p score $s in (<p>a</p>, <p>a b a</p>, <p>b</p>)[. contains text 'a'] "
+                "return round($s, 3)",
+                "0.333 0.4"),
+    QUERY_VALUE("for-scores-relative",
+                "for $p score $s in <r><d><t>x a</t></d></r>/d[t contains text 'a'] return $s > 0",
+                "true"),
     QUERY_VALUE("weights",
-                "'a b' contains text ('a' weight {0.5}) ftand ('b' weight {2})", "true"),
+                "('a b' contains text ('a' weight {0.5}) ftand ('b' weight {2}), "
+                "let score $plain := 'a b' contains text 'a' "
+                "let score $heavy := 'a b' contains text ('a' weight {2}) "
+                "let score $light := 'a b' contains text ('a' weight {0.1}) "
+                "return ($heavy > $plain, $light < $plain, $heavy le 1))",
+                "true true true true"),
     /* The static rules. */
     QUERY_ERROR("duplicate-option", "'a' contains text 'a' using stemming using no stemming",
                 "FTST0019"),
     QUERY_ERROR("stop-words-by-uri", "'a' contains text 'a' using stop words at 'urn:x'",
-                "FTST0006"),
-    QUERY_ERROR("language", "'a' contains text 'a' using language 'zh'", "FTST0009"),
+                "FTST0008"),
+    QUERY_ERROR("language", "'a' contains text 'a' using language 'th'", "FTST0009"),
+    /* Ideographs are words of one character (UAX #29). */
+    QUERY_VALUE("chinese",
+                "('网站可用性测试' contains text '可用性' using language 'zh', "
+                "'网站可用性测试' contains text '可性', "
+                "'网站可用性测试' contains text '可用' ftand '站' ordered)",
+                "true false false"),
     QUERY_VALUE("language-with-region", "'a' contains text 'a' using language 'en-GB'", "true"),
     QUERY_ERROR("extension-option-prefix", "'a' contains text 'a' using option p:o 'v'",
                 "XPST0081"),
@@ -264,14 +291,69 @@ static const query_case query_cases[] = {
     QUERY_ERROR("words-type", "'a' contains text {1}", "XPTY0004"),
 };
 
-static void test_queries_give_values_and_errors(sxml_test_state *state) {
+/* Stop word lists and thesauri by URI and by default (3.4.3, 3.4.7),
+   from the resources below. */
+static const query_case resource_cases[] = {
+    QUERY_VALUE("stop-words-at",
+                "('propagating the errors' contains text 'propagating of errors' using stop "
+                "words at 'urn:stop', 'propagating the errors' contains text 'propagating of "
+                "errors' using stop words at 'urn:stop' except ('of'))",
+                "true false"),
+    QUERY_VALUE("stop-words-default",
+                "'a b c' contains text 'a x c' using stop words default", "true"),
+    QUERY_ERROR("stop-words-missing",
+                "'a' contains text 'a' using stop words at 'urn:missing'", "FTST0008"),
+    QUERY_VALUE("thesaurus-at",
+                "('the software' contains text 'program' using thesaurus at 'urn:thesaurus', "
+                "'the software' contains text 'program' using thesaurus at 'urn:thesaurus' "
+                "relationship 'NT', "
+                "'Web' contains text 'infrastructure' using thesaurus at 'urn:thesaurus' "
+                "relationship 'nt' exactly 2 levels, "
+                "'networks' contains text 'infrastructure' using thesaurus at "
+                "'urn:thesaurus' relationship 'NT' exactly 2 levels, "
+                "'the WEB' contains text 'infrastructure' using thesaurus at 'urn:thesaurus', "
+                "'program' contains text 'program' using thesaurus at 'urn:thesaurus' "
+                "relationship 'BT')",
+                "true false true false true true"),
+    /* The table's default resource is no thesaurus: the default one is
+       then empty. */
+    QUERY_VALUE("thesaurus-default",
+                "('the software' contains text 'program' using thesaurus default, "
+                "'the software' contains text 'program' using thesaurus (default, at "
+                "'urn:thesaurus'))",
+                "false true"),
+    QUERY_ERROR("thesaurus-missing",
+                "'a' contains text 'a' using thesaurus at 'urn:missing'", "FTST0018"),
+};
+
+static const sxml_resource_entry resource_entries[] = {
+    {.uri = SXML_BYTE_VIEW_INITIALIZER("urn:stop"),
+     .content = SXML_BYTE_VIEW_INITIALIZER("the of\nand ")},
+    {.uri = SXML_BYTE_VIEW_INITIALIZER(""), .content = SXML_BYTE_VIEW_INITIALIZER("x")},
+    {.uri = SXML_BYTE_VIEW_INITIALIZER("urn:thesaurus"),
+     .content = SXML_BYTE_VIEW_INITIALIZER(
+         "<thesaurus xmlns='http://www.w3.org/2007/xqftts/thesaurus'>"
+         "<entry><term>program</term><synonym><term>software</term>"
+         "<relationship>UF</relationship></synonym></entry>"
+         "<entry><term>infrastructure</term><synonym><term>networks</term>"
+         "<synonym><term>Web</term><relationship>NT</relationship></synonym>"
+         "<relationship>NT</relationship></synonym></entry></thesaurus>")},
+};
+
+/* Runs cases in a fixture with the feature (and resources). */
+typedef struct case_table {
+    const query_case *cases;
+    size_t case_count;
+    const sxml_resource_entry_view *resources;
+} case_table;
+
+static void run_cases(sxml_test_state *state, case_table table) {
     fixture test_fixture;
-    SXML_TEST_EXPECT(state,
-                     fixture_create((fixture_request){.has_full_text = true}, &test_fixture) ==
-                         SXML_STATUS_OK);
-    for (size_t case_index = 0; case_index < sizeof(query_cases) / sizeof(query_cases[0]);
-         case_index += 1) {
-        const query_case *current = &query_cases[case_index];
+    SXML_TEST_EXPECT(state, fixture_create((fixture_request){.has_full_text = true,
+                                                            .resources = table.resources},
+                                           &test_fixture) == SXML_STATUS_OK);
+    for (size_t case_index = 0; case_index < table.case_count; case_index += 1) {
+        const query_case *current = &table.cases[case_index];
         query_run run = {.expression_text = current->expression_text};
         const sxml_status status = run_query(&test_fixture, &run);
         const bool passed =
@@ -286,6 +368,21 @@ static void test_queries_give_values_and_errors(sxml_test_state *state) {
                                                               .line_number = __LINE__});
     }
     SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
+}
+
+static void test_queries_give_values_and_errors(sxml_test_state *state) {
+    run_cases(state, (case_table){.cases = query_cases,
+                                  .case_count = sizeof(query_cases) / sizeof(query_cases[0]),
+                                  .resources = NULL});
+}
+
+static void test_stop_words_and_thesauri_come_from_the_resolver(sxml_test_state *state) {
+    const sxml_resource_entry_view resources = {
+        .resource_entries = resource_entries,
+        .resource_entry_count = sizeof(resource_entries) / sizeof(resource_entries[0])};
+    run_cases(state, (case_table){.cases = resource_cases,
+                                  .case_count = sizeof(resource_cases) / sizeof(resource_cases[0]),
+                                  .resources = &resources});
 }
 
 /* --------------------------------------------- Without the feature */
@@ -367,6 +464,8 @@ static void test_contains_survives_allocation_failures(sxml_test_state *state) {
 
 static const sxml_test_case full_text_test_cases[] = {
     {.name = "queries_give_values_and_errors", .function = test_queries_give_values_and_errors},
+    {.name = "stop_words_and_thesauri_come_from_the_resolver",
+     .function = test_stop_words_and_thesauri_come_from_the_resolver},
     {.name = "without_the_feature_full_text_is_a_syntax_error",
      .function = test_without_the_feature_full_text_is_a_syntax_error},
     {.name = "contains_survives_allocation_failures",

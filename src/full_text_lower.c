@@ -185,12 +185,16 @@ static sxml_status check_score_variable(const rules_walk *walk, sxml_ast_node_in
 }
 
 /* The languages sxml supports (3.4.1: implementation-defined; FTST0009
-   for others): its matching is the same for each, and none needs word
-   segmentation, which Chinese, Japanese and Thai would (D214). */
+   for others): those of D208, whose stemmers it has (3.4.4), and Chinese
+   and Japanese, whose ideographs and hiragana are words of one character
+   each (UAX #29's default segmentation, src/full_text_tokenize.c; they
+   have no stemmer). Thai and other scripts without spaces would need a
+   dictionary (D214). */
 static const sxml_byte_view supported_languages[] = {
     SXML_BYTE_VIEW_INITIALIZER("en"), SXML_BYTE_VIEW_INITIALIZER("de"),
     SXML_BYTE_VIEW_INITIALIZER("fr"), SXML_BYTE_VIEW_INITIALIZER("it"),
     SXML_BYTE_VIEW_INITIALIZER("es"), SXML_BYTE_VIEW_INITIALIZER("nl"),
+    SXML_BYTE_VIEW_INITIALIZER("zh"), SXML_BYTE_VIEW_INITIALIZER("ja"),
 };
 
 /* FTST0009 unless the language's primary subtag is one sxml supports. */
@@ -231,24 +235,8 @@ static sxml_status check_node(const rules_walk *walk, sxml_ast_node_index node) 
         return check_option_groups(walk, node);
     case SXML_AST_KIND_FT_SCORE_VARIABLE:
         return check_score_variable(walk, node);
-    case SXML_AST_KIND_FT_STOP_WORDS:
-        /* 3.4.7 and 5.2.11: sxml restricts stop words to explicit lists
-           until it reads lists by URI (packet 7.12c). */
-        if (child_in(walk->ast, node, SXML_AST_FIELD_URI).value != 0) {
-            return report_at(walk, node,
-                             SXML_BYTE_VIEW_FROM_LITERAL(
-                                 "FTST0006 sxml supports stop word lists given as strings, not "
-                                 "by URI (Full Text 3.0, 3.4.7)"));
-        }
-        return SXML_STATUS_OK;
     case SXML_AST_KIND_FT_LANGUAGE_OPTION:
         return check_language(walk, node);
-    case SXML_AST_KIND_FT_THESAURUS_ID:
-        /* 3.4.3: nor thesauri by URI (7.12c). */
-        return report_at(walk, node,
-                         SXML_BYTE_VIEW_FROM_LITERAL(
-                             "FTST0018 the thesaurus is not among the statically known "
-                             "thesauri (Full Text 3.0, 3.4.3)"));
     case SXML_AST_KIND_FT_EXTENSION_SELECTION:
         /* 3.6: sxml recognizes no pragma, so the selection is required. */
         if (child_in(walk->ast, node, SXML_AST_FIELD_SELECTION).value == 0) {
@@ -353,6 +341,8 @@ typedef struct effective_options {
     sxml_full_text_language language;
     /* The stop word option that applies; 0 for "no stop words". */
     sxml_ast_node_index stop_words;
+    /* The thesaurus option that applies; 0 for "no thesaurus". */
+    sxml_ast_node_index thesaurus;
 } effective_options;
 
 /* Applies the options of owner (an FT_PRIMARY_WITH_OPTIONS or
@@ -397,16 +387,18 @@ static void take_options(const sxml_xpath_lowerer *state, option_source source,
         case SXML_AST_KIND_FT_STOP_WORD_OPTION:
             effective->stop_words = is_no ? (sxml_ast_node_index){0} : option;
             break;
+        case SXML_AST_KIND_FT_THESAURUS_OPTION:
+            effective->thesaurus = is_no ? (sxml_ast_node_index){0} : option;
+            break;
         case SXML_AST_KIND_FT_LANGUAGE_OPTION: {
             /* 3.4.1: the language chooses the stemmer (3.4.4); matching
                does not depend on it otherwise. */
             const sxml_ast_node_index literal = child_of(state, option, SXML_AST_FIELD_LANGUAGE);
-            effective->language =
-                sxml_full_text_language_of(sxml_ast_get_text(state->ast, node_of(state, literal)->payload.text));
+            effective->language = sxml_full_text_language_of(
+                sxml_ast_get_text(state->ast, node_of(state, literal)->payload.text));
             break;
         }
         default:
-            /* The thesaurus: below. */
             break;
         }
     }
@@ -457,40 +449,63 @@ static bool has_word(const sxml_byte_view *words, size_t word_count, sxml_byte_v
     return false;
 }
 
-/* Applies one FT_STOP_WORDS list to words: union adds its words, except
-   removes them (left to right). */
+/* The effective stop words, borrowed from the AST and the lists read. */
 typedef struct stop_word_list {
     sxml_byte_view *words;
     size_t word_count;
     size_t word_capacity;
 } stop_word_list;
 
-/* One FT_STOP_WORDS list and how it combines. */
+/* Adds word to words (union) or removes it (except). */
 typedef struct stop_word_change {
-    sxml_ast_node_index list;
+    sxml_byte_view word;
     bool is_except;
 } stop_word_change;
 
-static void apply_stop_words(const sxml_xpath_lowerer *state, stop_word_change change,
-                             stop_word_list *words) {
-    const bool is_except = change.is_except;
-    for (sxml_ast_node_index word_node = child_of(state, change.list, SXML_AST_FIELD_WORD);
-         word_node.value != 0; word_node = next_in(state->ast, word_node)) {
-        const sxml_byte_view text =
-            sxml_ast_get_text(state->ast, node_of(state, word_node)->payload.text);
-        if (is_except) {
-            for (size_t word_index = 0; word_index < words->word_count; word_index += 1) {
-                if (sxml_byte_view_equals(words->words[word_index], text)) {
-                    words->words[word_index] = words->words[words->word_count - 1];
-                    words->word_count -= 1;
-                    break;
-                }
+static void change_stop_words(stop_word_change change, stop_word_list *words) {
+    if (change.is_except) {
+        for (size_t word_index = 0; word_index < words->word_count; word_index += 1) {
+            if (sxml_byte_view_equals(words->words[word_index], change.word)) {
+                words->words[word_index] = words->words[words->word_count - 1];
+                words->word_count -= 1;
+                return;
             }
-        } else if (!has_word(words->words, words->word_count, text) &&
-                   words->word_count < words->word_capacity) {
-            words->words[words->word_count] = text;
-            words->word_count += 1;
         }
+    } else if (!has_word(words->words, words->word_count, change.word) &&
+               words->word_count < words->word_capacity) {
+        words->words[words->word_count] = change.word;
+        words->word_count += 1;
+    }
+}
+
+/* One FT_STOP_WORDS list (or the default list) and how it combines with
+   the words before it: union adds its words, except removes them, left
+   to right (3.4.7). Its words are its literals, or those of the list it
+   names by URI, read into *source. */
+typedef struct stop_word_part {
+    sxml_ast_node_index list;
+    const sxml_full_text_word_list *source;
+    bool is_except;
+} stop_word_part;
+
+static void apply_stop_words(const sxml_xpath_lowerer *state, stop_word_part part,
+                             stop_word_list *words) {
+    if (part.source != NULL) {
+        for (size_t word_index = 0; word_index < part.source->word_count; word_index += 1) {
+            change_stop_words(
+                (stop_word_change){.word = sxml_full_text_word_at(part.source, word_index),
+                                   .is_except = part.is_except},
+                words);
+        }
+        return;
+    }
+    for (sxml_ast_node_index word_node = child_of(state, part.list, SXML_AST_FIELD_WORD);
+         word_node.value != 0; word_node = next_in(state->ast, word_node)) {
+        change_stop_words(
+            (stop_word_change){.word = sxml_ast_get_text(state->ast,
+                                                         node_of(state, word_node)->payload.text),
+                               .is_except = part.is_except},
+            words);
     }
 }
 
@@ -515,6 +530,76 @@ static size_t count_stop_words(const sxml_xpath_lowerer *state, sxml_ast_node_in
     return word_count;
 }
 
+/* Reports code_and_description ("CODE description") at node. */
+static sxml_status report_lowering_error(const sxml_xpath_lowerer *state,
+                                         sxml_ast_node_index node,
+                                         sxml_byte_view code_and_description) {
+    return sxml_xpath_report_static_error(
+        &(sxml_xpath_static_error){
+            .ast = state->ast,
+            .node = node,
+            .code_local_name = {.bytes = code_and_description.bytes, .byte_count = 8},
+            .description = {.bytes = code_and_description.bytes + 9,
+                            .byte_count = code_and_description.byte_count - 9}},
+        state->error_record);
+}
+
+/* A stop word list or thesaurus to read while lowering: by the URI of
+   uri_literal (a STRING_LITERAL), or the default one when it is 0. */
+typedef struct resource_read {
+    sxml_resource_kind resource_kind;
+    sxml_ast_node_index uri_literal;
+    /* Receives what it holds. */
+    sxml_full_text_word_list *list;
+} resource_read;
+
+static sxml_status read_resource(const sxml_xpath_lowerer *state, resource_read read,
+                                 sxml_full_text_resource_outcome *outcome) {
+    sxml_full_text_word_list *list = read.list;
+    outcome->is_found = false;
+    sxml_processor *processor = state->static_context->processor;
+    if (processor == NULL) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_byte_view uri =
+        read.uri_literal.value != 0
+            ? sxml_ast_get_text(state->ast, node_of(state, read.uri_literal)->payload.text)
+            : (sxml_byte_view){.bytes = NULL, .byte_count = 0};
+    if (read.uri_literal.value != 0 && uri.byte_count == 0) {
+        return SXML_STATUS_OK;
+    }
+    return sxml_full_text_read_resource(
+        &(sxml_full_text_resource_request){.processor = processor,
+                                           .resource_kind = read.resource_kind,
+                                           .uri_reference = uri,
+                                           .base_uri = state->static_context->static_base_uri},
+        list, outcome);
+}
+
+/* Reads the list a FT_STOP_WORDS names by URI, if it names one; FTST0008
+   when the resolver has no such list (3.4.7). */
+static sxml_status read_stop_word_list(const sxml_xpath_lowerer *state, sxml_ast_node_index list,
+                                       sxml_full_text_word_list *source) {
+    const sxml_ast_node_index uri = child_of(state, list, SXML_AST_FIELD_URI);
+    if (uri.value == 0) {
+        return SXML_STATUS_OK;
+    }
+    sxml_full_text_resource_outcome outcome;
+    const sxml_status status =
+        read_resource(state,
+                      (resource_read){.resource_kind = SXML_RESOURCE_KIND_FULL_TEXT_STOP_WORDS,
+                                      .uri_literal = uri,
+                                      .list = source},
+                      &outcome);
+    if (status == SXML_STATUS_OK && !outcome.is_found) {
+        return report_lowering_error(state, list,
+                                     SXML_BYTE_VIEW_FROM_LITERAL(
+                                         "FTST0008 the stop word list is not among the statically "
+                                         "known stop word lists (Full Text 3.0, 3.4.7)"));
+    }
+    return status;
+}
+
 /* Binds the stop words of option (an FT_STOP_WORD_OPTION) as an
    xs:string* sequence of constants in block. */
 typedef struct stop_word_binding {
@@ -522,64 +607,394 @@ typedef struct stop_word_binding {
     sxml_ast_node_index option;
 } stop_word_binding;
 
-static sxml_status bind_stop_words(sxml_xpath_lowerer *state, stop_word_binding request,
-                                   sxml_ir_atom *atom) {
-    const size_t capacity = count_stop_words(state, request.option) + 1;
-    stop_word_list words = {.word_capacity = capacity};
+/* The lists of one option: [0] the first (or the default), then one per
+   inclusion. */
+typedef struct stop_word_sources {
+    sxml_full_text_word_list *lists;
+    size_t list_count;
+} stop_word_sources;
+
+static sxml_status read_stop_word_sources(const sxml_xpath_lowerer *state,
+                                          sxml_ast_node_index option,
+                                          stop_word_sources *sources) {
+    const bool is_default = (node_of(state, option)->flags & SXML_AST_FLAG_DEFAULT) != 0;
+    sxml_status status = SXML_STATUS_OK;
+    if (is_default) {
+        /* "stop words default": the resolver's default list, empty when
+           it has none (3.4.7: implementation-defined). */
+        sxml_full_text_resource_outcome outcome;
+        status =
+            read_resource(state,
+                          (resource_read){.resource_kind = SXML_RESOURCE_KIND_FULL_TEXT_STOP_WORDS,
+                                          .uri_literal = {0},
+                                          .list = &sources->lists[0]},
+                          &outcome);
+    } else {
+        status = read_stop_word_list(state, child_of(state, option, SXML_AST_FIELD_WORDS),
+                                     &sources->lists[0]);
+    }
+    size_t list_index = 1;
+    for (sxml_ast_node_index inclusion = child_of(state, option, SXML_AST_FIELD_INCLUSION);
+         status == SXML_STATUS_OK && inclusion.value != 0;
+         inclusion = next_in(state->ast, inclusion)) {
+        status = read_stop_word_list(state, child_of(state, inclusion, SXML_AST_FIELD_WORDS),
+                                     &sources->lists[list_index]);
+        list_index += 1;
+    }
+    return status;
+}
+
+/* The words of a list: those it names by URI when it names a URI. */
+static const sxml_full_text_word_list *source_of(const sxml_xpath_lowerer *state,
+                                                 sxml_ast_node_index list,
+                                                 const sxml_full_text_word_list *read) {
+    return list.value == 0 || child_of(state, list, SXML_AST_FIELD_URI).value != 0 ? read : NULL;
+}
+
+/* Makes the constants of words and binds them as one sequence. */
+typedef struct string_sequence {
+    sxml_xpath_lowering_block *block;
+    sxml_ast_node_index node;
+    const sxml_byte_view *strings;
+    size_t string_count;
+} string_sequence;
+
+static sxml_status bind_strings(sxml_xpath_lowerer *state, string_sequence request,
+                                sxml_ir_atom *atom) {
+    sxml_ir_atom *constants = NULL;
     sxml_status status = sxml_xpath_lowerer_allocate_scratch(
         state,
-        (sxml_xpath_lowering_scratch_request){.element_count = capacity,
-                                              .element_size = sizeof(sxml_byte_view),
-                                              .element_alignment = alignof(sxml_byte_view)},
-        (void **)&words.words);
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    /* "stop words default": sxml's default list is empty (3.4.7:
-       implementation-defined). */
-    apply_stop_words(state,
-                     (stop_word_change){.list = child_of(state, request.option,
-                                                         SXML_AST_FIELD_WORDS),
-                                        .is_except = false},
-                     &words);
-    for (sxml_ast_node_index inclusion = child_of(state, request.option, SXML_AST_FIELD_INCLUSION);
-         inclusion.value != 0; inclusion = next_in(state->ast, inclusion)) {
-        apply_stop_words(
-            state,
-            (stop_word_change){.list = child_of(state, inclusion, SXML_AST_FIELD_WORDS),
-                               .is_except = node_of(state, inclusion)->detail.operator==
-                                            SXML_AST_OPERATOR_EXCEPT},
-            &words);
-    }
-    sxml_ir_atom *constants = NULL;
-    status = sxml_xpath_lowerer_allocate_scratch(
-        state,
-        (sxml_xpath_lowering_scratch_request){.element_count = capacity,
+        (sxml_xpath_lowering_scratch_request){.element_count = request.string_count + 1,
                                               .element_size = sizeof(sxml_ir_atom),
                                               .element_alignment = alignof(sxml_ir_atom)},
         (void **)&constants);
-    for (size_t word_index = 0; status == SXML_STATUS_OK && word_index < words.word_count;
-         word_index += 1) {
-        status = sxml_xpath_lowerer_add_string_constant(state, words.words[word_index],
-                                                        &constants[word_index]);
+    for (size_t string_index = 0; status == SXML_STATUS_OK && string_index < request.string_count;
+         string_index += 1) {
+        status = sxml_xpath_lowerer_add_string_constant(state, request.strings[string_index],
+                                                        &constants[string_index]);
     }
     sxml_ir_atom_list list = {0};
     if (status == SXML_STATUS_OK) {
         status = sxml_ir_unit_add_atoms(
-            state->unit, (sxml_ir_atom_view){.atoms = constants, .atom_count = words.word_count},
-            &list);
+            state->unit,
+            (sxml_ir_atom_view){.atoms = constants, .atom_count = request.string_count}, &list);
     }
     if (status == SXML_STATUS_OK) {
         status = bind_new_expression(
             state,
             (expression_in_block){.block = request.block,
-                                  .node = request.option,
+                                  .node = request.node,
                                   .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_SEQUENCE,
                                                  .sequence = list}},
             atom);
     }
     sxml_xpath_lowerer_release_scratch(state, constants);
+    return status;
+}
+
+/* The lists of an option, made and released together. */
+static sxml_status make_sources(const sxml_xpath_lowerer *state, size_t list_count,
+                                stop_word_sources *sources) {
+    sources->list_count = list_count;
+    sxml_status status = sxml_xpath_lowerer_allocate_scratch(
+        state,
+        (sxml_xpath_lowering_scratch_request){.element_count = list_count,
+                                              .element_size = sizeof(sxml_full_text_word_list),
+                                              .element_alignment =
+                                                  alignof(sxml_full_text_word_list)},
+        (void **)&sources->lists);
+    for (size_t list_index = 0; status == SXML_STATUS_OK && list_index < list_count;
+         list_index += 1) {
+        sources->lists[list_index] =
+            (sxml_full_text_word_list){.bytes = {.allocator = state->allocator}};
+    }
+    return status;
+}
+
+static void release_sources(const sxml_xpath_lowerer *state, stop_word_sources *sources) {
+    for (size_t list_index = 0; sources->lists != NULL && list_index < sources->list_count;
+         list_index += 1) {
+        sxml_full_text_word_list_release(&sources->lists[list_index]);
+    }
+    sxml_xpath_lowerer_release_scratch(state, sources->lists);
+}
+
+static sxml_status bind_stop_words(sxml_xpath_lowerer *state, stop_word_binding request,
+                                   sxml_ir_atom *atom) {
+    size_t list_count = 1;
+    for (sxml_ast_node_index inclusion = child_of(state, request.option, SXML_AST_FIELD_INCLUSION);
+         inclusion.value != 0; inclusion = next_in(state->ast, inclusion)) {
+        list_count += 1;
+    }
+    stop_word_sources sources = {.lists = NULL, .list_count = 0};
+    sxml_status status = make_sources(state, list_count, &sources);
+    if (status == SXML_STATUS_OK) {
+        status = read_stop_word_sources(state, request.option, &sources);
+    }
+    size_t capacity = count_stop_words(state, request.option) + 1;
+    for (size_t list_index = 0; status == SXML_STATUS_OK && list_index < list_count;
+         list_index += 1) {
+        capacity += sources.lists[list_index].word_count;
+    }
+    stop_word_list words = {.word_capacity = capacity};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_allocate_scratch(
+            state,
+            (sxml_xpath_lowering_scratch_request){.element_count = capacity,
+                                                  .element_size = sizeof(sxml_byte_view),
+                                                  .element_alignment = alignof(sxml_byte_view)},
+            (void **)&words.words);
+    }
+    if (status == SXML_STATUS_OK) {
+        const bool is_default = (node_of(state, request.option)->flags & SXML_AST_FLAG_DEFAULT) != 0;
+        const sxml_ast_node_index first =
+            is_default ? (sxml_ast_node_index){0}
+                       : child_of(state, request.option, SXML_AST_FIELD_WORDS);
+        apply_stop_words(state,
+                         (stop_word_part){.list = first,
+                                          .source = source_of(state, first, &sources.lists[0]),
+                                          .is_except = false},
+                         &words);
+        size_t list_index = 1;
+        for (sxml_ast_node_index inclusion =
+                 child_of(state, request.option, SXML_AST_FIELD_INCLUSION);
+             inclusion.value != 0; inclusion = next_in(state->ast, inclusion)) {
+            const sxml_ast_node_index list = child_of(state, inclusion, SXML_AST_FIELD_WORDS);
+            apply_stop_words(
+                state,
+                (stop_word_part){.list = list,
+                                 .source = source_of(state, list, &sources.lists[list_index]),
+                                 .is_except = node_of(state, inclusion)->detail.operator==
+                                              SXML_AST_OPERATOR_EXCEPT},
+                &words);
+            list_index += 1;
+        }
+        status = bind_strings(state,
+                              (string_sequence){.block = request.block,
+                                                .node = request.option,
+                                                .strings = words.words,
+                                                .string_count = words.word_count},
+                              atom);
+    }
     sxml_xpath_lowerer_release_scratch(state, words.words);
+    release_sources(state, &sources);
+    return status;
+}
+
+/* --------------------------------------------------- Thesauri (3.4.3) */
+
+/* Whether two relationship names are the same, ASCII case aside. */
+static bool is_same_relationship(sxml_byte_view first, sxml_byte_view second) {
+    if (first.byte_count != second.byte_count) {
+        return false;
+    }
+    for (size_t byte_index = 0; byte_index < first.byte_count; byte_index += 1) {
+        uint8_t left = first.bytes[byte_index];
+        uint8_t right = second.bytes[byte_index];
+        left = left >= 'A' && left <= 'Z' ? (uint8_t)(left + ('a' - 'A')) : left;
+        right = right >= 'A' && right <= 'Z' ? (uint8_t)(right + ('a' - 'A')) : right;
+        if (left != right) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/* The value of an INTEGER_LITERAL of a literal range, saturated. */
+static uint32_t literal_value(const sxml_xpath_lowerer *state, sxml_ast_node_index literal) {
+    const sxml_byte_view text = sxml_ast_get_text(state->ast, node_of(state, literal)->payload.text);
+    uint64_t value = 0;
+    for (size_t byte_index = 0; byte_index < text.byte_count; byte_index += 1) {
+        const uint8_t byte = text.bytes[byte_index];
+        if (byte >= '0' && byte <= '9') {
+            value = value * 10U + (uint64_t)(byte - '0');
+            if (value > UINT32_MAX) {
+                return UINT32_MAX;
+            }
+        }
+    }
+    return (uint32_t)value;
+}
+
+/* The decimal digits of value, in digits (at least 11 bytes). */
+static sxml_byte_view decimal_text(uint32_t value, uint8_t *digits) {
+    uint8_t reversed[10];
+    size_t digit_count = 0;
+    do {
+        reversed[digit_count] = (uint8_t)('0' + value % 10U);
+        digit_count += 1;
+        value /= 10U;
+    } while (value != 0);
+    for (size_t digit = 0; digit < digit_count; digit += 1) {
+        digits[digit] = reversed[digit_count - 1 - digit];
+    }
+    return (sxml_byte_view){.bytes = digits, .byte_count = digit_count};
+}
+
+/* The strings of one option's thesauri, as the match program's member
+   holds them (src/full_text_internal.h, "W"): per thesaurus its minimum
+   and maximum level, its relation count n, then n pairs (a term, a
+   related term) of the relationship asked for. */
+typedef struct thesaurus_strings {
+    sxml_byte_view *strings;
+    size_t string_count;
+    size_t string_capacity;
+    /* The decimal numbers, three per thesaurus, 11 bytes each. */
+    uint8_t *digits;
+} thesaurus_strings;
+
+/* Adds one thesaurus read into *list, as thesaurus_id (an FT_THESAURUS_ID, or 0
+   for the default thesaurus) asks. */
+typedef struct thesaurus_part {
+    sxml_ast_node_index thesaurus_id;
+    const sxml_full_text_word_list *list;
+    size_t thesaurus_number;
+} thesaurus_part;
+
+static void add_thesaurus(const sxml_xpath_lowerer *state, thesaurus_part part,
+                          thesaurus_strings *strings) {
+    uint32_t minimum = 0;
+    uint32_t maximum = UINT32_MAX;
+    sxml_byte_view relationship = {.bytes = NULL, .byte_count = 0};
+    if (part.thesaurus_id.value != 0) {
+        const sxml_ast_node_index relationship_literal =
+            child_of(state, part.thesaurus_id, SXML_AST_FIELD_RELATIONSHIP);
+        if (relationship_literal.value != 0) {
+            relationship = sxml_ast_get_text(state->ast,
+                                             node_of(state, relationship_literal)->payload.text);
+        }
+        /* "exactly N", "at least N", "at most N", "from M to N" levels. */
+        const sxml_ast_node_index range = child_of(state, part.thesaurus_id, SXML_AST_FIELD_RANGE);
+        const sxml_ast_node_index exactly = child_of(state, range, SXML_AST_FIELD_VALUE);
+        const sxml_ast_node_index lowest = child_of(state, range, SXML_AST_FIELD_MINIMUM);
+        const sxml_ast_node_index highest = child_of(state, range, SXML_AST_FIELD_MAXIMUM);
+        if (range.value != 0 && exactly.value != 0) {
+            minimum = literal_value(state, exactly);
+            maximum = minimum;
+        }
+        if (range.value != 0 && lowest.value != 0) {
+            minimum = literal_value(state, lowest);
+        }
+        if (range.value != 0 && highest.value != 0) {
+            maximum = literal_value(state, highest);
+        }
+    }
+    const size_t header = strings->string_count;
+    uint8_t *digits = strings->digits + part.thesaurus_number * 33U;
+    strings->strings[header] = decimal_text(minimum, digits);
+    strings->strings[header + 1] = decimal_text(maximum, digits + 11);
+    strings->string_count += 3;
+    uint32_t pair_count = 0;
+    for (size_t triple = 0; triple + 2 < part.list->word_count; triple += 3) {
+        if (relationship.bytes != NULL &&
+            !is_same_relationship(sxml_full_text_word_at(part.list, triple + 1), relationship)) {
+            continue;
+        }
+        strings->strings[strings->string_count] = sxml_full_text_word_at(part.list, triple);
+        strings->strings[strings->string_count + 1] = sxml_full_text_word_at(part.list, triple + 2);
+        strings->string_count += 2;
+        pair_count += 1;
+    }
+    strings->strings[header + 2] = decimal_text(pair_count, digits + 22);
+}
+
+/* Binds the thesauri of option (an FT_THESAURUS_OPTION) as an xs:string*
+   sequence of constants in block; FTST0018 for a thesaurus the resolver
+   does not have. */
+static sxml_status bind_thesauri(sxml_xpath_lowerer *state, stop_word_binding request,
+                                 sxml_ir_atom *atom) {
+    const bool is_default = (node_of(state, request.option)->flags & SXML_AST_FLAG_DEFAULT) != 0;
+    size_t list_count = is_default ? 1U : 0U;
+    for (sxml_ast_node_index thesaurus_id =
+             child_of(state, request.option, SXML_AST_FIELD_THESAURUS);
+         thesaurus_id.value != 0; thesaurus_id = next_in(state->ast, thesaurus_id)) {
+        list_count += 1;
+    }
+    stop_word_sources sources = {.lists = NULL, .list_count = 0};
+    sxml_status status = make_sources(state, list_count + 1, &sources);
+    size_t list_index = 0;
+    if (status == SXML_STATUS_OK && is_default) {
+        /* "thesaurus default": the resolver's default, empty when it has
+           none (3.4.3: implementation-defined). */
+        sxml_full_text_resource_outcome outcome;
+        status =
+            read_resource(state,
+                          (resource_read){.resource_kind = SXML_RESOURCE_KIND_FULL_TEXT_THESAURUS,
+                                          .uri_literal = {0},
+                                          .list = &sources.lists[0]},
+                          &outcome);
+        list_index = 1;
+    }
+    for (sxml_ast_node_index thesaurus_id =
+             child_of(state, request.option, SXML_AST_FIELD_THESAURUS);
+         status == SXML_STATUS_OK && thesaurus_id.value != 0;
+         thesaurus_id = next_in(state->ast, thesaurus_id)) {
+        sxml_full_text_resource_outcome outcome;
+        status = read_resource(
+            state,
+            (resource_read){.resource_kind = SXML_RESOURCE_KIND_FULL_TEXT_THESAURUS,
+                            .uri_literal = child_of(state, thesaurus_id, SXML_AST_FIELD_URI),
+                            .list = &sources.lists[list_index]},
+            &outcome);
+        if (status == SXML_STATUS_OK && !outcome.is_found) {
+            status = report_lowering_error(state, thesaurus_id,
+                                           SXML_BYTE_VIEW_FROM_LITERAL(
+                                               "FTST0018 the thesaurus is not among the "
+                                               "statically known thesauri (Full Text 3.0, 3.4.3)"));
+        }
+        list_index += 1;
+    }
+    size_t capacity = 1;
+    for (size_t index = 0; status == SXML_STATUS_OK && index < list_count; index += 1) {
+        capacity += 3U + sources.lists[index].word_count;
+    }
+    thesaurus_strings strings = {.string_capacity = capacity};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_allocate_scratch(
+            state,
+            (sxml_xpath_lowering_scratch_request){.element_count = capacity,
+                                                  .element_size = sizeof(sxml_byte_view),
+                                                  .element_alignment = alignof(sxml_byte_view)},
+            (void **)&strings.strings);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_allocate_scratch(
+            state,
+            (sxml_xpath_lowering_scratch_request){.element_count = (list_count + 1) * 33U,
+                                                  .element_size = 1,
+                                                  .element_alignment = 1},
+            (void **)&strings.digits);
+    }
+    if (status == SXML_STATUS_OK) {
+        size_t thesaurus_number = 0;
+        if (is_default) {
+            add_thesaurus(state,
+                          (thesaurus_part){.thesaurus_id = {0},
+                                           .list = &sources.lists[0],
+                                           .thesaurus_number = 0},
+                          &strings);
+            thesaurus_number = 1;
+        }
+        for (sxml_ast_node_index thesaurus_id =
+                 child_of(state, request.option, SXML_AST_FIELD_THESAURUS);
+             thesaurus_id.value != 0; thesaurus_id = next_in(state->ast, thesaurus_id)) {
+            add_thesaurus(state,
+                          (thesaurus_part){.thesaurus_id = thesaurus_id,
+                                           .list = &sources.lists[thesaurus_number],
+                                           .thesaurus_number = thesaurus_number},
+                          &strings);
+            thesaurus_number += 1;
+        }
+        status = bind_strings(state,
+                              (string_sequence){.block = request.block,
+                                                .node = request.option,
+                                                .strings = strings.strings,
+                                                .string_count = strings.string_count},
+                              atom);
+    }
+    sxml_xpath_lowerer_release_scratch(state, strings.digits);
+    sxml_xpath_lowerer_release_scratch(state, strings.strings);
+    release_sources(state, &sources);
     return status;
 }
 
@@ -593,9 +1008,9 @@ static sxml_status bind_stop_words(sxml_xpath_lowerer *state, stop_word_binding 
    of up to ten digits with their commas, and ";". */
 #define SXML_FULL_TEXT_MAXIMUM_INSTRUCTION_BYTES 112U
 
-/* The most program members one node adds: three operands and a stop
-   word list. */
-#define SXML_FULL_TEXT_MAXIMUM_NODE_MEMBERS 4U
+/* The most program members one node adds: three operands, a stop word
+   list and the thesauri. */
+#define SXML_FULL_TEXT_MAXIMUM_NODE_MEMBERS 5U
 
 /* What an operand is coerced to (4.3 step 1). */
 typedef enum operand_type {
@@ -1015,6 +1430,17 @@ static sxml_status emit_words(sxml_xpath_lowerer *state, sxml_xpath_lowering_fra
         locals->member_count += 1;
         stop_words = (uint32_t)locals->member_count;
     }
+    uint32_t thesauri = 0;
+    if (effective.thesaurus.value != 0) {
+        const sxml_status status = bind_thesauri(
+            state, (stop_word_binding){.block = frame->block, .option = effective.thesaurus},
+            &locals->members[locals->member_count]);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        locals->member_count += 1;
+        thesauri = (uint32_t)locals->member_count;
+    }
     const sxml_full_text_match_options *options = &effective.options;
     const uint32_t arguments[SXML_FULL_TEXT_MAXIMUM_ARGUMENT_COUNT] = {
         numbers[0],
@@ -1025,7 +1451,7 @@ static sxml_status emit_words(sxml_xpath_lowerer *state, sxml_xpath_lowering_fra
         options->uses_wildcards ? 1U : 0U,
         (uint32_t)effective.language,
         stop_words,
-        0};
+        thesauri};
     append_instruction(locals, (instruction_text){.opcode = SXML_FULL_TEXT_OPCODE_WORDS,
                                                   .arguments = arguments,
                                                   .argument_count =
@@ -1200,7 +1626,11 @@ static sxml_status finish_contains(sxml_xpath_lowering_machine *machine,
         const sxml_ir_atom arguments[3] = {locals->search, program, locals->ignore};
         status = make_native_call(state,
                                   (native_call){.node = frame->node,
-                                                .native_function = &sxml_full_text_contains_function,
+                                                /* 2.3: its score where one is wanted. */
+                                                .native_function =
+                                                    sxml_xquery_full_text_is_scored(state, frame)
+                                                        ? &sxml_full_text_score_contains_function
+                                                        : &sxml_full_text_contains_function,
                                                 .arguments = {.atoms = arguments, .atom_count = 3}},
                                   &expression);
     }

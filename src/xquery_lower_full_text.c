@@ -55,6 +55,17 @@ static sxml_status call_contains(const sxml_function_call *call, sxml_sequence *
     return operations->contains(call, result);
 }
 
+static sxml_status call_score_contains(const sxml_function_call *call, sxml_sequence *result) {
+    const sxml_evaluation_environment *environment =
+        sxml_processor_get_evaluation_environment(call->dynamic_context);
+    const sxml_full_text_operations *operations = sxml_processor_find_optional_feature(
+        environment == NULL ? NULL : environment->processor, SXML_OPTIONAL_FEATURE_KIND_FULL_TEXT);
+    if (operations == NULL) {
+        return sxml_function_library_report(call, &unsupported_error);
+    }
+    return operations->score_contains(call, result);
+}
+
 /* The score of a let score binding (2.3.2; see full_text_internal.h). */
 static sxml_status call_score(const sxml_function_call *call, sxml_sequence *result) {
     const sxml_sequence value = sxml_function_library_get_argument(call, 0);
@@ -112,6 +123,15 @@ const sxml_native_function sxml_full_text_contains_function = {
     .parameters = {contains_parameters, 3},
     .result_type = SXML_BYTE_VIEW_INITIALIZER("xs:boolean"),
     .call = call_contains,
+    .resumable_body = NULL};
+
+const sxml_native_function sxml_full_text_score_contains_function = {
+    .function_namespace = SXML_NAMESPACE_NONE,
+    .properties = SXML_NATIVE_FUNCTION_USES_DYNAMIC_CONTEXT,
+    .local_name = SXML_BYTE_VIEW_INITIALIZER("score-contains"),
+    .parameters = {contains_parameters, 3},
+    .result_type = SXML_BYTE_VIEW_INITIALIZER("xs:double"),
+    .call = call_score_contains,
     .resumable_body = NULL};
 
 const sxml_native_function sxml_full_text_score_function = {
@@ -181,10 +201,35 @@ static sxml_status make_native_call(sxml_xpath_lowerer *state, native_call reque
     return status;
 }
 
-/* The score of "let score $s := E" (2.3.2): score(E), bound in block. */
+/* The expression inside any parentheses around node. */
+static sxml_ast_node_index unwrapped(const sxml_ast *ast, sxml_ast_node_index node) {
+    while (node.value != 0 &&
+           node_in(ast, node)->kind == SXML_AST_KIND_PARENTHESIZED_EXPRESSION) {
+        node = sxml_ast_find_child(
+            ast, (sxml_ast_child_query){.parent = node, .field = SXML_AST_FIELD_EXPRESSION});
+    }
+    return node;
+}
+
+/* Whether the value of a let score binding is a contains expression
+   (which then lowers to its score). */
+static bool is_contains_value(const sxml_ast *ast, sxml_ast_node_index binding) {
+    const sxml_ast_node_index value = unwrapped(
+        ast, sxml_ast_find_child(ast, (sxml_ast_child_query){.parent = binding,
+                                                             .field = SXML_AST_FIELD_VALUE}));
+    return value.value != 0 && node_in(ast, value)->kind == SXML_AST_KIND_FT_CONTAINS_EXPRESSION;
+}
+
+/* The score of "let score $s := E" (2.3.2): the score of E when E is a
+   contains expression (its lowering gave score-contains), else score(E),
+   bound in block. */
 sxml_status sxml_xquery_bind_full_text_score(sxml_xpath_lowerer *lowerer,
                                              const sxml_xquery_full_text_score_request *request,
                                              sxml_ir_atom *atom) {
+    if (is_contains_value(lowerer->ast, request->node)) {
+        *atom = request->value;
+        return SXML_STATUS_OK;
+    }
     sxml_ir_expression expression;
     const sxml_status status = make_native_call(
         lowerer,
@@ -237,6 +282,148 @@ sxml_status sxml_xquery_check_full_text_rules(const sxml_xquery_full_text_rules_
         }
     }
     return SXML_STATUS_OK;
+}
+
+/* ================================================== Scores of for items */
+
+/* The predicate of the last step of a for binding's sequence that is a
+   contains expression ("for $b score $s in $books[. contains text 'x']"),
+   or 0: through parentheses, paths ("/" and "//", to their right) and
+   filters (their predicates, last first). */
+static sxml_ast_node_index scored_predicate(const sxml_ast *ast, sxml_ast_node_index sequence) {
+    sxml_ast_node_index node = unwrapped(ast, sequence);
+    while (node.value != 0) {
+        const sxml_ast_node *current = node_in(ast, node);
+        switch ((uint32_t)current->kind) {
+        case SXML_AST_KIND_RELATIVE_PATH_EXPRESSION:
+            node = unwrapped(ast, sxml_ast_find_child(ast, (sxml_ast_child_query){
+                                                               .parent = node,
+                                                               .field = SXML_AST_FIELD_RIGHT}));
+            continue;
+        case SXML_AST_KIND_ABSOLUTE_PATH_EXPRESSION:
+            node = unwrapped(ast, sxml_ast_find_child(ast, (sxml_ast_child_query){
+                                                               .parent = node,
+                                                               .field = SXML_AST_FIELD_PATH}));
+            continue;
+        case SXML_AST_KIND_FILTER_EXPRESSION:
+        case SXML_AST_KIND_AXIS_STEP: {
+            for (sxml_ast_node_index predicate = sxml_ast_find_child(
+                     ast, (sxml_ast_child_query){.parent = node, .field = SXML_AST_FIELD_PREDICATE});
+                 predicate.value != 0; predicate = sxml_ast_find_next_with_same_field(ast, predicate)) {
+                const sxml_ast_node_index condition = unwrapped(
+                    ast, sxml_ast_find_child(ast, (sxml_ast_child_query){
+                                                      .parent = predicate,
+                                                      .field = SXML_AST_FIELD_EXPRESSION}));
+                if (condition.value != 0 &&
+                    node_in(ast, condition)->kind == SXML_AST_KIND_FT_CONTAINS_EXPRESSION) {
+                    return condition;
+                }
+            }
+            if (current->kind != SXML_AST_KIND_FILTER_EXPRESSION) {
+                return (sxml_ast_node_index){0};
+            }
+            node = unwrapped(ast, sxml_ast_find_child(ast, (sxml_ast_child_query){
+                                                               .parent = node,
+                                                               .field = SXML_AST_FIELD_VALUE}));
+            continue;
+        }
+        default:
+            return (sxml_ast_node_index){0};
+        }
+    }
+    return node;
+}
+
+typedef struct for_score_locals {
+    sxml_ir_atom item;
+    sxml_ast_node_index predicate;
+    sxml_xpath_lowering_focused_result focused;
+} for_score_locals;
+
+static sxml_status continue_for_score(sxml_xpath_lowering_machine *machine,
+                                      sxml_xpath_lowering_frame *frame);
+
+static const sxml_xpath_lowering_procedure for_score_procedure = {
+    .procedure_name = SXML_BYTE_VIEW_INITIALIZER("full-text for score"),
+    .step = continue_for_score,
+    .locals_size = sizeof(for_score_locals)};
+
+/* Step 0: the predicate lowered again, for its score, with a focus of its
+   own (or 1 when the sequence has none); step 1: that body mapped over
+   the item, which gives the item's score. */
+static sxml_status continue_for_score(sxml_xpath_lowering_machine *machine,
+                                      sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *state = machine->state;
+    for_score_locals *locals = frame->locals;
+    sxml_ir_expression expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_ATOM};
+    if (frame->step == 0 && locals->predicate.value != 0) {
+        frame->step = 1;
+        return sxml_xpath_lowering_call_focused_body(
+            machine, (sxml_xpath_lowering_focused_call){.node = locals->predicate,
+                                                        .result = &locals->focused});
+    }
+    sxml_status status = SXML_STATUS_OK;
+    if (frame->step == 0) {
+        /* 2.3.1: any item is as relevant as any other. */
+        status = sxml_xpath_lowerer_add_item_constant(state, sxml_atomic_item_from_double(1.0),
+                                                      &expression.atom);
+    } else {
+        expression = (sxml_ir_expression){
+            .expression_kind = SXML_IR_EXPRESSION_KIND_MAP,
+            .map = {.input = locals->item,
+                    .focus = locals->focused.focus,
+                    .body = locals->focused.body,
+                    .flags = 0}};
+    }
+    sxml_ir_expression_index index = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_add_expression(
+            state,
+            (sxml_xpath_lowering_expression_to_add){.node = frame->node, .expression = expression},
+            &index);
+    }
+    return status == SXML_STATUS_OK ? sxml_xpath_lowering_finish_frame(machine, frame, index)
+                                    : status;
+}
+
+sxml_status sxml_xquery_call_full_text_for_score(sxml_xpath_lowering_machine *machine,
+                                                 const sxml_xquery_full_text_for_score_request *request) {
+    const sxml_ast *ast = machine->state->ast;
+    const for_score_locals initial = {
+        .item = request->item,
+        .predicate = scored_predicate(
+            ast, sxml_ast_find_child(ast, (sxml_ast_child_query){.parent = request->binding,
+                                                                 .field = SXML_AST_FIELD_SEQUENCE}))};
+    sxml_xpath_lowering_frame *frame = NULL;
+    return sxml_xpath_lowering_push_procedure(
+        machine,
+        &(sxml_xpath_lowering_procedure_call){
+            .procedure = &for_score_procedure,
+            .node = request->binding,
+            .block = request->block,
+            .is_body = false,
+            .destination = {.atom = request->score, .atom_block = request->block},
+            .initial_locals = {.bytes = (const uint8_t *)&initial, .byte_count = sizeof initial}},
+        &frame);
+}
+
+bool sxml_xquery_full_text_is_scored(const sxml_xpath_lowerer *lowerer,
+                                     const sxml_xpath_lowering_frame *frame) {
+    const sxml_ast_node_index parent = node_in(lowerer->ast, frame->node)->parent;
+    sxml_ast_node_index binding = parent;
+    while (binding.value != 0 &&
+           node_in(lowerer->ast, binding)->kind == SXML_AST_KIND_PARENTHESIZED_EXPRESSION) {
+        binding = node_in(lowerer->ast, binding)->parent;
+    }
+    if (binding.value != 0 &&
+        node_in(lowerer->ast, binding)->kind == SXML_AST_KIND_LET_SCORE_BINDING &&
+        is_contains_value(lowerer->ast, binding)) {
+        return true;
+    }
+    /* Asked for by the for score procedure, through its focused body. */
+    const sxml_xpath_lowering_frame *below = frame->below;
+    return below != NULL && (below->procedure == &for_score_procedure ||
+                             (below->below != NULL && below->below->procedure == &for_score_procedure));
 }
 
 /* ================================================================= Part */

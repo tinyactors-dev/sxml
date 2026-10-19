@@ -8812,6 +8812,99 @@ Amended as the packet goes on.
   matches and weights, and UAX #29 word boundaries in full (CJK
   segmentation would let zh in).
 
+- **Amended at the end of 7.12b and 7.12c** (2026-10-19): what 7.12a
+  left, as the orchestrator listed it.
+- **Stemming** (3.4.4; glossary `snowball_program`): the Snowball
+  algorithms of the D208 languages, Snowball v3.1.1 (BSD; vendored as
+  `third_party/snowball` with COPYING, `third_party/snowball.version`),
+  *interpreted*, not rewritten: `tools/generate-snowball-stemmers.py`
+  compiles the six .sbl files (the part of the Snowball language they
+  use; anything else is refused) into programs of 16-bit instructions
+  with jumps (`src/full_text_stem_table.c`) that one machine runs
+  (`src/full_text_stem.c`): Snowball's cursor, limits, slice and signal,
+  one save slot per construct that restores the cursor, an explicit
+  return stack (the generator refuses recursive routines; D71), at most
+  4,000,000 instructions a word. Faithful: all 210,829 words of the six
+  snowball-data vocabularies stem as Snowball's runtime 3.1.1 stems
+  them (checked in C under ASan and UBSan; the unit test keeps a
+  sample). The language option chooses the stemmer, English without one
+  (and for zh and ja, which have none). Both sides are folded, then
+  stemmed; a query token with wildcards is a pattern and is not
+  stemmed; words over 256 code points are left as they are.
+- **Stop words and thesauri by URI** (3.4.3, 3.4.7): `processor.h`'s
+  resource kinds SXML_RESOURCE_KIND_FULL_TEXT_STOP_WORDS and
+  SXML_RESOURCE_KIND_FULL_TEXT_THESAURUS (additive), asked of the
+  processor's resolver while the query is lowered, so they are the
+  statically known lists and thesauri (`src/full_text_resource.c`);
+  empty URIs ask for the defaults of "stop words default" and "thesaurus
+  default", empty when the resolver has none. A list or thesaurus by URI
+  that the resolver does not have is FTST0008 or FTST0018 (the static
+  rules no longer raise FTST0006 and FTST0018). A list is UTF-8 words
+  separated by whitespace; a thesaurus the XQFTTS XML format, read in one
+  pass over its elements: each synonym relates its parent's term to its
+  own term by its relationship. The relations of the relationship asked
+  for (ASCII case aside; all without one) and the levels become xs:string
+  constants of the match program (operand h of W).
+- **Thesaurus expansion** (glossary `thesaurus_expansion`): a query string
+  (a token for "any word" and "all words", the whole phrase for
+  "phrase") matches as itself or as a related term, with one query
+  position: breadth first through the relations, a term's level is its
+  shortest distance; terms at levels in the range asked for (default 1
+  to unbounded) are the alternatives, each tokenized, folded, stemmed and
+  checked for stop words as the query is. Terms are compared by their
+  tokens folded as the query folds, joined by spaces.
+- **QT4 driver**: serves the two kinds from the environment's resources
+  by URI, and the defaults of the XQFTTS catalog: its default stop word
+  list is stopwords.txt (stopwords1def); its default thesaurus,
+  defaultthes.xml, is not in the suite, so there is none. fullText-defaults
+  is supported. The CLI reads both as local files, as fn:doc does.
+- **Scores** (2.3; glossary `full_text_score`): a match weighs 1, times
+  |w| for each "weight {w}" it passes (a negative weight counts as its
+  size), the mean of its two operands' for ftand and of its occurrences
+  for FTTimes. An item's score is w / (w + 1 + log2(1 + n)), w the
+  summed weight of its matches without StringExcludes (term frequency)
+  and n its token count (length normalization): BM25's saturation; no
+  document frequency, which one evaluation does not have. A contains
+  expression's score is the highest of its search items', 0 without a
+  match, always below 1. A contains expression that is the value of a
+  let score binding lowers to the internal row score-contains instead of
+  contains; a for binding with a score variable whose sequence's last
+  step has a contains predicate lowers that predicate again as
+  score-contains, as a focused body mapped over the item, before the
+  binding's variables are in scope (`src/xquery_lower_full_text.c`,
+  called by the for clause of `src/xquery_lower.c`). Otherwise a let
+  score is 1 or 0 by effective boolean value and a for score is 1.
+- **Chinese and Japanese**: an ideograph or a hiragana letter is a token
+  by itself, as UAX #29's default word boundaries break around them
+  (WB999), and the ideographic and fullwidth full stops end sentences; so
+  zh and ja are supported languages without a dictionary (cheap: 40
+  lines). Thai and other scripts written without spaces stay FTST0009:
+  they need dictionary segmentation.
+- **ft-* (XQ40, release driver)**: 643 (after stemming, 637ab45; 624
+  before 7.12b) to 672 of 685 passed, 0 errors, 0 not run (was 4). XQ40
+  as a whole 45,839 to 45,868, no other set changed. The 13 not passed:
+  - 9 whose expected XML differs from sxml's result only in whitespace
+    (sxml's results equal them with whitespace normalized): the six
+    ignore use cases (UseCase-IGNORE q2 to q4b), composability q4 and
+    element q3, whose expected results were re-indented in conversion
+    (title text joined to one line, whitespace between top-level
+    elements), and composability q1, whose expected result also lists one
+    subject where the query returns all of a book's; element q3 and
+    composability q1 passed before with FTST0009, which zh no longer
+    raises. Not changed (D178): the driver compares as the catalog says.
+  - 2 (XQUERY-XPATH-COMPOSABILITY q9 and q9b) stemmer-dependent:
+    Snowball conflates complete and completing, success and successfully,
+    so book 1 matches too; stemming is implementation-defined.
+  - 2 (FTWindow-paragraphs3, FTWindow-unconstrained-paragraphs3) as in
+    7.12a: they contradict fullText-units.
+- **Sizes** (stripped / gzipped): `sxml.wasm` 2,330,831 / 815,984 (+2,024
+  for the score rows and the for score procedure in XQuery's lowering;
+  HEAD at 2cf6efa was already 2,328,807, over its 2,200,000 budget before
+  this packet: not raised here, for the owner and the packets that grew
+  it), `sxml-full.wasm` 6,953,772 / 1,574,953 (+18,872), the CLI
+  8,212,320 / 1,829,508 (+18,872): within their budgets. The stemmer
+  tables are about 30 KB of source data.
+
 ### D215. Invisible XML: fn:invisible-xml over an Earley parser (packet 7.18)
 Recorded 2026-10-19, after D12, D13, D53, D71, D162, D183, D189, D191,
 D208. Replaces D162's place for fn:invisible-xml (the function was

@@ -62,7 +62,13 @@
  *                         w wildcards (0 off, 1 on), l the language of
                          the stemmer (sxml_full_text_language),
  *                         t stop word operand (the stop words, 0 for
- *                         none), h thesaurus (0 none);
+ *                         none), h thesaurus operand (0 for none): per
+ *                         thesaurus its minimum and maximum level, its
+ *                         relation count n and n pairs (a term, a term
+ *                         related to it by the relationship asked for),
+ *                         all xs:string (3.4.3; read while compiling,
+ *                         FTST0008 and FTST0018 for lists and thesauri
+ *                         the resolver does not have);
  *   T m,n                 FTTimes (4.2.6.10): minimum and maximum
  *                         operands (both the same for "exactly"; 0 for no
  *                         bound);
@@ -88,8 +94,9 @@
  * maximal run of letters, marks, digits and connector punctuation
  * (general categories L, M, N, Pc), an apostrophe between two letters and
  * a full stop or comma between two digits included (UAX #29's MidLetter
- * and MidNum, simplified). A sentence ends after ".", "!" or "?" between
- * tokens. A node's text is its string value, so markup inside a word does
+ * and MidNum, simplified); an ideograph or a hiragana letter is a token by
+ * itself (UAX #29 breaks around each). A sentence ends after ".", "!" or
+ * "?" (or their ideographic and fullwidth forms) between tokens. A node's text is its string value, so markup inside a word does
  * not split it; a paragraph ends between two text nodes (not only
  * whitespace) whose parents are not one inside the other, so element
  * boundaries are paragraph boundaries except for markup inside a
@@ -171,13 +178,21 @@ typedef struct sxml_full_text_match_options {
  *   item()*) as xs:boolean: Full Text 3.0, 4.3, fts:FTContainsExpr;
  *   $ignore the nodes of "without content" (empty without it);
  * - score($value as item()*) as xs:double: the score of a let score
- *   binding (2.3.2): 1 when the value's effective boolean value would be
- *   true (any node first, a true boolean, a non-empty string, a non-zero
- *   number), else 0; a for binding's score is 1 for every item (2.3.1:
- *   scores are implementation-dependent within [0, 1]).
+ *   binding whose value is not a contains expression (2.3.2): 1 when the
+ *   value's effective boolean value would be true (any node first, a true
+ *   boolean, a non-empty string, a non-zero number), else 0 (scores are
+ *   implementation-dependent within [0, 1]).
  */
 extern const sxml_native_function sxml_full_text_contains_function;
 extern const sxml_native_function sxml_full_text_score_function;
+
+/*
+ * - score-contains($search, $program, $ignore) as xs:double: the score of
+ *   the contains expression (2.3; src/full_text.c): what an "E contains
+ *   text S" lowers to when its score is wanted, as the value of a let
+ *   score binding or the score of a for binding's item (below).
+ */
+extern const sxml_native_function sxml_full_text_score_contains_function;
 
 
 /* ------------------------------------------------------- Tokenizer */
@@ -372,8 +387,9 @@ typedef struct sxml_full_text_stemmer_program {
 extern const sxml_full_text_stemmer_program sxml_full_text_stemmer_programs[];
 
 /* The language of a language option's tag: its primary subtag, ASCII case
-   insensitive; English for an empty tag and for any other (3.4.1: FTST0009
-   has refused other languages statically). */
+   insensitive; English for an empty tag and any other: zh and ja, which
+   have no stemmer (their words of one character stay as they are), and
+   those FTST0009 has refused statically (3.4.1). */
 sxml_full_text_language sxml_full_text_language_of(sxml_byte_view language_tag);
 
 /* The memory of the stemming machine, reused from word to word. */
@@ -441,6 +457,59 @@ typedef struct sxml_full_text_wildcard_outcome {
 SXML_NODISCARD sxml_status sxml_full_text_match_wildcards(
     const sxml_full_text_wildcard_request *request, sxml_full_text_wildcard_outcome *outcome);
 
+/* ---------------------------------- Stop word lists and thesauri */
+
+/* A word of a word list: byte_count bytes from byte_offset. */
+typedef struct sxml_full_text_word {
+    uint32_t byte_offset;
+    uint32_t byte_count;
+} sxml_full_text_word;
+
+/* Words in allocator memory (bytes.allocator). */
+typedef struct sxml_full_text_word_list {
+    sxml_full_text_bytes bytes;
+    sxml_full_text_word *words;
+    size_t word_count;
+    size_t word_capacity;
+} sxml_full_text_word_list;
+
+/* The word word_index of list, borrowed from it. */
+sxml_byte_view sxml_full_text_word_at(const sxml_full_text_word_list *list, size_t word_index);
+
+/* Releases the words of list and leaves it empty. */
+void sxml_full_text_word_list_release(sxml_full_text_word_list *list);
+
+/* A stop word list or thesaurus to read (src/full_text_resource.c). */
+typedef struct sxml_full_text_resource_request {
+    sxml_processor *processor;
+    /* SXML_RESOURCE_KIND_FULL_TEXT_STOP_WORDS or
+       SXML_RESOURCE_KIND_FULL_TEXT_THESAURUS. */
+    sxml_resource_kind resource_kind;
+    /* The URI as written; empty for the default list or thesaurus. */
+    sxml_byte_view uri_reference;
+    /* The static base URI it is resolved against; may be empty. */
+    sxml_byte_view base_uri;
+} sxml_full_text_resource_request;
+
+/* Whether the resolver delivered it. */
+typedef struct sxml_full_text_resource_outcome {
+    bool is_found;
+} sxml_full_text_resource_outcome;
+
+/*
+ * Asks the processor's resolver for request's resource and appends to
+ * *list (whose bytes.allocator is set) what it holds: a stop word list's
+ * words, or a thesaurus's relations as triples (a term, the relationship,
+ * the related term; one triple per synonym element, its parent's term
+ * first). outcome->is_found is false when the resolver has no such
+ * resource or a thesaurus is not well-formed XML. Returns the resolver's
+ * and allocator's failures, and SXML_STATUS_INVALID_ARGUMENT for a form
+ * the kind does not allow.
+ */
+SXML_NODISCARD sxml_status sxml_full_text_read_resource(
+    const sxml_full_text_resource_request *request, sxml_full_text_word_list *list,
+    sxml_full_text_resource_outcome *outcome);
+
 /* ------------------------------------------------------ The matcher */
 
 /* What the program runs over: one search context item's tokens. */
@@ -461,6 +530,9 @@ typedef struct sxml_full_text_run_request {
 /* What a run finds. */
 typedef struct sxml_full_text_run_outcome {
     bool is_match;
+    /* The sum of the weights of the matches without a StringExclude (each
+       1 times the weights of the selections it passed, 3.1.1). */
+    double weight;
 } sxml_full_text_run_outcome;
 
 /*
@@ -490,10 +562,8 @@ typedef struct sxml_xquery_full_text_rules_request {
  * The static rules of Full Text over one module's AST, in one pre-order
  * walk by its links (D71): without the feature, the first Full Text
  * construct is XPST0003; with it, FTST0019 for two options of one group
- * in one FTMatchOptions (3.4), FTST0006 for a stop word list by URI (sxml
- * restricts stop words to lists of strings, 5.2.11) and FTST0018 for a
- * thesaurus by URI (none is known) until packet 7.12c, FTST0009 for a
- * language other than en, de, fr, it, es and nl (3.4.1),
+ * in one FTMatchOptions (3.4), FTST0009 for a language other than en,
+ * de, fr, it, es, nl, zh and ja (3.4.1),
  * XQST0079 for an extension selection without a selection (3.6, no
  * pragma is recognized), XQST0089 for a score variable named as its for
  * or positional variable (2.3.1). Called by sxml_xquery_lower for every
@@ -514,6 +584,35 @@ typedef struct sxml_xquery_full_text_score_request {
 SXML_NODISCARD sxml_status sxml_xquery_bind_full_text_score(
     sxml_xpath_lowerer *lowerer, const sxml_xquery_full_text_score_request *request,
     sxml_ir_atom *atom);
+
+/* The score of the item of a for binding with a score variable (2.3.1). */
+typedef struct sxml_xquery_full_text_for_score_request {
+    /* The FOR_ITEM_BINDING. */
+    sxml_ast_node_index binding;
+    /* The slot of the binding's item. */
+    sxml_ir_atom item;
+    /* Where the score is bound, and its atom. */
+    sxml_xpath_lowering_block *block;
+    sxml_ir_atom *score;
+} sxml_xquery_full_text_for_score_request;
+
+/*
+ * Pushes the procedure that lowers request's score into request->block:
+ * when the last step of the binding's sequence has a predicate that is a
+ * contains expression ("for $b score $s in //book[. contains text 'x']"),
+ * that predicate lowered again, as score-contains, with the item as its
+ * focus (a MAP over the item); else the constant 1 (scores are
+ * implementation-dependent within [0, 1], 2.3). Called by
+ * src/xquery_lower.c; the atom is written when the frame finishes.
+ */
+SXML_NODISCARD sxml_status sxml_xquery_call_full_text_for_score(
+    sxml_xpath_lowering_machine *machine, const sxml_xquery_full_text_for_score_request *request);
+
+/* Whether the FT_CONTAINS_EXPRESSION frame lowers to score-contains: the
+   value of a let score binding (through parentheses), or the predicate the
+   for score procedure asked for (src/full_text_lower.c). */
+bool sxml_xquery_full_text_is_scored(const sxml_xpath_lowerer *lowerer,
+                                     const sxml_xpath_lowering_frame *frame);
 
 /* The bytes of locals the core's contains procedure reserves for the
    feature's lowering step (src/full_text_lower.c checks they suffice). */
@@ -536,6 +635,8 @@ SXML_NODISCARD sxml_status sxml_full_text_lower_step(sxml_xpath_lowering_machine
 typedef struct sxml_full_text_operations {
     /* The body of the contains row: as its call function. */
     sxml_status (*contains)(const sxml_function_call *call, sxml_sequence *result);
+    /* The body of the score-contains row. */
+    sxml_status (*score_contains)(const sxml_function_call *call, sxml_sequence *result);
     /* sxml_full_text_check_rules. */
     sxml_status (*check_rules)(const sxml_xquery_full_text_rules_request *request);
     /* sxml_full_text_lower_step. */

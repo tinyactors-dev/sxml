@@ -192,6 +192,31 @@ sxml_qt4_serve_resource(const sxml_qt4_table_request *table_request,
     return sxml_qt4_serve_suite_file(table, uri, resource);
 }
 
+/* FULL_TEXT_STOP_WORDS and FULL_TEXT_THESAURUS (packet 7.12c, D214): by
+   URI, the environment's resources, as for text; the defaults those of
+   the XQFTTS catalog (ft/TestSources/XQFTTSCatalog.xml): its default stop
+   word list is stopwords.txt (stopwords1def), and its default thesaurus,
+   defaultthes.xml, is not in the suite, so there is none. */
+static sxml_status
+sxml_qt4_serve_full_text(const sxml_qt4_table_request *table_request,
+                         sxml_resource *resource) {
+    const sxml_resource_request *request = table_request->request;
+    if (request->uri_reference.byte_count != 0 ||
+        request->absolute_uri.byte_count != 0) {
+        return sxml_qt4_serve_resource(table_request, resource);
+    }
+    if (request->resource_kind == SXML_RESOURCE_KIND_FULL_TEXT_STOP_WORDS) {
+        return sxml_qt4_serve_file(
+            table_request->table,
+            (sxml_qt4_served_file){
+                .file_path = SXML_TEXT("ft/TestSources/stopwords.txt"),
+                .encoding = sxml_qt4_empty_text},
+            resource);
+    }
+    resource->description = SXML_TEXT("The suite has no default thesaurus");
+    return SXML_STATUS_OK;
+}
+
 /* COLLECTION and URI_COLLECTION. */
 static void
 sxml_qt4_serve_collection(const sxml_qt4_table_request *table_request,
@@ -394,6 +419,9 @@ sxml_qt4_resolve_from_table(void *state, const sxml_resource_request *request,
         }
         resource->description = SXML_TEXT("The driver has no such locale data");
         return SXML_STATUS_OK;
+    case SXML_RESOURCE_KIND_FULL_TEXT_STOP_WORDS:
+    case SXML_RESOURCE_KIND_FULL_TEXT_THESAURUS:
+        return sxml_qt4_serve_full_text(&table_request, resource);
     case SXML_RESOURCE_KIND_XSLT_PACKAGE:
         break;
     }
