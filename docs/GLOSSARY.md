@@ -899,6 +899,7 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `scanning_expression` | A relative path that has the form of a motionless pattern, assessed as crawling instead of roaming (XSLT 4.0, 19.8.8.8) |
 | `streamed_document` | A document read by streamed evaluation: its parser's events are consumed as they arrive, and it is never built as one tree (XSLT 4.0, 18.1; D219) |
 | `incremental_parse` | A parse of the XML parser that stops between events when its builder asks for a pause and goes on when it is resumed (`sxml_xml_incremental_parse`, D219) |
+| `document_segment` | A part of a document's text that the XML parser parses, walks and frees on its own, so that the concrete syntax tree of one segment at a time exists: the head (the prolog and the start tag of the document element) or a content segment (a run of content items cut between two of them) (D222) |
 | `stream_window` | The small tree a node of a streamed document lives in: the document node, the node's ancestors with their attributes and namespaces, the node, and its subtree (a full window) or not (a shallow window) (D219) |
 | `open_node` | The element (or document node) of a shallow stream window whose content has not been read yet: a STREAM whose origin it is reads that content from the events (D219) |
 | `stream_point` | An instruction of a streamed body that selects streamed nodes as their events pass: an xsl:for-each whose select is a downward path, lowered to a chain of STREAM expressions (D219) |
