@@ -25,7 +25,6 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 - JavaScript bindings for XQuery, XSLT and validation (js-1).
 - 7.6a XSLT streamability analysis.
 - 7.15a UCA collations.
-- 7.16 timezone database.
 
 ## Next
 
@@ -106,6 +105,11 @@ of 130; XT40 transform 9 of 12. Left: fn:transform in static expressions
 scope/loader/available documents/trace sink, XSLT 2.0 behaviour for
 xslt-version 2.0, the QT4 driver's base URI for query files, `~record`
 patterns.
+
+Timezones (7.16, D209): fn-civil-timezone 9 of 9, the 8 olson-timezone
+cases pass; tzdata 2026e vendored, served by the host as TZif. Left: a
+default place in the dynamic context (additive header change); the CLI
+reads `/usr/share/zoneinfo`.
 
 XML 1.1 (after 7.13, D195):
 - XT40 xml-version-007/-016 and namespace-2606/-6202 fail in `src/xslt*`.
