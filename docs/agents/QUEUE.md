@@ -91,8 +91,12 @@ parsers, Gregorian day arithmetic in four places, three ways of building
 compile-report text, four text writers, three private heapsorts in
 serialization.
 
-Performance: the evaluator runs about 4 million steps a second and has no
-index for joins (app-Demos itunes is quadratic in its own text, 72 s).
+Performance (perf-1, D224): benchmark set in tests/bench; itunes 80.6 s ->
+3.4 s, XMark-All 6.73 -> 1.52 s; filter indexes for =/eq/is joins (also
+match="$var"); one-pass axis walks; loop-invariant hoisting. Left
+(perf-2): numeric index keys, hoisting of path MAPs/quantifiers/sorts,
+reference-count churn and small-sequence allocation; XMark's profile is
+led by describe_node (15 %), the machine loop (12 %) and atomization.
 
 Platform and tooling:
 - macOS, Windows and MSVC have never been built; `_getcwd` is untested.
