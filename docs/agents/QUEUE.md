@@ -9,7 +9,7 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 - Phase 5 (XSD 1.1, schema awareness) closed by agent review (D182); four
   gate boxes wait for full runs and fuzzing on the owner's machine (D181).
   All public headers are stable.
-- Passes: XP40 32,655, XQ40 45,914, XT40 11,860, XSD in scope 41,483 of
+- Passes: XP40 32,655, XQ40 45,914, XT40 11,912, XSD in scope 41,483 of
   41,518. Zero error outcomes in every suite.
 - Optional features (D189). Budgets (D202, D207, D208): core `sxml.wasm`
   2,200,000 / 770,000 (2,077,439 / 725,473 after size-2, D227: each module
@@ -22,6 +22,7 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 ## Running
 
 - perf-3: XML parsing speed.
+- 4.21: hoist-pass bug (merge-001a/016), globals on first read (XTDE3052), typed modes.
 - 7.6e streaming: accumulators, fork/merge, streamed result delivery, incremental resolver.
 
 ## Next
@@ -38,24 +39,13 @@ XPath and XQuery (after 2.22, D226):
 - fn:serialize canonical-JSON cases (27) need `bin:unpack-double` (7.8).
 - A processor keeps every imported schema until it is destroyed (D174).
 
-XSLT (after 4.19, D185; XT40 8,931+):
-- `priority` stays at 6/40: the suite expects "~T" patterns the project's
-  draft (13 Oct 2026) replaced, and other expectations contradict 6.4 (D29).
-- `match="$var"` membership index: designed in D185, needs
-  `src/function_library_xslt.c`.
-- XTDE3490 (needs `src/xpath_lower.c`); XTDE2220 and XTDE2210 with computed
-  attributes in merge; merge 049-052 validation codes; collection-006;
-  snapshot-0101c; the record constructor function (record-026/027).
-- Errors in inline functions and xsl:iterate bodies of an included module
-  still name the main stylesheet's file.
-- XTDE3052 needs globals computed on first read.
-- Typed-array allocation: XSLT files use `sxml_allocator_allocate_array`
-  (`src/memory_internal.h`); move the other files when next touched. Key
-  equality of group-adjacent/group-starting-with should reuse the FLWOR's
-  `keys_are_equal` (`src/xquery_flwor.c`).
-- Schema-aware leftovers (D179): XTSE3105, typed modes reading name tests
-  as `schema-element()`, ID/IDREF skipping for elements, `xs:untypedAtomic`
-  as a type attribute, `xsl:copy` with preserve, schema roles, XTSE0265.
+XSLT (after 4.20, D230; XT40 11,912): merge 107/120, error 474/580,
+validation 51/68, namespace 217/224, normalize-unicode 18/18. Left:
+XTDE3490; merge-097 (Saxon collection URI); xml-version-007 (value-template
+grammar rejects XML 1.1 controls); namespace-2606/-6202; docbook-004;
+fn-transform-27/82e/94; xsl:copy of JNodes (needs an xdm.h addition);
+XTDE0430/0440; priority stays 6/40 (D29). In 4.21: the hoist bug, globals on
+first read, typed modes and XTSE3105.
 
 XSLT backwards compatibility (7.4, D197): backwards_compatibility 111 of
 124; QT4 xpath-1.0-compatibility 1 of 5. 14 cases expect fn:number-style
