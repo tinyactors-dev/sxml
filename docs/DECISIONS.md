@@ -7976,6 +7976,73 @@ WebAssembly build runs sxml in Node, where size matters less than for
 `sxml.wasm`, so its budget rises to 7,000,000 / 1,500,000 with room for the
 rest of Phase 7. The `sxml.wasm` budgets of D184 and D189 stay.
 
+### D197. XSLT backwards compatible behaviour and XPath 1.0 compatibility mode (packet 7.4)
+Recorded 2026-10-19, after D97, D162, D183, D184. Replaces D162's place
+for XSLT 1.0 behaviour (`asks_xslt_1_behaviour` and its XTDE0160 in
+`src/xslt_lower.c`).
+- **One flag, no second evaluator**: XPath 1.0 compatibility mode is
+  `has_xpath_1_compatibility_mode` of the XPath static context
+  (`src/xpath_static_internal.h`) and, additively, the last field of
+  `sxml_static_context_configuration` (`xpath.h`; XPath hosts only,
+  XQuery has no such mode and ignores it). The lowering reads it and
+  inserts the 1.0 conversions as STATIC_CALLs of internal native rows in
+  no function table (`src/xpath_compatibility.c`, golden file
+  `src/xslt_simple_content.c`); the evaluator does not know the mode.
+  - Arguments of static calls to built-in functions (XPath 4.0, 3.4.1):
+    the first item; then fn:string for xs:string and xs:string?, fn:number
+    for xs:double and xs:double? (the optional forms keep ()); fn:concat
+    takes xs:string($v[1]) per argument (F&O 4.0). Not for partial
+    applications, dynamic calls, stylesheet functions (XSLT 4.0, 10.3.2)
+    or the lowering's own calls.
+  - Arithmetic and unary operands (4.9): atomized, the first item, () as
+    NaN, xs:boolean, xs:string, xs:decimal, xs:float and xs:untypedAtomic
+    by fn:number. The operands of "to" keep their first items (4.8.2
+    coerces them).
+  - General comparisons (4.11.2): one row does the mode's rules: the
+    xs:boolean rule (EBV of the other operand), fn:number of every item
+    for <, <=, >, >=; for = and != a pair with a numeric item compares as
+    doubles, other pairs by the mode-false rules. It calls the existing
+    `sxml_operator_make_general_comparison` on the converted parts.
+- **XSLT**: the static context of every element whose effective version
+  is below 2.0 has the mode (5.3.1, 3.8.1; 2.0 and 3.0 behaviour is
+  4.0's). The 1.0 rules of the instructions, each where the instruction
+  is lowered, through `sxml_xslt_lowering_has_xslt_1_behaviour` and
+  `sxml_xslt_lowering_bind_first_atom` (fn:head(fn:data(.))):
+  xsl:value-of with select and no separator (11.4.2), attribute value
+  templates (5.6.1; not text value templates), xsl:number value (12.2:
+  first item, () as NaN, an unconvertible value formatted as "NaN"
+  between the format's prefix and suffix), xsl:sort keys (13.1.2, first
+  item after data-type), keys in backwards compatible mode (20.2.2:
+  use values and fn:key's argument cast to xs:string), and an unknown
+  extension function bound to a fallback error function, XTDE1425 when
+  called (3.8.1, 24.1.2; function-available stays false).
+  supports-backwards-compatibility is yes.
+- **xs:numeric is not xs:double** (XPath 4.0, 3.4.1 names xs:double only;
+  F&O 4.0's changes list says strings are no longer accepted where the
+  type became xs:numeric): fn:format-number, fn:round, fn:floor and
+  fn:abs do not convert strings or () by fn:number in the mode. The
+  suites expect the older conversion: XT40 format-number 014, 035,
+  038-041, backwards-022, version-021, xpath-compat-0302 and 0401, and
+  QT4 numberformat15, 38, 41, 42 fail. Not reclassified (D178).
+- **Not done**: the expressions of a text value template in a 1.0
+  element are still lowered with the mode (3.8.1 asks for it off; only
+  expand-text="yes" on a 1.0 element meets it); the default output
+  method xml for a 1.0 stylesheet is also used for an explicit
+  xsl:result-document (backwards-019b); exsl:node-set, which DocBook's
+  1.0 stylesheets call (docbook-001 raises XTDE1425; it needs a
+  function namespace sxml_well_known_namespace lacks); docbook-002 meets
+  an XPST0003 in an included module.
+- **Drivers**: XT40 supports backwards_compatibility and keeps it among
+  D95's non-goals, as XML_1.1 (D195); QT4 supports xpath-1.0-compatibility
+  for XPath only and sets the mode for the test cases that ask for it
+  (assertions stay mode false), also kept out of the denominator. The
+  three XT40 cases that expect XTDE0160 (and three more asking for the
+  feature unsatisfied) are not run now.
+- **Numbers** (release, XT40 whole, case by case): 8,687 to 8,787
+  passed at 3dc364a; 111 of the 124 cases (89.5 %, gate 80 %); QT4
+  xpath-1.0-compatibility 1 of 5 (generate-id-018; the other four are
+  the xs:numeric cases above). Unit test `tests/xslt_compatibility_test.c`.
+
 ## Proposed
 
 - **The CLI's WebAssembly budget after the Phase 7 features** (packet

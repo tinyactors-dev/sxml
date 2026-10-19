@@ -4,6 +4,22 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 7.4 done (D197): XSLT backwards compatible behaviour and XPath 1.0
+  compatibility mode. The XTDE0160 place is gone; elements whose
+  effective version is below 2.0 compile with the mode, a flag of the
+  XPath static context (also a last field of xpath.h's static context
+  configuration) that the lowering reads to insert the 1.0 conversions
+  as internal native rows (`src/xpath_compatibility.c`): arguments of
+  built-in functions, arithmetic and range operands, general
+  comparisons. XSLT's 1.0 rules for xsl:value-of, attribute value
+  templates, xsl:number, xsl:sort, keys and XTDE1425 extension
+  functions; supports-backwards-compatibility yes. XT40 8,687 to 8,787
+  passed (whole suite, case by case), 111 of the 124 backwards cases;
+  QT4 xpath-1.0-compatibility 1 of 5. The 10 XT40 and 4 QT4 cases left
+  expect fn:number for xs:numeric parameters, which XPath 4.0, 3.4.1 no
+  longer gives (D197). Not done: text value templates of 1.0 elements,
+  xml method for 1.0 result documents, exsl:node-set (DocBook).
+
 - 7.10a done (D201, D191): HTML5 parsing, fn:parse-html and fn:html-doc,
   as the optional feature `sxml_html_parser_feature()` ("html"). A
   hand-written tokenizer (the 84 states of the current Living Standard,

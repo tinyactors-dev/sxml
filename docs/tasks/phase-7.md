@@ -277,6 +277,12 @@ After the owner's size decision (D183 Proposed).
   raise; the XSLT part is in the CLI only.
 - **Gate**: ≥ 80 % of the 124 and all 5 QT4 cases.
 
+**Done** 2026-10-19 (D197), gate met for XT40, not for QT4: XT40 111 of
+the 124 (89.5 %); QT4 1 of 5, the four others and ten XT40 cases expect
+fn:number conversion for xs:numeric parameters (fn:format-number,
+fn:round, fn:floor), which XPath 4.0, 3.4.1 gives only to xs:double.
+`xpath_compatibility.c` is in the core module (a few KB).
+
 ### 7.6 XSLT streaming (design and implementation, two packets)
 - **Specifications**: XSLT 4.0, 18 "Streaming" (xsl:source-document
   streamable="yes", xsl:merge with streamable sources, xsl:fork,

@@ -56,6 +56,7 @@
 #include "operator_internal.h"
 #include "ir_pass_internal.h"
 #include "schema_scope_internal.h"
+#include "xpath_compatibility_internal.h"
 
 #include <math.h>
 #include <stdalign.h>
@@ -2466,6 +2467,120 @@ static sxml_status bind_builtin_call(sxml_xpath_lowerer *state,
         state,
         (binding_request){.block = request->block, .expression = expression},
         atom);
+}
+
+/* ------------------------------------- XPath 1.0 compatibility mode */
+
+/* A call of an internal row of src/xpath_compatibility_internal.h on
+   atoms, bound in block (XPath 1.0 compatibility mode, D197). */
+typedef struct compatible_call {
+    sxml_ast_node_index node;
+    sxml_xpath_lowering_block *block;
+    const sxml_native_function *native_function;
+    sxml_ir_atom_view arguments;
+} compatible_call;
+
+static sxml_status bind_compatible_call(sxml_xpath_lowerer *state,
+                                        const compatible_call *request,
+                                        sxml_ir_atom *atom) {
+    sxml_ir_atom_list arguments = {0};
+    sxml_status status = sxml_ir_unit_add_atoms(state->unit, request->arguments, &arguments);
+    sxml_ir_expression_index call = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_add_expression(
+            state,
+            (sxml_xpath_lowering_expression_to_add){
+                .node = request->node,
+                .expression = {
+                    .expression_kind = SXML_IR_EXPRESSION_KIND_STATIC_CALL,
+                    .static_call = {.target = {.target_kind = SXML_IR_FUNCTION_TARGET_KIND_NATIVE,
+                                               .native_function = request->native_function},
+                                    .arguments = arguments,
+                                    .module_number = state->static_context->ir_module_number}}},
+            &call);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return bind_in_block(state, (binding_request){.block = request->block, .expression = call},
+                         atom);
+}
+
+/* The row that converts an argument for a parameter of type parameter_type
+   (XPath 4.0, section 3.4.1): NULL when the occurrence allows more than
+   one item, so no rule applies. fn:concat takes each argument as
+   xs:string($v[1]) (F&O 4.0, fn:concat). */
+typedef struct compatible_parameter {
+    const sxml_function_entry *entry;
+    sxml_sequence_type parameter_type;
+} compatible_parameter;
+
+static const sxml_native_function *
+compatible_argument_row(const compatible_parameter *parameter) {
+    const sxml_native_function *native = parameter->entry->native_function;
+    if (native != NULL && native->function_namespace == SXML_NAMESPACE_FUNCTIONS &&
+        sxml_byte_view_equals(native->local_name, SXML_BYTE_VIEW_FROM_LITERAL("concat"))) {
+        return &sxml_xpath_compatible_optional_string_function;
+    }
+    const sxml_occurrence occurrence = parameter->parameter_type.occurrence;
+    if (occurrence != SXML_OCCURRENCE_EXACTLY_ONE && occurrence != SXML_OCCURRENCE_ZERO_OR_ONE) {
+        return NULL;
+    }
+    const bool is_optional = occurrence == SXML_OCCURRENCE_ZERO_OR_ONE;
+    switch (parameter->parameter_type.item_type.index) {
+    case SXML_TYPE_XS_STRING:
+        return is_optional ? &sxml_xpath_compatible_optional_string_function
+                           : &sxml_xpath_compatible_string_function;
+    case SXML_TYPE_XS_DOUBLE:
+        return is_optional ? &sxml_xpath_compatible_optional_double_function
+                           : &sxml_xpath_compatible_double_function;
+    default:
+        return &sxml_xpath_compatible_first_item_function;
+    }
+}
+
+/* The arguments the source supplies to a static call of a built-in
+   function, converted by 3.4.1 in block. Not for partial applications,
+   dynamic calls or calls of stylesheet and declared functions (XPath
+   4.0, section 3.4.1, the note; XSLT 4.0, 10.3.2). */
+typedef struct compatible_arguments {
+    sxml_ast_node_index node;
+    sxml_xpath_lowering_block *block;
+    const sxml_function_entry *entry;
+    call_argument *arguments;
+    const bool *is_supplied;
+    size_t arity;
+} compatible_arguments;
+
+static sxml_status convert_compatible_arguments(sxml_xpath_lowerer *state,
+                                                const compatible_arguments *request) {
+    if (request->entry->entry_kind != SXML_FUNCTION_ENTRY_KIND_NATIVE) {
+        return SXML_STATUS_OK;
+    }
+    sxml_status status = SXML_STATUS_OK;
+    for (size_t argument_index = 0; status == SXML_STATUS_OK && argument_index < request->arity;
+         argument_index += 1) {
+        call_argument *argument = &request->arguments[argument_index];
+        if (!request->is_supplied[argument_index] || argument->is_placeholder) {
+            continue;
+        }
+        const compatible_parameter parameter = {
+            .entry = request->entry,
+            .parameter_type = parameter_type_of(request->entry, argument_index)};
+        const sxml_native_function *row = compatible_argument_row(&parameter);
+        if (row == NULL) {
+            continue;
+        }
+        const sxml_ir_atom value = argument->atom;
+        status = bind_compatible_call(
+            state,
+            &(compatible_call){.node = request->node,
+                               .block = request->block,
+                               .native_function = row,
+                               .arguments = {.atoms = &value, .atom_count = 1}},
+            &argument->atom);
+    }
+    return status;
 }
 
 /* The parameter index named by a keyword argument, or SIZE_MAX. */
@@ -5585,6 +5700,120 @@ static sxml_status continue_otherwise_link(sxml_xpath_lowering_machine *machine,
     return sxml_xpath_lowering_finish_frame(machine, frame, result);
 }
 
+/* A binary operator in XPath 1.0 compatibility mode (D197). An
+   arithmetic operator's operands become compatible operands (XPath 4.0,
+   section 4.9) in place, and is_done stays false; a general comparison
+   becomes the compatible comparison (4.11.2), and is_done is true. */
+typedef struct compatible_operation_request {
+    sxml_ast_node_index node;
+    sxml_xpath_lowering_block *block;
+    sxml_ir_binary_operator operator;
+    sxml_ir_atom *operands[2];
+} compatible_operation_request;
+
+typedef struct compatible_operation {
+    bool is_done;
+    sxml_ir_expression_index result;
+} compatible_operation;
+
+/* The name src/xpath_compatibility.c reads for a general comparison
+   operator; empty for another operator. */
+static sxml_byte_view general_comparison_name(sxml_ir_binary_operator operator) {
+    switch ((uint32_t)operator) {
+    case SXML_IR_BINARY_OPERATOR_GENERAL_EQUAL:
+        return SXML_BYTE_VIEW_FROM_LITERAL("eq");
+    case SXML_IR_BINARY_OPERATOR_GENERAL_NOT_EQUAL:
+        return SXML_BYTE_VIEW_FROM_LITERAL("ne");
+    case SXML_IR_BINARY_OPERATOR_GENERAL_LESS:
+        return SXML_BYTE_VIEW_FROM_LITERAL("lt");
+    case SXML_IR_BINARY_OPERATOR_GENERAL_LESS_OR_EQUAL:
+        return SXML_BYTE_VIEW_FROM_LITERAL("le");
+    case SXML_IR_BINARY_OPERATOR_GENERAL_GREATER:
+        return SXML_BYTE_VIEW_FROM_LITERAL("gt");
+    case SXML_IR_BINARY_OPERATOR_GENERAL_GREATER_OR_EQUAL:
+        return SXML_BYTE_VIEW_FROM_LITERAL("ge");
+    default:
+        return (sxml_byte_view){.bytes = NULL, .byte_count = 0};
+    }
+}
+
+static bool is_arithmetic_operator(sxml_ir_binary_operator operator) {
+    return operator == SXML_IR_BINARY_OPERATOR_ADD ||
+           operator == SXML_IR_BINARY_OPERATOR_SUBTRACT ||
+           operator == SXML_IR_BINARY_OPERATOR_MULTIPLY ||
+           operator == SXML_IR_BINARY_OPERATOR_DIVIDE ||
+           operator == SXML_IR_BINARY_OPERATOR_INTEGER_DIVIDE ||
+           operator == SXML_IR_BINARY_OPERATOR_MODULO;
+}
+
+/* An arithmetic operand as 4.9 makes it in the mode, bound in block. */
+static sxml_status bind_compatible_operand(sxml_xpath_lowerer *state,
+                                           const compatible_operation_request *request,
+                                           sxml_ir_atom *operand) {
+    const sxml_ir_atom value = *operand;
+    return bind_compatible_call(
+        state,
+        &(compatible_call){.node = request->node,
+                           .block = request->block,
+                           .native_function = &sxml_xpath_compatible_operand_function,
+                           .arguments = {.atoms = &value, .atom_count = 1}},
+        operand);
+}
+
+static sxml_status lower_compatible_operation(sxml_xpath_lowerer *state,
+                                              const compatible_operation_request *request,
+                                              compatible_operation *operation) {
+    sxml_status status = SXML_STATUS_OK;
+    if (is_arithmetic_operator(request->operator)) {
+        for (size_t side_index = 0; status == SXML_STATUS_OK && side_index < 2; side_index += 1) {
+            status = bind_compatible_operand(state, request, request->operands[side_index]);
+        }
+        return status;
+    }
+    if (request->operator == SXML_IR_BINARY_OPERATOR_RANGE) {
+        /* 4.8.2: the operands are coerced to xs:integer?, so 3.4.1 keeps
+           their first items. */
+        for (size_t side_index = 0; status == SXML_STATUS_OK && side_index < 2; side_index += 1) {
+            const sxml_ir_atom value = *request->operands[side_index];
+            status = bind_compatible_call(
+                state,
+                &(compatible_call){.node = request->node,
+                                   .block = request->block,
+                                   .native_function = &sxml_xpath_compatible_first_item_function,
+                                   .arguments = {.atoms = &value, .atom_count = 1}},
+                request->operands[side_index]);
+        }
+        return status;
+    }
+    const sxml_byte_view name = general_comparison_name(request->operator);
+    if (name.byte_count == 0) {
+        return SXML_STATUS_OK;
+    }
+    sxml_ir_atom arguments[3] = {*request->operands[0], *request->operands[1], {0}};
+    status = sxml_xpath_lowerer_add_string_constant(state, name, &arguments[2]);
+    sxml_ir_atom_list argument_list = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ir_unit_add_atoms(
+            state->unit, (sxml_ir_atom_view){.atoms = arguments, .atom_count = 3}, &argument_list);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_add_expression(
+            state,
+            (sxml_xpath_lowering_expression_to_add){
+                .node = request->node,
+                .expression = {
+                    .expression_kind = SXML_IR_EXPRESSION_KIND_STATIC_CALL,
+                    .static_call = {
+                        .target = {.target_kind = SXML_IR_FUNCTION_TARGET_KIND_NATIVE,
+                                   .native_function = &sxml_xpath_compatible_comparison_function},
+                        .arguments = argument_list,
+                        .module_number = state->static_context->ir_module_number}}},
+            &operation->result);
+    }
+    operation->is_done = status == SXML_STATUS_OK;
+    return status;
+}
+
 /* An operator that is one BINARY expression. */
 typedef struct binary_link_locals {
     sxml_ir_atom left;
@@ -5610,7 +5839,24 @@ static sxml_status continue_binary_link(sxml_xpath_lowering_machine *machine,
                 .atom = &locals->right});
     }
     sxml_ir_expression_index result = {0};
-    sxml_status status = sxml_xpath_lowerer_add_expression(
+    sxml_status status = SXML_STATUS_OK;
+    if (state->static_context->has_xpath_1_compatibility_mode) {
+        compatible_operation operation = {.is_done = false, .result = {0}};
+        status = lower_compatible_operation(
+            state,
+            &(compatible_operation_request){.node = frame->node,
+                                            .block = frame->block,
+                                            .operator = operator,
+                                            .operands = {&locals->left, &locals->right}},
+            &operation);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        if (operation.is_done) {
+            return sxml_xpath_lowering_finish_frame(machine, frame, operation.result);
+        }
+    }
+    status = sxml_xpath_lowerer_add_expression(
         state,
         (sxml_xpath_lowering_expression_to_add){
             .node = frame->node,
@@ -6285,6 +6531,28 @@ static sxml_status push_function_call(sxml_xpath_lowering_machine *machine,
     return status;
 }
 
+/* XSLT 4.0, 3.8.1: with XSLT 1.0 behaviour, a call of a function outside
+   the standard function namespace that has no implementation is bound to
+   a fallback error function, which raises XTDE1425 when evaluated
+   (24.1.2), not XPST0017 (D197). */
+static bool is_fallback_error_call(const sxml_xpath_lowerer *state,
+                                   sxml_ast_node_index name_node) {
+    if (!state->static_context->has_xpath_1_compatibility_mode ||
+        state->language != SXML_LANGUAGE_XSLT) {
+        return false;
+    }
+    sxml_xpath_resolved_name resolved = {0};
+    return sxml_xpath_resolve_name(
+               &(sxml_xpath_name_request){.ast = state->ast,
+                                          .name_node = name_node,
+                                          .name_role = SXML_XPATH_NAME_ROLE_FUNCTION,
+                                          .static_context = state->static_context,
+                                          .error_record = NULL},
+               &resolved) == SXML_STATUS_OK &&
+           resolved.namespace_uri.index !=
+               sxml_well_known_namespace_identifier(SXML_NAMESPACE_FUNCTIONS).index;
+}
+
 /* The function of a call and its arity, keyword arguments checked, the
    arguments allocated (prepare_call up to its arguments). */
 static sxml_status begin_function_call(sxml_xpath_lowering_machine *machine,
@@ -6358,6 +6626,24 @@ static sxml_status begin_function_call(sxml_xpath_lowering_machine *machine,
     }
     if (status != SXML_STATUS_OK) {
         return status;
+    }
+    if (entry.entry_kind == SXML_FUNCTION_ENTRY_KIND_NONE &&
+        is_fallback_error_call(state, child_of(state, call_node, SXML_AST_FIELD_NAME))) {
+        sxml_ir_expression_index raise = {0};
+        status = sxml_xpath_lowerer_add_raise(
+            state,
+            (sxml_xpath_lowering_raise_request){
+                .node = call_node,
+                .error_status = SXML_STATUS_DYNAMIC_ERROR,
+                .code_local_name = SXML_BYTE_VIEW_FROM_LITERAL("XTDE1425"),
+                .description = SXML_BYTE_VIEW_FROM_LITERAL(
+                    "an extension function without an implementation is called with XSLT 1.0 "
+                    "behaviour (XSLT 4.0, 3.8.1 and 24.1.2)")},
+            &raise);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        return sxml_xpath_lowering_finish_frame(machine, frame, raise);
     }
     if (entry.entry_kind == SXML_FUNCTION_ENTRY_KIND_NONE) {
         /* XPath 4.0, section 4.5.1.1: the name and arity must match a
@@ -6517,6 +6803,15 @@ static sxml_status finish_function_call(sxml_xpath_lowering_machine *machine,
     const sxml_ast_node_index call_node = frame->node;
     const sxml_function_entry *entry = &locals->entry;
     sxml_status status = SXML_STATUS_OK;
+    if (state->static_context->has_xpath_1_compatibility_mode && locals->placeholder_count == 0) {
+        status = convert_compatible_arguments(
+            state, &(compatible_arguments){.node = call_node,
+                                           .block = locals->request.preparation_block,
+                                           .entry = entry,
+                                           .arguments = locals->arguments,
+                                           .is_supplied = locals->is_supplied,
+                                           .arity = locals->arity});
+    }
     for (size_t argument_index = 0;
          status == SXML_STATUS_OK && argument_index < locals->arity;
          argument_index += 1) {
@@ -8294,7 +8589,21 @@ static sxml_status continue_unary(sxml_xpath_lowering_machine *machine,
     const bool is_minus =
         node_of(state, node)->detail.operator == SXML_AST_OPERATOR_MINUS;
     sxml_ir_expression_index result = {0};
-    const sxml_status status = sxml_xpath_lowerer_add_expression(
+    sxml_status status = SXML_STATUS_OK;
+    if (state->static_context->has_xpath_1_compatibility_mode) {
+        /* XPath 4.0, section 4.9: unary operators are arithmetic. */
+        status = bind_compatible_operand(
+            state,
+            &(compatible_operation_request){.node = node,
+                                            .block = frame->block,
+                                            .operator = SXML_IR_BINARY_OPERATOR_SUBTRACT,
+                                            .operands = {&locals->operand, NULL}},
+            &locals->operand);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+    }
+    status = sxml_xpath_lowerer_add_expression(
         state,
         (sxml_xpath_lowering_expression_to_add){
             .node = node,

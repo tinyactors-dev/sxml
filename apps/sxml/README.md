@@ -275,6 +275,12 @@ when the result does not end with one. An `xsl:result-document` without
 are not written. `xsl:message` output goes to standard error, one message
 on each line.
 
+A stylesheet, or an element, with `version="1.0"` runs with XSLT 1.0
+behaviour (XSLT 4.0, 3.8.1): its XPath expressions use XPath 1.0
+compatibility mode, `xsl:value-of` and attribute value templates take the
+first item, and an extension function without an implementation raises
+XTDE1425 only when called.
+
 | Option | Description |
 | --- | --- |
 | `--initial-mode=NAME` | The mode whose template rules process INPUT, instead of the default mode. Needs INPUT. Cannot be used with `--initial-template`. |

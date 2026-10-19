@@ -163,6 +163,8 @@ sxml_add_cli_test(transform_template_param EXIT_CODE 0 ARGUMENTS transform --par
 sxml_add_cli_test(transform_result_document EXIT_CODE 0 ARGUMENTS transform xslt/modes.xsl books.xml)
 sxml_add_cli_test(transform_initial_mode EXIT_CODE 0 ARGUMENTS transform --initial-mode=titles xslt/modes.xsl books.xml)
 sxml_add_cli_test(transform_required_param EXIT_CODE 0 ARGUMENTS transform --param=count=21 xslt/required.xsl)
+# A version="1.0" stylesheet: XSLT 1.0 behaviour (packet 7.4, D197).
+sxml_add_cli_test(transform_version_1 EXIT_CODE 0 ARGUMENTS transform xslt/version1.xsl books.xml)
 # xsl:evaluate of an expression given on the command line (packet 7.3, D196).
 sxml_add_cli_test(transform_evaluate EXIT_CODE 0 ARGUMENTS transform "--param=expression=sum(//*:price) * (1 + $tax)" xslt/evaluate.xsl books.xml)
 sxml_add_cli_test(transform_missing_param EXIT_CODE 1 ARGUMENTS transform xslt/required.xsl)
