@@ -815,6 +815,210 @@ static sxml_status sxml_xslt_test_parse_source(sxml_xslt_test_context *context,
     return status;
 }
 
+/* An xs:anyURI of uri. */
+static sxml_status sxml_xslt_test_make_uri_item(sxml_xslt_test_context *context, sxml_byte_view uri,
+                                                sxml_item *item) {
+    sxml_string string = {.utf8 = sxml_xslt_test_empty_text, .codepoint_count = 0, .is_ascii = true};
+    const sxml_status status = sxml_string_from_utf8(uri, &string);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_atomic_item_make(
+        sxml_processor_get_item_heap(context->processor),
+        &(sxml_atomic_item_request){.type = {.index = SXML_TYPE_XS_ANY_URI},
+                                    .datum = {.datum_kind = SXML_DATUM_KIND_STRING,
+                                              .datum_details = {.string = string}}},
+        item);
+}
+
+/* A source's file path split at "#". */
+typedef struct sxml_xslt_test_file_fragment {
+    sxml_byte_view file_path;
+    /* Empty without "#". */
+    sxml_byte_view fragment;
+} sxml_xslt_test_file_fragment;
+
+static sxml_xslt_test_file_fragment sxml_xslt_test_split_fragment(sxml_byte_view file_path) {
+    for (size_t byte_index = 0; byte_index < file_path.byte_count; byte_index += 1) {
+        if (file_path.bytes[byte_index] == '#') {
+            return (sxml_xslt_test_file_fragment){
+                .file_path = {.bytes = file_path.bytes, .byte_count = byte_index},
+                .fragment = {.bytes = file_path.bytes + byte_index + 1,
+                             .byte_count = file_path.byte_count - byte_index - 1}};
+        }
+    }
+    return (sxml_xslt_test_file_fragment){.file_path = file_path,
+                                          .fragment = sxml_xslt_test_empty_text};
+}
+
+/* Replaces *document_node (owned) by its element whose ID is fragment
+   (owned); the document itself when it has none. */
+static sxml_status sxml_xslt_test_select_fragment(sxml_xslt_test_context *context,
+                                                  sxml_byte_view fragment,
+                                                  sxml_item *document_node) {
+    static const char prefix[] = "element-with-id('";
+    static const char suffix[] = "')";
+    const size_t byte_count = sizeof(prefix) - 1 + fragment.byte_count + sizeof(suffix) - 1;
+    void *memory = NULL;
+    sxml_status status = sxml_xslt_test_scratch_array(
+        context,
+        (sxml_xslt_test_scratch_request){
+            .element_count = byte_count, .element_byte_count = 1, .alignment = 1},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    uint8_t *text = memory;
+    for (size_t byte_index = 0; byte_index < fragment.byte_count; byte_index += 1) {
+        if (fragment.bytes[byte_index] == '\'') {
+            return SXML_STATUS_INVALID_ARGUMENT;
+        }
+    }
+    memcpy(text, prefix, sizeof(prefix) - 1);
+    memcpy(text + sizeof(prefix) - 1, fragment.bytes, fragment.byte_count);
+    memcpy(text + sizeof(prefix) - 1 + fragment.byte_count, suffix, sizeof(suffix) - 1);
+    sxml_sequence selected = sxml_sequence_empty();
+    status = sxml_xslt_test_evaluate(
+        context,
+        (sxml_xslt_test_expression){
+            .expression_text = {.bytes = text, .byte_count = byte_count},
+            .has_focus = true,
+            .focus = sxml_sequence_from_item(*document_node)},
+        &selected);
+    sxml_item element = {.representation = 0};
+    if (status == SXML_STATUS_OK &&
+        sxml_sequence_get_item(selected, (sxml_item_request){.item_index = 0, .error_record = NULL},
+                               &element) == SXML_STATUS_OK) {
+        sxml_item_retain(element);
+        sxml_item_release(*document_node);
+        *document_node = element;
+    }
+    if (status == SXML_STATUS_OK) {
+        sxml_sequence_release(selected);
+    }
+    return status;
+}
+
+/* One <collection> as fn:collection and fn:uri-collection serve it (the
+   QT4 driver's sxml_qt4_serve_collection, for its sources): its sources
+   parsed from their files, in order, and their document URIs. The values
+   are owned by the test. */
+static sxml_status sxml_xslt_test_serve_collection(sxml_xslt_test_context *context,
+                                                   const sxml_qt4_collection *collection,
+                                                   sxml_qt4_served_collection *served) {
+    *served = (sxml_qt4_served_collection){.is_default = collection->uri.byte_count == 0,
+                                           .uri = sxml_xslt_test_empty_text,
+                                           .items = sxml_sequence_empty(),
+                                           .uris = sxml_sequence_empty()};
+    const size_t source_count = collection->sources.source_count;
+    void *memory = NULL;
+    sxml_status status = sxml_xslt_test_scratch_array(
+        context,
+        (sxml_xslt_test_scratch_request){.element_count = 2 * source_count,
+                                         .element_byte_count = sizeof(sxml_item),
+                                         .alignment = alignof(sxml_item)},
+        &memory);
+    sxml_item *documents = memory;
+    sxml_item *uris = documents == NULL ? NULL : documents + source_count;
+    size_t parsed_count = 0;
+    for (size_t source_index = 0;
+         status == SXML_STATUS_OK && documents != NULL && source_index < source_count;
+         source_index += 1) {
+        const sxml_qt4_source *source = &collection->sources.sources[source_index];
+        sxml_xslt_test_set_stage(context,
+                                 (sxml_xslt_test_stage){.description = SXML_TEXT("collection"),
+                                                        .subject = source->file_path});
+        /* file="doc.xml#id": the element of that xml:id in doc.xml. */
+        const sxml_xslt_test_file_fragment file = sxml_xslt_test_split_fragment(source->file_path);
+        sxml_byte_view document_uri = sxml_xslt_test_empty_text;
+        status = source->uri.byte_count != 0
+                     ? sxml_xslt_test_absolute_uri(context, source->uri, &document_uri)
+                     : sxml_xslt_test_suite_uri(context, file.file_path, &document_uri);
+        sxml_byte_view contents = sxml_xslt_test_empty_text;
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xslt_test_catalog_read_file(
+                context->request->run->catalog,
+                &(sxml_qt4_file_request){.suite_path = file.file_path,
+                                         .allocator = context->allocator},
+                &contents);
+        }
+        if (status == SXML_STATUS_OK) {
+            status = sxml_processor_parse_document(
+                context->processor,
+                &(sxml_xml_parse_request){.input = contents,
+                                          .source_name = source->file_path,
+                                          .document_uri = document_uri,
+                                          .base_uri = document_uri,
+                                          .encoding_name = sxml_xslt_test_empty_text,
+                                          .diagnostic = &context->error_record.diagnostic},
+                &documents[source_index]);
+            sxml_allocator_release(context->allocator, (void *)contents.bytes);
+        }
+        if (status == SXML_STATUS_OK && file.fragment.byte_count > 0) {
+            status = sxml_xslt_test_select_fragment(context, file.fragment,
+                                                    &documents[source_index]);
+        }
+        if (status == SXML_STATUS_OK) {
+            parsed_count += 1;
+            status = sxml_xslt_test_make_uri_item(context, document_uri, &uris[source_index]);
+            if (status != SXML_STATUS_OK) {
+                uris[source_index] = (sxml_item){.representation = 0};
+            }
+        }
+    }
+    sxml_item_heap *item_heap = sxml_processor_get_item_heap(context->processor);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_sequence_make_vector(
+            item_heap, (sxml_item_view){.items = documents, .item_count = source_count},
+            &served->items);
+    }
+    if (status == SXML_STATUS_OK) {
+        sxml_xslt_test_own_value(context, served->items);
+        status = sxml_sequence_make_vector(
+            item_heap, (sxml_item_view){.items = uris, .item_count = source_count}, &served->uris);
+    }
+    if (status == SXML_STATUS_OK) {
+        sxml_xslt_test_own_value(context, served->uris);
+    }
+    /* The vectors retain their items; the ones made here are released, so
+       that the vectors hold the only references. */
+    for (size_t source_index = 0; source_index < parsed_count; source_index += 1) {
+        sxml_item_release(documents[source_index]);
+        if (uris[source_index].representation != 0) {
+            sxml_item_release(uris[source_index]);
+        }
+    }
+    if (status == SXML_STATUS_OK && !served->is_default) {
+        status = sxml_xslt_test_absolute_uri(context, collection->uri, &served->uri);
+    }
+    return status;
+}
+
+/* The environment's collections, served through the resource table. */
+static sxml_status sxml_xslt_test_serve_collections(sxml_xslt_test_context *context) {
+    const sxml_qt4_collection_view collections =
+        context->test_case->environment.shared.collections;
+    void *memory = NULL;
+    sxml_status status = sxml_xslt_test_scratch_array(
+        context,
+        (sxml_xslt_test_scratch_request){.element_count = collections.collection_count,
+                                         .element_byte_count = sizeof(sxml_qt4_served_collection),
+                                         .alignment = alignof(sxml_qt4_served_collection)},
+        &memory);
+    sxml_qt4_served_collection *served = memory;
+    size_t served_count = 0;
+    for (size_t collection_index = 0;
+         status == SXML_STATUS_OK && collection_index < collections.collection_count;
+         collection_index += 1) {
+        status = sxml_xslt_test_serve_collection(
+            context, &collections.collections[collection_index], &served[collection_index]);
+        served_count += status == SXML_STATUS_OK ? 1U : 0U;
+    }
+    context->resource_table.served_collections = (sxml_qt4_served_collection_view){
+        .served_collections = served, .served_collection_count = served_count};
+    return status;
+}
+
 /* The value of one <param>: its select evaluated, or the empty sequence. */
 static sxml_status sxml_xslt_test_parameter_value(sxml_xslt_test_context *context,
                                                   const sxml_xslt_test_parameter *parameter,
@@ -975,6 +1179,7 @@ static sxml_status sxml_xslt_test_apply_environment(sxml_xslt_test_context *cont
                              (sxml_xslt_test_stage){.description = SXML_TEXT("environment"),
                                                     .subject = sxml_xslt_test_empty_text});
     context->owned_value_capacity = 2 * sources.source_count +
+                                    2 * test_case->environment.shared.collections.collection_count +
                                     test_case->environment.parameters.parameter_count +
                                     test_case->parameters.parameter_count +
                                     test_case->invocation.parameters.parameter_count + 1;
@@ -1009,6 +1214,9 @@ static sxml_status sxml_xslt_test_apply_environment(sxml_xslt_test_context *cont
     for (size_t source_index = 0; status == SXML_STATUS_OK && source_index < sources.source_count;
          source_index += 1) {
         status = sxml_xslt_test_parse_source(context, source_index);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xslt_test_serve_collections(context);
     }
     if (status == SXML_STATUS_OK) {
         status = sxml_xslt_test_bind_parameters(context);
