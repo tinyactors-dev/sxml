@@ -794,8 +794,15 @@ static sxml_status sxml_type_matcher_advance_item(sxml_type_matcher *matcher,
         }
         return SXML_STATUS_OK;
     case SXML_TYPE_MAP:
-    case SXML_TYPE_RECORD:
         if (sxml_item_get_kind(item) == SXML_ITEM_KIND_MAP) {
+            *outcome = SXML_TYPE_MATCH_OUTCOME_HOLDS;
+        }
+        return SXML_STATUS_OK;
+    case SXML_TYPE_RECORD:
+        /* record(*): any map annotated as a record (XPath 4.0,
+           3.2.10.1), which a map that is not a record is not. */
+        if (sxml_item_get_kind(item) == SXML_ITEM_KIND_MAP &&
+            sxml_item_get_type_annotation(item).index != SXML_TYPE_MAP) {
             *outcome = SXML_TYPE_MATCH_OUTCOME_HOLDS;
         }
         return SXML_STATUS_OK;
@@ -945,14 +952,33 @@ static sxml_status sxml_type_matcher_advance_item(sxml_type_matcher *matcher,
         }
         const sxml_record_type *record_type =
             &description.variety_details.record_type;
-        if (record_type->is_any_record ||
-            sxml_item_get_type_annotation(item).index == type.index) {
+        const sxml_type_identifier annotation = sxml_item_get_type_annotation(item);
+        if (annotation.index == type.index) {
+            is_match = true;
+            break;
+        }
+        if (annotation.index == SXML_TYPE_MAP) {
+            /* A map that is not a record (its annotation is no record
+               type) matches no record type, record(*) included: record(*)
+               matches any map annotated as a record (XPath 4.0, 3.2.10.1;
+               PR 2566, PR 2934). */
+            break;
+        }
+        if (record_type->is_any_record) {
             is_match = true;
             break;
         }
         if (record_type->is_nominative) {
             /* Only records annotated with it (glossary
                `nominative_record_type`). */
+            break;
+        }
+        /* 3.2.10.1: an entry for every field, with a value of the field's
+           type, and as many entries as fields. */
+        size_t entry_count = 0;
+        status = sxml_map_get_size(item, &entry_count);
+        if (status != SXML_STATUS_OK ||
+            entry_count != record_type->record_fields.record_field_count) {
             break;
         }
         status = sxml_map_keys_are_fields(

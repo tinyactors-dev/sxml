@@ -6096,43 +6096,14 @@ static sxml_status continue_arrow_map(sxml_xpath_lowering_machine *machine,
 
 /*
  * "A but with B" (XPath 4.0, section 4.15.4): A coerced to record(*) and B
- * to map(*), merged by map:merge((A, B), { 'duplicates': 'use-last' }).
- * The specification then coerces the merged map to A's record type; the
- * IR cannot name a type known only at run time, so the merged map is the
- * result and a later coercion (a function argument, "instance of")
- * checks the fields (D113).
+ * to map(*), then the internal row sxml_but_with_function, which puts B's
+ * entries over A and coerces the result to A's record type
+ * (src/function_library_map.c).
  */
 typedef struct but_with_link_locals {
     sxml_ir_atom left;
     sxml_ir_atom right;
 } but_with_link_locals;
-
-/* The map { 'duplicates': 'use-last' }, bound in block. */
-static sxml_status bind_use_last_options(sxml_xpath_lowerer *state,
-                                         expression_in_block request,
-                                         sxml_ir_atom *atom) {
-    sxml_ir_map_entry entry = {{0}, {0}};
-    sxml_status status = sxml_xpath_lowerer_add_string_constant(
-        state, SXML_BYTE_VIEW_FROM_LITERAL("duplicates"), &entry.key);
-    if (status == SXML_STATUS_OK) {
-        status = sxml_xpath_lowerer_add_string_constant(
-            state, SXML_BYTE_VIEW_FROM_LITERAL("use-last"), &entry.value);
-    }
-    sxml_ir_map_entry_list entries = {0};
-    if (status == SXML_STATUS_OK) {
-        status = sxml_ir_unit_add_map_entries(
-            state->unit,
-            (sxml_ir_map_entry_view){.map_entries = &entry, .map_entry_count = 1},
-            &entries);
-    }
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    request.expression = (sxml_ir_expression){
-        .expression_kind = SXML_IR_EXPRESSION_KIND_MAP_CONSTRUCTOR,
-        .map_constructor = {.entries = entries}};
-    return bind_new_expression(state, request, atom);
-}
 
 static sxml_status continue_but_with_link(sxml_xpath_lowering_machine *machine,
                                           sxml_xpath_lowering_frame *frame) {
@@ -6178,40 +6149,19 @@ static sxml_status continue_but_with_link(sxml_xpath_lowering_machine *machine,
             state->unit, (sxml_ir_atom_view){.atoms = operands, .atom_count = 2},
             &operand_list);
     }
-    sxml_ir_atom arguments[2] = {{0}, {0}};
-    if (status == SXML_STATUS_OK) {
-        status = bind_new_expression(
-            state,
-            (expression_in_block){
-                .block = frame->block,
-                .node = frame->node,
-                .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_SEQUENCE,
-                               .sequence = operand_list}},
-            &arguments[0]);
-    }
-    if (status == SXML_STATUS_OK) {
-        status = bind_use_last_options(
-            state,
-            (expression_in_block){.block = frame->block, .node = frame->node},
-            &arguments[1]);
-    }
-    sxml_ir_atom merged = {0};
-    if (status == SXML_STATUS_OK) {
-        status = bind_builtin_call(
-            state,
-            &(builtin_call_request){
-                .function = {.node = frame->node,
-                             .function_namespace = SXML_NAMESPACE_MAP_FUNCTIONS,
-                             .local_name = SXML_BYTE_VIEW_FROM_LITERAL("merge"),
-                             .arity = 2},
-                .block = frame->block,
-                .arguments = {.atoms = arguments, .atom_count = 2}},
-            &merged);
-    }
     sxml_ir_expression_index result = {0};
     if (status == SXML_STATUS_OK) {
-        status = add_atom_expression(
-            state, (atom_at){.node = frame->node, .atom = merged}, &result);
+        status = sxml_xpath_lowerer_add_expression(
+            state,
+            (sxml_xpath_lowering_expression_to_add){
+                .node = frame->node,
+                .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_STATIC_CALL,
+                               .static_call = {.target = {.target_kind =
+                                                              SXML_IR_FUNCTION_TARGET_KIND_NATIVE,
+                                                          .native_function =
+                                                              &sxml_but_with_function},
+                                               .arguments = operand_list}}},
+            &result);
     }
     if (status != SXML_STATUS_OK) {
         return status;
@@ -7343,7 +7293,7 @@ static sxml_status begin_inline_function(sxml_xpath_lowering_machine *machine,
                 /* XPath 4.0, section 4.5.6: parameter names are distinct. */
                 status = sxml_xpath_lowerer_report_static_error(
                     state, parameter,
-                    SXML_BYTE_VIEW_FROM_LITERAL("XPST0039 two parameters of a "
+                    SXML_BYTE_VIEW_FROM_LITERAL("XQST0039 two parameters of a "
                                                 "function have the same name"));
             }
         }

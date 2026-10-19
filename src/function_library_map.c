@@ -1079,6 +1079,77 @@ static const sxml_function_parameter remove_parameters[] = {
     SXML_HIGHER_ORDER_LEAF_ROW(SXML_NAMESPACE_MAP_FUNCTIONS, name_text,        \
                                parameter_array, result_text, body)
 
+/* ------------------------------------------------------------ but with */
+
+/*
+ * "A but with B" (XPath 4.0, 4.15.4): the entries of B put over the
+ * record A (map:merge((A, B), {'duplicates': 'use-last'})), coerced to
+ * A's record type, so that the result is a record annotated as A is; an
+ * entry of B that names no field of the type, or whose value the field's
+ * type does not allow, is XPTY0004 (3.4.2). The lowering coerces A to
+ * record(*) and B to map(*) before the call.
+ */
+static sxml_status call_but_with(const sxml_function_call *call, sxml_sequence *result) {
+    if (call->dynamic_context == NULL) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    const sxml_item record = map_argument(call, 0).content;
+    const sxml_item overrides = map_argument(call, 1).content;
+    size_t entry_count = 0;
+    sxml_status status = sxml_map_get_size(overrides, &entry_count);
+    sxml_item merged = record;
+    sxml_item_retain(merged);
+    for (size_t entry_index = 0; status == SXML_STATUS_OK && entry_index < entry_count;
+         entry_index += 1) {
+        sxml_map_entry entry;
+        status = sxml_map_get_entry(overrides, entry_index, &entry);
+        sxml_item next = {.representation = 0};
+        if (status == SXML_STATUS_OK) {
+            status = sxml_map_put(
+                call->item_heap,
+                &(sxml_map_update){.map = merged, .key = entry.key, .value = entry.value},
+                &next);
+        }
+        if (status == SXML_STATUS_OK) {
+            sxml_item_release(merged);
+            merged = next;
+        }
+    }
+    sxml_sequence coerced = sxml_sequence_empty();
+    if (status == SXML_STATUS_OK) {
+        status = sxml_evaluator_coerce(
+            call->dynamic_context,
+            &(sxml_coercion_request){
+                .value = sxml_sequence_from_item(merged),
+                .sequence_type = {.item_type = sxml_item_get_type_annotation(record),
+                                  .occurrence = SXML_OCCURRENCE_EXACTLY_ONE},
+                .role = SXML_IR_COERCION_ROLE_FUNCTION_ARGUMENT,
+                .error_record = call->error_record,
+                .applies_cast_rules = false,
+                .namespace_bindings = {NULL, 0}},
+            &coerced);
+    }
+    sxml_item_release(merged);
+    if (status == SXML_STATUS_OK) {
+        *result = coerced;
+    }
+    return status;
+}
+
+static const sxml_function_parameter but_with_parameters[] = {
+    SXML_HIGHER_ORDER_PARAMETER("record", "record(*)"),
+    SXML_HIGHER_ORDER_PARAMETER("map", "map(*)"),
+};
+
+const sxml_native_function sxml_but_with_function = {
+    .function_namespace = SXML_NAMESPACE_MAP_FUNCTIONS,
+    .properties = SXML_NATIVE_FUNCTION_USES_DYNAMIC_CONTEXT,
+    .local_name = SXML_BYTE_VIEW_INITIALIZER("but-with"),
+    .parameters = {but_with_parameters, 2},
+    .result_type = SXML_BYTE_VIEW_INITIALIZER("record(*)"),
+    .call = call_but_with,
+    .resumable_body = NULL};
+
 static const sxml_native_function map_functions[] = {
     RESUMABLE("build", build_parameters, "map(*)", build_body),
     LEAF("contains", map_key_parameters, "xs:boolean", call_contains),

@@ -1442,17 +1442,12 @@ static const feature_case feature_cases[] = {
      "          (dynamic-call $4 $3 2))))))\n"},
     {.compile = {.expression_text = "map { 'a': 1 } but with map { 'a': 2 }"},
      .expected_text =
-     "(function 1 main (parameters 0) (captures) (slots 9)\n"
+     "(function 1 main (parameters 0) (captures) (slots 4)\n"
      "  (let $1 (map-constructor (\"a\" 1))\n"
      "    (let $2 (map-constructor (\"a\" 2))\n"
      "      (let $3 (coerce $1 record(*) function-argument)\n"
      "        (let $4 (coerce $2 map(*) function-argument)\n"
-     "          (let $5 (sequence $3 $4)\n"
-     "            (let $6 (map-constructor (\"duplicates\" \"use-last\"))\n"
-     "              (let $7 (coerce $5 map(*)* function-argument)\n"
-     "                (let $8 (coerce $6 map(*)? function-argument)\n"
-     "                  (let $9 (static-call map:merge#2 $7 $8)\n"
-     "                    $9))))))))))\n"},
+     "          (static-call map:but-with#2 $3 $4))))))\n"},
     {.compile = {.expression_text = "(1 instance of jnode(-1), 2 instance of jnode(#a), 3 instance of jnode(1.5))"},
      .expected_text =
      "(function 1 main (parameters 0) (captures) (slots 3)\n"
@@ -1517,7 +1512,7 @@ static const error_case error_cases[] = {
     {"() instance of xs:NMTOKENS", {"XPST0051", 1, 16}},
     {"1 cast as xs:nothing", {"XPST0051", 1, 11}},
     {"1 cast as xs:NOTATION", {"XPST0080", 1, 11}},
-    {"function($a, $a) { 1 }", {"XPST0039", 1, 14}},
+    {"function($a, $a) { 1 }", {"XQST0039", 1, 14}},
     {"() instance of map(element(), item())", {"XPST0152", 1, 20}},
     {"() instance of record(a, a)", {"XPST0021", 1, 26}},
     {"() instance of schema-element(x)", {"XPST0008", 1, 16}},

@@ -343,6 +343,9 @@ extern const sxml_native_function_view sxml_function_library_context;
 extern const sxml_native_function_view sxml_function_library_error;
 extern const sxml_native_function_view sxml_function_library_higher_order;
 extern const sxml_native_function_view sxml_function_library_map;
+/* The internal row "A but with B" lowers to (XPath 4.0, 4.15.4;
+   src/function_library_map.c); in no function table. */
+extern const sxml_native_function sxml_but_with_function;
 extern const sxml_native_function_view sxml_function_library_array;
 extern const sxml_native_function_view sxml_function_library_json;
 /* fn:static-base-uri and fn:resolve-uri (src/function_library_uri.c,
