@@ -364,8 +364,9 @@ the wrong-error passes; then the largest remaining clusters. Files: the
 function library, the schema scope and assembly, the evaluator's
 coercion and the XPath lowering parts the fixes touch. Verification as
 D181 says.
-**Done** 2026-10-19 (D226): (a), (b) (lookups of records left), (c),
+**Done** 2026-10-19 (D226): (a), (b) with record lookups, (c),
 part of (g) (XQST0039), fn:element-to-map's schema-based conversion,
 deep-equal typed values, doc-available options, schema-type, signatures,
-XPath namespace declarations; XP40 +38, XQ40 +86 cases. Open: D226's
+XPath namespace declarations, decimal array keys; XP40 +56, XQ40 +98
+cases. Open: D226's
 "Not done".

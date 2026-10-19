@@ -9381,6 +9381,40 @@ progress; completed when the packet ends.
   expression, the size of its last input. Steps are fewer: the keys'
   own steps, one per key value built, one per probe value and candidate.
   itunes 80.6 to 4.1 processor seconds; XQ40 and XT40 unchanged.
+- **A path's step at once**: the MAP of "E1/E2" whose E2 is one axis
+  step from the focus value, over XNodes, steps from all origins in one
+  task (the DOCUMENT_ORDER after it makes the values the same); it
+  charges the two steps per item the body tasks took, so steps are
+  unchanged. Nodes are described into the caller's memory.
+- **Hoisting** (`src/ir_loop_passes.c`, the hoist pass, after
+  filter-index so keys still read globals): LETs at the start of a MAP's
+  body (no flags) or a FILTER's predicate, flattened first, whose bound
+  expressions are plain and read nothing the loop binds, move out
+  behind a guard, LET(g, QUANTIFIED(some, input, true()), LET(s,
+  CONDITIONAL(g, e, ()), loop)), so nothing runs for an empty input that
+  did not run before. Content LETs (D166) stay. Steps are fewer.
+- **What a step is**: unchanged (D89). Step counts fall where work is
+  skipped (index probes, hoisted expressions), so a step budget
+  (QT4's 4 x 10^8, D178; the library's 10^9) lasts longer, never
+  shorter.
+- **Numbers** (processor seconds, release, fastest of three; parse of
+  the XMark document 0.41 before, 0.27 after, the latter from packet
+  xml-mem's segmented parse, D222): xmark-all 6.73 to 1.52; Q8 1.19 to
+  0.28; Q9 1.46 to 0.34; Q11 2.22 to 0.79; predicate-join 1.17 to 0.33;
+  paths 0.99 to 0.75; xslt-key 0.77 to 0.59; match="$var" (every element
+  of the document against 380 persons) 2.47 to 1.06; recursion, group by
+  and order by 1.28, 0.59, 0.84 to 1.17, 0.49, 0.70 (other packets'
+  changes included); app-Demos itunes 80.6 to 3.4, of which parsing and
+  validating 2.7. QT4 XQ40 and XT40 whole, release, after each change:
+  0 outcomes differ, case by case.
+- **Left**: match="$var" still filters $V by ". instance of gnode()"
+  per test (one task step, linear in $V); the index keys only strings
+  and nodes (numeric keys, a cast to xs:double, would need their own
+  order); hoisting skips path MAPs and the bodies of quantified
+  expressions and sorts; reference counts, the machine's task per
+  expression and small sequence allocation were not changed: after
+  these changes a profile of XMark-All is axis walks (the arena tree's
+  describe_node 15 %), the machine loop (12 %) and atomization.
 ### D222. Bounded memory for XML parsing: document segments (packet xml-mem)
 Recorded 2026-10-19, after D12, D45, D71, D195, D199, D219. Amends D12's
 "the concrete syntax tree is freed before the parse function returns"
@@ -9776,13 +9810,11 @@ no IR expression kind added.
   in each, both honest: fn-doc-available-40-051 now raises FODC0013 for
   xinclude as fn:doc does, -065 asks for use-xsi-schema-location. XT40
   json-to-xml 53 to 60, import-schema 207 to 209.
-- **Not done** (for later sweeps): lookups of a record with a key that
-  names no field (XPTY0004, recordTypeDecl-019/-020, Lookup-451) and
-  array lookups with a decimal key (Lookup-018a and 3 more) wait for
-  `src/evaluator.c` (a prepared change: the record check in
-  sxml_lookup_in_item, keys coerced to xs:integer in
-  sxml_lookup_array_member); `{ E }` over JNodes (MapConstructor-500..)
-  is also there. The item axis's JNode parent (D113, `src/xpath_lower.c`);
+- **Lookups** (4.15.3.1): a record's key must name a field (XPTY0004);
+  array keys are coerced to xs:integer, so `?1.0` selects (PR 2134).
+  With them XP40 +56 and XQ40 +98 of this packet's cases in all.
+- **Not done** (for later sweeps): `{ E }` over JNodes
+  (MapConstructor-500..) in `src/evaluator.c`. The item axis's JNode parent (D113, `src/xpath_lower.c`);
   a declared function's `$a := .` found by fn:function-lookup needs the
   IR to know a shorter arity's default functions
   (fn-function-lookup-902). XUDY0038 (e) and is-id under construction

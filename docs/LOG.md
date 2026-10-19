@@ -4,6 +4,18 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- perf-1 done (D224): evaluator performance with general mechanisms.
+  A benchmark set (`tests/bench/run-bench.py`: XMark, joins, paths,
+  recursion, group by, order by, xsl:key, match="$var", app-Demos
+  itunes); axis walks that describe each node once; filter indexes (an
+  IR pass gives a FILTER whose predicate needs "=", "eq" or "is" a
+  key and a probe, a for clause's where becomes such a FILTER, the index
+  lives in the evaluation memo); a path's step from all its origins at
+  once; the hoist pass for loop-invariant LETs. Processor seconds:
+  xmark-all 6.73 to 1.52, itunes 80.6 to 3.4, Q8 1.19 to 0.28, Q11 2.22
+  to 0.79. QT4 XQ40 45,886 and XT40 11,826 passed, unchanged case by
+  case after each change. Steps per step unchanged; counts fall where
+  work is skipped.
 - 7.6c done (D223): more streamed shapes in xsl:source-document
   streamable="yes". A streamed path (a downward path, perhaps ending in
   @a) in the select of value-of, copy-of, sequence, for-each,
@@ -48,10 +60,10 @@ One short entry per week, newest first: what passed, what's next, what is blocke
   types; the draft's record model (a plain map is no record; but with
   keeps the record type; a record called with another key is
   XPTY0004); XPath 4.0 namespace declarations' XQST0033/XQST0070;
-  XQST0039. XP40 +38, XQ40 +86 cases, 2 honest losses each
-  (doc-available xinclude and use-xsi-schema-location). Open: record and
-  decimal-key lookups (prepared, `src/evaluator.c` was busy), the item
-  axis's JNode parent, fn:xsd-validator's schema options.
+  XQST0039; record and decimal-key lookups. XP40 +56, XQ40 +98 cases,
+  2 honest losses each (doc-available xinclude and
+  use-xsi-schema-location). Open: the item axis's JNode parent,
+  fn:xsd-validator's schema options, `{ E }` over JNodes.
 
 - xml-mem done (D222): the XML parser reads a document in document
   segments and holds one segment's tree-sitter tree at a time: the head

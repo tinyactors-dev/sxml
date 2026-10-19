@@ -32,8 +32,7 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 ## Leftovers no packet owns yet
 
 XPath and XQuery (after 2.22, D226):
-- Record lookups with a key that names no field, and array lookups with
-  decimal keys: a prepared change in `src/evaluator.c` (D226).
+- `{ E }` map constructors over JNodes (MapConstructor-500..511).
 - NCName vs `Q{}N` name tests (sxml_name_test is frozen); the item axis's
   JNode parent (D113); a declared function's `$a := .` via function-lookup.
 - fn:xsd-validator's schema, schema-location, target-namespace options.
