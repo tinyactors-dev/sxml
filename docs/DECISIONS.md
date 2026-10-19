@@ -8633,6 +8633,15 @@ the host serves the DUCET; the fallback stays for hosts that do not.
   3,358; no case that passed fails. XT40 collations 35 to 39 of 43
   (the default collation in comparisons and sorts), sort, merge,
   for-each-group, avt, function, choose, error, maps unchanged.
+- **Sizes** (stripped / gzipped, at 8a8fd58 and with the feature):
+  `sxml.wasm` 2,131,618 / 742,974 to 2,134,058 / 743,745 (+2,440: the
+  resolution path, the element arrays, the default collation in
+  comparisons); `sxml-full.wasm` 3,653,848 / 1,136,201 to 3,666,394 /
+  1,140,763 (+12,546, the feature's code); the CLI 6,156,220 /
+  1,351,350 to 7,303,201 / 1,562,302 (+1,146,981, nearly all the
+  embedded DUCET text). The CLI budget rises to 7,500,000 / 1,650,000
+  (D208); the JavaScript budgets hold. The package ships allkeys.txt
+  (2,285,767 bytes) as a file beside the modules.
 - **Left for 7.15b**: tailorings (lang other than the root languages,
   reorder) from CLDR rules, the XSLT driver serving the DUCET (with lang
   sorts), CLDR's root order where it differs from the DUCET.

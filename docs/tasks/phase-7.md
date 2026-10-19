@@ -645,6 +645,14 @@ assertion the driver does not check (transform-009). The rest is D203's
   - the existing sort-key form (`fn:collation-key`) and substring
     matching by collation units (F&O 4.0, 5.2) over the new elements;
   - the fallback becomes the table's behaviour.
+  - **Done** 2026-10-19 (D213): the table is read at first use from
+    the DUCET the host serves (option 4; no generated tables, so
+    `tools/generate-unicode-tables.py` is unchanged); QT4
+    advanced-uca-fallback 49 of 49 and non_unicode_codepoint_collation
+    13 of 13 (XQ40) and 5 of 5 (XP40), the XQST0038 cases pass;
+    CollationTest samples (non-ignorable and shifted) pass in
+    `tests/collation_uca_test.c`. The gate is met. Left for 7.15b:
+    tailorings (lang, reorder) and the XSLT driver serving the DUCET.
 - **7.15b Tailoring**: `lang` and `reorder` through CLDR rules compiled at
   first use into a tailoring (glossary `tailoring`). The rules are a
   built-in set for a few languages, or come through the resolver

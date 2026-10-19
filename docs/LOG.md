@@ -4,6 +4,21 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 7.15a done (D213): full UCA collations as the optional feature
+  `sxml_uca_collation_feature()` ("uca-collation") over the DUCET the
+  host serves (`SXML_RESOURCE_KIND_COLLATION_DATA`), read once per
+  processor by `src/collation_uca.c`: contractions (also discontiguous),
+  implicit weights, shifted and blanked, maxVariable, caseFirst,
+  caseLevel, numeric, backwards, the identical level over NFD;
+  fallback=no only with the table. Comparisons and sorts now use the
+  default collation. Unicode's DUCET and CollationTest samples vendored
+  in `third_party/unicode-collation/`; both samples (and the full _SHORT
+  files) sort in order. QT4 advanced-uca-fallback 49 of 49,
+  non_unicode_codepoint_collation 13 of 13; XQ40 +65, XP40 +57 passes in
+  the collation sets; XT40 collations 35 to 39. The CLI embeds the DUCET
+  (budget 7,500,000 / 1,650,000); the JavaScript package ships it.
+  Tailorings (lang, reorder) are 7.15b.
+
 - 7.6a done (D212): XSLT streamability analysis (XSLT 4.0, 19) in
   `src/xslt_streamability.c`, a frame machine over the stylesheet AST
   and its XPath ASTs, run by sxml_xslt_compile: postures, sweeps,
