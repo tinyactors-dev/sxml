@@ -4,6 +4,26 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- health-3 done (D225): `sxml.wasm` back under budget, 2,352,234 /
+  823,283 to 2,180,960 / 762,788 (budget 2,200,000 / 770,000, not
+  raised). Per-commit linker maps since ae7ef0b: c008c7c (lax validation
+  without in-scope schemas) made the XSD schema compiler reachable from
+  XPath again (+171,516), and 820231e's fn: schema a second way. The
+  processor's built-in schemas for XPath's functions are now the optional
+  feature `sxml_builtin_schemas_feature()` ("builtin-schemas", in
+  `sxml_all_optional_features`). Guard: the modules link with a map, and
+  `javascript/size_budget` prints the largest growths over
+  `test/size-baseline/sxml.txt` (twenty when over budget). The full
+  module's budget rises to 7,500,000 / 2,625,000. Also: debug-gcc's
+  -Wconversion in bin:pack-integer (only under UBSan), WASI preopens
+  /usr/share/zoneinfo, and the two validate CLI goldens follow D222.
+  Counts unchanged (QT4 fn-json-to-xml, fn-analyze-string, fn-parse-xml,
+  fn-doc, fn-xml-to-json, fn-xsd-validator, prod-ValidateExpr,
+  prod-SchemaImport, fn-element-to-map, app-spec-examples; XT40
+  json-to-xml, analyze-string, import-schema, xml-to-json, validation).
+  Left: evaluator_stream (14,565) is linked into the core through the
+  evaluator part registry although only XSLT lowers to STREAM.
+
 - 2.22 done (D226): XPath and XQuery leftovers. The fn: namespace's
   schema (F&O 4.0, appendix D) for imports and, compiled once per
   processor, for json-to-xml validate=true and typed analyze-string
