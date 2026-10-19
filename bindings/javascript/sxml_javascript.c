@@ -217,15 +217,71 @@ uint32_t sxml_javascript_live_allocation_count(const sxml_javascript_processor *
         .live_allocation_count;
 }
 
+/* ------------------------------------------------------ Optional features */
+
+enum { SXML_JAVASCRIPT_MAXIMUM_FEATURE_COUNT = 32 };
+
+/* The module's features, at most SXML_JAVASCRIPT_MAXIMUM_FEATURE_COUNT. */
+static sxml_optional_feature_view sxml_javascript_features(void) {
+    sxml_optional_feature_view features = sxml_javascript_module_features();
+    if (features.optional_feature_count > SXML_JAVASCRIPT_MAXIMUM_FEATURE_COUNT) {
+        features.optional_feature_count = SXML_JAVASCRIPT_MAXIMUM_FEATURE_COUNT;
+    }
+    return features;
+}
+
+SXML_JAVASCRIPT_EXPORT("sxml_javascript_feature_count")
+uint32_t sxml_javascript_feature_count(void) {
+    return (uint32_t)sxml_javascript_features().optional_feature_count;
+}
+
+/* The name of the feature at feature_index; the empty view past the last. */
+static sxml_byte_view sxml_javascript_feature_name(uint32_t feature_index) {
+    const sxml_optional_feature_view features = sxml_javascript_features();
+    if (feature_index >= features.optional_feature_count) {
+        return (sxml_byte_view){.bytes = NULL, .byte_count = 0};
+    }
+    return sxml_optional_feature_get_name(features.optional_features[feature_index]);
+}
+
+SXML_JAVASCRIPT_EXPORT("sxml_javascript_feature_name_bytes")
+const uint8_t *sxml_javascript_feature_name_bytes(uint32_t feature_index) {
+    return sxml_javascript_feature_name(feature_index).bytes;
+}
+
+SXML_JAVASCRIPT_EXPORT("sxml_javascript_feature_name_byte_count")
+uint32_t sxml_javascript_feature_name_byte_count(uint32_t feature_index) {
+    return (uint32_t)sxml_javascript_feature_name(feature_index).byte_count;
+}
+
+/* The features of feature_mask, written to selected (room for
+   SXML_JAVASCRIPT_MAXIMUM_FEATURE_COUNT), as a view of it. */
+static sxml_optional_feature_view sxml_javascript_select_features(uint32_t feature_mask,
+                                                                  sxml_optional_feature *selected) {
+    const sxml_optional_feature_view features = sxml_javascript_features();
+    size_t selected_count = 0;
+    for (size_t feature_index = 0; feature_index < features.optional_feature_count;
+         feature_index += 1) {
+        if ((feature_mask & (UINT32_C(1) << feature_index)) != 0) {
+            selected[selected_count] = features.optional_features[feature_index];
+            selected_count += 1;
+        }
+    }
+    return (sxml_optional_feature_view){.optional_features = selected,
+                                        .optional_feature_count = selected_count};
+}
+
 /* ------------------------------------------------------------- Processor */
 
 /*
  * Makes a processor. failing_allocation_number is that of
  * sxml_counting_allocator_configuration (0 fails none), counted from the
- * processor's own first allocation. Returns NULL when out of memory.
+ * processor's own first allocation; feature_mask selects the module's
+ * features. Returns NULL when out of memory.
  */
 SXML_JAVASCRIPT_EXPORT("sxml_javascript_processor_create")
-sxml_javascript_processor *sxml_javascript_processor_create(uint32_t failing_allocation_number) {
+sxml_javascript_processor *sxml_javascript_processor_create(uint32_t failing_allocation_number,
+                                                            uint32_t feature_mask) {
     const sxml_allocator default_allocator = sxml_default_allocator();
     sxml_javascript_processor *processor = sxml_javascript_allocate_bytes(
         default_allocator, sizeof(sxml_javascript_processor), alignof(sxml_javascript_processor));
@@ -241,6 +297,7 @@ sxml_javascript_processor *sxml_javascript_processor_create(uint32_t failing_all
         &processor->counting_allocator);
     if (status == SXML_STATUS_OK) {
         processor->allocator = sxml_counting_allocator_as_allocator(processor->counting_allocator);
+        sxml_optional_feature selected_features[SXML_JAVASCRIPT_MAXIMUM_FEATURE_COUNT];
         status = sxml_processor_create(
             processor->allocator,
             &(sxml_processor_configuration){
@@ -250,7 +307,9 @@ sxml_javascript_processor *sxml_javascript_processor_create(uint32_t failing_all
                                               SXML_JAVASCRIPT_MAXIMUM_EXPANSION_BYTE_COUNT}},
                 .resource_resolver = {.state = processor,
                                       .operations = &sxml_javascript_resolver_operations},
-                .clock = sxml_system_clock()},
+                .clock = sxml_system_clock(),
+                .optional_features =
+                    sxml_javascript_select_features(feature_mask, selected_features)},
             &processor->processor);
     }
     if (status == SXML_STATUS_OK) {

@@ -6,6 +6,7 @@
 
 #include "evaluator_internal.h"
 #include "function_library_internal.h"
+#include "optional_feature_internal.h"
 #include "sxml/memory.h"
 #include "sxml/processor.h"
 #include "sxml/schema.h"
@@ -66,6 +67,9 @@ struct sxml_processor {
     /* The schema of the built-in components alone, made on first use by
        sxml_processor_get_builtin_schema and kept; NULL until then. */
     sxml_schema *builtin_schema;
+    /* The optional features the configuration named, by kind, with the
+       state each keeps here (src/optional_feature_internal.h, D189). */
+    sxml_optional_feature_slots optional_features;
 };
 
 /*

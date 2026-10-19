@@ -103,12 +103,30 @@ typedef struct sxml_javascript_serialize_request {
 /* --------------------------------------------------------------- Exports */
 
 /*
+ * The optional features this module links (include/sxml/processor.h,
+ * "Optional features"; D189), as static data. Defined by the one of
+ * sxml_javascript_core_features.c (none: sxml.wasm) and
+ * sxml_javascript_full_features.c (every feature: sxml-full.wasm) that the
+ * module links. At most 32, so a feature mask is one word.
+ */
+sxml_optional_feature_view sxml_javascript_module_features(void);
+
+/* The number of the module's features, and the name of the one at
+   feature_index (ASCII; NULL and 0 past the last). */
+uint32_t sxml_javascript_feature_count(void);
+const uint8_t *sxml_javascript_feature_name_bytes(uint32_t feature_index);
+uint32_t sxml_javascript_feature_name_byte_count(uint32_t feature_index);
+
+/*
  * Makes a processor (include/sxml/processor.h) whose resource resolver is
  * the host import sxml_host.resolve. failing_allocation_number is that of
  * sxml_counting_allocator_configuration (0 fails none), counted from the
- * processor's own first allocation. Returns NULL when out of memory.
+ * processor's own first allocation. feature_mask names the module's
+ * features the processor may use: bit i for the feature at index i; bits
+ * past the last feature are ignored. Returns NULL when out of memory.
  */
-sxml_javascript_processor *sxml_javascript_processor_create(uint32_t failing_allocation_number);
+sxml_javascript_processor *sxml_javascript_processor_create(uint32_t failing_allocation_number,
+                                                            uint32_t feature_mask);
 
 /* Destroys a processor and returns the allocations of its allocator that
    were still live afterwards: 0 unless something leaked. Every value and

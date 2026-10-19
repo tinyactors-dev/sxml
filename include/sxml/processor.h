@@ -362,6 +362,56 @@ typedef struct sxml_trace_sink {
 SXML_EXPORT sxml_trace_sink sxml_stream_trace_sink(
     const sxml_output_stream *output_stream);
 
+/* ------------------------------------------------------ Optional features */
+
+/*
+ * Optional features (glossary `optional_feature`; D183, D184, D189): parts
+ * of sxml that a host opts into by naming them in
+ * sxml_processor_configuration.optional_features. Each feature has an
+ * exported function that returns it, and sxml reaches a feature only
+ * through the value the host passed, so a program that never names a
+ * feature does not link it. Without a feature, sxml behaves as the
+ * specification says a processor without it behaves (D162).
+ *
+ * Large data a feature needs, such as collation tables or the timezone
+ * database, is not compiled in. The feature asks the processor's resource
+ * resolver for it, in the data's standard format and under a resource
+ * kind of its own, when it is first used, and keeps what it read until
+ * the processor is finalized (glossary `feature_data`).
+ */
+
+/* What a feature is: static const data inside sxml. */
+typedef struct sxml_optional_feature_definition sxml_optional_feature_definition;
+
+/* One optional feature, passed by value. Its definition is never NULL in
+   a value sxml returns. */
+typedef struct sxml_optional_feature {
+    const sxml_optional_feature_definition *definition;
+} sxml_optional_feature;
+
+typedef struct sxml_optional_feature_view {
+    const sxml_optional_feature *optional_features;
+    size_t optional_feature_count;
+} sxml_optional_feature_view;
+
+/*
+ * A feature that adds nothing to what sxml does: hosts and sxml's own
+ * tests name it to check that a feature list reaches the processor
+ * (sxml_processor_has_optional_feature). Its name is "test".
+ */
+SXML_EXPORT sxml_optional_feature sxml_test_optional_feature(void);
+
+/*
+ * Every optional feature sxml has, as static data, for hosts that want
+ * them all: the sxml command, the test drivers and the JavaScript
+ * package's full module. A program that calls this links every feature.
+ */
+SXML_EXPORT sxml_optional_feature_view sxml_all_optional_features(void);
+
+/* The name of feature, in ASCII, static ("test"). The empty view when its
+   definition is NULL. */
+SXML_EXPORT sxml_byte_view sxml_optional_feature_get_name(sxml_optional_feature feature);
+
 /* ------------------------------------------------------------- Processor */
 
 /*
@@ -423,6 +473,12 @@ typedef struct sxml_processor_configuration {
     /* Receives fn:trace, fn:message and xsl:message output. The null sink
        discards it. Its state must outlive the processor. */
     sxml_trace_sink trace_sink;
+    /* The optional features the processor may use (above); the empty view
+       names none. Read by initialize: the view need not outlive it. A
+       feature may be named more than once. A view with a count but no
+       array, or a feature whose definition is NULL, makes the
+       configuration invalid. */
+    sxml_optional_feature_view optional_features;
 } sxml_processor_configuration;
 
 /*
@@ -485,6 +541,10 @@ SXML_EXPORT sxml_name_pool *sxml_processor_get_name_pool(
     const sxml_processor *processor);
 SXML_EXPORT sxml_type_registry *sxml_processor_get_type_registry(
     const sxml_processor *processor);
+
+/* True when the configuration of processor named feature. */
+SXML_EXPORT bool sxml_processor_has_optional_feature(const sxml_processor *processor,
+                                                     sxml_optional_feature feature);
 
 /*
  * Parses request->input as an XML document (include/sxml/xml.h) into a new

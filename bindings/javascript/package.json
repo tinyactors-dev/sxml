@@ -9,7 +9,8 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
-    "./sxml.wasm": "./dist/sxml.wasm"
+    "./sxml.wasm": "./dist/sxml.wasm",
+    "./sxml-full.wasm": "./dist/sxml-full.wasm"
   },
   "files": [
     "dist/"
@@ -20,7 +21,7 @@
   "sideEffects": false,
   "scripts": {
     "typecheck": "tsc",
-    "build": "tsc -p tsconfig.build.json && node -e \"require('node:fs').copyFileSync(process.env.SXML_WASM_PATH, 'dist/sxml.wasm')\"",
+    "build": "tsc -p tsconfig.build.json && node -e \"const fs = require('node:fs'); fs.copyFileSync(process.env.SXML_WASM_PATH, 'dist/sxml.wasm'); fs.copyFileSync(process.env.SXML_FULL_WASM_PATH, 'dist/sxml-full.wasm')\"",
     "test": "node --expose-gc --test test/package.test.ts"
   },
   "devDependencies": {

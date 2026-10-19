@@ -26,6 +26,18 @@ elsewhere, pass `load({ wasm })` with a URL, a path, the bytes, a
 `WebAssembly.Module` or a `fetch()` response. One loaded module serves any
 number of processors.
 
+## Optional features
+
+Some parts of sxml are optional features: large tables and front ends that
+not every page needs. `sxml.wasm`, the core module, has none of them.
+`sxml-full.wasm`, next to it, has every one: load it with
+`load({ wasm: new URL('sxml-full.wasm', import.meta.resolve('sxml-js')) })`
+or from your own URL. `sxml.features` lists the features of the loaded
+module, and `createProcessor({ features })` picks some of them (by default
+all). Without a feature, sxml behaves as the specifications say a processor
+without it does. Today the only feature is `test`, which adds nothing; the
+features to come are listed in sxml's `docs/tasks/phase-7.md`.
+
 ## Processors and values
 
 A processor holds names, types and values. Every value and expression
@@ -95,5 +107,5 @@ cmake --preset wasm && cmake --build --preset wasm && ctest --preset wasm -R jav
 npm ci --prefix bindings/javascript   # adds the javascript/typecheck test
 ```
 
-`npm run build`, with `SXML_WASM_PATH` set to the built `sxml.wasm`, writes
-`dist/`. The steps for a release are in `docs/RELEASE.md`.
+`npm run build`, with `SXML_WASM_PATH` and `SXML_FULL_WASM_PATH` set to
+the built `sxml.wasm` and `sxml-full.wasm`, writes `dist/`. The steps for a release are in `docs/RELEASE.md`.

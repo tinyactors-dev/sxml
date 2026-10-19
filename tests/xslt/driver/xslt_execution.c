@@ -1765,7 +1765,8 @@ void sxml_xslt_test_execute(const sxml_xslt_test_execution_request *request,
                        .maximum_evaluation_step_count = SXML_XSLT_TEST_MAXIMUM_STEP_COUNT},
             .resource_resolver = {.state = context,
                                   .operations = &sxml_xslt_test_resolver_operations},
-            .clock = sxml_system_clock()},
+            .clock = sxml_system_clock(),
+            .optional_features = sxml_all_optional_features()},
         &context->processor);
     if (status == SXML_STATUS_OK) {
         status = sxml_arena_create(

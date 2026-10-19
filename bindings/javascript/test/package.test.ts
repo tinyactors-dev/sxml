@@ -37,6 +37,30 @@ describe('the module', () => {
   });
 });
 
+// The optional features the module under test must have (D189):
+// SXML_WASM_FEATURES lists them, comma-separated; none for sxml.wasm.
+const expectedFeatures = (env.SXML_WASM_FEATURES ?? '').split(',').filter((name) => name !== '');
+
+describe('optional features', () => {
+  test('the module lists the features it links', () => {
+    assert.deepEqual([...sxml.features], expectedFeatures);
+  });
+
+  test('a processor takes a list of the module\'s features', () => {
+    for (const features of [[], expectedFeatures, undefined]) {
+      const processor = sxml.createProcessor({ features });
+      const result = processor.evaluate('1 + 1');
+      assert.equal(result.toString(), '2');
+      result.dispose();
+      disposeChecked(processor);
+    }
+  });
+
+  test('a feature the module does not have is refused', () => {
+    assert.throws(() => sxml.createProcessor({ features: ['no-such-feature'] }), /no optional feature/);
+  });
+});
+
 describe('XPath', () => {
   test('evaluates without a context', () => {
     withProcessor((processor) => {

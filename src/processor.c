@@ -229,7 +229,8 @@ static sxml_native_function_view_list sxml_processor_library_parts(void) {
 
 static bool sxml_processor_configuration_is_valid(
     const sxml_processor_configuration *configuration) {
-    return configuration != NULL && !sxml_allocator_is_null(configuration->allocator);
+    return configuration != NULL && !sxml_allocator_is_null(configuration->allocator) &&
+           sxml_optional_feature_view_is_valid(configuration->optional_features);
 }
 
 static sxml_name_pool_configuration sxml_processor_name_pool_configuration(
@@ -449,7 +450,9 @@ sxml_status sxml_processor_initialize(sxml_memory_view memory,
         .kept_schemas = NULL,
         .kept_schema_count = 0,
         .kept_schema_capacity = 0,
-        .builtin_schema = NULL};
+        .builtin_schema = NULL,
+        .optional_features =
+            sxml_optional_feature_slots_from_view(configuration->optional_features)};
     status = sxml_processor_place_members(new_processor, &layout, memory);
     if (status != SXML_STATUS_OK) {
         return status;
@@ -472,6 +475,7 @@ void sxml_processor_finalize(sxml_processor *processor) {
     processor->kept_schema_capacity = 0;
     sxml_schema_destroy(processor->builtin_schema);
     processor->builtin_schema = NULL;
+    sxml_optional_feature_slots_finalize(&processor->optional_features, processor->allocator);
     sxml_function_library_finalize(processor->function_library);
     sxml_item_heap_finalize(processor->item_heap);
     sxml_type_registry_finalize(processor->type_registry);

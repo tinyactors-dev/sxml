@@ -684,7 +684,8 @@ static void sxml_xsd_test_run_isolated(const sxml_xsd_test_isolated_request *req
                             .maximum_entity_expansion_byte_count =
                                 SXML_XSD_TEST_RUN_MAXIMUM_EXPANSION_BYTE_COUNT},
                        .maximum_evaluation_step_count =
-                           SXML_QT4_TEST_MAXIMUM_STEP_COUNT}},
+                           SXML_QT4_TEST_MAXIMUM_STEP_COUNT},
+            .optional_features = sxml_all_optional_features()},
         &processor);
     if (status != SXML_STATUS_OK) {
         sxml_xsd_test_fail(

@@ -527,7 +527,8 @@ sxml_cli_exit_code sxml_query_run_start(sxml_query_run *run) {
                                           SXML_QUERY_MAXIMUM_EXPANSION_BYTE_COUNT}},
             .resource_resolver = {.state = &run->resolver,
                                   .operations = &sxml_query_file_resolver_operations},
-            .clock = sxml_system_clock()},
+            .clock = sxml_system_clock(),
+            .optional_features = sxml_all_optional_features()},
         &run->processor);
     if (status != SXML_STATUS_OK) {
         return SXML_CLI_EXIT_INTERNAL_ERROR;

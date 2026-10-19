@@ -28,7 +28,9 @@ export type WasmSource =
   | PromiseLike<Response>;
 
 export interface LoadOptions {
-  /** Default: sxml.wasm next to this file. */
+  /** Default: sxml.wasm next to this file, the core module, which has no
+   *  optional feature. sxml-full.wasm, beside it, has every optional
+   *  feature (Sxml.features). */
   wasm?: WasmSource;
 }
 
@@ -64,6 +66,11 @@ export type Resolver = (request: ResourceRequest) => string | Uint8Array | null 
 export interface ProcessorOptions {
   /** Default: nothing is available. */
   resolver?: Resolver;
+  /** The optional features the processor may use, by name, each one of
+   *  Sxml.features. Default: every feature of the module. Without a
+   *  feature, sxml behaves as the specifications say a processor without
+   *  it does. */
+  features?: string[];
   /** For tests: fail this allocation (counted from 1) with out of memory. */
   failingAllocationNumber?: number;
 }
@@ -157,7 +164,10 @@ export class SxmlError extends Error {
 interface Exports {
   memory: WebAssembly.Memory;
   _initialize(): void;
-  sxml_javascript_processor_create(failingAllocationNumber: number): number;
+  sxml_javascript_processor_create(failingAllocationNumber: number, featureMask: number): number;
+  sxml_javascript_feature_count(): number;
+  sxml_javascript_feature_name_bytes(featureIndex: number): number;
+  sxml_javascript_feature_name_byte_count(featureIndex: number): number;
   sxml_javascript_processor_destroy(processor: number): number;
   sxml_javascript_allocate(processor: number, byteCount: number): number;
   sxml_javascript_release(processor: number, address: number): void;
@@ -333,6 +343,10 @@ export class Sxml {
   readonly exports: Exports;
   /** The library version, such as '0.2.0'. */
   readonly version: string;
+  /** The optional features this module has: none in sxml.wasm; all in
+   *  sxml-full.wasm ('test' adds nothing; it checks that the list reaches
+   *  the processor). */
+  readonly features: readonly string[];
   /** Processors by address, for the resolver import. @internal */
   readonly processors = new Map<number, ProcessorState>();
   private readonly registry: FinalizationRegistry<Held>;
@@ -354,6 +368,16 @@ export class Sxml {
       end += 1;
     }
     this.version = decoder.decode(bytes.subarray(versionAddress, end));
+    const features: string[] = [];
+    for (let index = 0; index < exports.sxml_javascript_feature_count(); index += 1) {
+      features.push(
+        this.text(
+          exports.sxml_javascript_feature_name_bytes(index),
+          exports.sxml_javascript_feature_name_byte_count(index),
+        ),
+      );
+    }
+    this.features = Object.freeze(features);
   }
 
   /** The module's memory as bytes; a new view after every call, since
@@ -383,8 +407,17 @@ export class Sxml {
   }
 
   createProcessor(options: ProcessorOptions = {}): Processor {
+    let featureMask = 0;
+    for (const name of options.features ?? this.features) {
+      const index = this.features.indexOf(name);
+      if (index < 0) {
+        throw new Error(`sxml: this module has no optional feature '${name}'`);
+      }
+      featureMask |= 1 << index;
+    }
     const address = this.exports.sxml_javascript_processor_create(
       options.failingAllocationNumber ?? 0,
+      featureMask >>> 0,
     );
     if (address === 0) {
       throw outOfMemory();

@@ -1432,7 +1432,8 @@ static void sxml_qt4_run_isolated(const sxml_qt4_test_run_request *request,
                            SXML_QT4_QUERY_MAXIMUM_STEP_COUNT},
             .resource_resolver =
                 sxml_qt4_resource_table_resolver(&resource_table),
-            .clock = sxml_system_clock()},
+            .clock = sxml_system_clock(),
+            .optional_features = sxml_all_optional_features()},
         &context.processor);
     if (status == SXML_STATUS_OK) {
         status = sxml_arena_create(
