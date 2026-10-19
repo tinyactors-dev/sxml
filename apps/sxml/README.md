@@ -630,7 +630,10 @@ failed, for example `cvc-complex-type.2.4` (XSD 1.1 Part 1, appendix C).
 The description names the element or attribute, the value that is not
 valid, and what was expected: the elements that the content model allows
 there, the type, or the facet. A FILE that is not well-formed is reported
-as `sxml check` reports it.
+as `sxml check` reports it. A FILE is parsed in segments, so the
+errors in its content before the place where it stops being well-formed
+are reported too, before that place; in JSON, such a FILE has `errors`
+besides its `line`, `column`, `byte_offset` and `message`.
 
 | Option | Description |
 | --- | --- |
