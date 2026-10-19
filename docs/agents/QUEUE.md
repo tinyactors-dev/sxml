@@ -9,7 +9,7 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 - Phase 5 (XSD 1.1, schema awareness) closed by agent review (D182); four
   gate boxes wait for full runs and fuzzing on the owner's machine (D181).
   All public headers are stable.
-- Passes: XP40 30,931, XQ40 41,273, XT40 8,650, XSD in scope 41,483 of
+- Passes: XP40 30,931, XQ40 41,273, XT40 8,759, XSD in scope 41,483 of
   41,518. Zero error outcomes in every suite.
 - `sxml.wasm` is 1,997,773 of its 2,000,000-byte budget: the next feature
   that links into it breaks the size test (owner decision open).
@@ -17,16 +17,16 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 ## Running
 
 - XPath/XQuery conformance sweep (2.21).
-- XSLT conformance sweep (4.19).
+- 7.4 XSLT backwards compatibility and XPath 1.0 mode.
+- 7.3 xsl:evaluate and 7.5 disable-output-escaping.
 - 7.2 optional features and size budgets (D184).
 - 7.7a XQuery Update Facility 3.0.
 - 7.13 XML 1.1 input.
 
 ## Next
 
-- Phase 7 (`docs/tasks/phase-7.md`, D183, D184): after 4.19, the XSLT
-  packets 7.3 xsl:evaluate, 7.4 backwards compatibility, 7.5
-  disable-output-escaping and 7.6a streaming analysis; after 7.13, 7.14
+- Phase 7 (`docs/tasks/phase-7.md`, D183, D184): 7.6a streaming analysis
+  after 7.4; after 7.13, 7.14
   DTD; after 7.2, 7.8 Binary, 7.9 File, 7.10 HTML5, 7.11 fn:transform;
   then Full Text, UCA, timezones, calendars and languages, iXML.
 - JavaScript bindings for XQuery, XSLT and validation (they cover XPath only).
@@ -44,16 +44,21 @@ XPath and XQuery:
   `fn:xsd-validator`.
 - A processor keeps every imported schema until it is destroyed (D174).
 
-XSLT:
-- `priority` (34): "~T" type patterns from a newer 4.0 draft.
-- `call-template-ext` (25): extension instructions as template calls.
-- Named record and type declarations (`record`, `type-alias`, 41).
-- `merge` (20), `snapshot` (19).
-- `match="$var"` membership is a linear scan (quadratic); needs an index.
-- Errors inside an included module name the main stylesheet's file.
+XSLT (after 4.19, D185; XT40 8,759):
+- `priority` stays at 6/40: the suite expects "~T" patterns the project's
+  draft (13 Oct 2026) replaced, and other expectations contradict 6.4 (D29).
+- `match="$var"` membership index: designed in D185, needs
+  `src/function_library_xslt.c`.
+- XTDE3490 (needs `src/xpath_lower.c`); XTDE2220 and XTDE2210 with computed
+  attributes in merge; merge 049-052 validation codes; collection-006;
+  snapshot-0101c; the record constructor function (record-026/027).
+- Errors in inline functions and xsl:iterate bodies of an included module
+  still name the main stylesheet's file.
 - XTDE3052 needs globals computed on first read.
-- Larger duplicates: typed-array allocation in 19 files; key equality of
-  group-adjacent and group-starting-with.
+- Typed-array allocation: XSLT files use `sxml_allocator_allocate_array`
+  (`src/memory_internal.h`); move the other files when next touched. Key
+  equality of group-adjacent/group-starting-with should reuse the FLWOR's
+  `keys_are_equal` (`src/xquery_flwor.c`).
 - Schema-aware leftovers (D179): XTSE3105, typed modes reading name tests
   as `schema-element()`, ID/IDREF skipping for elements, `xs:untypedAtomic`
   as a type attribute, `xsl:copy` with preserve, schema roles, XTSE0265.
