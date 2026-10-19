@@ -1299,9 +1299,18 @@ static sxml_status call_pack_integer(const sxml_function_call *call, sxml_sequen
     if (value.is_inline) {
         const uint64_t bits = (uint64_t)value.value;
         for (size_t octet_index = 0; octet_index < buffer.byte_count; octet_index += 1) {
-            buffer.bytes[buffer.byte_count - 1 - octet_index] =
-                octet_index < 8 ? (uint8_t)(bits >> (8U * octet_index))
-                                : (uint8_t)(value.value < 0 ? 0xFF : 0x00);
+            /* No conditional expression: one over two uint8_t operands has
+             * type int (C17 6.5.15p5, the usual arithmetic conversions),
+             * which GCC's -Wconversion reports under the sanitizers. Past
+             * the eight octets of the value, the sign extends. */
+            uint8_t octet = 0x00;
+            if (value.value < 0) {
+                octet = 0xFF;
+            }
+            if (octet_index < 8) {
+                octet = (uint8_t)(bits >> (8U * octet_index));
+            }
+            buffer.bytes[buffer.byte_count - 1 - octet_index] = octet;
         }
     } else {
         status = pack_decimal(call, value.decimal_text, &buffer);
