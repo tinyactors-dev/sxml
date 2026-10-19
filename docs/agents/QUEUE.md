@@ -9,7 +9,7 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 - Phase 5 (XSD 1.1, schema awareness) closed by agent review (D182); four
   gate boxes wait for full runs and fuzzing on the owner's machine (D181).
   All public headers are stable.
-- Passes: XP40 32,655, XQ40 45,914, XT40 11,912, XSD in scope 41,483 of
+- Passes: XP40 32,655, XQ40 45,914, XT40 12,048, XSD in scope 41,483 of
   41,518. Zero error outcomes in every suite.
 - Optional features (D189). Budgets (D202, D207, D208): core `sxml.wasm`
   2,200,000 / 770,000 (2,077,439 / 725,473 after size-2, D227: each module
@@ -22,11 +22,11 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 ## Running
 
 - 4.21: hoist-pass bug (merge-001a/016), globals on first read (XTDE3052), typed modes.
-- 7.6e streaming: accumulators, fork/merge, streamed result delivery, incremental resolver.
+- 7.6f streaming: incremental bytes (D231 design), streamed xsl:merge, capture end rules.
 
 ## Next
 
-- 7.19: the Phase 7 review, once 7.6e is done.
+- 7.19: the Phase 7 review, once 7.6f is done.
 - More XPath/XQuery and XSLT sweeps on the leftovers below; perf-4 on casts
   and path-MAP hoisting.
 
