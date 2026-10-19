@@ -2504,6 +2504,10 @@ static sxml_status lower_into_unit(const unit_lowering *work) {
     if (status == SXML_STATUS_OK) {
         status = sxml_xslt_declare_packages(&lowering);
     }
+    /* Named types next: every type below may name one (5.4). */
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xslt_declare_named_types(&lowering, memory.static_contexts);
+    }
     if (status == SXML_STATUS_OK) {
         status = collect_aliases(&lowering, &memory, &lowering);
     }

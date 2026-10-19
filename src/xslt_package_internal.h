@@ -71,6 +71,10 @@ typedef enum sxml_xslt_component_kind {
     /* A global variable or stylesheet parameter. */
     SXML_XSLT_COMPONENT_KIND_VARIABLE,
     SXML_XSLT_COMPONENT_KIND_MODE,
+    /* A named item type or nominative record type (xsl:item-type,
+       xsl:record-type, 5.4): one kind, as both name item types (XTSE4030);
+       never overridable. */
+    SXML_XSLT_COMPONENT_KIND_ITEM_TYPE,
 } sxml_xslt_component_kind;
 
 /* The visibility of a component instance (3.4.5.1). */

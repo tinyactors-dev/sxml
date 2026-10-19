@@ -462,11 +462,13 @@ static const attribute_rule attribute_rules[] = {
     {.attribute_name = SXML_BYTE_VIEW_INITIALIZER("as"), .attribute_kind = SXML_XSLT_AST_ATTRIBUTE_AS,
      .value_syntax = SXML_VALUE_SYNTAX_SEQUENCE_TYPE, .is_required = false,
      .keyword_mask = 0},
-    {.attribute_name = SXML_BYTE_VIEW_INITIALIZER("default"), .attribute_kind = SXML_XSLT_AST_ATTRIBUTE_DEFAULT,
-     .value_syntax = SXML_VALUE_SYNTAX_EXPRESSION, .is_required = false,
-     .keyword_mask = 0},
-    {.attribute_name = SXML_BYTE_VIEW_INITIALIZER("required"), .attribute_kind = SXML_XSLT_AST_ATTRIBUTE_REQUIRED,
+    /* xsl:field as the draft has it (5.4.2: static and select; the
+       schema still has default and required). */
+    {.attribute_name = SXML_BYTE_VIEW_INITIALIZER("static"), .attribute_kind = SXML_XSLT_AST_ATTRIBUTE_STATIC,
      .value_syntax = SXML_VALUE_SYNTAX_BOOLEAN, .is_required = false,
+     .keyword_mask = 0},
+    {.attribute_name = SXML_BYTE_VIEW_INITIALIZER("select"), .attribute_kind = SXML_XSLT_AST_ATTRIBUTE_SELECT,
+     .value_syntax = SXML_VALUE_SYNTAX_EXPRESSION, .is_required = false,
      .keyword_mask = 0},
     {.attribute_name = SXML_BYTE_VIEW_INITIALIZER("select"), .attribute_kind = SXML_XSLT_AST_ATTRIBUTE_SELECT,
      .value_syntax = SXML_VALUE_SYNTAX_EXPRESSION, .is_required = true,

@@ -183,7 +183,7 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `component_lowering` | The stylesheet functions and attribute sets of one stylesheet lowering, with the function table each static context gets (D150) |
 | `package` | An XSLT package: the principal module or the module an `xsl:use-package` read, with the modules it includes and imports; an `xsl:stylesheet` is an implicit package (XSLT 4.0, 3.4; D160) |
 | `used_package` | The package an `xsl:use-package` names, read again for every use, so each use has components of its own (XSLT 4.0, 3.4.2) |
-| `component` | A stylesheet function, named template, attribute set, global variable or parameter, or mode, as packages bind references to it (XSLT 4.0, 3.4.5) |
+| `component` | A stylesheet function, named template, attribute set, global variable or parameter, mode, or named item or record type, as packages bind references to it (XSLT 4.0, 3.4.5) |
 | `component_instance` | One component as one package contains it, with its visibility there: declared in the package, accepted from a used package, or overriding one (XSLT 4.0, 3.4.5, the "containing package") |
 | `visibility` | Public, private, final, abstract or hidden: who may refer to or override a component instance (XSLT 4.0, 3.4.5.1) |
 | `overriding_declaration` | A child of `xsl:override`: the using package's replacement of a component of the used package (XSLT 4.0, 3.4.5.3) |

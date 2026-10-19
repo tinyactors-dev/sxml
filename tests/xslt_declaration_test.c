@@ -593,10 +593,42 @@ static void test_decimal_formats(sxml_test_state *state) {
     CHECK(state, cases);
 }
 
+/* 5.4: named item types and nominative record types, in any order. */
+static void test_named_types(sxml_test_state *state) {
+    static const transform_case cases[] = {
+        {EVALUATE("<xsl:function name='f:twice' as='f:number'><xsl:param name='n' as='f:number'/>"
+                  "<xsl:sequence select='$n * 2'/></xsl:function>"
+                  "<xsl:item-type name='f:number' as='f:integer'/>"
+                  "<xsl:item-type name='f:integer' as='xs:integer'/>",
+                  "f:twice(4), 4 instance of f:number, 'a' instance of f:number"),
+         "8 true() false()"},
+        {EVALUATE("<xsl:record-type name='f:point'><xsl:field name='x' as='xs:integer'/>"
+                  "<xsl:field name='y' as='f:point?'/></xsl:record-type>",
+                  "{'x': 1, 'y': {'x': 2, 'y': ()}} instance of f:point, "
+                  "let $p as f:point := {'x': 1, 'y': {'x': 2, 'y': ()}} "
+                  "return ($p instance of f:point, $p?y?x)"),
+         "false() true() 2"},
+        {EVALUATE("<xsl:record-type name='f:pair'><xsl:field name='a'/><xsl:field name='a'/>"
+                  "</xsl:record-type>",
+                  "1"),
+         "error:XTSE4050"},
+        {EVALUATE("<xsl:item-type name='f:a' as='f:b'/><xsl:item-type name='f:b' as='f:a'/>",
+                  "1"),
+         "error:XTSE4035"},
+        {EVALUATE("<xsl:item-type name='f:a' as='f:undeclared'/>", "1"), "error:XPST0051"},
+        {EVALUATE("<xsl:item-type name='f:a' as='xs:string'/>"
+                  "<xsl:item-type name='f:a' as='xs:integer'/>",
+                  "1"),
+         "error:XTSE4030"},
+    };
+    CHECK(state, cases);
+}
+
 static const sxml_test_case xslt_declaration_test_cases[] = {
     {.name = "whitespace_stripping", .function = test_whitespace_stripping},
     {.name = "global_context_item", .function = test_global_context_item},
     {.name = "decimal_formats", .function = test_decimal_formats},
+    {.name = "named_types", .function = test_named_types},
     {.name = "functions", .function = test_functions},
     {.name = "optional_parameters", .function = test_optional_parameters},
     {.name = "function_rules", .function = test_function_rules},

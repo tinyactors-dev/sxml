@@ -519,6 +519,10 @@ static declared_component component_of(const sxml_xslt_lowering *lowering,
     case SXML_XSLT_AST_KIND_MODE:
         component.component_kind = SXML_XSLT_COMPONENT_KIND_MODE;
         break;
+    case SXML_XSLT_AST_KIND_ITEM_TYPE:
+    case SXML_XSLT_AST_KIND_RECORD_TYPE:
+        component.component_kind = SXML_XSLT_COMPONENT_KIND_ITEM_TYPE;
+        break;
     default:
         component.component_name = (sxml_name_identifier){.index = 0};
         break;
@@ -570,6 +574,9 @@ static sxml_xslt_component_kind kind_of_keyword(sxml_xslt_ast_keyword keyword) {
         return SXML_XSLT_COMPONENT_KIND_ATTRIBUTE_SET;
     case SXML_XSLT_AST_KEYWORD_MODE:
         return SXML_XSLT_COMPONENT_KIND_MODE;
+    case SXML_XSLT_AST_KEYWORD_ITEM_TYPE:
+    case SXML_XSLT_AST_KEYWORD_RECORD_TYPE:
+        return SXML_XSLT_COMPONENT_KIND_ITEM_TYPE;
     default:
         return SXML_XSLT_COMPONENT_KIND_NONE;
     }
@@ -842,9 +849,6 @@ static sxml_status check_tests(const sxml_xslt_lowering *lowering, test_check ch
                                     : SXML_BYTE_VIEW_FROM_LITERAL(
                                           "XTSE3032 xsl:accept with component=\"*\" names a "
                                           "component that is no wildcard (XSLT 4.0, 3.4.5.2)"));
-        }
-        if (kind == SXML_XSLT_AST_KEYWORD_ITEM_TYPE || kind == SXML_XSLT_AST_KEYWORD_RECORD_TYPE) {
-            continue;
         }
         bool is_matched = false;
         for (uint32_t offset = 0; offset < check.instance_count && !is_matched; offset += 1) {

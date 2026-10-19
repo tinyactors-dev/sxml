@@ -775,6 +775,22 @@ bool sxml_xslt_lowering_received_tunnel_parameters(const sxml_xslt_lowering *low
 bool sxml_xslt_lowering_calls_template(const sxml_xslt_lowering *lowering,
                                        sxml_xslt_ast_node_index instruction);
 
+/* -------------------------------------------------------- Named types */
+
+/*
+ * xsl:item-type and xsl:record-type (5.4; src/xslt_named_type.c): declares
+ * the record types in the type registry, resolves the named item types,
+ * gives every static context the named item types its package sees and
+ * defines the records' fields. After sxml_xslt_declare_packages, before
+ * anything resolves a type; outside a machine. Returns
+ * SXML_STATUS_STATIC_ERROR with the error record filled (XTSE4030,
+ * XTSE4035, XTSE4050, XPST0051 and the other errors of resolving types),
+ * and the allocator's, name pool's and type registry's failures. What it
+ * keeps lives in the package table's memory.
+ */
+SXML_NODISCARD sxml_status sxml_xslt_declare_named_types(const sxml_xslt_lowering *lowering,
+                                                         sxml_xpath_static_context *static_contexts);
+
 /* ----------------------------------------------------------- The entry */
 
 /* A stylesheet to lower with the invocation that starts it (until packet
