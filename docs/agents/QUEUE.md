@@ -11,15 +11,18 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
   All public headers are stable.
 - Passes: XP40 30,931, XQ40 41,273, XT40 8,759, XSD in scope 41,483 of
   41,518. Zero error outcomes in every suite.
-- `sxml.wasm` is 1,997,773 of its 2,000,000-byte budget: the next feature
-  that links into it breaks the size test (owner decision open).
+- Optional features (D189): `sxml.wasm` (core) 2,004,485 of 2,100,000
+  bytes, `sxml-full.wasm` 2,005,513 of 3,000,000. Gzipped budgets 735,000 /
+  1,050,000 were set at D138's ratio (owner to confirm). Schema validation
+  (71 KB) and language-specific lowering parts (75 KB) could leave the core.
 
 ## Running
 
 - XPath/XQuery conformance sweep (2.21).
 - 7.4 XSLT backwards compatibility and XPath 1.0 mode.
 - 7.3 xsl:evaluate and 7.5 disable-output-escaping.
-- 7.2 optional features and size budgets (D184).
+- 7.8 EXPath Binary and 7.9 EXPath File (one agent).
+- 7.10a HTML5 tokenizer and tree builder.
 - 7.7a XQuery Update Facility 3.0.
 - 7.13 XML 1.1 input.
 
@@ -27,7 +30,7 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 
 - Phase 7 (`docs/tasks/phase-7.md`, D183, D184): 7.6a streaming analysis
   after 7.4; after 7.13, 7.14
-  DTD; after 7.2, 7.8 Binary, 7.9 File, 7.10 HTML5, 7.11 fn:transform;
+  DTD; after 7.3, 7.11 fn:transform;
   then Full Text, UCA, timezones, calendars and languages, iXML.
 - JavaScript bindings for XQuery, XSLT and validation (they cover XPath only).
 - `sxml` CLI gaps: `--output`, writing result documents, `--method=csv`,
