@@ -122,6 +122,12 @@ typedef struct sxml_xml_frame {
        declarations they contain grow the DTD text the entity lives in. */
     sxml_byte_view text;
     uint32_t prefix_byte_count;
+    /* For frames of the document's own text: where text starts in the
+       document's text, which a document segment (D222) is a part of. */
+    size_t document_offset;
+    /* A content segment of the document (D222), whose items may be the
+       Misc after the document element. */
+    bool is_content_segment;
     sxml_xml_buffer owned_text;
     bool has_entity;
     uint32_t entity_index;
@@ -191,6 +197,13 @@ struct sxml_xml_parser {
     sxml_xml_array schema_documents;
     sxml_xml_array schema_views;
     sxml_xml_array prefix_bindings;
+    /* The qualified names of the open elements (sxml_byte_view), for the
+       start tags written before a content segment (D222). Read only
+       between segments, when every open element was started in the
+       document's own text, so that the views point into it. */
+    sxml_xml_array open_element_names;
+    /* The marker and those start tags while a content segment is parsed. */
+    sxml_xml_buffer segment_prefix;
 };
 
 /* What the declaration of an open element says of its content, for the
@@ -256,6 +269,9 @@ typedef struct sxml_xml_document {
     bool is_incremental;
     bool pause_requested;
     size_t content_base_frame_count;
+    /* Where the next content segment starts (D222): the end of the head or
+       of the last segment parsed. */
+    size_t segment_end_offset;
 } sxml_xml_document;
 
 /* ------------------------------------------------------- Node types */
@@ -483,6 +499,9 @@ sxml_xml_parser_initialize(sxml_memory_view memory,
         .schema_views = sxml_xml_parser_array(allocator, sizeof(sxml_byte_view)),
         .prefix_bindings =
             sxml_xml_parser_array(allocator, sizeof(sxml_dtd_prefix_binding)),
+        .open_element_names =
+            sxml_xml_parser_array(allocator, sizeof(sxml_byte_view)),
+        .segment_prefix = sxml_xml_buffer_empty(allocator),
     };
     *parser = placed;
     return SXML_STATUS_OK;
@@ -509,6 +528,8 @@ void sxml_xml_parser_finalize(sxml_xml_parser *parser) {
     sxml_xml_array_release(&parser->schema_documents);
     sxml_xml_array_release(&parser->schema_views);
     sxml_xml_array_release(&parser->prefix_bindings);
+    sxml_xml_array_release(&parser->open_element_names);
+    sxml_xml_buffer_release(&parser->segment_prefix);
 }
 
 sxml_status
@@ -589,13 +610,23 @@ static sxml_source_location sxml_xml_location_at(sxml_xml_document *document,
 
 /* Where node is, for events and errors: in an entity frame, the reference
    that started the expansion. */
+/* The offset in the document's text of byte tree_offset of the tree of
+   a frame over the document's own text: past the frame's prefix. */
+static size_t sxml_xml_document_offset_of(const sxml_xml_frame *frame,
+                                          uint32_t tree_offset) {
+    return frame->document_offset + (tree_offset < frame->prefix_byte_count
+                                         ? 0
+                                         : tree_offset - frame->prefix_byte_count);
+}
+
 static sxml_source_location sxml_xml_node_location(sxml_xml_document *document,
                                                    const sxml_xml_frame *frame,
                                                    TSNode node) {
     if (frame->frame_kind != SXML_XML_FRAME_KIND_DOCUMENT) {
         return frame->reference_location;
     }
-    return sxml_xml_location_at(document, ts_node_start_byte(node));
+    return sxml_xml_location_at(
+        document, sxml_xml_document_offset_of(frame, ts_node_start_byte(node)));
 }
 
 /* A well-formedness failure at a node of a frame. */
@@ -4295,6 +4326,7 @@ static sxml_status sxml_xml_end_element(sxml_xml_document *document) {
         sxml_xml_array_at(scopes, scopes->element_count - 1);
     parser->namespace_bindings.element_count = *scope_start;
     scopes->element_count -= 1;
+    parser->open_element_names.element_count -= 1;
     document->element_depth -= 1;
     if (document->tracks_contents && parser->open_contents.element_count != 0) {
         parser->open_contents.element_count -= 1;
@@ -4349,6 +4381,11 @@ static sxml_status sxml_xml_start_element(sxml_xml_document *document,
         return sxml_xml_fail_resource(document, status);
     }
     *(size_t *)element = scope_start;
+    status = sxml_xml_array_push(&parser->open_element_names, &element);
+    if (status != SXML_STATUS_OK) {
+        return sxml_xml_fail_resource(document, status);
+    }
+    *(sxml_byte_view *)element = element_name;
     document->element_depth += 1;
     if (document->tracks_contents) {
         const sxml_xml_dtd *dtd = &parser->dtd;
@@ -4661,12 +4698,63 @@ static sxml_status sxml_xml_check_content(sxml_xml_document *document,
                                                          content->node)});
 }
 
+/*
+ * What an item of a content segment is after the document element has
+ * ended ([1] document ::= prolog element Misc*; [27] Misc ::= Comment | PI
+ * | S), which the grammar of content segments leaves to the builder
+ * (D222): comments and processing instructions are visited as content,
+ * white space is no text node and is ignored, anything else is not
+ * well-formed.
+ */
+typedef enum sxml_xml_misc_kind {
+    SXML_XML_MISC_KIND_MARKUP,
+    SXML_XML_MISC_KIND_WHITE_SPACE,
+    SXML_XML_MISC_KIND_NONE,
+} sxml_xml_misc_kind;
+
+static sxml_xml_misc_kind sxml_xml_misc_kind_of(const sxml_xml_frame_node *item) {
+    const sxml_xml_node_type node_type = sxml_xml_type_of(item->node);
+    if (node_type == SXML_XML_NODE_COMMENT ||
+        node_type == SXML_XML_NODE_PROCESSING_INSTRUCTION) {
+        return SXML_XML_MISC_KIND_MARKUP;
+    }
+    if (node_type == SXML_XML_NODE_CHARACTER_DATA &&
+        sxml_xml_text_is_whitespace(sxml_xml_node_text(item->frame, item->node))) {
+        return SXML_XML_MISC_KIND_WHITE_SPACE;
+    }
+    return SXML_XML_MISC_KIND_NONE;
+}
+
 /* One node of the content walk; sets result->descends to enter its
    children. */
 static sxml_status sxml_xml_visit_content(sxml_xml_document *document,
                                           const sxml_xml_frame *frame,
                                           sxml_xml_visit_result *result) {
     const TSNode node = ts_tree_cursor_current_node(&frame->cursor);
+    if (frame->frame_kind == SXML_XML_FRAME_KIND_DOCUMENT &&
+        ts_node_start_byte(node) < frame->prefix_byte_count) {
+        /* The marker of a document segment and the start tags written
+           before a content segment (D222). */
+        return SXML_STATUS_OK;
+    }
+    if (frame->is_content_segment && document->element_depth == 0) {
+        const sxml_xml_misc_kind misc_kind = sxml_xml_misc_kind_of(
+            &(sxml_xml_frame_node){.frame = frame, .node = node});
+        if (misc_kind == SXML_XML_MISC_KIND_WHITE_SPACE) {
+            return SXML_STATUS_OK;
+        }
+        if (misc_kind == SXML_XML_MISC_KIND_NONE) {
+            return sxml_xml_fail_at(
+                document,
+                (sxml_xml_node_failure){
+                    .frame = frame,
+                    .node = node,
+                    .description = SXML_XML_TEXT(
+                        "not well-formed: only comments, processing "
+                        "instructions and white space may follow the document "
+                        "element (XML 1.0, [1] document, [27] Misc)")});
+        }
+    }
     /* The wrapper's own tags in an entity frame are the children of the
        walk root. */
     const bool is_wrapper_child =
@@ -4718,6 +4806,248 @@ static sxml_status sxml_xml_visit_content(sxml_xml_document *document,
     return SXML_STATUS_OK;
 }
 
+/* True for the node types that are whole constructs when they appear
+   among the children of an ERROR node: what came before the trouble. */
+static bool sxml_xml_is_complete_construct(TSNode node) {
+    if (ts_node_is_error(node) || ts_node_is_missing(node) ||
+        ts_node_has_error(node)) {
+        return false;
+    }
+    const sxml_xml_node_type node_type = sxml_xml_type_of(node);
+    return node_type == SXML_XML_NODE_ELEMENT ||
+           node_type == SXML_XML_NODE_START_TAG ||
+           node_type == SXML_XML_NODE_END_TAG ||
+           node_type == SXML_XML_NODE_EMPTY_ELEMENT_TAG ||
+           node_type == SXML_XML_NODE_CHARACTER_DATA ||
+           node_type == SXML_XML_NODE_CHARACTER_REFERENCE ||
+           node_type == SXML_XML_NODE_ENTITY_REFERENCE ||
+           node_type == SXML_XML_NODE_CDATA_SECTION ||
+           node_type == SXML_XML_NODE_COMMENT ||
+           node_type == SXML_XML_NODE_PROCESSING_INSTRUCTION ||
+           node_type == SXML_XML_NODE_ATTRIBUTE ||
+           strcmp(ts_node_type(node), "xml_declaration") == 0 ||
+           strcmp(ts_node_type(node), "doctype_declaration") == 0;
+}
+
+/*
+ * Where a syntax error is: tree-sitter's recovery often wraps much of the
+ * document in one ERROR node, so the innermost ERROR is taken, and within
+ * it the first child that is not a complete construct, or its end when
+ * all its children are.
+ */
+static size_t sxml_xml_error_offset(TSNode error) {
+    TSNode node = error;
+    bool descends = true;
+    while (descends) {
+        descends = false;
+        const uint32_t child_count = ts_node_child_count(node);
+        for (uint32_t child_index = 0; child_index < child_count;
+             child_index++) {
+            const TSNode child = ts_node_child(node, child_index);
+            if (ts_node_is_error(child) || ts_node_is_missing(child) ||
+                ts_node_has_error(child)) {
+                node = child;
+                descends = true;
+                break;
+            }
+        }
+    }
+    const uint32_t child_count = ts_node_child_count(node);
+    for (uint32_t child_index = 0; child_index < child_count; child_index++) {
+        const TSNode child = ts_node_child(node, child_index);
+        if (!sxml_xml_is_complete_construct(child)) {
+            return ts_node_start_byte(child);
+        }
+    }
+    /* Nothing but complete constructs: the trouble is what is missing
+       after them. */
+    return child_count != 0 ? ts_node_end_byte(node) : ts_node_start_byte(node);
+}
+
+/* Reports the first ERROR or MISSING node of the tree of a document
+   segment, whose root is tree->node. */
+static sxml_status sxml_xml_check_syntax(sxml_xml_document *document,
+                                         const sxml_xml_frame_node *tree) {
+    const TSNode error = sxml_xml_find_error(tree->node);
+    if (ts_node_is_null(error)) {
+        return SXML_STATUS_OK;
+    }
+    return sxml_xml_fail(
+        document,
+        (sxml_xml_failure){
+            .status = SXML_STATUS_MALFORMED_INPUT,
+            .description =
+                ts_node_is_missing(error)
+                    ? SXML_XML_TEXT("not well-formed: the document ends or "
+                                    "breaks off before a construct is "
+                                    "complete (XML 1.0, section 2.1)")
+                    : SXML_XML_TEXT("not well-formed: the text does not match "
+                                    "the XML 1.0 grammar here (XML 1.0, "
+                                    "section 2.1)"),
+            .location =
+                sxml_xml_location_at(
+                    document, sxml_xml_document_offset_of(
+                                  tree->frame, (uint32_t)sxml_xml_error_offset(error)))});
+}
+
+/* ------------------------------------------------- Document segments */
+
+/*
+ * The document is parsed in document segments (glossary
+ * `document_segment`, D222): the head, then content segments of about
+ * this many bytes, each parsed, walked and freed before the next, so that
+ * the concrete syntax tree of one segment exists at a time. tree-sitter
+ * needs about 37 bytes per byte of input for its tree (D219), so a
+ * segment's tree takes about 600 KB; smaller segments parse no faster,
+ * larger ones slower (D222).
+ */
+enum { SXML_XML_SEGMENT_BYTE_COUNT = 16384 };
+
+/* The markers before the head and before a content segment (grammars/xml,
+   document). */
+static const sxml_byte_view sxml_xml_document_head_marker =
+    SXML_BYTE_VIEW_INITIALIZER("\001D");
+static const sxml_byte_view sxml_xml_content_segment_marker =
+    SXML_BYTE_VIEW_INITIALIZER("\001C");
+
+/* Parses a document segment, wrapped->text a part of the document's text
+   at frame->document_offset, into *syntax_tree, reporting a syntax error
+   at its place in the document. */
+typedef struct sxml_xml_segment_parse {
+    const sxml_xml_wrapped_text *wrapped;
+    const sxml_xml_frame *frame;
+} sxml_xml_segment_parse;
+
+static sxml_status sxml_xml_parse_segment(sxml_xml_document *document,
+                                          sxml_xml_segment_parse parse,
+                                          TSTree **syntax_tree) {
+    size_t total = 0;
+    sxml_status status = sxml_size_add(parse.wrapped->prefix.byte_count,
+                                       parse.wrapped->text.byte_count, &total);
+    if (status != SXML_STATUS_OK || total > UINT32_MAX) {
+        return sxml_xml_fail_resource(document, SXML_STATUS_LIMIT_EXCEEDED);
+    }
+    TSTree *tree = ts_parser_parse(document->syntax_parser, NULL,
+                                   (TSInput){.payload = (void *)parse.wrapped,
+                                             .read = sxml_xml_read_wrapped,
+                                             .encoding = TSInputEncodingUTF8,
+                                             .decode = NULL});
+    if (tree == NULL) {
+        return sxml_xml_fail_resource(document, SXML_STATUS_OUT_OF_MEMORY);
+    }
+    status = sxml_xml_check_syntax(
+        document,
+        &(sxml_xml_frame_node){.frame = parse.frame, .node = ts_tree_root_node(tree)});
+    if (status != SXML_STATUS_OK) {
+        ts_tree_delete(tree);
+        return status;
+    }
+    *syntax_tree = tree;
+    return SXML_STATUS_OK;
+}
+
+/*
+ * Parses the next content segment and pushes a frame over it. The
+ * segment's text follows the content segment marker and a start tag for
+ * each open element, so that the external scanner checks its end tags
+ * against their start tags (WFC: Element Type Match, 3); the walk skips
+ * them. The segment is at least twice as long as those start tags, so
+ * that writing them costs at most half the parse.
+ */
+static sxml_status sxml_xml_push_next_segment(sxml_xml_document *document) {
+    sxml_xml_parser *parser = document->parser;
+    sxml_xml_buffer *prefix = &parser->segment_prefix;
+    prefix->byte_count = 0;
+    sxml_status status =
+        sxml_xml_buffer_append(prefix, sxml_xml_content_segment_marker);
+    const sxml_xml_array *names = &parser->open_element_names;
+    for (size_t name_index = 0;
+         status == SXML_STATUS_OK && name_index < names->element_count;
+         name_index++) {
+        status = sxml_xml_buffer_append_byte(prefix, '<');
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xml_buffer_append(
+                prefix, *(const sxml_byte_view *)sxml_xml_array_at(names, name_index));
+        }
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xml_buffer_append_byte(prefix, '>');
+        }
+    }
+    if (status != SXML_STATUS_OK) {
+        return sxml_xml_fail_resource(document, status);
+    }
+    if (prefix->byte_count > UINT32_MAX) {
+        return sxml_xml_fail_resource(document, SXML_STATUS_LIMIT_EXCEEDED);
+    }
+    const size_t start_offset = document->segment_end_offset;
+    const size_t end_offset = sxml_xml_find_segment_end(&(sxml_xml_segment_request){
+        .text = document->text,
+        .start_offset = start_offset,
+        .target_byte_count = prefix->byte_count > SXML_XML_SEGMENT_BYTE_COUNT / 2
+                                 ? prefix->byte_count * 2
+                                 : SXML_XML_SEGMENT_BYTE_COUNT});
+    document->segment_end_offset = end_offset;
+    const sxml_xml_frame pushed = {
+        .frame_kind = SXML_XML_FRAME_KIND_DOCUMENT,
+        .syntax_tree = NULL,
+        .cursor = {.tree = NULL, .id = NULL, .context = {0, 0, 0}},
+        .text = {.bytes = document->text.bytes + start_offset,
+                 .byte_count = end_offset - start_offset},
+        .prefix_byte_count = (uint32_t)prefix->byte_count,
+        .document_offset = start_offset,
+        .is_content_segment = true,
+        .owned_text = sxml_xml_buffer_empty(parser->configuration.allocator),
+        .has_entity = false,
+        .entity_index = 0,
+        .reference_location = {.source_name = {.bytes = NULL, .byte_count = 0},
+                               .line_number = 0,
+                               .column_number = 0,
+                               .byte_offset = 0},
+        .is_external_context = false,
+        .starts_external_entity = false,
+        .base_uri = {.byte_offset = 0, .byte_count = 0},
+        .needs_advance = false,
+        .descends = false,
+        .cursor_depth = 0,
+        .element_depth = 0,
+    };
+    const sxml_xml_wrapped_text wrapped = {
+        .prefix = {.bytes = prefix->bytes, .byte_count = prefix->byte_count},
+        .text = pushed.text,
+        .suffix = {.bytes = NULL, .byte_count = 0}};
+    sxml_xml_frame owning = pushed;
+    status = sxml_xml_parse_segment(
+        document, (sxml_xml_segment_parse){.wrapped = &wrapped, .frame = &pushed},
+        &owning.syntax_tree);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_xml_push_frame(document, &owning,
+                               ts_tree_root_node(owning.syntax_tree));
+}
+
+/* Whether content segments are left, after the frames of the content
+   walk have ended. */
+static bool sxml_xml_has_next_segment(const sxml_xml_document *document) {
+    return document->segment_end_offset < document->text.byte_count;
+}
+
+/* After the last content segment: fails when the text ends inside an
+   element ([1] document, [39] element). */
+static sxml_status sxml_xml_check_content_end(sxml_xml_document *document) {
+    if (document->element_depth == 0) {
+        return SXML_STATUS_OK;
+    }
+    return sxml_xml_fail(
+        document,
+        (sxml_xml_failure){
+            .status = SXML_STATUS_MALFORMED_INPUT,
+            .description = SXML_XML_TEXT(
+                "not well-formed: the document ends or breaks off before a "
+                "construct is complete (XML 1.0, section 2.1)"),
+            .location = sxml_xml_location_at(document, document->text.byte_count)});
+}
+
 /* Which walk the frames serve. */
 typedef struct sxml_xml_walk {
     /* The internal subset when true, content otherwise. */
@@ -4732,7 +5062,21 @@ typedef struct sxml_xml_walk {
  */
 static sxml_status sxml_xml_run_frames(sxml_xml_document *document,
                                        sxml_xml_walk walk) {
-    while (sxml_xml_frame_count(document) > walk.base_frame_count) {
+    for (;;) {
+        if (sxml_xml_frame_count(document) <= walk.base_frame_count) {
+            if (walk.walks_declarations) {
+                return SXML_STATUS_OK;
+            }
+            if (!sxml_xml_has_next_segment(document)) {
+                return sxml_xml_check_content_end(document);
+            }
+            /* The content goes on in the next document segment (D222). */
+            const sxml_status status = sxml_xml_push_next_segment(document);
+            if (status != SXML_STATUS_OK) {
+                return status;
+            }
+            continue;
+        }
         const size_t frame_index = sxml_xml_frame_count(document) - 1;
         sxml_xml_frame *frame = sxml_xml_frame_at(document, frame_index);
         if (frame->needs_advance) {
@@ -4760,7 +5104,6 @@ static sxml_status sxml_xml_run_frames(sxml_xml_document *document,
             return SXML_STATUS_OK;
         }
     }
-    return SXML_STATUS_OK;
 }
 
 /* ------------------------------------------------------ DTD validation */
@@ -5406,87 +5749,6 @@ static sxml_status sxml_xml_decode(sxml_xml_document *document) {
     return sxml_xml_apply_version(document);
 }
 
-/* True for the node types that are whole constructs when they appear
-   among the children of an ERROR node: what came before the trouble. */
-static bool sxml_xml_is_complete_construct(TSNode node) {
-    if (ts_node_is_error(node) || ts_node_is_missing(node) ||
-        ts_node_has_error(node)) {
-        return false;
-    }
-    const sxml_xml_node_type node_type = sxml_xml_type_of(node);
-    return node_type == SXML_XML_NODE_ELEMENT ||
-           node_type == SXML_XML_NODE_START_TAG ||
-           node_type == SXML_XML_NODE_END_TAG ||
-           node_type == SXML_XML_NODE_EMPTY_ELEMENT_TAG ||
-           node_type == SXML_XML_NODE_CHARACTER_DATA ||
-           node_type == SXML_XML_NODE_CHARACTER_REFERENCE ||
-           node_type == SXML_XML_NODE_ENTITY_REFERENCE ||
-           node_type == SXML_XML_NODE_CDATA_SECTION ||
-           node_type == SXML_XML_NODE_COMMENT ||
-           node_type == SXML_XML_NODE_PROCESSING_INSTRUCTION ||
-           node_type == SXML_XML_NODE_ATTRIBUTE ||
-           strcmp(ts_node_type(node), "xml_declaration") == 0 ||
-           strcmp(ts_node_type(node), "doctype_declaration") == 0;
-}
-
-/*
- * Where a syntax error is: tree-sitter's recovery often wraps much of the
- * document in one ERROR node, so the innermost ERROR is taken, and within
- * it the first child that is not a complete construct, or its end when
- * all its children are.
- */
-static size_t sxml_xml_error_offset(TSNode error) {
-    TSNode node = error;
-    bool descends = true;
-    while (descends) {
-        descends = false;
-        const uint32_t child_count = ts_node_child_count(node);
-        for (uint32_t child_index = 0; child_index < child_count;
-             child_index++) {
-            const TSNode child = ts_node_child(node, child_index);
-            if (ts_node_is_error(child) || ts_node_is_missing(child) ||
-                ts_node_has_error(child)) {
-                node = child;
-                descends = true;
-                break;
-            }
-        }
-    }
-    const uint32_t child_count = ts_node_child_count(node);
-    for (uint32_t child_index = 0; child_index < child_count; child_index++) {
-        const TSNode child = ts_node_child(node, child_index);
-        if (!sxml_xml_is_complete_construct(child)) {
-            return ts_node_start_byte(child);
-        }
-    }
-    /* Nothing but complete constructs: the trouble is what is missing
-       after them. */
-    return child_count != 0 ? ts_node_end_byte(node) : ts_node_start_byte(node);
-}
-
-/* Reports the first ERROR or MISSING node of the document's tree. */
-static sxml_status sxml_xml_check_syntax(sxml_xml_document *document,
-                                         TSNode root) {
-    const TSNode error = sxml_xml_find_error(root);
-    if (ts_node_is_null(error)) {
-        return SXML_STATUS_OK;
-    }
-    return sxml_xml_fail(
-        document,
-        (sxml_xml_failure){
-            .status = SXML_STATUS_MALFORMED_INPUT,
-            .description =
-                ts_node_is_missing(error)
-                    ? SXML_XML_TEXT("not well-formed: the document ends or "
-                                    "breaks off before a construct is "
-                                    "complete (XML 1.0, section 2.1)")
-                    : SXML_XML_TEXT("not well-formed: the text does not match "
-                                    "the XML 1.0 grammar here (XML 1.0, "
-                                    "section 2.1)"),
-            .location =
-                sxml_xml_location_at(document, sxml_xml_error_offset(error))});
-}
-
 /*
  * The XML declaration ([23]): standalone, and an encoding declaration
  * that agrees with the bytes (4.3.3, Appendix F). The version was read
@@ -5523,7 +5785,8 @@ static sxml_status sxml_xml_check_declaration(sxml_xml_document *document,
             .location = sxml_xml_location_at(
                 document, ts_node_is_null(declaration)
                               ? 0
-                              : ts_node_start_byte(declaration))});
+                              : sxml_xml_document_offset_of(
+                                    frame, ts_node_start_byte(declaration)))});
 }
 
 /*
@@ -5767,8 +6030,11 @@ static sxml_status sxml_xml_send_document(sxml_xml_document *document,
         }
     }
     const size_t base_frame_count = sxml_xml_frame_count(document);
+    /* The head's tree goes with its frame: the DTD is read, and the
+       content walk frees each segment's tree when it ends (D222). */
     sxml_xml_frame pushed = *frame;
-    pushed.syntax_tree = NULL;
+    pushed.syntax_tree = document->syntax_tree;
+    document->syntax_tree = NULL;
     document->content_base_frame_count = base_frame_count;
     sxml_status status = sxml_xml_push_frame(document, &pushed, root);
     if (status != SXML_STATUS_OK || document->is_incremental) {
@@ -5785,40 +6051,30 @@ static sxml_status sxml_xml_send_document(sxml_xml_document *document,
     return status;
 }
 
-/* The steps after decoding, on the document's concrete syntax tree. */
+/*
+ * The steps after decoding: the head (D222), the prolog and the start tag
+ * of the document element, is parsed and walked; the content segments
+ * follow in the content walk.
+ */
 static sxml_status sxml_xml_walk_document(sxml_xml_document *document) {
-    const TSNode root = ts_tree_root_node(document->syntax_tree);
-    sxml_status status = sxml_xml_check_syntax(document, root);
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    if (ts_node_is_null(sxml_xml_field(root, SXML_XML_FIELD_ROOT))) {
-        /* The grammar's alternatives for external entities, which only the
-           parser's own markers start (16). */
-        return sxml_xml_fail(
-            document,
-            (sxml_xml_failure){
-                .status = SXML_STATUS_MALFORMED_INPUT,
-                .description = SXML_XML_TEXT(
-                    "not well-formed: a document must have a root element "
-                    "(XML 1.0, [1] document)"),
-                .location = sxml_xml_location_at(document, 0)});
-    }
     const sxml_byte_view base_uri = document->request->base_uri.byte_count != 0
                                         ? document->request->base_uri
                                         : document->request->document_uri;
     sxml_byte_range base_range = {.byte_offset = 0, .byte_count = 0};
-    status = sxml_xml_store(document, base_uri, &base_range);
+    sxml_status status = sxml_xml_store(document, base_uri, &base_range);
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    /* The document frame's template: its cursor is made when pushed. */
+    /* The head frame's template: its cursor is made when pushed. */
+    const size_t head_end_offset = sxml_xml_find_head_end(document->text);
     const sxml_xml_frame frame = {
         .frame_kind = SXML_XML_FRAME_KIND_DOCUMENT,
         .syntax_tree = NULL,
         .cursor = {.tree = NULL, .id = NULL, .context = {0, 0, 0}},
-        .text = document->text,
-        .prefix_byte_count = 0,
+        .text = {.bytes = document->text.bytes, .byte_count = head_end_offset},
+        .prefix_byte_count = (uint32_t)sxml_xml_document_head_marker.byte_count,
+        .document_offset = 0,
+        .is_content_segment = false,
         .owned_text =
             sxml_xml_buffer_empty(document->parser->configuration.allocator),
         .has_entity = false,
@@ -5834,6 +6090,30 @@ static sxml_status sxml_xml_walk_document(sxml_xml_document *document) {
         .descends = false,
         .cursor_depth = 0,
     };
+    document->segment_end_offset = head_end_offset;
+    const sxml_xml_wrapped_text wrapped = {
+        .prefix = sxml_xml_document_head_marker,
+        .text = frame.text,
+        .suffix = {.bytes = NULL, .byte_count = 0}};
+    status = sxml_xml_parse_segment(
+        document, (sxml_xml_segment_parse){.wrapped = &wrapped, .frame = &frame},
+        &document->syntax_tree);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    const TSNode root = ts_tree_root_node(document->syntax_tree);
+    if (ts_node_is_null(sxml_xml_field(root, SXML_XML_FIELD_ROOT))) {
+        /* The grammar's other alternatives, which only the parser's own
+           markers start (16). */
+        return sxml_xml_fail(
+            document,
+            (sxml_xml_failure){
+                .status = SXML_STATUS_MALFORMED_INPUT,
+                .description = SXML_XML_TEXT(
+                    "not well-formed: a document must have a root element "
+                    "(XML 1.0, [1] document)"),
+                .location = sxml_xml_location_at(document, 0)});
+    }
     status = sxml_xml_check_declaration(document, &frame, root);
     if (status == SXML_STATUS_OK) {
         status = sxml_xml_process_doctype(document, &frame, root);
@@ -5878,6 +6158,7 @@ static void sxml_xml_start_document(const sxml_xml_document_start *start,
     parser->open_contents.element_count = 0;
     parser->expansions.element_count = 0;
     parser->child_nodes.element_count = 0;
+    parser->open_element_names.element_count = 0;
     *document = (sxml_xml_document){
         .parser = parser,
         .request = request,
@@ -5916,11 +6197,12 @@ static void sxml_xml_start_document(const sxml_xml_document_start *start,
         .is_incremental = false,
         .pause_requested = false,
         .content_base_frame_count = 0,
+        .segment_end_offset = 0,
     };
 }
 
-/* Decodes the document, parses its syntax tree and walks it (to the start
-   of the content for an incremental parse). */
+/* Decodes the document and walks its head (to the start of the content
+   for an incremental parse) and its content segments. */
 static sxml_status sxml_xml_read_document(sxml_xml_document *document) {
     sxml_status status = sxml_xml_prepare_names(document);
     if (status == SXML_STATUS_OK) {
@@ -5933,15 +6215,6 @@ static sxml_status sxml_xml_read_document(sxml_xml_document *document) {
     if (document->syntax_parser == NULL ||
         !ts_parser_set_language(document->syntax_parser, tree_sitter_xml())) {
         status = sxml_xml_fail_resource(document, SXML_STATUS_OUT_OF_MEMORY);
-    }
-    if (status == SXML_STATUS_OK) {
-        document->syntax_tree = ts_parser_parse_string(
-            document->syntax_parser, NULL, (const char *)document->text.bytes,
-            (uint32_t)document->text.byte_count);
-        if (document->syntax_tree == NULL) {
-            status =
-                sxml_xml_fail_resource(document, SXML_STATUS_OUT_OF_MEMORY);
-        }
     }
     if (status == SXML_STATUS_OK) {
         status = sxml_xml_walk_document(document);

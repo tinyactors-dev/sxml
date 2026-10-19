@@ -1325,6 +1325,330 @@ static void test_large_documents_parse_in_linear_time(sxml_test_state *state) {
     fixture_destroy(&fixture);
 }
 
+/* ------------------------------------------------- Bounded memory */
+
+/*
+ * The evidence that a parse holds the concrete syntax tree of one document
+ * segment at a time (D222): tree-sitter allocates through hooks of its
+ * own, which are process-wide and take no state (D12: the library never
+ * sets them), so this test sets them around one parse and counts the bytes
+ * live, over the default allocator. The parser's own memory comes from a
+ * limited allocator.
+ */
+typedef struct runtime_memory {
+    size_t live_byte_count;
+    size_t peak_byte_count;
+} runtime_memory;
+
+/* The hooks have no state parameter: the counts of the one parse that
+   sets them. */
+static runtime_memory counted_runtime_memory;
+
+/* Each block has a header in front that holds its size. */
+#define RUNTIME_HEADER_BYTE_COUNT 16U
+
+static void *runtime_allocate(size_t byte_count) {
+    void *block = NULL;
+    if (byte_count > SIZE_MAX - RUNTIME_HEADER_BYTE_COUNT ||
+        sxml_allocator_allocate(
+            sxml_default_allocator(),
+            (sxml_allocation_request){.byte_count = byte_count + RUNTIME_HEADER_BYTE_COUNT,
+                                      .alignment = RUNTIME_HEADER_BYTE_COUNT},
+            &block) != SXML_STATUS_OK) {
+        return NULL;
+    }
+    memcpy(block, &byte_count, sizeof byte_count);
+    counted_runtime_memory.live_byte_count += byte_count;
+    if (counted_runtime_memory.live_byte_count > counted_runtime_memory.peak_byte_count) {
+        counted_runtime_memory.peak_byte_count = counted_runtime_memory.live_byte_count;
+    }
+    return (uint8_t *)block + RUNTIME_HEADER_BYTE_COUNT;
+}
+
+static size_t runtime_block_byte_count(const void *memory) {
+    size_t byte_count = 0;
+    memcpy(&byte_count, (const uint8_t *)memory - RUNTIME_HEADER_BYTE_COUNT,
+           sizeof byte_count);
+    return byte_count;
+}
+
+static void runtime_release(void *memory) {
+    if (memory == NULL) {
+        return;
+    }
+    counted_runtime_memory.live_byte_count -= runtime_block_byte_count(memory);
+    sxml_allocator_release(sxml_default_allocator(),
+                           (uint8_t *)memory - RUNTIME_HEADER_BYTE_COUNT);
+}
+
+static void *runtime_allocate_zeroed(size_t element_count, size_t element_byte_count) {
+    if (element_byte_count != 0 && element_count > SIZE_MAX / element_byte_count) {
+        return NULL;
+    }
+    void *memory = runtime_allocate(element_count * element_byte_count);
+    if (memory != NULL) {
+        memset(memory, 0, element_count * element_byte_count);
+    }
+    return memory;
+}
+
+static void *runtime_grow(void *memory, size_t byte_count) {
+    void *grown = runtime_allocate(byte_count);
+    if (grown != NULL && memory != NULL) {
+        const size_t old_byte_count = runtime_block_byte_count(memory);
+        memcpy(grown, memory, old_byte_count < byte_count ? old_byte_count : byte_count);
+        runtime_release(memory);
+    }
+    return grown;
+}
+
+/* An allocator that counts the bytes it holds and fails beyond a limit
+   (tests/evaluator_stream_test.c). */
+typedef struct limited_memory {
+    size_t limit_byte_count;
+    size_t live_byte_count;
+    size_t peak_byte_count;
+} limited_memory;
+
+static sxml_status limited_allocate(void *state, sxml_allocation_request request,
+                                    void **memory) {
+    limited_memory *limited = state;
+    if (request.alignment > RUNTIME_HEADER_BYTE_COUNT ||
+        request.byte_count > SIZE_MAX - RUNTIME_HEADER_BYTE_COUNT ||
+        limited->live_byte_count + request.byte_count > limited->limit_byte_count) {
+        return SXML_STATUS_OUT_OF_MEMORY;
+    }
+    void *block = NULL;
+    const sxml_status status = sxml_allocator_allocate(
+        sxml_default_allocator(),
+        (sxml_allocation_request){.byte_count = request.byte_count + RUNTIME_HEADER_BYTE_COUNT,
+                                  .alignment = RUNTIME_HEADER_BYTE_COUNT},
+        &block);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    memcpy(block, &request.byte_count, sizeof request.byte_count);
+    limited->live_byte_count += request.byte_count;
+    if (limited->live_byte_count > limited->peak_byte_count) {
+        limited->peak_byte_count = limited->live_byte_count;
+    }
+    *memory = (uint8_t *)block + RUNTIME_HEADER_BYTE_COUNT;
+    return SXML_STATUS_OK;
+}
+
+static void limited_release(void *state, void *memory) {
+    limited_memory *limited = state;
+    if (memory == NULL) {
+        return;
+    }
+    limited->live_byte_count -= runtime_block_byte_count(memory);
+    sxml_allocator_release(sxml_default_allocator(),
+                           (uint8_t *)memory - RUNTIME_HEADER_BYTE_COUNT);
+}
+
+static const sxml_allocator_operations limited_operations = {.allocate = limited_allocate,
+                                                             .release = limited_release};
+
+/* A builder that counts what it is sent and pauses the incremental parse
+   at the end of every record. */
+typedef struct record_counter {
+    sxml_xml_incremental_parse *parse;
+    size_t element_count;
+    size_t text_byte_count;
+    size_t comment_count;
+    size_t pause_count;
+} record_counter;
+
+static record_counter *counter_from_state(void *state) { return state; }
+
+static sxml_status count_start_document(void *state, const sxml_document_start_event *event) {
+    (void)state;
+    (void)event;
+    return SXML_STATUS_OK;
+}
+
+static sxml_status count_nothing(void *state) {
+    (void)state;
+    return SXML_STATUS_OK;
+}
+
+static sxml_status count_start_element(void *state, const sxml_element_start_event *event) {
+    (void)event;
+    counter_from_state(state)->element_count += 1;
+    return SXML_STATUS_OK;
+}
+
+static sxml_status count_namespace_binding(void *state,
+                                           const sxml_namespace_binding *namespace_binding) {
+    (void)state;
+    (void)namespace_binding;
+    return SXML_STATUS_OK;
+}
+
+static sxml_status count_attribute(void *state, const sxml_attribute_event *event) {
+    (void)state;
+    (void)event;
+    return SXML_STATUS_OK;
+}
+
+static sxml_status count_end_element(void *state) {
+    record_counter *counter = counter_from_state(state);
+    if (counter->parse != NULL) {
+        sxml_xml_incremental_parse_pause(counter->parse);
+        counter->pause_count += 1;
+    }
+    return SXML_STATUS_OK;
+}
+
+static sxml_status count_text(void *state, const sxml_text_event *event) {
+    counter_from_state(state)->text_byte_count += event->text.byte_count;
+    return SXML_STATUS_OK;
+}
+
+static sxml_status count_comment(void *state, const sxml_comment_event *event) {
+    (void)event;
+    counter_from_state(state)->comment_count += 1;
+    return SXML_STATUS_OK;
+}
+
+static sxml_status count_processing_instruction(void *state,
+                                                const sxml_processing_instruction_event *event) {
+    (void)state;
+    (void)event;
+    return SXML_STATUS_OK;
+}
+
+static sxml_status count_unparsed_entity(void *state, const sxml_unparsed_entity *entity) {
+    (void)state;
+    (void)entity;
+    return SXML_STATUS_OK;
+}
+
+static const sxml_tree_builder_operations count_operations = {
+    .start_document = count_start_document,
+    .end_document = count_nothing,
+    .start_element = count_start_element,
+    .add_namespace_binding = count_namespace_binding,
+    .add_attribute = count_attribute,
+    .end_element = count_end_element,
+    .add_text = count_text,
+    .add_comment = count_comment,
+    .add_processing_instruction = count_processing_instruction,
+    .add_unparsed_entity = count_unparsed_entity,
+};
+
+/*
+ * A 4 MB document parses with tree-sitter holding under 2 MB
+ * (its tree of the whole input took about 37 bytes per input byte, D219),
+ * the parser's own memory under 256 KB, and the incremental parse pausing
+ * after every element across the segments.
+ */
+static void test_large_documents_parse_in_bounded_memory(sxml_test_state *state) {
+    enum { SXML_TEST_RECORD_COUNT = 20000, SXML_TEST_RECORD_BYTE_COUNT = 256 };
+    static const char record_format[] =
+        "<record id='r%d' kind=\"k&amp;%d\">\r\n  <title>Title %d &note; &#233;</title>"
+        "<!-- comment %d --><data><![CDATA[x < y ]]]]><![CDATA[> %d]]></data>"
+        "<?pi data %d?><empty/>\r\n</record>\n";
+    const sxml_allocator allocator = sxml_default_allocator();
+    const size_t capacity = (size_t)SXML_TEST_RECORD_COUNT * SXML_TEST_RECORD_BYTE_COUNT + 256;
+    void *memory = NULL;
+    SXML_TEST_REQUIRE(state, sxml_allocator_allocate(
+                                 allocator,
+                                 (sxml_allocation_request){.byte_count = capacity,
+                                                           .alignment = 1},
+                                 &memory) == SXML_STATUS_OK);
+    char *text = memory;
+    size_t byte_count = (size_t)snprintf(
+        text, 256,
+        "<?xml version=\"1.0\"?>\n<!DOCTYPE catalog [<!ENTITY note \"a <b>&amp;</b> c\">]>\n"
+        "<catalog xmlns='urn:example:catalog'>\n");
+    for (int record_index = 0; record_index < SXML_TEST_RECORD_COUNT; record_index++) {
+        byte_count += (size_t)snprintf(text + byte_count, SXML_TEST_RECORD_BYTE_COUNT,
+                                       record_format, record_index, record_index,
+                                       record_index, record_index, record_index,
+                                       record_index);
+    }
+    byte_count += (size_t)snprintf(text + byte_count, 256, "</catalog>\n<!-- end -->\n");
+
+    limited_memory limited = {.limit_byte_count = (size_t)256 << 10U,
+                              .live_byte_count = 0,
+                              .peak_byte_count = 0};
+    const sxml_allocator limited_allocator = {.state = &limited,
+                                              .operations = &limited_operations};
+    sxml_name_pool *name_pool = NULL;
+    SXML_TEST_REQUIRE(state, sxml_name_pool_create(
+                                 limited_allocator,
+                                 &(sxml_name_pool_configuration){
+                                     .allocator = limited_allocator,
+                                     .maximum_byte_count = 0},
+                                 &name_pool) == SXML_STATUS_OK);
+    sxml_xml_parser *parser = NULL;
+    SXML_TEST_REQUIRE(state, sxml_xml_parser_create(
+                                 limited_allocator,
+                                 &(sxml_xml_parser_configuration){
+                                     .allocator = limited_allocator,
+                                     .name_pool = name_pool,
+                                     .limits = no_limits},
+                                 &parser) == SXML_STATUS_OK);
+    sxml_diagnostic diagnostic = empty_diagnostic();
+    const sxml_xml_parse_request request = request_for(
+        (sxml_byte_view){.bytes = (const uint8_t *)text, .byte_count = byte_count},
+        &diagnostic);
+    record_counter counter = {.parse = NULL,
+                              .element_count = 0,
+                              .text_byte_count = 0,
+                              .comment_count = 0,
+                              .pause_count = 0};
+
+    counted_runtime_memory = (runtime_memory){.live_byte_count = 0, .peak_byte_count = 0};
+    ts_set_allocator(runtime_allocate, runtime_allocate_zeroed, runtime_grow,
+                     runtime_release);
+    sxml_xml_incremental_parse *parse = NULL;
+    sxml_status status = sxml_xml_incremental_parse_create(
+        &(sxml_xml_incremental_parse_request){
+            .allocator = limited_allocator,
+            .parser = parser,
+            .parse_request = &request,
+            .builder = {.state = &counter, .operations = &count_operations}},
+        &parse);
+    size_t resume_count = 0;
+    bool is_finished = false;
+    if (status == SXML_STATUS_OK) {
+        counter.parse = parse;
+        while (status == SXML_STATUS_OK && !is_finished) {
+            status = sxml_xml_incremental_parse_resume(parse, &is_finished);
+            resume_count += 1;
+        }
+        sxml_xml_incremental_parse_destroy(parse);
+    }
+    const sxml_status check_status = sxml_xml_parser_check(parser, &request);
+    ts_set_allocator(NULL, NULL, NULL, NULL);
+
+    SXML_TEST_EXPECT(state, status == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, check_status == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, is_finished);
+    /* catalog, and record, title, b, data, empty per record. */
+    SXML_TEST_EXPECT(state, counter.element_count == 1 + (size_t)SXML_TEST_RECORD_COUNT * 5);
+    SXML_TEST_EXPECT(state, counter.comment_count == (size_t)SXML_TEST_RECORD_COUNT + 1);
+    SXML_TEST_EXPECT(state, resume_count > (size_t)SXML_TEST_RECORD_COUNT);
+    SXML_TEST_EXPECT(state, counted_runtime_memory.live_byte_count == 0);
+    SXML_TEST_EXPECT(state, counted_runtime_memory.peak_byte_count < (size_t)2 << 20U);
+    SXML_TEST_EXPECT(state, limited.peak_byte_count < limited.limit_byte_count);
+
+    /* An element left open at the end is found after the last segment. */
+    const sxml_xml_parse_request truncated = request_for(
+        (sxml_byte_view){.bytes = (const uint8_t *)text,
+                         .byte_count = byte_count - sizeof "</catalog>\n<!-- end -->\n" + 1},
+        &diagnostic);
+    SXML_TEST_EXPECT(state, sxml_xml_parser_check(parser, &truncated) ==
+                                SXML_STATUS_MALFORMED_INPUT);
+    SXML_TEST_EXPECT(state, diagnostic.location.byte_offset == truncated.input.byte_count);
+    sxml_xml_parser_destroy(parser);
+    sxml_name_pool_destroy(name_pool);
+    SXML_TEST_EXPECT(state, limited.live_byte_count == 0);
+    sxml_allocator_release(allocator, memory);
+}
+
 static const sxml_test_case xml_test_cases[] = {
     {.name = "parser_lifecycle", .function = test_parser_lifecycle},
     {.name = "events_follow_the_document",
@@ -1356,6 +1680,8 @@ static const sxml_test_case xml_test_cases[] = {
     {.name = "positions_move_back", .function = test_positions_move_back},
     {.name = "large_documents_parse_in_linear_time",
      .function = test_large_documents_parse_in_linear_time},
+    {.name = "large_documents_parse_in_bounded_memory",
+     .function = test_large_documents_parse_in_bounded_memory},
 };
 
 int main(int argument_count, char **arguments) {

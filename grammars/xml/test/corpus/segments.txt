@@ -1,0 +1,39 @@
+================================================================================
+Content segment after the start tags of the open elements
+================================================================================
+C<a><b>t&e;<c/></b><?p x?></a>
+<!--z-->
+
+--------------------------------------------------------------------------------
+
+(document
+  (start_tag
+    name: (name))
+  (start_tag
+    name: (name))
+  (character_data)
+  (entity_reference
+    name: (name))
+  (empty_element_tag
+    name: (name))
+  (end_tag
+    name: (name))
+  (processing_instruction
+    target: (name)
+    content: (processing_instruction_content))
+  (end_tag
+    name: (name))
+  (character_data)
+  (comment
+    (comment_text))
+  (character_data))
+
+================================================================================
+Content segment whose end tag closes no open element
+:error
+================================================================================
+C<a></b>
+
+--------------------------------------------------------------------------------
+
+

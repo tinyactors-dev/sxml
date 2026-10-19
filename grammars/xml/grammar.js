@@ -157,6 +157,19 @@ const parameter_entity_declaration = ($, entity_value) => seq(
   '>',
 );
 
+/**
+ * [22] prolog ::= XMLDecl? Misc* (doctypedecl Misc*)?
+ * The XML declaration, if present, starts at the first character. A byte
+ * order mark before it (4.3.3) is not part of the document.
+ * @param {GrammarSymbols<string>} $
+ */
+const prolog = ($) => [
+  optional($._byte_order_mark),
+  optional(field('declaration', $.xml_declaration)),
+  repeat($._misc),
+  optional(seq(field('doctype', $.doctype_declaration), repeat($._misc))),
+];
+
 module.exports = grammar({
   name: 'xml',
 
@@ -180,30 +193,62 @@ module.exports = grammar({
 
   rules: {
     // [1] document ::= prolog element Misc*
-    // [22] prolog ::= XMLDecl? Misc* (doctypedecl Misc*)?
-    // The XML declaration, if present, starts at the first character. A
-    // byte order mark before it (4.3.3) is not part of the document.
     //
     // The same start rule also reads the external entities of a document,
     // each after a marker that the tree builder puts in front of the
     // entity's text and that cannot start a document: U+0001, which is no
     // [2] Char, and a letter. A document never yields these alternatives:
     // the tree builder accepts them only for the entities it asks for.
+    //
+    // A document itself is parsed in segments (D222), so that the syntax
+    // tree of only one segment exists at a time: the head, after its own
+    // marker, is the prolog and the start tag of the document element; each
+    // content segment, after another marker, is a run of content items in
+    // which start and end tags need not pair up. The tree builder writes the
+    // start tags of the elements open at a segment's start between the
+    // marker and the segment, so that the external scanner checks every end
+    // tag against its start (WFC: Element Type Match), and checks itself
+    // that the elements close by the end and that only Misc follows the
+    // document element. The first alternative, a whole document, is what the
+    // replacement text of an internal entity is parsed as, wrapped in an
+    // element.
     document: ($) => choice(
       seq(
-        optional($._byte_order_mark),
-        optional(field('declaration', $.xml_declaration)),
-        repeat($._misc),
-        optional(seq(field('doctype', $.doctype_declaration), repeat($._misc))),
+        ...prolog($),
         field('root', $.element),
         repeat($._misc),
       ),
       seq($._external_subset_marker, optional(field('external_subset', $.external_subset))),
       seq($._external_entity_marker, optional(field('external_entity', $.external_parsed_entity))),
+      seq(
+        $._document_head_marker,
+        ...prolog($),
+        field('root', alias($._document_element_start, $.element)),
+      ),
+      seq($._content_segment_marker, repeat($._content_segment_item)),
     ),
 
     _external_subset_marker: (_) => '\u0001S',
     _external_entity_marker: (_) => '\u0001E',
+    _document_head_marker: (_) => '\u0001D',
+    _content_segment_marker: (_) => '\u0001C',
+
+    // [39] element up to the end of its start tag: the content follows in
+    // content segments.
+    _document_element_start: ($) => choice($.start_tag, $.empty_element_tag),
+
+    // [43] content, [27] Misc: the items of a content segment.
+    _content_segment_item: ($) => choice(
+      $.character_data,
+      $.start_tag,
+      $.end_tag,
+      $.empty_element_tag,
+      $.entity_reference,
+      $.character_reference,
+      $.cdata_section,
+      $.processing_instruction,
+      $.comment,
+    ),
 
     // [30] extSubset ::= TextDecl? extSubsetDecl
     // [31] extSubsetDecl ::= ( markupdecl | conditionalSect | DeclSep)*

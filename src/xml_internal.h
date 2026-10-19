@@ -2,7 +2,7 @@
 
 /*
  * Internals of the XML parser (include/sxml/xml.h; docs/DECISIONS.md D12,
- * D28, D51, D81), shared by its three parts:
+ * D28, D51, D81), shared by its four parts:
  *
  * - src/xml.c: the parser object, the walk over the concrete syntax tree
  *   of grammars/xml, the well-formedness and namespace checks the grammar
@@ -13,6 +13,8 @@
  * - src/xml_entity.c: growable buffers and arrays over the parser's
  *   allocator, and the tables of the document type declaration: general
  *   and parameter entities, attribute definitions.
+ * - src/xml_segment.c: where a document is cut into document segments
+ *   (D222).
  *
  * Everything here allocates through the allocator stored in the buffer or
  * table, never through the tree-sitter runtime.
@@ -359,6 +361,33 @@ sxml_xml_position
 sxml_xml_position_tracker_locate(sxml_xml_position_tracker *tracker,
                                  size_t text_offset);
 
+/* --------------------------------------------------- Document segments */
+
+/*
+ * The parser parses a document in document segments (glossary
+ * `document_segment`, D222), so that the concrete syntax tree of one
+ * segment at a time exists: the head, then content segments. A segment
+ * ends between two content items; for text that is not well-formed the
+ * cut may fall inside a construct, which the segment's parse then
+ * refuses.
+ */
+
+/* The end of the head of text (UTF-8, decoded): the prolog and the start
+   tag of the document element ([1] document, [22] prolog, [40] STag), or
+   less when text does not start so. */
+size_t sxml_xml_find_head_end(sxml_byte_view text);
+
+/* Where the content segment that starts at start_offset, the end of the
+   head or of the segment before, ends: after the first content item that
+   reaches start_offset + target_byte_count, or at the end of text. */
+typedef struct sxml_xml_segment_request {
+    sxml_byte_view text;
+    size_t start_offset;
+    size_t target_byte_count;
+} sxml_xml_segment_request;
+
+size_t sxml_xml_find_segment_end(const sxml_xml_segment_request *request);
+
 /* ------------------------------------------------- DTD tables */
 
 /* What kind of entity a declaration made (XML 1.0, section 4). */
@@ -639,8 +668,8 @@ sxml_xml_dtd_get_definition(const sxml_xml_dtd *dtd,
  * attributes and, for an empty element, its end in the same visit) and
  * goes on at the next resume. Streamed evaluation reads documents so
  * (src/evaluator_stream.c). The checks, the events and their order are
- * those of sxml_xml_parser_parse; the concrete syntax tree is still made
- * for the whole document when the parse is created (D12).
+ * those of sxml_xml_parser_parse; the concrete syntax tree of one document
+ * segment at a time exists (D222), so a resume may parse the next one.
  */
 typedef struct sxml_xml_incremental_parse sxml_xml_incremental_parse;
 

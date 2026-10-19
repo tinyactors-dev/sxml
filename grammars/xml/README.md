@@ -40,7 +40,9 @@ Node types (fields in parentheses):
 
 | Node | Production | Notes |
 | --- | --- | --- |
-| `document` (`declaration`, `doctype`, `root`) | [1] | Other children: `comment`, `processing_instruction` (Misc). Or, after a marker only the builder writes, `external_subset` or `external_entity` (below). |
+| `document` (`declaration`, `doctype`, `root`) | [1] | Other children: `comment`, `processing_instruction` (Misc). A whole document is what the replacement text of an internal entity is parsed as, wrapped in an element. Or, after a marker only the builder writes, a document segment (D222), `external_subset` or `external_entity` (below). |
+| `document` head (`declaration`, `doctype`, `root`) | [1], [22] | After the marker U+0001 `D`: the prolog and the start tag of the document element; `root` is an `element` whose only child is a `start_tag` or `empty_element_tag`. |
+| `document` content segment | [43], [27] | After the marker U+0001 `C`: a run of content items as direct children (`character_data`, `start_tag`, `end_tag`, `empty_element_tag`, references, `cdata_section`, `processing_instruction`, `comment`), whose tags need not pair up. The builder writes the start tags of the open elements after the marker, so that the scanner checks the end tags. |
 | `external_subset` (`declaration`) | [30], [31] | After the marker U+0001 `S`: the external subset, an external parameter entity, or other DTD text read as the external subset is. Children: declarations, `include_section`, `conditional_section`, `unexpanded_declaration`, `parameter_entity_reference`. |
 | `external_parsed_entity` (`declaration`) | [78] | After the marker U+0001 `E`: an external general entity referenced in content; content items as in an element. |
 | `text_declaration` (`version`, `encoding`) | [77] | The encoding is required. |
@@ -102,8 +104,10 @@ come from the external scanner; the builder sees them as ordinary leaves.
 - A default declaration in every attribute definition ([53]); `)*` after
   mixed content that names elements ([51]); choice and sequence groups not
   mixed ([49], [50]).
-- Exactly one root element, nothing but Misc after it, at most one document
-  type declaration, before the root.
+- At most one document type declaration, before the root; for a whole
+  document (an internal entity's wrapper), exactly one root element and
+  nothing but Misc after it. A document itself is read in segments, where
+  the builder checks these (below, 18).
 
 ## What the tree builder checks
 
@@ -178,6 +182,17 @@ express (section numbers of XML 1.0 Fifth Edition, and of Namespaces in XML
     replacement text (3.4); WFC: Entity Declared where it applies also
     refuses declarations from the external subset or parameter entities
     (4.1).
+18. **Document segments** (D222): a document is parsed in segments, so
+    that the syntax tree of one segment at a time exists: the head (the
+    prolog and the start tag of the document element), then content
+    segments of about 16 KB, cut by a byte scan between two content items
+    (`src/xml_segment.c`), each parsed, walked and freed before the next.
+    Before a content segment the builder writes the start tags of the
+    open elements, so that the scanner checks every end tag against its
+    start (WFC: Element Type Match). The builder checks what the grammar
+    of segments leaves out: every element ends before the text does ([1],
+    [39]), and after the document element only comments, processing
+    instructions and white space follow ([27] Misc).
 
 ## External scanner
 
