@@ -888,6 +888,7 @@ sxml_xpath_lowerer_read_focus(sxml_xpath_lowerer *state,
                               sxml_xpath_lowering_focus_read request,
                               sxml_ir_atom *atom) {
     sxml_xpath_lowering_focus *focus = state->function->focus;
+    const bool is_current_item = request.part == SXML_XPATH_LOWERING_FOCUS_PART_CURRENT_ITEM;
     if (request.part == SXML_XPATH_LOWERING_FOCUS_PART_CURRENT_ITEM) {
         /* XSLT 4.0, 20.3.1: the context item when the outermost
            expression's evaluation started, the focus the embedding gave. */
@@ -905,8 +906,20 @@ sxml_xpath_lowerer_read_focus(sxml_xpath_lowerer *state,
     switch (focus->kind) {
     case SXML_XPATH_LOWERING_FOCUS_KIND_ABSENT: {
         sxml_ir_expression_index raise = {0};
+        /* XSLT 4.0, 20.3.1: fn:current() where the current item is
+           absent is XTDE1360. */
         sxml_status status =
-            add_absent_focus_raise(state, request.node, &raise);
+            is_current_item
+                ? sxml_xpath_lowerer_add_raise(
+                      state, (sxml_xpath_lowering_raise_request){
+                                 .node = request.node,
+                                 .error_status = SXML_STATUS_DYNAMIC_ERROR,
+                                 .code_local_name = SXML_BYTE_VIEW_FROM_LITERAL("XTDE1360"),
+                                 .description = SXML_BYTE_VIEW_FROM_LITERAL(
+                                     "fn:current() is evaluated where the current item is "
+                                     "absent (XSLT 4.0, 20.3.1)")},
+                      &raise)
+                : add_absent_focus_raise(state, request.node, &raise);
         if (status != SXML_STATUS_OK) {
             return status;
         }

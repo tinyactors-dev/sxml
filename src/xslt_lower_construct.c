@@ -2400,12 +2400,23 @@ static sxml_status continue_copy(sxml_xpath_lowering_machine *machine,
                                              .atom = &locals->item,
                                              .focus = NULL});
         }
-        const sxml_status status = sxml_xpath_lowerer_read_focus(
-            lowerer,
-            (sxml_xpath_lowering_focus_read){.block = frame->block,
-                                             .node = no_ast_node,
-                                             .part = SXML_XPATH_LOWERING_FOCUS_PART_VALUE},
-            &locals->item);
+        /* 11.9.1, XTTE0945: xsl:copy without select where the focus is
+           absent (a stylesheet function's body). */
+        const sxml_status status =
+            lowerer->function->focus->kind == SXML_XPATH_LOWERING_FOCUS_KIND_ABSENT
+                ? bind_raise(lowerer,
+                             (raise_request){.block = frame->block,
+                                             .code = SXML_BYTE_VIEW_FROM_LITERAL("XTTE0945"),
+                                             .description = SXML_BYTE_VIEW_FROM_LITERAL(
+                                                 "xsl:copy without select has no context item "
+                                                 "(XSLT 4.0, 11.9.1)")},
+                             &locals->item)
+                : sxml_xpath_lowerer_read_focus(
+                      lowerer,
+                      (sxml_xpath_lowering_focus_read){.block = frame->block,
+                                                       .node = no_ast_node,
+                                                       .part = SXML_XPATH_LOWERING_FOCUS_PART_VALUE},
+                      &locals->item);
         if (status != SXML_STATUS_OK) {
             return status;
         }

@@ -576,6 +576,75 @@ static sxml_status copy_untyped_atomic(const sxml_function_call *call, sxml_node
     return SXML_STATUS_OK;
 }
 
+static const sxml_static_error xslt_qname_attribute_error = {
+    .error_status = SXML_STATUS_TYPE_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XTTE1545"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "A new attribute is validated against a type based on xs:QName or xs:NOTATION (XSLT "
+        "4.0, 25.1.2)")};
+
+/* The types a type is checked through at most (its list item type and
+   union members, transitively). */
+#define QNAME_BASED_STACK_CAPACITY 32U
+
+/* True when type is derived from xs:QName or xs:NOTATION, or made by
+   list or union from such a type (XSLT 4.0, 25.1.2, XTTE1545). */
+static bool is_qname_based(const sxml_type_registry *registry, sxml_type_identifier type) {
+    sxml_type_identifier stack[QNAME_BASED_STACK_CAPACITY];
+    size_t depth = 0;
+    stack[depth] = type;
+    depth += 1;
+    while (depth > 0) {
+        depth -= 1;
+        sxml_type_description description;
+        if (sxml_type_registry_describe_type(registry, stack[depth], &description) !=
+            SXML_STATUS_OK) {
+            continue;
+        }
+        if (description.variety == SXML_TYPE_VARIETY_ATOMIC &&
+            (description.primitive_type.index == (uint32_t)SXML_TYPE_XS_QNAME ||
+             description.primitive_type.index == (uint32_t)SXML_TYPE_XS_NOTATION)) {
+            return true;
+        }
+        if (description.variety == SXML_TYPE_VARIETY_LIST && depth < QNAME_BASED_STACK_CAPACITY) {
+            stack[depth] = description.variety_details.list_item_type;
+            depth += 1;
+        }
+        const sxml_type_identifier_view members = description.variety_details.member_types;
+        for (size_t member_index = 0; description.variety == SXML_TYPE_VARIETY_UNION &&
+                                      member_index < members.type_identifier_count &&
+                                      depth < QNAME_BASED_STACK_CAPACITY;
+             member_index += 1) {
+            stack[depth] = members.type_identifiers[member_index];
+            depth += 1;
+        }
+    }
+    return false;
+}
+
+/* The type a new attribute is validated against: the type of a type
+   attribute, else its global declaration's; SXML_TYPE_NONE for none. */
+typedef struct attribute_target {
+    sxml_node_reference node;
+    const scope_plan *plan;
+    sxml_schema_validate_mode mode;
+} attribute_target;
+
+static sxml_type_identifier attribute_type_of(const sxml_function_call *call,
+                                              const attribute_target *target) {
+    if (target->mode == SXML_SCHEMA_VALIDATE_MODE_TYPE) {
+        return target->plan->governing_type;
+    }
+    sxml_node_description description;
+    sxml_schema_scope_attribute attribute;
+    if (sxml_node_describe(target->node, &description) == SXML_STATUS_OK &&
+        sxml_schema_scope_find_attribute(in_scope_schemas(call), description.node_name,
+                                         &attribute)) {
+        return attribute.description.declared_type;
+    }
+    return (sxml_type_identifier){.index = SXML_TYPE_NONE};
+}
+
 /* The code of an invalid node (25.1.1, 25.1.2, 25.2). */
 typedef struct invalid_node {
     sxml_schema_validate_mode mode;
@@ -585,7 +654,9 @@ typedef struct invalid_node {
 
 static sxml_byte_view xslt_invalid_code(invalid_node invalid) {
     const sxml_byte_view constraint = invalid.schema_error->code.local_name;
-    static const sxml_byte_view id_prefix = SXML_BYTE_VIEW_INITIALIZER("cvc-id");
+    /* cvc-id.1 and cvc-id.2, not cvc-identity-constraint (an element's
+       own rule, XTTE1510). */
+    static const sxml_byte_view id_prefix = SXML_BYTE_VIEW_INITIALIZER("cvc-id.");
     if (invalid.node_kind == SXML_NODE_KIND_DOCUMENT &&
         constraint.byte_count >= id_prefix.byte_count &&
         memcmp(constraint.bytes, id_prefix.bytes, id_prefix.byte_count) == 0) {
@@ -662,6 +733,14 @@ static sxml_status validate_xslt_item(const sxml_function_call *call, const xslt
         plan.plan_kind == SXML_SCOPE_PLAN_VALIDATE && request->mode == SXML_SCHEMA_VALIDATE_MODE_TYPE &&
         is_complex_type(call, plan.governing_type)) {
         return sxml_function_library_report(call, &xslt_attribute_type_error);
+    }
+    if (description.node_kind == SXML_NODE_KIND_ATTRIBUTE &&
+        plan.plan_kind == SXML_SCOPE_PLAN_VALIDATE &&
+        is_qname_based(sxml_item_heap_get_type_registry(call->item_heap),
+                       attribute_type_of(call, &(attribute_target){.node = node,
+                                                                   .plan = &plan,
+                                                                   .mode = request->mode}))) {
+        return sxml_function_library_report(call, &xslt_qname_attribute_error);
     }
     sxml_error_record schema_error;
     memset(&schema_error, 0, sizeof schema_error);
