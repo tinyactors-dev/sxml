@@ -426,6 +426,12 @@ typedef struct sxml_html_parser {
     bool has_acknowledged_self_closing;
     bool has_parse_error;
     bool has_stopped;
+    /* The encoding of the input and its confidence (13.2.3.2); a meta
+       element that changes it stops parsing (13.2.3.4). */
+    uint8_t encoding_number;
+    bool is_encoding_tentative;
+    bool changes_encoding;
+    uint8_t new_encoding_number;
 } sxml_html_parser;
 
 static void report_parse_error(sxml_html_parser *parser) {
@@ -1142,6 +1148,60 @@ static sxml_html_attribute_lookup find_token_attribute(const sxml_html_token *to
     }
     return (sxml_html_attribute_lookup){.is_found = false,
                                         .attribute_value = {.bytes = NULL, .byte_count = 0}};
+}
+
+/* 13.2.3.4 "change the encoding" to new_encoding_number. Re-parsing from
+   memory is what the standard prefers; changing the decoder on the fly is
+   optional, and not done. */
+static void change_encoding(sxml_html_parser *parser, uint8_t new_encoding_number) {
+    const uint8_t current = parser->encoding_number;
+    parser->is_encoding_tentative = false;
+    if (current == SXML_HTML_ENCODING_UTF_16BE || current == SXML_HTML_ENCODING_UTF_16LE) {
+        return;
+    }
+    uint8_t encoding_number = new_encoding_number;
+    if (encoding_number == SXML_HTML_ENCODING_UTF_16BE ||
+        encoding_number == SXML_HTML_ENCODING_UTF_16LE) {
+        encoding_number = SXML_HTML_ENCODING_UTF_8;
+    } else if (encoding_number == SXML_HTML_ENCODING_X_USER_DEFINED) {
+        encoding_number = SXML_HTML_ENCODING_WINDOWS_1252;
+    }
+    if (encoding_number == current) {
+        return;
+    }
+    parser->changes_encoding = true;
+    parser->new_encoding_number = encoding_number;
+    parser->has_stopped = true;
+}
+
+/* 13.2.6.4.4 "in head", a start tag "meta" (also from "in body"): while
+   the confidence is tentative, a charset attribute that names an
+   encoding, or else an http-equiv "Content-Type" whose content declares
+   one (2.5.3), changes the encoding. */
+static void consider_meta_encoding(sxml_html_parser *parser, const sxml_html_token *token) {
+    if (!parser->is_encoding_tentative) {
+        return;
+    }
+    const sxml_html_attribute_lookup charset =
+        find_token_attribute(token, SXML_BYTE_VIEW_FROM_LITERAL("charset"));
+    sxml_html_encoding_lookup encoding = {.is_found = false, .encoding_number = 0};
+    if (charset.is_found) {
+        encoding = sxml_html_get_encoding(charset.attribute_value);
+    }
+    if (!encoding.is_found) {
+        const sxml_html_attribute_lookup http_equiv =
+            find_token_attribute(token, SXML_BYTE_VIEW_FROM_LITERAL("http-equiv"));
+        const sxml_html_attribute_lookup content =
+            find_token_attribute(token, SXML_BYTE_VIEW_FROM_LITERAL("content"));
+        if (http_equiv.is_found && content.is_found &&
+            is_ascii_case_insensitive_match(http_equiv.attribute_value,
+                                            SXML_BYTE_VIEW_FROM_LITERAL("content-type"))) {
+            encoding = sxml_html_extract_meta_encoding(content.attribute_value);
+        }
+    }
+    if (encoding.is_found) {
+        change_encoding(parser, encoding.encoding_number);
+    }
 }
 
 /* An element to create for a token (13.2.6.1). */
@@ -2149,6 +2209,9 @@ static sxml_status run_in_head(sxml_html_parser *parser, const sxml_html_tree_to
         const sxml_status status = insert_html_element(parser, input->token);
         pop_open_element(parser);
         acknowledge_self_closing(parser);
+        if (is_start_tag(input, SXML_HTML_TAG_META)) {
+            consider_meta_encoding(parser, input->token);
+        }
         return status;
     }
     if (is_start_tag(input, SXML_HTML_TAG_TITLE)) {
@@ -3704,9 +3767,12 @@ static sxml_status process_token(sxml_html_parser *parser, const sxml_html_token
 sxml_status sxml_html_construct_tree(const sxml_html_parse_request *request,
                                      sxml_html_working_tree *tree,
                                      sxml_html_parse_outcome *outcome) {
-    outcome->has_parse_error = false;
+    *outcome = (sxml_html_parse_outcome){
+        .has_parse_error = false, .changes_encoding = false, .new_encoding_number = 0};
     sxml_html_parser parser;
     memset(&parser, 0, sizeof(parser));
+    parser.encoding_number = request->encoding_number;
+    parser.is_encoding_tentative = request->is_encoding_tentative;
     const sxml_allocator allocator = tree->nodes.allocator;
     sxml_html_tokenizer_initialize(&parser.tokenizer,
                                    &(sxml_html_tokenizer_configuration){.allocator = allocator,
@@ -3746,6 +3812,8 @@ sxml_status sxml_html_construct_tree(const sxml_html_parse_request *request,
             node_at(&parser, adjusted)->element_namespace != SXML_HTML_NAMESPACE_HTML;
     }
     outcome->has_parse_error = parser.has_parse_error || parser.tokenizer.has_parse_error;
+    outcome->changes_encoding = parser.changes_encoding;
+    outcome->new_encoding_number = parser.new_encoding_number;
     sxml_html_tokenizer_finalize(&parser.tokenizer);
     sxml_xml_array_release(&parser.open_elements);
     sxml_xml_array_release(&parser.formatting_elements);

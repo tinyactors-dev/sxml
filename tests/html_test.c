@@ -452,10 +452,27 @@ static const input_case input_cases[] = {
     INPUT_CASE("\xFF\xFE" "a\0\r\0\n\0", "", "a\n"),
     INPUT_CASE("\xFE\xFF\0b\xD8\x00", "", "b\xEF\xBF\xBD"),
     INPUT_CASE("\xEF\xBB\xBFx\xE2\x82", "windows-1252", "x\xEF\xBF\xBD"),
-    {.input = SXML_BYTE_VIEW_INITIALIZER("x"),
-     .encoding_name = SXML_BYTE_VIEW_INITIALIZER("shift_jis"),
-     .stream = SXML_BYTE_VIEW_INITIALIZER(""),
-     .failure = SXML_HTML_INPUT_FAILURE_UNKNOWN_ENCODING},
+    /* The multi-byte decoders (Encoding Standard, 10 to 13; packet
+       7.10b): two-byte and four-byte gb18030, the Big5 pointers with two
+       code points and with a plane 2 code point, EUC-JP's katakana,
+       Shift_JIS's EUDC, ISO-2022-JP's escapes, and errors that give the
+       ASCII byte back. */
+    INPUT_CASE("\xC4\xE3\x80\x81\x30\x81\x30\x94\x39\xFC\x36", "GBK",
+               "\xE4\xBD\xA0\xE2\x82\xAC\xC2\x80\xF0\x9F\x98\x80"),
+    INPUT_CASE("\x81\x30\x81 ", "gb18030", "\xEF\xBF\xBD" "0\xEF\xBF\xBD "),
+    INPUT_CASE("\xA4\x40\x88\x62\x87\x45\x81" "a", "big5",
+               "\xE4\xB8\x80\xC3\x8A\xCC\x84\xF0\xA7\x89\xA7\xEF\xBF\xBD" "a"),
+    INPUT_CASE("\xA4\xA2\x8E\xB1", "euc-jp", "\xE3\x81\x82\xEF\xBD\xB1"),
+    INPUT_CASE("\x82\xA0\xB1\xF0\x40", "shift_jis", "\xE3\x81\x82\xEF\xBD\xB1\xEE\x80\x80"),
+    INPUT_CASE("a\x1B$B$\"\x1B(J\\\x1B(Bb", "iso-2022-jp", "a\xE3\x81\x82\xC2\xA5" "b"),
+    INPUT_CASE("\x1B$B\x1B(B", "csiso2022jp", "\xEF\xBF\xBD"),
+    INPUT_CASE("\xB0\xA1\xFF", "korean", "\xEA\xB0\x80\xEF\xBF\xBD"),
+    /* No encoding given: the prescan finds a meta element (13.2.3.2). */
+    INPUT_CASE("<meta charset=windows-1251>\xCC", "", "<meta charset=windows-1251>\xD0\x9C"),
+    INPUT_CASE("<meta http-equiv=content-type content='text/html;charset=koi8-r'>\xED", "",
+               "<meta http-equiv=content-type content='text/html;charset=koi8-r'>\xD0\x9C"),
+    INPUT_CASE("<?xml version='1.0' encoding='iso-8859-7'?>\xE1", "",
+               "<?xml version='1.0' encoding='iso-8859-7'?>\xCE\xB1"),
     {.input = SXML_BYTE_VIEW_INITIALIZER("x"),
      .encoding_name = SXML_BYTE_VIEW_INITIALIZER("no-such-encoding"),
      .stream = SXML_BYTE_VIEW_INITIALIZER(""),
@@ -632,6 +649,16 @@ static const expression_case expression_cases[] = {
     EXPRESSION_VALUE("string(html-doc('page.html', {'encoding': 'windows-1251'})//*:p)",
                      "\"\xD0\x9C\xD0\xBE\""),
     EXPRESSION_VALUE("document-uri(html-doc('page.html'))", "\"http://example.com/page.html\""),
+    /* 13.2.3.2: the prescan finds the encoding of a meta element. */
+    EXPRESSION_VALUE("string(parse-html(xs:hexBinary("
+                     "'3C6D65746120636861727365743D73686966745F6A69733E82A0'))//*:body)",
+                     "\"\xE3\x81\x82\""),
+    /* 13.2.3.4: a meta element after the prescan's 1024 bytes changes the
+       encoding, and the document is parsed again. */
+    EXPRESSION_VALUE("string(parse-html(xs:hexBinary(string-join((1 to 1100) ! '20') || "
+                     "'3C6D65746120636861727365743D77696E646F77732D313235313ECC'), "
+                     "{'fail-on-error': false()})//*:body)",
+                     "\"\xD0\x9C\""),
     EXPRESSION_VALUE("parse-html('<!DOCTYPE html><p>x', {'fail-on-error': true()})//*:p/string()",
                      "\"x\""),
     EXPRESSION_ERROR("parse-html('<p>x', {'fail-on-error': true()})", "FODC0011"),

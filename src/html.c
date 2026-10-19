@@ -455,45 +455,88 @@ static sxml_status build_tree(const sxml_html_build_request *build, sxml_item *d
     return SXML_STATUS_OK;
 }
 
+/* One pass of the parser: the input stream and the working tree. */
+typedef struct sxml_html_pass {
+    sxml_xml_buffer stream;
+    sxml_html_working_tree tree;
+    bool has_tree;
+    sxml_html_input_outcome input_outcome;
+    sxml_html_parse_outcome parse_outcome;
+} sxml_html_pass;
+
+static void finish_pass(sxml_html_pass *pass) {
+    if (pass->has_tree) {
+        sxml_html_working_tree_finalize(&pass->tree);
+        pass->has_tree = false;
+    }
+    sxml_xml_buffer_release(&pass->stream);
+}
+
+/* Decodes the input (in known_encoding_number on the second pass) and
+   constructs the working tree. With fail-on-error and a tentative
+   encoding, parsing goes on after a parse error: a later meta element can
+   still change the encoding (13.2.3.4), and the errors of a pass that is
+   parsed again do not count. */
+static sxml_status run_pass(const sxml_html_document_request *request,
+                            const sxml_html_input_request *input, sxml_html_pass *pass) {
+    sxml_status status = sxml_html_prepare_input(input, &pass->stream, &pass->input_outcome);
+    if (status != SXML_STATUS_OK ||
+        pass->input_outcome.failure != SXML_HTML_INPUT_FAILURE_NONE) {
+        return status;
+    }
+    const bool is_tentative = pass->input_outcome.is_encoding_tentative;
+    if (request->fails_on_parse_error && !is_tentative && pass->input_outcome.has_parse_error) {
+        return SXML_STATUS_OK;
+    }
+    status = sxml_html_working_tree_initialize(&pass->tree, pass->stream.allocator);
+    pass->has_tree = status == SXML_STATUS_OK;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_html_construct_tree(
+            &(sxml_html_parse_request){
+                .input = {.bytes = pass->stream.bytes, .byte_count = pass->stream.byte_count},
+                .stops_at_parse_error = request->fails_on_parse_error && !is_tentative,
+                .encoding_number = pass->input_outcome.encoding_number,
+                .is_encoding_tentative = is_tentative},
+            &pass->tree, &pass->parse_outcome);
+    }
+    return status;
+}
+
 sxml_status sxml_html_parse_document(sxml_processor *processor,
                                      const sxml_html_document_request *request,
                                      sxml_html_document_outcome *outcome) {
     outcome->failure = SXML_HTML_DOCUMENT_FAILURE_NONE;
     outcome->document_node = (sxml_item){.representation = 0};
     const sxml_allocator allocator = processor->allocator;
-    sxml_xml_buffer stream = sxml_xml_buffer_empty(allocator);
-    sxml_html_input_outcome input_outcome;
-    sxml_status status = sxml_html_prepare_input(&request->input, &stream, &input_outcome);
-    if (status == SXML_STATUS_OK &&
-        input_outcome.failure == SXML_HTML_INPUT_FAILURE_UNKNOWN_ENCODING) {
-        outcome->failure = SXML_HTML_DOCUMENT_FAILURE_UNKNOWN_ENCODING;
-    } else if (status == SXML_STATUS_OK && input_outcome.has_parse_error &&
-               request->fails_on_parse_error) {
-        outcome->failure = SXML_HTML_DOCUMENT_FAILURE_PARSE_ERROR;
+    sxml_html_input_request input = request->input;
+    sxml_html_pass pass;
+    memset(&pass, 0, sizeof(pass));
+    pass.stream = sxml_xml_buffer_empty(allocator);
+    sxml_status status = run_pass(request, &input, &pass);
+    if (status == SXML_STATUS_OK && pass.has_tree && pass.parse_outcome.changes_encoding) {
+        /* 13.2.3.4: parse again, from memory, in the new encoding with the
+           confidence certain. */
+        input.has_known_encoding = true;
+        input.known_encoding_number = pass.parse_outcome.new_encoding_number;
+        finish_pass(&pass);
+        memset(&pass, 0, sizeof(pass));
+        pass.stream = sxml_xml_buffer_empty(allocator);
+        status = run_pass(request, &input, &pass);
     }
-    if (status != SXML_STATUS_OK || outcome->failure != SXML_HTML_DOCUMENT_FAILURE_NONE) {
-        sxml_xml_buffer_release(&stream);
-        return status;
-    }
-    sxml_html_working_tree tree;
-    status = sxml_html_working_tree_initialize(&tree, allocator);
-    sxml_html_parse_outcome parse_outcome = {.has_parse_error = false};
     if (status == SXML_STATUS_OK) {
-        status = sxml_html_construct_tree(
-            &(sxml_html_parse_request){
-                .input = {.bytes = stream.bytes, .byte_count = stream.byte_count},
-                .stops_at_parse_error = request->fails_on_parse_error},
-            &tree, &parse_outcome);
+        if (pass.input_outcome.failure == SXML_HTML_INPUT_FAILURE_UNKNOWN_ENCODING) {
+            outcome->failure = SXML_HTML_DOCUMENT_FAILURE_UNKNOWN_ENCODING;
+        } else if (request->fails_on_parse_error &&
+                   (pass.input_outcome.has_parse_error || pass.parse_outcome.has_parse_error)) {
+            outcome->failure = SXML_HTML_DOCUMENT_FAILURE_PARSE_ERROR;
+        } else {
+            status = build_tree(&(sxml_html_build_request){.processor = processor,
+                                                           .tree = &pass.tree,
+                                                           .document = request},
+                                &outcome->document_node);
+        }
     }
-    if (status == SXML_STATUS_OK && parse_outcome.has_parse_error && request->fails_on_parse_error) {
-        outcome->failure = SXML_HTML_DOCUMENT_FAILURE_PARSE_ERROR;
-    } else if (status == SXML_STATUS_OK) {
-        status = build_tree(
-            &(sxml_html_build_request){.processor = processor, .tree = &tree, .document = request},
-            &outcome->document_node);
-    }
-    sxml_html_working_tree_finalize(&tree);
-    sxml_xml_buffer_release(&stream);
+    finish_pass(&pass);
     return status;
 }
 

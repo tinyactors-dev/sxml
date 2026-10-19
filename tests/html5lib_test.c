@@ -25,6 +25,13 @@
  * in front of the input with the adjusted current node foreign
  * (13.2.5.42), the "lastStartTag" through the tokenizer's last start tag.
  *
+ * Encoding: the byte order mark and the prescan of 13.2.3.2, then a
+ * change of the encoding while parsing (13.2.3.4), over every test of
+ * html5lib-tests'
+ * encoding/tests1.dat, tests2.dat and test-yahoo-jp.dat (the scripted and
+ * chardet ones are left out: scripting is disabled, and sxml does no
+ * frequency analysis).
+ *
  * Inputs go through the input stream (13.2.3.5, newlines normalized) as
  * strings, with one 'a' in front that is cut off afterwards, so that a
  * leading U+FEFF stays: F&O 4.0's rule that strips it (fn:parse-html) is
@@ -1712,9 +1719,131 @@ static void test_tokenizer(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, counts.passed_count > 7000);
 }
 
+/* ---------------------------------------------------------- Encoding */
+
+/* The encoding a document ends up in as the tests see it: a byte order
+   mark (certain), else the prescan or windows-1252 (tentative), and then
+   a meta element that tree construction finds may change it (13.2.3.4).
+   Returns the allocator's failures. */
+static sxml_status final_encoding(sxml_byte_view data, uint8_t *encoding_number) {
+    const uint8_t *bytes = data.bytes;
+    if (data.byte_count >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF) {
+        *encoding_number = SXML_HTML_ENCODING_UTF_8;
+        return SXML_STATUS_OK;
+    }
+    if (data.byte_count >= 2 &&
+        ((bytes[0] == 0xFE && bytes[1] == 0xFF) || (bytes[0] == 0xFF && bytes[1] == 0xFE))) {
+        *encoding_number =
+            bytes[0] == 0xFE ? SXML_HTML_ENCODING_UTF_16BE : SXML_HTML_ENCODING_UTF_16LE;
+        return SXML_STATUS_OK;
+    }
+    const sxml_html_encoding_lookup found = sxml_html_prescan_encoding(data);
+    *encoding_number =
+        found.is_found ? found.encoding_number : (uint8_t)SXML_HTML_ENCODING_WINDOWS_1252;
+    const sxml_allocator allocator = sxml_default_allocator();
+    sxml_xml_buffer stream = sxml_xml_buffer_empty(allocator);
+    sxml_html_input_outcome input_outcome;
+    sxml_status status = sxml_html_prepare_input(
+        &(sxml_html_input_request){.input = data,
+                                   .is_string = false,
+                                   .encoding_name = {.bytes = NULL, .byte_count = 0},
+                                   .has_known_encoding = true,
+                                   .known_encoding_number = *encoding_number},
+        &stream, &input_outcome);
+    sxml_html_working_tree tree;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_html_working_tree_initialize(&tree, allocator);
+        sxml_html_parse_outcome outcome = {
+            .has_parse_error = false, .changes_encoding = false, .new_encoding_number = 0};
+        if (status == SXML_STATUS_OK) {
+            status = sxml_html_construct_tree(
+                &(sxml_html_parse_request){.input = view_of(&stream),
+                                           .stops_at_parse_error = false,
+                                           .encoding_number = *encoding_number,
+                                           .is_encoding_tentative = true},
+                &tree, &outcome);
+        }
+        if (outcome.changes_encoding) {
+            *encoding_number = outcome.new_encoding_number;
+        }
+        sxml_html_working_tree_finalize(&tree);
+    }
+    sxml_xml_buffer_release(&stream);
+    return status;
+}
+
+/* One test of an encoding .dat file: "#data", then "#encoding" and the
+   encoding the document is read in (final_encoding), where windows-1252
+   is what the tests take when nothing declares one (the default of
+   13.2.3.2, step 10, without step 9's autodetection). */
+static void run_encoding_file(sxml_test_state *state, const char *file_name, suite_counts *counts) {
+    char directory[SXML_TEST_PATH_BYTE_COUNT];
+    suite_directory(directory);
+    char path[SXML_TEST_PATH_BYTE_COUNT + 64];
+    (void)snprintf(path, sizeof(path), "%sencoding/%s", directory, file_name);
+    sxml_xml_buffer contents = sxml_xml_buffer_empty(sxml_default_allocator());
+    SXML_TEST_EXPECT(state, read_file(path, &contents));
+    const sxml_byte_view file = view_of(&contents);
+    size_t data_header = find_text((text_search){.haystack = file, .start = 0}, TEXT("#data\n"));
+    size_t test_number = 1;
+    while (data_header != SXML_TEST_NO_VALUE) {
+        const size_t data_start = data_header + 6;
+        const size_t encoding_header = find_text(
+            (text_search){.haystack = file, .start = data_start - 1}, TEXT("\n#encoding\n"));
+        SXML_TEST_REQUIRE(state, encoding_header != SXML_TEST_NO_VALUE);
+        const size_t name_start = encoding_header + 11;
+        size_t name_end = name_start;
+        while (name_end < file.byte_count && file.bytes[name_end] != '\n') {
+            name_end += 1;
+        }
+        const sxml_byte_view data = {
+            .bytes = file.bytes + data_start,
+            .byte_count = encoding_header > data_start ? encoding_header - data_start : 0};
+        const sxml_byte_view name = {.bytes = file.bytes + name_start,
+                                     .byte_count = name_end - name_start};
+        const sxml_html_encoding_lookup expected = sxml_html_get_encoding(name);
+        uint8_t actual = 0;
+        SXML_TEST_EXPECT(state, final_encoding(data, &actual) == SXML_STATUS_OK);
+        char case_name[SXML_TEST_NAME_BYTE_COUNT];
+        (void)snprintf(case_name, sizeof(case_name), "encoding/%s:%zu", file_name, test_number);
+        char actual_text[16];
+        (void)snprintf(actual_text, sizeof(actual_text), "encoding %u", (unsigned)actual);
+        count_outcome(counts, &(case_outcome){.case_name = case_name,
+                                              .has_passed = expected.is_found &&
+                                                            expected.encoding_number == actual,
+                                              .expected = name,
+                                              .actual = {.bytes = (const uint8_t *)actual_text,
+                                                         .byte_count = strlen(actual_text)}});
+        test_number += 1;
+        data_header =
+            find_text((text_search){.haystack = file, .start = name_end}, TEXT("\n#data\n"));
+        data_header = data_header == SXML_TEST_NO_VALUE ? data_header : data_header + 1;
+    }
+    sxml_xml_buffer_release(&contents);
+}
+
+static void test_encoding(sxml_test_state *state) {
+    if (!suite_is_reachable("encoding/tests1.dat")) {
+        return;
+    }
+    static const char *const encoding_file_names[] = {"tests1.dat", "tests2.dat",
+                                                      "test-yahoo-jp.dat"};
+    suite_counts counts;
+    memset(&counts, 0, sizeof(counts));
+    for (size_t file_index = 0; file_index < SXML_TEST_COUNT(encoding_file_names);
+         file_index += 1) {
+        run_encoding_file(state, encoding_file_names[file_index], &counts);
+    }
+    report_counts("encoding", &counts);
+    SXML_TEST_EXPECT(state, counts.unexpected_count == 0);
+    SXML_TEST_EXPECT(state, counts.fixed_count == 0);
+    SXML_TEST_EXPECT(state, counts.passed_count >= 80);
+}
+
 static const sxml_test_case html5lib_test_cases[] = {
     {.name = "tree_construction", .function = test_tree_construction},
     {.name = "tokenizer", .function = test_tokenizer},
+    {.name = "encoding", .function = test_encoding},
 };
 
 int main(int argument_count, char **arguments) {
