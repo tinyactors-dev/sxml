@@ -18,6 +18,7 @@
  */
 #include "evaluator_internal.h"
 #include "function_library_core_internal.h"
+#include "schema_scope_internal.h"
 #include "sxml/name.h"
 #include "sxml/types.h"
 
@@ -301,6 +302,23 @@ static sxml_status call_members(const sxml_function_call *call, sxml_sequence *r
     return status;
 }
 
+/* "simple-content-type": the record of a complex type's simple content
+   type. */
+static sxml_status call_simple_content_type(const sxml_function_call *call,
+                                            sxml_sequence *result) {
+    sxml_type_identifier type = {.index = SXML_TYPE_NONE};
+    sxml_status status = read_captured_type(call, &type);
+    sxml_type_description description;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_type_registry_describe_type(registry_of(call), type, &description);
+    }
+    return status == SXML_STATUS_OK
+               ? make_type_record(call,
+                                  description.variety_details.complex_type.simple_content_type,
+                                  result)
+               : status;
+}
+
 /* "matches": whether an atomic item is an instance of the type. */
 static sxml_status call_matches(const sxml_function_call *call, sxml_sequence *result) {
     if (call->dynamic_context == NULL) {
@@ -346,6 +364,9 @@ static const sxml_native_function members_row = SXML_TYPE_FIELD_ROW(
     "schema-type-members", NULL, 0, "fn:schema-type-record*", call_members);
 static const sxml_native_function matches_row = SXML_TYPE_FIELD_ROW(
     "schema-type-matches", matches_parameters, 1, "xs:boolean", call_matches);
+static const sxml_native_function simple_content_type_row =
+    SXML_TYPE_FIELD_ROW("schema-type-simple-content-type", NULL, 0, "fn:schema-type-record",
+                        call_simple_content_type);
 
 /* The fields of fn:schema-type-record, in record order (F&O 4.0, 19.1.1). */
 enum {
@@ -411,10 +432,17 @@ static bool is_namespace_sensitive(const sxml_function_call *call, sxml_type_ide
                                 .base_type = sxml_builtin_type_identifier(SXML_TYPE_XS_NOTATION)});
 }
 
-/* The variety field: atomic, list or union; mixed for the complex types
-   sxml knows (xs:anyType, xs:untyped); absent for xs:anySimpleType. */
-static sxml_byte_view variety_text(sxml_type_variety variety) {
-    switch (variety) {
+/* The variety field: atomic, list or union; for a complex type the
+   {variety} of its {content type} (empty, simple, element-only, mixed;
+   xs:anyType and xs:untyped are mixed); absent for xs:anySimpleType. */
+static sxml_byte_view variety_text(const sxml_type_description *description) {
+    static const sxml_byte_view content_varieties[] = {
+        [SXML_CONTENT_TYPE_VARIETY_EMPTY] = SXML_BYTE_VIEW_INITIALIZER("empty"),
+        [SXML_CONTENT_TYPE_VARIETY_SIMPLE] = SXML_BYTE_VIEW_INITIALIZER("simple"),
+        [SXML_CONTENT_TYPE_VARIETY_ELEMENT_ONLY] = SXML_BYTE_VIEW_INITIALIZER("element-only"),
+        [SXML_CONTENT_TYPE_VARIETY_MIXED] = SXML_BYTE_VIEW_INITIALIZER("mixed"),
+    };
+    switch (description->variety) {
     case SXML_TYPE_VARIETY_ATOMIC:
         return SXML_BYTE_VIEW_FROM_LITERAL("atomic");
     case SXML_TYPE_VARIETY_LIST:
@@ -422,7 +450,7 @@ static sxml_byte_view variety_text(sxml_type_variety variety) {
     case SXML_TYPE_VARIETY_UNION:
         return SXML_BYTE_VIEW_FROM_LITERAL("union");
     case SXML_TYPE_VARIETY_COMPLEX:
-        return SXML_BYTE_VIEW_FROM_LITERAL("mixed");
+        return content_varieties[description->variety_details.complex_type.content_type_variety];
     case SXML_TYPE_VARIETY_ANY_SIMPLE:
     case SXML_TYPE_VARIETY_ANY_ITEM:
     case SXML_TYPE_VARIETY_NODE_TEST:
@@ -492,7 +520,7 @@ static sxml_status fill_type_record_fields(const sxml_function_call *call,
     }
     fields->values[SXML_SCHEMA_TYPE_FIELD_IS_SIMPLE] = sxml_function_library_make_boolean(
         (sxml_boolean_result){.is_true = variety != SXML_TYPE_VARIETY_COMPLEX});
-    const sxml_byte_view variety_name = variety_text(variety);
+    const sxml_byte_view variety_name = variety_text(&description);
     if (status == SXML_STATUS_OK && variety_name.byte_count > 0) {
         status = sxml_function_library_make_string(call->item_heap, variety_name,
                                                    &fields->values[SXML_SCHEMA_TYPE_FIELD_VARIETY]);
@@ -517,6 +545,11 @@ static sxml_status fill_type_record_fields(const sxml_function_call *call,
          is_simple && !is_any_atomic && type.index != SXML_TYPE_XS_NOTATION &&
              !is_namespace_sensitive(call, type),
          NULL},
+        {SXML_SCHEMA_TYPE_FIELD_SIMPLE_CONTENT_TYPE,
+         variety == SXML_TYPE_VARIETY_COMPLEX &&
+             description.variety_details.complex_type.content_type_variety ==
+                 SXML_CONTENT_TYPE_VARIETY_SIMPLE,
+         &simple_content_type_row},
     };
     for (size_t function_index = 0;
          status == SXML_STATUS_OK && function_index < sizeof(functions) / sizeof(functions[0]);
@@ -571,10 +604,23 @@ static sxml_status call_schema_type(const sxml_function_call *call, sxml_sequenc
     }
     *result = sxml_sequence_empty();
     sxml_type_identifier type = {.index = SXML_TYPE_NONE};
-    if (status != SXML_STATUS_OK || !name.has_item || datum.datum_kind != SXML_DATUM_KIND_QNAME ||
-        !sxml_type_registry_find_type(registry_of(call), datum.datum_details.qname.expanded_name,
-                                      &type)) {
+    if (status != SXML_STATUS_OK || !name.has_item || datum.datum_kind != SXML_DATUM_KIND_QNAME) {
         return status;
+    }
+    const sxml_name_identifier type_name = datum.datum_details.qname.expanded_name;
+    if (!sxml_type_registry_find_type(registry_of(call), type_name, &type)) {
+        /* A type of the in-scope schemas (19.1.2: "the in-scope schema
+           types"), which the registry keeps without its name. */
+        const sxml_ir_static_context *static_context =
+            call->dynamic_context == NULL
+                ? NULL
+                : sxml_dynamic_context_get_static_context(call->dynamic_context);
+        sxml_schema_scope_type found = {.schema = NULL, .type = {.index = SXML_TYPE_NONE}};
+        if (static_context == NULL ||
+            !sxml_schema_scope_find_type(static_context->in_scope_schemas, type_name, &found)) {
+            return SXML_STATUS_OK;
+        }
+        type = found.type;
     }
     sxml_type_description description;
     status = sxml_type_registry_describe_type(registry_of(call), type, &description);
