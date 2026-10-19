@@ -103,19 +103,29 @@ sxml_qt4_serve_timezone_data(const sxml_qt4_resource_table *table,
         resource);
 }
 
-/* The URI prefix of CLDR's files (processor.h,
-   SXML_RESOURCE_KIND_COLLATION_DATA), and where the driver keeps them:
-   the vendored subset beside the suite (third_party/cldr, packet 7.15b). */
+/* The URI prefixes of CLDR's files (processor.h,
+   SXML_RESOURCE_KIND_COLLATION_DATA and SXML_RESOURCE_KIND_LOCALE_DATA),
+   and where the driver keeps them: the vendored subset beside the suite
+   (third_party/cldr, packets 7.15b and 7.17). */
 #define SXML_QT4_COLLATION_URI_PREFIX "urn:sxml:collation-data:"
+#define SXML_QT4_LOCALE_URI_PREFIX "urn:sxml:locale-data:"
 #define SXML_QT4_CLDR_DIRECTORY "../cldr/common/"
 
-/* COLLATION_DATA: urn:sxml:collation-data:PATH as the suite path
-   ../cldr/common/PATH, for a PATH of letters, digits, "_", "." and "/"
-   without "..". */
+static bool sxml_qt4_has_prefix(sxml_byte_view uri, sxml_byte_view prefix) {
+    return uri.byte_count > prefix.byte_count &&
+           memcmp(uri.bytes, prefix.bytes, prefix.byte_count) == 0;
+}
+
+/* COLLATION_DATA and LOCALE_DATA: urn:sxml:collation-data:PATH or
+   urn:sxml:locale-data:PATH as the suite path ../cldr/common/PATH, for a
+   PATH of letters, digits, "_", "." and "/" without "..". */
 static sxml_status
 sxml_qt4_serve_cldr_file(const sxml_qt4_resource_table *table,
                          sxml_byte_view uri, sxml_resource *resource) {
-    const sxml_byte_view prefix = SXML_TEXT(SXML_QT4_COLLATION_URI_PREFIX);
+    const sxml_byte_view prefix =
+        sxml_qt4_has_prefix(uri, SXML_TEXT(SXML_QT4_COLLATION_URI_PREFIX))
+            ? SXML_TEXT(SXML_QT4_COLLATION_URI_PREFIX)
+            : SXML_TEXT(SXML_QT4_LOCALE_URI_PREFIX);
     const sxml_byte_view directory = SXML_TEXT(SXML_QT4_CLDR_DIRECTORY);
     const sxml_byte_view name = {.bytes = uri.bytes + prefix.byte_count,
                                  .byte_count = uri.byte_count - prefix.byte_count};
@@ -361,9 +371,7 @@ sxml_qt4_resolve_from_table(void *state, const sxml_resource_request *request,
            the vendored subset beside the suite (third_party/cldr, packet
            7.15b); the DUCET: the vendored copy (third_party/
            unicode-collation, D213). */
-        if (uri.byte_count > sizeof(SXML_QT4_COLLATION_URI_PREFIX) - 1 &&
-            memcmp(uri.bytes, SXML_QT4_COLLATION_URI_PREFIX,
-                   sizeof(SXML_QT4_COLLATION_URI_PREFIX) - 1) == 0) {
+        if (sxml_qt4_has_prefix(uri, SXML_TEXT(SXML_QT4_COLLATION_URI_PREFIX))) {
             return sxml_qt4_serve_cldr_file(table, uri, resource);
         }
         if (sxml_byte_view_equals(
@@ -377,6 +385,14 @@ sxml_qt4_resolve_from_table(void *state, const sxml_resource_request *request,
                 resource);
         }
         resource->description = SXML_TEXT("The driver has no such collation data");
+        return SXML_STATUS_OK;
+    case SXML_RESOURCE_KIND_LOCALE_DATA:
+        /* The CLDR names, spell-out rules and supplemental data of the
+           localization feature (packet 7.17, D221): the vendored subset. */
+        if (sxml_qt4_has_prefix(uri, SXML_TEXT(SXML_QT4_LOCALE_URI_PREFIX))) {
+            return sxml_qt4_serve_cldr_file(table, uri, resource);
+        }
+        resource->description = SXML_TEXT("The driver has no such locale data");
         return SXML_STATUS_OK;
     case SXML_RESOURCE_KIND_XSLT_PACKAGE:
         break;

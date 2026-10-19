@@ -193,6 +193,16 @@ typedef enum sxml_resource_kind {
          CLDR root is not served.
        Form: BYTES. */
     SXML_RESOURCE_KIND_COLLATION_DATA,
+    /* The data of the localization feature (sxml_localization_feature;
+       D221): absolute_uri is "urn:sxml:locale-data:" and a path as in the
+       common/ directory of the Unicode CLDR: "main/" or "rbnf/" + a
+       locale + ".xml" (the LDML files of a language's names and spell-out
+       rules, "main/de.xml", "main/fr_CA.xml", "rbnf/root.xml"; UTS #35,
+       Parts 3 and 4), "supplemental/supplementalData.xml" (the eras'
+       dates) or "supplemental/ordinals.xml" (ordinal plural rules). sxml
+       makes the path from ASCII letters, digits, "_" and "/" and ".xml",
+       so a resolver can map it onto a directory. Form: BYTES. */
+    SXML_RESOURCE_KIND_LOCALE_DATA,
 } sxml_resource_kind;
 
 /* What sxml asks a resolver for. Views are borrowed for the call. */
@@ -652,6 +662,22 @@ SXML_EXPORT sxml_optional_feature sxml_timezone_database_feature(void);
  * name is "uca-collation" (packets 7.15a and 7.15b, D213, D220).
  */
 SXML_EXPORT sxml_optional_feature sxml_uca_collation_feature(void);
+
+/*
+ * Languages and calendars in the formatting functions (F&O 4.0, 9.9.4.8,
+ * 4.8.1; XSLT 4.0, 12.4): the names of months, days, eras and day
+ * periods of fn:format-date, fn:format-time and fn:format-dateTime in the
+ * language their $language (or the default language) names, the
+ * calendars BE, JE, OS and AH, and the words and ordinals of
+ * fn:format-integer and xsl:number in other languages and by CLDR's
+ * spell-out rule sets ("%spellout-ordinal"), from the Unicode CLDR files
+ * the feature asks the resolver for as SXML_RESOURCE_KIND_LOCALE_DATA at
+ * a language's first use. Without it, or when the resolver has no data
+ * for a language, dates are formatted in English after "[Language: en]",
+ * the other calendars as AD after "[Calendar: AD]", and words are
+ * English. Its name is "localization" (packet 7.17, D221).
+ */
+SXML_EXPORT sxml_optional_feature sxml_localization_feature(void);
 
 /*
  * Invisible XML (Invisible XML Specification 1.0): fn:invisible-xml

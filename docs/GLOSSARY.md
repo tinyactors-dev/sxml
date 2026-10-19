@@ -941,3 +941,9 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `local_time_type` | What local time is at an instant in a zone: its offset from UTC, whether it is daylight saving time, and its abbreviation (RFC 8536, 3.2, "local time type records"; D209) |
 | `timezone_rule` | A TZ string read (POSIX XBD 8.3, the footer of a TZif file): a zone's standard time and its daylight saving time with when it starts and ends each year, for instants after the zone's last transition (D209) |
 | `language_table` | The names and words of one language that the formatting functions use: months, days, eras, ordinal suffixes and spell-out rules |
+| `localization` | The optional feature that gives the formatting functions languages other than English and the calendars BE, JE, OS and AH from CLDR files the host serves (`sxml_localization_feature`; D221) |
+| `cldr_file` | A CLDR XML file read into a table of its leaf elements by distinguished path, with its aliases (src/cldr_internal.h; D221) |
+| `distinguished_path` | The path of an LDML element from below the root, each step with its distinguishing attributes, as `dates/calendars/calendar[@type='gregorian']/months` (UTS #35, Part 1, section 5.1.1) |
+| `locale_chain` | The CLDR files a language tag is looked up in, from the most specific to root: `de_AT`, `de`, `root` (inheritance by truncation, UTS #35, Part 1, section 4.1) |
+| `spell_out_rule_set` | A named list of CLDR's rule-based number formatting rules that writes numbers in words or ordinals, such as `spellout-ordinal` (UTS #35, Part 3, section 6) |
+| `plural_rule` | A condition on a number that gives its plural category (`one`, `two`, `few`, `other`) in a language, here the ordinal ones (UTS #35, Part 3, section 5) |

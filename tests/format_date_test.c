@@ -36,13 +36,29 @@ static void test_calendars_are_chosen(sxml_test_state *state) {
                                 choice.calendar_kind == SXML_CALENDAR_KIND_ISO &&
                                 !choice.needs_fallback_marker);
     /* QT4 format-date-en152, -en153, -en154: fallback to AD with a marker. */
-    static const char *const fallbacks[] = {"CB", "OS",
+    static const char *const fallbacks[] = {"CB", "KY",
                                             "Q{http://calendar.example.com/x}CB", "cal:CB"};
     for (size_t name_index = 0; name_index < SXML_TEST_COUNT(fallbacks); name_index += 1) {
         SXML_TEST_EXPECT(state, sxml_calendar_choose(text_view(fallbacks[name_index]), &choice) ==
                                         SXML_STATUS_OK &&
                                     choice.calendar_kind == SXML_CALENDAR_KIND_AD &&
                                     choice.needs_fallback_marker);
+    }
+    /* The converted calendars (packet 7.17): chosen as they are; the
+       caller falls back when it has no names for them. */
+    static const struct {
+        const char *name;
+        sxml_calendar_kind calendar_kind;
+    } converted[] = {{"BE", SXML_CALENDAR_KIND_BE},
+                     {"JE", SXML_CALENDAR_KIND_JE},
+                     {"OS", SXML_CALENDAR_KIND_OS},
+                     {"Q{}AH", SXML_CALENDAR_KIND_AH}};
+    for (size_t name_index = 0; name_index < SXML_TEST_COUNT(converted); name_index += 1) {
+        SXML_TEST_EXPECT(state,
+                         sxml_calendar_choose(text_view(converted[name_index].name), &choice) ==
+                                 SXML_STATUS_OK &&
+                             choice.calendar_kind == converted[name_index].calendar_kind &&
+                             !choice.needs_fallback_marker);
     }
     /* QT4 format-date-en155 to -en158, format-date-051. */
     static const char *const invalid[] = {"Q{}ZODIAC", "ZODIAC", ":w", "Q{}1", "", "Q{",

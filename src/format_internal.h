@@ -145,6 +145,52 @@ SXML_NODISCARD sxml_status sxml_integer_picture_parse(
 SXML_NODISCARD sxml_status sxml_integer_picture_parse_primary_format_token(
     sxml_byte_view primary_format_token, sxml_integer_picture *picture);
 
+/* --------------------------------------------------------- Number words */
+
+/*
+ * Words and ordinal suffixes of a language other than English: the
+ * spell-out rules of the localization feature (src/language_table_
+ * internal.h; packet 7.17, D221), which the callers of
+ * sxml_format_integer find for their language and pass in
+ * sxml_integer_formatting. Zero-initialized: English, sxml's own words.
+ */
+typedef struct sxml_number_words_request {
+    /* The absolute value as ASCII digits without leading zeros; empty for
+       zero. */
+    sxml_byte_view magnitude_digits;
+    /* LOWER_WORDS, UPPER_WORDS or TITLE_WORDS: the number in words, in
+       that case. DIGITS: only the ordinal suffix written after the digits
+       ("." in German, "e" in French). */
+    sxml_numbering_kind numbering_kind;
+    bool is_ordinal;
+    /* The picture's text in parentheses after "c" or "o", borrowed: a
+       rule set ("%spellout-ordinal-feminine") or an ending ("-er");
+       empty when absent. */
+    sxml_byte_view numbering_variant;
+    /* Receives the words. */
+    sxml_format_text *text;
+} sxml_number_words_request;
+
+typedef struct sxml_number_words_outcome {
+    /* False when the language has no rule set for the request or the
+       number is too large for its rules: the caller writes English and
+       text is unchanged. */
+    bool is_written;
+} sxml_number_words_outcome;
+
+typedef struct sxml_number_words_operations {
+    /* Appends request's words to request->text. Returns the allocator's
+       failures. */
+    sxml_status (*append_words)(const void *state, const sxml_number_words_request *request,
+                                sxml_number_words_outcome *outcome);
+} sxml_number_words_operations;
+
+/* The words of one language; operations NULL for English. */
+typedef struct sxml_number_words {
+    const void *state;
+    const sxml_number_words_operations *operations;
+} sxml_number_words;
+
 /* An integer to format by a picture. */
 typedef struct sxml_integer_formatting {
     /* Borrowed for the call. */
@@ -162,15 +208,17 @@ typedef struct sxml_integer_formatting {
        grouping. Zero-initialized: no such grouping. */
     sxml_byte_view grouping_separator;
     size_t grouping_size;
+    /* The words and ordinal suffixes of the language; zero for English. */
+    sxml_number_words number_words;
 } sxml_integer_formatting;
 
 /*
  * Appends the integer formatted by its picture to text (F&O 4.0, section
  * 4.8.1): digits with grouping and padding, letters, symbol sequences
- * (within their ranges), Roman numerals (1 to 3999) or English words
- * (below 10^21), each falling back to the
- * token "1" outside its range, and English ordinal suffixes or words for
- * "o". Uses text's allocator for scratch memory.
+ * (within their ranges), Roman numerals (1 to 3999) or words (English
+ * below 10^21, or the language's number_words), each falling back to the
+ * token "1" outside its range, and ordinal suffixes or words for "o" (the
+ * language's, else English). Uses text's allocator for scratch memory.
  *
  * Returns SXML_STATUS_INVALID_ARGUMENT for magnitude digits that are not
  * ASCII digits, and the allocator's failures and

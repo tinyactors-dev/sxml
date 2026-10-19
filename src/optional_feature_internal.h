@@ -94,6 +94,12 @@ typedef enum sxml_optional_feature_kind {
        (src/ixml.c, src/function_library_ixml.c, packet 7.18, D215);
        operations is that view. */
     SXML_OPTIONAL_FEATURE_KIND_INVISIBLE_XML,
+    /* sxml_localization_feature: languages and calendars for the
+       formatting functions from CLDR files the resolver serves
+       (src/language_table.c, src/spell_out.c, packet 7.17, D221);
+       operations sxml_localization_operations
+       (src/language_table_internal.h). */
+    SXML_OPTIONAL_FEATURE_KIND_LOCALIZATION,
     SXML_OPTIONAL_FEATURE_KIND_COUNT,
 } sxml_optional_feature_kind;
 
@@ -250,3 +256,5 @@ extern const sxml_optional_feature_definition sxml_dtd_validation_feature_defini
 extern const sxml_optional_feature_definition sxml_full_text_feature_definition;
 /* The Invisible XML feature (src/ixml.c). */
 extern const sxml_optional_feature_definition sxml_invisible_xml_feature_definition;
+/* The localization feature (src/language_table.c). */
+extern const sxml_optional_feature_definition sxml_localization_feature_definition;

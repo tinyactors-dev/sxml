@@ -11,9 +11,11 @@
  * The engine extends the number picture engine of src/format_internal.h:
  * a variable marker's first presentation modifier is a primary format
  * token of fn:format-integer, parsed and formatted there. Pictures are
- * scanned by hand (D97). Only the calendars AD and ISO and the English
- * language are supported; other calendars and languages are formatted as
- * AD and English after a fallback marker (section 9.9.4.8).
+ * scanned by hand (D97). English and the calendars AD and ISO need no
+ * data; other languages and the calendars BE, JE, OS and AH take their
+ * names from the localization feature (src/language_table_internal.h,
+ * packet 7.17), and the caller formats any other language or calendar as
+ * English or AD after a fallback marker (section 9.9.4.8).
  *
  * Text is UTF-8 and must be well-formed. Nothing here recurses (D71) or
  * keeps state between calls.
@@ -37,13 +39,23 @@ typedef enum sxml_date_value_kind {
     SXML_DATE_VALUE_KIND_TIME,
 } sxml_date_value_kind;
 
-/* The calendars sxml formats in (D97). */
+/* The calendars sxml formats in (section 9.9.4.8; D97, D221). */
 typedef enum sxml_calendar_kind {
     /* Anno Domini: the Gregorian calendar without a year zero, with eras
        AD and BC. */
     SXML_CALENDAR_KIND_AD,
     /* ISO 8601: XSD 1.1 year numbers, era "-" for negative years. */
     SXML_CALENDAR_KIND_ISO,
+    /* Buddhist Era: Gregorian months, years from 543 BC (CLDR's
+       buddhist). */
+    SXML_CALENDAR_KIND_BE,
+    /* Japanese Emperor years: Gregorian months, years of the eras (CLDR's
+       japanese). */
+    SXML_CALENDAR_KIND_JE,
+    /* Old Style: the Julian calendar, eras AD and BC. */
+    SXML_CALENDAR_KIND_OS,
+    /* Anno Hegirae: the tabular Islamic calendar (CLDR's islamic-civil). */
+    SXML_CALENDAR_KIND_AH,
 } sxml_calendar_kind;
 
 /* The calendar a $calendar argument chooses. */
@@ -57,11 +69,12 @@ typedef struct sxml_calendar_choice {
 /*
  * Chooses the calendar calendar_name names (section 9.9.4.8): an EQName,
  * "Q{uri}local", "prefix:local" or "local". A name in no namespace must be
- * a designator of the section's table: AD and ISO are used as they are,
- * the others fall back to AD with a marker; a name in a namespace falls
- * back to AD with a marker too. A prefix is not resolved (the dynamic
- * context has no statically known namespaces), so any prefix counts as a
- * namespace.
+ * a designator of the section's table: AD, ISO, BE, JE, OS and AH are
+ * chosen as they are (the caller falls back to AD when it has no names
+ * for the last four), the others fall back to AD with a marker; a name in
+ * a namespace falls back to AD with a marker too. A prefix is not
+ * resolved (the dynamic context has no statically known namespaces), so
+ * any prefix counts as a namespace.
  *
  * Returns SXML_STATUS_MALFORMED_INPUT for a name that is not an EQName or
  * a designator sxml does not know (the caller raises FOFD1340); *choice
@@ -70,9 +83,12 @@ typedef struct sxml_calendar_choice {
 SXML_NODISCARD sxml_status sxml_calendar_choose(sxml_byte_view calendar_name,
                                                 sxml_calendar_choice *choice);
 
-/* True when language is English ("en", or "en-" and a subtag, in any
-   case), the only language sxml formats in (D97). */
+/* True when language is English ("en", or "en-" or "en_" and a subtag,
+   in any case), the language sxml formats in without data. */
 bool sxml_date_language_is_english(sxml_byte_view language);
+
+/* src/language_table_internal.h. */
+struct sxml_calendar_names;
 
 /* Why a picture was rejected. */
 typedef enum sxml_date_picture_error {
@@ -106,10 +122,17 @@ typedef struct sxml_date_formatting {
     sxml_date_time value;
     sxml_date_value_kind value_kind;
     sxml_calendar_choice calendar;
-    /* The language asked for is not English: the fallback marker
+    /* The language asked for has no names: the fallback marker
        "[Language: en]" comes first in the result. */
     bool needs_language_marker;
     sxml_date_place place;
+    /* The names of the language and calendar (the localization feature),
+       borrowed; NULL for English in AD or ISO. Required for BE, JE, OS
+       and AH. */
+    const struct sxml_calendar_names *names;
+    /* The words of the language for "w" and ordinals; zero for
+       English. */
+    sxml_number_words number_words;
 } sxml_date_formatting;
 
 /*

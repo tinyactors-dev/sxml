@@ -11,7 +11,7 @@
 #include "query_command.h"
 
 #include "cli_arguments.h"
-#include "collation_data.h"
+#include "cldr_data.h"
 #include "sxml/memory.h"
 #include "sxml/name.h"
 #include "sxml/types.h"
@@ -117,17 +117,20 @@ static sxml_byte_view sxml_query_zoneinfo_path(const sxml_resource_request *requ
     return (sxml_byte_view){.bytes = path, .byte_count = directory.byte_count + name.byte_count};
 }
 
-/* The UCA collation feature's data (SXML_RESOURCE_KIND_COLLATION_DATA,
-   D213, D220): "urn:sxml:collation-data:" and the path of one of the
-   program's CLDR files (collation_data.h), joined into allocator memory
-   that sxml_query_release_file gives back. */
-static sxml_status sxml_query_serve_collation_data(const sxml_query_file_resolver *resolver,
-                                                   const sxml_resource_request *request,
-                                                   sxml_resource *resource) {
-    const sxml_byte_view prefix = SXML_TEXT("urn:sxml:collation-data:");
+/* The CLDR data of the UCA collation feature (SXML_RESOURCE_KIND_COLLATION_
+   DATA, D213, D220) and the localization feature (SXML_RESOURCE_KIND_
+   LOCALE_DATA, D221): the kind's URI prefix and the path of one of the
+   program's CLDR files (cldr_data.h), joined into allocator memory that
+   sxml_query_release_file gives back. */
+static sxml_status sxml_query_serve_cldr_data(const sxml_query_file_resolver *resolver,
+                                              const sxml_resource_request *request,
+                                              sxml_resource *resource) {
+    const sxml_byte_view prefix = request->resource_kind == SXML_RESOURCE_KIND_COLLATION_DATA
+                                      ? SXML_TEXT("urn:sxml:collation-data:")
+                                      : SXML_TEXT("urn:sxml:locale-data:");
     const sxml_byte_view uri = request->absolute_uri;
-    const sxml_cli_collation_file_view files = sxml_cli_collation_data();
-    const sxml_cli_collation_file *found = NULL;
+    const sxml_cli_cldr_file_view files = sxml_cli_cldr_data();
+    const sxml_cli_cldr_file *found = NULL;
     if (uri.byte_count > prefix.byte_count &&
         memcmp(uri.bytes, prefix.bytes, prefix.byte_count) == 0) {
         const sxml_byte_view path = {.bytes = uri.bytes + prefix.byte_count,
@@ -141,7 +144,7 @@ static sxml_status sxml_query_serve_collation_data(const sxml_query_file_resolve
     }
     if (found == NULL) {
         resource->resource_form = SXML_RESOURCE_FORM_NONE;
-        resource->description = SXML_TEXT("sxml has no such collation data");
+        resource->description = SXML_TEXT("sxml has no such CLDR data");
         return SXML_STATUS_OK;
     }
     const sxml_cli_text_chunks data = found->text;
@@ -171,8 +174,9 @@ static sxml_status sxml_query_serve_collation_data(const sxml_query_file_resolve
 static sxml_status sxml_query_resolve_file(void *state, const sxml_resource_request *request,
                                            sxml_resource *resource) {
     const sxml_query_file_resolver *resolver = state;
-    if (request->resource_kind == SXML_RESOURCE_KIND_COLLATION_DATA) {
-        return sxml_query_serve_collation_data(resolver, request, resource);
+    if (request->resource_kind == SXML_RESOURCE_KIND_COLLATION_DATA ||
+        request->resource_kind == SXML_RESOURCE_KIND_LOCALE_DATA) {
+        return sxml_query_serve_cldr_data(resolver, request, resource);
     }
     uint8_t zoneinfo_path[SXML_QUERY_ZONEINFO_PATH_CAPACITY];
     const sxml_byte_view path = request->resource_kind == SXML_RESOURCE_KIND_TIMEZONE_DATA

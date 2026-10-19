@@ -18,11 +18,22 @@
  * exactly, xs:double and xs:float by their shortest decimal form (section
  * 4.9.5), after multiplying by 100 or 1000 in their own type for percent
  * and per-mille, so an overflow gives infinity as the section says.
+ *
+ * Languages (packet 7.17, D221): the $language of fn:format-integer and
+ * the lang of xsl:number, or the default language of the dynamic context
+ * when they are empty, are the D162 place of the localization feature
+ * (src/language_table_internal.h): a language other than English, or a
+ * format modifier naming a rule set ("%spellout-ordinal"), takes the
+ * language's spell-out rules for words and ordinal suffixes. Without the
+ * feature, or for a language without rules, the words are English.
  */
 #include "decimal_internal.h"
 #include "evaluator_internal.h"
 #include "format_internal.h"
 #include "function_library_core_internal.h"
+#include "language_table_internal.h"
+#include "optional_feature_internal.h"
+#include "processor_internal.h"
 #include "sxml/types.h"
 #include "xslt_number_internal.h"
 #include "xml_internal.h"
@@ -116,13 +127,50 @@ static sxml_byte_view decimal_magnitude(sxml_byte_view decimal_text) {
     return decimal_text;
 }
 
+/* ------------------------------------------------------------ Languages */
+
+/*
+ * The number words of language for picture (see the comment at the top):
+ * zero for English words. An empty language is the dynamic context's
+ * default language.
+ */
+typedef struct words_request {
+    const sxml_function_call *call;
+    sxml_byte_view language;
+    const sxml_integer_picture *picture;
+} words_request;
+
+static sxml_status find_number_words(words_request request, sxml_number_words *words) {
+    *words = (sxml_number_words){.state = NULL, .operations = NULL};
+    const sxml_evaluation_environment *environment =
+        sxml_processor_get_evaluation_environment(request.call->dynamic_context);
+    sxml_processor *processor = environment == NULL ? NULL : environment->processor;
+    sxml_byte_view language = sxml_xml_text_trim_whitespace(request.language);
+    if (language.byte_count == 0 && environment != NULL) {
+        language = environment->default_language;
+    }
+    const sxml_byte_view variant = request.picture->numbering_variant;
+    const bool names_rule_set = variant.byte_count > 0 && variant.bytes[0] == '%';
+    const bool is_english = language.byte_count == 0 || sxml_date_language_is_english(language);
+    const sxml_localization_operations *localization =
+        sxml_processor_find_optional_feature(processor, SXML_OPTIONAL_FEATURE_KIND_LOCALIZATION);
+    if (localization == NULL || (is_english && !names_rule_set)) {
+        return SXML_STATUS_OK;
+    }
+    return localization->find_number_words(
+        &(sxml_number_words_query){
+            .processor = processor,
+            .language = language.byte_count == 0 ? SXML_BYTE_VIEW_FROM_LITERAL("en") : language},
+        words);
+}
+
 /* ----------------------------------------------------- fn:format-integer */
 
 /*
  * fn:format-integer($value as xs:integer?, $picture as xs:string,
- * $language as xs:string? := ()) as xs:string (F&O 4.0, section 4.8.1).
- * Every language is formatted as English, the default language (D97);
- * the zero-length string for the empty sequence.
+ * $language as xs:string? := ()) as xs:string (F&O 4.0, section 4.8.1):
+ * the words of the language when the localization feature has them, else
+ * English; the zero-length string for the empty sequence.
  */
 static sxml_status call_format_integer(const sxml_function_call *call, sxml_sequence *result) {
     sxml_optional_item value;
@@ -167,13 +215,24 @@ static sxml_status call_format_integer(const sxml_function_call *call, sxml_sequ
     if (status != SXML_STATUS_OK) {
         return status;
     }
+    sxml_string language = {.utf8 = {.bytes = NULL, .byte_count = 0}};
+    status = sxml_function_library_read_string_argument(call, 2, &language);
+    sxml_number_words words = {.state = NULL, .operations = NULL};
+    if (status == SXML_STATUS_OK) {
+        status = find_number_words(
+            (words_request){.call = call, .language = language.utf8, .picture = &picture}, &words);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
     sxml_format_text text = {.allocator = sxml_item_heap_as_allocator(call->item_heap),
                              .bytes = NULL,
                              .byte_count = 0,
                              .byte_capacity = 0};
     status = sxml_format_integer(&(sxml_integer_formatting){.picture = &picture,
                                                             .magnitude_digits = magnitude_digits,
-                                                            .is_negative = is_negative},
+                                                            .is_negative = is_negative,
+                                                            .number_words = words},
                                  &text);
     if (status != SXML_STATUS_OK) {
         sxml_format_text_release(&text);
@@ -905,6 +964,10 @@ typedef struct place_marker_settings {
     sxml_byte_view grouping_separator;
     size_t grouping_size;
     bool is_ordinal;
+    /* The ordinal attribute when it names a rule set or an ending
+       ("%spellout-ordinal", "-er"); empty otherwise. */
+    sxml_byte_view ordinal_variant;
+    sxml_byte_view language;
 } place_marker_settings;
 
 static sxml_status read_place_marker_settings(const sxml_function_call *call,
@@ -926,7 +989,9 @@ static sxml_status read_place_marker_settings(const sxml_function_call *call,
     *settings = (place_marker_settings){.format = format.utf8,
                                         .grouping_separator = separator.text,
                                         .grouping_size = 0,
-                                        .is_ordinal = false};
+                                        .is_ordinal = false,
+                                        .ordinal_variant = {.bytes = NULL, .byte_count = 0},
+                                        .language = language.text};
     size_t grouping_size = 0;
     if (size.has_text && !read_grouping_size(size.text, &grouping_size)) {
         return sxml_function_library_report(call, &invalid_number_attribute_error);
@@ -945,13 +1010,21 @@ static sxml_status read_place_marker_settings(const sxml_function_call *call,
         settings->grouping_size = grouping_size;
     }
     /* Cardinal for absent, "", "no", "0" and "false"; any other value asks
-       for the English ordinal (the only language, D97). */
+       for the ordinal, "yes", "true" and "1" for the language's default
+       one, others ("%spellout-ordinal-feminine", "-er") for the rule set
+       or the ending they name (XSLT 4.0, 12.4.2). */
     const sxml_byte_view ordinal_text = sxml_xml_text_trim_whitespace(ordinal.text);
     settings->is_ordinal =
         ordinal.has_text && ordinal_text.byte_count > 0 &&
         !sxml_byte_view_equals(ordinal_text, SXML_BYTE_VIEW_FROM_LITERAL("no")) &&
         !sxml_byte_view_equals(ordinal_text, SXML_BYTE_VIEW_FROM_LITERAL("0")) &&
         !sxml_byte_view_equals(ordinal_text, SXML_BYTE_VIEW_FROM_LITERAL("false"));
+    if (settings->is_ordinal &&
+        !sxml_byte_view_equals(ordinal_text, SXML_BYTE_VIEW_FROM_LITERAL("yes")) &&
+        !sxml_byte_view_equals(ordinal_text, SXML_BYTE_VIEW_FROM_LITERAL("true")) &&
+        !sxml_byte_view_equals(ordinal_text, SXML_BYTE_VIEW_FROM_LITERAL("1"))) {
+        settings->ordinal_variant = ordinal_text;
+    }
     return SXML_STATUS_OK;
 }
 
@@ -961,6 +1034,7 @@ typedef struct place_marker_item {
     const place_marker_settings *settings;
     sxml_item number_item;
     size_t number_index;
+    const sxml_function_call *call;
 } place_marker_item;
 
 static sxml_status append_place_marker_number(place_marker_item request,
@@ -989,15 +1063,27 @@ static sxml_status append_place_marker_number(place_marker_item request,
         }
     }
     picture.is_ordinal = request.settings->is_ordinal;
+    if (request.settings->ordinal_variant.byte_count > 0) {
+        picture.numbering_variant = request.settings->ordinal_variant;
+    }
+    sxml_number_words words = {.state = NULL, .operations = NULL};
+    status = find_number_words(
+        (words_request){.call = request.call, .language = request.settings->language, .picture = &picture},
+        &words);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
     const size_t start = text->byte_count;
     status = sxml_format_integer(
         &(sxml_integer_formatting){.picture = &picture,
                                    .magnitude_digits = number.magnitude_digits,
                                    .is_negative = number.is_negative,
                                    .grouping_separator = request.settings->grouping_separator,
-                                   .grouping_size = request.settings->grouping_size},
+                                   .grouping_size = request.settings->grouping_size,
+                                   .number_words = words},
         text);
-    if (status == SXML_STATUS_OK && picture.numbering_kind == SXML_NUMBERING_KIND_TITLE_WORDS) {
+    if (status == SXML_STATUS_OK && picture.numbering_kind == SXML_NUMBERING_KIND_TITLE_WORDS &&
+        words.operations == NULL) {
         /* Title-case words of xsl:number capitalize every word, a hyphen
            becoming a space ("Twenty Two", as Saxon writes them; QT4
            number-0105 and number-2506), where fn:format-integer keeps
@@ -1019,7 +1105,8 @@ static sxml_status append_place_marker_number(place_marker_item request,
  * $ordinal as xs:string?, $lang as xs:string?, $letter-value as
  * xs:string?) as xs:string: the place marker of xsl:number formatted by
  * the attributes of XSLT 4.0, 12.4 (src/xslt_number_internal.h). lang
- * and letter-value are checked and otherwise ignored: English only (D97).
+ * chooses the words (see the comment at the top); letter-value is checked
+ * and otherwise ignored.
  * An empty place marker gives the prefix and the suffix (as Saxon does;
  * QT4 number-0806 and number-3205 expect it).
  */
@@ -1047,8 +1134,10 @@ static sxml_status call_format_place_marker(const sxml_function_call *call,
         status = sxml_function_library_charge_steps(call, 1);
         if (status == SXML_STATUS_OK) {
             status = append_place_marker_number(
-                (place_marker_item){
-                    .settings = &settings, .number_item = step.item, .number_index = number_index},
+                (place_marker_item){.settings = &settings,
+                                    .number_item = step.item,
+                                    .number_index = number_index,
+                                    .call = call},
                 &text);
         }
     }

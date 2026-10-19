@@ -7,7 +7,10 @@
  *
  * Golden file: src/collation_uca.c (feature data read once into the
  * processor's slot, sorted entry arrays, explicit loops), src/timezone.c
- * (feature data named by a path under a URN).
+ * (feature data named by a path under a URN). The language tags, the
+ * locale chains and the reading of LDML files are the shared CLDR module
+ * (src/cldr_internal.h, packet 7.17), which the localization feature
+ * uses too.
  *
  * The data. A language's collations are in CLDR's common/collation/
  * <locale>.xml, which the feature asks the resolver for as
@@ -54,23 +57,16 @@
  */
 #include "collation_uca_internal.h"
 
+#include "cldr_internal.h"
 #include "optional_feature_internal.h"
 #include "processor_internal.h"
 #include "unicode_internal.h"
-
-#include "sxml/name.h"
-#include "sxml/tree.h"
-#include "sxml/xml.h"
 
 #include <stdalign.h>
 #include <string.h>
 
 /* ------------------------------------------------------------- Limits */
 
-/* The longest locale file name read ("de_AT"). */
-#define SXML_TAILORING_MAXIMUM_LOCALE_BYTE_COUNT 32U
-/* The most subtags of a language tag read. */
-#define SXML_TAILORING_MAXIMUM_SUBTAG_COUNT 8U
 /* The longest collation type ("phonebook"). */
 #define SXML_TAILORING_MAXIMUM_TYPE_BYTE_COUNT 32U
 /* The deepest nesting of [import]s, and the most imports in all. */
@@ -155,129 +151,8 @@ static uint8_t lower_ascii(uint8_t byte) {
     return byte >= 'A' && byte <= 'Z' ? (uint8_t)(byte + 0x20U) : byte;
 }
 
-static uint8_t upper_ascii(uint8_t byte) {
-    return byte >= 'a' && byte <= 'z' ? (uint8_t)(byte - 0x20U) : byte;
-}
-
 static bool view_is(sxml_byte_view view, const char *text) {
     return sxml_byte_view_equals(view, sxml_byte_view_from_c_string(text));
-}
-
-/* -------------------------------------------------------- Language tags */
-
-/* A language tag read (BCP 47, as UTS #35, Part 1, section 3 uses it for
-   locales). */
-typedef struct language_tag {
-    /* The subtags before any extension, lower case. */
-    sxml_byte_view subtags[SXML_TAILORING_MAXIMUM_SUBTAG_COUNT];
-    size_t subtag_count;
-    /* The value of the "co" keyword of the "-u-" extension; empty when
-       absent. */
-    sxml_byte_view collation_type;
-    bool is_valid;
-} language_tag;
-
-static bool is_tag_separator(uint8_t byte) { return byte == '-' || byte == '_'; }
-
-/* Reads text (lower case already) into *tag; is_valid false for a tag
-   with an extension or keyword sxml does not honour. */
-static void read_language_tag(sxml_byte_view text, language_tag *tag) {
-    memset(tag, 0, sizeof(*tag));
-    tag->is_valid = true;
-    size_t position = 0;
-    bool is_in_unicode_extension = false;
-    bool is_after_collation_key = false;
-    while (position <= text.byte_count) {
-        size_t end = position;
-        while (end < text.byte_count && !is_tag_separator(text.bytes[end])) {
-            end += 1;
-        }
-        const sxml_byte_view subtag = {.bytes = text.bytes + position, .byte_count = end - position};
-        position = end + 1;
-        if (subtag.byte_count == 0 || subtag.byte_count > 8) {
-            tag->is_valid = false;
-            return;
-        }
-        if (is_after_collation_key) {
-            tag->collation_type = subtag;
-            is_after_collation_key = false;
-            continue;
-        }
-        if (is_in_unicode_extension) {
-            /* Only the "co" keyword is honoured (UTS #35, Part 1, section
-               3.6); the other keywords are URI parameters in F&O. */
-            if (view_is(subtag, "co") && tag->collation_type.byte_count == 0) {
-                is_after_collation_key = true;
-                continue;
-            }
-            tag->is_valid = false;
-            return;
-        }
-        if (subtag.byte_count == 1) {
-            if (subtag.bytes[0] != 'u' || tag->subtag_count == 0) {
-                tag->is_valid = false;
-                return;
-            }
-            is_in_unicode_extension = true;
-            continue;
-        }
-        if (tag->subtag_count == SXML_TAILORING_MAXIMUM_SUBTAG_COUNT) {
-            tag->is_valid = false;
-            return;
-        }
-        tag->subtags[tag->subtag_count] = subtag;
-        tag->subtag_count += 1;
-    }
-    if (is_after_collation_key || tag->subtag_count == 0) {
-        tag->is_valid = false;
-    }
-}
-
-/*
- * The CLDR file name of the first subtag_count subtags of tag: the
- * language in lower case, a script in title case, a region and variants
- * in upper case, joined by "_" ("de_AT", "zh_Hant"); "root" for und.
- * Returns false when it does not fit.
- */
-typedef struct locale_name {
-    uint8_t bytes[SXML_TAILORING_MAXIMUM_LOCALE_BYTE_COUNT];
-    size_t byte_count;
-} locale_name;
-
-static bool make_locale_name(const language_tag *tag, size_t subtag_count, locale_name *name) {
-    name->byte_count = 0;
-    if (subtag_count == 1 && (view_is(tag->subtags[0], "und") || view_is(tag->subtags[0], "root"))) {
-        static const uint8_t root_name[] = {'r', 'o', 'o', 't'};
-        memcpy(name->bytes, root_name, sizeof(root_name));
-        name->byte_count = sizeof(root_name);
-        return true;
-    }
-    for (size_t subtag_index = 0; subtag_index < subtag_count; subtag_index += 1) {
-        const sxml_byte_view subtag = tag->subtags[subtag_index];
-        if (name->byte_count + subtag.byte_count + 1 > sizeof(name->bytes)) {
-            return false;
-        }
-        if (subtag_index > 0) {
-            name->bytes[name->byte_count] = '_';
-            name->byte_count += 1;
-        }
-        const bool is_script = subtag_index > 0 && subtag.byte_count == 4 &&
-                               !(subtag.bytes[0] >= '0' && subtag.bytes[0] <= '9');
-        for (size_t byte_index = 0; byte_index < subtag.byte_count; byte_index += 1) {
-            const uint8_t byte = subtag.bytes[byte_index];
-            uint8_t written = byte;
-            if (subtag_index > 0) {
-                written = is_script && byte_index > 0 ? byte : upper_ascii(byte);
-            }
-            /* Only letters and digits reach a file name. */
-            if (!((byte >= 'a' && byte <= 'z') || (byte >= '0' && byte <= '9'))) {
-                return false;
-            }
-            name->bytes[name->byte_count] = written;
-            name->byte_count += 1;
-        }
-    }
-    return true;
 }
 
 /* The LDML type of a BCP 47 "co" value (UTS #35, Part 1, section 3.6.4,
@@ -298,234 +173,7 @@ static sxml_byte_view collation_type_name(sxml_byte_view value) {
     return value;
 }
 
-/* ------------------------------------------------------ Reading LDML */
-
-/* Where the reader of one LDML document is. */
-typedef struct ldml_reader {
-    const sxml_name_pool *name_pool;
-    /* The collation type wanted. */
-    sxml_byte_view collation_type;
-    size_t depth;
-    /* The depths of ldml/collations, of a collation element and of its
-       cr or of defaultCollation; 0 when not inside one. */
-    size_t collations_depth;
-    size_t collation_depth;
-    size_t rules_depth;
-    size_t default_depth;
-    /* The collation element being read has the type wanted and no alt
-       attribute. */
-    bool is_wanted_collation;
-    bool has_alt;
-    bool is_type_match;
-    /* The element just started, before its attributes. */
-    bool is_collation_start;
-    /* What the document gave. */
-    bool has_rules;
-    growable_array rules;
-    uint8_t default_type[SXML_TAILORING_MAXIMUM_TYPE_BYTE_COUNT];
-    size_t default_type_byte_count;
-    bool has_default_type;
-} ldml_reader;
-
-static sxml_status ldml_local_name(const ldml_reader *reader, sxml_name_identifier name,
-                                   sxml_byte_view *local_name) {
-    sxml_name_parts parts;
-    const sxml_status status = sxml_name_pool_get_name_parts(reader->name_pool, name, &parts);
-    if (status == SXML_STATUS_OK) {
-        *local_name = parts.local_name;
-    }
-    return status;
-}
-
-static sxml_status ldml_start_document(void *state, const sxml_document_start_event *event) {
-    (void)state;
-    (void)event;
-    return SXML_STATUS_OK;
-}
-
-static sxml_status ldml_end_document(void *state) {
-    (void)state;
-    return SXML_STATUS_OK;
-}
-
-static void ldml_settle_collation(ldml_reader *reader) {
-    if (reader->is_collation_start) {
-        reader->is_collation_start = false;
-        reader->is_wanted_collation = reader->is_type_match && !reader->has_alt;
-    }
-}
-
-static sxml_status ldml_start_element(void *state, const sxml_element_start_event *event) {
-    ldml_reader *reader = state;
-    ldml_settle_collation(reader);
-    sxml_byte_view local_name = {.bytes = NULL, .byte_count = 0};
-    const sxml_status status = ldml_local_name(reader, event->element_name, &local_name);
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    reader->depth += 1;
-    if (reader->depth == 2 && view_is(local_name, "collations")) {
-        reader->collations_depth = reader->depth;
-    } else if (reader->collations_depth != 0 && reader->depth == reader->collations_depth + 1) {
-        if (view_is(local_name, "collation")) {
-            reader->collation_depth = reader->depth;
-            reader->is_collation_start = true;
-            reader->is_type_match = false;
-            reader->has_alt = false;
-            reader->is_wanted_collation = false;
-        } else if (view_is(local_name, "defaultCollation")) {
-            reader->default_depth = reader->depth;
-            reader->default_type_byte_count = 0;
-            reader->has_default_type = true;
-        }
-    } else if (reader->collation_depth != 0 && reader->depth == reader->collation_depth + 1 &&
-               view_is(local_name, "cr") && reader->is_wanted_collation && !reader->has_rules) {
-        reader->rules_depth = reader->depth;
-        reader->has_rules = true;
-    }
-    return SXML_STATUS_OK;
-}
-
-static sxml_status ldml_add_namespace_binding(void *state,
-                                              const sxml_namespace_binding *namespace_binding) {
-    (void)state;
-    (void)namespace_binding;
-    return SXML_STATUS_OK;
-}
-
-static sxml_status ldml_add_attribute(void *state, const sxml_attribute_event *event) {
-    ldml_reader *reader = state;
-    if (!reader->is_collation_start) {
-        return SXML_STATUS_OK;
-    }
-    sxml_byte_view local_name = {.bytes = NULL, .byte_count = 0};
-    const sxml_status status = ldml_local_name(reader, event->attribute_name, &local_name);
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    if (view_is(local_name, "type")) {
-        reader->is_type_match = sxml_byte_view_equals(event->attribute_value, reader->collation_type);
-    } else if (view_is(local_name, "alt")) {
-        reader->has_alt = true;
-    }
-    return SXML_STATUS_OK;
-}
-
-static sxml_status ldml_end_element(void *state) {
-    ldml_reader *reader = state;
-    ldml_settle_collation(reader);
-    if (reader->depth == reader->rules_depth) {
-        reader->rules_depth = 0;
-    }
-    if (reader->depth == reader->default_depth) {
-        reader->default_depth = 0;
-    }
-    if (reader->depth == reader->collation_depth) {
-        reader->collation_depth = 0;
-        reader->is_wanted_collation = false;
-    }
-    if (reader->depth == reader->collations_depth) {
-        reader->collations_depth = 0;
-    }
-    reader->depth -= 1;
-    return SXML_STATUS_OK;
-}
-
-static sxml_status ldml_add_text(void *state, const sxml_text_event *event) {
-    ldml_reader *reader = state;
-    ldml_settle_collation(reader);
-    if (reader->rules_depth != 0 && reader->depth == reader->rules_depth) {
-        return append_bytes(&reader->rules, event->text);
-    }
-    if (reader->default_depth != 0 && reader->depth == reader->default_depth) {
-        for (size_t byte_index = 0; byte_index < event->text.byte_count; byte_index += 1) {
-            const uint8_t byte = event->text.bytes[byte_index];
-            if (byte == ' ' || byte == '\t' || byte == '\n' || byte == '\r') {
-                continue;
-            }
-            if (reader->default_type_byte_count == sizeof(reader->default_type)) {
-                reader->has_default_type = false;
-                break;
-            }
-            reader->default_type[reader->default_type_byte_count] = byte;
-            reader->default_type_byte_count += 1;
-        }
-    }
-    return SXML_STATUS_OK;
-}
-
-static sxml_status ldml_add_comment(void *state, const sxml_comment_event *event) {
-    (void)state;
-    (void)event;
-    return SXML_STATUS_OK;
-}
-
-static sxml_status ldml_add_processing_instruction(
-    void *state, const sxml_processing_instruction_event *event) {
-    (void)state;
-    (void)event;
-    return SXML_STATUS_OK;
-}
-
-static sxml_status ldml_add_unparsed_entity(void *state, const sxml_unparsed_entity *entity) {
-    (void)state;
-    (void)entity;
-    return SXML_STATUS_OK;
-}
-
-static const sxml_tree_builder_operations ldml_builder_operations = {
-    .start_document = ldml_start_document,
-    .end_document = ldml_end_document,
-    .start_element = ldml_start_element,
-    .add_namespace_binding = ldml_add_namespace_binding,
-    .add_attribute = ldml_add_attribute,
-    .end_element = ldml_end_element,
-    .add_text = ldml_add_text,
-    .add_comment = ldml_add_comment,
-    .add_processing_instruction = ldml_add_processing_instruction,
-    .add_unparsed_entity = ldml_add_unparsed_entity,
-};
-
-/* Reading one locale file as feature data. */
-typedef struct ldml_reading {
-    sxml_processor *processor;
-    ldml_reader *reader;
-    /* The document parsed (well-formed LDML); false for other data. */
-    bool is_read;
-} ldml_reading;
-
-static sxml_status read_ldml_data(void *state, sxml_byte_view content) {
-    ldml_reading *reading = state;
-    sxml_processor *processor = reading->processor;
-    sxml_xml_parser *parser = NULL;
-    sxml_status status = sxml_xml_parser_create(
-        processor->allocator,
-        &(sxml_xml_parser_configuration){.allocator = processor->allocator,
-                                         .name_pool = processor->name_pool,
-                                         .limits = processor->limits.xml_limits},
-        &parser);
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    sxml_xml_parse_request request;
-    memset(&request, 0, sizeof(request));
-    request.input = content;
-    status = sxml_xml_parser_parse(
-        parser, &request,
-        (sxml_tree_builder){.state = reading->reader, .operations = &ldml_builder_operations});
-    sxml_xml_parser_destroy(parser);
-    if (status == SXML_STATUS_MALFORMED_INPUT || status == SXML_STATUS_INVALID_UTF8 ||
-        status == SXML_STATUS_UNSUPPORTED_FEATURE || status == SXML_STATUS_LIMIT_EXCEEDED) {
-        /* Not CLDR data: the language is not honoured. */
-        return SXML_STATUS_OK;
-    }
-    reading->is_read = status == SXML_STATUS_OK;
-    return status;
-}
-
-static const sxml_feature_data_reader_operations ldml_reader_operations = {
-    .read = read_ldml_data,
-};
+/* ------------------------------------------------- Reading collations */
 
 /* What one locale file gave. */
 typedef struct locale_rules {
@@ -538,50 +186,94 @@ typedef struct locale_rules {
     bool has_default_type;
 } locale_rules;
 
-/* The file of a locale to read, and the type wanted. */
-typedef struct locale_request {
+/* A locale file read (src/cldr_internal.h) and the processor it was read
+   for. */
+typedef struct locale_file {
     sxml_processor *processor;
-    const locale_name *name;
-    sxml_byte_view collation_type;
-} locale_request;
+    sxml_cldr_file file;
+} locale_file;
 
-static sxml_status read_locale_rules(const locale_request *request, locale_rules *rules) {
-    sxml_processor *processor = request->processor;
-    memset(rules, 0, sizeof(*rules));
-    static const char prefix[] = "urn:sxml:collation-data:collation/";
-    uint8_t uri[sizeof(prefix) + SXML_TAILORING_MAXIMUM_LOCALE_BYTE_COUNT + 4];
-    const size_t prefix_byte_count = sizeof(prefix) - 1;
-    memcpy(uri, prefix, prefix_byte_count);
-    memcpy(uri + prefix_byte_count, request->name->bytes, request->name->byte_count);
-    static const uint8_t extension[] = {'.', 'x', 'm', 'l'};
-    memcpy(uri + prefix_byte_count + request->name->byte_count, extension, sizeof(extension));
-    ldml_reader reader;
-    memset(&reader, 0, sizeof(reader));
-    reader.name_pool = processor->name_pool;
-    reader.collation_type = request->collation_type;
-    reader.rules = (growable_array){.allocator = processor->allocator,
-                                    .item_size = 1,
-                                    .item_alignment = 1};
-    ldml_reading reading = {.processor = processor, .reader = &reader, .is_read = false};
-    sxml_feature_data_outcome outcome = {.is_available = false};
-    const sxml_status status = sxml_optional_feature_read_data(
-        &(sxml_feature_data_request){
-            .processor = processor,
-            .resource_kind = SXML_RESOURCE_KIND_COLLATION_DATA,
-            .uri = {.bytes = uri, .byte_count = prefix_byte_count + request->name->byte_count + 4},
-            .reader = {.state = &reading, .operations = &ldml_reader_operations}},
-        &outcome);
-    if (status != SXML_STATUS_OK || !reading.is_read) {
-        release_array(&reader.rules);
-        return status;
+/* Reads collation/<name>.xml, keeping ldml/collations only. */
+static sxml_status read_locale_file(const sxml_cldr_locale_name *name, locale_file *read) {
+    read->file = (sxml_cldr_file){.allocator = read->processor->allocator};
+    sxml_cldr_uri uri;
+    if (!sxml_cldr_make_uri(
+            &(sxml_cldr_uri_parts){
+                .uri_prefix = SXML_BYTE_VIEW_FROM_LITERAL("urn:sxml:collation-data:"),
+                .directory = SXML_BYTE_VIEW_FROM_LITERAL("collation/"),
+                .file_name = {.bytes = name->bytes, .byte_count = name->byte_count}},
+            &uri)) {
+        return SXML_STATUS_OK;
     }
-    rules->is_served = true;
-    rules->has_rules = reader.has_rules;
-    rules->rules = reader.rules;
-    rules->has_default_type = reader.has_default_type && reader.default_type_byte_count > 0;
-    memcpy(rules->default_type, reader.default_type, reader.default_type_byte_count);
-    rules->default_type_byte_count = reader.default_type_byte_count;
-    return SXML_STATUS_OK;
+    static const sxml_byte_view kept_paths[] = {SXML_BYTE_VIEW_INITIALIZER("collations")};
+    return sxml_cldr_file_read(
+        &(sxml_cldr_file_request){
+            .processor = read->processor,
+            .resource_kind = SXML_RESOURCE_KIND_COLLATION_DATA,
+            .uri = {.bytes = uri.bytes, .byte_count = uri.byte_count},
+            .kept_paths = {.prefixes = kept_paths, .prefix_count = 1}},
+        &read->file);
+}
+
+/* The default collation type of a file (ldml/collations/defaultCollation,
+   without whitespace). */
+static void read_default_type(const sxml_cldr_file *file, locale_rules *rules) {
+    const sxml_cldr_entry *entry =
+        sxml_cldr_file_find(file, SXML_BYTE_VIEW_FROM_LITERAL("collations/defaultCollation"));
+    rules->has_default_type = entry != NULL;
+    rules->default_type_byte_count = 0;
+    for (size_t byte_index = 0; entry != NULL && byte_index < entry->value.byte_count;
+         byte_index += 1) {
+        const uint8_t byte = entry->value.bytes[byte_index];
+        if (byte == ' ' || byte == '\t' || byte == '\n' || byte == '\r') {
+            continue;
+        }
+        if (rules->default_type_byte_count == sizeof(rules->default_type)) {
+            rules->has_default_type = false;
+            break;
+        }
+        rules->default_type[rules->default_type_byte_count] = byte;
+        rules->default_type_byte_count += 1;
+    }
+    if (rules->default_type_byte_count == 0) {
+        rules->has_default_type = false;
+    }
+}
+
+/* The rules of a collation type of a file (ldml/collations/collation
+   [@type]/cr; a collation with an alt attribute has another path), copied
+   into rules->rules. */
+typedef struct rules_query {
+    const sxml_cldr_file *file;
+    sxml_byte_view collation_type;
+} rules_query;
+
+static sxml_status read_type_rules(rules_query query, locale_rules *rules) {
+    uint8_t path_bytes[SXML_TAILORING_MAXIMUM_TYPE_BYTE_COUNT + 48];
+    static const char head[] = "collations/collation[@type='";
+    static const char tail[] = "']/cr";
+    const size_t head_byte_count = sizeof(head) - 1;
+    const size_t tail_byte_count = sizeof(tail) - 1;
+    rules->has_rules = false;
+    if (query.collation_type.byte_count > SXML_TAILORING_MAXIMUM_TYPE_BYTE_COUNT) {
+        return SXML_STATUS_OK;
+    }
+    memcpy(path_bytes, head, head_byte_count);
+    memcpy(path_bytes + head_byte_count, query.collation_type.bytes,
+           query.collation_type.byte_count);
+    memcpy(path_bytes + head_byte_count + query.collation_type.byte_count, tail, tail_byte_count);
+    const sxml_cldr_entry *entry = sxml_cldr_file_find(
+        query.file,
+        (sxml_byte_view){.bytes = path_bytes,
+                         .byte_count = head_byte_count + query.collation_type.byte_count +
+                                       tail_byte_count});
+    if (entry == NULL) {
+        return SXML_STATUS_OK;
+    }
+    rules->rules.item_count = 0;
+    const sxml_status status = append_bytes(&rules->rules, entry->value);
+    rules->has_rules = status == SXML_STATUS_OK;
+    return status;
 }
 
 /* The rules of a language tag's collation (the module comment). */
@@ -603,9 +295,11 @@ static sxml_status find_tag_rules(const tag_request *request, tag_rules *found) 
     found->rules = (growable_array){.allocator = processor->allocator,
                                     .item_size = 1,
                                     .item_alignment = 1};
-    language_tag tag;
-    read_language_tag(request->tag_text, &tag);
-    if (!tag.is_valid) {
+    sxml_cldr_language_tag tag;
+    sxml_cldr_read_language_tag(request->tag_text, &tag);
+    sxml_cldr_locale_chain chain;
+    /* Keywords and extensions other than "-u-co-" are not honoured. */
+    if (!tag.is_valid || tag.has_other_extension || !sxml_cldr_make_locale_chain(&tag, &chain)) {
         return SXML_STATUS_OK;
     }
     const bool is_explicit_type = tag.collation_type.byte_count > 0;
@@ -614,56 +308,48 @@ static sxml_status find_tag_rules(const tag_request *request, tag_rules *found) 
                                                      : sxml_byte_view_from_c_string("standard");
     bool has_chosen_type = is_explicit_type;
     bool is_language_served = false;
-    const bool is_root_tag = tag.subtag_count == 1 && (view_is(tag.subtags[0], "und") ||
-                                                       view_is(tag.subtags[0], "root"));
+    const bool is_root_tag = chain.name_count == 1;
+    locale_rules rules;
+    memset(&rules, 0, sizeof(rules));
+    rules.rules = found->rules;
     /* de_AT, de, then root. */
-    for (size_t level = tag.subtag_count + 1; level > 0; level -= 1) {
-        locale_name name;
-        language_tag root_tag = {.subtag_count = 1, .is_valid = true};
-        root_tag.subtags[0] = sxml_byte_view_from_c_string("root");
-        const bool is_root_level = level == 1;
-        if (is_root_level && is_root_tag) {
-            continue;
-        }
-        if (!make_locale_name(is_root_level ? &root_tag : &tag,
-                              is_root_level ? 1 : level - 1, &name)) {
-            return SXML_STATUS_OK;
-        }
-        locale_rules rules;
-        const sxml_status status = read_locale_rules(
-            &(locale_request){.processor = processor, .name = &name, .collation_type = collation_type},
-            &rules);
-        if (status != SXML_STATUS_OK) {
-            return status;
-        }
-        if (!rules.is_served) {
+    sxml_status status = SXML_STATUS_OK;
+    for (size_t name_index = 0; status == SXML_STATUS_OK && name_index < chain.name_count;
+         name_index += 1) {
+        const bool is_root_level = sxml_cldr_locale_is_root(&chain.names[name_index]);
+        locale_file read = {.processor = processor};
+        status = read_locale_file(&chain.names[name_index], &read);
+        if (status != SXML_STATUS_OK || !read.file.is_served) {
+            sxml_cldr_file_release(&read.file);
             continue;
         }
         if (!is_root_level || is_root_tag) {
             is_language_served = true;
         }
-        if (!has_chosen_type && rules.has_default_type) {
-            /* The first file with a defaultCollation decides it; read the
-               file again for that type when it differs. */
-            has_chosen_type = true;
-            memcpy(type_bytes, rules.default_type, rules.default_type_byte_count);
-            const sxml_byte_view default_type = {.bytes = type_bytes,
-                                                 .byte_count = rules.default_type_byte_count};
-            if (!sxml_byte_view_equals(default_type, collation_type)) {
-                collation_type = default_type;
-                release_array(&rules.rules);
-                level += 1;
-                continue;
+        if (!has_chosen_type) {
+            /* The first file served decides the type: its
+               defaultCollation, else "standard". */
+            read_default_type(&read.file, &rules);
+            if (rules.has_default_type) {
+                memcpy(type_bytes, rules.default_type, rules.default_type_byte_count);
+                collation_type = (sxml_byte_view){.bytes = type_bytes,
+                                                  .byte_count = rules.default_type_byte_count};
             }
+            has_chosen_type = true;
         }
-        has_chosen_type = true;
-        if (rules.has_rules) {
+        status = read_type_rules((rules_query){.file = &read.file, .collation_type = collation_type},
+                                 &rules);
+        sxml_cldr_file_release(&read.file);
+        if (status == SXML_STATUS_OK && rules.has_rules) {
             /* root's types count only for a language CLDR has. */
             found->rules = rules.rules;
             found->is_honoured = is_language_served;
             return SXML_STATUS_OK;
         }
-        release_array(&rules.rules);
+    }
+    found->rules = rules.rules;
+    if (status != SXML_STATUS_OK) {
+        return status;
     }
     /* No file has the type: the root order for the standard type of a
        language CLDR has. */

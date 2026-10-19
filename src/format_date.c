@@ -21,7 +21,10 @@
  */
 #include "format_date_internal.h"
 
+#include "calendar_internal.h"
 #include "cast_internal.h"
+#include "function_library_core_internal.h"
+#include "language_table_internal.h"
 #include "regex_internal.h"
 #include "xml_internal.h"
 
@@ -36,32 +39,14 @@ typedef struct civil_date {
     int64_t day;
 } civil_date;
 
-/* Days since 1970-01-01 (H. Hinnant's days_from_civil). */
 static int64_t days_from_civil(civil_date date) {
-    const int64_t year = date.month <= 2 ? date.year - 1 : date.year;
-    const int64_t era = (year >= 0 ? year : year - 399) / 400;
-    const int64_t year_of_era = year - era * 400;
-    const int64_t shifted_month = date.month > 2 ? date.month - 3 : date.month + 9;
-    const int64_t day_of_era_year = (153 * shifted_month + 2) / 5 + date.day - 1;
-    const int64_t day_of_era =
-        year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_era_year;
-    return era * 146097 + day_of_era - 719468;
+    return sxml_calendar_gregorian_days(
+        (sxml_calendar_date){.year = date.year, .month = date.month, .day = date.day});
 }
 
-/* The date of a day number (H. Hinnant's civil_from_days). */
 static civil_date civil_from_days(int64_t day_number) {
-    const int64_t shifted = day_number + 719468;
-    const int64_t era = (shifted >= 0 ? shifted : shifted - 146096) / 146097;
-    const int64_t day_of_era = shifted - era * 146097;
-    const int64_t year_of_era =
-        (day_of_era - day_of_era / 1460 + day_of_era / 36524 - day_of_era / 146096) / 365;
-    const int64_t day_of_year =
-        day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
-    const int64_t shifted_month = (5 * day_of_year + 2) / 153;
-    const int64_t day = day_of_year - (153 * shifted_month + 2) / 5 + 1;
-    const int64_t month = shifted_month < 10 ? shifted_month + 3 : shifted_month - 9;
-    return (civil_date){
-        .year = year_of_era + era * 400 + (month <= 2 ? 1 : 0), .month = month, .day = day};
+    const sxml_calendar_date date = sxml_calendar_gregorian_date(day_number);
+    return (civil_date){.year = date.year, .month = date.month, .day = date.day};
 }
 
 /* A year from 2000 to 2399 with the same calendar as year. */
@@ -71,8 +56,7 @@ static int64_t cycle_year(int64_t year) {
 
 /* 1 (Monday) to 7 (Sunday), as ISO 8601 numbers days (section 9.9.4.8). */
 static int64_t iso_weekday(int64_t day_number) {
-    /* 1970-01-01 was a Thursday. */
-    return ((day_number % 7) + 7 + 3) % 7 + 1;
+    return sxml_calendar_iso_weekday(day_number);
 }
 
 static int64_t day_of_year(civil_date date) {
@@ -109,9 +93,13 @@ static int64_t week_of_month(civil_date date) {
 /* The components a picture can name, computed once. */
 typedef struct date_components {
     /* The year as written: in AD 1 - year for year 0 and before (1 BC),
-       in ISO its absolute value. */
+       in ISO its absolute value, in the other calendars the year of the
+       era. */
     uint64_t year;
     bool is_before_era;
+    /* The era's name (the localization feature's names), or NULL for
+       sxml's English. */
+    const sxml_date_name *era_name;
     int64_t month;
     int64_t day;
     int64_t day_of_year;
@@ -151,6 +139,99 @@ static sxml_date_time adjust_to_place(sxml_date_time value, const sxml_date_plac
     return value;
 }
 
+/* The magnitude of a year as written in an era. */
+static uint64_t year_magnitude(int64_t year) {
+    return year < 0 ? (uint64_t)(-(year + 1)) + 1U : (uint64_t)year;
+}
+
+/* The date of a day number in a calendar converted to (src/calendar.c). */
+static sxml_calendar_date calendar_date_of(sxml_calendar_kind calendar_kind, int64_t day_number) {
+    switch (calendar_kind) {
+    case SXML_CALENDAR_KIND_OS:
+        return sxml_calendar_julian_date(day_number);
+    case SXML_CALENDAR_KIND_AH:
+        return sxml_calendar_islamic_date(day_number);
+    case SXML_CALENDAR_KIND_AD:
+    case SXML_CALENDAR_KIND_ISO:
+    case SXML_CALENDAR_KIND_BE:
+    case SXML_CALENDAR_KIND_JE:
+        break;
+    }
+    return sxml_calendar_gregorian_date(day_number);
+}
+
+/* -1, 0 or 1 as the date is before, on or after the era's date. */
+static int compare_to_era(const sxml_calendar_era *era, sxml_calendar_date date) {
+    if (date.year != era->year) {
+        return date.year > era->year ? 1 : -1;
+    }
+    if (date.month != era->month) {
+        return date.month > era->month ? 1 : -1;
+    }
+    return date.day == era->day ? 0 : (date.day > era->day ? 1 : -1);
+}
+
+/* The era of a date among dated eras (BE, JE: the last that started on
+   or before it, else a backward era that ends on or after it) and the
+   year in it. */
+static void find_dated_era(const sxml_calendar_names *names, sxml_calendar_date date,
+                           date_components *components) {
+    const sxml_calendar_era *found = NULL;
+    for (size_t era_index = 0; era_index < names->era_count; era_index += 1) {
+        const sxml_calendar_era *era = &names->eras[era_index];
+        if (!era->counts_backwards && compare_to_era(era, date) >= 0) {
+            found = era;
+        }
+    }
+    for (size_t era_index = 0; found == NULL && era_index < names->era_count; era_index += 1) {
+        const sxml_calendar_era *era = &names->eras[era_index];
+        if (era->counts_backwards && compare_to_era(era, date) <= 0) {
+            found = era;
+        }
+    }
+    if (found == NULL) {
+        components->year = year_magnitude(date.year);
+        components->is_before_era = date.year <= 0;
+        return;
+    }
+    components->era_name = &found->name;
+    components->is_before_era = found->counts_backwards;
+    components->year = found->counts_backwards ? (uint64_t)(found->year - date.year) + 1U
+                                               : (uint64_t)(date.year - found->year) + 1U;
+}
+
+/* The components of a date in BE, JE, OS or AH (section 9.9.4.8): the
+   day number converted, weeks by their Thursdays as ISO 8601 numbers
+   them, applied to the calendar's months and years. */
+static void compute_converted(const sxml_date_formatting *formatting, sxml_date_time value,
+                              date_components *components) {
+    const sxml_calendar_kind kind = formatting->calendar.calendar_kind;
+    const sxml_calendar_names *names = formatting->names;
+    const int64_t day_number =
+        days_from_civil((civil_date){.year = value.year, .month = value.month, .day = value.day});
+    const sxml_calendar_date date = calendar_date_of(kind, day_number);
+    components->weekday = iso_weekday(day_number);
+    const sxml_calendar_date thursday =
+        calendar_date_of(kind, day_number + 4 - components->weekday);
+    components->month = date.month;
+    components->day = date.day;
+    components->day_of_year = date.day_of_year;
+    components->week_of_year = (thursday.day_of_year - 1) / 7 + 1;
+    components->week_of_month = (thursday.day - 1) / 7 + 1;
+    if (kind == SXML_CALENDAR_KIND_BE || kind == SXML_CALENDAR_KIND_JE) {
+        find_dated_era(names, date, components);
+        return;
+    }
+    /* OS: BC and AD; AH: AH from 1 AH on. */
+    components->is_before_era = date.year <= 0;
+    components->year = date.year <= 0 ? year_magnitude(date.year) + 1U : (uint64_t)date.year;
+    const size_t era_index =
+        kind == SXML_CALENDAR_KIND_OS ? (components->is_before_era ? 0U : 1U) : 0U;
+    if (era_index < names->era_count) {
+        components->era_name = &names->eras[era_index].name;
+    }
+}
+
 static date_components compute_components(const sxml_date_formatting *formatting) {
     const sxml_date_time value = adjust_to_place(formatting->value, &formatting->place);
     date_components components = {.hour = value.hour,
@@ -162,16 +243,24 @@ static date_components compute_components(const sxml_date_formatting *formatting
     if (formatting->value_kind == SXML_DATE_VALUE_KIND_TIME) {
         return components;
     }
+    const sxml_calendar_kind kind = formatting->calendar.calendar_kind;
+    if (kind != SXML_CALENDAR_KIND_AD && kind != SXML_CALENDAR_KIND_ISO) {
+        compute_converted(formatting, value, &components);
+        return components;
+    }
     /* |year| without overflow for INT64_MIN. */
-    const uint64_t magnitude =
-        value.year < 0 ? (uint64_t)(-(value.year + 1)) + 1U : (uint64_t)value.year;
-    if (formatting->calendar.calendar_kind == SXML_CALENDAR_KIND_ISO) {
+    const uint64_t magnitude = year_magnitude(value.year);
+    if (kind == SXML_CALENDAR_KIND_ISO) {
         components.year = magnitude;
         components.is_before_era = value.year < 0;
     } else {
         /* "the year before 1 CE is thus 1 BCE" (section 9.9.4.8). */
         components.year = value.year <= 0 ? magnitude + 1U : magnitude;
         components.is_before_era = value.year <= 0;
+        const size_t era_index = components.is_before_era ? 0U : 1U;
+        if (formatting->names != NULL && era_index < formatting->names->era_count) {
+            components.era_name = &formatting->names->eras[era_index].name;
+        }
     }
     const civil_date date = {
         .year = cycle_year(value.year), .month = value.month, .day = value.day};
@@ -241,10 +330,23 @@ sxml_status sxml_calendar_choose(sxml_byte_view calendar_name, sxml_calendar_cho
                                          .needs_fallback_marker = false};
         return SXML_STATUS_OK;
     }
-    if (sxml_byte_view_equals(local_name, SXML_BYTE_VIEW_FROM_LITERAL("ISO"))) {
-        *choice = (sxml_calendar_choice){.calendar_kind = SXML_CALENDAR_KIND_ISO,
-                                         .needs_fallback_marker = false};
-        return SXML_STATUS_OK;
+    /* The calendars sxml formats in (src/calendar_internal.h). */
+    static const struct {
+        const char *designator;
+        sxml_calendar_kind calendar_kind;
+    } calendars[] = {
+        {"ISO", SXML_CALENDAR_KIND_ISO}, {"BE", SXML_CALENDAR_KIND_BE},
+        {"JE", SXML_CALENDAR_KIND_JE},   {"OS", SXML_CALENDAR_KIND_OS},
+        {"AH", SXML_CALENDAR_KIND_AH},
+    };
+    for (size_t calendar_index = 0; calendar_index < sizeof(calendars) / sizeof(calendars[0]);
+         calendar_index += 1) {
+        if (sxml_byte_view_equals(local_name, sxml_byte_view_from_c_string(
+                                                  calendars[calendar_index].designator))) {
+            *choice = (sxml_calendar_choice){.calendar_kind = calendars[calendar_index].calendar_kind,
+                                             .needs_fallback_marker = false};
+            return SXML_STATUS_OK;
+        }
     }
     for (size_t designator_index = 0;
          designator_index < sizeof(calendar_designators) / sizeof(calendar_designators[0]);
@@ -269,7 +371,7 @@ static uint8_t to_upper_ascii(uint8_t byte) {
 bool sxml_date_language_is_english(sxml_byte_view language) {
     return language.byte_count >= 2 && to_lower_ascii(language.bytes[0]) == 'e' &&
            to_lower_ascii(language.bytes[1]) == 'n' &&
-           (language.byte_count == 2 || language.bytes[2] == '-');
+           (language.byte_count == 2 || language.bytes[2] == '-' || language.bytes[2] == '_');
 }
 
 /* ----------------------------------------------------- Variable markers */
@@ -300,6 +402,9 @@ typedef struct variable_marker {
     /* 0, or one of 'a', 't', 'c', 'o'. */
     uint8_t second_modifier;
     width_modifier width;
+    /* The marker gives its first presentation modifier (it is not the
+       default). */
+    bool has_first_modifier;
 } variable_marker;
 
 /* The default presentation modifier of each component (the table of
@@ -505,7 +610,8 @@ static sxml_status parse_marker(date_writer *writer, marker_source source,
         .first_modifier = modifiers.byte_count == 0 ? default_modifier(compact.bytes[0]) : modifiers,
         .style = SXML_NAME_STYLE_NONE,
         .second_modifier = second_modifier,
-        .width = width};
+        .width = width,
+        .has_first_modifier = modifiers.byte_count > 0};
     if (sxml_byte_view_equals(marker->first_modifier, SXML_BYTE_VIEW_FROM_LITERAL("N"))) {
         marker->style = SXML_NAME_STYLE_UPPER;
     } else if (sxml_byte_view_equals(marker->first_modifier, SXML_BYTE_VIEW_FROM_LITERAL("n"))) {
@@ -725,10 +831,12 @@ static sxml_status append_integer_component(date_writer *writer, integer_compone
                 .picture = &widened,
                 .magnitude_digits = {.bytes = digits + sizeof(digits) - digit_count,
                                      .byte_count = digit_count},
-                .is_negative = false},
+                .is_negative = false,
+                .number_words = writer->formatting->number_words},
             writer->text);
     }
-    if (status == SXML_STATUS_OK && widened.numbering_kind == SXML_NUMBERING_KIND_TITLE_WORDS) {
+    if (status == SXML_STATUS_OK && widened.numbering_kind == SXML_NUMBERING_KIND_TITLE_WORDS &&
+        writer->formatting->number_words.operations == NULL) {
         /* Date components in title case capitalize after a hyphen too
            ("Twenty-One", as the QT4 cases of section 9.9.5 expect), where
            fn:format-integer writes "Twenty-one" (D119). */
@@ -791,66 +899,209 @@ static const component_name morning_name = SXML_PLAIN_NAME("am");
 static const component_name afternoon_name = SXML_PLAIN_NAME("pm");
 static const component_name anno_domini_name = SXML_ACRONYM("AD");
 static const component_name before_christ_name = SXML_ACRONYM("BC");
-static const component_name iso_calendar_name = SXML_ACRONYM("ISO");
+
+/* The designators of the calendars sxml formats in, by kind (section
+   9.9.4.8), the names of [C]. */
+static const component_name calendar_names[] = {
+    SXML_ACRONYM("AD"), SXML_ACRONYM("ISO"), SXML_ACRONYM("BE"),
+    SXML_ACRONYM("JE"), SXML_ACRONYM("OS"),  SXML_ACRONYM("AH"),
+};
+
+/* A name to write: the full name and its abbreviations, longest first
+   or in any order (the longest that fits is chosen). */
+#define SXML_NAME_MAXIMUM_ABBREVIATION_COUNT 3U
+
+typedef struct name_choice {
+    sxml_byte_view full_name;
+    sxml_byte_view abbreviations[SXML_NAME_MAXIMUM_ABBREVIATION_COUNT];
+    size_t abbreviation_count;
+    bool is_acronym;
+    /* A language's name: without a first presentation modifier it is
+       written in its own case ("n. Chr.", "BE"). */
+    bool has_own_case;
+} name_choice;
+
+static name_choice english_choice(const component_name *name) {
+    name_choice choice = {.full_name = sxml_byte_view_from_c_string(name->full_name),
+                          .abbreviation_count = name->abbreviation_count,
+                          .is_acronym = name->is_acronym};
+    for (size_t abbreviation_index = 0; abbreviation_index < name->abbreviation_count;
+         abbreviation_index += 1) {
+        choice.abbreviations[abbreviation_index] =
+            sxml_byte_view_from_c_string(name->abbreviations[abbreviation_index]);
+    }
+    return choice;
+}
+
+/* A name of the localization feature (CLDR's): its abbreviations, and its
+   own case. An empty name falls back to its first abbreviation. */
+static name_choice language_choice(const sxml_date_name *name) {
+    name_choice choice = {.full_name = name->name,
+                          .abbreviation_count = 0,
+                          .is_acronym = false,
+                          .has_own_case = true};
+    for (size_t abbreviation_index = 0; abbreviation_index < 2; abbreviation_index += 1) {
+        if (name->abbreviations[abbreviation_index].byte_count > 0) {
+            choice.abbreviations[choice.abbreviation_count] = name->abbreviations[abbreviation_index];
+            choice.abbreviation_count += 1;
+        }
+    }
+    if (choice.full_name.byte_count == 0 && choice.abbreviation_count > 0) {
+        choice.full_name = choice.abbreviations[0];
+    }
+    return choice;
+}
+
+/* The number of codepoints of UTF-8 text. */
+static size_t count_codepoints(sxml_byte_view text) {
+    size_t codepoint_count = 0;
+    for (size_t byte_index = 0; byte_index < text.byte_count; byte_index += 1) {
+        if ((text.bytes[byte_index] & 0xC0U) != 0x80U) {
+            codepoint_count += 1;
+        }
+    }
+    return codepoint_count;
+}
+
+/* The first codepoint_count codepoints of text. */
+typedef struct codepoint_prefix {
+    sxml_byte_view text;
+    size_t codepoint_count;
+} codepoint_prefix;
+
+static sxml_byte_view cut_codepoints(codepoint_prefix prefix) {
+    size_t byte_index = 0;
+    size_t codepoint_count = 0;
+    while (byte_index < prefix.text.byte_count) {
+        if ((prefix.text.bytes[byte_index] & 0xC0U) != 0x80U) {
+            if (codepoint_count == prefix.codepoint_count) {
+                break;
+            }
+            codepoint_count += 1;
+        }
+        byte_index += 1;
+    }
+    return (sxml_byte_view){.bytes = prefix.text.bytes, .byte_count = byte_index};
+}
+
+/* Appends codepoint mapped to upper or lower case (Unicode's full
+   mappings: "ß" in upper case is "SS"). */
+typedef struct cased_codepoint {
+    uint32_t codepoint;
+    sxml_case_mapping_kind mapping_kind;
+} cased_codepoint;
+
+static sxml_status append_cased(sxml_format_text *text, cased_codepoint cased) {
+    sxml_case_mapping mapping;
+    sxml_function_library_map_case(
+        (sxml_case_mapping_request){.codepoint = cased.codepoint, .mapping_kind = cased.mapping_kind},
+        &mapping);
+    sxml_status status = SXML_STATUS_OK;
+    for (size_t mapped_index = 0; status == SXML_STATUS_OK && mapped_index < mapping.codepoint_count;
+         mapped_index += 1) {
+        status = sxml_format_text_append_codepoint(text, mapping.codepoints[mapped_index]);
+    }
+    return status;
+}
 
 /* A name to write for a marker. */
 typedef struct name_request {
     const variable_marker *marker;
-    const component_name *name;
+    name_choice choice;
 } name_request;
 
 /*
  * Appends the name in the marker's case, abbreviated to the maximum width
- * (a conventional abbreviation that fits, or the name cut at the end) and
- * padded with spaces to the minimum (section 9.9.4.3). A marker without a
- * name style gives the title case.
+ * (the longest abbreviation that fits, or the name cut at the end; widths
+ * count codepoints) and padded with spaces to the minimum (section
+ * 9.9.4.3). A marker without a name style gives the title case.
  */
 static sxml_status append_name(date_writer *writer, name_request request) {
     const width_modifier *width = &request.marker->width;
-    sxml_byte_view chosen = sxml_byte_view_from_c_string(request.name->full_name);
-    if (width->has_maximum && chosen.byte_count > width->maximum) {
+    const name_choice *choice = &request.choice;
+    sxml_byte_view chosen = choice->full_name;
+    if (width->has_maximum && count_codepoints(chosen) > width->maximum) {
         bool has_abbreviation = false;
-        for (size_t abbreviation_index = 0;
-             !has_abbreviation && abbreviation_index < request.name->abbreviation_count;
+        size_t chosen_length = 0;
+        for (size_t abbreviation_index = 0; abbreviation_index < choice->abbreviation_count;
              abbreviation_index += 1) {
-            const sxml_byte_view abbreviation =
-                sxml_byte_view_from_c_string(request.name->abbreviations[abbreviation_index]);
-            if (abbreviation.byte_count <= width->maximum) {
+            const sxml_byte_view abbreviation = choice->abbreviations[abbreviation_index];
+            const size_t length = count_codepoints(abbreviation);
+            if (length <= width->maximum && (!has_abbreviation || length > chosen_length)) {
                 chosen = abbreviation;
+                chosen_length = length;
                 has_abbreviation = true;
             }
         }
         if (!has_abbreviation) {
-            chosen.byte_count = width->maximum;
+            chosen = cut_codepoints(
+                (codepoint_prefix){.text = choice->full_name, .codepoint_count = width->maximum});
         }
     }
     const size_t start_offset = writer->text->byte_count;
+    const name_style style = choice->is_acronym ? SXML_NAME_STYLE_UPPER : request.marker->style;
     sxml_status status = SXML_STATUS_OK;
-    for (size_t byte_index = 0; status == SXML_STATUS_OK && byte_index < chosen.byte_count;
-         byte_index += 1) {
-        uint8_t byte = chosen.bytes[byte_index];
-        const name_style style =
-            request.name->is_acronym ? SXML_NAME_STYLE_UPPER : request.marker->style;
+    size_t byte_offset = 0;
+    bool is_first = true;
+    while (status == SXML_STATUS_OK && byte_offset < chosen.byte_count) {
+        const sxml_xml_decoded_codepoint decoded = sxml_xml_decode_codepoint(chosen, byte_offset);
+        byte_offset += decoded.encoded_byte_count;
+        if (choice->has_own_case && !request.marker->has_first_modifier) {
+            status = sxml_format_text_append_codepoint(writer->text, decoded.codepoint);
+            continue;
+        }
+        sxml_case_mapping_kind mapping_kind = SXML_CASE_MAPPING_KIND_LOWER;
         switch (style) {
         case SXML_NAME_STYLE_UPPER:
-            byte = to_upper_ascii(byte);
+            mapping_kind = SXML_CASE_MAPPING_KIND_UPPER;
             break;
         case SXML_NAME_STYLE_LOWER:
-            byte = to_lower_ascii(byte);
             break;
         case SXML_NAME_STYLE_TITLE:
         case SXML_NAME_STYLE_NONE:
-            byte = byte_index == 0 ? to_upper_ascii(byte) : to_lower_ascii(byte);
+            /* A language's name keeps the case of its other letters
+               ("Dhuʻl-Hijjah"). */
+            if (!is_first && choice->has_own_case) {
+                status = sxml_format_text_append_codepoint(writer->text, decoded.codepoint);
+                continue;
+            }
+            mapping_kind = is_first ? SXML_CASE_MAPPING_KIND_UPPER : SXML_CASE_MAPPING_KIND_LOWER;
             break;
         }
-        status = sxml_format_text_append(writer->text,
-                                         (sxml_byte_view){.bytes = &byte, .byte_count = 1});
+        status = append_cased(writer->text, (cased_codepoint){.codepoint = decoded.codepoint,
+                                                              .mapping_kind = mapping_kind});
+        is_first = false;
     }
     if (status == SXML_STATUS_OK) {
         status = pad_with_spaces(writer->text,
                                  (space_padding){.byte_offset = start_offset, .width = width});
     }
     return status;
+}
+
+/* The name of the month, the weekday, the day period or the era: the
+   language's, else English. */
+static name_choice month_choice(const date_writer *writer) {
+    const sxml_calendar_names *names = writer->formatting->names;
+    const int64_t month = writer->components.month;
+    return names != NULL ? language_choice(&names->months[month - 1])
+                         : english_choice(&month_names[month - 1]);
+}
+
+static name_choice weekday_choice(const date_writer *writer) {
+    const sxml_calendar_names *names = writer->formatting->names;
+    const int64_t weekday = writer->components.weekday;
+    return names != NULL ? language_choice(&names->days[weekday - 1])
+                         : english_choice(&weekday_names[weekday - 1]);
+}
+
+static name_choice day_period_choice(const date_writer *writer) {
+    const sxml_calendar_names *names = writer->formatting->names;
+    const bool is_morning = writer->components.hour < 12;
+    if (names != NULL && names->day_periods[is_morning ? 0 : 1].name.byte_count > 0) {
+        return language_choice(&names->day_periods[is_morning ? 0 : 1]);
+    }
+    return english_choice(is_morning ? &morning_name : &afternoon_name);
 }
 
 /* ---------------------------------------------------- Fractional seconds */
@@ -1108,19 +1359,25 @@ static sxml_status append_integer(date_writer *writer, const variable_marker *ma
         writer, (integer_component){.marker = marker, .value = (uint64_t)value, .is_year = false});
 }
 
-/* Appends the era (sections 9.9.4.7 and 9.9.4.8): AD or BC, and in the
-   ISO calendar "-" for negative years and nothing otherwise. */
+/* Appends the era (sections 9.9.4.7 and 9.9.4.8): in the ISO calendar
+   "-" for negative years and nothing otherwise; the language's era name;
+   else AD or BC. */
 static sxml_status append_era(date_writer *writer, const variable_marker *marker) {
     if (writer->formatting->calendar.calendar_kind == SXML_CALENDAR_KIND_ISO) {
         return writer->components.is_before_era
                    ? sxml_format_text_append(writer->text, SXML_BYTE_VIEW_FROM_LITERAL("-"))
                    : SXML_STATUS_OK;
     }
+    if (writer->components.era_name != NULL) {
+        return append_name(writer, (name_request){.marker = marker,
+                                                  .choice = language_choice(
+                                                      writer->components.era_name)});
+    }
     return append_name(writer,
                        (name_request){.marker = marker,
-                                      .name = writer->components.is_before_era
-                                                  ? &before_christ_name
-                                                  : &anno_domini_name});
+                                      .choice = english_choice(writer->components.is_before_era
+                                                                   ? &before_christ_name
+                                                                   : &anno_domini_name)});
 }
 
 /* Appends one variable marker's component. P, C and E are always names
@@ -1134,16 +1391,15 @@ static sxml_status append_component(date_writer *writer, const variable_marker *
             writer, (integer_component){.marker = marker, .value = components->year, .is_year = true});
     case 'M':
         return is_named ? append_name(writer, (name_request){.marker = marker,
-                                                            .name = &month_names[components->month - 1]})
+                                                            .choice = month_choice(writer)})
                         : append_integer(writer, marker, components->month);
     case 'D':
         return append_integer(writer, marker, components->day);
     case 'd':
         return append_integer(writer, marker, components->day_of_year);
     case 'F':
-        return is_named ? append_name(writer,
-                                      (name_request){.marker = marker,
-                                                     .name = &weekday_names[components->weekday - 1]})
+        return is_named ? append_name(writer, (name_request){.marker = marker,
+                                                            .choice = weekday_choice(writer)})
                         : append_integer(writer, marker, components->weekday);
     case 'W':
         return append_integer(writer, marker, components->week_of_year);
@@ -1155,9 +1411,8 @@ static sxml_status append_component(date_writer *writer, const variable_marker *
         return append_integer(writer, marker,
                               components->hour % 12 == 0 ? 12 : components->hour % 12);
     case 'P':
-        return append_name(writer, (name_request){.marker = marker,
-                                                  .name = components->hour < 12 ? &morning_name
-                                                                                : &afternoon_name});
+        return append_name(writer,
+                           (name_request){.marker = marker, .choice = day_period_choice(writer)});
     case 'm':
         return append_integer(writer, marker, components->minute);
     case 's':
@@ -1168,12 +1423,11 @@ static sxml_status append_component(date_writer *writer, const variable_marker *
     case 'z':
         return append_timezone(writer, marker);
     case 'C':
-        return append_name(writer,
-                           (name_request){.marker = marker,
-                                          .name = writer->formatting->calendar.calendar_kind ==
-                                                          SXML_CALENDAR_KIND_ISO
-                                                      ? &iso_calendar_name
-                                                      : &anno_domini_name});
+        return append_name(
+            writer,
+            (name_request){.marker = marker,
+                           .choice = english_choice(
+                               &calendar_names[writer->formatting->calendar.calendar_kind])});
     default:
         return append_era(writer, marker);
     }

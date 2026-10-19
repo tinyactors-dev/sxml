@@ -1119,7 +1119,23 @@ sxml_status sxml_format_integer(const sxml_integer_formatting *formatting,
         break;
     case SXML_NUMBERING_KIND_LOWER_WORDS:
     case SXML_NUMBERING_KIND_UPPER_WORDS:
-    case SXML_NUMBERING_KIND_TITLE_WORDS:
+    case SXML_NUMBERING_KIND_TITLE_WORDS: {
+        /* The language's words when it has them (packet 7.17), else
+           English. */
+        sxml_number_words_outcome words_outcome = {.is_written = false};
+        if (formatting->number_words.operations != NULL) {
+            status = formatting->number_words.operations->append_words(
+                formatting->number_words.state,
+                &(sxml_number_words_request){.magnitude_digits = digits,
+                                             .numbering_kind = picture->numbering_kind,
+                                             .is_ordinal = picture->is_ordinal,
+                                             .numbering_variant = picture->numbering_variant,
+                                             .text = text},
+                &words_outcome);
+        }
+        if (status != SXML_STATUS_OK || words_outcome.is_written) {
+            break;
+        }
         if (digits.byte_count <= SXML_FORMAT_LONGEST_WORDS_DIGITS) {
             word_buffer buffer = {.character_count = 0};
             add_cardinal_words(&buffer, digits);
@@ -1134,6 +1150,7 @@ sxml_status sxml_format_integer(const sxml_integer_formatting *formatting,
             is_digits = true;
         }
         break;
+    }
     case SXML_NUMBERING_KIND_DIGITS:
     case SXML_NUMBERING_KIND_UNSUPPORTED:
         is_digits = true;
@@ -1150,9 +1167,24 @@ sxml_status sxml_format_integer(const sxml_integer_formatting *formatting,
                         .grouping_separator = formatting->grouping_separator,
                         .grouping_size = formatting->grouping_size},
         text);
-    /* S5: the ordinal form, by the English suffix of the decimal value
-       (QT4 format-integer-40-017: 21 in hexadecimal is "15st"). */
-    if (status == SXML_STATUS_OK && picture->is_ordinal) {
+    /* S5: the ordinal form, by the language's suffix of the decimal value
+       or the English one (QT4 format-integer-40-017: 21 in hexadecimal is
+       "15st"). */
+    if (status != SXML_STATUS_OK || !picture->is_ordinal) {
+        return status;
+    }
+    sxml_number_words_outcome suffix_outcome = {.is_written = false};
+    if (formatting->number_words.operations != NULL) {
+        status = formatting->number_words.operations->append_words(
+            formatting->number_words.state,
+            &(sxml_number_words_request){.magnitude_digits = digits,
+                                         .numbering_kind = SXML_NUMBERING_KIND_DIGITS,
+                                         .is_ordinal = true,
+                                         .numbering_variant = picture->numbering_variant,
+                                         .text = text},
+            &suffix_outcome);
+    }
+    if (status == SXML_STATUS_OK && !suffix_outcome.is_written) {
         status = sxml_format_text_append(text, sxml_byte_view_from_c_string(ordinal_suffix(digits)));
     }
     return status;

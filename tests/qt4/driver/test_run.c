@@ -304,6 +304,29 @@ static bool sxml_qt4_asks_xpath_1_compatibility(const sxml_qt4_test_context *con
     return false;
 }
 
+/* The default language a test asks for (the dependency default-language,
+   satisfied; packet 7.17): empty when it asks for none, so the
+   processor's "en" stays. */
+static sxml_byte_view sxml_qt4_default_language(const sxml_qt4_test_context *context) {
+    const sxml_qt4_dependency_view lists[2] = {
+        context->request->test_case->test_set_dependencies,
+        context->request->test_case->dependencies};
+    for (size_t list_index = 0; list_index < 2; list_index += 1) {
+        for (size_t dependency_index = 0;
+             dependency_index < lists[list_index].dependency_count;
+             dependency_index += 1) {
+            const sxml_qt4_dependency *dependency =
+                &lists[list_index].dependencies[dependency_index];
+            if (dependency->requires_satisfaction &&
+                sxml_byte_view_equals(dependency->dependency_type,
+                                      SXML_TEXT("default-language"))) {
+                return dependency->value;
+            }
+        }
+    }
+    return sxml_qt4_empty_text;
+}
+
 /* The static context of the test, with the variables declared so far. */
 static sxml_static_context_configuration
 sxml_qt4_static_context(const sxml_qt4_test_context *context) {
@@ -343,6 +366,7 @@ sxml_qt4_dynamic_context(const sxml_qt4_test_context *context) {
     dynamic_context.available_documents = (sxml_available_document_view){
         .available_documents = context->available_documents,
         .available_document_count = context->available_document_count};
+    dynamic_context.default_language = sxml_qt4_default_language(context);
     return dynamic_context;
 }
 

@@ -31,7 +31,11 @@ typedef struct sxml_qt4_supported_dependency {
  * - xsd-version 1.1: XSD 1.1 lexical and value spaces (D66).
  * - limits big_integer: xs:integer is unbounded (D36); year_lt_0: years
  *   are int64_t with year 0 as XSD 1.1 has it (D36, D66).
- * - language and default-language en.
+ * - language en, and de, fr, it, es and nl through the localization
+ *   feature over the vendored CLDR files (packet 7.17, D221), with the
+ *   feature fn-format-integer-CLDR (CLDR's spell-out rule sets);
+ *   default-language en and fr-CA: the driver sets the dynamic context's
+ *   default language a test asks for (test_run.c).
  * - simple-uca-fallback: UCA collation URIs with fallback (D97, packet
  *   2.13); non_empty_sequence_collection: collections of any items
  *   (D104, SEQUENCE resources); arbitraryPrecisionDecimal: xs:decimal on
@@ -49,9 +53,9 @@ typedef struct sxml_qt4_supported_dependency {
  * - XQUpdate and revalidation skip (XQuery only): the XQuery Update
  *   Facility 3.0 (packet 7.7a, D187); revalidation lax and strict are
  *   not supported yet (XUST0026, 7.7c).
- * - fullText, fullText-ignore and fullText-units (XQuery only): Full
- *   Text 3.0 (packet 7.12a, D214); they stay non-goals of the D95
- *   denominators, as schemaImport does.
+ * - fullText, fullText-ignore, fullText-units and fullText-defaults
+ *   (XQuery only): Full Text 3.0 (packets 7.12a to c, D214); they stay
+ *   non-goals of the D95 denominators, as schemaImport does.
  * - binary: the EXPath Binary Module 4.0, the optional feature
  *   sxml_expath_binary_feature() that the driver's processor names
  *   (packet 7.8, D198).
@@ -79,8 +83,17 @@ static const sxml_qt4_supported_dependency sxml_qt4_supported_dependencies[] = {
     {SXML_BYTE_VIEW_INITIALIZER("limits"),
      SXML_BYTE_VIEW_INITIALIZER("year_lt_0")},
     {SXML_BYTE_VIEW_INITIALIZER("language"), SXML_BYTE_VIEW_INITIALIZER("en")},
+    {SXML_BYTE_VIEW_INITIALIZER("language"), SXML_BYTE_VIEW_INITIALIZER("de")},
+    {SXML_BYTE_VIEW_INITIALIZER("language"), SXML_BYTE_VIEW_INITIALIZER("fr")},
+    {SXML_BYTE_VIEW_INITIALIZER("language"), SXML_BYTE_VIEW_INITIALIZER("it")},
+    {SXML_BYTE_VIEW_INITIALIZER("language"), SXML_BYTE_VIEW_INITIALIZER("es")},
+    {SXML_BYTE_VIEW_INITIALIZER("language"), SXML_BYTE_VIEW_INITIALIZER("nl")},
     {SXML_BYTE_VIEW_INITIALIZER("default-language"),
      SXML_BYTE_VIEW_INITIALIZER("en")},
+    {SXML_BYTE_VIEW_INITIALIZER("default-language"),
+     SXML_BYTE_VIEW_INITIALIZER("fr-CA")},
+    {SXML_BYTE_VIEW_INITIALIZER("feature"),
+     SXML_BYTE_VIEW_INITIALIZER("fn-format-integer-CLDR")},
     {SXML_BYTE_VIEW_INITIALIZER("feature"),
      SXML_BYTE_VIEW_INITIALIZER("simple-uca-fallback")},
     {SXML_BYTE_VIEW_INITIALIZER("feature"),
@@ -168,14 +181,17 @@ static const sxml_qt4_supported_dependency sxml_qt4_xquery_dependencies[] = {
     /* XQuery and XPath Full Text 3.0, the optional feature
        sxml_full_text_feature() (packet 7.12a, D214), with the ignore
        option and element boundaries as paragraph (and so sentence)
-       boundaries; not fullText-defaults, the XQFTTS default stop word
-       list and thesaurus (packet 7.12c). */
+       boundaries; and fullText-defaults, the XQFTTS default stop word
+       list and thesaurus, which the resource table serves (packet
+       7.12c). */
     {SXML_BYTE_VIEW_INITIALIZER("feature"),
      SXML_BYTE_VIEW_INITIALIZER("fullText")},
     {SXML_BYTE_VIEW_INITIALIZER("feature"),
      SXML_BYTE_VIEW_INITIALIZER("fullText-ignore")},
     {SXML_BYTE_VIEW_INITIALIZER("feature"),
      SXML_BYTE_VIEW_INITIALIZER("fullText-units")},
+    {SXML_BYTE_VIEW_INITIALIZER("feature"),
+     SXML_BYTE_VIEW_INITIALIZER("fullText-defaults")},
 };
 
 /* For XPath only: XPath 1.0 compatibility mode (packet 7.4,
