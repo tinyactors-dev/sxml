@@ -21,7 +21,7 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 
 ## Running
 
-- 7.6d streaming: principal source (CLI), accumulators, fork/merge.
+- 7.6e streaming: accumulators, fork/merge, streamed result delivery, incremental resolver.
 - size-2: part registries split by language (core has about 7 KB gzipped room).
 
 ## Next
