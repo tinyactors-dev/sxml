@@ -223,8 +223,11 @@ static bool native_arity_is_accepted(const sxml_native_function *row,
     if (arity < required_count) {
         return false;
     }
+    /* A row that takes the caller's focus gets three more arguments. */
+    const size_t focus_count =
+        (row->properties & SXML_NATIVE_FUNCTION_TAKES_CALLER_FOCUS) != 0 ? 3U : 0U;
     return (row->properties & SXML_NATIVE_FUNCTION_IS_VARIADIC) != 0 ||
-           arity <= row->parameters.function_parameter_count;
+           arity <= row->parameters.function_parameter_count + focus_count;
 }
 
 typedef struct target_check {

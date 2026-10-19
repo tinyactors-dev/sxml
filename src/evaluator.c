@@ -1079,19 +1079,16 @@ static void sxml_machine_bind(sxml_dynamic_context *context,
     slot->slot_state = SXML_EVALUATOR_SLOT_STATE_BOUND;
 }
 
-/* Reads atom in the frame of task: borrowed (from the frame, the unit or
-   the global table), valid until that place changes. */
-static sxml_status sxml_machine_read_atom(sxml_dynamic_context *context,
-    sxml_ir_atom atom, sxml_sequence *value) {
+/* The slot a SLOT or GLOBAL_VARIABLE atom reads in the frame of the top
+   task; *slot is NULL for the other atoms. */
+static sxml_status sxml_machine_find_slot(sxml_dynamic_context *context, sxml_ir_atom atom,
+                                          const sxml_evaluator_slot **found) {
     const sxml_evaluator_task *task = sxml_machine_top(context);
     const sxml_evaluator_slot *slot = NULL;
     switch (atom.atom_kind) {
     case SXML_IR_ATOM_KIND_NONE:
-        *value = sxml_sequence_empty();
-        return SXML_STATUS_OK;
     case SXML_IR_ATOM_KIND_CONSTANT:
-        *value = sxml_ir_unit_get_constant(task->function->unit, atom.constant);
-        return SXML_STATUS_OK;
+        break;
     case SXML_IR_ATOM_KIND_SLOT:
         if (atom.slot.value == 0 || atom.slot.value > task->function->slot_count) {
             return SXML_STATUS_INVALID_ARGUMENT;
@@ -1111,6 +1108,26 @@ static sxml_status sxml_machine_read_atom(sxml_dynamic_context *context,
         slot = &table->slots[atom.global_variable.value - 1];
         break;
     }
+    }
+    *found = slot;
+    return SXML_STATUS_OK;
+}
+
+/* Reads atom in the frame of task: borrowed (from the frame, the unit or
+   the global table), valid until that place changes. */
+static sxml_status sxml_machine_read_atom(sxml_dynamic_context *context,
+    sxml_ir_atom atom, sxml_sequence *value) {
+    const sxml_evaluator_slot *slot = NULL;
+    const sxml_status status = sxml_machine_find_slot(context, atom, &slot);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (slot == NULL) {
+        *value = atom.atom_kind == SXML_IR_ATOM_KIND_CONSTANT
+                     ? sxml_ir_unit_get_constant(sxml_machine_top(context)->function->unit,
+                                                 atom.constant)
+                     : sxml_sequence_empty();
+        return SXML_STATUS_OK;
     }
     switch (slot->slot_state) {
     case SXML_EVALUATOR_SLOT_STATE_ABSENT:
@@ -4327,6 +4344,30 @@ static void sxml_machine_become_call(sxml_dynamic_context *context,
     task->details.call = *call;
 }
 
+/* The arguments of a static call of a leaf row: without the caller's focus
+   (glossary `caller_focus`) when its context value is absent at run time,
+   so the row sees no focus instead of the call raising XPDY0002. */
+static sxml_status sxml_leaf_call_arguments(sxml_dynamic_context *context,
+                                            const sxml_ir_static_call *static_call,
+                                            sxml_ir_atom_list *arguments) {
+    *arguments = static_call->arguments;
+    const sxml_native_function *row = static_call->target.native_function;
+    const size_t written_count = row->parameters.function_parameter_count;
+    if ((row->properties & SXML_NATIVE_FUNCTION_TAKES_CALLER_FOCUS) == 0 ||
+        arguments->atom_count != written_count + 3U) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_ir_atom_view atoms =
+        sxml_ir_unit_get_atoms(sxml_machine_top(context)->function->unit, *arguments);
+    const sxml_evaluator_slot *slot = NULL;
+    const sxml_status status = sxml_machine_find_slot(context, atoms.atoms[written_count], &slot);
+    if (status == SXML_STATUS_OK && slot != NULL &&
+        slot->slot_state == SXML_EVALUATOR_SLOT_STATE_ABSENT) {
+        arguments->atom_count = (uint32_t)written_count;
+    }
+    return status;
+}
+
 /* STATIC_CALL (XPath 4.0, section 4.5.1): arguments coerced by lowering. */
 static sxml_status sxml_start_static_call(sxml_dynamic_context *context,
                                           const sxml_ir_static_call *static_call) {
@@ -4338,8 +4379,12 @@ static sxml_status sxml_start_static_call(sxml_dynamic_context *context,
         const sxml_native_function *row = target.native_function;
         if (row->call != NULL) {
             /* A leaf: the arguments are borrowed from the frame. */
+            sxml_ir_atom_list arguments = {0};
             sxml_atom_values values;
-            status = sxml_atom_values_read(context, static_call->arguments, &values);
+            status = sxml_leaf_call_arguments(context, static_call, &arguments);
+            if (status == SXML_STATUS_OK) {
+                status = sxml_atom_values_read(context, arguments, &values);
+            }
             if (status != SXML_STATUS_OK) {
                 return status;
             }

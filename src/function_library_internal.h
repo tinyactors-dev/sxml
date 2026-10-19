@@ -155,6 +155,13 @@ typedef enum sxml_native_function_property {
     SXML_NATIVE_FUNCTION_READS_CONTEXT_POSITION = 1U << 4U,
     /* fn:last: lowering reads the context size slot; call is NULL. */
     SXML_NATIVE_FUNCTION_READS_CONTEXT_SIZE = 1U << 5U,
+    /* fn:function-lookup: a static call made with a focus passes the
+       caller's focus (glossary `caller_focus`) as three more arguments
+       after the written ones, the context value, position and size, so a
+       context-dependent function it returns is bound to that focus (F&O
+       4.0, 13.1; XPath 4.0, 2.2.2). The row's arities do not count them;
+       a body sees them by the argument count. */
+    SXML_NATIVE_FUNCTION_TAKES_CALLER_FOCUS = 1U << 6U,
 } sxml_native_function_property;
 
 /*

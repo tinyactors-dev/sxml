@@ -68,13 +68,14 @@ static const sxml_static_error unknown_operator_error = {
     .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XPTY0004"),
     .description = SXML_BYTE_VIEW_INITIALIZER("fn:op does not know this operator")};
 
-/* XPath 4.0, section 2.2.2: fn:function-lookup cannot capture the focus. */
+/* XPath 4.0, section 2.2.2: a fn:function-lookup made without a focus
+   (or by a dynamic call, which passes none) cannot bind one. */
 static const sxml_static_error lookup_focus_error = {
     .error_status = SXML_STATUS_DYNAMIC_ERROR,
     .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XPDY0002"),
     .description = SXML_BYTE_VIEW_INITIALIZER(
-        "A function found by fn:function-lookup needs the focus, which a "
-        "dynamic lookup does not capture")};
+        "A function found by fn:function-lookup needs the focus, which this "
+        "lookup does not have")};
 
 sxml_status sxml_higher_order_report_error(sxml_error_record *error_record,
                                            sxml_higher_order_error error) {
@@ -1530,19 +1531,23 @@ static sxml_status bind_partial_arguments(const sxml_function_call *call,
     return status;
 }
 
-/* The wrapped function's signature and the binding of its parameters. */
+/* The wrapped function, its signature and the binding of its parameters;
+   the new function's name (0 for an anonymous one, as fn:partial-apply
+   makes). */
 typedef struct partial_application_parts {
+    sxml_item function_item;
+    sxml_name_identifier function_name;
     const sxml_call_signature *signature;
     partial_binding *binding;
 } partial_application_parts;
 
 /* Makes the partially applied function from a complete binding. */
 static sxml_status make_partial_application(const sxml_function_call *call,
-                                            partial_application_parts parts,
+                                            const partial_application_parts *parts,
                                             sxml_sequence *result) {
-    const sxml_call_signature *signature = parts.signature;
-    partial_binding *binding = parts.binding;
-    const sxml_item function_item = call_argument(call, 0).content;
+    const sxml_call_signature *signature = parts->signature;
+    partial_binding *binding = parts->binding;
+    const sxml_item function_item = parts->function_item;
     /* captured: function, positions, values; at most parameter_count + 2. */
     sxml_sequence *captured = NULL;
     void *memory = NULL;
@@ -1608,7 +1613,7 @@ static sxml_status make_partial_application(const sxml_function_call *call,
         status = sxml_function_item_make(
             call->item_heap,
             &(sxml_function_item_request){
-                .function_name = {.index = 0},
+                .function_name = parts->function_name,
                 .signature = partial_signature,
                 .function_annotations = description.function_annotations,
                 .captured_values = {.sequences = captured, .sequence_count = captured_count},
@@ -1666,7 +1671,10 @@ static sxml_status call_partial_apply(const sxml_function_call *call,
     if (status == SXML_STATUS_OK) {
         status = make_partial_application(
             call,
-            (partial_application_parts){.signature = &signature, .binding = &binding},
+            &(partial_application_parts){.function_item = function_item,
+                                         .function_name = {.index = 0},
+                                         .signature = &signature,
+                                         .binding = &binding},
             result);
     }
     release_partial_binding(&binding);
@@ -2733,15 +2741,160 @@ static bool entry_needs_focus(const sxml_function_entry *entry, size_t arity) {
     return false;
 }
 
+/* The caller's focus a static call of fn:function-lookup passes after its
+   two arguments (glossary `caller_focus`): context value, position and
+   size, borrowed; has_focus is false without them. */
+typedef struct caller_focus {
+    bool has_focus;
+    sxml_sequence parts[3];
+} caller_focus;
+
 /* The function item for an entry, as a named function reference makes it
-   (XPath 4.0, 4.5.4): a native row's body or an xs: constructor body. */
+   (XPath 4.0, 4.5.4): a native row's body or an xs: constructor body; a
+   row that needs the focus is bound to the caller's focus. */
 typedef struct found_function {
     const sxml_function_query *query;
     const sxml_function_entry *entry;
+    const caller_focus *focus;
 } found_function;
+
+/* The body of fn:position#0 or fn:last#0 bound to a focus (F&O 4.0,
+   13.1): the one value its function item captured. */
+static sxml_status call_captured_value(const sxml_function_call *call, sxml_sequence *result) {
+    sxml_function_item_description description;
+    const sxml_status status = sxml_function_item_describe(call->function_item, &description);
+    if (status != SXML_STATUS_OK || description.captured_values.sequence_count != 1) {
+        return status != SXML_STATUS_OK ? status : SXML_STATUS_INVALID_ARGUMENT;
+    }
+    sxml_sequence_retain(description.captured_values.sequences[0]);
+    *result = description.captured_values.sequences[0];
+    return SXML_STATUS_OK;
+}
+
+/* The row of those bodies; no library part lists it, so no name finds
+   it. */
+static const sxml_native_function captured_value_row = {
+    .function_namespace = SXML_NAMESPACE_FUNCTIONS,
+    .properties = 0,
+    .local_name = SXML_BYTE_VIEW_INITIALIZER("function-lookup"),
+    .parameters = {NULL, 0},
+    .result_type = SXML_BYTE_VIEW_INITIALIZER("item()*"),
+    .call = call_captured_value,
+    .resumable_body = NULL,
+};
+
+static sxml_status make_plain_entry_function(const sxml_function_call *call,
+                                             found_function found, sxml_sequence *result);
+
+/*
+ * A row that needs the focus, bound to the caller's (F&O 4.0, 13.1: the
+ * function is context-dependent, its context that of the fn:function-
+ * lookup call): fn:position#0 and fn:last#0 return the captured position
+ * or size; a function whose next parameter defaults to the context value
+ * is the next arity partially applied to the captured context value
+ * (XPath 4.0, 4.5.4), keeping its name.
+ */
+static sxml_status bind_to_caller_focus(const sxml_function_call *call, found_function found,
+                                        sxml_sequence *result) {
+    const sxml_function_query *query = found.query;
+    const sxml_native_function *row = found.entry->native_function;
+    const sxml_sequence *parts = found.focus->parts;
+    if ((row->properties & (SXML_NATIVE_FUNCTION_READS_CONTEXT_POSITION |
+                            SXML_NATIVE_FUNCTION_READS_CONTEXT_SIZE)) != 0) {
+        const sxml_sequence captured =
+            parts[(row->properties & SXML_NATIVE_FUNCTION_READS_CONTEXT_POSITION) != 0 ? 1 : 2];
+        sxml_item item = {.representation = 0};
+        const sxml_status status = sxml_function_item_make(
+            call->item_heap,
+            &(sxml_function_item_request){
+                .function_name = query->function_name,
+                .signature = found.entry->signature,
+                .function_annotations = {.function_annotations = NULL,
+                                         .function_annotation_count = 0},
+                .captured_values = {.sequences = &captured, .sequence_count = 1},
+                .body = {.state = (void *)&captured_value_row,
+                         .operations = &sxml_native_function_body_operations}},
+            &item);
+        if (status == SXML_STATUS_OK) {
+            *result = sxml_sequence_from_item(item);
+        }
+        return status;
+    }
+    const size_t bound_index = query->arity;
+    if (bound_index >= row->parameters.function_parameter_count ||
+        row->parameters.function_parameters[bound_index].parameter_default !=
+            SXML_PARAMETER_DEFAULT_CONTEXT_VALUE) {
+        return sxml_error_record_report(call->error_record, &lookup_focus_error);
+    }
+    const sxml_function_table table = call->dynamic_context->function_table;
+    const sxml_function_query full_query = {.function_name = query->function_name,
+                                            .arity = bound_index + 1};
+    sxml_function_entry full = {.entry_kind = SXML_FUNCTION_ENTRY_KIND_NONE};
+    sxml_status status = table.operations->find_function(table.state, &full_query, &full);
+    if (status == SXML_STATUS_OK && full.entry_kind != SXML_FUNCTION_ENTRY_KIND_NATIVE) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    sxml_sequence full_function = sxml_sequence_empty();
+    if (status == SXML_STATUS_OK) {
+        status = make_plain_entry_function(
+            call, (found_function){.query = &full_query, .entry = &full, .focus = NULL},
+            &full_function);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_call_signature signature;
+    partial_binding binding = {.allocator = call_allocator(call),
+                               .parameter_count = bound_index + 1};
+    status = sxml_evaluator_describe_call_signature(call->dynamic_context,
+                                                    full_function.content, &signature);
+    if (status == SXML_STATUS_OK && (!signature.has_function_type ||
+                                     signature.parameter_types.sequence_type_count <=
+                                         bound_index)) {
+        status = SXML_STATUS_INVALID_ARGUMENT;
+    }
+    if (status == SXML_STATUS_OK) {
+        status = allocate_partial_binding(&binding);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_evaluator_coerce(
+            call->dynamic_context,
+            &(sxml_coercion_request){
+                .value = parts[0],
+                .sequence_type = signature.parameter_types.sequence_types[bound_index],
+                .role = SXML_IR_COERCION_ROLE_FUNCTION_ARGUMENT,
+                .error_record = call->error_record},
+            &binding.bound_values[bound_index]);
+        binding.is_bound[bound_index] = status == SXML_STATUS_OK;
+    }
+    if (status == SXML_STATUS_OK) {
+        status = make_partial_application(
+            call,
+            &(partial_application_parts){.function_item = full_function.content,
+                                         .function_name = query->function_name,
+                                         .signature = &signature,
+                                         .binding = &binding},
+            result);
+    }
+    release_partial_binding(&binding);
+    sxml_sequence_release(full_function);
+    return status;
+}
 
 static sxml_status make_entry_function(const sxml_function_call *call, found_function found,
                                        sxml_sequence *result) {
+    if (found.entry->entry_kind == SXML_FUNCTION_ENTRY_KIND_NATIVE &&
+        entry_needs_focus(found.entry, found.query->arity)) {
+        if (found.focus == NULL || !found.focus->has_focus) {
+            return sxml_error_record_report(call->error_record, &lookup_focus_error);
+        }
+        return bind_to_caller_focus(call, found, result);
+    }
+    return make_plain_entry_function(call, found, result);
+}
+
+static sxml_status make_plain_entry_function(const sxml_function_call *call,
+                                             found_function found, sxml_sequence *result) {
     const sxml_function_query *query = found.query;
     const sxml_function_entry *entry = found.entry;
     sxml_sequence constructor_type = sxml_sequence_empty();
@@ -2761,8 +2914,6 @@ static sxml_status make_entry_function(const sxml_function_call *call, found_fun
             (sxml_sequence_view){.sequences = &constructor_type, .sequence_count = 1};
         request.body = (sxml_function_body){
             .state = NULL, .operations = &sxml_evaluator_constructor_body_operations};
-    } else if (entry_needs_focus(entry, query->arity)) {
-        return sxml_error_record_report(call->error_record, &lookup_focus_error);
     }
     sxml_item item = {.representation = 0};
     const sxml_status status = sxml_function_item_make(call->item_heap, &request, &item);
@@ -2828,9 +2979,15 @@ static sxml_status call_function_lookup(const sxml_function_call *call,
     case SXML_FUNCTION_ENTRY_KIND_NONE:
         return SXML_STATUS_OK;
     case SXML_FUNCTION_ENTRY_KIND_NATIVE:
-    case SXML_FUNCTION_ENTRY_KIND_CONSTRUCTOR:
-        return make_entry_function(call, (found_function){.query = &query, .entry = &entry},
-                                   result);
+    case SXML_FUNCTION_ENTRY_KIND_CONSTRUCTOR: {
+        /* The caller's focus, when a static call passed it. */
+        caller_focus focus = {.has_focus = call->arguments.sequence_count == 5};
+        for (size_t part_index = 0; focus.has_focus && part_index < 3; part_index += 1) {
+            focus.parts[part_index] = call_argument(call, 2 + part_index);
+        }
+        return make_entry_function(
+            call, (found_function){.query = &query, .entry = &entry, .focus = &focus}, result);
+    }
     case SXML_FUNCTION_ENTRY_KIND_IR_FUNCTION:
         /* Declared functions arrive with XQuery (Phase 3). */
         return SXML_STATUS_UNSUPPORTED_FEATURE;
@@ -3503,7 +3660,8 @@ static const sxml_native_function higher_order_functions[] = {
               transitive_closure_body),
     RESUMABLE("while-do", while_do_parameters, "item()*", while_do_body),
     {.function_namespace = SXML_NAMESPACE_FUNCTIONS,
-     .properties = SXML_NATIVE_FUNCTION_USES_DYNAMIC_CONTEXT,
+     .properties = SXML_NATIVE_FUNCTION_USES_DYNAMIC_CONTEXT |
+                   SXML_NATIVE_FUNCTION_TAKES_CALLER_FOCUS,
      .local_name = SXML_BYTE_VIEW_INITIALIZER("function-lookup"),
      .parameters = {function_lookup_parameters,
                     SXML_HIGHER_ORDER_PARAMETER_COUNT(function_lookup_parameters)},

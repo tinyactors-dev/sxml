@@ -2141,10 +2141,16 @@ static sxml_status emit_call(sxml_xpath_lowerer *state, call_emission request,
                                         .allows_empty = true}}},
             expression);
     }
+    /* The caller's focus after the arguments (glossary `caller_focus`),
+       when there is one. */
+    const bool passes_focus =
+        (native_properties(&call->entry) & SXML_NATIVE_FUNCTION_TAKES_CALLER_FOCUS) != 0 &&
+        state->function->focus->kind != SXML_XPATH_LOWERING_FOCUS_KIND_ABSENT;
+    const size_t atom_count = call->argument_count + (passes_focus ? 3U : 0U);
     void *memory = NULL;
     sxml_status status = sxml_xpath_lowerer_allocate_scratch(
         state,
-        (sxml_xpath_lowering_scratch_request){.element_count = call->argument_count,
+        (sxml_xpath_lowering_scratch_request){.element_count = atom_count,
                           .element_size = sizeof(sxml_ir_atom),
                           .element_alignment = alignof(sxml_ir_atom)},
         &memory);
@@ -2152,6 +2158,17 @@ static sxml_status emit_call(sxml_xpath_lowerer *state, call_emission request,
         return status;
     }
     sxml_ir_atom *atoms = memory;
+    static const sxml_xpath_lowering_focus_part focus_parts[3] = {
+        SXML_XPATH_LOWERING_FOCUS_PART_VALUE, SXML_XPATH_LOWERING_FOCUS_PART_POSITION,
+        SXML_XPATH_LOWERING_FOCUS_PART_SIZE};
+    for (size_t part_index = 0; passes_focus && status == SXML_STATUS_OK && part_index < 3;
+         part_index += 1) {
+        status = sxml_xpath_lowerer_read_focus(
+            state,
+            (sxml_xpath_lowering_focus_read){
+                .block = request.block, .node = call->node, .part = focus_parts[part_index]},
+            &atoms[call->argument_count + part_index]);
+    }
     for (size_t argument_index = 0;
          status == SXML_STATUS_OK && argument_index < call->argument_count;
          argument_index += 1) {
@@ -2173,8 +2190,7 @@ static sxml_status emit_call(sxml_xpath_lowerer *state, call_emission request,
     if (status == SXML_STATUS_OK) {
         status = sxml_ir_unit_add_atoms(
             state->unit,
-            (sxml_ir_atom_view){.atoms = atoms,
-                                .atom_count = call->argument_count},
+            (sxml_ir_atom_view){.atoms = atoms, .atom_count = atom_count},
             &arguments);
     }
     sxml_xpath_lowerer_release_scratch(state, memory);
