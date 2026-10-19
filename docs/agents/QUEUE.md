@@ -14,7 +14,9 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 - Optional features (D189). Budgets (D202, D207): core `sxml.wasm`
   2,200,000 / 770,000 (2,131,859 after 7.2b moved DTD validation behind a
   feature, D211), `sxml-full.wasm` 4,000,000 / 1,400,000 (3,577,133), CLI
-  module 7,500,000 / 1,650,000 (7,303,201 with the embedded DUCET). XQuery lowering parts (about
+  module 9,000,000 / 2,000,000 (7,803,988). The full module carries
+  XQuery, XSLT and XSD for JavaScript (js-1, D216): 7,000,000 / 2,450,000
+  (6,570,723). XQuery lowering parts (about
   75 KB) stay in the core until the part registry is split by language.
 - EXPath Binary (D198) 646 of 646 and File (D200) 270 of 270 in XQ40; File
   needs `--allow-file-access` in the CLI and has no Windows implementation.
@@ -22,7 +24,6 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 ## Running
 
 - 7.12a XQuery/XPath Full Text, part 1.
-- JavaScript bindings for XQuery, XSLT and validation (js-1).
 - 7.6b XSLT streamed evaluation.
 - 7.15b CLDR tailorings.
 - 7.18 Invisible XML.
@@ -109,6 +110,9 @@ patterns.
 Streaming analysis (7.6a, D212): strm/ 2,503 of 2,564 (evaluation still
 unstreamed); XTSE3430 154 of 156. XT40 8,952 -> 11,792 with the streaming
 feature claimed.
+
+JavaScript (js-1, D216): compileQuery, compileStylesheet and compileSchema
+in sxml-full.wasm; the core module refuses them with a clear message.
 
 UCA (7.15a, D213): advanced-uca-fallback 49 of 49 (XQ40 and XP40),
 non_unicode_codepoint_collation 13 of 13; DUCET 16.0.0 vendored, served by
