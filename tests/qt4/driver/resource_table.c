@@ -66,6 +66,43 @@ sxml_qt4_serve_suite_file(const sxml_qt4_resource_table *table,
         resource);
 }
 
+/* The URI prefix of the timezone database's files, and where the driver
+   keeps them: the vendored tzdata beside the suite (third_party/tzdata,
+   D209). */
+#define SXML_QT4_TIMEZONE_URI_PREFIX "urn:sxml:timezone-data:"
+#define SXML_QT4_TIMEZONE_DIRECTORY "../tzdata/zoneinfo/"
+
+enum { SXML_QT4_TIMEZONE_PATH_CAPACITY = 320 };
+
+/* TIMEZONE_DATA: urn:sxml:timezone-data:PATH as the suite path
+   ../tzdata/zoneinfo/PATH; sxml has checked PATH (processor.h). */
+static sxml_status
+sxml_qt4_serve_timezone_data(const sxml_qt4_resource_table *table,
+                             sxml_byte_view uri, sxml_resource *resource) {
+    const sxml_byte_view prefix = SXML_TEXT(SXML_QT4_TIMEZONE_URI_PREFIX);
+    const sxml_byte_view directory = SXML_TEXT(SXML_QT4_TIMEZONE_DIRECTORY);
+    if (uri.byte_count <= prefix.byte_count ||
+        memcmp(uri.bytes, prefix.bytes, prefix.byte_count) != 0 ||
+        uri.byte_count - prefix.byte_count + directory.byte_count >
+            SXML_QT4_TIMEZONE_PATH_CAPACITY) {
+        resource->description =
+            SXML_TEXT("Not a file of the timezone database");
+        return SXML_STATUS_OK;
+    }
+    uint8_t path[SXML_QT4_TIMEZONE_PATH_CAPACITY];
+    const size_t name_byte_count = uri.byte_count - prefix.byte_count;
+    memcpy(path, directory.bytes, directory.byte_count);
+    memcpy(path + directory.byte_count, uri.bytes + prefix.byte_count,
+           name_byte_count);
+    return sxml_qt4_serve_file(
+        table,
+        (sxml_qt4_served_file){
+            .file_path = {.bytes = path,
+                          .byte_count = directory.byte_count + name_byte_count},
+            .encoding = sxml_qt4_empty_text},
+        resource);
+}
+
 /* One request to the table, with the URI it is matched by. */
 typedef struct sxml_qt4_table_request {
     const sxml_qt4_resource_table *table;
@@ -275,6 +312,8 @@ sxml_qt4_resolve_from_table(void *state, const sxml_resource_request *request,
         /* The modules a stylesheet of fn:transform includes and imports
            (packet 7.11, D203): the suite's files, as for documents. */
         return sxml_qt4_serve_suite_file(table, uri, resource);
+    case SXML_RESOURCE_KIND_TIMEZONE_DATA:
+        return sxml_qt4_serve_timezone_data(table, uri, resource);
     case SXML_RESOURCE_KIND_XSLT_PACKAGE:
         break;
     }

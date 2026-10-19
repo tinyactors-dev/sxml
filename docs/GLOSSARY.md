@@ -912,4 +912,6 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `tailoring` | Changes to a collation element table for a language or a reordering, compiled from CLDR rules (UTS #35, Part 5) |
 | `timezone_database` | Zones of the IANA Time Zone Database: for a zone name and an instant, the offset and abbreviation in effect |
 | `zone_name` | An IANA timezone name such as `Europe/Berlin` (an "Olson name"), a place of fn:civil-timezone and the formatting functions |
+| `local_time_type` | What local time is at an instant in a zone: its offset from UTC, whether it is daylight saving time, and its abbreviation (RFC 8536, 3.2, "local time type records"; D209) |
+| `timezone_rule` | A TZ string read (POSIX XBD 8.3, the footer of a TZif file): a zone's standard time and its daylight saving time with when it starts and ends each year, for instants after the zone's last transition (D209) |
 | `language_table` | The names and words of one language that the formatting functions use: months, days, eras, ordinal suffixes and spell-out rules |

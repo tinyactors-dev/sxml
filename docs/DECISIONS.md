@@ -8362,6 +8362,58 @@ XPST0017; supports-dynamic-xslt false).
   2.0 behaviour (82e); the QT4 driver gives a query file no base URI of
   its own (fn-transform-94); ~record patterns (transform-401, XSLT).
 
+### D209. The timezone database (packet 7.16)
+Recorded 2026-10-19, after D97, D162, D183, D184, D189, D191, D208.
+Replaces D97's "no tz database" and the FODT0004 place of D162 in
+fn:civil-timezone.
+- **Data from the host, TZif**: the optional feature
+  `sxml_timezone_database_feature()` ("timezone-database",
+  `src/timezone.c`, `src/timezone_internal.h`) reads zones as the host
+  has them: one TZif file per zone (RFC 8536, versions 1 to 4), asked of
+  the resolver as the new `SXML_RESOURCE_KIND_TIMEZONE_DATA` (additive in
+  `processor.h`) under `urn:sxml:timezone-data:` + a zoneinfo path (a zone
+  name, or `zone1970.tab`, else `zone.tab`, for country codes). No
+  compact form and no generator: TZif is the standard format, every
+  Unix host has it in `/usr/share/zoneinfo`, and one reader serves both
+  hosts and the vendored data. sxml checks a name before it asks (ASCII
+  letters, digits, `_ - +`, parts between single `/`), so a resolver can
+  map the path onto a directory. A zone is read at its first use and kept
+  in the processor's feature state; a zone that is not delivered is asked
+  again next time (no negative cache, so a query cannot grow the state
+  with names that do not exist).
+- **Vendored**: tzdata 2026e under `third_party/tzdata` (D13): the
+  sources, and `zoneinfo/` compiled by `zic -b slim` with the zone
+  tables, 599 files, 237 KB; `tools/update-tzdata.sh` moves it. The QT4
+  driver serves it (`../tzdata/zoneinfo/` from the catalog), the unit
+  tests read it from the source tree; the sxml command serves the host's
+  `/usr/share/zoneinfo`; JavaScript hosts answer the kind
+  `'timezone-data'`. Nothing is compiled into sxml.
+- **Lookup** (RFC 8536, 3.2): type 0 before the first transition, the
+  last transition's type, the footer's TZ string (POSIX XBD 8.3 with RFC
+  8536's 167-hour and negative times) from the last transition on. Leap
+  second records are skipped (xs:dateTime has no leap seconds). Years
+  beyond ±10^9 get no answer.
+- **fn:civil-timezone** (F&O 4.0, 9.7.4): no place is the implicit
+  timezone, the UTC names stay PT0S without the database; any other place
+  is a zone name, looked up at $value's instant ($value without a
+  timezone takes the implicit timezone); FODT0004 without the feature,
+  for an unknown zone, or a year out of range. A country code is not a
+  zone here (the rules say "IANA timezone name").
+- **$place of the formatting functions** (9.9.4.8): a zone name adjusts a
+  value with a timezone to the zone's offset at its instant and gives
+  [ZN] its abbreviation; a time alone takes the zone's standard time ("only
+  possible where the value includes a date"). A country code (two ASCII
+  letters, any case) does not adjust; [ZN] names the first zone of the
+  country, in zone1970.tab's order, with the value's offset at that
+  instant (2018-07-01 at -05:00 in "us" is America/Chicago's CDT). An
+  abbreviation that does not start with a letter ("-03") is no name, and
+  an offset with seconds (local mean time) is no xs:dateTime timezone:
+  the fallback format 01:01 is kept, as for an unknown place and no
+  place (format-time-030).
+- **Not done**: the dynamic context has no default place (a host setting
+  would be an additive header change); without one, no place keeps the
+  implicit timezone and [ZN] the fallback format.
+
 ## Proposed
 
 - **The base URI of an element from an external entity** (packet 7.14,

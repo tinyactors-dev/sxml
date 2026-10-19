@@ -168,6 +168,15 @@ typedef enum sxml_resource_kind {
        the declaration (empty when that has none). Form: BYTES, whose
        resource_uri is the base URI of the declarations inside. */
     SXML_RESOURCE_KIND_EXTERNAL_ENTITY,
+    /* A file of the IANA Time Zone Database for the timezone database
+       feature (sxml_timezone_database_feature; D209): absolute_uri is
+       "urn:sxml:timezone-data:" and a path as in a zoneinfo directory
+       such as /usr/share/zoneinfo, either a zone name ("Europe/Paris",
+       whose file is TZif, RFC 8536) or "zone1970.tab" or "zone.tab" (the
+       zone tables). sxml checks a zone name before it asks: ASCII letters,
+       digits, "_", "-", "+" and "/" between parts, no part "." or "..".
+       Form: BYTES. */
+    SXML_RESOURCE_KIND_TIMEZONE_DATA,
 } sxml_resource_kind;
 
 /* What sxml asks a resolver for. Views are borrowed for the call. */
@@ -596,6 +605,20 @@ SXML_EXPORT sxml_optional_feature sxml_html_parser_feature(void);
  * D200).
  */
 SXML_EXPORT sxml_optional_feature sxml_expath_file_feature(void);
+
+/*
+ * The timezone database (IANA Time Zone Database; glossary
+ * `timezone_database`): fn:civil-timezone for IANA zone names, and the
+ * $place argument of fn:format-dateTime, fn:format-date and
+ * fn:format-time, which adjusts to a zone's offset and names timezones
+ * ([ZN]) for a zone name or an ISO 3166 country code (F&O 4.0, sections
+ * 9.7.4 and 9.9.4.8). It reads the zones' TZif files and the zone tables
+ * through the resolver as SXML_RESOURCE_KIND_TIMEZONE_DATA when first
+ * used. Without it, or without the data, fn:civil-timezone knows only UTC
+ * (FODT0004 for other places) and $place changes nothing. Its name is
+ * "timezone-database" (packet 7.16, D209).
+ */
+SXML_EXPORT sxml_optional_feature sxml_timezone_database_feature(void);
 
 /*
  * Every optional feature sxml has, as static data, for hosts that want

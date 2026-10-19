@@ -34,6 +34,9 @@
  *   namespace, whatever the location hint says (an XQuery "import
  *   schema", D174); its URI file:///SUITE-PATH is the document's base
  *   URI;
+ * - TIMEZONE_DATA with the file of the vendored timezone database,
+ *   third_party/tzdata/zoneinfo beside the suite, for a
+ *   urn:sxml:timezone-data:PATH URI (D209);
  * and everything else, other kinds included, as not available. Sources
  * with a URI are not served here: they are available documents of the
  * dynamic context (test_run.c). The request's absolute URI is compared

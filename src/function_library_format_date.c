@@ -11,11 +11,20 @@
  * calendars AD (the default) and ISO. Another language is formatted in
  * English after "[Language: en]", another calendar designator or a
  * calendar in a namespace as AD after "[Calendar: AD]".
- * $place is not used: without a timezone database (D97) no place changes
- * the timezone or its name.
+ * $place (section 9.9.4.8) is the D162 place of the timezone database
+ * feature (src/timezone_internal.h, D209): an IANA zone name adjusts a
+ * value with a timezone and a date to the zone's offset at its instant (a
+ * time alone to the zone's standard time) and names its timezone for
+ * [ZN]; an ISO 3166-1 country code only names the timezone, by the first
+ * of the country's zones with the value's offset. Without the feature, or
+ * for a place it does not know (the default place is used then), the
+ * value is formatted as it is and [ZN] takes the fallback format.
  */
 #include "format_date_internal.h"
 #include "function_library_core_internal.h"
+#include "optional_feature_internal.h"
+#include "processor_internal.h"
+#include "timezone_internal.h"
 
 /* ------------------------------------------------------------- Errors */
 
@@ -78,6 +87,62 @@ static sxml_status read_calendar(const sxml_function_call *call, sxml_calendar_c
     return SXML_STATUS_OK;
 }
 
+/* Reads $place into formatting->place when the timezone database feature
+   knows it (see the comment at the top of the file). */
+static sxml_status read_place(const sxml_function_call *call, sxml_date_formatting *formatting) {
+    sxml_optional_item argument;
+    sxml_status status = sxml_function_library_read_optional_item(call, 4, &argument);
+    if (status != SXML_STATUS_OK || !argument.has_item || !formatting->value.has_timezone) {
+        return status;
+    }
+    const sxml_evaluation_environment *environment =
+        sxml_processor_get_evaluation_environment(call->dynamic_context);
+    sxml_processor *processor = environment == NULL ? NULL : environment->processor;
+    const sxml_timezone_feature_operations *database = sxml_processor_find_optional_feature(
+        processor, SXML_OPTIONAL_FEATURE_KIND_TIMEZONE_DATABASE);
+    sxml_atomic_datum datum;
+    if (database == NULL || sxml_atomic_item_get_datum(argument.item, &datum) != SXML_STATUS_OK ||
+        datum.datum_kind != SXML_DATUM_KIND_STRING) {
+        return SXML_STATUS_OK;
+    }
+    /* "Adjustment using daylight savings time is only possible where the
+       value includes a date": a time alone takes the standard time. */
+    int64_t instant_seconds = 0;
+    const bool has_instant = formatting->value_kind != SXML_DATE_VALUE_KIND_TIME &&
+                             sxml_timezone_instant_of(formatting->value, &instant_seconds);
+    if (formatting->value_kind != SXML_DATE_VALUE_KIND_TIME && !has_instant) {
+        /* A year beyond the database's range. */
+        return SXML_STATUS_OK;
+    }
+    sxml_timezone_place_outcome outcome;
+    status = database->find_place(
+        &(sxml_timezone_place_request){
+            .processor = processor,
+            .place = datum.datum_details.string.utf8,
+            .accepts_country_code = true,
+            .has_instant = has_instant,
+            .instant_seconds = instant_seconds,
+            .country_offset_seconds = (int64_t)formatting->value.timezone_offset_minutes * 60},
+        &outcome);
+    if (status != SXML_STATUS_OK || !outcome.has_local_time ||
+        outcome.local_time.offset_seconds % 60 != 0) {
+        /* An offset of seconds (local mean time) is no xs:dateTime
+           timezone: the place is not used. */
+        return status;
+    }
+    const int64_t offset_minutes = outcome.local_time.offset_seconds / 60;
+    if (offset_minutes < -840 || offset_minutes > 840) {
+        return SXML_STATUS_OK;
+    }
+    formatting->place = (sxml_date_place){
+        .adjusts_timezone = outcome.place_kind == SXML_TIMEZONE_PLACE_KIND_ZONE,
+        .timezone_offset_minutes = offset_minutes,
+        .timezone_name = sxml_local_time_type_has_name(&outcome.local_time)
+                             ? outcome.local_time.abbreviation
+                             : (sxml_byte_view){.bytes = NULL, .byte_count = 0}};
+    return SXML_STATUS_OK;
+}
+
 /*
  * The body of the three functions ($value, $picture, $language :=
  * (), $calendar := (), $place := ()) as xs:string? (section 9.9.4): the
@@ -95,7 +160,11 @@ static sxml_status call_format(const sxml_function_call *call, sxml_date_value_k
     status = sxml_function_library_read_string_argument(call, 1, &picture_string);
     sxml_date_formatting formatting = {.picture_string = picture_string.utf8,
                                        .value_kind = value_kind,
-                                       .needs_language_marker = false};
+                                       .needs_language_marker = false,
+                                       .place = {.adjusts_timezone = false,
+                                                 .timezone_offset_minutes = 0,
+                                                 .timezone_name = {.bytes = NULL,
+                                                                   .byte_count = 0}}};
     if (status == SXML_STATUS_OK) {
         status = read_language(call, &formatting);
     }
@@ -115,6 +184,10 @@ static sxml_status call_format(const sxml_function_call *call, sxml_date_value_k
     }
     formatting.picture_string = picture_string.utf8;
     formatting.value = datum.datum_details.date_time;
+    status = read_place(call, &formatting);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
     sxml_format_text text = {.allocator = sxml_item_heap_as_allocator(call->item_heap),
                              .bytes = NULL,
                              .byte_count = 0,

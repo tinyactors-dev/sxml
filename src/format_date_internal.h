@@ -84,6 +84,20 @@ typedef enum sxml_date_picture_error {
     SXML_DATE_PICTURE_ERROR_UNAVAILABLE_COMPONENT,
 } sxml_date_picture_error;
 
+/* What the $place argument gives the timezone of a value (F&O 4.0,
+   section 9.9.4.8; the timezone database, D209). Zero is a place that
+   changes nothing. */
+typedef struct sxml_date_place {
+    /* The value is adjusted to timezone_offset_minutes before it is
+       formatted ("as if" that value "had been supplied"): an IANA zone's
+       offset at the value's instant. Only for a value with a timezone. */
+    bool adjusts_timezone;
+    int64_t timezone_offset_minutes;
+    /* The timezone name [ZN] gives, ASCII, borrowed for the call; empty
+       for the fallback format 01:01 (section 9.9.4.6). */
+    sxml_byte_view timezone_name;
+} sxml_date_place;
+
 /* A date, time or dateTime to format by a picture. */
 typedef struct sxml_date_formatting {
     /* Borrowed for the call. */
@@ -95,6 +109,7 @@ typedef struct sxml_date_formatting {
     /* The language asked for is not English: the fallback marker
        "[Language: en]" comes first in the result. */
     bool needs_language_marker;
+    sxml_date_place place;
 } sxml_date_formatting;
 
 /*

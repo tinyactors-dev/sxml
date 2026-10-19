@@ -126,8 +126,33 @@ typedef struct date_components {
     int64_t timezone_offset_minutes;
 } date_components;
 
+/* value adjusted to the place's offset (section 9.9.4.8): its local
+   time moved by the difference of the offsets, a day carried into the
+   date. The caller keeps the year within the timezone database's range,
+   so the day numbers do not overflow. */
+static sxml_date_time adjust_to_place(sxml_date_time value, const sxml_date_place *place) {
+    if (!place->adjusts_timezone || !value.has_timezone) {
+        return value;
+    }
+    const int64_t minute_of_day = (int64_t)value.hour * 60 + value.minute +
+                                  place->timezone_offset_minutes - value.timezone_offset_minutes;
+    const int64_t carried_days =
+        (minute_of_day >= 0 ? minute_of_day : minute_of_day - 1439) / 1440;
+    const int64_t local_minute = minute_of_day - carried_days * 1440;
+    const civil_date date = civil_from_days(
+        days_from_civil((civil_date){.year = value.year, .month = value.month, .day = value.day}) +
+        carried_days);
+    value.year = date.year;
+    value.month = (uint8_t)date.month;
+    value.day = (uint8_t)date.day;
+    value.hour = (uint8_t)(local_minute / 60);
+    value.minute = (uint8_t)(local_minute % 60);
+    value.timezone_offset_minutes = (int16_t)place->timezone_offset_minutes;
+    return value;
+}
+
 static date_components compute_components(const sxml_date_formatting *formatting) {
-    const sxml_date_time value = formatting->value;
+    const sxml_date_time value = adjust_to_place(formatting->value, &formatting->place);
     date_components components = {.hour = value.hour,
                                   .minute = value.minute,
                                   .second = value.second,
@@ -971,9 +996,10 @@ static timezone_layout read_timezone_layout(sxml_byte_view digit_pattern) {
  * ZZ); a military letter for Z where one exists; for a decimal digit
  * pattern hours, then minutes after the pattern's separator, or after ":"
  * when not whole for one or two digits, or directly for three or more;
- * "Z" for UTC with "t". Names (N) need a timezone database (D97), so they
- * and every other token take the fallback format 01:01. z adds "GMT"
- * first. Padded with spaces to the minimum width, never shortened.
+ * "Z" for UTC with "t". N gives the name the place found (the timezone
+ * database, D209), else, as every other token, the fallback format 01:01.
+ * z adds "GMT" first. Padded with spaces to the minimum width, never
+ * shortened.
  */
 static sxml_status append_timezone(date_writer *writer, const variable_marker *marker) {
     const date_components *components = &writer->components;
@@ -987,6 +1013,18 @@ static sxml_status append_timezone(date_writer *writer, const variable_marker *m
     const int64_t offset = components->timezone_offset_minutes;
     const uint64_t magnitude = (uint64_t)(offset < 0 ? -offset : offset);
     sxml_status status = SXML_STATUS_OK;
+    const sxml_byte_view timezone_name = writer->formatting->place.timezone_name;
+    if (marker->component_specifier == 'Z' &&
+        sxml_byte_view_equals(marker->first_modifier, SXML_BYTE_VIEW_FROM_LITERAL("N")) &&
+        timezone_name.byte_count > 0) {
+        /* "the timezone is output (where possible) as a timezone name"
+           (section 9.9.4.6). */
+        status = sxml_format_text_append(writer->text, timezone_name);
+        return status == SXML_STATUS_OK
+                   ? pad_with_spaces(writer->text, (space_padding){.byte_offset = start_offset,
+                                                                   .width = &marker->width})
+                   : status;
+    }
     if (marker->component_specifier == 'z') {
         status = sxml_format_text_append(writer->text, SXML_BYTE_VIEW_FROM_LITERAL("GMT"));
     }

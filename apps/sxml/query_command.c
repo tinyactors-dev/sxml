@@ -5,7 +5,8 @@
  * through its public API only: one processor (include/sxml/processor.h)
  * whose resource resolver reads local files through the invocation's file
  * reader, so fn:doc sees local files and nothing else (docs/CLI.md, "No
- * hidden side effects").
+ * hidden side effects"), and the timezone database feature the host's
+ * /usr/share/zoneinfo (D209).
  */
 #include "query_command.h"
 
@@ -78,10 +79,48 @@ static sxml_byte_view sxml_query_local_path(const sxml_resource_request *request
     return uri;
 }
 
+/* The timezone database's files (SXML_RESOURCE_KIND_TIMEZONE_DATA,
+   D209): urn:sxml:timezone-data:PATH is the host's zoneinfo file PATH. */
+#define SXML_QUERY_TIMEZONE_URI_PREFIX "urn:sxml:timezone-data:"
+#define SXML_QUERY_ZONEINFO_DIRECTORY "/usr/share/zoneinfo/"
+
+enum { SXML_QUERY_ZONEINFO_PATH_CAPACITY = 320 };
+
+/* Writes the zoneinfo path of a timezone data request into path and
+   returns its view; the empty view for a URI that is not one, or a PATH
+   with a part "." or ".." (sxml asks for none). */
+static sxml_byte_view sxml_query_zoneinfo_path(const sxml_resource_request *request,
+                                               uint8_t path[SXML_QUERY_ZONEINFO_PATH_CAPACITY]) {
+    const sxml_byte_view prefix = SXML_TEXT(SXML_QUERY_TIMEZONE_URI_PREFIX);
+    const sxml_byte_view directory = SXML_TEXT(SXML_QUERY_ZONEINFO_DIRECTORY);
+    const sxml_byte_view uri = request->absolute_uri;
+    const sxml_byte_view none = {.bytes = NULL, .byte_count = 0};
+    if (uri.byte_count <= prefix.byte_count ||
+        memcmp(uri.bytes, prefix.bytes, prefix.byte_count) != 0 ||
+        uri.byte_count - prefix.byte_count + directory.byte_count >
+            SXML_QUERY_ZONEINFO_PATH_CAPACITY) {
+        return none;
+    }
+    const sxml_byte_view name = {.bytes = uri.bytes + prefix.byte_count,
+                                 .byte_count = uri.byte_count - prefix.byte_count};
+    for (size_t byte_index = 0; byte_index < name.byte_count; byte_index += 1) {
+        const bool starts_part = byte_index == 0 || name.bytes[byte_index - 1] == '/';
+        if (starts_part && name.bytes[byte_index] == '.') {
+            return none;
+        }
+    }
+    memcpy(path, directory.bytes, directory.byte_count);
+    memcpy(path + directory.byte_count, name.bytes, name.byte_count);
+    return (sxml_byte_view){.bytes = path, .byte_count = directory.byte_count + name.byte_count};
+}
+
 static sxml_status sxml_query_resolve_file(void *state, const sxml_resource_request *request,
                                            sxml_resource *resource) {
     const sxml_query_file_resolver *resolver = state;
-    const sxml_byte_view path = sxml_query_local_path(request);
+    uint8_t zoneinfo_path[SXML_QUERY_ZONEINFO_PATH_CAPACITY];
+    const sxml_byte_view path = request->resource_kind == SXML_RESOURCE_KIND_TIMEZONE_DATA
+                                    ? sxml_query_zoneinfo_path(request, zoneinfo_path)
+                                    : sxml_query_local_path(request);
     /* "-" names standard input on the command line only. */
     if (path.byte_count == 0 || sxml_byte_view_equals(path, SXML_TEXT("-"))) {
         resource->resource_form = SXML_RESOURCE_FORM_NONE;

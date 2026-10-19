@@ -27,15 +27,20 @@
  * results beyond it are FODT0001. Seconds keep nine fraction digits;
  * further digits are truncated, as casting does (D36, D66).
  *
- * fn:civil-timezone has no timezone database (D97): with no place it gives
- * the implicit timezone (the default place is taken to be one whose civil
- * timezone is the implicit timezone), for the names of UTC it gives PT0S,
- * and for every other place FODT0004.
+ * fn:civil-timezone: with no place it gives the implicit timezone (the
+ * default place is taken to be one whose civil timezone is the implicit
+ * timezone), for the names of UTC it gives PT0S. Every other place is a
+ * zone name of the timezone database feature (src/timezone_internal.h,
+ * D209), its D162 place: without the feature, or for a zone the database
+ * does not have, FODT0004.
  */
 #include "cast_internal.h"
 #include "evaluator_internal.h"
 #include "function_library_core_internal.h"
 #include "operator_internal.h"
+#include "optional_feature_internal.h"
+#include "processor_internal.h"
+#include "timezone_internal.h"
 
 #include <stdint.h>
 #include <string.h>
@@ -99,8 +104,8 @@ static const sxml_static_error no_civil_timezone_error = {
     .error_status = SXML_STATUS_DYNAMIC_ERROR,
     .code_local_name = SXML_BYTE_VIEW_INITIALIZER("FODT0004"),
     .description = SXML_BYTE_VIEW_INITIALIZER(
-        "No timezone information is available for the place (F&O 4.0, "
-        "fn:civil-timezone; sxml has no timezone database)"),
+        "No timezone information is available for the date/time and place (F&O 4.0, "
+        "section 9.7.4; the timezone database feature and its data give zones)"),
 };
 
 static const sxml_static_error invalid_ietf_date_error = {
@@ -1142,9 +1147,60 @@ static sxml_status call_unix_date_time(const sxml_function_call *call,
 
 /* ------------------------------------------------------ fn:civil-timezone */
 
+/*
+ * The offset of the zone name in the timezone database at $value (F&O
+ * 4.0, section 9.7.4: "If the supplied $value has no timezone then the
+ * implicit timezone from the dynamic context is used"), in seconds;
+ * FODT0004 without the feature, for a zone it does not have, or for a
+ * year beyond the instants it answers for.
+ */
+static sxml_status find_civil_timezone(const sxml_function_call *call, sxml_byte_view name,
+                                       int64_t *offset_seconds) {
+    const sxml_evaluation_environment *environment =
+        sxml_processor_get_evaluation_environment(call->dynamic_context);
+    sxml_processor *processor = environment == NULL ? NULL : environment->processor;
+    const sxml_timezone_feature_operations *database = sxml_processor_find_optional_feature(
+        processor, SXML_OPTIONAL_FEATURE_KIND_TIMEZONE_DATABASE);
+    if (database == NULL) {
+        return sxml_function_library_report(call, &no_civil_timezone_error);
+    }
+    date_time_argument value;
+    sxml_status status = read_date_time_argument(call, 0, &value);
+    if (status == SXML_STATUS_OK && !value.value.has_timezone) {
+        target_timezone implicit = {.has_timezone = true, .offset_minutes = 0};
+        status = read_implicit_timezone(call, &implicit);
+        value.value.has_timezone = true;
+        value.value.timezone_offset_minutes = (int16_t)implicit.offset_minutes;
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    int64_t instant_seconds = 0;
+    if (!value.has_value || !sxml_timezone_instant_of(value.value, &instant_seconds)) {
+        return sxml_function_library_report(call, &no_civil_timezone_error);
+    }
+    sxml_timezone_place_outcome outcome;
+    status = database->find_place(
+        &(sxml_timezone_place_request){.processor = processor,
+                                       .place = name,
+                                       .accepts_country_code = false,
+                                       .has_instant = true,
+                                       .instant_seconds = instant_seconds,
+                                       .country_offset_seconds = 0},
+        &outcome);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (outcome.place_kind != SXML_TIMEZONE_PLACE_KIND_ZONE) {
+        return sxml_function_library_report(call, &no_civil_timezone_error);
+    }
+    *offset_seconds = outcome.local_time.offset_seconds;
+    return SXML_STATUS_OK;
+}
+
 /* fn:civil-timezone($value as xs:dateTime, $place as xs:string? := ())
-   as xs:dayTimeDuration (F&O 4.0, section 9.7.4), without a timezone
-   database (D97): see the comment at the top of the file. */
+   as xs:dayTimeDuration (F&O 4.0, section 9.7.4): see the comment at the
+   top of the file. */
 static sxml_status call_civil_timezone(const sxml_function_call *call,
                                        sxml_sequence *result) {
     static const char *const universal_places[] = {"UTC", "Etc/UTC", "GMT", "Etc/GMT"};
@@ -1154,11 +1210,13 @@ static sxml_status call_civil_timezone(const sxml_function_call *call,
         return status;
     }
     target_timezone timezone = {.has_timezone = true, .offset_minutes = 0};
+    int64_t offset_seconds = 0;
     if (!place.has_item) {
         status = read_implicit_timezone(call, &timezone);
         if (status != SXML_STATUS_OK) {
             return status;
         }
+        offset_seconds = (int64_t)timezone.offset_minutes * 60;
     } else {
         sxml_string name;
         status = sxml_function_library_read_string_argument(call, 1, &name);
@@ -1174,16 +1232,16 @@ static sxml_status call_civil_timezone(const sxml_function_call *call,
                                                                 universal_places[place_index]));
         }
         if (!is_universal) {
-            return sxml_function_library_report(call, &no_civil_timezone_error);
+            status = find_civil_timezone(call, name.utf8, &offset_seconds);
+            if (status != SXML_STATUS_OK) {
+                return status;
+            }
         }
     }
     sxml_item item = {.representation = 0};
     status = make_day_time_duration(
         call->item_heap,
-        (sxml_duration){.months = 0,
-                        .seconds = (int64_t)timezone.offset_minutes * 60,
-                        .nanoseconds = 0},
-        &item);
+        (sxml_duration){.months = 0, .seconds = offset_seconds, .nanoseconds = 0}, &item);
     if (status == SXML_STATUS_OK) {
         *result = sxml_sequence_from_item(item);
     }

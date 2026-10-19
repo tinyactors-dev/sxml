@@ -46,7 +46,12 @@ export type ResourceKind =
   | 'xslt-module'
   | 'xslt-package'
   | 'schema-document'
-  | 'external-entity';
+  | 'external-entity'
+  /** A file of the IANA Time Zone Database for the full module's
+   *  timezone-database feature: absoluteUri is 'urn:sxml:timezone-data:'
+   *  and a zoneinfo path, a zone name ('Europe/Paris', a TZif file) or
+   *  'zone1970.tab'. Answer with the file's bytes. */
+  | 'timezone-data';
 
 export interface ResourceRequest {
   kind: ResourceKind;
@@ -201,6 +206,7 @@ const resource_kinds: ResourceKind[] = [
   'xslt-package',
   'schema-document',
   'external-entity',
+  'timezone-data',
 ];
 
 const encoder = new TextEncoder();

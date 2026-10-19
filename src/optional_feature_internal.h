@@ -71,6 +71,10 @@ typedef enum sxml_optional_feature_kind {
        (src/xslt_transform_function.c, packet 7.11, D203); operations is
        that view. */
     SXML_OPTIONAL_FEATURE_KIND_XSLT_TRANSFORM,
+    /* sxml_timezone_database_feature: zones and the zone table read
+       through the resolver (src/timezone.c, packet 7.16, D209); operations
+       sxml_timezone_feature_operations (src/timezone_internal.h). */
+    SXML_OPTIONAL_FEATURE_KIND_TIMEZONE_DATABASE,
     SXML_OPTIONAL_FEATURE_KIND_COUNT,
 } sxml_optional_feature_kind;
 
@@ -216,3 +220,5 @@ extern const sxml_optional_feature_definition sxml_expath_binary_feature_definit
 extern const sxml_optional_feature_definition sxml_html_feature_definition;
 /* src/xslt_transform_function.c. */
 extern const sxml_optional_feature_definition sxml_xslt_transform_feature_definition;
+/* The timezone database (src/timezone.c). */
+extern const sxml_optional_feature_definition sxml_timezone_database_feature_definition;
