@@ -23,6 +23,11 @@ seed, named by the SHA-1 of its content (the libFuzzer convention):
   cast_fuzz            the argument of xs:TYPE("...") constructor calls,
                        in the layout of tests/fuzz/cast_fuzz.c (target
                        byte, text); the targets are read from that file
+  schema_fuzz          the first schema document of every test group of
+                       the XSD suite (third_party/xsdtests/suite.xml),
+                       alone and, in the layout of tests/fuzz/schema_fuzz.c
+                       (schema, zero byte, instance), with each instance
+                       document of the group
 
 Seeds longer than --maximum-byte-count (default 16384) are skipped; of
 more than --maximum-seed-count (default 4000) seeds for one target, an
@@ -39,6 +44,8 @@ import xml.etree.ElementTree as element_tree
 
 REPOSITORY_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CATALOG_NAMESPACE = "{http://www.w3.org/2010/09/qt-fots-catalog}"
+XSD_SUITE_NAMESPACE = "{http://www.w3.org/XML/2004/xml-schema-test-suite/}"
+XLINK_HREF = "{http://www.w3.org/1999/xlink}href"
 STRING_LITERAL = r'"(?:[^"]|"")*"|\'(?:[^\']|\'\')*\''
 REGEX_FLAG_BITS = {"s": 1, "m": 2, "i": 4, "x": 8, "q": 16, "c": 32}
 
@@ -90,6 +97,42 @@ def qt4_test_texts(suite_directory):
         for test in root.iter(CATALOG_NAMESPACE + "test"):
             if test.get("file") is None and test.text:
                 yield test.text
+
+
+def xsd_group_documents(suite_directory):
+    """Yield (schema path, instance paths) for each test group of the XSD
+    suite whose schema test names a schema document."""
+    suite_path = os.path.join(suite_directory, "suite.xml")
+    try:
+        suite = element_tree.parse(suite_path).getroot()
+    except (element_tree.ParseError, OSError):
+        return
+    for reference in suite.iter(XSD_SUITE_NAMESPACE + "testSetRef"):
+        test_set_path = os.path.normpath(os.path.join(suite_directory, reference.get(XLINK_HREF, "")))
+        try:
+            test_set = element_tree.parse(test_set_path).getroot()
+        except (element_tree.ParseError, OSError):
+            continue
+        base = os.path.dirname(test_set_path)
+        for group in test_set.iter(XSD_SUITE_NAMESPACE + "testGroup"):
+            schema_documents = [document.get(XLINK_HREF)
+                                for test in group.iter(XSD_SUITE_NAMESPACE + "schemaTest")
+                                for document in test.iter(XSD_SUITE_NAMESPACE + "schemaDocument")]
+            if not schema_documents or schema_documents[0] is None:
+                continue
+            instances = [os.path.normpath(os.path.join(base, document.get(XLINK_HREF)))
+                         for test in group.iter(XSD_SUITE_NAMESPACE + "instanceTest")
+                         for document in test.iter(XSD_SUITE_NAMESPACE + "instanceDocument")
+                         if document.get(XLINK_HREF) is not None]
+            yield os.path.normpath(os.path.join(base, schema_documents[0])), instances
+
+
+def read_bytes(path):
+    try:
+        with open(path, "rb") as document:
+            return document.read()
+    except OSError:
+        return None
 
 
 def cast_target_names():
@@ -147,6 +190,7 @@ def main():
     xslt_corpus = corpus("xslt_fuzz")
     regex_corpus = corpus("regex_fuzz")
     cast_corpus = corpus("cast_fuzz")
+    schema_corpus = corpus("schema_fuzz")
     target_numbers = {name: number for number, name in enumerate(cast_target_names())}
     if not target_numbers:
         sys.exit("no cast targets found in tests/fuzz/cast_fuzz.c")
@@ -175,8 +219,18 @@ def main():
         with open(path, "rb") as module:
             xslt_corpus.add(module.read())
 
+    for schema_path, instance_paths in xsd_group_documents(os.path.join(third_party, "xsdtests")):
+        schema = read_bytes(schema_path)
+        if schema is None or b"\0" in schema:
+            continue
+        schema_corpus.add(schema)
+        for instance_path in instance_paths:
+            instance = read_bytes(instance_path)
+            if instance is not None:
+                schema_corpus.add(schema + b"\0" + instance)
+
     for seeds in (xml_corpus, compile_corpus, evaluate_corpus, xquery_corpus, xslt_corpus,
-                  regex_corpus, cast_corpus):
+                  regex_corpus, cast_corpus, schema_corpus):
         written_count, found_count = seeds.write()
         print(f"{seeds.directory}: {written_count} of {found_count} seeds")
 
