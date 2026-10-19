@@ -8479,7 +8479,89 @@ entity, unparsed entities kept by copies, and `sxml check` with the DTD.
 - **clang-tidy**: `src/processor.c`'s multi-level pointer conversion is an
   explicit cast now.
 
+### D212. XSLT streamability analysis (packet 7.6a)
+Recorded 2026-10-19, after D97, D162, D166, D183, D184. Replaces D97's
+"streamable="yes" runs unstreamed" by the analysis of XSLT 4.0, chapter
+19 (whose rules are XSLT 3.0's chapter 19); evaluation stays unstreamed
+until 7.6b.
+- **Where**: `src/xslt_streamability.c`, called once from
+  sxml_xslt_compile after lowering, over the sealed stylesheet AST and
+  the XPath ASTs of its expressions, patterns and value templates (the
+  same trees lowering reads; no tree of its own). Not over the IR:
+  chapter 19 classifies by syntax production, and lowering rewrites
+  paths, `//` and value templates. A frame machine with explicit stacks
+  in allocator memory, no recursion (D71); a construct needing more than
+  100,000 frames is uncertain.
+- **What**: each construct's posture, sweep and U-type (glossary
+  `posture`, `sweep`, `u_type`): the general rules (19.8.1) with operand
+  usages, choice operand groups and higher-order operands; every
+  instruction of 19.8.4; stylesheet functions by category with streaming
+  parameters (19.8.5); attribute sets (19.8.6); value templates
+  (19.8.7); the XPath expressions of 19.8.8 (paths with scanning
+  expressions, axis steps with rule 4, filters, unions, for and
+  quantified expressions, maps, lookups, dynamic calls, inline functions
+  and named references); the table of 19.8.9 and its special functions
+  (accumulator-after and -before, current, current-group, last, root,
+  outermost, the higher-order functions refined by an inline function's
+  signature); motionless patterns (19.8.10). Verdicts: template rules
+  of streamable modes, by import precedence of xsl:mode (6.6.4);
+  xsl:source-document (18.1); functions with a category; attribute sets
+  (10.2.3); accumulators, their values type-adjusted by the declared
+  type and capturing rules (4.0, 19.9) grounded (18.2.9); merge sources
+  (15.4). The first not guaranteed-streamable is XTSE3430 at the
+  construct (19.10).
+- **Uncertain**: where sxml has no rule (an extension function, a
+  function the 19.8.9 table does not list, keyword arguments, a dynamic
+  call without a visible signature, a binding sxml cannot trace, XPath
+  4.0 constructs chapter 19 does not know), the assessment is uncertain
+  unless the operand is grounded, and an uncertain verdict is never an
+  error: sxml rejects nothing on a guess (19.10 lets a processor stream
+  more than the rules guarantee).
+- **Beyond the letter of chapter 19, as the XT40 cases expect**: E//T
+  is E/descendant::T when T's predicates are plainly non-positional; "."
+  is a pattern step (./descendant::a/b scans); xsl:copy select is
+  assessed as xsl:for-each over the selection (19.8.4.12 would make the
+  content higher-order); xsl:fork with at most one consuming prong takes
+  the general rules (one prong may return streamed nodes); current-group()
+  of a grounded population is grounded and motionless anywhere, and of a
+  group around a streamed xsl:source-document grounded inside it;
+  intersect and except with a motionless right operand keep the left
+  operand's posture; one for or some binding over streamed nodes is
+  S ! R with the variable as "."; a reference to the streaming parameter
+  inside a higher-order operand is free-ranging (19.8.4.30, note); an
+  instruction with XSLT 1.0 behaviour is roaming; xsl:map with
+  duplicates (4.0) takes the general rules; group-starting-with and
+  group-ending-with must be motionless patterns.
+- **Driver**: the XSLT driver claims the feature streaming and no
+  longer streaming-fallback, which needs an option sxml does not have
+  (Proposed); the feature and the strm group stay outside the D95
+  denominator. system-property-013 (streaming satisfied="false") is
+  therefore not applicable.
+- **Measured** (release driver, whole XT40, at f12ac89 with and without
+  the analysis): the 2,936 cases that need the feature streaming, not run
+  before, 2,835 passed (2,681 with the feature claimed and no analysis);
+  154 of the 156 that expect XTSE3430 pass; the strm group 2,497 of
+  2,564 (97.4 %); every other case as before (8,870 to 8,875 passed,
+  system-property-013 not applicable). No case that passed fails.
+- **Not done, left to 7.6b**: streamed evaluation itself (the receiving
+  task fed by the parser, D166); the two XTSE3430 cases the analysis
+  misses (sf-filter-001, marked _WRONG in the suite; si-fork-953, sorted
+  groups in xsl:fork, which 19.8.4.19 allows); supports-streaming;
+  the fallback option. 7.6b can read the verdicts: a guaranteed-
+  streamable mode or source document is what it may stream, and the
+  postures name what each construct selects.
+
 ## Proposed
+
+- **A streamability option and a streamed source in `xslt.h`** (packet
+  7.6a, D212; for 7.6b and the owner of `xslt.h`): XSLT 4.0, 19.10 asks
+  a streaming processor to offer, at user option, XTSE3430 or processing
+  without streaming for a construct declared streamable that is not
+  guaranteed-streamable. sxml always raises XTSE3430, so the XT40
+  streaming-fallback cases (7 with merge-097sf) are not run. Proposed:
+  an additive last field of `sxml_xslt_stylesheet_configuration`, for
+  example `bool falls_back_to_unstreamed`, read by
+  sxml_xslt_check_streamability, with 7.6b's streamed principal source.
 
 - **xs:numeric parameters in XPath 1.0 compatibility mode** (packet 7.4b,
   D197; for the owner): XPath 4.0, 3.4.1 applies fn:number to an

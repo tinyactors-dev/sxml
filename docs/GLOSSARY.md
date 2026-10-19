@@ -886,6 +886,13 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `posture` | How a construct's value relates to a streamed input: grounded, climbing, striding, crawling or roaming (XSLT 4.0, 19.1) |
 | `sweep` | How much of a streamed input a construct reads: motionless, consuming or free-ranging (XSLT 4.0, 19.1) |
 | `streamability` | Whether a construct is guaranteed-streamable by the rules of XSLT 4.0, chapter 19, computed from postures and sweeps |
+| `u_type` | A set of fundamental item types (node kinds, primitive atomic types, function items), the static type of streamability analysis (XSLT 4.0, 19.1) |
+| `operand_usage` | How a construct uses the nodes of an operand: absorption, inspection, transmission or navigation (XSLT 4.0, 19.3) |
+| `declared_streamable` | A construct the stylesheet declares streamable: a template rule of a streamable mode, xsl:source-document, xsl:attribute-set, xsl:accumulator or xsl:merge-source with streamable="yes", a stylesheet function with a streamability category (XSLT 4.0, 19.10) |
+| `guaranteed_streamable` | A declared-streamable construct that the rules of XSLT 4.0, chapter 19 find streamable; one that is not is XTSE3430 |
+| `streaming_parameter` | The first parameter of a declared-streamable stylesheet function (XSLT 4.0, 19.8.5) |
+| `choice_operand_group` | Operands of which at most one is evaluated (the branches of a conditional), which may each consume a streamed input (XSLT 4.0, 19.8) |
+| `scanning_expression` | A relative path that has the form of a motionless pattern, assessed as crawling instead of roaming (XSLT 4.0, 19.8.8.8) |
 | `pending_update_list` | The update primitives an updating expression returns, applied together at the end of a snapshot (XQuery Update Facility 3.0, "pending update list"); internal to the evaluator, not an XDM item |
 | `update_primitive` | One change of a pending update list: insert, delete, replace node, replace value, rename, put (XQuery Update Facility 3.0, "update primitives") |
 | `updating_expression` | An expression whose value is a pending update list: insert, delete, replace, rename, an updating function call, and the expressions that pass one on (XQuery Update Facility 3.0, 2.2); its opposite is a `simple_expression` |
