@@ -21,8 +21,11 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 Windows file writer is untested; replaced files get default permissions;
 fn:put does not create directories; cli/xpath_timezone fails under WASI.
 
-Full Text (7.12a, D214): ft-* 624 of 685 (gate 75 %), optional feature
-full-text; contextual keywords keep the parser growth at about 500 KB.
+Full Text (7.12a-c, D214): ft-* 672 of 685, optional feature full-text;
+Snowball 3.1.1 stemmers (en de fr it es nl) interpreted from vendored .sbl;
+stop words and thesauri served by the host; BM25-like scores. Left: 9 cases
+whose expected XML was re-indented (whitespace only), 2 stemmer-dependent,
+2 window-paragraph cases that contradict fullText-units.
 
 iXML (7.18, D215): fn-invisible-xml 16/16; iXML suite 886 of 907 (711 of
 715 cases with a correct grammar); Earley parser with explicit stacks.
@@ -37,7 +40,6 @@ JavaScript (js-1, D216): 7,000,000 / 2,450,000
 
 ## Running
 
-- 7.12b/c Full Text: stemming, thesaurus, stop words, scores.
 - xml-mem: bounded memory in the XML parser (106 MB input takes 3.98 GB).
 - 7.6c more streamed shapes: apply-templates, accumulators, aggregates.
 - health-3: core sxml.wasm regrew to 2,347,868 (over 2,200,000); debug-gcc fails in function_library_binary.c.
