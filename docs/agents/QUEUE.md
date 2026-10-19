@@ -9,7 +9,7 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 - Phase 5 (XSD 1.1, schema awareness) closed by agent review (D182); four
   gate boxes wait for full runs and fuzzing on the owner's machine (D181).
   All public headers are stable.
-- Passes: XP40 30,931, XQ40 41,273, XT40 8,759, XSD in scope 41,483 of
+- Passes: XP40 31,098, XQ40 41,456, XT40 8,759, XSD in scope 41,483 of
   41,518. Zero error outcomes in every suite.
 - Optional features (D189): `sxml.wasm` (core) 2,004,485 of 2,100,000
   bytes, `sxml-full.wasm` 2,005,513 of 3,000,000. Gzipped budgets 735,000 /
@@ -18,7 +18,6 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 
 ## Running
 
-- XPath/XQuery conformance sweep (2.21).
 - 7.4 XSLT backwards compatibility and XPath 1.0 mode.
 - 7.3 xsl:evaluate and 7.5 disable-output-escaping.
 - 7.8 EXPath Binary and 7.9 EXPath File (one agent).
@@ -38,13 +37,16 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 
 ## Leftovers no packet owns yet
 
-XPath and XQuery:
-- Casts to array, map and record types (about 82 cases).
-- `fn:function-lookup` results do not get the caller's focus (about 47).
-- `fn:serialize` option edge cases (about 25); path steps over JNodes (23).
-- Built-in schema for the `fn` namespace (json-to-xml and analyze-string
-  validation, about 25); `fn:doc` with xsd-validation; schema loading inside
-  `fn:xsd-validator`.
+XPath and XQuery (after 2.21, D190; XP40 31,098, XQ40 41,456):
+- Built-in schema for the `fn` namespace, compiled once per processor
+  (json-to-xml validation, typed analyze-string results; about 25 cases).
+- The current draft's record model: maps are records only when annotated
+  (cast-record-901, recordTypeDecl-019/072/089).
+- NCName vs `Q{}N` name tests (sxml_name_test is frozen); the item axis's
+  JNode parent (D113); a declared function's `$a := .` via function-lookup.
+- Lax validation with no in-scope schema raises FODC0014 (the planner in
+  `src/function_library_schema.c` treats it as strict).
+- fn:serialize canonical-JSON cases (27) need `bin:unpack-double` (7.8).
 - A processor keeps every imported schema until it is destroyed (D174).
 
 XSLT (after 4.19, D185; XT40 8,759):
