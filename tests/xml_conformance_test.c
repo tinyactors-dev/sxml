@@ -316,7 +316,7 @@ typedef struct conformance_document {
 static sxml_status build_document(const conformance_run *run,
                                   const conformance_document *source) {
     const sxml_byte_view document = source->text;
-    char base_uri[SXML_TEST_PATH_BYTE_COUNT];
+    char base_uri[SXML_TEST_PATH_BYTE_COUNT + sizeof "file://"];
     (void)snprintf(base_uri, sizeof base_uri, "file://%s", source->path);
     sxml_arena_tree *arena_tree = NULL;
     sxml_status status = sxml_arena_tree_create(
@@ -375,7 +375,7 @@ static sxml_status build_document(const conformance_run *run,
 static bool document_is_valid(const conformance_run *run,
                               const conformance_document *source,
                               sxml_diagnostic *diagnostic) {
-    char base_uri[SXML_TEST_PATH_BYTE_COUNT];
+    char base_uri[SXML_TEST_PATH_BYTE_COUNT + sizeof "file://"];
     (void)snprintf(base_uri, sizeof base_uri, "file://%s", source->path);
     sxml_error_record error_record;
     memset(&error_record, 0, sizeof error_record);
