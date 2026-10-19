@@ -4,6 +4,16 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 7.2b done (D211): the core size audit. `sxml.wasm` was 2,294,051
+  bytes stripped, over 2,200,000: fn:doc's dtd-validation (4869814) made
+  the whole schema compiler reachable (+167 KB); XQuery Update +4.3 KB,
+  EXSLT +1.3 KB. DTD validation is now the optional feature
+  `sxml_dtd_validation_feature()` ("dtd-validation"; FODC0013 without
+  it), in `sxml_all_optional_features()`. `sxml.wasm` 2,128,754 /
+  741,943, no budget raised; `sxml-full.wasm` 3,565,200. QT4 fn-doc,
+  fn-parse-xml, fn-doc-available, fn-system-properties and XT40
+  document unchanged. The xs:numeric Proposed item is resolved by D208.
+
 - 7.14c done (D210): the DTD follow-ups. `tree.h` gains (additive,
   D99) unparsed entities listed by number and copied with a document
   node (xsl:copy, xsl:copy-of, fn:copy-of, fn:snapshot), and an entity

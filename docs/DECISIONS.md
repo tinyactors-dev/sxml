@@ -8623,6 +8623,70 @@ the host serves the DUCET; the fallback stays for hosts that do not.
   reorder) from CLDR rules, the XSLT driver serving the DUCET (with lang
   sorts), CLDR's root order where it differs from the DUCET.
 
+### D211. DTD validation is an optional feature; the core size audit (packet 7.2b)
+Recorded 2026-10-19, after D162, D189, D199, D207, D208. The core
+`sxml.wasm` was 2,294,051 bytes stripped (801,273 gzipped) at 7fac033,
+over D207's 2,200,000 / 770,000, so `javascript/size_budget` failed.
+- **What grew it** (linker maps of the core module, code and data, from
+  8d19cbf, D207's 2,121,086 / 739,785): 4869814 (fn:doc and fn:parse-xml
+  dtd-validation, D199) +167,419. The processor's document loader called
+  sxml_dtd_validator_create, which compiles the schema documents written
+  from the DTD, so the whole XSD schema compiler became reachable:
+  schema_read 55,036, schema_content_model +27,304, schema_simple_type
+  19,178, schema_complex_type +18,546, schema_resolve 10,019,
+  schema_assemble 8,556, schema_components +4,972, schema_assertion
+  +3,725, schema_identity +2,457, schema_from_dtd 1,707, data +11,552.
+  ffccefa (fn:put and revalidation, D205) +4,267: xquery_update_apply
+  +3,043, the rest of XQuery Update through the lowering registry (D103).
+  01a3993 (EXSLT, D206) +1,279: function_library_exslt 1,080. a7e7e38 and
+  eb1e397: 0. No HTML or other feature was linked by mistake; XPath 1.0
+  compatibility mode was already in D207's number.
+- **Moved**: DTD validation becomes `sxml_dtd_validation_feature()`
+  (`include/sxml/schema.h`, additive; name "dtd-validation"; kind
+  SXML_OPTIONAL_FEATURE_KIND_DTD_VALIDATION; definition and operations
+  table in `src/schema_from_dtd.c`, its type in `src/dtd_internal.h`).
+  The loader (`src/processor.c`, sxml_loader_parse_with_dtd) reaches the
+  validator only through the table. Without the feature the
+  dtd-validation option raises FODC0013, F&O 4.0's error for a processor
+  without a parser for the requested options (17.1.1, 17.2.1; its note
+  names web browsers): the option's single D162 place.
+  `sxml_all_optional_features()` includes it, so the sxml command, the
+  QT4, XSLT and XSD drivers and `sxml-full.wasm` keep DTD validation.
+  The public sxml_dtd_validator API is unchanged: a host that calls it
+  links it.
+- **Kept in the core**: reading the DTD, internal and external entities,
+  attribute defaults and normalization, is-id and is-idrefs (src/xml.c,
+  src/xml_entity.c); `src/dtd.c` (9.5 KB, the DTD written as schema
+  documents) stays linked, because the parser calls it through the
+  validator interface of the frozen `xml.h`. Schema validation for
+  fn:xsd-validator stays (D207's choice), as do the XQuery lowering
+  parts of the registry (D189: about 75 KB, a registry split, not a
+  feature).
+- **System properties**: supports-dtd-validation and
+  supports-dtd-attribute-typing (F&O 4.0, 17.1.9; true since D210) follow
+  the feature: a value kind OPTIONAL_FEATURE in
+  `src/system_property_internal.h`, answered by
+  sxml_processor_find_optional_feature, as the KNOWN_FUNCTION properties
+  follow their features' functions.
+- **Sizes** (stripped / gzipped -9): `sxml.wasm` 2,294,051 / 801,273 to
+  2,128,754 / 741,943, under 2,200,000 / 770,000 with no budget raised
+  (7,668 bytes over D207's module: XQuery Update 3,624, the loader's
+  DTD and trust-external code 1,536, EXSLT 1,080); 2,131,859 / 742,980
+  at 384a2e8 with 7.16's timezones. `sxml-full.wasm` 3,577,133 /
+  1,108,707, the CLI module 6,079,521 / 1,323,861.
+- **Counts** (release drivers, all features configured; the same before
+  and after): QT4 fn-doc XP40 67, XQ40 73 of 75; fn-parse-xml XP40 42,
+  XQ40 53 of 57; fn-doc-available 34 of 47; fn-system-properties 23 of
+  35; fn-id XP40 30, XQ40 61 of 61; fn-idref XP40 24, XQ40 51 of 54;
+  XT40 document 83 of 99. No XSD code changed, so no XSD set was run.
+- **Resolved Proposed item**: "xs:numeric parameters in XPath 1.0
+  compatibility mode" (7.4b, D197) is decided by D208: sxml follows
+  XPath 4.0, 3.4.1, which applies fn:number in the mode only to xs:double
+  and xs:double? parameters. The 14 cases (QT4 numberformat15, 38, 41,
+  42; XT40 format-number 014, 035, 038, 039, 040, 041, backwards-022,
+  version-021, xpath-compat-0302, 0401) stay failures, not reclassified
+  (D178).
+
 ## Proposed
 
 - **A streamability option and a streamed source in `xslt.h`** (packet
@@ -8634,19 +8698,6 @@ the host serves the DUCET; the fallback stays for hosts that do not.
   an additive last field of `sxml_xslt_stylesheet_configuration`, for
   example `bool falls_back_to_unstreamed`, read by
   sxml_xslt_check_streamability, with 7.6b's streamed principal source.
-
-- **xs:numeric parameters in XPath 1.0 compatibility mode** (packet 7.4b,
-  D197; for the owner): XPath 4.0, 3.4.1 applies fn:number to an
-  argument in the mode only when the parameter type is xs:double or
-  xs:double?. F&O 4.0 made fn:format-number, fn:round, fn:floor,
-  fn:ceiling and fn:abs take xs:numeric?, so a string or a node argument
-  is not converted and raises XPTY0004. 14 cases expect the older
-  conversion: QT4 numberformat15, 38, 41, 42 and in XT40 format-number
-  014, 035, 038, 039, 040, 041, backwards-022, version-021,
-  xpath-compat-0302 and 0401. 7.4 followed the specification and did not
-  reclassify them (D178). Choose: confirm (the 14 stay failures), or
-  extend the mode's fn:number conversion to xs:numeric and xs:numeric?
-  parameters (one place, `src/xpath_lower.c`'s argument conversion).
 
 - **The CLI's WebAssembly budget after the Phase 7 features** (packet
   7.10a, D201; for the owner): the `sxml` CLI module names every optional

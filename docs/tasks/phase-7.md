@@ -244,6 +244,23 @@ After the owner's size decision (D183 Proposed).
 (the mechanism's own 910 bytes; no feature in the core),
 `sxml-full.wasm` 2,005,513; budgets 2,100,000 and 3,000,000.
 
+### 7.2b Core size audit (build)
+After 7.14b and D208. The core `sxml.wasm` was 2,294,051 bytes stripped,
+over D207's 2,200,000 / 770,000.
+- **Owns**: the DTD validation feature (`include/sxml/schema.h`,
+  additive; `src/schema_from_dtd.c`, `src/dtd_internal.h`), the loader's
+  dtd-validation place in `src/processor.c`, single hunks in
+  `src/optional_feature*.c/h`, `bindings/javascript/CMakeLists.txt` and
+  `tests/xpath_test.c`.
+- **Done when**: per-object and per-commit growth measured; large
+  separable parts behind D189 features with their D162 place; the core
+  under budget, or a minimal raise recorded (D208); the touched QT4 and
+  XT40 sets unchanged with all features; the xs:numeric Proposed item
+  resolved by D208.
+**Done** 2026-10-19 (D211): DTD validation is the optional feature
+"dtd-validation" (FODC0013 without it); `sxml.wasm` 2,294,051 / 801,273
+to 2,128,754 / 741,943, no budget raised; counts unchanged.
+
 ### 7.4 XSLT backwards-compatible behaviour and XPath 1.0 compatibility mode (implementation)
 - **Specifications**:
   - XPath 4.0, 2.2.1 (XPath 1.0 compatibility mode in the static
