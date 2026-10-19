@@ -230,14 +230,11 @@ static sxml_status sxml_node_describe_stored(
     if (!sxml_node_index_is_in_tree(node)) {
         return SXML_STATUS_INDEX_OUT_OF_RANGE;
     }
-    sxml_node_description new_description = sxml_node_description_empty();
-    sxml_status status = node.tree->operations->describe_node(
-        node.tree->state, node.node_index, &new_description);
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    *description = new_description;
-    return SXML_STATUS_OK;
+    /* Written in place: every step describes nodes, and the contract
+       (tree.h) leaves *description unspecified on failure. */
+    *description = sxml_node_description_empty();
+    return node.tree->operations->describe_node(node.tree->state, node.node_index,
+                                                description);
 }
 
 /*

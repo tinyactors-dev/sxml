@@ -3479,6 +3479,60 @@ static bool sxml_map_body_delivers(const sxml_evaluator_task *task, const sxml_i
     return task->delivers_content && (map->flags & SXML_IR_MAP_REQUIRES_NODES) == 0;
 }
 
+/* Whether sxml_map_step_at_once took the MAP. */
+typedef struct sxml_map_at_once {
+    bool is_handled;
+} sxml_map_at_once;
+
+/*
+ * The MAP of a path "E1/E2" whose E2 is one axis step from the focus value
+ * (XPath 4.0, section 4.7.3), over XNodes only: the step from all of them
+ * at once (sxml_evaluator_make_step_value takes several origins and gives
+ * their nodes in document order), instead of a task per item. The
+ * DOCUMENT_ORDER after a path's MAP makes both the same value. Charges the
+ * two steps per item the body tasks would have taken, so step counts do
+ * not change (D89, D224). A JNode or another item goes the usual way,
+ * which raises the path's errors.
+ */
+static sxml_status sxml_map_step_at_once(sxml_dynamic_context *context, const sxml_ir_step *step,
+                                         sxml_map_at_once *outcome) {
+    const sxml_sequence input = sxml_machine_top(context)->details.loop.input;
+    outcome->is_handled = false;
+    uint64_t item_count = 0;
+    sxml_sequence_iterator iterator = sxml_sequence_iterator_start(input);
+    for (;;) {
+        sxml_iteration_step item;
+        const sxml_status status =
+            sxml_sequence_iterator_next(&iterator, context->error_record, &item);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        if (!item.has_item) {
+            break;
+        }
+        if (sxml_item_get_representation(item.item) != SXML_ITEM_REPRESENTATION_NODE) {
+            return SXML_STATUS_OK;
+        }
+        item_count += 1;
+    }
+    outcome->is_handled = true;
+    sxml_status status = sxml_dynamic_context_charge_steps(context, 2 * item_count);
+    sxml_sequence value = sxml_sequence_empty();
+    if (status == SXML_STATUS_OK) {
+        status = sxml_evaluator_make_step_value(
+            context,
+            &(sxml_step_request){.origin = input,
+                                 .axis = step->axis,
+                                 .node_test = step->node_test,
+                                 .error_record = context->error_record},
+            &value);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_machine_finish(context, value);
+}
+
 static sxml_status sxml_machine_step_map(sxml_dynamic_context *context,
                                          const sxml_ir_map *map) {
     sxml_evaluator_task *task = sxml_machine_top(context);
@@ -3512,6 +3566,20 @@ static sxml_status sxml_machine_step_map(sxml_dynamic_context *context,
                 sxml_expression_task(task->function, task->frame_base, map->body);
             body.delivers_content = sxml_map_body_delivers(task, map);
             return sxml_machine_push(context, &body);
+        }
+        const sxml_ir_expression *body =
+            sxml_ir_unit_get_expression(task->function->unit, map->body);
+        if ((map->flags & SXML_IR_MAP_REQUIRES_NODES) != 0 &&
+            map->focus.context_position.value == 0 && map->focus.context_size.value == 0 &&
+            body->expression_kind == SXML_IR_EXPRESSION_KIND_STEP &&
+            body->step.origin.atom_kind == SXML_IR_ATOM_KIND_SLOT &&
+            body->step.origin.slot.value == map->focus.context_value.value) {
+            sxml_map_at_once at_once = {.is_handled = false};
+            status = sxml_map_step_at_once(context, &body->step, &at_once);
+            if (status != SXML_STATUS_OK || at_once.is_handled) {
+                return status;
+            }
+            task = sxml_machine_top(context);
         }
     } else {
         sxml_sequence value = sxml_machine_take_value(context);

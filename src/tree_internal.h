@@ -116,7 +116,8 @@ SXML_NODISCARD sxml_status sxml_axis_walk_start(sxml_axis_request request,
 /*
  * Moves walk (in/out) to the next node of its axis and writes it with its
  * description to *node, or sets node->has_node false at the end. Returns
- * the failures of the tree implementation; on failure walk is untouched.
+ * the failures of the tree implementation; on failure walk is untouched
+ * and *node is unspecified.
  */
 SXML_NODISCARD sxml_status sxml_axis_walk_next(sxml_axis_walk *walk,
                                                sxml_described_node *node);

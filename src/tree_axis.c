@@ -628,14 +628,13 @@ sxml_status sxml_axis_walk_next(sxml_axis_walk *walk, sxml_described_node *node)
         node->has_node = false;
         return SXML_STATUS_OK;
     }
-    current.node = walk->next_node;
-    current.description = sxml_axis_empty_description();
-    const sxml_status status = sxml_node_describe(current.node, &current.description);
+    /* Described in place: this is the inner loop of every step. */
+    node->node = walk->next_node;
+    const sxml_status status = sxml_node_describe(node->node, &node->description);
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    current.has_node = true;
-    sxml_axis_walk_advance(walk, &current);
-    *node = current;
+    node->has_node = true;
+    sxml_axis_walk_advance(walk, node);
     return SXML_STATUS_OK;
 }
