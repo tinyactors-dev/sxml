@@ -1,0 +1,71 @@
+# Common brief for every sxml agent
+
+## Where and how
+
+- The repository's working tree is shared by several agents at once.
+  All work happens directly on `main`: never create branches or
+  worktrees (a hook in `.claude/hooks/main-only.py` blocks it).
+- Own only the files your packet names. Never reset, check out, stash or
+  commit someone else's changes.
+- Use the session's scratchpad for temporary files. Name your directories
+  after your packet (`build-5.13`, `5.13-work`), keep them small, and delete
+  them before your final report: the disk is shared and limited.
+
+## Read first
+
+`CLAUDE.md`, `docs/PLAN.md`, `docs/C_GUIDELINES.md`, `docs/GLOSSARY.md`,
+`docs/DECISIONS.md` (the records your packet cites, and the latest ones),
+`docs/LOG.md`, the task file of your phase in `docs/tasks/`, and the headers
+you implement or use.
+
+## Rules
+
+- Follow `CLAUDE.md` and `docs/C_GUIDELINES.md` exactly: spelled-out names,
+  at most three parameters, no `malloc`/`free` outside `src/allocator.c`,
+  no globals, views with lengths, the object lifecycle, contract comments,
+  specification citations. New terms go into the glossary first.
+- **No C recursion** (D71), not even through function pointers or
+  operation tables. Use loops with explicit stacks in allocator memory.
+- **Conceptual smallness** (CLAUDE.md): one data model, one execution
+  foundation, thin language layers. Extend existing mechanisms; never add
+  parallel machinery.
+- **Delayed features** (D162): a feature sxml does not have yet is
+  rejected or ignored in one place, with the error the specification
+  gives, so adding it later replaces that one place.
+- **Honest outcomes**: a test that crashes, leaks or hits a limit is an
+  error. Never reclassify outcomes to meet a gate (D178); fix the cause or
+  report it.
+- **The CLI** (`apps/`, rules in `docs/CLI.md`) uses only the public API.
+  When your work makes a capability real, extend the matching command with
+  end-to-end tests. Never add a command or flag for something that does not
+  work yet.
+
+## Records
+
+- Decisions another agent needs go into `docs/DECISIONS.md` as a new
+  numbered record (check the highest number first). Items for the owner go
+  under "## Proposed".
+- Add a short entry to `docs/LOG.md`, newest first.
+- Commit messages are the record of the work: say what changed, why, the
+  golden file imitated, the specification sections, and before/after
+  counts. Every message ends, after a blank line, with the attribution
+  lines the session gives you. Never write a model name anywhere else.
+
+## Committing in the shared tree
+
+- All agents share one git index. Commit with an explicit pathspec in one
+  command: `git commit -m "..." -- path1 path2`. Never `git add` and commit
+  in two commands, and never `git commit -a`.
+- For part of a shared ledger (DECISIONS, GLOSSARY, LOG), stage only your
+  hunk (`git apply --cached` of your patch, or `git update-index` of HEAD's
+  file plus your insertion) and commit it in the same command. Read a
+  ledger before writing it, and never write it back from an older copy.
+- Commit and push at every working milestone, not only at the end:
+  sessions get interrupted. Push with `git push origin main`; if it is
+  rejected, `git pull --rebase --autostash origin main` and push again.
+
+## Final report
+
+At most 350 words, for the orchestrator: what was done (files and
+commits), decisions recorded, deviations, before/after numbers, open
+problems, and anything that blocks other packets.

@@ -7046,6 +7046,25 @@ resolves the Proposed item "xslt.h reads the host's in-scope schemas".
   41,273, 0 errors; XSD in scope 41,483 of 41,518; slices 198, 147
   (XSLT, of 154) and 147 (XSD).
 
+### D181. Verification in proportion; agent prompts in the repository (owner)
+Recorded 2026-10-19 on the owner's word: re-running all builds and fuzzing
+everything takes too long here; the owner will provision a machine for
+that. Amends the done-when of the packet procedure (D123's local checks).
+- A packet builds the `debug` preset (Clang, ASan and UBSan, `-Werror`),
+  runs the unit and CLI tests it touches, keeps `clang-tidy` and the
+  call-cycle check clean for its files, and runs the conformance test
+  sets it affects with no fewer passes. `debug-gcc` and `wasm` only when a
+  change is platform-sensitive or may grow `sxml.wasm` noticeably.
+- Full suite runs, all presets, the full lint and fuzzing move to the
+  owner's machine. Gate boxes that need them stay open, marked "deferred
+  to the owner's machine (D181)"; `docs/CONFORMANCE.md` is regenerated only
+  from full runs.
+- The agent prompts live in `docs/agents/` (`BRIEF.md`, `PACKET.md`, and
+  `QUEUE.md` for the running and next work), so any session can continue
+  the work; commit messages carry the reasons and the numbers.
+- The user-facing CLI reference is `apps/sxml/README.md`; `docs/CLI.md`
+  keeps the design rules (D44).
+
 ## Proposed
 
 - **The CLI's WebAssembly budget after sxml validate** (packet 5.10,
