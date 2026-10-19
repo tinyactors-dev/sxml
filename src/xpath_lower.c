@@ -9221,6 +9221,81 @@ sxml_status sxml_xpath_lower(const sxml_xpath_lowering_request *request,
     return SXML_STATUS_OK;
 }
 
+/* The text of a declaration's child field. */
+typedef struct declaration_field {
+    const sxml_ast *ast;
+    sxml_ast_node_index declaration;
+    sxml_ast_field field;
+} declaration_field;
+
+static sxml_byte_view declaration_text(declaration_field request) {
+    const sxml_ast_node_index child = sxml_ast_find_child(
+        request.ast,
+        (sxml_ast_child_query){.parent = request.declaration, .field = request.field});
+    const sxml_ast_node *node = sxml_ast_get_node(request.ast, child);
+    return sxml_ast_get_text(request.ast, node->kind == SXML_AST_KIND_STRING_LITERAL
+                                              ? node->payload.text
+                                              : node->payload.name.local_name);
+}
+
+/* The namespace declarations of an XPath expression (XPath 4.0, A.1,
+   with the rules of XQuery 4.0, 5.13): XQST0033 for a prefix declared
+   twice, XQST0070 for the prefixes xml and xmlns and for the XML
+   namespaces bound to another prefix. */
+static sxml_status check_namespace_declarations(const sxml_ast *ast,
+                                                sxml_error_record *error_record) {
+    static const sxml_byte_view xml_namespace =
+        SXML_BYTE_VIEW_INITIALIZER("http://www.w3.org/XML/1998/namespace");
+    static const sxml_byte_view xmlns_namespace =
+        SXML_BYTE_VIEW_INITIALIZER("http://www.w3.org/2000/xmlns/");
+    for (sxml_ast_node_index declaration = sxml_ast_find_child(
+             ast, (sxml_ast_child_query){.parent = ast->root,
+                                         .field = SXML_AST_FIELD_DECLARATION});
+         declaration.value != 0;
+         declaration = sxml_ast_find_next_with_same_field(ast, declaration)) {
+        if (sxml_ast_get_node(ast, declaration)->kind != SXML_AST_KIND_NAMESPACE_DECLARATION) {
+            continue;
+        }
+        const sxml_byte_view prefix = declaration_text(
+            (declaration_field){.ast = ast, .declaration = declaration,
+                                .field = SXML_AST_FIELD_PREFIX});
+        const sxml_byte_view uri = declaration_text(
+            (declaration_field){.ast = ast, .declaration = declaration,
+                                .field = SXML_AST_FIELD_URI});
+        sxml_xpath_static_error error = {.ast = ast, .node = declaration};
+        if (sxml_byte_view_equals(prefix, SXML_BYTE_VIEW_FROM_LITERAL("xml")) ||
+            sxml_byte_view_equals(prefix, SXML_BYTE_VIEW_FROM_LITERAL("xmlns"))) {
+            error.code_local_name = SXML_BYTE_VIEW_FROM_LITERAL("XQST0070");
+            error.description =
+                SXML_BYTE_VIEW_FROM_LITERAL("The prefixes xml and xmlns cannot be declared");
+        } else if (sxml_byte_view_equals(uri, xml_namespace) ||
+                   sxml_byte_view_equals(uri, xmlns_namespace)) {
+            error.code_local_name = SXML_BYTE_VIEW_FROM_LITERAL("XQST0070");
+            error.description =
+                SXML_BYTE_VIEW_FROM_LITERAL("The XML namespaces cannot be bound to a prefix");
+        }
+        for (sxml_ast_node_index earlier = sxml_ast_find_child(
+                 ast, (sxml_ast_child_query){.parent = ast->root,
+                                             .field = SXML_AST_FIELD_DECLARATION});
+             error.code_local_name.byte_count == 0 && earlier.value != declaration.value;
+             earlier = sxml_ast_find_next_with_same_field(ast, earlier)) {
+            if (sxml_ast_get_node(ast, earlier)->kind == SXML_AST_KIND_NAMESPACE_DECLARATION &&
+                sxml_byte_view_equals(
+                    prefix, declaration_text((declaration_field){
+                                .ast = ast, .declaration = earlier,
+                                .field = SXML_AST_FIELD_PREFIX}))) {
+                error.code_local_name = SXML_BYTE_VIEW_FROM_LITERAL("XQST0033");
+                error.description =
+                    SXML_BYTE_VIEW_FROM_LITERAL("A namespace prefix is declared twice");
+            }
+        }
+        if (error.code_local_name.byte_count != 0) {
+            return sxml_xpath_report_static_error(&error, error_record);
+        }
+    }
+    return SXML_STATUS_OK;
+}
+
 sxml_status sxml_xpath_compile(const sxml_xpath_compile_request *request,
                                sxml_ir_unit **unit) {
     if (request == NULL || request->static_context == NULL) {
@@ -9236,6 +9311,11 @@ sxml_status sxml_xpath_compile(const sxml_xpath_compile_request *request,
             .error_record = request->error_record},
         &ast);
     if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    status = check_namespace_declarations(ast, request->error_record);
+    if (status != SXML_STATUS_OK) {
+        sxml_ast_destroy(ast);
         return status;
     }
     sxml_ir_unit *new_unit = NULL;
