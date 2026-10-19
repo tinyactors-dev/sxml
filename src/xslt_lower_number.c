@@ -522,6 +522,32 @@ static const char value_numbers_text[] =
     "else if ($r lt 0) then error(" ERROR_CODE("XTDE0980") ", "
     "'The value of xsl:number is negative (XSLT 4.0, 12.2)') else xs:integer($r))";
 
+/* 12.2 with XSLT 1.0 behaviour (3.8.1): the first atomized item only, NaN
+   for none; a value that cannot be converted to an integer gives NaN, the
+   marker of the string "NaN" in the formatted result, not XTDE0980. */
+static const char compatible_value_numbers_text[] =
+    "let $v := data(" NUMBER_VARIABLE "value)[1], $r := if (empty($v)) then xs:double('NaN') "
+    "else if ($v instance of xs:decimal) then round($v) else round(number($v)) "
+    "return if (not($r instance of xs:decimal) and (string($r) = ('NaN', 'INF', '-INF'))) "
+    "then xs:double('NaN') else if ($r lt 0) then error(" ERROR_CODE("XTDE0980") ", "
+    "'The value of xsl:number is negative (XSLT 4.0, 12.2)') else xs:integer($r)";
+
+/* The formatted result for the NaN marker: "NaN" between the format's
+   prefix and suffix, its leading and trailing characters that are not
+   alphanumeric (12.4); () when the place marker has no NaN. */
+static const char compatible_not_a_number_text[] =
+    "if (" NUMBER_VARIABLE "numbers instance of xs:double) then "
+    "let $f := " NUMBER_VARIABLE "format return "
+    "replace($f, '^([^\\p{L}\\p{N}]*).*$', '$1', 's') || 'NaN' || "
+    "(if (matches($f, '[\\p{L}\\p{N}]')) then "
+    "replace($f, '^.*[\\p{L}\\p{N}]([^\\p{L}\\p{N}]*)$', '$1', 's') else '') else ()";
+
+static const char compatible_integers_text[] =
+    NUMBER_VARIABLE "numbers[. instance of xs:integer]";
+
+static const char compatible_choice_text[] =
+    "(" NUMBER_VARIABLE "nan, " NUMBER_VARIABLE "formatted)[1]";
+
 /* 12.3: the selected node: the context item, or the select value. */
 static const char context_node_text[] =
     "if (. instance of node()) then . else error(" ERROR_CODE("XTTE0990") ", "
@@ -628,7 +654,12 @@ typedef enum number_step {
     SXML_NUMBER_STEP_PLACE_MARKER,
     SXML_NUMBER_STEP_CONVERSION,
     SXML_NUMBER_STEP_START_AT,
+    /* XSLT 1.0 behaviour with a value attribute: the NaN marker's text,
+       then the integers to format, then the choice of the two texts. */
+    SXML_NUMBER_STEP_NOT_A_NUMBER,
+    SXML_NUMBER_STEP_INTEGERS,
     SXML_NUMBER_STEP_FORMAT,
+    SXML_NUMBER_STEP_CHOICE,
 } number_step;
 
 typedef struct number_locals {
@@ -648,7 +679,13 @@ typedef struct number_locals {
     sxml_ir_atom conversions[CONVERSION_ATTRIBUTE_COUNT];
     size_t conversion_index;
     pattern_filter filter;
+    /* XSLT 1.0 behaviour with a value attribute (12.2): the text for the
+       NaN marker, or (), and the formatted place marker. */
+    bool is_compatible_value;
+    sxml_ir_atom not_a_number_text;
+    sxml_ir_atom formatted;
 } number_locals;
+
 
 /* 12, XTSE0975: value excludes select, level, count and from. */
 static sxml_status check_number(const sxml_xslt_lowering *lowering, sxml_xslt_ast_node_index node) {
@@ -822,7 +859,10 @@ static sxml_status step_position(sxml_xpath_lowering_machine *machine,
     case SXML_NUMBER_STEP_VALUE:
     case SXML_NUMBER_STEP_CONVERSION:
     case SXML_NUMBER_STEP_START_AT:
+    case SXML_NUMBER_STEP_NOT_A_NUMBER:
+    case SXML_NUMBER_STEP_INTEGERS:
     case SXML_NUMBER_STEP_FORMAT:
+    case SXML_NUMBER_STEP_CHOICE:
         break;
     }
     return SXML_STATUS_INVALID_ARGUMENT;
@@ -858,10 +898,39 @@ static sxml_status finish_number(sxml_xpath_lowering_machine *machine,
     if (status != SXML_STATUS_OK) {
         return status;
     }
+    if (locals->is_compatible_value) {
+        frame->step = SXML_NUMBER_STEP_CHOICE;
+        return call_number_text(
+            machine, frame,
+            &(number_text){.text = compatible_choice_text,
+                           .variables = {{.local_name = "nan", .atom = locals->not_a_number_text},
+                                         {.local_name = "formatted", .atom = text}},
+                           .variable_count = 2,
+                           .atom = &locals->formatted});
+    }
     return finish_with_expression(
         machine, frame,
         (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_TEXT_CONSTRUCTOR,
                              .node_construction = {.value = text}});
+}
+
+/* After the place marker and start-at: with XSLT 1.0 behaviour and a
+   value attribute, the NaN marker's text first (12.2), else the format. */
+static sxml_status format_numbers(sxml_xpath_lowering_machine *machine,
+                                  sxml_xpath_lowering_frame *frame) {
+    number_locals *locals = frame->locals;
+    if (!locals->is_compatible_value) {
+        frame->step = SXML_NUMBER_STEP_FORMAT;
+        return finish_number(machine, frame);
+    }
+    frame->step = SXML_NUMBER_STEP_INTEGERS;
+    return call_number_text(
+        machine, frame,
+        &(number_text){.text = compatible_not_a_number_text,
+                       .variables = {{.local_name = "numbers", .atom = locals->numbers},
+                                     {.local_name = "format", .atom = locals->conversions[0]}},
+                       .variable_count = 2,
+                       .atom = &locals->not_a_number_text});
 }
 
 static sxml_status continue_number(sxml_xpath_lowering_machine *machine,
@@ -898,9 +967,11 @@ static sxml_status continue_number(sxml_xpath_lowering_machine *machine,
     }
     case SXML_NUMBER_STEP_VALUE:
         frame->step = SXML_NUMBER_STEP_CONVERSION;
+        locals->is_compatible_value = sxml_xslt_lowering_has_xslt_1_behaviour(lowering, node);
         return call_number_text(
             machine, frame,
-            &(number_text){.text = value_numbers_text,
+            &(number_text){.text = locals->is_compatible_value ? compatible_value_numbers_text
+                                                               : value_numbers_text,
                            .variables = {{.local_name = "value", .atom = locals->selected}},
                            .variable_count = 1,
                            .atom = &locals->numbers});
@@ -939,10 +1010,9 @@ static sxml_status continue_number(sxml_xpath_lowering_machine *machine,
                                   (attribute_lowering){.kind = SXML_XSLT_AST_ATTRIBUTE_START_AT,
                                                        .atom = &locals->start_at});
         }
-        frame->step = SXML_NUMBER_STEP_FORMAT;
-        return finish_number(machine, frame);
+        return format_numbers(machine, frame);
     case SXML_NUMBER_STEP_START_AT:
-        frame->step = SXML_NUMBER_STEP_FORMAT;
+        frame->step = SXML_NUMBER_STEP_NOT_A_NUMBER;
         return call_number_text(
             machine, frame,
             &(number_text){.text = start_at_text,
@@ -950,8 +1020,23 @@ static sxml_status continue_number(sxml_xpath_lowering_machine *machine,
                                          {.local_name = "numbers", .atom = locals->numbers}},
                            .variable_count = 2,
                            .atom = &locals->numbers});
+    case SXML_NUMBER_STEP_NOT_A_NUMBER:
+        return format_numbers(machine, frame);
+    case SXML_NUMBER_STEP_INTEGERS:
+        frame->step = SXML_NUMBER_STEP_FORMAT;
+        return call_number_text(
+            machine, frame,
+            &(number_text){.text = compatible_integers_text,
+                           .variables = {{.local_name = "numbers", .atom = locals->numbers}},
+                           .variable_count = 1,
+                           .atom = &locals->numbers});
     case SXML_NUMBER_STEP_FORMAT:
         return finish_number(machine, frame);
+    case SXML_NUMBER_STEP_CHOICE:
+        return finish_with_expression(
+            machine, frame,
+            (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_TEXT_CONSTRUCTOR,
+                                 .node_construction = {.value = locals->formatted}});
     }
     return SXML_STATUS_INVALID_ARGUMENT;
 }

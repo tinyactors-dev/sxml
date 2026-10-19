@@ -107,6 +107,14 @@ static const sxml_qt4_supported_dependency sxml_qt4_xquery_dependencies[] = {
      SXML_BYTE_VIEW_INITIALIZER("fn-load-xquery-module")},
 };
 
+/* For XPath only: XPath 1.0 compatibility mode (packet 7.4,
+   D197), which XQuery does not have; it stays a non-goal of the
+   D95 denominators below, as schemaImport does. */
+static const sxml_qt4_supported_dependency sxml_qt4_xpath_dependencies[] = {
+    {SXML_BYTE_VIEW_INITIALIZER("feature"),
+     SXML_BYTE_VIEW_INITIALIZER("xpath-1.0-compatibility")},
+};
+
 /* A table of supported dependencies. */
 typedef struct sxml_qt4_dependency_table {
     const sxml_qt4_supported_dependency *entries;
@@ -292,12 +300,18 @@ bool sxml_qt4_dependency_is_supported(sxml_qt4_dependency_value dependency) {
         .entries = sxml_qt4_xquery_dependencies,
         .entry_count = sizeof sxml_qt4_xquery_dependencies /
                        sizeof sxml_qt4_xquery_dependencies[0]};
+    const sxml_qt4_dependency_table xpath = {
+        .entries = sxml_qt4_xpath_dependencies,
+        .entry_count = sizeof sxml_qt4_xpath_dependencies /
+                       sizeof sxml_qt4_xpath_dependencies[0]};
     sxml_qt4_token_cursor cursor = {.text = dependency.value, .byte_index = 0};
     sxml_byte_view token = sxml_qt4_empty_text;
     while (sxml_qt4_next_token(&cursor, &token)) {
         if (sxml_qt4_table_has(common, dependency.dependency_type, token) ||
             (dependency.runs_xquery &&
-             sxml_qt4_table_has(xquery, dependency.dependency_type, token))) {
+             sxml_qt4_table_has(xquery, dependency.dependency_type, token)) ||
+            (!dependency.runs_xquery &&
+             sxml_qt4_table_has(xpath, dependency.dependency_type, token))) {
             return true;
         }
     }

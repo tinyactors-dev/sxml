@@ -556,6 +556,21 @@ typedef struct sxml_xslt_library_call {
 SXML_NODISCARD sxml_status sxml_xslt_lowering_bind_library_call(
     sxml_xpath_lowerer *lowerer, const sxml_xslt_library_call *request, sxml_ir_atom *atom);
 
+/* True when node is processed with XSLT 1.0 behaviour (XSLT 4.0, 3.8.1;
+   glossary `backwards_compatible_behaviour`): its static context has XPath
+   1.0 compatibility mode, set for an effective version below 2.0
+   (D197). */
+bool sxml_xslt_lowering_has_xslt_1_behaviour(const sxml_xslt_lowering *lowering,
+                                             sxml_xslt_ast_node_index node);
+
+/* *atom replaced by the first item of its atomized value, bound in block
+   (fn:head(fn:data(.))): what XSLT 1.0 behaviour keeps of xsl:value-of
+   and of an attribute value template's enclosed expression (XSLT 4.0,
+   11.4.2 and 5.6.1). */
+SXML_NODISCARD sxml_status sxml_xslt_lowering_bind_first_atom(sxml_xpath_lowerer *lowerer,
+                                                             sxml_xpath_lowering_block *block,
+                                                             sxml_ir_atom *atom);
+
 /* Fills the error record with code_and_description ("XTSE0010 text",
    static) at node and returns SXML_STATUS_STATIC_ERROR. */
 typedef struct sxml_xslt_static_error {

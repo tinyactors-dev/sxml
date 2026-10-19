@@ -1075,12 +1075,27 @@ static sxml_status finish_text_instruction(sxml_xpath_lowering_machine *machine,
     text_instruction_locals *locals = frame->locals;
     const text_instruction_kind kind =
         text_instruction_kind_of(node_of(locals->head.lowering, locals->head.node)->kind);
+    sxml_status status = SXML_STATUS_OK;
+    /* 11.4.2: with XSLT 1.0 behaviour, a select attribute and no
+       separator, every atomized item but the first is ignored, for
+       xsl:value-of only (xsl:text had no select in XSLT 1.0). */
+    if (node_of(locals->head.lowering, locals->head.node)->kind == SXML_XSLT_AST_KIND_VALUE_OF &&
+        locals->has_select &&
+        find_attribute(locals->head.lowering,
+                       (attribute_lookup){.node = locals->head.node,
+                                          .kind = SXML_XSLT_AST_ATTRIBUTE_SEPARATOR})
+                ->kind == SXML_XSLT_AST_ATTRIBUTE_NONE &&
+        sxml_xslt_lowering_has_xslt_1_behaviour(locals->head.lowering, locals->head.node)) {
+        status = sxml_xslt_lowering_bind_first_atom(lowerer, frame->block, &locals->value);
+    }
     sxml_ir_atom text = {0};
-    sxml_status status = sxml_xslt_lowering_bind_simple_content(
-        lowerer,
-        (sxml_xslt_simple_content_request){
-            .block = frame->block, .value = locals->value, .separator = locals->separator},
-        &text);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xslt_lowering_bind_simple_content(
+            lowerer,
+            (sxml_xslt_simple_content_request){
+                .block = frame->block, .value = locals->value, .separator = locals->separator},
+            &text);
+    }
     if (status != SXML_STATUS_OK) {
         return status;
     }

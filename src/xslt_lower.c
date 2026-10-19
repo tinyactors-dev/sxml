@@ -550,6 +550,39 @@ sxml_status sxml_xslt_lowering_resolve_declared_type(const sxml_xslt_lowering *l
         &type->sequence_type);
 }
 
+/* ------------------------------------------- Backwards compatibility */
+
+bool sxml_xslt_lowering_has_xslt_1_behaviour(const sxml_xslt_lowering *lowering,
+                                             sxml_xslt_ast_node_index node) {
+    const uint32_t context = node_of(lowering, node)->static_context.value;
+    return context != 0 && context < lowering->static_context_count &&
+           lowering->static_contexts[context].has_xpath_1_compatibility_mode;
+}
+
+sxml_status sxml_xslt_lowering_bind_first_atom(sxml_xpath_lowerer *lowerer,
+                                               sxml_xpath_lowering_block *block,
+                                               sxml_ir_atom *atom) {
+    const sxml_ir_atom value = *atom;
+    sxml_ir_atom atoms = {0};
+    const sxml_status status = sxml_xslt_lowering_bind_library_call(
+        lowerer,
+        &(sxml_xslt_library_call){.block = block,
+                                  .function_namespace = SXML_NAMESPACE_FUNCTIONS,
+                                  .local_name = SXML_BYTE_VIEW_FROM_LITERAL("data"),
+                                  .arguments = {.atoms = &value, .atom_count = 1}},
+        &atoms);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_xslt_lowering_bind_library_call(
+        lowerer,
+        &(sxml_xslt_library_call){.block = block,
+                                  .function_namespace = SXML_NAMESPACE_FUNCTIONS,
+                                  .local_name = SXML_BYTE_VIEW_FROM_LITERAL("head"),
+                                  .arguments = {.atoms = &atoms, .atom_count = 1}},
+        atom);
+}
+
 /* ------------------------------------------------ Boolean attributes */
 
 sxml_xslt_boolean_text sxml_xslt_lowering_read_boolean_text(sxml_byte_view text) {
@@ -685,6 +718,10 @@ typedef struct value_template_locals {
     /* The string so far. */
     sxml_ir_atom result;
     bool has_result;
+    /* An attribute value template of an element with XSLT 1.0 behaviour
+       (5.6.1): each enclosed expression gives its first atomized item.
+       Not for text value templates, which XSLT 1.0 did not have. */
+    bool takes_first_items;
 } value_template_locals;
 
 /* Appends part_atom to the template's string with "||". */
@@ -715,6 +752,9 @@ static sxml_status append_enclosed_part(sxml_xpath_lowering_machine *machine,
     sxml_ir_atom separator = {0};
     sxml_status status = sxml_xpath_lowerer_add_string_constant(
         lowerer, SXML_BYTE_VIEW_FROM_LITERAL(" "), &separator);
+    if (status == SXML_STATUS_OK && locals->takes_first_items) {
+        status = sxml_xslt_lowering_bind_first_atom(lowerer, frame->block, &locals->value);
+    }
     sxml_ir_atom content = {0};
     if (status == SXML_STATUS_OK) {
         status = sxml_xslt_lowering_bind_simple_content(
@@ -812,13 +852,17 @@ typedef struct value_template_push {
     const sxml_xpath_static_context *static_context;
     sxml_xpath_lowering_block *block;
     sxml_ir_atom *atom;
+    bool is_text_template;
 } value_template_push;
 
 static sxml_status push_value_template(sxml_xpath_lowering_machine *machine,
                                        const value_template_push *call) {
-    const value_template_locals initial = {.lowering = call->lowering,
-                                           .ast = call->ast,
-                                           .static_context = call->static_context};
+    const value_template_locals initial = {
+        .lowering = call->lowering,
+        .ast = call->ast,
+        .static_context = call->static_context,
+        .takes_first_items = !call->is_text_template && call->static_context != NULL &&
+                             call->static_context->has_xpath_1_compatibility_mode};
     sxml_xpath_lowering_frame *frame = NULL;
     return sxml_xpath_lowering_push_procedure(
         machine,
@@ -890,14 +934,23 @@ static sxml_status continue_text_template(sxml_xpath_lowering_machine *machine,
     text_template_locals *locals = frame->locals;
     if (frame->step == 0) {
         frame->step = 1;
-        return sxml_xslt_lowering_call_value_template(
+        const sxml_xslt_lowering *lowering = locals->head.lowering;
+        const sxml_xslt_ast_expression_index expression =
+            node_of(lowering, locals->head.node)->content.payload.expression;
+        /* 5.6.1: a text value template keeps every item, even with XSLT
+           1.0 behaviour. 3.8.1 also asks for its expressions without
+           XPath 1.0 compatibility mode; they are lowered in the element's
+           static context, which has it (D197: a 1.0 element with
+           expand-text="yes" is the only case). */
+        return push_value_template(
             machine,
-            &(sxml_xslt_expression_call){
-                .lowering = locals->head.lowering,
-                .expression =
-                    node_of(locals->head.lowering, locals->head.node)->content.payload.expression,
+            &(value_template_push){
+                .lowering = lowering,
+                .ast = sxml_xslt_ast_get_expression(lowering->ast, expression)->ast,
+                .static_context = sxml_xslt_lowering_expression_context(lowering, expression),
                 .block = frame->block,
-                .atom = &locals->value});
+                .atom = &locals->value,
+                .is_text_template = true});
     }
     sxml_ir_expression_index text = {0};
     const sxml_status status = sxml_xpath_lowerer_add_expression(
@@ -1509,42 +1562,6 @@ static const sxml_xpath_lowering_procedure fallback_procedure = {
     .step = continue_fallback,
     .locals_size = sizeof(fallback_locals)};
 
-/* ------------------------------------------- Backwards compatibility */
-
-/* An instruction whose effective version is below 2.0 (3.8, 27.4): sxml
-   has no XSLT 1.0 behaviour (D97, a delay, D162), so evaluating it raises
-   XTDE0160; this is the one place that rejects it. XSLT 2.0 and 3.0
-   compatibility modes are processed as 4.0. */
-static bool asks_xslt_1_behaviour(const sxml_xslt_lowering *lowering,
-                                  sxml_xslt_ast_node_index node) {
-    return sxml_xslt_ast_get_static_context(lowering->ast, node_of(lowering, node)->static_context)
-               ->version < 2.0;
-}
-
-static sxml_status continue_xslt_1_instruction(sxml_xpath_lowering_machine *machine,
-                                               sxml_xpath_lowering_frame *frame) {
-    sxml_ir_expression_index raise = {0};
-    const sxml_status status = sxml_xpath_lowerer_add_raise(
-        machine->state,
-        (sxml_xpath_lowering_raise_request){
-            .node = no_ast_node,
-            .error_status = SXML_STATUS_DYNAMIC_ERROR,
-            .code_local_name = SXML_BYTE_VIEW_FROM_LITERAL("XTDE0160"),
-            .description = SXML_BYTE_VIEW_FROM_LITERAL(
-                "an instruction with an effective version of 1.0 is evaluated, and sxml has no "
-                "backwards compatible behaviour (XSLT 4.0, 3.8)")},
-        &raise);
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    return sxml_xpath_lowering_finish_frame(machine, frame, raise);
-}
-
-static const sxml_xpath_lowering_procedure xslt_1_instruction_procedure = {
-    .procedure_name = SXML_BYTE_VIEW_INITIALIZER("xslt 1.0 instruction"),
-    .step = continue_xslt_1_instruction,
-    .locals_size = sizeof(sxml_xslt_instruction_locals)};
-
 /* ------------------------------------------------- Sequence constructors */
 
 typedef struct sequence_constructor_locals {
@@ -1682,12 +1699,6 @@ static sxml_status lower_child(sxml_xpath_lowering_machine *machine, child_lower
     default:
         procedure = find_instruction_procedure(child->kind);
         break;
-    }
-    /* A local xsl:variable stays: the instructions after it see it, and
-       those raise the error themselves. */
-    if (procedure != NULL && child->kind != SXML_XSLT_AST_KIND_VARIABLE &&
-        asks_xslt_1_behaviour(lowering, request.child)) {
-        procedure = &xslt_1_instruction_procedure;
     }
     if (procedure == NULL) {
         *outcome = (child_outcome){.has_atom = false, .has_pushed_frame = false};
@@ -1956,6 +1967,13 @@ static sxml_status make_static_contexts(context_source source, lowering_storage 
             .namespace_bindings = count > 0 ? first : NULL, .namespace_binding_count = count};
         storage->static_contexts[context_index].static_base_uri =
             sxml_xslt_ast_get_text(ast, context->static_base_uri);
+        /* XSLT 4.0, 5.3.1: XPath 1.0 compatibility mode is true for an
+           element processed with XSLT 1.0 behaviour, whose effective
+           version is below 2.0 (3.8.1; XSLT 2.0 and 3.0 behaviour is
+           4.0's, 3.8.2, 3.8.3). This replaces the XTDE0160 of a processor
+           without the feature (27.4; D197). */
+        storage->static_contexts[context_index].has_xpath_1_compatibility_mode =
+            context->version < 2.0;
     }
     lowering->static_contexts = storage->static_contexts;
     lowering->static_context_count = context_count;

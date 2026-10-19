@@ -123,6 +123,10 @@ typedef struct sxml_xpath_static_context {
        function calls lowered in this context read at run time: an XSLT
        element's (D163); 0 for the calling function's. */
     uint32_t ir_module_number;
+    /* XPath 1.0 compatibility mode (XPath 4.0, section 2.2.1; glossary
+       xpath_1_compatibility_mode): lowering inserts the 1.0 conversions
+       of src/xpath_compatibility.c (D197). */
+    bool has_xpath_1_compatibility_mode;
 } sxml_xpath_static_context;
 
 /* Writes a static error: the error code is err:code_local_name. */

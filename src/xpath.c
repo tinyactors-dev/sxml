@@ -285,8 +285,11 @@ sxml_status sxml_xpath_expression_initialize(
         }
         memcpy(base_uri_memory, static_base_uri.bytes, static_base_uri.byte_count);
     }
-    const sxml_xpath_static_context static_context =
+    sxml_xpath_static_context static_context =
         sxml_processor_static_context(processor, &configuration->static_context);
+    /* XPath only: XQuery has no XPath 1.0 compatibility mode. */
+    static_context.has_xpath_1_compatibility_mode =
+        configuration->static_context.has_xpath_1_compatibility_mode;
     sxml_ir_unit *unit = NULL;
     status = sxml_xpath_compile(
         &(sxml_xpath_compile_request){

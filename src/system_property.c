@@ -3,8 +3,8 @@
  * for fn:system-properties (F&O 4.0, 17.1.9) and the XSLT fn:system-property
  * (XSLT 4.0, 24.2.1). sxml's XPath and XQuery are schema-aware and read
  * typed data (D174), XSLT not yet; sxml has neither XInclude, DTD validation, invisible XML, streaming, dynamic XSLT,
- * xsl:evaluate nor the EXPath modules, and no backwards-compatible
- * behaviour (D97, delayed by D162).
+ * xsl:evaluate nor the EXPath modules (D97, delayed by D162). XSLT has
+ * backwards-compatible behaviour (packet 7.4).
  *
  * Golden file: src/function_library_json.c (the table it held).
  */
@@ -52,7 +52,8 @@ static const sxml_system_property sxml_system_property_table[] = {
     SXML_BOOLEAN_PROPERTY("schema-aware", "", true),
     SXML_BOOLEAN_PROPERTY("", "is-schema-aware", true),
     SXML_BOOLEAN_PROPERTY("", "supports-serialization", true),
-    SXML_BOOLEAN_PROPERTY("", "supports-backwards-compatibility", false),
+    /* XSLT 1.0 behaviour (3.8.1; packet 7.4, D197). */
+    SXML_BOOLEAN_PROPERTY("", "supports-backwards-compatibility", true),
     SXML_BOOLEAN_PROPERTY("", "supports-namespace-axis", true),
     SXML_BOOLEAN_PROPERTY("", "supports-streaming", false),
     SXML_BOOLEAN_PROPERTY("", "supports-dynamic-evaluation", false),

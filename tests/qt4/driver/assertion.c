@@ -67,6 +67,8 @@ sxml_qt4_assertion_evaluate(sxml_qt4_assertion_state *state,
         {.variable_name = state->expected_name, .value = bound->expected},
     };
     sxml_static_context_configuration static_context = request->static_context;
+    /* Assertions are XPath 4.0, whatever mode the test asks for. */
+    static_context.has_xpath_1_compatibility_mode = false;
     static_context.variable_declarations = (sxml_variable_declaration_view){
         .variable_declarations = declarations,
         .variable_declaration_count =

@@ -77,7 +77,7 @@ static const sxml_xslt_test_supported_dependency
         SXML_XSLT_TEST_SUPPORTED("feature", "XML_1.1"),
         /* XSLT 4.0, 26.1.8, with the XML, XHTML and HTML methods (D188). */
         SXML_XSLT_TEST_SUPPORTED("feature", "disabling_output_escaping"),
-        /* XSLT 1.0 behaviour (XSLT 4.0, 3.8.1; D_PACKET74). */
+        /* XSLT 1.0 behaviour (XSLT 4.0, 3.8.1; D197). */
         SXML_XSLT_TEST_SUPPORTED("feature", "backwards_compatibility"),
         /* streamable="yes" runs unstreamed (D97). */
         SXML_XSLT_TEST_SUPPORTED("feature", "streaming-fallback"),
@@ -212,7 +212,7 @@ static const sxml_byte_view sxml_xslt_test_non_goal_features[] = {
        denominator so that the gate rates keep their meaning. */
     SXML_BYTE_VIEW_INITIALIZER("XML_1.1"),
     SXML_BYTE_VIEW_INITIALIZER("XSD_1.1"),
-    /* Supported since packet 7.4 (D_PACKET74), kept out of the D95
+    /* Supported since packet 7.4 (D197), kept out of the D95
        denominator as XML_1.1 is. */
     SXML_BYTE_VIEW_INITIALIZER("backwards_compatibility"),
     SXML_BYTE_VIEW_INITIALIZER("HTML4"),

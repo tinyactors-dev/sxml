@@ -262,10 +262,41 @@ static sxml_status sxml_qt4_set_static_base_uri(sxml_qt4_test_context *context) 
                               &context->static_base_uri);
 }
 
+/* True when an XPath test asks for XPath 1.0 compatibility mode (the
+   dependency feature xpath-1.0-compatibility, satisfied; D197):
+   "if this dependency is not present then the test must NOT be run in
+   1.0 compatibility mode" (dependency_meanings.xml). */
+static bool sxml_qt4_asks_xpath_1_compatibility(const sxml_qt4_test_context *context) {
+    if (sxml_qt4_runs_xquery(context)) {
+        return false;
+    }
+    const sxml_qt4_dependency_view lists[2] = {
+        context->request->test_case->test_set_dependencies,
+        context->request->test_case->dependencies};
+    for (size_t list_index = 0; list_index < 2; list_index += 1) {
+        for (size_t dependency_index = 0;
+             dependency_index < lists[list_index].dependency_count;
+             dependency_index += 1) {
+            const sxml_qt4_dependency *dependency =
+                &lists[list_index].dependencies[dependency_index];
+            if (dependency->requires_satisfaction &&
+                sxml_byte_view_equals(dependency->dependency_type,
+                                      SXML_TEXT("feature")) &&
+                sxml_byte_view_equals(dependency->value,
+                                      SXML_TEXT("xpath-1.0-compatibility"))) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 /* The static context of the test, with the variables declared so far. */
 static sxml_static_context_configuration
 sxml_qt4_static_context(const sxml_qt4_test_context *context) {
     return (sxml_static_context_configuration){
+        .has_xpath_1_compatibility_mode =
+            sxml_qt4_asks_xpath_1_compatibility(context),
         .namespace_bindings = {.namespace_bindings = context->namespace_bindings,
                                .namespace_binding_count =
                                    context->namespace_binding_count},

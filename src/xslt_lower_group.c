@@ -527,13 +527,23 @@ static const char collation_text[] =
 /* 13.1.2: data-type="number" and "text" convert the atomized key. */
 static const char number_key_text[] = "data(" GROUP_VARIABLE "key) ! number(.)";
 static const char string_key_text[] = "data(" GROUP_VARIABLE "key) ! string(.)";
-static const char data_type_key_text[] =
-    "let $t := normalize-space(" GROUP_VARIABLE "type) return "
-    "if ($t eq 'number') then data(" GROUP_VARIABLE "key) ! number(.) "
-    "else if ($t eq 'text') then data(" GROUP_VARIABLE "key) ! string(.) "
-    "else if (contains($t, ':') or starts-with($t, 'Q{')) then " GROUP_VARIABLE "key "
-    "else error(" XTDE0030_CODE ", 'The data-type of xsl:sort is not text, number or a QName "
-    "(XSLT 4.0, 13.1.2)')";
+#define DATA_TYPE_KEY_TEXT                                                                         \
+    "let $t := normalize-space(" GROUP_VARIABLE "type) return "                                    \
+    "if ($t eq 'number') then data(" GROUP_VARIABLE "key) ! number(.) "                            \
+    "else if ($t eq 'text') then data(" GROUP_VARIABLE "key) ! string(.) "                         \
+    "else if (contains($t, ':') or starts-with($t, 'Q{')) then " GROUP_VARIABLE "key "             \
+    "else error(" XTDE0030_CODE ", 'The data-type of xsl:sort is not text, number or a QName "     \
+    "(XSLT 4.0, 13.1.2)')"
+static const char data_type_key_text[] = DATA_TYPE_KEY_TEXT;
+
+/* 13.1.2 with XSLT 1.0 behaviour (3.8.1): a key of more than one item,
+   after the data-type conversion, is its first item. */
+static const char compatible_key_text[] = "data(" GROUP_VARIABLE "key)[1]";
+static const char compatible_number_key_text[] =
+    "(data(" GROUP_VARIABLE "key) ! number(.))[1]";
+static const char compatible_string_key_text[] =
+    "(data(" GROUP_VARIABLE "key) ! string(.))[1]";
+static const char compatible_data_type_key_text[] = "(" DATA_TYPE_KEY_TEXT ")[1]";
 
 /* 14.1: grouping keys, atomized with xs:untypedAtomic cast to xs:string;
    for group-by without composite, the distinct ones. */
@@ -992,20 +1002,28 @@ static sxml_status lower_sort_key(sxml_xpath_lowering_machine *machine,
 }
 
 /* Converts the key as data-type says. */
+
 static sxml_status convert_sort_key(sxml_xpath_lowering_machine *machine,
                                     sxml_xpath_lowering_frame *frame, step_outcome *outcome) {
     sort_locals *locals = frame->locals;
-    outcome->is_pushed = locals->conversion != SXML_XSLT_DATA_TYPE_CONVERSION_NONE &&
-                         locals->tuple_key_offset == 0;
+    const bool is_compatible = locals->tuple_key_offset == 0 &&
+                               sxml_xslt_lowering_has_xslt_1_behaviour(locals->head.lowering, locals->sort);
+    outcome->is_pushed = (locals->conversion != SXML_XSLT_DATA_TYPE_CONVERSION_NONE &&
+                          locals->tuple_key_offset == 0) ||
+                         is_compatible;
     if (!outcome->is_pushed) {
         return SXML_STATUS_OK;
     }
     const text_variable variables[2] = {
         {.local_name = "key", .atom = locals->key},
         {.local_name = "type", .atom = locals->attribute_values[SXML_XSLT_SORT_ATTRIBUTE_DATA_TYPE]}};
-    const char *text = locals->conversion == SXML_XSLT_DATA_TYPE_CONVERSION_NUMBER ? number_key_text
-                       : locals->conversion == SXML_XSLT_DATA_TYPE_CONVERSION_TEXT ? string_key_text
-                                                                         : data_type_key_text;
+    const char *text =
+        locals->conversion == SXML_XSLT_DATA_TYPE_CONVERSION_NONE ? compatible_key_text
+        : locals->conversion == SXML_XSLT_DATA_TYPE_CONVERSION_NUMBER
+            ? (is_compatible ? compatible_number_key_text : number_key_text)
+        : locals->conversion == SXML_XSLT_DATA_TYPE_CONVERSION_TEXT
+            ? (is_compatible ? compatible_string_key_text : string_key_text)
+            : (is_compatible ? compatible_data_type_key_text : data_type_key_text);
     return call_text(machine,
                      &(text_call){.lowering = locals->head.lowering,
                                   .text = text,

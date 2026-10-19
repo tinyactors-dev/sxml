@@ -261,6 +261,19 @@ typedef struct sxml_static_context_configuration {
      * sxml_schema_view).
      */
     sxml_schema_view in_scope_schemas;
+    /*
+     * XPath 1.0 compatibility mode (XPath 4.0, section 2.2.1; D197): false
+     * (the default) for XPath 4.0's rules. True applies XPath 1.0's
+     * conversions: arguments of static calls to built-in functions keep
+     * their first item and become xs:string or xs:double by fn:string or
+     * fn:number where the parameter is xs:string or xs:double (3.4.1);
+     * arithmetic operands keep their first item and become xs:double by
+     * fn:number, the empty sequence giving NaN (4.9); general comparisons
+     * follow 4.11.2's rules for the mode. XQuery has no such mode and
+     * ignores the field; XSLT sets it itself for elements whose effective
+     * version is 1.0 (XSLT 4.0, 3.8.1).
+     */
+    bool has_xpath_1_compatibility_mode;
 } sxml_static_context_configuration;
 
 /* ------------------------------------------------------- Dynamic context */

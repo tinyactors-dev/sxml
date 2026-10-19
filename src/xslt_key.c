@@ -195,6 +195,10 @@ typedef struct key_definition {
        collation. */
     sxml_byte_view collation;
     bool is_composite;
+    /* Processed in backwards compatible mode (fn:key, 20.2.2): one of
+       its declarations has XSLT 1.0 behaviour and composite is no, so
+       key values are compared as strings. */
+    bool is_backwards_compatible;
     /* The private function build-K. */
     table_function build;
 } key_definition;
@@ -609,6 +613,10 @@ static sxml_status add_key_declaration(sxml_xslt_function_table *table,
             lowering, node,
             SXML_BYTE_VIEW_FROM_LITERAL("XTSE1222 xsl:key declarations of one name differ in "
                                         "their collation or composite attribute (20.2.1)"));
+    }
+    if (status == SXML_STATUS_OK && !composite &&
+        sxml_xslt_lowering_has_xslt_1_behaviour(lowering, node)) {
+        table->keys[key_index].is_backwards_compatible = true;
     }
     const size_t declaration_number = table->declaration_count + 1;
     key_declaration *declaration = &table->declarations[table->declaration_count];
@@ -1210,6 +1218,15 @@ static sxml_status lower_use_function(sxml_xslt_function_table *table,
         table, (function_body){.function = &declaration->use, .frame = &frame, .body = body});
 }
 
+/* 20.2.2: in backwards compatible mode, the key values of the use
+   expressions and of fn:key's second argument are strings, each atomized
+   item cast to xs:string. */
+static void append_compatible_strings(sxml_xslt_snippet_text *text, const key_definition *key) {
+    if (key->is_backwards_compatible) {
+        SXML_XSLT_SNIPPET_APPEND(text, " ! Q{http://www.w3.org/2001/XMLSchema}string(.)");
+    }
+}
+
 /* The text of build-K (see the file comment). */
 static void write_build_text(const sxml_xslt_function_table *table, size_t key_index,
                              sxml_xslt_snippet_text *text) {
@@ -1228,7 +1245,9 @@ static void write_build_text(const sxml_xslt_function_table *table, size_t key_i
         SXML_XSLT_SNIPPET_APPEND(
             text, "($node)) then Q{}key-normalize(Q{" KEY_FUNCTION_NAMESPACE_URI "}use-");
         sxml_xslt_snippet_text_append_number(text, declaration_index + 1);
-        SXML_XSLT_SNIPPET_APPEND(text, "($node), ");
+        SXML_XSLT_SNIPPET_APPEND(text, "($node)");
+        append_compatible_strings(text, key);
+        SXML_XSLT_SNIPPET_APPEND(text, ", ");
         sxml_xslt_snippet_text_append_string_literal(text, key->collation);
         sxml_xslt_snippet_text_append(text, key->is_composite
                                                 ? SXML_BYTE_VIEW_FROM_LITERAL(", true())")
@@ -1304,7 +1323,9 @@ static bool is_with_context(stylesheet_function_kind kind) {
 static void write_index_use(sxml_xslt_snippet_text *text, stylesheet_function_kind kind,
                             const key_definition *key) {
     if (!is_map_for_key(kind)) {
-        SXML_XSLT_SNIPPET_APPEND(text, " return for $value in Q{}key-normalize($key-value, ");
+        SXML_XSLT_SNIPPET_APPEND(text, " return for $value in Q{}key-normalize($key-value");
+        append_compatible_strings(text, key);
+        SXML_XSLT_SNIPPET_APPEND(text, ", ");
         sxml_xslt_snippet_text_append_string_literal(text, key->collation);
         sxml_xslt_snippet_text_append(text, key->is_composite
                                                 ? SXML_BYTE_VIEW_FROM_LITERAL(", true())")
