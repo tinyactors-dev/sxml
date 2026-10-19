@@ -136,6 +136,7 @@ static sxml_ir_function_target target_of(const sxml_function_entry *entry) {
         return (sxml_ir_function_target){.target_kind = SXML_IR_FUNCTION_TARGET_KIND_IR_FUNCTION,
                                          .function = {.value = entry->ir_function_number}};
     case SXML_FUNCTION_ENTRY_KIND_CONSTRUCTOR:
+    case SXML_FUNCTION_ENTRY_KIND_FUNCTION_ITEM:
     case SXML_FUNCTION_ENTRY_KIND_NONE:
         break;
     }

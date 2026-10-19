@@ -40,6 +40,8 @@
  */
 #include "xslt_lower_internal.h"
 
+#include "xslt_evaluate_internal.h"
+
 #include "format_internal.h"
 #include "sxml/name.h"
 #include "xslt_whitespace_internal.h"
@@ -2691,4 +2693,167 @@ sxml_status sxml_xslt_lowering_bind_global_context_item(
             &ignored);
     }
     return status;
+}
+
+/* ------------------------------------------------- Functions for xsl:evaluate */
+
+/* True when the function's visibility lets an xsl:evaluate target
+   expression call it (10.5.1: "provided their visibility is not hidden or
+   private"; 3.5.3.1: a function is private unless it says otherwise). */
+static bool is_evaluable(const sxml_xslt_lowering *lowering, const declared_function *function) {
+    const sxml_xslt_ast_attribute *visibility =
+        find_attribute(lowering, function->node, SXML_XSLT_AST_ATTRIBUTE_VISIBILITY);
+    return function->is_component &&
+           visibility->value.kind == SXML_XSLT_AST_VALUE_KIND_KEYWORD &&
+           (visibility->value.payload.keyword == SXML_XSLT_AST_KEYWORD_PUBLIC ||
+            visibility->value.payload.keyword == SXML_XSLT_AST_KEYWORD_FINAL);
+}
+
+/* The references of one function name, bound into a sequence. */
+typedef struct evaluable_name {
+    const sxml_xpath_static_context *static_context;
+    sxml_xpath_lowering_block *block;
+    sxml_name_identifier function_name;
+    sxml_ir_atom *references;
+    size_t reference_count;
+} evaluable_name;
+
+/* Adds a reference of each arity of function that name's static
+   context's table binds to an IR function. */
+static sxml_status add_evaluable_references(sxml_xpath_lowerer *lowerer,
+                                            const declared_function *function,
+                                            evaluable_name *name) {
+    const sxml_xpath_static_context *static_context = name->static_context;
+    sxml_status status = SXML_STATUS_OK;
+    for (uint32_t arity = function->required_count;
+         status == SXML_STATUS_OK && arity <= function->parameter_count; arity += 1) {
+        sxml_function_entry entry = {.entry_kind = SXML_FUNCTION_ENTRY_KIND_NONE};
+        status = sxml_xpath_find_function(
+            static_context->function_table,
+            &(sxml_function_query){.function_name = function->function_name, .arity = arity},
+            &entry);
+        if (status != SXML_STATUS_OK || entry.entry_kind != SXML_FUNCTION_ENTRY_KIND_IR_FUNCTION) {
+            continue;
+        }
+        status = sxml_xslt_lowering_bind_expression(
+            lowerer,
+            &(sxml_xslt_expression_to_bind){
+                .block = name->block,
+                .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_FUNCTION_REFERENCE,
+                               .function_reference = {.target = {.target_kind =
+                                                                     SXML_IR_FUNCTION_TARGET_KIND_IR_FUNCTION,
+                                                                 .function = {.value = entry.ir_function_number}},
+                                                      .arity = arity,
+                                                      .signature = entry.signature}}},
+            &name->references[name->reference_count]);
+        name->reference_count += 1;
+    }
+    return status;
+}
+
+sxml_status sxml_xslt_lowering_bind_evaluable_functions(
+    sxml_xpath_lowerer *lowerer, const sxml_xslt_evaluable_functions_request *request,
+    sxml_ir_atom *functions) {
+    const sxml_xslt_component_lowering *components = request->lowering->components;
+    size_t function_count = 0;
+    size_t reference_capacity = 0;
+    for (size_t function_index = 0; components != NULL && function_index < components->function_count;
+         function_index += 1) {
+        const declared_function *function = &components->functions[function_index];
+        if (is_evaluable(request->lowering, function)) {
+            function_count += 1;
+            reference_capacity += (size_t)(function->parameter_count - function->required_count) + 1U;
+        }
+    }
+    sxml_ir_map_entry *entries = NULL;
+    sxml_ir_atom *references = NULL;
+    sxml_status status = sxml_xpath_lowerer_allocate_scratch(
+        lowerer,
+        (sxml_xpath_lowering_scratch_request){.element_count = function_count,
+                                              .element_size = sizeof(sxml_ir_map_entry),
+                                              .element_alignment = alignof(sxml_ir_map_entry)},
+        (void **)&entries);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_allocate_scratch(
+            lowerer,
+            (sxml_xpath_lowering_scratch_request){.element_count = reference_capacity,
+                                                  .element_size = sizeof(sxml_ir_atom),
+                                                  .element_alignment = alignof(sxml_ir_atom)},
+            (void **)&references);
+    }
+    /* Functions are sorted by name: one entry per name, its arities'
+       references as its value. */
+    size_t entry_count = 0;
+    size_t used = 0;
+    for (size_t function_index = 0;
+         status == SXML_STATUS_OK && components != NULL && function_index < components->function_count;
+         function_index += 1) {
+        const declared_function *function = &components->functions[function_index];
+        if (!is_evaluable(request->lowering, function)) {
+            continue;
+        }
+        evaluable_name name = {.static_context = request->static_context,
+                               .block = request->block,
+                               .function_name = function->function_name,
+                               .references = references + used,
+                               .reference_count = 0};
+        status = add_evaluable_references(lowerer, function, &name);
+        while (status == SXML_STATUS_OK && function_index + 1 < components->function_count &&
+               components->functions[function_index + 1].function_name.index ==
+                   function->function_name.index) {
+            function_index += 1;
+            if (is_evaluable(request->lowering, &components->functions[function_index])) {
+                status = add_evaluable_references(lowerer, &components->functions[function_index],
+                                                  &name);
+            }
+        }
+        sxml_ir_expression sequence = {.expression_kind = SXML_IR_EXPRESSION_KIND_SEQUENCE};
+        if (status == SXML_STATUS_OK && name.reference_count > 0) {
+            status = sxml_ir_unit_add_atoms(
+                lowerer->unit,
+                (sxml_ir_atom_view){.atoms = name.references, .atom_count = name.reference_count},
+                &sequence.sequence);
+            used += name.reference_count;
+            sxml_ir_map_entry *entry = &entries[entry_count];
+            entry_count += 1;
+            sxml_item key = {.representation = 0};
+            if (status == SXML_STATUS_OK) {
+                status = sxml_atomic_item_make(
+                    lowerer->item_heap,
+                    &(sxml_atomic_item_request){
+                        .type = sxml_builtin_type_identifier(SXML_TYPE_XS_QNAME),
+                        .datum = {.datum_kind = SXML_DATUM_KIND_QNAME,
+                                  .datum_details = {.qname = {.expanded_name = name.function_name,
+                                                              .namespace_prefix = {.index = 0}}}}},
+                    &key);
+            }
+            if (status == SXML_STATUS_OK) {
+                status = sxml_xpath_lowerer_add_item_constant(lowerer, key, &entry->key);
+            }
+            if (status == SXML_STATUS_OK) {
+                status = sxml_xslt_lowering_bind_expression(
+                    lowerer,
+                    &(sxml_xslt_expression_to_bind){.block = request->block, .expression = sequence},
+                    &entry->value);
+            }
+        }
+    }
+    sxml_ir_map_entry_list list = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ir_unit_add_map_entries(
+            lowerer->unit, (sxml_ir_map_entry_view){.map_entries = entries, .map_entry_count = entry_count},
+            &list);
+    }
+    sxml_xpath_lowerer_release_scratch(lowerer, references);
+    sxml_xpath_lowerer_release_scratch(lowerer, entries);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_xslt_lowering_bind_expression(
+        lowerer,
+        &(sxml_xslt_expression_to_bind){
+            .block = request->block,
+            .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_MAP_CONSTRUCTOR,
+                           .map_constructor = {.entries = list}}},
+        functions);
 }

@@ -4,6 +4,16 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 7.3 done (D196): xsl:evaluate. The instruction calls a row whose
+  resumable body compiles the target with the XPath compiler and runs it
+  as a unit evaluation (D154), nested without C recursion; static
+  context from the instruction's module or namespace-context, parameters
+  from xsl:with-param and with-params, public stylesheet functions as
+  function items (new function entry kind FUNCTION_ITEM), fn:current,
+  trusted. XT40 8,899 to 8,973 passed, 0 errors, none lost; evaluate 73
+  of 83 (91 % of the 80 run). Gate not met yet: HTML (7.10), trust checks
+  of json-doc and unparsed-text-available, UCA.
+
 - 7.7a done (D187): the XQuery Update Facility 3.0. Grammar (all 1,159
   upd-* query texts parse), static rules in one stackless AST walk
   (XUST0001/0002/0028; %updating replaces D162's XQST0045 place), the

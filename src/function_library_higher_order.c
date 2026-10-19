@@ -2991,6 +2991,11 @@ static sxml_status call_function_lookup(const sxml_function_call *call,
     case SXML_FUNCTION_ENTRY_KIND_IR_FUNCTION:
         /* Declared functions arrive with XQuery (Phase 3). */
         return SXML_STATUS_UNSUPPORTED_FEATURE;
+    case SXML_FUNCTION_ENTRY_KIND_FUNCTION_ITEM:
+        /* The item the table binds (D196). */
+        sxml_item_retain(entry.function_item);
+        *result = sxml_sequence_from_item(entry.function_item);
+        return SXML_STATUS_OK;
     }
     return SXML_STATUS_OK;
 }

@@ -736,6 +736,10 @@ start only when the owner accepts them.
   `src/xslt_evaluate.c`.
 - **Size**: about 5 KB, in the CLI only.
 - **Gate**: ≥ 90 % of the 83.
+**Done** 2026-10-19 (D196): evaluate 73 of 83 (91 % of the 80 run, 88 %
+of the 83); XT40 8,899 to 8,973 passed, 0 errors, none lost. The gate
+waits for 7.10 (html-doc, parse-html: 3 cases) and trust checks in
+json-doc and unparsed-text-available (2 cases).
 
 ### 7.5 disable-output-escaping (implementation; proposed, D183)
 - **Specifications**: XSLT 4.0, 26.2 "Disabling Output Escaping"

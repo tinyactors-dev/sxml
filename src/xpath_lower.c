@@ -1934,11 +1934,43 @@ static sxml_ir_function_target target_of(const sxml_function_entry *entry) {
         return (sxml_ir_function_target){
             .target_kind = SXML_IR_FUNCTION_TARGET_KIND_IR_FUNCTION,
             .function = {.value = entry->ir_function_number}};
+    case SXML_FUNCTION_ENTRY_KIND_FUNCTION_ITEM:
     case SXML_FUNCTION_ENTRY_KIND_NONE:
         break;
     }
     return (sxml_ir_function_target){.target_kind =
                                          SXML_IR_FUNCTION_TARGET_KIND_NONE};
+}
+
+/* A call of a function entry with its arguments, as the call's IR. */
+typedef struct entry_call {
+    const sxml_function_entry *entry;
+    sxml_ir_atom_list arguments;
+    uint32_t module_number;
+} entry_call;
+
+/* A STATIC_CALL of the entry's target, or, for a function item entry, a
+   DYNAMIC_CALL of the item as a constant (D196). */
+static sxml_status make_entry_call(sxml_xpath_lowerer *state, const entry_call *call,
+                                   sxml_ir_expression *expression) {
+    if (call->entry->entry_kind == SXML_FUNCTION_ENTRY_KIND_FUNCTION_ITEM) {
+        /* The table lends the item; the unit's constant owns one more
+           reference. */
+        sxml_item_retain(call->entry->function_item);
+        sxml_ir_atom function_item = {0};
+        const sxml_status status =
+            sxml_xpath_lowerer_add_item_constant(state, call->entry->function_item, &function_item);
+        *expression = (sxml_ir_expression){
+            .expression_kind = SXML_IR_EXPRESSION_KIND_DYNAMIC_CALL,
+            .dynamic_call = {.function_item = function_item, .arguments = call->arguments}};
+        return status;
+    }
+    *expression = (sxml_ir_expression){
+        .expression_kind = SXML_IR_EXPRESSION_KIND_STATIC_CALL,
+        .static_call = {.target = target_of(call->entry),
+                        .arguments = call->arguments,
+                        .module_number = call->module_number}};
+    return SXML_STATUS_OK;
 }
 
 static uint32_t native_properties(const sxml_function_entry *entry) {
@@ -2211,18 +2243,20 @@ static sxml_status emit_call(sxml_xpath_lowerer *state, call_emission request,
             &arguments);
     }
     sxml_xpath_lowerer_release_scratch(state, memory);
+    sxml_ir_expression made = {0};
+    if (status == SXML_STATUS_OK) {
+        status = make_entry_call(
+            state,
+            &(entry_call){.entry = &call->entry,
+                          .arguments = arguments,
+                          .module_number = state->static_context->ir_module_number},
+            &made);
+    }
     if (status != SXML_STATUS_OK) {
         return status;
     }
     return sxml_xpath_lowerer_add_expression(
-        state,
-        (sxml_xpath_lowering_expression_to_add){
-            .node = call->node,
-            .expression = {
-                .expression_kind = SXML_IR_EXPRESSION_KIND_STATIC_CALL,
-                .static_call = {.target = target_of(&call->entry),
-                                .arguments = arguments,
-                                .module_number = state->static_context->ir_module_number}}},
+        state, (sxml_xpath_lowering_expression_to_add){.node = call->node, .expression = made},
         expression);
 }
 
@@ -2350,11 +2384,14 @@ static sxml_status emit_partial_application(sxml_xpath_lowerer *state,
                 (sxml_ir_atom_view){.atoms = body_arguments,
                                     .atom_count = call->argument_count},
                 &arguments);
-            body = (sxml_ir_expression){
-                .expression_kind = SXML_IR_EXPRESSION_KIND_STATIC_CALL,
-                .static_call = {.target = target_of(&call->entry),
-                                .arguments = arguments,
-                                .module_number = state->static_context->ir_module_number}};
+            if (status == SXML_STATUS_OK) {
+                status = make_entry_call(
+                    state,
+                    &(entry_call){.entry = &call->entry,
+                                  .arguments = arguments,
+                                  .module_number = state->static_context->ir_module_number},
+                    &body);
+            }
         }
     }
     if (status == SXML_STATUS_OK) {
@@ -2927,6 +2964,22 @@ lower_named_function_reference(sxml_xpath_lowerer *state,
         (entry.parameters.function_parameters[arity].parameter_default ==
              SXML_PARAMETER_DEFAULT_CONTEXT_VALUE ||
          omits_context_variable);
+    if (entry.entry_kind == SXML_FUNCTION_ENTRY_KIND_FUNCTION_ITEM) {
+        /* The bound item itself (D196). */
+        sxml_item_retain(entry.function_item);
+        sxml_ir_atom function_item = {0};
+        status = sxml_xpath_lowerer_add_item_constant(state, entry.function_item, &function_item);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        return sxml_xpath_lowerer_add_expression(
+            state,
+            (sxml_xpath_lowering_expression_to_add){
+                .node = node,
+                .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_ATOM,
+                               .atom = function_item}},
+            expression);
+    }
     if (!reads_position_or_size && !omits_context_value) {
         return sxml_xpath_lowerer_add_expression(
             state,

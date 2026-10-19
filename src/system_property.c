@@ -68,7 +68,7 @@ static const sxml_system_property sxml_system_property_table[] = {
     SXML_BOOLEAN_PROPERTY("", "supports-backwards-compatibility", true),
     SXML_BOOLEAN_PROPERTY("", "supports-namespace-axis", true),
     SXML_BOOLEAN_PROPERTY("", "supports-streaming", false),
-    SXML_BOOLEAN_PROPERTY("", "supports-dynamic-evaluation", false),
+    SXML_BOOLEAN_PROPERTY("", "supports-dynamic-evaluation", true),
     SXML_BOOLEAN_PROPERTY("", "supports-higher-order-functions", true),
     /* F&O only (17.1.9). */
     SXML_BOOLEAN_PROPERTY("accepts-typed-data", "", true),

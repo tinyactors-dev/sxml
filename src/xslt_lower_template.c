@@ -45,6 +45,8 @@
  */
 #include "xslt_lower_internal.h"
 
+#include "xslt_evaluate_internal.h"
+
 #include "sxml/name.h"
 #include "sxml/types.h"
 #include "sxml/xdm.h"
@@ -1631,6 +1633,19 @@ static sxml_status push_parameter_maps(sxml_xpath_lowering_machine *machine,
         frame->destination.expression = &locals->finished;
     }
     return status;
+}
+
+sxml_status sxml_xslt_lowering_call_parameter_map(sxml_xpath_lowering_machine *machine,
+                                                  const sxml_xslt_parameter_map_call *call) {
+    const sxml_ir_atom empty_map = call->head->lowering->templates->empty_map;
+    return push_parameter_maps(machine, &(parameter_maps_request){
+                                            .head = call->head,
+                                            .frame = call->frame,
+                                            .base_parameters = empty_map,
+                                            .base_tunnel_parameters = empty_map,
+                                            .parameters = call->parameters,
+                                            .tunnel_parameters = call->tunnel_parameters,
+                                            .target = NULL});
 }
 
 /* --------------------------------------------- xsl:apply-templates (6.6) */

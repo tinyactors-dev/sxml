@@ -500,6 +500,64 @@ static const transformation_case transformation_cases[] = {
     FAILS("not-in-scope", STYLESHEET("<xsl:template match='/'><xsl:value-of select='$v'/>"
                                      "</xsl:template>"),
           SOURCE, SXML_XSLT_INVOCATION_KIND_APPLY_TEMPLATES, "XPST0008"),
+    /* 10.5: xsl:evaluate compiles at run time; parameters from
+       xsl:with-param and with-params (which wins), the context item, the
+       instruction's namespaces (an inner xmlns too) and base URI. */
+    APPLY("evaluate", STYLESHEET(OMIT "<xsl:template match='/'><out><xsl:evaluate "
+                                      "xpath=\"'count(//b) + $n + $m'\" context-item='.' "
+                                      "with-params=\"map{xs:QName('m'): 100}\">"
+                                      "<xsl:with-param name='n' select='10'/>"
+                                      "<xsl:with-param name='m' select='1000'/>"
+                                      "</xsl:evaluate></out></xsl:template>"),
+          SOURCE, "<out>112</out>"),
+    APPLY("evaluate-static-context",
+          STYLESHEET(OMIT "<xsl:template match='/'><out xmlns:p='urn:p'><xsl:evaluate "
+                          "xpath=\"'namespace-uri-from-QName(xs:QName(&quot;p:a&quot;)), "
+                          "static-base-uri()'\" base-uri='http://example.com/b/'/>"
+                          "</out></xsl:template>"),
+          SOURCE, "<out xmlns:p=\"urn:p\">urn:p http://example.com/b/</out>"),
+    APPLY("evaluate-as", STYLESHEET(OMIT "<xsl:template match='/'><out><xsl:evaluate "
+                                         "xpath=\"'(1, 2)'\" as='xs:double*'/></out>"
+                                         "</xsl:template>"),
+          SOURCE, "<out>1 2</out>"),
+    /* Public stylesheet functions are available, and an xsl:evaluate in
+       one runs nested in the target expression without C recursion (a
+       unit evaluation on the machine, D71); fn:current is the context
+       item. */
+    APPLY("evaluate-functions",
+          STYLESHEET(OMIT "<xsl:function name='f:twice' visibility='public'>"
+                          "<xsl:param name='x'/><xsl:evaluate xpath=\"'$x * 2'\">"
+                          "<xsl:with-param name='x' select='$x'/></xsl:evaluate></xsl:function>"
+                          "<xsl:template match='/'><out><xsl:evaluate "
+                          "xpath=\"'f:twice(f:twice(5)), f:twice#1(1), count(current()/doc/b)'\" "
+                          "context-item='.'/></out></xsl:template>"),
+          SOURCE, "<out>20 2 2</out>"),
+    FAILS("evaluate-private-function",
+          STYLESHEET("<xsl:function name='f:hidden'><xsl:sequence select='1'/></xsl:function>"
+                     "<xsl:template match='/'><xsl:evaluate xpath=\"'f:hidden()'\"/>"
+                     "</xsl:template>"),
+          SOURCE, SXML_XSLT_INVOCATION_KIND_APPLY_TEMPLATES, "XTDE3160"),
+    FAILS("evaluate-xslt-function",
+          STYLESHEET("<xsl:template match='/'><xsl:evaluate "
+                     "xpath=\"'system-property(&quot;xsl:version&quot;)'\"/></xsl:template>"),
+          SOURCE, SXML_XSLT_INVOCATION_KIND_APPLY_TEMPLATES, "XTDE3160"),
+    FAILS("evaluate-invalid", STYLESHEET("<xsl:template match='/'><xsl:evaluate "
+                                         "xpath=\"'1 +'\"/></xsl:template>"),
+          SOURCE, SXML_XSLT_INVOCATION_KIND_APPLY_TEMPLATES, "XTDE3160"),
+    FAILS("evaluate-no-context", STYLESHEET("<xsl:template match='/'><xsl:evaluate "
+                                            "xpath=\"'.'\"/></xsl:template>"),
+          SOURCE, SXML_XSLT_INVOCATION_KIND_APPLY_TEMPLATES, "XPDY0002"),
+    FAILS("evaluate-with-params", STYLESHEET("<xsl:template match='/'><xsl:evaluate "
+                                             "xpath=\"'1'\" with-params='1'/></xsl:template>"),
+          SOURCE, SXML_XSLT_INVOCATION_KIND_APPLY_TEMPLATES, "XTTE3165"),
+    FAILS("evaluate-namespace-context",
+          STYLESHEET("<xsl:template match='/'><xsl:evaluate xpath=\"'1'\" "
+                     "namespace-context='1'/></xsl:template>"),
+          SOURCE, SXML_XSLT_INVOCATION_KIND_APPLY_TEMPLATES, "XTTE3170"),
+    FAILS("evaluate-untrusted", STYLESHEET("<xsl:template match='/'><xsl:evaluate "
+                                           "xpath=\"'doc(&quot;a.xml&quot;)'\"/>"
+                                           "</xsl:template>"),
+          SOURCE, SXML_XSLT_INVOCATION_KIND_APPLY_TEMPLATES, "FODC0016"),
 };
 
 static void test_transformations_round_trip(sxml_test_state *state) {

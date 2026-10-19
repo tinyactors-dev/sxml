@@ -7816,6 +7816,62 @@ Binary Module 4.0 is the optional feature `sxml_expath_binary_feature()`
   bin:unpack-double; fn-system-properties 23 to 23 (the -false case is
   now not run, the true case passes).
 
+### D196. xsl:evaluate (packet 7.3)
+Recorded 2026-10-19, after D71, D154, D162, D163, D183, D184.
+Replaces D162's one place for dynamic evaluation (the XTDE3175 raise in
+`src/xslt_lower_control.c`): xsl:evaluate is available, so XTDE3175 is
+never raised and the xsl:fallback children are not evaluated.
+- **One mechanism** (D183): the instruction is a STATIC_CALL of an
+  internal row (`src/xslt_evaluate.c`) whose resumable body compiles the
+  target expression with `sxml_xpath_compile` and asks the machine for a
+  unit evaluation (EVALUATE_UNIT, D154), as fn:load-xquery-module does;
+  the second step gives its value. A nested xsl:evaluate (in a
+  stylesheet function the target calls) is one more unit evaluation on
+  the same machine: no C recursion (D71).
+- **Static context** (10.5.1), read lexically from the call's module
+  (the xsl:evaluate element's, D163): its static namespaces (prefix 0 is
+  its xpath-default-namespace), or the in-scope namespaces of the
+  namespace-context node (XTTE3170 unless one node; xml and
+  undeclarations dropped); base-uri resolved against the instruction's
+  base URI; its collations, default collation and decimal formats; its
+  in-scope schemas only with schema-aware="yes"; the parameters as
+  external variables of type item()*, xsl:with-param (lowered as for
+  xsl:call-template) under with-params (XTTE3165 unless one map with
+  xs:QName keys). trusted="no", the default, makes the unit untrusted
+  (`sxml_ir_unit_set_untrusted`, FODC0016 for resources). schema-aware
+  and trusted: XTSE0020 for a fixed non-boolean word, XTDE0030 for a
+  computed one.
+- **Functions** (10.5.1): the F&O library, then the stylesheet functions
+  whose visibility is public or final, then fn:current (XSLT 4.0 allows
+  it: the current item is the target's context item); no other
+  XSLT-defined function. The stylesheet functions belong to the
+  stylesheet's unit, so the lowering passes them as function items (a
+  map from name to the references of its arities, bound through the
+  instruction's function table), and the target's function table binds
+  them with a new function entry kind, FUNCTION_ITEM
+  (`src/function_library_internal.h`): a call lowers to a DYNAMIC_CALL
+  of the item as a constant, a named reference to the item. Keyword
+  arguments to them are not supported (the entry has no parameter
+  names).
+- **Dynamic context** (10.5.2): the context-item value is the context
+  item; an empty one, or none, is no context (XPDY0002, as evaluate-025
+  expects); more than one item is XTTE3210, XSLT 3.0's rule, which
+  evaluate-026 and error-3210a expect (a deviation from the 4.0 draft,
+  which makes the value the context value). Dynamic errors keep their codes; a static error
+  of the target is XTDE3160 with the static error's description.
+- **Counts** (release driver, whole XT40 against 9856281, case by case):
+  8,899 to 8,973 passed, 0 errors, no case lost; evaluate 73 of 83 (9 of
+  them with another error code), 91 % of the 80 run, 88 % of the 83;
+  error-3175a and system-property-014b need the feature absent and are
+  not run any more. The 90 % gate of 7.3 is not met yet: 3 cases wait for
+  html-doc and parse-html (7.10), 2 for trust checks in json-doc and
+  unparsed-text-available, 1 needs a UCA collation strength (7.15), 1
+  (evaluate-008a) expects XPST0017 for a call use-when removes.
+- **Not done**: keyword arguments to stylesheet functions; json-doc and
+  unparsed-text-available do not check trust yet (evaluate-454/455,
+  `src/function_library_resource.c` was another packet's file); html-doc
+  and parse-html wait for 7.10.
+
 ## Proposed
 
 - **XQuery's XML version** (packet 7.13, D195; for the owner of

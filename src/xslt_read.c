@@ -2043,11 +2043,8 @@ static const element_rule *find_element_rule(sxml_byte_view local_name) {
 }
 
 bool sxml_xslt_is_element_available(sxml_xslt_element_query query) {
-    /* xsl:evaluate is read but not run (D97); xsl:note is no element of
-       the AST but is implemented: it is ignored, as 3.11.2 says. */
-    if (sxml_byte_view_equals(query.local_name, SXML_BYTE_VIEW_FROM_LITERAL("evaluate"))) {
-        return false;
-    }
+    /* xsl:note is no element of the AST but is implemented: it is
+       ignored, as 3.11.2 says. */
     return find_element_rule(query.local_name) != NULL ||
            sxml_byte_view_equals(query.local_name, SXML_BYTE_VIEW_FROM_LITERAL("note"));
 }

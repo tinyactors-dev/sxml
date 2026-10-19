@@ -392,6 +392,12 @@ typedef enum sxml_function_entry_kind {
        an XSLT xsl:function; Phase 3 and 4): ir_function_number is its
        sxml_ir_function_index value. */
     SXML_FUNCTION_ENTRY_KIND_IR_FUNCTION,
+    /* A function item the table binds the name and arity to: a call is a
+       dynamic call of it, a reference is the item (the stylesheet
+       functions of an xsl:evaluate target expression, which another unit
+       holds; XSLT 4.0, 10.5.1; D196). The entry lists exactly arity
+       parameters. */
+    SXML_FUNCTION_ENTRY_KIND_FUNCTION_ITEM,
 } sxml_function_entry_kind;
 
 /*
@@ -406,6 +412,9 @@ typedef struct sxml_function_entry {
     sxml_type_identifier constructor_type;
     /* For SXML_FUNCTION_ENTRY_KIND_IR_FUNCTION. */
     uint32_t ir_function_number;
+    /* For SXML_FUNCTION_ENTRY_KIND_FUNCTION_ITEM: borrowed from the
+       table, valid as long as it is. */
+    sxml_item function_item;
     /* All parameters, including those beyond the arity (for keyword
        arguments and defaults). */
     sxml_function_parameter_view parameters;

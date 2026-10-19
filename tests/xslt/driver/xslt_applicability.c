@@ -75,6 +75,8 @@ static const sxml_xslt_test_supported_dependency
         /* XML 1.1 documents (D195): sources, stylesheets and assert-xml
            with xml-version="1.1" are read by XML 1.1. */
         SXML_XSLT_TEST_SUPPORTED("feature", "XML_1.1"),
+        /* xsl:evaluate (XSLT 4.0, 10.5; D196). */
+        SXML_XSLT_TEST_SUPPORTED("feature", "dynamic_evaluation"),
         /* XSLT 4.0, 26.1.8, with the XML, XHTML and HTML methods (D188). */
         SXML_XSLT_TEST_SUPPORTED("feature", "disabling_output_escaping"),
         /* XSLT 1.0 behaviour (XSLT 4.0, 3.8.1; D197). */

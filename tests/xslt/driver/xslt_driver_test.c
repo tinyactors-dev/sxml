@@ -285,7 +285,7 @@ test_dependency_table_lists_what_sxml_provides(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, !is_supported(TEXT("feature"), TEXT("streaming")));
     SXML_TEST_EXPECT(state, is_supported(TEXT("feature"), TEXT("XPath_3.1")));
     SXML_TEST_EXPECT(state,
-                     !is_supported(TEXT("feature"), TEXT("dynamic_evaluation")));
+                     is_supported(TEXT("feature"), TEXT("dynamic_evaluation")));
     SXML_TEST_EXPECT(state, is_supported(TEXT("year_component_values"),
                                          TEXT("support negative year")));
     SXML_TEST_EXPECT(state, !is_supported(TEXT("year_component_values"),

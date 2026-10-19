@@ -25,6 +25,8 @@
  */
 #include "xslt_lower_internal.h"
 
+#include "xslt_evaluate_internal.h"
+
 #include "function_library_core_internal.h"
 #include "processor_internal.h"
 #include "sxml/name.h"
@@ -3305,74 +3307,263 @@ static const sxml_xpath_lowering_procedure fork_procedure = {
     .step = continue_fork,
     .locals_size = sizeof(content_locals)};
 
-/* xsl:evaluate (10.5): sxml has no dynamic evaluation (the feature is
-   not claimed, D117), so the xsl:fallback children are its value, or it
-   raises XTDE3175 (dynamic evaluation disabled) when evaluated. */
+/* xsl:evaluate (10.5; glossary `dynamic_evaluation`): a STATIC_CALL of
+   the row of src/xslt_evaluate_internal.h, which compiles the target
+   expression at run time and evaluates it as a unit evaluation (D154).
+   The steps lower its arguments one by one: the xpath, with-params,
+   context-item and namespace-context expressions, the base-uri,
+   schema-aware and trusted value templates, then the xsl:with-param
+   children as a parameter map. The xsl:fallback children are not
+   evaluated: the instruction is available. The result is coerced to the
+   as type (10.5). */
+
+/* The attributes the steps lower, in order, with the argument each one
+   fills and, for the expressions, the argument that says it is present. */
+typedef struct evaluate_part {
+    sxml_xslt_ast_attribute_kind attribute_kind;
+    uint32_t argument_index;
+    /* SXML_EVALUATE_NO_FLAG for a value template. */
+    uint32_t flag_index;
+} evaluate_part;
+
+#define SXML_EVALUATE_NO_FLAG UINT32_MAX
+#define SXML_EVALUATE_ARGUMENTS 12U
+#define SXML_EVALUATE_PARAMETERS_ARGUMENT 1U
+#define SXML_EVALUATE_FUNCTIONS_ARGUMENT 11U
+
+static const evaluate_part evaluate_parts[] = {
+    {.attribute_kind = SXML_XSLT_AST_ATTRIBUTE_XPATH, .argument_index = 0, .flag_index = SXML_EVALUATE_NO_FLAG},
+    {.attribute_kind = SXML_XSLT_AST_ATTRIBUTE_WITH_PARAMS, .argument_index = 2, .flag_index = 3},
+    {.attribute_kind = SXML_XSLT_AST_ATTRIBUTE_CONTEXT_ITEM, .argument_index = 4, .flag_index = 5},
+    {.attribute_kind = SXML_XSLT_AST_ATTRIBUTE_NAMESPACE_CONTEXT, .argument_index = 6, .flag_index = 7},
+    {.attribute_kind = SXML_XSLT_AST_ATTRIBUTE_BASE_URI, .argument_index = 8, .flag_index = SXML_EVALUATE_NO_FLAG},
+    {.attribute_kind = SXML_XSLT_AST_ATTRIBUTE_SCHEMA_AWARE, .argument_index = 9, .flag_index = SXML_EVALUATE_NO_FLAG},
+    {.attribute_kind = SXML_XSLT_AST_ATTRIBUTE_TRUSTED, .argument_index = 10, .flag_index = SXML_EVALUATE_NO_FLAG},
+};
+
+#define SXML_EVALUATE_PART_COUNT (sizeof evaluate_parts / sizeof evaluate_parts[0])
+
 typedef struct evaluate_locals {
     sxml_xslt_instruction_locals head;
-    sxml_xslt_ast_node_index next;
-    sxml_ir_atom *atoms;
-    size_t atom_count;
+    /* The next part to lower; SXML_EVALUATE_PART_COUNT for the
+       xsl:with-param map, one more for the call. */
+    size_t next_part;
+    sxml_ir_atom arguments[SXML_EVALUATE_ARGUMENTS];
+    bool is_present[SXML_EVALUATE_ARGUMENTS];
+    sxml_ir_atom tunnel_parameters;
 } evaluate_locals;
 
-static sxml_status continue_evaluate(sxml_xpath_lowering_machine *machine,
-                                     sxml_xpath_lowering_frame *frame) {
-    sxml_xpath_lowerer *lowerer = machine->state;
+/* The atom of an argument the instruction does not give: the empty
+   sequence, or false() for a flag. */
+static sxml_status add_missing_argument(sxml_xpath_lowerer *lowerer,
+                                        sxml_xpath_lowering_frame *frame, uint32_t argument_index) {
     evaluate_locals *locals = frame->locals;
-    const sxml_xslt_lowering *lowering = locals->head.lowering;
-    if (frame->step == 0) {
-        frame->step = 1;
-        const size_t fallback_count =
-            count_children(lowering, (child_count_query){.node = locals->head.node,
-                                                         .kind = SXML_XSLT_AST_KIND_FALLBACK});
-        if (fallback_count == 0) {
-            sxml_ir_expression_index raise = {0};
-            const sxml_status status = add_raise(
-                lowerer,
-                (raise_request){.error_status = SXML_STATUS_DYNAMIC_ERROR,
-                                .code = SXML_BYTE_VIEW_FROM_LITERAL("XTDE3175"),
-                                .description = SXML_BYTE_VIEW_FROM_LITERAL(
-                                    "xsl:evaluate is evaluated, and sxml does not support "
-                                    "dynamic evaluation (XSLT 4.0, 10.5)")},
-                &raise);
-            if (status != SXML_STATUS_OK) {
-                return status;
-            }
-            return sxml_xpath_lowering_finish_frame(machine, frame, raise);
-        }
-        const sxml_status status = sxml_xpath_lowering_allocate_owned(
-            machine, frame,
-            (sxml_xpath_lowering_owned_request){
-                .memory_index = 0,
-                .scratch = {.element_count = fallback_count,
-                            .element_size = sizeof(sxml_ir_atom),
-                            .element_alignment = alignof(sxml_ir_atom)}});
-        if (status != SXML_STATUS_OK) {
-            return status;
-        }
-        locals->atoms = frame->owned_memory[0];
-        locals->next = node_of(lowering, locals->head.node)->first_child;
+    bool is_flag = false;
+    for (size_t part_index = 0; part_index < SXML_EVALUATE_PART_COUNT; part_index += 1) {
+        is_flag = is_flag || evaluate_parts[part_index].flag_index == argument_index;
     }
-    while (locals->next.value != 0) {
-        const sxml_xslt_ast_node_index child = locals->next;
-        locals->next = next_of(lowering, child);
-        if (kind_of(lowering, child) != SXML_XSLT_AST_KIND_FALLBACK) {
-            continue;
-        }
-        sxml_ir_atom *atom = &locals->atoms[locals->atom_count];
-        locals->atom_count += 1;
-        return start_content(
-            machine, (value_request){
-                         .lowering = lowering, .node = child, .block = frame->block, .atom = atom});
+    if (is_flag) {
+        return sxml_xpath_lowerer_add_item_constant(lowerer, sxml_atomic_item_false(),
+                                                    &locals->arguments[argument_index]);
     }
-    sxml_ir_expression sequence = {0};
-    const sxml_status status = make_sequence(
-        lowerer, (sxml_ir_atom_view){.atoms = locals->atoms, .atom_count = locals->atom_count},
-        &sequence);
+    if (argument_index == SXML_EVALUATE_FUNCTIONS_ARGUMENT) {
+        const sxml_xslt_lowering *lowering = locals->head.lowering;
+        const sxml_xslt_ast_attribute *xpath = find_attribute(
+            lowering, (attribute_lookup){.node = locals->head.node,
+                                         .kind = SXML_XSLT_AST_ATTRIBUTE_XPATH});
+        const sxml_xpath_static_context *static_context =
+            xpath->value.kind == SXML_XSLT_AST_VALUE_KIND_EXPRESSION
+                ? sxml_xslt_lowering_expression_context(lowering, xpath->value.payload.expression)
+                : NULL;
+        if (static_context == NULL) {
+            return SXML_STATUS_INVALID_ARGUMENT;
+        }
+        return sxml_xslt_lowering_bind_evaluable_functions(
+            lowerer,
+            &(sxml_xslt_evaluable_functions_request){
+                .lowering = lowering, .static_context = static_context, .block = frame->block},
+            &locals->arguments[argument_index]);
+    }
+    sxml_ir_expression empty = {0};
+    const sxml_status status =
+        make_sequence(lowerer, (sxml_ir_atom_view){.atoms = NULL, .atom_count = 0}, &empty);
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    return finish_with_expression(machine, frame, sequence);
+    return bind(lowerer, (binding){.block = frame->block, .expression = empty},
+                &locals->arguments[argument_index]);
+}
+
+/* Pushes the lowering of an expression attribute's part, with its flag
+   true. */
+typedef struct evaluate_part_attribute {
+    const evaluate_part *part;
+    const sxml_xslt_ast_attribute *attribute;
+} evaluate_part_attribute;
+
+static sxml_status start_evaluate_expression(sxml_xpath_lowering_machine *machine,
+                                             sxml_xpath_lowering_frame *frame,
+                                             evaluate_part_attribute request) {
+    evaluate_locals *locals = frame->locals;
+    const evaluate_part *part = request.part;
+    locals->is_present[part->argument_index] = true;
+    if (part->flag_index != SXML_EVALUATE_NO_FLAG) {
+        locals->is_present[part->flag_index] = true;
+        const sxml_status status = sxml_xpath_lowerer_add_item_constant(
+            machine->state, sxml_atomic_item_true(), &locals->arguments[part->flag_index]);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+    }
+    return sxml_xslt_lowering_call_expression(
+        machine,
+        &(sxml_xslt_expression_call){.lowering = locals->head.lowering,
+                                     .expression = request.attribute->value.payload.expression,
+                                     .block = frame->block,
+                                     .atom = &locals->arguments[part->argument_index],
+                                     .focus = NULL});
+}
+
+/* Starts lowering the next part (and moves past it): pushes a frame
+   (*outcome is_pushed), or puts a fixed value template's text in its
+   argument. XTSE0020 for a fixed schema-aware or trusted text that is not a
+   boolean word (3.3). */
+static sxml_status start_evaluate_part(sxml_xpath_lowering_machine *machine,
+                                       sxml_xpath_lowering_frame *frame, step_outcome *outcome) {
+    sxml_xpath_lowerer *lowerer = machine->state;
+    evaluate_locals *locals = frame->locals;
+    const evaluate_part *part = &evaluate_parts[locals->next_part];
+    locals->next_part += 1;
+    const sxml_xslt_lowering *lowering = locals->head.lowering;
+    const sxml_xslt_ast_attribute *attribute = find_attribute(
+        lowering, (attribute_lookup){.node = locals->head.node, .kind = part->attribute_kind});
+    outcome->is_pushed = false;
+    sxml_ir_atom *atom = &locals->arguments[part->argument_index];
+    if (attribute->value.kind == SXML_XSLT_AST_VALUE_KIND_EXPRESSION) {
+        outcome->is_pushed = true;
+        return start_evaluate_expression(
+            machine, frame, (evaluate_part_attribute){.part = part, .attribute = attribute});
+    }
+    if (attribute->value.kind != SXML_XSLT_AST_VALUE_KIND_VALUE_TEMPLATE) {
+        return SXML_STATUS_OK;
+    }
+    locals->is_present[part->argument_index] = true;
+    const fixed_text fixed = read_fixed_text(lowering, attribute);
+    if (!fixed.is_fixed) {
+        outcome->is_pushed = true;
+        return sxml_xslt_lowering_call_value_template(
+            machine, &(sxml_xslt_expression_call){.lowering = lowering,
+                                                  .expression = attribute->value.payload.expression,
+                                                  .block = frame->block,
+                                                  .atom = atom,
+                                                  .focus = NULL});
+    }
+    if (part->attribute_kind != SXML_XSLT_AST_ATTRIBUTE_BASE_URI &&
+        !sxml_xslt_lowering_read_boolean_text(fixed.text).is_valid) {
+        return sxml_xslt_lowering_report_static_error(
+            lowering, (sxml_xslt_static_error){
+                          .node = locals->head.node,
+                          .code_and_description = SXML_BYTE_VIEW_FROM_LITERAL(
+                              "XTSE0020 the schema-aware or trusted attribute of xsl:evaluate "
+                              "is not yes, true, 1, no, false or 0 (XSLT 4.0, 3.3)")});
+    }
+    return sxml_xpath_lowerer_add_string_constant(lowerer, fixed.text, atom);
+}
+
+/* After the parts: the call, its xpath coerced to xs:string (XPTY0004,
+   10.5: "converted to a string using the coercion rules") and its result
+   to the as type. */
+static sxml_status finish_evaluate(sxml_xpath_lowering_machine *machine,
+                                   sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *lowerer = machine->state;
+    evaluate_locals *locals = frame->locals;
+    const sxml_xslt_lowering *lowering = locals->head.lowering;
+    sxml_status status = SXML_STATUS_OK;
+    for (uint32_t argument_index = 0;
+         status == SXML_STATUS_OK && argument_index < SXML_EVALUATE_ARGUMENTS;
+         argument_index += 1) {
+        if (!locals->is_present[argument_index]) {
+            status = add_missing_argument(lowerer, frame, argument_index);
+        }
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_coerce_atom(
+            lowerer,
+            (sxml_xpath_lowering_coercion_request){
+                .block = frame->block,
+                .node = no_ast_node,
+                .value = locals->arguments[0],
+                .sequence_type = {.item_type = sxml_builtin_type_identifier(SXML_TYPE_XS_STRING),
+                                  .occurrence = SXML_OCCURRENCE_EXACTLY_ONE},
+                .role = SXML_IR_COERCION_ROLE_FUNCTION_ARGUMENT},
+            &locals->arguments[0]);
+    }
+    sxml_ir_atom_list arguments = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ir_unit_add_atoms(
+            lowerer->unit,
+            (sxml_ir_atom_view){.atoms = locals->arguments, .atom_count = SXML_EVALUATE_ARGUMENTS},
+            &arguments);
+    }
+    sxml_ir_atom result = {0};
+    if (status == SXML_STATUS_OK) {
+        status = bind(lowerer,
+                      (binding){.block = frame->block,
+                                .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_STATIC_CALL,
+                                               .static_call = {
+                                                   .target = {.target_kind =
+                                                                  SXML_IR_FUNCTION_TARGET_KIND_NATIVE,
+                                                              .native_function =
+                                                                  &sxml_xslt_evaluate_function},
+                                                   .arguments = arguments,
+                                                   /* The lexical static context
+                                                      the row reads (D163). */
+                                                   .module_number = sxml_xslt_lowering_module_of_node(
+                                                       lowering, locals->head.node)}}},
+                      &result);
+    }
+    sxml_xslt_declared_type type = {.has_type = false};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xslt_lowering_resolve_declared_type(lowering, locals->head.node, &type);
+    }
+    if (status == SXML_STATUS_OK && type.has_type) {
+        status = sxml_xpath_lowerer_coerce_atom(
+            lowerer,
+            (sxml_xpath_lowering_coercion_request){.block = frame->block,
+                                                   .node = no_ast_node,
+                                                   .value = result,
+                                                   .sequence_type = type.sequence_type,
+                                                   .role = SXML_IR_COERCION_ROLE_FUNCTION_RESULT},
+            &result);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return finish_with_atom(machine, frame, result);
+}
+
+static sxml_status continue_evaluate(sxml_xpath_lowering_machine *machine,
+                                     sxml_xpath_lowering_frame *frame) {
+    evaluate_locals *locals = frame->locals;
+    while (locals->next_part < SXML_EVALUATE_PART_COUNT) {
+        step_outcome outcome = {.is_pushed = false};
+        const sxml_status status = start_evaluate_part(machine, frame, &outcome);
+        if (status != SXML_STATUS_OK || outcome.is_pushed) {
+            return status;
+        }
+    }
+    if (locals->next_part == SXML_EVALUATE_PART_COUNT) {
+        locals->next_part += 1;
+        locals->is_present[SXML_EVALUATE_PARAMETERS_ARGUMENT] = true;
+        return sxml_xslt_lowering_call_parameter_map(
+            machine,
+            &(sxml_xslt_parameter_map_call){
+                .head = &locals->head,
+                .frame = frame,
+                .parameters = &locals->arguments[SXML_EVALUATE_PARAMETERS_ARGUMENT],
+                .tunnel_parameters = &locals->tunnel_parameters});
+    }
+    return finish_evaluate(machine, frame);
 }
 
 static const sxml_xpath_lowering_procedure evaluate_procedure = {
