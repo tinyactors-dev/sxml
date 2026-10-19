@@ -13,7 +13,8 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
   41,518. Zero error outcomes in every suite.
 - Optional features (D189): `sxml.wasm` (core) 2,004,485 of 2,100,000
   bytes, `sxml-full.wasm` 2,005,513 of 3,000,000. Gzipped budgets 735,000 /
-  1,050,000 were set at D138's ratio (owner to confirm). Schema validation
+  1,050,000 were set at D138's ratio (owner to confirm). CLI module budget
+  7,000,000 / 1,500,000 (D202). Schema validation
   (71 KB) and language-specific lowering parts (75 KB) could leave the core.
 
 ## Running
@@ -21,7 +22,6 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 - 7.4 XSLT backwards compatibility and XPath 1.0 mode.
 - 7.11 fn:transform (after 7.3).
 - 7.9 EXPath File (7.8 Binary done, D198: bin-* 646 of 646).
-- 7.10a HTML5 tokenizer and tree builder.
 - 7.7b/7.7c XQuery Update 4.0 additions, fn:put, revalidation (after 7.7a, D187: upd-* 733 of 825).
 - 7.14 DTD processing (after 7.13, D195).
 
@@ -71,6 +71,13 @@ xsl:evaluate (7.3, D196: 73 of 83, gate 90 %): 3 need parse-html (7.10),
 2 need json-doc/unparsed-text-available trust checks, 1 a UCA strength
 (7.15); keyword arguments to stylesheet functions from the target
 expression. disable-output-escaping (7.5, D188): 25 of 25 run.
+
+HTML (7.10a done, D201: misc-HtmlTestSuite 1,378 of 1,379, fn-parse-html
+22/22, fn-html-doc 9/10). 7.10b: the `<meta>` encoding prescan and
+mid-parse encoding change, vendored html5lib tests as a unit test,
+multi-byte decoders (or FODC0011), source locations, XHTML input, and the
+CLI's missing static base URI (relative `html-doc`/`unparsed-text` in
+`sxml xpath`/`xquery`).
 
 XML 1.1 (after 7.13, D195; xmlconf 1.1 242 of 271):
 - 29 xmlconf cases need external entities or DTDs (7.14).
