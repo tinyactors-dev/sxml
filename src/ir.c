@@ -122,6 +122,7 @@ sxml_status sxml_ir_unit_initialize(
     new_unit->item_heap = configuration->item_heap;
     new_unit->maximum_expression_count =
         configuration->maximum_expression_count;
+    new_unit->evaluator_parts = configuration->evaluator_parts;
     if (configuration->source_name.byte_count > 0) {
         /* The source name follows the unit (compute_unit_layout). */
         uint8_t *name_bytes = memory.bytes + sizeof(sxml_ir_unit);
