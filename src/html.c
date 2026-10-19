@@ -455,6 +455,132 @@ static sxml_status build_tree(const sxml_html_build_request *build, sxml_item *d
     return SXML_STATUS_OK;
 }
 
+/* ------------------------------------------------------------- XHTML */
+
+/* Skips ASCII whitespace from offset. */
+static size_t skip_xml_space(sxml_byte_view text, size_t offset) {
+    while (offset < text.byte_count &&
+           (text.bytes[offset] == ' ' || text.bytes[offset] == '\t' ||
+            text.bytes[offset] == '\n' || text.bytes[offset] == '\r')) {
+        offset += 1;
+    }
+    return offset;
+}
+
+static bool text_at(sxml_byte_view text, size_t offset, sxml_byte_view expected) {
+    return offset + expected.byte_count <= text.byte_count &&
+           memcmp(text.bytes + offset, expected.bytes, expected.byte_count) == 0;
+}
+
+/* The offset after the first end after offset, or the text's length. */
+static size_t skip_past(sxml_byte_view text, size_t offset, sxml_byte_view end) {
+    while (offset < text.byte_count && !text_at(text, offset, end)) {
+        offset += 1;
+    }
+    return offset < text.byte_count ? offset + end.byte_count : text.byte_count;
+}
+
+/*
+ * F&O 4.0, fn:parse-html: "The implementation should recognize and
+ * process XHTML (referred to in HTML as the XML concrete syntax of
+ * HTML)" (HTML, 14). Without a media type the input says what it is: an
+ * XHTML document is one whose document element, after the prolog's XML
+ * declaration, comments, processing instructions and document type
+ * declaration, is an unprefixed html that declares the XHTML namespace
+ * as its default namespace. Such an input is parsed with the XML parser
+ * when it is well-formed (17.3.1: the XMLDocument mapping); otherwise as
+ * HTML. This check only looks at the start tag.
+ */
+static bool looks_like_xhtml(sxml_byte_view text) {
+    size_t offset = skip_xml_space(text, 0);
+    for (;;) {
+        if (text_at(text, offset, SXML_BYTE_VIEW_FROM_LITERAL("<?"))) {
+            offset = skip_past(text, offset, SXML_BYTE_VIEW_FROM_LITERAL("?>"));
+        } else if (text_at(text, offset, SXML_BYTE_VIEW_FROM_LITERAL("<!--"))) {
+            offset = skip_past(text, offset, SXML_BYTE_VIEW_FROM_LITERAL("-->"));
+        } else if (text_at(text, offset, SXML_BYTE_VIEW_FROM_LITERAL("<!DOCTYPE"))) {
+            /* Up to the '>' that is not inside the internal subset. */
+            bool is_in_subset = false;
+            while (offset < text.byte_count &&
+                   (is_in_subset || text.bytes[offset] != '>')) {
+                is_in_subset = text.bytes[offset] == '[' ||
+                               (is_in_subset && text.bytes[offset] != ']');
+                offset += 1;
+            }
+            offset += 1;
+        } else {
+            break;
+        }
+        offset = skip_xml_space(text, offset);
+    }
+    if (!text_at(text, offset, SXML_BYTE_VIEW_FROM_LITERAL("<html")) ||
+        offset + 5 >= text.byte_count) {
+        return false;
+    }
+    const uint8_t after_name = text.bytes[offset + 5];
+    if (after_name != ' ' && after_name != '\t' && after_name != '\n' && after_name != '\r') {
+        return false;
+    }
+    const size_t tag_end = skip_past(text, offset, SXML_BYTE_VIEW_FROM_LITERAL(">"));
+    const sxml_byte_view tag = {.bytes = text.bytes + offset, .byte_count = tag_end - offset};
+    static const sxml_byte_view declarations[] = {
+        SXML_BYTE_VIEW_INITIALIZER("xmlns=\"http://www.w3.org/1999/xhtml\""),
+        SXML_BYTE_VIEW_INITIALIZER("xmlns='http://www.w3.org/1999/xhtml'"),
+    };
+    for (size_t declaration_index = 0; declaration_index < 2; declaration_index += 1) {
+        const sxml_byte_view declaration = declarations[declaration_index];
+        for (size_t position = 0; position + declaration.byte_count <= tag.byte_count;
+             position += 1) {
+            if (text_at(tag, position, declaration) && position > 0 &&
+                (tag.bytes[position - 1] == ' ' || tag.bytes[position - 1] == '\t' ||
+                 tag.bytes[position - 1] == '\n' || tag.bytes[position - 1] == '\r')) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+/* An XHTML input to parse as XML. */
+typedef struct sxml_html_xhtml_request {
+    sxml_processor *processor;
+    const sxml_html_document_request *document;
+    sxml_byte_view stream;
+} sxml_html_xhtml_request;
+
+/* What parsing it as XML gave: is_parsed is false when it is not
+   well-formed, and then it is HTML. */
+typedef struct sxml_html_xhtml_result {
+    bool is_parsed;
+    /* Owned when is_parsed. */
+    sxml_item document_node;
+} sxml_html_xhtml_result;
+
+/* Parses the input stream (UTF-8 now, whatever its XML declaration says:
+   the encoding named outside wins, XML 1.0, F.2) with the XML parser. */
+static sxml_status parse_xhtml(const sxml_html_xhtml_request *request,
+                               sxml_html_xhtml_result *result) {
+    sxml_diagnostic diagnostic;
+    memset(&diagnostic, 0, sizeof(diagnostic));
+    const sxml_status status = sxml_processor_parse_document(
+        request->processor,
+        &(sxml_xml_parse_request){.input = request->stream,
+                                  .source_name = request->document->document_uri,
+                                  .document_uri = request->document->document_uri,
+                                  .base_uri = request->document->base_uri,
+                                  .encoding_name = SXML_BYTE_VIEW_FROM_LITERAL("UTF-8"),
+                                  .diagnostic = &diagnostic,
+                                  .entity_resolver = {.state = NULL, .operations = NULL},
+                                  .validator = {.state = NULL, .operations = NULL}},
+        &result->document_node);
+    if (status == SXML_STATUS_OUT_OF_MEMORY || status == SXML_STATUS_LIMIT_EXCEEDED ||
+        status == SXML_STATUS_ARITHMETIC_OVERFLOW) {
+        return status;
+    }
+    result->is_parsed = status == SXML_STATUS_OK;
+    return SXML_STATUS_OK;
+}
+
 /* One pass of the parser: the input stream and the working tree. */
 typedef struct sxml_html_pass {
     sxml_xml_buffer stream;
@@ -522,6 +648,24 @@ sxml_status sxml_html_parse_document(sxml_processor *processor,
         memset(&pass, 0, sizeof(pass));
         pass.stream = sxml_xml_buffer_empty(allocator);
         status = run_pass(request, &input, &pass);
+    }
+    if (status == SXML_STATUS_OK &&
+        pass.input_outcome.failure == SXML_HTML_INPUT_FAILURE_NONE &&
+        looks_like_xhtml((sxml_byte_view){.bytes = pass.stream.bytes,
+                                          .byte_count = pass.stream.byte_count})) {
+        sxml_html_xhtml_result xhtml = {.is_parsed = false,
+                                        .document_node = {.representation = 0}};
+        status = parse_xhtml(&(sxml_html_xhtml_request){.processor = processor,
+                                                        .document = request,
+                                                        .stream = {.bytes = pass.stream.bytes,
+                                                                   .byte_count =
+                                                                       pass.stream.byte_count}},
+                             &xhtml);
+        if (status != SXML_STATUS_OK || xhtml.is_parsed) {
+            outcome->document_node = xhtml.document_node;
+            finish_pass(&pass);
+            return status;
+        }
     }
     if (status == SXML_STATUS_OK) {
         if (pass.input_outcome.failure == SXML_HTML_INPUT_FAILURE_UNKNOWN_ENCODING) {

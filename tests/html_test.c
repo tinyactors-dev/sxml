@@ -649,6 +649,17 @@ static const expression_case expression_cases[] = {
     EXPRESSION_VALUE("string(html-doc('page.html', {'encoding': 'windows-1251'})//*:p)",
                      "\"\xD0\x9C\xD0\xBE\""),
     EXPRESSION_VALUE("document-uri(html-doc('page.html'))", "\"http://example.com/page.html\""),
+    /* F&O 4.0, fn:parse-html: XHTML is recognized and parsed as XML: no
+       head is implied, processing instructions and prefixes stay. */
+    EXPRESSION_VALUE("parse-html('<?xml version=\"1.0\"?><!DOCTYPE html><html "
+                     "xmlns=\"http://www.w3.org/1999/xhtml\"><body><?pi x?><svg:svg "
+                     "xmlns:svg=\"http://www.w3.org/2000/svg\"/></body></html>')!(count(//*:head), "
+                     "//processing-instruction()!name(), name(//*:svg))",
+                     "0 \"pi\" \"svg:svg\""),
+    /* Not well-formed: HTML after all. */
+    EXPRESSION_VALUE("count(parse-html('<html xmlns=\"http://www.w3.org/1999/xhtml\"><p>a<br>"
+                     "</html>')//*:head)",
+                     "1"),
     /* 13.2.3.2: the prescan finds the encoding of a meta element. */
     EXPRESSION_VALUE("string(parse-html(xs:hexBinary("
                      "'3C6D65746120636861727365743D73686966745F6A69733E82A0'))//*:body)",
@@ -720,13 +731,17 @@ static void test_functions_survive_every_allocation_failure(sxml_test_state *sta
         if (status == SXML_STATUS_OK) {
             status = run_expression(
                 &fixture, TEXT("parse-html('<table><b>x<p>y</b><svg><a xlink:href=\"u\"/></svg>')"
-                               "//*:p/string(), html-doc('page.html')//@id/string()"));
+                               "//*:p/string(), html-doc('page.html')//@id/string(), "
+                               "parse-html('<html xmlns=\"http://www.w3.org/1999/xhtml\"><p>z</p>"
+                               "</html>')//*:p/string(), "
+                               "parse-html(xs:hexBinary(string-join((1 to 1030) ! '20') || "
+                               "'3C6D65746120636861727365743D6B6F69382D723EED'))//*:body/string()"));
         }
         SXML_TEST_EXPECT(state, status == SXML_STATUS_OK || status == SXML_STATUS_OUT_OF_MEMORY);
         if (status == SXML_STATUS_OK) {
             SXML_TEST_EXPECT(state, sxml_byte_view_equals(
                                         sxml_output_buffer_get_bytes(fixture.output_buffer),
-                                        TEXT("\"y\" \"p1\"")));
+                                        TEXT("\"y\" \"p1\" \"z\" \"\xD0\x9C\"")));
         }
         SXML_TEST_EXPECT(state, html_fixture_destroy(&fixture));
     }
