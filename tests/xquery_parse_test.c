@@ -219,6 +219,36 @@ static const char *const kind_names[SXML_AST_KIND_COUNT] = {
     [SXML_AST_KIND_DIRECT_COMMENT_CONSTRUCTOR] = "direct_comment_constructor",
     [SXML_AST_KIND_DIRECT_PROCESSING_INSTRUCTION_CONSTRUCTOR] = "direct_processing_instruction_constructor",
     [SXML_AST_KIND_QNAME] = "qname",
+    /* Full Text 3.0 (D214). */
+    [SXML_AST_KIND_FT_OPTION_DECLARATION] = "ft_option_declaration",
+    [SXML_AST_KIND_FT_SCORE_VARIABLE] = "ft_score_variable",
+    [SXML_AST_KIND_LET_SCORE_BINDING] = "let_score_binding",
+    [SXML_AST_KIND_FT_CONTAINS_EXPRESSION] = "ft_contains_expression",
+    [SXML_AST_KIND_FT_SELECTION] = "ft_selection",
+    [SXML_AST_KIND_FT_OR] = "ft_or",
+    [SXML_AST_KIND_FT_AND] = "ft_and",
+    [SXML_AST_KIND_FT_MILD_NOT] = "ft_mild_not",
+    [SXML_AST_KIND_FT_UNARY_NOT] = "ft_unary_not",
+    [SXML_AST_KIND_FT_PRIMARY_WITH_OPTIONS] = "ft_primary_with_options",
+    [SXML_AST_KIND_FT_WORDS] = "ft_words",
+    [SXML_AST_KIND_FT_RANGE] = "ft_range",
+    [SXML_AST_KIND_FT_EXTENSION_SELECTION] = "ft_extension_selection",
+    [SXML_AST_KIND_FT_ORDER] = "ft_order",
+    [SXML_AST_KIND_FT_WINDOW] = "ft_window",
+    [SXML_AST_KIND_FT_DISTANCE] = "ft_distance",
+    [SXML_AST_KIND_FT_SCOPE] = "ft_scope",
+    [SXML_AST_KIND_FT_CONTENT] = "ft_content",
+    [SXML_AST_KIND_FT_LANGUAGE_OPTION] = "ft_language_option",
+    [SXML_AST_KIND_FT_WILDCARD_OPTION] = "ft_wildcard_option",
+    [SXML_AST_KIND_FT_THESAURUS_OPTION] = "ft_thesaurus_option",
+    [SXML_AST_KIND_FT_THESAURUS_ID] = "ft_thesaurus_id",
+    [SXML_AST_KIND_FT_STEM_OPTION] = "ft_stem_option",
+    [SXML_AST_KIND_FT_CASE_OPTION] = "ft_case_option",
+    [SXML_AST_KIND_FT_DIACRITICS_OPTION] = "ft_diacritics_option",
+    [SXML_AST_KIND_FT_STOP_WORD_OPTION] = "ft_stop_word_option",
+    [SXML_AST_KIND_FT_STOP_WORDS] = "ft_stop_words",
+    [SXML_AST_KIND_FT_STOP_WORDS_INCLUSION] = "ft_stop_words_inclusion",
+    [SXML_AST_KIND_FT_EXTENSION_OPTION] = "ft_extension_option",
 };
 
 static const char *const field_names[SXML_AST_FIELD_COUNT] = {
@@ -288,6 +318,23 @@ static const char *const field_names[SXML_AST_FIELD_COUNT] = {
     [SXML_AST_FIELD_SPECIFICATION] = "specification",
     [SXML_AST_FIELD_START] = "start",
     [SXML_AST_FIELD_VERSION] = "version",
+    /* Full Text 3.0 (D214). */
+    [SXML_AST_FIELD_FILTER] = "filter",
+    [SXML_AST_FIELD_IGNORE] = "ignore",
+    [SXML_AST_FIELD_INCLUSION] = "inclusion",
+    [SXML_AST_FIELD_LANGUAGE] = "language",
+    [SXML_AST_FIELD_MAXIMUM] = "maximum",
+    [SXML_AST_FIELD_MINIMUM] = "minimum",
+    [SXML_AST_FIELD_OPTION] = "option",
+    [SXML_AST_FIELD_RANGE] = "range",
+    [SXML_AST_FIELD_RELATIONSHIP] = "relationship",
+    [SXML_AST_FIELD_SCORE] = "score",
+    [SXML_AST_FIELD_SELECTION] = "selection",
+    [SXML_AST_FIELD_THESAURUS] = "thesaurus",
+    [SXML_AST_FIELD_TIMES] = "times",
+    [SXML_AST_FIELD_WEIGHT] = "weight",
+    [SXML_AST_FIELD_WORD] = "word",
+    [SXML_AST_FIELD_WORDS] = "words",
 };
 
 /* Keyword details in sxml_ast_keyword order. */
@@ -295,6 +342,12 @@ static const char *const keyword_names[] = {
     "",        "preserve", "strip",    "ordered", "unordered",
     "greatest", "least",   "element",  "function", "value",
     "item",    "lax",      "strict",
+    /* XQuery Update Facility 3.0 (D187). */
+    "skip",    "first",    "last",     "into",    "after",     "before",
+    /* Full Text 3.0 (D214). */
+    "any",     "all",      "phrase",   "words",   "sentences", "paragraphs",
+    "sentence", "paragraph", "start",  "end",     "entire",    "insensitive",
+    "sensitive", "lowercase", "uppercase",
 };
 
 /* Decimal format properties in sxml_decimal_format_property_kind order. */
@@ -326,6 +379,13 @@ static const char *const flag_names[] = {
     "inherit_namespaces",
     "boundary_whitespace",
     "namespace_declaration_attribute",
+    "open",
+    "value_of",
+    /* Full Text 3.0 (D214). */
+    "separate_words",
+    "different",
+    "no",
+    "default",
 };
 
 /* Text written so far, up to the capacity of bytes. */
@@ -385,6 +445,10 @@ static void write_detail(ast_writer writer, const sxml_ast_node *node) {
     if (node->kind == SXML_AST_KIND_DECIMAL_FORMAT_PROPERTY) {
         write_text(output, " ");
         write_text(output, property_names[node->detail.decimal_format_property]);
+    } else if (node->kind == SXML_AST_KIND_FT_STOP_WORDS_INCLUSION) {
+        write_text(output, node->detail.operator== SXML_AST_OPERATOR_UNION
+                               ? " union"
+                               : " except");
     } else if (node->kind >= SXML_AST_KIND_MODULE &&
                node->detail.keyword != SXML_AST_KEYWORD_NONE) {
         write_text(output, " ");
@@ -717,6 +781,63 @@ static const expected_ast expression_cases[] = {
 
 static void test_xquery_expressions(sxml_test_state *state) {
     EXPECT_ASTS(state, expression_cases);
+}
+
+/* --------------------------------------------- Full Text 3.0 (D214) */
+
+static const expected_ast full_text_cases[] = {
+    {"declare ft-option using no stemming using lowercase; "
+     "for $b score $s in 1 let score $t := 2 return 3",
+     "(module module=(main_module prolog=(prolog declaration="
+     "(ft_option_declaration option=(ft_stem_option no) "
+     "option=(ft_case_option lowercase))) body=(flwor_expression "
+     "clause=(for_clause binding=(for_item_binding "
+     "variable=(variable_name_and_type name=(ncname b)) "
+     "score=(ft_score_variable name=(ncname s)) "
+     "sequence=(integer_literal \"1\"))) clause=(let_clause "
+     "binding=(let_score_binding name=(ncname t) value=(integer_literal "
+     "\"2\"))) return=(return_clause value=(integer_literal \"3\")))))"},
+    {". contains text 'a' all words ftor {'b'} phrase occurs at least 2 "
+     "times not in ftnot 'c' using case sensitive weight {1} ordered "
+     "window 3 sentences distance from 1 to 2 words different paragraph "
+     "at end without content 4",
+     "(ft_contains_expression value=(context_value_reference) "
+     "selection=(ft_selection operand=(ft_or left=(ft_words all "
+     "separate_words value=(string_literal \"a\")) right=(ft_mild_not "
+     "left=(ft_words phrase value=(string_literal \"b\") "
+     "times=(ft_range minimum=(integer_literal \"2\"))) "
+     "right=(ft_unary_not operand=(ft_primary_with_options "
+     "operand=(ft_words value=(string_literal \"c\")) "
+     "option=(ft_case_option sensitive) weight=(integer_literal "
+     "\"1\")))))"
+     " filter=(ft_order) filter=(ft_window sentences "
+     "value=(integer_literal \"3\")) filter=(ft_distance words "
+     "range=(ft_range minimum=(integer_literal \"1\") "
+     "maximum=(integer_literal \"2\"))) filter=(ft_scope paragraph "
+     "different) filter=(ft_content end)) ignore=(integer_literal "
+     "\"4\"))"},
+    {". contains text 'a' using thesaurus (default, at 'u' relationship "
+     "'r' exactly 1 levels) using stop words ('x') except at 's' using "
+     "no wildcards using option p:o 'v' using language 'en' using "
+     "diacritics insensitive entire content",
+     "(ft_contains_expression value=(context_value_reference) "
+     "selection=(ft_selection operand=(ft_primary_with_options "
+     "operand=(ft_words value=(string_literal \"a\")) "
+     "option=(ft_thesaurus_option default thesaurus=(ft_thesaurus_id "
+     "uri=(string_literal \"u\") relationship=(string_literal \"r\") "
+     "range=(ft_range value=(integer_literal \"1\")))) "
+     "option=(ft_stop_word_option words=(ft_stop_words "
+     "word=(string_literal \"x\")) inclusion=(ft_stop_words_inclusion "
+     "except words=(ft_stop_words uri=(string_literal \"s\")))) "
+     "option=(ft_wildcard_option no) option=(ft_extension_option "
+     "name=(prefixed_name p:o) value=(string_literal \"v\")) "
+     "option=(ft_language_option language=(string_literal \"en\")) "
+     "option=(ft_diacritics_option insensitive)) filter=(ft_content "
+     "entire)))"},
+};
+
+static void test_full_text_expressions(sxml_test_state *state) {
+    EXPECT_ASTS(state, full_text_cases);
 }
 
 /* ---------------------------------------------------------- Decoding */
@@ -1070,6 +1191,8 @@ static const sxml_test_case xquery_parse_test_cases[] = {
     {.name = "prolog_tokens_become_details_and_flags",
      .function = test_prolog_tokens_become_details_and_flags},
     {.name = "xquery_expressions", .function = test_xquery_expressions},
+    {.name = "full_text_expressions",
+     .function = test_full_text_expressions},
     {.name = "literals_are_decoded", .function = test_literals_are_decoded},
     {.name = "direct_constructors", .function = test_direct_constructors},
     {.name = "static_errors_have_codes_and_locations",

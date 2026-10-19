@@ -349,7 +349,8 @@ typedef enum sxml_ast_kind {
     SXML_AST_KIND_FOR_CLAUSE,
     /* variable: VARIABLE_NAME_AND_TYPE; position?: POSITIONAL_VARIABLE;
        sequence: Expression. "for $x at $i in E". Flag ALLOWING_EMPTY for
-       XQuery's "allowing empty" (4.13.2). */
+       XQuery's "allowing empty" (4.13.2); score?: FT_SCORE_VARIABLE in
+       XQuery (Full Text 3.0, 2.3.1, D214). */
     SXML_AST_KIND_FOR_ITEM_BINDING,
     /* As FOR_ITEM_BINDING: "for member $m in A". */
     SXML_AST_KIND_FOR_MEMBER_BINDING,
@@ -362,7 +363,8 @@ typedef enum sxml_ast_kind {
     /* name: Name. "at $i". */
     SXML_AST_KIND_POSITIONAL_VARIABLE,
     /* binding+: LET_VALUE_BINDING, LET_SEQUENCE_BINDING,
-       LET_ARRAY_BINDING or LET_MAP_BINDING. */
+       LET_ARRAY_BINDING or LET_MAP_BINDING; in XQuery also
+       LET_SCORE_BINDING (Full Text 3.0, D214). */
     SXML_AST_KIND_LET_CLAUSE,
     /* variable: VARIABLE_NAME_AND_TYPE; value: Expression. */
     SXML_AST_KIND_LET_VALUE_BINDING,
@@ -883,6 +885,87 @@ typedef enum sxml_ast_kind {
        POSITIONAL_ARGUMENT_LIST. "invoke updating $f(1)", 5.3. */
     SXML_AST_KIND_UPDATING_FUNCTION_CALL,
 
+    /* ====== XQuery and XPath Full Text 3.0 (D214; section numbers of
+       Full Text 3.0, W3C Recommendation 24 November 2015). Built by the
+       XQuery front end from grammars/xquery. A full-text selection kind
+       is FT_SELECTION, FT_OR, FT_AND, FT_MILD_NOT, FT_UNARY_NOT,
+       FT_PRIMARY_WITH_OPTIONS, FT_WORDS or FT_EXTENSION_SELECTION; a
+       positional filter kind FT_ORDER, FT_WINDOW, FT_DISTANCE, FT_SCOPE or
+       FT_CONTENT; a match option kind one of FT_LANGUAGE_OPTION to
+       FT_EXTENSION_OPTION. ====== */
+    /* option+: a match option kind. "declare ft-option", 2.1. */
+    SXML_AST_KIND_FT_OPTION_DECLARATION,
+    /* name: Name. "score $s", field score of FOR_ITEM_BINDING, 2.3.1. */
+    SXML_AST_KIND_FT_SCORE_VARIABLE,
+    /* name: Name; value: an expression. "let score $s := E", a binding
+       of LET_CLAUSE, 2.3.2. */
+    SXML_AST_KIND_LET_SCORE_BINDING,
+    /* value: an expression; selection: FT_SELECTION; ignore?: an
+       expression ("without content E", 3.7). "E contains text S", 2.2. */
+    SXML_AST_KIND_FT_CONTAINS_EXPRESSION,
+    /* operand: a full-text selection kind; filter*: a positional filter
+       kind, in source order. 3.1; also a parenthesized selection. */
+    SXML_AST_KIND_FT_SELECTION,
+    /* left, right: full-text selection kinds. "ftor", "ftand" and
+       "not in", 3.1.1 to 3.1.3. */
+    SXML_AST_KIND_FT_OR,
+    SXML_AST_KIND_FT_AND,
+    SXML_AST_KIND_FT_MILD_NOT,
+    /* operand: a full-text selection kind. "ftnot", 3.1.4. */
+    SXML_AST_KIND_FT_UNARY_NOT,
+    /* operand: a full-text selection kind; option*: a match option kind;
+       weight?: an expression (at least one of them). 3.1.5, 3.4. */
+    SXML_AST_KIND_FT_PRIMARY_WITH_OPTIONS,
+    /* value: STRING_LITERAL or an expression ("{E}"); times?: FT_RANGE
+       ("occurs ... times", 3.3). Detail keyword ANY, ALL or PHRASE (NONE
+       when no FTAnyallOption is written: any); flag SEPARATE_WORDS for
+       "any word" and "all words". 3.2. */
+    SXML_AST_KIND_FT_WORDS,
+    /* value?: "exactly"; minimum?: "at least" and "from"; maximum?: "at
+       most" and "to" (one of the four forms). Expressions in FTRange,
+       INTEGER_LITERAL nodes in FTLiteralRange (3.4.3). */
+    SXML_AST_KIND_FT_RANGE,
+    /* pragma+: PRAGMA; selection?: FT_SELECTION. 3.6. */
+    SXML_AST_KIND_FT_EXTENSION_SELECTION,
+    /* No fields: "ordered", 3.5.1. */
+    SXML_AST_KIND_FT_ORDER,
+    /* value: an expression. Detail keyword WORDS, SENTENCES or
+       PARAGRAPHS. 3.5.2. */
+    SXML_AST_KIND_FT_WINDOW,
+    /* range: FT_RANGE. Detail keyword as FT_WINDOW. 3.5.3. */
+    SXML_AST_KIND_FT_DISTANCE,
+    /* No fields. Detail keyword SENTENCE or PARAGRAPH; flag DIFFERENT for
+       "different" (absent: "same"). 3.5.4. */
+    SXML_AST_KIND_FT_SCOPE,
+    /* No fields. Detail keyword START, END or ENTIRE. 3.5.5. */
+    SXML_AST_KIND_FT_CONTENT,
+    /* language: STRING_LITERAL. 3.4.1. */
+    SXML_AST_KIND_FT_LANGUAGE_OPTION,
+    /* No fields. Flag NO for "no wildcards". 3.4.2. */
+    SXML_AST_KIND_FT_WILDCARD_OPTION,
+    /* thesaurus*: FT_THESAURUS_ID. Flag NO for "no thesaurus", DEFAULT
+       when "default" is written. 3.4.3. */
+    SXML_AST_KIND_FT_THESAURUS_OPTION,
+    /* uri: STRING_LITERAL; relationship?: STRING_LITERAL; range?:
+       FT_RANGE ("... levels"). */
+    SXML_AST_KIND_FT_THESAURUS_ID,
+    /* No fields. Flag NO for "no stemming". 3.4.4. */
+    SXML_AST_KIND_FT_STEM_OPTION,
+    /* No fields. Detail keyword INSENSITIVE, SENSITIVE, LOWERCASE or
+       UPPERCASE. 3.4.5. */
+    SXML_AST_KIND_FT_CASE_OPTION,
+    /* No fields. Detail keyword INSENSITIVE or SENSITIVE. 3.4.6. */
+    SXML_AST_KIND_FT_DIACRITICS_OPTION,
+    /* words?: FT_STOP_WORDS; inclusion*: FT_STOP_WORDS_INCLUSION. Flag
+       NO for "no stop words", DEFAULT for "stop words default". 3.4.7. */
+    SXML_AST_KIND_FT_STOP_WORD_OPTION,
+    /* uri?: STRING_LITERAL ("at URI") or word+: STRING_LITERAL. */
+    SXML_AST_KIND_FT_STOP_WORDS,
+    /* words: FT_STOP_WORDS. Detail operator UNION or EXCEPT. */
+    SXML_AST_KIND_FT_STOP_WORDS_INCLUSION,
+    /* name: Name; value: STRING_LITERAL. 3.4.8. */
+    SXML_AST_KIND_FT_EXTENSION_OPTION,
+
     /* One more than the largest kind; grows with Phases 3 and 4. */
     SXML_AST_KIND_COUNT,
 } sxml_ast_kind;
@@ -972,6 +1055,24 @@ typedef enum sxml_ast_field {
     /* XQuery Update Facility 3.0 (D187). */
     SXML_AST_FIELD_MODIFY,
     SXML_AST_FIELD_SOURCE,
+
+    /* XQuery and XPath Full Text 3.0 (D214). */
+    SXML_AST_FIELD_FILTER,
+    SXML_AST_FIELD_IGNORE,
+    SXML_AST_FIELD_INCLUSION,
+    SXML_AST_FIELD_LANGUAGE,
+    SXML_AST_FIELD_MAXIMUM,
+    SXML_AST_FIELD_MINIMUM,
+    SXML_AST_FIELD_OPTION,
+    SXML_AST_FIELD_RANGE,
+    SXML_AST_FIELD_RELATIONSHIP,
+    SXML_AST_FIELD_SCORE,
+    SXML_AST_FIELD_SELECTION,
+    SXML_AST_FIELD_THESAURUS,
+    SXML_AST_FIELD_TIMES,
+    SXML_AST_FIELD_WEIGHT,
+    SXML_AST_FIELD_WORD,
+    SXML_AST_FIELD_WORDS,
 
     /* One more than the largest field; grows with Phases 3 and 4. */
     SXML_AST_FIELD_COUNT,
@@ -1090,6 +1191,25 @@ typedef enum sxml_ast_keyword {
     SXML_AST_KEYWORD_INTO,
     SXML_AST_KEYWORD_AFTER,
     SXML_AST_KEYWORD_BEFORE,
+    /* Full Text 3.0 (D214): FTAnyallOption (3.2). */
+    SXML_AST_KEYWORD_ANY,
+    SXML_AST_KEYWORD_ALL,
+    SXML_AST_KEYWORD_PHRASE,
+    /* FTUnit and FTBigUnit (3.5.2 to 3.5.4). */
+    SXML_AST_KEYWORD_WORDS,
+    SXML_AST_KEYWORD_SENTENCES,
+    SXML_AST_KEYWORD_PARAGRAPHS,
+    SXML_AST_KEYWORD_SENTENCE,
+    SXML_AST_KEYWORD_PARAGRAPH,
+    /* FTContent (3.5.5). */
+    SXML_AST_KEYWORD_START,
+    SXML_AST_KEYWORD_END,
+    SXML_AST_KEYWORD_ENTIRE,
+    /* FTCaseOption and FTDiacriticsOption (3.4.5, 3.4.6). */
+    SXML_AST_KEYWORD_INSENSITIVE,
+    SXML_AST_KEYWORD_SENSITIVE,
+    SXML_AST_KEYWORD_LOWERCASE,
+    SXML_AST_KEYWORD_UPPERCASE,
 } sxml_ast_keyword;
 
 /*
@@ -1150,6 +1270,15 @@ typedef enum sxml_ast_flag {
     /* XQuery Update Facility 3.0 (D187). REPLACE_EXPRESSION written
        "replace value of node". */
     SXML_AST_FLAG_VALUE_OF = 1U << 20U,
+    /* Full Text 3.0 (D214). FT_WORDS with "any word" or "all words". */
+    SXML_AST_FLAG_SEPARATE_WORDS = 1U << 21U,
+    /* FT_SCOPE with "different". */
+    SXML_AST_FLAG_DIFFERENT = 1U << 22U,
+    /* FT_WILDCARD_OPTION, FT_THESAURUS_OPTION, FT_STEM_OPTION or
+       FT_STOP_WORD_OPTION with "no". */
+    SXML_AST_FLAG_NO = 1U << 23U,
+    /* FT_THESAURUS_OPTION or FT_STOP_WORD_OPTION with "default". */
+    SXML_AST_FLAG_DEFAULT = 1U << 24U,
 } sxml_ast_flag;
 
 /* A name exactly as written; parts that were not written are empty. */

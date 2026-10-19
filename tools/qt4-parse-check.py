@@ -521,6 +521,11 @@ def main():
             category = "other XML version, parsed" if parsed else "other XML version, rejected"
         elif case["extension"]:
             category = "extension syntax, parsed" if parsed else "extension syntax, rejected"
+            if not parsed:
+                report_lines.append(
+                    f"{category}\t{case['test_set']}\t{case['name']}\t{case['expected']}"
+                    f"\t{case['outcome']}"
+                )
         elif case["expected"] == "module":
             category = "library module, parsed" if parsed else "library module, rejected"
             if not parsed:
