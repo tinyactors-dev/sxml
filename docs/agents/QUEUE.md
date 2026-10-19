@@ -15,7 +15,13 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
   2,200,000 / 770,000 (2,131,859 after 7.2b moved DTD validation behind a
   feature, D211), `sxml-full.wasm` 4,000,000 / 1,400,000 (3,577,133), CLI
   module 9,000,000 / 2,000,000 (7,803,988). The full module carries
-  XQuery, XSLT and XSD for JavaScript (js-1, D216): 7,000,000 / 2,450,000
+  XQuery, XSLT and XSD for CLI (cli-2, D217): `--output`/`-o` with `--force` and atomic writes,
+`sxml transform --result-directory=DIR`, `sxml xquery --allow-put`,
+`--method=csv`, hints for misspelled and other commands' options. Left: the
+Windows file writer is untested; replaced files get default permissions;
+fn:put does not create directories; cli/xpath_timezone fails under WASI.
+
+JavaScript (js-1, D216): 7,000,000 / 2,450,000
   (6,570,723). XQuery lowering parts (about
   75 KB) stay in the core until the part registry is split by language.
 - EXPath Binary (D198) 646 of 646 and File (D200) 270 of 270 in XQ40; File
@@ -31,8 +37,6 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 ## Next
 
 - Phase 7 (`docs/tasks/phase-7.md`, D183, D184): 7.10b HTML follow-ups; Full Text, UCA, timezones, calendars and languages, iXML.
-- `sxml` CLI gaps: `--output`, writing result documents, `--method=csv`,
-  "did you mean" for options of a command.
 
 ## Leftovers no packet owns yet
 
@@ -110,6 +114,12 @@ patterns.
 Streaming analysis (7.6a, D212): strm/ 2,503 of 2,564 (evaluation still
 unstreamed); XTSE3430 154 of 156. XT40 8,952 -> 11,792 with the streaming
 feature claimed.
+
+CLI (cli-2, D217): `--output`/`-o` with `--force` and atomic writes,
+`sxml transform --result-directory=DIR`, `sxml xquery --allow-put`,
+`--method=csv`, hints for misspelled and other commands' options. Left: the
+Windows file writer is untested; replaced files get default permissions;
+fn:put does not create directories; cli/xpath_timezone fails under WASI.
 
 JavaScript (js-1, D216): compileQuery, compileStylesheet and compileSchema
 in sxml-full.wasm; the core module refuses them with a clear message.
