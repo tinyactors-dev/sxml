@@ -21,7 +21,7 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 
 ## Running
 
-- 7.6c more streamed shapes: apply-templates, accumulators, aggregates.
+- 7.6d streaming: principal source (CLI), accumulators, fork/merge.
 - size-2: part registries split by language (core has about 7 KB gzipped room).
 - 2.22 XPath/XQuery leftovers sweep.
 
