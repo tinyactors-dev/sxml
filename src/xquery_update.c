@@ -692,7 +692,11 @@ sxml_status sxml_xquery_read_update_primitive(sxml_item item,
     if (status != SXML_STATUS_OK) {
         return SXML_STATUS_INVALID_ARGUMENT;
     }
-    primitive->primitive_kind = (sxml_xquery_update_primitive_kind)datum.datum_details.integer;
+    const int64_t kind_value = datum.datum_details.integer;
+    primitive->primitive_kind = (sxml_xquery_update_primitive_kind)(kind_value & 0xFF);
+    primitive->preserves_namespaces = (kind_value & (SXML_XQUERY_UPDATE_NO_PRESERVE_NAMESPACES << 8)) == 0;
+    primitive->inherits_namespaces = (kind_value & (SXML_XQUERY_UPDATE_NO_INHERIT_NAMESPACES << 8)) == 0;
+    primitive->preserves_types = (kind_value & (SXML_XQUERY_UPDATE_PRESERVES_TYPES << 8)) != 0;
     primitive->parameter = values[SXML_PRIMITIVE_PARAMETER_VALUE];
     return SXML_STATUS_OK;
 }
@@ -702,6 +706,8 @@ typedef struct primitive_request {
     sxml_xquery_update_primitive_kind primitive_kind;
     sxml_item target;
     sxml_sequence parameter;
+    /* SXML_XQUERY_UPDATE_NO_PRESERVE_NAMESPACES and _NO_INHERIT_. */
+    uint32_t copy_flags;
 } primitive_request;
 
 /* Makes the primitive and appends it to builder; request->target is
@@ -746,8 +752,8 @@ static sxml_status append_primitive(const primitive_output *output,
         const sxml_sequence values[SXML_PRIMITIVE_VALUE_COUNT] = {
             [SXML_PRIMITIVE_TARGET_VALUE] = sxml_sequence_from_item(request->target),
             [SXML_PRIMITIVE_PARAMETER_VALUE] = request->parameter,
-            [SXML_PRIMITIVE_KIND_VALUE] = sxml_sequence_from_item(
-                sxml_atomic_item_from_integer((int64_t)request->primitive_kind))};
+            [SXML_PRIMITIVE_KIND_VALUE] = sxml_sequence_from_item(sxml_atomic_item_from_integer(
+                (int64_t)request->primitive_kind | ((int64_t)request->copy_flags << 8)))};
         status = sxml_function_item_make(
             item_heap,
             &(sxml_function_item_request){
@@ -819,6 +825,8 @@ UPDATE_ERROR(invalid_name_error, SXML_STATUS_DYNAMIC_ERROR, "XQDY0074",
              "the new name is not a valid QName with a bound prefix (5.4.4)");
 UPDATE_ERROR(invalid_target_name_error, SXML_STATUS_DYNAMIC_ERROR, "XQDY0041",
              "the new name of a processing instruction is not an NCName (5.4.4)");
+UPDATE_ERROR(xml_target_name_error, SXML_STATUS_DYNAMIC_ERROR, "XQDY0064",
+             "the new name of a processing instruction is \"xml\" in some case (5.4.4)");
 UPDATE_ERROR(comment_value_error, SXML_STATUS_DYNAMIC_ERROR, "XQDY0072",
              "the new value of a comment contains \"--\" or ends with \"-\" (5.4.3.2)");
 UPDATE_ERROR(instruction_value_error, SXML_STATUS_DYNAMIC_ERROR, "XQDY0026",
@@ -1156,9 +1164,15 @@ static const sxml_xquery_update_primitive_kind insert_kinds[] = {
     SXML_XQUERY_UPDATE_PRIMITIVE_INSERT_AFTER,
 };
 
-/* An xs:integer argument the lowering made, in the range of its table. */
+/* An xs:integer argument the lowering made: its low three bits a variant
+   in the range of its table, the copy flags above. */
+typedef struct update_variant {
+    size_t variant;
+    uint32_t copy_flags;
+} update_variant;
+
 static sxml_status read_variant(const sxml_function_call *call, size_t variant_count,
-                                size_t *variant) {
+                                update_variant *variant) {
     sxml_item item = {.representation = 0};
     sxml_atomic_datum datum;
     sxml_status status = sxml_sequence_get_item(
@@ -1168,16 +1182,19 @@ static sxml_status read_variant(const sxml_function_call *call, size_t variant_c
         status = sxml_atomic_item_get_datum(item, &datum);
     }
     if (status != SXML_STATUS_OK || datum.datum_kind != SXML_DATUM_KIND_INTEGER ||
-        datum.datum_details.integer < 0 || (uint64_t)datum.datum_details.integer >= variant_count) {
+        datum.datum_details.integer < 0 ||
+        (uint64_t)(datum.datum_details.integer & 7) >= variant_count) {
         return SXML_STATUS_INVALID_ARGUMENT;
     }
-    *variant = (size_t)datum.datum_details.integer;
+    *variant = (update_variant){.variant = (size_t)(datum.datum_details.integer & 7),
+                                .copy_flags = (uint32_t)(datum.datum_details.integer & ~7)};
     return SXML_STATUS_OK;
 }
 
 /* The checks of 5.4.1 steps 3 to 5 on the target and the attributes. */
 typedef struct insert_plan {
     sxml_xquery_update_primitive_kind primitive_kind;
+    uint32_t copy_flags;
     target_node target;
     /* Where the attributes go: the target, or its parent for before and
        after. */
@@ -1243,13 +1260,15 @@ static sxml_status make_insert_primitives(const primitive_output *output,
             output, &(primitive_request){
                         .primitive_kind = SXML_XQUERY_UPDATE_PRIMITIVE_INSERT_ATTRIBUTES,
                         .target = sxml_node_item_make(plan->attribute_target),
-                        .parameter = plan->parts.attributes});
+                        .parameter = plan->parts.attributes,
+                        .copy_flags = plan->copy_flags});
     }
     if (status == SXML_STATUS_OK && !sequence_is_empty(plan->parts.others)) {
         sxml_item_retain(plan->target.item);
         status = append_primitive(output, &(primitive_request){.primitive_kind = plan->primitive_kind,
                                                                .target = plan->target.item,
-                                                               .parameter = plan->parts.others});
+                                                               .parameter = plan->parts.others,
+                                                               .copy_flags = plan->copy_flags});
     }
     return status;
 }
@@ -1275,10 +1294,11 @@ static sxml_status collect_primitives(const sxml_function_call *call, primitive_
 
 static sxml_status make_insert(const primitive_output *output) {
     const sxml_function_call *call = output->call;
-    size_t variant = 0;
+    update_variant variant = {.variant = 0, .copy_flags = 0};
     sxml_status status =
         read_variant(call, sizeof insert_kinds / sizeof insert_kinds[0], &variant);
-    insert_plan plan = {.primitive_kind = insert_kinds[variant],
+    insert_plan plan = {.primitive_kind = insert_kinds[variant.variant],
+                        .copy_flags = variant.copy_flags,
                         .parts = {.attributes = sxml_sequence_empty(),
                                   .others = sxml_sequence_empty()}};
     if (status == SXML_STATUS_OK) {
@@ -1340,7 +1360,13 @@ static sxml_status call_delete(const sxml_function_call *call, sxml_sequence *re
      KIND_BIT(SXML_NODE_KIND_PROCESSING_INSTRUCTION))
 
 /* replace node (5.4.3.1). */
-static sxml_status make_replace_node(const primitive_output *output, const target_node *target) {
+typedef struct replace_plan {
+    const target_node *target;
+    uint32_t copy_flags;
+} replace_plan;
+
+static sxml_status make_replace_node(const primitive_output *output, replace_plan plan) {
+    const target_node *target = plan.target;
     const sxml_function_call *call = output->call;
     if (!target->description.has_parent) {
         return sxml_function_library_report(call, &replace_parent_error);
@@ -1375,7 +1401,8 @@ static sxml_status make_replace_node(const primitive_output *output, const targe
                                   &(primitive_request){.primitive_kind =
                                                            SXML_XQUERY_UPDATE_PRIMITIVE_REPLACE_NODE,
                                                        .target = target->item,
-                                                       .parameter = replacement});
+                                                       .parameter = replacement,
+                                                       .copy_flags = plan.copy_flags});
     }
     release_insertion_parts(&parts);
     return status;
@@ -1470,7 +1497,7 @@ static sxml_status make_replace_value(const primitive_output *output, const targ
 
 static sxml_status make_replace(const primitive_output *output) {
     const sxml_function_call *call = output->call;
-    size_t variant = 0;
+    update_variant variant = {.variant = 0, .copy_flags = 0};
     sxml_status status = read_variant(call, 2, &variant);
     target_node target = {.item = {.representation = 0}};
     if (status == SXML_STATUS_OK) {
@@ -1486,7 +1513,10 @@ static sxml_status make_replace(const primitive_output *output) {
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    return variant == 0 ? make_replace_node(output, &target) : make_replace_value(output, &target);
+    return variant.variant == 0
+               ? make_replace_node(output,
+                                   (replace_plan){.target = &target, .copy_flags = variant.copy_flags})
+               : make_replace_value(output, &target);
 }
 
 static sxml_status call_replace(const sxml_function_call *call, sxml_sequence *result) {
@@ -1623,6 +1653,13 @@ static sxml_status check_target_name(const sxml_function_call *call, sxml_qname_
     }
     if (status == SXML_STATUS_OK && !sxml_xml_text_is_ncname(parts.local_name)) {
         status = sxml_function_library_report(call, &invalid_target_name_error);
+    }
+    /* As for a computed processing-instruction constructor (XQuery 4.0,
+       4.12.3.5): XQDY0064 for a target "xml" in any case. */
+    if (status == SXML_STATUS_OK && parts.local_name.byte_count == 3 &&
+        (parts.local_name.bytes[0] | 0x20U) == 'x' && (parts.local_name.bytes[1] | 0x20U) == 'm' &&
+        (parts.local_name.bytes[2] | 0x20U) == 'l') {
+        status = sxml_function_library_report(call, &xml_target_name_error);
     }
     return status;
 }

@@ -177,6 +177,17 @@ typedef struct sxml_qt4_module_view {
     size_t module_count;
 } sxml_qt4_module_view;
 
+/* The query of one <test>: inline text, or the suite path of its file. */
+typedef struct sxml_qt4_query {
+    sxml_byte_view query_text;
+    sxml_byte_view query_file_path;
+} sxml_qt4_query;
+
+typedef struct sxml_qt4_query_view {
+    const sxml_qt4_query *queries;
+    size_t query_count;
+} sxml_qt4_query_view;
+
 /* A test case, read with its environment resolved (glossary:
    qt4_test_case). */
 typedef struct sxml_qt4_test_case {
@@ -186,11 +197,17 @@ typedef struct sxml_qt4_test_case {
        URI. */
     sxml_byte_view test_set_file_path;
     sxml_byte_view name;
-    /* The query of <test>, when it is given inline; empty otherwise. */
+    /* The query of the last <test>, whose result the assertions check,
+       when it is given inline; empty otherwise. */
     sxml_byte_view query_text;
     /* The suite path of the query file of <test file>; empty when the
        query is inline. */
     sxml_byte_view query_file_path;
+    /* The <test> elements before the last, in order: the update queries
+       of an XQuery Update test case (catalog-schema.xsd, test/@update;
+       D187), which run first, each over the trees the ones before it
+       changed. Empty for a test case of one <test>. */
+    sxml_qt4_query_view earlier_queries;
     sxml_qt4_environment environment;
     /* The test set's dependencies and the test case's own. */
     sxml_qt4_dependency_view test_set_dependencies;

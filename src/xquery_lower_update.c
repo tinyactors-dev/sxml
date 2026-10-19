@@ -191,6 +191,50 @@ static int64_t insert_variant(sxml_ast_keyword keyword) {
     return 0;
 }
 
+/* The prolog's copy-namespaces modes (XQuery 4.0, 5.9) as the copy flags
+   of insert and replace, with construction preserve (5.6) when
+   with_construction; 0 for preserve, inherit, strip. */
+typedef struct copy_flag_request {
+    bool with_construction;
+} copy_flag_request;
+
+static int64_t copy_flags_of(const sxml_xpath_lowerer *state, copy_flag_request request) {
+    const sxml_ast_node_index root = state->ast->root;
+    if (node_of(state, root)->kind != SXML_AST_KIND_MODULE) {
+        return 0;
+    }
+    const sxml_ast_node_index prolog =
+        child_of(state, child_of(state, root, SXML_AST_FIELD_MODULE), SXML_AST_FIELD_PROLOG);
+    int64_t flags = 0;
+    for (sxml_ast_node_index declaration = child_of(state, prolog, SXML_AST_FIELD_DECLARATION);
+         prolog.value != 0 && declaration.value != 0; declaration = next_of(state, declaration)) {
+        const sxml_ast_node *node = node_of(state, declaration);
+        if (node->kind == SXML_AST_KIND_CONSTRUCTION_DECLARATION && request.with_construction &&
+            node->detail.keyword == SXML_AST_KEYWORD_PRESERVE) {
+            flags |= SXML_XQUERY_UPDATE_PRESERVES_TYPES;
+        }
+        if (node->kind != SXML_AST_KIND_COPY_NAMESPACES_DECLARATION) {
+            continue;
+        }
+        if ((node->flags & SXML_AST_FLAG_PRESERVE_NAMESPACES) == 0) {
+            flags |= SXML_XQUERY_UPDATE_NO_PRESERVE_NAMESPACES;
+        }
+        if ((node->flags & SXML_AST_FLAG_INHERIT_NAMESPACES) == 0) {
+            flags |= SXML_XQUERY_UPDATE_NO_INHERIT_NAMESPACES;
+        }
+    }
+    return flags;
+}
+
+/* The $modes constant of copy (src/xquery_update_internal.h). */
+static sxml_status add_copy_modes(sxml_xpath_lowerer *state, sxml_ir_atom *atom) {
+    return sxml_xpath_lowerer_add_item_constant(
+        state,
+        sxml_atomic_item_from_integer(
+            copy_flags_of(state, (copy_flag_request){.with_construction = true})),
+        atom);
+}
+
 /* Fills the locals from the node: which row, the variant, the operands in
    the row's order. */
 static sxml_status plan_update(sxml_xpath_lowerer *state, sxml_ast_node_index node,
@@ -229,6 +273,7 @@ static sxml_status plan_update(sxml_xpath_lowerer *state, sxml_ast_node_index no
     if (variant < 0) {
         return SXML_STATUS_OK;
     }
+    variant |= copy_flags_of(state, (copy_flag_request){.with_construction = true});
     locals->argument_count = 1;
     return sxml_xpath_lowerer_add_item_constant(state, sxml_atomic_item_from_integer(variant),
                                                 &locals->arguments[0]);
@@ -422,14 +467,17 @@ static sxml_status continue_copy_modify(sxml_xpath_lowering_machine *machine,
     case SXML_COPY_MODIFY_STEP_COPY: {
         /* The source just lowered: copy it and put its variable in scope
            of the later clauses and of modify. */
-        const sxml_ir_atom value = locals->value;
-        status = bind_native_call(
-            state,
-            (native_call_in_block){.block = frame->block,
-                                   .call = {.node = locals->binding,
-                                            .native_function = &sxml_xquery_copy_function,
-                                            .arguments = {.atoms = &value, .atom_count = 1}}},
-            &locals->copies[locals->copy_index]);
+        sxml_ir_atom arguments[2] = {locals->value, {0}};
+        status = add_copy_modes(state, &arguments[1]);
+        if (status == SXML_STATUS_OK) {
+            status = bind_native_call(
+                state,
+                (native_call_in_block){.block = frame->block,
+                                       .call = {.node = locals->binding,
+                                                .native_function = &sxml_xquery_copy_function,
+                                                .arguments = {.atoms = arguments, .atom_count = 2}}},
+                &locals->copies[locals->copy_index]);
+        }
         if (status == SXML_STATUS_OK) {
             status = push_copy_variable(state, locals->binding, locals->copies[locals->copy_index]);
         }
@@ -574,14 +622,17 @@ static sxml_status lower_transform_modify(sxml_xpath_lowering_machine *machine,
     sxml_xpath_lowerer *state = machine->state;
     transform_locals *locals = frame->locals;
     sxml_status status = sxml_xpath_lowerer_add_slot(state, &locals->item);
+    sxml_ir_atom arguments[2] = {sxml_ir_slot_atom(locals->item), {0}};
     if (status == SXML_STATUS_OK) {
-        const sxml_ir_atom item = sxml_ir_slot_atom(locals->item);
+        status = add_copy_modes(state, &arguments[1]);
+    }
+    if (status == SXML_STATUS_OK) {
         status = bind_native_call(
             state,
             (native_call_in_block){.block = &locals->body_block,
                                    .call = {.node = frame->node,
                                             .native_function = &sxml_xquery_copy_function,
-                                            .arguments = {.atoms = &item, .atom_count = 1}}},
+                                            .arguments = {.atoms = arguments, .atom_count = 2}}},
             &locals->copy);
     }
     const sxml_ast_node_index modify = child_of(state, frame->node, SXML_AST_FIELD_MODIFY);

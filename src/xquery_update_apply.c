@@ -194,6 +194,87 @@ static sxml_status mark_touched(const tree_edit *edit, sxml_node_reference node)
     return SXML_STATUS_OK;
 }
 
+/* Whether content has an element, an attribute or text (an xs:string
+   item): what changes the type of the node it goes into. */
+static bool content_has_typed_part(sxml_sequence content) {
+    sxml_sequence_iterator iterator = sxml_sequence_iterator_start(content);
+    for (;;) {
+        sxml_iteration_step step = {.has_item = false};
+        if (sxml_sequence_iterator_next(&iterator, NULL, &step) != SXML_STATUS_OK ||
+            !step.has_item) {
+            return false;
+        }
+        sxml_node_reference node;
+        sxml_node_description description;
+        if (sxml_item_get_node(step.item, &node) != SXML_STATUS_OK) {
+            return true;
+        }
+        if (sxml_node_describe(node, &description) == SXML_STATUS_OK &&
+            description.node_kind != SXML_NODE_KIND_COMMENT &&
+            description.node_kind != SXML_NODE_KIND_PROCESSING_INSTRUCTION) {
+            return true;
+        }
+    }
+}
+
+/* upd:removeType (3.1.x, and each primitive's rule of when it calls it):
+   the node it applies to and every ancestor are touched, and rebuilt
+   without their type. A comment or processing instruction inserted,
+   deleted or changed changes no type. */
+static sxml_status remove_types(const tree_edit *edit,
+                                const sxml_xquery_update_primitive *primitive) {
+    sxml_node_description target;
+    sxml_status status = sxml_node_describe(primitive->target, &target);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    const bool is_leaf = target.node_kind == SXML_NODE_KIND_COMMENT ||
+                         target.node_kind == SXML_NODE_KIND_PROCESSING_INSTRUCTION;
+    sxml_node_reference node = primitive->target;
+    bool removes = true;
+    bool from_parent = false;
+    switch (primitive->primitive_kind) {
+    case SXML_XQUERY_UPDATE_PRIMITIVE_INSERT_INTO:
+    case SXML_XQUERY_UPDATE_PRIMITIVE_INSERT_INTO_AS_FIRST:
+    case SXML_XQUERY_UPDATE_PRIMITIVE_INSERT_INTO_AS_LAST:
+        removes = content_has_typed_part(primitive->parameter);
+        break;
+    case SXML_XQUERY_UPDATE_PRIMITIVE_INSERT_BEFORE:
+    case SXML_XQUERY_UPDATE_PRIMITIVE_INSERT_AFTER:
+        removes = content_has_typed_part(primitive->parameter);
+        from_parent = true;
+        break;
+    case SXML_XQUERY_UPDATE_PRIMITIVE_DELETE:
+        removes = !is_leaf;
+        from_parent = true;
+        break;
+    case SXML_XQUERY_UPDATE_PRIMITIVE_REPLACE_NODE:
+        removes = !is_leaf || content_has_typed_part(primitive->parameter);
+        from_parent = true;
+        break;
+    case SXML_XQUERY_UPDATE_PRIMITIVE_REPLACE_VALUE:
+        removes = !is_leaf;
+        from_parent = target.node_kind == SXML_NODE_KIND_TEXT;
+        break;
+    case SXML_XQUERY_UPDATE_PRIMITIVE_INSERT_ATTRIBUTES:
+    case SXML_XQUERY_UPDATE_PRIMITIVE_REPLACE_ELEMENT_CONTENT:
+        break;
+    case SXML_XQUERY_UPDATE_PRIMITIVE_RENAME:
+        removes = !is_leaf;
+        break;
+    }
+    if (!removes) {
+        return SXML_STATUS_OK;
+    }
+    if (from_parent) {
+        if (!target.has_parent) {
+            return SXML_STATUS_OK;
+        }
+        node.node_index = target.parent;
+    }
+    return mark_touched(edit, node);
+}
+
 /* Whether tree is the tree of one of the allowed roots (5.4.5). */
 static bool is_allowed_tree(const application *work, const sxml_tree *tree) {
     sxml_sequence_iterator iterator = sxml_sequence_iterator_start(work->request->allowed_roots);
@@ -274,7 +355,194 @@ static sxml_status read_primitives(application *work) {
                 work->entries[node->last_number - 1].next_number = number;
             }
             node->last_number = number;
-            status = mark_touched(edit, entry->primitive.target);
+            status = remove_types(edit, &entry->primitive);
+        }
+    }
+    return status;
+}
+
+/* ------------------------------------------- Attribute names (XUDY0021) */
+
+/* One name in the attribute set of an element after the update. */
+typedef struct attribute_names {
+    const application *work;
+    sxml_name_identifier *names;
+    size_t name_count;
+    size_t name_capacity;
+} attribute_names;
+
+static sxml_status add_attribute_name(attribute_names *names, sxml_name_identifier name) {
+    for (size_t name_index = 0; name_index < names->name_count; name_index += 1) {
+        if (names->names[name_index].index == name.index) {
+            return report(names->work, &instance_error);
+        }
+    }
+    if (names->name_count == names->name_capacity) {
+        const size_t capacity = names->name_capacity == 0 ? 16 : names->name_capacity * 2;
+        void *memory = NULL;
+        const sxml_status status = sxml_allocator_allocate_array(
+            names->work->allocator,
+            (sxml_array_allocation_request){.element_count = capacity,
+                                            .element_size = sizeof(sxml_name_identifier),
+                                            .element_alignment = alignof(sxml_name_identifier)},
+            &memory);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        if (names->name_count != 0) {
+            memcpy(memory, names->names, names->name_count * sizeof(sxml_name_identifier));
+        }
+        sxml_allocator_release(names->work->allocator, names->names);
+        names->names = memory;
+        names->name_capacity = capacity;
+    }
+    names->names[names->name_count] = name;
+    names->name_count += 1;
+    return SXML_STATUS_OK;
+}
+
+/* The names of the attribute nodes in content. */
+static sxml_status add_content_names(attribute_names *names, sxml_sequence content) {
+    sxml_sequence_iterator iterator = sxml_sequence_iterator_start(content);
+    sxml_status status = SXML_STATUS_OK;
+    while (status == SXML_STATUS_OK) {
+        sxml_iteration_step step = {.has_item = false};
+        status = sxml_sequence_iterator_next(&iterator, NULL, &step);
+        if (status != SXML_STATUS_OK || !step.has_item) {
+            break;
+        }
+        sxml_node_reference node;
+        sxml_node_description description;
+        if (sxml_item_get_node(step.item, &node) == SXML_STATUS_OK &&
+            sxml_node_describe(node, &description) == SXML_STATUS_OK &&
+            description.node_kind == SXML_NODE_KIND_ATTRIBUTE) {
+            status = add_attribute_name(names, description.node_name);
+        }
+    }
+    return status;
+}
+
+/* The primitive of kind among node's, or NULL. */
+typedef struct primitive_query {
+    const tree_edit *edit;
+    sxml_node_index node;
+    sxml_xquery_update_primitive_kind primitive_kind;
+} primitive_query;
+
+static const sxml_xquery_update_primitive *find_node_primitive(const application *work,
+                                                               primitive_query query) {
+    for (uint32_t number = query.edit->nodes[query.node.index].first_number; number != 0;
+         number = entry_of(work, number)->next_number) {
+        if (entry_of(work, number)->primitive.primitive_kind == query.primitive_kind) {
+            return &entry_of(work, number)->primitive;
+        }
+    }
+    return NULL;
+}
+
+/* One attribute of the element as it is after the update. */
+static sxml_status add_old_attribute_name(attribute_names *names, const tree_edit *edit,
+                                          sxml_node_index attribute) {
+    const application *work = names->work;
+    const sxml_xquery_update_primitive *replacement = find_node_primitive(
+        work, (primitive_query){.edit = edit,
+                                .node = attribute,
+                                .primitive_kind = SXML_XQUERY_UPDATE_PRIMITIVE_REPLACE_NODE});
+    if (replacement != NULL) {
+        return add_content_names(names, replacement->parameter);
+    }
+    if (find_node_primitive(work, (primitive_query){.edit = edit,
+                                                    .node = attribute,
+                                                    .primitive_kind =
+                                                        SXML_XQUERY_UPDATE_PRIMITIVE_DELETE}) !=
+        NULL) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_xquery_update_primitive *rename = find_node_primitive(
+        work, (primitive_query){.edit = edit,
+                                .node = attribute,
+                                .primitive_kind = SXML_XQUERY_UPDATE_PRIMITIVE_RENAME});
+    sxml_atomic_datum datum;
+    sxml_item item = {.representation = 0};
+    if (rename != NULL) {
+        sxml_status status = sxml_sequence_get_item(
+            rename->parameter, (sxml_item_request){.item_index = 0, .error_record = NULL}, &item);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_atomic_item_get_datum(item, &datum);
+        }
+        return status == SXML_STATUS_OK
+                   ? add_attribute_name(names, datum.datum_details.qname.expanded_name)
+                   : status;
+    }
+    sxml_node_description description;
+    const sxml_status status = sxml_node_describe(
+        (sxml_node_reference){.tree = edit->tree, .node_index = attribute, .namespace_number = 0},
+        &description);
+    return status == SXML_STATUS_OK ? add_attribute_name(names, description.node_name) : status;
+}
+
+/* XUDY0021 when an element would have two attributes of one name after
+   the update (3.2.2, whether or not the element itself stays). */
+typedef struct element_in_edit {
+    const tree_edit *edit;
+    sxml_node_index element;
+} element_in_edit;
+
+static sxml_status check_attribute_names(const application *work, element_in_edit request) {
+    sxml_node_description description;
+    sxml_status status = sxml_node_describe((sxml_node_reference){.tree = request.edit->tree,
+                                                                  .node_index = request.element,
+                                                                  .namespace_number = 0},
+                                            &description);
+    if (status != SXML_STATUS_OK || description.node_kind != SXML_NODE_KIND_ELEMENT) {
+        return status;
+    }
+    attribute_names names = {.work = work, .names = NULL, .name_count = 0, .name_capacity = 0};
+    for (uint32_t offset = 1; status == SXML_STATUS_OK && offset <= description.attribute_count;
+         offset += 1) {
+        status = add_old_attribute_name(
+            &names, request.edit, (sxml_node_index){.index = request.element.index + offset});
+    }
+    for (uint32_t number = request.edit->nodes[request.element.index].first_number;
+         status == SXML_STATUS_OK && number != 0; number = entry_of(work, number)->next_number) {
+        const sxml_xquery_update_primitive *primitive = &entry_of(work, number)->primitive;
+        if (primitive->primitive_kind == SXML_XQUERY_UPDATE_PRIMITIVE_INSERT_ATTRIBUTES) {
+            status = add_content_names(&names, primitive->parameter);
+        }
+    }
+    sxml_allocator_release(work->allocator, names.names);
+    return status;
+}
+
+/* Checks the attribute names of every element whose attributes a
+   primitive changes. */
+static sxml_status check_changed_attributes(const application *work) {
+    sxml_status status = SXML_STATUS_OK;
+    for (size_t entry_index = 0; status == SXML_STATUS_OK && entry_index < work->entry_count;
+         entry_index += 1) {
+        const sxml_xquery_update_primitive *primitive = &work->entries[entry_index].primitive;
+        sxml_node_description description;
+        status = sxml_node_describe(primitive->target, &description);
+        sxml_node_index element = primitive->target.node_index;
+        if (status != SXML_STATUS_OK) {
+            break;
+        }
+        if (description.node_kind == SXML_NODE_KIND_ATTRIBUTE) {
+            if (!description.has_parent) {
+                continue;
+            }
+            element = description.parent;
+        } else if (primitive->primitive_kind != SXML_XQUERY_UPDATE_PRIMITIVE_INSERT_ATTRIBUTES) {
+            continue;
+        }
+        const tree_edit *edit = NULL;
+        for (size_t tree_index = 0; tree_index < work->tree_count; tree_index += 1) {
+            if (work->trees[tree_index].tree == primitive->target.tree) {
+                edit = &work->trees[tree_index];
+            }
+        }
+        if (edit != NULL) {
+            status = check_attribute_names(work, (element_in_edit){.edit = edit, .element = element});
         }
     }
     return status;
@@ -318,9 +586,11 @@ static const sxml_source_location no_location = {
     .source_name = {.bytes = NULL, .byte_count = 0}, .line_number = 0, .column_number = 0,
     .byte_offset = 0};
 
-/* Sends content (nodes copied, xs:string items as text) to the builder. */
-static sxml_status send_content(const rebuild *state, sxml_sequence content) {
-    sxml_sequence_iterator iterator = sxml_sequence_iterator_start(content);
+/* Sends a primitive's content (nodes copied with its copy-namespaces
+   modes, xs:string items as text) to the builder. */
+static sxml_status send_content(const rebuild *state,
+                                const sxml_xquery_update_primitive *primitive) {
+    sxml_sequence_iterator iterator = sxml_sequence_iterator_start(primitive->parameter);
     sxml_status status = SXML_STATUS_OK;
     while (status == SXML_STATUS_OK) {
         sxml_iteration_step step = {.has_item = false};
@@ -331,10 +601,11 @@ static sxml_status send_content(const rebuild *state, sxml_sequence content) {
         sxml_node_reference node;
         if (sxml_item_get_node(step.item, &node) == SXML_STATUS_OK) {
             status = sxml_tree_builder_copy_node(
-                state->builder, &(sxml_copy_request){.node = node,
-                                                     .preserves_namespaces = true,
-                                                     .inherits_namespaces = true,
-                                                     .preserves_type_annotations = false});
+                state->builder,
+                &(sxml_copy_request){.node = node,
+                                     .preserves_namespaces = primitive->preserves_namespaces,
+                                     .inherits_namespaces = primitive->inherits_namespaces,
+                                     .preserves_type_annotations = primitive->preserves_types});
             continue;
         }
         sxml_atomic_datum datum;
@@ -362,7 +633,7 @@ static sxml_status send_primitive_content(const rebuild *state, content_request 
          number = entry_of(state->work, number)->next_number) {
         const sxml_xquery_update_primitive *primitive = &entry_of(state->work, number)->primitive;
         if (primitive->primitive_kind == request.primitive_kind) {
-            status = send_content(state, primitive->parameter);
+            status = send_content(state, primitive);
         }
     }
     return status;
@@ -434,10 +705,18 @@ typedef struct annotation_request {
     sxml_builtin_type untyped_type;
 } annotation_request;
 
+/* upd:removeType (3.1.x): an untyped node stays untyped; a typed
+   element becomes xs:anyType, a typed attribute xs:untypedAtomic. */
 static sxml_type_identifier rebuilt_type(const rebuild *state, annotation_request request) {
-    return primitives_of(state, request.node)->is_touched
-               ? sxml_builtin_type_identifier(request.untyped_type)
-               : request.type_annotation;
+    if (!primitives_of(state, request.node)->is_touched ||
+        request.type_annotation.index == SXML_TYPE_NONE ||
+        sxml_type_identifier_equals(request.type_annotation,
+                                    sxml_builtin_type_identifier(request.untyped_type))) {
+        return request.type_annotation;
+    }
+    return request.untyped_type == SXML_TYPE_XS_UNTYPED
+               ? sxml_builtin_type_identifier(SXML_TYPE_XS_ANY_TYPE)
+               : sxml_builtin_type_identifier(request.untyped_type);
 }
 
 /* An attribute of an element being rebuilt (or a parentless attribute). */
@@ -447,7 +726,7 @@ static sxml_status send_attribute(const rebuild *state, sxml_node_index attribut
         const sxml_xquery_update_primitive *replacement =
             find_primitive(state, attribute, SXML_XQUERY_UPDATE_PRIMITIVE_REPLACE_NODE);
         if (replacement != NULL) {
-            return send_content(state, replacement->parameter);
+            return send_content(state, replacement);
         }
         if (find_primitive(state, attribute, SXML_XQUERY_UPDATE_PRIMITIVE_DELETE) != NULL) {
             return SXML_STATUS_OK;
@@ -709,7 +988,7 @@ static sxml_status start_element(const rebuild *state, described_node node, bool
     }
     if (content != NULL) {
         *is_closed = true;
-        status = send_content(state, content->parameter);
+        status = send_content(state, content);
         if (status == SXML_STATUS_OK) {
             status = state->builder.operations->end_element(state->builder.state);
         }
@@ -811,7 +1090,7 @@ static sxml_status send_child(rebuild *state, described_node node, bool *is_open
         return status;
     }
     if (replacement != NULL) {
-        status = send_content(state, replacement->parameter);
+        status = send_content(state, replacement);
     } else if (!is_deleted && description->node_kind == SXML_NODE_KIND_ELEMENT) {
         bool is_closed = false;
         status = start_element(state, node, &is_closed);
@@ -932,7 +1211,9 @@ static sxml_status map_builder_error(const application *work, sxml_status status
                               SXML_BYTE_VIEW_FROM_LITERAL("XQDY0102"))) {
         return report(work, &instance_error);
     }
-    if (work->request->error_record != NULL) {
+    /* An error of the builder's own; otherwise the record already has the
+       error the rebuild reported. */
+    if (work->request->error_record != NULL && builder_error->code.local_name.byte_count != 0) {
         *work->request->error_record = *builder_error;
     }
     return status;
@@ -1048,6 +1329,9 @@ sxml_status sxml_xquery_apply_updates(const sxml_xquery_update_application *requ
                         .trees = NULL,
                         .tree_count = 0};
     sxml_status status = read_primitives(&work);
+    if (status == SXML_STATUS_OK) {
+        status = check_changed_attributes(&work);
+    }
     root_builders builders = {.original_roots = NULL, .updated_roots = NULL};
     const sxml_sequence_builder_configuration configuration = {.item_heap = request->item_heap};
     if (status == SXML_STATUS_OK) {
@@ -1082,12 +1366,22 @@ sxml_status sxml_xquery_apply_updates(const sxml_xquery_update_application *requ
 
 /* ======================================================== copy-modify */
 
-/* copy($node): a copy of one node in a tree of its own (5.4.5), its type
-   annotations and in-scope namespaces kept. */
+/* copy($node, $modes): a copy of one node in a tree of its own (5.4.5),
+   with the prolog's construction and copy-namespaces modes. */
 static sxml_status call_copy(const sxml_function_call *call, sxml_sequence *result) {
     const sxml_sequence source = call->arguments.sequences[0];
+    sxml_item modes_item = {.representation = 0};
+    sxml_atomic_datum modes = {.datum_kind = SXML_DATUM_KIND_INTEGER, .datum_details = {.integer = 0}};
     uint64_t item_count = 0;
-    sxml_status status = sxml_sequence_count(source, call->error_record, &item_count);
+    sxml_status status = sxml_sequence_get_item(
+        call->arguments.sequences[1], (sxml_item_request){.item_index = 0, .error_record = NULL},
+        &modes_item);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_atomic_item_get_datum(modes_item, &modes);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_sequence_count(source, call->error_record, &item_count);
+    }
     sxml_item item = {.representation = 0};
     if (status == SXML_STATUS_OK && item_count == 1) {
         status = sxml_sequence_get_item(
@@ -1129,10 +1423,14 @@ static sxml_status call_copy(const sxml_function_call *call, sxml_sequence *resu
     if (status == SXML_STATUS_OK) {
         status = sxml_tree_builder_copy_node(
             sxml_arena_tree_as_tree_builder(arena_tree),
-            &(sxml_copy_request){.node = node,
-                                 .preserves_namespaces = true,
-                                 .inherits_namespaces = true,
-                                 .preserves_type_annotations = true});
+            &(sxml_copy_request){
+                .node = node,
+                .preserves_namespaces =
+                    (modes.datum_details.integer & SXML_XQUERY_UPDATE_NO_PRESERVE_NAMESPACES) == 0,
+                .inherits_namespaces =
+                    (modes.datum_details.integer & SXML_XQUERY_UPDATE_NO_INHERIT_NAMESPACES) == 0,
+                .preserves_type_annotations =
+                    (modes.datum_details.integer & SXML_XQUERY_UPDATE_PRESERVES_TYPES) != 0});
     }
     sxml_tree *tree = NULL;
     if (status == SXML_STATUS_OK) {
@@ -1237,6 +1535,7 @@ static sxml_status call_modify_copies(const sxml_function_call *call, sxml_seque
 
 static const sxml_function_parameter copy_parameters[] = {
     SXML_REQUIRED_PARAMETER("node", "item()*"),
+    SXML_REQUIRED_PARAMETER("modes", "xs:integer"),
 };
 
 static const sxml_function_parameter modify_parameters[] = {
@@ -1249,7 +1548,7 @@ const sxml_native_function sxml_xquery_copy_function = {
     /* Every call makes new nodes. */
     .properties = SXML_NATIVE_FUNCTION_IS_NONDETERMINISTIC,
     .local_name = SXML_BYTE_VIEW_INITIALIZER("copy"),
-    .parameters = {copy_parameters, 1},
+    .parameters = {copy_parameters, 2},
     .result_type = SXML_BYTE_VIEW_INITIALIZER("node()"),
     .call = call_copy,
     .resumable_body = NULL};

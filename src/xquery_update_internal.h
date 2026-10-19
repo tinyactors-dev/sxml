@@ -155,6 +155,12 @@ typedef struct sxml_xquery_update_primitive {
      * no text node); RENAME: one xs:QName; DELETE: empty.
      */
     sxml_sequence parameter;
+    /* How its nodes are copied in: the prolog's copy-namespaces modes
+       (XQuery 4.0, 5.9; preserve, inherit by default). */
+    bool preserves_namespaces;
+    bool inherits_namespaces;
+    /* Construction preserve (XQuery 4.0, 5.6): copies keep their types. */
+    bool preserves_types;
 } sxml_xquery_update_primitive;
 
 /* Reads an update primitive. Returns SXML_STATUS_INVALID_ARGUMENT for an
@@ -174,8 +180,17 @@ SXML_NODISCARD sxml_status sxml_xquery_read_update_primitive(
  * - delete($target) (5.4.2);
  * - replace($value-of, $target, $replacement): $value-of 0 replaces the
  *   node, 1 its value (5.4.3);
+ * - for insert and replace the variant may add
+ *   SXML_XQUERY_UPDATE_NO_PRESERVE_NAMESPACES,
+ *   SXML_XQUERY_UPDATE_NO_INHERIT_NAMESPACES and
+ *   SXML_XQUERY_UPDATE_PRESERVES_TYPES, the prolog's copy-namespaces and
+ *   construction modes for the nodes copied in;
  * - rename($target, $new-name) (5.4.4).
  */
+#define SXML_XQUERY_UPDATE_NO_PRESERVE_NAMESPACES 8
+#define SXML_XQUERY_UPDATE_NO_INHERIT_NAMESPACES 16
+#define SXML_XQUERY_UPDATE_PRESERVES_TYPES 32
+
 extern const sxml_native_function sxml_xquery_insert_function;
 extern const sxml_native_function sxml_xquery_delete_function;
 extern const sxml_native_function sxml_xquery_replace_function;
@@ -187,8 +202,11 @@ extern const sxml_native_function sxml_xquery_rename_function;
  *     let $c := copy(E) ... let $r := modify-copies(($c, ...), M)
  *     ... return R with $c bound to $r(1), ...
  *
- * - copy($node): a copy of one node (XUTY0013 otherwise), the root of a
- *   new tree, its type annotations and namespaces kept;
+ * - copy($node, $modes): a copy of one node (XUTY0013 otherwise), the
+ *   root of a new tree, made as the prolog says for copies (XQuery 4.0,
+ *   5.6 and 5.9): $modes adds SXML_XQUERY_UPDATE_NO_PRESERVE_NAMESPACES,
+ *   SXML_XQUERY_UPDATE_NO_INHERIT_NAMESPACES and
+ *   SXML_XQUERY_UPDATE_PRESERVES_TYPES (construction preserve);
  * - modify-copies($copies, $updates): applies the pending update list
  *   $updates, whose targets must be in the trees of $copies (XUDY0014),
  *   and returns one array of the roots of the trees after it, in the

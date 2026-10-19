@@ -1031,7 +1031,7 @@ typedef struct sxml_qt4_query_request {
 } sxml_qt4_query_request;
 
 static sxml_status sxml_qt4_read_query(const sxml_qt4_query_request *request,
-                                       sxml_qt4_test_case *test_case) {
+                                       sxml_qt4_query *test_case) {
     const sxml_qt4_document *document = &request->catalog->test_set_document;
     sxml_qt4_attribute_value file = {.is_present = false,
                                      .value = sxml_qt4_empty_text};
@@ -1060,6 +1060,55 @@ static sxml_status sxml_qt4_read_query(const sxml_qt4_query_request *request,
         &test_case->query_text);
 }
 
+/* Reads every <test> of a test case: the last into test_case's query,
+   the ones before it into its earlier queries. */
+typedef struct sxml_qt4_queries_request {
+    const sxml_qt4_catalog *catalog;
+    sxml_node_index test_case;
+    sxml_byte_view test_set_file_path;
+} sxml_qt4_queries_request;
+
+static sxml_status sxml_qt4_read_queries(const sxml_qt4_queries_request *request,
+                                         sxml_qt4_test_case *test_case) {
+    sxml_arena *arena = request->catalog->test_set_arena;
+    sxml_qt4_node_list nodes = {.nodes = NULL, .node_count = 0};
+    sxml_status status = sxml_qt4_collect_children(
+        &(sxml_qt4_children_request){.document = &request->catalog->test_set_document,
+                                     .parent = request->test_case,
+                                     .local_name = SXML_TEXT("test"),
+                                     .arena = arena},
+        &nodes);
+    void *memory = NULL;
+    if (status == SXML_STATUS_OK && nodes.node_count > 0) {
+        status = sxml_qt4_allocate_array(
+            arena,
+            (sxml_qt4_array_request){.element_count = nodes.node_count,
+                                     .element_byte_count = sizeof(sxml_qt4_query),
+                                     .alignment = alignof(sxml_qt4_query)},
+            &memory);
+    }
+    sxml_qt4_query *queries = memory;
+    for (size_t node_index = 0;
+         status == SXML_STATUS_OK && queries != NULL && nodes.nodes != NULL &&
+         node_index < nodes.node_count;
+         node_index += 1) {
+        status = sxml_qt4_read_query(
+            &(sxml_qt4_query_request){.catalog = request->catalog,
+                                      .test = nodes.nodes[node_index],
+                                      .test_set_file_path = request->test_set_file_path},
+            &queries[node_index]);
+    }
+    if (status != SXML_STATUS_OK || queries == NULL) {
+        return status;
+    }
+    const size_t last = nodes.node_count - 1;
+    test_case->query_text = queries[last].query_text;
+    test_case->query_file_path = queries[last].query_file_path;
+    test_case->earlier_queries =
+        (sxml_qt4_query_view){.queries = queries, .query_count = last};
+    return SXML_STATUS_OK;
+}
+
 sxml_status
 sxml_qt4_catalog_read_test_case(sxml_qt4_catalog *catalog,
                                 const sxml_qt4_test_case_request *request,
@@ -1081,6 +1130,7 @@ sxml_qt4_catalog_read_test_case(sxml_qt4_catalog *catalog,
         .name = sxml_qt4_empty_text,
         .query_text = sxml_qt4_empty_text,
         .query_file_path = sxml_qt4_empty_text,
+        .earlier_queries = {.queries = NULL, .query_count = 0},
         .environment = sxml_qt4_environment_absent(),
         .test_set_dependencies = catalog->test_set_dependencies,
         .dependencies = {.dependencies = NULL, .dependency_count = 0},
@@ -1117,10 +1167,10 @@ sxml_qt4_catalog_read_test_case(sxml_qt4_catalog *catalog,
         status = SXML_STATUS_MALFORMED_INPUT;
     }
     if (status == SXML_STATUS_OK) {
-        status = sxml_qt4_read_query(
-            &(sxml_qt4_query_request){.catalog = catalog,
-                                      .test = parts.test,
-                                      .test_set_file_path = entry.file_path},
+        status = sxml_qt4_read_queries(
+            &(sxml_qt4_queries_request){.catalog = catalog,
+                                        .test_case = element,
+                                        .test_set_file_path = entry.file_path},
             &result);
     }
     if (status == SXML_STATUS_OK) {
