@@ -907,6 +907,7 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `revalidation` | Schema validation of a tree an update rebuilt, in the revalidation mode the prolog declares (lax or strict; skip does none), whose validated copy becomes the updated tree (XQuery Update Facility 3.0, 3.2.4 upd:revalidate; D205) |
 | `full_text_selection` | The compiled form of an FTSelection: words, connectives, positional filters and match options, run as a match program (XQuery and XPath Full Text 3.0) |
 | `all_matches` | The set of matches a full-text selection gives over the tokens of a node, with their positions (XQuery and XPath Full Text 3.0, "AllMatches") |
+| `tentative_encoding` | An encoding the HTML parser sniffed from octets rather than got from a byte order mark or the encoding option; a meta element that declares another one makes the parser read the document again in that one (HTML Living Standard, 13.2.3.2 and 13.2.3.4; `is_encoding_tentative`) |
 | `html_working_tree` | The HTML parser's mutable node table during tree construction (adoption agency, foster parenting), sent to the tree builder once the document ends |
 | `insertion_mode` | The state of HTML tree construction that decides how a token is handled (HTML Living Standard, 13.2.4.1) |
 | `open_elements` | The HTML parser's stack of open elements, the current node last (HTML Living Standard, 13.2.4.2) |
