@@ -1994,12 +1994,27 @@ static sxml_status continue_overriding(sxml_xpath_lowering_machine *machine,
     }
     const bool is_next_match =
         node_of(lowering, locals->head.node)->kind == SXML_XSLT_AST_KIND_NEXT_MATCH;
+    /* In a grounded template rule (D228) the next rule gets the grounded
+       window, with the rule's position; a guaranteed-streamable rule
+       reads no size (19.8.9.14). */
+    const sxml_xpath_lowering_focus *current = lowering->templates->current_focus;
+    const bool is_grounded = current != NULL &&
+                             current->kind == SXML_XPATH_LOWERING_FOCUS_KIND_SLOTS &&
+                             current->slots.context_value.value != item_slot.value;
     sxml_ir_expression_index apply = {0};
     const sxml_status status = sxml_xslt_lowering_add_expression(
         lowerer,
         (sxml_ir_expression){
             .expression_kind = SXML_IR_EXPRESSION_KIND_APPLY_TEMPLATES,
             .apply_templates = {.select = {.atom_kind = SXML_IR_ATOM_KIND_NONE},
+                                .focus = is_grounded
+                                             ? (sxml_ir_focus){.context_value =
+                                                                   current->slots.context_value,
+                                                               .context_position = position_slot,
+                                                               .context_size = {0}}
+                                             : (sxml_ir_focus){.context_value = {0},
+                                                               .context_position = {0},
+                                                               .context_size = {0}},
                                 .mode = {.value = 0},
                                 .rule_search = is_next_match
                                                    ? SXML_IR_RULE_SEARCH_AFTER_CURRENT_RULE

@@ -76,6 +76,10 @@ typedef struct sxml_xslt_test_context {
     size_t available_document_count;
     bool has_global_context_item;
     sxml_sequence global_context_item;
+    /* The URI of the global context item's file when the environment
+       marks it streaming="true": transformed as a streamed principal
+       source when the stylesheet streams its initial mode (D228). */
+    sxml_byte_view streamed_source_uri;
     sxml_xslt_test_binding_list static_parameters;
     sxml_xslt_test_binding_list stylesheet_parameters;
     sxml_xslt_test_binding_list template_parameters;
@@ -828,6 +832,12 @@ static sxml_status sxml_xslt_test_parse_source(sxml_xslt_test_context *context,
     if (detail == NULL || detail->select.byte_count == 0) {
         context->has_global_context_item = true;
         context->global_context_item = value;
+        if (detail != NULL && detail->is_streamed && !has_content &&
+            source->file_path.byte_count != 0 && source->uri.byte_count == 0 &&
+            source->validation.byte_count == 0 && !detail->needs_dtd &&
+            !detail->needs_xinclude && detail->xml_version.byte_count == 0) {
+            context->streamed_source_uri = document_uri;
+        }
         return SXML_STATUS_OK;
     }
     /* select=: the global context item within the document. */
@@ -1540,9 +1550,7 @@ static void sxml_xslt_test_transform(sxml_xslt_test_context *context,
             .state = context, .operations = &sxml_xslt_test_trace_operations};
         memset(&context->error_record, 0, sizeof context->error_record);
         sxml_sequence principal = sxml_sequence_empty();
-        status = sxml_xslt_stylesheet_transform(
-            outputs->stylesheet,
-            &(sxml_xslt_transformation_request){
+        sxml_xslt_transformation_request transformation = {
                 .dynamic_context = dynamic_context,
                 .initial_match_selection = context->initial_match_selection,
                 .template_parameters = {.variable_bindings = context->template_parameters.bindings,
@@ -1569,8 +1577,26 @@ static void sxml_xslt_test_transform(sxml_xslt_test_context *context,
                 .invocation_kind = sxml_xslt_test_invocation_kind_of(context),
                 .result_delivery = delivery,
                 .has_initial_match_selection = context->has_initial_match_selection,
-                .selects_unnamed_mode = names.selects_unnamed_mode},
-            &principal);
+                .selects_unnamed_mode = names.selects_unnamed_mode};
+        /* A source the test streams is the streamed principal source when
+           the stylesheet streams the initial mode (D228), and then no
+           global context item (XSLT 4.0, 2.4.2). */
+        bool streams = false;
+        if (context->streamed_source_uri.byte_count != 0 &&
+            transformation.invocation_kind == SXML_XSLT_INVOCATION_KIND_APPLY_TEMPLATES &&
+            !transformation.has_initial_match_selection) {
+            status = sxml_xslt_stylesheet_streams_source(outputs->stylesheet, &transformation,
+                                                         &streams);
+        }
+        if (status == SXML_STATUS_OK && streams) {
+            transformation.streamed_source_uri = context->streamed_source_uri;
+            transformation.dynamic_context.has_context_value = false;
+            transformation.dynamic_context.context_value = sxml_sequence_empty();
+        }
+        if (status == SXML_STATUS_OK) {
+            status =
+                sxml_xslt_stylesheet_transform(outputs->stylesheet, &transformation, &principal);
+        }
         answer->value = principal;
     }
     if (status == SXML_STATUS_OK && delivery == SXML_XSLT_RESULT_DELIVERY_SERIALIZED) {
