@@ -42,11 +42,10 @@
  * - a limit, running out of memory, a status that is neither a static
  *   nor a dynamic error, or a leak is an error.
  *
- * Compilation (packet 5.4) and validation (packet 5.7) are done. A
- * validation that meets a feature not implemented yet (identity
- * constraints, assertions and type alternatives until packets 5.8 and
- * 5.9: SXML_STATUS_UNSUPPORTED_FEATURE) is not run, reason "XSD feature
- * not implemented"; it counts in scope.
+ * A validation that meets a feature not implemented
+ * (SXML_STATUS_UNSUPPORTED_FEATURE; none is left since packets 5.8 and
+ * 5.9) fails, reason "instance: unsupported feature", as the XSLT
+ * driver counts it (D178: no outcome is reclassified as not run).
  */
 
 /* One test to run. Borrowed for the call. */

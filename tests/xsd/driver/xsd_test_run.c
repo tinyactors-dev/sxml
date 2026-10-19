@@ -555,8 +555,10 @@ static void sxml_xsd_test_validate(const sxml_xsd_test_instance_request *request
         status = sxml_schema_validator_get_outcome(validator, &outcome);
     }
     if (status == SXML_STATUS_UNSUPPORTED_FEATURE) {
-        answer->outcome = SXML_QT4_TEST_OUTCOME_NOT_RUN;
-        sxml_qt4_reason_append(answer->reason, SXML_TEXT("XSD feature not implemented"));
+        /* A missing feature of an in-scope test is a failure, as the XSLT
+           driver counts it: never "not run" (D178, D95). */
+        answer->outcome = SXML_QT4_TEST_OUTCOME_FAIL;
+        sxml_qt4_reason_append(answer->reason, SXML_TEXT("instance: unsupported feature"));
     } else if (sxml_xsd_test_is_verdict(status) || status == SXML_STATUS_MALFORMED_INPUT) {
         sxml_xsd_test_judge(answer,
                             (sxml_xsd_test_verdict){
