@@ -1658,7 +1658,14 @@ typedef struct apply_templates_locals {
     sxml_ir_atom separator;
     bool has_separator;
     bool is_sorted;
+    /* Not 0: applied to the one node of these slots (a STREAM's, D223). */
+    sxml_ir_focus item_focus;
 } apply_templates_locals;
+
+enum {
+    /* A stream point's chain of STREAMs is in select (D223). */
+    SXML_APPLY_TEMPLATES_STEP_STREAMED = 4,
+};
 
 /* The mode of an xsl:apply-templates: its mode attribute or the default
    mode; NONE (0) for #current. */
@@ -1701,6 +1708,34 @@ static sxml_status continue_apply_templates(sxml_xpath_lowering_machine *machine
     apply_templates_locals *locals = frame->locals;
     const sxml_xslt_lowering *lowering = locals->head.lowering;
     const sxml_xslt_ast_node_index node = locals->head.node;
+    const bool is_focused = locals->item_focus.context_value.value != 0;
+    if (frame->step == SXML_APPLY_TEMPLATES_STEP_STREAMED) {
+        sxml_ir_expression_index result = {0};
+        const sxml_status status = sxml_xslt_lowering_add_expression(
+            lowerer,
+            (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_ATOM,
+                                 .atom = locals->select},
+            &result);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        return sxml_xpath_lowering_finish_frame(machine, frame, result);
+    }
+    if (frame->step == 0 && !is_focused && sxml_xslt_is_stream_point(lowering, node)) {
+        /* A stream point of a streamed body: its templates are applied to
+           each node as it passes (D223). */
+        frame->step = SXML_APPLY_TEMPLATES_STEP_STREAMED;
+        return sxml_xslt_lowering_call_stream_point(
+            machine, &(sxml_xslt_stream_call){.lowering = lowering,
+                                              .node = node,
+                                              .block = frame->block,
+                                              .href = {0},
+                                              .atom = &locals->select});
+    }
+    if (frame->step == 0 && is_focused) {
+        frame->step = 1;
+        locals->select = (sxml_ir_atom){.atom_kind = SXML_IR_ATOM_KIND_NONE};
+    }
     if (frame->step == 0) {
         frame->step = 1;
         const sxml_xslt_ast_attribute *select =
@@ -1788,6 +1823,7 @@ static sxml_status continue_apply_templates(sxml_xpath_lowering_machine *machine
             (sxml_ir_expression){
                 .expression_kind = SXML_IR_EXPRESSION_KIND_APPLY_TEMPLATES,
                 .apply_templates = {.select = locals->select,
+                                    .focus = locals->item_focus,
                                     .mode = mode,
                                     .rule_search = SXML_IR_RULE_SEARCH_FROM_START,
                                     .parameters = locals->parameters,
@@ -1808,6 +1844,33 @@ static const sxml_xpath_lowering_procedure apply_templates_procedure = {
     .procedure_name = SXML_BYTE_VIEW_INITIALIZER("xsl:apply-templates"),
     .step = continue_apply_templates,
     .locals_size = sizeof(apply_templates_locals)};
+
+sxml_status sxml_xslt_lowering_call_focused_apply_templates(
+    sxml_xpath_lowering_machine *machine, const sxml_xslt_focused_apply_call *call) {
+    if (call->item_focus.context_value.value == 0 ||
+        sxml_xslt_lowering_has_sort(call->lowering, call->node)) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    const apply_templates_locals initial = {
+        .head = {.lowering = call->lowering, .node = call->node},
+        .item_focus = {.context_value = call->item_focus.context_value,
+                       .context_position = call->item_focus.context_position,
+                       .context_size = {0}}};
+    sxml_xpath_lowering_frame *frame = NULL;
+    return sxml_xpath_lowering_push_procedure(
+        machine,
+        &(sxml_xpath_lowering_procedure_call){
+            .procedure = &apply_templates_procedure,
+            .node = {.value = 0},
+            .block = call->block,
+            .is_body = false,
+            .destination = {.expression = NULL,
+                            .atom = call->atom,
+                            .atom_block = call->block,
+                            .focused = NULL},
+            .initial_locals = {.bytes = (const uint8_t *)&initial, .byte_count = sizeof(initial)}},
+        &frame);
+}
 
 /* ----------------------------------- xsl:next-match, xsl:apply-imports */
 

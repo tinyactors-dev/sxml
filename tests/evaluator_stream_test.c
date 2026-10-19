@@ -568,16 +568,26 @@ typedef struct large_path_case {
     const char *expected_output;
 } large_path_case;
 
-#define LARGE_PATH_CASE(body, expected)                                                            \
+#define LARGE_PATH_CASE(declarations, body, expected)                                              \
     {                                                                                              \
-        .streamed_text = STREAMED("", "yes", body), .unstreamed_text = STREAMED("", "no", body),   \
+        .streamed_text = STREAMED(declarations, "yes", body),                                      \
+        .unstreamed_text = STREAMED(declarations, "no", body),                                     \
         .expected_output = DECLARATION "<out>" expected "</out>"                                    \
     }
 
 static const large_path_case large_path_cases[] = {
-    LARGE_PATH_CASE("<xsl:value-of select='count(records/record)'/>", "30000"),
-    LARGE_PATH_CASE("<c><xsl:copy-of select='records/record[@hot = \"yes\"]/name'/></c>",
+    LARGE_PATH_CASE("", "<xsl:value-of select='count(records/record)'/>", "30000"),
+    LARGE_PATH_CASE("", "<xsl:value-of select='sum(records/record/price)'/>", "1.4925E6"),
+    LARGE_PATH_CASE("", "<xsl:value-of select='sum(//record/@id) div 1000'/>", "450015"),
+    LARGE_PATH_CASE("", "<xsl:value-of select='max(records/record/@id)'/>", "30000"),
+    LARGE_PATH_CASE("", "<c><xsl:copy-of select='records/record[@hot = \"yes\"]/name'/></c>",
                     "<c><name>item 10000</name><name>item 20000</name><name>item 30000</name></c>"),
+    LARGE_PATH_CASE("<xsl:mode name='s' streamable='yes' on-no-match='shallow-skip'/>"
+                    "<xsl:template match='record[@hot = \"yes\"]' mode='s'>"
+                    "<r n='{position()}'><xsl:value-of select='name'/></r></xsl:template>",
+                    "<xsl:apply-templates select='records/record' mode='s'/>",
+                    "<r n=\"10000\">item 10000</r><r n=\"20000\">item 20000</r>"
+                    "<r n=\"30000\">item 30000</r>"),
 };
 
 static void test_large_document_paths_stream_in_bounded_memory(sxml_test_state *state) {

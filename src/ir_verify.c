@@ -530,9 +530,18 @@ static sxml_status check_apply_templates(const verifier *checker,
         return report(checker, "an apply-templates has an unknown rule search");
     }
     if (apply->select.atom_kind == SXML_IR_ATOM_KIND_NONE &&
+        apply->focus.context_value.value == 0 &&
         current_function(checker)->focus.context_value.value == 0) {
         return report(checker, "an apply-templates of the focus is in a function "
                                "without one");
+    }
+    if (apply->focus.context_value.value > current_function(checker)->slot_count ||
+        apply->focus.context_position.value > current_function(checker)->slot_count ||
+        apply->focus.context_size.value != 0 ||
+        (apply->focus.context_value.value != 0 &&
+         apply->select.atom_kind != SXML_IR_ATOM_KIND_NONE)) {
+        return report(checker, "an apply-templates focus is beyond the function's slots, "
+                               "has a size or comes with a select");
     }
     const sxml_ir_atom optional_atoms[] = {apply->select, apply->parameters,
                                            apply->tunnel_parameters, apply->separator};
@@ -563,8 +572,9 @@ static sxml_status check_stream(verifier *checker, const sxml_ir_stream *stream)
         (opens_document && stream->predicate.value != 0)) {
         return report(checker, "a stream has a size, no body or a document predicate");
     }
-    if (stream->position_counter.value > current_function(checker)->slot_count) {
-        return report(checker, "a stream counter is beyond the function's slots");
+    if (stream->position_counter.value > current_function(checker)->slot_count ||
+        stream->fold.value > current_function(checker)->slot_count) {
+        return report(checker, "a stream counter or fold is beyond the function's slots");
     }
     sxml_status status = check_required_atom(checker, stream->origin);
     if (status == SXML_STATUS_OK) {

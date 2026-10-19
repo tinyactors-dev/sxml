@@ -974,8 +974,13 @@ typedef enum sxml_ir_rule_search {
 typedef struct sxml_ir_apply_templates {
     /* The items to process; NONE: the focus of the function the
        expression is in, as one item with its position and size
-       (xsl:next-match, xsl:apply-imports). */
+       (xsl:next-match, xsl:apply-imports), or of focus. */
     sxml_ir_atom select;
+    /* With select NONE and focus.context_value not 0: the item and
+       position of these slots instead of the function's, and no size
+       (0): a template rule applied to each node a STREAM selects, which
+       has no size (XSLT 4.0, 19; D223). All 0 otherwise. */
+    sxml_ir_focus focus;
     /* NONE: the current mode (mode="#current", next-match,
        apply-imports); outside every template, the unnamed mode. */
     sxml_ir_mode_index mode;
@@ -1024,7 +1029,8 @@ typedef enum sxml_ir_stream_flag {
  * position_counter is not 0, one more than that slot's xs:integer, which
  * the STREAM then rebinds (the position in the whole path when nested
  * STREAMs select it step by step). focus.context_size is 0: a streamed
- * selection has no size.
+ * selection has no size. With fold, the body's values are not
+ * concatenated but each bound to fold in turn (D223).
  *
  * When origin is the open node of a streamed document, the nodes are read
  * from its events (src/evaluator_stream.c); otherwise from origin's tree,
@@ -1040,6 +1046,11 @@ typedef struct sxml_ir_stream {
     sxml_ir_expression_index body;
     /* Bits of sxml_ir_stream_flag. */
     uint32_t flags;
+    /* 0, or a slot the body's value is bound to after each node (the
+       body reads the value before; it is bound before the STREAM, whose
+       own value is then empty): an aggregate folded as the nodes pass
+       (fn:sum over a streamed path, D223). */
+    sxml_ir_slot fold;
 } sxml_ir_stream;
 
 /* One expression: its kind, where it comes from, and the payload its kind

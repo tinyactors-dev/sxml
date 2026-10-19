@@ -555,7 +555,8 @@ SXML_NODISCARD sxml_status sxml_xslt_plan_source_document(const sxml_xslt_loweri
                                                          sxml_xslt_ast_node_index node,
                                                          bool *is_streamed);
 
-/* True when node (an xsl:for-each) is a stream point of a streamed body. */
+/* True when node (an xsl:for-each or xsl:apply-templates) is a stream
+   point of a streamed body. */
 bool sxml_xslt_is_stream_point(const sxml_xslt_lowering *lowering, sxml_xslt_ast_node_index node);
 
 /* A streamed construct to lower, bound in block, its atom written to
@@ -569,10 +570,25 @@ typedef struct sxml_xslt_stream_call {
     sxml_ir_atom *atom;
 } sxml_xslt_stream_call;
 
-/* From a step: pushes the frame lowering a stream point (xsl:for-each)
-   to its chain of STREAMs, in the current focus. */
+/* From a step: pushes the frame lowering a stream point (xsl:for-each or
+   xsl:apply-templates) to its chain of STREAMs, in the current focus. */
 SXML_NODISCARD sxml_status sxml_xslt_lowering_call_stream_point(
     sxml_xpath_lowering_machine *machine, const sxml_xslt_stream_call *call);
+
+/* An xsl:apply-templates (no xsl:sort) applied to the one node of
+   item_focus (a STREAM's selected node, D223): its parameters and
+   separator lowered in the current focus, bound in block, *atom the
+   APPLY_TEMPLATES of item_focus (src/xslt_lower_template.c). */
+typedef struct sxml_xslt_focused_apply_call {
+    const sxml_xslt_lowering *lowering;
+    sxml_xslt_ast_node_index node;
+    sxml_xpath_lowering_block *block;
+    sxml_ir_focus item_focus;
+    sxml_ir_atom *atom;
+} sxml_xslt_focused_apply_call;
+
+SXML_NODISCARD sxml_status sxml_xslt_lowering_call_focused_apply_templates(
+    sxml_xpath_lowering_machine *machine, const sxml_xslt_focused_apply_call *call);
 
 /* From a step: pushes the frame lowering a streamed xsl:source-document
    to STREAM with OPENS_DOCUMENT over call->href. */

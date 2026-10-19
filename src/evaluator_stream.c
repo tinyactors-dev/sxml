@@ -1507,8 +1507,15 @@ static sxml_status sxml_stream_take_predicate(sxml_dynamic_context *dynamic_cont
 /* The body ended: what is left of the selected node, then the next. */
 static sxml_status sxml_stream_take_body(sxml_dynamic_context *dynamic_context,
                                          sxml_stream_state *state) {
-    sxml_status status = sxml_stream_append(dynamic_context, state,
-                                            sxml_evaluator_machine_take_value(dynamic_context));
+    sxml_status status = SXML_STATUS_OK;
+    if (state->stream->fold.value != 0) {
+        /* The aggregate so far, which the next body reads (D223). */
+        sxml_evaluator_machine_bind_slot(dynamic_context, state->stream->fold,
+                                         sxml_evaluator_machine_take_value(dynamic_context));
+    } else {
+        status = sxml_stream_append(dynamic_context, state,
+                                    sxml_evaluator_machine_take_value(dynamic_context));
+    }
     if (status != SXML_STATUS_OK) {
         return status;
     }

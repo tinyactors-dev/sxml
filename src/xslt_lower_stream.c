@@ -18,7 +18,11 @@
  *       "//" T at the start, or as the last step (descendant::T)
  *
  *   each step with at most one predicate that is motionless, the
- *   descendant step last, and whose body is at most consuming. It becomes
+ *   descendant step last, and whose body is at most consuming; or an
+ *   xsl:apply-templates with such a select whose mode's template rules are
+ *   guaranteed-streamable (6.6.4), applied to each node in its full window
+ *   with its position in the path (APPLY_TEMPLATES of the STREAM's focus;
+ *   a template rule reading fn:last keeps it from streaming). It becomes
  *   a chain of STREAMs, one per step, the body of each the STREAM of the
  *   next (src/ir_internal.h; the path's position in a counter slot the
  *   chain shares). A stream point whose own body is streamed gets shallow
@@ -37,10 +41,12 @@
  *   path's node is lowered in place through a lowering override
  *   (glossary `lowering_override`, src/xpath_lower_internal.h) to a chain
  *   whose body grounds what it selects (19.4): the node in a full window;
- *   its atomized value for a function that atomizes it (fn:sum and
- *   others); or, for fn:count, fn:exists and fn:empty, nothing but the
- *   chain's counter, in shallow windows, so the count of a large document
- *   takes no memory per node. Instructions that run on the selected items
+ *   its atomized value for a function that atomizes it
+ *   (fn:distinct-values and others); for fn:sum, fn:min and fn:max of one
+ *   argument, the aggregate folded node by node in the chain's fold slot;
+ *   for fn:count, fn:exists and fn:empty, nothing but the chain's counter,
+ *   in shallow windows. Aggregates of a large document so take no memory
+ *   per node. Instructions that run on the selected items
  *   (a body, sort keys, template rules) run on their full windows, after
  *   the selection.
  *
@@ -49,8 +55,8 @@
  * whose body has another shape reads the whole document (fn:doc), which
  * gives the same results (19.10). Not streamed yet: accumulators that
  * apply to the document or are read anywhere (one declared and unused is
- * no obstacle), validation and type on xsl:source-document, template
- * rules applied one node at a time, xsl:fork, xsl:merge, and bodies that
+ * no obstacle), validation and type on xsl:source-document, xsl:fork,
+ * xsl:merge, a streamed principal source, and bodies that
  * read fn:has-children, fn:path or fn:last (motionless by 19.8.9, but
  * they need what a window lacks).
  *
@@ -83,6 +89,9 @@ typedef enum stream_point_kind {
     /* An xsl:for-each whose body runs in each selected node's window
        (src/xslt_lower_control.c lowers it here). */
     SXML_STREAM_POINT_FOR_EACH,
+    /* An xsl:apply-templates whose template rules are applied to each node
+       it selects, in its full window, as it passes (D223). */
+    SXML_STREAM_POINT_APPLY,
     /* A streamed path (glossary `streamed_path`): a path in the select
        expression of an instruction, lowered in place through a lowering
        override (src/xpath_lower_internal.h). */
@@ -100,6 +109,10 @@ typedef enum stream_grounding {
     /* One xs:boolean per node: the operand of fn:count, fn:exists or
        fn:empty, which read only how many there are; no content is read. */
     SXML_STREAM_GROUNDING_COUNTED,
+    /* The aggregate of fn:sum, fn:min or fn:max (one argument) of the
+       atomized values, folded one node at a time in the chain's fold slot
+       (F&O 4.0, 14.4: each is a fold of its pairwise form). */
+    SXML_STREAM_GROUNDING_FOLDED,
 } stream_grounding;
 
 /* A stream point found in a streamed body. */
@@ -279,7 +292,7 @@ static const stream_point *find_point(const sxml_xslt_lowering *lowering,
         return NULL;
     }
     for (size_t point_index = 0; point_index < plan->point_count; point_index += 1) {
-        if (plan->points[point_index].kind == SXML_STREAM_POINT_FOR_EACH &&
+        if (plan->points[point_index].kind != SXML_STREAM_POINT_PATH &&
             plan->points[point_index].node.value == node.value) {
             return &plan->points[point_index];
         }
@@ -938,6 +951,7 @@ static sxml_ast_node_index unwrap_parentheses(const sxml_ast *ast, sxml_ast_node
 static const char *const atomizing_function_names[] = {"sum", "avg", "min", "max",
                                                        "distinct-values", "data", "string-join"};
 static const char *const counting_function_names[] = {"count", "exists", "empty"};
+static const char *const folding_function_names[] = {"sum", "min", "max"};
 
 /* Whether a function call is of the function namespace's name: no prefix
    (XSLT's default function namespace, 5.1.1) or Q{fn}. */
@@ -1009,6 +1023,13 @@ static stream_grounding grounding_of(const sxml_ast *ast, sxml_ast_node_index pa
            values are counted (one each, no schema types in a streamed
            document). */
         return has_attribute_step ? SXML_STREAM_GROUNDING_ATOMIZED : SXML_STREAM_GROUNDING_COUNTED;
+    }
+    if (is_standard_call(ast, call,
+                         (function_names){.names = folding_function_names,
+                                          .name_count = sizeof(folding_function_names) /
+                                                        sizeof(folding_function_names[0])}) &&
+        counting_call_of(ast, path).value == call.value) {
+        return SXML_STREAM_GROUNDING_FOLDED;
     }
     if (is_standard_call(ast, call,
                          (function_names){.names = atomizing_function_names,
@@ -1294,12 +1315,90 @@ static sxml_status is_path_point(const sxml_xslt_lowering *lowering, point_quest
         .ast = select->ast,
         .path = finding.path,
         .grounding = grounding,
-        .lowered = grounding == SXML_STREAM_GROUNDING_COUNTED ? counting_call_of(select->ast, finding.path)
-                                                          : finding.path,
+        .lowered = grounding == SXML_STREAM_GROUNDING_COUNTED ||
+                           grounding == SXML_STREAM_GROUNDING_FOLDED
+                       ? counting_call_of(select->ast, finding.path)
+                       : finding.path,
         .document = {0},
         .has_lowered = false};
     *is_point = true;
     return SXML_STATUS_OK;
+}
+
+/* Whether node is an xsl:apply-templates whose template rules can be
+   applied to each node it selects as it passes (a stream point, D223):
+   no xsl:sort or separator, its select a streamed path of steps (as
+   xsl:for-each's), its parameters motionless, the instruction consuming
+   and grounded, and its mode's template rules guaranteed-streamable and
+   reading nothing a full window lacks. They see each node's position in
+   the path; fn:last, which a streamed selection cannot answer, keeps them
+   from streaming (19.8.9.14). */
+static sxml_status is_apply_point(const sxml_xslt_lowering *lowering, point_question question,
+                                  bool *is_point) {
+    *is_point = false;
+    const sxml_xslt_ast_node_index node = question.node;
+    if (node_of(lowering, node)->kind != SXML_XSLT_AST_KIND_APPLY_TEMPLATES ||
+        sxml_xslt_lowering_has_sort(lowering, node) ||
+        has_attribute(lowering, node, SXML_XSLT_AST_ATTRIBUTE_SEPARATOR) ||
+        sxml_xslt_lowering_has_xslt_1_behaviour(lowering, node)) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_xslt_ast_expression *select = select_of(lowering, node);
+    stream_path path;
+    if (select == NULL || calls_window_function(select->ast) ||
+        !read_path((path_reading){.ast = select->ast,
+                                  .node = no_ast_node,
+                                  .is_document_focus = question.is_document_focus,
+                                  .allows_attribute = false},
+                   &path)) {
+        return SXML_STATUS_OK;
+    }
+    bool is_valid = true;
+    sxml_status status = SXML_STATUS_OK;
+    for (uint32_t index = 0; is_valid && status == SXML_STATUS_OK && index < path.step_count;
+         index += 1U) {
+        if (path.steps[index].predicate.value != 0) {
+            status = is_motionless(lowering,
+                                   (sweep_question){.instruction = {0},
+                                                    .assesses_content = false,
+                                                    .expression = select,
+                                                    .expression_node = path.steps[index].predicate,
+                                                    .is_document_focus = false,
+                                                    .requires_grounded = false},
+                                   &is_valid);
+        }
+    }
+    for (sxml_xslt_ast_node_index child = node_of(lowering, node)->first_child;
+         is_valid && status == SXML_STATUS_OK && child.value != 0;
+         child = node_of(lowering, child)->next_sibling) {
+        /* xsl:with-param is evaluated in the instruction's focus. */
+        status = is_motionless(lowering,
+                               (sweep_question){.instruction = child,
+                                                .assesses_content = false,
+                                                .expression = NULL,
+                                                .expression_node = no_ast_node,
+                                                .is_document_focus = question.is_document_focus,
+                                                .requires_grounded = true},
+                               &is_valid);
+    }
+    sxml_xslt_stream_sweep sweep = SXML_XSLT_STREAM_SWEEP_UNCERTAIN;
+    if (is_valid && status == SXML_STATUS_OK) {
+        status = sweep_of(lowering,
+                          (sweep_question){.instruction = node,
+                                           .assesses_content = false,
+                                           .expression = NULL,
+                                           .expression_node = no_ast_node,
+                                           .is_document_focus = question.is_document_focus,
+                                           .requires_grounded = true},
+                          &sweep);
+    }
+    if (!is_valid || status != SXML_STATUS_OK || sweep != SXML_XSLT_STREAM_SWEEP_CONSUMING) {
+        return status;
+    }
+    bool reads_beyond = true;
+    status = reads_beyond_windows(lowering, node, &reads_beyond);
+    *is_point = status == SXML_STATUS_OK && !reads_beyond;
+    return status;
 }
 
 /* Plans the bodies on the work list, the first (the xsl:source-document's)
@@ -1389,6 +1488,24 @@ static sxml_status plan_one_body(const body_planning *planning, bool *is_streame
                               (stream_body){.node = node,
                                             .point_number = lowering->stream_plan->point_count});
             }
+            continue;
+        }
+        status = is_apply_point(lowering, question, &is_point);
+        if (status != SXML_STATUS_OK) {
+            break;
+        }
+        if (is_point) {
+            point_count += 1;
+            status = add_point(lowering->stream_plan,
+                               (stream_point){.kind = SXML_STREAM_POINT_APPLY,
+                                              .node = node,
+                                              .is_shallow = false,
+                                              .ast = NULL,
+                                              .path = no_ast_node,
+                                              .grounding = SXML_STREAM_GROUNDING_NODES,
+                                              .lowered = no_ast_node,
+                                              .document = {0},
+                                              .has_lowered = false});
             continue;
         }
         path_point_finding path_point;
@@ -1527,6 +1644,9 @@ typedef struct stream_chain {
        than one step), or how many there are (a counted path). */
     bool needs_counter;
     sxml_ir_slot counter;
+    /* An aggregate folded in a slot, bound to () first (a folded path). */
+    bool needs_fold;
+    sxml_ir_slot fold;
     bool is_shallow;
     sxml_xpath_lowering_focus item_focus;
     sxml_xpath_lowering_block body_block;
@@ -1601,6 +1721,22 @@ static sxml_status start_chain(chain_start start, stream_chain *chain) {
             status = SXML_STATUS_INVALID_ARGUMENT;
         }
         chain->counter = counter.slot;
+    }
+    if (status == SXML_STATUS_OK && chain->needs_fold) {
+        sxml_ir_expression_index empty = {0};
+        status = sxml_xpath_lowerer_add_empty_sequence(lowerer, no_ast_node, &empty);
+        sxml_ir_atom fold = {0};
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xpath_lowerer_bind_expression(
+                lowerer,
+                (sxml_xpath_lowering_expression_in_block){.block = start.block,
+                                                          .expression = empty},
+                &fold);
+        }
+        if (status == SXML_STATUS_OK && fold.atom_kind != SXML_IR_ATOM_KIND_SLOT) {
+            status = SXML_STATUS_INVALID_ARGUMENT;
+        }
+        chain->fold = fold.slot;
     }
     const step_lowering *last = &chain->steps[chain->path.step_count - 1U];
     chain->item_focus =
@@ -1684,7 +1820,8 @@ static sxml_status make_chain(sxml_xpath_lowerer *lowerer, const stream_chain *c
                                      .context_size = {0}},
                            .position_counter = is_last ? chain->counter : (sxml_ir_slot){0},
                            .body = body,
-                           .flags = flags}},
+                           .flags = flags,
+                           .fold = is_last ? chain->fold : (sxml_ir_slot){0}}},
             &body);
     }
     *expression = body;
@@ -1716,6 +1853,7 @@ enum {
 typedef struct stream_point_locals {
     sxml_xslt_instruction_locals head;
     sxml_xpath_lowering_block *block;
+    bool applies_templates;
     stream_chain chain;
 } stream_point_locals;
 
@@ -1740,6 +1878,7 @@ static sxml_status continue_stream_point(sxml_xpath_lowering_machine *machine,
         chain->ast = select->ast;
         chain->static_context = &lowering->static_contexts[select->static_context.value];
         chain->is_shallow = point->is_shallow;
+        locals->applies_templates = point->kind == SXML_STREAM_POINT_APPLY;
         status = start_chain(
             (chain_start){.lowerer = machine->state, .block = frame->block}, chain);
         if (status != SXML_STATUS_OK) {
@@ -1756,6 +1895,14 @@ static sxml_status continue_stream_point(sxml_xpath_lowering_machine *machine,
     }
     if (frame->step == SXML_STREAM_CHAIN_STEP_BODY) {
         frame->step = SXML_STREAM_CHAIN_STEP_FINISH;
+        if (locals->applies_templates) {
+            return sxml_xslt_lowering_call_focused_apply_templates(
+                machine, &(sxml_xslt_focused_apply_call){.lowering = lowering,
+                                                         .node = locals->head.node,
+                                                         .block = &chain->body_block,
+                                                         .item_focus = chain->item_focus.slots,
+                                                         .atom = &chain->body});
+        }
         return sxml_xslt_lowering_call_sequence_constructor(
             machine, &(sxml_xslt_sequence_constructor_call){
                          .lowering = lowering,
@@ -1826,6 +1973,43 @@ static sxml_status ground_item(sxml_xpath_lowerer *lowerer, streamed_path_locals
                                       .local_name = SXML_BYTE_VIEW_FROM_LITERAL("data"),
                                       .arguments = {.atoms = &locals->item, .atom_count = 1}},
             &chain->body);
+    case SXML_STREAM_GROUNDING_FOLDED: {
+        /* fn:F((the aggregate so far, fn:data(node))). */
+        sxml_ir_atom value = {0};
+        sxml_status status = sxml_xslt_lowering_bind_library_call(
+            lowerer,
+            &(sxml_xslt_library_call){.block = &chain->body_block,
+                                      .function_namespace = SXML_NAMESPACE_FUNCTIONS,
+                                      .local_name = SXML_BYTE_VIEW_FROM_LITERAL("data"),
+                                      .arguments = {.atoms = &locals->item, .atom_count = 1}},
+            &value);
+        const sxml_ir_atom pair[2] = {sxml_ir_slot_atom(chain->fold), value};
+        sxml_ir_atom_list list = {0};
+        if (status == SXML_STATUS_OK) {
+            status = sxml_ir_unit_add_atoms(
+                lowerer->unit, (sxml_ir_atom_view){.atoms = pair, .atom_count = 2}, &list);
+        }
+        sxml_ir_atom sequence = {0};
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xslt_lowering_bind_expression(
+                lowerer,
+                &(sxml_xslt_expression_to_bind){
+                    .block = &chain->body_block,
+                    .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_SEQUENCE,
+                                   .sequence = list}},
+                &sequence);
+        }
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        return sxml_xslt_lowering_bind_library_call(
+            lowerer,
+            &(sxml_xslt_library_call){.block = &chain->body_block,
+                                      .function_namespace = SXML_NAMESPACE_FUNCTIONS,
+                                      .local_name = called_name(lowerer->ast, locals->point.lowered),
+                                      .arguments = {.atoms = &sequence, .atom_count = 1}},
+            &chain->body);
+    }
     case SXML_STREAM_GROUNDING_COUNTED:
     {
         /* The chain's counter counts the nodes; the body gives none. */
@@ -1845,9 +2029,11 @@ static sxml_status ground_item(sxml_xpath_lowerer *lowerer, streamed_path_locals
     return SXML_STATUS_INVALID_ARGUMENT;
 }
 
-/* A counted path's value: fn:count, fn:exists or fn:empty of its nodes,
-   from the chain's counter once the chain (bound first) has run. */
-static sxml_status finish_counted_path(sxml_xpath_lowering_machine *machine,
+/* A counted or folded path's value, once the chain (bound first) has
+   run: fn:count, fn:exists or fn:empty of its nodes from the chain's
+   counter, or fn:sum, fn:min or fn:max of the fold (which is () for no
+   node). */
+static sxml_status finish_aggregate_path(sxml_xpath_lowering_machine *machine,
                                        sxml_xpath_lowering_frame *frame,
                                        const streamed_path_locals *locals) {
     sxml_xpath_lowerer *lowerer = machine->state;
@@ -1862,10 +2048,19 @@ static sxml_status finish_counted_path(sxml_xpath_lowering_machine *machine,
                                                       .expression = expression},
             &ignored);
     }
-    sxml_ir_atom count = sxml_ir_slot_atom(chain->counter);
+    const bool is_folded = locals->point.grounding == SXML_STREAM_GROUNDING_FOLDED;
+    sxml_ir_atom count = sxml_ir_slot_atom(is_folded ? chain->fold : chain->counter);
     const sxml_byte_view local_name = called_name(lowerer->ast, locals->point.lowered);
     sxml_ir_atom result = count;
-    if (status == SXML_STATUS_OK && !is_named(local_name, "count")) {
+    if (status == SXML_STATUS_OK && is_folded) {
+        status = sxml_xslt_lowering_bind_library_call(
+            lowerer,
+            &(sxml_xslt_library_call){.block = frame->block,
+                                      .function_namespace = SXML_NAMESPACE_FUNCTIONS,
+                                      .local_name = local_name,
+                                      .arguments = {.atoms = &count, .atom_count = 1}},
+            &result);
+    } else if (status == SXML_STATUS_OK && !is_named(local_name, "count")) {
         /* XPath 4.0, F&O 4.0, 14.2.3 and 14.2.4: exists is a count above
            zero, empty a count of zero. */
         status = sxml_xslt_lowering_bind_library_call(
@@ -1925,6 +2120,7 @@ static sxml_status continue_streamed_path(sxml_xpath_lowering_machine *machine,
         chain->static_context = NULL;
         chain->is_shallow = locals->point.is_shallow;
         chain->needs_counter = locals->point.grounding == SXML_STREAM_GROUNDING_COUNTED;
+        chain->needs_fold = locals->point.grounding == SXML_STREAM_GROUNDING_FOLDED;
         status = start_chain((chain_start){.lowerer = lowerer, .block = frame->block}, chain);
         if (status != SXML_STATUS_OK) {
             return status;
@@ -1964,8 +2160,9 @@ static sxml_status continue_streamed_path(sxml_xpath_lowering_machine *machine,
             return status;
         }
     }
-    if (locals->point.grounding == SXML_STREAM_GROUNDING_COUNTED) {
-        return finish_counted_path(machine, frame, locals);
+    if (locals->point.grounding == SXML_STREAM_GROUNDING_COUNTED ||
+        locals->point.grounding == SXML_STREAM_GROUNDING_FOLDED) {
+        return finish_aggregate_path(machine, frame, locals);
     }
     return finish_chain(machine, frame, chain);
 }

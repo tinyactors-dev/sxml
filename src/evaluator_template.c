@@ -199,10 +199,15 @@ static uint64_t sxml_template_count_of(sxml_sequence value) {
 }
 
 /* select NONE: the item of the function's focus, as the only item, with
-   the function's position and size. */
+   the function's position and size; or of apply's own focus slots when it
+   has them: the node a STREAM selected, without a size (XSLT 4.0, 19;
+   D223). */
 static sxml_status sxml_template_select_focus(sxml_dynamic_context *dynamic_context,
+                                              const sxml_ir_apply_templates *apply,
                                               sxml_template_state *state) {
-    const sxml_ir_focus focus = sxml_evaluator_machine_top(dynamic_context)->function->focus;
+    const sxml_ir_focus focus = apply->focus.context_value.value != 0
+                                    ? apply->focus
+                                    : sxml_evaluator_machine_top(dynamic_context)->function->focus;
     sxml_status status =
         sxml_template_read_focus_part(dynamic_context, focus.context_value, &state->input);
     sxml_sequence position = sxml_sequence_empty();
@@ -299,7 +304,7 @@ static sxml_status sxml_template_start(sxml_dynamic_context *dynamic_context,
         return SXML_STATUS_INVALID_ARGUMENT;
     }
     if (apply->select.atom_kind == SXML_IR_ATOM_KIND_NONE) {
-        status = sxml_template_select_focus(dynamic_context, state);
+        status = sxml_template_select_focus(dynamic_context, apply, state);
     } else {
         status = sxml_template_copy_atom(dynamic_context, apply->select, &state->input);
         if (status == SXML_STATUS_OK) {
