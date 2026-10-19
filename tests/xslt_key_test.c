@@ -344,6 +344,12 @@ static void test_functions(sxml_test_state *state) {
                     "count(snapshot(//b)/../../*), snapshot(//item[1]/@n)/../name(), "
                     "snapshot(//b) is //b'/></xsl:template>"),
          "\"doc\" \"item\" 1 \"item\" false()"},
+        /* A namespace node's snapshot is its new parent's (20.6.2). */
+        {STYLESHEET("<xsl:template match='/'>"
+                    "<xsl:sequence select='snapshot(/doc/namespace::xml)/../name(), "
+                    "snapshot(/doc/namespace::xml) instance of namespace-node()'/>"
+                    "</xsl:template>"),
+         "\"doc\" true()"},
         {STYLESHEET("<xsl:template match='/'>"
                     "<xsl:sequence select='system-property(\"xsl:version\"), "
                     "system-property(\"xsl:vendor\"), system-property(\"none\")'/>"

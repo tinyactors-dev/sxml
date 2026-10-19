@@ -274,6 +274,13 @@ static sxml_status run_transformation(fixture *test_fixture, transformation_run 
         dynamic_context.context_value =
             has_source ? sxml_sequence_from_item(source) : sxml_sequence_empty();
         dynamic_context.variable_bindings = run->stylesheet_parameters;
+        /* The source is fn:doc's too, under its URI. */
+        const sxml_available_document available = {
+            .document_uri = TEXT("http://example.com/x/source.xml"), .document_node = source};
+        if (has_source) {
+            dynamic_context.available_documents = (sxml_available_document_view){
+                .available_documents = &available, .available_document_count = 1};
+        }
         dynamic_context.trace_sink = (sxml_trace_sink){.state = &test_fixture->messages,
                                                        .operations = &message_sink_operations};
         const bool is_serialized = run->result_delivery == SXML_XSLT_RESULT_DELIVERY_SERIALIZED;
@@ -431,6 +438,14 @@ static const transformation_case transformation_cases[] = {
                                     "<xsl:template match='/'><xsl:value-of "
                                     "select='count(doc/node())'/></xsl:template>"),
           "<doc> <b/> <b/> </doc>", "2"),
+    /* 4.2.2: an available document is a source document too, and the
+       context item that is one stays one tree with fn:doc's. */
+    APPLY("strip-space-available",
+          STYLESHEET("<xsl:output method='text'/><xsl:strip-space elements='*'/>"
+                     "<xsl:template match='/'><xsl:value-of "
+                     "select=\"count(doc('source.xml')/doc/node()), doc('source.xml') is /\"/>"
+                     "</xsl:template>"),
+          "<doc> <b/> <b/> </doc>", "2 true"),
     APPLY("document", STYLESHEET("<xsl:output method='text'/><xsl:template match='/'><xsl:value-of "
                                  "select=\"sum(document('doc.xml')//v)\"/></xsl:template>"),
           SOURCE, "3"),

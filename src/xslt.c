@@ -673,6 +673,11 @@ typedef struct sxml_transformation {
     sxml_sequence invocation_values[SXML_INVOCATION_VALUE_COUNT];
     size_t invocation_value_count;
     sxml_xslt_result_writer *writer;
+    /* The request's available documents, stripped as the stylesheet
+       strips source documents (4.2.2); owned, NULL when they need no
+       copy. */
+    sxml_available_document *available_documents;
+    size_t available_document_count;
 } sxml_transformation;
 
 /* The source name of an error's location in memory of the stylesheet:
@@ -726,6 +731,13 @@ static void sxml_transformation_release(sxml_transformation *transformation) {
         sxml_ir_unit_release(transformation->unit);
     }
     transformation->unit = NULL;
+    for (size_t document_index = 0; document_index < transformation->available_document_count;
+         document_index += 1) {
+        sxml_item_release(transformation->available_documents[document_index].document_node);
+    }
+    sxml_allocator_release(processor->allocator, transformation->available_documents);
+    transformation->available_documents = NULL;
+    transformation->available_document_count = 0;
 }
 
 /* The unit of the request's invocation: the compiled one for
@@ -771,8 +783,68 @@ static sxml_status sxml_transformation_choose_unit(sxml_transformation *transfor
     return status;
 }
 
+/* The available documents are source documents too (4.2.2: the
+   stripping applies to documents fn:doc reads, whatever supplies them):
+   each is stripped once per transformation, as the documents a loader
+   parses are, so fn:doc gives one stripped tree per URI. */
+static sxml_status sxml_transformation_prime_documents(sxml_transformation *transformation) {
+    const sxml_available_document_view available =
+        transformation->request->dynamic_context.available_documents;
+    const sxml_xslt_stylesheet *stylesheet = transformation->stylesheet;
+    if (available.available_document_count == 0 || !sxml_xslt_prepares_documents(stylesheet->ast)) {
+        return SXML_STATUS_OK;
+    }
+    size_t byte_count = 0;
+    sxml_status status = sxml_size_multiply(available.available_document_count,
+                                            sizeof(sxml_available_document), &byte_count);
+    void *memory = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_allocator_allocate(
+            stylesheet->processor->allocator,
+            (sxml_allocation_request){.byte_count = byte_count,
+                                      .alignment = alignof(sxml_available_document)},
+            &memory);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    transformation->available_documents = memory;
+    for (size_t document_index = 0;
+         status == SXML_STATUS_OK && document_index < available.available_document_count;
+         document_index += 1) {
+        const sxml_available_document *document = &available.available_documents[document_index];
+        sxml_item stripped = {.representation = 0};
+        status = sxml_xslt_strip_document(&stylesheet->stripping, document->document_node,
+                                          &stripped);
+        if (status == SXML_STATUS_OK) {
+            transformation->available_documents[document_index] = (sxml_available_document){
+                .document_uri = document->document_uri, .document_node = stripped};
+            transformation->available_document_count += 1;
+        }
+    }
+    return status;
+}
+
+/* The stripped copy of node when it is an available document; NULL
+   otherwise. */
+static const sxml_item *sxml_transformation_find_stripped(const sxml_transformation *transformation,
+                                                          sxml_item node) {
+    const sxml_available_document_view available =
+        transformation->request->dynamic_context.available_documents;
+    for (size_t document_index = 0; document_index < transformation->available_document_count;
+         document_index += 1) {
+        if (sxml_generic_node_is_same_node((sxml_item_pair){
+                .first = available.available_documents[document_index].document_node,
+                .second = node})) {
+            return &transformation->available_documents[document_index].document_node;
+        }
+    }
+    return NULL;
+}
+
 /* The context value (2.4.2): the global context item, stripped
-   (4.2.2). */
+   (4.2.2); an available document's stripped copy when it is one, so the
+   context item and fn:doc of its URI stay one tree. */
 static sxml_status sxml_transformation_prime_context(sxml_transformation *transformation) {
     const sxml_xslt_transformation_request *request = transformation->request;
     const sxml_dynamic_context_configuration *context = &request->dynamic_context;
@@ -784,7 +856,14 @@ static sxml_status sxml_transformation_prime_context(sxml_transformation *transf
         context->context_value,
         (sxml_item_request){.item_index = 0, .error_record = request->error_record}, &item);
     sxml_item stripped = {.representation = 0};
-    if (status == SXML_STATUS_OK) {
+    const sxml_item *copy = NULL;
+    if (status == SXML_STATUS_OK && sxml_item_is_generic_node(item)) {
+        copy = sxml_transformation_find_stripped(transformation, item);
+    }
+    if (copy != NULL) {
+        stripped = *copy;
+        sxml_item_retain(stripped);
+    } else if (status == SXML_STATUS_OK) {
         status = sxml_xslt_strip_document(&transformation->stylesheet->stripping, item, &stripped);
     }
     if (status == SXML_STATUS_OK) {
@@ -1015,6 +1094,11 @@ static sxml_status sxml_transformation_run(const sxml_transformation *transforma
     context.variable_bindings = (sxml_variable_binding_view){
         .variable_bindings = transformation->bindings,
         .variable_binding_count = transformation->binding_count};
+    if (transformation->available_documents != NULL) {
+        context.available_documents = (sxml_available_document_view){
+            .available_documents = transformation->available_documents,
+            .available_document_count = transformation->available_document_count};
+    }
     const sxml_unit_evaluation_extension extension = {
         .function_table = sxml_function_library_as_table(stylesheet->function_library),
         .document_preparation =
@@ -1064,8 +1148,13 @@ sxml_status sxml_xslt_stylesheet_transform(const sxml_xslt_stylesheet *styleshee
                                           .bindings = NULL,
                                           .binding_count = 0,
                                           .invocation_value_count = 0,
-                                          .writer = NULL};
+                                          .writer = NULL,
+                                          .available_documents = NULL,
+                                          .available_document_count = 0};
     sxml_status status = sxml_transformation_choose_unit(&transformation);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_transformation_prime_documents(&transformation);
+    }
     if (status == SXML_STATUS_OK) {
         status = sxml_transformation_prime_context(&transformation);
     }

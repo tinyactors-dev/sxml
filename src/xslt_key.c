@@ -1485,19 +1485,23 @@ static sxml_status lower_copy_of(sxml_xslt_function_table *table,
    its ancestors, their attributes and namespaces, and the copy of the node
    in that new tree is returned; other items are copied as fn:copy-of
    copies them. The ancestors are wrapped from the innermost out
-   (fold-right), then the copy is found again level by level. */
+   (fold-right), then the copy is found again level by level: an attribute
+   or a namespace node by its name among its new parent's. */
 static const char snapshot_text[] =
     "for $item in $input return "
     "if (not($item instance of node()) or empty($item/..)) then copy-of($item) "
     "else let $ancestors := $item/ancestor::node(), "
-    "$leaf := if ($item instance of attribute()) then $item else copy-of($item), "
+    "$leaf := if ($item instance of (attribute() | namespace-node())) then $item "
+    "else copy-of($item), "
     "$tree := fold-right($ancestors, $leaf, fn($ancestor, $inner) { "
     "if ($ancestor instance of document-node()) then document { $inner } "
     "else element { node-name($ancestor) } { $ancestor/namespace::*, $ancestor/@*[not(. is "
     "$item)], $inner } }), "
     "$parent := fold-left(2 to count($ancestors), $tree, fn($node, $level) { $node/node() }) "
     "return if ($item instance of attribute()) "
-    "then $parent/@*[node-name(.) eq node-name($item)] else $parent/node()";
+    "then $parent/@*[node-name(.) eq node-name($item)] "
+    "else if ($item instance of namespace-node()) "
+    "then $parent/namespace::*[local-name(.) eq local-name($item)] else $parent/node()";
 
 static sxml_status lower_snapshot(sxml_xslt_function_table *table, table_function *function) {
     static const snippet_variable input_variables[] = {SXML_SNIPPET_VARIABLE_INPUT};
