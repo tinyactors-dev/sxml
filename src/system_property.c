@@ -78,7 +78,9 @@ static const sxml_system_property sxml_system_property_table[] = {
     SXML_BOOLEAN_PROPERTY("supports-invisible-xml", "", false),
     SXML_KNOWN_FUNCTION_PROPERTY("supports-dynamic-xquery", SXML_NAMESPACE_FUNCTIONS,
                                  "load-xquery-module", 1),
-    SXML_BOOLEAN_PROPERTY("supports-dynamic-xslt", "", false),
+    /* The optional feature sxml_xslt_transform_feature (D203). */
+    SXML_KNOWN_FUNCTION_PROPERTY("supports-dynamic-xslt", SXML_NAMESPACE_FUNCTIONS, "transform",
+                                 1),
     /* The optional feature sxml_expath_binary_feature (D198). */
     SXML_KNOWN_FUNCTION_PROPERTY("supports-binary-library", SXML_NAMESPACE_EXPATH_BINARY, "hex",
                                  1),

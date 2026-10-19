@@ -176,6 +176,9 @@ adaptive output method writes the result, one item on each line.
   File 4.0 functions are available with the prefix `file`
   (`http://expath.org/ns/file`). Relative paths are resolved against the
   working directory.
+- `fn:transform` runs an XSLT 4.0 stylesheet from the expression; its
+  `stylesheet-location` and `source-location` are read as `fn:doc` reads
+  files.
 - An EXPRESSION that starts with `-` must come after `--`.
 - An error is reported on standard error as
   `expression:LINE:COLUMN: err:CODE: description`.

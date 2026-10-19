@@ -839,7 +839,11 @@ static sxml_status compile_stylesheet(const sxml_function_call *call, transform_
     if (owns_node) {
         sxml_item_release(node);
     }
-    configuration.static_context.static_base_uri = state->stylesheet_base_uri.uri;
+    /* XPath 4.0, 2.2.1: the static base URI is absolute; a base URI
+       without a scheme (a host's relative document URI) is absent. */
+    if (sxml_uri_has_scheme(state->stylesheet_base_uri.uri)) {
+        configuration.static_context.static_base_uri = state->stylesheet_base_uri.uri;
+    }
     if (status == SXML_STATUS_OK) {
         status = sxml_xslt_stylesheet_create(state->processor->allocator, &configuration,
                                              &state->stylesheet);

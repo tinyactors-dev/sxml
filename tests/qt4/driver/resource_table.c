@@ -272,11 +272,14 @@ sxml_qt4_resolve_from_table(void *state, const sxml_resource_request *request,
     case SXML_RESOURCE_KIND_SCHEMA_DOCUMENT:
         return sxml_qt4_serve_schema(&table_request, resource);
     case SXML_RESOURCE_KIND_XSLT_MODULE:
+        /* The modules a stylesheet of fn:transform includes and imports
+           (packet 7.11, D203): the suite's files, as for documents. */
+        return sxml_qt4_serve_suite_file(table, uri, resource);
     case SXML_RESOURCE_KIND_XSLT_PACKAGE:
         break;
     }
     resource->description =
-        SXML_TEXT("The QT4 driver serves no XSLT modules or packages");
+        SXML_TEXT("The QT4 driver serves no XSLT packages");
     return SXML_STATUS_OK;
 }
 

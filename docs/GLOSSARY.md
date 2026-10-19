@@ -287,7 +287,8 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `principal_result` | The result of the invocation itself, as opposed to the result documents (XSLT 4.0, 2.4.6) |
 | `invocation_global` | A global of a stylesheet's IR unit through which the host supplies an invocation's run-time values (the template and tunnel parameter maps, the initial match selection, the initial function's arguments), bound by name as stylesheet parameters are (D157) |
 | `invocation_value` | The value src/xslt.c binds to an invocation global for one transformation (D157) |
-| `unit_evaluation_extension` | What a language adds to the shared evaluation of a unit (`src/xpath_api_internal.h`): XSLT's function table, document preparation and result writer (D157) |
+| `unit_evaluation_extension` | What a language adds to the shared evaluation of a unit (`src/xpath_api_internal.h`): XSLT's function table, document preparation and result writer (D157); a unit evaluation a native step asks for carries one in its global table, which the unit's code reads (fn:transform, D203) |
+| `machine_transformation` | An XSLT transformation primed for a unit evaluation on a running machine rather than one of its own (`src/xslt_transform_internal.h`, fn:transform, D203) |
 | `xslt_test_execution` | Running one planned XSLT 4.0 test case through `include/sxml/xslt.h` in a processor of its own and checking its assertions (`tests/xslt/driver/xslt_execution.h`, D157) |
 | `file_catalog` | The QT4 catalog the XSLT driver never loads, over the same suite files: what the QT4 resource table and assertions read files through (D157) |
 | `result_document` | A secondary result: what one `xsl:result-document` instruction delivers, identified by its absolute URI (XSLT 4.0, 26.2) |

@@ -131,6 +131,8 @@ sxml_add_cli_test(xpath_help EXIT_CODE 0 ARGUMENTS xpath --help)
 # EXPath Binary, always there, and EXPath File with --allow-file-access
 # only (packets 7.8, 7.9; D184, D198, D200).
 sxml_add_cli_test(xpath_binary EXIT_CODE 0 ARGUMENTS xpath "bin:hex('CAFE') => bin:to-octets(), string(bin:pack-integer(1000, 2))")
+# fn:transform, one of the optional features the query commands name (D203).
+sxml_add_cli_test(xquery_transform EXIT_CODE 0 ARGUMENTS xquery "--expression=transform({'stylesheet-location': 'xslt/modes.xsl', 'source-node': doc('books.xml'), 'initial-mode': QName('', 'titles'), 'delivery-format': 'serialized'})?output")
 sxml_add_cli_test(xpath_file_access EXIT_CODE 0 ARGUMENTS xpath --allow-file-access "file:exists('books.xml'), file:is-dir('xslt'), file:is-file('xslt'), file:read-text-lines('books.xml')[1]")
 sxml_add_cli_test(xpath_file_access_denied EXIT_CODE 1 ARGUMENTS xpath "file:exists('books.xml')")
 sxml_add_cli_test(xquery_file_write EXIT_CODE 0 ARGUMENTS xquery --allow-file-access --method=adaptive "--expression=let $file := file:create-temp-file('sxml-cli-', '.txt') return (file:write-text($file, codepoints-to-string((99, 97, 102, 233))), file:read-text($file), file:size($file), file:delete($file), file:exists($file))")
