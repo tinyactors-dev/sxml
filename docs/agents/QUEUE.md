@@ -11,18 +11,17 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
   All public headers are stable.
 - Passes: XP40 31,098, XQ40 42,490, XT40 8,973, XSD in scope 41,483 of
   41,518. Zero error outcomes in every suite.
-- Optional features (D189): `sxml.wasm` (core) 2,004,485 of 2,100,000
-  bytes, `sxml-full.wasm` 2,005,513 of 3,000,000. Gzipped budgets 735,000 /
-  1,050,000 were set at D138's ratio (owner to confirm). CLI module budget
-  7,000,000 / 1,500,000 (D202). Schema validation
-  (71 KB) and language-specific lowering parts (75 KB) could leave the core.
+- Optional features (D189). Budgets (D202, D207): core `sxml.wasm`
+  2,200,000 / 770,000 (2,120,223 now), `sxml-full.wasm` 4,000,000 /
+  1,400,000 (3,553,063 with fn:transform), CLI module 7,000,000 / 1,500,000.
+- EXPath Binary (D198) 646 of 646 and File (D200) 270 of 270 in XQ40; File
+  needs `--allow-file-access` in the CLI and has no Windows implementation.
 
 ## Running
 
 - 7.4b XSLT 1.0 follow-ups: exsl:node-set, docbook-002, TVTs in 1.0 elements, result-document xhtml.
 - 7.6a XSLT streamability analysis.
 - 7.11 fn:transform (after 7.3).
-- 7.9 EXPath File (7.8 Binary done, D198: bin-* 646 of 646).
 - 7.7b/7.7c XQuery Update 4.0 additions, fn:put, revalidation (after 7.7a, D187: upd-* 733 of 825).
 - 7.14 DTD processing (after 7.13, D195).
 
