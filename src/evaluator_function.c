@@ -1628,6 +1628,9 @@ typedef struct sxml_coercion_engine {
     sxml_dynamic_context *dynamic_context;
     const sxml_type_registry *registry;
     sxml_ir_coercion_role role;
+    /* The cast rules of a composite cast (sxml_coercion_request). */
+    bool applies_cast_rules;
+    sxml_namespace_binding_view namespace_bindings;
     sxml_error_record scratch_record;
     sxml_coercion_frame *frames;
     size_t frame_count;
@@ -1971,6 +1974,76 @@ static void sxml_coercion_become_derived_sequence(sxml_coercion_frame *frame,
     frame->is_derived = true;
 }
 
+/*
+ * ITEM under the cast rules (XPath 4.0, section 4.19.2.4): an item that
+ * matches its type stays; a generalized atomic, list or union type casts
+ * the atomized item ("J cast as T"); *is_decided is left false for an
+ * array, map or record type, whose parts the ITEM rules below rebuild
+ * (sections 4.19.2.5 to 4.19.2.7); any other type is XPTY0004.
+ */
+static sxml_status sxml_cast_step_item(sxml_coercion_engine *engine,
+                                       sxml_coercion_frame *frame,
+                                       sxml_emptiness *is_decided) {
+    bool *decided = &is_decided->is_empty;
+    *decided = true;
+    sxml_type_description description = {0};
+    sxml_atomicity atomicity = {.is_atomic = false};
+    sxml_status status = sxml_type_registry_describe_type(engine->registry,
+                                                          frame->item_type, &description);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_type_is_generalized_atomic(engine->registry, frame->item_type,
+                                                 &atomicity);
+    }
+    /* A cast to a record type makes a record of that type even from a map
+       that matches it, with every field (section 4.19.2.7). */
+    const bool makes_record = description.variety == SXML_TYPE_VARIETY_RECORD &&
+                              !description.variety_details.record_type.is_any_record &&
+                              sxml_item_get_kind(frame->item) == SXML_ITEM_KIND_MAP &&
+                              sxml_item_get_type_annotation(frame->item).index !=
+                                  frame->item_type.index;
+    sxml_type_match match = {.is_match = false};
+    if (status == SXML_STATUS_OK && !makes_record) {
+        status = sxml_coercion_item_matches(
+            engine, (sxml_coercion_question){.item = frame->item, .type = frame->item_type},
+            &match);
+    }
+    if (status != SXML_STATUS_OK || match.is_match) {
+        return status != SXML_STATUS_OK ? status : sxml_coercion_finish_unchanged(engine);
+    }
+    if (description.variety == SXML_TYPE_VARIETY_ARRAY ||
+        description.variety == SXML_TYPE_VARIETY_MAP ||
+        description.variety == SXML_TYPE_VARIETY_RECORD) {
+        *decided = false;
+        return SXML_STATUS_OK;
+    }
+    if (!atomicity.is_atomic && description.variety != SXML_TYPE_VARIETY_LIST) {
+        return sxml_report_coercion_error(engine->role, frame->error_record);
+    }
+    sxml_sequence atomized = sxml_sequence_empty();
+    status = sxml_evaluator_atomize(
+        engine->dynamic_context,
+        &(sxml_atomization_request){.value = sxml_sequence_from_item(frame->item),
+                                    .error_record = frame->error_record},
+        &atomized);
+    sxml_sequence cast = sxml_sequence_empty();
+    if (status == SXML_STATUS_OK) {
+        status = sxml_cast_make_value(
+            engine->dynamic_context->item_heap,
+            &(sxml_cast_request){.value = atomized,
+                                 .target_type = frame->item_type,
+                                 .allows_empty = false,
+                                 .namespace_bindings = engine->namespace_bindings,
+                                 .error_record = frame->error_record},
+            &cast);
+        sxml_sequence_release(atomized);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_coercion_finish(engine,
+                                (sxml_coercion_result){.is_unchanged = false, .value = cast});
+}
+
 /* ITEM: the item coercion rules of XPath 4.0, section 3.4.2, in order. */
 static sxml_status sxml_coercion_step_item(sxml_coercion_engine *engine,
                                            sxml_coercion_frame *frame) {
@@ -1979,9 +2052,16 @@ static sxml_status sxml_coercion_step_item(sxml_coercion_engine *engine,
     if (type.index == SXML_TYPE_ITEM) {
         return sxml_coercion_finish_unchanged(engine);
     }
+    sxml_status status = SXML_STATUS_OK;
+    if (engine->applies_cast_rules) {
+        sxml_emptiness is_decided = {.is_empty = true};
+        status = sxml_cast_step_item(engine, frame, &is_decided);
+        if (status != SXML_STATUS_OK || is_decided.is_empty) {
+            return status;
+        }
+    }
     sxml_type_description description;
-    sxml_status status =
-        sxml_type_registry_describe_type(engine->registry, type, &description);
+    status = sxml_type_registry_describe_type(engine->registry, type, &description);
     sxml_atomicity atomicity = {.is_atomic = false};
     if (status == SXML_STATUS_OK) {
         status = sxml_type_is_generalized_atomic(engine->registry, type, &atomicity);
@@ -2108,17 +2188,20 @@ static sxml_status sxml_coercion_step_item(sxml_coercion_engine *engine,
             break;
         }
         /* An entry whose key names no field is a type error (section
-           3.4.2: surplus entries are rejected). */
+           3.4.2: surplus entries are rejected); a cast drops it (section
+           4.19.2.7). */
         const sxml_type_matcher key_checker = {.dynamic_context = engine->dynamic_context,
                                                .registry = engine->registry,
                                                .error_record = NULL,
                                                .frames = NULL,
                                                .frame_count = 0,
                                                .frame_capacity = 0};
-        sxml_type_match keys_match = {.is_match = false};
-        status = sxml_map_keys_are_fields(
-            &key_checker, (sxml_record_question){.map = item, .record_type = type},
-            &keys_match);
+        sxml_type_match keys_match = {.is_match = engine->applies_cast_rules};
+        if (!engine->applies_cast_rules) {
+            status = sxml_map_keys_are_fields(
+                &key_checker, (sxml_record_question){.map = item, .record_type = type},
+                &keys_match);
+        }
         if (status != SXML_STATUS_OK) {
             return status;
         }
@@ -2171,7 +2254,10 @@ static sxml_status sxml_coercion_step_item(sxml_coercion_engine *engine,
         break;
     }
     /* No rule applies: the item stays, and the final match decides
-       (section 3.4). */
+       (section 3.4); a cast has no such item (section 4.19.2.4). */
+    if (engine->applies_cast_rules) {
+        return sxml_report_coercion_error(engine->role, frame->error_record);
+    }
     return sxml_coercion_finish_unchanged(engine);
 }
 
@@ -2284,8 +2370,17 @@ static const sxml_static_error sxml_duplicate_key_coercion_error = {
         "3.4.2)"),
 };
 
+static const sxml_static_error sxml_duplicate_key_cast_error = {
+    .error_status = SXML_STATUS_DYNAMIC_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XQDY0137"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "Casting the keys of a map makes two of them equal (XPath 4.0, section "
+        "4.19.2.6)"),
+};
+
 /* MAP_ENTRIES: each key to the key type, each value to the value type;
-   duplicate keys after that are XPTY0004 (section 3.4.2). Phase 0: the
+   duplicate keys after that are XPTY0004 (section 3.4.2), or XQDY0137
+   under the cast rules (section 4.19.2.6). Phase 0: the
    next key; 1: its result came; 2: the value's result came. */
 static sxml_status sxml_coercion_step_map(sxml_coercion_engine *engine,
                                           sxml_coercion_frame *frame) {
@@ -2358,7 +2453,9 @@ static sxml_status sxml_coercion_step_map(sxml_coercion_engine *engine,
             &map);
         if (status == SXML_STATUS_DYNAMIC_ERROR) {
             status = sxml_error_record_report(frame->error_record,
-                                              &sxml_duplicate_key_coercion_error);
+                                              engine->applies_cast_rules
+                                                  ? &sxml_duplicate_key_cast_error
+                                                  : &sxml_duplicate_key_coercion_error);
         }
     }
     if (memory != NULL) {
@@ -2483,6 +2580,8 @@ static sxml_status sxml_run_coercion(sxml_dynamic_context *dynamic_context,
         .dynamic_context = dynamic_context,
         .registry = sxml_item_heap_get_type_registry(dynamic_context->item_heap),
         .role = request->role,
+        .applies_cast_rules = request->applies_cast_rules,
+        .namespace_bindings = request->namespace_bindings,
         .scratch_record = {.value = NULL},
         .frames = NULL,
         .frame_count = 0,

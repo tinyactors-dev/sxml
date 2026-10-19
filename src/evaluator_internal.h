@@ -8,6 +8,7 @@
 #include "sxml/memory.h"
 #include "sxml/processor.h"
 #include "sxml/status.h"
+#include "sxml/tree.h"
 #include "sxml/types.h"
 #include "sxml/view.h"
 #include "sxml/xdm.h"
@@ -543,14 +544,25 @@ typedef struct sxml_coercion_request {
     sxml_sequence_type sequence_type;
     sxml_ir_coercion_role role;
     sxml_error_record *error_record;
+    /* True for the rules of a composite cast (glossary `composite_cast`;
+       XPath 4.0, section 4.19.2.4) instead of the coercion rules: an item
+       that does not match its item type is cast to it ("J cast as T"),
+       or XPTY0004 when the type is not a cast target; a record keeps only
+       the entries of its fields; duplicate map keys are XQDY0137. */
+    bool applies_cast_rules;
+    /* Under applies_cast_rules: the statically known namespaces for casts
+       to xs:QName (see sxml_cast_request). Borrowed for the call. */
+    sxml_namespace_binding_view namespace_bindings;
 } sxml_coercion_request;
 
 /*
  * Applies the coercion rules (XPath 4.0, section 3.4: atomization,
- * untypedAtomic casting, numeric and URI promotion, function coercion) to
- * request->value and writes the coerced value, owned, to *result. Returns
+ * untypedAtomic casting, numeric and URI promotion, function coercion), or
+ * the cast rules when request->applies_cast_rules, to request->value and
+ * writes the coerced value, owned, to *result. Returns
  * SXML_STATUS_TYPE_ERROR (XPTY0004, or the role's code) when the value
- * cannot be coerced, and the heap's failures.
+ * cannot be coerced, the errors of the casts it makes, and the heap's
+ * failures.
  */
 SXML_NODISCARD sxml_status sxml_evaluator_coerce(
     sxml_dynamic_context *dynamic_context,

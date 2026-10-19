@@ -328,3 +328,19 @@ function table, `xquery.h` stable, the D162 check of delayed features.
 - [x] Review agent pass (D11), findings fixed; the owner is told XQuery
   works (D11 goal). (agent review, D161; the larger follow-ups are
   listed there, the owner's questions in docs/LOG.md)
+
+## Later sweeps
+
+### 2.21 XPath and XQuery conformance sweep (implementation)
+After 5.14. Takes the "XPath and XQuery" leftovers of
+`docs/agents/QUEUE.md` in order of value: (a) casts and castable to
+array, map and record types (prod-CastExpr.composite,
+prod-CastableExpr.composite; XPath 4.0, section 4.19.2); (b)
+fn:function-lookup results that need the caller's focus; (c) path steps
+over JNodes (prod-AxisStep.J, prod-PathExpr.J); (d) fn:serialize option
+edge cases; (e) a built-in schema for the fn namespace (json-to-xml and
+analyze-string validation) and fn:doc with xsd-validation; (f)
+op-same-key and prod-NamedRecordTypeDecl. Files: the evaluator, the XPath
+lowering and the function library parts the fixes touch (never `src/xslt*`
+or `src/schema*`, which 4.19 and 5.14 own). Verification as D181 says;
+before/after counts in each commit and the LOG entry.

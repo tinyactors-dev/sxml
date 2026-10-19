@@ -2740,28 +2740,116 @@ static sxml_status sxml_make_array_value(sxml_dynamic_context *context,
     return status;
 }
 
-/* CAST and CASTABLE (XPath 4.0, section 4.17). */
+/* The answer of a castable expression whose cast raised status: false
+   for the cast's own errors (XPath 4.0, section 4.19.3: a failed
+   coercion, atomization or cast), status for the others. */
+static sxml_status sxml_castable_answer(sxml_status status, sxml_sequence *result) {
+    if (status == SXML_STATUS_OK || status == SXML_STATUS_DYNAMIC_ERROR ||
+        status == SXML_STATUS_TYPE_ERROR) {
+        *result = sxml_sequence_from_item(status == SXML_STATUS_OK ? sxml_atomic_item_true()
+                                                                   : sxml_atomic_item_false());
+        return SXML_STATUS_OK;
+    }
+    return status;
+}
+
+/* A cast to an array, map or record type (glossary `composite_cast`;
+   XPath 4.0, sections 4.19.2.5 to 4.19.2.7): value is coerced under the
+   cast rules to the target type, once or optionally. */
+typedef struct sxml_composite_cast {
+    const sxml_ir_expression *expression;
+    sxml_sequence value;
+    sxml_namespace_binding_view namespace_bindings;
+} sxml_composite_cast;
+
+static sxml_status sxml_make_composite_cast(sxml_dynamic_context *context,
+                                            const sxml_composite_cast *composite,
+                                            sxml_sequence *result) {
+    const sxml_ir_expression *expression = composite->expression;
+    const bool is_castable = expression->expression_kind == SXML_IR_EXPRESSION_KIND_CASTABLE;
+    sxml_error_record trial_record = {.value = NULL};
+    sxml_sequence cast = sxml_sequence_empty();
+    sxml_status status = sxml_evaluator_coerce(
+        context,
+        &(sxml_coercion_request){
+            .value = composite->value,
+            .sequence_type = {.item_type = expression->cast.target_type,
+                              .occurrence = expression->cast.allows_empty
+                                                ? SXML_OCCURRENCE_ZERO_OR_ONE
+                                                : SXML_OCCURRENCE_EXACTLY_ONE},
+            .role = SXML_IR_COERCION_ROLE_VARIABLE,
+            .error_record = is_castable ? &trial_record : context->error_record,
+            .applies_cast_rules = true,
+            .namespace_bindings = composite->namespace_bindings},
+        &cast);
+    if (!is_castable) {
+        if (status == SXML_STATUS_OK) {
+            *result = cast;
+        }
+        return status;
+    }
+    if (status == SXML_STATUS_OK) {
+        sxml_sequence_release(cast);
+    }
+    return sxml_castable_answer(status, result);
+}
+
+/* CAST and CASTABLE (XPath 4.0, section 4.19). */
 static sxml_status sxml_make_cast_value(sxml_dynamic_context *context,
                                         const sxml_ir_expression *expression,
                                         sxml_sequence *result) {
     const sxml_ir_cast *cast = &expression->cast;
+    const bool is_castable = expression->expression_kind == SXML_IR_EXPRESSION_KIND_CASTABLE;
+    /* A cast to xs:QName resolves prefixes with the statically known
+       namespaces (F&O 4.0, section 19.1.9; D84). */
+    const sxml_namespace_binding_view namespace_bindings =
+        sxml_ir_unit_get_static_namespaces(sxml_machine_top(context)->function->unit);
     sxml_sequence value = sxml_sequence_empty();
     sxml_sequence atomized = sxml_sequence_empty();
-    sxml_status status = sxml_machine_read_atom(context, cast->value, &value);
+    sxml_type_description target;
+    sxml_status status = sxml_type_registry_describe_type(
+        sxml_item_heap_get_type_registry(context->item_heap), cast->target_type, &target);
     if (status == SXML_STATUS_OK) {
+        status = sxml_machine_read_atom(context, cast->value, &value);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (target.variety == SXML_TYPE_VARIETY_ARRAY || target.variety == SXML_TYPE_VARIETY_MAP ||
+        target.variety == SXML_TYPE_VARIETY_RECORD) {
+        status = sxml_make_composite_cast(
+            context,
+            &(sxml_composite_cast){.expression = expression,
+                                   .value = value,
+                                   .namespace_bindings = namespace_bindings},
+            result);
+        return status;
+    }
+    if (is_castable) {
+        /* An error atomizing the operand makes it not castable (XPath 4.0,
+           section 4.19.3). */
+        sxml_error_record trial_record = {.value = NULL};
+        status = sxml_evaluator_atomize(
+            context,
+            &(sxml_atomization_request){.value = value, .error_record = &trial_record},
+            &atomized);
+        if (status == SXML_STATUS_TYPE_ERROR) {
+            return sxml_castable_answer(status, result);
+        }
+        if (status != SXML_STATUS_OK && context->error_record != NULL) {
+            *context->error_record = trial_record;
+        }
+    } else {
         status = sxml_machine_atomize(context, value, &atomized);
     }
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    /* A cast to xs:QName resolves prefixes with the statically known
-       namespaces (F&O 4.0, section 19.1.9; D84). */
     const sxml_cast_request request = {
         .value = atomized,
         .target_type = cast->target_type,
         .allows_empty = cast->allows_empty,
-        .namespace_bindings =
-            sxml_ir_unit_get_static_namespaces(sxml_machine_top(context)->function->unit),
+        .namespace_bindings = namespace_bindings,
         .error_record = context->error_record};
     if (expression->expression_kind == SXML_IR_EXPRESSION_KIND_CAST) {
         status = sxml_cast_make_value(context->item_heap, &request, result);

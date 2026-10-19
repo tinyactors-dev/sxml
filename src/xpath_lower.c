@@ -3624,8 +3624,33 @@ sxml_status sxml_xpath_lowerer_push_typed_variable(
                              .atom = value});
 }
 
-/* A cast target type name (XPath 4.0, section 4.17.1): an atomic, list or
-   union type; XPST0080 for the abstract ones, XPST0051 for others. */
+/* True when every alternative of a choice is a generalized atomic type
+   (XPath 4.0, section 3.2.3), the only choices a cast targets. */
+static sxml_status choice_is_generalized_atomic(const sxml_xpath_lowerer *state,
+                                                const sxml_type_description *choice,
+                                                sxml_emptiness *is_atomic) {
+    bool *atomic = &is_atomic->is_empty;
+    const sxml_type_identifier_view members = choice->variety_details.member_types;
+    *atomic = true;
+    for (size_t member_index = 0; *atomic && member_index < members.type_identifier_count;
+         member_index += 1) {
+        sxml_type_description member;
+        const sxml_status status = sxml_type_registry_describe_type(
+            state->type_registry, members.type_identifiers[member_index], &member);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        *atomic = member.variety == SXML_TYPE_VARIETY_ATOMIC ||
+                  member.variety == SXML_TYPE_VARIETY_UNION ||
+                  member.variety == SXML_TYPE_VARIETY_ENUMERATION;
+    }
+    return SXML_STATUS_OK;
+}
+
+/* A cast target (XPath 4.0, section 4.19.2): a generalized atomic, list
+   or union type, an array, map or record type (a composite cast), or the
+   name of one; XPST0080 for the abstract types and other item types,
+   XPST0051 (XQuery: XQST0052) for a name that is not a simple type. */
 static sxml_status resolve_cast_target(sxml_xpath_lowerer *state,
                                        sxml_ast_node_index target,
                                        sxml_type_identifier *target_type) {
@@ -3634,7 +3659,29 @@ static sxml_status resolve_cast_target(sxml_xpath_lowerer *state,
     const sxml_ast_kind kind = node_of(state, type_node)->kind;
     if (kind != SXML_AST_KIND_NCNAME && kind != SXML_AST_KIND_PREFIXED_NAME &&
         kind != SXML_AST_KIND_URI_QUALIFIED_NAME) {
-        return sxml_xpath_lowerer_resolve_item_type(state, type_node, target_type);
+        sxml_type_identifier item_type = {0};
+        sxml_type_description description = {0};
+        sxml_status status =
+            sxml_xpath_lowerer_resolve_item_type(state, type_node, &item_type);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_type_registry_describe_type(state->type_registry, item_type,
+                                                      &description);
+        }
+        sxml_emptiness is_atomic = {.is_empty = true};
+        if (status == SXML_STATUS_OK && description.variety == SXML_TYPE_VARIETY_CHOICE) {
+            status = choice_is_generalized_atomic(state, &description, &is_atomic);
+        }
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        if (!is_atomic.is_empty) {
+            return sxml_xpath_lowerer_report_static_error(
+                state, type_node,
+                SXML_BYTE_VIEW_FROM_LITERAL("XPST0080 a choice cast target must be a "
+                                            "generalized atomic type"));
+        }
+        *target_type = item_type;
+        return SXML_STATUS_OK;
     }
     sxml_xpath_resolved_name resolved = {0};
     sxml_status status = sxml_xpath_resolve_name(
@@ -3676,29 +3723,50 @@ static sxml_status resolve_cast_target(sxml_xpath_lowerer *state,
             SXML_BYTE_VIEW_FROM_LITERAL(
                 "XPST0080 the cast target type is abstract"));
     }
+    sxml_emptiness is_atomic = {.is_empty = true};
     switch (description.variety) {
+    case SXML_TYPE_VARIETY_CHOICE:
+        /* A named item type stands for its definition (section 4.19.2). */
+        status = choice_is_generalized_atomic(state, &description, &is_atomic);
+        if (status != SXML_STATUS_OK || !is_atomic.is_empty) {
+            return status != SXML_STATUS_OK
+                       ? status
+                       : sxml_xpath_lowerer_report_static_error(
+                             state, type_node,
+                             SXML_BYTE_VIEW_FROM_LITERAL(
+                                 "XPST0080 the cast target is not a generalized atomic "
+                                 "type"));
+        }
+        *target_type = type;
+        return SXML_STATUS_OK;
     case SXML_TYPE_VARIETY_ATOMIC:
     case SXML_TYPE_VARIETY_LIST:
     case SXML_TYPE_VARIETY_UNION:
     case SXML_TYPE_VARIETY_ENUMERATION:
-    case SXML_TYPE_VARIETY_CHOICE:
+    case SXML_TYPE_VARIETY_MAP:
+    case SXML_TYPE_VARIETY_ARRAY:
+    case SXML_TYPE_VARIETY_RECORD:
         *target_type = type;
         return SXML_STATUS_OK;
-    case SXML_TYPE_VARIETY_COMPLEX:
-    case SXML_TYPE_VARIETY_ANY_SIMPLE:
     case SXML_TYPE_VARIETY_ANY_ITEM:
     case SXML_TYPE_VARIETY_NODE_TEST:
     case SXML_TYPE_VARIETY_JSON_NODE_TEST:
     case SXML_TYPE_VARIETY_FUNCTION:
-    case SXML_TYPE_VARIETY_MAP:
-    case SXML_TYPE_VARIETY_ARRAY:
-    case SXML_TYPE_VARIETY_RECORD:
+        return sxml_xpath_lowerer_report_static_error(
+            state, type_node,
+            SXML_BYTE_VIEW_FROM_LITERAL("XPST0080 the cast target is not a simple, "
+                                        "array, map or record type"));
+    case SXML_TYPE_VARIETY_COMPLEX:
+    case SXML_TYPE_VARIETY_ANY_SIMPLE:
         break;
     }
+    /* XQuery 4.0, section 3.19.2: XQST0052 for a type that is not simple. */
     return sxml_xpath_lowerer_report_static_error(
         state, type_node,
-        SXML_BYTE_VIEW_FROM_LITERAL(
-            "XPST0051 the cast target is not a simple type"));
+        state->language == SXML_LANGUAGE_XQUERY
+            ? SXML_BYTE_VIEW_FROM_LITERAL("XQST0052 the cast target is not a simple type")
+            : SXML_BYTE_VIEW_FROM_LITERAL(
+                  "XPST0051 the cast target is not a simple type"));
 }
 
 /* A literal or variable reference as an ATOM expression. */
