@@ -4,6 +4,18 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 7.7b and 7.7c done (D205): fn:put as XQuery's updating function,
+  its documents handed to the update sink's new receive_put_document
+  after the changed trees (the library writes nothing; the QT4 driver
+  makes them available documents); revalidation lax and strict through
+  sxml_schema_validate_node on the rebuilt trees; copy-modify copies
+  untyped and without schema IDs (additive `strips_identity` in
+  `tree.h`, XSLT keeps its IDs); the 4.0 draft's updating return
+  clause. upd-* 733 to 787 of 825; XQ40 and XT40 otherwise unchanged.
+  Left: XUDY0038 on simple dynamic calls, 6 propagateNamespace cases
+  with other whitespace in their expected XML, 2 IDREF checks on
+  element validation, XQuery constructors under strip still keep IDs.
+
 - 7.14 done (D199): DTD processing. The external subset, external
   parameter and parsed entities (through an entity resolver in `xml.h`;
   the processor adapts its resource resolver, new resource kind

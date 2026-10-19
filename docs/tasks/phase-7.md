@@ -388,6 +388,17 @@ XUDY0038 for dynamic calls of updating function items), **7.7c** fn:put
 (13 cases) and revalidation lax and strict (40 cases, XUST0026 today).
 Not in this packet: copies with construction strip keep is-id and
 is-idrefs (src/tree.c), which 11 cases need gone.
+**7.7b and 7.7c done** 2026-10-19 (D205): fn:put through the update
+sink's receive_put_document (13 of 13), revalidation lax and strict
+(XUST0026 gone), copy-modify copies untyped and without schema IDs
+(`sxml_copy_request.strips_identity`, additive in `tree.h`), the 4.0
+draft's updating return clause, setToUntyped for content going into an
+untyped node. upd-* 733 to 787 of 825 (98.6 % of the 798 in scope); left:
+6 propagateNamespace cases whose expected whitespace differs from what
+their queries make, 2 that expect no IDREF check when an element is
+validated, 27 staticTyping, 3 for processors without a revalidation
+mode; XUDY0038 for simple dynamic calls of updating function items (no
+test).
 - **Header**: `xquery.h`, additive (7.7a). `tree.h`: none.
 - **After**: 7.7b after 7.7a; 7.7c after 7.7b.
 - **Owns**: `grammars/xquery` (the update productions), new

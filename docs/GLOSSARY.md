@@ -892,6 +892,8 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `insertion_sequence` | The nodes an insert or replace expression copies in, made from its source as element content: atomic runs become text, documents their children (XQuery Update Facility 3.0, 5.4.1) |
 | `update_sink` | The host interface that receives each tree an updating query changed, as its old and new roots (`sxml_xquery_update_sink`, D187) |
 | `updated_tree` | The new tree that applying a pending update list rebuilt from an old one, with every change made (D187) |
+| `put_document` | A document or element node fn:put stores, handed to the host's update sink with the absolute URI it resolved to after every changed tree; the host stores it, sxml writes nothing (`sxml_xquery_put_document`; XQuery Update Facility 3.0, 6.1; D205) |
+| `revalidation` | Schema validation of a tree an update rebuilt, in the revalidation mode the prolog declares (lax or strict; skip does none), whose validated copy becomes the updated tree (XQuery Update Facility 3.0, 3.2.4 upd:revalidate; D205) |
 | `full_text_selection` | The compiled form of an FTSelection: words, connectives, positional filters and match options, run as a match program (XQuery and XPath Full Text 3.0) |
 | `all_matches` | The set of matches a full-text selection gives over the tokens of a node, with their positions (XQuery and XPath Full Text 3.0, "AllMatches") |
 | `html_working_tree` | The HTML parser's mutable node table during tree construction (adoption agency, foster parenting), sent to the tree builder once the document ends |
