@@ -3,6 +3,10 @@ third_party/qt4tests/** linguist-vendored
 third_party/xslt40-test/** linguist-vendored
 third_party/xmlconf/** linguist-vendored
 third_party/xsdtests/** linguist-vendored
+third_party/tzdata/** linguist-vendored
+
+# Compiled TZif files of the timezone database (D209): binary data.
+third_party/tzdata/zoneinfo/** binary
 
 # Golden output of the sxml program is compared byte for byte: never convert
 # line endings (docs/CLI.md, D44).
